@@ -10,12 +10,17 @@ import {
   COMPOSITIONS,
   type LangChoice,
   type MotionChoice,
+  type PrototypeSearch,
   STUDY_MOMENTS,
   type ThemeChoice,
 } from "./search.js";
 import "./prototype.css";
 
-export function useProtoSearch() {
+/**
+ * The prototype's URL state. Typed here rather than inferred: the route tree imports the pages that call this,
+ * and that cycle would otherwise leave the inferred type as `any`.
+ */
+export function useProtoSearch(): PrototypeSearch {
   return useSearch({ from: "/prototype" });
 }
 
@@ -38,6 +43,7 @@ const NAV: readonly {
   { to: "/prototype", label: "Sign-off" },
   { to: "/prototype/tokens", label: "Tokens" },
   { to: "/prototype/primitives", label: "Primitives" },
+  { to: "/prototype/seal-sheet", label: "Seal sheet" },
 ];
 
 export function PrototypeLayout() {

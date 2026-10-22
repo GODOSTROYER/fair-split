@@ -36,7 +36,7 @@ import { MemberStatement } from "../statement.js";
 import "../moments.css";
 
 const STUDY_OF: Readonly<Record<StudyMomentId, readonly StudyId[]>> = {
-  "MM-5": ["MM-5", "MM-5-early"],
+  "MM-5": ["MM-5", "MM-5-early", "MM-5-disarmed"],
   "MM-1": ["MM-1"],
 };
 
@@ -323,19 +323,26 @@ function TwoKeysFrame({
   const keys = (
     phase === "signed-2" || phase === "sealed" || phase === "inked"
       ? 2
-      : ["signed-1", "waiting-2", "hold-2"].includes(phase)
+      : ["signed-1", "waiting-2", "hold-2", "armed-2", "confirm-2"].includes(phase)
         ? 1
         : 0
   ) as 0 | 1 | 2;
   const reduced = mode === "reduced";
 
+  // The slab reads "Release to sign" from armed until the person lets go inside; the phase then waits on
+  // approval.signed, with the face flush and the label back.
   const consoleSlab: SlabFrame = (() => {
     if (phase === "blocked") return { state: "unavailable", travel: 8 };
     if (phase === "rising" || phase === "ready")
       return { state: "rest", travel: 8 - val("slab.edge"), edgeOpacity: val("slab.edgeOpacity") };
-    if (phase === "released-early")
-      return { state: "rest", travel: val("slab.travel"), fill: val("slab.fill"), notice: "early" };
-    if (phase === "hold-1" && val("slab.fill") < 1)
+    if (phase === "released-early" || phase === "disarmed")
+      return {
+        state: "rest",
+        travel: val("slab.travel"),
+        fill: val("slab.fill"),
+        notice: phase === "disarmed" ? "disarmed" : "early",
+      };
+    if (phase === "hold-1")
       return {
         state: "holding",
         travel: val("slab.travel"),
@@ -343,19 +350,24 @@ function TwoKeysFrame({
         step: reduced ? val("slab.step") : undefined,
         edgeOpacity: val("slab.edgeOpacity"),
       };
-    return { state: "committed", travel: reduced ? 0 : 8, fill: 1, edgeOpacity: reduced ? 0 : 1 };
+    if (phase === "armed-1" && val("slab.released") < 1)
+      return { state: "armed", travel: val("slab.travel"), fill: 1, step: reduced ? 1 : undefined };
+    return { state: "committed", travel: reduced ? 0 : 8, fill: 1, edgeOpacity: val("slab.edgeOpacity") };
   })();
 
   const phoneSlab: SlabFrame = (() => {
-    if (!["hold-2", "signed-2", "sealed", "inked"].includes(phase)) return { state: "rest" };
-    if (phase === "hold-2" && val("phone.fill") < 1)
+    if (phase === "hold-2")
       return {
         state: "holding",
         travel: val("phone.travel"),
         fill: val("phone.fill"),
         step: reduced ? val("phone.step") : undefined,
       };
-    return { state: "committed", travel: reduced ? 0 : 8, fill: 1, edgeOpacity: reduced ? 0 : 1 };
+    if (phase === "armed-2" && val("phone.released") < 1)
+      return { state: "armed", travel: val("phone.travel"), fill: 1, step: reduced ? 1 : undefined };
+    if (["armed-2", "signed-2", "sealed", "inked"].includes(phase))
+      return { state: "committed", travel: reduced ? 0 : 8, fill: 1, edgeOpacity: reduced ? 0 : 1 };
+    return { state: "rest" };
   })();
 
   const sealFrame = {
@@ -475,7 +487,12 @@ function TwoKeysFrame({
                   hint={false}
                   testId="MM-5.slab.phone"
                   onCommit={() => undefined}
-                  confirm={{ title: coSign, body: <p>{coSignWhy}</p>, confirmLabel: m("M-BD-02.sign") }}
+                  confirm={{
+                    title: coSign,
+                    body: <p>{coSignWhy}</p>,
+                    confirmLabel: m("M-BD-02.sign"),
+                    seal: { batchSha256: BATCH_SHA256, keys: 1 },
+                  }}
                   frame={phoneSlab}
                 />
                 <p className="fs-t-caption mo-muted">

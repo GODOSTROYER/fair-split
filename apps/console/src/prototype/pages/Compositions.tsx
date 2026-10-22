@@ -61,7 +61,9 @@ function JudgeStage() {
   return (
     <div className="stage" data-testid="W-JG-01" data-state="ready">
       <header className="stage-bar">
-        <p className="stage-bar__notice fs-t-caption">{en("W-JG-01.notice", { date: SEASON.replayDate })}</p>
+        <p className="stage-bar__notice fs-t-caption">
+          {en("W-JG-01.notice.simulator", { date: SEASON.replayDate })}
+        </p>
         <div className="stage-bar__links">
           <button type="button" className="fs-link fs-t-label">
             {en("W-JG-01.whatsReal")}
@@ -516,7 +518,7 @@ function Statements() {
 const CHAIN = [
   {
     title: "W-PF-01.plate.invoice",
-    detail: `${SEASON.invoiceNumber}, MARKED_AS_PAID (sandbox), reference rc:${RATE_CARD_SHA256.slice(0, 16)}`,
+    detail: `${SEASON.invoiceNumber}, MARKED_AS_PAID (simulated sandbox), reference rc:${RATE_CARD_SHA256.slice(0, 16)}`,
     check: "W-PF-01.check.reference",
   },
   {
@@ -559,7 +561,7 @@ function Proof() {
       <main className="proof__col">
         <section className="proof__hero">
           <h1 className="proof__headline">
-            {en("W-PF-01.heroMarked", { amount: usd(INVOICE.totalCents), season: SEASON.code })}
+            {en("W-PF-01.heroMarked.simulator", { amount: usd(INVOICE.totalCents), season: SEASON.code })}
           </h1>
           <Seal batchSha256={BATCH_SHA256} size={320} keys={2} testId="W-PF-01.seal" />
           <p className="proof__mark">{SEASON.lot}</p>
@@ -643,7 +645,7 @@ function Proof() {
 
         <footer className="proof__footer fs-t-caption">
           <p>{en("W-PF-01.footer.recon")}</p>
-          <p>{en("W-PF-01.footer.sandbox")}</p>
+          <p>{en("W-PF-01.footer.simulator")}</p>
           <p>{en("W-PF-01.footer.priorArt")}</p>
         </footer>
       </main>

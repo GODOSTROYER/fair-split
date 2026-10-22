@@ -11,7 +11,16 @@ export interface PrototypeSearch {
   readonly lang?: LangChoice;
   readonly t?: number;
   readonly study?: string;
+  /** Seal sheet: the size every seal is drawn at. */
+  readonly px?: SheetSize;
+  /** Seal sheet: the seal being inspected, 1 to SHEET_COUNT, so a flag is a link. */
+  readonly seal?: number;
 }
+
+/** The seal sheet's sizes (S2 §2.12) and how many seeded digests it draws. */
+export const SHEET_SIZES = [64, 200, 320] as const;
+export type SheetSize = (typeof SHEET_SIZES)[number];
+export const SHEET_COUNT = 300;
 
 const pick = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
   typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
@@ -27,6 +36,10 @@ export function parseSearch(input: Record<string, unknown>): PrototypeSearch {
   if (lang) out.lang = lang;
   if (t !== undefined && Number.isFinite(t) && t >= 0) out.t = Math.round(t);
   if (typeof input.study === "string" && /^[A-Za-z0-9-]{1,32}$/.test(input.study)) out.study = input.study;
+  const px = Number(input.px);
+  if ((SHEET_SIZES as readonly number[]).includes(px)) out.px = px as SheetSize;
+  const sealNo = Number(input.seal);
+  if (Number.isInteger(sealNo) && sealNo >= 1 && sealNo <= SHEET_COUNT) out.seal = sealNo;
   return out;
 }
 

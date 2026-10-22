@@ -11,6 +11,7 @@ import {
   type WebSlabConfirm,
 } from "@fairsplit/ui-web";
 import {
+  BATCH_SHA256,
   HERO,
   HERO_RATE,
   HOLDS,
@@ -33,10 +34,11 @@ export const RC_SHORT = hashPrefix(RATE_CARD_SHA256);
 export const BATCH_RECIPIENTS = MEMBERS.filter((m) => m.rail === "paypal").map((m) => m.no);
 
 /**
- * The Approve slab's dialog route (S2 §2.7): the amount, the recipients and the consequence, then the key.
- * Every hold slab carries one, including still frames, so the contract never builds a slab without it.
+ * The Approve slab's dialog route (S2 §2.7): the amount, the recipients and the consequence, and the batch's
+ * seal at 96 px with its hash in groups of four, then the key. Every hold slab carries one, including still
+ * frames, so the contract never builds a slab without it.
  */
-export function approveConfirm(): WebSlabConfirm {
+export function approveConfirm(keys: 0 | 1 = 0): WebSlabConfirm {
   const count = TOTALS.paypalCount;
   return {
     title: en("confirm.title", { count }),
@@ -48,6 +50,7 @@ export function approveConfirm(): WebSlabConfirm {
         </p>
       </>
     ),
+    seal: { batchSha256: BATCH_SHA256, keys },
   };
 }
 

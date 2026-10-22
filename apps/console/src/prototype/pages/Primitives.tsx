@@ -6,6 +6,7 @@ import {
   AmountDisplay,
   ConfidenceRing,
   HoldCard,
+  type HoldChange,
   InkStamp,
   MassBalanceDial,
   Print,
@@ -20,9 +21,10 @@ import {
   UiProvider,
   useMotionMode,
 } from "@fairsplit/ui-web";
+import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { approveConfirm, heroLine, holdH1, holdH3, TwinEvidence } from "../content.js";
-import { BATCH_SHA256, PEOPLE, TOTALS } from "../fixture.js";
+import { approveConfirm, en, heroLine, holdH1, holdH3, TwinEvidence } from "../content.js";
+import { BATCH_SHA256, HOLDS, PEOPLE, TOTALS } from "../fixture.js";
 import { money, percent, phpEstimate, usd } from "../format.js";
 import { PageTitle, Section, useProtoSearch } from "../Shell.js";
 
@@ -62,6 +64,16 @@ function Themed({ children }: { readonly children: (theme: "tablea" | "adlaw") =
 }
 
 const noop = () => undefined;
+
+/** What the live d3 slab reports as it goes: the same changes the screens turn into MM-5 phases. */
+const HOLD_NOTES: Readonly<Record<HoldChange, string>> = {
+  holding: "d3 holding (hold-1): the face sinks a step each quarter",
+  armed: "d3 armed at 1,600 ms (armed-1): release inside to sign",
+  "released-early": "d3 released early (released-early): nothing signed",
+  disarmed: "d3 disarmed after arming (disarmed): nothing signed",
+  dialog: "d3 dialog route opened (confirm-1)",
+  dismissed: "d3 dialog closed without signing: back to ready",
+};
 
 const SLAB_FRAMES: readonly { readonly name: string; readonly note: string; readonly frame: SlabFrame }[] = [
   { name: "rest", note: "edges at full depth", frame: { state: "rest" } },
@@ -112,7 +124,8 @@ function LiveSlabs() {
           size="l"
           width={420}
           testId="W-DP-01.live.d3"
-          onCommit={() => note("d3 held 1,600 ms: signed")}
+          onCommit={() => note("d3 signed: released inside the armed slab, or confirmed in the dialog")}
+          onHoldChange={(change) => note(HOLD_NOTES[change])}
           confirm={approveConfirm()}
         />
       </div>
@@ -210,6 +223,17 @@ export function PrimitivesPage() {
         testId: `${id}.two`,
       },
     ] as const;
+  const h3Actions = (id: string) =>
+    [
+      {
+        kind: "slab",
+        label: en("W-TR-06.H3.action", { multa: HOLDS.H3.multa }),
+        srLabel: `${en("W-TR-06.H3.action", { multa: HOLDS.H3.multa })}, ${en("slab.consequence.line")}`,
+        onCommit: noop,
+        testId: `${id}.return`,
+        suggestedByClaude: true,
+      },
+    ] as const;
   const stamp = { initials: PEOPLE.treasurer.initials, name: PEOPLE.treasurer.name, at: "10:24" };
   const m = (key: Parameters<typeof translate>[1], values?: Parameters<typeof translate>[2]) =>
     translate(lang, key, values);
@@ -229,7 +253,7 @@ export function PrimitivesPage() {
 
       <Section
         title="Slab"
-        brief="A human commit. Depth equals consequence: d1 can be undone, d2 changes a line, d3 moves money or signs. Hold slabs commit in four ratchet steps and always offer a dialog route. Try Space, Enter and Tab."
+        brief="A human commit. Depth equals consequence: d1 can be undone, d2 changes a line, d3 moves money or signs. A hold slab sinks in four ratchet steps, clunks flush at 1.6 s and signs only when you let go on it; slide off, lose focus or scroll first and nothing is signed. It always offers the dialog route. Try Space, Enter and Tab."
         testId="W-DP-01.slab"
       >
         <LiveSlabs />
@@ -303,6 +327,19 @@ export function PrimitivesPage() {
                   frame={{ state: "holding", travel: 0, fill: 0.5, step: 0.5 }}
                 />
               </State>
+              <State name="armed" note="clunked flush; letting go signs">
+                <Slab
+                  label="Approve 8 payouts"
+                  srLabel="Approve 8 payouts"
+                  depth="d3"
+                  tone="jade"
+                  hold={1600}
+                  confirm={approveConfirm()}
+                  testId={`W-DP-01.slab.${theme}.armed`}
+                  onCommit={noop}
+                  frame={{ state: "armed", travel: 8, fill: 1 }}
+                />
+              </State>
               <State name="released early" note="springs back, says why">
                 <Slab
                   label="Approve 8 payouts"
@@ -314,6 +351,19 @@ export function PrimitivesPage() {
                   testId={`W-DP-01.slab.${theme}.early`}
                   onCommit={noop}
                   frame={{ state: "rest", notice: "early" }}
+                />
+              </State>
+              <State name="disarmed" note="armed, then slid off: nothing signed">
+                <Slab
+                  label="Approve 8 payouts"
+                  srLabel="Approve 8 payouts"
+                  depth="d3"
+                  tone="jade"
+                  hold={1600}
+                  confirm={approveConfirm()}
+                  testId={`W-DP-01.slab.${theme}.disarmed`}
+                  onCommit={noop}
+                  frame={{ state: "rest", notice: "disarmed" }}
                 />
               </State>
               <State name="committed d3" note="clunked flush, signed">
@@ -391,7 +441,18 @@ export function PrimitivesPage() {
 
       <Section
         title="Seal"
-        brief="Five hypotrochoid rings grown from the batch digest. Key 1 engraves the inner three, key 2 the outer two; unsigned bands are 1 px rule circles. The same digest draws the same seal on every surface."
+        brief={
+          <>
+            Five hypotrochoid rings grown from the batch digest. Key 1 engraves the inner three, key 2 the
+            outer two; unsigned bands are 1 px rule circles. Below 96 px it draws one ring per key. The same
+            digest draws the same seal on every surface, and the first 16 hex digits in groups of four let a
+            person match two screens by eye. Three hundred of them are on the{" "}
+            <Link to="/prototype/seal-sheet" search={(prev) => prev} className="fs-link">
+              seal sheet
+            </Link>
+            .
+          </>
+        }
         testId="W-DP-01.seal"
       >
         <SealDemo />
@@ -408,7 +469,16 @@ export function PrimitivesPage() {
                   />
                 </State>
               ))}
-              <State name="64 px" note="statement footer">
+              <State name="96 px with its hash" note="the dialog route">
+                <Seal
+                  batchSha256={BATCH_SHA256}
+                  size={96}
+                  keys={1}
+                  showHash
+                  testId={`W-DP-01.seal.${theme}.hash`}
+                />
+              </State>
+              <State name="64 px, two rings" note="statement footer">
                 <Seal batchSha256={BATCH_SHA256} size={64} keys={2} />
               </State>
             </div>
@@ -476,17 +546,17 @@ export function PrimitivesPage() {
             <HoldCard
               hold={holdH3("open")}
               gate="RESERVES_LINE"
-              actions={[
-                {
-                  kind: "slab",
-                  label: "Return the ₱200 as a credit",
-                  srLabel: "Return the ₱200 as a credit, changes a line",
-                  onCommit: noop,
-                  testId: "W-DP-01.hold.h3.return",
-                  suggestedByClaude: true,
-                },
-              ]}
+              actions={h3Actions("W-DP-01.hold.h3")}
               testId="W-DP-01.hold.h3"
+            />
+          </State>
+          <State name="excluded" note="carried to the next run, stamped; register §7">
+            <HoldCard
+              hold={holdH3("excluded")}
+              gate="RESERVES_LINE"
+              actions={h3Actions("W-DP-01.hold.excluded")}
+              resolution={stamp}
+              testId="W-DP-01.hold.excluded"
             />
           </State>
         </div>
