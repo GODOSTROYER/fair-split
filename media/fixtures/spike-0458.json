@@ -1,0 +1,258 @@
+{
+  "v": 1,
+  "id": "spike-0458",
+  "synthetic": true,
+  "image": {
+    "master": "masters/spike-0458.jpg",
+    "display": "slips/spike-0458.webp",
+    "width": 1024,
+    "height": 1536,
+    "sha256": "cb9ef34e97af4cb5aad37c05a1f24706673907e8dae4be5d69df6e7374c9f846"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands",
+    "reviewer": "Claude (WS-MEDIA agent)",
+    "reviewedAt": "2026-10-22T08:01:46.104Z",
+    "notes": [
+      "Every rectangle checked on the overlay and the per-field crop sheet: each crop holds exactly its value. Pending the user's review (register section 11)."
+    ]
+  },
+  "kind": "slip_page",
+  "template": "slip-v1",
+  "slips": [
+    {
+      "position": "FULL",
+      "serial": "0458",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.063,
+          0.124
+        ],
+        [
+          0.939,
+          0.1201
+        ],
+        [
+          0.9536,
+          0.9131
+        ],
+        [
+          0.0483,
+          0.9092
+        ]
+      ],
+      "fields": {
+        "serial": {
+          "rect": {
+            "x1": 0.779,
+            "y1": 0.1833,
+            "x2": 0.9067,
+            "y2": 0.2012
+          },
+          "value": "0458",
+          "visible": "0458",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "date": {
+          "rect": {
+            "x1": 0.4213,
+            "y1": 0.2429,
+            "x2": 0.8898,
+            "y2": 0.2746
+          },
+          "value": "07/14/2026",
+          "visible": "07/14/2026",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "rect": {
+            "x1": 0.4214,
+            "y1": 0.2762,
+            "x2": 0.8905,
+            "y2": 0.3086
+          },
+          "value": "M-018",
+          "visible": "M-018",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "rect": {
+            "x1": 0.4214,
+            "y1": 0.3093,
+            "x2": 0.8913,
+            "y2": 0.3416
+          },
+          "value": "TEODORO PACAÑA",
+          "visible": "TEODORO PACAÑA",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "rect": {
+            "x1": 0.4215,
+            "y1": 0.3438,
+            "x2": 0.892,
+            "y2": 0.3768
+          },
+          "value": "P-018-A",
+          "visible": "P-018-A",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "rect": {
+            "x1": 0.4216,
+            "y1": 0.3789,
+            "x2": 0.8928,
+            "y2": 0.4114
+          },
+          "value": "1 PP",
+          "visible": "1 PP",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "rect": {
+            "x1": 0.4216,
+            "y1": 0.4137,
+            "x2": 0.8936,
+            "y2": 0.4469
+          },
+          "value": "61.10",
+          "visible": "61.10",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "tare_kg": {
+          "rect": {
+            "x1": 0.4217,
+            "y1": 0.4489,
+            "x2": 0.8943,
+            "y2": 0.4821
+          },
+          "value": "0.30",
+          "visible": "0.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "rect": {
+            "x1": 0.4218,
+            "y1": 0.4842,
+            "x2": 0.8951,
+            "y2": 0.5179
+          },
+          "value": "60.80",
+          "visible": "60.80",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "mc_pct": {
+          "rect": {
+            "x1": 0.4219,
+            "y1": 0.5203,
+            "x2": 0.8959,
+            "y2": 0.5558
+          },
+          "value": "6.9",
+          "visible": "6.9",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "rect": {
+            "x1": 0.4219,
+            "y1": 0.5578,
+            "x2": 0.8968,
+            "y2": 0.5927
+          },
+          "value": "0.00",
+          "visible": "0.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "rect": {
+            "x1": 0.422,
+            "y1": 0.5947,
+            "x2": 0.8975,
+            "y2": 0.6277
+          },
+          "value": "60.80",
+          "visible": "60.80",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "rect": {
+            "x1": 0.4221,
+            "y1": 0.6301,
+            "x2": 0.8984,
+            "y2": 0.666
+          },
+          "value": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "deduction_1": {
+          "rect": {
+            "x1": 0.4222,
+            "y1": 0.6682,
+            "x2": 0.8991,
+            "y2": 0.6993
+          },
+          "value": "HAULING ₱91.20",
+          "visible": "HAULING ₱91.20",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "deduction_2": {
+          "rect": {
+            "x1": 0.4222,
+            "y1": 0.7013,
+            "x2": 0.8999,
+            "y2": 0.7364
+          },
+          "value": "MULTA (ABSENT GA) ₱200",
+          "visible": "MULTA (ABSENT GA) ₱200",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "signature": {
+          "rect": {
+            "x1": 0.105,
+            "y1": 0.7523,
+            "x2": 0.5108,
+            "y2": 0.8323
+          },
+          "value": "SIGNED",
+          "visible": "SIGNED",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "rect": {
+            "x1": 0.5454,
+            "y1": 0.7534,
+            "x2": 0.9009,
+            "y2": 0.8337
+          },
+          "value": "JD",
+          "visible": "JD",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        }
+      },
+      "traps": [
+        "DEDUCTION_MARKS"
+      ],
+      "duplicateOf": null
+    }
+  ]
+}

@@ -1,0 +1,258 @@
+{
+  "v": 1,
+  "id": "spike-0462",
+  "synthetic": true,
+  "image": {
+    "master": "masters/spike-0462.jpg",
+    "display": "slips/spike-0462.webp",
+    "width": 1199,
+    "height": 1312,
+    "sha256": "f62f63f1a2c973a3a7f915aa2d3693e54a402c5f3d549cbb20c2131e66e904da"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands",
+    "reviewer": "Claude (WS-MEDIA agent)",
+    "reviewedAt": "2026-10-22T08:01:50.591Z",
+    "notes": [
+      "Every rectangle checked on the overlay and the per-field crop sheet: each crop holds exactly its value. Pending the user's review (register section 11)."
+    ]
+  },
+  "kind": "slip_page",
+  "template": "slip-v1",
+  "slips": [
+    {
+      "position": "FULL",
+      "serial": "0462",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.1239,
+          0.072
+        ],
+        [
+          0.8495,
+          0.0652
+        ],
+        [
+          0.862,
+          0.9478
+        ],
+        [
+          0.1038,
+          0.9386
+        ]
+      ],
+      "fields": {
+        "serial": {
+          "rect": {
+            "x1": 0.6976,
+            "y1": 0.1398,
+            "x2": 0.8011,
+            "y2": 0.1623
+          },
+          "value": "0462",
+          "visible": "0462",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "date": {
+          "rect": {
+            "x1": 0.4077,
+            "y1": 0.2178,
+            "x2": 0.8091,
+            "y2": 0.2545
+          },
+          "value": "07/15/2026",
+          "visible": "07/15/2026",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "rect": {
+            "x1": 0.4076,
+            "y1": 0.2539,
+            "x2": 0.8095,
+            "y2": 0.2902
+          },
+          "value": "M-060",
+          "visible": "M-060",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "rect": {
+            "x1": 0.4076,
+            "y1": 0.2899,
+            "x2": 0.8099,
+            "y2": 0.3263
+          },
+          "value": "ARNEL SUMAMPAO",
+          "visible": "ARNEL SUMAMPAO",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "rect": {
+            "x1": 0.4075,
+            "y1": 0.3277,
+            "x2": 0.8104,
+            "y2": 0.3628
+          },
+          "value": "P-060-A",
+          "visible": "P-060-A",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "rect": {
+            "x1": 0.4074,
+            "y1": 0.3652,
+            "x2": 0.8108,
+            "y2": 0.399
+          },
+          "value": "1 PP",
+          "visible": "1 PP",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "rect": {
+            "x1": 0.4073,
+            "y1": 0.4015,
+            "x2": 0.8113,
+            "y2": 0.4376
+          },
+          "value": "64.80",
+          "visible": "6?.80",
+          "legibility": "SMUDGED",
+          "expect": "HUMAN"
+        },
+        "tare_kg": {
+          "rect": {
+            "x1": 0.4073,
+            "y1": 0.4398,
+            "x2": 0.8117,
+            "y2": 0.4745
+          },
+          "value": "0.30",
+          "visible": "0.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "rect": {
+            "x1": 0.4072,
+            "y1": 0.477,
+            "x2": 0.8122,
+            "y2": 0.5139
+          },
+          "value": "64.50",
+          "visible": "6?.50",
+          "legibility": "SMUDGED",
+          "expect": "HUMAN"
+        },
+        "mc_pct": {
+          "rect": {
+            "x1": 0.4071,
+            "y1": 0.5154,
+            "x2": 0.8127,
+            "y2": 0.5532
+          },
+          "value": "7.0",
+          "visible": "7.0",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "rect": {
+            "x1": 0.4071,
+            "y1": 0.555,
+            "x2": 0.8131,
+            "y2": 0.5906
+          },
+          "value": "0.00",
+          "visible": "0.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "rect": {
+            "x1": 0.407,
+            "y1": 0.5927,
+            "x2": 0.8136,
+            "y2": 0.6296
+          },
+          "value": "64.50",
+          "visible": "64.50",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "rect": {
+            "x1": 0.4069,
+            "y1": 0.6321,
+            "x2": 0.814,
+            "y2": 0.6686
+          },
+          "value": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "deduction_1": {
+          "rect": {
+            "x1": 0.4068,
+            "y1": 0.6712,
+            "x2": 0.8144,
+            "y2": 0.7017
+          },
+          "value": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO"
+        },
+        "deduction_2": {
+          "rect": {
+            "x1": 0.4068,
+            "y1": 0.7043,
+            "x2": 0.8148,
+            "y2": 0.7315
+          },
+          "value": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO"
+        },
+        "signature": {
+          "rect": {
+            "x1": 0.1733,
+            "y1": 0.7524,
+            "x2": 0.5261,
+            "y2": 0.8528
+          },
+          "value": "SIGNED",
+          "visible": "SIGNED",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "rect": {
+            "x1": 0.5463,
+            "y1": 0.7527,
+            "x2": 0.7976,
+            "y2": 0.8515
+          },
+          "value": "JD",
+          "visible": "JD",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        }
+      },
+      "traps": [
+        "WATER_STAIN"
+      ],
+      "duplicateOf": null
+    }
+  ]
+}

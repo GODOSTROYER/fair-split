@@ -1,0 +1,223 @@
+{
+  "v": 1,
+  "synthetic": true,
+  "notice": "Every clip is a synthetic voice generated with Gemini TTS from synthetic statement text for fictional members. Cebuano and Filipino wording is machine-translated and pending native review.",
+  "entries": [
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "s1",
+      "file": "audio/drafts/M-014/ceb/s1.m4a",
+      "duration_ms": 4505,
+      "text": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
+      "text_sha256": "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:37.567Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": true,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdIcnZaYXFPZUNPQ1E2OTRQX19qNzJBWRIXSHJ2WmFxT2VDT0NRNjk0UF9fajcyQVk",
+        "latency_ms": 7309,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "s1",
+      "file": "audio/M-014/ceb/s1.m4a",
+      "duration_ms": 4634,
+      "text": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
+      "text_sha256": "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:02.412Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chc5cnJaYXB2Nk8tZTQ2OTRQNWEycG1RURIXOXJyWmFwdjZPLWU0Njk0UDVhMnBtUVE",
+        "latency_ms": 11099,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "s5",
+      "file": "audio/drafts/M-014/ceb/s5.m4a",
+      "duration_ms": 11394,
+      "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos, pinaagi sa PayPal.",
+      "text_sha256": "9d3f83e593e5fee87c54170c758fa57e3fefe3c01233294ef304353b35492c7e",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:38.096Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": true,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdIcnZaYXFPZUNPQ1E2OTRQX19qNzJBWRIXSHJ2WmFxT2VDT0NRNjk0UF9fajcyQVk",
+        "latency_ms": 7309,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "s5",
+      "file": "audio/M-014/ceb/s5.m4a",
+      "duration_ms": 10997,
+      "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos, pinaagi sa PayPal.",
+      "text_sha256": "9d3f83e593e5fee87c54170c758fa57e3fefe3c01233294ef304353b35492c7e",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:02.948Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chc5cnJaYXB2Nk8tZTQ2OTRQNWEycG1RURIXOXJyWmFwdjZPLWU0Njk0UDVhMnBtUVE",
+        "latency_ms": 11099,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "en",
+      "slot": "s1",
+      "file": "audio/M-014/en/s1.m4a",
+      "duration_ms": 3687,
+      "text": "Good day, Nang Celing. Thank you for your hard work.",
+      "text_sha256": "76e1a408046ea7134dd9a1dda941c19254885752327652ea0a9c285796bb01f7",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:31:58.543Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdEYnZaYXZQcEpZZjc2OTRQaDdqSGtRWRIXRGJ2WmF2UHBKWWY3Njk0UGg3akhrUVk",
+        "latency_ms": 9420,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "en",
+      "slot": "s5",
+      "file": "audio/M-014/en/s5.m4a",
+      "duration_ms": 10098,
+      "text": "Your pay this season: sixty-four dollars and forty-five cents, about four thousand and twenty-eight pesos, by PayPal.",
+      "text_sha256": "a79b38b8365b55dffddad600cf798e61cdb62fb2e7a66d82853d820e1dda1c1f",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:31:58.960Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdEYnZaYXZQcEpZZjc2OTRQaDdqSGtRWRIXRGJ2WmF2UHBKWWY3Njk0UGg3akhrUVk",
+        "latency_ms": 9420,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "fil",
+      "slot": "s1",
+      "file": "audio/M-014/fil/s1.m4a",
+      "duration_ms": 4497,
+      "text": "Magandang araw po, Nang Celing. Salamat po sa inyong pagsisikap.",
+      "text_sha256": "60a8b8155a61ad197a2c787eecc682480913e8072fce7160ead32d57611a6c89",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:12.352Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdBN3ZaYXNlY0lxS2k2OTRQamQyS3FRWRIXQTd2WmFzZWNJcUtpNjk0UGpkMktxUVk",
+        "latency_ms": 8633,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "fil",
+      "slot": "s5",
+      "file": "audio/M-014/fil/s5.m4a",
+      "duration_ms": 9961,
+      "text": "Ang inyong bayad ngayong season: sixty-four dollars and forty-five cents, humigit-kumulang four thousand and twenty-eight pesos, sa PayPal.",
+      "text_sha256": "7ccaa4e14e25e72b92c15142d217e121740102caf4d5371f264990d750fdf830",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:12.982Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdBN3ZaYXNlY0lxS2k2OTRQamQyS3FRWRIXQTd2WmFzZWNJcUtpNjk0UGpkMktxUVk",
+        "latency_ms": 8633,
+        "sentences": 2
+      }
+    }
+  ]
+}

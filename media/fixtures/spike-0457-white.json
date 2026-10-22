@@ -1,0 +1,256 @@
+{
+  "v": 1,
+  "id": "spike-0457-white",
+  "synthetic": true,
+  "image": {
+    "master": "masters/spike-0457-white.jpg",
+    "display": "slips/spike-0457-white.webp",
+    "width": 1199,
+    "height": 1312,
+    "sha256": "4ddac00fa1c24fd40539b521e39b5ccd56c79c6cc9b85af5711a26c3748c5eeb"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands",
+    "reviewer": "Claude (WS-MEDIA agent)",
+    "reviewedAt": "2026-10-22T08:01:36.668Z",
+    "notes": [
+      "Every rectangle checked on the overlay and the per-field crop sheet: each crop holds exactly its value. Pending the user's review (register section 11)."
+    ]
+  },
+  "kind": "slip_page",
+  "template": "slip-v1",
+  "slips": [
+    {
+      "position": "FULL",
+      "serial": "0457",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.0788,
+          0.04
+        ],
+        [
+          0.882,
+          0.0354
+        ],
+        [
+          0.887,
+          0.9455
+        ],
+        [
+          0.0613,
+          0.9455
+        ]
+      ],
+      "fields": {
+        "serial": {
+          "rect": {
+            "x1": 0.7507,
+            "y1": 0.1557,
+            "x2": 0.8609,
+            "y2": 0.1833
+          },
+          "value": "0457",
+          "visible": "0457",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "date": {
+          "rect": {
+            "x1": 0.4001,
+            "y1": 0.1959,
+            "x2": 0.8477,
+            "y2": 0.2322
+          },
+          "value": "07/14/2026",
+          "visible": "07/14/2026",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "rect": {
+            "x1": 0.4002,
+            "y1": 0.2331,
+            "x2": 0.8478,
+            "y2": 0.2711
+          },
+          "value": "M-007",
+          "visible": "M-007",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "rect": {
+            "x1": 0.4003,
+            "y1": 0.2692,
+            "x2": 0.8478,
+            "y2": 0.3076
+          },
+          "value": "DIONISIO LAPINIG",
+          "visible": "DIONISIO LAPINIG",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "rect": {
+            "x1": 0.4004,
+            "y1": 0.3066,
+            "x2": 0.8479,
+            "y2": 0.3459
+          },
+          "value": "P-007-A",
+          "visible": "P-007-A",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "rect": {
+            "x1": 0.4005,
+            "y1": 0.345,
+            "x2": 0.848,
+            "y2": 0.3825
+          },
+          "value": "1 PP",
+          "visible": "1 PP",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "rect": {
+            "x1": 0.4006,
+            "y1": 0.3816,
+            "x2": 0.8481,
+            "y2": 0.4202
+          },
+          "value": "42.30",
+          "visible": "42.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "tare_kg": {
+          "rect": {
+            "x1": 0.4007,
+            "y1": 0.4209,
+            "x2": 0.8482,
+            "y2": 0.4587
+          },
+          "value": "0.30",
+          "visible": "0.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "rect": {
+            "x1": 0.4008,
+            "y1": 0.461,
+            "x2": 0.8482,
+            "y2": 0.4962
+          },
+          "value": "42.00",
+          "visible": "42.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "mc_pct": {
+          "rect": {
+            "x1": 0.4009,
+            "y1": 0.499,
+            "x2": 0.8483,
+            "y2": 0.5347
+          },
+          "value": "7.0",
+          "visible": "7.0",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "rect": {
+            "x1": 0.401,
+            "y1": 0.5374,
+            "x2": 0.8484,
+            "y2": 0.574
+          },
+          "value": "0.00",
+          "visible": "0.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "rect": {
+            "x1": 0.4011,
+            "y1": 0.5766,
+            "x2": 0.8485,
+            "y2": 0.6141
+          },
+          "value": "42.00",
+          "visible": "42.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "rect": {
+            "x1": 0.4012,
+            "y1": 0.6152,
+            "x2": 0.8486,
+            "y2": 0.6518
+          },
+          "value": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "deduction_1": {
+          "rect": {
+            "x1": 0.4013,
+            "y1": 0.6542,
+            "x2": 0.8486,
+            "y2": 0.6907
+          },
+          "value": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO"
+        },
+        "deduction_2": {
+          "rect": {
+            "x1": 0.4014,
+            "y1": 0.6929,
+            "x2": 0.8487,
+            "y2": 0.7318
+          },
+          "value": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO"
+        },
+        "signature": {
+          "rect": {
+            "x1": 0.1125,
+            "y1": 0.747,
+            "x2": 0.5525,
+            "y2": 0.8472
+          },
+          "value": "SIGNED",
+          "visible": "SIGNED",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "rect": {
+            "x1": 0.5649,
+            "y1": 0.7479,
+            "x2": 0.8489,
+            "y2": 0.8475
+          },
+          "value": "JD",
+          "visible": "JD",
+          "legibility": "CLEAR",
+          "expect": "AUTO"
+        }
+      },
+      "traps": [],
+      "duplicateOf": "spike-0457-pink"
+    }
+  ]
+}

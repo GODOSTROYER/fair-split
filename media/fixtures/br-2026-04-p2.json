@@ -1,0 +1,106 @@
+{
+  "v": 1,
+  "id": "br-2026-04-p2",
+  "synthetic": true,
+  "image": {
+    "master": "masters/br-2026-04-p2.jpg",
+    "display": "docs/br-2026-04-p2.webp",
+    "width": 1055,
+    "height": 1491,
+    "sha256": "23880a2e13f0a5dec6d0bf357d8e76621cfa1e9920255c19be89fc4f93067380"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "text-block detect v1 (dark-pixel line profile, blocks split on blank lines)",
+    "reviewer": "Claude (WS-MEDIA agent)",
+    "reviewedAt": "2026-10-22T08:02:07.658Z",
+    "notes": [
+      "Every rectangle checked on the overlay and the per-field crop sheet: each crop holds exactly its value. Pending the user's review (register section 11)."
+    ]
+  },
+  "kind": "rate_card_page",
+  "page": 2,
+  "textLayer": "docs/BR-2026-04.text.json",
+  "blocks": [
+    {
+      "id": "R0",
+      "rect": {
+        "x1": 0.0559,
+        "y1": 0.112,
+        "x2": 0.9403,
+        "y2": 0.1985
+      },
+      "text": "R0  Premium ug bonus (Premium and quality bonus)\nThe premium paid by the buyer shall be shared among members in proportion to verified kilos delivered. No deduction of any kind shall be made from the premium. The quality bonus shall be shared in proportion to verified Grade 1 kilos."
+    },
+    {
+      "id": "R1",
+      "rect": {
+        "x1": 0.0569,
+        "y1": 0.2146,
+        "x2": 0.9403,
+        "y2": 0.2783
+      },
+      "text": "R1  CBU (Capital build-up)\nCapital build-up (CBU): 5% of the member's quality bonus, until the member's paid-up CBU reaches ₱5,000."
+    },
+    {
+      "id": "R2",
+      "rect": {
+        "x1": 0.0569,
+        "y1": 0.2978,
+        "x2": 0.8758,
+        "y2": 0.3427
+      },
+      "text": "R2  Hakot (Hauling)\nHauling: ₱1.50 per kilo of net weight for deliveries collected at a purok pickup point."
+    },
+    {
+      "id": "R3",
+      "rect": {
+        "x1": 0.0569,
+        "y1": 0.3608,
+        "x2": 0.9374,
+        "y2": 0.4266
+      },
+      "text": "R3  Utang (Loan)\nLoan repayment: only with a signed Authority to Deduct on file, and not more than 50% of the member's quality bonus."
+    },
+    {
+      "id": "R4",
+      "rect": {
+        "x1": 0.0578,
+        "y1": 0.4453,
+        "x2": 0.9327,
+        "y2": 0.5117
+      },
+      "text": "R4  Bale (Cash advance)\nCash advance: only against a numbered voucher, and not more than 30% of the member's quality bonus."
+    },
+    {
+      "id": "R5",
+      "rect": {
+        "x1": 0.0578,
+        "y1": 0.5285,
+        "x2": 0.9441,
+        "y2": 0.5922
+      },
+      "text": "R5  Pirma sa Chairperson (Co-signature)\nThe Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold."
+    },
+    {
+      "id": "R6",
+      "rect": {
+        "x1": 0.0578,
+        "y1": 0.6137,
+        "x2": 0.9412,
+        "y2": 0.7009
+      },
+      "text": "R6  Mga utlanan (Limits)\nVerified kilos must agree with kilos shipped within ±2.0%. A member's season kilos may not exceed 1.6 kg per registered tree. Any reading below 0.85 confidence shall be confirmed by a person."
+    },
+    {
+      "id": "CLOSED",
+      "rect": {
+        "x1": 0.0578,
+        "y1": 0.7176,
+        "x2": 0.8711,
+        "y2": 0.7854
+      },
+      "text": "Sirado nga lista (Closed list)\nNo deduction other than those in this Schedule shall be applied to any member payout. This Schedule shall not be amended during Season 2026-A."
+    }
+  ]
+}

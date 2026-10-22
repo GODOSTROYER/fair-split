@@ -3,6 +3,27 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "description": "Synthetic evidence media for Fair Split: slip template v1, Codex image pipeline, reviewed crop fixtures and Gemini TTS audio. Every asset is synthetic and labelled.",
+  "exports": {
+    "./template": {
+      "types": "./src/template/slip-template.ts",
+      "default": "./src/template/slip-template.ts"
+    },
+    "./fixtures": {
+      "types": "./src/fixtures/schema.ts",
+      "default": "./src/fixtures/schema.ts"
+    },
+    "./audio": {
+      "types": "./src/tts/manifest.ts",
+      "default": "./src/tts/manifest.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "imagegen": "tsx ../tools/imagegen.ts",
+    "tts": "tsx ../tools/tts.ts"
+  },
   "dependencies": {
     "@google/genai": "catalog:",
     "sharp": "catalog:",
