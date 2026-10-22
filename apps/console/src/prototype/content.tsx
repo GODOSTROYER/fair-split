@@ -2,11 +2,19 @@
 // every figure pre-formatted, every sentence from @fairsplit/i18n.
 
 import { type Lang, type MessageKey, translate, type Values } from "@fairsplit/i18n";
-import { Glyph, type HoldView, Paper, Print, type StatementLineView } from "@fairsplit/ui-web";
+import {
+  Glyph,
+  type HoldView,
+  Paper,
+  Print,
+  type StatementLineView,
+  type WebSlabConfirm,
+} from "@fairsplit/ui-web";
 import {
   HERO,
   HERO_RATE,
   HOLDS,
+  INVOICE,
   lineAfter,
   lineWithDuplicate,
   MEMBERS,
@@ -20,6 +28,39 @@ import { SlipSheet } from "./slips.js";
 
 export const en = (key: MessageKey, values?: Values) => translate("en", key, values);
 export const RC_SHORT = hashPrefix(RATE_CARD_SHA256);
+
+/** The paid-by-PayPal members in the batch, as the dialog lists them. */
+export const BATCH_RECIPIENTS = MEMBERS.filter((m) => m.rail === "paypal").map((m) => m.no);
+
+/**
+ * The Approve slab's dialog route (S2 §2.7): the amount, the recipients and the consequence, then the key.
+ * Every hold slab carries one, including still frames, so the contract never builds a slab without it.
+ */
+export function approveConfirm(): WebSlabConfirm {
+  const count = TOTALS.paypalCount;
+  return {
+    title: en("confirm.title", { count }),
+    body: (
+      <>
+        <p>{en("confirm.body", { amount: usd(TOTALS.paypalCents), count })}</p>
+        <p className="proto-dialog-note">
+          {en("confirm.recipients")}: {BATCH_RECIPIENTS.join(", ")}.
+        </p>
+      </>
+    ),
+  };
+}
+
+/** W-TR-07's fee line: published rates applied to the batch, every figure from the fixture via `usd`. */
+export function feeFigures() {
+  return {
+    sandboxEach: usd(TOTALS.feeSandboxEachCents),
+    count: TOTALS.paypalCount,
+    sandboxTotal: usd(TOTALS.feeSandboxCents),
+    production: usd(TOTALS.feeProductionCents),
+    disbursement: usd(INVOICE.disbursementCents),
+  } as const;
+}
 
 /** The hero statement line (M-014), as the statement DTO will carry it. */
 export function heroLine(): StatementLineView {

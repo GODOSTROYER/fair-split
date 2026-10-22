@@ -5,8 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AmountDisplay,
   feedback,
+  HOLD_CARD_STATES,
   HoldCard,
   type HoldView,
+  isFinalHoldState,
   MassBalanceDial,
   MomentRoot,
   Print,
@@ -226,6 +228,49 @@ describe("HoldCard", () => {
     expect(screen.getByTestId("h1").dataset.state).toBe("resolved");
     expect(screen.getByTestId("h1.resolution").textContent).toContain("Resolved by AS at 10:24");
     expect(screen.queryByTestId("h1.once")).toBeNull();
+  });
+
+  it("an excluded hold is decided too: flush, stamped, carried over, with no actions", () => {
+    const onCommit = vi.fn();
+    render(
+      wrap(
+        <HoldCard
+          hold={{ ...hold, state: "excluded" }}
+          gate="RESERVES_LINE"
+          actions={actions(onCommit)}
+          resolution={{ initials: "AS", name: "Analyn R. Sumalinog", at: "10:31" }}
+          testId="h1"
+        />,
+      ),
+    );
+    expect(screen.getByTestId("h1").dataset.state).toBe("excluded");
+    const resolution = screen.getByTestId("h1.resolution");
+    expect(resolution.textContent).toContain("Excluded, carried over");
+    expect(resolution.querySelector(".fs-stamp")?.getAttribute("aria-label")).toBe(
+      "Analyn R. Sumalinog, 10:31",
+    );
+    expect(screen.queryByTestId("h1.once")).toBeNull();
+    expect(screen.queryByTestId("h1.two")).toBeNull();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("a resolved hold without a stamp still reads as resolved and offers no actions", () => {
+    render(
+      wrap(
+        <HoldCard
+          hold={{ ...hold, state: "resolved" }}
+          gate="BLOCKS_APPROVAL"
+          actions={actions()}
+          testId="h1"
+        />,
+      ),
+    );
+    expect(screen.getByTestId("h1.resolution").textContent).toBe("Resolved");
+    expect(screen.queryByTestId("h1.once")).toBeNull();
+  });
+
+  it("every state the card can show is in the contract, and only resolved and excluded are final", () => {
+    expect(HOLD_CARD_STATES.filter(isFinalHoldState)).toEqual(["resolved", "excluded"]);
   });
 
   it("names the Chair when he is involved", () => {

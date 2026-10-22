@@ -2,6 +2,9 @@
 // parallelogram edges whose depth equals the consequence: d1 reversible, d2 changes a line, d3 moves money or
 // signs. Pressing moves the face by (t, t) and collapses the edges, transform-only. Hold slabs commit after
 // 1,600 ms (or 1,200 on the Chair's phone) in four ratchet steps, and always offer a dialog route.
+//
+// Every way to commit (release, a finished hold, the dialog) passes one gate: a still frame, an unavailable
+// slab and a bolted slab never commit, and a committed slab never commits twice (S2 §2.7).
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { DEPTH, TIMING } from "@fairsplit/motion/presets";
@@ -9,25 +12,30 @@ import { spring, tween } from "@fairsplit/motion/web";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
 import { useMotionMode, useT } from "./context.js";
-import { edgeScale, type HoldProgress, holdQuarter, type SlabProps, type SlabState } from "./contract.js";
+import {
+  edgeScale,
+  type HoldProgress,
+  holdQuarter,
+  type SlabConfirm,
+  type SlabProps,
+  type SlabState,
+} from "./contract.js";
 import { feedback } from "./feedback.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
 
-export interface SlabConfirm {
-  readonly title: string;
-  readonly body: ReactNode;
-  readonly confirmLabel?: string;
-  readonly cancelLabel?: string;
-}
+/** The dialog route on web: the body is any node (the amount, the recipient list, the consequence). */
+export type WebSlabConfirm = SlabConfirm<ReactNode>;
 
 /** A still frame for galleries and motion studies: no interaction, values set directly. */
 export interface SlabFrame {
@@ -42,23 +50,25 @@ export interface SlabFrame {
   readonly showEarlyHint?: boolean;
 }
 
-export interface WebSlabProps extends SlabProps {
+/** Web presentation on top of the shared contract. */
+export interface WebSlabOptions {
   /** 48 px (m) on the console, 64 px (l) for Approve, Paminawa and Pirmahi. */
   readonly size?: "m" | "l";
   readonly width?: number | string;
   readonly glyph?: GlyphName;
-  /** The accessible alternative for hold slabs: opened by Enter or the visible link. */
-  readonly confirm?: SlabConfirm;
   /** Pressing a bolted slab refuses: called after the shake. */
   readonly onRefuse?: () => void;
   readonly onReasonClick?: () => void;
   /** A d2 commit leaves the face flush until the screen moves on. */
   readonly stayDown?: boolean;
   readonly frame?: SlabFrame;
-  /** Below the hold slab: "Hold to approve". Set false to hide the caption. */
+  /** Below the hold slab: "Hold to approve". Set false to hide that caption; the dialog link always stays. */
   readonly hint?: boolean;
   readonly className?: string;
 }
+
+/** The contract with web nodes in the dialog. A hold slab without `confirm` does not type-check. */
+export type WebSlabProps = SlabProps<ReactNode> & WebSlabOptions;
 
 const STEP_TRAVEL = TIMING.holdStepTravel;
 
@@ -90,12 +100,27 @@ export function Slab(props: WebSlabProps) {
   const d = DEPTH[depth];
   const unavailable = unavailableReason !== undefined;
   const baseState: SlabState = unavailable ? "unavailable" : bolted ? "bolted" : "rest";
+  // The types require `confirm` on a hold slab; an untyped caller still gets a route, built from the labels.
+  const dialog: WebSlabConfirm | undefined = hold ? (confirm ?? { title: label, body: srLabel }) : undefined;
 
-  const [liveState, setLiveState] = useState<SlabState>(baseState);
+  const [liveState, setLiveStateNow] = useState<SlabState>(baseState);
   const [progress, setProgress] = useState<HoldProgress>(0);
   const [earlyHint, setEarlyHint] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const state = frame?.state ?? liveState;
+
+  // The live state as of the latest change, so a second commit in the same tick sees the first.
+  const liveRef = useRef<SlabState>(baseState);
+  const setLiveState = useCallback((next: SlabState) => {
+    liveRef.current = next;
+    setLiveStateNow(next);
+  }, []);
+  // Hold timers and the dialog outlive the render that started them, so they read the slab's availability
+  // and the caller's latest onCommit from here, synced before paint.
+  const latest = useRef({ still: frame !== undefined, unavailable, bolted, onCommit });
+  useLayoutEffect(() => {
+    latest.current = { still: frame !== undefined, unavailable, bolted, onCommit };
+  });
 
   const travel = useMotionValue(frame?.travel ?? (unavailable ? d : 0));
   const fill = useMotionValue(frame?.fill ?? 0);
@@ -125,29 +150,6 @@ export function Slab(props: WebSlabProps) {
     setStepValue(frame.step ?? 0);
   }, [frame, travel, fill, edgeOpacity, d]);
 
-  // Availability changes: a slab that becomes available rises on the settle spring (MM-5 "rising").
-  const previousBase = useRef(baseState);
-  useEffect(() => {
-    if (frame) return;
-    const was = previousBase.current;
-    previousBase.current = baseState;
-    if (was === baseState) return;
-    setLiveState(baseState);
-    if (baseState === "unavailable") {
-      travel.set(d);
-      return;
-    }
-    if (was === "unavailable") {
-      if (reduced) {
-        travel.set(0);
-        edgeOpacity.set(0);
-        animate(edgeOpacity, 1, tween("edgesFade"));
-      } else {
-        animate(travel, 0, spring("settle"));
-      }
-    }
-  }, [baseState, frame, travel, edgeOpacity, reduced, d]);
-
   const clearTimers = useCallback(() => {
     for (const id of timers.current) clearTimeout(id);
     timers.current = [];
@@ -166,8 +168,15 @@ export function Slab(props: WebSlabProps) {
     [reduced, travel],
   );
 
+  /** S2 §2.7: never from a still frame, an unavailable or a bolted slab, and never twice. */
+  const canCommit = useCallback(() => {
+    const now = latest.current;
+    return !now.still && !now.unavailable && !now.bolted && liveRef.current !== "committed";
+  }, []);
+
   const commit = useCallback(() => {
-    onCommit();
+    if (!canCommit()) return;
+    latest.current.onCommit();
     if (stayDown) {
       setLiveState("committed");
       if (reduced) animate(edgeOpacity, 0, tween("edgesFade"));
@@ -175,7 +184,7 @@ export function Slab(props: WebSlabProps) {
       setLiveState("rest");
       moveTo(0, "rebound");
     }
-  }, [onCommit, stayDown, reduced, edgeOpacity, moveTo]);
+  }, [canCommit, stayDown, setLiveState, reduced, edgeOpacity, moveTo]);
 
   // ------------------------------------------------------------------- hold-to-commit (d3)
   const startHold = useCallback(() => {
@@ -202,6 +211,7 @@ export function Slab(props: WebSlabProps) {
     timers.current.push(
       setTimeout(() => {
         holding.current = false;
+        if (!canCommit()) return;
         setProgress(100);
         setStepValue(1);
         moveTo(d, "press60");
@@ -209,7 +219,7 @@ export function Slab(props: WebSlabProps) {
         commit();
       }, hold),
     );
-  }, [hold, fill, moveTo, d, commit]);
+  }, [hold, setLiveState, fill, moveTo, canCommit, d, commit]);
 
   const cancelHold = useCallback(() => {
     if (!holding.current) return;
@@ -221,7 +231,17 @@ export function Slab(props: WebSlabProps) {
     setEarlyHint(true);
     animate(fill, 0, reduced ? tween("reduced") : tween("retract200"));
     moveTo(0, "rebound");
-  }, [clearTimers, fill, reduced, moveTo]);
+  }, [clearTimers, setLiveState, fill, reduced, moveTo]);
+
+  /** Drops pending steps and any hold in progress, silently: the slab's availability changed under it. */
+  const abandonHold = useCallback(() => {
+    clearTimers();
+    if (!holding.current) return;
+    holding.current = false;
+    setProgress(0);
+    setStepValue(0);
+    fill.jump(0);
+  }, [clearTimers, fill]);
 
   useEffect(() => {
     if (!hold) return;
@@ -231,6 +251,36 @@ export function Slab(props: WebSlabProps) {
     document.addEventListener("visibilitychange", onHide);
     return () => document.removeEventListener("visibilitychange", onHide);
   }, [hold, cancelHold]);
+
+  // Availability changes. A slab that becomes available rises on the settle spring (MM-5 "rising"); one that
+  // becomes unavailable or bolted abandons a hold in progress and closes its dialog: neither may sign now.
+  const previousBase = useRef(baseState);
+  useEffect(() => {
+    if (frame) return;
+    const was = previousBase.current;
+    previousBase.current = baseState;
+    if (was === baseState) return;
+    abandonHold();
+    setDialogOpen(false);
+    setLiveState(baseState);
+    if (baseState === "unavailable") {
+      travel.jump(d);
+      return;
+    }
+    if (baseState === "bolted") {
+      travel.jump(0);
+      return;
+    }
+    if (was === "unavailable") {
+      if (reduced) {
+        travel.jump(0);
+        edgeOpacity.set(0);
+        animate(edgeOpacity, 1, tween("edgesFade"));
+      } else {
+        animate(travel, 0, spring("settle"));
+      }
+    }
+  }, [baseState, frame, abandonHold, setLiveState, travel, edgeOpacity, reduced, d]);
 
   // ------------------------------------------------------------------- press (d1, d2) and refusal
   const pressed = useRef(false);
@@ -244,10 +294,11 @@ export function Slab(props: WebSlabProps) {
         onRefuse?.();
       }, 140),
     );
-  }, [onRefuse]);
+  }, [setLiveState, onRefuse]);
 
   const pressStart = useCallback(() => {
-    if (state === "unavailable" || state === "committed") return;
+    const now = liveRef.current;
+    if (unavailable || now === "unavailable" || now === "committed") return;
     if (bolted) {
       refuse();
       return;
@@ -260,7 +311,7 @@ export function Slab(props: WebSlabProps) {
     setLiveState("pressed");
     moveTo(d, "press");
     if (depth === "d1") feedback.play("slab.d1.press");
-  }, [state, bolted, hold, refuse, startHold, moveTo, d, depth]);
+  }, [unavailable, bolted, hold, refuse, startHold, setLiveState, moveTo, d, depth]);
 
   const pressEnd = useCallback(
     (inside: boolean) => {
@@ -279,8 +330,34 @@ export function Slab(props: WebSlabProps) {
       if (depth === "d2") feedback.play("slab.d2.commit");
       commit();
     },
-    [hold, cancelHold, depth, moveTo, commit],
+    [hold, cancelHold, depth, setLiveState, moveTo, commit],
   );
+
+  // ------------------------------------------------------------------- the dialog route (hold slabs)
+  /** Opens only from rest. A bolted slab refuses instead; an unavailable or committed one does nothing. */
+  const openDialog = useCallback(() => {
+    if (!hold || frame) return;
+    const now = liveRef.current;
+    if (unavailable || now === "unavailable" || now === "committed") return;
+    if (bolted) {
+      refuse();
+      return;
+    }
+    if (now !== "rest") return;
+    setDialogOpen(true);
+  }, [hold, frame, unavailable, bolted, refuse]);
+
+  const confirmDialog = useCallback(() => {
+    setDialogOpen(false);
+    // The slab may have changed while the dialog was open: only a slab still at rest signs.
+    if (liveRef.current !== "rest" || !canCommit()) return;
+    travel.set(reduced ? 0 : d);
+    fill.set(1);
+    setStepValue(1);
+    setProgress(100);
+    feedback.play("hold.bottom");
+    commit();
+  }, [canCommit, travel, reduced, d, fill, commit]);
 
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     if (frame || e.button !== 0) return;
@@ -295,18 +372,29 @@ export function Slab(props: WebSlabProps) {
       (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
     pressEnd(inside);
   };
+  // A click with no pointer press behind it (detail 0) is a screen reader's activation: a hold slab takes the
+  // dialog route (S2 §2.7) and a press slab commits as Enter would. Pointer presses are handled on pointerdown
+  // and pointerup, and keyboard presses on keydown and keyup, which cancel the browser's own click.
+  const onClick = (e: MouseEvent<HTMLButtonElement>) => {
+    if (frame || e.detail !== 0) return;
+    if (hold) {
+      openDialog();
+      return;
+    }
+    pressStart();
+    pressEnd(true);
+  };
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (frame) return;
     if (e.key === "Enter") {
       e.preventDefault();
-      if (hold && confirm) {
-        setDialogOpen(true);
+      if (e.repeat) return;
+      if (hold) {
+        openDialog();
         return;
       }
-      if (!e.repeat) {
-        pressStart();
-        pressEnd(true);
-      }
+      pressStart();
+      pressEnd(true);
       return;
     }
     if (e.key === " " || e.key === "Spacebar") {
@@ -325,8 +413,17 @@ export function Slab(props: WebSlabProps) {
   const shownStep = frame?.step ?? stepValue;
   const percent = Math.round(shownStep * 100);
   const holdProgress: HoldProgress = frame ? holdQuarter(frame.fill ?? frame.step ?? 0) : progress;
-  const showHint = hold && hint && state !== "committed" && state !== "unavailable";
-  const describedBy = [showHint ? hintId : null, unavailable ? reasonId : null].filter(Boolean).join(" ");
+  // A hold slab that could still sign shows its route; the caption can be turned off, the link cannot.
+  const signable =
+    hold !== undefined &&
+    !unavailable &&
+    !bolted &&
+    state !== "unavailable" &&
+    state !== "committed" &&
+    state !== "bolted" &&
+    state !== "refusing";
+  const showCaption = signable && hint;
+  const describedBy = [signable ? hintId : null, unavailable ? reasonId : null].filter(Boolean).join(" ");
 
   return (
     <div
@@ -366,9 +463,10 @@ export function Slab(props: WebSlabProps) {
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
           onPointerCancel={() => pressEnd(false)}
+          onClick={onClick}
           onKeyDown={onKeyDown}
           onKeyUp={onKeyUp}
-          onBlur={() => (hold ? cancelHold() : undefined)}
+          onBlur={() => (hold ? cancelHold() : pressEnd(false))}
         >
           {hold && <motion.span className="fs-slab__fill" style={{ transform: fillTransform }} aria-hidden />}
           {bolted && (
@@ -395,21 +493,20 @@ export function Slab(props: WebSlabProps) {
           </span>
         </div>
       )}
-      {showHint && (
-        <p className="fs-slab__hint" id={hintId}>
-          {earlyHint || frame?.showEarlyHint ? t("slab.holdUntilClick") : t("slab.holdHint")}
-          {confirm && (
-            <>
-              {" "}
-              <button
-                type="button"
-                className="fs-link"
-                data-testid={`${testId}.alt`}
-                onClick={() => setDialogOpen(true)}
-              >
-                {t("slab.altRoute")}
-              </button>
-            </>
+      {signable && (
+        <p className="fs-slab__hint" id={hintId} data-testid={`${testId}.hint`}>
+          {showCaption && (
+            <>{earlyHint || frame?.showEarlyHint ? t("slab.holdUntilClick") : t("slab.holdHint")} </>
+          )}
+          {frame ? (
+            // A still frame shows the link as it looks, without a control that does nothing.
+            <span className="fs-link" data-testid={`${testId}.alt`}>
+              {t("slab.altRoute")}
+            </span>
+          ) : (
+            <button type="button" className="fs-link" data-testid={`${testId}.alt`} onClick={openDialog}>
+              {t("slab.altRoute")}
+            </button>
           )}
         </p>
       )}
@@ -429,22 +526,14 @@ export function Slab(props: WebSlabProps) {
           )}
         </p>
       )}
-      {hold && confirm && (
+      {dialog && (
         <ConfirmDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          confirm={confirm}
+          confirm={dialog}
           tone={tone}
           testId={`${testId}.dialog`}
-          onConfirm={() => {
-            setDialogOpen(false);
-            travel.set(reduced ? 0 : d);
-            fill.set(1);
-            setStepValue(1);
-            setProgress(100);
-            feedback.play("hold.bottom");
-            commit();
-          }}
+          onConfirm={confirmDialog}
         />
       )}
     </div>
@@ -454,7 +543,7 @@ export function Slab(props: WebSlabProps) {
 interface ConfirmDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  readonly confirm: SlabConfirm;
+  readonly confirm: WebSlabConfirm;
   readonly tone: WebSlabProps["tone"];
   readonly onConfirm: () => void;
   readonly testId: string;

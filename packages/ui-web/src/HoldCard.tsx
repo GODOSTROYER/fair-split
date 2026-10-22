@@ -1,12 +1,13 @@
 // HoldCard: two voices and one decision (design §5, S2 §2.7). The engine's line is a template whose digits
 // come from code; Claude's line is pencil, after the pencil glyph and the word "Claude", with no digits.
 // Evidence shows as paper, then the money effect, then a gate chip and at most one d2 slab and one flat
-// action. A resolved hold is flush ink with the resolver's stamp. A hold is never an error and never red.
+// action. A decided hold (resolved, or excluded and carried to the next run: register §7) is flush ink with
+// the decider's stamp and never shows actions. A hold is never an error and never red.
 
 import type { DomainGlyph } from "@fairsplit/tokens/glyphs";
 import type { ReactNode } from "react";
 import { useT } from "./context.js";
-import type { HoldCardProps } from "./contract.js";
+import { type HoldCardProps, isFinalHoldState } from "./contract.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
 import { InkStamp } from "./marks.js";
 import { Print } from "./Print.js";
@@ -32,7 +33,7 @@ const KIND_GLYPH: Readonly<Record<HoldCardProps["hold"]["kind"], DomainGlyph>> =
 export function HoldCard({ hold, gate, actions, resolution, evidence, testId, className }: WebHoldCardProps) {
   const t = useT();
   const [slab, flat] = actions;
-  const resolved = hold.state === "resolved" && resolution;
+  const decided = isFinalHoldState(hold.state);
   return (
     <article
       className={["fs-hold", className].filter(Boolean).join(" ")}
@@ -44,7 +45,7 @@ export function HoldCard({ hold, gate, actions, resolution, evidence, testId, cl
       <header className="fs-hold__head">
         <span className="fs-hold__kind">
           <Glyph
-            name={(resolved ? KIND_GLYPH[hold.kind] : `${KIND_GLYPH[hold.kind]}-fill`) as GlyphName}
+            name={(decided ? KIND_GLYPH[hold.kind] : `${KIND_GLYPH[hold.kind]}-fill`) as GlyphName}
             size={20}
             label={t(`hold.kind.${hold.kind}`)}
           />
@@ -91,11 +92,15 @@ export function HoldCard({ hold, gate, actions, resolution, evidence, testId, cl
       )}
 
       <footer className="fs-hold__actions">
-        {resolved ? (
+        {decided ? (
           <p className="fs-hold__resolution" data-testid={`${testId}.resolution`}>
-            <InkStamp stamp={resolution} />
+            {resolution && <InkStamp stamp={resolution} />}
             <span className="fs-t-label">
-              {t("hold.state.RESOLVED", { initials: resolution.initials, time: resolution.at })}
+              {hold.state === "excluded"
+                ? t("hold.state.EXCLUDED")
+                : resolution
+                  ? t("hold.state.RESOLVED", { initials: resolution.initials, time: resolution.at })
+                  : t("hold.state.RESOLVED_UNSTAMPED")}
             </span>
           </p>
         ) : hold.state === "asked-chair" ? (

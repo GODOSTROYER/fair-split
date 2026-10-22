@@ -46,7 +46,7 @@ export const COMPOSITIONS = [
     title: "Statement, sent and paid",
     note: "Nang Celing, in a phone frame",
   },
-  { id: "proof", screen: "W-PF-01", title: "Proof", note: "Verified, public, light only" },
+  { id: "proof", screen: "W-PF-01", title: "Proof", note: "Checked in the browser, public, light only" },
 ] as const;
 
 export type CompositionId = (typeof COMPOSITIONS)[number]["id"];

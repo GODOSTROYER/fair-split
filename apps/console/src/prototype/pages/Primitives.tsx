@@ -21,7 +21,7 @@ import {
   useMotionMode,
 } from "@fairsplit/ui-web";
 import { type ReactNode, useState } from "react";
-import { heroLine, holdH1, holdH3, TwinEvidence } from "../content.js";
+import { approveConfirm, heroLine, holdH1, holdH3, TwinEvidence } from "../content.js";
 import { BATCH_SHA256, PEOPLE, TOTALS } from "../fixture.js";
 import { money, percent, phpEstimate, usd } from "../format.js";
 import { PageTitle, Section, useProtoSearch } from "../Shell.js";
@@ -113,20 +113,12 @@ function LiveSlabs() {
           width={420}
           testId="W-DP-01.live.d3"
           onCommit={() => note("d3 held 1,600 ms: signed")}
-          confirm={{
-            title: "Approve 8 payouts",
-            body: (
-              <p>
-                {usd(TOTALS.paypalCents)} to 8 members by PayPal, from the sandbox balance. This moves money
-                and cannot be undone.
-              </p>
-            ),
-          }}
+          confirm={approveConfirm()}
         />
       </div>
       <div className="prim-live__log">
         <button type="button" className="fs-flat" onClick={() => setRound((r) => r + 1)}>
-          Reset the live slabs
+          Reset the interactive slabs
         </button>
         <ol className="prim-live__events fs-t-caption" aria-live="polite">
           {log.map((l, i) => (
@@ -276,6 +268,7 @@ export function PrimitivesPage() {
                   depth="d3"
                   tone="jade"
                   hold={1600}
+                  confirm={approveConfirm()}
                   unavailableReason="Resolve 1 hold that changes kilos first"
                   onReasonClick={noop}
                   testId={`W-DP-01.slab.${theme}.unavailable`}
@@ -290,6 +283,7 @@ export function PrimitivesPage() {
                     depth="d3"
                     tone="jade"
                     hold={1600}
+                    confirm={approveConfirm()}
                     testId={`W-DP-01.slab.${theme}.holding-${p * 100}`}
                     onCommit={noop}
                     frame={{ state: "holding", travel: p * 8, fill: p }}
@@ -303,6 +297,7 @@ export function PrimitivesPage() {
                   depth="d3"
                   tone="jade"
                   hold={1600}
+                  confirm={approveConfirm()}
                   testId={`W-DP-01.slab.${theme}.reduced`}
                   onCommit={noop}
                   frame={{ state: "holding", travel: 0, fill: 0.5, step: 0.5 }}
@@ -315,6 +310,7 @@ export function PrimitivesPage() {
                   depth="d3"
                   tone="jade"
                   hold={1600}
+                  confirm={approveConfirm()}
                   testId={`W-DP-01.slab.${theme}.early`}
                   onCommit={noop}
                   frame={{ state: "rest", showEarlyHint: true }}
@@ -327,6 +323,7 @@ export function PrimitivesPage() {
                   depth="d3"
                   tone="jade"
                   hold={1600}
+                  confirm={approveConfirm()}
                   testId={`W-DP-01.slab.${theme}.d3-committed`}
                   onCommit={noop}
                   frame={{ state: "committed", travel: 8, fill: 1 }}
