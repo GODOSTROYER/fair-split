@@ -8,14 +8,35 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./native": {
+      "types": "./src/generated/tokens.native.ts",
+      "default": "./src/generated/tokens.native.ts"
+    },
+    "./m3": {
+      "types": "./src/generated/m3.ts",
+      "default": "./src/generated/m3.ts"
+    },
+    "./ag-grid": {
+      "types": "./src/generated/ag-grid.ts",
+      "default": "./src/generated/ag-grid.ts"
+    },
+    "./theme.web.css": "./src/generated/theme.web.css",
+    "./fonts.css": "./src/generated/fonts.css",
+    "./fonts-proof.css": "./src/generated/fonts-proof.css",
+    "./tailwind.css": "./src/generated/tailwind.css",
+    "./contrast.json": "./src/generated/contrast.json"
   },
   "scripts": {
+    "build": "tsx src/generate.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@fairsplit/motion": "workspace:*"
+  },
   "devDependencies": {
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/node": "catalog:"
