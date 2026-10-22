@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "license": "MIT",
-  "description": "Fair Split \u00b7 co-op payroll. Every peso, traced to the pencil mark.",
+  "description": "Fair Split · co-op payroll. Every peso, traced to the pencil mark.",
   "packageManager": "pnpm@11.28.6",
   "engines": {
     "node": ">=24.19"
@@ -15,9 +15,10 @@
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "deps:check": "depcruise apps packages --config .dependency-cruiser.cjs",
+    "deps:check": "depcruise --config .dependency-cruiser.cjs \"{apps,packages}/*/{src,app,test,tests}\"",
     "secrets:scan": "secretlint \"**/*\"",
-    "prepare": "lefthook install || true"
+    "prepare": "lefthook install || true",
+    "ownership:check": "node tools/check-ownership.mjs"
   },
   "devDependencies": {
     "turbo": "catalog:",

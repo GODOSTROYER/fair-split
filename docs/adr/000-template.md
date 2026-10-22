@@ -1,0 +1,31 @@
+# ADR NNN: <short title>
+
+- **Status:** Proposed | Accepted (user, date) | Superseded by ADR NNN
+- **Date:** DD Mon 2026 (IST)
+- **Author:** WS-<ID>
+- **Touches:** register §n, IC-nn, spec section, package or pin
+
+Copy this file to `docs/adr/NNN-kebab-title.md` with the next free number. ADRs are append-only:
+CI rejects edits to an existing ADR, so a change of mind is a new ADR that supersedes the old one.
+Only the user accepts an ADR (register, "Changes").
+
+## Context
+
+What is true now, with sources (register section, spec section, spike result, `debug_id`, link).
+
+## Decision
+
+The change, stated so a subagent can apply it without asking.
+
+## Consequences
+
+- Affected consumers (workstreams and packages) and what each must change.
+- Migration and the order it lands in the merge train.
+- Tests that prove it (`inv.iN.*` when an invariant is involved).
+- What gets worse, and what we accept.
+
+## Alternatives considered
+
+| Option | Why not |
+| ------ | ------- |
+|        |         |
