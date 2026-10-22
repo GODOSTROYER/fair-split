@@ -22,6 +22,13 @@
       "when": 1792653777429,
       "tag": "0002_fs_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792668372166,
+      "tag": "0003_fs_purge_tickets",
+      "breakpoints": true
     }
   ]
 }

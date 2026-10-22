@@ -2,10 +2,13 @@
  * Database client: one pooled postgres.js connection set wrapped by Drizzle, plus the raw `sql` handle that
  * LISTEN, advisory locks and COPY need.
  *
- * Roles. Migrations run as the owner. Application code should run as `fs_app`, which has no UPDATE, DELETE or
- * TRUNCATE grant on run_events, ledger_entries and agent_sessions (register §7). The owner login is a member of
- * fs_app, so `createDb(url, { role: "fs_app" })` sends `role=fs_app` in the startup packet and every pooled
- * connection starts as fs_app — no second credential to manage.
+ * Roles (S3.4, ./roles.ts). Migrations run as the owner. Application code runs as `fs_app`, which has no UPDATE,
+ * DELETE or TRUNCATE grant on run_events, ledger_entries and agent_sessions (register §7), no DELETE on
+ * workspaces and no access to purge tickets. In production fs_app logs in with its own password (the migrate CLI
+ * sets it from FS_APP_DB_PASSWORD) and DATABASE_URL is fs_app's URL. Without that, the owner login is a member of
+ * fs_app and `createDb(url, { role: "fs_app" })` sends `role=fs_app` in the startup packet: every pooled
+ * connection starts as fs_app, which stops bugs but not a compromised app (session_user is still the owner).
+ * Boot calls `assertAppRole(db)`, which reports the mode and refuses a connection that could rewrite history.
  */
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres, { type Sql } from "postgres";
@@ -38,9 +41,10 @@ export interface Database {
 }
 
 /**
- * "fs_app" when the role exists and this login may assume it; undefined when the database user could not create
- * it (Render, UNVERIFIED in S6) — the append-only triggers then still guard history. Use at boot:
- *   createDb(url, { role: await detectAppRole(url) })
+ * "fs_app" when the role exists and this login may assume it (or is fs_app itself); undefined when the database
+ * user could not create it (Render, UNVERIFIED in S6) — the append-only triggers then still guard history. Boot:
+ *   const { db } = createDb(url, { role: await detectAppRole(url) });
+ *   const report = await assertAppRole(db); // log report.mode, never the URL
  */
 export async function detectAppRole(url: string): Promise<typeof APP_ROLE | undefined> {
   const sql = postgres(url, { max: 1, onnotice: () => {}, connect_timeout: 10 });

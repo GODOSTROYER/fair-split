@@ -3,8 +3,9 @@
  * idempotency_keys, system_flags (llm_calls lives in ./llm.ts).
  *
  * - `run_events`, `ledger_entries` and `agent_sessions` are append-only: the app role has no UPDATE, DELETE
- *   or TRUNCATE grant, and BEFORE UPDATE/DELETE/TRUNCATE triggers refuse everyone unless `fs.purge` is set by
- *   `fs_purge_workspace()` (migrations/0002).
+ *   or TRUNCATE grant, and BEFORE UPDATE/DELETE/TRUNCATE triggers refuse every role. The one exception is the
+ *   cascade of `fs_purge_workspace()`, which holds an owner-only purge ticket for that workspace in its own
+ *   transaction (migrations/0003); nothing the app can set or forge opens it.
  * - Every insert into `run_events` sends `pg_notify('run_events', '<ws>:<id>')`, delivered on commit; every
  *   insert into `task_outbox` sends `pg_notify('fs_outbox', '<id>')`.
  * - The ledger chain is linked in SQL too: an insert must carry seq = head.seq + 1 and prev_hash = head.hash,

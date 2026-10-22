@@ -175,8 +175,10 @@ describe("fs_purge_workspace: the only way out for an expired Judge workspace", 
       .from(runEvents)
       .where(eq(runEvents.workspaceId, gone.workspaceId));
     expect(ev?.n).toBe(0);
-    // the purge flag does not leak into the caller's session
-    const [flag] = await t.app.sql<{ v: string | null }[]>`select current_setting('fs.purge', true) as v`;
-    expect(flag?.v ?? "").not.toBe("on");
+    // the purge's ticket dies with it: nothing is left that could open a guard later
+    const [tickets] = await t.owner.sql<
+      { n: number }[]
+    >`select count(*)::int as n from fs_private.purge_tickets`;
+    expect(tickets?.n).toBe(0);
   });
 });

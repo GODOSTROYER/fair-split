@@ -1,6 +1,8 @@
 /**
  * The tenancy root. Every other table carries `workspace_id` referencing this table with ON DELETE CASCADE,
- * so `fs_purge_workspace(ws)` removes an expired Judge workspace in one statement.
+ * so `fs_purge_workspace(ws)` removes an expired Judge workspace in one statement. A workspace row is deleted only
+ * by that function (trigger, migrations/0003; fs_app has no DELETE grant here), and its id, kind and created_at
+ * never change.
  */
 import { foreignKey, index, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { WORKSPACE_KINDS } from "../_shims/contracts.js";

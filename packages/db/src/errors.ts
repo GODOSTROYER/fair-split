@@ -1,5 +1,5 @@
 /**
- * Typed errors for the integrity rules enforced in SQL (migrations/0002). Triggers raise SQLSTATE FS409/FS422
+ * Typed errors for the integrity rules enforced in SQL (migrations/0002 on). Triggers raise SQLSTATE FS409/FS422
  * with the message "<CODE>:<detail>"; `asDbError` turns a driver error (possibly wrapped by Drizzle) into a
  * `FairSplitDbError` the API can map, e.g. RATE_CARD_RATIFIED → 409 citing the card hash (MM-4).
  */
@@ -12,6 +12,8 @@ export const DB_ERROR_CODES = [
   "ITEM_STATUS_REGRESSION",
   "RETURN_WITHOUT_CANCEL",
   "PURGE_REFUSED",
+  /** a column that never changes once written, e.g. workspaces.kind (subject: "table.column") */
+  "FROZEN_COLUMN",
 ] as const;
 export type DbErrorCode = (typeof DB_ERROR_CODES)[number];
 
