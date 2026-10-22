@@ -36,6 +36,9 @@ catalogs:
     fast-check:
       specifier: 4.10.2
       version: 4.10.2
+    hono:
+      specifier: 4.13.13
+      version: 4.13.13
     i18next:
       specifier: 26.5.4
       version: 26.5.4
@@ -305,6 +308,15 @@ importers:
       "@types/node":
         specifier: "catalog:"
         version: 24.10.1
+      fast-check:
+        specifier: "catalog:"
+        version: 4.10.2
+      hono:
+        specifier: "catalog:"
+        version: 4.13.13
+      msw:
+        specifier: "catalog:"
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.10.1)(esbuild@0.28.2)(tsx@4.23.15))
       typescript:
         specifier: "catalog:"
         version: 6.0.3
