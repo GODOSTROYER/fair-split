@@ -2,11 +2,11 @@
 
 Owner: WS-OPS. This package wires every IC-01 `TaskName` to an executor. It holds no business logic: each task is a thin wrapper that validates its ids and calls a handler injected from the owning workstream (`src/wiring.ts`).
 
-| Entry           | Built file       | Who runs it                                                                                                               |
-| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Entry           | Built file       | Who runs it                                                                                                                                        |
+| --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`). Refuses to boot unless `PP_ENV=sandbox`, then registers all 16 tasks plus the `opsPing` and `opsDbPing` diagnostics |
-| `src/cron.ts`   | `dist/cron.js`   | Render cron (`fs-cron`, `7 * * * *`). Enqueues the scheduled tasks through the outbox |
-| `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`): `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>` |
+| `src/cron.ts`   | `dist/cron.js`   | Render cron (`fs-cron`, `7 * * * *`). Enqueues the scheduled tasks through the outbox                                                              |
+| `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`): `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                          |
 
 The app exports nothing. Apps are siblings in the dependency rule, so fs-api must not import it.
 `src/handoff/dispatcher.ts` (workflow start, 20 s inline fallback, `chooseExecutor`) is WS-OPS's tested
@@ -31,22 +31,22 @@ WS-CORE's proves that the config, and not just today's empty contracts, is what 
 - **Permanent failures reach the outbox.** If a handler (or a guard) throws `PermanentTaskError` (`NOT_WIRED`, `INVALID_INPUT`, `KILL_SWITCH`, …), the wrapper calls `OutboxPort.markFailed(id, code, detail)` for each id and then returns `failed`. That stops the sweeper from re-dispatching the row. If that write fails, the run throws instead of reporting success. WS-DATA implements the port as an idempotent `UPDATE task_outbox SET state='dead', last_error=… WHERE id=$1 AND state<>'done'`. A handler that returns `failed` itself must record the row itself.
 - **One retry owner: the outbox sweeper.** S3.3's claim moves the row to `running` before any I/O, so a Render retry after a transient throw would only ever see `skipped`. Every task therefore registers with `maxRetries: 0`. A transient error is rethrown, the Render run shows as failed, and the row stays `running` until the sweeper re-queues it after 5 minutes (dead after 8 attempts). If WS-DATA makes the claim re-entrant (`OR (state='running' AND claimed_by=$taskRunId)`), Render retries can be turned on in `src/policy.ts`.
 
-| Lane (`TASK_POLICY`) | Tasks | Executor when `EXECUTOR=workflow` |
-| -------------------- | ----- | --------------------------------- |
-| `inline-api` | ensureInvoice, recordPayment, processWebhook, postPayoutBatch, settleBatch, cancelUnclaimed, reroute, pushNotify | inline in fs-api (warm OAuth cache) |
-| `workflow-live` | extract, readRateCard, computeRun, explain, agentTurn | Workflows when live, inline in replay |
-| `workflow-scheduled` | reconcile, judgeReset, warmCaches | Workflows, started via the outbox by fs-cron |
+| Lane (`TASK_POLICY`) | Tasks                                                                                                            | Executor when `EXECUTOR=workflow`            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `inline-api`         | ensureInvoice, recordPayment, processWebhook, postPayoutBatch, settleBatch, cancelUnclaimed, reroute, pushNotify | inline in fs-api (warm OAuth cache)          |
+| `workflow-live`      | extract, readRateCard, computeRun, explain, agentTurn                                                            | Workflows when live, inline in replay        |
+| `workflow-scheduled` | reconcile, judgeReset, warmCaches                                                                                | Workflows, started via the outbox by fs-cron |
 
 ## Cron schedule (`fs-cron`, hourly at :07 UTC)
 
-Every pass offers every job that is due. `enqueue` is `ON CONFLICT (dedupe_key) DO NOTHING`, so the first *successful* pass in a slot creates the row. A skipped or failed pass is made up by the next one.
+Every pass offers every job that is due. `enqueue` is `ON CONFLICT (dedupe_key) DO NOTHING`, so the first _successful_ pass in a slot creates the row. A skipped or failed pass is made up by the next one.
 
-| Offered on               | Job                                              | Dedupe key (one row per)            |
-| ------------------------ | ------------------------------------------------ | ----------------------------------- |
-| every pass               | `judgeReset{trigger:"cron"}`                     | `judgeReset:cron:{yyyy-mm-ddThh}`   |
-| every pass               | `reconcile{mode:"catchup"}` (webhook catch-up)   | `reconcile:catchup:{hour}`          |
+| Offered on                | Job                                              | Dedupe key (one row per)            |
+| ------------------------- | ------------------------------------------------ | ----------------------------------- |
+| every pass                | `judgeReset{trigger:"cron"}`                     | `judgeReset:cron:{yyyy-mm-ddThh}`   |
+| every pass                | `reconcile{mode:"catchup"}` (webhook catch-up)   | `reconcile:catchup:{hour}`          |
 | passes 02:07 to 05:07 UTC | `reconcile{mode:"nightly"}` (Transaction Search) | `reconcile:nightly:{date}`          |
-| every pass               | `warmCaches{window}`                             | `warmCaches:w{floor(hourIndex/23)}` |
+| every pass                | `warmCaches{window}`                             | `warmCaches:w{floor(hourIndex/23)}` |
 
 warmCaches works on 23-hour windows, not a nightly slot, because compiled grammars expire 24 h after their last use (S4). The args and dedupe-key builders live in the contracts shim (`TASK_KEYS`) as a proposal for WS-CORE to confirm when IC-01 freezes. The cron holds only `DATABASE_URL`. Until WS-DATA wires `loadCronSink()`, it logs the plan and exits 1, so the Render run shows as failed instead of silently doing nothing. `node apps/tasks/dist/cron.js --plan --at=<iso>` prints any hour's plan.
 
@@ -60,7 +60,7 @@ warmCaches works on 23-hour windows, not a nightly slot, because compiled gramma
    - `BETTER_AUTH_SECRET` is generated by Render (`generateValue`, a deliberate deviation from S3.13's `sync: false`).
    - Leave `FS_KILL` empty unless you want to force a kill flag.
 3. **Database roles (S3.4, register §7).** Only fs-api's `preDeployCommand` connects as the owner, through `DATABASE_OWNER_URL` (`fromDatabase`). **Contract for WS-DATA:** `@fairsplit/db migrate` reads `DATABASE_OWNER_URL`, never `DATABASE_URL`. The migrations create `fs_app` with `REVOKE UPDATE, DELETE ON run_events, ledger_entries, agent_sessions`. After the first deploy, paste `fs_app`'s connection URL (internal host) into `DATABASE_URL` on all three services. A policy test fails if any running service's `DATABASE_URL` is the owner's connection string.
-   - For spike S6, before `fs_app` exists, set fs-tasks' `DATABASE_URL` to the owner's *internal* URL. `opsDbPing` then answers both S3.14 questions. Replace it with `fs_app` afterwards.
+   - For spike S6, before `fs_app` exists, set fs-tasks' `DATABASE_URL` to the owner's _internal_ URL. `opsDbPing` then answers both S3.14 questions. Replace it with `fs_app` afterwards.
    - If S6 shows that the owner cannot `CREATE ROLE`, the BEFORE UPDATE/DELETE triggers are the only enforcement. Record that as an ADR (WS-QA owns `docs/`) before pointing `DATABASE_URL` at the owner, and expect the policy test to need the same ADR reference.
 4. fs-api gets `FS_TASKS_SLUG` from `fromService … property: slug`, so task slugs follow whatever slug Render assigns.
 5. Migrations run in fs-api's `preDeployCommand` only, because Blueprint workflows accept no `preDeployCommand`. Keep migrations expand-then-contract.
