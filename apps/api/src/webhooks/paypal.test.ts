@@ -167,6 +167,18 @@ describe("POST /webhooks/paypal handler", () => {
     expect(row?.rejectReason).toBe("MISSING_HEADER:paypal-transmission-time");
   });
 
+  it("never uses an odd transmission id as a key: junk dedupes on its body hash instead", async () => {
+    const { handler, committed } = setup();
+    const junk = Buffer.from('{"event_type":"PAYMENT.PAYOUTS-ITEM.SUCCEEDED"}');
+    const headers = { "paypal-transmission-id": `x'; DROP TABLE webhook_events; --${"a".repeat(500)}` };
+    expect((await handler({ rawBody: junk, headers })).status).toBe(400);
+    expect((await handler({ rawBody: junk, headers })).status).toBe(400);
+    const keys = [...committed.keys()];
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^rejected:sha256-[0-9a-f]{32}$/);
+    expect(committed.get(keys[0] ?? "")?.transmissionId).toBeNull();
+  });
+
   it("rejects a correctly signed body that is not a PayPal event envelope", async () => {
     const { handler, outbox } = setup();
     const s = sign({ hello: "world" });

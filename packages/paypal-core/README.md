@@ -53,7 +53,8 @@ token cannot be sent anywhere else.
 
 - Live OAuth, postback and webhook registration against the sandbox: waiting for S1 credentials
   (`PP_CLIENT_ID`, `PP_CLIENT_SECRET`), then `tools/setup-webhooks.ts` and spike S5 with the user.
-- `processWebhook` (resolution, re-GET, state transitions) and the hourly catch-up task.
+- `processWebhook` (resolution, re-GET, state transitions). Catch-up ingestion exists
+  (`apps/api/src/webhooks/catchup.ts`, rows labelled `fetched`); WS-OPS schedules it in `reconcile{catchup}`.
 - Shims to swap after WS-CORE / WS-DATA merge: `src/_shims/{contracts,domain}.ts`,
   `apps/api/src/webhooks/_shims/{contracts,persistence}.ts`. Until WS-API scaffolds `apps/api`, the webhook
   route is typechecked by `tsconfig.consumers.json` and tested by the `api-webhooks` vitest project here.

@@ -12,6 +12,7 @@
 // Persistence, the outbox and the verifier are injected, so this file needs no database or HTTP
 // framework to compile or test.
 
+import { createHash } from "node:crypto";
 import {
   type HeadersLike,
   type LoggerLike,
@@ -25,6 +26,7 @@ import {
   type ProcessWebhookArgs,
   processWebhookDedupeKey,
   type WebhookEventStatus,
+  type WebhookVerifiedLabel,
 } from "./_shims/contracts.js";
 import type { Enqueue, RunInTransaction } from "./_shims/persistence.js";
 
@@ -33,13 +35,17 @@ export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 /** Rejected bodies are kept for forensics, truncated. */
 export const MAX_REJECTED_RAW_BYTES = 8 * 1024;
 
+/** PayPal transmission ids are UUIDs (spec: `\w+\S+`, at most 50 characters). */
+const TRANSMISSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
 /** A row for `webhook_events` (architecture §3, S3.4). `workspace_id` stays null until processWebhook resolves it. */
 export interface WebhookEventInsert {
   paypalEventId: string;
   eventType: string | null;
   resourceType: string | null;
   resourceKey: string | null;
-  verified: VerifyMode | null;
+  /** How it was authenticated; `fetched` rows come from the catch-up listing; null when rejected. */
+  verified: WebhookVerifiedLabel | null;
   status: Extract<WebhookEventStatus, "received" | "rejected">;
   raw: string;
   transmissionId: string | null;
@@ -141,8 +147,10 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
       return { status: 500, outcome: "error", paypalEventId: null, reason: "VERIFY_ERROR" };
     }
 
-    const transmissionId = verification.transmissionId ?? readHeader(headers, "paypal-transmission-id");
-    const rejectionKey = `rejected:${transmissionId ?? `crc-${verification.crc32 ?? "none"}-${receivedAt.getTime()}`}`;
+    const headerTransmissionId = verification.transmissionId ?? readHeader(headers, "paypal-transmission-id");
+    // Anything that does not look like a PayPal transmission id never becomes a key or a log field as-is.
+    const transmissionId =
+      headerTransmissionId && TRANSMISSION_ID.test(headerTransmissionId) ? headerTransmissionId : null;
 
     if (verification.mode === false || !envelope.ok) {
       const reason = verification.mode === false ? (verification.reason ?? "UNVERIFIED") : "MALFORMED_EVENT";
@@ -152,10 +160,12 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
           detail: verification.detail,
           transmissionId,
           eventType: hintType,
-          certUrl: verification.certUrl,
+          certUrl: verification.certUrl?.slice(0, 200) ?? null,
         },
         "paypal webhook rejected",
       );
+      // Identical junk dedupes on its body hash; a real transmission id keys the row otherwise.
+      const rejectionKey = `rejected:${transmissionId ?? `sha256-${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`}`;
       await storeRejected(rawBody, {
         paypalEventId: rejectionKey,
         eventType: hintType,
