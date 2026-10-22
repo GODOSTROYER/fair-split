@@ -7,6 +7,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useState
 import { AccessibilityInfo, Platform, type TextStyle } from "react-native";
 import { fontFamily } from "../_shims/fonts";
 import { type FsTokens, type ThemeName, themes } from "../_shims/tokens.native";
+import { webQuery } from "../platform/query";
 
 const MONEY: TextStyle["fontVariant"] = ["tabular-nums", "stylistic-eight"];
 
@@ -54,15 +55,6 @@ const FsContext = createContext<FsContextValue>({
   name: "adlaw",
   motion: { reduced: false, low: false, screenReader: false },
 });
-
-function webQuery(name: string): string | null {
-  if (Platform.OS !== "web" || typeof window === "undefined") return null;
-  try {
-    return new URLSearchParams(window.location.search).get(name);
-  } catch {
-    return null;
-  }
-}
 
 function detectLowTier(): boolean {
   if (webQuery("tier") === "low") return true;

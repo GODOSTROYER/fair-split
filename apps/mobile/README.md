@@ -3,11 +3,11 @@
 Expo SDK 58 (React Native 0.88, React 19.3, Expo Router), Android first. The same code runs as the judge's phone
 frames: the web export is served by fs-api at `/app` (register C-11).
 
-| Role   | Tabs (register §4)        | Screens                                                                        |
-| ------ | ------------------------- | ------------------------------------------------------------------------------ |
-| Member | Bayad, Resibo, Pangutana  | M-MB-01 statement (MM-1, MM-7), M-MB-02 slips, M-MB-03 Paminawa (modal), M-MB-04 |
-| Clerk  | Scan, Outbox              | M-CL-01 scanner + offline outbox (expo-sqlite, idempotency keys, NetInfo sync)  |
-| Board  | Pirma, Bayad, Pangutana   | M-BD-01 co-sign request, M-BD-02 sign (Ed25519, SecureStore behind biometrics) |
+| Role   | Tabs (register §4)       | Screens                                                                          |
+| ------ | ------------------------ | -------------------------------------------------------------------------------- |
+| Member | Bayad, Resibo, Pangutana | M-MB-01 statement (MM-1, MM-7), M-MB-02 slips, M-MB-03 Paminawa (modal), M-MB-04 |
+| Clerk  | Scan, Outbox             | M-CL-01 scanner + offline outbox (expo-sqlite, idempotency keys, NetInfo sync)   |
+| Board  | Pirma, Bayad, Pangutana  | M-BD-01 co-sign request, M-BD-02 sign (Ed25519, SecureStore behind biometrics)   |
 
 First run: `/onboarding/language`, `/onboarding/theme`, `/onboarding/pair`. Links: `/app/pair?t=…` (also `#t=` and
 `fairsplit://pair?t=…`) pairs a phone; `/app/s/:token` opens one member line read-only.
@@ -30,11 +30,11 @@ from this directory, so it lives here rather than at the repo root.
 
 ## Environment
 
-| Variable                   | Meaning                                                                               |
-| -------------------------- | ------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_ORIGIN`   | fs-api origin, or `same-origin` when fs-api serves this export. Unset: **demo mode**. |
-| `EXPO_WEB_BASE`            | Web base path; `build` sets `/app`. Never set for native builds.                      |
-| `EXPO_PUBLIC_FS_GALLERY`   | `1` in the development profile.                                                       |
+| Variable                 | Meaning                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_ORIGIN` | fs-api origin, or `same-origin` when fs-api serves this export. Unset: **demo mode**. |
+| `EXPO_WEB_BASE`          | Web base path; `build` sets `/app`. Never set for native builds.                      |
+| `EXPO_PUBLIC_FS_GALLERY` | `1` in the development profile.                                                       |
 
 Demo mode runs the whole API in memory from the fixture, labels every screen "Demo data", verifies co-signatures
 with Ed25519 like the server will, and offers labelled controls that simulate PayPal's item events (MM-1).

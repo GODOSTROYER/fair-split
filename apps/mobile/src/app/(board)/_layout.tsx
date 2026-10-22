@@ -1,4 +1,4 @@
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, useSegments } from "expo-router";
 import { useApp } from "../../state/app";
 import { NavBar } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
@@ -8,6 +8,11 @@ import { useT } from "../../ui/text";
 export default function BoardTabs() {
   const { session } = useApp();
   const t = useT();
+  const leaf = useSegments().at(-1);
+  // /bayad and /pangutana are shared with members (register §4); send a member phone to its own copy.
+  if (session?.role === "member" && (leaf === "bayad" || leaf === "pangutana")) {
+    return <Redirect href={`/(member)/(tabs)/${leaf}`} />;
+  }
   if (session?.role !== "board") return <Redirect href="/" />;
   return (
     <Tabs tabBar={(p) => <NavBar {...p} />} screenOptions={{ headerShown: false, animation: "none" }}>

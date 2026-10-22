@@ -16,6 +16,7 @@ import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Banner, Button, InkStamp, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
+import { figures, Sentence } from "../../ui/sentence";
 import { Txt, useT } from "../../ui/text";
 import { useCosign } from "./use-cosign";
 
@@ -108,7 +109,7 @@ export function CosignScreen() {
         >
           {format.usd(dto.totalCents)}
         </Txt>
-        <Txt kind="statementBody">{tr("M-BD-01.why", { threshold })}</Txt>
+        <Sentence segments={figures(tr("M-BD-01.why", { threshold }))} />
         <Rule />
         <SectionTitle>{tr("M-BD-01.holds")}</SectionTitle>
         {dto.holds.map((h) => (

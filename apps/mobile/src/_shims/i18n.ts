@@ -190,7 +190,7 @@ export const messages = {
   "M-MB-01.bonus": { ceb: "Bonus sa kalidad", fil: "Bonus sa kalidad", en: "Quality bonus" },
   "M-MB-01.credit": { ceb: "Gibalik kaninyo", fil: "Ibinalik sa inyo", en: "Returned to you" },
   "M-MB-01.net": { ceb: "Inyong bayad", fil: "Inyong bayad", en: "Your pay" },
-  "M-MB-01.ruleRef": same("{rule}, {card}"),
+  "M-MB-01.ruleRef": same("{card}, Schedule A"),
   "M-MB-01.expanded": {
     ceb: "{kg} × {rate} kada kilo ({rule}). Walay kaltas.",
     fil: "{kg} × {rate} bawat kilo ({rule}). Walang kaltas.",
@@ -273,9 +273,9 @@ export const messages = {
     en: "Sample only. The reviewed photo is on its way.",
   },
   "M-MB-02.provisional": {
-    ceb: "Ang kilo niini nga resibo dili pa final.",
-    fil: "Hindi pa pinal ang kilo ng resibong ito.",
-    en: "This slip's kilos are provisional.",
+    ceb: "Sample nga kilo para sa demo.",
+    fil: "Sample na kilo para sa demo.",
+    en: "Sample kilos for the demo.",
   },
   "M-MB-02.slip": same("Resibo {serial}"),
   "M-MB-02.close": { ceb: "Balik sa statement", fil: "Bumalik sa statement", en: "Back to the statement" },

@@ -24,10 +24,12 @@ import { type FrameGrant, listenForFrameGrant } from "../platform/frame-bridge";
 import { prefs, secrets } from "../platform/kv";
 import { onConnectivity, useOnline } from "../platform/network";
 import { openOutboxStore } from "../platform/outbox-store";
+import { webQuery } from "../platform/query";
 import { randomBytes } from "../platform/random";
 import { streamingFetch } from "../platform/streaming-fetch";
 import { createUploader } from "../platform/uploader";
-import { createDemoApi, type DemoController } from "../services/demo-api";
+import { createDemoApi, type DemoController, demoSession } from "../services/demo-api";
+import type { DemoStage } from "../services/demo-fixtures";
 import { themeFromQuery } from "../theme/theme";
 
 const K = {
@@ -123,6 +125,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       else if (t === "adlaw" || t === "tablea") setThemeState(t);
       setLangChosen(lc === "1");
       setThemeChosen(tc === "1" || qt !== null);
+      // Demo links for review and the stage frames before fs-api exists: ?demo=member|board|clerk&stage=sent|paid.
+      const demoRole = demo ? webQuery("demo") : null;
+      if (demo && (demoRole === "member" || demoRole === "board" || demoRole === "clerk")) {
+        setSessionState(demoSession(demoRole, new Date()));
+        setLangChosen(true);
+        setThemeChosen(true);
+        const stage = webQuery("stage");
+        if (stage === "sent" || stage === "paid" || stage === "unclaimed") demo.advance(stage as DemoStage);
+        setReady(true);
+        return;
+      }
       for (const raw of [sRaw, sDemo]) {
         if (!raw) continue;
         try {

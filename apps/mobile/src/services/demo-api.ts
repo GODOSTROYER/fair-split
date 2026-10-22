@@ -6,7 +6,13 @@
  */
 import { bytesToHex } from "@noble/hashes/utils.js";
 import type { FairSplitApi, RunEventListener } from "../_shims/api-client";
-import type { ApprovalPayload, ItemStatus, ItemUpdatedPayload, RunEvent } from "../_shims/contracts";
+import type {
+  ApprovalPayload,
+  ApprovalRole,
+  ItemStatus,
+  ItemUpdatedPayload,
+  RunEvent,
+} from "../_shims/contracts";
 import { heroLine, people, runId, runSlug, season } from "../_shims/seed";
 import type { PairedSession } from "../lib/pairing";
 import { checkApprovalPayload, verifyApproval } from "../lib/signing";
@@ -47,7 +53,12 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
   let seq = 1000;
   const listeners = new Set<RunEventListener>();
   const watchers = new Set<() => void>();
-  const keys = new Map<string, string>();
+  /**
+   * The officer key registry (`device_keys`): keyId → the public key and the officer it was registered for. Like the
+   * server, a signature is checked against the registered key for the payload's role and approver, never against a
+   * key the request carries. Only the board phone registers keys here, so every key belongs to the Chair.
+   */
+  const keys = new Map<string, { publicKey: string; role: ApprovalRole; approverId: string }>();
   const usedNonces = new Set<string>();
   const issued = new Map<string, ApprovalPayload>();
   let chairSigned = false;
@@ -132,8 +143,12 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
       return { ok: true, value: payload };
     },
     async postApproval(_slug, body) {
-      const pk = keys.get(body.keyId);
-      if (!pk) return { ok: false, code: "UNAUTHENTICATED", status: 401 };
+      const key = keys.get(body.keyId);
+      if (!key) return { ok: false, code: "UNAUTHENTICATED", status: 401 };
+      // A registered key signs only for its own officer: the Chair's key cannot approve as the treasurer.
+      if (key.role !== body.role || key.approverId !== body.payload?.approverId) {
+        return { ok: false, code: "UNAUTHENTICATED", status: 403 };
+      }
       const dto = buildDemoCosign({ now: deps.now(), treasurerSigned: true });
       const check = checkApprovalPayload(body.payload, { ...dto, role: body.role }, deps.now());
       if (!check.ok) {
@@ -146,7 +161,7 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
       if (!issued.has(body.payload.nonce) || usedNonces.has(body.payload.nonce)) {
         return { ok: false, code: "NONCE_REUSED", status: 409 };
       }
-      if (!verifyApproval(body, pk)) return { ok: false, code: "DIGEST_MISMATCH", status: 409 };
+      if (!verifyApproval(body, key.publicKey)) return { ok: false, code: "DIGEST_MISMATCH", status: 409 };
       usedNonces.add(body.payload.nonce);
       chairSigned = true;
       emit({
@@ -163,7 +178,7 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
     },
     declineApproval: () => ok({ ok: true as const }),
     async registerDeviceKey(body) {
-      keys.set(body.keyId, body.publicKey);
+      keys.set(body.keyId, { publicKey: body.publicKey, role: "CHAIR", approverId: people.chair.approverId });
       return { ok: true, value: { ok: true } };
     },
     postReviewRequest: () => ok({ id: `rr_demo_${++seq}` }),

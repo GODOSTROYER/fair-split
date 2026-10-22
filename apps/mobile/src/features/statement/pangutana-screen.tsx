@@ -12,6 +12,7 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Banner, Chip, InkStamp, MachineTranslatedNote, SectionTitle } from "../../ui/primitives";
+import { figures, Sentence } from "../../ui/sentence";
 import { Slab } from "../../ui/slab";
 import { Txt, useT } from "../../ui/text";
 import { useStatement } from "./use-statement";
@@ -54,9 +55,9 @@ export function PangutanaScreen() {
             </Txt>
           </View>
         </View>
-        <Txt kind="statementBody">
-          {tr("M-MB-04.when", { date: format.date(dto?.cashDay ?? cashDayIso, lang) })}
-        </Txt>
+        <Sentence
+          segments={figures(tr("M-MB-04.when", { date: format.date(dto?.cashDay ?? cashDayIso, lang) }))}
+        />
       </View>
 
       <View style={{ gap: space.s4 }}>

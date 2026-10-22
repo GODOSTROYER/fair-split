@@ -172,14 +172,16 @@ export function ReceiptBar({
             id={`ded:${d.ruleId}`}
             label={
               <View style={styles.labelRow}>
+                <Txt kind="body">{d.label}</Txt>
+                {/* Design §2.2: deduction chips are plate-2 with the rule ID in text, no hue of their own. */}
                 <View
                   style={[styles.ruleChip, { backgroundColor: t.color.plate2, borderColor: t.color.rule }]}
                 >
-                  <Txt kind="label">{`${d.label} ${format.usdPlain(-d.cents)} ${d.ruleId}`}</Txt>
+                  <Txt kind="label">{d.ruleId}</Txt>
                 </View>
               </View>
             }
-            note={tr("M-MB-01.ruleRef", { rule: d.ruleId, card: dto.rateCard.id })}
+            note={tr("M-MB-01.ruleRef", { card: dto.rateCard.id })}
             amount={format.usd(-d.cents)}
             framed={expanded === `ded:${d.ruleId}`}
             onPress={onSegment}

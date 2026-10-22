@@ -31,11 +31,16 @@ import type { Mm7Phase } from "./receipt-bar";
 const ZOOM = 2.4;
 const GLIDE_SETTLE_MS = 661;
 
+/** Below this width a crop is a list thumbnail: serial and kilos only, with the sample tag as a strip. */
+const COMPACT_MAX_W = 160;
+const STRIP_H = 12;
+
 /** A slip crop: the reviewed photo when it exists, otherwise a labelled sample of the template. */
 export function SlipCrop({ slip, width, lang }: { slip: StatementSlip; width: number; lang: Lang }) {
   const { t } = useFs();
   const tr = useT();
   const height = Math.round(width * 0.62);
+  const compact = width < COMPACT_MAX_W;
   return (
     <View
       accessible
@@ -48,6 +53,25 @@ export function SlipCrop({ slip, width, lang }: { slip: StatementSlip; width: nu
     >
       {slip.cropUrl ? (
         <Image source={{ uri: slip.cropUrl }} style={StyleSheet.absoluteFill} contentFit="contain" />
+      ) : compact ? (
+        <View style={styles.compact}>
+          <Txt maxFontSizeMultiplier={1} style={{ color: "#BF2A1C", fontSize: 9, lineHeight: 11 }}>
+            {`No. ${slip.serial}`}
+          </Txt>
+          <Txt
+            maxFontSizeMultiplier={1}
+            numberOfLines={1}
+            style={{
+              color: t.color.ballpoint,
+              fontFamily: "MonaSans_500Medium",
+              fontSize: Math.round(width * 0.2),
+              lineHeight: Math.round(width * 0.24),
+              transform: [{ rotate: "-2deg" }],
+            }}
+          >
+            {format.kg(slip.netGrams, 2).replace(" kg", "")}
+          </Txt>
+        </View>
       ) : (
         <View style={styles.template}>
           <View style={styles.templateHead}>
@@ -81,8 +105,21 @@ export function SlipCrop({ slip, width, lang }: { slip: StatementSlip; width: nu
           ))}
         </View>
       )}
-      <View style={[styles.tag, { backgroundColor: t.color.plate2, borderColor: t.color.rule }]}>
-        <Txt kind="caption" color="ink2" maxFontSizeMultiplier={1}>
+      {/* Design §2.5 "Paper": every sample carries "Synthetic sample" in its corner; a thumbnail is too small for a
+          corner tag that leaves the kilos readable, so there it is a strip along the bottom edge. */}
+      <View
+        style={[
+          compact ? styles.strip : styles.tag,
+          { backgroundColor: t.color.plate2, borderColor: t.color.rule },
+        ]}
+      >
+        <Txt
+          kind="caption"
+          color="ink2"
+          maxFontSizeMultiplier={1}
+          numberOfLines={1}
+          style={compact ? styles.stripText : undefined}
+        >
           {tr("common.syntheticSample")}
         </Txt>
       </View>
@@ -232,6 +269,26 @@ export function SlipZoom({
 const styles = StyleSheet.create({
   paper: { borderRadius: radius.none, overflow: "hidden" },
   template: { flex: 1, padding: space.s12, gap: space.s8 },
+  compact: {
+    flex: 1,
+    paddingHorizontal: space.s4,
+    paddingTop: space.s4,
+    paddingBottom: STRIP_H,
+    justifyContent: "space-between",
+  },
+  // Separate objects rather than overriding `top` with undefined: react-native-web drops undefined values, which
+  // would leave both `top` and `bottom` set and stretch the tag over the slip.
+  strip: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: STRIP_H,
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopWidth: 1,
+  },
+  stripText: { fontSize: 8, lineHeight: 10 },
   templateHead: { flexDirection: "row", justifyContent: "space-between" },
   field: {
     flexDirection: "row",

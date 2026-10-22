@@ -44,31 +44,23 @@ function Row({ r, now, onSendNow }: { r: CaptureRecord; now: number; onSendNow()
               : tr("M-CL-02.retryIn", { s: waitS });
   return (
     <View style={styles.row} testID={`M-CL-02.row.${r.id}`} dataSet={{ state: r.state }}>
-      <View>
-        <Image
-          source={{ uri: r.thumbUri ?? r.fileUri }}
-          style={[styles.thumb, { borderColor: t.color.rule }]}
-          contentFit="cover"
-        />
-        {r.source === "sample" ? (
-          <View style={[styles.sampleTag, { backgroundColor: t.color.plate2 }]}>
-            <Txt
-              kind="caption"
-              color="ink2"
-              maxFontSizeMultiplier={1}
-              style={{ fontSize: 9, lineHeight: 11 }}
-            >
-              {tr("M-CL-02.sample")}
-            </Txt>
-          </View>
-        ) : null}
-      </View>
+      <Image
+        source={{ uri: r.thumbUri ?? r.fileUri }}
+        style={[styles.thumb, { borderColor: t.color.rule }]}
+        contentFit="cover"
+        accessibilityLabel={r.source === "sample" ? tr("M-CL-02.sample") : undefined}
+      />
       <View style={{ flex: 1, gap: space.s2 }}>
         <Txt kind="bodyStrong">
           {r.serial ? tr("M-CL-02.serial", { serial: r.serial }) : tr("M-CL-02.notRead")}
         </Txt>
         <Txt kind="caption" color="ink2">
-          {[r.memberHint, format.bytes(r.bytes), format.time(new Date(r.createdAt).toISOString())]
+          {[
+            r.source === "sample" ? tr("M-CL-02.sample") : null,
+            r.memberHint,
+            format.bytes(r.bytes),
+            format.time(new Date(r.createdAt).toISOString()),
+          ]
             .filter(Boolean)
             .join(", ")}
         </Txt>
@@ -151,6 +143,5 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: space.s16, paddingBottom: space.s48 },
   row: { flexDirection: "row", alignItems: "center", gap: space.s12, padding: space.s12 },
   thumb: { width: 56, height: 56, borderWidth: 1, borderRadius: radius.none },
-  sampleTag: { position: "absolute", bottom: 0, left: 0, right: 0, alignItems: "center" },
   empty: { padding: space.s24, borderWidth: 1, borderStyle: "dashed", borderRadius: radius.plate },
 });

@@ -109,3 +109,48 @@ describe("member link /s/:token", () => {
     });
   });
 });
+
+describe("subscribe over a real loopback stream (spike S7, the fetch-streaming path)", () => {
+  it("receives events as they are flushed and resumes from Last-Event-ID after the server drops", async () => {
+    const { createServer } = await import("node:http");
+    const seenIds: (string | undefined)[] = [];
+    const server = createServer((req, res) => {
+      const last = req.headers["last-event-id"] as string | undefined;
+      seenIds.push(last);
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+      const start = last ? Number(last) + 1 : 1;
+      let n = start;
+      const timer = setInterval(() => {
+        res.write(event(String(n), "item.updated"));
+        n++;
+        if (n - start === 2) {
+          clearInterval(timer);
+          res.end(); // a deploy or Render's request cap drops the stream
+        }
+      }, 15);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const { port } = server.address() as { port: number };
+    const got: { id: string; at: number }[] = [];
+    const t0 = Date.now();
+    let stop: () => void = () => {};
+    await new Promise<void>((resolve) => {
+      stop = subscribeSse({
+        url: `http://127.0.0.1:${port}/v1/runs/2026A-r37/events`,
+        fetch: globalThis.fetch,
+        getBearer: () => null,
+        sleep: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 20))),
+        onEvent: (e) => {
+          got.push({ id: e.id, at: Date.now() - t0 });
+          if (got.length === 4) resolve();
+        },
+      });
+    });
+    stop();
+    server.close();
+    expect(got.map((g) => g.id)).toEqual(["1", "2", "3", "4"]);
+    expect(seenIds.slice(0, 2)).toEqual([undefined, "2"]);
+    // Events arrive while the stream is open, not when it closes (no buffering of the whole response).
+    expect((got[1]?.at ?? 0) - (got[0]?.at ?? 0)).toBeLessThan(200);
+  });
+});

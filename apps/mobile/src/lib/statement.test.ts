@@ -64,3 +64,17 @@ describe("statement sentences", () => {
     }
   });
 });
+
+describe("statement segments", () => {
+  it("splits words from engine values so money can be set in the figure face", () => {
+    const s3 = statementSentences(dto, "en").sentences.find((s) => s.id === "s3");
+    expect(s3?.segments).toEqual([
+      { text: "Premium from ", value: false },
+      { text: "Lantern Bay", value: true },
+      { text: ": ", value: false },
+      { text: "US$43.69", value: true },
+      { text: ", no deductions allowed.", value: false },
+    ]);
+    expect(s3?.segments.map((x) => x.text).join("")).toBe(s3?.display);
+  });
+});

@@ -6,6 +6,7 @@
 import type { StatementDTO } from "../_shims/api-client";
 import type { Lang } from "../_shims/contracts";
 import { format } from "../_shims/domain";
+import type { Segment } from "./figures";
 
 export interface PlaceholderValue {
   display: string;
@@ -28,7 +29,15 @@ export function hasDigit(text: string): boolean {
 }
 
 export type FilledSentence =
-  | { ok: true; id: string; display: string; spoken: string; mentions: string[] }
+  | {
+      ok: true;
+      id: string;
+      display: string;
+      spoken: string;
+      mentions: string[];
+      /** Template words and engine values in order, so figures can be set in the figure face (design §2.3). */
+      segments: Segment[];
+    }
   | { ok: false; id: string; reason: "digit-in-template" | "unknown-placeholder" | "stray-braces" };
 
 export function fillSentence(
@@ -50,7 +59,16 @@ export function fillSentence(
     PLACEHOLDER_RE,
     (_, n: string) => values[n]?.spoken ?? values[n]?.display ?? "",
   );
-  return { ok: true, id: s.id, display, spoken, mentions };
+  const segments: Segment[] = [];
+  let last = 0;
+  for (const m of s.text.matchAll(PLACEHOLDER_RE)) {
+    const at = m.index ?? 0;
+    if (at > last) segments.push({ text: s.text.slice(last, at), value: false });
+    segments.push({ text: values[m[1] ?? ""]?.display ?? "", value: true });
+    last = at + m[0].length;
+  }
+  if (last < s.text.length) segments.push({ text: s.text.slice(last), value: false });
+  return { ok: true, id: s.id, display, spoken, mentions, segments };
 }
 
 /** Engine values for the reference sentences s1–s7 (S1.10), in the member's language. */

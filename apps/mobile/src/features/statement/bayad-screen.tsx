@@ -33,6 +33,7 @@ import {
   SectionTitle,
 } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
+import { figures, Sentence } from "../../ui/sentence";
 import { Slab } from "../../ui/slab";
 import { Txt, useT } from "../../ui/text";
 import { StatusCapsule, useMoment1 } from "./capsule";
@@ -80,8 +81,8 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
   }
 
   const { sentences } = statementSentences(dto, lang);
-  const lead = sentences.find((s) => s.id === "s1")?.display ?? "";
-  const ask = sentences.find((s) => s.id === "s7")?.display ?? "";
+  const lead = sentences.find((s) => s.id === "s1")?.segments ?? [];
+  const ask = sentences.find((s) => s.id === "s7")?.segments ?? [];
   const sent = dto.history.find((h) => h.kind === "sent")?.at ?? null;
   const paidAt =
     track.status === "SUCCESS"
@@ -139,9 +140,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
             </Txt>
           </View>
 
-          <Txt kind="statementLead" lang={lang} testID="M-MB-01.greeting">
-            {lead}
-          </Txt>
+          <Sentence segments={lead} kind="statementLead" lang={lang} testID="M-MB-01.greeting" />
 
           {showAmount ? (
             <View style={{ gap: space.s4 }}>
@@ -158,12 +157,15 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
             </View>
           ) : (
             <View style={{ gap: space.s4 }}>
-              <Txt kind="statementBody">
-                {tr(capsule === "held-line" ? "M-MB-01.heldDetail" : "M-MB-01.checkingDetail", {
-                  name: dto.treasurer.first,
-                  date: dto.expectedDate ? format.date(dto.expectedDate, lang) : "",
-                })}
-              </Txt>
+              <Sentence
+                lang={lang}
+                segments={figures(
+                  tr(capsule === "held-line" ? "M-MB-01.heldDetail" : "M-MB-01.checkingDetail", {
+                    name: dto.treasurer.first,
+                    date: dto.expectedDate ? format.date(dto.expectedDate, lang) : "",
+                  }),
+                )}
+              />
               <Txt kind="figure" color="ink2">
                 {format.kg(dto.kilos.netGrams)}
               </Txt>
@@ -283,7 +285,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
               {tr("M-MB-01.rateCard", { hash: format.hash(dto.rateCard.sha256, 2) })}
             </Txt>
           </View>
-          <Txt kind="statementBody">{ask}</Txt>
+          <Sentence segments={ask} lang={lang} />
           <Button
             variant="text"
             label={tr("M-MB-01.recheck")}

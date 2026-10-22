@@ -35,6 +35,24 @@ function send(res, status, headers, body) {
   res.end(body);
 }
 
+/** Streams a file; a file removed mid-request (a rebuild clearing dist/) is a 503, never a crashed server. */
+function stream(res, file, headers) {
+  const rs = createReadStream(file);
+  rs.on("open", () => {
+    res.writeHead(200, headers);
+    rs.pipe(res);
+  });
+  rs.on("error", () => {
+    if (res.headersSent) return res.destroy();
+    send(
+      res,
+      503,
+      { "Content-Type": "text/plain" },
+      "The web export is missing or rebuilding. Run the build.",
+    );
+  });
+}
+
 function fileFor(pathname) {
   const rel = normalize(decodeURIComponent(pathname.slice(base.length))).replace(/^([/\\])+/, "");
   const full = join(root, rel);
@@ -54,17 +72,18 @@ const server = createServer((req, res) => {
   const file = fileFor(pathname);
   if (file) {
     const immutable = pathname.includes("/_expo/static/") || pathname.includes("/assets/");
-    res.writeHead(200, {
+    return stream(res, file, {
       "Content-Type": types[extname(file)] ?? "application/octet-stream",
       "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
       "X-Content-Type-Options": "nosniff",
     });
-    return createReadStream(file).pipe(res);
   }
   // Asset-looking paths that do not exist are real 404s; everything else is a client route.
   if (extname(pathname)) return send(res, 404, { "Content-Type": "text/plain" }, "Not found");
-  res.writeHead(200, { "Content-Type": types[".html"], "Cache-Control": "no-cache" });
-  return createReadStream(join(root, "index.html")).pipe(res);
+  return stream(res, join(root, "index.html"), {
+    "Content-Type": types[".html"],
+    "Cache-Control": "no-cache",
+  });
 });
 
 server.listen(port, () => {

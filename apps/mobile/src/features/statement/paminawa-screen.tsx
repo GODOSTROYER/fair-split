@@ -25,6 +25,7 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { Button, Chip, MachineTranslatedNote } from "../../ui/primitives";
+import { Sentence } from "../../ui/sentence";
 import { Txt, useT } from "../../ui/text";
 import { useStatement } from "./use-statement";
 
@@ -189,14 +190,13 @@ export function PaminawaScreen() {
             accessibilityRole="button"
             accessibilityState={{ selected: i === index }}
           >
-            <Txt
+            <Sentence
+              segments={s.segments}
               kind="statementLead"
               color={i === index ? "ink" : "ink2"}
               lang={lang}
-              style={i === index ? styles.current : null}
-            >
-              {s.display}
-            </Txt>
+              underline={i === index}
+            />
           </Pressable>
         ))}
         {dto ? (
@@ -265,7 +265,6 @@ const styles = StyleSheet.create({
     paddingTop: space.s8,
   },
   transcript: { padding: space.s16, gap: space.s16 },
-  current: { textDecorationLine: "underline" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8, paddingTop: space.s8 },
   slipChip: {
     flexDirection: "row",

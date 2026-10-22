@@ -27,7 +27,8 @@ import {
 
 export type DemoStage = "checking" | "sent" | "paid" | "unclaimed";
 
-const APPROVED_AT = "2026-10-29T10:24:00+08:00";
+/** Key 2 lands a few minutes after the holds are resolved; demo times follow the clock so the history reads in order. */
+const minutesBefore = (iso: string, m: number) => new Date(Date.parse(iso) - m * 60_000).toISOString();
 
 export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt?: string }): StatementDTO {
   const { stage, now } = opts;
@@ -46,7 +47,7 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
   if (stage !== "checking") {
     history.push({
       kind: "approved",
-      at: APPROVED_AT,
+      at: minutesBefore(sentAt, 2),
       by: [people.treasurer.initials, people.chair.initials],
     });
     history.push({ kind: "sent", at: sentAt });
@@ -120,7 +121,9 @@ export function buildDemoCosign(opts: { now: Date; treasurerSigned: boolean }): 
     batchSha256,
     items: batchItems.map((i) => ({ ...i, memberNo: i.senderItemId.replace(/^r\d+-/, "") })),
     holds: resolvedHolds,
-    treasurerSigned: opts.treasurerSigned ? { keyId: people.treasurer.keyId, at: APPROVED_AT } : null,
+    treasurerSigned: opts.treasurerSigned
+      ? { keyId: people.treasurer.keyId, at: minutesBefore(opts.now.toISOString(), 3) }
+      : null,
     presence: { persona: "treasurer:analyn", view: "approve", at: opts.now.toISOString() },
     expiresAt: new Date(opts.now.getTime() + 30 * 60_000).toISOString(),
   };
