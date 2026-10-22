@@ -327,6 +327,77 @@ describe("PayPalHttp.request", () => {
     expect(delays).toEqual([]);
   });
 
+  it("sends nothing once the caller's signal is aborted (FS_ABORTED, delivery not_sent)", async () => {
+    const { client, records } = setup();
+    let calls = 0;
+    server.use(
+      http.get(`${SANDBOX}/v1/payments/payouts/B1`, () => {
+        calls += 1;
+        return HttpResponse.json({});
+      }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/payments/payouts/B1",
+      purpose: "payouts.get",
+      priority: "live",
+      signal: AbortSignal.abort(),
+    });
+    expect(result).toMatchObject({ ok: false, kind: "timeout", name: "FS_ABORTED", delivery: "not_sent" });
+    expect(calls).toBe(0);
+    expect(records).toEqual([]);
+  });
+
+  it("cancels the attempt in flight when the caller's deadline passes (delivery unknown, no retry)", async () => {
+    const { client, delays, records } = setup();
+    let calls = 0;
+    server.use(
+      http.get(`${SANDBOX}/v1/payments/payouts/B1`, async () => {
+        calls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        return HttpResponse.json({});
+      }),
+    );
+    const started = performance.now();
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/payments/payouts/B1",
+      purpose: "payouts.get",
+      priority: "live",
+      signal: AbortSignal.timeout(80),
+    });
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect(result).toMatchObject({ ok: false, kind: "timeout", name: "FS_ABORTED", delivery: "unknown" });
+    expect(calls).toBe(1);
+    expect(delays).toEqual([]);
+    expect(records.map((r) => r.outcome)).toEqual(["timeout"]);
+  });
+
+  it("stops retrying when the caller aborts during a retry wait", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const { client } = setup({
+      sleep: async () => {
+        controller.abort();
+      },
+    });
+    server.use(
+      http.get(`${SANDBOX}/v1/payments/payouts/B1`, () => {
+        calls += 1;
+        return HttpResponse.json({ name: "INTERNAL_SERVER_ERROR" }, { status: 503 });
+      }),
+    );
+    const result = await client.request({
+      method: "GET",
+      path: "/v1/payments/payouts/B1",
+      purpose: "payouts.get",
+      priority: "live",
+      signal: controller.signal,
+    });
+    expect(result).toMatchObject({ ok: false, name: "FS_ABORTED", attempts: 1, delivery: "received" });
+    expect(calls).toBe(1);
+  });
+
   it("honours Retry-After on a retried 503, capped at 30 s", async () => {
     const { client, delays } = setup();
     let calls = 0;

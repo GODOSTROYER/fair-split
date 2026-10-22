@@ -7,7 +7,8 @@
 //
 // Retries: idempotent calls (GET, or anything with a PayPal-Request-Id) are retried on 5xx,
 // timeouts and network errors at 1 s, 3 s and 9 s, with the same request id (S3.6.4). A 401
-// invalidates the token and retries once. A 429 opens the circuit and is returned at once.
+// invalidates the token and retries once. A 429 opens the circuit and is returned at once. A caller
+// `signal` is a deadline over all of it: once it aborts, nothing more is sent (FS_ABORTED).
 // `delivery` tells money code whether PayPal could have acted on the request.
 
 import { z } from "zod";
@@ -46,6 +47,11 @@ export interface PayPalRequest {
   headers?: Readonly<Record<string, string>>;
   /** Per-attempt timeout; defaults to the client's (15 s). */
   timeoutMs?: number;
+  /**
+   * The caller's deadline. Once aborted nothing more is sent: an attempt in flight is cancelled,
+   * a retry wait ends, and the result is a `timeout` failure named `FS_ABORTED`.
+   */
+  signal?: AbortSignal;
 }
 
 export interface PayPalLink {
@@ -372,7 +378,28 @@ export function createPayPalHttp(config: PayPalHttpConfig): PayPalHttp {
       return Math.max(base, Math.min(retryAfter ?? 0, policy.maxRetryAfterMs));
     };
 
+    const callerSignal = req.signal;
+    const callerAborted = () => callerSignal?.aborted === true;
+    const abortedLocally = () =>
+      local("timeout", "FS_ABORTED", "the caller's deadline passed before the request was sent", {
+        retryable: idempotent,
+      });
+    /** Wait before a retry, ending early if the caller aborts. */
+    const pause = (ms: number): Promise<void> => {
+      if (!callerSignal) return wait(ms);
+      if (callerSignal.aborted) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const onAbort = () => resolve();
+        callerSignal.addEventListener("abort", onAbort, { once: true });
+        void wait(ms).then(() => {
+          callerSignal.removeEventListener("abort", onAbort);
+          resolve();
+        });
+      });
+    };
+
     for (;;) {
+      if (callerAborted()) return abortedLocally();
       const gate = await limiter.take({ purpose: req.purpose, priority: req.priority });
       if (!gate.ok) {
         const circuit = gate.reason === "CIRCUIT_OPEN";
@@ -396,6 +423,7 @@ export function createPayPalHttp(config: PayPalHttpConfig): PayPalHttp {
         });
       }
 
+      if (callerAborted()) return abortedLocally();
       attempts += 1;
       const attemptStart = now();
       const headers = new Headers(req.headers);
@@ -406,6 +434,7 @@ export function createPayPalHttp(config: PayPalHttpConfig): PayPalHttp {
       if (requestId !== null) headers.set("paypal-request-id", requestId);
       else headers.delete("paypal-request-id");
 
+      const attemptTimeout = AbortSignal.timeout(timeoutMs);
       let res: Response;
       try {
         res = await fetchImpl(target.url, {
@@ -413,20 +442,26 @@ export function createPayPalHttp(config: PayPalHttpConfig): PayPalHttp {
           headers,
           ...(bodyText === undefined ? {} : { body: bodyText }),
           redirect: "error",
-          signal: AbortSignal.timeout(timeoutMs),
+          signal: callerSignal ? AbortSignal.any([attemptTimeout, callerSignal]) : attemptTimeout,
         });
       } catch (err) {
-        const timedOut = isTimeoutError(err);
+        const cancelled = callerAborted();
+        const timedOut = cancelled || isTimeoutError(err);
         // Sent, no answer: PayPal may or may not have acted on this attempt.
         delivery = "unknown";
         await record(0, timedOut ? "timeout" : "network_error", null, attemptStart, gate.ticket ?? null);
+        if (cancelled) {
+          return local("timeout", "FS_ABORTED", "the caller's deadline passed while waiting for PayPal", {
+            retryable: idempotent,
+          });
+        }
         const delay = nextRetryDelay(null);
         if (delay !== null) {
           logger?.warn?.(
             { purpose: req.purpose, attempt: attempts, delayMs: delay },
             "paypal call retry (no response)",
           );
-          await wait(delay);
+          await pause(delay);
           continue;
         }
         return local(
@@ -502,7 +537,7 @@ export function createPayPalHttp(config: PayPalHttpConfig): PayPalHttp {
             },
             "paypal call retry",
           );
-          await wait(delay);
+          await pause(delay);
           continue;
         }
       }

@@ -192,6 +192,30 @@ describe("catch-up and resend", () => {
       "?page_size=50&start_time=2026-10-29T08%3A00%3A00.000Z&end_time=2026-10-29T09%3A00%3A00.000Z",
     );
     expect(seen[1]).toBe("?page=2");
+    expect(result.next).toBe("https://api.sandbox.paypal.com/v1/notifications/webhooks-events?page=4");
+
+    // Resuming from that link continues where the listing stopped instead of starting over.
+    const resumed = await listWebhookEvents(client(), {
+      startTime: new Date("2026-10-29T08:00:00Z"),
+      endTime: new Date("2026-10-29T09:00:00Z"),
+      maxPages: 1,
+      from: result.next,
+    });
+    expect(resumed.events.map((e) => e.id)).toEqual(["WH-E4"]);
+    expect(seen.at(-1)).toBe("?page=4");
+  });
+
+  it("reports next as null when the listing reached its end", async () => {
+    server.use(
+      http.get(`${SANDBOX}/v1/notifications/webhooks-events`, () =>
+        HttpResponse.json({ events: [{ id: "WH-ONLY", event_type: "INVOICING.INVOICE.PAID" }], links: [] }),
+      ),
+    );
+    const result = await listWebhookEvents(client(), {
+      startTime: new Date("2026-10-29T08:00:00Z"),
+      endTime: new Date("2026-10-29T09:00:00Z"),
+    });
+    expect(result).toMatchObject({ truncated: false, next: null });
   });
 
   it("resends one event to our webhook", async () => {

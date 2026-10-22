@@ -2,10 +2,12 @@
 // IC-05: PayPalAuth.token(), PayPalHttp.request() → result union with debugId, verifyPayPal(), toItemStatus().
 
 export {
+  parseWebhookApp,
   runSetupWebhooks,
   SETUP_WEBHOOKS_USAGE,
   type SetupWebhooksDeps,
   type SetupWebhooksIo,
+  type WebhookApp,
 } from "./admin/setup-webhooks.js";
 export {
   checkWebhookRegistration,
@@ -16,6 +18,8 @@ export {
   ensureWebhook,
   ensureWebhookLookup,
   type ListedWebhookEvent,
+  type ListWebhookEventsOptions,
+  type ListWebhookEventsResult,
   listWebhookEvents,
   listWebhooks,
   type RegisteredWebhook,
@@ -106,11 +110,20 @@ export {
   type LoggerLike,
   readHeader,
 } from "./types.js";
-export { type CertUrlCheck, type CertUrlRejection, checkCertUrl } from "./webhook/cert-url.js";
+export {
+  CERT_ID_PATTERN,
+  type CertUrlCheck,
+  type CertUrlRejection,
+  checkCertUrl,
+} from "./webhook/cert-url.js";
 export {
   type CertCache,
   type CertCheckFailure,
+  type CertPropertyFailure,
+  type CertValidityFailure,
+  checkCertValidity,
   checkLeafCertificate,
+  checkLeafProperties,
   createMemoryCertCache,
   type LoadedCert,
   parsePemChain,
@@ -126,14 +139,24 @@ export {
   type WebhookEnvelope,
   type WebhookEventType,
 } from "./webhook/event.js";
-export { buildPostbackBody, createPostbackVerifier } from "./webhook/postback.js";
 export {
+  buildPostbackBody,
+  createPostbackVerifier,
+  POSTBACK_DEADLINE_MS,
+  POSTBACK_TIMEOUT_MS,
+  type PostbackVerifierOptions,
+  postbackWithDeadline,
+} from "./webhook/postback.js";
+export {
+  type CertWarning,
   createPayPalWebhookVerifier,
+  type ExpiredCertPolicy,
   MOCK_WEBHOOK_ID,
   type PayPalWebhookVerifier,
   type PostbackFn,
   type PostbackInput,
   type PostbackResult,
+  type PrewarmResult,
   type RawBody,
   type VerifyFailureReason,
   type VerifyMode,
@@ -141,4 +164,5 @@ export {
   type VerifyOutcome,
   verifyPayPal,
   type WebhookVerifierConfig,
+  type WebhookVerifierHealth,
 } from "./webhook/verify.js";

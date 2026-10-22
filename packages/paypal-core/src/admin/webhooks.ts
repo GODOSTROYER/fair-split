@@ -258,22 +258,44 @@ const EventListSchema = z
 
 export type ListedWebhookEvent = z.infer<typeof EventListSchema>["events"][number];
 
+export interface ListWebhookEventsOptions {
+  /** Inclusive bounds (PayPal: "created on or after start_time and on or before end_time"). */
+  startTime: Date;
+  endTime: Date;
+  pageSize?: number;
+  maxPages?: number;
+  priority?: CallPriority;
+  /** Continue from a `next` link returned by an earlier listing instead of starting the window over. */
+  from?: string | null;
+}
+
+export interface ListWebhookEventsResult {
+  /** In PayPal's order (newest first, judging by its keyset `index_time` cursor; not documented). */
+  events: ListedWebhookEvent[];
+  /** More pages remained after `maxPages`. */
+  truncated: boolean;
+  /** PayPal's `next` link where the listing stopped; null when it reached the end. */
+  next: string | null;
+}
+
 /**
  * Catch-up after downtime (S3.6.5): GET /v1/notifications/webhooks-events?start_time=&end_time=,
  * following `next` links. Bounded by `maxPages` so a catch-up pass has a known call cost.
  */
 export async function listWebhookEvents(
   http: PayPalHttp,
-  options: { startTime: Date; endTime: Date; pageSize?: number; maxPages?: number; priority?: CallPriority },
-): Promise<{ events: ListedWebhookEvent[]; truncated: boolean }> {
+  options: ListWebhookEventsOptions,
+): Promise<ListWebhookEventsResult> {
   const maxPages = options.maxPages ?? 5;
   const events: ListedWebhookEvent[] = [];
-  let path: string | null = "/v1/notifications/webhooks-events";
-  let query: Record<string, string | number> | undefined = {
-    page_size: options.pageSize ?? 50,
-    start_time: options.startTime.toISOString(),
-    end_time: options.endTime.toISOString(),
-  };
+  let path: string | null = options.from ?? "/v1/notifications/webhooks-events";
+  let query: Record<string, string | number> | undefined = options.from
+    ? undefined
+    : {
+        page_size: options.pageSize ?? 50,
+        start_time: options.startTime.toISOString(),
+        end_time: options.endTime.toISOString(),
+      };
   for (let page = 0; page < maxPages && path !== null; page++) {
     const body = EventListSchema.parse(
       expectOk(
@@ -290,7 +312,7 @@ export async function listWebhookEvents(
     path = body.links.find((l) => l.rel === "next")?.href ?? null;
     query = undefined;
   }
-  return { events, truncated: path !== null };
+  return { events, truncated: path !== null, next: path };
 }
 
 /** The duplicate beat: POST /v1/notifications/webhooks-events/{id}/resend (once per live run). */

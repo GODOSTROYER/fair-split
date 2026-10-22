@@ -31,9 +31,19 @@ const SHA256_WITH_RSA = "1.2.840.113549.1.1.11";
 const DAY = 24 * 60 * 60_000;
 
 export const TEST_CERT_SUBJECT = "messageverificationcerts.sandbox.paypal.com";
-/** A cert URL that passes the sandbox allowlist; serve the test PEM here with msw or an injected fetch. */
-export const TEST_CERT_URL = "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-fairsplit-test-0001";
+/**
+ * A cert URL that passes the sandbox allowlist and PayPal's id shape; serve the test PEM here with msw
+ * or an injected fetch. Real PayPal ids start CERT-360caa42-, so the zeros mark this one as synthetic.
+ */
+export const TEST_CERT_URL =
+  "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-00000000-00000000-00000001";
 export const TEST_WEBHOOK_ID = "8PT597110X687430LKGECATA";
+
+/** A further synthetic, well-formed cert URL, stable per label (`CERT-00000000-00000000-<sha256(label)[0..8]>`). */
+export function testCertUrl(label: string, host = "api.sandbox.paypal.com"): string {
+  const id = createHash("sha256").update(label).digest("hex").slice(0, 8);
+  return `https://${host}/v1/notifications/certs/CERT-00000000-00000000-${id}`;
+}
 
 export interface TestCertificate {
   pem: string;

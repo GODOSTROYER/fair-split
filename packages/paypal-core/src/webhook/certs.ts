@@ -1,10 +1,12 @@
 // PayPal message-verification certificates: fetch, cache and check.
 //
-// Facts checked on 22 Oct 2026 against certificates PayPal serves from /v1/notifications/certs/:
-// the response is one PEM leaf (CRLF line endings, no intermediates), RSA-2048, issued by
-// "DigiCert SHA2 Extended Validation Server CA", subject/SAN messageverificationcerts.sandbox.paypal.com
-// (live: messageverificationcerts.paypal.com). Old cert URLs keep serving their expired certificates,
-// so validity is checked on every use, not just on fetch.
+// Facts checked on 22 Oct 2026 against 10 certificates PayPal serves from /v1/notifications/certs/
+// (sandbox and live, 2015-2027): the response is one PEM leaf (CRLF line endings, no intermediates),
+// RSA-2048, subject/SAN messageverificationcerts.sandbox.paypal.com (live: messageverificationcerts.
+// paypal.com), issued by "DigiCert SHA2 Extended Validation Server CA" until 2025 and by "DigiCert EV
+// RSA CA G2" since. PayPal rotates yearly with a few weeks of overlap; old cert URLs keep serving
+// their expired certificates, so validity is checked on every use, not just on fetch. The verifier
+// checks validity apart from the other properties (expiredCertPolicy, see verify.ts).
 //
 // Trust model: the PEM is fetched over TLS (Node verifies PayPal's server certificate) from an
 // allowlisted PayPal host, redirects refused. On top of that the leaf must be in its validity window,
@@ -121,11 +123,23 @@ export interface LeafCheckOptions {
   minRsaBits?: number;
 }
 
-/** Checks applied on every use of a (possibly cached) certificate. Returns null when it passes. */
-export function checkLeafCertificate(cert: LoadedCert, options: LeafCheckOptions): CertCheckFailure | null {
+export type CertValidityFailure = Extract<CertCheckFailure, "CERT_NOT_YET_VALID" | "CERT_EXPIRED">;
+export type CertPropertyFailure = Exclude<CertCheckFailure, CertValidityFailure>;
+
+/** Is `at` inside the certificate's validity window? Null when it is. */
+export function checkCertValidity(leaf: X509Certificate, at: number): CertValidityFailure | null {
+  if (at < leaf.validFromDate.getTime()) return "CERT_NOT_YET_VALID";
+  if (at > leaf.validToDate.getTime()) return "CERT_EXPIRED";
+  return null;
+}
+
+/**
+ * Everything except the validity window: RSA key of at least 2048 bits, not a CA, the expected
+ * subject, and (with trust anchors) a verified chain. The verifier evaluates these separately so
+ * that a PayPal signature made with an expired certificate can still be recognised as such.
+ */
+export function checkLeafProperties(cert: LoadedCert, options: LeafCheckOptions): CertPropertyFailure | null {
   const { leaf } = cert;
-  if (options.at < leaf.validFromDate.getTime()) return "CERT_NOT_YET_VALID";
-  if (options.at > leaf.validToDate.getTime()) return "CERT_EXPIRED";
   const key = leaf.publicKey;
   const bits = key.asymmetricKeyDetails?.modulusLength ?? 0;
   if (key.asymmetricKeyType !== "rsa" || bits < (options.minRsaBits ?? 2048)) return "CERT_KEY_UNSUPPORTED";
@@ -135,4 +149,9 @@ export function checkLeafCertificate(cert: LoadedCert, options: LeafCheckOptions
     return "CERT_UNTRUSTED";
   }
   return null;
+}
+
+/** Every check applied on each use of a (possibly cached) certificate. Returns null when it passes. */
+export function checkLeafCertificate(cert: LoadedCert, options: LeafCheckOptions): CertCheckFailure | null {
+  return checkCertValidity(cert.leaf, options.at) ?? checkLeafProperties(cert, options);
 }

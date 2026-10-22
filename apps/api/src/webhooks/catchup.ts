@@ -6,9 +6,20 @@
 //
 // A fetched event has no transmission signature: it is authentic because we read it from PayPal over
 // TLS with our own token. Its `raw` is PayPal's JSON as listed, re-serialized, which the label says.
+//
+// Convergence. PayPal documents no sort order for the listing, but its `next` links carry a keyset
+// cursor (`move_to=next&index_time=…&index_id=…`) that walks back from end_time: newest first. Simply
+// repeating a pass that stopped at maxPages would re-read the same newest pages and never reach the
+// older events it exists to recover. So a truncated pass returns `resume`, the part of the window it
+// has not read, worked out from the create_time of what it did read: newest first → [start, oldest
+// seen]; oldest first → [newest seen, end]. Bounds are inclusive (as PayPal's are) and rounded outward
+// to whole seconds, so events on the boundary are re-read and deduped, never skipped. When the order
+// cannot be read off the events, `resume` carries PayPal's `next` link instead. WS-OPS stores
+// `resume` and passes it back until a pass returns null; each pass costs at most maxPages calls.
 
 import {
   isSubscribedEventType,
+  type ListedWebhookEvent,
   type LoggerLike,
   listWebhookEvents,
   type PayPalHttp,
@@ -31,14 +42,23 @@ export interface CatchUpDeps<Tx> {
   logger?: LoggerLike;
 }
 
+/** Where the next pass continues. Plain JSON, so WS-OPS can persist it as is. */
+export interface CatchUpCursor {
+  /** The part of the window not read yet (ISO 8601; both bounds inclusive, as PayPal's are). */
+  start: string;
+  end: string;
+  /** PayPal's `next` link, used when the listing order could not be read off the events. */
+  next: string | null;
+}
+
 export interface CatchUpOptions {
-  /**
-   * PayPal `create_time` of the newest applied event, or null when nothing has been applied yet. Re-running
-   * a pass is always safe (inserts dedupe), so a `truncated` pass can simply be repeated.
-   */
+  /** PayPal `create_time` of the newest applied event, or null when nothing has been applied yet. */
   lastAppliedAt: Date | null;
+  /** The previous pass's `resume`. While set, the pass continues that window instead of starting over. */
+  resume?: CatchUpCursor | null;
   /** Bounds the PayPal calls one pass may make (each page is one call). */
   maxPages?: number;
+  pageSize?: number;
 }
 
 export interface CatchUpResult {
@@ -48,31 +68,98 @@ export interface CatchUpResult {
   alreadyStored: number;
   /** Event types we do not subscribe to. */
   skipped: number;
-  /** More pages remained; the next pass picks them up. */
+  /** More pages remained after maxPages. */
   truncated: boolean;
+  /** Non-null exactly when truncated: pass it back as `options.resume` to finish the window. */
+  resume: CatchUpCursor | null;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const iso = (ms: number) => new Date(ms).toISOString();
+
+function createTimeOf(event: ListedWebhookEvent): number {
+  const value = (event as { create_time?: unknown }).create_time;
+  return typeof value === "string" ? Date.parse(value) : Number.NaN;
+}
+
+/** The listing order, as far as the events show it. */
+function listingOrder(times: readonly number[]): "newest_first" | "oldest_first" | "unknown" {
+  let up = false;
+  let down = false;
+  for (let i = 1; i < times.length; i++) {
+    const previous = times[i - 1] ?? 0;
+    const current = times[i] ?? 0;
+    if (current > previous) up = true;
+    else if (current < previous) down = true;
+  }
+  if (down && !up) return "newest_first";
+  if (up && !down) return "oldest_first";
+  return "unknown";
+}
+
+/** The unread part of a truncated pass's window (see the header comment). */
+export function resumeAfter(
+  window: { start: Date; end: Date },
+  events: readonly ListedWebhookEvent[],
+  next: string | null,
+): CatchUpCursor | null {
+  const start = window.start.getTime();
+  const end = window.end.getTime();
+  const times = events.map(createTimeOf).filter(Number.isFinite);
+  const order = listingOrder(times);
+  if (order === "newest_first") {
+    const narrowedEnd = Math.ceil(Math.min(...times) / 1000) * 1000;
+    if (narrowedEnd >= start && narrowedEnd < end)
+      return { start: iso(start), end: iso(narrowedEnd), next: null };
+  } else if (order === "oldest_first") {
+    const narrowedStart = Math.floor(Math.max(...times) / 1000) * 1000;
+    if (narrowedStart > start && narrowedStart <= end)
+      return { start: iso(narrowedStart), end: iso(end), next: null };
+  }
+  return next === null ? null : { start: iso(start), end: iso(end), next };
+}
+
+function readCursor(cursor: CatchUpCursor): { start: Date; end: Date; next: string | null } | null {
+  const start = Date.parse(cursor.start);
+  const end = Date.parse(cursor.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) return null;
+  const next = typeof cursor.next === "string" && cursor.next.length > 0 ? cursor.next : null;
+  return { start: new Date(start), end: new Date(end), next };
+}
+
 export async function catchUpWebhookEvents<Tx>(
   deps: CatchUpDeps<Tx>,
   options: CatchUpOptions,
 ): Promise<CatchUpResult> {
-  const end = (deps.now ?? (() => new Date()))();
-  const since = options.lastAppliedAt?.getTime() ?? end.getTime() - CATCH_UP_DEFAULT_LOOKBACK_MS;
-  const start = new Date(Math.min(since - CATCH_UP_OVERLAP_MS, end.getTime()));
-  const { events, truncated } = await listWebhookEvents(deps.http, {
+  const now = (deps.now ?? (() => new Date()))();
+  const resumed = options.resume ? readCursor(options.resume) : null;
+  if (options.resume && !resumed) {
+    deps.logger?.warn?.({}, "paypal webhook catch-up: unreadable resume cursor ignored; starting over");
+  }
+  let start: Date;
+  let end: Date;
+  if (resumed) {
+    ({ start, end } = resumed);
+  } else {
+    end = now;
+    const since = options.lastAppliedAt?.getTime() ?? end.getTime() - CATCH_UP_DEFAULT_LOOKBACK_MS;
+    start = new Date(Math.min(since - CATCH_UP_OVERLAP_MS, end.getTime()));
+  }
+  const listing = await listWebhookEvents(deps.http, {
     startTime: start,
     endTime: end,
     maxPages: options.maxPages ?? 5,
+    pageSize: options.pageSize ?? 50,
     priority: "background",
+    from: resumed?.next ?? null,
   });
 
   let inserted = 0;
   let alreadyStored = 0;
   let skipped = 0;
-  for (const event of events) {
+  for (const event of listing.events) {
     if (!isSubscribedEventType(event.event_type)) {
       skipped += 1;
       continue;
@@ -81,14 +168,11 @@ export async function catchUpWebhookEvents<Tx>(
     const row: WebhookEventInsert = {
       paypalEventId: event.id,
       eventType: event.event_type,
-      resourceType: typeof event.resource_type === "string" ? event.resource_type : null,
       resourceKey: resourceKeyOf({ event_type: event.event_type, ...(resource ? { resource } : {}) }),
       verified: "fetched",
       status: "received",
       raw: JSON.stringify(event),
-      transmissionId: null,
-      rejectReason: null,
-      receivedAt: end,
+      delivery: null,
     };
     const stored = await deps.transaction(async (tx) => {
       const created = await deps.insertWebhookEvent(tx, row);
@@ -101,16 +185,22 @@ export async function catchUpWebhookEvents<Tx>(
     else alreadyStored += 1;
   }
 
-  const result = {
+  const result: CatchUpResult = {
     window: { start, end },
-    listed: events.length,
+    listed: listing.events.length,
     inserted,
     alreadyStored,
     skipped,
-    truncated,
+    truncated: listing.truncated,
+    resume: listing.truncated ? resumeAfter({ start, end }, listing.events, listing.next) : null,
   };
   deps.logger?.info?.(
-    { ...result, window: { start: start.toISOString(), end: end.toISOString() } },
+    {
+      ...result,
+      window: { start: start.toISOString(), end: end.toISOString() },
+      resumed: resumed !== null,
+      resume: result.resume ? { start: result.resume.start, end: result.resume.end } : null,
+    },
     "paypal webhook catch-up",
   );
   return result;

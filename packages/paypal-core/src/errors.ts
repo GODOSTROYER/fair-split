@@ -28,6 +28,7 @@ export type KnownPayPalErrorName =
   | "FS_LIMITER_DENIED"
   | "FS_CIRCUIT_OPEN"
   | "FS_TIMEOUT"
+  | "FS_ABORTED"
   | "FS_NETWORK_ERROR"
   | "FS_AUTH_FAILED"
   | "FS_INVALID_REQUEST";

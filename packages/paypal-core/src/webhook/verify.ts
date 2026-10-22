@@ -1,31 +1,60 @@
 // verifyPayPal(raw, headers, webhookId) → 'self' | 'postback' | 'dev_mock' | false (IC-05).
 //
 // PayPal's documented self-verification (developer.paypal.com/api/rest/webhooks/rest), checked on
-// 22 Oct 2026 against three genuine PayPal-signed simulator deliveries:
+// 22 Oct 2026 against genuine PayPal-signed deliveries:
 //   message   = `${paypal-transmission-id}|${paypal-transmission-time}|${webhookId}|${crc32(raw body)}`
 //   crc32     = unsigned decimal CRC-32 of the raw bytes (never a re-serialized body)
 //   signature = base64 `paypal-transmission-sig`, RSA-SHA256 (PKCS#1 v1.5) with the public key of the
 //               certificate at `paypal-cert-url`; `paypal-auth-algo` must be SHA256withRSA.
 // Simulator ("mock") events are signed with the literal webhook id `WEBHOOK_ID`; we accept them
 // only when dev mocks are switched on (PP_DEV_MOCKS=1, never on fs-judge) and label them 'dev_mock'.
-// Postback (`POST /v1/notifications/verify-webhook-signature`) runs only after a successful
-// self-verification and only when asked (once per live run, for the on-screen badge), so a forged
-// request can never make us spend a PayPal call.
+//
+// Certificate fetches are PayPal calls like any other: they take a token from the injected limiter
+// (purpose `webhooks.cert`, background priority), are written to `paypal_calls` by the injected
+// recorder, and a 429 opens the circuit. Before that, a local budget (6 new URLs a minute) keeps
+// forged requests away from the shared limiter, with one extra slot a minute held back for URLs that
+// already signed a verified delivery (or were pre-warmed from stored ones at boot).
+//
+// Expired certificates. PayPal rotates its signing certificate yearly with a few weeks of overlap
+// (sandbox: …ab66f33d to 7 Mar 2025, …90621ecd to 1 Mar 2026, …bf9ab596 from 27 Jan 2026 to 26 Jan
+// 2027, which signed real sandbox deliveries on 19 Oct 2026). If PayPal ever signs with an expired
+// certificate, a hard reject would 400 every real delivery, so `expiredCertPolicy` decides, and only
+// for deliveries whose signature verifies under that (allowlisted, PayPal-served) certificate:
+//   - 'postback' (default): ask PayPal once per certificate (bounded, one call); on SUCCESS accept
+//     ('postback'), remember the certificate for 24 h and accept later deliveries as 'self' with
+//     certWarning CERT_EXPIRED_CONFIRMED. Otherwise reject (400, PayPal retries).
+//   - 'accept': accept with certWarning CERT_EXPIRED_ACCEPTED. 'reject': the strict behaviour.
+// Every such delivery is logged and counted; health() turns degraded, for /readyz and /ops.
+//
+// Postback (`POST /v1/notifications/verify-webhook-signature`) otherwise runs only when asked and only
+// after a successful self-verification, so a forged request can never make us spend a PayPal call.
+// It is bounded to one attempt under a 6 s deadline. The webhook route does not ask for it.
 
 import { verify as rsaVerify, type X509Certificate } from "node:crypto";
 import { crc32 } from "node:zlib";
 import { isPayPalHost, PAYPAL_API_HOSTS, PAYPAL_CERT_SUBJECTS, type PayPalEnv } from "../env.js";
 import { PayPalConfigError } from "../errors.js";
-import { defaultFetch, type FetchLike, type HeadersLike, type LoggerLike, readHeader } from "../types.js";
+import type { PayPalLimiter } from "../limiter.js";
+import { type CallOutcome, type PayPalCallRecorder, recordSafely } from "../recorder.js";
+import {
+  type CallPriority,
+  defaultFetch,
+  type FetchLike,
+  type HeadersLike,
+  type LoggerLike,
+  readHeader,
+} from "../types.js";
 import { isTimeoutError } from "../util.js";
 import { checkCertUrl } from "./cert-url.js";
 import {
   type CertCache,
-  checkLeafCertificate,
+  checkCertValidity,
+  checkLeafProperties,
   createMemoryCertCache,
   type LoadedCert,
   parsePemChain,
 } from "./certs.js";
+import { POSTBACK_DEADLINE_MS, postbackWithDeadline } from "./postback.js";
 
 /** The webhook id PayPal's simulator signs with. */
 export const MOCK_WEBHOOK_ID = "WEBHOOK_ID";
@@ -44,6 +73,7 @@ export type VerifyFailureReason =
   | "CERT_FETCH_THROTTLED"
   | "CERT_PARSE_FAILED"
   | "CERT_NOT_YET_VALID"
+  /** The signature verifies, but with a certificate past its validity (see expiredCertPolicy). */
   | "CERT_EXPIRED"
   | "CERT_KEY_UNSUPPORTED"
   | "CERT_IS_CA"
@@ -64,7 +94,17 @@ export interface PostbackInput {
   rawEvent: string;
 }
 
-export type PostbackFn = (input: PostbackInput) => Promise<PostbackResult>;
+/** Ask PayPal about one delivery. `signal` carries the caller's deadline. */
+export type PostbackFn = (
+  input: PostbackInput,
+  options?: { signal?: AbortSignal },
+) => Promise<PostbackResult>;
+
+/** What to do with a delivery whose signature verifies under an expired PayPal certificate. */
+export type ExpiredCertPolicy = "reject" | "postback" | "accept";
+
+/** Why a delivery was accepted although its certificate had expired. */
+export type CertWarning = "CERT_EXPIRED_CONFIRMED" | "CERT_EXPIRED_ACCEPTED";
 
 export interface VerifyOutcome {
   mode: VerifyMode | false;
@@ -74,13 +114,15 @@ export interface VerifyOutcome {
   transmissionId: string | null;
   certUrl: string | null;
   crc32: number | null;
-  /** Postback result; null when it was not requested or self-verification failed. */
-  postback: PostbackResult | "SKIPPED" | null;
+  /** Postback answer; null when none was made. */
+  postback: PostbackResult | "TIMEOUT" | "SKIPPED" | null;
   certSource: "cache" | "network" | null;
+  /** Set when the delivery was accepted although PayPal's certificate had expired. */
+  certWarning: CertWarning | null;
 }
 
 export interface VerifyOptions {
-  /** Also ask PayPal (one API call). `true` uses the verifier's configured postback function. */
+  /** Also ask PayPal (one call, bounded). `true` uses the verifier's configured postback function. */
   postback?: boolean | PostbackFn;
 }
 
@@ -97,6 +139,18 @@ export interface WebhookVerifierConfig {
   /** Accept simulator events signed with the literal `WEBHOOK_ID`, labelled 'dev_mock'. Dev only. */
   devMocks?: boolean;
   postback?: PostbackFn;
+  /** Overall deadline for one postback, limiter wait and token fetch included (default 6 s). */
+  postbackDeadlineMs?: number;
+  /** See the header comment. Default 'postback' (which rejects when no postback is configured). */
+  expiredCertPolicy?: ExpiredCertPolicy;
+  /** Under 'postback': wait before asking PayPal about the same expired certificate again (default 10 min). */
+  expiredCertRetryMs?: number;
+  /** The shared limiter: certificate fetches count toward the 40/min budget and open the circuit on a 429. */
+  limiter?: PayPalLimiter;
+  /** Writes each certificate fetch to `paypal_calls`, like every other PayPal call. */
+  recorder?: PayPalCallRecorder;
+  /** Limiter lane for certificate fetches (default background). */
+  certFetchPriority?: CallPriority;
   fetch?: FetchLike;
   now?: () => number;
   certCache?: CertCache;
@@ -104,9 +158,46 @@ export interface WebhookVerifierConfig {
   maxCertBytes?: number;
   /** Fetches of cert URLs not yet cached, per minute. Bounds what forged requests can make us fetch. */
   newCertFetchesPerMinute?: number;
+  /** Extra fetches per minute held back for cert URLs that already signed a verified delivery (default 1). */
+  knownCertFetchReserve?: number;
   /** How long a failed cert URL is not retried. */
   failedCertRetryMs?: number;
+  /** Window of the health() counters (default 15 min). */
+  healthWindowMs?: number;
+  /** health() turns degraded when the signing certificate has fewer days left than this (default 14). */
+  certExpiryWarningDays?: number;
   logger?: LoggerLike;
+}
+
+export interface PrewarmResult {
+  certUrl: string;
+  ok: boolean;
+  source: "cache" | "network" | null;
+  reason: VerifyFailureReason | null;
+  detail: string | null;
+  validTo: string | null;
+}
+
+/** Verification health for `/readyz` (report it in the body; never fail readiness on it) and `/ops`. */
+export interface WebhookVerifierHealth {
+  status: "ok" | "degraded";
+  /** Plain-language problems, empty when ok. */
+  problems: string[];
+  windowMs: number;
+  /** Deliveries accepted in the window. */
+  verified: number;
+  /** Rejections in the window, by reason (forged junk lands here too). */
+  rejected: Partial<Record<VerifyFailureReason, number>>;
+  /** Deliveries whose signature verified under an expired PayPal certificate, accepted or not. */
+  signedWithExpiredCert: number;
+  /** Of those, accepted under expiredCertPolicy. */
+  acceptedWithExpiredCert: number;
+  expiredCertPolicy: ExpiredCertPolicy;
+  lastVerifiedAt: string | null;
+  /** Certificate of the most recent accepted delivery. */
+  signingCert: { certUrl: string; validTo: string; daysLeft: number } | null;
+  certsCached: number;
+  knownCertUrls: number;
 }
 
 export interface PayPalWebhookVerifier {
@@ -122,6 +213,12 @@ export interface PayPalWebhookVerifier {
     webhookId: string,
     opts?: VerifyOptions,
   ): Promise<VerifyOutcome>;
+  /**
+   * Fetch and cache certificates that signed stored, verified events (call at boot or from
+   * warmCaches with the newest `paypal-cert-url` on file). They are also given the reserved fetch slot.
+   */
+  prewarm(certUrls: readonly string[]): Promise<PrewarmResult[]>;
+  health(): WebhookVerifierHealth;
   /** Number of cached certificates (for /ops). */
   cachedCerts(): number;
 }
@@ -134,13 +231,53 @@ type LoadResult =
       detail: string | null;
     };
 
+type Mark =
+  | { at: number; kind: "verified" | "signed_expired" | "accepted_expired" }
+  | { at: number; kind: "rejected"; reason: VerifyFailureReason }
+  | { at: number; kind: "known_fetch_failed"; certUrl: string; why: string };
+
 const SIGNATURE_B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+const DAY_MS = 86_400_000;
+const MAX_TRACKED = 64;
+const MAX_FAILED_URLS = 256;
+const MAX_MARKS = 2_000;
+/** How long a PayPal-confirmed expired certificate keeps being accepted without asking again. */
+const EXPIRED_CONFIRMATION_TTL_MS = DAY_MS;
+/** Prewarm fetches at most this many URLs per call. */
+const MAX_PREWARM = 4;
 
 function toBytes(raw: RawBody): Uint8Array {
   if (typeof raw === "string") return Buffer.from(raw, "utf8");
   if (raw instanceof Uint8Array) return raw;
   return new Uint8Array(raw);
 }
+
+/** A continuously refilled token bucket holding at most `perMinute` tokens. */
+function tokenBucket(perMinute: number, now: () => number): () => boolean {
+  let tokens = perMinute;
+  let at = now();
+  return () => {
+    const t = now();
+    tokens = Math.min(perMinute, tokens + ((t - at) * perMinute) / 60_000);
+    at = t;
+    if (tokens < 1) return false;
+    tokens -= 1;
+    return true;
+  };
+}
+
+/** Insert or refresh a key in a Map used as an LRU, evicting the oldest entries beyond `max`. */
+function touch<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > max) {
+    const oldest = map.keys().next();
+    if (oldest.done) break;
+    map.delete(oldest.value);
+  }
+}
+
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}): PayPalWebhookVerifier {
   const env = config.env ?? "sandbox";
@@ -156,25 +293,72 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const cache = config.certCache ?? createMemoryCertCache({ now });
   const fetchTimeoutMs = config.certFetchTimeoutMs ?? 5_000;
   const maxCertBytes = config.maxCertBytes ?? 64 * 1024;
-  const perMinute = config.newCertFetchesPerMinute ?? 6;
   const failedRetryMs = config.failedCertRetryMs ?? 60_000;
   const devMocks = config.devMocks === true;
+  const expiredPolicy = config.expiredCertPolicy ?? "postback";
+  const expiredRetryMs = config.expiredCertRetryMs ?? 10 * 60_000;
+  const postbackDeadlineMs = config.postbackDeadlineMs ?? POSTBACK_DEADLINE_MS;
+  const certPriority = config.certFetchPriority ?? "background";
+  const healthWindowMs = config.healthWindowMs ?? 15 * 60_000;
+  const warnDays = config.certExpiryWarningDays ?? 14;
+  const { limiter, recorder, logger } = config;
+  const leafOptions = (at: number) => ({ at, subjects, ...(anchors ? { trustAnchors: anchors } : {}) });
 
+  const takeNewSlot = tokenBucket(config.newCertFetchesPerMinute ?? 6, now);
+  const takeReservedSlot = tokenBucket(config.knownCertFetchReserve ?? 1, now);
   const inflight = new Map<string, Promise<LoadResult>>();
   const failedUntil = new Map<string, number>();
-  let budget = perMinute;
-  let budgetAt = now();
+  /** Cert URLs (cache keys) that signed a verified delivery or were pre-warmed from stored ones. */
+  const knownGood = new Map<string, number>();
+  /** Expired certificates PayPal confirmed by postback: fingerprint → when. */
+  const confirmedExpired = new Map<string, number>();
+  /** Last postback about an expired certificate: fingerprint → when. */
+  const expiredAskedAt = new Map<string, number>();
+  /** The confirmation in flight per expired certificate, shared by concurrent deliveries. */
+  const confirming = new Map<string, Promise<PostbackResult | "TIMEOUT">>();
+  const marks: Mark[] = [];
+  let lastVerified: { at: number; certUrl: string; validTo: number } | null = null;
 
-  const takeBudget = () => {
-    const t = now();
-    budget = Math.min(perMinute, budget + ((t - budgetAt) * perMinute) / 60_000);
-    budgetAt = t;
-    if (budget < 1) return false;
-    budget -= 1;
-    return true;
+  const mark = (m: Mark) => {
+    marks.push(m);
+    if (marks.length > MAX_MARKS) marks.splice(0, marks.length - MAX_MARKS);
   };
 
   async function fetchCert(url: URL): Promise<LoadResult> {
+    let ticket: string | null = null;
+    if (limiter) {
+      try {
+        const gate = await limiter.take({ purpose: "webhooks.cert", priority: certPriority });
+        if (!gate.ok) return { ok: false, reason: "CERT_FETCH_THROTTLED", detail: `limiter ${gate.reason}` };
+        ticket = gate.ticket ?? null;
+      } catch (err) {
+        logger?.error?.(
+          { error: err instanceof Error ? err.message : String(err) },
+          "limiter.take failed for a webhook certificate fetch",
+        );
+        return { ok: false, reason: "CERT_FETCH_THROTTLED", detail: "limiter error" };
+      }
+    }
+    const startedAt = now();
+    const record = (status: number, outcome: CallOutcome, debugId: string | null) =>
+      recordSafely(
+        recorder,
+        {
+          at: new Date(startedAt),
+          purpose: "webhooks.cert",
+          priority: certPriority,
+          method: "GET",
+          path: url.pathname,
+          status,
+          outcome,
+          debugId,
+          requestId: null,
+          ms: now() - startedAt,
+          attempt: 1,
+          ticket,
+        },
+        logger,
+      );
     let res: Response;
     try {
       res = await fetchImpl(url.href, {
@@ -184,7 +368,20 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         signal: AbortSignal.timeout(fetchTimeoutMs),
       });
     } catch (err) {
-      return { ok: false, reason: "CERT_FETCH_FAILED", detail: isTimeoutError(err) ? "timeout" : "network" };
+      const timedOut = isTimeoutError(err);
+      await record(0, timedOut ? "timeout" : "network_error", null);
+      return { ok: false, reason: "CERT_FETCH_FAILED", detail: timedOut ? "timeout" : "network" };
+    }
+    await record(res.status, res.status === 200 ? "ok" : "http_error", res.headers.get("paypal-debug-id"));
+    if (res.status === 429) {
+      try {
+        await limiter?.reportRateLimited?.(new Date(now()));
+      } catch (err) {
+        logger?.error?.(
+          { error: err instanceof Error ? err.message : String(err) },
+          "limiter.reportRateLimited failed",
+        );
+      }
     }
     if (res.status !== 200) {
       await res.body?.cancel().catch(() => undefined);
@@ -218,18 +415,17 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (blocked !== undefined && blocked > now()) {
       return Promise.resolve({ ok: false, reason: "CERT_FETCH_FAILED", detail: "recently failed" });
     }
-    if (!takeBudget()) return Promise.resolve({ ok: false, reason: "CERT_FETCH_THROTTLED", detail: null });
+    // The local budget comes first, so forged requests never reach the shared limiter.
+    if (!takeNewSlot() && !(knownGood.has(key) && takeReservedSlot())) {
+      return Promise.resolve({ ok: false, reason: "CERT_FETCH_THROTTLED", detail: "fetch budget" });
+    }
     const run = fetchCert(url)
       .then((result) => {
         if (result.ok) {
           cache.set(key, result.cert);
           failedUntil.delete(key);
-        } else {
-          failedUntil.set(key, now() + failedRetryMs);
-          if (failedUntil.size > 256) {
-            const oldest = failedUntil.keys().next();
-            if (!oldest.done) failedUntil.delete(oldest.value);
-          }
+        } else if (result.reason !== "CERT_FETCH_THROTTLED") {
+          touch(failedUntil, key, now() + failedRetryMs, MAX_FAILED_URLS);
         }
         return result;
       })
@@ -251,16 +447,26 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     const authAlgo = readHeader(headers, "paypal-auth-algo");
     let crc: number | null = null;
     let certSource: VerifyOutcome["certSource"] = null;
-    const fail = (reason: VerifyFailureReason, detail: string | null = null): VerifyOutcome => ({
-      mode: false,
-      reason,
-      detail,
+    const outcome = (
+      fields: Pick<VerifyOutcome, "mode" | "reason" | "detail"> &
+        Partial<Pick<VerifyOutcome, "postback" | "certWarning">>,
+    ): VerifyOutcome => ({
       transmissionId,
       certUrl,
       crc32: crc,
-      postback: null,
       certSource,
+      postback: null,
+      certWarning: null,
+      ...fields,
     });
+    const fail = (
+      reason: VerifyFailureReason,
+      detail: string | null = null,
+      postback: VerifyOutcome["postback"] = null,
+    ): VerifyOutcome => {
+      mark({ at: now(), kind: "rejected", reason });
+      return outcome({ mode: false, reason, detail, postback });
+    };
 
     if (!transmissionId) return fail("MISSING_HEADER", "paypal-transmission-id");
     if (!transmissionTime) return fail("MISSING_HEADER", "paypal-transmission-time");
@@ -273,6 +479,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
 
     const urlCheck = checkCertUrl(certUrl, certHosts);
     if (!urlCheck.ok) return fail("CERT_URL_REJECTED", urlCheck.reason);
+    const certKey = urlCheck.cacheKey;
 
     const sigText = transmissionSig.trim();
     const signature = SIGNATURE_B64.test(sigText) ? Buffer.from(sigText, "base64") : null;
@@ -283,73 +490,240 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (bytes.length === 0) return fail("EMPTY_BODY");
     crc = crc32(bytes) >>> 0;
 
-    const loaded = await loadCert(urlCheck.url, urlCheck.cacheKey);
-    if (!loaded.ok) return fail(loaded.reason, loaded.detail);
+    const loaded = await loadCert(urlCheck.url, certKey);
+    if (!loaded.ok) {
+      if (knownGood.has(certKey)) {
+        mark({
+          at: now(),
+          kind: "known_fetch_failed",
+          certUrl: certKey,
+          why: loaded.detail ? `${loaded.reason} (${loaded.detail})` : loaded.reason,
+        });
+      }
+      return fail(loaded.reason, loaded.detail);
+    }
     certSource = loaded.source;
-
-    const certProblem = checkLeafCertificate(loaded.cert, {
-      at: now(),
-      subjects,
-      ...(anchors ? { trustAnchors: anchors } : {}),
-    });
-    if (certProblem) return fail(certProblem);
+    const leaf = loaded.cert.leaf;
+    const checkedAt = now();
+    const property = checkLeafProperties(loaded.cert, leafOptions(checkedAt));
+    if (property) return fail(property);
+    const validity = checkCertValidity(leaf, checkedAt);
+    if (validity === "CERT_NOT_YET_VALID") return fail(validity);
 
     const signedWith = (id: string) => {
       try {
         return rsaVerify(
           "sha256",
           Buffer.from(`${transmissionId}|${transmissionTime}|${id}|${crc}`, "utf8"),
-          loaded.cert.leaf.publicKey,
+          leaf.publicKey,
           signature,
         );
       } catch {
         return false;
       }
     };
+    let signed: "self" | "dev_mock" | false = false;
+    if (webhookId !== MOCK_WEBHOOK_ID && signedWith(webhookId)) signed = "self";
+    else if (devMocks && signedWith(MOCK_WEBHOOK_ID)) signed = "dev_mock";
+    if (signed === false) return fail("SIGNATURE_MISMATCH");
 
-    let mode: VerifyMode | false = false;
-    if (webhookId !== MOCK_WEBHOOK_ID && signedWith(webhookId)) mode = "self";
-    else if (devMocks && signedWith(MOCK_WEBHOOK_ID)) mode = "dev_mock";
-    if (mode === false) return fail("SIGNATURE_MISMATCH");
+    const postbackInput = (): PostbackInput => ({
+      authAlgo,
+      certUrl,
+      transmissionId,
+      transmissionSig,
+      transmissionTime,
+      webhookId,
+      rawEvent: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("utf8"),
+    });
+    const askPayPal = (fn: PostbackFn) =>
+      postbackWithDeadline(fn, postbackInput(), {
+        deadlineMs: postbackDeadlineMs,
+        ...(logger ? { logger } : {}),
+      });
 
+    let mode: VerifyMode = signed;
+    let certWarning: CertWarning | null = null;
     let postback: VerifyOutcome["postback"] = null;
-    if (opts.postback && mode === "self") {
-      const fn = typeof opts.postback === "function" ? opts.postback : config.postback;
-      if (!fn) {
-        postback = "SKIPPED";
+
+    if (validity === "CERT_EXPIRED") {
+      const validTo = leaf.validToDate.toISOString();
+      mark({ at: now(), kind: "signed_expired" });
+      logger?.warn?.(
+        { certUrl: certKey, validTo, expiredCertPolicy: expiredPolicy, mode: signed, transmissionId },
+        "paypal webhook signed with an expired certificate",
+      );
+      if (expiredPolicy === "reject") {
+        return fail("CERT_EXPIRED", `signature valid; certificate expired ${validTo}; policy reject`);
+      }
+      if (expiredPolicy === "accept" || signed === "dev_mock") {
+        certWarning = "CERT_EXPIRED_ACCEPTED";
       } else {
-        try {
-          postback = await fn({
-            authAlgo,
-            certUrl,
-            transmissionId,
-            transmissionSig,
-            transmissionTime,
-            webhookId,
-            rawEvent: Buffer.from(bytes).toString("utf8"),
-          });
-        } catch (err) {
-          config.logger?.warn?.(
-            { error: err instanceof Error ? err.message : String(err) },
-            "paypal webhook postback verification failed",
-          );
-          postback = "ERROR";
+        // 'postback': PayPal confirms once per certificate; later deliveries signed with it pass as 'self'.
+        const fingerprint = leaf.fingerprint256;
+        const confirmedAt = confirmedExpired.get(fingerprint);
+        if (confirmedAt !== undefined && now() - confirmedAt < EXPIRED_CONFIRMATION_TTL_MS) {
+          certWarning = "CERT_EXPIRED_CONFIRMED";
+        } else {
+          const fn = config.postback;
+          if (!fn) return fail("CERT_EXPIRED", "signature valid; no postback configured to confirm it");
+          const pending = confirming.get(fingerprint);
+          if (pending) {
+            // A burst signed with the same certificate waits for the one confirmation in flight.
+            const answer = await pending;
+            if (answer !== "SUCCESS") {
+              return fail("CERT_EXPIRED", `signature valid; postback ${answer} for this certificate`);
+            }
+            certWarning = "CERT_EXPIRED_CONFIRMED";
+          } else {
+            const askedAt = expiredAskedAt.get(fingerprint);
+            if (askedAt !== undefined && now() - askedAt < expiredRetryMs) {
+              return fail("CERT_EXPIRED", "signature valid; PayPal was asked recently and did not confirm");
+            }
+            touch(expiredAskedAt, fingerprint, now(), MAX_TRACKED);
+            const asking = askPayPal(fn);
+            confirming.set(fingerprint, asking);
+            const answer = await asking.finally(() => confirming.delete(fingerprint));
+            if (answer !== "SUCCESS") {
+              return fail("CERT_EXPIRED", `signature valid; postback ${answer}`, answer);
+            }
+            touch(confirmedExpired, fingerprint, now(), MAX_TRACKED);
+            certWarning = "CERT_EXPIRED_CONFIRMED";
+            postback = "SUCCESS";
+            mode = "postback";
+          }
         }
       }
-    } else if (opts.postback && mode === "dev_mock") {
-      // PayPal's postback always answers FAILURE for simulator events; do not spend a call.
-      postback = "SKIPPED";
+      mark({ at: now(), kind: "accepted_expired" });
     }
 
-    return {
+    // Accepted. Remember the certificate URL as one PayPal really signs with.
+    touch(knownGood, certKey, now(), MAX_TRACKED);
+    lastVerified = { at: now(), certUrl: certKey, validTo: leaf.validToDate.getTime() };
+    mark({ at: now(), kind: "verified" });
+
+    if (opts.postback && postback === null) {
+      if (mode === "self") {
+        const fn = typeof opts.postback === "function" ? opts.postback : config.postback;
+        postback = fn ? await askPayPal(fn) : "SKIPPED";
+      } else {
+        // PayPal's postback always answers FAILURE for simulator events; do not spend a call.
+        postback = "SKIPPED";
+      }
+    }
+    return outcome({
       mode: postback === "SUCCESS" ? "postback" : mode,
       reason: null,
       detail: null,
-      transmissionId,
-      certUrl,
-      crc32: crc,
       postback,
-      certSource,
+      certWarning,
+    });
+  }
+
+  async function prewarm(certUrls: readonly string[]): Promise<PrewarmResult[]> {
+    const results: PrewarmResult[] = [];
+    for (const value of [...new Set(certUrls)].slice(0, MAX_PREWARM)) {
+      const check = checkCertUrl(value, certHosts);
+      if (!check.ok) {
+        results.push({
+          certUrl: value.slice(0, 200),
+          ok: false,
+          source: null,
+          reason: "CERT_URL_REJECTED",
+          detail: check.reason,
+          validTo: null,
+        });
+        continue;
+      }
+      // These URLs signed stored, verified events, so they may use the reserved fetch slot.
+      touch(knownGood, check.cacheKey, now(), MAX_TRACKED);
+      const loaded = await loadCert(check.url, check.cacheKey);
+      if (!loaded.ok) {
+        results.push({
+          certUrl: check.cacheKey,
+          ok: false,
+          source: null,
+          reason: loaded.reason,
+          detail: loaded.detail,
+          validTo: null,
+        });
+        continue;
+      }
+      const at = now();
+      const problem =
+        checkLeafProperties(loaded.cert, leafOptions(at)) ?? checkCertValidity(loaded.cert.leaf, at);
+      results.push({
+        certUrl: check.cacheKey,
+        ok: problem === null,
+        source: loaded.source,
+        reason: problem,
+        detail: null,
+        validTo: loaded.cert.leaf.validToDate.toISOString(),
+      });
+    }
+    return results;
+  }
+
+  function health(): WebhookVerifierHealth {
+    const t = now();
+    const since = t - healthWindowMs;
+    let stale = 0;
+    while (stale < marks.length && (marks[stale]?.at ?? t) < since) stale += 1;
+    if (stale > 0) marks.splice(0, stale);
+
+    const rejected: Partial<Record<VerifyFailureReason, number>> = {};
+    const fetchProblems = new Map<string, string>();
+    let verified = 0;
+    let signedExpired = 0;
+    let acceptedExpired = 0;
+    for (const m of marks) {
+      if (m.kind === "verified") verified += 1;
+      else if (m.kind === "signed_expired") signedExpired += 1;
+      else if (m.kind === "accepted_expired") acceptedExpired += 1;
+      else if (m.kind === "rejected") rejected[m.reason] = (rejected[m.reason] ?? 0) + 1;
+      else if (m.kind === "known_fetch_failed") fetchProblems.set(m.certUrl, m.why);
+    }
+
+    const minutes = Math.round(healthWindowMs / 60_000);
+    const problems: string[] = [];
+    if (signedExpired > 0) {
+      problems.push(
+        `${signedExpired} PayPal ${signedExpired === 1 ? "delivery" : "deliveries"} in the last ${minutes} min ` +
+          `signed with an expired certificate (expiredCertPolicy ${expiredPolicy}, ${acceptedExpired} accepted)`,
+      );
+    }
+    for (const [url, why] of fetchProblems) {
+      problems.push(`could not fetch ${url}, which signed earlier deliveries: ${why}`);
+    }
+    let signingCert: WebhookVerifierHealth["signingCert"] = null;
+    if (lastVerified) {
+      const daysLeft = Math.floor((lastVerified.validTo - t) / DAY_MS);
+      signingCert = {
+        certUrl: lastVerified.certUrl,
+        validTo: new Date(lastVerified.validTo).toISOString(),
+        daysLeft,
+      };
+      if (lastVerified.validTo < t) {
+        problems.push(`PayPal's signing certificate expired on ${isoDay(lastVerified.validTo)}`);
+      } else if (daysLeft < warnDays) {
+        problems.push(
+          `PayPal's signing certificate expires in ${daysLeft} days (${isoDay(lastVerified.validTo)})`,
+        );
+      }
+    }
+    return {
+      status: problems.length > 0 ? "degraded" : "ok",
+      problems,
+      windowMs: healthWindowMs,
+      verified,
+      rejected,
+      signedWithExpiredCert: signedExpired,
+      acceptedWithExpiredCert: acceptedExpired,
+      expiredCertPolicy: expiredPolicy,
+      lastVerifiedAt: lastVerified ? new Date(lastVerified.at).toISOString() : null,
+      signingCert,
+      certsCached: cache.size,
+      knownCertUrls: knownGood.size,
     };
   }
 
@@ -358,6 +732,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     async verifyPayPal(raw, headers, webhookId, opts) {
       return (await verifyDetailed(raw, headers, webhookId, opts)).mode;
     },
+    prewarm,
+    health,
     cachedCerts: () => cache.size,
   };
 }
@@ -366,8 +742,9 @@ let defaultVerifier: PayPalWebhookVerifier | null = null;
 
 /**
  * IC-05 `verifyPayPal(raw, headers, webhookId)`, on a process-wide sandbox verifier with a shared
- * certificate cache. Dev mocks are never accepted here; build a verifier with
- * `createPayPalWebhookVerifier({ devMocks: true })` for local simulator runs.
+ * certificate cache. It has no limiter, recorder or postback: production code uses
+ * `createPayPalCore().verifyPayPal`, which has all three. Dev mocks are never accepted here; build a
+ * verifier with `createPayPalWebhookVerifier({ devMocks: true })` for local simulator runs.
  */
 export function verifyPayPal(
   raw: RawBody,

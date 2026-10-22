@@ -1,10 +1,12 @@
-import { createPayPalWebhookVerifier, type VerifyOutcome } from "@fairsplit/paypal-core";
+import { createPayPalWebhookVerifier, type PostbackFn, type VerifyOutcome } from "@fairsplit/paypal-core";
 import {
   createTestPki,
   payoutItemResource,
   signWebhook,
   syntheticEvent,
+  TEST_CERT_URL,
   TEST_WEBHOOK_ID,
+  testCertUrl,
 } from "@fairsplit/paypal-core/testing";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
@@ -16,12 +18,15 @@ import {
   honoPayPalWebhook,
   MAX_REJECTED_RAW_BYTES,
   type PayPalWebhookDeps,
+  prewarmWebhookCertificates,
   readBodyWithLimit,
   type WebhookEventInsert,
+  webhookRunEvent,
 } from "./paypal.js";
 
 const pki = createTestPki();
 const leaf = pki.issueLeaf();
+const DAY = 86_400_000;
 
 /** In-memory stand-in for Postgres: rows and outbox entries become visible only when the callback resolves. */
 function fakeDb() {
@@ -61,21 +66,38 @@ function fakeDb() {
   return { committed, outbox, duplicates, deps };
 }
 
-function realVerifier(devMocks = false) {
+const pemServer = (pems: Record<string, string>) => async (input: string | URL) => {
+  const pem = pems[String(input)];
+  return pem
+    ? new Response(pem, { headers: { "content-type": "application/x-pem-file" } })
+    : new Response(null, { status: 404 });
+};
+
+function realVerifier(
+  options: { devMocks?: boolean; postback?: PostbackFn; pems?: Record<string, string> } = {},
+) {
   const verifier = createPayPalWebhookVerifier({
-    devMocks,
-    fetch: async () => new Response(leaf.pem, { headers: { "content-type": "application/x-pem-file" } }),
+    ...(options.devMocks ? { devMocks: true } : {}),
+    ...(options.postback ? { postback: options.postback } : {}),
+    expiredCertPolicy: "accept",
+    fetch: pemServer({ [TEST_CERT_URL]: leaf.pem, ...options.pems }),
   });
   return (raw: Uint8Array, headers: Parameters<typeof verifier.verifyDetailed>[1]) =>
     verifier.verifyDetailed(raw, headers, TEST_WEBHOOK_ID);
 }
 
-function setup(options: { devMocks?: boolean; verify?: PayPalWebhookDeps<unknown>["verify"] } = {}) {
+function setup(
+  options: {
+    devMocks?: boolean;
+    verify?: PayPalWebhookDeps<unknown>["verify"];
+    verifyTimeoutMs?: number;
+  } = {},
+) {
   const db = fakeDb();
   const handler = createPayPalWebhookHandler({
     ...db.deps,
-    verify: options.verify ?? realVerifier(options.devMocks),
-    now: () => new Date("2026-10-29T09:12:45Z"),
+    verify: options.verify ?? realVerifier(options.devMocks ? { devMocks: true } : {}),
+    ...(options.verifyTimeoutMs ? { verifyTimeoutMs: options.verifyTimeoutMs } : {}),
   });
   return { ...db, handler };
 }
@@ -89,8 +111,8 @@ const itemEvent = syntheticEvent(
     transactionStatus: "SUCCESS",
   }),
 );
-const sign = (body: string | object = itemEvent, webhookId = TEST_WEBHOOK_ID) =>
-  signWebhook({ body, webhookId, privateKey: leaf.privateKey });
+const sign = (body: string | object = itemEvent, webhookId = TEST_WEBHOOK_ID, privateKey = leaf.privateKey) =>
+  signWebhook({ body, webhookId, privateKey });
 const request = (s: { body: string; headers: Record<string, string> }) => ({
   rawBody: Buffer.from(s.body, "utf8"),
   headers: s.headers,
@@ -106,17 +128,41 @@ describe("POST /webhooks/paypal handler", () => {
     const row = committed.get(eventId);
     expect(row).toMatchObject({
       eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
-      resourceType: "payouts_item",
       resourceKey: "item:r37-M-014",
       verified: "self",
       status: "received",
       raw: s.body,
-      transmissionId: s.headers["paypal-transmission-id"],
-      rejectReason: null,
     });
     expect(outbox).toEqual([
       { name: "processWebhook", args: { webhookEventId: row?.id }, dedupeKey: `wh:${eventId}` },
     ]);
+  });
+
+  it("writes only the columns of architecture §3 / S3.4, plus the proposed `delivery` jsonb", async () => {
+    const { handler, committed } = setup();
+    const s = sign();
+    await handler(request(s));
+    const row = [...committed.values()][0];
+    const { id: _id, ...columns } = row ?? ({} as WebhookEventInsert & { id: string });
+    expect(Object.keys(columns).sort()).toEqual([
+      "delivery",
+      "eventType",
+      "paypalEventId",
+      "raw",
+      "resourceKey",
+      "status",
+      "verified",
+    ]);
+    // Everything processWebhook's postback needs, and nothing secret: PayPal's own public header values.
+    expect(row?.delivery).toEqual({
+      transmissionId: s.headers["paypal-transmission-id"],
+      transmissionTime: s.headers["paypal-transmission-time"],
+      transmissionSig: s.headers["paypal-transmission-sig"],
+      certUrl: TEST_CERT_URL,
+      authAlgo: "SHA256withRSA",
+      rejectReason: null,
+      certWarning: null,
+    });
   });
 
   it("dedupes on paypal_event_id: a repeated or resent delivery is 200 with no second task", async () => {
@@ -133,9 +179,19 @@ describe("POST /webhooks/paypal handler", () => {
       first.headers["paypal-transmission-id"],
       resent.headers["paypal-transmission-id"],
     ]);
+    expect(duplicates.map((d) => webhookRunEvent(d, true))).toEqual([
+      {
+        type: "webhook.received",
+        eventId: (itemEvent as { id: string }).id,
+        eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+        verified: "self",
+        duplicate: true,
+      },
+      expect.objectContaining({ verified: "self", duplicate: true }),
+    ]);
   });
 
-  it("rejects a tampered body with 400, stores a 'rejected' row and enqueues nothing", async () => {
+  it("rejects a tampered body with 400, stores a 'rejected' row with its reason and enqueues nothing", async () => {
     const { handler, committed, outbox } = setup();
     const s = sign();
     const res = await handler({
@@ -149,7 +205,11 @@ describe("POST /webhooks/paypal handler", () => {
       reason: "SIGNATURE_MISMATCH",
     });
     const row = committed.get(`rejected:${s.headers["paypal-transmission-id"]}`);
-    expect(row).toMatchObject({ status: "rejected", verified: null, rejectReason: "SIGNATURE_MISMATCH" });
+    expect(row).toMatchObject({
+      status: "rejected",
+      verified: null,
+      delivery: { rejectReason: "SIGNATURE_MISMATCH", transmissionId: s.headers["paypal-transmission-id"] },
+    });
     expect(outbox).toEqual([]);
   });
 
@@ -164,7 +224,7 @@ describe("POST /webhooks/paypal handler", () => {
     const row = committed.get("rejected:t-junk");
     expect(row?.raw.length).toBe(MAX_REJECTED_RAW_BYTES);
     expect(row?.eventType).toBe("X");
-    expect(row?.rejectReason).toBe("MISSING_HEADER:paypal-transmission-time");
+    expect(row?.delivery?.rejectReason).toBe("MISSING_HEADER:paypal-transmission-time");
   });
 
   it("never uses an odd transmission id as a key: junk dedupes on its body hash instead", async () => {
@@ -176,7 +236,7 @@ describe("POST /webhooks/paypal handler", () => {
     const keys = [...committed.keys()];
     expect(keys).toHaveLength(1);
     expect(keys[0]).toMatch(/^rejected:sha256-[0-9a-f]{32}$/);
-    expect(committed.get(keys[0] ?? "")?.transmissionId).toBeNull();
+    expect(committed.get(keys[0] ?? "")?.delivery?.transmissionId).toBeNull();
   });
 
   it("rejects a correctly signed body that is not a PayPal event envelope", async () => {
@@ -209,17 +269,55 @@ describe("POST /webhooks/paypal handler", () => {
     });
   });
 
-  it("hands the (unverified) event type to verify as a hint for the postback decision", async () => {
-    const seen: (string | null)[] = [];
-    const inner = realVerifier();
-    const { handler } = setup({
-      verify: async (raw, headers, hint) => {
-        seen.push(hint.eventType);
-        return inner(raw, headers);
-      },
+  it("caps verification time: a hung verifier gets a 500 (PayPal retries) well before PayPal's 30 s", async () => {
+    const { handler, committed } = setup({ verify: () => new Promise(() => undefined), verifyTimeoutMs: 50 });
+    const started = performance.now();
+    expect(await handler(request(sign()))).toMatchObject({ status: 500, reason: "VERIFY_TIMEOUT" });
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect(committed.size).toBe(0);
+  });
+
+  it("never spends a postback in the request: INVOICE.PAID gets its 200 at once while the postback would hang", async () => {
+    const postback = vi.fn<PostbackFn>(() => new Promise(() => undefined));
+    const { handler, committed, outbox } = setup({ verify: realVerifier({ postback }) });
+    const paid = syntheticEvent("INVOICING.INVOICE.PAID", { invoice: { id: "INV2-A" } });
+    const started = performance.now();
+    const res = await handler(request(sign(paid)));
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(res).toMatchObject({ status: 200, outcome: "accepted" });
+    expect(postback).not.toHaveBeenCalled();
+    expect([...committed.values()][0]).toMatchObject({ verified: "self", resourceKey: "invoice:INV2-A" });
+    expect(outbox).toHaveLength(1);
+  });
+
+  it("stores the certificate warning when a delivery was accepted under an expired certificate", async () => {
+    const expired = pki.issueLeaf({
+      notBefore: new Date(Date.now() - 400 * DAY),
+      notAfter: new Date(Date.now() - DAY),
     });
-    await handler(request(sign(syntheticEvent("INVOICING.INVOICE.PAID", { invoice: { id: "INV2-A" } }))));
-    expect(seen).toEqual(["INVOICING.INVOICE.PAID"]);
+    const url = testCertUrl("route-expired");
+    const warn = vi.fn();
+    const db = fakeDb();
+    const handler = createPayPalWebhookHandler({
+      ...db.deps,
+      verify: realVerifier({ pems: { [url]: expired.pem } }),
+      logger: { warn },
+    });
+    const s = signWebhook({
+      body: itemEvent,
+      webhookId: TEST_WEBHOOK_ID,
+      privateKey: expired.privateKey,
+      certUrl: url,
+    });
+    expect(await handler(request(s))).toMatchObject({ status: 200, outcome: "accepted" });
+    expect([...db.committed.values()][0]?.delivery).toMatchObject({
+      certUrl: url,
+      certWarning: "CERT_EXPIRED_ACCEPTED",
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ certWarning: "CERT_EXPIRED_ACCEPTED" }),
+      "paypal webhook accepted with an expired certificate",
+    );
   });
 
   it("inv.i7.outbox: if enqueue fails, nothing is committed and a retry stores the event once", async () => {
@@ -257,6 +355,71 @@ describe("POST /webhooks/paypal handler", () => {
       status: 400,
       reason: "SIGNATURE_MISMATCH",
     });
+  });
+
+  it("inv.i8.labels: a repeated simulator delivery is never reported as a 'self' or 'postback' run event", async () => {
+    const dev = setup({ devMocks: true });
+    const simulated = sign(itemEvent, "WEBHOOK_ID");
+    await dev.handler(request(simulated));
+    expect((await dev.handler(request(simulated))).outcome).toBe("duplicate");
+    expect(dev.duplicates.map((d) => d.verified)).toEqual(["dev_mock"]);
+    // The frozen contract (architecture §5) has no 'dev_mock' or 'fetched': refuse rather than relabel.
+    expect(dev.duplicates.map((d) => webhookRunEvent(d, true))).toEqual([null]);
+    expect(webhookRunEvent({ paypalEventId: "WH-F", eventType: "X", verified: "fetched" }, false)).toBeNull();
+    expect(webhookRunEvent({ paypalEventId: "WH-P", eventType: "X", verified: "postback" }, false)).toEqual({
+      type: "webhook.received",
+      eventId: "WH-P",
+      eventType: "X",
+      verified: "postback",
+      duplicate: false,
+    });
+  });
+});
+
+describe("prewarmWebhookCertificates (boot / warmCaches)", () => {
+  it("loads the certificate of the newest stored delivery, so the first delivery after a deploy is a cache hit", async () => {
+    // Store one delivery, as before the deploy, and read its delivery.certUrl back.
+    const before = setup();
+    await before.handler(request(sign()));
+    const stored = [...before.committed.values()].map((r) => r.delivery?.certUrl ?? "");
+
+    let fetches = 0;
+    const verifier = createPayPalWebhookVerifier({
+      fetch: async (input) => {
+        fetches += 1;
+        return pemServer({ [TEST_CERT_URL]: leaf.pem })(input);
+      },
+    });
+    const results = await prewarmWebhookCertificates({
+      verifier,
+      latestVerifiedCertUrls: async () => stored,
+    });
+    expect(results).toEqual([
+      expect.objectContaining({ certUrl: TEST_CERT_URL, ok: true, source: "network" }),
+    ]);
+    const s = sign();
+    expect(await verifier.verifyDetailed(Buffer.from(s.body), s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: "self",
+      certSource: "cache",
+    });
+    expect(fetches).toBe(1);
+  });
+
+  it("never throws: a failing lookup is logged and boot carries on", async () => {
+    const warn = vi.fn();
+    const verifier = createPayPalWebhookVerifier({ fetch: pemServer({}) });
+    const results = await prewarmWebhookCertificates({
+      verifier,
+      latestVerifiedCertUrls: async () => {
+        throw new Error("db not ready");
+      },
+      logger: { warn },
+    });
+    expect(results).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      { error: "db not ready" },
+      "paypal webhook certificate pre-warm failed",
+    );
   });
 });
 

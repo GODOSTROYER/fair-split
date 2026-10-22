@@ -1,5 +1,6 @@
 // Composition root: one PayPalAuth, one PayPalHttp and one webhook verifier per process, wired to
-// the injected limiter and recorder (WS-DATA's Postgres implementations in production).
+// the injected limiter and recorder (WS-DATA's Postgres implementations in production). The verifier
+// shares both, so its certificate fetches count toward the 40/min budget and land in paypal_calls.
 
 import { createPayPalAuth, type PayPalAuth } from "./auth.js";
 import type { PayPalRuntimeConfig } from "./config.js";
@@ -11,7 +12,9 @@ import type { FetchLike, HeadersLike, LoggerLike } from "./types.js";
 import { createPostbackVerifier } from "./webhook/postback.js";
 import {
   createPayPalWebhookVerifier,
+  type ExpiredCertPolicy,
   type PayPalWebhookVerifier,
+  type PostbackFn,
   type RawBody,
   type VerifyMode,
   type VerifyOptions,
@@ -28,12 +31,16 @@ export interface PayPalCoreOptions {
   retry?: Partial<RetryPolicy>;
   /** Extra PEM trust anchors for webhook certificates (tests, pinning). */
   webhookTrustAnchors?: readonly string[];
+  /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms once). */
+  webhookExpiredCertPolicy?: ExpiredCertPolicy;
 }
 
 export interface PayPalCore {
   auth: PayPalAuth;
   http: PayPalHttp;
   verifier: PayPalWebhookVerifier;
+  /** One bounded verify-webhook-signature call (one attempt, 5 s); for processWebhook's badge step. */
+  postback: PostbackFn;
   /** IC-05 verifyPayPal, bound to this process's verifier (shared certificate cache, postback via http). */
   verifyPayPal(
     raw: RawBody,
@@ -65,16 +72,21 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...(options.retry ? { retry: options.retry } : {}),
     ...shared,
   });
+  const postback = createPostbackVerifier(http);
   const verifier = createPayPalWebhookVerifier({
     devMocks: options.config.devMocks,
-    postback: createPostbackVerifier(http),
+    postback,
+    limiter: options.limiter,
+    ...(options.recorder ? { recorder: options.recorder } : {}),
     ...(options.webhookTrustAnchors ? { trustAnchors: options.webhookTrustAnchors } : {}),
+    ...(options.webhookExpiredCertPolicy ? { expiredCertPolicy: options.webhookExpiredCertPolicy } : {}),
     ...shared,
   });
   return {
     auth,
     http,
     verifier,
+    postback,
     verifyPayPal: (raw, headers, webhookId, opts) => verifier.verifyPayPal(raw, headers, webhookId, opts),
     async boot() {
       const token = await auth.token();

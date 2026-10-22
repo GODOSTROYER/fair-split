@@ -47,6 +47,7 @@ export type CallPurpose =
   | "webhooks.lookup.list"
   | "webhooks.lookup.create"
   | "webhooks.verify"
+  | "webhooks.cert"
   | "webhooks.events.list"
   | "webhooks.events.resend"
   | "invoices.get"

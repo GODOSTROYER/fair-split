@@ -1,11 +1,14 @@
 // Registers (or repairs) the PayPal webhook for one sandbox REST app. Idempotent.
 //
-//   corepack pnpm tsx tools/setup-webhooks.ts --app fs-dev --url https://<tunnel>.trycloudflare.com/webhooks/paypal
-//   corepack pnpm tsx tools/setup-webhooks.ts --app fs-judge --url https://<service>.onrender.com/webhooks/paypal
+//   corepack pnpm tsx tools/setup-webhooks.ts --app dev --url https://<tunnel>.trycloudflare.com/webhooks/paypal
+//   corepack pnpm tsx tools/setup-webhooks.ts --app judge --url https://<service>.onrender.com/webhooks/paypal
 //
-// Credentials come from the environment (PP_CLIENT_ID / PP_CLIENT_SECRET, or the PAYPAL_* names in
-// .env.example), loaded from .env.local and .env at the repo root when present. Only non-secret ids
-// are printed: the webhook id (as PP_WEBHOOK_ID=…), the lookup id, the URL and scope names.
+// `--app` (dev|judge, or fs-dev|fs-judge) picks the credentials: PP_CLIENT_ID_<APP> /
+// PP_CLIENT_SECRET_<APP> (APP = DEV or JUDGE), else the shared PP_CLIENT_ID / PP_CLIENT_SECRET (or the
+// PAYPAL_* names in .env.example). The token's app_id must match PP_APP_ID_<APP> when that is set, and
+// judge with the shared pair needs PP_APP_ID_JUDGE or --force. Env files .env.local and .env at the repo
+// root are loaded when present. Only non-secret ids are printed: the webhook id (as PP_WEBHOOK_ID=…),
+// the lookup id, the app id, the URL and scope names.
 // Logic and tests live in @fairsplit/paypal-core (src/admin/setup-webhooks.ts).
 //
 // The repo root has no "type": "module", so this file avoids import.meta and top-level await and

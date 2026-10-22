@@ -24,7 +24,7 @@ export const PAYPAL_API_HOSTS: Readonly<Record<PayPalEnv, readonly string[]>> = 
 
 /**
  * Subject (SAN dNSName) of PayPal's webhook message-verification certificate. Checked against the
- * certificates PayPal serves from /v1/notifications/certs/ (2019–2025 sandbox and live certs).
+ * certificates PayPal serves from /v1/notifications/certs/ (2015–2027 sandbox and live certs).
  */
 export const PAYPAL_CERT_SUBJECTS: Readonly<Record<PayPalEnv, readonly string[]>> = Object.freeze({
   sandbox: Object.freeze(["messageverificationcerts.sandbox.paypal.com"]),

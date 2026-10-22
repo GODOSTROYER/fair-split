@@ -86,6 +86,28 @@ describe("createPayPalCore", () => {
     expect(records.filter((r) => r.purpose === "webhooks.verify")).toHaveLength(1);
   });
 
+  it("routes the verifier's certificate fetch through the shared limiter and recorder", async () => {
+    const records: PayPalCallRecord[] = [];
+    const limiter = createMemoryLimiter();
+    const c = createPayPalCore({
+      config: { clientId: TEST_CLIENT_ID, clientSecret: TEST_CLIENT_SECRET, devMocks: false },
+      limiter,
+      recorder: { record: (r) => void records.push(r) },
+      webhookTrustAnchors: [pki.ca.pem],
+    });
+    const s = signWebhook({
+      body: syntheticEvent("PAYMENT.PAYOUTSBATCH.SUCCESS", {}),
+      webhookId: TEST_WEBHOOK_ID,
+      privateKey: leaf.privateKey,
+    });
+    expect(await c.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    expect(records.map((r) => [r.purpose, r.priority, r.status])).toEqual([
+      ["webhooks.cert", "background", 200],
+    ]);
+    expect(limiter.snapshot()).toMatchObject({ inWindow: 1, backgroundInWindow: 1 });
+    expect(c.verifier.health()).toMatchObject({ status: "ok", verified: 1, expiredCertPolicy: "postback" });
+  });
+
   it("passes the dev-mocks switch through to the verifier", async () => {
     const s = signWebhook({
       body: syntheticEvent("PAYMENT.PAYOUTS-ITEM.SUCCEEDED", {}),

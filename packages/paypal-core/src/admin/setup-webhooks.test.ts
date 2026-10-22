@@ -78,8 +78,8 @@ describe("tools/setup-webhooks.ts logic", () => {
   });
 
   it.each([
-    [[], "--app must be fs-dev or fs-judge"],
-    [["--app", "prod", "--url", TUNNEL], "--app must be fs-dev or fs-judge"],
+    [[], "--app must be dev or judge"],
+    [["--app", "prod", "--url", TUNNEL], "--app must be dev or judge"],
     [["--app", "fs-dev", "--url", "http://x.trycloudflare.com/webhooks/paypal"], "must be https"],
     [["--app", "fs-dev", "--url", "https://localhost/webhooks/paypal"], "public hostname"],
     [["--app", "fs-dev", "--url", "https://x.trycloudflare.com:8443/webhooks/paypal"], "port"],
@@ -124,5 +124,97 @@ describe("tools/setup-webhooks.ts logic", () => {
     const result = await run(["--help"]);
     expect(result.code).toBe(0);
     expect(result.out[0]).toContain("Usage:");
+  });
+});
+
+describe("tools/setup-webhooks.ts: --app selects and checks the REST app's credentials", () => {
+  const JUDGE_ID = "fs-judge-client";
+  const JUDGE_SECRET = ["fs", "judge", "secret"].join("-");
+  const RENDER = "https://fs-api.onrender.com/webhooks/paypal";
+  const basic = (id: string, secret: string) => `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`;
+
+  it.each(["dev", "fs-dev", "DEV"])("accepts --app %s", async (app) => {
+    server.use(oauthHandler().handler);
+    fakeWebhooksApi();
+    const result = await run(["--app", app, "--url", TUNNEL, "--no-lookup"]);
+    expect(result.code).toBe(0);
+    expect(result.out[0]).toBe("setup-webhooks: app=fs-dev env=sandbox");
+  });
+
+  it("uses PP_CLIENT_ID_JUDGE / PP_CLIENT_SECRET_JUDGE for --app judge, and prints the app id, never the credentials", async () => {
+    const oauth = oauthHandler();
+    server.use(oauth.handler);
+    fakeWebhooksApi();
+    const result = await run(["--app", "judge", "--url", RENDER, "--no-lookup"], {
+      ...ENV,
+      PP_CLIENT_ID_JUDGE: JUDGE_ID,
+      PP_CLIENT_SECRET_JUDGE: JUDGE_SECRET,
+    });
+    expect(result.code).toBe(0);
+    expect(oauth.stub.authorizations).toEqual([basic(JUDGE_ID, JUDGE_SECRET)]);
+    expect(result.out).toContain("credentials: PP_CLIENT_ID_JUDGE/PP_CLIENT_SECRET_JUDGE app_id=APP-FSTEST");
+    expect(result.out).toContain(
+      "tip: add PP_APP_ID_JUDGE=APP-FSTEST to the env so a mismatched app is refused next time",
+    );
+    for (const secret of [JUDGE_ID, JUDGE_SECRET, TEST_CLIENT_ID, TEST_CLIENT_SECRET]) {
+      expect(result.all).not.toContain(secret);
+    }
+  });
+
+  it("refuses --app fs-judge with the shared (dev) credentials before any PayPal call", async () => {
+    const oauth = oauthHandler();
+    server.use(oauth.handler);
+    const api = fakeWebhooksApi();
+    const result = await run(["--app", "fs-judge", "--url", RENDER]);
+    expect(result.code).toBe(2);
+    expect(result.err.join(" ")).toContain("PP_APP_ID_JUDGE");
+    expect(oauth.stub.calls).toBe(0);
+    expect(api.writes).toEqual([]);
+  });
+
+  it("accepts the shared credentials for judge once PP_APP_ID_JUDGE confirms them", async () => {
+    server.use(oauthHandler().handler);
+    const api = fakeWebhooksApi();
+    const result = await run(["--app", "judge", "--url", RENDER, "--no-lookup"], {
+      ...ENV,
+      PP_APP_ID_JUDGE: "APP-FSTEST",
+    });
+    expect(result.code).toBe(0);
+    expect(api.writes).toEqual([`POST ${RENDER}`]);
+    expect(result.out.some((l) => l.startsWith("tip:"))).toBe(false);
+  });
+
+  it("refuses credentials whose app_id differs from PP_APP_ID_<APP>, even with --force, without writing", async () => {
+    server.use(oauthHandler().handler);
+    const api = fakeWebhooksApi();
+    const result = await run(["--app", "judge", "--url", RENDER, "--force"], {
+      ...ENV,
+      PP_APP_ID_JUDGE: "APP-JUDGE0000000000",
+    });
+    expect(result.code).toBe(1);
+    expect(result.err.join(" ")).toContain(
+      "belong to app_id APP-FSTEST, but PP_APP_ID_JUDGE is APP-JUDGE0000000000",
+    );
+    expect(api.writes).toEqual([]);
+  });
+
+  it("refuses the other app's credentials (PP_APP_ID_DEV matches while --app judge)", async () => {
+    server.use(oauthHandler().handler);
+    const api = fakeWebhooksApi();
+    const result = await run(["--app", "judge", "--url", RENDER], {
+      ...ENV,
+      PP_CLIENT_ID_JUDGE: JUDGE_ID,
+      PP_CLIENT_SECRET_JUDGE: JUDGE_SECRET,
+      PP_APP_ID_DEV: "APP-FSTEST",
+    });
+    expect(result.code).toBe(1);
+    expect(result.err.join(" ")).toContain("these credentials are fs-dev's (PP_APP_ID_DEV)");
+    expect(api.writes).toEqual([]);
+  });
+
+  it("refuses half-configured app credentials", async () => {
+    const result = await run(["--app", "dev", "--url", TUNNEL], { ...ENV, PP_CLIENT_ID_DEV: "only-the-id" });
+    expect(result.code).toBe(2);
+    expect(result.err.join(" ")).toContain("set both PP_CLIENT_ID_DEV and PP_CLIENT_SECRET_DEV, or neither");
   });
 });
