@@ -39,7 +39,7 @@ await db.transaction(async (tx) => {
 | `assertAppRole(db)`, `inspectAppRole(db)`, `enableAppLogin(ownerUrl, pw)`      | Boot check (S3.4): reports `login` (fs_app's own login, production), `assumed` (owner login + `role=fs_app`: stops bugs, not a compromised app) or `owner`, and refuses any connection that could rewrite history. `enableAppLogin` sends a SCRAM verifier, never the password. |
 | `runMigrations(url)`, `ensureRunSeqFloor(url, n)`                              | Applies `migrations/` under an advisory lock; raises (never lowers) `fs_run_seq`. CLI: `pnpm --filter @fairsplit/db migrate` (`FS_RUN_SEQ_FLOOR` optional).                                                                                                                     |
 | `workspaceScope()`, `systemScope()`                                            | The only way to build a scope. Derive it from the credential, never from a body.                                                                                                                                                                                                |
-| `repos(scope)`                                                                 | Every workspace table bound to the scope (`get/require/list/insert/insertMany/update`), plus `runs.transition`, `lines.transition`, `holdStates.transition`, `items.applyStatus`, `items.requestCancel`, `events.append`, `ledger.append`, `flags.*`.                           |
+| `repos(scope)`                                                                 | Every workspace table bound to the scope (`get/require/list/insert/insertMany/update`), plus `runs.transition`, `lines.transition`, `holdStates.transition`, `items.applyStatus`, `items.requestCancel`, `approvals.void`, `events.append`, `ledger.append`, `flags.*`.         |
 | `appendEvent(tx, event)`                                                       | Inserts a `run_events` row; `NOTIFY run_events '<ws>:<id>'` is delivered on commit. Per-workspace lock ⇒ ids in commit order. `toEnvelope()` gives the S3.7 SSE shape.                                                                                                          |
 | `appendLedger(tx, scope, entry)`, `verifyChain(db, ws)`, `verifyEntries(rows)` | sha256 hash chain per workspace: `sha256(prev ‖ JCS{seq, kind, actorKind, actorId, impersonatedBy, payload, at})`, genesis = 64 zeros.                                                                                                                                          |
 | `createLimiter(db)`                                                            | `take({purpose, priority})` → grant (with `callId`) or `{reason, retryAfterMs}`; `record(callId, {status, debugId, ms})`; `acquire()` waits; `state()` for /ops. 40/min, 20 background, 6-min circuit after a 429.                                                              |
@@ -47,6 +47,10 @@ await db.transaction(async (tx) => {
 | `readFlags`, `isKilled`, `setFlag`                                             | Kill switches, read fresh; `FS_KILL=payouts,paypal_live,ai_live` (or `all`) forces them on. A flip writes the ledger and emits `flag.changed`.                                                                                                                                  |
 | `claimIdempotencyKey` & co.                                                    | `new` / `replay` / `in_flight` / `mismatch` (422 `IDEMPOTENCY_KEY_REUSED`), 24 h.                                                                                                                                                                                               |
 | `asDbError(e)`                                                                 | Maps trigger errors to `FairSplitDbError {code, subject, httpStatus}` — e.g. `RATE_CARD_RATIFIED` with the card sha256 for MM-4's 409.                                                                                                                                          |
+
+Lifecycle columns are guarded (I5): `repos(scope).*.update` cannot write a run's or line's `state`/`version`, a hold's
+state or resolution, an item's `status`, rank or cancel stamp, or any column of an approval — a compile error, and
+`GuardedColumnError` at runtime. The database refuses the same writes for every role (below).
 
 ## What the database itself enforces
 
@@ -59,7 +63,12 @@ await db.transaction(async (tx) => {
   ticket for (workspace, transaction) that the SECURITY DEFINER guards check; no setting the app can change opens them.
   `fs_app` cannot DELETE workspaces, and a workspace's id, kind and creation time never change.
 - **Ledger**: an entry must extend `ledger_heads` (seq + 1, prev hash) or it is refused (`LEDGER_FORK`); heads move only by appending.
-- **I5** payout items: `status_rank` must match the status and only rise; RETURNED needs `cancel_requested_at`.
+- **I5** runs, lines and holds: a state change must be an edge of its machine (`fs_private.state_edges`, the same
+  tables as the transition policy) and must set `version = version + 1`; version never moves otherwise
+  (`FS409 ILLEGAL_TRANSITION` / `VERSION_MISMATCH`, for every role). Inserts are free, so seeded clones can place rows.
+- **I5** payout items: `status_rank` must match the status and only rise; our cancel is stamped once, on an UNCLAIMED
+  item, and RETURNED needs that stamp from an earlier statement.
+- **I4/I6** approvals: a signed approval never changes; it can be voided once (`approvals.void`, recorded in the ledger).
 - **Kept rows**: `paypal_calls` (the limiter's window and 429 circuit), `webhook_events` (event-id dedupe) and
   `llm_calls` (the Claude spend meter) reference workspaces `ON DELETE SET NULL`, so a Judge purge or Reset cannot
   reopen the circuit or the day's budget; `fs_app` cannot delete them.

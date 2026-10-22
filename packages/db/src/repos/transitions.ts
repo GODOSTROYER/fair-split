@@ -6,12 +6,14 @@
  * Zero rows means another writer moved first: the caller gets `{ok: false, reason: "STALE", current}` and reloads.
  * The edge itself is checked against a transition policy first (default: the register's tables in the domain
  * shim; inject WS-CORE's `fsm` once it lands). A successful transition appends its run_event in the same
- * transaction. Payout item statuses climb ranks only (`applyItemStatus`), mirrored by a SQL trigger.
+ * transaction. Payout item statuses climb ranks only (`applyItemStatus`). The database mirrors all of it
+ * (migrations/0006): a state change outside the machine, or one that does not count version up by one, raises
+ * FS409 ILLEGAL_TRANSITION / VERSION_MISMATCH whoever writes it, so these helpers are the only way state moves.
  *
  * Every helper takes the workspace lock before its first row lock (tx.ts), so a transition can never deadlock
  * against another transaction that holds the lock and wants the same row (e.g. the kill-switch handler).
  */
-import { and, eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
 import {
   type HoldState,
   ITEM_STATUS_RANK,
@@ -23,7 +25,8 @@ import {
 import { canApplyItemStatus, canTransitionLine, canTransitionRun } from "../_shims/domain.js";
 import type { DbOrTx, Tx } from "../client.js";
 import { appendEvent, type StoredRunEvent } from "../events.js";
-import { holds, memberLines, payoutItems, payRuns } from "../schema/index.js";
+import { appendLedger } from "../ledger.js";
+import { approvals, holds, memberLines, payoutItems, payRuns } from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
 import { withWorkspaceTx } from "../tx.js";
 
@@ -56,6 +59,7 @@ export type TransitionResult<R> = { ok: true; row: R; event: StoredRunEvent | nu
 export type Cause = string | Record<string, unknown>;
 
 type PayRun = typeof payRuns.$inferSelect;
+type Approval = typeof approvals.$inferSelect;
 type MemberLine = typeof memberLines.$inferSelect;
 type Hold = typeof holds.$inferSelect;
 type PayoutItem = typeof payoutItems.$inferSelect;
@@ -93,7 +97,7 @@ export async function transitionRun(
   return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(payRuns)
-      .set({ ...(t.patch ?? {}), state: t.to, version: sql`${payRuns.version} + 1` })
+      .set({ ...extra(t.patch), state: t.to, version: sql`${payRuns.version} + 1` })
       .where(and(eq(payRuns.workspaceId, scope.workspaceId), eq(payRuns.id, t.id), eq(payRuns.state, t.from)))
       .returning();
     if (!row) return staleOrMissing(await currentState(tx, payRuns, scope, t.id));
@@ -130,7 +134,7 @@ export async function transitionLine(
   return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(memberLines)
-      .set({ ...(t.patch ?? {}), state: t.to, version: sql`${memberLines.version} + 1` })
+      .set({ ...extra(t.patch), state: t.to, version: sql`${memberLines.version} + 1` })
       .where(
         and(
           eq(memberLines.workspaceId, scope.workspaceId),
@@ -196,6 +200,13 @@ export async function transitionHold(
       : null;
     return { ok: true, row, event };
   });
+}
+
+/** A transition's extra columns, minus anything the transition itself owns or the scope decides. */
+function extra(patch: object | undefined): Record<string, unknown> {
+  if (!patch) return {};
+  const { id: _id, workspaceId: _ws, state: _s, version: _v, ...rest } = patch as Record<string, unknown>;
+  return rest;
 }
 
 function staleOrMissing(current: string | null): TransitionFailure {
@@ -329,4 +340,50 @@ async function requestItemCancelLocked(
     .from(payoutItems)
     .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.id, r.id)));
   return { ok: false, current: cur?.status ?? null };
+}
+
+export interface ApprovalVoid {
+  runId: string;
+  /** a code such as LINE_EDITED, KILL_SWITCH or DIGEST_MISMATCH; free text belongs in notes, never the ledger */
+  reason: string;
+}
+
+const VOID_REASON = /^[A-Z][A-Z0-9_]{1,63}$/;
+
+/**
+ * Voids every live signature of a run — a line edited after key 1, the kill switch halting an approved run, a digest
+ * that no longer matches (S3.5, S3.11) — and records it in the ledger in the same transaction. Voiding is the only
+ * write an approval ever takes (migrations/0006 freezes the rest), and it happens once: the live-signature slot is
+ * then free for a fresh key. Idempotent: nothing left to void writes nothing.
+ */
+export async function voidApprovals(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  v: ApprovalVoid,
+): Promise<{ voided: Approval[] }> {
+  if (!VOID_REASON.test(v.reason)) {
+    throw new TypeError("approvals.void: the reason is a code such as LINE_EDITED, never free text (S3.12)");
+  }
+  return withWorkspaceTx(db, scope, async (tx) => {
+    const voided = await tx
+      .update(approvals)
+      .set({ voidedAt: sql`now()`, voidReason: v.reason })
+      .where(
+        and(
+          eq(approvals.workspaceId, scope.workspaceId),
+          eq(approvals.runId, v.runId),
+          eq(approvals.decision, "SIGNED"),
+          isNull(approvals.voidedAt),
+        ),
+      )
+      .returning();
+    if (voided.length > 0) {
+      await appendLedger(tx, scope, {
+        kind: "approval.voided",
+        runId: v.runId,
+        payload: { runId: v.runId, approvalIds: voided.map((a) => a.id).sort(), reason: v.reason },
+      });
+    }
+    return { voided };
+  });
 }

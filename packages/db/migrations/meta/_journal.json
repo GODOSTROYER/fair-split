@@ -43,6 +43,13 @@
       "when": 1792670662941,
       "tag": "0005_fs_kept_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792671106135,
+      "tag": "0006_fs_state_guards",
+      "breakpoints": true
     }
   ]
 }

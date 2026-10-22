@@ -226,19 +226,31 @@ describe("pay_runs.run_seq", () => {
   });
 
   it("requires the batch digest and sender_batch_id from POSTING on", async () => {
-    const ws = await fixtureWorkspace(t.owner.db, { withRun: true });
+    const ws = await fixtureWorkspace(t.owner.db, { withRun: true, runState: "APPROVED" });
     const runId = ws.runId ?? "";
-    expect(
-      await sqlState(() => t.owner.db.update(payRuns).set({ state: "POSTING" }).where(eq(payRuns.id, runId))),
-    ).toBe("23514");
+    // APPROVED → POSTING is a legal edge (migrations/0006), so what refuses it here is the check constraint
+    const post = { state: "POSTING" as const, version: sql`${payRuns.version} + 1` };
+    expect(await sqlState(() => t.owner.db.update(payRuns).set(post).where(eq(payRuns.id, runId)))).toBe(
+      "23514",
+    );
     await t.owner.db
       .update(payRuns)
-      .set({
-        state: "POSTING",
-        batchSha256: "a".repeat(64),
-        senderBatchId: `2026A-aaaaaaaa-r${runId.slice(0, 4)}`,
-      })
+      .set({ ...post, batchSha256: "a".repeat(64), senderBatchId: `2026A-aaaaaaaa-r${runId.slice(0, 4)}` })
       .where(eq(payRuns.id, runId));
+    expect(
+      await sqlState(() =>
+        t.owner.db.insert(payRuns).values({
+          workspaceId: ws.workspaceId,
+          seasonId: ws.seasonId,
+          rateCardId: ws.rateCardId,
+          seasonCode: "2026A",
+          currency: "USD",
+          rateCardSha256: ws.rateCardSha256,
+          state: "SETTLED",
+          provenance: "seeded",
+        }),
+      ),
+    ).toBe("23514");
   });
 });
 
