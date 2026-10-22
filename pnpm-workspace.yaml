@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - media
 
 # Hoisted linking keeps Metro (Expo) happy on Windows; see docs/spec/architecture.md section 18.
 nodeLinker: hoisted
@@ -67,6 +68,8 @@ allowBuilds:
   esbuild: true
   sharp: true
   lefthook: true
+  "@google/genai": false
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - "@biomejs/biome@2.6.2"
