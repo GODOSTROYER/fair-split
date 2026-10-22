@@ -5,7 +5,7 @@ import { mediaRelative } from "../imagegen/manifest.js";
 import { sha256 } from "../util/hash.js";
 import { type Cut, detectSilences, encodeAac, planCuts, probeAudio } from "./ffmpeg.js";
 import { buildTtsParams, type InteractionsClient, synthesize, TtsError, type TtsRequest } from "./gemini.js";
-import { type AudioEntry, type AudioManifest, upsertEntry, VOICE_LABEL } from "./manifest.js";
+import { type AudioEntry, type AudioManifest, upsertEntry, voiceLabel } from "./manifest.js";
 import type { QuotaLedger } from "./quota.js";
 import { hasNoDigits } from "./spoken.js";
 import { joinForRequest, type Lang, type SpokenSentence, STYLE_NOTE } from "./statement.js";
@@ -186,7 +186,7 @@ export async function synthesizeStatement(job: StatementJob, deps: TtsDeps, mani
       codec: { codec: "aac", bit_rate_kbps: 32, channels: 1 },
       created_at: now().toISOString(),
       synthetic: true,
-      label: VOICE_LABEL,
+      label: voiceLabel(job.lang),
       draft: job.draft,
       review: "machine-translated, pending native review",
       request: {

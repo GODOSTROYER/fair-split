@@ -24,6 +24,7 @@ import { templateDocument } from "../template/slip-template.js";
 import { MEDIA_ROOT } from "../util/env.js";
 import { readJson, readJsonOr, writeJson } from "../util/json.js";
 import { codexVersion, findGeneratedImages, runCodexExec } from "./codex.js";
+import { execPrompt, parseExpectation } from "./exec.js";
 import { ManifestStore } from "./manifest.js";
 import {
   adoptAttempt,
@@ -43,6 +44,9 @@ const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All outpu
   imagegen schema                       write media/fixtures/fixture.schema.json
   imagegen prompt <id...>               render prompts to media/prompts/ without generating
   imagegen gen <id...|all> [--max-attempts 2] [--concurrency 3] [--effort low]
+  imagegen exec <prompt-file> [--name <slug>] [--orientation portrait|landscape|any] [--size WxH]
+                [--min-long-edge 1024] [--aspect 1.0-2.0|any] [--image <in.png> ...] [--out <file in media/raw/>]
+                [--max-attempts 2] [--effort low]   prompt file in, verified image out (media/raw/exec/)
   imagegen trial <id...> [--n 2] [--concurrency 2]   extra generations to measure value fidelity
   imagegen adopt <id> <attempt> [--as accept|trial]  re-verify an earlier attempt without a new exec
   imagegen promote <id> <attempt> --why "<reason>"   make a successful trial the master
@@ -123,6 +127,13 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       reviewer: { type: "string" },
       note: { type: "string", multiple: true },
       force: { type: "boolean" },
+      name: { type: "string" },
+      orientation: { type: "string" },
+      "min-long-edge": { type: "string" },
+      aspect: { type: "string" },
+      size: { type: "string" },
+      image: { type: "string", multiple: true },
+      out: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -195,6 +206,53 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         values.as === "trial" ? "trial" : "accept",
       );
       return 0;
+    }
+    case "exec": {
+      const [promptFile] = ids;
+      if (!promptFile || ids.length > 1) {
+        console.error("usage: imagegen exec <prompt-file> [options]; see imagegen --help");
+        return 1;
+      }
+      const effort = values.effort ?? "low";
+      if (effort !== "minimal" && effort !== "low" && effort !== "medium" && effort !== "high") {
+        console.error(`--effort must be minimal, low, medium or high: ${effort}`);
+        return 1;
+      }
+      let r: Awaited<ReturnType<typeof execPrompt>>;
+      try {
+        r = await execPrompt(
+          {
+            promptFile,
+            ...(values.name ? { name: values.name } : {}),
+            expect: parseExpectation({
+              orientation: values.orientation,
+              minLongEdge: values["min-long-edge"],
+              aspect: values.aspect,
+              size: values.size,
+            }),
+            inputImages: values.image ?? [],
+            ...(values.out ? { out: values.out } : {}),
+            ...(values["max-attempts"] ? { maxAttempts: Number(values["max-attempts"]) } : {}),
+            reasoningEffort: effort,
+          },
+          {
+            mediaRoot,
+            run: runCodexExec,
+            find: findGeneratedImages,
+            log: (l) => console.log(`${new Date().toISOString().slice(11, 19)} ${l}`),
+          },
+        );
+      } catch (e) {
+        // Argument and file problems are refused before any exec is spent.
+        console.error(`exec: ${(e as Error).message}`);
+        return 1;
+      }
+      console.log(
+        r.ok
+          ? `exec:${r.name}: ok after ${r.attempts.length} exec -> media/${r.out ?? r.raw} (prompt logged at media/${r.promptLog})`
+          : `exec:${r.name}: FAILED after ${r.attempts.length} exec: ${r.attempts.map((a) => a.reason).join(" | ")}`,
+      );
+      return r.ok ? 0 : 2;
     }
     case "gen":
     case "trial": {

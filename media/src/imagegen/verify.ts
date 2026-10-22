@@ -9,6 +9,8 @@ export interface ImageExpectation {
   minLongEdge: number;
   /** Long/short edge ratio bounds. Codex's built-in image_gen mostly returns 4:3, but also near-square frames (1.09 seen on 22 Oct), which are still usable. */
   aspect?: { min: number; max: number };
+  /** Exact pixel size, when it is known in advance (for example an edit that must keep its input's size). */
+  exact?: { width: number; height: number };
 }
 
 export const DEFAULT_EXPECTATION: Omit<ImageExpectation, "orientation"> = {
@@ -59,6 +61,13 @@ export async function verifyImage(
     sha256: sha256(buf),
   };
   if (!width || !height) return { ok: false, reason: "image has no dimensions", info };
+  if (expect.exact && (width !== expect.exact.width || height !== expect.exact.height)) {
+    return {
+      ok: false,
+      reason: `expected ${expect.exact.width}x${expect.exact.height}, got ${width}x${height}`,
+      info,
+    };
+  }
   const long = Math.max(width, height);
   const short = Math.min(width, height);
   if (long < expect.minLongEdge) {

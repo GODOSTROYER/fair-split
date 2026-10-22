@@ -18,7 +18,7 @@ import {
   AudioManifest,
   needsRegeneration,
   upsertEntry,
-  VOICE_LABEL,
+  VOICE_LABELS,
 } from "../src/tts/manifest.js";
 import { synthesizeStatement } from "../src/tts/pipeline.js";
 import {
@@ -302,7 +302,7 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
         expect(existsSync(join(media, e.file))).toBe(true);
         expect(e).toMatchObject({
           synthetic: true,
-          label: VOICE_LABEL,
+          label: VOICE_LABELS.ceb,
           codec: { codec: "aac", bit_rate_kbps: 32, channels: 1 },
         });
       }
@@ -343,7 +343,7 @@ describe("audio manifest (S4.6)", () => {
     codec: { codec: "aac", bit_rate_kbps: 32, channels: 1 },
     created_at: "2026-10-22T07:28:00.000Z",
     synthetic: true,
-    label: VOICE_LABEL,
+    label: VOICE_LABELS.ceb,
     draft: false,
     review: "machine-translated, pending native review",
     request: { id: "int-1", latency_ms: 11099, sentences: 2 },
@@ -370,6 +370,33 @@ describe("audio manifest (S4.6)", () => {
   it("refuses an unlabelled clip", () => {
     const bad = { v: 1, synthetic: true, notice: "n", entries: [{ ...entry(), synthetic: false }] };
     expect(AudioManifest.safeParse(bad).success).toBe(false);
+  });
+
+  it("labels each clip as a synthetic voice in the clip's own language (S1 audio labels)", () => {
+    expect(VOICE_LABELS).toEqual({
+      ceb: "Sintetikong tingog (Gemini TTS)",
+      fil: "Sintetikong boses (Gemini TTS)",
+      en: "Synthetic voice (Gemini TTS)",
+    });
+    for (const lang of LANGS) {
+      const ok = {
+        v: 1,
+        synthetic: true,
+        notice: "n",
+        entries: [entry({ lang, label: VOICE_LABELS[lang] })],
+      };
+      expect(AudioManifest.safeParse(ok).success).toBe(true);
+    }
+    // A Filipino clip carrying the Cebuano label, or an English one with no "(Gemini TTS)", is refused.
+    const wrongLang = { v: 1, synthetic: true, notice: "n", entries: [entry({ lang: "fil" })] };
+    expect(AudioManifest.safeParse(wrongLang).success).toBe(false);
+    const bare = {
+      v: 1,
+      synthetic: true,
+      notice: "n",
+      entries: [{ ...entry({ lang: "en" }), label: "Voice" }],
+    };
+    expect(AudioManifest.safeParse(bare).success).toBe(false);
   });
 
   it("has M-014 in Cebuano, Filipino and English from the S10 spike", () => {

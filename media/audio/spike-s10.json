@@ -399,7 +399,8 @@
   "notes": [
     "Free-tier daily TTS limits are not published (ai.google.dev rate-limits page, read 22 Oct 2026); read them at https://aistudio.google.com/rate-limit and set caps in media/audio/.quota.json.",
     "The SDK's automatic retries are off (maxRetries 0), so a 429 is counted once and surfaces instead of being retried; requests to one model are paced 21 s apart.",
-    "Cebuano and Filipino wording is machine-translated, pending native review (OD-2); pronunciation needs a person's listening test."
+    "Cebuano and Filipino wording is machine-translated, pending native review (OD-2); pronunciation needs a person's listening test.",
+    "23 Oct: clip labels are per language since then (S1 audio: \"Sintetikong tingog\" ceb, \"Sintetikong boses\" fil, \"Synthetic voice\" en, each with \"(Gemini TTS)\"); media/audio/manifest.json was relabelled without new requests. The runs above keep the labels they were written with."
   ],
   "asrCheck": {
     "method": "Each spike request transcribed by gemini-3.8-flash; character error rate against the text sent (lower case, no punctuation). A proxy only: a person's listening test decides (OD-2).",

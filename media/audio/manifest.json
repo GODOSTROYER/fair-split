@@ -21,7 +21,7 @@
       },
       "created_at": "2026-10-22T07:28:37.567Z",
       "synthetic": true,
-      "label": "Synthetic voice (Gemini TTS)",
+      "label": "Sintetikong tingog (Gemini TTS)",
       "draft": true,
       "review": "machine-translated, pending native review",
       "request": {
@@ -48,7 +48,7 @@
       },
       "created_at": "2026-10-22T07:28:02.412Z",
       "synthetic": true,
-      "label": "Synthetic voice (Gemini TTS)",
+      "label": "Sintetikong tingog (Gemini TTS)",
       "draft": false,
       "review": "machine-translated, pending native review",
       "request": {
@@ -75,7 +75,7 @@
       },
       "created_at": "2026-10-22T07:28:38.096Z",
       "synthetic": true,
-      "label": "Synthetic voice (Gemini TTS)",
+      "label": "Sintetikong tingog (Gemini TTS)",
       "draft": true,
       "review": "machine-translated, pending native review",
       "request": {
@@ -102,7 +102,7 @@
       },
       "created_at": "2026-10-22T07:28:02.948Z",
       "synthetic": true,
-      "label": "Synthetic voice (Gemini TTS)",
+      "label": "Sintetikong tingog (Gemini TTS)",
       "draft": false,
       "review": "machine-translated, pending native review",
       "request": {
@@ -183,7 +183,7 @@
       },
       "created_at": "2026-10-22T07:28:12.352Z",
       "synthetic": true,
-      "label": "Synthetic voice (Gemini TTS)",
+      "label": "Sintetikong boses (Gemini TTS)",
       "draft": false,
       "review": "machine-translated, pending native review",
       "request": {
@@ -210,7 +210,7 @@
       },
       "created_at": "2026-10-22T07:28:12.982Z",
       "synthetic": true,
-      "label": "Synthetic voice (Gemini TTS)",
+      "label": "Sintetikong boses (Gemini TTS)",
       "draft": false,
       "review": "machine-translated, pending native review",
       "request": {
