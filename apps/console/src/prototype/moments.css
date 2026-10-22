@@ -1,0 +1,266 @@
+/* Motion studies: a stage that renders any instant of a moment, and a transport to scrub and play it. */
+
+.mo-studies {
+  display: inline-flex;
+  margin-top: 32px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+}
+
+.mo-studies__option,
+.mo-speed__option {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+}
+
+.mo-studies__option + .mo-studies__option,
+.mo-speed__option + .mo-speed__option {
+  border-left: 1px solid var(--fs-rule);
+}
+
+.mo-studies__option[aria-pressed="true"],
+.mo-speed__option[aria-pressed="true"] {
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.mo-stage {
+  margin-top: 24px;
+  padding: 28px;
+  border: 1px solid var(--fs-rule);
+}
+
+.mo-surface {
+  color: var(--fs-ink-3);
+}
+
+.mo-muted {
+  color: var(--fs-ink-2);
+}
+
+.mo-mm5 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 40px;
+  align-items: start;
+}
+
+.mo-console {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  min-height: 600px;
+  text-align: center;
+}
+
+.mo-console .mo-surface {
+  justify-self: start;
+}
+
+.mo-keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: min(100%, 520px);
+}
+
+.mo-key {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  text-align: left;
+}
+
+.mo-key__text {
+  display: grid;
+  gap: 2px;
+}
+
+.mo-crossfade {
+  display: grid;
+}
+
+.mo-crossfade > span {
+  grid-area: 1 / 1;
+}
+
+.mo-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+}
+
+.mo-inked {
+  display: flex;
+  gap: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.mo-phone {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.mo-phone .mo-surface {
+  justify-self: start;
+}
+
+.mo-chair {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 100%;
+  padding: 22px 18px;
+  background: var(--fs-ground);
+}
+
+.mo-chair__seal {
+  display: grid;
+  place-items: center;
+  padding: 12px 0;
+  background: var(--fs-plate);
+}
+
+.mo-chair__slab {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mo-mm1 {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.mo-mm1__notes {
+  display: grid;
+  gap: 16px;
+  padding-top: 32px;
+}
+
+.mo-transport {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--fs-z-sticky);
+  display: grid;
+  gap: 14px;
+  padding: 16px 28px 34px;
+  border: 1px solid var(--fs-rule);
+  border-top: 0;
+  background: var(--fs-plate);
+}
+
+.mo-transport__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.mo-speed {
+  display: inline-flex;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+}
+
+.mo-now {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.mo-now__phase {
+  min-width: 9ch;
+  padding: 2px 8px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+}
+
+.mo-track {
+  position: relative;
+  padding-bottom: 46px;
+}
+
+.mo-track__range {
+  width: 100%;
+  accent-color: var(--fs-pod);
+}
+
+.mo-track__phases,
+.mo-track__events {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mo-track__phases {
+  top: 28px;
+  height: 22px;
+}
+
+.mo-track__phase {
+  position: absolute;
+  top: 0;
+  translate: -1px 0;
+}
+
+.mo-track__phase[data-row="1"] {
+  top: 20px;
+}
+
+.mo-track__tick {
+  position: relative;
+  padding: 2px 0 0 4px;
+  border: 0;
+  border-left: 1px solid var(--fs-ink-3);
+  background: none;
+  color: var(--fs-ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mo-track__tick[aria-current="step"] {
+  border-left-color: var(--fs-pod);
+  color: var(--fs-ink);
+}
+
+.mo-track__events {
+  top: -6px;
+  height: 6px;
+}
+
+.mo-track__events li {
+  position: absolute;
+  width: 2px;
+  height: 6px;
+  background: var(--fs-ink-2);
+}
+
+.mo-phases tr[data-current] td {
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+}
+
+@media (max-width: 1100px) {
+  .mo-mm5,
+  .mo-mm1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
