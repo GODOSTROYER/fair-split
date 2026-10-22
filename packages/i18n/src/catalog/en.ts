@@ -39,6 +39,12 @@ export const en = {
   "console.status.NEEDS_ACTION": "Needs action",
   "console.status.REVERSED": "Reversed",
   "console.reserved": "Reserved, never redistributed.",
+  "console.nav.season": "Season",
+  "console.nav.rateCard": "Rate card",
+  "console.nav.reading": "Reading room",
+  "console.nav.split": "Split review",
+  "console.nav.approve": "Approve",
+  "console.nav.run": "Run",
 
   "run.DRAFT": "Draft",
   "run.QUOTED": "Quoted",
@@ -125,6 +131,9 @@ export const en = {
   "W-JG-01.photos": "{count, plural, one {# photo} other {# photos}} to read",
   "W-JG-01.markPaid": "Mark Lantern Bay’s invoice paid (sandbox)",
   "W-JG-01.ribbon": "Run log",
+  "W-JG-01.lane.machine": "Machine",
+  "W-JG-01.lane.people": "People",
+  "W-JG-01.lane.paypal": "PayPal",
   "W-JG-01.pill.markPaid": "Next: mark the invoice paid (sandbox)",
   "W-JG-01.pill.reading": "Reading 12 photos. Replay of the {date} run.",
   "W-JG-01.pill.byHand": "Next: enter slip {slip} by hand",
@@ -185,6 +194,10 @@ export const en = {
   "W-TR-05.dial": "Mass balance",
   "W-TR-05.dialLimit": "Limit ±{limit}",
   "W-TR-05.tooltip": "{kg} × {rate} a kg, {rule}, engine v1.",
+  "W-TR-05.pool": "Pool",
+  "W-TR-05.perTree": "{kg} a tree",
+  "W-TR-05.kaltas.cbu": "CBU",
+  "W-TR-05.kaltas.loan": "Loan",
 
   // ---------------------------------------------------------------- W-TR-06 Hold drawer, H1
   "W-TR-06.H1.title": "Slip {slip} counted twice",
@@ -210,6 +223,7 @@ export const en = {
   "W-TR-06.H3.claude": "The clerk noted a fine for missing the general assembly.",
   "W-TR-06.H3.action": "Return the {multa} as a credit",
   "W-TR-06.close": "Close",
+  "W-TR-06.position": "Hold {index} of {total}",
 
   // ---------------------------------------------------------------- W-TR-07 Approve
   "W-TR-07.title": "Approve",

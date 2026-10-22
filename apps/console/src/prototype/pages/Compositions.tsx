@@ -152,9 +152,7 @@ function JudgeStage() {
       <section className="stage-ribbon" aria-label={en("W-JG-01.ribbon")}>
         {STAGE_LOG.map((row) => (
           <p key={row.words} className="stage-ribbon__row" data-lane={row.lane}>
-            <span className="stage-ribbon__lane fs-t-caption">
-              {row.lane === "machine" ? "Machine" : row.lane === "people" ? "People" : "PayPal"}
-            </span>
+            <span className="stage-ribbon__lane fs-t-caption">{en(`W-JG-01.lane.${row.lane}`)}</span>
             <span className="fs-t-label">{row.words}</span>
             <span className="fs-t-caption stage-ribbon__detail">{row.detail}</span>
           </p>
@@ -174,7 +172,7 @@ function SplitReview() {
       <div className="drawer-scrim" aria-hidden />
       <aside className="drawer" aria-label="Hold H1" data-testid="W-TR-06" data-state="open">
         <header className="drawer__head">
-          <span className="fs-t-caption drawer__muted">Hold 1 of 3</span>
+          <span className="fs-t-caption drawer__muted">{en("W-TR-06.position", { index: 1, total: 3 })}</span>
           <button type="button" className="fs-flat" data-testid="W-TR-06.close">
             <Glyph name="ms:close" size={18} />
             {en("W-TR-06.close")}
@@ -238,7 +236,7 @@ function SplitReview() {
               <dd className="fs-t-figure">{usd(INVOICE.bonusCents)}</dd>
             </div>
             <div>
-              <dt className="fs-t-caption">Pool</dt>
+              <dt className="fs-t-caption">{en("W-TR-05.pool")}</dt>
               <dd className="fs-t-figure">{usd(TOTALS.grossCents)}</dd>
             </div>
           </dl>
@@ -305,7 +303,7 @@ function SplitReview() {
                         className="grid__tree fs-t-caption"
                         title="Kilos per registered tree; the limit is 1.6"
                       >
-                        {r.kgPerTree} a tree
+                        {en("W-TR-05.perTree", { kg: r.kgPerTree })}
                       </span>
                     )}
                   </td>
