@@ -256,7 +256,7 @@ describe("readRateCard (AI-5) through the gateway", () => {
     });
     const out = await readRateCard(
       { documentId: "BR-2026-04", pages: [await plainPage(1), await plainPage(2)], textLayer },
-      { gateway, mode: "auto", budget: "daily" },
+      { gateway, mode: "auto", lane: "dev" },
     );
     expect(out.draft.ok).toBe(true);
     expect(body).toMatchObject({

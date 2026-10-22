@@ -3,8 +3,11 @@ import type { GatewayResult } from "./types.js";
 /**
  * Typed gateway failures. Every failure means "a person handles it" upstream; the code says why.
  * - AI_LIVE_DISABLED: kill_ai_live is on, or the call is replay_only and nothing is recorded.
- * - AI_BUDGET: the estimate would push today's spend on the budget key past its cap.
+ * - AI_BUDGET: the estimate would push the lane's spend (today's, or the eval run's) past its cap, or
+ *   today's total past the overall daily cap.
  * - AI_STOP_REASON: the model stopped for a reason the caller does not accept (max_tokens, refusal, ...).
+ * - AI_MODEL_MISMATCH: the response names a model other than the one requested (S4.1 step 7 asserts
+ *   `model_served` equals the request; no fallbacks are ever requested).
  * - AI_SCHEMA: the structured output did not parse against the schema.
  * - AI_REQUEST_RULE: the request broke a gateway rule (sampling params, forced tool_choice, ...).
  * - AI_UPSTREAM: the API failed after the SDK's retries (network, 5xx, 429, 4xx).
@@ -15,6 +18,7 @@ export type GatewayErrorCode =
   | "AI_LIVE_DISABLED"
   | "AI_BUDGET"
   | "AI_STOP_REASON"
+  | "AI_MODEL_MISMATCH"
   | "AI_SCHEMA"
   | "AI_REQUEST_RULE"
   | "AI_UPSTREAM"
@@ -25,6 +29,7 @@ export interface GatewayErrorDetails {
   cacheKey?: string;
   reason?: string;
   stopReason?: string | null;
+  modelServed?: string;
   result?: GatewayResult;
   status?: number;
   estimateMicros?: number;

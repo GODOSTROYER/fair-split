@@ -43,7 +43,7 @@ async function run(id: string): Promise<{ result: ExtractResult; events: Reading
       screen: false,
       emit: (e) => events.push(e),
     },
-    { gateway, mode: "replay_only", budget: "daily" },
+    { gateway, mode: "replay_only", lane: "dev" },
   );
   return { result, events };
 }

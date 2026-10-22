@@ -1,13 +1,14 @@
 import { GatewayError } from "./errors.js";
 import type { ClaudeGateway } from "./gateway.js";
 import { inputShaOf } from "./key.js";
-import type { BudgetKind, ClaudeModel, Effort, OutputFormat } from "./types.js";
+import type { ClaudeModel, Effort, Lane, OutputFormat } from "./types.js";
 
 /**
  * Grammar warm-up for `warmCaches` (S4.9): compiled structured-output grammars expire 24 hours after
  * last use, and a cold grammar adds seconds to the first token (the S3 smoke run measured ~10 s
  * cold vs ~2.5 s warm). One minimal live call per schema every 23 hours keeps them compiled.
- * Never replayed and never recorded; about US$0.002 per Opus schema.
+ * Never replayed and never recorded; about US$0.002 per Opus schema. Spent on the `offline` lane
+ * unless the caller names another.
  */
 export interface WarmTarget {
   name: string;
@@ -31,7 +32,7 @@ export const WARM_PROMPT =
 export async function warmStructuredOutputs(
   gateway: ClaudeGateway,
   targets: readonly WarmTarget[],
-  opts: { budget?: BudgetKind; budgetScope?: string; now?: Date } = {},
+  opts: { lane?: Lane; laneScope?: string; now?: Date } = {},
 ): Promise<WarmOutcome[]> {
   const day = (opts.now ?? new Date()).toISOString().slice(0, 10);
   return Promise.all(
@@ -49,8 +50,8 @@ export async function warmStructuredOutputs(
           record: "never",
           stream: false,
           maxTokens: 400,
-          budget: opts.budget ?? "daily",
-          budgetScope: opts.budgetScope,
+          lane: opts.lane ?? "offline",
+          laneScope: opts.laneScope,
           acceptStopReasons: ["end_turn", "max_tokens"],
           body: { system: WARM_PROMPT, messages: [{ role: "user", content: "Warm-up." }] },
           format: t.format,

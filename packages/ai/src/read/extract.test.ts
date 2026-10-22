@@ -130,7 +130,7 @@ function deps(mode: ReadDeps["mode"] = "auto"): ReadDeps {
     spend: new MemorySpendMeter(),
     semaphore: new Semaphore(6),
   });
-  return { gateway, mode, budget: "daily" };
+  return { gateway, mode, lane: "dev" };
 }
 
 const ctx = {

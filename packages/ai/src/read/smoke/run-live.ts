@@ -153,9 +153,9 @@ async function main(): Promise<void> {
     ledger: new JsonlCallLedger(`${CACHE}smoke-ledger.jsonl`),
     spend: new FileSpendMeter(`${CACHE}spend.jsonl`),
     flags: envFlagSource(),
-    caps: { daily: CAP_USD },
+    caps: { dev: CAP_USD },
   });
-  const deps: ReadDeps = { gateway, mode: "auto", budget: "daily", budgetScope: "ws-read-smoke" };
+  const deps: ReadDeps = { gateway, mode: "auto", lane: "dev" };
   const calls: CallMetrics[] = [];
   const perImage: Record<string, unknown> = {};
 

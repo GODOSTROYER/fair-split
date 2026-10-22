@@ -3,32 +3,71 @@ import { dirname } from "node:path";
 import { GatewayError } from "./errors.js";
 import { microsFromUsd, usd } from "./pricing.js";
 import { ensureSelfIgnoringDir } from "./store.js";
-import type { BudgetKind } from "./types.js";
+import { LANES, type Lane } from "./types.js";
 
-/** S4.1 step 4 caps, in US$. `daily` comes from AI_DAILY_CAP_USD (8 on fs-judge, 25 in dev). */
-export const DEFAULT_CAPS_USD: Record<BudgetKind, number> = { daily: 8, eval: 3, session: 0.75 };
+/**
+ * S4.9 lane caps, in US$: per UTC day, except `eval`, which is per run. On `fs-judge` the three judge
+ * lanes add up to US$8 a day, under the Anthropic Console limit.
+ */
+export const LANE_CAPS_USD: Readonly<Record<Lane, number>> = {
+  dev: 25,
+  judge_invoice: 5,
+  judge_read: 1.5,
+  judge_ask: 1.5,
+  eval: 3,
+  offline: 5,
+};
 
-/** Reads the daily cap from the environment; AI_DAILY_SPEND_CAP_USD is the .env.example spelling. */
-export function capsFromEnv(env: NodeJS.ProcessEnv = process.env): Record<BudgetKind, number> {
-  const raw = env.AI_DAILY_CAP_USD ?? env.AI_DAILY_SPEND_CAP_USD;
-  const parsed = raw === undefined ? Number.NaN : Number(raw);
-  return {
-    ...DEFAULT_CAPS_USD,
-    daily: Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_CAPS_USD.daily,
-  };
+/** Lanes capped per run rather than per day. */
+const PER_RUN: ReadonlySet<Lane> = new Set<Lane>(["eval"]);
+
+const config = (msg: string) => new GatewayError("AI_CONFIG", msg);
+
+function parseUsd(name: string, raw: string): number {
+  const n = Number(raw.trim());
+  if (raw.trim() === "" || !Number.isFinite(n) || n < 0)
+    throw config(`${name}: "${raw}" is not a US$ amount`);
+  return n;
+}
+
+/**
+ * Lane caps: S4.9's defaults, overridden per lane by `AI_LANE_CAPS_USD` ("judge_read=10,dev=25"; the
+ * film day raises judge_read, S5.6.3). A malformed entry fails construction rather than guessing.
+ */
+export function laneCapsFromEnv(env: NodeJS.ProcessEnv = process.env): Record<Lane, number> {
+  const caps: Record<Lane, number> = { ...LANE_CAPS_USD };
+  const raw = env.AI_LANE_CAPS_USD?.trim();
+  if (!raw) return caps;
+  for (const entry of raw.split(",")) {
+    const [name, value, ...rest] = entry.split("=").map((s) => s.trim());
+    if (!name || value === undefined || rest.length > 0 || !(LANES as readonly string[]).includes(name)) {
+      throw config(`AI_LANE_CAPS_USD: "${entry.trim()}" is not lane=amount (lanes: ${LANES.join(", ")})`);
+    }
+    caps[name as Lane] = parseUsd(`AI_LANE_CAPS_USD ${name}`, value);
+  }
+  return caps;
+}
+
+/**
+ * The register §9 daily spend cap over every lane together, from `AI_DAILY_SPEND_CAP_USD` (the
+ * `.env.example` name; `AI_DAILY_CAP_USD` also works). null: only the lane caps apply.
+ */
+export function totalDailyCapFromEnv(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = env.AI_DAILY_SPEND_CAP_USD ?? env.AI_DAILY_CAP_USD;
+  return raw === undefined || raw.trim() === "" ? null : parseUsd("AI_DAILY_SPEND_CAP_USD", raw);
 }
 
 export const utcDay = (at: Date): string => at.toISOString().slice(0, 10);
 
-/**
- * The budget key: today's (UTC) spend for `daily`; the whole run for `eval`; the whole session for
- * `session`.
- */
-export function budgetKey(kind: BudgetKind, scope: string | undefined, at: Date): string {
-  if (kind === "daily") return `daily:${scope ?? "-"}:${utcDay(at)}`;
-  if (!scope) throw new GatewayError("AI_BAD_CALL", `budget "${kind}" needs a budgetScope`);
-  return `${kind}:${scope}`;
+/** The budget key of a lane: `{lane}:{UTC day}`, or `eval:{run id}` for the per-run eval lane. */
+export function budgetKey(lane: Lane, scope: string | undefined, at: Date): string {
+  if (!PER_RUN.has(lane)) return `${lane}:${utcDay(at)}`;
+  if (!scope) throw new GatewayError("AI_BAD_CALL", `lane "${lane}" is capped per run and needs a laneScope`);
+  return `${lane}:${scope}`;
 }
+
+/** The key of today's spend over every lane (the overall daily cap). */
+export const totalKey = (at: Date): string => `total:${utcDay(at)}`;
 
 export interface SpendReservation {
   /** Replace the reservation with the actual cost of the call. */
@@ -133,6 +172,32 @@ export class FileSpendMeter extends ReservingMeter {
     await ensureSelfIgnoringDir(dirname(this.path));
     await appendFile(this.path, `${JSON.stringify({ at: new Date().toISOString(), key, micros })}\n`, "utf8");
   }
+}
+
+/**
+ * Reserves one estimate against several (key, cap) pairs, all or nothing: the lane cap, then the
+ * overall daily cap. A refusal releases what was already held.
+ */
+export async function reserveAll(
+  meter: SpendMeter,
+  estimateMicros: number,
+  limits: ReadonlyArray<{ key: string; capMicros: number }>,
+): Promise<SpendReservation> {
+  const held: SpendReservation[] = [];
+  try {
+    for (const l of limits) held.push(await meter.reserve(l.key, estimateMicros, l.capMicros));
+  } catch (err) {
+    await Promise.all(held.map((h) => h.release()));
+    throw err;
+  }
+  return {
+    settle: async (actual) => {
+      for (const h of held) await h.settle(actual);
+    },
+    release: async () => {
+      await Promise.all(held.map((h) => h.release()));
+    },
+  };
 }
 
 export { microsFromUsd };

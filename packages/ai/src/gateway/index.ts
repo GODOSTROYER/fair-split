@@ -1,12 +1,15 @@
 // @fairsplit/ai/gateway: ClaudeGateway, the only path to Claude (register §9, S4.1, IC-07).
 export {
   budgetKey,
-  capsFromEnv,
-  DEFAULT_CAPS_USD,
   FileSpendMeter,
+  LANE_CAPS_USD,
+  laneCapsFromEnv,
   MemorySpendMeter,
+  reserveAll,
   type SpendMeter,
   type SpendReservation,
+  totalDailyCapFromEnv,
+  totalKey,
   utcDay,
 } from "./budget.js";
 export { loadEnv } from "./env.js";
@@ -19,16 +22,10 @@ export {
   type FlagSource,
   staticFlags,
 } from "./flags.js";
-export { ClaudeGateway, fallbackServed, type GatewayOptions, measureInput, usageSummary } from "./gateway.js";
+export { ClaudeGateway, type GatewayOptions, measureInput, usageSummary } from "./gateway.js";
 export { cacheKey, inputShaOf, jcs, sha256Hex } from "./key.js";
 export { costMicros, estimateMicros, microsFromUsd, PRICES, priceOf, usd, visualTokens } from "./pricing.js";
-export {
-  assertBodyCompliant,
-  assertWireCompliant,
-  buildRequest,
-  FALLBACK_BETA,
-  supportsServerFallback,
-} from "./request.js";
+export { assertBodyCompliant, assertWireCompliant, buildRequest } from "./request.js";
 export { scrubRecording, scrubString } from "./scrub.js";
 export { processSemaphore, Semaphore } from "./semaphore.js";
 export {

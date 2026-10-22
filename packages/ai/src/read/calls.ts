@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  type BudgetKind,
   type ClaudeGateway,
   type GatewayCall,
   GatewayError,
@@ -9,6 +8,7 @@ import {
   inputShaOf,
   isGatewayError,
   jsonOutputFormat,
+  type Lane,
   type OutputFormat,
   parseStructured,
   type WarmTarget,
@@ -17,12 +17,14 @@ import { imageIdentity } from "./prep.js";
 import { prompt } from "./prompts.js";
 import { EXTRACTION_SCHEMA_V, Extraction, ZOOM_SCHEMA_V, ZoomRead } from "./schema.js";
 
-/** How a pipeline reaches the gateway: mode, budget and pacing are the caller's. */
+/** How a pipeline reaches the gateway: mode, spend lane and pacing are the caller's. */
 export interface ReadDeps {
   gateway: ClaudeGateway;
   mode: GatewayMode;
-  budget: BudgetKind;
-  budgetScope?: string;
+  /** S4.9: `judge_read` for "Read a slip live", `eval` for the eval, `dev` on the dev machine. */
+  lane: Lane;
+  /** The eval run id (the `eval` lane is capped per run). */
+  laneScope?: string;
   /** Replay pacing (×k); default Infinity. */
   replaySpeed?: number;
   signal?: AbortSignal;
@@ -35,14 +37,11 @@ export interface ReadDeps {
 /** The gateway fields every stage takes from its deps. */
 export function callOptions(
   deps: ReadDeps,
-): Pick<
-  GatewayCall,
-  "mode" | "budget" | "budgetScope" | "replaySpeed" | "signal" | "record" | "workspaceId"
-> {
+): Pick<GatewayCall, "mode" | "lane" | "laneScope" | "replaySpeed" | "signal" | "record" | "workspaceId"> {
   return {
     mode: deps.mode,
-    budget: deps.budget,
-    budgetScope: deps.budgetScope,
+    lane: deps.lane,
+    laneScope: deps.laneScope,
     replaySpeed: deps.replaySpeed,
     signal: deps.signal,
     record: deps.record,
@@ -85,7 +84,7 @@ export const SCREEN_FORMAT = jsonOutputFormat(ScreenVerdict);
 /**
  * An image block. Reads and zooms mark it `oversized_image: "error"`: returned boxes must map 1:1
  * onto the image sent, so the server may never resize it (S4.2 step 5). The screen returns no
- * coordinates and has no server-side fallback, so it leaves the server free to fit the image.
+ * coordinates, so it leaves the server free to fit the image.
  */
 const imageBlock = (jpeg: Buffer, opts: { boxes: boolean }) => ({
   type: "image",

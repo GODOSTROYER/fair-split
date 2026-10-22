@@ -1,22 +1,15 @@
 import { GatewayError } from "./errors.js";
-import type { ClaudeModel, GatewayCall, OutputFormat } from "./types.js";
-
-/** Server-side fallback beta for the `"default"` scalar form (S4.1 step 5). */
-export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
-
-/** Haiku 5.5 has no server-side fallback; with `fallbacks: "default"` a decline would simply stay declined. */
-export function supportsServerFallback(model: ClaudeModel): boolean {
-  return model === "claude-opus-5-5" || model === "claude-sonnet-5-5";
-}
+import type { GatewayCall, OutputFormat } from "./types.js";
 
 const BODY_KEYS = new Set(["system", "messages", "tools"]);
 
-/** Parameters that never leave the gateway, at any depth of the request. */
+/** Parameters that never leave the gateway. */
 const SAMPLING = ["temperature", "top_p", "top_k"] as const;
 
 /**
  * The body a caller hands in may hold only system, messages and tools (S4.1: never model, sampling,
- * thinking or tool_choice). Runs before anything else, so a bad body fails fast even in replay.
+ * thinking, tool_choice or fallbacks). Runs before anything else, so a bad body fails fast even in
+ * replay.
  */
 export function assertBodyCompliant(body: unknown): void {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
@@ -40,9 +33,10 @@ export function assertBodyCompliant(body: unknown): void {
 }
 
 /**
- * The last line of defence, run on the exact parameters about to be sent: effort is always set;
- * no sampling parameters; thinking, when present, is adaptive (never disabled, never a budget);
- * tool_choice, when present, is never forced.
+ * The last line of defence, run on the exact parameters about to be sent (S4.1 step 5): effort is
+ * always set; no sampling parameters; thinking, when present, is adaptive (never disabled, never a
+ * budget); tool_choice, when present, is never forced; no server-side `fallbacks` (register deviation
+ * 7: the model that answers is the model asked, and its `model_served` is asserted).
  */
 export function assertWireCompliant(params: Record<string, unknown>): void {
   for (const key of SAMPLING) {
@@ -65,16 +59,13 @@ export function assertWireCompliant(params: Record<string, unknown>): void {
     }
   }
   if ("budget_tokens" in params) throw new GatewayError("AI_REQUEST_RULE", "budget_tokens is never sent");
-}
-
-export interface BuiltRequest {
-  params: Record<string, unknown>;
-  betas: string[];
+  if ("fallbacks" in params) {
+    throw new GatewayError("AI_REQUEST_RULE", "server-side fallbacks are never requested (S4.1 step 5)");
+  }
 }
 
 /** Builds the Messages API parameters for a gateway call. The model and effort come from the call. */
-export function buildRequest(call: GatewayCall, format: OutputFormat | undefined): BuiltRequest {
-  const betas: string[] = [];
+export function buildRequest(call: GatewayCall, format: OutputFormat | undefined): Record<string, unknown> {
   const params: Record<string, unknown> = {
     model: call.model,
     max_tokens: call.maxTokens,
@@ -83,10 +74,6 @@ export function buildRequest(call: GatewayCall, format: OutputFormat | undefined
     output_config: { effort: call.effort, ...(format ? { format } : {}) },
   };
   if (call.body.tools !== undefined) params.tools = call.body.tools;
-  if (supportsServerFallback(call.model)) {
-    params.fallbacks = "default";
-    betas.push(FALLBACK_BETA);
-  }
   assertWireCompliant(params);
-  return { params, betas };
+  return params;
 }

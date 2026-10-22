@@ -8,8 +8,7 @@ export const PURPOSES = [
   "ratecard",
   "classify",
   "agent",
-  "explain",
-  "narrate",
+  "draft_statement",
   "langid",
   "warm",
 ] as const;
@@ -25,9 +24,16 @@ export type Effort = (typeof EFFORTS)[number];
 export const VARIANTS = ["A", "B", "ZOOM", "-"] as const;
 export type Variant = (typeof VARIANTS)[number];
 
+/**
+ * Spend lanes (S4.1, S4.9). Each has its own cap: per UTC day, except `eval`, which is per run.
+ * A capped lane plays its labelled recording.
+ */
+export const LANES = ["dev", "judge_invoice", "judge_read", "judge_ask", "eval", "offline"] as const;
+export type Lane = (typeof LANES)[number];
+
 export type GatewayMode = "auto" | "replay_only" | "live_only";
-export type BudgetKind = "daily" | "eval" | "session";
-export type Provenance = "live" | "replay";
+/** `seed_synthetic`: a placeholder recording written from the seed (S4.9), never a real model answer. */
+export type Provenance = "live" | "replay" | "seed_synthetic";
 
 /** `stop_reason` values the Messages API returns. */
 export type StopReason =
@@ -40,7 +46,7 @@ export type StopReason =
   | "model_context_window_exceeded"
   | "compaction";
 
-/** The request body a caller may set. Never model, sampling, thinking or tool_choice (S4.1). */
+/** The request body a caller may set. Never model, sampling, thinking, tool_choice or fallbacks (S4.1). */
 export interface GatewayBody {
   system: unknown;
   messages: unknown[];
@@ -62,37 +68,28 @@ export interface GatewayCall {
   schemaV: string;
   /**
    * Fills the register's `imageSha` slot. For image calls it is the derivation identity of the image
-   * sent (see read/prep.ts `imageIdentity`); for text calls it is sha256(JCS(input)).
+   * sent (see read/prep.ts `imageIdentity`, ADR 003); for text calls it is sha256(JCS(input)).
    */
   inputSha: string;
   mode: GatewayMode;
+  lane: Lane;
   stream: boolean;
   maxTokens: number;
-  budget: BudgetKind;
-  body: GatewayBody;
+  signal?: AbortSignal;
   format?: OutputFormat;
+  body: GatewayBody;
   onSnapshot?: (jsonSoFar: string) => void;
-  /** Extension: required for `eval` (the eval run id) and `session` (the agent session id) budgets. */
-  budgetScope?: string;
+  /** Extension: the eval run id. The `eval` lane is capped per run (S4.9), so it requires one. */
+  laneScope?: string;
   /** Extension: stop reasons treated as success. Default `end_turn` (plus `tool_use` for purpose `agent`). */
   acceptStopReasons?: readonly StopReason[];
   /** Extension: replay pacing. Recorded offsets are divided by this factor. Default Infinity (no waits). */
   replaySpeed?: number;
   /**
-   * Extension: called when a server-side fallback block arrives (live) or is replayed. Snapshots are
-   * never reset by it: before any text there is nothing to discard, and after text the fallback model
-   * continues the partial, so `onSnapshot` keeps receiving one growing JSON prefix.
-   */
-  onFallback?: (event: FallbackEvent) => void;
-  /** Extension, legacy: called only when replaying a recording that holds a `reset` entry. */
-  onReset?: () => void;
-  /**
    * Extension: the workspace whose `system_flags.kill_ai_live` applies (S3.11: a judge can only stop
    * their own demo). Passed to the FlagSource; a call without it sees deployment-wide flags only.
    */
   workspaceId?: string;
-  /** Extension: abort the live request or the replay pacing. */
-  signal?: AbortSignal;
   /** Extension: whether a live result is stored as the replay recording (insert-if-absent). Default "if_absent". */
   record?: "if_absent" | "never";
   /** Extension: sha256 of the exact bytes sent, kept for audit when `inputSha` is a derivation identity. */
@@ -107,7 +104,7 @@ export interface UsageSummary {
   cache_read_input_tokens: number;
   cache_creation_input_tokens: number;
   thinking_tokens: number | null;
-  /** Per-attempt usage when the API reports it (fallback hops); each entry is priced at its own model. */
+  /** Per-attempt usage when the API reports it; each entry is priced at its own model. */
   iterations: Array<{
     type: string;
     model: string | null;
@@ -125,7 +122,7 @@ export interface RecordedBlock {
   [k: string]: unknown;
 }
 
-/** The message as recorded (a structural subset of the SDK's BetaMessage). */
+/** The message as recorded (a structural subset of the SDK's Message). */
 export interface ClaudeMessage {
   id: string;
   type: "message";
@@ -138,25 +135,10 @@ export interface ClaudeMessage {
   [k: string]: unknown;
 }
 
-/**
- * One `replay_timeline` entry, at `ms` since the request started: a text delta, or the point where a
- * server-side fallback took over. A fallback never discards text: a stream keeps the declined partial
- * and the fallback model continues it (the partial's text is its continuation context).
- */
+/** One `replay_timeline` entry: a text delta `d` at `ms` since the request started. */
 export interface TimelineEntry {
   ms: number;
-  d?: string;
-  fallback?: { from: string | null; to: string | null };
-  /** Legacy (recordings made before continuation semantics): the snapshot was discarded here. */
-  reset?: true;
-}
-
-/** A server-side fallback took over the request (S4.1 step 5; continuation semantics, step 7). */
-export interface FallbackEvent {
-  from: string | null;
-  to: string | null;
-  /** Text had already streamed: the fallback model continues it, so the snapshot keeps growing. */
-  afterText: boolean;
+  d: string;
 }
 
 export interface GatewayResult {
@@ -170,7 +152,6 @@ export interface GatewayResult {
   /** Extensions. */
   stopReason: string | null;
   requestedModel: ClaudeModel;
-  fallbackServed: boolean;
   usage: UsageSummary;
   latencyMs: number;
   /** The cost the recording originally incurred (equal to costMicros for a live call). */
@@ -186,7 +167,6 @@ export interface Recording {
   purpose: Purpose;
   model: ClaudeModel;
   model_served: string;
-  fallback_served: boolean;
   effort: Effort;
   variant: Variant;
   prompt_v: string;
@@ -203,12 +183,17 @@ export interface Recording {
   first_delta_ms: number | null;
   /** sha256 of the prompt text the recording was made with (null when unknown). */
   prompt_sha?: string | null;
+  /** Where the recording came from. Absent means `live` (every recording made before seeds existed). */
+  provenance?: "live" | "seed_synthetic";
 }
 
 /** One ledger row per live call (S4.1 step 8), including failed ones. */
 export interface LlmCallRow {
   cache_key: string;
   purpose: Purpose;
+  lane: Lane;
+  /** The eval run id for the `eval` lane; null otherwise. */
+  lane_scope: string | null;
   model: ClaudeModel;
   model_served: string | null;
   effort: Effort;
@@ -218,11 +203,9 @@ export interface LlmCallRow {
   input_sha: string;
   /**
    * sha256 of the exact bytes sent when `input_sha` is a derivation identity (S4.1 says image bytes;
-   * libvips output differs across machines, so the key uses the identity; ADR requested).
+   * libvips output differs across machines, so the key uses the identity: ADR 003).
    */
   sent_sha: string | null;
-  budget: BudgetKind;
-  budget_scope: string | null;
   usage: UsageSummary | null;
   cost_micros: number;
   stop_reason: string | null;

@@ -3,7 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { budgetKey, capsFromEnv, FileSpendMeter, MemorySpendMeter } from "./budget.js";
+import {
+  budgetKey,
+  FileSpendMeter,
+  LANE_CAPS_USD,
+  laneCapsFromEnv,
+  MemorySpendMeter,
+  reserveAll,
+  totalDailyCapFromEnv,
+} from "./budget.js";
 import { envFlagSource } from "./flags.js";
 import { cacheKey, jcs } from "./key.js";
 import { costMicros, estimateMicros, visualTokens } from "./pricing.js";
@@ -31,7 +39,7 @@ describe("key", () => {
 });
 
 describe("pricing", () => {
-  it("prices per model and per fallback iteration", () => {
+  it("prices per model, at the ceiling for an unknown model", () => {
     const usage = {
       input_tokens: 2000,
       output_tokens: 1000,
@@ -80,18 +88,59 @@ describe("budget", () => {
     }
   });
 
-  it("keys daily spend by UTC day and eval/session by scope", () => {
+  it("keys daily lanes by UTC day and the eval lane by run", () => {
     const at = new Date("2026-10-23T23:30:00-07:00");
-    expect(budgetKey("daily", undefined, at)).toBe("daily:-:2026-10-24");
+    expect(budgetKey("judge_read", undefined, at)).toBe("judge_read:2026-10-24");
+    expect(budgetKey("dev", "ignored", at)).toBe("dev:2026-10-24");
     expect(budgetKey("eval", "run-7", at)).toBe("eval:run-7");
-    expect(() => budgetKey("session", undefined, at)).toThrow(/budgetScope/);
+    expect(() => budgetKey("eval", undefined, at)).toThrow(/laneScope/);
   });
 
-  it("reads AI_DAILY_CAP_USD, then the .env.example spelling, then defaults to 8", () => {
-    expect(capsFromEnv({ AI_DAILY_CAP_USD: "25" }).daily).toBe(25);
-    expect(capsFromEnv({ AI_DAILY_SPEND_CAP_USD: "5" }).daily).toBe(5);
-    expect(capsFromEnv({}).daily).toBe(8);
-    expect(capsFromEnv({ AI_DAILY_CAP_USD: "nope" })).toEqual({ daily: 8, eval: 3, session: 0.75 });
+  it("lane caps are S4.9's, overridable per lane; a malformed override fails loudly", () => {
+    expect(LANE_CAPS_USD).toEqual({
+      dev: 25,
+      judge_invoice: 5,
+      judge_read: 1.5,
+      judge_ask: 1.5,
+      eval: 3,
+      offline: 5,
+    });
+    // On fs-judge the three judge lanes add up to US$8 a day.
+    expect(LANE_CAPS_USD.judge_invoice + LANE_CAPS_USD.judge_read + LANE_CAPS_USD.judge_ask).toBe(8);
+    expect(laneCapsFromEnv({ AI_LANE_CAPS_USD: "judge_read=10, dev=30" })).toMatchObject({
+      judge_read: 10,
+      dev: 30,
+      eval: 3,
+    });
+    expect(laneCapsFromEnv({})).toEqual(LANE_CAPS_USD);
+    for (const bad of ["judge_read=ten", "nope=1", "dev", "dev=-1", "dev=1=2"]) {
+      expect(() => laneCapsFromEnv({ AI_LANE_CAPS_USD: bad })).toThrow(/AI_LANE_CAPS_USD/);
+    }
+  });
+
+  it("the overall daily cap reads AI_DAILY_SPEND_CAP_USD (or AI_DAILY_CAP_USD); unset means lanes only", () => {
+    expect(totalDailyCapFromEnv({ AI_DAILY_SPEND_CAP_USD: "8" })).toBe(8);
+    expect(totalDailyCapFromEnv({ AI_DAILY_CAP_USD: "25" })).toBe(25);
+    expect(totalDailyCapFromEnv({})).toBeNull();
+    expect(() => totalDailyCapFromEnv({ AI_DAILY_SPEND_CAP_USD: "lots" })).toThrow(/AI_CONFIG/);
+  });
+
+  it("reserveAll holds every limit or none", async () => {
+    const m = new MemorySpendMeter();
+    await (await m.reserve("total", 900, 1000)).settle(900);
+    await expect(
+      reserveAll(m, 200, [
+        { key: "lane", capMicros: 1000 },
+        { key: "total", capMicros: 1000 },
+      ]),
+    ).rejects.toMatchObject({ code: "AI_BUDGET" });
+    await expect(m.reserve("lane", 1000, 1000)).resolves.toBeDefined();
+    const both = await reserveAll(m, 50, [
+      { key: "lane2", capMicros: 1000 },
+      { key: "total", capMicros: 1000 },
+    ]);
+    await both.settle(40);
+    expect([await m.spent("lane2"), await m.spent("total")]).toEqual([40, 940]);
   });
 });
 
@@ -105,6 +154,13 @@ describe("flags", () => {
     env.FS_KILL = "";
     env.KILL_AI_LIVE = "TRUE";
     expect(flags.isOn("kill_ai_live")).toBe(true);
+  });
+
+  it("FS_KILL takes S3.11's spelling (payouts,paypal_live,ai_live) as well as full names", () => {
+    expect(envFlagSource({ FS_KILL: "payouts,paypal_live,ai_live" }).isOn("kill_ai_live")).toBe(true);
+    expect(envFlagSource({ FS_KILL: "payouts,paypal_live" }).isOn("kill_ai_live")).toBe(false);
+    expect(envFlagSource({ FS_KILL: "ALL" }).isOn("kill_ai_live")).toBe(true);
+    expect(envFlagSource({ FS_KILL: "ai" }).isOn("kill_ai_live")).toBe(false);
   });
 });
 
@@ -148,6 +204,7 @@ describe("request rules", () => {
     [{ output_config: { effort: "low" }, thinking: { type: "enabled", budget_tokens: 2048 } }, /thinking/],
     [{ output_config: { effort: "low" }, thinking: { type: "disabled" } }, /thinking/],
     [{ output_config: { effort: "low" }, tool_choice: { type: "any" } }, /tool_choice/],
+    [{ output_config: { effort: "low" }, fallbacks: "default" }, /fallbacks/],
   ])("refuses %j", (params, msg) => {
     expect(() => assertWireCompliant(params as Record<string, unknown>)).toThrow(msg);
   });
@@ -199,13 +256,12 @@ describe("structured outputs", () => {
     expect(() => parseStructured(fakeMessage({ text: "{not json" }), S)).toThrow(/AI_SCHEMA/);
   });
 
-  it("reads the text after the last fallback block, ignoring thinking blocks", () => {
+  it("joins the text blocks in order, ignoring thinking blocks", () => {
     const m = fakeMessage({
-      text: '{"kind":"CLEAR","n":1,"items":[]}',
+      text: '1,"items":[]}',
       leadingBlocks: [
         { type: "thinking", thinking: "", signature: "x" },
-        { type: "text", text: '{"kind":"CL' },
-        { type: "fallback", from: { model: "claude-opus-5-5" }, to: { model: "claude-opus-5" } },
+        { type: "text", text: '{"kind":"CLEAR","n":' },
       ],
     });
     expect(structuredText(m)).toBe('{"kind":"CLEAR","n":1,"items":[]}');
@@ -213,20 +269,17 @@ describe("structured outputs", () => {
 });
 
 describe("timeline", () => {
-  it("re-emits snapshots and resets", async () => {
+  it("re-emits growing snapshots", async () => {
     const seen: string[] = [];
-    let resets = 0;
     await replayTimeline(
       [
         { ms: 1, d: "ab" },
-        { ms: 2, reset: true },
         { ms: 3, d: "c" },
         { ms: 4, d: "d" },
       ],
-      { onSnapshot: (s) => seen.push(s), onReset: () => resets++ },
+      (s) => seen.push(s),
     );
-    expect(seen).toEqual(["ab", "", "c", "cd"]);
-    expect(resets).toBe(1);
+    expect(seen).toEqual(["ab", "abc", "abcd"]);
   });
 });
 

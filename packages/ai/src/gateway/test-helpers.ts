@@ -43,12 +43,6 @@ export interface SseOptions {
   stopReason?: string;
   inputTokens?: number;
   outputTokens?: number;
-  /**
-   * Emits a `fallback` block (from → to) before the text block when set. With `partialText`, the
-   * declined model's partial streams first (mid-stream case) and `text` is the fallback model's
-   * continuation of it; without it the fallback is pre-output and `text` is the whole answer.
-   */
-  fallback?: { from: string; to: string; partialText?: string };
   usageExtra?: Record<string, unknown>;
 }
 
@@ -72,38 +66,7 @@ export function sseBody(text: string, o: SseOptions = {}): string {
       },
     },
   ]);
-  let index = 0;
-  if (o.fallback) {
-    if (o.fallback.partialText) {
-      events.push([
-        "content_block_start",
-        { type: "content_block_start", index, content_block: { type: "text", text: "" } },
-      ]);
-      for (const piece of chunks(o.fallback.partialText)) {
-        events.push([
-          "content_block_delta",
-          { type: "content_block_delta", index, delta: { type: "text_delta", text: piece } },
-        ]);
-      }
-      events.push(["content_block_stop", { type: "content_block_stop", index }]);
-      index++;
-    }
-    events.push([
-      "content_block_start",
-      {
-        type: "content_block_start",
-        index,
-        content_block: {
-          type: "fallback",
-          from: { model: o.fallback.from },
-          to: { model: o.fallback.to },
-          trigger: { type: "refusal", category: null },
-        },
-      },
-    ]);
-    events.push(["content_block_stop", { type: "content_block_stop", index }]);
-    index++;
-  }
+  const index = 0;
   events.push([
     "content_block_start",
     { type: "content_block_start", index, content_block: { type: "text", text: "" } },

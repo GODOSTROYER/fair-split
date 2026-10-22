@@ -119,7 +119,7 @@ describe("classifyDeduction (AI-6)", () => {
       semaphore: new Semaphore(6),
     }),
     mode: "auto" as const,
-    budget: "daily" as const,
+    lane: "dev" as const,
   });
   const base = {
     docId: "d",
@@ -135,11 +135,8 @@ describe("classifyDeduction (AI-6)", () => {
     const out = await classifyDeduction({ ...base, line: "Hauling P91.20" }, deps());
     expect(out).toMatchObject({ status: "MATCH", ruleId: "R2", writtenMinor: 9120, hold: null });
     const body = bodies.at(-1) ?? {};
-    expect(body).toMatchObject({
-      model: "claude-sonnet-5-5",
-      output_config: { effort: "low" },
-      fallbacks: "default",
-    });
+    expect(body).toMatchObject({ model: "claude-sonnet-5-5", output_config: { effort: "low" } });
+    expect(body).not.toHaveProperty("fallbacks");
     expect(JSON.stringify(body.output_config)).toContain('"enum":["R1","R2","R4","NO_MATCH"]');
   });
 

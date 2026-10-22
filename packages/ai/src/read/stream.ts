@@ -23,8 +23,8 @@ export interface TrackerHandlers {
   /** The page header (rotation, issues) is complete: rows follow it in schema order. */
   onPage?: (page: { rotation: string; issues: string[] }) => void;
   /**
-   * The snapshot restarted (an empty snapshot). Only legacy recordings do this: a server-side fallback
-   * keeps the streamed partial and continues it, so live snapshots never shrink.
+   * The snapshot restarted (an empty snapshot): the tracker is being reused for a new stream. The
+   * gateway itself never shrinks a snapshot (no server-side fallback is ever requested).
    */
   onReset?: () => void;
 }
@@ -67,7 +67,7 @@ export class ExtractionStreamTracker {
     try {
       doc = parse(snapshot, PARTIAL);
     } catch {
-      return; // not yet parseable (or a continuation after a fallback); wait for more
+      return; // not yet parseable; wait for more
     }
     if (!doc || typeof doc !== "object" || Array.isArray(doc)) return;
     const d = doc as { page?: { rotation?: unknown; issues?: unknown }; rows?: unknown };

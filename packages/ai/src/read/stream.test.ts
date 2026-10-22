@@ -56,7 +56,7 @@ describe("ExtractionStreamTracker (MM-2 streaming)", () => {
     expect(fields).toBe(2 * (2 * 15 + 1));
   });
 
-  it("ignores unparseable snapshots (a continuation after a fallback)", () => {
+  it("ignores snapshots that do not parse yet", () => {
     const t = new ExtractionStreamTracker({ onField: () => expect.fail("no field expected") });
     t.push('"rows":[{"serial"');
     t.push("}}]");

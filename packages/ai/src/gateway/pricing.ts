@@ -11,7 +11,8 @@ export interface ModelPrice {
 /**
  * S4.9 prices (Batch halves them; the gateway never batches). Cache-read and cache-write rates for
  * Sonnet and Haiku come from the published rate cards (0.1x and 1.25x input), which S4.9 leaves blank.
- * Fallback targets are priced too, because a fallback hop is billed at the fallback model's rates.
+ * Two models without a role are priced too: an answer from any model but the one asked is a typed
+ * failure (AI_MODEL_MISMATCH), and its cost must still be counted.
  */
 export const PRICES: Record<string, ModelPrice> = {
   "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2, cacheWrite5m: 5 },
@@ -45,9 +46,9 @@ function microsFor(price: ModelPrice, t: TokenCounts): number {
 }
 
 /**
- * Cost in integer micro-dollars, rounded up. When the API reports per-attempt iterations (a fallback
- * hop), each attempt is priced at the model that ran it; otherwise the whole usage is priced at
- * `servedModel`.
+ * Cost in integer micro-dollars, rounded up. When the API reports per-attempt `iterations`, each
+ * attempt is priced at the model that ran it (`servedModel` when it names none); otherwise the whole
+ * usage is priced at `servedModel`.
  */
 export function costMicros(usage: UsageSummary, servedModel: string): number {
   if (usage.iterations && usage.iterations.length > 0) {

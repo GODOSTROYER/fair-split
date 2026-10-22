@@ -11,10 +11,9 @@ import { GatewayError } from "./errors.js";
 import { anyFlagSource, envFlagSource, staticFlags } from "./flags.js";
 import { ClaudeGateway, measureInput } from "./gateway.js";
 import { inputShaOf } from "./key.js";
-import { FALLBACK_BETA } from "./request.js";
 import { Semaphore } from "./semaphore.js";
 import { FsReplayStore, MemoryCallLedger, MemoryReplayStore } from "./store.js";
-import { jsonOutputFormat, parseStructured, structuredText } from "./structured.js";
+import { jsonOutputFormat, parseStructured } from "./structured.js";
 import { fakeMessage, JSON_HEADERS, SSE_HEADERS, sseBody } from "./test-helpers.js";
 import type { GatewayCall } from "./types.js";
 import { warmStructuredOutputs } from "./warm.js";
@@ -25,6 +24,7 @@ const FILES_URL = "https://api.anthropic.com/v1/files";
 interface Captured {
   body: Record<string, unknown>;
   headers: Headers;
+  url: string;
 }
 const captured: Captured[] = [];
 const server = setupServer();
@@ -51,7 +51,7 @@ function baseCall(over: Partial<GatewayCall> = {}): GatewayCall {
     mode: "auto",
     stream: false,
     maxTokens: 1500,
-    budget: "daily",
+    lane: "dev",
     body: {
       system: [{ type: "text", text: "You answer.", cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: "is it?" }],
@@ -66,7 +66,11 @@ function respondJson(
 ) {
   server.use(
     http.post(MESSAGES_URL, async ({ request }) => {
-      captured.push({ body: (await request.json()) as Record<string, unknown>, headers: request.headers });
+      captured.push({
+        body: (await request.json()) as Record<string, unknown>,
+        headers: request.headers,
+        url: request.url,
+      });
       return HttpResponse.json(message, { headers: JSON_HEADERS });
     }),
   );
@@ -75,8 +79,15 @@ function respondJson(
 function respondSse(text: string, opts: Parameters<typeof sseBody>[1] = {}) {
   server.use(
     http.post(MESSAGES_URL, async ({ request }) => {
-      captured.push({ body: (await request.json()) as Record<string, unknown>, headers: request.headers });
-      return new HttpResponse(sseBody(text, opts), { headers: SSE_HEADERS });
+      captured.push({
+        body: (await request.json()) as Record<string, unknown>,
+        headers: request.headers,
+        url: request.url,
+      });
+      // baseCall asks claude-sonnet-5-5; the answer must name the model asked.
+      return new HttpResponse(sseBody(text, { model: "claude-sonnet-5-5", ...opts }), {
+        headers: SSE_HEADERS,
+      });
     }),
   );
 }
@@ -181,25 +192,23 @@ describe("ClaudeGateway: request rules (S4.1 step 5)", () => {
     expect(body.max_tokens).toBe(1500);
   });
 
-  it("adds fallbacks: default with the 2026-07-01 beta for Opus and Sonnet", async () => {
-    respondJson();
-    await gateway().call(baseCall());
-    expect(captured[0]?.body.fallbacks).toBe("default");
-    expect(captured[0]?.headers.get("anthropic-beta") ?? "").toContain(FALLBACK_BETA);
-  });
-
-  it("never adds fallbacks for Haiku (no server-side fallback)", async () => {
-    respondJson(fakeMessage({ text: '{"verdict":"NO","note":""}', model: "claude-haiku-5-5" }));
-    await gateway().call(baseCall({ model: "claude-haiku-5-5", purpose: "screen" }));
-    expect(captured[0]?.body).not.toHaveProperty("fallbacks");
-    expect(captured[0]?.headers.get("anthropic-beta") ?? "").not.toContain("server-side-fallback");
-  });
+  it.each(["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"] as const)(
+    "never requests server-side fallbacks (%s): no fallbacks field, no beta header, the stable endpoint",
+    async (model) => {
+      respondJson(fakeMessage({ text: '{"verdict":"NO","note":""}', model }));
+      await gateway().call(baseCall({ model }));
+      expect(captured[0]?.body).not.toHaveProperty("fallbacks");
+      expect(captured[0]?.headers.get("anthropic-beta")).toBeNull();
+      expect(new URL(captured[0]?.url ?? "http://x").searchParams.has("beta")).toBe(false);
+    },
+  );
 
   it.each([
     ["temperature", { temperature: 0 }],
     ["thinking", { thinking: { type: "disabled" } }],
     ["tool_choice", { tool_choice: { type: "tool", name: "x" } }],
     ["model", { model: "claude-fable-5-1" }],
+    ["fallbacks", { fallbacks: "default" }],
   ])("rejects a body carrying %s before any HTTP", async (_name, extra) => {
     const call = baseCall();
     const body = { ...call.body, ...extra } as GatewayCall["body"];
@@ -234,22 +243,53 @@ describe("ClaudeGateway: kill switch, replay_only, budget", () => {
     expect(captured).toHaveLength(0);
   });
 
-  it("throws AI_BUDGET when the estimate would pass the cap", async () => {
+  it("throws AI_BUDGET when the estimate would pass the lane's cap", async () => {
     respondJson();
-    const gw = gateway({ caps: { daily: 0.01 } });
+    const gw = gateway({ caps: { dev: 0.01 } });
     await expect(gw.call(baseCall({ maxTokens: 1500 }))).rejects.toMatchObject({ code: "AI_BUDGET" });
     expect(captured).toHaveLength(0);
   });
 
-  it("meters settled spend so later calls see it", async () => {
+  it("meters settled spend per eval run; the eval lane needs a run id", async () => {
     respondJson();
     const spend = new MemorySpendMeter();
     const gw = gateway({ spend, caps: { eval: 0.05 } });
-    await gw.call(baseCall({ budget: "eval", budgetScope: "run-1", maxTokens: 100 }));
+    await gw.call(baseCall({ lane: "eval", laneScope: "run-1", maxTokens: 100 }));
     expect(await spend.spent("eval:run-1")).toBe(4000);
-    await expect(gw.call(baseCall({ budget: "eval", maxTokens: 100, promptV: "x" }))).rejects.toMatchObject({
+    await expect(gw.call(baseCall({ lane: "eval", maxTokens: 100, promptV: "x" }))).rejects.toMatchObject({
       code: "AI_BAD_CALL",
     });
+  });
+
+  it("caps each lane separately (S4.9): a spent judge_read lane refuses while dev still runs", async () => {
+    respondJson();
+    const spend = new MemorySpendMeter();
+    const at = new Date("2026-10-28T10:00:00Z");
+    await (await spend.reserve("judge_read:2026-10-28", 1_490_000, 1_500_000)).settle(1_490_000);
+    const gw = gateway({ spend, clock: () => at });
+    await expect(gw.call(baseCall({ lane: "judge_read" }))).rejects.toMatchObject({ code: "AI_BUDGET" });
+    expect(captured).toHaveLength(0);
+    expect((await gw.call(baseCall({ lane: "dev" }))).provenance).toBe("live");
+    expect(await spend.spent("dev:2026-10-28")).toBe(4000);
+    expect(ledger.rows[0]).toMatchObject({ lane: "dev", lane_scope: null, accepted: true });
+  });
+
+  it("the overall daily cap (register §9) spans every lane; a refusal leaves no hold on the lane", async () => {
+    respondJson();
+    const spend = new MemorySpendMeter();
+    const at = new Date("2026-10-28T10:00:00Z");
+    // Each call: estimate US$0.0150 (1,500 output tokens), actual US$0.0040 (fakeMessage usage).
+    const gw = gateway({ spend, clock: () => at, totalDailyCapUsd: 0.02 });
+    await gw.call(baseCall({ lane: "dev", promptV: "t1" }));
+    await gw.call(baseCall({ lane: "judge_read", promptV: "t2" }));
+    await expect(gw.call(baseCall({ lane: "judge_ask", promptV: "t3" }))).rejects.toMatchObject({
+      code: "AI_BUDGET",
+    });
+    expect(captured).toHaveLength(2);
+    expect(await spend.spent("total:2026-10-28")).toBe(8000);
+    expect(await spend.spent("judge_ask:2026-10-28")).toBe(0);
+    // Nothing is still held on the refused lane: its whole cap can be reserved.
+    await expect(spend.reserve("judge_ask:2026-10-28", 1_500_000, 1_500_000)).resolves.toBeDefined();
   });
 });
 
@@ -272,6 +312,24 @@ describe("ClaudeGateway: stop reasons and failures", () => {
       baseCall({ model: "claude-haiku-5-5", acceptStopReasons: ["end_turn", "refusal"] }),
     );
     expect(r.stopReason).toBe("refusal");
+  });
+
+  it("an answer from a model other than the one asked is AI_MODEL_MISMATCH, recorded and replayed the same", async () => {
+    respondJson(fakeMessage({ text: '{"verdict":"YES","note":"ok"}', model: "claude-opus-5" }));
+    const gw = gateway();
+    const first = await gw.call(baseCall()).catch((e: unknown) => e);
+    expect(first).toMatchObject({
+      code: "AI_MODEL_MISMATCH",
+      details: { modelServed: "claude-opus-5", stopReason: "end_turn" },
+    });
+    expect(ledger.rows[0]).toMatchObject({ accepted: false, model_served: "claude-opus-5" });
+    expect(ledger.rows[0]?.error).toContain("AI_MODEL_MISMATCH");
+    // Priced at the model that answered, never under-counted.
+    expect((first as { details: { result: { costMicros: number } } }).details.result.costMicros).toBe(
+      1000 * 5 + 200 * 25,
+    );
+    await expect(gw.call(baseCall())).rejects.toMatchObject({ code: "AI_MODEL_MISMATCH" });
+    expect(captured).toHaveLength(1);
   });
 
   it("maps an upstream 500 to AI_UPSTREAM and logs a failed ledger row", async () => {
@@ -322,130 +380,15 @@ describe("ClaudeGateway: streaming", () => {
     expect(waits.reduce((a, b) => a + b, 0)).toBeCloseTo(rec.replay_timeline.length * 25, 5);
   });
 
-  it("a mid-stream fallback keeps the partial: snapshots grow across the boundary, the answer is partial + continuation", async () => {
-    const cut = json.indexOf('"note"');
-    respondSse(json.slice(cut), {
-      fallback: { from: "claude-opus-5-5", to: "claude-opus-5", partialText: json.slice(0, cut) },
-      usageExtra: {
-        iterations: [
-          {
-            type: "message",
-            model: "claude-opus-5-5",
-            input_tokens: 1000,
-            output_tokens: 5,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
-          },
-          {
-            type: "fallback_message",
-            model: "claude-opus-5",
-            input_tokens: 1000,
-            output_tokens: 200,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
-          },
-        ],
-      },
-      model: "claude-opus-5",
-    });
-    let resets = 0;
-    const fallbacks: unknown[] = [];
+  it("a refusal mid-stream: the partial streamed, nothing is parsed from it, the call fails AI_STOP_REASON", async () => {
+    const partial = '{"verdict":"YES","no';
+    respondSse(partial, { stopReason: "refusal" });
     const snaps: string[] = [];
-    const gw = gateway();
-    const call = (over: Partial<GatewayCall> = {}) =>
-      baseCall({
-        model: "claude-opus-5-5",
-        stream: true,
-        onReset: () => resets++,
-        onFallback: (e) => fallbacks.push(e),
-        onSnapshot: (s) => snaps.push(s),
-        ...over,
-      });
-    const r = await gw.call(call());
-    expect(resets).toBe(0);
-    expect(snaps).not.toContain("");
-    // One growing JSON prefix: every snapshot extends the one before it, ending in the whole answer.
-    snaps.forEach((s, i) => {
-      expect(s.startsWith(snaps[i - 1] ?? "")).toBe(true);
-    });
-    expect(snaps.at(-1)).toBe(json);
-    expect(fallbacks).toEqual([{ from: "claude-opus-5-5", to: "claude-opus-5", afterText: true }]);
-    expect(r.fallbackServed).toBe(true);
-    expect(r.modelServed).toBe("claude-opus-5");
-    expect(r.costMicros).toBe(1000 * 4 + 5 * 20 + 1000 * 5 + 200 * 25);
-    expect(parseStructured(r.message, Answer)).toEqual({ verdict: "NO", note: "streamed answer" });
-    const rec = await store.get(r.cacheKey);
-    expect(rec?.replay_timeline.filter((e) => e.fallback)).toHaveLength(1);
-    expect(rec?.replay_timeline.some((e) => e.reset)).toBe(false);
-
-    // The replay drives the same snapshots and the same fallback event.
-    const live = [...snaps];
-    snaps.length = 0;
-    fallbacks.length = 0;
-    expect((await gw.call(call())).provenance).toBe("replay");
-    expect(snaps).toEqual(live);
-    expect(fallbacks).toEqual([{ from: "claude-opus-5-5", to: "claude-opus-5", afterText: true }]);
-  });
-
-  it("a pre-output fallback is seamless: nothing to discard, afterText false", async () => {
-    respondSse(json, {
-      fallback: { from: "claude-opus-5-5", to: "claude-opus-4-8" },
-      model: "claude-opus-4-8",
-    });
-    const fallbacks: unknown[] = [];
-    const snaps: string[] = [];
-    const r = await gateway().call(
-      baseCall({
-        model: "claude-opus-5-5",
-        stream: true,
-        onFallback: (e) => fallbacks.push(e),
-        onSnapshot: (s) => snaps.push(s),
-      }),
-    );
-    expect(fallbacks).toEqual([{ from: "claude-opus-5-5", to: "claude-opus-4-8", afterText: false }]);
-    expect(snaps).not.toContain("");
-    expect(snaps.at(-1)).toBe(json);
-    expect(parseStructured(r.message, Answer).verdict).toBe("NO");
-  });
-
-  it("replays a legacy recording whose timeline holds a reset entry", async () => {
-    respondSse(json);
-    const gw = gateway();
-    const r = await gw.call(baseCall({ stream: true }));
-    const rec = await store.get(r.cacheKey);
-    if (!rec) throw new Error("no recording");
-    rec.replay_timeline = [{ ms: 1, d: '{"verdict":"Y' }, { ms: 2, reset: true }, ...rec.replay_timeline];
-    let resets = 0;
-    const snaps: string[] = [];
-    await gw.call(baseCall({ stream: true, onReset: () => resets++, onSnapshot: (s) => snaps.push(s) }));
-    expect(resets).toBe(1);
-    expect(snaps.slice(0, 2)).toEqual(['{"verdict":"Y', ""]);
-    expect(snaps.at(-1)).toBe(json);
-  });
-});
-
-describe("structuredText after a fallback", () => {
-  const msg = (content: Array<Record<string, unknown>>) =>
-    ({ ...fakeMessage({ text: "" }), content }) as ReturnType<typeof fakeMessage>;
-  const fb = { type: "fallback", from: { model: "claude-opus-5-5" }, to: { model: "claude-opus-5" } };
-
-  it("joins the partial and the continuation of a streamed mid-stream fallback", () => {
-    const m = msg([{ type: "text", text: '{"verdict":"Y' }, fb, { type: "text", text: 'ES","note":""}' }]);
-    expect(structuredText(m)).toBe('{"verdict":"YES","note":""}');
-  });
-
-  it("a non-streamed fallback omits the partial: the text after the block is the answer", () => {
-    const m = msg([fb, { type: "text", text: '{"verdict":"NO","note":""}' }]);
-    expect(structuredText(m)).toBe('{"verdict":"NO","note":""}');
-  });
-
-  it("falls back to the tail when a fallback restarted instead of continuing", () => {
-    const m = msg([
-      { type: "text", text: '{"verdict":"Y' },
-      fb,
-      { type: "text", text: '{"verdict":"NO","note":""}' },
-    ]);
-    expect(structuredText(m)).toBe('{"verdict":"NO","note":""}');
+    const err = await gateway()
+      .call(baseCall({ stream: true, onSnapshot: (s) => snaps.push(s) }))
+      .catch((e: unknown) => e);
+    expect(snaps.at(-1)).toBe(partial);
+    expect(err).toMatchObject({ code: "AI_STOP_REASON", details: { stopReason: "refusal" } });
   });
 });
 
@@ -503,6 +446,19 @@ describe("ClaudeGateway: register §9 controls are explicit", () => {
     respondJson();
     await gateway().call(baseCall({ sentSha: "c".repeat(64) }));
     expect(ledger.rows[0]).toMatchObject({ sent_sha: "c".repeat(64), input_sha: baseCall().inputSha });
+  });
+
+  it("inv.i8.labels: a seed_synthetic placeholder replays labelled seed_synthetic, never as a model answer", async () => {
+    respondJson();
+    const gw = gateway();
+    const live = await gw.call(baseCall());
+    const rec = await store.get(live.cacheKey);
+    if (!rec) throw new Error("no recording");
+    expect(rec.provenance).toBe("live");
+    store.records.set(live.cacheKey, { ...rec, provenance: "seed_synthetic" });
+    const placeholder = await gw.call(baseCall());
+    expect(placeholder).toMatchObject({ provenance: "seed_synthetic", costMicros: 0 });
+    expect(captured).toHaveLength(1);
   });
 });
 

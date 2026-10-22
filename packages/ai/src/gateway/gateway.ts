@@ -1,7 +1,14 @@
 // The repo's only import of @anthropic-ai/sdk (S4.1; dependency-cruiser enforces it).
 import Anthropic, { toFile } from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { budgetKey, capsFromEnv, type SpendMeter } from "./budget.js";
+import {
+  budgetKey,
+  laneCapsFromEnv,
+  reserveAll,
+  type SpendMeter,
+  totalDailyCapFromEnv,
+  totalKey,
+} from "./budget.js";
 import { GatewayError, isGatewayError } from "./errors.js";
 import type { FlagSource } from "./flags.js";
 import { cacheKey, sha256Hex } from "./key.js";
@@ -12,13 +19,14 @@ import { processSemaphore, type Semaphore } from "./semaphore.js";
 import type { CallLedger, ReplayStore } from "./store.js";
 import { realSleep, replayTimeline, type Sleep, TimelineRecorder } from "./timeline.js";
 import {
-  type BudgetKind,
   CLAUDE_MODELS,
   type ClaudeMessage,
   EFFORTS,
   type GatewayBody,
   type GatewayCall,
   type GatewayResult,
+  LANES,
+  type Lane,
   type LlmCallRow,
   PURPOSES,
   type Recording,
@@ -50,8 +58,13 @@ export interface GatewayOptions {
    * tests pass `staticFlags`. Process-local sources are refused in production.
    */
   flags: FlagSource;
-  /** Caps in US$ per budget kind. Defaults: AI_DAILY_CAP_USD (8), eval 3, session 0.75. */
-  caps?: Partial<Record<BudgetKind, number>>;
+  /** Lane caps in US$ (S4.9), over the defaults and `AI_LANE_CAPS_USD`. */
+  caps?: Partial<Record<Lane, number>>;
+  /**
+   * The overall daily cap across every lane in US$ (register §9 "a daily spend cap"); null for lane
+   * caps only. Default: `AI_DAILY_SPEND_CAP_USD`, else null.
+   */
+  totalDailyCapUsd?: number | null;
   semaphore?: Semaphore;
   clock?: () => Date;
   sleep?: Sleep;
@@ -71,7 +84,8 @@ interface LiveOutcome {
   requestId: string | null;
 }
 
-type StreamParams = Parameters<Anthropic["beta"]["messages"]["stream"]>[0];
+type StreamParams = Parameters<Anthropic["messages"]["stream"]>[0];
+type CreateParams = Anthropic.Messages.MessageCreateParamsNonStreaming;
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const MAX_VISUAL_TOKENS = 4784;
@@ -82,6 +96,7 @@ function validateCall(call: GatewayCall): void {
   if (!CLAUDE_MODELS.includes(call.model)) throw bad(`model "${call.model}" has no role (register §9)`);
   if (!EFFORTS.includes(call.effort)) throw bad(`effort must be low | medium, got "${call.effort}"`);
   if (!VARIANTS.includes(call.variant)) throw bad(`unknown variant "${call.variant}"`);
+  if (!LANES.includes(call.lane)) throw bad(`unknown lane "${call.lane}"`);
   if (!call.promptV || !call.schemaV) throw bad("promptV and schemaV are required");
   if (!HEX64.test(call.inputSha)) throw bad("inputSha must be a lowercase sha256 hex digest");
   if (!Number.isInteger(call.maxTokens) || call.maxTokens < 1 || call.maxTokens > 128_000) {
@@ -128,11 +143,6 @@ export function usageSummary(message: ClaudeMessage): UsageSummary {
   };
 }
 
-/** A fallback model served the response when `usage.iterations` holds a `fallback_message` entry. */
-export function fallbackServed(usage: UsageSummary): boolean {
-  return (usage.iterations ?? []).some((it) => it.type === "fallback_message");
-}
-
 /** Characters and visual tokens of a request body, for the budget estimate (S4.1 step 4). */
 export async function measureInput(body: GatewayBody): Promise<{ visualTokens: number; characters: number }> {
   let characters = 0;
@@ -172,7 +182,8 @@ export class ClaudeGateway {
   private readonly store: ReplayStore;
   private readonly spend: SpendMeter;
   private readonly flags: FlagSource;
-  private readonly caps: Record<BudgetKind, number>;
+  private readonly caps: Record<Lane, number>;
+  private readonly totalCapMicros: number | null;
   private readonly semaphore: Semaphore;
   private readonly clock: () => Date;
   private readonly sleep: Sleep;
@@ -201,7 +212,9 @@ export class ClaudeGateway {
     this.store = opts.store;
     this.spend = opts.spend;
     this.flags = opts.flags;
-    this.caps = { ...capsFromEnv(), ...opts.caps };
+    this.caps = { ...laneCapsFromEnv(), ...opts.caps };
+    const total = opts.totalDailyCapUsd === undefined ? totalDailyCapFromEnv() : opts.totalDailyCapUsd;
+    this.totalCapMicros = total === null ? null : microsFromUsd(total);
     this.semaphore = opts.semaphore ?? processSemaphore;
     this.clock = opts.clock ?? (() => new Date());
     this.sleep = opts.sleep ?? realSleep;
@@ -245,11 +258,13 @@ export class ClaudeGateway {
         reason: "kill_switch",
       });
     }
-    // 4. Budget.
+    // 4. Budget: the lane's cap (today's, or the eval run's), then the overall daily cap if one is set.
     const at = this.clock();
-    const bkey = budgetKey(call.budget, call.budgetScope, at);
     const estimate = estimateMicros(call.model, await measureInput(call.body), call.maxTokens);
-    const reservation = await this.spend.reserve(bkey, estimate, microsFromUsd(this.caps[call.budget]));
+    const reservation = await reserveAll(this.spend, estimate, [
+      { key: budgetKey(call.lane, call.laneScope, at), capMicros: microsFromUsd(this.caps[call.lane]) },
+      ...(this.totalCapMicros === null ? [] : [{ key: totalKey(at), capMicros: this.totalCapMicros }]),
+    ]);
 
     // 5-6. Request, at most N in flight.
     let release: (() => void) | undefined;
@@ -280,7 +295,6 @@ export class ClaudeGateway {
       purpose: call.purpose,
       model: call.model,
       model_served: outcome.message.model,
-      fallback_served: fallbackServed(usage),
       effort: call.effort,
       variant: call.variant,
       prompt_v: call.promptV,
@@ -296,20 +310,22 @@ export class ClaudeGateway {
       recorded_at: at.toISOString(),
       latency_ms: outcome.latencyMs,
       first_delta_ms: outcome.firstDeltaMs,
+      provenance: "live",
     };
     // Only the stored copy is scrubbed: the live caller gets the message exactly as the API sent it
     // (thinking signatures must round-trip unmodified in multi-turn use).
     const recording = this.opts.scrub === false ? raw : scrubRecording(raw);
-    // 8. Ledger, then the replay store (insert-if-absent).
-    const accepted = accept.includes(raw.stop_reason as StopReason);
+    // 8. Ledger, then the replay store (insert-if-absent). A failed answer is recorded too, so a
+    // replay reproduces the failure instead of hiding it.
+    const result = this.resultOf(call, raw, "live", cost);
+    const failure = this.failureOf(result, accept, key);
     await this.opts.ledger?.append({
-      ...this.ledgerRow(call, key, at, recording, null),
-      accepted,
+      ...this.ledgerRow(call, key, at, recording, failure),
+      accepted: failure === null,
       request_id: outcome.requestId,
     });
     if ((call.record ?? "if_absent") === "if_absent") await this.store.put(recording);
-    const result = this.resultOf(call, raw, "live", cost);
-    this.checkStop(result, accept, key);
+    if (failure) throw failure;
     return result;
   }
 
@@ -332,20 +348,27 @@ export class ClaudeGateway {
     rec: Recording,
     accept: readonly StopReason[],
   ): Promise<GatewayResult> {
-    await replayTimeline(
-      rec.replay_timeline,
-      { onSnapshot: call.onSnapshot, onFallback: call.onFallback, onReset: call.onReset },
-      { speed: call.replaySpeed, sleep: this.sleep, signal: call.signal },
+    await replayTimeline(rec.replay_timeline, call.onSnapshot, {
+      speed: call.replaySpeed,
+      sleep: this.sleep,
+      signal: call.signal,
+    });
+    // inv.i8: a replay says so; a placeholder written from the seed says that instead.
+    const result = this.resultOf(
+      call,
+      rec,
+      rec.provenance === "seed_synthetic" ? "seed_synthetic" : "replay",
+      0,
     );
-    const result = this.resultOf(call, rec, "replay", 0);
-    this.checkStop(result, accept, rec.cache_key);
+    const failure = this.failureOf(result, accept, rec.cache_key);
+    if (failure) throw failure;
     return result;
   }
 
   private resultOf(
     call: GatewayCall,
     rec: Recording,
-    provenance: "live" | "replay",
+    provenance: GatewayResult["provenance"],
     cost: number,
   ): GatewayResult {
     return {
@@ -357,7 +380,6 @@ export class ClaudeGateway {
       cacheKey: rec.cache_key,
       stopReason: rec.stop_reason,
       requestedModel: call.model,
-      fallbackServed: rec.fallback_served,
       usage: rec.usage,
       latencyMs: rec.latency_ms,
       recordedCostMicros: rec.cost_micros,
@@ -365,15 +387,28 @@ export class ClaudeGateway {
     };
   }
 
-  /** S4.1 step 7: any stop_reason other than the accepted ones is a typed failure. */
-  private checkStop(result: GatewayResult, accept: readonly StopReason[], key: string): void {
+  /**
+   * S4.1 step 7: the model that answered must be the model asked (`model_served` is printed in
+   * footers), and any stop_reason other than the accepted ones is a typed failure: a person handles
+   * the item, or a Judge lane plays its recording. A partial streamed before the failure is
+   * discarded: nothing is parsed from it.
+   */
+  private failureOf(result: GatewayResult, accept: readonly StopReason[], key: string): GatewayError | null {
+    if (result.modelServed !== result.requestedModel) {
+      return new GatewayError(
+        "AI_MODEL_MISMATCH",
+        `requested ${result.requestedModel} but ${result.modelServed} answered`,
+        { cacheKey: key, modelServed: result.modelServed, stopReason: result.stopReason, result },
+      );
+    }
     if (!accept.includes(result.stopReason as StopReason)) {
-      throw new GatewayError("AI_STOP_REASON", `stop_reason "${result.stopReason}" is not accepted`, {
+      return new GatewayError("AI_STOP_REASON", `stop_reason "${result.stopReason}" is not accepted`, {
         cacheKey: key,
         stopReason: result.stopReason,
         result,
       });
     }
+    return null;
   }
 
   private ledgerRow(
@@ -386,6 +421,8 @@ export class ClaudeGateway {
     return {
       cache_key: key,
       purpose: call.purpose,
+      lane: call.lane,
+      lane_scope: call.laneScope ?? null,
       model: call.model,
       model_served: rec?.model_served ?? null,
       effort: call.effort,
@@ -394,8 +431,6 @@ export class ClaudeGateway {
       schema_v: call.schemaV,
       input_sha: call.inputSha,
       sent_sha: call.sentSha ?? null,
-      budget: call.budget,
-      budget_scope: call.budgetScope ?? null,
       usage: rec?.usage ?? null,
       cost_micros: rec?.cost_micros ?? 0,
       stop_reason: rec?.stop_reason ?? null,
@@ -470,26 +505,18 @@ export class ClaudeGateway {
   private async send(call: GatewayCall, progress: { billed: boolean }): Promise<LiveOutcome> {
     const client = this.getClient();
     const body = this.opts.filesApi ? await this.withFileRefs(call.body) : call.body;
-    const { params, betas } = buildRequest({ ...call, body }, call.format);
-    const request = { ...params, ...(betas.length > 0 ? { betas } : {}) };
+    // No beta is needed: output_config (effort, format), image transformations and Files API
+    // references are all in the stable Messages API, and fallbacks are never requested.
+    const params = buildRequest({ ...call, body }, call.format);
     const t0 = performance.now();
     const timeline = new TimelineRecorder(t0);
 
     if (call.stream) {
-      const stream = client.beta.messages.stream(request as unknown as StreamParams, { signal: call.signal });
+      const stream = client.messages.stream(params as unknown as StreamParams, { signal: call.signal });
       for await (const event of stream) {
         if (event.type === "message_start") progress.billed = true;
-        if (
-          event.type === "content_block_start" &&
-          (event.content_block as { type: string }).type === "fallback"
-        ) {
-          // A pre-output fallback is seamless; a mid-stream one keeps the partial, marks the boundary
-          // with this block and continues it. Either way the snapshot keeps growing: record a marker.
-          const block = event.content_block as { from?: { model?: string }; to?: { model?: string } };
-          call.onFallback?.(timeline.fallback(block.from?.model ?? null, block.to?.model ?? null));
-        } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          const snapshot = timeline.delta(event.delta.text);
-          call.onSnapshot?.(snapshot);
+        else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          call.onSnapshot?.(timeline.delta(event.delta.text));
         }
       }
       const final = await stream.finalMessage();
@@ -502,36 +529,21 @@ export class ClaudeGateway {
       };
     }
 
-    const { data, request_id } = await client.beta.messages
-      .create(
-        { ...(request as unknown as Anthropic.Beta.Messages.MessageCreateParamsNonStreaming), stream: false },
-        { signal: call.signal },
-      )
+    const { data, request_id } = await client.messages
+      .create({ ...(params as unknown as CreateParams), stream: false }, { signal: call.signal })
       .withResponse();
     const message = toPlainMessage(data);
     const latencyMs = Math.round(performance.now() - t0);
     // A non-streamed answer is recorded as one delta at its arrival time, so replays still drive
-    // snapshot consumers the same way. A non-streamed fallback omits the declined partial, so its
-    // markers simply precede the text.
-    const entries: TimelineEntry[] = [];
-    for (const b of message.content) {
-      if (b.type !== "fallback") continue;
-      const fb = b as { from?: { model?: string }; to?: { model?: string } };
-      const info = { from: fb.from?.model ?? null, to: fb.to?.model ?? null };
-      entries.push({ ms: latencyMs, fallback: info });
-      call.onFallback?.({ ...info, afterText: false });
-    }
+    // snapshot consumers the same way.
     const text = message.content
       .filter((b) => b.type === "text" && typeof b.text === "string")
       .map((b) => b.text as string)
       .join("");
-    if (text) {
-      entries.push({ ms: latencyMs, d: text });
-      call.onSnapshot?.(text);
-    }
+    if (text) call.onSnapshot?.(text);
     return {
       message,
-      timeline: entries,
+      timeline: text ? [{ ms: latencyMs, d: text }] : [],
       latencyMs,
       firstDeltaMs: text ? latencyMs : null,
       requestId: request_id ?? null,

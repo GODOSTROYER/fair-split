@@ -23,7 +23,8 @@ export interface FlagSource {
 const truthy = (v: string | undefined): boolean => v !== undefined && /^(1|true|yes|on)$/i.test(v.trim());
 
 /**
- * Environment flags: `KILL_AI_LIVE=true`, or `FS_KILL` naming the flag (comma-separated), or
+ * Environment flags: `KILL_AI_LIVE=true`, or `FS_KILL` naming the flag (S3.11 spells it
+ * `FS_KILL=payouts,paypal_live,ai_live`; the full name `kill_ai_live` works too), or
  * `FS_KILL=all|true`. The environment is read at call time, never cached. Applies to every workspace.
  */
 export function envFlagSource(env: NodeJS.ProcessEnv = process.env): FlagSource {
@@ -35,7 +36,8 @@ export function envFlagSource(env: NodeJS.ProcessEnv = process.env): FlagSource 
         .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
-      return forced.includes(flag) || forced.includes("all") || forced.includes("true");
+      const short = flag.replace(/^kill_/, "");
+      return forced.some((f) => f === flag || f === short || f === "all" || f === "true");
     },
   };
 }

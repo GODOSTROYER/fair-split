@@ -118,37 +118,14 @@ export function coerceEnumCase(schema: Json, value: unknown): unknown {
 }
 
 /**
- * The JSON text of a structured response: every text block, in order. After a server-side fallback
- * the content holds a `fallback` block at each switch point. A stream keeps the declined partial and
- * the fallback model continues it, so the answer is partial + continuation; a pre-output or
- * non-streamed fallback has no text before the block, so joining everything is the tail as well. The
- * tail alone is tried only if the joined text does not parse (a fallback that restarted instead).
+ * The JSON text of a structured response: its text blocks, in order (thinking blocks are skipped).
+ * No server-side fallback is ever requested (S4.1 step 5), so the text is one model's answer.
  */
 export function structuredText(message: ClaudeMessage): string {
-  const blocks = message.content;
-  let lastFallback = -1;
-  blocks.forEach((b, i) => {
-    if (b.type === "fallback") lastFallback = i;
-  });
-  const join = (from: number) =>
-    blocks
-      .slice(from)
-      .filter((b) => b.type === "text" && typeof b.text === "string")
-      .map((b) => b.text as string)
-      .join("");
-  const all = join(0);
-  if (lastFallback < 0) return all;
-  const parses = (s: string) => {
-    try {
-      JSON.parse(s);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  if (parses(all)) return all;
-  const tail = join(lastFallback + 1);
-  return parses(tail) ? tail : all;
+  return message.content
+    .filter((b) => b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text as string)
+    .join("");
 }
 
 /** Parses a structured response against `schema` (enum case snapped first). Throws AI_SCHEMA. */

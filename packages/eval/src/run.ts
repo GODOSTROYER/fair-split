@@ -101,7 +101,7 @@ function gatewayFor(o: EvalOptions): { gateway: ClaudeGateway; deps: Omit<ReadDe
           flags: staticFlags({ kill_ai_live: true }),
           spend: new MemorySpendMeter(),
         }),
-      deps: { mode: "replay_only", budget: "eval", budgetScope: `replay-${now.toISOString()}` },
+      deps: { mode: "replay_only", lane: "eval", laneScope: `replay-${now.toISOString()}` },
     };
   }
   return {
@@ -114,7 +114,7 @@ function gatewayFor(o: EvalOptions): { gateway: ClaudeGateway; deps: Omit<ReadDe
         caps: { eval: o.capUsd },
         ledger: new JsonlCallLedger(join(PKG, ".cache", "eval-ledger.jsonl")),
       }),
-    deps: { mode: "auto", budget: "eval", budgetScope: `live-${now.toISOString()}` },
+    deps: { mode: "auto", lane: "eval", laneScope: `live-${now.toISOString()}` },
   };
 }
 
