@@ -141,12 +141,18 @@ export function owns(ownership, ws, file) {
 /**
  * Parses `git diff --name-status` output into [{status, path}]; a rename or copy yields
  * the new path with its status and, for a rename, the old path as a deletion.
+ * A line without a tab is a plain path (`git diff --name-only`) and counts as a modification.
  */
 export function parseNameStatus(text) {
   const out = [];
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
+    if (!line.includes("\t")) {
+      out.push({ status: "M", path: normalize(line.trim()) });
+      continue;
+    }
     const [code, a, b] = line.split("\t");
+    if (!code || !a) throw new Error(`Unreadable --name-status line: ${JSON.stringify(line)}`);
     const s = code[0];
     if ((s === "R" || s === "C") && b) {
       if (s === "R") out.push({ status: "D", path: normalize(a) });
@@ -273,12 +279,17 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   if (bootstrap) console.warn(`check-ownership: warning: rules from ${source}`);
 
   let changes;
-  if (opts.base) {
-    changes = parseNameStatus(git(repo, ["diff", "--name-status", "-M", `${opts.base}...HEAD`]));
-  } else if (opts.stdin) {
-    changes = parseNameStatus(readFileSync(0, "utf8"));
-  } else {
-    changes = opts.files.map((path) => ({ status: "M", path }));
+  try {
+    if (opts.base) {
+      changes = parseNameStatus(git(repo, ["diff", "--name-status", "-M", `${opts.base}...HEAD`]));
+    } else if (opts.stdin) {
+      changes = parseNameStatus(readFileSync(0, "utf8"));
+    } else {
+      changes = opts.files.map((path) => ({ status: "M", path }));
+    }
+  } catch (e) {
+    console.error(`check-ownership: cannot read the changed paths: ${e.message}`);
+    return 1;
   }
 
   let result;

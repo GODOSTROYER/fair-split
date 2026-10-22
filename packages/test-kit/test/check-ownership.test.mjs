@@ -174,6 +174,19 @@ describe("parseNameStatus", () => {
     ]);
   });
 
+  it("accepts plain paths from git diff --name-only as modifications", () => {
+    expect(parseNameStatus("README.md\r\npackages/domain/src/x.ts\n")).toEqual([
+      { status: "M", path: "README.md" },
+      { status: "M", path: "packages/domain/src/x.ts" },
+    ]);
+    const changes = parseNameStatus("README.md\npackages/domain/src/x.ts\n");
+    expect(checkChanges(ownership, "WS-QA", changes).ok).toBe(false);
+  });
+
+  it("rejects a status code with no path", () => {
+    expect(() => parseNameStatus("M\t\n")).toThrow(/Unreadable/);
+  });
+
   it("catches a rename across workstreams", () => {
     const changes = parseNameStatus("R100\tpackages/db/src/x.ts\tpackages/domain/src/x.ts");
     expect(checkChanges(ownership, "WS-CORE", changes).ok).toBe(false);
