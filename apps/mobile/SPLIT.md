@@ -1,0 +1,197 @@
+# apps/mobile: one shell, three parallel slices
+
+The app is built by three agents at once, each in its own worktree, on top of a frozen shell. The split is safe
+because **no two agents ever edit the same file** and **no slice imports another slice's code**: everything that more
+than one role needs lives in the shell. Merges are therefore conflict-free in any order; run `typecheck` and `test`
+after each.
+
+| Slice              | Worktree                              | Branch          |
+| ------------------ | ------------------------------------- | --------------- |
+| MEMBER             | `Z:/Projects/Paypal/fs-wt/app-member` | `ws/app-member` |
+| CLERK              | `Z:/Projects/Paypal/fs-wt/app-clerk`  | `ws/app-clerk`  |
+| BOARD + ONBOARDING | `Z:/Projects/Paypal/fs-wt/app-board`  | `ws/app-board`  |
+| Shell (frozen)     | `Z:/Projects/Paypal/fs-wt/app`        | `ws/app`        |
+
+All three branch from the shell's last commit on `ws/app`. Paths are under `apps/mobile/src/` unless they start with
+`apps/`.
+
+## 1. Who owns what
+
+**MEMBER** owns `app/(member)/**`, `app/s/**`, `features/statement/**`, `lib/{statement,member-link}.ts` and their
+tests, and `platform/speech.ts`.
+
+**CLERK** owns `app/(clerk)/**`, `features/clerk/**`, `lib/{outbox,outbox-stores,backoff}.ts` and their tests,
+`platform/{outbox-store,outbox-store.web,scanner,scanner.web,uploader,uploader.web,uploader-demo}.ts`, and the test
+helper `test/node-sqlite.ts`.
+
+**BOARD + ONBOARDING** owns `app/(board)/**`, `app/onboarding/**`, `app/pair.tsx`, `features/board/**`,
+`features/onboarding/**`, `lib/{signing,pairing}.ts` and their tests, `platform/{key-vault,key-vault.web,push,push.web}.ts`
+and `state/use-push.ts`.
+
+**SHARED, frozen** (only the shell edits them, and only between slice rounds): `app/_layout.tsx`, `app/index.tsx`,
+`ui/**`, `theme/**`, `_shims/**`, `services/**`, `state/app.tsx`, `types/**`,
+`platform/{feedback,feedback.web,kv,kv.web,query,query.web,random,streaming-fetch,streaming-fetch.web}.ts`,
+`lib/{item-status,uuidv7}.ts` and their tests, and `apps/mobile/{package.json,app.config.ts,eas.json,tsconfig.json,
+vitest.config.mts,expo-env.d.ts,AGENTS.md,README.md,SPLIT.md}`, `apps/mobile/assets/**`, `apps/mobile/scripts/**`.
+The root `pnpm-workspace.yaml` and `pnpm-lock.yaml` are frozen too: every dependency a slice needs is installed.
+
+Each slice also owns its own copy (`features/<slice>/messages.ts`, `use-t.ts`, `messages.test.ts`).
+
+### What moved from the first ownership list, and why
+
+The first list was drawn by file name. Six pieces turned out to be used by more than one role, so they moved into
+shared paths; leaving them in one slice would have let that slice change another's behaviour.
+
+| Was (owner)                                                         | Now (shared)                                             | Used by                                                    |
+| ------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------- |
+| `lib/figures.ts` (MEMBER)                                           | `ui/figures.ts`                                          | `ui/sentence.tsx`, the statement and the co-sign prose     |
+| `lib/hold.ts` (BOARD)                                               | `ui/hold.ts`                                             | `ui/slab.tsx` (every hold-to-commit control)               |
+| `lib/frame-protocol.ts`, `platform/frame-bridge(.web).ts` (BOARD)   | `services/frame-protocol.ts`, `services/frame-bridge.ts` | all three stage frames, theme, feedback, moments, focus    |
+| `platform/network.ts` (CLERK)                                       | `services/connectivity.ts`                               | member offline copy, "Signing needs a connection", outbox  |
+| `PairedSession`, `sessionValid`, `homeRouteFor` in `lib/pairing.ts` | `services/session.ts`                                    | the shell state, the index redirect, demo sessions         |
+| `pickLanguage`, `speakOnce` in `platform/speech.ts` (MEMBER)        | `services/voice.ts`                                      | Paminawa's device voice and the first-run language samples |
+
+The clerk's outbox lifecycle also left the shell: it is `features/clerk/outbox-provider.tsx`, mounted by
+`app/(clerk)/_layout.tsx`, read with `useOutbox()`.
+
+### The only two seams
+
+Code that crosses a boundary. The owner may change everything behind these names, but not the names or signatures.
+1. `state/use-push.ts` (BOARD): `usePushRegistration(): PushRegistration | null`. The root layout calls it once.
+2. MEMBER exports `BoardBayadScreen` from `features/statement/board-bayad-screen.tsx` and `PangutanaScreen` from
+   `features/statement/pangutana-screen.tsx`; BOARD's `app/(board)/bayad.tsx` and `pangutana.tsx` re-export them
+   (register §4: the board's Bayad and Pangutana tabs reuse the member screens).
+
+## 2. The shell's APIs
+
+### State (`state/app.tsx`)
+
+```ts
+useApp(): {
+  ready: boolean;
+  lang: Lang; setLang(l: Lang): void;                     // ceb by default
+  theme: ThemeName; setTheme(t: ThemeName): void;         // "adlaw" by default (one theme per surface)
+  onboarded: boolean; completeOnboarding(): void;          // first run; the index sends !onboarded to /onboarding/language
+  listenFirst: boolean | null; setListenFirst(v: boolean): void;  // S1.9 "Basahon o Paminawon una?"
+  session: PairedSession | null; setSession(s: PairedSession | null): void; signOut(): void;
+  api: FairSplitApi; demo: DemoController | null;          // demo when EXPO_PUBLIC_API_ORIGIN is unset
+  online: boolean;
+  lastSync: string | null; markSynced(): void;             // "Katapusang kopya, 10:21"
+  frame: { inFrame: boolean; prefs: FramePrefs | null };   // judge stage frames (IC-12)
+  gloss: boolean;                                          // English under Cebuano/Filipino sentences
+}
+```
+
+The index redirect is `!onboarded → /onboarding/language`, `!session → /onboarding/pair`, else the role's home.
+Onboarding decides its own steps and calls `completeOnboarding()`; frames and `?demo=member|board|clerk&stage=…` links
+skip it.
+
+### Services (`services/`)
+
+- `session.ts`: `PairedSession`, `sessionValid(s, now)`, `parseSession(raw, now)`, `DEMO_BEARER`, `HREF` (typed hrefs for
+  every route), `homeHref(role, runSlug)`, `pirmaHref(runSlug)`, `signHref(runSlug)`.
+- `connectivity.ts`: `useOnline()`, `onConnectivity(cb) → unsubscribe`, `isOnlineState(netinfo)`.
+- `frame-bridge.ts`: `inFrame`, `stage.moment(id, phase)`, `stage.feedback(event, index?)`, `stage.focus(screenId)`
+  (the shell already forwards moments, feedback and focus; slices rarely call these directly).
+- `voice.ts`: `pickVoiceLanguage(lang)`, `hasVoiceFor(lang)`, `speakOnce(text, language, rate?)`, `stopVoice()`.
+- `demo-api.ts`: `createDemoApi`, `demoSession(role, now)`, `DemoController.advance(stage)` with `DEMO_STAGES`
+  (`checking | sent | paid | unclaimed | cash-due | cash-received`); the demo server verifies co-signatures on its own.
+- `build.ts`: `BUILD.version`, `BUILD.platform`, `apiOrigin()`.
+
+### Contracts, domain, seed and the other shims (`_shims/`, named as the register names the packages)
+
+- `contracts.ts` (IC-01): `Lang`, `LANGS`, `AppRole`, run/line/hold/item states and `ITEM_STATUS_RANK`, `RunEvent` and
+  payloads, `ApprovalPayload` + `APPROVAL_PAYLOAD_KEYS` (with `linesDigest`), `BatchItem`, `DigestLine`, `SCREEN`,
+  `APP_ROUTES`, `SCREEN_STATES` + `ScreenStateOf<S>`, `SLAB_STATES`, `AMOUNT_STATES`, `AMOUNT_STATE`,
+  `amountStateOf(line, {approved})`, `MEMBER_STATUS_WORDS`, `StatementTemplate`, `STATEMENT_SLOTS`, IC-12 types.
+- `domain.ts` (IC-02): `format.*` (`usd`, `usdPlain`, `peso`, `pesoEstimate`, `pesoSpoken`, `cashPesos`, `cashSpoken`,
+  `amountSpoken`, `percentBp`, `kg`, `date`, `dayMonth`, `time`, `elapsed`, `hash`, `bytes`, `list`), `FEE_TABLE`,
+  `batchDigest`, `linesDigest`, `jcs`, `sha256Hex`, `fsm.item.apply`.
+- `seed.ts` (IC-03 fixture): `coop`, `season`, `payer`, `fx`, `runSlug`, `runId`, `people`, `rateCard`,
+  `rateCardSha256`, `batchItems`, `batchSha256`, `batchTotalCents`, `namedLines`, `linesDigest`, `heroLine`,
+  `heroSlips`, `statementTemplates`, `resolvedHolds`, `cashDayIso`, `canonical` (every register §2 figure) and
+  `namedMembers` (the nine named members).
+- `motion.ts` (IC-09 presets): `SPRINGS`, `TWEENS`, `TIMELINE` (MM-1, MM-5, MM-7, pending ring, Paminawa chip),
+  `HOLD_MS`, `ENGRAVE_STAGGER_MS`, `FEEDBACK_EVENTS`, `MAX_FLIGHTS`. `moments.ts` (IC-10): `MOMENTS`, `isPhase`.
+- `seal.ts`: `seal(batchSha256, size)`, `sealStroke(size)`. `tokens.native.ts` (IC-09): `themes`, `space`, `radius`,
+  `target`, `slabDepth`, `layer`, `m3(t)`. `i18n.ts`: `translate`, `translateIn`, `defineMessages`, `same`,
+  `catalogProblems`. `api-client.ts` (IC-08): `FairSplitApi`, the DTOs, `subscribeSse` (SSE over `expo/fetch` with
+  Last-Event-ID replay), `contentDigestHeader`.
+
+### UI kit (`ui/`), theme and platform
+
+- Text and copy: `Txt` (type roles, token colours, ₱ in the system font, scales to 2×, hero 1.5×), `useT()` (shell
+  keys), `useMessages(catalog)`; `Sentence` + `figures()` (figures in the figure face inside prose).
+- Chrome: `Screen<S>({ testID: S, state: ScreenStateOf<S>, … })` (demo label, safe areas, `fs.focus`), `TopBar`,
+  `NavBar` (role tabs).
+- Commit: `Slab` (`d1 | d2 | d3`, `hold`, `confirm: ConfirmSpec`, `onHoldState`, `committed`, `unavailableReason`;
+  arm on hold, act on release inside, dialog route for Enter, virtual clicks, TalkBack and "Can't hold?"),
+  `ConfirmDialog`, `Sheet`, `Snackbar` + `useSnackbar()`; the pure machine in `ui/hold.ts` (`holdReducer`,
+  `mm5Phase`, `routeFor`, `quarterAt`).
+- Money and machine output: `AmountDisplay({ text, srLabel, state, size, fill })` (the amount grammar, MM-1 via
+  `fill`), `Print` (pencil/ink with a provenance footer), `SealView({ batchSha256, size, keys, engrave })`,
+  `HashText`.
+- Status and chips: `StatusChip`, `MemberStatusChip({ status, word })`, `RuleChip`, `Chip` (`role="radio"`), `Button`,
+  `Banner`, `InkStamp`, `Hatch`, `Rule`, `SectionTitle`, `Wordmark`, `DemoLabel`, `MachineTranslatedNote`,
+  `LanguagePicker`, `Glyph` (typed names).
+- States: `OfflineBar({ lastCopyAt })`, `EmptyState`, `Skeleton`.
+- Moments: `useMoment(id, initial)` → `{ phase, set, start(eventId, phase), rest, timers, rootProps }`,
+  `MomentMarker`, `useTimers()`.
+- Motion: `spring(name)`, `tween(name)`, `reducedFade()`, `ms(name)`, `TIMELINE`, `HOLD_MS`.
+- Accessibility: `focusFirst(ref)`, `announce(text)`.
+- Theme: `useFs()` → `{ t (tokens), name, motion: { reduced, low, screenReader } }`, `typeScale`.
+- Platform: `feedback.play(event, { index })`, `feedback.narration(on)` (Paminawa owns the audio session),
+  `feedback.preload()`; `prefs` and `secrets` key-value stores; `webQuery`; `randomBytes`; `streamingFetch`.
+- `lib/item-status.ts`: `reduceItemEvent` (forward-only, duplicates silent), `capsuleFor`, `CAPSULE_WORD`,
+  `amountIsSolid`, `STATUS_TONE`, `STATUS_GLYPH`, `PENDING_RING_MAX_MS`. `lib/uuidv7.ts`: `uuidv7`, `uuidv7Time`.
+
+## 3. Conventions
+
+- **Test hooks.** A screen root's `testID` is its register ID (`M-MB-01`); elements are `{screenId}.{element}`
+  (`M-BD-02.slab`), sub-parts `{screenId}.{element}.{part}`. `data-state` comes from `SCREEN_STATES` through `<Screen>`;
+  a state that is not listed does not compile, and adding one is a contract change for the orchestrator, not a local
+  edit.
+- **Moments.** Use `useMoment`; phases only from `MOMENTS`; `data-moment-phase` through `rootProps`; `start()` only
+  for a real event id (SSE event, 201, signature). Every moment also has its reduced-motion path reaching the same
+  phases.
+- **Status words.** Members read IC-01's words (`MEMBER_STATUS_WORDS`, `CAPSULE_WORD`), never a raw state name. A hold
+  is "Gisusi pa", never "error"; UNCLAIMED is canary ("Parked"), never red.
+- **Money.** Every figure comes from a DTO through `format.*` (I1). PayPal pesos are floored estimates
+  (`format.peso`, "about ₱4,028"); cash pesos are exact (`format.cashPesos`, "₱7,990.00"). Amount states come from
+  `AMOUNT_STATE`/`amountStateOf`.
+- **Copy.** No user-facing literals in components. Add keys to your slice's `messages.ts` (`<screenId>.<key>`, all
+  three languages, the same `{placeholders}`), read them with `useT()` from `./use-t`; `messages.test.ts` must stay
+  green. Show `MachineTranslatedNote` on member surfaces.
+- **Motion.** No numeric literal inside `withTiming(` or `withSpring(`: use `spring()`, `tween()`, `reducedFade()` or
+  a `TIMELINE` entry. Under `motion.reduced` nothing travels and colour or opacity changes over 150 ms; under
+  `motion.low` at most three animations run. No count-ups, confetti or ambient loops.
+- **Sound and haptics** only through `feedback.play`; they decorate, never inform.
+- **Accessibility.** 48 dp targets (primary 56, Paminawa and Pirmahi 64), a role, label and state on every control,
+  `focusFirst` for first focus, text up to 2×. Never branch on screen-reader detection on the web
+  (`motion.screenReader` is native only); every hold has its dialog route.
+- **Honesty (I8).** `<Screen>` shows the demo label; label demo keys, sample slips and the phone's own voice.
+- **New shared-looking components go in your own `features/<slice>/` folder.** Do not edit a shared path, and do not
+  import another slice's folder. If the shell needs a change, say so in your final report; the orchestrator decides
+  and lands it in the shell between rounds.
+- **Tests.** Vitest for pure logic (`src/**/*.test.ts`, Node, no React Native imports in the module under test);
+  invariant tests are named `inv.iN.*`; `fast-check` is installed for property tests.
+
+## 4. Commands (from `apps/mobile`, Git Bash, `COREPACK_ENABLE_DOWNLOAD_PROMPT=0`)
+
+```bash
+corepack pnpm typecheck          # tsc; run `corepack pnpm build` once first so typed routes exist in .expo/types
+corepack pnpm test               # Vitest
+corepack pnpm exec biome check . # from the repo root: corepack pnpm exec biome check apps/mobile
+corepack pnpm check:expo         # npx expo install --check
+corepack pnpm build              # web export → dist/, base path /app
+corepack pnpm serve:web          # http://localhost:8087/app/ (?demo=member|board|clerk&stage=…)
+```
+
+## 5. Spec decisions the slices inherit
+
+- Routes are register §4's (the plan's resolution "Routes and IDs: register §4"), so M-MB-02 Resibo and M-MB-04
+  Pangutana stay although S1 retired them.
+- One theme per surface (approved plan): the app is Adlaw. `/onboarding/theme` must exist (register route); what it
+  shows is BOARD + ONBOARDING's call.
+- The signed payload carries `linesDigest`; the phone refuses a payload without it (`inv.i4.*`).
+- Member wording never shows a per-kg rate: "Your 148.0 kg of the co-op's 9,780.6 verified kilos" (S2.2.1).

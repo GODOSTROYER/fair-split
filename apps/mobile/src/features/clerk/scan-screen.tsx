@@ -24,10 +24,11 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen, TopBar } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
+import { Snackbar, useSnackbar } from "../../ui/overlay";
 import { Banner, Button, Chip, SectionTitle } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { useOutbox } from "./outbox-provider";
-import { CameraCapture, ProgressRing, Snackbar, useSnackbar } from "./parts";
+import { CameraCapture, ProgressRing } from "./parts";
 import { useT } from "./use-t";
 
 export function ScanScreen() {

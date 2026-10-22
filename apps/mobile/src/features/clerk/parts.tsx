@@ -1,11 +1,10 @@
-/** Clerk UI parts: the per-capture progress ring, a Material snackbar, and the in-app camera fallback. */
+/** Clerk UI parts: the per-capture progress ring and the in-app camera fallback (snackbars come from ui/overlay). */
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
-import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
-import { radius, space, target } from "../../_shims/tokens.native";
+import { space, target } from "../../_shims/tokens.native";
 import type { CaptureState } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
@@ -67,50 +66,6 @@ export function ProgressRing({
         ) : null}
       </Svg>
     </View>
-  );
-}
-
-export function useSnackbar() {
-  const [msg, setMsg] = useState<{ text: string; tone: "neutral" | "decide"; id: number } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const show = (text: string, tone: "neutral" | "decide" = "neutral") => {
-    if (timer.current) clearTimeout(timer.current);
-    setMsg({ text, tone, id: Date.now() });
-    timer.current = setTimeout(() => setMsg(null), 4000);
-  };
-  return { msg, show };
-}
-
-export function Snackbar({
-  msg,
-  bottom,
-}: {
-  msg: { text: string; tone: "neutral" | "decide"; id: number } | null;
-  bottom: number;
-}) {
-  const { t } = useFs();
-  if (!msg) return null;
-  return (
-    <Animated.View
-      key={msg.id}
-      entering={FadeInDown.duration(160)}
-      exiting={FadeOutDown.duration(130)}
-      accessibilityLiveRegion="polite"
-      testID="snackbar"
-      style={[
-        styles.snack,
-        {
-          bottom,
-          backgroundColor: msg.tone === "decide" ? t.color.canaryWash : t.color.ink,
-          borderColor: msg.tone === "decide" ? t.color.canaryBorder : t.color.ink,
-        },
-      ]}
-    >
-      <Txt kind="body" style={{ color: msg.tone === "decide" ? t.color.ink : t.color.plate }}>
-        {msg.text}
-      </Txt>
-    </Animated.View>
   );
 }
 
@@ -197,14 +152,6 @@ export function CameraCapture({
 }
 
 const styles = StyleSheet.create({
-  snack: {
-    position: "absolute",
-    left: space.s16,
-    right: space.s16,
-    padding: space.s16,
-    borderWidth: 1,
-    borderRadius: radius.plate,
-  },
   camera: { flex: 1 },
   camTop: {
     flexDirection: "row",

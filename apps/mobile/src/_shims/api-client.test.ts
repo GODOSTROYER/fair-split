@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { base64, contentDigestHeader, SSE_BACKOFF_MS, subscribeSse } from "./api-client";
+import { base64, contentDigestHeader, SSE_BACKOFF_MS, scopePath, subscribeSse } from "./api-client";
 import type { RunEvent } from "./contracts";
 
 describe("Content-Digest (RFC 9530)", () => {
@@ -124,5 +124,17 @@ describe("subscribe over a real loopback stream (spike S7, the fetch-streaming p
     expect(seenIds.slice(0, 2)).toEqual([undefined, "2"]);
     // Events arrive while the stream is open, not when it closes (no buffering of the whole response).
     expect((got[1]?.at ?? 0) - (got[0]?.at ?? 0)).toBeLessThan(200);
+  });
+});
+
+describe("SSE scopes (S3.7)", () => {
+  it("maps officer, clerk, member and public scopes to their streams", () => {
+    expect(scopePath("run:2026A-r37")).toBe("/v1/runs/2026A-r37/events");
+    expect(scopePath("ws:ws_showcase")).toBe("/v1/workspaces/ws_showcase/events");
+    expect(scopePath("line:line_2026A_r37_M-014")).toBe("/v1/lines/line_2026A_r37_M-014/events");
+    expect(scopePath("proof:run_2026A_r37")).toBe("/v1/proof/run_2026A_r37/events");
+    expect(scopePath("line:a/b")).toBe("/v1/lines/a%2Fb/events");
+    expect(() => scopePath("member:M-014")).toThrow(RangeError);
+    expect(() => scopePath("run:")).toThrow(RangeError);
   });
 });

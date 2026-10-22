@@ -331,10 +331,20 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
   };
 }
 
-function scopePath(scope: string): string {
-  const [kind, id] = scope.split(":");
-  if (kind === "run" && id) return `/v1/runs/${encodeURIComponent(id)}/events`;
-  if (kind === "ws" && id) return `/v1/workspaces/${encodeURIComponent(id)}/events`;
+/**
+ * SSE streams (S3.7): `run:<runSlug>` and `ws:<workspaceId>` for officers and the clerk, `line:<lineId>` for a member
+ * (a member's credential sees only her own line), `proof:<runId>` for the public aggregate counters.
+ */
+export function scopePath(scope: string): string {
+  const at = scope.indexOf(":");
+  const kind = at > 0 ? scope.slice(0, at) : "";
+  const id = at > 0 ? scope.slice(at + 1) : "";
+  if (!id) throw new RangeError(`Unknown subscription scope: ${scope}`);
+  const enc = encodeURIComponent(id);
+  if (kind === "run") return `/v1/runs/${enc}/events`;
+  if (kind === "ws") return `/v1/workspaces/${enc}/events`;
+  if (kind === "line") return `/v1/lines/${enc}/events`;
+  if (kind === "proof") return `/v1/proof/${enc}/events`;
   throw new RangeError(`Unknown subscription scope: ${scope}`);
 }
 
