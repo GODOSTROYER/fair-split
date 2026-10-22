@@ -58,6 +58,8 @@ catalog:
   "i18next": 26.5.4
   "react-i18next": 17.1.0
   "@noble/curves": 2.4.0
+  "yaml": 2.9.1
+  "ajv": 8.20.0
 
 catalogs:
   zod3:
