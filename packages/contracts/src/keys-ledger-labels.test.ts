@@ -16,6 +16,7 @@ import {
   type LabelVars,
   LedgerPayloads,
   MEMBER_LINE_LABELS,
+  OfficerKey,
   PAYOUT_ITEM_STATUS_LABELS,
   PROOF_LEDGER_KINDS,
   PROVENANCE_LABELS,
@@ -24,8 +25,10 @@ import {
   ROLE_NOUNS,
   RUN_STATE_LABELS,
   RUN_STRIP_LABELS,
+  SAMPLE_KEY_KINDS,
   SeededKeyId,
   SignedApproval,
+  SigningKeyKind,
   SnapshotOfficer,
   SubmitApprovalRequest,
   type Words,
@@ -105,10 +108,32 @@ describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
   it("names identity mismatches with their own error codes", () => {
     expect(ERROR_HTTP_STATUS.KEY_NOT_REGISTERED).toBe(403);
     expect(ERROR_HTTP_STATUS.APPROVER_MISMATCH).toBe(403);
+    expect(ERROR_HTTP_STATUS.SIGNERS_NOT_DISTINCT).toBe(403);
     expect(ERROR_HTTP_STATUS.SEASON_MISMATCH).toBe(409);
     expect(API_COMMANDS.submitApproval.errors).toEqual(
-      expect.arrayContaining(["KEY_NOT_REGISTERED", "APPROVER_MISMATCH", "SEASON_MISMATCH"]),
+      expect.arrayContaining([
+        "KEY_NOT_REGISTERED",
+        "APPROVER_MISMATCH",
+        "SIGNERS_NOT_DISTINCT",
+        "SEASON_MISMATCH",
+      ]),
     );
+  });
+
+  it("an officer key binds one key to one approver and one role; sample kinds are named", () => {
+    const key = {
+      keyId: "fs-ernesto-a1",
+      approverId: "board:ernesto",
+      role: "chair",
+      publicKeyHex: H("d"),
+      kind: "app",
+      revokedAt: null,
+    };
+    expect(OfficerKey.safeParse(key).success).toBe(true);
+    expect(OfficerKey.safeParse({ ...key, role: "secretary" }).success).toBe(false);
+    expect(OfficerKey.safeParse({ ...key, extra: 1 }).success).toBe(false);
+    expect([...SAMPLE_KEY_KINDS].sort()).toEqual(["seeded", "web_demo"]);
+    expect(SigningKeyKind.options).toEqual(["app", "web_demo", "seeded"]);
   });
 });
 

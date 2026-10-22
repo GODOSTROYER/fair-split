@@ -18,6 +18,7 @@ import {
   computeLines,
   ed25519FromSeed,
   ed25519Sign,
+  expectedSigner,
   factsBeforeRules,
   format,
   jcsSha256,
@@ -684,6 +685,22 @@ describe("seeded keys never stand in for a person (I6)", () => {
 
   it("the server refuses the seeded approvals even when everything else matches", () => {
     for (const a of run.approvals) {
+      const now = new Date(Date.parse(a.payload.exp) - 60_000);
+      // Even a registry that wrongly listed the seeded key yields no signer for it.
+      const registry = [
+        {
+          keyId: a.keyId,
+          approverId: a.payload.approverId,
+          role: a.role,
+          publicKeyHex: a.publicKeyHex,
+          kind: "app" as const,
+          revokedAt: null,
+        },
+      ];
+      expect(expectedSigner(registry, a.role, a.keyId, now)).toMatchObject({
+        ok: false,
+        code: "KEY_NOT_REGISTERED",
+      });
       const r = checkApproval(
         a,
         {
@@ -694,14 +711,12 @@ describe("seeded keys never stand in for a person (I6)", () => {
           itemCount: 8,
           totalCents: 36_839,
           role: a.role,
-          registered: {
-            keyId: a.keyId,
-            publicKeyHex: a.publicKeyHex,
-            approverId: a.payload.approverId,
-            role: a.role,
-          },
+          keyId: a.keyId,
+          publicKeyHex: a.publicKeyHex,
+          approverId: a.payload.approverId,
         },
-        new Date(Date.parse(a.payload.exp) - 60_000),
+        now,
+        new Set(),
       );
       expect(r).toMatchObject({ ok: false, code: "KEY_NOT_REGISTERED" });
     }

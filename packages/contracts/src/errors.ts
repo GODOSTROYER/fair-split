@@ -13,6 +13,7 @@ export const ERROR_CODES = [
   "SIGNATURE_INVALID",
   "KEY_NOT_REGISTERED",
   "APPROVER_MISMATCH",
+  "SIGNERS_NOT_DISTINCT",
   "SEASON_MISMATCH",
   "BLOCKING_HOLDS_OPEN",
   "HOLD_NOT_OPEN",
@@ -56,6 +57,8 @@ export const ERROR_HTTP_STATUS: Readonly<Record<ErrorCode, number>> = {
   KEY_NOT_REGISTERED: 403,
   /** The payload names another approver, or the key's holder may not sign for this role. */
   APPROVER_MISMATCH: 403,
+  /** The treasurer and the Chair are not two people with two keys (or one role signed twice). */
+  SIGNERS_NOT_DISTINCT: 403,
   /** The payload was built for another season. */
   SEASON_MISMATCH: 409,
   BLOCKING_HOLDS_OPEN: 409,

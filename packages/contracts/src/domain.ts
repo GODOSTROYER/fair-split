@@ -530,8 +530,8 @@ export const SignedApproval = z.strictObject({
   role: ApprovalRole,
   keyId: KeyId,
   /**
-   * Raw 32-byte Ed25519 public key, hex, as presented. Never a trust anchor: the server checks the
-   * registered `device_keys` row and the Proof checks the ledger's `key.registered` entry.
+   * Raw 32-byte Ed25519 public key, hex, as presented. Never a trust anchor: the server verifies
+   * against the officer key registry (`device_keys`) and the Proof against the published keys.
    */
   publicKeyHex: Ed25519PublicKeyHex,
   payload: ApprovalPayload,
@@ -539,6 +539,30 @@ export const SignedApproval = z.strictObject({
   signatureHex: z.string().regex(/^[0-9a-f]{128}$/),
 });
 export type SignedApproval = z.infer<typeof SignedApproval>;
+
+/**
+ * How a signing key came to exist. `app` is a person's own device key. `web_demo` is a labelled
+ * browser key made for one judge session (C-13) and `seeded` derives from public text: both are
+ * sample keys, so a Proof they sign reads "Sample", never "Verified".
+ */
+export const SigningKeyKind = z.enum(["app", "web_demo", "seeded"]);
+export type SigningKeyKind = z.infer<typeof SigningKeyKind>;
+export const SAMPLE_KEY_KINDS: readonly SigningKeyKind[] = ["web_demo", "seeded"];
+
+/**
+ * One officer key: a row of the registry the server reads from `device_keys` (joined with the
+ * officer's role) and the entry the app publishes for Proof. The key may sign only as `approverId`
+ * in `role`.
+ */
+export const OfficerKey = z.strictObject({
+  keyId: KeyId,
+  approverId: z.string().min(1),
+  role: ApprovalRole,
+  publicKeyHex: Ed25519PublicKeyHex,
+  kind: SigningKeyKind,
+  revokedAt: IsoDateTime.nullable(),
+});
+export type OfficerKey = z.infer<typeof OfficerKey>;
 
 export const CosignReason = z.enum(["BATCH_OVER_THRESHOLD", "LINE_OVER_THRESHOLD", "OVERRIDE"]);
 export type CosignReason = z.infer<typeof CosignReason>;
@@ -652,7 +676,7 @@ export const LedgerPayloads = {
   "key.registered": z.strictObject({
     keyId: KeyId,
     persona: z.string().min(1),
-    kind: z.enum(["app", "web_demo", "seeded"]),
+    kind: SigningKeyKind,
     publicKeyHex: Ed25519PublicKeyHex,
   }),
   "rate_card.ratified": z.strictObject({

@@ -1,4 +1,4 @@
-import type { SignedApproval } from "@fairsplit/contracts";
+import type { ApprovalRole, OfficerKey, SignedApproval } from "@fairsplit/contracts";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { TEST_RULES } from "./__fixtures__/world.js";
@@ -10,7 +10,8 @@ import {
   approvalSignatureValid,
   buildApprovalPayload,
   checkApproval,
-  type RegisteredKey,
+  checkApprovals,
+  expectedSigner,
   requiresChair,
 } from "./approval.js";
 import { sha256Hex } from "./canon.js";
@@ -20,6 +21,7 @@ const RC = "a".repeat(64);
 const BATCH = { batchSha256: "b".repeat(64), itemCount: 8, totalCents: 36_839 };
 const NOW = new Date("2026-10-29T02:09:00.000Z");
 const SEASON = "season-1";
+const NONE: ReadonlySet<string> = new Set();
 
 const KEYS = {
   treasurer: ed25519FromSeed(sha256Hex("key treasurer")),
@@ -29,12 +31,28 @@ const KEYS = {
 const APPROVER = { treasurer: "treasurer:analyn", chair: "board:ernesto" } as const;
 const KEY_ID = { treasurer: "fs-analyn-a1", chair: "fs-ernesto-a1" } as const;
 
-function registered(role: "treasurer" | "chair" = "treasurer"): RegisteredKey {
-  return { keyId: KEY_ID[role], publicKeyHex: KEYS[role].publicKeyHex, approverId: APPROVER[role], role };
-}
+/** The officer key registry as the server reads it from `device_keys` (never from the request). */
+const REGISTRY: OfficerKey[] = [
+  {
+    keyId: KEY_ID.treasurer,
+    approverId: APPROVER.treasurer,
+    role: "treasurer",
+    publicKeyHex: KEYS.treasurer.publicKeyHex,
+    kind: "app",
+    revokedAt: null,
+  },
+  {
+    keyId: KEY_ID.chair,
+    approverId: APPROVER.chair,
+    role: "chair",
+    publicKeyHex: KEYS.chair.publicKeyHex,
+    kind: "app",
+    revokedAt: null,
+  },
+];
 
 interface SignOpts {
-  role?: "treasurer" | "chair";
+  role?: ApprovalRole;
   nonce?: string;
   expMs?: number;
   key?: keyof typeof KEYS;
@@ -53,7 +71,7 @@ function signed(o: SignOpts = {}): SignedApproval {
     batch: BATCH,
     role,
     approverId: o.approverId ?? APPROVER[role],
-    nonce: o.nonce ?? "nonce-0001",
+    nonce: o.nonce ?? `nonce-${role}-0001`,
     exp: new Date(NOW.getTime() + (o.expMs ?? 20 * 60 * 1000)).toISOString(),
   });
   return {
@@ -65,15 +83,16 @@ function signed(o: SignOpts = {}): SignedApproval {
   };
 }
 
-const expected = (over: Partial<ApprovalExpectation> = {}): ApprovalExpectation => ({
-  runId: "run-1",
-  seasonId: SEASON,
-  rateCardSha256: RC,
-  ...BATCH,
-  role: "treasurer",
-  registered: registered(),
-  ...over,
-});
+/** The server's expectation for `role`: batch facts from the DB, the signer from the registry. */
+function expected(
+  role: ApprovalRole = "treasurer",
+  over: Partial<ApprovalExpectation> = {},
+  registry: readonly OfficerKey[] = REGISTRY,
+): ApprovalExpectation {
+  const signer = expectedSigner(registry, role, KEY_ID[role], NOW);
+  if (!signer.ok) throw new Error(signer.reason);
+  return { runId: "run-1", seasonId: SEASON, rateCardSha256: RC, ...BATCH, role, ...signer.signer, ...over };
+}
 
 describe("signed approval payload (register §8)", () => {
   it("carries exactly the register's fields, canonicalised", () => {
@@ -99,28 +118,23 @@ describe("signed approval payload (register §8)", () => {
     expect(approvalSignatureValid(s, KEYS.chair.publicKeyHex)).toBe(false);
   });
 
-  it("accepts a valid approval and refuses mismatch, expiry, reuse and forgery", () => {
+  it("accepts a valid approval and refuses a changed batch or a forged payload", () => {
     const s = signed();
-    expect(checkApproval(s, expected(), NOW)).toEqual({ ok: true });
-    expect(checkApproval(s, expected({ batchSha256: "c".repeat(64) }), NOW)).toMatchObject({
-      ok: false,
+    expect(checkApproval(s, expected(), NOW, NONE)).toEqual({ ok: true });
+    expect(checkApproval(s, expected("treasurer", { batchSha256: "c".repeat(64) }), NOW, NONE)).toMatchObject(
+      {
+        ok: false,
+        code: "DIGEST_MISMATCH",
+      },
+    );
+    expect(checkApproval(s, expected("treasurer", { totalCents: 36_840 }), NOW, NONE)).toMatchObject({
       code: "DIGEST_MISMATCH",
     });
-    expect(checkApproval(s, expected({ totalCents: 36_840 }), NOW)).toMatchObject({
+    expect(checkApproval(s, expected("treasurer", { runId: "run-2" }), NOW, NONE)).toMatchObject({
       code: "DIGEST_MISMATCH",
-    });
-    expect(checkApproval(s, expected({ runId: "run-2" }), NOW)).toMatchObject({ code: "DIGEST_MISMATCH" });
-    expect(checkApproval(s, expected(), new Date(NOW.getTime() + 21 * 60 * 1000))).toMatchObject({
-      code: "APPROVAL_EXPIRED",
-    });
-    expect(
-      checkApproval(signed({ nonce: "nonce-0002", expMs: APPROVAL_MAX_TTL_MS + 1000 }), expected(), NOW),
-    ).toMatchObject({ code: "APPROVAL_EXPIRED" });
-    expect(checkApproval(s, expected(), NOW, new Set(["nonce-0001"]))).toMatchObject({
-      code: "NONCE_REUSED",
     });
     const edited = { ...s, payload: { ...s.payload, nonce: "nonce-9999" } };
-    expect(checkApproval(edited, expected(), NOW)).toMatchObject({ code: "SIGNATURE_INVALID" });
+    expect(checkApproval(edited, expected(), NOW, NONE)).toMatchObject({ code: "SIGNATURE_INVALID" });
   });
 
   it("validates the payload shape", () => {
@@ -139,70 +153,268 @@ describe("signed approval payload (register §8)", () => {
   });
 });
 
-describe("inv.i6.human-gate", () => {
-  it("refuses an approval signed with a foreign key, whatever key it presents", () => {
-    // The attacker signs with their own key and presents its public key: the submitted key is ignored.
-    const foreign = signed({ key: "attacker" });
-    expect(checkApproval(foreign, expected(), NOW)).toMatchObject({ ok: false, code: "KEY_NOT_REGISTERED" });
-    // Presenting the registered public key does not help: the signature is checked against it.
-    const posing = { ...foreign, publicKeyHex: KEYS.treasurer.publicKeyHex };
-    expect(checkApproval(posing, expected(), NOW)).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
-    // Another key ID than the registered one.
-    expect(checkApproval(signed({ keyId: "fs-analyn-a2" }), expected(), NOW)).toMatchObject({
+describe("inv.i6.registered-signer: approvals verify only against the registry's key for the role", () => {
+  it("the expected signer comes from the registry for the role; the presented key only selects", () => {
+    expect(expectedSigner(REGISTRY, "chair", KEY_ID.chair, NOW)).toEqual({
+      ok: true,
+      signer: {
+        keyId: KEY_ID.chair,
+        publicKeyHex: KEYS.chair.publicKeyHex,
+        approverId: APPROVER.chair,
+        revokedAt: null,
+      },
+    });
+    const ambiguous = [
+      ...REGISTRY,
+      { ...(REGISTRY[1] as OfficerKey), publicKeyHex: KEYS.attacker.publicKeyHex },
+    ];
+    expect(expectedSigner(ambiguous, "chair", KEY_ID.chair, NOW)).toMatchObject({
+      ok: false,
       code: "KEY_NOT_REGISTERED",
     });
-    // The Chair's real key cannot stand in for the treasurer's.
-    const chairKey = signed({ key: "chair", keyId: "fs-ernesto-a1" });
-    expect(checkApproval(chairKey, expected(), NOW)).toMatchObject({ code: "KEY_NOT_REGISTERED" });
   });
 
-  it("refuses a wrong approverId, a role the key may not sign for, and a wrong seasonId", () => {
-    expect(checkApproval(signed({ approverId: "board:someone" }), expected(), NOW)).toMatchObject({
+  it("an unregistered key is an unknown signer, refused before its signature is checked", () => {
+    // The attacker signs with their own key and presents it: valid Ed25519, unknown signer.
+    const foreign = signed({ key: "attacker" });
+    const r = checkApproval(foreign, expected(), NOW, NONE);
+    expect(r).toMatchObject({ ok: false, code: "KEY_NOT_REGISTERED" });
+    expect(r.ok ? "" : r.reason).toMatch(/^Unknown signer/);
+    // The identity check runs first: a garbage signature under an unknown key is still "unknown signer".
+    const garbage = { ...foreign, signatureHex: "0".repeat(128) };
+    expect(checkApproval(garbage, expected(), NOW, NONE)).toMatchObject({ code: "KEY_NOT_REGISTERED" });
+    // A key ID the registry does not list has no expected signer at all.
+    expect(expectedSigner(REGISTRY, "treasurer", "fs-analyn-a9", NOW)).toMatchObject({
       ok: false,
-      code: "APPROVER_MISMATCH",
+      code: "KEY_NOT_REGISTERED",
+      reason: expect.stringMatching(/^Unknown signer/),
     });
+    // Presenting the registered key ID and public key does not help: the registry's key verifies.
+    const posing = { ...foreign, keyId: KEY_ID.treasurer, publicKeyHex: KEYS.treasurer.publicKeyHex };
+    expect(checkApproval(posing, expected(), NOW, NONE)).toMatchObject({ code: "SIGNATURE_INVALID" });
+    // A different key ID than the expected one.
+    expect(checkApproval(signed({ keyId: "fs-analyn-a2" }), expected(), NOW, NONE)).toMatchObject({
+      code: "KEY_NOT_REGISTERED",
+    });
+  });
+
+  it("a registered key signing for the wrong role is refused", () => {
+    // Analyn's real, registered key signs a Chair approval in her own name.
     const asChair = signed({
       role: "chair",
       key: "treasurer",
-      keyId: "fs-analyn-a1",
+      keyId: KEY_ID.treasurer,
       approverId: APPROVER.treasurer,
     });
-    expect(checkApproval(asChair, expected({ role: "chair" }), NOW)).toMatchObject({
+    expect(expectedSigner(REGISTRY, "chair", KEY_ID.treasurer, NOW)).toMatchObject({
+      ok: false,
+      code: "KEY_NOT_REGISTERED",
+      reason: expect.stringMatching(/^Unknown signer/),
+    });
+    // Whatever the server expects for the Chair, her key is not it.
+    const r = checkApproval(asChair, expected("chair"), NOW, NONE);
+    expect(r).toMatchObject({ ok: false, code: "KEY_NOT_REGISTERED" });
+    expect(r.ok ? "" : r.reason).toMatch(/^Unknown signer/);
+    // The Chair's key under the Chair's ID, but naming the treasurer as approver.
+    expect(
+      checkApproval(signed({ role: "chair", approverId: APPROVER.treasurer }), expected("chair"), NOW, NONE),
+    ).toMatchObject({
       code: "APPROVER_MISMATCH",
     });
-    expect(checkApproval(signed({ seasonId: "season-2" }), expected(), NOW)).toMatchObject({
+    // A Chair approval presented where the treasurer's is expected.
+    expect(checkApproval(signed({ role: "chair" }), expected("treasurer"), NOW, NONE)).toMatchObject({
+      ok: false,
+      code: "KEY_NOT_REGISTERED",
+    });
+  });
+
+  it("refuses a wrong approverId and a wrong seasonId", () => {
+    expect(checkApproval(signed({ approverId: "board:someone" }), expected(), NOW, NONE)).toMatchObject({
+      ok: false,
+      code: "APPROVER_MISMATCH",
+    });
+    expect(checkApproval(signed({ seasonId: "season-2" }), expected(), NOW, NONE)).toMatchObject({
       ok: false,
       code: "SEASON_MISMATCH",
     });
   });
 
+  it("the same key or the same approver can never sign as both treasurer and Chair", () => {
+    const pair = { treasurer: expected("treasurer"), chair: expected("chair") };
+    const t = signed();
+    const c = signed({ role: "chair" });
+    expect(checkApprovals({ approvals: [t, c], expected: pair, chairRequired: true }, NOW, NONE)).toEqual({
+      ok: true,
+    });
+    // One key registered for both roles (under two key IDs): the treasurer signs both approvals.
+    const sameKeyRegistry = REGISTRY.map((k) =>
+      k.role === "chair" ? { ...k, publicKeyHex: KEYS.treasurer.publicKeyHex } : k,
+    );
+    const sameKey = { treasurer: expected("treasurer"), chair: expected("chair", {}, sameKeyRegistry) };
+    const cByTreasurerKey = signed({ role: "chair", key: "treasurer" });
+    expect(checkApproval(cByTreasurerKey, sameKey.chair, NOW, NONE)).toEqual({ ok: true });
+    expect(
+      checkApprovals({ approvals: [t, cByTreasurerKey], expected: sameKey, chairRequired: true }, NOW, NONE),
+    ).toMatchObject({ ok: false, code: "SIGNERS_NOT_DISTINCT" });
+    // One person registered for both roles, with two keys.
+    const samePersonRegistry = REGISTRY.map((k) =>
+      k.role === "chair" ? { ...k, approverId: APPROVER.treasurer } : k,
+    );
+    const samePerson = { treasurer: expected("treasurer"), chair: expected("chair", {}, samePersonRegistry) };
+    const cAsAnalyn = signed({ role: "chair", approverId: APPROVER.treasurer });
+    expect(checkApproval(cAsAnalyn, samePerson.chair, NOW, NONE)).toEqual({ ok: true });
+    expect(
+      checkApprovals({ approvals: [t, cAsAnalyn], expected: samePerson, chairRequired: true }, NOW, NONE),
+    ).toMatchObject({ ok: false, code: "SIGNERS_NOT_DISTINCT" });
+    // One key ID for both roles.
+    const sameId = { treasurer: pair.treasurer, chair: { ...pair.chair, keyId: KEY_ID.treasurer } };
+    expect(
+      checkApprovals(
+        {
+          approvals: [t, signed({ role: "chair", keyId: KEY_ID.treasurer })],
+          expected: sameId,
+          chairRequired: true,
+        },
+        NOW,
+        NONE,
+      ),
+    ).toMatchObject({ ok: false, code: "SIGNERS_NOT_DISTINCT" });
+    // The same role twice, and a missing co-signature.
+    expect(
+      checkApprovals(
+        { approvals: [t, signed({ nonce: "nonce-other-01" })], expected: pair, chairRequired: false },
+        NOW,
+        NONE,
+      ),
+    ).toMatchObject({ ok: false, code: "SIGNERS_NOT_DISTINCT" });
+    expect(checkApprovals({ approvals: [t], expected: pair, chairRequired: true }, NOW, NONE)).toMatchObject({
+      ok: false,
+      code: "APPROVALS_MISSING",
+    });
+    expect(checkApprovals({ approvals: [c], expected: pair, chairRequired: false }, NOW, NONE)).toMatchObject(
+      {
+        ok: false,
+        code: "APPROVALS_MISSING",
+      },
+    );
+    expect(checkApprovals({ approvals: [t], expected: pair, chairRequired: false }, NOW, NONE)).toEqual({
+      ok: true,
+    });
+    // A Chair approval with no registered Chair key is an unknown signer.
+    expect(
+      checkApprovals(
+        { approvals: [t, c], expected: { treasurer: pair.treasurer }, chairRequired: true },
+        NOW,
+        NONE,
+      ),
+    ).toMatchObject({ ok: false, code: "KEY_NOT_REGISTERED" });
+  });
+
+  it("a replayed nonce is refused, including one nonce shared by both approvals", () => {
+    expect(checkApproval(signed(), expected(), NOW, new Set(["nonce-treasurer-0001"]))).toMatchObject({
+      ok: false,
+      code: "NONCE_REUSED",
+    });
+    const pair = { treasurer: expected("treasurer"), chair: expected("chair") };
+    const shared = [
+      signed({ nonce: "nonce-shared-01" }),
+      signed({ role: "chair", nonce: "nonce-shared-01" }),
+    ];
+    expect(
+      checkApprovals({ approvals: shared, expected: pair, chairRequired: true }, NOW, NONE),
+    ).toMatchObject({
+      ok: false,
+      code: "NONCE_REUSED",
+    });
+    expect(
+      checkApprovals(
+        { approvals: [signed(), signed({ role: "chair" })], expected: pair, chairRequired: true },
+        NOW,
+        new Set(["nonce-chair-0001"]),
+      ),
+    ).toMatchObject({ ok: false, code: "NONCE_REUSED" });
+  });
+
+  it("an expired payload is refused, and so is one valid for more than 30 minutes", () => {
+    expect(checkApproval(signed(), expected(), new Date(NOW.getTime() + 21 * 60 * 1000), NONE)).toMatchObject(
+      {
+        ok: false,
+        code: "APPROVAL_EXPIRED",
+      },
+    );
+    expect(checkApproval(signed({ expMs: -1 }), expected(), NOW, NONE)).toMatchObject({
+      code: "APPROVAL_EXPIRED",
+    });
+    expect(checkApproval(signed({ expMs: APPROVAL_MAX_TTL_MS + 1000 }), expected(), NOW, NONE)).toMatchObject(
+      {
+        code: "APPROVAL_EXPIRED",
+      },
+    );
+    expect(checkApproval(signed({ expMs: APPROVAL_MAX_TTL_MS }), expected(), NOW, NONE)).toEqual({
+      ok: true,
+    });
+  });
+
+  it("usedNonces is a required argument: calling without the run's nonce store throws", () => {
+    const loose = checkApproval as unknown as (...args: unknown[]) => unknown;
+    expect(() => loose(signed(), expected(), NOW)).toThrow(/usedNonces/);
+    const looseSet = checkApprovals as unknown as (...args: unknown[]) => unknown;
+    expect(() =>
+      looseSet({ approvals: [signed()], expected: { treasurer: expected() }, chairRequired: false }, NOW),
+    ).toThrow(/usedNonces/);
+  });
+
   it("refuses seeded keys and revoked keys", () => {
-    const seededReg = { ...registered(), keyId: "fs-analyn-s1" };
-    const seeded = signed({ keyId: "fs-analyn-s1" });
-    expect(checkApproval(seeded, expected({ registered: seededReg }), NOW)).toMatchObject({
+    const seededRegistry: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), keyId: "fs-analyn-s1" }];
+    expect(expectedSigner(seededRegistry, "treasurer", "fs-analyn-s1", NOW)).toMatchObject({
+      ok: false,
       code: "KEY_NOT_REGISTERED",
       reason: "Seeded sample keys never sign.",
     });
-    const revoked = { ...registered(), revokedAt: "2026-10-29T02:00:00.000Z" };
-    expect(checkApproval(signed(), expected({ registered: revoked }), NOW)).toMatchObject({
+    const seededKind: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), kind: "seeded" }];
+    expect(expectedSigner(seededKind, "treasurer", KEY_ID.treasurer, NOW)).toMatchObject({
+      ok: false,
+      reason: "Seeded sample keys never sign.",
+    });
+    const seeded = signed({ keyId: "fs-analyn-s1" });
+    expect(checkApproval(seeded, expected("treasurer", { keyId: "fs-analyn-s1" }), NOW, NONE)).toMatchObject({
+      code: "KEY_NOT_REGISTERED",
+      reason: "Seeded sample keys never sign.",
+    });
+    const revoked: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), revokedAt: "2026-10-29T02:00:00.000Z" }];
+    expect(expectedSigner(revoked, "treasurer", KEY_ID.treasurer, NOW)).toMatchObject({
+      ok: false,
       code: "KEY_NOT_REGISTERED",
     });
-    const later = { ...registered(), revokedAt: "2026-10-29T03:00:00.000Z" };
-    expect(checkApproval(signed(), expected({ registered: later }), NOW)).toEqual({ ok: true });
+    expect(
+      checkApproval(signed(), expected("treasurer", { revokedAt: "2026-10-29T02:00:00.000Z" }), NOW, NONE),
+    ).toMatchObject({ code: "KEY_NOT_REGISTERED" });
+    const later: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), revokedAt: "2026-10-29T03:00:00.000Z" }];
+    expect(expectedSigner(later, "treasurer", KEY_ID.treasurer, NOW).ok).toBe(true);
+    // A browser demo key registered for a judge session may sign (it is labelled; Proof reads "Sample").
+    const demo: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), keyId: "fs-analyn-w7", kind: "web_demo" }];
+    expect(expectedSigner(demo, "treasurer", "fs-analyn-w7", NOW).ok).toBe(true);
   });
 
-  it("property: only the registered key of the right approver, role and season ever passes", () => {
+  it("property: only the registry's key for the role, with its approver and season, ever passes", () => {
     fc.assert(
       fc.property(
         fc.constantFrom<keyof typeof KEYS>("treasurer", "chair", "attacker"),
         fc.constantFrom("fs-analyn-a1", "fs-ernesto-a1", "fs-analyn-s1", "fs-analyn-w2"),
         fc.constantFrom(APPROVER.treasurer, APPROVER.chair, "board:someone"),
         fc.constantFrom(SEASON, "season-2"),
-        (key, keyId, approverId, seasonId) => {
-          const r = checkApproval(signed({ key, keyId, approverId, seasonId }), expected(), NOW);
+        fc.constantFrom<ApprovalRole>("treasurer", "chair"),
+        (key, keyId, approverId, seasonId, role) => {
+          const r = checkApproval(
+            signed({ role, key, keyId, approverId, seasonId }),
+            expected("treasurer"),
+            NOW,
+            NONE,
+          );
           const honest =
+            role === "treasurer" &&
             key === "treasurer" &&
-            keyId === "fs-analyn-a1" &&
+            keyId === KEY_ID.treasurer &&
             approverId === APPROVER.treasurer &&
             seasonId === SEASON;
           expect(r.ok).toBe(honest);
@@ -210,7 +422,9 @@ describe("inv.i6.human-gate", () => {
       ),
     );
   });
+});
 
+describe("R5: who must co-sign", () => {
   const cosign = TEST_RULES.cosign;
   it("the Chair co-signs a batch over US$300, a line over US$150 and any override (R5)", () => {
     expect(
