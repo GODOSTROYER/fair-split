@@ -13,11 +13,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "spike:s2-payouts": "tsx spikes/s2-payout-read-schemas.ts"
+    "spike:s2-payouts": "tsx spikes/s2-payout-read-schemas.ts",
+    "gen:read-schemas": "tsx scripts/gen-read-schemas.ts"
   },
   "dependencies": {
     "zod": "catalog:zod3",
-    "zod-to-json-schema": "catalog:",
     "@fairsplit/paypal-core": "workspace:*"
   },
   "devDependencies": {
@@ -28,6 +28,7 @@
     "msw": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod-to-json-schema": "catalog:"
   }
 }
