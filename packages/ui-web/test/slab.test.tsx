@@ -307,6 +307,19 @@ describe("Slab", () => {
       expect(onCommit).toHaveBeenCalledTimes(1);
     });
 
+    it("a press still counts when the browser refuses to capture the pointer", () => {
+      const onCommit = vi.fn();
+      approve(onCommit);
+      face("approve").setPointerCapture = () => {
+        throw new DOMException("No active pointer with the given id is found.", "NotFoundError");
+      };
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 9 });
+      act(() => vi.advanceTimersByTime(1700));
+      expect(root("approve").dataset.state).toBe("armed");
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 9 });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+    });
+
     it("a 1,700 ms mouse hold released inside signs; released outside it signs nothing and disarms", () => {
       const onCommit = vi.fn();
       const changes = vi.fn();

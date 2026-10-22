@@ -440,7 +440,13 @@ export function Slab(props: WebSlabProps) {
 
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     if (frame || e.button !== 0) return;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    // Capture keeps the release and every move on the slab, so leaving it is seen. A pointer the browser
+    // no longer tracks throws here; the press still counts.
+    try {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    } catch {
+      // Without capture the face still gets the release while the pointer stays on it.
+    }
     pressStart();
   };
   const onPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
