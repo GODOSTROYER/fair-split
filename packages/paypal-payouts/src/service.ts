@@ -118,6 +118,7 @@ export type RefusalCode =
   | "DIGEST_MISMATCH"
   | "INVALID_BATCH"
   | "SANDBOX_GUARD"
+  | "QUEUED"
   | "CIRCUIT_OPEN"
   | "ADOPT_FAILED"
   | "NOT_RETURNED"
@@ -140,7 +141,10 @@ export type BatchOutcome =
       /** For an adopted batch: re-hashed from its items, or (items not listed yet) its header total. */
       verifiedBy: "items" | "header" | null;
     }
-  /** Nothing was sent (or, for ADOPT_FAILED / CIRCUIT_OPEN, nothing new was created): HALT or wait. */
+  /**
+   * Nothing was sent (or, for ADOPT_FAILED, nothing new was created): HALT or wait. QUEUED and
+   * CIRCUIT_OPEN come after the rows were written as SUBMITTED; a later call resumes the same ids.
+   */
   | { kind: "refused"; code: RefusalCode; reason: string; senderBatchId: string | null }
   /** A synchronous 4xx (e.g. INSUFFICIENT_FUNDS): PayPal created nothing. The run goes to DENIED. */
   | {
@@ -169,7 +173,14 @@ export type CancelOutcome =
   | {
       kind: "REFUSED";
       payoutItemId: string;
-      code: "KILL_SWITCH_ON" | "UNKNOWN_ITEM" | "INTENT_CONFLICT" | "ACTOR_NOT_ALLOWED";
+      /** QUEUED and CIRCUIT_OPEN: PayPal's pacing; the intent stays recorded for a later try. */
+      code:
+        | "KILL_SWITCH_ON"
+        | "UNKNOWN_ITEM"
+        | "INTENT_CONFLICT"
+        | "ACTOR_NOT_ALLOWED"
+        | "QUEUED"
+        | "CIRCUIT_OPEN";
     }
   | {
       kind: "UNRESOLVED";
@@ -352,6 +363,23 @@ type Failure = Extract<PayPalResult<unknown>, { ok: false }>;
 function isRetryable(result: Failure): boolean {
   if (result.status === 429 || result.status === 401) return false;
   return result.status === 0 || result.status === 408 || result.status >= 500 || result.retryable;
+}
+
+type LocalRefusal = "limited" | "circuit_open" | "auth" | "invalid_request";
+const LOCAL_REFUSALS: ReadonlySet<string> = new Set<LocalRefusal>([
+  "limited",
+  "circuit_open",
+  "auth",
+  "invalid_request",
+]);
+
+/**
+ * WS-PPCORE's PayPalHttp refused the call itself (limiter window, 429 circuit, no OAuth token, a request
+ * it would not send): nothing reached PayPal, so retrying at once would only be refused again. Its
+ * status is 0, which a double without `kind` uses for "no answer", so the kind is checked first.
+ */
+function localRefusal(result: Failure): LocalRefusal | null {
+  return result.kind !== undefined && LOCAL_REFUSALS.has(result.kind) ? (result.kind as LocalRefusal) : null;
 }
 
 function detailText(details: unknown[]): string {
@@ -798,6 +826,26 @@ export class PayoutsService {
       } else if (result) {
         lastStatus = result.status;
         lastDebugId = result.debugId;
+        switch (localRefusal(result)) {
+          case "limited":
+            return refused("QUEUED", "PayPal's sandbox is pacing us; nothing was sent", ctx.senderBatchId);
+          case "circuit_open":
+            return refused(
+              "CIRCUIT_OPEN",
+              "PayPal's sandbox is pacing us; no batch was created",
+              ctx.senderBatchId,
+            );
+          case "auth":
+            return unresolved("AUTH_FAILED");
+          case "invalid_request":
+            return refused(
+              "INVALID_BATCH",
+              `PayPalHttp would not send it: ${result.message}`,
+              ctx.senderBatchId,
+            );
+          case null:
+            break;
+        }
         if (result.status === 401 && this.#auth && !authRetried) {
           this.#auth.invalidate();
           authRetried = true;
@@ -982,6 +1030,22 @@ export class PayoutsService {
       }
       if (result) {
         lastStatus = result.status;
+        const local = localRefusal(result);
+        if (local === "limited") return { kind: "REFUSED", payoutItemId, code: "QUEUED" };
+        if (local === "circuit_open" || result.status === 429)
+          return { kind: "REFUSED", payoutItemId, code: "CIRCUIT_OPEN" };
+        if (local === "auth") {
+          return { kind: "UNRESOLVED", payoutItemId, attempts, lastStatus, reason: "AUTH_FAILED" };
+        }
+        if (local === "invalid_request") {
+          throw new PayoutsApiError(
+            "cancel_unclaimed_payout_item",
+            result.status,
+            result.name,
+            result.debugId,
+            result.message,
+          );
+        }
         if (result.status === 401 && this.#auth && !authRetried) {
           this.#auth.invalidate();
           authRetried = true;

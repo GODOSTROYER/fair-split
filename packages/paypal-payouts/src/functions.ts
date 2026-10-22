@@ -4,7 +4,9 @@
 // and debug ids) instead of axios and PayPalClient, and return its result union instead of
 // throwing. As in the PR, each function parses its own parameters, no read or cancel sends a
 // PayPal-Request-Id, and create sends one only when the caller passes it (register §8 asks for
-// sha256(sender_batch_id); the PR's sandbox probe showed the header does not replay).
+// sha256(sender_batch_id); the PR's sandbox probe showed the header does not replay). Create and
+// cancel pass `idempotent: false`, so PayPalHttp never repeats a money-moving POST on its own: its
+// caller (PayoutsService) retries, re-reading the kill switch first. Purposes are paypal_calls'.
 
 import type { CallPriority, PayPalHttp, PayPalResult } from "./_shims/paypal-core.js";
 import {
@@ -123,6 +125,7 @@ export async function createPayoutBatch(
     ...(options.requestId ? { requestId: options.requestId } : {}),
     purpose: "payouts.create",
     priority: options.priority ?? "live",
+    idempotent: false,
   });
 }
 
@@ -156,7 +159,7 @@ export async function getPayoutItem(
   return http.request<PayoutItemResponse>({
     method: "GET",
     path: `/v1/payments/payouts-item/${payout_item_id}`,
-    purpose: "payouts.getItem",
+    purpose: "payouts.item.get",
     priority: options.priority ?? "live",
   });
 }
@@ -173,7 +176,8 @@ export async function cancelUnclaimedPayoutItem(
     method: "POST",
     path: `/v1/payments/payouts-item/${payout_item_id}/cancel`,
     body: {},
-    purpose: "payouts.cancelItem",
+    purpose: "payouts.item.cancel",
     priority: options.priority ?? "live",
+    idempotent: false,
   });
 }

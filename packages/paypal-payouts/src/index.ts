@@ -16,6 +16,7 @@ export type {
   CallPriority,
   CallPurpose,
   PayPalAuth,
+  PayPalFailureKind,
   PayPalHttp,
   PayPalLink,
   PayPalRequest,

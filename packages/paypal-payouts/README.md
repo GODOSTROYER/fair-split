@@ -8,7 +8,10 @@ IC-05 `PayPalHttp`.
 
 ```ts
 const payouts = new PayoutsService({
-  http, auth, repo, batchDigest, // IC-05, IC-04 port, IC-02
+  http, // IC-05 PayPalHttp (WS-PPCORE's createPayPalHttp fits the port as is)
+  auth, // IC-05 PayPalAuth: invalidate() on a 401
+  repo, // IC-04 port
+  batchDigest, // IC-02
   verifyApprovalSignature, // Ed25519 against the registered device_keys row
   killSwitch, // required: read fresh before every POST, retries included
   limits: { maxBatchTotalCents, maxItems, receiverAllowed }, // required: C-21 cap, 8 items, PP_RECEIVERS
@@ -31,6 +34,15 @@ as SUBMITTED → `POST /v1/payments/payouts` with `sender_batch_id` `{season}-{r
 9 s, re-reading the kill switch first → on 400 "already exists", GET the batch from the HATEOAS link and
 adopt it only if its items re-hash to the approved digest. A post left `unresolved` resumes later with
 the same ids, its approvals judged as of the moment its rows were written.
+
+**On WS-PPCORE's PayPalHttp** (IC-05, on `main` since 23 Oct). That client retries idempotent calls
+itself, so the create and cancel POSTs go out with `idempotent: false`: their retries are the service's,
+each after a fresh kill-switch read, never 4 × 4 POSTs. Its local refusals sent nothing and return at
+once, rows left SUBMITTED for a resume with the same ids: the limiter window is `refused QUEUED`, the 429
+circuit (or a 429) `refused CIRCUIT_OPEN`, no OAuth token `unresolved AUTH_FAILED`, a request it would
+not send `refused INVALID_BATCH`. A timeout may have reached PayPal and is retried. Call purposes are
+`paypal_calls`' own (`payouts.create`, `payouts.get`, `payouts.item.get`, `payouts.item.cancel`).
+`test/service.ic05.test.ts` restates the real result types and assigns the client to this port.
 
 `reroute` pays a RETURNED item's line again as `{sender_batch_id}-x{n}` / `r{runSeq}x{n}-{memberNo}`,
 only after our own cancel with intent `reroute`, for the amount the database holds, at most once per
