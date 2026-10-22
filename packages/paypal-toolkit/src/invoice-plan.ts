@@ -369,7 +369,7 @@ export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftRec
 
   for (const [key, value] of Object.entries(draft)) {
     if (key === "items" || value === undefined) continue;
-    if (!(key in expected)) mismatches.push(`${key}: not a field the agent may set`);
+    if (!Object.hasOwn(expected, key)) mismatches.push(`${key}: not a field the agent may set`);
     else if (!isDeepStrictEqual(value, expected[key]))
       mismatches.push(`${key}: differs from the code-built invoice`);
   }

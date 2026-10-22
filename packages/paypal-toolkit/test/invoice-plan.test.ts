@@ -303,6 +303,15 @@ describe("inv.i1.no-model-numbers: the agent chooses the three item labels and n
     expect(result).toEqual({ ok: false, mismatches: ["note: differs from the code-built invoice"] });
   });
 
+  it("names a key the code never sets as such, even one every object inherits", () => {
+    const draft = JSON.parse(`{"constructor": "x", "__proto__": {"allow_tip": true}}`) as object;
+    const result = reconcileAgentDraft({ ...agentDraft(), ...draft }, plan());
+    expect(result).toEqual({
+      ok: false,
+      mismatches: ["constructor: not a field the agent may set", "__proto__: not a field the agent may set"],
+    });
+  });
+
   const cases: [string, (d: ReturnType<typeof agentDraft>) => unknown][] = [
     [
       "a changed unit amount",
