@@ -7,17 +7,21 @@
 //   git diff --name-status main...HEAD | node tools/check-ownership.mjs --ws WS-QA --stdin
 // Options:
 //   --repo <dir>            repository to diff and read rules from (default: the script's parent directory)
-//   --ownership-ref <ref>   read docs/ownership.md from this commit (`git show <ref>:docs/ownership.md`).
-//                           With --base it defaults to the base, so a PR is judged by the base's rules and
-//                           cannot widen its own row. If that commit has no machine-readable ownership file
-//                           (only the bootstrap PR that introduces it), the working-tree file is used and
-//                           WS-QA may also touch the deps-lane files (S5.2.3 rule 4: WS-QA's bootstrap PR).
+//   --ownership-ref <ref>   read docs/ownership.md from this commit. With --base it defaults to the base, so
+//                           a PR is judged by the base's rules and cannot widen its own row. It fails closed
+//                           (exit 1) unless the base copy is read and parsed, with one exception: when
+//                           `git cat-file -e <ref>:docs/ownership.md` reports the file absent from that commit
+//                           (and `git ls-tree` confirms the tree is readable and has no such entry), only
+//                           WS-QA's PR that introduces the file is judged by the working-tree copy and may also
+//                           touch the deps-lane files (S5.2.3 rule 4: WS-QA's bootstrap PR). Any other git
+//                           error, an unknown ref, or a copy that exists but cannot be read or parsed: exit 1.
 //   --ownership <file>      read the rules from a file instead (tests, local use)
 //   --strict                fail on a branch that is neither ws/<id> nor deps/* (CI sets it on every PR);
 //                           without it such a branch is skipped (exit 0)
+// Option values must be present, non-empty and not start with "-" (they reach git as revisions).
 // Without --ws, the branch comes from --branch, then GITHUB_HEAD_REF, then GITHUB_REF_NAME.
 // CI runs the BASE commit's copy of this script, so a PR cannot weaken the checker that judges it.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -206,17 +210,28 @@ export function checkChanges(ownership, ws, changes, { bootstrap = false } = {})
   return { ok: violations.length === 0, violations };
 }
 
-function parseArgs(argv) {
+const VALUE_OPTIONS = {
+  "--ws": "ws",
+  "--branch": "branch",
+  "--base": "base",
+  "--ownership": "ownership",
+  "--ownership-ref": "ownershipRef",
+  "--repo": "repo",
+};
+
+/** A value that is missing, empty or starts with "-" is refused: refs reach git, and "" must not mean "none". */
+export function parseArgs(argv) {
   const opts = { files: [], strict: false, stdin: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--ws") opts.ws = argv[++i];
-    else if (a === "--branch") opts.branch = argv[++i];
-    else if (a === "--base") opts.base = argv[++i];
-    else if (a === "--ownership") opts.ownership = argv[++i];
-    else if (a === "--ownership-ref") opts.ownershipRef = argv[++i];
-    else if (a === "--repo") opts.repo = argv[++i];
-    else if (a === "--strict") opts.strict = true;
+    if (Object.hasOwn(VALUE_OPTIONS, a)) {
+      const v = argv[++i];
+      if (v === undefined || v.trim() === "" || v.startsWith("-")) {
+        const got = v === undefined ? "nothing" : JSON.stringify(v);
+        throw new Error(`${a} needs a value that is not empty and does not start with "-" (got ${got})`);
+      }
+      opts[VALUE_OPTIONS[a]] = v;
+    } else if (a === "--strict") opts.strict = true;
     else if (a === "--stdin") opts.stdin = true;
     else if (a === "--help" || a === "-h") opts.help = true;
     else opts.files.push(a);
@@ -224,36 +239,96 @@ function parseArgs(argv) {
   return opts;
 }
 
+// Untranslated git messages: loadOwnership tells "absent" from other errors by git's wording.
+const GIT_ENV = { ...process.env, LC_ALL: "C", LANG: "C", LANGUAGE: "" };
+
 const git = (repo, args) =>
-  execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  execFileSync("git", args, { cwd: repo, encoding: "utf8", env: GIT_ENV, stdio: ["ignore", "pipe", "pipe"] });
+
+/** Runs git without throwing: { status, stdout, stderr } (status is null when git could not start). */
+function gitTry(repo, args) {
+  const r = spawnSync("git", args, {
+    cwd: repo,
+    encoding: "utf8",
+    env: GIT_ENV,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return {
+    status: r.status,
+    stdout: r.stdout ?? "",
+    stderr: String(r.stderr || r.error?.message || "").trim(),
+  };
+}
+
+export const OWNERSHIP_FILE = "docs/ownership.md";
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * Loads the rules from commit `ref` when given. When that commit has no machine-readable
- * docs/ownership.md (the bootstrap PR), falls back to the working tree and flags `bootstrap`.
- * Without `ref`, reads `file` or the working tree.
+ * True only when commit `sha` has no docs/ownership.md: `git cat-file -e` failed with git's own
+ * "path ... does not exist in" / "exists on disk, but not in" message for exactly this path and commit,
+ * AND `git ls-tree` reads every tree on the way and finds no such entry. git prints the same messages
+ * when a tree object is missing (corrupt or partial clone); ls-tree fails there, so that is not "absent".
+ */
+function absentFromCommit(repo, sha, catFileStderr) {
+  const said = new RegExp(
+    `^fatal: [Pp]ath '${escapeRe(OWNERSHIP_FILE)}' (?:does not exist in|exists on disk, but not in) '${sha}'$`,
+  );
+  if (!said.test(catFileStderr)) return false;
+  const tree = gitTry(repo, ["ls-tree", "-z", "--full-tree", sha, "--", OWNERSHIP_FILE]);
+  return tree.status === 0 && tree.stderr === "" && tree.stdout === "";
+}
+
+/**
+ * Loads the rules. `file` wins; without `ref`, reads the working tree (local use). With `ref`, reads
+ * docs/ownership.md from that commit and fails closed: it throws unless the copy there is read and parsed,
+ * except when git reports the file absent from that commit (WS-QA's bootstrap PR, the one that introduces
+ * it). Only then does it read the working tree, flagged `bootstrap: true`. Head rules are never used once
+ * the base has the file, so a PR that edits docs/ownership.md is still judged by the base's copy.
  */
 export function loadOwnership({ repo, ref, file }) {
   if (file) return { ownership: parseOwnership(readFileSync(file, "utf8")), source: file, bootstrap: false };
-  const head = join(repo, "docs/ownership.md");
-  if (!ref) return { ownership: parseOwnership(readFileSync(head, "utf8")), source: head, bootstrap: false };
-  let reason;
-  try {
-    const md = git(repo, ["show", `${ref}:docs/ownership.md`]);
-    return { ownership: parseOwnership(md), source: `${ref}:docs/ownership.md`, bootstrap: false };
-  } catch (e) {
-    reason = String(e?.stderr || e?.message || e)
-      .trim()
-      .split("\n")[0];
+  const head = join(repo, OWNERSHIP_FILE);
+  if (ref === undefined || ref === null) {
+    return { ownership: parseOwnership(readFileSync(head, "utf8")), source: head, bootstrap: false };
+  }
+  const closed = (why) =>
+    new Error(`cannot judge by ${ref}:${OWNERSHIP_FILE}: ${why}; failing closed (exit 1)`);
+  if (typeof ref !== "string" || ref.trim() === "" || ref.startsWith("-")) throw closed("not a usable ref");
+
+  const commit = gitTry(repo, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`]);
+  const sha = commit.stdout.trim();
+  if (commit.status !== 0 || !/^[0-9a-f]{40,64}$/.test(sha)) {
+    throw closed(`no such commit${commit.stderr ? ` (${commit.stderr.split("\n")[0]})` : ""}`);
+  }
+  const spec = `${sha}:${OWNERSHIP_FILE}`;
+  const exists = gitTry(repo, ["cat-file", "-e", spec]);
+  if (exists.status === 0) {
+    const blob = gitTry(repo, ["cat-file", "blob", spec]);
+    if (blob.status !== 0) throw closed(`it exists but cannot be read (${blob.stderr.split("\n")[0]})`);
+    try {
+      return { ownership: parseOwnership(blob.stdout), source: `${ref}:${OWNERSHIP_FILE}`, bootstrap: false };
+    } catch (e) {
+      throw closed(`it exists but is malformed (${e.message})`);
+    }
+  }
+  if (!absentFromCommit(repo, sha, exists.stderr)) {
+    throw closed(`git cat-file -e failed (${exists.stderr.split("\n")[0] || `exit ${exists.status}`})`);
   }
   return {
     ownership: parseOwnership(readFileSync(head, "utf8")),
-    source: `${head} (bootstrap: ${ref} has no usable docs/ownership.md: ${reason})`,
+    source: `${head} (bootstrap: ${ref} has no ${OWNERSHIP_FILE})`,
     bootstrap: true,
   };
 }
 
 export function main(argv = process.argv.slice(2), env = process.env) {
-  const opts = parseArgs(argv);
+  let opts;
+  try {
+    opts = parseArgs(argv);
+  } catch (e) {
+    console.error(`check-ownership: ${e.message}`);
+    return 1;
+  }
   if (opts.help) {
     console.log(
       "usage: check-ownership (--ws <id> | --branch <ws/id>) [--base <ref> | --stdin | files...] " +
@@ -275,13 +350,28 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   }
 
   const ref = opts.ownership ? undefined : (opts.ownershipRef ?? opts.base);
-  const { ownership, source, bootstrap } = loadOwnership({ repo, ref, file: opts.ownership });
+  let loaded;
+  try {
+    loaded = loadOwnership({ repo, ref, file: opts.ownership });
+  } catch (e) {
+    console.error(`check-ownership: ${e.message}`);
+    return 1;
+  }
+  const { ownership, source, bootstrap } = loaded;
+  if (bootstrap && ws !== BOOTSTRAP_WS) {
+    console.error(
+      `check-ownership: ${ref} has no ${OWNERSHIP_FILE}, and only ${BOOTSTRAP_WS}'s PR may introduce it ` +
+        `(S5.2.3 rule 4); ${ws} is never judged by its own copy. Land the rules on the base first.`,
+    );
+    return 1;
+  }
   if (bootstrap) console.warn(`check-ownership: warning: rules from ${source}`);
 
   let changes;
   try {
     if (opts.base) {
-      changes = parseNameStatus(git(repo, ["diff", "--name-status", "-M", `${opts.base}...HEAD`]));
+      const range = `${opts.base}...HEAD`;
+      changes = parseNameStatus(git(repo, ["diff", "--name-status", "-M", "--end-of-options", range]));
     } else if (opts.stdin) {
       changes = parseNameStatus(readFileSync(0, "utf8"));
     } else {

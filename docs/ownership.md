@@ -45,7 +45,7 @@ Notes:
   no workstream, so only a `deps/*` branch may touch them. A workstream that needs a new or bumped dependency asks for
   a deps PR; that PR adds the pin (at least 14 days old), records it in `docs/versions.md`, edits the consuming
   `package.json` and commits the lockfile. Bootstrap exception: the one PR that introduces this file (its base has
-  no machine-readable `docs/ownership.md`) is WS-QA's bootstrap PR, which S5.2.3 rule 4 lets install the pinned stack.
+  no `docs/ownership.md` at all) is WS-QA's bootstrap PR, which S5.2.3 rule 4 lets install the pinned stack.
 
 ## Branches
 
@@ -55,4 +55,6 @@ Only a push to `main` itself skips it, because what lands there was already chec
 
 A PR is judged by the rules on its **base**: CI runs the base commit's `tools/check-ownership.mjs` against the base
 commit's `docs/ownership.md`. Editing your own row, or the checker, in a PR therefore has no effect on that PR; the
-change applies to later PRs once the user merges it.
+change applies to later PRs once the user merges it. The check fails closed: if the base has the file but it cannot
+be read or parsed, or git reports any error other than "the file is not in that commit", the PR fails. It never
+falls back to the PR's own copy.

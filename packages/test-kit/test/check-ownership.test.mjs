@@ -1,6 +1,7 @@
 // Unit tests for tools/check-ownership.mjs (WS-QA owns both). They run against the real docs/ownership.md.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
@@ -229,15 +230,14 @@ describe("CLI", () => {
   });
 });
 
-describe("CI mode: a PR is judged by its base's rules", () => {
-  // Throwaway git repositories inside this worktree's gitignored node_modules.
-  const base = resolve(repoRoot, "packages/test-kit/node_modules/.cache/ownership-repos");
-  const hooks = resolve(base, "no-hooks");
+// Each case builds real git repositories (1-2 s on Windows), so the 5 s default is too tight under load.
+describe("CI mode: a PR is judged by its base's rules", { timeout: 30_000 }, () => {
+  // Throwaway git repositories in the OS temp dir, never under packages/: deps:check (dependency-rules.test.mjs)
+  // walks packages/** in parallel and fails with ENOENT when it meets a repo that a test here just deleted.
+  const base = mkdtempSync(join(tmpdir(), "fs-ownership-repos-"));
+  const hooks = join(base, "no-hooks");
   mkdirSync(hooks, { recursive: true });
-  const repos = [];
-  afterAll(() => {
-    for (const r of repos) rmSync(r, { recursive: true, force: true });
-  });
+  afterAll(() => rmSync(base, { recursive: true, force: true }));
 
   const realRules = readFileSync(resolve(repoRoot, "docs/ownership.md"), "utf8");
   const quietMain = (args) => {
@@ -257,7 +257,6 @@ describe("CI mode: a PR is judged by its base's rules", () => {
   /** A repo whose main holds `baseFiles`. */
   function makeRepo(baseFiles) {
     const dir = mkdtempSync(join(base, "repo-"));
-    repos.push(dir);
     const git = (...args) =>
       execFileSync(
         "git",
@@ -291,16 +290,18 @@ describe("CI mode: a PR is judged by its base's rules", () => {
   }
 
   const ci = (r, branch) => ["--branch", branch, "--base", r.mainSha, "--repo", r.dir, "--strict"];
+  const coreRow = "`packages/contracts`, `packages/domain`, `packages/seed`";
+  const widenedCore = realRules.replace(coreRow, `${coreRow}, \`packages/db/**\`, \`docs/ownership.md\``);
+  // The shape of the scaffold's first docs/ownership.md: a prose table with no backticks and no shared rules.
+  const proseRules =
+    "# Path ownership by workstream\n\n| WS | Owned paths |\n| --- | --- |\n" +
+    "| WS-CORE | packages/contracts, packages/domain, packages/seed |\n| WS-QA | .github/**, docs/** |\n";
 
   it("rejects a ws/core PR that adds packages/db/** to its own WS-CORE row", () => {
     const r = makeRepo({ "docs/ownership.md": realRules });
     r.git("checkout", "-q", "-b", "ws/core");
-    const coreRow = "`packages/contracts`, `packages/domain`, `packages/seed`";
     expect(realRules).toContain(coreRow);
-    r.write(
-      "docs/ownership.md",
-      realRules.replace(coreRow, `${coreRow}, \`packages/db/**\`, \`docs/ownership.md\``),
-    );
+    r.write("docs/ownership.md", widenedCore);
     r.write("packages/db/src/schema.ts", "export {};\n");
     r.commit("widen my row");
 
@@ -324,17 +325,17 @@ describe("CI mode: a PR is judged by its base's rules", () => {
     expect(quietMain(["--base", r.mainSha, "--repo", r.dir, "--strict"]).code).toBe(1);
   });
 
-  it("bootstrap: with no machine-readable rules on the base, WS-QA may install the stack, others may not", () => {
-    const r = makeRepo({
-      "docs/ownership.md": "# Path ownership\n\n| WS | Owned paths |\n| -- | -- |\n| WS-QA | docs |\n",
-    });
+  it("bootstrap only when the base has no docs/ownership.md: WS-QA's PR installs the rules and the stack", () => {
+    const r = makeRepo({});
     r.git("checkout", "-q", "-b", "ws/qa");
     r.write("docs/ownership.md", realRules);
     r.write("docs/versions.md", "# Pinned versions\n");
     r.write("pnpm-lock.yaml", "lockfileVersion: 9\n");
     r.commit("bootstrap");
     expect(loadOwnership({ repo: r.dir, ref: r.mainSha }).bootstrap).toBe(true);
-    expect(quietMain(ci(r, "ws/qa")).code).toBe(0);
+    const judged = quietMain(ci(r, "ws/qa"));
+    expect(judged.code).toBe(0);
+    expect(judged.out).toMatch(/bootstrap/);
 
     r.git("checkout", "-q", "-b", "ws/data", r.mainSha);
     r.write("docs/ownership.md", realRules);
@@ -342,6 +343,92 @@ describe("CI mode: a PR is judged by its base's rules", () => {
     r.write("packages/db/src/schema.ts", "export {};\n");
     r.commit("not mine");
     expect(quietMain(ci(r, "ws/data")).code).toBe(1);
+  });
+
+  it("bootstrap is WS-QA's alone: on a base without rules another workstream cannot grant itself paths", () => {
+    const r = makeRepo({});
+    r.git("checkout", "-q", "-b", "ws/data");
+    const dataRow = "`packages/db`, `packages/outbox`";
+    expect(realRules).toContain(dataRow);
+    const selfGranted = `${dataRow}, \`docs/ownership.md\`, \`pnpm-lock.yaml\``;
+    r.write("docs/ownership.md", realRules.replace(dataRow, selfGranted));
+    r.write("pnpm-lock.yaml", "lockfileVersion: 9\n");
+    r.write("packages/db/src/schema.ts", "export {};\n");
+    r.commit("rules that grant WS-DATA everything it touches");
+    const judged = quietMain(ci(r, "ws/data"));
+    expect(judged.code).toBe(1);
+    expect(judged.out).toMatch(/only WS-QA/);
+    expect(judged.out).not.toMatch(/all within/);
+  });
+
+  it.each([
+    ["the scaffold's prose table", { "docs/ownership.md": proseRules }],
+    ["a directory", { "docs/ownership.md/README.md": "a directory, not the rules\n" }],
+  ])("fails closed when the base's docs/ownership.md exists but cannot be read or parsed: %s", (_, files) => {
+    const r = makeRepo(files);
+    r.git("checkout", "-q", "-b", "ws/qa");
+    rmSync(join(r.dir, "docs/ownership.md"), { recursive: true, force: true });
+    r.write("docs/ownership.md", realRules);
+    r.write("docs/versions.md", "# Pinned versions\n");
+    r.commit("install machine-readable rules");
+    expect(() => loadOwnership({ repo: r.dir, ref: r.mainSha })).toThrow(/failing closed/);
+    const judged = quietMain(ci(r, "ws/qa"));
+    expect(judged.code).toBe(1);
+    expect(judged.out).toMatch(/failing closed/);
+    expect(judged.out).not.toMatch(/bootstrap|all within/);
+  });
+
+  it("a PR that edits docs/ownership.md cannot widen its own paths, even when the base's copy is broken", () => {
+    const broken = realRules.slice(0, realRules.indexOf("## Shared rules"));
+    expect(() => parseOwnership(broken)).toThrow();
+    const r = makeRepo({ "docs/ownership.md": broken });
+    r.git("checkout", "-q", "-b", "ws/core");
+    r.write("docs/ownership.md", widenedCore);
+    r.write("packages/db/src/schema.ts", "export {};\n");
+    r.commit("repair the rules and widen my row");
+    const judged = quietMain(ci(r, "ws/core"));
+    expect(judged.code).toBe(1);
+    expect(judged.out).toMatch(/failing closed/);
+    expect(judged.out).not.toMatch(/all within/);
+  });
+
+  it("fails closed on git errors other than 'does not exist': missing commit, unknown ref, missing tree", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules });
+    r.write("docs/ownership.md", `${realRules}\n<!-- side commit -->\n`);
+    const side = r.commit("a later commit with its own copy of the rules");
+    r.git("checkout", "-q", "-b", "ws/qa", r.mainSha);
+    r.write("README.md", "edited by WS-QA\n");
+    r.commit("qa edit");
+    expect(quietMain(ci(r, "ws/qa")).code).toBe(0); // control: readable base rules, owned path
+
+    // Corrupt or partial clone: the side commit's docs/ tree object is gone, so `git cat-file -e`
+    // says the path is "not in" that tree although the file is there.
+    const docsTree = r.git("rev-parse", `${side}:docs`);
+    const object = join(r.dir, ".git", "objects", docsTree.slice(0, 2), docsTree.slice(2));
+    expect(existsSync(object)).toBe(true);
+    chmodSync(object, 0o644);
+    rmSync(object);
+
+    for (const ref of ["0123456789abcdef0123456789abcdef01234567", "no-such-branch", side]) {
+      expect(() => loadOwnership({ repo: r.dir, ref }), ref).toThrow(/failing closed/);
+      const judged = quietMain([...ci(r, "ws/qa"), "--ownership-ref", ref]);
+      expect(judged.code, ref).toBe(1);
+      expect(judged.out, ref).not.toMatch(/bootstrap|all within/);
+    }
+  });
+
+  it("refuses an empty or option-like --base or --ownership-ref instead of judging by the working tree", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules });
+    r.git("checkout", "-q", "-b", "ws/core");
+    r.write("docs/ownership.md", widenedCore);
+    r.write("packages/db/src/schema.ts", "export {};\n");
+    r.commit("widen my row");
+    const run = (...args) => quietMain(["--branch", "ws/core", "--repo", r.dir, "--strict", ...args]);
+    expect(run("--base", r.mainSha, "--ownership-ref", "").code).toBe(1);
+    expect(run("--ownership-ref", r.mainSha, "--base", "").code).toBe(1);
+    expect(run("--base", r.mainSha, "--ownership-ref").code).toBe(1);
+    expect(run("--ownership-ref", r.mainSha, "--base", "--output=diff.txt").code).toBe(1);
+    expect(existsSync(join(r.dir, "diff.txt...HEAD"))).toBe(false);
   });
 
   it("once the base has rules they win: WS-QA can no longer touch versions.md, the deps lane can", () => {
