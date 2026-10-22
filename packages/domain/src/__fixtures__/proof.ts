@@ -54,8 +54,9 @@ export function withCheckpoint(
   p: Omit<ProofBundle, "checkpoint">,
   key: { keyId: string; privateKey: typeof LEDGER_KEY.privateKey } = LEDGER_KEY,
   runId = p.runId,
+  at = T("02:14:00"),
 ): ProofBundle {
-  return { ...p, checkpoint: signCheckpoint(p.ledger, runId, key, T("02:14:00")) };
+  return { ...p, checkpoint: signCheckpoint(p.ledger, runId, key, at) };
 }
 
 export function fact<K extends ProofLedgerKind>(

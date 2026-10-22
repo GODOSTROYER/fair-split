@@ -569,7 +569,10 @@ export type OfficerKey = z.infer<typeof OfficerKey>;
 export const LedgerKeyId = z.string().regex(/^fs-ledger-[ks]\d+$/);
 export type LedgerKeyId = z.infer<typeof LedgerKeyId>;
 
-/** A pinned ledger key. `seeded` derives from public text: a checkpoint it signs reads "Sample". */
+/**
+ * A pinned ledger key. `seeded` derives from public text: a checkpoint it signs reads "Sample". Once
+ * `revokedAt` is set the key is untrusted for every checkpoint, whatever date the checkpoint claims.
+ */
 export const LedgerKey = z.strictObject({
   keyId: LedgerKeyId,
   publicKeyHex: Ed25519PublicKeyHex,

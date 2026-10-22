@@ -373,9 +373,10 @@ type CheckpointResult = ChainVerification["checkpoint"];
 
 /**
  * The ledger's head must be exactly what a pinned ledger key signed for this run: the checkpoint's
- * key ID is pinned once, it names this run, its seq and entry hash are the last entry's (nothing
- * truncated or appended), the key was not revoked before signing, and the signature verifies. A
- * seeded ledger key makes it a sample (demo mode only). Without a valid checkpoint, nothing verifies.
+ * key ID is pinned once and not revoked (whatever date the checkpoint claims), it names this run,
+ * its seq and entry hash are the last entry's (nothing truncated or appended), it is dated no
+ * earlier than that entry, and the signature verifies. A seeded ledger key makes it a sample (demo
+ * mode only). Without a valid checkpoint, nothing verifies; PayPal's anchors are returned either way.
  */
 function checkCheckpoint(
   p: ProofBundle,
@@ -398,13 +399,16 @@ function checkCheckpoint(
   const pinned = trust.ledger.filter((k) => k.keyId === cp.keyId);
   const key = pinned[0];
   if (!key || pinned.length !== 1) return no("The ledger checkpoint is not signed by a pinned ledger key.");
+  // A checkpoint's `at` is the signer's own claim, so it cannot show the key signed before its
+  // revocation: a revoked ledger key is untrusted for every checkpoint.
+  if (key.revokedAt !== null) return no("The ledger key has been revoked.");
   if (cp.runId !== p.runId) return no("The checkpoint is for another run.");
   const head = ledger.at(-1);
   if (!head || ledger.length !== cp.seq || head.seq !== cp.seq || head.entryHash !== cp.entryHash) {
     return no("The signed checkpoint does not match the ledger's head.");
   }
-  if (revokedBy(key.revokedAt, cp.at))
-    return no("The ledger key was revoked before it signed this checkpoint.");
+  if (!(Date.parse(cp.at) >= Date.parse(head.at)))
+    return no("The checkpoint is older than the ledger's head.");
   if (!c.verifyEd25519(key.publicKeyHex, checkpointBytes(cp), cp.signatureHex)) {
     return no("The ledger checkpoint's signature does not verify.");
   }

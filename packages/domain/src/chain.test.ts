@@ -630,9 +630,7 @@ describe("inv.i5.checkpoint: the ledger head is anchored by a signature from a p
       ...PROOF_TRUST,
       ledger: [{ ...(PROOF_TRUST.ledger[0] as LedgerRow), revokedAt: T("02:00:00") }],
     };
-    expect(verify(p, revoked).checkpoint.reason).toBe(
-      "The ledger key was revoked before it signed this checkpoint.",
-    );
+    expect(verify(p, revoked).checkpoint.reason).toBe("The ledger key has been revoked.");
     expect(verify(p, { junk: true } as unknown as ProofTrust)).toMatchObject({ ok: false, status: "failed" });
     // The published document itself (/.well-known/fairsplit-keys.json, with its version) is accepted.
     expect(verify(p, { v: 1, ...PROOF_TRUST })).toMatchObject({ ok: true, status: "verified" });
@@ -660,6 +658,64 @@ describe("inv.i5.checkpoint: the ledger head is anchored by a signature from a p
       false,
     );
     expect(signCheckpoint(p.ledger, p.runId, LEDGER_KEY, T("02:14:00"))).toEqual(p.checkpoint);
+  });
+
+  it("a checkpoint signed by a revoked ledger key fails, even when it is dated before the revocation", () => {
+    const p = honestProof();
+    const head = p.ledger.at(-1) as ProofBundle["ledger"][number];
+    const revokedLater: ProofTrust = {
+      ...PROOF_TRUST,
+      ledger: [{ ...(PROOF_TRUST.ledger[0] as LedgerRow), revokedAt: T("02:30:00") }],
+    };
+    // Signed at 02:14, revoked at 02:30: the checkpoint's own date is not trusted to say "before".
+    expect(verify(p, revokedLater).checkpoint).toMatchObject({
+      ok: false,
+      reason: "The ledger key has been revoked.",
+    });
+    expect(verify(p, revokedLater)).toMatchObject({ ok: false, status: "failed" });
+    // Backdated as far as it can go (to the head entry's own time), it is still refused.
+    const backdated = withCheckpoint(p, LEDGER_KEY, p.runId, head.at);
+    expect(verify(backdated, revokedLater).checkpoint.reason).toBe("The ledger key has been revoked.");
+    // A revocation dated far in the future still makes the key untrusted now.
+    const revokedFuture: ProofTrust = {
+      ...PROOF_TRUST,
+      ledger: [{ ...(PROOF_TRUST.ledger[0] as LedgerRow), revokedAt: "2099-01-01T00:00:00.000Z" }],
+    };
+    expect(verify(p, revokedFuture).ok).toBe(false);
+    // The PayPal anchors are still returned for the outside cross-check.
+    expect(verify(p, revokedLater).anchors.senderBatchId).toBe(p.batch.senderBatchId);
+  });
+
+  it("a checkpoint dated before the ledger's head entry is refused", () => {
+    const p = honestProof();
+    const head = p.ledger.at(-1) as ProofBundle["ledger"][number];
+    const older = withCheckpoint(p, LEDGER_KEY, p.runId, new Date(Date.parse(head.at) - 1).toISOString());
+    expect(verify(older).checkpoint).toMatchObject({
+      ok: false,
+      reason: "The checkpoint is older than the ledger's head.",
+    });
+    expect(verify(older)).toMatchObject({ ok: false, status: "failed" });
+    const farBack = withCheckpoint(p, LEDGER_KEY, p.runId, "2026-01-01T00:00:00.000Z");
+    expect(verify(farBack).checkpoint.reason).toBe("The checkpoint is older than the ledger's head.");
+    // Signed at the head's own time is the earliest valid checkpoint.
+    expect(verify(withCheckpoint(p, LEDGER_KEY, p.runId, head.at))).toMatchObject({
+      ok: true,
+      status: "verified",
+    });
+  });
+
+  it("a validly signed checkpoint of another head (an earlier seq, or another hash at this seq) is refused", () => {
+    const p = honestProof();
+    const earlier = withCheckpoint({ ...p, ledger: p.ledger.slice(0, -1) }).checkpoint;
+    expect(verify({ ...p, checkpoint: earlier }).checkpoint.reason).toBe(
+      "The signed checkpoint does not match the ledger's head.",
+    );
+    const otherHash = withCheckpoint({ ...p, ledger: rechain(p) }).checkpoint;
+    expect(otherHash.seq).toBe(p.checkpoint.seq);
+    expect(otherHash.entryHash).not.toBe(p.checkpoint.entryHash);
+    expect(verify({ ...p, checkpoint: otherHash }).checkpoint.reason).toBe(
+      "The signed checkpoint does not match the ledger's head.",
+    );
   });
 
   it("exposes PayPal's own anchors so anyone can match them against PayPal's records", () => {
