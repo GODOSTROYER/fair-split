@@ -3,14 +3,19 @@
  * after WS-CORE merges.
  *
  * A local fixture for the hero line (register §2, M-014) and the co-sign batch, so the app renders realistic data
- * before the seed lands. Figures copy register §2 to the cent. Hashes are computed here, never typed.
- * Values marked `provisional` are NOT in the register (only slip 0403's 38.45 kg and the 148.0 kg total are);
- * they exist so the slip list has rows, sum to the register's total, and are replaced by the seed.
+ * before the seed lands. Figures copy register §2 to the cent; hashes are computed here, never typed. Slips 0419,
+ * 0436 and 0467 are `provisional`: the register fixes only slip 0403 (38.45 kg) and the 148.0 kg total, so their
+ * kilos and dates mirror WS-CORE's draft snapshot (not on main yet) and are labelled as samples in the UI.
  */
-import type { BatchItem, HoldKind, Lang } from "./contracts";
-import { batchDigest, jcs, sha256Hex } from "./domain";
+import type { BatchItem, DigestLine, HoldKind, Lang, StatementTemplate } from "./contracts";
+import { batchDigest, linesDigest as digestLines, jcs, sha256Hex } from "./domain";
 
-export const coop = { name: "Bulawanon Kakaw Growers MPC", place: "Calinan, Davao City" } as const;
+export const coop = {
+  name: "Bulawanon Kakaw Growers MPC",
+  place: "Calinan, Davao City",
+  /** Verified kilos after slip 0457 is counted once (register §2): the denominator of every member's share. */
+  verifiedGrams: 9_780_600,
+} as const;
 export const season = { code: "2026-A", id: "2026A", lot: "LB-PH-2026-03" } as const;
 export const payer = { name: "Lantern Bay Chocolate Co.", short: "Lantern Bay" } as const;
 export const fx = { phpPerUsd: "62.50" } as const;
@@ -19,7 +24,14 @@ export const runSlug = `${season.id}-r${runSeq}`;
 export const runId = "run_2026A_r37_fixture";
 
 export const people = {
-  treasurer: { name: "Analyn R. Sumalinog", first: "Analyn", initials: "AS", keyId: "fs-analyn-a1" },
+  /** `fs-analyn-w1`: the treasurer's non-extractable WebCrypto key, registered from /ops (approved plan). */
+  treasurer: {
+    name: "Analyn R. Sumalinog",
+    first: "Analyn",
+    initials: "AS",
+    keyId: "fs-analyn-w1",
+    approverId: "treasurer:analyn",
+  },
   chair: {
     name: "Ernesto P. Cabahug",
     first: "Ernesto",
@@ -73,6 +85,16 @@ export const batchItems: readonly BatchItem[] = paypalLines.map(([memberNo, amou
 export const batchSha256 = batchDigest({ runId, senderBatchId, rateCardSha256 }, batchItems);
 export const batchTotalCents = batchItems.reduce((s, i) => s + i.amountCents, 0);
 
+/**
+ * The named lines of register §2 (eight on PayPal, Merlyn in cash). The seed's 64 lines replace this list, so the
+ * fixture's `linesDigest` covers only these nine.
+ */
+export const namedLines: readonly DigestLine[] = [
+  ...paypalLines.map(([memberNo, netCents]) => ({ memberNo, rail: "PAYPAL" as const, netCents })),
+  { memberNo: "M-053", rail: "CASH", netCents: 12784 },
+];
+export const linesDigest = digestLines(runId, namedLines);
+
 export interface SlipFixture {
   serial: string;
   netGrams: number;
@@ -81,36 +103,12 @@ export interface SlipFixture {
   provisional: boolean;
 }
 
-/** M-014's slips: 0403 is 38.45 kg (register §2); the others are provisional and sum to 148.0 kg. */
+/** M-014's slips: 0403 is 38.45 kg (register §2); the others mirror the seed draft and sum to 148.0 kg. */
 export const heroSlips: readonly SlipFixture[] = [
-  {
-    serial: "0403",
-    netGrams: 38450,
-    deliveredOn: "2026-05-12T09:20:00+08:00",
-    photo: "B",
-    provisional: false,
-  },
-  {
-    serial: "0419",
-    netGrams: 36900,
-    deliveredOn: "2026-06-09T10:05:00+08:00",
-    photo: "C",
-    provisional: true,
-  },
-  {
-    serial: "0436",
-    netGrams: 37150,
-    deliveredOn: "2026-07-07T08:40:00+08:00",
-    photo: "F",
-    provisional: true,
-  },
-  {
-    serial: "0467",
-    netGrams: 35500,
-    deliveredOn: "2026-08-11T09:55:00+08:00",
-    photo: "H",
-    provisional: true,
-  },
+  { serial: "0403", netGrams: 38450, deliveredOn: "2026-06-02", photo: "P26", provisional: false },
+  { serial: "0419", netGrams: 36800, deliveredOn: "2026-06-10", photo: "P30", provisional: true },
+  { serial: "0436", netGrams: 35250, deliveredOn: "2026-06-20", photo: "E", provisional: true },
+  { serial: "0467", netGrams: 37500, deliveredOn: "2026-07-07", photo: "K", provisional: true },
 ];
 
 export const heroLine = {
@@ -118,8 +116,6 @@ export const heroLine = {
   displayName: "Consolacion Bacus",
   nameByLang: { ceb: "Nang Celing", fil: "Gng. Bacus", en: "Mrs. Bacus" } satisfies Record<Lang, string>,
   lang: "ceb" as Lang,
-  /** Paminawa takes first focus for members flagged as elderly (design §8). */
-  audioFirst: true,
   rail: "PAYPAL" as const,
   netGrams: 148000,
   grade1Grams: 148000,
@@ -128,42 +124,131 @@ export const heroLine = {
   deductions: [{ ruleId: "R1", label: "CBU", cents: 109 }] as const,
   creditsCents: 0,
   netCents: 6445,
-  /** Display rates as the engine prints them (S1.10 "US$0.29523 a kg"); computed server-side, never here. */
-  premiumRatePerKg: "0.29523",
   senderItemId: `r${runSeq}-M-014`,
 } as const;
 
-/** Sentence templates (S1.10, AI-8's target): words and placeholders, no digits, one sentence per audio clip. */
-export const statementSentences: Readonly<Record<Lang, readonly { id: string; text: string }[]>> = {
+/**
+ * Statement templates (S1.11 as amended by the approved plan): one sentence per slot, words and placeholders only,
+ * no digits. PAY has a PayPal and a cash variant; the cash one is used if the line moves to the bodega. The PayPal
+ * peso is the run-rate estimate; PayPal's conversion fee and GCash's are shown as their own receipt segment.
+ */
+export const statementTemplates: Readonly<Record<Lang, readonly StatementTemplate[]>> = {
   ceb: [
-    { id: "s1", text: "Maayong adlaw, {{NAME}}. Salamat sa inyong paghago." },
-    { id: "s2", text: "Nagdala mo og {{NET_KG}} nga uga nga cacao, tanan {{GRADE}}." },
-    { id: "s3", text: "Premium gikan sa {{PAYER}}: {{PREMIUM}}, walay kaltas." },
-    { id: "s4", text: "Bonus sa kalidad: {{BONUS}}, gikaltasan og {{CBU}} para sa CBU ({{RULE}}, {{BR}})." },
-    { id: "s5", text: "Ang inyong bayad karong season: {{NET}}, mga {{NET_PHP}}, pinaagi sa PayPal." },
-    { id: "s6", text: "Gikan kini sa inyong resibo {{SLIPS}}." },
-    { id: "s7", text: "Naa moy pangutana? Adto kang Treasurer {{TREASURER}} sa bodega." },
+    {
+      id: "greeting",
+      slot: "GREETING",
+      text: "Maayong adlaw, {{HONORIFIC_NAME}}. Salamat sa inyong paghago.",
+    },
+    {
+      id: "delivery",
+      slot: "DELIVERY",
+      text: "Nagdala mo og {{KG_TOTAL}} nga uga nga cacao, {{GRADE_SUMMARY}}.",
+    },
+    { id: "premium", slot: "PREMIUM", text: "Premium gikan sa {{PAYER}}: {{PREMIUM_USD}}, walay kaltas." },
+    { id: "bonus", slot: "BONUS", text: "Bonus sa kalidad: {{BONUS_USD}}." },
+    {
+      id: "deduction-R1",
+      slot: "DEDUCTION",
+      ref: "R1",
+      text: "Gikaltasan og {{DEDUCTION_USD}} para sa {{RULE_LABEL}} ({{RULE}}, {{BR}}).",
+    },
+    {
+      id: "pay",
+      slot: "PAY",
+      variant: "paypal",
+      text: "Ang inyong bayad karong season: {{NET_USD}}, sa inyong PayPal. Kung ilisan sa peso, mga {{NET_PHP}}.",
+    },
+    {
+      id: "pay-cash",
+      slot: "PAY",
+      variant: "cash",
+      text: "Ang inyong bayad karong season: {{NET_PHP}}, cash sa bodega sa {{CASH_DATE}}.",
+    },
+    { id: "sources", slot: "SOURCES", text: "Gikan kini sa inyong resibo {{SLIPS}}." },
+    { id: "help", slot: "HELP", text: "Naa moy pangutana? Adto kang Treasurer {{TREASURER}} sa bodega." },
+    {
+      id: "ai-note",
+      slot: "AI_NOTE",
+      text: "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude). Ang mga pagbasa nga dili sigurado gisusi sa usa ka tawo, ug si Treasurer {{TREASURER}} ang miaprobar niini nga bayad.",
+    },
   ],
   fil: [
-    { id: "s1", text: "Magandang araw po, {{NAME}}. Salamat po sa inyong pagsisikap." },
-    { id: "s2", text: "Nagdala po kayo ng {{NET_KG}} na tuyong cacao, lahat {{GRADE}}." },
-    { id: "s3", text: "Premium mula sa {{PAYER}}: {{PREMIUM}}, walang kaltas." },
-    { id: "s4", text: "Bonus sa kalidad: {{BONUS}}, binawasan ng {{CBU}} para sa CBU ({{RULE}}, {{BR}})." },
     {
-      id: "s5",
-      text: "Ang inyong bayad ngayong season: {{NET}}, humigit-kumulang {{NET_PHP}}, sa PayPal.",
+      id: "greeting",
+      slot: "GREETING",
+      text: "Magandang araw po, {{HONORIFIC_NAME}}. Salamat po sa inyong pagsisikap.",
     },
-    { id: "s6", text: "Galing po ito sa inyong mga resibo {{SLIPS}}." },
-    { id: "s7", text: "May tanong po kayo? Lumapit po kay Treasurer {{TREASURER}} sa bodega." },
+    {
+      id: "delivery",
+      slot: "DELIVERY",
+      text: "Nagdala po kayo ng {{KG_TOTAL}} na tuyong cacao, {{GRADE_SUMMARY}}.",
+    },
+    { id: "premium", slot: "PREMIUM", text: "Premium mula sa {{PAYER}}: {{PREMIUM_USD}}, walang kaltas." },
+    { id: "bonus", slot: "BONUS", text: "Bonus sa kalidad: {{BONUS_USD}}." },
+    {
+      id: "deduction-R1",
+      slot: "DEDUCTION",
+      ref: "R1",
+      text: "Binawasan po ng {{DEDUCTION_USD}} para sa {{RULE_LABEL}} ({{RULE}}, {{BR}}).",
+    },
+    {
+      id: "pay",
+      slot: "PAY",
+      variant: "paypal",
+      text: "Ang inyong bayad ngayong season: {{NET_USD}}, sa inyong PayPal. Kapag pinalitan sa piso, humigit-kumulang {{NET_PHP}}.",
+    },
+    {
+      id: "pay-cash",
+      slot: "PAY",
+      variant: "cash",
+      text: "Ang inyong bayad ngayong season: {{NET_PHP}}, cash sa bodega sa {{CASH_DATE}}.",
+    },
+    { id: "sources", slot: "SOURCES", text: "Galing po ito sa inyong mga resibo {{SLIPS}}." },
+    {
+      id: "help",
+      slot: "HELP",
+      text: "May tanong po kayo? Lumapit po kay Treasurer {{TREASURER}} sa bodega.",
+    },
+    {
+      id: "ai-note",
+      slot: "AI_NOTE",
+      text: "Dalawang beses binasa ng AI (Claude) ang inyong mga resibo. Ang mga pagbasang hindi tiyak ay sinuri ng isang tao, at inaprubahan ni Treasurer {{TREASURER}} ang bayad na ito.",
+    },
   ],
   en: [
-    { id: "s1", text: "Good day, {{NAME}}. Thank you for your hard work." },
-    { id: "s2", text: "You delivered {{NET_KG}} of dried cacao, all {{GRADE}}." },
-    { id: "s3", text: "Premium from {{PAYER}}: {{PREMIUM}}, no deductions allowed." },
-    { id: "s4", text: "Quality bonus: {{BONUS}}, less {{CBU}} for capital build-up ({{RULE}}, {{BR}})." },
-    { id: "s5", text: "Your pay this season: {{NET}}, about {{NET_PHP}}, by PayPal." },
-    { id: "s6", text: "It comes from your slips {{SLIPS}}." },
-    { id: "s7", text: "Questions? See Treasurer {{TREASURER}} at the bodega." },
+    { id: "greeting", slot: "GREETING", text: "Good day, {{HONORIFIC_NAME}}. Thank you for your hard work." },
+    {
+      id: "delivery",
+      slot: "DELIVERY",
+      text: "You delivered {{KG_TOTAL}} of dried cacao, {{GRADE_SUMMARY}}.",
+    },
+    { id: "premium", slot: "PREMIUM", text: "Premium from {{PAYER}}: {{PREMIUM_USD}}, with no deductions." },
+    { id: "bonus", slot: "BONUS", text: "Quality bonus: {{BONUS_USD}}." },
+    {
+      id: "deduction-R1",
+      slot: "DEDUCTION",
+      ref: "R1",
+      text: "Less {{DEDUCTION_USD}} for {{RULE_LABEL}} ({{RULE}}, {{BR}}).",
+    },
+    {
+      id: "pay",
+      slot: "PAY",
+      variant: "paypal",
+      text: "Your pay this season: {{NET_USD}}, to your PayPal. Changed to pesos, about {{NET_PHP}}.",
+    },
+    {
+      id: "pay-cash",
+      slot: "PAY",
+      variant: "cash",
+      text: "Your pay this season: {{NET_PHP}}, in cash at the bodega on {{CASH_DATE}}.",
+    },
+    { id: "sources", slot: "SOURCES", text: "It comes from your slips {{SLIPS}}." },
+    { id: "help", slot: "HELP", text: "Questions? See Treasurer {{TREASURER}} at the bodega." },
+    {
+      id: "ai-note",
+      slot: "AI_NOTE",
+      text: "Your slips were read twice by AI (Claude). Readings it was unsure of were checked by a person, and Treasurer {{TREASURER}} approved this pay.",
+    },
   ],
 };
 

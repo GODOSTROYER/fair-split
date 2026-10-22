@@ -173,9 +173,10 @@ export interface CaptureSyncedPayload {
 export type ApprovalRole = "TREASURER" | "CHAIR";
 
 /**
- * Signed payload (register §8): JCS{v, runId, seasonId, rateCardSha256, batchSha256, itemCount, totalCents,
- * currency, role, approverId, nonce, exp}. The server issues it; the phone checks it against what it shows and signs
- * the RFC 8785 bytes with Ed25519.
+ * Signed payload (register §8 as amended by the approved plan, ADR-0001): JCS{v, runId, seasonId, rateCardSha256,
+ * batchSha256, linesDigest, itemCount, totalCents, currency, role, approverId, nonce, exp}. `linesDigest` hashes
+ * every member line, so both keys bind the cash lines too. The server issues the payload; the phone checks it against
+ * what it shows and signs the RFC 8785 bytes with Ed25519.
  */
 export interface ApprovalPayload {
   v: 1;
@@ -183,6 +184,7 @@ export interface ApprovalPayload {
   seasonId: string;
   rateCardSha256: string;
   batchSha256: string;
+  linesDigest: string;
   itemCount: number;
   totalCents: number;
   currency: "USD";
@@ -191,6 +193,30 @@ export interface ApprovalPayload {
   nonce: string;
   /** RFC 3339 UTC. The server refuses anything more than 30 minutes ahead. */
   exp: string;
+}
+
+/** The payload's exact field set, in JCS order. The phone refuses a payload with any other shape. */
+export const APPROVAL_PAYLOAD_KEYS = [
+  "approverId",
+  "batchSha256",
+  "currency",
+  "exp",
+  "itemCount",
+  "linesDigest",
+  "nonce",
+  "rateCardSha256",
+  "role",
+  "runId",
+  "seasonId",
+  "totalCents",
+  "v",
+] as const satisfies readonly (keyof ApprovalPayload)[];
+
+/** One member line as `linesDigest` hashes it (shim-defined until WS-CORE publishes the digest input). */
+export interface DigestLine {
+  memberNo: string;
+  rail: "PAYPAL" | "CASH";
+  netCents: number;
 }
 
 /** One batch item as hashed into batchSha256 (register §8). */
@@ -210,12 +236,18 @@ export const SCREEN = {
   paminawa: "M-MB-03",
   pangutana: "M-MB-04",
   clerk: "M-CL-01",
+  /** The outbox half of M-CL-01 ("Scan and outbox"), kept as its own ID for test hooks. */
+  outbox: "M-CL-02",
   cosign: "M-BD-01",
   sign: "M-BD-02",
 } as const;
 export type ScreenId = (typeof SCREEN)[keyof typeof SCREEN];
 
-/** App routes (register §4). Groups are part of the file path, not the URL. */
+/**
+ * App routes as register §4 writes them. Groups are part of the file path, not the URL, and the member tabs live in
+ * a nested `(tabs)` group so Paminawa can be a modal over them; navigate with the typed hrefs in
+ * `services/session.ts` (`HREF`), which spell the real file paths.
+ */
 export const APP_ROUTES = {
   language: "/onboarding/language",
   theme: "/onboarding/theme",
@@ -228,10 +260,223 @@ export const APP_ROUTES = {
   outbox: "/(clerk)/outbox",
   pirma: (runSlug: string) => `/(board)/pirma/${runSlug}` as const,
   sign: (runSlug: string) => `/(board)/pirma/${runSlug}/sign` as const,
+  /** Web entry points: the pairing QR and the member's signed link. */
+  pairLink: "/pair",
+  memberLink: (token: string) => `/s/${token}` as const,
 } as const;
 
 /** `runSlug` = `2026A-r{runSeq}` (register §4). */
 export const RUN_SLUG_RE = /^\d{4}[A-Z]-r\d+$/;
+
+/**
+ * `data-state` values per app screen root: S1.9's lists, plus the screens the register keeps and S1 retired (M-MB-02,
+ * M-MB-04 and the outbox half of M-CL-01), whose states are named here. WS-QA's spec-lint checks every `data-state`
+ * literal in apps/** against this list, and `<Screen id state>` only accepts these at compile time. A state that is
+ * not here is a contract change (ADR), not a local edit.
+ */
+export const SCREEN_STATES = {
+  "M-ON-01": [
+    "language",
+    "theme",
+    "idle",
+    "camera-denied",
+    "pairing",
+    "paired",
+    "listen-choice",
+    "expired",
+    "used",
+    "invalid",
+    "offline",
+    "error",
+  ],
+  "M-MB-01": [
+    "loading",
+    "error",
+    "checking",
+    "held-line",
+    "sent",
+    "paid",
+    "cash-due",
+    "cash-received",
+    "unclaimed",
+    "returned",
+    "paypal-held",
+    "needs-action",
+    "reversed",
+    "excluded",
+    "request-sent",
+    "request-answered",
+    "offline",
+    "run-summary",
+    "link-expired",
+    "link-invalid",
+  ],
+  "M-MB-02": ["loading", "list", "empty", "offline", "error"],
+  "M-MB-03": ["loading", "paused", "playing", "device-voice", "filipino-audio", "text-only", "offline"],
+  "M-MB-04": ["none", "composing", "sending", "sent", "answered", "failed", "offline"],
+  "M-CL-01": [
+    "ready",
+    "scanning",
+    "uploading",
+    "uploaded",
+    "read",
+    "failed",
+    "quality",
+    "duplicate-file",
+    "camera-denied",
+    "unavailable",
+    "offline",
+  ],
+  "M-CL-02": ["empty", "online", "syncing", "offline"],
+  "M-BD-01": [
+    "loading",
+    "none",
+    "request",
+    "override",
+    "changed",
+    "expired",
+    "signed",
+    "offline",
+    "sent-back",
+    "error",
+  ],
+  "M-BD-02": [
+    "loading",
+    "ready",
+    "holding",
+    "armed",
+    "confirm",
+    "biometric",
+    "signed",
+    "cancelled",
+    "released-early",
+    "disarmed",
+    "mismatch",
+    "expired",
+    "offline",
+    "error",
+    "no-lock",
+    "invalidated",
+  ],
+} as const;
+export type ScreenWithStates = keyof typeof SCREEN_STATES;
+export type ScreenStateOf<S extends ScreenWithStates> = (typeof SCREEN_STATES)[S][number];
+
+/** `data-state` of the Slab primitive (S2.7); hold slabs also set `data-hold-progress` to 0, 25, 50, 75 or 100. */
+export const SLAB_STATES = [
+  "rest",
+  "pressed",
+  "holding",
+  "armed",
+  "committed",
+  "unavailable",
+  "bolted",
+  "refusing",
+] as const;
+export type SlabState = (typeof SLAB_STATES)[number];
+
+/* ------------------------------------------------------------------ IC-09 amount grammar (S2.2.1) */
+
+/**
+ * `data-amount-state`: pencil (read or computed, nobody signed), you (a person must enter it), ink (a person entered
+ * or approved it), hollow (money in flight: sent, parked or cash due), landed (PayPal confirmed it), attested (cash
+ * handed over and the clerk attested it).
+ */
+export const AMOUNT_STATES = ["pencil", "you", "ink", "hollow", "landed", "attested"] as const;
+export type AmountState = (typeof AMOUNT_STATES)[number];
+
+/**
+ * The state map (S2.2.1) for a line before its run is APPROVED; `amountStateOf` applies the approval. REVERSED stays
+ * hollow (its chip is red), EXCLUDED stays pencil ("Reserved, never redistributed").
+ */
+export const AMOUNT_STATE: Readonly<Record<LineState, AmountState>> = {
+  COMPUTED: "pencil",
+  READY: "pencil",
+  HELD: "pencil",
+  EXCLUDED: "pencil",
+  LOCKED: "ink",
+  SUBMITTED: "hollow",
+  PAYPAL_PENDING: "hollow",
+  UNCLAIMED: "hollow",
+  PAYPAL_HELD: "hollow",
+  NEEDS_ACTION: "hollow",
+  RETURNED: "hollow",
+  REROUTED: "hollow",
+  REVERSED: "hollow",
+  OFF_RAIL_DUE: "hollow",
+  PAID: "landed",
+  OFF_RAIL_PAID: "attested",
+};
+
+/** Every line turns to ink once the run is approved (both keys); voided approvals turn it back to pencil. */
+export function amountStateOf(line: LineState, run: { approved: boolean }): AmountState {
+  const base = AMOUNT_STATE[line];
+  if (run.approved && base === "pencil" && line !== "EXCLUDED") return "ink";
+  return base;
+}
+
+/* ------------------------------------------------------------------ IC-01 StatementPlan (approved plan, S1.11) */
+
+/**
+ * Statement slots in reading order (approved plan "AI system: Statements"). DEDUCTION repeats once per ruled
+ * deduction and CREDIT appears at most once; PAY has a PayPal and a cash variant.
+ */
+export const STATEMENT_SLOTS = [
+  "GREETING",
+  "DELIVERY",
+  "PREMIUM",
+  "BONUS",
+  "DEDUCTION",
+  "CREDIT",
+  "PAY",
+  "SOURCES",
+  "HELP",
+  "AI_NOTE",
+] as const;
+export type StatementSlot = (typeof STATEMENT_SLOTS)[number];
+
+/**
+ * One sentence template: words and `{{PLACEHOLDERS}}` only, never a digit (I1). `ref` names the deduction rule
+ * (`R1`) or the slip a DEDUCTION or CREDIT sentence is about.
+ */
+export interface StatementTemplate {
+  id: string;
+  slot: StatementSlot;
+  variant?: "paypal" | "cash";
+  ref?: string;
+  text: string;
+}
+
+/* ------------------------------------------------------------------ IC-12 FrameBridge (approved plan, S3.8) */
+
+/**
+ * The judge stage and its phone frames talk only through these versioned, same-origin messages: the stage sends
+ * the frame token, display preferences and resets; the frame reports readiness, moment phases, feedback events
+ * (only the stage plays sound) and the screen it shows. Tokens never travel in a URL.
+ */
+export const FRAME_PROTOCOL_VERSION = 1 as const;
+
+export interface FramePrefs {
+  tier: "full" | "low";
+  /** Sound is the stage's; frames only forward `fs.feedback`. */
+  sound: boolean;
+  reducedMotion: boolean;
+  /** English under each Cebuano or Filipino statement sentence, for judges. */
+  gloss: boolean;
+}
+
+export type ToFrame = { v: 1 } & (
+  | { t: "fs.token"; token: string; exp: number; persona: string; ws: string }
+  | ({ t: "fs.prefs" } & FramePrefs)
+  | { t: "fs.reset" }
+);
+
+export type ToStage = { v: 1 } & (
+  | { t: "fs.ready"; frameId: string; persona: string | null; build: string }
+  | { t: "fs.moment"; moment: string; phase: string }
+  | { t: "fs.feedback"; event: string; index?: number }
+  | { t: "fs.focus"; screenId: ScreenId }
+);
 
 /* ------------------------------------------------------------------ §7 status words (member copy) */
 

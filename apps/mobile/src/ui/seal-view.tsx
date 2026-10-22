@@ -6,7 +6,6 @@
 import { memo, useEffect, useMemo } from "react";
 import { View } from "react-native";
 import Animated, {
-  Easing,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
@@ -16,9 +15,11 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
+import { ENGRAVE_STAGGER_MS, TIMELINE } from "../_shims/motion";
 import { type SealRing, seal, sealStroke } from "../_shims/seal";
-import { springs, tweens } from "../_shims/tokens.native";
 import { useFs } from "../theme/theme";
+import { ms, spring, tween } from "./motion";
+import { useT } from "./text";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -47,16 +48,8 @@ function Ring({
       drawn.set(1);
       return;
     }
-    const delay = (index % 3) * tweens.engrave.stagger;
-    drawn.set(
-      withDelay(
-        delay,
-        withTiming(1, {
-          duration: animate === "engrave" ? tweens.engrave.duration : tweens.glideFallback.duration,
-          easing: Easing.linear,
-        }),
-      ),
-    );
+    const delay = (index % 3) * ENGRAVE_STAGGER_MS;
+    drawn.set(withDelay(delay, withTiming(1, animate === "engrave" ? tween("engrave") : tween("sealFade"))));
   }, [signed, animate, index, drawn]);
   const props = useAnimatedProps(() =>
     animate === "engrave"
@@ -89,6 +82,7 @@ export const SealView = memo(function SealView({
   testID?: string;
 }) {
   const { t, motion } = useFs();
+  const tr = useT();
   const rings = useMemo(() => seal(batchSha256, size), [batchSha256, size]);
   const stroke = sealStroke(size);
   const animate = !engrave ? "none" : motion.reduced || motion.low ? "fade" : "engrave";
@@ -97,8 +91,11 @@ export const SealView = memo(function SealView({
     if (keys === 2 && engrave && !motion.reduced) {
       landed.set(
         withDelay(
-          tweens.engrave.duration + 2 * tweens.engrave.stagger,
-          withSequence(withTiming(1.03, { duration: 0 }), withSpring(1, springs.land)),
+          ms("engrave") + 2 * ENGRAVE_STAGGER_MS,
+          withSequence(
+            withTiming(TIMELINE["MM-5"].sealOvershoot, { duration: 0 }),
+            withSpring(1, spring("land")),
+          ),
         ),
       );
     }
@@ -110,7 +107,7 @@ export const SealView = memo(function SealView({
       dataSet={{ keys }}
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`Seal, ${keys} of 2 keys`}
+      accessibilityLabel={tr("seal.label", { keys })}
     >
       <Animated.View style={landStyle}>
         <Svg width={size} height={size}>

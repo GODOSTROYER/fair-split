@@ -9,12 +9,14 @@ import { MEMBER_STATUS_WORDS } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
 import { heroLine } from "../../_shims/seed";
 import { type FsTokens, radius, space, type ThemeName, themes } from "../../_shims/tokens.native";
+import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { typeScale, useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Button } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { useT } from "./use-t";
 
 function MiniStatement({ tk, greeting, paid }: { tk: FsTokens; greeting: string; paid: string }) {
   return (
@@ -54,7 +56,7 @@ function MiniStatement({ tk, greeting, paid }: { tk: FsTokens; greeting: string;
 }
 
 export function ThemeScreen() {
-  const { theme, setTheme, completeFirstRun, lang } = useApp();
+  const { theme, setTheme, completeOnboarding, lang } = useApp();
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
@@ -114,8 +116,8 @@ export function ThemeScreen() {
             label={tr("M-ON-01.continue")}
             testID="M-ON-01.continue"
             onPress={() => {
-              completeFirstRun("theme");
-              router.replace("/onboarding/pair");
+              completeOnboarding();
+              router.replace(HREF.pair);
             }}
           />
         </View>

@@ -8,7 +8,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 import { format } from "../../_shims/domain";
-import type { MessageKey } from "../../_shims/i18n";
 import { people } from "../../_shims/seed";
 import { radius, space } from "../../_shims/tokens.native";
 import { useApp } from "../../state/app";
@@ -17,8 +16,10 @@ import { Screen } from "../../ui/chrome";
 import { Banner, Button, InkStamp, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import type { BoardKey } from "./messages";
 import { useCosign } from "./use-cosign";
+import { useT } from "./use-t";
 
 /** Hash in groups of four, four groups a line, so the Chair can compare it with the console by eye. */
 export function HashBlock({ hex }: { hex: string }) {
@@ -49,7 +50,7 @@ export function CosignScreen() {
   if (!dto) {
     return (
       <Screen testID="M-BD-01" state={state}>
-        {state === "missing" ? (
+        {state === "none" ? (
           <Banner icon="info">
             <Txt kind="body">{tr("M-BD-01.empty")}</Txt>
           </Banner>
@@ -116,7 +117,7 @@ export function CosignScreen() {
           <View key={h.id} style={styles.hold}>
             <InkStamp initials={h.resolvedBy} />
             <View style={{ flex: 1, gap: space.s2 }}>
-              <Txt kind="bodyStrong">{`${h.id}, ${tr(`hold.${h.kind}` as MessageKey)}`}</Txt>
+              <Txt kind="bodyStrong">{`${h.id}, ${tr(`hold.${h.kind}` as BoardKey)}`}</Txt>
               <Txt kind="body" color="ink2">
                 {h.summary}
               </Txt>

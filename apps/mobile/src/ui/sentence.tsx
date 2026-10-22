@@ -1,11 +1,11 @@
 import { StyleSheet, Text } from "react-native";
-import { fontFamily } from "../_shims/fonts";
+import { FIGURE_VARIANT, fontFamily } from "../_shims/fonts";
 import type { FsColors } from "../_shims/tokens.native";
-import { figureRuns, isFigure, type Segment } from "../lib/figures";
 import type { TypeRole } from "../theme/theme";
-import { Txt } from "./text";
+import { figureRuns, isFigure, type Segment } from "./figures";
+import { Txt, withPeso } from "./text";
 
-export { figures } from "../lib/figures";
+export { figures, type Segment } from "./figures";
 
 /**
  * Statement prose (Atkinson Hyperlegible Next) with every engine figure set in the figure face, tabular, with the
@@ -37,7 +37,7 @@ export function Sentence({
       {figureRuns(segments).map((s, i) =>
         isFigure(s) ? (
           <Text key={`${i}-${s.text}`} style={styles.figure}>
-            {s.text}
+            {withPeso(s.text)}
           </Text>
         ) : (
           s.text
@@ -49,5 +49,5 @@ export function Sentence({
 
 const styles = StyleSheet.create({
   underline: { textDecorationLine: "underline" },
-  figure: { fontFamily: fontFamily.figure, fontVariant: ["tabular-nums", "stylistic-eight"] },
+  figure: { fontFamily: fontFamily.figure, fontVariant: [...FIGURE_VARIANT] },
 });

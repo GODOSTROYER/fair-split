@@ -15,7 +15,8 @@ import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Button, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { useT } from "./use-t";
 
 export function BoardBayadScreen() {
   const { api } = useApp();
@@ -41,14 +42,14 @@ export function BoardBayadScreen() {
       </Txt>
       <View style={[styles.card, { backgroundColor: t.color.plate }]}>
         <Txt kind="label" color="ink2">
-          {tr("M-BD-01.items")}
+          {tr("M-MB-01.runItems")}
         </Txt>
         <Txt kind="amountHero">{format.usd(run.totalCents)}</Txt>
         <Txt kind="body" color="ink2">
-          {tr("M-BD-01.request", { season: run.seasonCode, n: run.itemCount })}
+          {tr("M-MB-01.runRequest", { season: run.seasonCode, n: run.itemCount })}
         </Txt>
         <Rule />
-        <SectionTitle>{tr("M-BD-01.items")}</SectionTitle>
+        <SectionTitle>{tr("M-MB-01.runItems")}</SectionTitle>
         {run.items.map((i) => (
           <View key={i.senderItemId} style={styles.item}>
             <Txt kind="figure" style={{ flex: 1 }}>

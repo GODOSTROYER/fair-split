@@ -1,202 +1,129 @@
 /**
  * TEMPORARY: the app's Slab until @fairsplit/ui-native ships the shared primitive (S2.7 props kept).
  *
- * A human commit is a square slab whose depth matches its consequence (d1 3 px, d2 5 px, d3 8 px). The face
- * travels (t, t); the right and bottom edges are 45° parallelograms anchored to the far wall that collapse at t = d
- * (design §2.5). Hold slabs fill linearly, step at each quarter, and commit when they bottom out; every hold has a
- * dialog route (screen reader, "Can't hold?") because no action may depend on timing alone. Reduced motion: no
- * travel, a stepped bar with a percentage, colour changes only.
+ * A person's commit is a square slab whose depth matches its consequence: d1 3 px (reversible), d2 5 px (changes a
+ * line), d3 8 px plus a hold (moves money or signs). The face travels (t, t); the right and bottom edges are 45°
+ * parallelograms anchored to the far wall that collapse at t = d (design §2.5). A screen has at most two slabs and at
+ * most one d3; navigation, filters, rows and status never get one.
+ *
+ * Hold slabs follow S2.7 exactly: arm on hold, act on release inside (WCAG 2.5.2). The fill runs linearly, the face
+ * sinks 2 px at each quarter, the face clunks flush at the hold time ("Release to sign"), and only a release inside
+ * acts; leaving, a cancel, blur or backgrounding disarms ("Nothing was signed."). Enter, a virtual click, the visible
+ * "Can't hold?" link, or TalkBack on the phone open the ConfirmDialog instead, so no action depends on timing alone.
+ * Reduced motion: no travel, a stepped bar with a percentage, colour only.
  */
-import { useEffect, useRef, useState } from "react";
-import { type LayoutChangeEvent, Modal, Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AppState,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type ViewInstance,
+  type ViewStyle,
+} from "react-native";
 import Animated, {
   cancelAnimation,
   Easing,
+  type SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { radius, slabDepth, space, springs, target, tweens } from "../_shims/tokens.native";
+import type { SlabState } from "../_shims/contracts";
+import { radius, slabDepth, space, target } from "../_shims/tokens.native";
 import { feedback } from "../platform/feedback";
 import { useFs } from "../theme/theme";
 import { Glyph, type GlyphName } from "./glyph";
+import {
+  commits,
+  type HoldEvent,
+  type HoldState,
+  holdReducer,
+  isCancelEvent,
+  isInside,
+  releasePoint,
+  routeFor,
+  slabStateFor,
+} from "./hold";
+import { spring, tween } from "./motion";
+import { ConfirmDialog, type ConfirmSpec } from "./overlay";
 import { Button, Hatch } from "./primitives";
-import { Txt } from "./text";
+import { Txt, useT } from "./text";
 
-export interface SlabConfirm {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  cancelLabel: string;
-}
+export type { ConfirmSpec } from "./overlay";
 
 export interface SlabProps {
   label: string;
   depth: "d1" | "d2" | "d3";
   tone: "chalk" | "jade";
-  /** Hold-to-commit duration (1600 console, 1200 phone). */
+  /** Hold-to-commit duration: `HOLD_MS.phone` (1,200 ms) for the Chair's Pirmahi. Requires `confirm`. */
   hold?: number;
   bolted?: boolean;
+  /** Unavailable: flush with a hatched face, the label kept, and this reason beneath (never greyed out). */
   unavailableReason?: string;
+  /** The full spoken label: what it does and, for money, how much. */
   srLabel: string;
-  onCommit(): void;
+  onCommit(): void | Promise<void>;
   testID: string;
   icon?: GlyphName;
+  /** Face height: 56 dp primary (default); `target.hero` (64) for Paminawa and Pirmahi. */
   height?: number;
-  /** Required for hold slabs: the dialog route. */
-  confirm?: SlabConfirm;
+  /** The dialog route of a hold slab (S2.7 ConfirmSpec). */
+  confirm?: ConfirmSpec;
+  /** Defaults come from the shell catalog: "Can't hold? Approve another way", "Release to sign"… */
   anotherWayLabel?: string;
+  armedLabel?: string;
   holdUntilLabel?: string;
-  onHoldChange?(holding: boolean): void;
-  /** Externally committed (e.g. the signature landed): stays flush. */
+  disarmedLabel?: string;
+  /** Every hold-machine transition, for a moment's phases (the board maps it with `mm5Phase`). */
+  onHoldState?(state: HoldState): void;
+  /** Externally committed (the signature landed): the slab stays flush. */
   committed?: boolean;
   disabled?: boolean;
+  style?: ViewStyle;
 }
 
-type SlabState = "rest" | "pressed" | "holding" | "committed" | "unavailable" | "bolted";
-
-const bez = (b: readonly number[] | null) =>
-  b ? Easing.bezier(b[0] ?? 0, b[1] ?? 0, b[2] ?? 1, b[3] ?? 1) : Easing.linear;
+const PRESS_WINDOW_MS = 600;
 
 export function Slab(props: SlabProps) {
-  const {
-    label,
-    depth,
-    tone,
-    hold,
-    bolted,
-    unavailableReason,
-    srLabel,
-    onCommit,
-    testID,
-    icon,
-    height = target.primary,
-    confirm,
-    anotherWayLabel,
-    holdUntilLabel,
-    onHoldChange,
-    committed,
-    disabled,
-  } = props;
+  return props.hold ? <HoldSlab {...props} hold={props.hold} /> : <PressSlab {...props} />;
+}
+
+/* ------------------------------------------------------------------ the face (shared by both kinds) */
+
+function SlabFace({
+  depth,
+  tone,
+  height,
+  travel,
+  progress,
+  flush,
+  showFill,
+  focused,
+  label,
+  icon,
+  bolted,
+}: {
+  depth: SlabProps["depth"];
+  tone: SlabProps["tone"];
+  height: number;
+  travel: SharedValue<number>;
+  progress: SharedValue<number> | null;
+  flush: boolean;
+  showFill: boolean;
+  focused: boolean;
+  label: string;
+  icon?: GlyphName;
+  bolted?: boolean;
+}) {
   const { t, motion } = useFs();
   const d = slabDepth[depth];
   const face = t.slab[tone];
   const [width, setWidth] = useState(0);
-  const [state, setState] = useState<SlabState>(
-    bolted ? "bolted" : unavailableReason ? "unavailable" : committed ? "committed" : "rest",
-  );
-  const [pct, setPct] = useState(0);
-  const [early, setEarly] = useState(false);
-  const [dialog, setDialog] = useState(false);
-  const travel = useSharedValue(unavailableReason || committed ? d : 0);
-  const progress = useSharedValue(0);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const done = useRef(false);
-
-  const reduced = motion.reduced;
-  const flush = !!unavailableReason || !!bolted;
-
-  useEffect(() => {
-    if (bolted) setState("bolted");
-    else if (unavailableReason) setState("unavailable");
-    else if (committed) setState("committed");
-    else if (!done.current) setState("rest");
-    travel.set(unavailableReason || committed ? d : 0);
-  }, [bolted, unavailableReason, committed, d, travel]);
-
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-
-  const clearTimers = () => {
-    for (const x of timers.current) clearTimeout(x);
-    timers.current = [];
-  };
-
-  const moveTo = (to: number, kind: "press" | "press60" | "rebound") => {
-    if (reduced) return; // reduced motion: slabs change colour without moving
-    if (kind === "rebound") travel.set(withSpring(to, springs.rebound));
-    else travel.set(withTiming(to, { duration: tweens[kind].duration, easing: bez(tweens[kind].bezier) }));
-  };
-
-  const commit = () => {
-    if (done.current) return;
-    done.current = true;
-    clearTimers();
-    moveTo(d, "press60");
-    setState("committed");
-    setPct(100);
-    feedback.play(depth === "d1" ? "slab.d1.press" : hold ? "hold.bottom" : "slab.d2.commit");
-    onCommit();
-  };
-
-  const startHold = () => {
-    if (!hold || flush || disabled || done.current) return;
-    setState("holding");
-    setEarly(false);
-    onHoldChange?.(true);
-    progress.set(0);
-    progress.set(withTiming(1, { duration: hold, easing: Easing.linear }));
-    for (const q of [1, 2, 3]) {
-      timers.current.push(
-        setTimeout(
-          () => {
-            setPct(q * 25);
-            moveTo(Math.min(d - 1, 2 * q), "press60");
-            feedback.play("hold.quarter");
-          },
-          (hold * q) / 4,
-        ),
-      );
-    }
-    timers.current.push(setTimeout(commit, hold));
-  };
-
-  const cancelHold = () => {
-    if (!hold || done.current || state !== "holding") return;
-    clearTimers();
-    cancelAnimation(progress);
-    progress.set(withTiming(0, { duration: tweens.retract.duration }));
-    moveTo(0, "rebound");
-    setPct(0);
-    setState("rest");
-    setEarly(true);
-    onHoldChange?.(false);
-  };
-
-  const onPressIn = () => {
-    if (flush || disabled || done.current) return;
-    if (hold) {
-      if (motion.screenReader) return; // TalkBack users get the dialog on activation instead
-      startHold();
-      return;
-    }
-    setState("pressed");
-    moveTo(d, "press");
-    if (depth === "d1") feedback.play("slab.d1.press");
-  };
-
-  const onPressOut = () => {
-    if (hold) {
-      cancelHold();
-      return;
-    }
-    if (flush || disabled || done.current) return;
-    moveTo(0, "rebound");
-    setState("rest");
-    if (depth === "d1") feedback.play("slab.d1.release");
-  };
-
-  const onPress = () => {
-    if (flush || disabled) return;
-    if (hold) {
-      if (motion.screenReader && confirm) setDialog(true);
-      return;
-    }
-    // Reversible slabs commit on release; they can be pressed again.
-    feedback.play(depth === "d1" ? "slab.d1.release" : "slab.d2.commit");
-    onCommit();
-  };
-
   const faceStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: travel.get() }, { translateY: travel.get() }],
   }));
@@ -216,154 +143,426 @@ export function Slab(props: SlabProps) {
       { scaleY: Math.max(0, (d - travel.get()) / d) },
     ],
   }));
-  const fill = useAnimatedStyle(() => ({ transform: [{ scaleX: progress.get() }] }));
-
+  const fill = useAnimatedStyle(() => ({ transform: [{ scaleX: progress ? progress.get() : 0 }] }));
   const onLayout = (e: LayoutChangeEvent) => setWidth(Math.max(0, e.nativeEvent.layout.width - d));
   const faceColor = flush ? t.color.plate2 : face.face;
   const labelColor = flush ? t.color.ink2 : face.label;
-  const showEdges = !flush && !reduced;
+  const showEdges = !flush && !motion.reduced;
+  return (
+    <View onLayout={onLayout} style={{ paddingRight: d, paddingBottom: d }} pointerEvents="none">
+      {width > 0 && showEdges ? (
+        <>
+          <Animated.View
+            style={[
+              styles.edge,
+              { left: width, top: 0, width: d, height, backgroundColor: face.edgeRight },
+              rightEdge,
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.edge,
+              { left: 0, top: height, width, height: d, backgroundColor: face.edgeBottom },
+              bottomEdge,
+            ]}
+          />
+        </>
+      ) : null}
+      <Animated.View
+        style={[
+          styles.face,
+          { height, backgroundColor: faceColor, borderColor: flush ? t.color.rule : faceColor },
+          flush || motion.reduced ? null : faceStyle,
+          focused
+            ? { outlineColor: t.color.pod, outlineWidth: 2, outlineOffset: 2, outlineStyle: "solid" }
+            : null,
+        ]}
+      >
+        {flush ? <Hatch /> : null}
+        {showFill && progress ? (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              styles.fillOrigin,
+              { backgroundColor: tone === "jade" ? "rgba(28,21,17,0.14)" : "rgba(255,255,255,0.16)" },
+              fill,
+            ]}
+          />
+        ) : null}
+        {!flush ? <View style={styles.highlight} /> : null}
+        <View style={styles.content}>
+          {bolted ? <Glyph name="bolt" size={20} color={labelColor} /> : null}
+          {icon ? <Glyph name={icon} size={24} color={labelColor} /> : null}
+          <Txt kind="slab" style={{ color: labelColor }} numberOfLines={2}>
+            {label}
+          </Txt>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** Web-only press styles (S2.7): no text selection, no browser gesture, no callout over the slab. */
+const WEB_PRESS: ViewStyle =
+  Platform.OS === "web"
+    ? ({
+        userSelect: "none",
+        touchAction: "none",
+        WebkitTouchCallout: "none",
+        cursor: "pointer",
+      } as ViewStyle)
+    : {};
+
+function useFocus() {
+  const [focused, setFocused] = useState(false);
+  return {
+    focused: Platform.OS === "web" && focused,
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+  };
+}
+
+/* ------------------------------------------------------------------ d1 / d2: complete on release */
+
+function PressSlab(p: SlabProps) {
+  const { motion } = useFs();
+  const d = slabDepth[p.depth];
+  const flush = !!p.unavailableReason || !!p.bolted || !!p.committed;
+  const travel = useSharedValue(p.unavailableReason || p.committed ? d : 0);
+  const [state, setState] = useState<SlabState>(
+    p.bolted ? "bolted" : p.unavailableReason ? "unavailable" : p.committed ? "committed" : "rest",
+  );
+  const focus = useFocus();
+
+  useEffect(() => {
+    setState(p.bolted ? "bolted" : p.unavailableReason ? "unavailable" : p.committed ? "committed" : "rest");
+    travel.set(p.unavailableReason || p.committed ? d : 0);
+  }, [p.bolted, p.unavailableReason, p.committed, d, travel]);
+
+  const move = (to: number, how: "press" | "rebound") => {
+    if (motion.reduced) return; // reduced motion: slabs change colour without moving
+    travel.set(how === "press" ? withTiming(to, tween("press")) : withSpring(to, spring("rebound")));
+  };
+
+  const refuse = () => {
+    setState("refusing");
+    feedback.play("bolted.refuse");
+    setTimeout(() => setState("bolted"), PRESS_WINDOW_MS);
+  };
 
   return (
-    <View>
+    <View style={p.style}>
       <Pressable
-        testID={testID}
+        testID={p.testID}
+        dataSet={{ state }}
+        accessibilityRole="button"
+        accessibilityLabel={p.srLabel}
+        accessibilityHint={p.unavailableReason}
+        accessibilityState={{ disabled: flush || !!p.disabled }}
+        disabled={p.disabled || (!!p.unavailableReason && !p.bolted)}
+        onPressIn={() => {
+          if (flush || p.disabled) return;
+          setState("pressed");
+          move(d, "press");
+          if (p.depth === "d1") feedback.play("slab.d1.press");
+        }}
+        onPressOut={() => {
+          if (flush || p.disabled) return;
+          setState("rest");
+          move(0, "rebound");
+          if (p.depth === "d1") feedback.play("slab.d1.release");
+        }}
+        onPress={() => {
+          if (p.bolted) return refuse();
+          if (flush || p.disabled) return;
+          if (p.depth !== "d1") feedback.play("slab.d2.commit");
+          void p.onCommit();
+        }}
+        onFocus={focus.onFocus}
+        onBlur={focus.onBlur}
+        style={WEB_PRESS}
+      >
+        <SlabFace
+          depth={p.depth}
+          tone={p.tone}
+          height={p.height ?? target.primary}
+          travel={travel}
+          progress={null}
+          flush={flush}
+          showFill={false}
+          focused={focus.focused}
+          label={p.label}
+          icon={p.icon}
+          bolted={p.bolted}
+        />
+      </Pressable>
+      {p.unavailableReason ? (
+        <Txt kind="caption" color="ink2" style={styles.below} accessible>
+          {p.unavailableReason}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ d3: hold, arm, release inside */
+
+function HoldSlab(p: SlabProps & { hold: number }) {
+  const { motion } = useFs();
+  const tr = useT();
+  const d = slabDepth[p.depth];
+  const flush = !!p.unavailableReason || !!p.bolted;
+  const travel = useSharedValue(p.committed ? d : 0);
+  const progress = useSharedValue(p.committed ? 1 : 0);
+  const [hs, setHs] = useState<HoldState>(p.committed ? "committed" : "rest");
+  const [pct, setPct] = useState(p.committed ? 100 : 0);
+  const hsRef = useRef<HoldState>(hs);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const acted = useRef(false);
+  const handledAt = useRef(0);
+  const pressedViaKey = useRef<string | null>(null);
+  const node = useRef<ViewInstance>(null);
+  const focus = useFocus();
+  const { onCommit, onHoldState, hold } = p;
+
+  const clearTimers = useCallback(() => {
+    for (const x of timers.current) clearTimeout(x);
+    timers.current = [];
+  }, []);
+
+  const move = useCallback(
+    (to: number, how: "press60" | "rebound") => {
+      if (motion.reduced) return;
+      travel.set(how === "press60" ? withTiming(to, tween("press60")) : withSpring(to, spring("rebound")));
+    },
+    [motion.reduced, travel],
+  );
+
+  const dispatch = useCallback(
+    (e: HoldEvent) => {
+      const before = hsRef.current;
+      const after = holdReducer(before, e);
+      if (after === before) return;
+      hsRef.current = after;
+      setHs(after);
+      onHoldState?.(after);
+      if (after === "holding") {
+        progress.set(0);
+        if (!motion.reduced) progress.set(withTiming(1, { duration: hold, easing: Easing.linear }));
+        setPct(0);
+        for (const q of [1, 2, 3] as const) {
+          timers.current.push(
+            setTimeout(
+              () => {
+                setPct(q * 25);
+                move(Math.min(d - 1, 2 * q), "press60");
+                feedback.play("hold.quarter");
+              },
+              (hold * q) / 4,
+            ),
+          );
+        }
+        timers.current.push(setTimeout(() => dispatchRef.current({ type: "complete" }), hold));
+      } else if (after === "armed") {
+        clearTimers();
+        setPct(100);
+        move(d, "press60");
+        feedback.play("hold.bottom");
+      } else if (after === "committed") {
+        clearTimers();
+        setPct(100);
+        progress.set(1);
+        travel.set(motion.reduced ? 0 : d);
+      } else if (after === "released-early" || after === "disarmed" || after === "rest") {
+        clearTimers();
+        setPct(0);
+        cancelAnimation(progress);
+        progress.set(motion.reduced ? 0 : withTiming(0, tween("retract")));
+        move(0, "rebound");
+      }
+      if (commits(before, after)) void onCommit();
+    },
+    [clearTimers, d, hold, motion.reduced, move, onCommit, onHoldState, progress, travel],
+  );
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  useEffect(() => {
+    if (p.committed && hsRef.current !== "committed") {
+      hsRef.current = "committed";
+      setHs("committed");
+      setPct(100);
+      progress.set(1);
+      travel.set(motion.reduced ? 0 : d);
+    }
+  }, [p.committed, d, motion.reduced, progress, travel]);
+
+  // Backgrounding the app, or the page losing focus or visibility, disarms a hold in progress.
+  useEffect(() => {
+    const cancel = () => dispatchRef.current({ type: "cancel" });
+    const sub = AppState.addEventListener("change", (s) => s !== "active" && cancel());
+    if (Platform.OS !== "web" || typeof window === "undefined") return () => sub.remove();
+    const onVisibility = () => document.visibilityState === "hidden" && cancel();
+    window.addEventListener("blur", cancel);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      sub.remove();
+      window.removeEventListener("blur", cancel);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  const native = Platform.OS !== "web";
+
+  const onPressIn = (e: GestureResponderEvent) => {
+    if (flush || p.disabled || hsRef.current === "committed") return;
+    acted.current = false;
+    if (native) {
+      if (motion.screenReader) return; // TalkBack users get the dialog on activation
+      dispatch({ type: "press" });
+      return;
+    }
+    const key = (e.nativeEvent as unknown as { key?: string }).key;
+    pressedViaKey.current = key ?? null;
+    if (key !== undefined && routeFor("keyboard", key) === "dialog") return; // Enter: the dialog, on activation
+    dispatch({ type: "press" });
+  };
+
+  const onPressOut = (e: GestureResponderEvent) => {
+    if (native) {
+      // RN calls onPressOut then, only for a release inside, onPress in the same tick.
+      queueMicrotask(() => {
+        if (!acted.current) dispatch({ type: "cancel" });
+      });
+      return;
+    }
+    const ev = e.nativeEvent as unknown;
+    if (pressedViaKey.current !== null) {
+      // Space released: focus never left the slab, so this is a release inside.
+      if (hsRef.current === "holding" || hsRef.current === "armed") {
+        handledAt.current = Date.now();
+        dispatch({ type: "release", inside: true });
+      }
+      return;
+    }
+    if (isCancelEvent(ev)) {
+      dispatch({ type: "cancel" });
+      return;
+    }
+    const el = node.current as unknown as { getBoundingClientRect?: () => DOMRect } | null;
+    const inside = isInside(releasePoint(ev), el?.getBoundingClientRect?.() ?? null);
+    handledAt.current = Date.now();
+    dispatch({ type: "release", inside });
+  };
+
+  const onPress = () => {
+    if (flush || p.disabled) return;
+    if (native) {
+      acted.current = true;
+      if (motion.screenReader) return dispatch({ type: "activate" });
+      dispatch({ type: "release", inside: true });
+      return;
+    }
+    // A pointer or Space release was already handled from its own event; the browser's click that follows is not
+    // a second activation. Anything else (Enter, a screen reader's virtual click) takes the dialog route.
+    if (Date.now() - handledAt.current < PRESS_WINDOW_MS) return;
+    dispatch({ type: "activate" });
+  };
+
+  const label = hs === "armed" ? (p.armedLabel ?? tr("slab.release")) : p.label;
+  const state: SlabState = flush ? (p.bolted ? "bolted" : "unavailable") : slabStateFor(hs);
+
+  return (
+    <View style={p.style}>
+      <Pressable
+        ref={node}
+        testID={p.testID}
         dataSet={{ state, holdProgress: String(pct) }}
         accessibilityRole="button"
-        accessibilityLabel={srLabel}
-        accessibilityState={{ disabled: flush || !!disabled }}
-        accessibilityHint={unavailableReason}
-        disabled={disabled}
+        accessibilityLabel={p.srLabel}
+        accessibilityHint={p.unavailableReason}
+        accessibilityState={{ disabled: flush || !!p.disabled, busy: hs === "holding" }}
+        disabled={p.disabled || flush}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         onPress={onPress}
-        onLayout={onLayout}
-        style={{ paddingRight: d, paddingBottom: d }}
+        onFocus={focus.onFocus}
+        onBlur={() => {
+          focus.onBlur();
+          if (!native) dispatch({ type: "cancel" });
+        }}
+        onContextMenu={(e: { preventDefault(): void }) => e.preventDefault()}
+        style={WEB_PRESS}
       >
-        {width > 0 && showEdges ? (
-          <>
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.edge,
-                { left: width, top: 0, width: d, height, backgroundColor: face.edgeRight },
-                rightEdge,
-              ]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.edge,
-                { left: 0, top: height, width, height: d, backgroundColor: face.edgeBottom },
-                bottomEdge,
-              ]}
-            />
-          </>
-        ) : null}
-        <Animated.View
-          style={[
-            styles.face,
-            { height, backgroundColor: faceColor, borderColor: flush ? t.color.rule : faceColor },
-            flush ? null : faceStyle,
-          ]}
-        >
-          {flush ? <Hatch /> : null}
-          {hold && !reduced ? (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: tone === "jade" ? "rgba(28,21,17,0.14)" : "rgba(255,255,255,0.16)" },
-                styles.fillOrigin,
-                fill,
-              ]}
-            />
-          ) : null}
-          {!flush ? <View pointerEvents="none" style={styles.highlight} /> : null}
-          <View style={styles.content} pointerEvents="none">
-            {bolted ? <Glyph name="bolt" size={20} color={labelColor} /> : null}
-            {icon ? <Glyph name={icon} size={24} color={labelColor} /> : null}
-            <Txt kind="slab" style={{ color: labelColor }}>
-              {label}
-            </Txt>
-          </View>
-        </Animated.View>
+        <SlabFace
+          depth={p.depth}
+          tone={p.tone}
+          height={p.height ?? target.hero}
+          travel={travel}
+          progress={progress}
+          flush={flush}
+          showFill={!motion.reduced}
+          focused={focus.focused}
+          label={label}
+          icon={p.icon}
+          bolted={p.bolted}
+        />
       </Pressable>
-      {hold && reduced && state === "holding" ? (
-        <View style={[styles.stepped, { borderColor: t.color.rule }]} accessibilityLiveRegion="polite">
+      {motion.reduced && (hs === "holding" || hs === "armed") ? (
+        <View style={styles.stepped} accessibilityLiveRegion="polite" testID={`${p.testID}.steps`}>
           {[25, 50, 75, 100].map((q) => (
-            <View
-              key={q}
-              style={[styles.step, { backgroundColor: pct >= q ? t.color.ink : t.color.plate2 }]}
-            />
+            <SteppedCell key={q} on={pct >= q} />
           ))}
           <Txt kind="figureS" color="ink2" style={{ marginLeft: space.s8 }}>
-            {`${pct}%`}
+            {tr("slab.progress", { pct })}
           </Txt>
         </View>
       ) : null}
-      {early && holdUntilLabel ? (
-        <Txt kind="caption" color="ink2" style={{ marginTop: space.s4 }} accessibilityLiveRegion="polite">
-          {holdUntilLabel}
+      {hs === "released-early" ? (
+        <Txt kind="caption" color="ink2" style={styles.below} accessibilityLiveRegion="polite">
+          {p.holdUntilLabel ?? tr("slab.holdUntil")}
         </Txt>
       ) : null}
-      {unavailableReason ? (
-        <Txt kind="caption" color="ink2" style={{ marginTop: space.s4 }} accessible>
-          {unavailableReason}
+      {hs === "disarmed" ? (
+        <Txt kind="caption" color="ink2" style={styles.below} accessibilityLiveRegion="polite">
+          {p.disarmedLabel ?? tr("slab.disarmed")}
         </Txt>
       ) : null}
-      {hold && confirm && anotherWayLabel && !flush && state !== "committed" ? (
+      {p.unavailableReason ? (
+        <Txt kind="caption" color="ink2" style={styles.below} accessible>
+          {p.unavailableReason}
+        </Txt>
+      ) : null}
+      {p.confirm && !flush && hs !== "committed" ? (
         <Button
           variant="text"
-          label={anotherWayLabel}
-          onPress={() => setDialog(true)}
-          testID={`${testID}.another-way`}
-          style={{ alignSelf: "flex-start", marginTop: space.s4 }}
+          label={p.anotherWayLabel ?? tr("slab.another")}
+          onPress={() => dispatch({ type: "activate" })}
+          testID={`${p.testID}.another-way`}
+          style={styles.another}
         />
       ) : null}
-      {confirm ? (
+      {p.confirm ? (
         <ConfirmDialog
-          visible={dialog}
-          {...confirm}
-          onCancel={() => setDialog(false)}
-          onConfirm={() => {
-            setDialog(false);
-            commit();
-          }}
+          visible={hs === "confirm"}
+          spec={p.confirm}
+          testID={`${p.testID}.confirm`}
+          onCancel={() => dispatch({ type: "dialog-cancel" })}
+          onConfirm={() => dispatch({ type: "dialog-confirm" })}
         />
       ) : null}
     </View>
   );
 }
 
-/** Material dialog route for hold-to-commit (S2.7 "Hold alternative"). */
-export function ConfirmDialog(p: SlabConfirm & { visible: boolean; onConfirm(): void; onCancel(): void }) {
+function SteppedCell({ on }: { on: boolean }) {
   const { t } = useFs();
   return (
-    <Modal
-      transparent
-      visible={p.visible}
-      animationType="fade"
-      onRequestClose={p.onCancel}
-      statusBarTranslucent
-    >
-      <View style={[styles.scrim, { backgroundColor: t.color.scrim }]}>
-        <View
-          accessibilityViewIsModal
-          style={[styles.dialog, { backgroundColor: t.color.plate2, borderColor: t.color.rule }]}
-        >
-          <Txt kind="title2" accessibilityRole="header">
-            {p.title}
-          </Txt>
-          <Txt kind="body" color="ink2">
-            {p.body}
-          </Txt>
-          <View style={styles.dialogActions}>
-            <Button variant="text" label={p.cancelLabel} onPress={p.onCancel} testID="confirm.cancel" />
-            <Button label={p.confirmLabel} onPress={p.onConfirm} testID="confirm.ok" />
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <View
+      style={[styles.step, { backgroundColor: on ? t.color.ink : t.color.plate2, borderColor: t.color.rule }]}
+    />
   );
 }
 
@@ -386,22 +585,8 @@ const styles = StyleSheet.create({
     gap: space.s12,
     paddingHorizontal: space.s16,
   },
-  stepped: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s4,
-    marginTop: space.s8,
-    paddingVertical: space.s4,
-  },
-  step: { flex: 1, height: 8 },
-  scrim: { flex: 1, alignItems: "center", justifyContent: "center", padding: space.s24 },
-  dialog: {
-    width: "100%",
-    maxWidth: 420,
-    gap: space.s16,
-    padding: space.s24,
-    borderWidth: 1,
-    borderRadius: radius.plate,
-  },
-  dialogActions: { flexDirection: "row", justifyContent: "flex-end", gap: space.s8 },
+  stepped: { flexDirection: "row", alignItems: "center", gap: space.s4, marginTop: space.s8 },
+  step: { flex: 1, height: 8, borderWidth: 1 },
+  below: { marginTop: space.s4 },
+  another: { alignSelf: "flex-start", marginTop: space.s4 },
 });

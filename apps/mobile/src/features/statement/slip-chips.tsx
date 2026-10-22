@@ -4,7 +4,7 @@ import type { StatementSlip } from "../../_shims/api-client";
 import { format } from "../../_shims/domain";
 import { space } from "../../_shims/tokens.native";
 import { Chip } from "../../ui/primitives";
-import { useT } from "../../ui/text";
+import { useT } from "./use-t";
 
 /** Slip chips that report where they were tapped, so MM-7 can zoom about the tap point. */
 export function SlipChips({

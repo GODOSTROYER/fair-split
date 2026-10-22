@@ -1,26 +1,28 @@
 /**
- * ReceiptBar (design §5): kilos × rate → premium (protected, "walay kaltas") → bonus → ruled deductions as rule
- * chips → credits → net. A proportional bar over a list, so it reads on a narrow phone and at 2× text. Every amount
- * can be tapped (MM-7 "Tap a peso").
+ * ReceiptBar (design §5, S2.2.1 member wording): her share of the co-op's verified kilos → premium (protected,
+ * "walay kaltas") → bonus → ruled deductions as rule chips → credits → net. Members never see a per-kg rate. A
+ * proportional bar over a list, so it reads on a narrow phone and at 2× text. Every amount can be tapped (MM-7).
  */
 import { type ReactNode, useRef } from "react";
 import { Pressable, StyleSheet, View, type ViewInstance } from "react-native";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import type { StatementDTO } from "../../_shims/api-client";
 import { format } from "../../_shims/domain";
-import { radius, space, springs, target } from "../../_shims/tokens.native";
+import { SPRINGS } from "../../_shims/motion";
+import { radius, space, target } from "../../_shims/tokens.native";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { Chip, Hatch } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { useT } from "./use-t";
 
 export type SegmentId = "premium" | "bonus" | "net" | `ded:${string}` | "credit";
 export type Mm7Phase = "rest" | "framed" | "expanded" | "zooming" | "zoomed" | "tiled" | "returning";
 
 const glide = LinearTransition.springify()
-  .stiffness(springs.glide.stiffness)
-  .damping(springs.glide.damping)
-  .mass(springs.glide.mass);
+  .stiffness(SPRINGS.glide.stiffness)
+  .damping(SPRINGS.glide.damping)
+  .mass(SPRINGS.glide.mass);
 
 function Row({
   id,
@@ -92,6 +94,7 @@ export function ReceiptBar({
   const gross = a.premiumCents + a.bonusCents;
   const deducted = a.deductions.reduce((s, d) => s + d.cents, 0);
   const kg = format.kg(dto.kilos.netGrams);
+  const coopKg = format.kg(dto.kilos.coopVerifiedGrams);
   const spoken = (c: number) => format.amountSpoken(c);
   const chipRefs = useRef<Record<string, ViewInstance | null>>({});
 
@@ -113,7 +116,7 @@ export function ReceiptBar({
         ) : null}
       </View>
       <Txt kind="figureS" color="ink2">
-        {tr("M-MB-01.kgRate", { kg, rate: `US$${dto.premiumRatePerKg}` })}
+        {tr("M-MB-01.share", { kg, coopKg })}
       </Txt>
 
       <View style={[styles.list, { borderColor: t.color.rule }]}>
@@ -133,9 +136,7 @@ export function ReceiptBar({
         >
           {expanded === "premium" ? (
             <Animated.View entering={FadeIn.duration(150)} style={styles.expanded} testID="M-MB-01.expanded">
-              <Txt kind="statementBody">
-                {tr("M-MB-01.expanded", { kg, rate: `US$${dto.premiumRatePerKg}`, rule: "R0" })}
-              </Txt>
+              <Txt kind="statementBody">{tr("M-MB-01.expanded", { kg, coopKg, rule: "R0" })}</Txt>
               <View style={styles.chips}>
                 {dto.slips.map((s) => (
                   <View
@@ -188,15 +189,17 @@ export function ReceiptBar({
             srLabel={`${d.label}, minus ${spoken(d.cents)}, ${d.ruleId}, ${dto.rateCard.id}`}
           />
         ))}
-        {a.creditsCents > 0 ? (
+        {a.credits.map((c) => (
           <Row
+            key={`credit-${c.slip}`}
             id="credit"
             label={tr("M-MB-01.credit")}
-            amount={format.usd(a.creditsCents)}
+            note={tr("M-MB-01.creditSlip", { slip: c.slip })}
+            amount={format.usd(c.cents)}
             framed={false}
-            srLabel={`${tr("M-MB-01.credit")}, ${spoken(a.creditsCents)}`}
+            srLabel={`${tr("M-MB-01.credit")}, ${spoken(c.cents)}, ${tr("M-MB-01.creditSlip", { slip: c.slip })}`}
           />
-        ) : null}
+        ))}
         <View style={[styles.total, { borderTopColor: t.color.ink }]}>
           <Row
             id="net"

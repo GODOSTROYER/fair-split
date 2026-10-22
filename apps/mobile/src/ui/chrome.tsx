@@ -1,16 +1,22 @@
 /**
- * App chrome on Material 3 structure, themed from our tokens: a navigation bar with three destinations per role,
- * a small top app bar, and the edge-to-edge screen frame (design §6 "Navigation"; android.md).
+ * App chrome on Material 3 structure, themed from our tokens (design §6 "Navigation"; Android guidance): the
+ * navigation bar with three destinations per role, a small top app bar, and the edge-to-edge screen frame that
+ * carries the screen's test hooks (`testID` = its register ID, `data-state` from IC-01's list) and the demo label.
  */
+
+import { useFocusEffect } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/tabs";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback } from "react";
 import { Pressable, ScrollView, type ScrollViewProps, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { radius, space, target } from "../_shims/tokens.native";
+import type { ScreenStateOf, ScreenWithStates } from "../_shims/contracts";
+import { space, target } from "../_shims/tokens.native";
+import { stage } from "../services/frame-bridge";
 import { useFs } from "../theme/theme";
 import { DemoLabel } from "./primitives";
 import { Txt } from "./text";
 
+/** M3 navigation bar: icon in a pill indicator over its label; 48 dp targets; the system Back stays the system's. */
 export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const { t } = useFs();
   const insets = useSafeAreaInsets();
@@ -45,12 +51,18 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
             accessibilityState={{ selected: focused }}
             accessibilityLabel={label}
             testID={`tab.${route.name.replace(/[^a-z]/gi, "")}`}
+            dataSet={{ state: focused ? "selected" : "idle" }}
             style={styles.item}
           >
             <View style={[styles.indicator, { backgroundColor: focused ? t.color.ink : "transparent" }]}>
               {options.tabBarIcon?.({ focused, color: focused ? t.color.plate : t.color.ink2, size: 24 })}
             </View>
-            <Txt kind="label" style={{ color: focused ? t.color.ink : t.color.ink2 }} numberOfLines={1}>
+            <Txt
+              kind="label"
+              style={{ color: focused ? t.color.ink : t.color.ink2 }}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+            >
               {label}
             </Txt>
           </Pressable>
@@ -60,6 +72,7 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
   );
 }
 
+/** M3 small top app bar: a leading action, the title (a header for screen readers), trailing actions. */
 export function TopBar({
   title,
   trailing,
@@ -84,37 +97,47 @@ export function TopBar({
   );
 }
 
-/** Edge-to-edge screen on the ground colour with 16 dp gutters and the demo label when it applies. */
-export function Screen({
-  children,
-  scroll = true,
-  topInset = true,
-  footer,
-  contentStyle,
-  testID,
-  state,
-  ...rest
-}: {
+export interface ScreenProps<S extends ScreenWithStates> {
+  /** The register's screen ID (`M-MB-01`…): the root's testID and the stage's `fs.focus`. */
+  testID: S;
+  /** `data-state`, from IC-01's list for this screen: an unlisted state fails to compile. */
+  state: ScreenStateOf<S>;
   children: ReactNode;
   scroll?: boolean;
   topInset?: boolean;
   footer?: ReactNode;
   contentStyle?: ScrollViewProps["contentContainerStyle"];
-  testID?: string;
-  state?: string;
-} & Pick<ScrollViewProps, "refreshControl">) {
+  refreshControl?: ScrollViewProps["refreshControl"];
+}
+
+/**
+ * Edge-to-edge screen on the ground colour with 16 dp gutters and 24 dp between sections (design §2.4), the demo
+ * label whenever data is not live (I8), and the screen's test hooks. In a judge frame it tells the stage which
+ * screen it shows (IC-12 `fs.focus`).
+ */
+export function Screen<S extends ScreenWithStates>({
+  testID,
+  state,
+  children,
+  scroll = true,
+  topInset = true,
+  footer,
+  contentStyle,
+  refreshControl,
+}: ScreenProps<S>) {
   const { t } = useFs();
   const insets = useSafeAreaInsets();
+  useFocusEffect(
+    useCallback(() => {
+      stage.focus(testID);
+    }, [testID]),
+  );
   const pad = { paddingTop: topInset ? insets.top + space.s16 : space.s16 };
   return (
-    <View
-      testID={testID}
-      dataSet={state ? { state } : undefined}
-      style={[styles.screen, { backgroundColor: t.color.ground }]}
-    >
+    <View testID={testID} dataSet={{ state }} style={[styles.screen, { backgroundColor: t.color.ground }]}>
       {scroll ? (
         <ScrollView
-          {...rest}
+          refreshControl={refreshControl}
           contentContainerStyle={[styles.content, pad, contentStyle]}
           keyboardShouldPersistTaps="handled"
         >
@@ -142,7 +165,7 @@ const styles = StyleSheet.create({
   indicator: {
     width: 64,
     height: 32,
-    borderRadius: radius.plate,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },

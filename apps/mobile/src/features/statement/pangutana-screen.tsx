@@ -14,8 +14,9 @@ import { Screen } from "../../ui/chrome";
 import { Banner, Chip, InkStamp, MachineTranslatedNote, SectionTitle } from "../../ui/primitives";
 import { figures, Sentence } from "../../ui/sentence";
 import { Slab } from "../../ui/slab";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import { useStatement } from "./use-statement";
+import { useT } from "./use-t";
 
 export function PangutanaScreen() {
   const { api, lang, session } = useApp();

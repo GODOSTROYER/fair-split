@@ -48,6 +48,11 @@ export interface FsColors {
   copyYellow: string;
   scrim: string;
   pencilWash: string;
+  /**
+   * Money in flight on member surfaces (S2.2 "hollow-fill"): ink mixed 65% over plate, drawn with a 2 px ink stroke
+   * so a hollow amount stays legible in daylight yet reads clearly lighter than landed ink.
+   */
+  hollowFill: string;
   /** Hand-written ballpoint blue on synthetic slips only (Jessie's capitals). Never UI. */
   ballpoint: string;
 }
@@ -97,6 +102,7 @@ export const adlaw: FsTokens = {
     copyYellow: "#F5E27A",
     scrim: "rgba(28, 21, 17, 0.40)",
     pencilWash: "#EDEEEF",
+    hollowFill: "#6B6764",
     ballpoint: "#1E3A8A",
   },
   slab: {
@@ -143,6 +149,7 @@ export const tablea: FsTokens = {
     copyYellow: "#F5E27A",
     scrim: "rgba(16, 11, 8, 0.64)",
     pencilWash: "#39312B",
+    hollowFill: "#ADA59D",
     ballpoint: "#1E3A8A",
   },
   slab: {
@@ -177,30 +184,36 @@ export const target = { min: 48, primary: 56, hero: 64, play: 72 } as const;
 /** Slab edge depth in px: d1 reversible, d2 changes a line, d3 moves money or signs. */
 export const slabDepth = { d1: 3, d2: 5, d3: 8 } as const;
 
+/** Layers (S2.4): what sits above what, so sheets, snackbars and dialogs never fight. */
+export const layer = {
+  sticky: 10,
+  dock: 20,
+  scrim: 29,
+  drawer: 30,
+  popover: 40,
+  snackbar: 50,
+  dialog: 60,
+  flight: 70,
+} as const;
+
+/** Motion presets moved to `motion.ts` (the @fairsplit/motion shim): springs, tweens, timelines, feedback. */
+
 /**
- * Spring presets (design §3, S2.8): mass 1, k = (2π/d)², c = 4π(1−b)/d. Reanimated receives
- * `{ stiffness, damping, mass: 1 }` and never `duration`/`dampingRatio`.
+ * Material 3 roles for Android system chrome (S2.1 `m3.ts`): primary is ink, surfaces are ground, plate and plate-2,
+ * the outline is the rule, error is red. Jade and canary get no role, so money's colour can never leak into a
+ * navigation indicator or a focus state.
  */
-export const springs = {
-  rebound: { stiffness: 503.6, damping: 29.2, mass: 1 },
-  land: { stiffness: 385.5, damping: 27.5, mass: 1 },
-  settle: { stiffness: 157.9, damping: 21.4, mass: 1 },
-  glide: { stiffness: 195.0, damping: 27.9, mass: 1 },
-  needle: { stiffness: 48.7, damping: 5.6, mass: 1 },
-} as const;
-
-/** Machine tweens and press (ms; cubic-bezier control points). */
-export const tweens = {
-  press: { duration: 90, bezier: [0.23, 1, 0.32, 1] },
-  press60: { duration: 60, bezier: [0.23, 1, 0.32, 1] },
-  print: { duration: 180, bezier: null },
-  engrave: { duration: 600, bezier: null, stagger: 120 },
-  digitIn: { duration: 150, bezier: [0.23, 1, 0.32, 1] },
-  digitOut: { duration: 120, bezier: [0.23, 1, 0.32, 1] },
-  reduced: { duration: 150, bezier: null },
-  retract: { duration: 200, bezier: [0.23, 1, 0.32, 1] },
-  glideFallback: { duration: 200, bezier: null },
-} as const;
-
-/** Hold-to-commit durations (S2.7). */
-export const holdMs = { console: 1600, phone: 1200 } as const;
+export function m3(t: FsTokens) {
+  return {
+    primary: t.color.ink,
+    onPrimary: t.color.plate,
+    surface: t.color.ground,
+    onSurface: t.color.ink,
+    onSurfaceVariant: t.color.ink2,
+    surfaceContainer: t.color.plate,
+    surfaceContainerHigh: t.color.plate2,
+    outline: t.color.rule,
+    error: t.color.red,
+    scrim: t.color.scrim,
+  } as const;
+}

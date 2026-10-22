@@ -16,18 +16,21 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LANGS } from "../../_shims/contracts";
-import { translate } from "../../_shims/i18n";
-import { radius, space, springs, target } from "../../_shims/tokens.native";
+import { TIMELINE } from "../../_shims/motion";
+import { radius, space, target } from "../../_shims/tokens.native";
 import { statementSentences } from "../../lib/statement";
+import { feedback } from "../../platform/feedback";
 import { pickLanguage, type SpeakHandle, speakSequence } from "../../platform/speech";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
+import { LanguagePicker } from "../../ui/language-picker";
+import { spring } from "../../ui/motion";
 import { Button, Chip, MachineTranslatedNote } from "../../ui/primitives";
 import { Sentence } from "../../ui/sentence";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import { useStatement } from "./use-statement";
+import { useT } from "./use-t";
 
 function LiftingChip({ serial, lit }: { serial: string; lit: number }) {
   const { t, motion } = useFs();
@@ -35,7 +38,12 @@ function LiftingChip({ serial, lit }: { serial: string; lit: number }) {
   useEffect(() => {
     if (!lit) return;
     if (motion.reduced) return;
-    y.set(withSequence(withSpring(-8, springs.settle), withDelay(1200, withSpring(0, springs.settle))));
+    y.set(
+      withSequence(
+        withSpring(-TIMELINE.paminawaChip.liftDp, spring("settle")),
+        withDelay(TIMELINE.paminawaChip.litMs, withSpring(0, spring("settle"))),
+      ),
+    );
   }, [lit, motion.reduced, y]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateY: y.get() }] }));
   const on = lit > 0;
@@ -57,7 +65,7 @@ function LiftingChip({ serial, lit }: { serial: string; lit: number }) {
 }
 
 export function PaminawaScreen() {
-  const { lang, setLang } = useApp();
+  const { lang } = useApp();
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
@@ -74,21 +82,18 @@ export function PaminawaScreen() {
   const playlist = useAudioPlaylist({ sources: hasClips ? clips.map((c) => ({ uri: c.url })) : [] });
   const status = useAudioPlaylistStatus(playlist);
 
-  // Lock-screen controls need `doNotMix` (S2.7); product sounds stay silent while Paminawa plays.
+  // No product sound under narration: the feedback layer stays quiet while this sheet is open, and restores the
+  // product audio mode when it closes. Lock-screen controls need `doNotMix` (S2.7).
   useEffect(() => {
-    if (!hasClips) return;
-    void setAudioModeAsync({
-      playsInSilentMode: true,
-      interruptionMode: "doNotMix",
-      shouldPlayInBackground: true,
-    });
-    return () => {
+    feedback.narration(true);
+    if (hasClips) {
       void setAudioModeAsync({
-        playsInSilentMode: false,
-        interruptionMode: "mixWithOthers",
-        shouldPlayInBackground: false,
+        playsInSilentMode: true,
+        interruptionMode: "doNotMix",
+        shouldPlayInBackground: true,
       });
-    };
+    }
+    return () => feedback.narration(false);
   }, [hasClips]);
 
   useEffect(() => {
@@ -167,17 +172,7 @@ export function PaminawaScreen() {
           <Glyph name="close" color={t.color.ink} />
         </Pressable>
       </View>
-      <View style={styles.langs}>
-        {LANGS.map((l) => (
-          <Chip
-            key={l}
-            label={translate(l, "M-ON-01.lang.name")}
-            selected={l === lang}
-            onPress={() => setLang(l)}
-            testID={`M-MB-03.lang.${l}`}
-          />
-        ))}
-      </View>
+      <LanguagePicker testID="M-MB-03.lang" />
 
       <Animated.ScrollView contentContainerStyle={styles.transcript}>
         {sentences.map((s, i) => (

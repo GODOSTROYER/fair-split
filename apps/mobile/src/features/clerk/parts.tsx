@@ -10,7 +10,8 @@ import type { CaptureState } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { Button } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { useT } from "./use-t";
 
 export function ProgressRing({
   state,

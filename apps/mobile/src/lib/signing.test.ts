@@ -2,11 +2,13 @@ import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { ApprovalSubmission } from "../_shims/api-client";
 import type { ApprovalPayload } from "../_shims/contracts";
-import { jcs } from "../_shims/domain";
+import { linesDigest as digestLines, jcs } from "../_shims/domain";
 import {
   batchItems,
   batchSha256,
   batchTotalCents,
+  linesDigest,
+  namedLines,
   people,
   rateCardSha256,
   runId,
@@ -32,6 +34,7 @@ const expected: ExpectedBatch = {
   runId,
   rateCardSha256,
   batchSha256,
+  linesDigest,
   itemCount: batchItems.length,
   totalCents: batchTotalCents,
   role: "CHAIR",
@@ -44,6 +47,7 @@ function payload(over: Partial<ApprovalPayload> = {}): ApprovalPayload {
     seasonId: season.id,
     rateCardSha256,
     batchSha256,
+    linesDigest,
     itemCount: batchItems.length,
     totalCents: batchTotalCents,
     currency: "USD",
@@ -78,8 +82,26 @@ describe("approval payload", () => {
     ["itemCount", { itemCount: 9 }],
     ["rateCardSha256", { rateCardSha256: "f".repeat(64) }],
     ["runId", { runId: "run_other" }],
+    ["linesDigest", { linesDigest: "e".repeat(64) }],
   ] as const)("inv.i4.payload-differs: refuses when %s differs from the screen", (_k, over) => {
     expect(checkApprovalPayload(payload(over), expected, NOW)).toEqual({ ok: false, problem: "mismatch" });
+  });
+
+  it("inv.i4.cash-lines-bound: moving one cent between cash and PayPal lines changes the lines digest", () => {
+    const moved = namedLines.map((l) =>
+      l.memberNo === "M-053"
+        ? { ...l, netCents: l.netCents - 1 }
+        : l.memberNo === "M-014"
+          ? { ...l, netCents: l.netCents + 1 }
+          : l,
+    );
+    const changed = digestLines(runId, moved);
+    expect(changed).not.toBe(linesDigest);
+    expect(digestLines(runId, [...namedLines].reverse())).toBe(linesDigest); // order-independent
+    expect(checkApprovalPayload(payload({ linesDigest: changed }), expected, NOW)).toEqual({
+      ok: false,
+      problem: "mismatch",
+    });
   });
 
   it("refuses the wrong role, an expired request and an exp more than 30 minutes out", () => {
@@ -106,6 +128,9 @@ describe("approval payload", () => {
     });
     const { nonce: _n, ...missing } = payload();
     expect(checkApprovalPayload(missing, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
+    // The register's pre-amendment payload (no linesDigest) is refused rather than signed without the cash lines.
+    const { linesDigest: _l, ...preAmendment } = payload();
+    expect(checkApprovalPayload(preAmendment, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
     expect(checkApprovalPayload(null, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
   });
 });

@@ -7,6 +7,7 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 import type { ApiResult, ApprovalSubmission } from "../_shims/api-client";
 import type { ApprovalPayload, ApprovalRole, BatchItem } from "../_shims/contracts";
+import { APPROVAL_PAYLOAD_KEYS } from "../_shims/contracts";
 import { batchDigest, jcs } from "../_shims/domain";
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -17,6 +18,8 @@ export interface ExpectedBatch {
   runId: string;
   rateCardSha256: string;
   batchSha256: string;
+  /** Every member line, PayPal and cash (approved plan): a key binds the cash lines too. */
+  linesDigest: string;
   itemCount: number;
   totalCents: number;
   role: ApprovalRole;
@@ -34,21 +37,7 @@ export function checkApprovalPayload(raw: unknown, expected: ExpectedBatch, now:
   if (!raw || typeof raw !== "object") return { ok: false, problem: "malformed" };
   const p = raw as Record<string, unknown>;
   const keys = Object.keys(p).sort().join(",");
-  const want = [
-    "approverId",
-    "batchSha256",
-    "currency",
-    "exp",
-    "itemCount",
-    "nonce",
-    "rateCardSha256",
-    "role",
-    "runId",
-    "seasonId",
-    "totalCents",
-    "v",
-  ].join(",");
-  if (keys !== want) return { ok: false, problem: "malformed" };
+  if (keys !== [...APPROVAL_PAYLOAD_KEYS].sort().join(",")) return { ok: false, problem: "malformed" };
   if (
     p.v !== 1 ||
     typeof p.runId !== "string" ||
@@ -57,6 +46,8 @@ export function checkApprovalPayload(raw: unknown, expected: ExpectedBatch, now:
     !HEX64.test(p.rateCardSha256) ||
     typeof p.batchSha256 !== "string" ||
     !HEX64.test(p.batchSha256) ||
+    typeof p.linesDigest !== "string" ||
+    !HEX64.test(p.linesDigest) ||
     !isInt(p.itemCount) ||
     !isInt(p.totalCents) ||
     p.currency !== "USD" ||
@@ -72,6 +63,7 @@ export function checkApprovalPayload(raw: unknown, expected: ExpectedBatch, now:
   if (
     p.runId !== expected.runId ||
     p.batchSha256 !== expected.batchSha256 ||
+    p.linesDigest !== expected.linesDigest ||
     p.rateCardSha256 !== expected.rateCardSha256 ||
     p.itemCount !== expected.itemCount ||
     p.totalCents !== expected.totalCents

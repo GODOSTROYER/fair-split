@@ -131,3 +131,43 @@ export function amountIsSolid(state: CapsuleState): boolean {
 
 /** The pending ring animates for at most 60 s, then shows elapsed time only (design §3 rule 2). */
 export const PENDING_RING_MAX_MS = 60_000;
+
+/**
+ * One job per colour (design §2.2): `landed` is jade flush (PayPal confirmed), `decide` canary (a person must
+ * decide; never an error, and UNCLAIMED is "Parked", never red), `failure` red (only a PayPal failure), `cash` hatch
+ * with a word, `pending` graphite (sent, waiting for PayPal), `neutral` for the rest.
+ */
+export type StatusTone = "landed" | "decide" | "failure" | "cash" | "pending" | "neutral";
+
+export const STATUS_TONE: Readonly<Record<MemberStatus, StatusTone>> = {
+  HELD: "decide",
+  EXCLUDED: "neutral",
+  PAYPAL_PENDING: "pending",
+  PAID: "landed",
+  OFF_RAIL_DUE: "cash",
+  OFF_RAIL_PAID: "cash",
+  UNCLAIMED: "decide",
+  RETURNED: "neutral",
+  REROUTED: "pending",
+  PAYPAL_HELD: "decide",
+  NEEDS_ACTION: "failure",
+  REVERSED: "failure",
+};
+
+/** Every status also carries a glyph, so no state is told by colour alone (names from ui/glyph). */
+export const STATUS_GLYPH: Readonly<
+  Record<MemberStatus, "scale" | "info" | "clock" | "check" | "cash" | "refresh" | "lock" | "close">
+> = {
+  HELD: "scale",
+  EXCLUDED: "info",
+  PAYPAL_PENDING: "clock",
+  PAID: "check",
+  OFF_RAIL_DUE: "cash",
+  OFF_RAIL_PAID: "check",
+  UNCLAIMED: "info",
+  RETURNED: "refresh",
+  REROUTED: "refresh",
+  PAYPAL_HELD: "lock",
+  NEEDS_ACTION: "close",
+  REVERSED: "refresh",
+};

@@ -6,23 +6,25 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LANGS, type Lang } from "../../_shims/contracts";
-import { translate } from "../../_shims/i18n";
 import { radius, space, target } from "../../_shims/tokens.native";
-import { pickLanguage, speakOnce } from "../../platform/speech";
+import { HREF } from "../../services/session";
+import { pickVoiceLanguage, speakOnce } from "../../services/voice";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Button } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { t as translate } from "./messages";
+import { useT } from "./use-t";
 
 export function LanguageScreen() {
-  const { lang, setLang, completeFirstRun } = useApp();
+  const { lang, setLang } = useApp();
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
 
-  const play = async (l: Lang) => speakOnce(translate(l, "M-ON-01.lang.sample"), await pickLanguage(l));
+  const play = async (l: Lang) => speakOnce(translate(l, "M-ON-01.lang.sample"), await pickVoiceLanguage(l));
 
   return (
     <Screen
@@ -39,10 +41,7 @@ export function LanguageScreen() {
             tall
             label={tr("M-ON-01.continue")}
             testID="M-ON-01.continue"
-            onPress={() => {
-              completeFirstRun("lang");
-              router.replace("/onboarding/theme");
-            }}
+            onPress={() => router.replace(HREF.theme)}
           />
         </View>
       }

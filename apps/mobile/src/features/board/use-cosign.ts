@@ -10,13 +10,14 @@ import type { ApprovalPayload, ApprovalSignedPayload, PresencePayload } from "..
 import { batchMatchesItems, checkApprovalPayload, type ExpectedBatch } from "../../lib/signing";
 import { useApp } from "../../state/app";
 
-export type CosignState = "loading" | "request" | "changed" | "expired" | "signed" | "offline" | "missing";
+export type CosignState = "loading" | "request" | "changed" | "expired" | "signed" | "offline" | "none";
 
 export function expectedFor(dto: CosignRequestDTO): ExpectedBatch {
   return {
     runId: dto.runId,
     rateCardSha256: dto.rateCardSha256,
     batchSha256: dto.batchSha256,
+    linesDigest: dto.linesDigest,
     itemCount: dto.itemCount,
     totalCents: dto.totalCents,
     role: "CHAIR",
@@ -42,7 +43,7 @@ export function useCosign(runSlug: string) {
     const r = await api.getCosignRequest(runSlug);
     if (!alive.current) return;
     if (!r.ok) {
-      setState(r.code === "NETWORK" ? "offline" : "missing");
+      setState(r.code === "NETWORK" ? "offline" : "none");
       return;
     }
     const d = r.value;
@@ -65,7 +66,7 @@ export function useCosign(runSlug: string) {
     const p = await api.getApprovalPayload(runSlug, "CHAIR");
     if (!alive.current) return;
     if (!p.ok) {
-      setState(p.code === "NETWORK" ? "offline" : "missing");
+      setState(p.code === "NETWORK" ? "offline" : "none");
       return;
     }
     const check = checkApprovalPayload(p.value, expectedFor(d), new Date());

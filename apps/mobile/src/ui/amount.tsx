@@ -1,33 +1,57 @@
 /**
- * AmountDisplay (design §2.5 "Hollow", S2.3 "Money"). An approved amount that is not yet in the member's hands is
- * drawn as an outline; it fills when PayPal confirms (MM-1) or the cash is received. Both layers are SVG text at the
- * same coordinates so the fill lands exactly on the outline; a transparent React Native Text underneath carries the
- * layout, font scaling (capped at 1.5× for the 48 sp hero) and the full spoken label.
+ * AmountDisplay: the amount grammar (S2.2.1, IC-09), exposed as `data-amount-state`.
+ *
+ * | state    | large (≥28 px, member surface)                 | inline (<28 px)                                   |
+ * | -------- | ---------------------------------------------- | ------------------------------------------------- |
+ * | pencil   | solid pencil (read or computed, nobody signed) | pencil                                            |
+ * | you      | –                                              | pencil-faint in a 1.5 px canary cell, "You" tag  |
+ * | ink      | solid ink (a person entered or approved it)    | ink                                               |
+ * | hollow   | hollow-fill with a 2 px ink stroke (in flight) | ink-2 with a 1.5 px dashed underline              |
+ * | landed   | solid ink; its capsule is jade flush           | ink                                               |
+ * | attested | solid ink, beside the clerk's stamp            | ink                                               |
+ *
+ * Large amounts are one react-native-svg text with fill and stroke together, so the outline cannot drift from the
+ * fill at font scale 1.3 or 2.0; the hero caps at 1.5× (S2.2.1). MM-1 passes `fill` (0 hollow → 1 landed) and the
+ * solid layer fades in over the hollow one. The wrapper carries the full spoken label and hides the glyphs.
+ * Money text always arrives formatted by `format.*` (I1): this component never formats a number.
  */
 import { useState } from "react";
 import { type LayoutChangeEvent, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { type SharedValue, useAnimatedStyle } from "react-native-reanimated";
 import Svg, { Text as SvgText } from "react-native-svg";
+import type { AmountState } from "../_shims/contracts";
+import { FIGURE_VARIANT } from "../_shims/fonts";
+import { radius, space } from "../_shims/tokens.native";
 import { typeScale, useFs } from "../theme/theme";
-import { Txt } from "./text";
+import { Txt, useT } from "./text";
 
-export function AmountDisplay({
+export type AmountSize = "hero" | "l" | "figure";
+
+export interface AmountDisplayProps {
+  /** Already formatted: "US$64.45", "₱7,990.00". */
+  text: string;
+  /** The full spoken amount: `format.amountSpoken(cents, rate)` or `format.cashSpoken(…)`. */
+  srLabel: string;
+  state: AmountState;
+  size?: AmountSize;
+  /** MM-1: 0 shows the hollow amount, 1 the landed one; animate it on the verified event only. */
+  fill?: SharedValue<number>;
+  testID?: string;
+}
+
+export function AmountDisplay({ text, srLabel, state, size = "hero", fill, testID }: AmountDisplayProps) {
+  if (size === "figure") return <InlineAmount text={text} srLabel={srLabel} state={state} testID={testID} />;
+  return <LargeAmount text={text} srLabel={srLabel} state={state} size={size} fill={fill} testID={testID} />;
+}
+
+function LargeAmount({
   text,
   srLabel,
-  solid,
+  state,
+  size,
   fill,
-  size = "hero",
   testID,
-}: {
-  text: string;
-  srLabel: string;
-  /** Static solid/hollow when no animation drives it. */
-  solid: boolean;
-  /** 0 = hollow, 1 = solid; drives the MM-1 fill when given. */
-  fill?: SharedValue<number>;
-  size?: "hero" | "large";
-  testID?: string;
-}) {
+}: AmountDisplayProps & { size: "hero" | "l" }) {
   const { t } = useFs();
   const { fontScale } = useWindowDimensions();
   const role = size === "hero" ? "amountHero" : "amountL";
@@ -39,34 +63,59 @@ export function AmountDisplay({
   const onLayout = (e: LayoutChangeEvent) =>
     setBox({ w: Math.ceil(e.nativeEvent.layout.width) + 4, h: Math.ceil(e.nativeEvent.layout.height) });
 
-  const solidStyle = useAnimatedStyle(() => ({ opacity: fill ? fill.get() : solid ? 1 : 0 }));
+  const hollowLook = state === "hollow";
+  const solidColour = state === "pencil" || state === "you" ? t.color.pencil : t.color.ink;
+  const solidOpacity = useAnimatedStyle(() => ({ opacity: fill ? fill.get() : hollowLook ? 0 : 1 }));
   // Digits sit on the baseline: half the line plus ~0.36 em (Mona Sans cap height ≈ 0.72 em).
-  const baseline = lineHeight / 2 + fontSize * 0.36;
   const common = {
-    x: 1,
-    y: baseline,
+    x: 2,
+    y: lineHeight / 2 + fontSize * 0.36,
     fontSize,
     fontFamily: base.fontFamily,
     fontFeatureSettings: "'tnum' 1, 'ss08' 1",
   } as const;
 
   return (
-    <View testID={testID} dataSet={{ state: solid ? "solid" : "hollow" }}>
-      <Txt kind={role} onLayout={onLayout} accessibilityLabel={srLabel} style={{ color: "transparent" }}>
+    <View
+      testID={testID}
+      dataSet={{ amountState: state }}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={srLabel}
+    >
+      {/* Layout only: the same text at the same size, invisible; it sizes the SVG and wraps nothing. */}
+      <Txt
+        kind={role}
+        onLayout={onLayout}
+        allowFontScaling={false}
+        style={{ color: "transparent", fontSize, lineHeight }}
+        importantForAccessibility="no-hide-descendants"
+        aria-hidden
+      >
         {text}
       </Txt>
       {box.w > 0 ? (
         <>
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {hollowLook || fill ? (
+            <View
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Svg width={box.w} height={box.h}>
+                <SvgText {...common} fill={t.color.hollowFill} stroke={t.color.ink} strokeWidth={2}>
+                  {text}
+                </SvgText>
+              </Svg>
+            </View>
+          ) : null}
+          <Animated.View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, solidOpacity]}
+            importantForAccessibility="no-hide-descendants"
+          >
             <Svg width={box.w} height={box.h}>
-              <SvgText {...common} fill="none" stroke={t.color.ink} strokeWidth={1.25}>
-                {text}
-              </SvgText>
-            </Svg>
-          </View>
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, solidStyle]}>
-            <Svg width={box.w} height={box.h}>
-              <SvgText {...common} fill={t.color.ink}>
+              <SvgText {...common} fill={solidColour}>
                 {text}
               </SvgText>
             </Svg>
@@ -76,3 +125,55 @@ export function AmountDisplay({
     </View>
   );
 }
+
+function InlineAmount({ text, srLabel, state, testID }: Omit<AmountDisplayProps, "size" | "fill">) {
+  const { t } = useFs();
+  const tr = useT();
+  const colour =
+    state === "pencil"
+      ? t.color.pencil
+      : state === "you"
+        ? t.color.pencilFaint
+        : state === "hollow"
+          ? t.color.ink2
+          : t.color.ink;
+  const body = (
+    <Txt
+      kind="figure"
+      style={[
+        { color: colour, fontVariant: [...FIGURE_VARIANT] },
+        state === "hollow" ? { textDecorationLine: "underline", textDecorationStyle: "dashed" } : null,
+      ]}
+    >
+      {text}
+    </Txt>
+  );
+  return (
+    <View
+      testID={testID}
+      dataSet={{ amountState: state }}
+      accessible
+      accessibilityLabel={srLabel}
+      style={state === "you" ? [styles.you, { borderColor: t.color.canaryBorder }] : styles.inline}
+    >
+      {body}
+      {state === "you" ? (
+        <Txt kind="caption" color="canaryText">
+          {tr("amount.you")}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  inline: { flexDirection: "row", alignItems: "center" },
+  you: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s4,
+    paddingHorizontal: space.s4,
+    borderWidth: 1.5,
+    borderRadius: radius.plate,
+  },
+});

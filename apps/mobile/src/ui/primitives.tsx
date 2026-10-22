@@ -1,6 +1,8 @@
 /**
- * Small app primitives on the design tokens: flat buttons (for navigation and reversible, non-money actions;
- * human commits use the Slab), chips, the ink stamp, hatching, banners and the demo label.
+ * Small app primitives on the design tokens: flat buttons (navigation and reversible, non-money actions; a person's
+ * commit is a Slab), chips (choice, status, rule), the ink stamp, hatching, banners, the wordmark, hashes and the
+ * labels that keep simulated things honest (I8). Every one has its accessibility built in: a role, a label, its
+ * state, and a 48 dp target where it can be pressed.
  */
 import { type ReactNode, useState } from "react";
 import {
@@ -12,7 +14,9 @@ import {
   type ViewStyle,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import type { MemberStatus } from "../_shims/contracts";
 import { radius, space, target } from "../_shims/tokens.native";
+import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
 import { useApp } from "../state/app";
 import { useFs } from "../theme/theme";
 import { Glyph, type GlyphName } from "./glyph";
@@ -63,6 +67,7 @@ export function Button({ label, variant = "filled", icon, tall, style, disabled,
 
 /* ------------------------------------------------------------------ Chip */
 
+/** A choice: filled ink when selected. As a radio (`role="radio"`) it reports checked, as a toggle selected. */
 export function Chip({
   label,
   selected,
@@ -70,6 +75,7 @@ export function Chip({
   icon,
   testID,
   accessibilityLabel,
+  role = "button",
 }: {
   label: string;
   selected?: boolean;
@@ -77,6 +83,7 @@ export function Chip({
   icon?: GlyphName;
   testID?: string;
   accessibilityLabel?: string;
+  role?: "button" | "radio";
 }) {
   const { t } = useFs();
   const body = (
@@ -99,10 +106,11 @@ export function Chip({
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!selected }}
+      accessibilityRole={role}
+      accessibilityState={role === "radio" ? { checked: !!selected } : { selected: !!selected }}
       accessibilityLabel={accessibilityLabel ?? label}
       testID={testID}
+      dataSet={{ state: selected ? "selected" : "idle" }}
       hitSlop={6}
       style={({ pressed }) => [
         { minHeight: target.min, justifyContent: "center" },
@@ -231,6 +239,132 @@ export function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
+/* ------------------------------------------------------------------ StatusChip, RuleChip */
+
+/**
+ * A status in words, with a glyph, never by colour alone (design §2.2). One job per colour: jade flush means PayPal
+ * confirmed it; canary means a person must decide ("Gisusi pa", "Parked"), never an error; red is only a PayPal
+ * failure; hatch is cash at the bodega. `state` lands in `data-state` for tests.
+ */
+export function StatusChip({
+  label,
+  tone,
+  glyph,
+  testID,
+  state,
+}: {
+  label: string;
+  tone: StatusTone;
+  glyph?: GlyphName;
+  testID?: string;
+  state?: string;
+}) {
+  const { t } = useFs();
+  const look = {
+    landed: { bg: t.color.jade, fg: t.color.onJade, border: t.color.jadeFlushBorder },
+    decide: { bg: t.color.canary, fg: t.color.onCanary, border: t.color.canaryBorder },
+    failure: { bg: t.color.redWash, fg: t.color.red, border: t.color.red },
+    cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.rule },
+    pending: { bg: t.color.plate2, fg: t.color.ink, border: t.color.rule },
+    neutral: { bg: t.color.plate2, fg: t.color.ink2, border: t.color.rule },
+  }[tone];
+  return (
+    <View
+      testID={testID}
+      dataSet={{ state: state ?? tone, tone }}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={label}
+      style={[styles.status, { backgroundColor: look.bg, borderColor: look.border }]}
+    >
+      {tone === "cash" ? <Hatch /> : null}
+      {glyph ? <Glyph name={glyph} size={16} color={look.fg} /> : null}
+      <Txt kind="label" style={{ color: look.fg }}>
+        {label}
+      </Txt>
+    </View>
+  );
+}
+
+/** The member's status word for a line, in her language, with its tone and glyph (register §7). */
+export function MemberStatusChip({
+  status,
+  word,
+  testID,
+}: {
+  status: MemberStatus;
+  /** The word from IC-01's map (`MEMBER_STATUS_WORDS[status][lang]`), possibly with a date: "Bayad na, 30 Okt". */
+  word: string;
+  testID?: string;
+}) {
+  return (
+    <StatusChip
+      label={word}
+      tone={STATUS_TONE[status]}
+      glyph={STATUS_GLYPH[status]}
+      testID={testID}
+      state={status}
+    />
+  );
+}
+
+/** A ruled deduction (design §2.2): plate-2 with the rule ID in text, no hue of its own. "CBU −1.09 R1". */
+export function RuleChip({ ruleId, label, testID }: { ruleId: string; label?: string; testID?: string }) {
+  const { t } = useFs();
+  return (
+    <View
+      testID={testID}
+      accessible
+      accessibilityLabel={label ? `${label}, ${ruleId}` : ruleId}
+      style={[styles.rule, { backgroundColor: t.color.plate2, borderColor: t.color.rule }]}
+    >
+      {label ? <Txt kind="label">{label}</Txt> : null}
+      <Txt kind="label" color="ink2">
+        {ruleId}
+      </Txt>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ Wordmark, HashText */
+
+/** "Fair Split: co-op payroll": the name never appears without its descriptor (register §1, S2.7). */
+export function Wordmark({ size = "title2" }: { size?: "title1" | "title2" | "bodyStrong" }) {
+  const t = useT();
+  return (
+    <Txt kind={size} accessibilityRole="header">
+      {t("app.lockup")}
+    </Txt>
+  );
+}
+
+/** A hash in groups of four ("7f3a 91c2 …"), for cross-checking by eye against the console. */
+export function HashText({
+  hex,
+  groups,
+  testID,
+}: {
+  hex: string;
+  /** Show only the first n groups (the seal footer shows two; the co-sign shows four). */
+  groups?: number;
+  testID?: string;
+}) {
+  const t = useT();
+  const parts = hex.toLowerCase().match(/.{1,4}/g) ?? [];
+  const shown = (groups ? parts.slice(0, groups) : parts).join(" ");
+  return (
+    <Txt
+      kind="hash"
+      color="ink2"
+      selectable
+      testID={testID}
+      accessibilityLabel={t("seal.hash", { hash: shown })}
+    >
+      {shown}
+    </Txt>
+  );
+}
+
 export function Rule() {
   const { t } = useFs();
   return <View style={{ height: StyleSheet.hairlineWidth * 2, backgroundColor: t.color.rule }} />;
@@ -261,6 +395,26 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: space.s12,
     padding: space.s12,
+    borderWidth: 1,
+    borderRadius: radius.plate,
+  },
+  status: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: space.s4,
+    minHeight: 28,
+    paddingHorizontal: space.s8,
+    borderWidth: 1,
+    borderRadius: radius.plate,
+    overflow: "hidden",
+  },
+  rule: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s4,
+    paddingHorizontal: space.s8,
+    paddingVertical: 2,
     borderWidth: 1,
     borderRadius: radius.plate,
   },

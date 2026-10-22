@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ItemStatus, ItemUpdatedPayload, RunEvent } from "../_shims/contracts";
+import { MEMBER_STATUS_WORDS } from "../_shims/contracts";
 import {
   amountIsSolid,
   CAPSULE_WORD,
@@ -7,6 +8,8 @@ import {
   EMPTY_TRACK,
   type ItemTrack,
   reduceItemEvent,
+  STATUS_GLYPH,
+  STATUS_TONE,
 } from "./item-status";
 
 const ITEM = "r37-M-014";
@@ -97,5 +100,27 @@ describe("status capsule", () => {
     expect(amountIsSolid("cash-due")).toBe(false);
     expect(amountIsSolid("paid")).toBe(true);
     expect(amountIsSolid("cash-received")).toBe(true);
+  });
+});
+
+describe("status chips: one job per colour, never colour alone", () => {
+  it("never shows UNCLAIMED or a hold as a failure, and keeps red for PayPal failures", () => {
+    expect(STATUS_TONE.UNCLAIMED).toBe("decide");
+    expect(STATUS_TONE.HELD).toBe("decide");
+    expect(STATUS_TONE.PAID).toBe("landed");
+    expect(STATUS_TONE.OFF_RAIL_DUE).toBe("cash");
+    const red = Object.entries(STATUS_TONE)
+      .filter(([, tone]) => tone === "failure")
+      .map(([s]) => s)
+      .sort();
+    expect(red).toEqual(["NEEDS_ACTION", "REVERSED"]);
+  });
+
+  it("gives every member status a word in all three languages and a glyph", () => {
+    for (const status of Object.keys(STATUS_TONE) as (keyof typeof STATUS_TONE)[]) {
+      expect(STATUS_GLYPH[status]).toBeTruthy();
+      for (const lang of ["ceb", "fil", "en"] as const)
+        expect(MEMBER_STATUS_WORDS[status][lang]).toBeTruthy();
+    }
   });
 });

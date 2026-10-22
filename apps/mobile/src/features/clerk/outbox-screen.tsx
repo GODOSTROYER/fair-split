@@ -13,8 +13,10 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { TopBar } from "../../ui/chrome";
 import { Banner, Button, DemoLabel, Rule } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { useOutbox } from "./outbox-provider";
 import { ProgressRing } from "./parts";
+import { useT } from "./use-t";
 
 function useNow(ms: number) {
   const [now, setNow] = useState(Date.now());
@@ -92,7 +94,8 @@ function Row({ r, now, onSendNow }: { r: CaptureRecord; now: number; onSendNow()
 }
 
 export function OutboxScreen() {
-  const { outbox, online } = useApp();
+  const { online } = useApp();
+  const outbox = useOutbox();
   const { t } = useFs();
   const tr = useT();
   const now = useNow(1000);

@@ -5,7 +5,10 @@
  */
 
 import type { ApiResult, PairClaimRequest, PairClaimResponse } from "../_shims/api-client";
-import type { ApiErrorCode, AppRole, Lang } from "../_shims/contracts";
+import type { ApiErrorCode } from "../_shims/contracts";
+import type { PairedSession } from "../services/session";
+
+export type { PairedSession } from "../services/session";
 
 export type PairingInput =
   | { kind: "token"; token: string }
@@ -72,19 +75,6 @@ export function parsePairingInput(raw: string): PairingInput {
   return { kind: "token", token };
 }
 
-export interface PairedSession {
-  kind: "device" | "frame";
-  bearer: string;
-  expiresAt: string;
-  workspaceId: string;
-  persona: string;
-  role: AppRole;
-  memberNo: string | null;
-  displayName: string;
-  lang: Lang | null;
-  pairedAt: string;
-}
-
 export type PairingOutcome =
   | { ok: true; session: PairedSession }
   | { ok: false; state: "expired" | "used" | "invalid" | "offline" | "error"; code: ApiErrorCode | "INPUT" };
@@ -130,18 +120,4 @@ export async function claimPairing(input: PairingInput, deps: ClaimDeps): Promis
       pairedAt: deps.now().toISOString(),
     },
   };
-}
-
-/** Where a freshly paired phone lands (register §4 app navigation). */
-export function homeRouteFor(role: AppRole, runSlug: string | null): string {
-  if (role === "member") return "/(member)/(tabs)/bayad";
-  if (role === "clerk") return "/(clerk)/scan";
-  return runSlug ? `/(board)/pirma/${runSlug}` : "/(board)/pirma";
-}
-
-/** A session is usable until it expires; frame tokens last 2 hours, device tokens longer. */
-export function sessionValid(s: Pick<PairedSession, "expiresAt"> | null, now: Date): boolean {
-  if (!s) return false;
-  const t = Date.parse(s.expiresAt);
-  return Number.isFinite(t) && t > now.getTime();
 }

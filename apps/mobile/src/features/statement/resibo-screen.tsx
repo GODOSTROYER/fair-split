@@ -13,9 +13,10 @@ import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Button, Rule } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import { SlipCrop, SlipZoom } from "./slip-zoom";
 import { useStatement } from "./use-statement";
+import { useT } from "./use-t";
 
 export function ResiboScreen() {
   const { lang, demo } = useApp();

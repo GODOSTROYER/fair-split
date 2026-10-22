@@ -6,22 +6,25 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, TextInput, View } from "react-native";
-import type { MessageKey } from "../../_shims/i18n";
+
 import { runSlug } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
-import { claimPairing, homeRouteFor, type PairingOutcome, parsePairingInput } from "../../lib/pairing";
+import { claimPairing, type PairingOutcome, parsePairingInput } from "../../lib/pairing";
 import { feedback } from "../../platform/feedback";
 import { demoSession } from "../../services/demo-api";
+import { homeHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Banner, Button } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import type { OnboardingKey } from "./messages";
+import { useT } from "./use-t";
 
 type PairState = "idle" | "pairing" | "paired" | "expired" | "used" | "invalid" | "offline" | "error";
 
-const MESSAGE: Partial<Record<PairState, MessageKey>> = {
+const MESSAGE: Partial<Record<PairState, OnboardingKey>> = {
   expired: "M-ON-01.pair.expired",
   used: "M-ON-01.pair.used",
   invalid: "M-ON-01.pair.invalid",
@@ -44,7 +47,7 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
       setSession(outcome.session);
       setState("paired");
       feedback.play("slip.captured");
-      setTimeout(() => router.replace(homeRouteFor(outcome.session.role, runSlug) as never), 700);
+      setTimeout(() => router.replace(homeHref(outcome.session.role, runSlug)), 700);
     } else {
       setState(outcome.state);
       busy.current = false;
@@ -79,7 +82,7 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
 
   const cameraDenied = native && permission?.granted === false && permission.canAskAgain === false;
   const message = MESSAGE[state];
-  const roleWord = session ? tr(`role.${session.role}` as MessageKey) : "";
+  const roleWord = session ? tr(`role.${session.role}` as OnboardingKey) : "";
 
   return (
     <Screen testID="M-ON-01" state={cameraDenied && state === "idle" ? "camera-denied" : state}>

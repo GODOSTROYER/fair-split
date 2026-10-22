@@ -7,7 +7,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import canonicalize from "canonicalize";
-import type { BatchItem, ItemStatus, Lang } from "./contracts";
+import type { BatchItem, DigestLine, ItemStatus, Lang } from "./contracts";
 import { ITEM_STATUS_RANK } from "./contracts";
 
 /* ------------------------------------------------------------------ hashing */
@@ -45,6 +45,31 @@ export function batchDigest(
     }),
   );
 }
+
+/**
+ * linesDigest (approved plan, register §8 amendment): one hash over every member line, PayPal and cash, so both
+ * keys bind the cash lines too. Shim-defined input until WS-CORE publishes it: sha256 of JCS{runId, lines sorted by
+ * memberNo: [{memberNo, rail, netCents}]}.
+ */
+export function linesDigest(runId: string, lines: readonly DigestLine[]): string {
+  const sorted = [...lines]
+    .map(({ memberNo, rail, netCents }) => ({ memberNo, rail, netCents }))
+    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
+  return sha256Hex(jcs({ runId, lines: sorted }));
+}
+
+/* ------------------------------------------------------------------ FEE_TABLE (S1.8, C-28) */
+
+/**
+ * What a member pays outside the co-op to turn a PayPal balance into pesos. Published rates, shown as rates and
+ * labelled with their source; they are never deductions and never computed into her line.
+ */
+export const FEE_TABLE = {
+  paypalConversionBp: 300,
+  paypalSource: "PayPal Philippines business fees, updated 28 Sep 2026",
+  gcashTransferBp: 100,
+  gcashSource: "GCash cash-in fees, since 7 Mar 2026",
+} as const;
 
 /* ------------------------------------------------------------------ fsm.item (I5) */
 
@@ -101,13 +126,26 @@ function plain(cents: number): string {
   return `${sign}${group3(Math.floor(abs / 100))}.${pad2(abs % 100)}`;
 }
 
-/** Peso estimate in whole pesos, half-up, from cents and a "62.50" pesos-per-dollar reference rate. */
-function pesoWhole(cents: number, phpPerUsd: string): number {
+/** Centavos per US dollar from a "62.50" reference rate. */
+function centavosPerUsd(phpPerUsd: string): number {
   const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(phpPerUsd);
   if (!m) throw new RangeError(`Bad rate: ${phpPerUsd}`);
-  const centavosPerUsd = Number(m[1]) * 100 + Number((m[2] ?? "0").padEnd(2, "0"));
-  const centavos2 = Math.abs(cents) * centavosPerUsd; // centavos × 100
-  return Math.floor((centavos2 + 5000) / 10000);
+  return Number(m[1]) * 100 + Number((m[2] ?? "0").padEnd(2, "0"));
+}
+
+/**
+ * The PayPal peso estimate in whole pesos, floored (approved plan: "about ₱4,028 (estimate)", run rate ₱62.50,
+ * floored), so an estimate never promises a centavo more than the rate gives.
+ */
+function pesoWhole(cents: number, phpPerUsd: string): number {
+  const centavos100 = Math.abs(cents) * centavosPerUsd(phpPerUsd); // centavos × 100
+  return Math.floor(centavos100 / 10000);
+}
+
+/** Exact cash centavos at the run's recorded rate, half-up to the centavo ("₱7,990.00"). */
+function cashCentavos(cents: number, phpPerUsd: string): number {
+  const centavos100 = Math.abs(cents) * centavosPerUsd(phpPerUsd);
+  return Math.floor((centavos100 + 50) / 100);
 }
 
 const ONES = [
@@ -182,6 +220,27 @@ export const format = {
   pesoSpoken(cents: number, phpPerUsd: string): string {
     const p = pesoWhole(cents, phpPerUsd);
     return `${words(p)} peso${p === 1 ? "" : "s"}`;
+  },
+  /**
+   * Cash at the bodega, exact at the run's recorded rate: "₱7,990.00" (S1.8). Unlike the PayPal estimate this is
+   * the amount handed over, so it carries centavos and no "about".
+   */
+  cashPesos(cents: number, phpPerUsd: string): string {
+    const c = cashCentavos(cents, phpPerUsd);
+    return `₱${group3(Math.floor(c / 100))}.${pad2(c % 100)}`;
+  },
+  /** "seven thousand nine hundred ninety pesos, cash" (S1.12), for screen readers and device speech. */
+  cashSpoken(cents: number, phpPerUsd: string): string {
+    const c = cashCentavos(cents, phpPerUsd);
+    const p = Math.floor(c / 100);
+    const cv = c % 100;
+    const pesos = `${words(p)} peso${p === 1 ? "" : "s"}`;
+    return `${cv ? `${pesos} and ${words(cv)} centavo${cv === 1 ? "" : "s"}` : pesos}, cash`;
+  },
+  /** A published rate in basis points: 300 → "3%", 440 → "4.40%". */
+  percentBp(bp: number): string {
+    if (!Number.isInteger(bp) || bp < 0) throw new RangeError("Rates are whole basis points");
+    return bp % 100 === 0 ? `${bp / 100}%` : `${Math.floor(bp / 100)}.${pad2(bp % 100)}%`;
   },
   /** Grams → "148.0 kg" (1 dp) or "38.45 kg" (2 dp), half-up. */
   kg(grams: number, dp: 1 | 2 = 1): string {

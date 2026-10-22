@@ -6,8 +6,9 @@ import { useLocalSearchParams } from "expo-router";
 import { readMemberLink } from "../../lib/member-link";
 import { Screen } from "../../ui/chrome";
 import { Banner } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import { BayadScreen } from "./bayad-screen";
+import { useT } from "./use-t";
 
 export function MemberLinkScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -15,9 +16,11 @@ export function MemberLinkScreen() {
   const check = readMemberLink(typeof token === "string" ? token : "", new Date());
   if (!check.ok) {
     return (
-      <Screen testID="M-LINK" state={check.reason}>
+      <Screen testID="M-MB-01" state={check.reason === "expired" ? "link-expired" : "link-invalid"}>
         <Banner tone="decide" icon="info">
-          <Txt kind="body">{tr(check.reason === "expired" ? "M-LINK.expired" : "M-LINK.invalid")}</Txt>
+          <Txt kind="body">
+            {tr(check.reason === "expired" ? "M-MB-01.linkExpired" : "M-MB-01.linkInvalid")}
+          </Txt>
         </Banner>
       </Screen>
     );

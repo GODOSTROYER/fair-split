@@ -2,7 +2,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHttpApi, type PairClaimRequest } from "../_shims/api-client";
-import { claimPairing, homeRouteFor, parsePairingInput, sessionValid } from "./pairing";
+import { claimPairing, parsePairingInput } from "./pairing";
 
 const TOKEN = "pt_8fJ2kQ9xVb3mN7pL1sR4";
 
@@ -119,20 +119,5 @@ describe("claimPairing (msw)", () => {
     const r = await claimPairing(parsePairingInput("https://example.com/"), deps);
     expect(r).toMatchObject({ ok: false, state: "invalid" });
     expect(requests).toHaveLength(0);
-  });
-});
-
-describe("after pairing", () => {
-  it("lands each role on its first tab", () => {
-    expect(homeRouteFor("member", null)).toBe("/(member)/(tabs)/bayad");
-    expect(homeRouteFor("clerk", null)).toBe("/(clerk)/scan");
-    expect(homeRouteFor("board", "2026A-r37")).toBe("/(board)/pirma/2026A-r37");
-  });
-
-  it("treats an expired frame token as unpaired", () => {
-    const now = new Date("2026-10-29T02:00:00Z");
-    expect(sessionValid({ expiresAt: "2026-10-29T03:59:59Z" }, now)).toBe(true);
-    expect(sessionValid({ expiresAt: "2026-10-29T01:59:59Z" }, now)).toBe(false);
-    expect(sessionValid(null, now)).toBe(false);
   });
 });

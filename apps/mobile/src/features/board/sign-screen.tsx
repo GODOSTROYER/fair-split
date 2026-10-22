@@ -10,34 +10,80 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { ScreenStateOf } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
+import type { MomentPhase } from "../../_shims/moments";
 import { people } from "../../_shims/seed";
-import { holdMs, radius, space, target } from "../../_shims/tokens.native";
+import { radius, space, target } from "../../_shims/tokens.native";
 import { cosign } from "../../lib/signing";
 import { feedback } from "../../platform/feedback";
 import { type KeyMeta, keyVault } from "../../platform/key-vault";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
+import { MomentMarker } from "../../ui/moment";
+import { HOLD_MS, TIMELINE } from "../../ui/motion";
 import { Banner, Button } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Slab } from "../../ui/slab";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import { expectedFor, useCosign } from "./use-cosign";
+import { useT } from "./use-t";
 
 type Phase =
   | "ready"
   | "hold-2"
+  | "armed-2"
+  | "confirm-2"
   | "biometric"
   | "signed-2"
   | "sealed"
   | "released-early"
+  | "disarmed"
   | "cancelled"
   | "mismatch"
   | "expired"
   | "error"
   | "no-lock"
   | "invalidated";
+
+/** The screen's `data-state` (S1.9 M-BD-02) for each step of the flow. */
+const SCREEN_STATE: Readonly<Record<Phase, ScreenStateOf<"M-BD-02">>> = {
+  ready: "ready",
+  "hold-2": "holding",
+  "armed-2": "armed",
+  "confirm-2": "confirm",
+  biometric: "biometric",
+  "signed-2": "signed",
+  sealed: "signed",
+  "released-early": "released-early",
+  disarmed: "disarmed",
+  cancelled: "cancelled",
+  mismatch: "mismatch",
+  expired: "expired",
+  error: "error",
+  "no-lock": "no-lock",
+  invalidated: "invalidated",
+};
+
+/** The phone's MM-5 phases (S2.9, `data-moment-phase`). */
+const MOMENT_PHASE: Readonly<Record<Phase, MomentPhase<"MM-5">>> = {
+  ready: "ready",
+  "hold-2": "hold-2",
+  "armed-2": "armed-2",
+  "confirm-2": "confirm-2",
+  biometric: "armed-2",
+  "signed-2": "signed-2",
+  sealed: "sealed",
+  "released-early": "released-early",
+  disarmed: "disarmed",
+  cancelled: "disarmed",
+  mismatch: "mismatch",
+  expired: "expired",
+  error: "ready",
+  "no-lock": "ready",
+  invalidated: "ready",
+};
 
 export function SignScreen() {
   const { runSlug } = useLocalSearchParams<{ runSlug: string }>();
@@ -100,7 +146,7 @@ export function SignScreen() {
       setTimeout(() => {
         setPhase("sealed");
         feedback.play("seal.complete");
-      }, 720);
+      }, TIMELINE["MM-5"].sealedAfterMs);
       return;
     }
     if (result.state === "mismatch") {
@@ -147,14 +193,14 @@ export function SignScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.color.ground }}>
-      <Screen testID="M-BD-02" state={phase} contentStyle={{ paddingBottom: 220 }}>
+      <Screen testID="M-BD-02" state={SCREEN_STATE[phase]} contentStyle={{ paddingBottom: 220 }}>
         <View
           style={styles.markerWrap}
           testID="moment-MM-5"
-          dataSet={{ moment: "MM-5", momentPhase: phase }}
+          dataSet={{ moment: "MM-5", momentPhase: MOMENT_PHASE[phase] }}
           collapsable={false}
         >
-          <View collapsable={false} testID={`moment-MM-5-phase-${phase}`} style={styles.marker} />
+          <MomentMarker id="MM-5" phase={MOMENT_PHASE[phase]} />
         </View>
         <Txt kind="title1" accessibilityRole="header">
           {tr("M-BD-02.title")}
@@ -229,20 +275,40 @@ export function SignScreen() {
             icon="fingerprint"
             depth="d3"
             tone="jade"
-            hold={holdMs.phone}
+            hold={HOLD_MS.phone}
             height={target.hero}
             unavailableReason={blocked}
             srLabel={tr("M-BD-02.srLabel", {
               label: tr("M-BD-02.slab"),
               amount: format.amountSpoken(dto.totalCents),
             })}
-            onHoldChange={(h) => setPhase((p) => (h ? "hold-2" : p === "hold-2" ? "released-early" : p))}
+            onHoldState={(h) =>
+              setPhase((p) =>
+                h === "holding"
+                  ? "hold-2"
+                  : h === "armed"
+                    ? "armed-2"
+                    : h === "confirm"
+                      ? "confirm-2"
+                      : h === "released-early"
+                        ? "released-early"
+                        : h === "disarmed"
+                          ? "disarmed"
+                          : h === "rest" && p === "confirm-2"
+                            ? "ready"
+                            : p,
+              )
+            }
             onCommit={() => void sign()}
             holdUntilLabel={tr("M-BD-02.holdUntil")}
             anotherWayLabel={tr("M-BD-02.another")}
             confirm={{
               title: tr("M-BD-02.confirmTitle"),
               body: tr("M-BD-02.confirmBody", { n: dto.itemCount, amount }),
+              amount,
+              recipients: dto.items.map((i) => ({ name: i.memberNo, amount: format.usd(i.amountCents) })),
+              batchSha256: dto.batchSha256,
+              keys: dto.treasurerSigned ? 1 : 0,
               confirmLabel: tr("M-BD-02.confirmSign"),
               cancelLabel: tr("common.cancel"),
             }}
@@ -258,7 +324,6 @@ export function SignScreen() {
 
 const styles = StyleSheet.create({
   markerWrap: { position: "absolute", width: 1, height: 1 },
-  marker: { width: 1, height: 1, opacity: 0 },
   card: { padding: space.s16, gap: space.s12, alignItems: "center", borderRadius: radius.none },
   thumbZone: {
     position: "absolute",

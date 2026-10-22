@@ -4,46 +4,36 @@
  */
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import {
-  AccessibilityInfo,
-  findNodeHandle,
-  Platform,
-  StyleSheet,
-  View,
-  type ViewInstance,
-} from "react-native";
+import { StyleSheet, View, type ViewInstance } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { LANGS } from "../../_shims/contracts";
+import type { StatementHistoryEntry } from "../../_shims/api-client";
 import { format } from "../../_shims/domain";
-import { translate } from "../../_shims/i18n";
 import { radius, space, target } from "../../_shims/tokens.native";
 import { amountIsSolid } from "../../lib/item-status";
 import { statementSentences } from "../../lib/statement";
+import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
+import { focusFirst } from "../../ui/a11y";
 import { AmountDisplay } from "../../ui/amount";
 import { Screen } from "../../ui/chrome";
-import {
-  Banner,
-  Button,
-  Chip,
-  InkStamp,
-  MachineTranslatedNote,
-  Rule,
-  SectionTitle,
-} from "../../ui/primitives";
+import { LanguagePicker } from "../../ui/language-picker";
+import { MomentMarker } from "../../ui/moment";
+import { Banner, Button, InkStamp, MachineTranslatedNote, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { Slab } from "../../ui/slab";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import { StatusCapsule, useMoment1 } from "./capsule";
+import type { StatementKey } from "./messages";
 import { type Mm7Phase, ReceiptBar, type SegmentId } from "./receipt-bar";
 import { SlipChips } from "./slip-chips";
 import { SlipZoom } from "./slip-zoom";
 import { useStatement } from "./use-statement";
+import { useT } from "./use-t";
 
 export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
-  const { lang, setLang, demo, online } = useApp();
+  const { lang, demo, online, listenFirst } = useApp();
   const { t, motion } = useFs();
   const tr = useT();
   const { dto, capsule, track, paid, fromCache, cachedAt, error, reload } = useStatement({ linkToken });
@@ -51,14 +41,19 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
   const [expanded, setExpanded] = useState<SegmentId | null>(null);
   const [mm7, setMm7] = useState<Mm7Phase>("rest");
   const [zoom, setZoom] = useState<{ serial: string; x: number; y: number } | null>(null);
-  const paminawaRef = useRef<ViewInstance>(null);
+  const amountRef = useRef<ViewInstance>(null);
+  const autoplayed = useRef(false);
+  const hasDto = !!dto;
 
-  // Paminawa takes first focus for members flagged audio-first (elderly or thumbmark), design §8.
+  // S1.9: the amount block takes first accessibility focus, Paminawa second.
+  useEffect(() => (hasDto ? focusFirst(amountRef) : undefined), [hasDto]);
+
+  // "Paminawon una": reading starts when the statement opens, once, and never while TalkBack is running.
   useEffect(() => {
-    if (!dto?.member.audioFirst || !motion.screenReader || Platform.OS === "web") return;
-    const node = findNodeHandle(paminawaRef.current);
-    if (node) setTimeout(() => AccessibilityInfo.setAccessibilityFocus(node), 400);
-  }, [dto?.member.audioFirst, motion.screenReader]);
+    if (!hasDto || listenFirst !== true || motion.screenReader || autoplayed.current || linkToken) return;
+    autoplayed.current = true;
+    router.push(HREF.paminawa);
+  }, [hasDto, listenFirst, motion.screenReader, linkToken]);
 
   const invite = useAnimatedStyle(() => ({ opacity: mm1.invite.get() }));
 
@@ -71,7 +66,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
             icon="wifiOff"
             action={<Button variant="text" label={tr("common.tryAgain")} onPress={() => void reload()} />}
           >
-            <Txt kind="body">{tr("M-ON-01.pair.offline")}</Txt>
+            <Txt kind="body">{tr("common.offlineRetry")}</Txt>
           </Banner>
         ) : (
           <View style={[styles.card, { backgroundColor: t.color.plate, minHeight: 420 }]} />
@@ -81,8 +76,8 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
   }
 
   const { sentences } = statementSentences(dto, lang);
-  const lead = sentences.find((s) => s.id === "s1")?.segments ?? [];
-  const ask = sentences.find((s) => s.id === "s7")?.segments ?? [];
+  const lead = sentences.find((s) => s.slot === "GREETING")?.segments ?? [];
+  const ask = sentences.find((s) => s.slot === "HELP")?.segments ?? [];
   const sent = dto.history.find((h) => h.kind === "sent")?.at ?? null;
   const paidAt =
     track.status === "SUCCESS"
@@ -107,17 +102,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
   return (
     <View style={{ flex: 1 }}>
       <Screen testID="M-MB-01" state={state}>
-        <View style={styles.langRow} accessibilityRole="radiogroup">
-          {LANGS.map((l) => (
-            <Chip
-              key={l}
-              label={translate(l, "M-ON-01.lang.name")}
-              selected={l === lang}
-              onPress={() => setLang(l)}
-              testID={`M-MB-01.lang.${l}`}
-            />
-          ))}
-        </View>
+        <LanguagePicker testID="M-MB-01.lang" />
 
         {!online && fromCache && cachedAt ? (
           <Banner icon="wifiOff" testID="M-MB-01.offline">
@@ -130,7 +115,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
           testID="moment-MM-1"
           dataSet={{ moment: "MM-1", momentPhase: mm1.phase }}
         >
-          <View collapsable={false} testID={`moment-MM-1-phase-${mm1.phase}`} style={styles.marker} />
+          <MomentMarker id="MM-1" phase={mm1.phase} />
           <View style={{ gap: space.s2 }}>
             <Txt kind="label" color="ink2">
               {dto.coop.name}
@@ -143,12 +128,12 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
           <Sentence segments={lead} kind="statementLead" lang={lang} testID="M-MB-01.greeting" />
 
           {showAmount ? (
-            <View style={{ gap: space.s4 }}>
+            <View style={{ gap: space.s4 }} ref={amountRef} collapsable={false}>
               <AmountDisplay
                 testID="M-MB-01.amount"
                 text={format.usd(dto.amounts.netCents)}
                 srLabel={format.amountSpoken(dto.amounts.netCents, dto.fx.phpPerUsd)}
-                solid={solid}
+                state={solid ? (capsule === "cash-received" ? "attested" : "landed") : "hollow"}
                 fill={capsule === "paid" || capsule === "sent" ? mm1.fill : undefined}
               />
               <Txt kind="statementBody" color="ink2">
@@ -193,7 +178,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
             </Txt>
           ) : null}
 
-          <View ref={paminawaRef} collapsable={false}>
+          <View collapsable={false}>
             <Slab
               testID="M-MB-01.paminawa"
               label={tr("M-MB-01.paminawa")}
@@ -202,7 +187,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
               tone="chalk"
               height={target.hero}
               srLabel={tr("M-MB-01.paminawaHint")}
-              onCommit={() => router.push("/(member)/paminawa")}
+              onCommit={() => router.push(HREF.paminawa)}
             />
             <Animated.View
               pointerEvents="none"
@@ -211,7 +196,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
           </View>
 
           <View testID="moment-MM-7" dataSet={{ moment: "MM-7", momentPhase: mm7 }} collapsable={false}>
-            <View collapsable={false} testID={`moment-MM-7-phase-${mm7}`} style={styles.marker} />
+            <MomentMarker id="MM-7" phase={mm7} />
             <ReceiptBar
               dto={dto}
               expanded={expanded}
@@ -252,9 +237,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
                     <Txt kind="body" style={{ flex: 1 }}>
                       {h.kind === "approved"
                         ? tr("M-MB-01.historyApproved", { a: h.by?.[0] ?? "", b: h.by?.[1] ?? "" })
-                        : h.kind === "sent"
-                          ? tr("M-MB-01.historySent")
-                          : tr("M-MB-01.historyPaid")}
+                        : tr(HISTORY_KEY[h.kind])}
                     </Txt>
                     <Txt kind="figureS" color="ink2">
                       {`${format.dayMonth(h.at, lang)} ${format.time(h.at)}`}
@@ -289,7 +272,7 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
           <Button
             variant="text"
             label={tr("M-MB-01.recheck")}
-            onPress={() => router.push("/(member)/(tabs)/pangutana")}
+            onPress={() => router.push(HREF.pangutana)}
             style={{ alignSelf: "flex-start" }}
             testID="M-MB-01.recheck"
           />
@@ -356,10 +339,18 @@ export function BayadScreen({ linkToken }: { linkToken?: string } = {}) {
   );
 }
 
+/** History rows in the member's words (never a raw state name). */
+const HISTORY_KEY: Readonly<Record<Exclude<StatementHistoryEntry["kind"], "approved">, StatementKey>> = {
+  sent: "M-MB-01.historySent",
+  paid: "M-MB-01.historyPaid",
+  unclaimed: "M-MB-01.historyUnclaimed",
+  "cash-due": "M-MB-01.historyCashDue",
+  received: "M-MB-01.historyReceived",
+  held: "M-MB-01.historyHeld",
+};
+
 const styles = StyleSheet.create({
-  langRow: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
   card: { padding: space.s16, gap: space.s24, borderRadius: radius.none },
-  marker: { position: "absolute", width: 1, height: 1, opacity: 0 },
   invite: { position: "absolute", top: -4, left: -4, right: -4, bottom: -4, borderWidth: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
   historyRow: { flexDirection: "row", alignItems: "center", gap: space.s12, minHeight: 32 },

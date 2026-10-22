@@ -19,6 +19,7 @@ import type {
   LineState,
   Provenance,
   RunEvent,
+  StatementTemplate,
 } from "./contracts";
 
 /* ------------------------------------------------------------------ DTOs */
@@ -54,15 +55,32 @@ export interface StatementSlip {
 }
 
 export interface StatementHistoryEntry {
-  kind: "approved" | "sent" | "paid" | "cash-due" | "received" | "held";
+  /** Approved by both keys, sent to PayPal, confirmed, parked by PayPal, moved to cash, received at the bodega. */
+  kind: "approved" | "sent" | "paid" | "unclaimed" | "cash-due" | "received" | "held";
   at: string;
+  /** Initials of the people who made the decision (stamped in ink). */
   by?: readonly string[];
 }
 
+/**
+ * One clip from `media/audio/manifest.json` (IC-11) as fs-api serves it: a synthetic voice reading one sentence.
+ * `textSha256` is the sha256 of the exact spoken text it was rendered from, so the phone never plays a clip for a
+ * sentence whose words changed (it uses the labelled device voice instead).
+ */
 export interface StatementAudioClip {
-  id: string;
   url: string;
-  mentions?: readonly string[];
+  textSha256: string;
+  /** "Sintetikong tingog (Gemini TTS)": the manifest's own label, shown while it plays. */
+  label: string;
+  durationMs?: number;
+}
+
+export interface StatementCredit {
+  /** The slip the unruled deduction was written on. */
+  slip: string;
+  /** Pesos written on the slip, as centavos (the multa returned). */
+  writtenCentavos: number;
+  cents: number;
 }
 
 export interface StatementDTO {
@@ -78,21 +96,20 @@ export interface StatementDTO {
     displayName: string;
     nameByLang: Readonly<Record<Lang, string>>;
     lang: Lang;
-    audioFirst: boolean;
   };
   treasurer: { first: string; name: string; initials: string };
   rail: "PAYPAL" | "CASH";
   lineState: LineState;
   item: { senderItemId: string; status: ItemStatus | null; updatedAt: string | null } | null;
-  kilos: { netGrams: number; grade1Grams: number };
+  /** Her verified kilos, and the co-op's, so the statement can say what share of the pool is hers. */
+  kilos: { netGrams: number; grade1Grams: number; coopVerifiedGrams: number };
   amounts: {
     premiumCents: number;
     bonusCents: number;
     deductions: readonly { ruleId: string; label: string; cents: number }[];
-    creditsCents: number;
+    credits: readonly StatementCredit[];
     netCents: number;
   };
-  premiumRatePerKg: string;
   fx: { phpPerUsd: string };
   slips: readonly StatementSlip[];
   history: readonly StatementHistoryEntry[];
@@ -100,9 +117,9 @@ export interface StatementDTO {
   batchSha256: string | null;
   cashDay: string | null;
   expectedDate: string | null;
-  sentences: Readonly<Record<Lang, readonly { id: string; text: string }[]>>;
-  /** `media/audio/manifest.json` clips (IC-11); null until WS-MEDIA renders them. */
-  audio: Readonly<Partial<Record<Lang, readonly StatementAudioClip[]>>> | null;
+  sentences: Readonly<Record<Lang, readonly StatementTemplate[]>>;
+  /** Synthetic voice clips per language (IC-11); empty until WS-MEDIA renders them. */
+  audio: Readonly<Partial<Record<Lang, readonly StatementAudioClip[]>>>;
 }
 
 export interface CosignHold {
@@ -128,6 +145,8 @@ export interface CosignRequestDTO {
   rateCardSha256: string;
   senderBatchId: string;
   batchSha256: string;
+  /** Hash of every member line, PayPal and cash; the signed payload must carry the same value. */
+  linesDigest: string;
   items: readonly (BatchItem & { memberNo: string })[];
   holds: readonly CosignHold[];
   treasurerSigned: { keyId: string; at: string } | null;

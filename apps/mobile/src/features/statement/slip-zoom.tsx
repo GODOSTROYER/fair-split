@@ -21,12 +21,14 @@ import { scheduleOnRN } from "react-native-worklets";
 import type { StatementSlip } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
-import { radius, space, springs, tweens } from "../../_shims/tokens.native";
+import { radius, space } from "../../_shims/tokens.native";
 import { feedback } from "../../platform/feedback";
 import { useFs } from "../../theme/theme";
+import { ms, spring, tween } from "../../ui/motion";
 import { Button } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
 import type { Mm7Phase } from "./receipt-bar";
+import { useT } from "./use-t";
 
 const ZOOM = 2.4;
 const GLIDE_SETTLE_MS = 661;
@@ -160,17 +162,17 @@ export function SlipZoom({
   useEffect(() => {
     onPhase("zooming");
     if (instant) {
-      dim.set(withTiming(1, { duration: tweens.glideFallback.duration }));
+      dim.set(withTiming(1, tween("crossfade")));
       const id = setTimeout(() => {
         onPhase("zoomed");
         setTiled(true);
         onPhase("tiled");
-      }, tweens.glideFallback.duration);
+      }, ms("crossfade"));
       return () => clearTimeout(id);
     }
     dim.set(withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
-    s.set(withSpring(1, springs.glide));
-    k.set(withSpring(1, springs.glide));
+    s.set(withSpring(1, spring("glide")));
+    k.set(withSpring(1, spring("glide")));
     // Phases follow the timeline, not frame delivery: the glide spring settles in about 661 ms (S2.8).
     const id = setTimeout(settle, GLIDE_SETTLE_MS);
     return () => clearTimeout(id);
@@ -194,13 +196,13 @@ export function SlipZoom({
     onPhase("returning");
     setTiled(false);
     if (instant) {
-      dim.set(withTiming(0, { duration: tweens.glideFallback.duration }));
-      setTimeout(onClosed, tweens.glideFallback.duration);
+      dim.set(withTiming(0, tween("crossfade")));
+      setTimeout(onClosed, ms("crossfade"));
       return;
     }
     dim.set(withTiming(0, { duration: 240 }));
-    s.set(withSpring(1 / ZOOM, springs.glide));
-    k.set(withSpring(0, springs.glide));
+    s.set(withSpring(1 / ZOOM, spring("glide")));
+    k.set(withSpring(0, spring("glide")));
     // Exits run about 20% faster than entrances (design §3 rule 5).
     setTimeout(onClosed, Math.round(GLIDE_SETTLE_MS * 0.8));
   };

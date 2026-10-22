@@ -25,11 +25,14 @@ import { useFs } from "../../theme/theme";
 import { Screen, TopBar } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Banner, Button, Chip, SectionTitle } from "../../ui/primitives";
-import { Txt, useT } from "../../ui/text";
+import { Txt } from "../../ui/text";
+import { useOutbox } from "./outbox-provider";
 import { CameraCapture, ProgressRing, Snackbar, useSnackbar } from "./parts";
+import { useT } from "./use-t";
 
 export function ScanScreen() {
-  const { outbox, online } = useApp();
+  const { online } = useApp();
+  const outbox = useOutbox();
   const { t } = useFs();
   const tr = useT();
   const snack = useSnackbar();
@@ -91,7 +94,7 @@ export function ScanScreen() {
       else if (r.kind === "unavailable") {
         snack.show(tr("M-CL-01.unavailable"), "decide");
         setCamera(true);
-      } else if (r.kind === "error") snack.show(tr("M-ON-01.pair.error"), "decide");
+      } else if (r.kind === "error") snack.show(tr("common.error"), "decide");
     } finally {
       setBusy(false);
     }

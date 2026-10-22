@@ -6,7 +6,7 @@
 import type { ColorValue } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
-const STROKE: Readonly<Record<string, string>> = {
+const STROKE = {
   listen: "M4 9h4l5-4v14l-5-4H4z M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12",
   slip: "M6 3h8l4 4v14H6z M14 3v4h4 M9 11h6 M9 14.5h6 M9 18h3",
   question: "M4 4h16v12h-8l-4 4v-4H4z M10 8.4a2 2 0 1 1 2.9 1.8c-.6.3-.9.8-.9 1.4 M12 13.2v.6",
@@ -39,27 +39,36 @@ const STROKE: Readonly<Record<string, string>> = {
     "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 1 0 0 7z M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6 M16 4.5a3.5 3.5 0 0 1 0 6.5 M21 20c0-2.8-1.7-5-4-5.8",
   camera: "M4 8h4l2-3h4l2 3h4v12H4z M12 10.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 1 0 0-7z",
   info: "M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z M12 11v6 M12 7.5v.6",
-};
+  /** Domain glyphs (design §2.6): the jute sack, the duplicate copy, the thumbmark. */
+  sack: "M7 5h10l-1 3 3 4v8H5v-8l3-4z M8 8h8",
+  duplicate: "M8 4h9l3 3v11H8z M5 7v13h11",
+  thumb: "M12 3c3.3 0 6 2.7 6 6v6a6 6 0 0 1-12 0V9c0-3.3 2.7-6 6-6z M12 7v9 M9 9v5 M15 9v5",
+} as const;
 
-const FILLED: Readonly<Record<string, string>> = {
+const FILLED = {
   play: "M7 4.5l13 7.5-13 7.5z",
   pause: "M6 5h4.5v14H6z M13.5 5H18v14h-4.5z",
   contrastHalf: "M12 3a9 9 0 0 0 0 18z",
   stop: "M6 6h12v12H6z",
-};
+} as const;
 
 export type GlyphName = keyof typeof STROKE | keyof typeof FILLED;
 
+function isFilled(name: GlyphName): name is keyof typeof FILLED {
+  return name in FILLED;
+}
+
+/** Decorative by default: the word beside it carries the meaning, so screen readers skip the drawing. */
 export function Glyph({ name, size = 24, color }: { name: GlyphName; size?: number; color: ColorValue }) {
-  if (name in FILLED) {
+  if (isFilled(name)) {
     return (
-      <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false} importantForAccessibility="no">
         <Path d={FILLED[name]} fill={color} />
       </Svg>
     );
   }
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false} importantForAccessibility="no">
       <Path
         d={STROKE[name]}
         fill="none"

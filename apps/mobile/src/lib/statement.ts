@@ -1,12 +1,13 @@
 /**
- * Member statement text (M-MB-01, M-MB-03). Claude's explainer (AI-8) writes words and `{{PLACEHOLDERS}}` only;
- * every number is filled in here from engine values formatted by `format.*`. Invariant I1 on the phone: a
- * sentence that carries a digit, or an unknown placeholder, is never shown or spoken.
+ * Member statement text (M-MB-01, M-MB-03). Templates (S1.11, written or drafted offline and committed by a person)
+ * hold words and `{{PLACEHOLDERS}}` only; every number is filled in here from engine values formatted by
+ * `format.*`. Invariant I1 on the phone: a sentence that carries a digit, or an unknown placeholder, is never shown
+ * or spoken.
  */
 import type { StatementDTO } from "../_shims/api-client";
-import type { Lang } from "../_shims/contracts";
-import { format } from "../_shims/domain";
-import type { Segment } from "./figures";
+import type { Lang, StatementSlot, StatementTemplate } from "../_shims/contracts";
+import { FEE_TABLE, format } from "../_shims/domain";
+import type { Segment } from "../ui/figures";
 
 export interface PlaceholderValue {
   display: string;
@@ -32,6 +33,7 @@ export type FilledSentence =
   | {
       ok: true;
       id: string;
+      slot: StatementSlot | null;
       display: string;
       spoken: string;
       mentions: string[];
@@ -41,7 +43,7 @@ export type FilledSentence =
   | { ok: false; id: string; reason: "digit-in-template" | "unknown-placeholder" | "stray-braces" };
 
 export function fillSentence(
-  s: { id: string; text: string },
+  s: { id: string; text: string; slot?: StatementSlot },
   values: Readonly<Record<string, PlaceholderValue>>,
 ): FilledSentence {
   if (hasDigit(s.text)) return { ok: false, id: s.id, reason: "digit-in-template" };
@@ -68,49 +70,115 @@ export function fillSentence(
     last = at + m[0].length;
   }
   if (last < s.text.length) segments.push({ text: s.text.slice(last), value: false });
-  return { ok: true, id: s.id, display, spoken, mentions, segments };
+  return { ok: true, id: s.id, slot: s.slot ?? null, display, spoken, mentions, segments };
 }
 
-/** Engine values for the reference sentences s1–s7 (S1.10), in the member's language. */
-export function statementValues(dto: StatementDTO, lang: Lang): Record<string, PlaceholderValue> {
+const GRADE_ALL: Readonly<Record<Lang, string>> = {
+  ceb: "tanan Grade 1",
+  fil: "lahat ay Grade 1",
+  en: "all Grade 1",
+};
+const GRADE_PART: Readonly<Record<Lang, (kg: string) => string>> = {
+  ceb: (kg) => `${kg} niini Grade 1`,
+  fil: (kg) => `${kg} dito ay Grade 1`,
+  en: (kg) => `${kg} of it Grade 1`,
+};
+
+const usd = (cents: number): PlaceholderValue => ({
+  display: format.usd(cents),
+  spoken: format.amountSpoken(cents),
+});
+const kilos = (grams: number): PlaceholderValue => ({
+  display: format.kg(grams, 1),
+  spoken: format.kg(grams, 1).replace(" kg", " kilos"),
+});
+
+/** Which PAY sentence applies: a line that moved to the bodega reads the cash variant. */
+export type PayRail = "paypal" | "cash";
+
+/**
+ * Engine values for one template, in the member's language. Values that depend on the sentence (which deduction,
+ * which credit) come from its `ref`.
+ */
+export function statementValues(
+  dto: StatementDTO,
+  lang: Lang,
+  s?: Pick<StatementTemplate, "slot" | "ref">,
+  rail: PayRail = dto.rail === "CASH" ? "cash" : "paypal",
+): Record<string, PlaceholderValue> {
   const a = dto.amounts;
-  const cbu = a.deductions.find((d) => d.label === "CBU");
-  const serials = dto.slips.map((s) => s.serial);
-  const spokenSerial = (s: string) => s.split("").join(" ");
-  const grade = dto.kilos.grade1Grams === dto.kilos.netGrams ? "Grade 1" : "Grade 1 ug Grade 2";
-  return {
-    NAME: { display: dto.member.nameByLang[lang] },
-    NET_KG: {
-      display: format.kg(dto.kilos.netGrams, 1),
-      spoken: format.kg(dto.kilos.netGrams, 1).replace(" kg", " kilos"),
+  const serials = dto.slips.map((x) => x.serial);
+  const spokenSerial = (x: string) => x.split("").join(" ");
+  const g1 = dto.kilos.grade1Grams;
+  const deduction = s?.slot === "DEDUCTION" ? a.deductions.find((d) => d.ruleId === s.ref) : a.deductions[0];
+  const credit = s?.slot === "CREDIT" ? a.credits.find((c) => c.slip === s.ref) : a.credits[0];
+  const rate = dto.fx.phpPerUsd;
+  const values: Record<string, PlaceholderValue> = {
+    HONORIFIC_NAME: { display: dto.member.nameByLang[lang] },
+    KG_TOTAL: kilos(dto.kilos.netGrams),
+    GRADE_SUMMARY: {
+      display: g1 === dto.kilos.netGrams ? GRADE_ALL[lang] : GRADE_PART[lang](format.kg(g1)),
     },
-    GRADE: { display: lang === "ceb" ? grade : grade.replace(" ug ", lang === "fil" ? " at " : " and ") },
     PAYER: { display: dto.payer.short },
-    PREMIUM: { display: format.usd(a.premiumCents), spoken: format.amountSpoken(a.premiumCents) },
-    BONUS: { display: format.usd(a.bonusCents), spoken: format.amountSpoken(a.bonusCents) },
-    CBU: { display: format.usd(cbu?.cents ?? 0), spoken: format.amountSpoken(cbu?.cents ?? 0) },
-    RULE: { display: cbu?.ruleId ?? "R1" },
+    PREMIUM_USD: usd(a.premiumCents),
+    BONUS_USD: usd(a.bonusCents),
     BR: { display: dto.rateCard.id },
-    NET: { display: format.usd(a.netCents), spoken: format.amountSpoken(a.netCents) },
-    NET_PHP: {
-      display: format.peso(a.netCents, dto.fx.phpPerUsd),
-      spoken: format.pesoSpoken(a.netCents, dto.fx.phpPerUsd),
-    },
+    NET_USD: usd(a.netCents),
+    NET_PHP:
+      rail === "cash"
+        ? { display: format.cashPesos(a.netCents, rate), spoken: format.cashSpoken(a.netCents, rate) }
+        : { display: format.peso(a.netCents, rate), spoken: format.pesoSpoken(a.netCents, rate) },
+    FX_FEE: { display: format.percentBp(FEE_TABLE.paypalConversionBp) },
+    RATE: { display: `₱${rate}` },
     SLIPS: {
       display: format.list(serials, lang),
       spoken: format.list(serials.map(spokenSerial), lang),
-      mentions: serials.map((s) => `slip:${s}`),
+      mentions: serials.map((x) => `slip:${x}`),
     },
     TREASURER: { display: dto.treasurer.first },
   };
+  if (dto.cashDay) values.CASH_DATE = { display: format.date(dto.cashDay, lang) };
+  if (deduction) {
+    values.DEDUCTION_USD = usd(deduction.cents);
+    values.RULE_LABEL = { display: deduction.label };
+    values.RULE = { display: deduction.ruleId };
+  }
+  if (credit) {
+    values.CREDIT_USD = usd(credit.cents);
+    values.WRITTEN_PHP = { display: `₱${format.usdPlain(credit.writtenCentavos).replace(/\.00$/, "")}` };
+    values.SLIP = {
+      display: credit.slip,
+      spoken: spokenSerial(credit.slip),
+      mentions: [`slip:${credit.slip}`],
+    };
+  }
+  return values;
+}
+
+/** Templates that apply to this line: the right PAY variant, and one DEDUCTION or CREDIT per item it names. */
+export function applicableTemplates(
+  dto: StatementDTO,
+  lang: Lang,
+  rail: PayRail,
+): readonly StatementTemplate[] {
+  return (dto.sentences[lang] ?? []).filter((s) => {
+    if (s.slot === "PAY") return (s.variant ?? "paypal") === rail;
+    if (s.slot === "DEDUCTION") return dto.amounts.deductions.some((d) => d.ruleId === s.ref);
+    if (s.slot === "CREDIT") return dto.amounts.credits.some((c) => c.slip === s.ref);
+    return true;
+  });
 }
 
 /** The member's sentences, filled; rejected ones are dropped and reported so the server can regenerate them. */
-export function statementSentences(dto: StatementDTO, lang: Lang) {
-  const values = statementValues(dto, lang);
-  const filled = (dto.sentences[lang] ?? []).map((s) => fillSentence(s, values));
+export function statementSentences(dto: StatementDTO, lang: Lang, rail?: PayRail) {
+  const r: PayRail = rail ?? (dto.rail === "CASH" ? "cash" : "paypal");
+  const filled = applicableTemplates(dto, lang, r).map((s) =>
+    fillSentence(s, statementValues(dto, lang, s, r)),
+  );
   return {
     sentences: filled.filter((f): f is Extract<FilledSentence, { ok: true }> => f.ok),
     rejected: filled.filter((f): f is Extract<FilledSentence, { ok: false }> => !f.ok),
   };
 }
+
+export type StatementSentence = ReturnType<typeof statementSentences>["sentences"][number];

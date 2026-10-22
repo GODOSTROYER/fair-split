@@ -13,6 +13,7 @@ import {
   fx,
   heroLine,
   heroSlips,
+  linesDigest,
   payer,
   people,
   rateCard,
@@ -22,27 +23,41 @@ import {
   runSlug,
   season,
   senderBatchId,
-  statementSentences,
+  statementTemplates,
 } from "../_shims/seed";
 
-export type DemoStage = "checking" | "sent" | "paid" | "unclaimed";
+/**
+ * The hero line's demo path: still checking → sent → PayPal confirms; or PayPal parks it (unclaimed), the treasurer
+ * moves it to cash at the bodega, and the clerk records it received.
+ */
+export const DEMO_STAGES = ["checking", "sent", "paid", "unclaimed", "cash-due", "cash-received"] as const;
+export type DemoStage = (typeof DEMO_STAGES)[number];
 
 /** Key 2 lands a few minutes after the holds are resolved; demo times follow the clock so the history reads in order. */
 const minutesBefore = (iso: string, m: number) => new Date(Date.parse(iso) - m * 60_000).toISOString();
 
+const LINE_STATE: Readonly<Record<DemoStage, LineState>> = {
+  checking: "READY",
+  sent: "PAYPAL_PENDING",
+  paid: "PAID",
+  unclaimed: "UNCLAIMED",
+  "cash-due": "OFF_RAIL_DUE",
+  "cash-received": "OFF_RAIL_PAID",
+};
+
+const ITEM_STATUS: Readonly<Record<DemoStage, ItemStatus | null>> = {
+  checking: null,
+  sent: "PENDING",
+  paid: "SUCCESS",
+  unclaimed: "UNCLAIMED",
+  "cash-due": "RETURNED",
+  "cash-received": "RETURNED",
+};
+
 export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt?: string }): StatementDTO {
   const { stage, now } = opts;
   const sentAt = opts.sentAt ?? now;
-  const lineState: LineState =
-    stage === "checking"
-      ? "READY"
-      : stage === "sent"
-        ? "PAYPAL_PENDING"
-        : stage === "paid"
-          ? "PAID"
-          : "UNCLAIMED";
-  const itemStatus: ItemStatus | null =
-    stage === "sent" ? "PENDING" : stage === "paid" ? "SUCCESS" : stage === "unclaimed" ? "UNCLAIMED" : null;
+  const itemStatus = ITEM_STATUS[stage];
   const history: StatementHistoryEntry[] = [];
   if (stage !== "checking") {
     history.push({
@@ -53,6 +68,19 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
     history.push({ kind: "sent", at: sentAt });
   }
   if (stage === "paid") history.push({ kind: "paid", at: now });
+  if (stage === "unclaimed" || stage === "cash-due" || stage === "cash-received") {
+    history.push({ kind: "unclaimed", at: stage === "unclaimed" ? now : minutesBefore(now, 6) });
+  }
+  if (stage === "cash-due" || stage === "cash-received") {
+    history.push({
+      kind: "cash-due",
+      at: stage === "cash-due" ? now : minutesBefore(now, 3),
+      by: [people.treasurer.initials],
+    });
+  }
+  if (stage === "cash-received") {
+    history.push({ kind: "received", at: now, by: [people.clerk.initials] });
+  }
   return {
     lineId: "line_2026A_r37_M-014",
     runId,
@@ -66,25 +94,27 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
       displayName: heroLine.displayName,
       nameByLang: heroLine.nameByLang,
       lang: heroLine.lang,
-      audioFirst: heroLine.audioFirst,
     },
     treasurer: {
       first: people.treasurer.first,
       name: people.treasurer.name,
       initials: people.treasurer.initials,
     },
-    rail: heroLine.rail,
-    lineState,
+    rail: stage === "cash-due" || stage === "cash-received" ? "CASH" : heroLine.rail,
+    lineState: LINE_STATE[stage],
     item: { senderItemId: heroLine.senderItemId, status: itemStatus, updatedAt: itemStatus ? now : null },
-    kilos: { netGrams: heroLine.netGrams, grade1Grams: heroLine.grade1Grams },
+    kilos: {
+      netGrams: heroLine.netGrams,
+      grade1Grams: heroLine.grade1Grams,
+      coopVerifiedGrams: coop.verifiedGrams,
+    },
     amounts: {
       premiumCents: heroLine.premiumCents,
       bonusCents: heroLine.bonusCents,
       deductions: heroLine.deductions,
-      creditsCents: heroLine.creditsCents,
+      credits: [],
       netCents: heroLine.netCents,
     },
-    premiumRatePerKg: heroLine.premiumRatePerKg,
     fx: { phpPerUsd: fx.phpPerUsd },
     slips: heroSlips.map((s) => ({
       serial: s.serial,
@@ -98,8 +128,8 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
     batchSha256: stage === "checking" ? null : batchSha256,
     cashDay: cashDayIso,
     expectedDate: stage === "checking" ? cashDayIso : null,
-    sentences: statementSentences,
-    audio: null,
+    sentences: statementTemplates,
+    audio: {},
   };
 }
 
@@ -119,6 +149,7 @@ export function buildDemoCosign(opts: { now: Date; treasurerSigned: boolean }): 
     rateCardSha256,
     senderBatchId,
     batchSha256,
+    linesDigest,
     items: batchItems.map((i) => ({ ...i, memberNo: i.senderItemId.replace(/^r\d+-/, "") })),
     holds: resolvedHolds,
     treasurerSigned: opts.treasurerSigned

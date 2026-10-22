@@ -21,11 +21,12 @@ import Svg, { Path } from "react-native-svg";
 import type { Lang } from "../../_shims/contracts";
 import { MEMBER_STATUS_WORDS } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
-import { radius, space, tweens } from "../../_shims/tokens.native";
+import { radius, space } from "../../_shims/tokens.native";
 import { CAPSULE_WORD, type CapsuleState, PENDING_RING_MAX_MS } from "../../lib/item-status";
 import { feedback } from "../../platform/feedback";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
+import { reducedFade, tween } from "../../ui/motion";
 import { Hatch } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import type { PaidSignal } from "./use-statement";
@@ -41,7 +42,6 @@ export interface Mm1 {
   invite: SharedValue<number>;
 }
 
-const PRESS = Easing.bezier(0.23, 1, 0.32, 1);
 const EASE_OUT = Easing.out(Easing.cubic);
 
 export function useMoment1(capsule: CapsuleState | null, paid: PaidSignal | null): Mm1 {
@@ -85,7 +85,7 @@ export function useMoment1(capsule: CapsuleState | null, paid: PaidSignal | null
     }
     played.current = paid.eventId;
     if (motion.reduced) {
-      const fade = { duration: tweens.reduced.duration, easing: Easing.linear };
+      const fade = reducedFade();
       inset.set(0);
       flood.set(withTiming(1, fade));
       fill.set(withTiming(1, fade));
@@ -96,7 +96,7 @@ export function useMoment1(capsule: CapsuleState | null, paid: PaidSignal | null
       return;
     }
     setPhase("press");
-    inset.set(withTiming(0, { duration: tweens.press.duration, easing: PRESS }));
+    inset.set(withTiming(0, tween("press")));
     if (motion.low) {
       flood.set(withDelay(90, withTiming(1, { duration: 120, easing: Easing.linear })));
       at(120, () => fill.set(1));
