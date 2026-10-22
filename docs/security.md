@@ -6,14 +6,14 @@ The repository is public from the first commit. Secrets live only in the gitigno
 
 ## Layers that stop a leak
 
-| Layer                  | What it checks                                                               | Where                                             |
-| ---------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
-| `.gitignore`           | `.env*` (except `.env.example`), keystores, credential JSONs, Firebase files | Every commit                                      |
-| `tools/guard-env.mjs`  | Any `.env` file; Anthropic, Google and PayPal secret patterns                | lefthook pre-commit; CI on changed files          |
-| secretlint             | The recommended preset over the whole tree                                   | lefthook pre-commit; CI                           |
-| gitleaks               | Full git history                                                             | CI (`gitleaks/gitleaks-action`)                   |
-| Fixture scrubber       | Tokens → `REDACTED`, emails → `sb-<hash>@sandbox.fairsplit.invalid`          | `@fairsplit/test-kit`; CI re-checks every fixture |
-| GitHub push protection | Known provider token formats                                                 | On push (enable in repo settings)                 |
+| Layer                  | What it checks                                                                                             | Where                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `.gitignore`           | `.env*` (except `.env.example`), keystores, credential JSONs, Firebase files                               | Every commit                                      |
+| `tools/guard-env.mjs`  | Any `.env` file; Anthropic, Google and PayPal secret patterns                                              | lefthook pre-commit; CI on changed files          |
+| secretlint             | The recommended preset over the whole tree                                                                 | lefthook pre-commit; CI                           |
+| gitleaks               | Push: the pushed commits. PR: the PR's commits. Nightly and manual run: all history reachable from the ref | CI `gitleaks` job (`gitleaks/gitleaks-action` v3) |
+| Fixture scrubber       | Tokens → `REDACTED`, emails → `sb-<hash>@sandbox.fairsplit.invalid`                                        | `@fairsplit/test-kit`; CI re-checks every fixture |
+| GitHub push protection | Known provider token formats                                                                               | On push (enable in repo settings)                 |
 
 `--no-verify` is forbidden. A hook that blocks a commit is fixed, never bypassed.
 
@@ -52,9 +52,13 @@ service is healthy (`/readyz`). Check the provider's usage logs for calls you di
 
 ### 3. Re-run gitleaks
 
-Run gitleaks over the full history (CI's `gitleaks` job, or `gitleaks git .` locally) and confirm it is clean.
-Re-run secretlint (`corepack pnpm secrets:scan`). If the secret showed in a film take or screenshot, re-shoot or
-blur it (risk R17).
+Run gitleaks over the full history and confirm it is clean. A push or PR run of CI's `gitleaks` job does **not**
+do this: on those triggers gitleaks-action scans only the pushed or PR commits. Use one of:
+- GitHub → Actions → `ci` → **Run workflow** on `main` (workflow_dispatch: the action scans all history reachable
+  from `main`), then on each rewritten `ws/*` branch; or wait for the nightly scheduled run (20:43 UTC, `main`).
+- Locally, in the rewritten mirror: `gitleaks git --log-opts="--all" .` (every branch and tag).
+  Re-run secretlint (`corepack pnpm secrets:scan`). If the secret showed in a film take or screenshot, re-shoot or
+  blur it (risk R17).
 
 ### 4. Record it
 

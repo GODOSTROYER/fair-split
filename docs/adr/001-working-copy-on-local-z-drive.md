@@ -1,6 +1,6 @@
 # ADR 001: Working copy on the local Z: drive
 
-- **Status:** Proposed (awaiting the user's acceptance)
+- **Status:** Accepted (user, on merge)
 - **Date:** 22 Oct 2026 (IST)
 - **Author:** WS-QA
 - **Touches:** register §1 (Repo row), architecture §18 (Windows development), S5.2.3 rule 1 (worktree paths)

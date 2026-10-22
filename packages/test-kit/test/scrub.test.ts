@@ -29,7 +29,7 @@ const recorded = {
       sender_batch_header: { sender_batch_id: "2026A-7f3a91c2-r37", email_subject: "Bayad na" },
       items: [
         { receiver: "nang.celing@personal.example.com", sender_item_id: "r37-M-014" },
-        { receiver: "rhea.jumawan@gmail.com", sender_item_id: "r37-M-031" },
+        { receiver: "rhea.j@member.example.org", sender_item_id: "r37-M-031" },
       ],
     },
   },
@@ -38,7 +38,7 @@ const recorded = {
       access_token: fakePayPalToken,
       refresh_token: "opaque-refresh-value-123456",
       client_secret: "shh-not-for-git",
-      note: `debug: key=${fakeGoogleKey}, jwt=${fakeJwt}, contact ops%40fairsplit.app`,
+      note: `debug: key=${fakeGoogleKey}, jwt=${fakeJwt}, contact ops%40ops.example.net`,
       links: [{ href: "https://api-m.sandbox.paypal.com/v1/payments/payouts/BATCH1", rel: "self" }],
     },
   },
@@ -89,18 +89,20 @@ describe("scrub: emails become sandbox aliases", () => {
     for (const item of clean.request.body.items) {
       expect(item.receiver).toMatch(new RegExp(`^sb-[0-9a-f]{8}@${ALIAS_DOMAIN.replace(/\./g, "\\.")}$`));
     }
-    expect(JSON.stringify(clean)).not.toMatch(/gmail\.com|personal\.example\.com|fairsplit\.app/);
+    expect(JSON.stringify(clean)).not.toMatch(
+      /member\.example\.org|personal\.example\.com|ops\.example\.net/,
+    );
   });
 
   it("is stable: the same address always gets the same alias, different addresses differ", () => {
-    expect(emailAlias("Rhea.Jumawan@gmail.com")).toBe(emailAlias("rhea.jumawan@gmail.com"));
+    expect(emailAlias("Rhea.J@Member.Example.org")).toBe(emailAlias("rhea.j@member.example.org"));
     expect(emailAlias("a@example.com")).not.toBe(emailAlias("b@example.com"));
     const [first, second] = clean.request.body.items;
     expect(first?.receiver).not.toBe(second?.receiver);
   });
 
   it("handles URL-encoded addresses", () => {
-    expect(scrubString("to=ops%40fairsplit.app")).toBe(`to=${emailAlias("ops@fairsplit.app")}`);
+    expect(scrubString("to=ops%40ops.example.net")).toBe(`to=${emailAlias("ops@ops.example.net")}`);
   });
 
   it("uses a readable alias from the alias map", () => {
@@ -113,9 +115,9 @@ describe("scrub: emails become sandbox aliases", () => {
   });
 
   it("rejects a mapped alias that could reach a real inbox", () => {
-    expect(() => emailAlias("x@y.com", { emailAliases: { "x@y.com": "m-014@gmail.com" } })).toThrow(
-      /\.invalid/,
-    );
+    expect(() =>
+      emailAlias("x@example.com", { emailAliases: { "x@example.com": "m-014@example.net" } }),
+    ).toThrow(/\.invalid/);
   });
 });
 

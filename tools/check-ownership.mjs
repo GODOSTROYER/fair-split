@@ -5,8 +5,18 @@
 //   node tools/check-ownership.mjs --branch ws/qa --base origin/main      # diff <base>...HEAD via git
 //   node tools/check-ownership.mjs --ws qa path/a path/b                  # explicit files (treated as edits)
 //   git diff --name-status main...HEAD | node tools/check-ownership.mjs --ws WS-QA --stdin
+// Options:
+//   --repo <dir>            repository to diff and read rules from (default: the script's parent directory)
+//   --ownership-ref <ref>   read docs/ownership.md from this commit (`git show <ref>:docs/ownership.md`).
+//                           With --base it defaults to the base, so a PR is judged by the base's rules and
+//                           cannot widen its own row. If that commit has no machine-readable ownership file
+//                           (only the bootstrap PR that introduces it), the working-tree file is used and
+//                           WS-QA may also touch the deps-lane files (S5.2.3 rule 4: WS-QA's bootstrap PR).
+//   --ownership <file>      read the rules from a file instead (tests, local use)
+//   --strict                fail on a branch that is neither ws/<id> nor deps/* (CI sets it on every PR);
+//                           without it such a branch is skipped (exit 0)
 // Without --ws, the branch comes from --branch, then GITHUB_HEAD_REF, then GITHUB_REF_NAME.
-// A branch that is neither ws/<id> nor deps/* is skipped (exit 0) unless --strict is given.
+// CI runs the BASE commit's copy of this script, so a PR cannot weaken the checker that judges it.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -89,6 +99,9 @@ export function parseOwnership(md) {
     shared[key] = backticked(paths);
   }
   if (Object.keys(workstreams).length === 0) throw new Error("docs/ownership.md: no workstreams found");
+  for (const [ws, row] of Object.entries(workstreams)) {
+    if (row.include.length === 0) throw new Error(`docs/ownership.md: ${ws} owns no backticked paths`);
+  }
   return { workstreams, ...shared };
 }
 
@@ -145,11 +158,15 @@ export function parseNameStatus(text) {
   return out;
 }
 
+/** The workstream whose bootstrap PR installs the pinned stack (S5.2.3 rule 4). */
+export const BOOTSTRAP_WS = "WS-QA";
+
 /**
  * Checks changes [{status: A|M|D|R|..., path}] for workstream `ws` (`WS-*` or `deps`).
+ * `bootstrap: true` (the base has no machine-readable rules yet) also lets WS-QA touch the deps-lane files.
  * Returns { ok, violations: [{path, status, reason}] }.
  */
-export function checkChanges(ownership, ws, changes) {
+export function checkChanges(ownership, ws, changes, { bootstrap = false } = {}) {
   if (ws !== DEPS_LANE && !ownership.workstreams[ws]) {
     throw new Error(`Unknown workstream "${ws}". Known: ${Object.keys(ownership.workstreams).join(", ")}`);
   }
@@ -173,6 +190,7 @@ export function checkChanges(ownership, ws, changes) {
       }
       continue;
     }
+    if (bootstrap && ws === BOOTSTRAP_WS && anyMatch(ownership.depsLane, file)) continue;
     if (!owns(ownership, ws, file)) {
       const owners = Object.keys(ownership.workstreams).filter((w) => owns(ownership, w, file));
       const who = owners.length ? `owned by ${owners.join(", ")}` : "owned by no workstream";
@@ -190,6 +208,8 @@ function parseArgs(argv) {
     else if (a === "--branch") opts.branch = argv[++i];
     else if (a === "--base") opts.base = argv[++i];
     else if (a === "--ownership") opts.ownership = argv[++i];
+    else if (a === "--ownership-ref") opts.ownershipRef = argv[++i];
+    else if (a === "--repo") opts.repo = argv[++i];
     else if (a === "--strict") opts.strict = true;
     else if (a === "--stdin") opts.stdin = true;
     else if (a === "--help" || a === "-h") opts.help = true;
@@ -198,48 +218,84 @@ function parseArgs(argv) {
   return opts;
 }
 
+const git = (repo, args) =>
+  execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+/**
+ * Loads the rules from commit `ref` when given. When that commit has no machine-readable
+ * docs/ownership.md (the bootstrap PR), falls back to the working tree and flags `bootstrap`.
+ * Without `ref`, reads `file` or the working tree.
+ */
+export function loadOwnership({ repo, ref, file }) {
+  if (file) return { ownership: parseOwnership(readFileSync(file, "utf8")), source: file, bootstrap: false };
+  const head = join(repo, "docs/ownership.md");
+  if (!ref) return { ownership: parseOwnership(readFileSync(head, "utf8")), source: head, bootstrap: false };
+  let reason;
+  try {
+    const md = git(repo, ["show", `${ref}:docs/ownership.md`]);
+    return { ownership: parseOwnership(md), source: `${ref}:docs/ownership.md`, bootstrap: false };
+  } catch (e) {
+    reason = String(e?.stderr || e?.message || e)
+      .trim()
+      .split("\n")[0];
+  }
+  return {
+    ownership: parseOwnership(readFileSync(head, "utf8")),
+    source: `${head} (bootstrap: ${ref} has no usable docs/ownership.md: ${reason})`,
+    bootstrap: true,
+  };
+}
+
 export function main(argv = process.argv.slice(2), env = process.env) {
   const opts = parseArgs(argv);
   if (opts.help) {
-    console.log("usage: check-ownership (--ws <id> | --branch <ws/id>) [--base <ref> | --stdin | files...]");
+    console.log(
+      "usage: check-ownership (--ws <id> | --branch <ws/id>) [--base <ref> | --stdin | files...] " +
+        "[--ownership-ref <ref> | --ownership <file>] [--repo <dir>] [--strict]",
+    );
     return 0;
   }
-  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const repo = resolve(opts.repo ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
   const branch = opts.branch ?? env.GITHUB_HEAD_REF ?? env.GITHUB_REF_NAME;
   const ws = opts.ws ? normalizeWorkstream(opts.ws) : workstreamFromBranch(branch);
   if (!ws) {
     const msg = `check-ownership: branch "${branch ?? "(none)"}" is not ws/<id> or deps/*`;
     if (opts.strict) {
-      console.error(`${msg}; --strict set, failing.`);
+      console.error(`${msg}; --strict set, failing. Name the branch ws/<id> or deps/<topic>.`);
       return 1;
     }
     console.log(`${msg}; skipped.`);
     return 0;
   }
-  const ownership = parseOwnership(
-    readFileSync(opts.ownership ?? join(repoRoot, "docs/ownership.md"), "utf8"),
-  );
+
+  const ref = opts.ownership ? undefined : (opts.ownershipRef ?? opts.base);
+  const { ownership, source, bootstrap } = loadOwnership({ repo, ref, file: opts.ownership });
+  if (bootstrap) console.warn(`check-ownership: warning: rules from ${source}`);
 
   let changes;
   if (opts.base) {
-    const out = execFileSync("git", ["diff", "--name-status", "-M", `${opts.base}...HEAD`], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    });
-    changes = parseNameStatus(out);
+    changes = parseNameStatus(git(repo, ["diff", "--name-status", "-M", `${opts.base}...HEAD`]));
   } else if (opts.stdin) {
     changes = parseNameStatus(readFileSync(0, "utf8"));
   } else {
     changes = opts.files.map((path) => ({ status: "M", path }));
   }
 
-  const { ok, violations } = checkChanges(ownership, ws, changes);
-  if (!ok) {
-    console.error(`check-ownership: ${violations.length} path(s) outside ${ws}:`);
-    for (const v of violations) console.error(`  ${v.status} ${v.path}: ${v.reason}`);
+  let result;
+  try {
+    result = checkChanges(ownership, ws, changes, { bootstrap });
+  } catch (e) {
+    console.error(`check-ownership: ${e.message} (rules from ${source})`);
     return 1;
   }
-  console.log(`check-ownership: ${changes.length} changed path(s), all within ${ws}.`);
+  if (!result.ok) {
+    console.error(
+      `check-ownership: ${result.violations.length} path(s) outside ${ws} (rules from ${source}):`,
+    );
+    for (const v of result.violations) console.error(`  ${v.status} ${v.path}: ${v.reason}`);
+    return 1;
+  }
+  console.log(`check-ownership: ${changes.length} changed path(s), all within ${ws} (rules from ${source}).`);
   return 0;
 }
 

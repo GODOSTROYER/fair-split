@@ -28,7 +28,7 @@ const raw: RecordedFixture = {
   },
   response: {
     status: 200,
-    body: { transaction_status: "UNCLAIMED", payout_item: { receiver: "rhea@nowhere-mail.net" } },
+    body: { transaction_status: "UNCLAIMED", payout_item: { receiver: "rhea@nowhere.example.net" } },
   },
 };
 
@@ -70,7 +70,7 @@ describe("writeFixture", () => {
     const written = writeFixture(file, raw);
     const onDisk = readFileSync(file, "utf8");
     expect(onDisk).not.toContain(fakePayPalToken);
-    expect(onDisk).not.toContain("rhea@nowhere-mail.net");
+    expect(onDisk).not.toContain("rhea@nowhere.example.net");
     expect(onDisk).toContain(`Bearer ${REDACTED}`);
     expect(onDisk).toContain("@sandbox.fairsplit.invalid");
     expect(loadFixture(file)).toEqual(written);

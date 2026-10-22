@@ -5,10 +5,12 @@
 # REST app, in the protected environment `sandbox-smoke`.
 #
 # Required in the `sandbox-smoke` environment (Settings -> Environments), all from the fs-dev app:
-#   secrets:   PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
-#   variables: PAYPAL_BUSINESS_EMAIL (invoicer and payout sender),
-#              PAYPAL_BUYER_EMAIL (Lantern Bay payer),
-#              PAYPAL_SMOKE_RECEIVER_EMAIL (one on-rail member personal account)
+#   secrets: PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET,
+#            PAYPAL_BUSINESS_EMAIL (invoicer and payout sender),
+#            PAYPAL_BUYER_EMAIL (Lantern Bay payer),
+#            PAYPAL_SMOKE_RECEIVER_EMAIL (one on-rail member personal account)
+# The three addresses are secrets, not variables, so GitHub masks them in this public repo's logs: the fixture
+# policy treats sandbox addresses as values to scrub. The job also masks them explicitly before any other step.
 # Repository variable: SANDBOX_SMOKE_ENABLED=true to switch it on.
 # No Anthropic or Gemini key is used here; Claude's live run is eval-live.yml (planned).
 #
@@ -40,6 +42,16 @@ jobs:
     timeout-minutes: 15
     environment: sandbox-smoke
     steps:
+      - name: Mask sandbox addresses
+        env:
+          PAYPAL_BUSINESS_EMAIL: ${{ secrets.PAYPAL_BUSINESS_EMAIL }}
+          PAYPAL_BUYER_EMAIL: ${{ secrets.PAYPAL_BUYER_EMAIL }}
+          PAYPAL_SMOKE_RECEIVER_EMAIL: ${{ secrets.PAYPAL_SMOKE_RECEIVER_EMAIL }}
+        run: |
+          for v in "$PAYPAL_BUSINESS_EMAIL" "$PAYPAL_BUYER_EMAIL" "$PAYPAL_SMOKE_RECEIVER_EMAIL"; do
+            if [ -n "$v" ]; then echo "::add-mask::$v"; fi
+          done
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
         with:
@@ -61,9 +73,9 @@ jobs:
           PAYPAL_ENV: sandbox
           PAYPAL_CLIENT_ID: ${{ secrets.PAYPAL_CLIENT_ID }}
           PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}
-          PAYPAL_BUSINESS_EMAIL: ${{ vars.PAYPAL_BUSINESS_EMAIL }}
-          PAYPAL_BUYER_EMAIL: ${{ vars.PAYPAL_BUYER_EMAIL }}
-          PAYPAL_SMOKE_RECEIVER_EMAIL: ${{ vars.PAYPAL_SMOKE_RECEIVER_EMAIL }}
+          PAYPAL_BUSINESS_EMAIL: ${{ secrets.PAYPAL_BUSINESS_EMAIL }}
+          PAYPAL_BUYER_EMAIL: ${{ secrets.PAYPAL_BUYER_EMAIL }}
+          PAYPAL_SMOKE_RECEIVER_EMAIL: ${{ secrets.PAYPAL_SMOKE_RECEIVER_EMAIL }}
         run: |
           echo "::error::E-17 is not implemented yet (e2e/sandbox-smoke, WS-QA with WS-PPMONEY)."
           exit 1

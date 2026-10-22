@@ -1,4 +1,4 @@
-// dependency-cruiser config for Fair Split (decision register section 6).
+// dependency-cruiser config for Fair Split (decision register section 6, AGENTS.md).
 //
 // Server layering (an arrow points from a package to what it may import):
 //   contracts <- domain <- {seed, db} <- outbox <- {paypal-*, ai} <- {apps/api, apps/tasks}
@@ -6,8 +6,13 @@
 //   contracts, api-client, tokens, motion, seal, i18n, ui-*.
 // Cross-package imports go through a package's declared "exports" (no deep imports), and
 // domain stays pure (no node:fs / node:net style IO).
+// Every import must be declared in the importing package's own package.json; the packages AGENTS.md
+// excludes on purpose are rejected; zod 3.25.76 is imported only inside packages/paypal-*, which in turn
+// never import zod 4. packages/ai reaches the money packages only through paypal-toolkit and the read-only
+// entry of paypal-payouts (ADR 002).
 //
-// Run with: corepack pnpm deps:check
+// Paths are relative to the working directory, so run it from the repository root:
+//   corepack pnpm deps:check
 const { existsSync, readdirSync, readFileSync } = require("node:fs");
 const { join, posix } = require("node:path");
 
@@ -21,8 +26,10 @@ const SERVER_ALLOWED = {
   "paypal-core": ["contracts", "domain", "seed", "db", "outbox"],
   "paypal-toolkit": ["contracts", "domain", "seed", "db", "outbox", "paypal-core"],
   "paypal-payouts": ["contracts", "domain", "seed", "db", "outbox", "paypal-core"],
-  // The audit agent reads invoices and payout batches through the money packages' read tools.
-  ai: ["contracts", "domain", "seed", "db", "outbox", "paypal-core", "paypal-toolkit", "paypal-payouts"],
+  // ai and paypal-* share a layer (register section 6). The agent's PayPal tools come from paypal-toolkit
+  // (agentToolSchemas, tk) and, for get_payout_batch / get_payout_item only, from the read-only entry
+  // `@fairsplit/paypal-payouts/read` (rule ai-payouts-read-only, ADR 002). Never PayoutsService.
+  ai: ["contracts", "domain", "seed", "db", "outbox", "paypal-toolkit", "paypal-payouts"],
   // The eval scores the readers in packages/ai; it is tooling, never imported by runtime code.
   eval: ["contracts", "domain", "seed", "ai"],
   // Test helpers: factories read the seed snapshot.
@@ -33,6 +40,20 @@ const UI_PACKAGES = ["contracts", "api-client", "tokens", "motion", "seal", "i18
 const UI_PACKAGE_DIRS = ["api-client", "tokens", "motion", "seal", "i18n", "ui-web", "ui-native"];
 const SERVER_APPS = ["api", "tasks"];
 const UI_APPS = ["console", "mobile"];
+
+/** AGENTS.md "Excluded on purpose" (npm names; a trailing slash means the whole scope). */
+const EXCLUDED_PACKAGES = [
+  "ai",
+  "@ai-sdk/",
+  "next",
+  "@next/",
+  "xstate",
+  "@xstate/",
+  "nativewind",
+  "rive-react-native",
+  "@rive-app/",
+  "@paypal/mcp",
+];
 
 const IO_MODULES = [
   "fs",
@@ -52,27 +73,75 @@ const IO_MODULES = [
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const alt = (xs) => xs.map(esc).join("|");
+/** A regex source that matches nothing (for rules whose target list is empty). */
+const NEVER = "^\\b$^";
 
-/** Entry files each workspace package declares in package.json "exports" (repo-relative). */
-function exportedEntries() {
-  const entries = [];
+const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
+
+function workspaceDirs() {
+  const dirs = [];
   for (const root of ["packages", "apps"]) {
     if (!existsSync(root)) continue;
     for (const dir of readdirSync(root)) {
-      const pj = join(root, dir, "package.json");
-      if (!existsSync(pj)) continue;
-      const json = JSON.parse(readFileSync(pj, "utf8"));
-      const walk = (v) => {
-        if (typeof v === "string") entries.push(posix.join(root, dir, v));
-        else if (v && typeof v === "object") for (const x of Object.values(v)) walk(x);
-      };
-      walk(json.exports ?? json.main ?? "src/index.ts");
+      if (existsSync(join(root, dir, "package.json"))) dirs.push([root, dir]);
     }
   }
-  return entries;
+  return dirs;
+}
+
+/** Repo-relative files that an "exports" value (or a sub-tree of it) points at. */
+function exportTargets(root, dir, value) {
+  const out = [];
+  const walk = (v) => {
+    if (typeof v === "string") out.push(posix.join(root, dir, v));
+    else if (v && typeof v === "object") for (const x of Object.values(v)) walk(x);
+  };
+  walk(value);
+  return out;
+}
+
+/** Entry files each workspace package declares in package.json "exports" (repo-relative). */
+function exportedEntries() {
+  return workspaceDirs().flatMap(([root, dir]) => {
+    const json = readJson(join(root, dir, "package.json"));
+    return exportTargets(root, dir, json.exports ?? json.main ?? "src/index.ts");
+  });
+}
+
+/** Files behind `@fairsplit/paypal-payouts/read` (empty until WS-PPMONEY declares that export). */
+function payoutsReadEntries() {
+  const pj = join("packages", "paypal-payouts", "package.json");
+  if (!existsSync(pj)) return [];
+  const read = readJson(pj).exports?.["./read"];
+  return read ? exportTargets("packages", "paypal-payouts", read) : [];
+}
+
+/** Installed copies of zod, split by major version: { 3: [dirs], 4: [dirs] } (repo-relative). */
+function zodInstalls() {
+  const byMajor = {};
+  const candidates = [
+    "node_modules/zod",
+    ...workspaceDirs().map(([root, dir]) => `${root}/${dir}/node_modules/zod`),
+  ];
+  for (const dir of candidates) {
+    const pj = join(dir, "package.json");
+    if (!existsSync(pj)) continue;
+    const major = String(readJson(pj).version).split(".")[0];
+    byMajor[major] = [...(byMajor[major] ?? []), dir];
+  }
+  return byMajor;
 }
 
 const ENTRY_RE = `^(${alt(exportedEntries())})$`;
+const PAYOUTS_READ = payoutsReadEntries();
+const ZOD = zodInstalls();
+const ZOD3_RE = ZOD["3"] ? `^(${alt(ZOD["3"])})/` : NEVER;
+const ZOD4_RE = ZOD["4"] ? `^(${alt(ZOD["4"])})/` : NEVER;
+// zod 4 also ships the zod 3 API at "zod/v3"; that counts as zod 3 too.
+const ZOD4_V3_RE = ZOD["4"] ? `^(${alt(ZOD["4"])})/v3/` : NEVER;
+const EXCLUDED_RE = `(^|/node_modules/|^node_modules/)(${EXCLUDED_PACKAGES.map((p) =>
+  p.endsWith("/") ? `${esc(p)}[^/]+` : esc(p),
+).join("|")})(/|$)`;
 
 const layerRules = Object.entries(SERVER_ALLOWED).map(([pkg, allowed]) => ({
   name: `layer-${pkg}`,
@@ -89,6 +158,19 @@ const layerRules = Object.entries(SERVER_ALLOWED).map(([pkg, allowed]) => ({
 module.exports = {
   forbidden: [
     ...layerRules,
+    {
+      name: "ai-payouts-read-only",
+      comment:
+        "packages/ai may use paypal-payouts only through @fairsplit/paypal-payouts/read (get_payout_batch, " +
+        "get_payout_item). create_payout_batch and cancel stay server-only behind PayoutsService (register " +
+        "section 8, AI-7, ADR 002)",
+      severity: "error",
+      from: { path: "^packages/ai/" },
+      to: {
+        path: "^packages/paypal-payouts/",
+        pathNot: PAYOUTS_READ.length ? `^(${alt(PAYOUTS_READ)})$` : NEVER,
+      },
+    },
     {
       name: "layer-server-apps",
       comment:
@@ -125,11 +207,59 @@ module.exports = {
       },
     },
     {
+      name: "no-deep-imports-from-tools",
+      comment:
+        "tools/ and e2e/ import workspace packages only through an entry in their package.json exports",
+      severity: "error",
+      from: { path: "^(tools|e2e)/" },
+      to: { path: "^(packages|apps)/([^/]+)/", pathNot: ENTRY_RE },
+    },
+    {
       name: "no-relative-cross-package",
       comment: "Cross-package imports use the @fairsplit/<dir> name, never a relative path",
       severity: "error",
       from: { path: "^(packages|apps)/([^/]+)/" },
       to: { dependencyTypes: ["local"], path: "^(packages|apps)/([^/]+)/", pathNot: "^$1/$2/" },
+    },
+    {
+      name: "no-relative-package-imports-from-tools",
+      comment:
+        "tools/ and e2e/ import workspace packages by their @fairsplit/<dir> name, never a relative path",
+      severity: "error",
+      from: { path: "^(tools|e2e)/" },
+      to: { dependencyTypes: ["local"], path: "^(packages|apps)/" },
+    },
+    {
+      name: "no-undeclared-deps",
+      comment:
+        "Every npm import must be declared in the importing package's own package.json; with nodeLinker " +
+        "hoisted an undeclared import silently resolves to whatever is hoisted (for example zod 3)",
+      severity: "error",
+      from: {},
+      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"] },
+    },
+    {
+      name: "no-excluded-packages",
+      comment:
+        "Excluded on purpose (AGENTS.md): ai / @ai-sdk/*, Next.js, NativeWind, Rive, xstate, @paypal/mcp. " +
+        "Some are hoisted as transitive dependencies; they must never be imported",
+      severity: "error",
+      from: {},
+      to: { path: EXCLUDED_RE },
+    },
+    {
+      name: "zod3-only-in-paypal",
+      comment: "zod 3.25.76 (catalog:zod3) is used only inside packages/paypal-* (register section 6)",
+      severity: "error",
+      from: { pathNot: "^packages/paypal-[^/]+/" },
+      to: { path: [ZOD3_RE, ZOD4_V3_RE] },
+    },
+    {
+      name: "paypal-uses-zod3",
+      comment: "packages/paypal-* use zod 3.25.76 (catalog:zod3), matching @paypal/agent-toolkit 1.11.0",
+      severity: "error",
+      from: { path: "^packages/paypal-[^/]+/" },
+      to: { path: ZOD4_RE },
     },
     {
       name: "domain-is-pure",
@@ -162,8 +292,10 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: "node_modules" },
-    exclude: { path: "(^|/)(node_modules|dist|coverage|\\.turbo|\\.expo)/" },
+    // node_modules must not be excluded: that would drop every npm dependency before the rules above see it.
+    // doNotFollow keeps node_modules out of the starting files and stops the cruise at its first file.
+    doNotFollow: { path: "(^|/)node_modules/" },
+    exclude: { path: "(^|/)(dist|coverage|\\.turbo|\\.expo)/" },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.base.json" },
     enhancedResolveOptions: {

@@ -37,14 +37,22 @@ On Windows, use a local NTFS drive (never a mapped drive), enable long paths and
   node tools/check-ownership.mjs --branch ws/<id> --base origin/main
   ```
 
+- CI runs the check on every PR with the **base** commit's checker and rules, and fails a branch that is not
+  `ws/<id>` or `deps/<topic>`.
 - `docs/spikes/`, `docs/gates/` and `docs/adr/` accept new files from anyone; existing files there are never edited.
 - Frozen contracts (IC-01 to IC-11) change only through an ADR (`docs/adr/000-template.md`) that the user accepts.
+  The user accepts an ADR by merging its PR, so an ADR is committed with status `Accepted (user, on merge)`;
+  a rejected ADR is never merged.
 
 ## Code rules
 
 - TypeScript 6 strict, ESM, `NodeNext` resolution: relative imports in `.ts` files end in `.js`.
 - Exact versions only, from the `pnpm-workspace.yaml` catalogs; new pins must be at least 14 days old and recorded
-  in [`docs/versions.md`](docs/versions.md).
+  in [`docs/versions.md`](docs/versions.md). Only a `deps/<topic>` branch may touch `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml` and `docs/versions.md` (S5.2.3 rule 4); a workstream that needs a dependency asks for a deps PR.
+- Excluded on purpose, and rejected by dependency-cruiser: `ai` / `@ai-sdk/*`, Next.js, NativeWind, Rive, xstate,
+  `@paypal/mcp`. Every import must be declared in the importing package's own `package.json`; zod 3 is imported
+  only from `packages/paypal-*`.
 - The dependency rule (register §6) is enforced by dependency-cruiser:
   `contracts ← domain ← {seed, db} ← outbox ← {paypal-*, ai} ← {apps/api, apps/tasks}`; UI code imports only
   `contracts`, `api-client`, `tokens`, `motion`, `seal`, `i18n` and `ui-*`.

@@ -8,12 +8,16 @@ on:
   push:
     branches: [main, "ws/**", "deps/**"]
   workflow_dispatch:
+  # Nightly full-history secret scan. gitleaks-action scans only the pushed commits on push and only the PR's
+  # commits on pull_request; it scans the whole history only on schedule and workflow_dispatch.
+  schedule:
+    - cron: "43 20 * * *" # 20:43 UTC = 02:13 IST, after the daily merge train
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -25,6 +29,7 @@ env:
 jobs:
   verify:
     name: lint, types, tests, boundaries, secrets
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -92,11 +97,27 @@ jobs:
       - name: Dependency rule (dependency-cruiser)
         run: pnpm deps:check
 
-      - name: Ownership path check (docs/ownership.md)
-        # Branch comes from GITHUB_HEAD_REF on PRs and GITHUB_REF_NAME on pushes; main is skipped.
+      - name: Ownership path check (docs/ownership.md, judged by the base's rules)
+        # Branch comes from GITHUB_HEAD_REF on PRs and GITHUB_REF_NAME on pushes. Every PR is checked
+        # (--strict fails a branch that is not ws/<id> or deps/*); only main itself (push, manual run) is skipped.
+        # The base commit's checker and rules are used, so a PR cannot widen its own row or weaken the
+        # checker. Only the bootstrap PR (base without the checker) runs the head copy.
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
-        run: node tools/check-ownership.mjs --base "$BASE_SHA"
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF_NAME" = "main" ]; then
+            echo "main itself (push or manual run): already checked as a PR; skipped."
+            exit 0
+          fi
+          checker="tools/check-ownership.mjs"
+          if git cat-file -e "$BASE_SHA:tools/check-ownership.mjs" 2>/dev/null; then
+            checker="$RUNNER_TEMP/check-ownership.base.mjs"
+            git show "$BASE_SHA:tools/check-ownership.mjs" > "$checker"
+          else
+            echo "::warning::Base $BASE_SHA has no tools/check-ownership.mjs (bootstrap PR); using the head copy."
+          fi
+          node "$checker" --repo "$GITHUB_WORKSPACE" --base "$BASE_SHA" --ownership-ref "$BASE_SHA" --strict
 
       - name: secretlint (whole tree)
         run: pnpm secrets:scan
@@ -109,7 +130,9 @@ jobs:
             | xargs -0 -r node tools/guard-env.mjs
 
   gitleaks:
-    name: gitleaks (full history)
+    # Scope depends on the trigger (gitleaks-action v3): push = the pushed commits, pull_request = the PR's
+    # commits, schedule (nightly) and workflow_dispatch = the full history of the checked-out ref.
+    name: gitleaks (commit range; full history nightly and on manual run)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

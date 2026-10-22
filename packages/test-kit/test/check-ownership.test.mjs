@@ -1,12 +1,13 @@
 // Unit tests for tools/check-ownership.mjs (WS-QA owns both). They run against the real docs/ownership.md.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   checkChanges,
   globToRegExp,
+  loadOwnership,
   main,
   matchPath,
   owns,
@@ -128,10 +129,25 @@ describe("checkChanges", () => {
     expect(checkChanges(ownership, "WS-QA", [{ status: "D", path: "docs/gates/G0.md" }]).ok).toBe(false);
   });
 
-  it("lets any workstream commit the lockfile", () => {
-    expect(checkChanges(ownership, "WS-DATA", edit("pnpm-lock.yaml", "packages/db/package.json")).ok).toBe(
-      true,
-    );
+  it("keeps the lockfile, the catalog and versions.md in the deps lane (S5.2.3 rule 4)", () => {
+    expect(checkChanges(ownership, "WS-DATA", edit("packages/db/package.json")).ok).toBe(true);
+    for (const ws of Object.keys(ownership.workstreams)) {
+      for (const file of ["pnpm-lock.yaml", "pnpm-workspace.yaml", "docs/versions.md"]) {
+        expect(checkChanges(ownership, ws, edit(file)).ok, `${ws} ${file}`).toBe(false);
+      }
+    }
+    const depsFiles = edit("pnpm-lock.yaml", "pnpm-workspace.yaml", "docs/versions.md");
+    expect(checkChanges(ownership, "deps", depsFiles).ok).toBe(true);
+  });
+
+  it("lets only WS-QA's bootstrap PR touch the deps-lane files", () => {
+    const files = [
+      { status: "A", path: "docs/versions.md" },
+      ...edit("pnpm-lock.yaml", "pnpm-workspace.yaml"),
+    ];
+    expect(checkChanges(ownership, "WS-QA", files, { bootstrap: true }).ok).toBe(true);
+    expect(checkChanges(ownership, "WS-QA", files).ok).toBe(false);
+    expect(checkChanges(ownership, "WS-DATA", files, { bootstrap: true }).ok).toBe(false);
   });
 
   it("limits the deps lane to dependency files", () => {
@@ -197,5 +213,132 @@ describe("CLI", () => {
       },
     );
     expect(out).toContain("all within WS-QA");
+  });
+});
+
+describe("CI mode: a PR is judged by its base's rules", () => {
+  // Throwaway git repositories inside this worktree's gitignored node_modules.
+  const base = resolve(repoRoot, "packages/test-kit/node_modules/.cache/ownership-repos");
+  const hooks = resolve(base, "no-hooks");
+  mkdirSync(hooks, { recursive: true });
+  const repos = [];
+  afterAll(() => {
+    for (const r of repos) rmSync(r, { recursive: true, force: true });
+  });
+
+  const realRules = readFileSync(resolve(repoRoot, "docs/ownership.md"), "utf8");
+  const quietMain = (args) => {
+    const { log, error, warn } = console;
+    const lines = [];
+    const capture = (m) => lines.push(String(m));
+    console.log = capture;
+    console.error = capture;
+    console.warn = capture;
+    try {
+      return { code: main(args, {}), out: lines.join("\n") };
+    } finally {
+      Object.assign(console, { log, error, warn });
+    }
+  };
+
+  /** A repo whose main holds `baseFiles`. */
+  function makeRepo(baseFiles) {
+    const dir = mkdtempSync(join(base, "repo-"));
+    repos.push(dir);
+    const git = (...args) =>
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=Fixture",
+          "-c",
+          "user.email=fixture@example.invalid",
+          "-c",
+          `core.hooksPath=${hooks}`,
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      ).trim();
+    const write = (rel, text) => {
+      mkdirSync(dirname(join(dir, rel)), { recursive: true });
+      writeFileSync(join(dir, rel), text);
+    };
+    const commit = (msg) => {
+      git("add", "-A");
+      git("commit", "-q", "--allow-empty", "-m", msg);
+      return git("rev-parse", "HEAD");
+    };
+    git("init", "-q", "-b", "main");
+    write("README.md", "fixture\n");
+    for (const [rel, text] of Object.entries(baseFiles)) write(rel, text);
+    const mainSha = commit("base");
+    return { dir, git, write, commit, mainSha };
+  }
+
+  const ci = (r, branch) => ["--branch", branch, "--base", r.mainSha, "--repo", r.dir, "--strict"];
+
+  it("rejects a ws/core PR that adds packages/db/** to its own WS-CORE row", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules });
+    r.git("checkout", "-q", "-b", "ws/core");
+    const coreRow = "`packages/contracts`, `packages/domain`, `packages/seed`";
+    expect(realRules).toContain(coreRow);
+    r.write(
+      "docs/ownership.md",
+      realRules.replace(coreRow, `${coreRow}, \`packages/db/**\`, \`docs/ownership.md\``),
+    );
+    r.write("packages/db/src/schema.ts", "export {};\n");
+    r.commit("widen my row");
+
+    const judged = quietMain(ci(r, "ws/core"));
+    expect(judged.code).toBe(1);
+    expect(judged.out).toContain("packages/db/src/schema.ts");
+    expect(judged.out).toContain("M docs/ownership.md");
+    expect(judged.out).toContain(`rules from ${r.mainSha}:docs/ownership.md`);
+
+    // Control: judged by the PR's own widened rules, the same diff would have passed.
+    const selfJudged = quietMain([...ci(r, "ws/core"), "--ownership-ref", "HEAD"]);
+    expect(selfJudged.code).toBe(0);
+  });
+
+  it("fails a PR from a branch that is not ws/<id> or deps/* under --strict", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules });
+    r.git("checkout", "-q", "-b", "fix/x");
+    r.write("packages/db/src/schema.ts", "export {};\n");
+    r.commit("sneak");
+    expect(quietMain(ci(r, "fix/x")).code).toBe(1);
+    expect(quietMain(["--base", r.mainSha, "--repo", r.dir, "--strict"]).code).toBe(1);
+  });
+
+  it("bootstrap: with no machine-readable rules on the base, WS-QA may install the stack, others may not", () => {
+    const r = makeRepo({
+      "docs/ownership.md": "# Path ownership\n\n| WS | Owned paths |\n| -- | -- |\n| WS-QA | docs |\n",
+    });
+    r.git("checkout", "-q", "-b", "ws/qa");
+    r.write("docs/ownership.md", realRules);
+    r.write("docs/versions.md", "# Pinned versions\n");
+    r.write("pnpm-lock.yaml", "lockfileVersion: 9\n");
+    r.commit("bootstrap");
+    expect(loadOwnership({ repo: r.dir, ref: r.mainSha }).bootstrap).toBe(true);
+    expect(quietMain(ci(r, "ws/qa")).code).toBe(0);
+
+    r.git("checkout", "-q", "-b", "ws/data", r.mainSha);
+    r.write("docs/ownership.md", realRules);
+    r.write("pnpm-lock.yaml", "lockfileVersion: 9\n");
+    r.write("packages/db/src/schema.ts", "export {};\n");
+    r.commit("not mine");
+    expect(quietMain(ci(r, "ws/data")).code).toBe(1);
+  });
+
+  it("once the base has rules they win: WS-QA can no longer touch versions.md, the deps lane can", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules, "docs/versions.md": "# Pinned versions\n" });
+    r.git("checkout", "-q", "-b", "ws/qa");
+    r.write("docs/versions.md", "# Pinned versions\n| `left-pad` | 1.3.0 |\n");
+    r.commit("sneak a pin");
+    expect(loadOwnership({ repo: r.dir, ref: r.mainSha }).bootstrap).toBe(false);
+    expect(quietMain(ci(r, "ws/qa")).code).toBe(1);
+    r.git("checkout", "-q", "-b", "deps/left-pad");
+    expect(quietMain(ci(r, "deps/left-pad")).code).toBe(0);
   });
 });
