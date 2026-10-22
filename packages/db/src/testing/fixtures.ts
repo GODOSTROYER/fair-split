@@ -1,12 +1,18 @@
 /**
  * Minimal synthetic fixtures for persistence tests. These are not the canonical world: real figures come only
  * from the seed snapshot (IC-03). Values here are deliberately round and obviously fake.
+ *
+ * A fixture loads the way `seed.loadSnapshot` does: in one transaction, inside a seed window (migrations/0007), so a
+ * showcase or judge fixture keeps its historical ratification instant. A `real` workspace is never seeded, so its
+ * card is stamped with the database clock when ratified.
  */
 import { eq } from "drizzle-orm";
 import type { RunState, WorkspaceKind } from "../_shims/contracts.js";
 import { jcs, sha256Hex } from "../_shims/domain.js";
-import type { DbOrTx } from "../client.js";
+import type { DbOrTx, Tx } from "../client.js";
 import { coops, lots, members, payRuns, rateCards, rateRules, seasons, workspaces } from "../schema/index.js";
+import { openSeedWindow } from "../seeding.js";
+import { inTransaction } from "../tx.js";
 
 export interface FixtureOptions {
   kind?: WorkspaceKind;
@@ -33,16 +39,22 @@ export interface FixtureWorkspace {
 
 export const FIXTURE_RATIFIED_AT = new Date("2026-03-14T02:00:00.000Z");
 
-export async function fixtureWorkspace(db: DbOrTx, opts: FixtureOptions = {}): Promise<FixtureWorkspace> {
+export function fixtureWorkspace(db: DbOrTx, opts: FixtureOptions = {}): Promise<FixtureWorkspace> {
+  return inTransaction(db, (tx) => load(tx, opts));
+}
+
+async function load(db: Tx, opts: FixtureOptions): Promise<FixtureWorkspace> {
+  const kind = opts.kind ?? "showcase";
   const [ws] = await db
     .insert(workspaces)
     .values({
-      kind: opts.kind ?? "showcase",
+      kind,
       name: opts.name ?? "fixture",
       expiresAt: opts.expiresAt ?? null,
     })
     .returning({ id: workspaces.id });
   const workspaceId = must(ws).id;
+  if (kind !== "real") await openSeedWindow(db, workspaceId);
   const [coop] = await db
     .insert(coops)
     .values({ workspaceId, name: "Fixture Growers MPC", region: "Test Region", provenance: "seeded" })

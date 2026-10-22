@@ -18,6 +18,8 @@ export const DB_ERROR_CODES = [
   "ILLEGAL_TRANSITION",
   /** I5: a state change must count version up by exactly one, and version never moves otherwise (subject: table) */
   "VERSION_MISMATCH",
+  /** I2: a seed window may open only for a fresh showcase or judge workspace (subject: workspace id) */
+  "SEED_REFUSED",
 ] as const;
 export type DbErrorCode = (typeof DB_ERROR_CODES)[number];
 

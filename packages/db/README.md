@@ -60,7 +60,10 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
 ## What the database itself enforces
 
 - **I2** `rate_cards`: once `ratified_at` is set, UPDATE/DELETE of the card and any INSERT/UPDATE/DELETE of its
-  `rate_rules` raise `FS409 RATE_CARD_RATIFIED:<sha256>`; `sha256` must equal sha256(`canonical_jcs`).
+  `rate_rules` raise `FS409 RATE_CARD_RATIFIED:<sha256>`; `sha256` must equal sha256(`canonical_jcs`). The moment a
+  card becomes ratified the row stores the database's `now()`, whatever instant the app wrote, so a ratification
+  cannot be backdated. Only a seeded snapshot keeps its historical instant: `openSeedWindow(tx, ws)` (fresh showcase
+  or judge workspaces only, `FS409 SEED_REFUSED` otherwise) lets rows labelled `seeded` keep it, for that transaction.
   `slip_rows` need a ratified card, cannot be written before `ratified_at`, and cannot be dated before the
   ratification day in the season's zone (`FS422 RULES_BEFORE_FACTS`).
 - **History**: `fs_app` has no UPDATE/DELETE/TRUNCATE on `run_events`, `ledger_entries`, `agent_sessions`; triggers refuse

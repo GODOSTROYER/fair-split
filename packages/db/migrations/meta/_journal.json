@@ -50,6 +50,13 @@
       "when": 1792671106135,
       "tag": "0006_fs_state_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792672141754,
+      "tag": "0007_fs_ratified_now",
+      "breakpoints": true
     }
   ]
 }
