@@ -79,3 +79,35 @@ describe("generated files", () => {
     expect(report.pairs).toBeGreaterThan(90);
   });
 });
+
+describe("glyphs", () => {
+  it("has the 14 domain glyphs, each with an outline and a fill variant, on the 24 px grid", async () => {
+    const { GLYPHS, GLYPH_MEANINGS } = await import("../src/generated/glyphs.js");
+    const domain = Object.keys(GLYPH_MEANINGS);
+    expect(domain).toHaveLength(14);
+    for (const name of domain) {
+      for (const variant of [name, `${name}-fill`]) {
+        const glyph = GLYPHS[variant as keyof typeof GLYPHS];
+        expect(glyph.viewBox, variant).toBe("0 0 24 24");
+        expect(glyph.stroke).toBe(2);
+        for (const el of glyph.elements) {
+          const numbers = (el.d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+          for (const n of numbers) expect(n, `${variant} ${el.d}`).toBeGreaterThanOrEqual(0);
+          for (const n of numbers) expect(n, `${variant} ${el.d}`).toBeLessThanOrEqual(24);
+        }
+      }
+      expect(GLYPHS[`${name}-fill` as keyof typeof GLYPHS].elements.some((e) => e.mode === "fill")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("carries the Material Symbols starting set in outline and filled styles", async () => {
+    const { GLYPHS } = await import("../src/generated/glyphs.js");
+    const material = Object.keys(GLYPHS).filter((k) => k.startsWith("ms:"));
+    expect(material).toHaveLength(52);
+    for (const name of ["ms:lock", "ms:check", "ms:qr-code-2", "ms:volume-up", "ms:volume-off-fill"]) {
+      expect(material).toContain(name);
+    }
+  });
+});

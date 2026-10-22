@@ -3,7 +3,7 @@
 //
 //   pnpm --filter @fairsplit/tokens build
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { springLinearEasing } from "@fairsplit/motion";
@@ -38,6 +38,7 @@ const TS_HEADER =
 
 /** Relative path from src/generated/ to the committed web fonts. */
 const FONT_DIR = "../../../../assets/fonts/web";
+const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), "../../../assets");
 
 const px = (n: number) => (n === 0 ? "0" : `${n}px`);
 const rem = (n: number) => `${Math.round((n / 16) * 10_000) / 10_000}rem`;
@@ -376,6 +377,66 @@ export function fsGridTheme<T extends WithParams<T>>(themeQuartz: T): T {
 `;
 }
 
+interface GlyphSource {
+  readonly meaning: string;
+  readonly outline: readonly { readonly mode: string; readonly d: string }[];
+  readonly fill: readonly { readonly mode: string; readonly d: string }[];
+}
+
+/** Domain glyphs from assets/glyphs/glyphs.json plus Material Symbols Sharp from assets/icons/material. */
+export function renderGlyphsTs(): string {
+  const domain = JSON.parse(readFileSync(resolve(ASSETS, "glyphs/glyphs.json"), "utf8")) as {
+    readonly glyphs: Readonly<Record<string, GlyphSource>>;
+  };
+  const glyphs: Record<string, unknown> = {};
+  const meanings: Record<string, string> = {};
+  for (const [name, g] of Object.entries(domain.glyphs)) {
+    glyphs[name] = { viewBox: "0 0 24 24", stroke: 2, elements: g.outline };
+    glyphs[`${name}-fill`] = { viewBox: "0 0 24 24", stroke: 2, elements: g.fill };
+    meanings[name] = g.meaning;
+  }
+  const files = readdirSync(resolve(ASSETS, "icons/material"))
+    .filter((f) => f.endsWith(".svg"))
+    .sort();
+  for (const file of files) {
+    const svg = readFileSync(resolve(ASSETS, "icons/material", file), "utf8");
+    const d = /<path d="([^"]+)"/.exec(svg)?.[1];
+    const match = /^(.+)_wght500(fill1)?_24px\.svg$/.exec(file);
+    if (!d || !match?.[1]) throw new Error(`Unexpected Material Symbols file: ${file}`);
+    glyphs[`ms:${match[1].replaceAll("_", "-")}${match[2] ? "-fill" : ""}`] = {
+      viewBox: "0 -960 960 960",
+      stroke: 0,
+      elements: [{ mode: "fill", d }],
+    };
+  }
+  return `${TS_HEADER}// Glyph data shared by the web <Glyph> and react-native-svg. Domain glyphs sit on a 24 px grid with 2 px
+// strokes, square caps and mitre joins; "cut" elements are removed from the fills through a mask. Material
+// Symbols Sharp (Apache-2.0) are prefixed "ms:". Icons always come with words.
+
+export type GlyphMode = "stroke" | "fill" | "cut";
+
+export interface GlyphElement {
+  readonly mode: GlyphMode;
+  readonly d: string;
+}
+
+export interface GlyphData {
+  readonly viewBox: string;
+  readonly stroke: number;
+  readonly elements: readonly GlyphElement[];
+}
+
+export const GLYPHS = ${toTs(glyphs)} as const satisfies Record<string, GlyphData>;
+
+export type GlyphName = keyof typeof GLYPHS;
+
+/** What each domain glyph stands for. */
+export const GLYPH_MEANINGS = ${toTs(meanings)} as const;
+
+export type DomainGlyph = keyof typeof GLYPH_MEANINGS;
+`;
+}
+
 export function renderContrastJson(results: ContrastResult[] = contrastResults()): string {
   const failing = results.filter((r) => !r.pass).length;
   return `${JSON.stringify({ pairs: results.length, failing, results }, null, 2)}\n`;
@@ -391,6 +452,7 @@ export function renderAll(): Record<string, string> {
     "tokens.native.ts": renderNativeTs(),
     "m3.ts": renderM3Ts(),
     "ag-grid.ts": renderAgGridTs(),
+    "glyphs.ts": renderGlyphsTs(),
     "contrast.json": renderContrastJson(),
   };
 }
