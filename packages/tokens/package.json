@@ -21,6 +21,10 @@
       "types": "./src/generated/ag-grid.ts",
       "default": "./src/generated/ag-grid.ts"
     },
+    "./glyphs": {
+      "types": "./src/generated/glyphs.ts",
+      "default": "./src/generated/glyphs.ts"
+    },
     "./theme.web.css": "./src/generated/theme.web.css",
     "./fonts.css": "./src/generated/fonts.css",
     "./fonts-proof.css": "./src/generated/fonts-proof.css",
