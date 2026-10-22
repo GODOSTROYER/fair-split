@@ -4,7 +4,6 @@
 import {
   AGENT_TOOL_NAMES,
   type Decision,
-  type InvoiceQuote,
   PAY_RUN_RANK,
   PAYOUT_READ_TOOLS,
   type PolicyCtx,
@@ -18,8 +17,15 @@ import {
 } from "@fairsplit/contracts";
 import { match, P } from "ts-pattern";
 import { addDays } from "./format.js";
-import { jcs } from "./jcs.js";
-import { parseDecimalMinor } from "./money.js";
+import {
+  AUTO_CANCEL_MAX_DAYS_AHEAD,
+  autoCancelDate,
+  autoCancelRuleArgs,
+  canonicalInvoice,
+  itemLabelProblem,
+  parseStrictIsoDate,
+} from "./invoice.js";
+import { minorToDecimal, parseDecimalMinor } from "./money.js";
 
 export type Rank = 0 | 1 | 2;
 export type Policy = (call: ToolCall, ctx: PolicyCtx) => { verdict: Rank; reason: string | null };
@@ -40,71 +46,232 @@ function str(v: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
 
-/** A normalised view of a PayPal Invoicing v2 create body (nested `detail` or flattened fields). */
-export interface InvoiceDraftView {
-  currencyCode: string | null;
-  invoiceNumber: string | null;
-  reference: string | null;
-  note: string | null;
-  invoiceDate: string | null;
-  dueDate: string | null;
-  invoicerEmail: string | null;
+// ---------------------------------------------------------------- reading a draft (one shape)
+// Drafts are toolkit 1.11.0 `create_invoice` arguments: flat fields, with recipients and items in
+// PayPal's nested shape. That is the only shape read. A field given both flat and in the REST API's
+// nested form is ambiguous and denied; the nested form alone is never read.
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+const has = (o: Record<string, unknown>, k: string) => Object.hasOwn(o, k);
+const join = (path: string, key: string) => (path ? `${path}.${key}` : key);
+
+/** Flat toolkit fields and the REST API's nested spelling of the same field. */
+const NESTED_ALIASES: readonly (readonly [flat: string, nested: readonly [string, string]])[] = [
+  ["currency_code", ["detail", "currency_code"]],
+  ["invoice_number", ["detail", "invoice_number"]],
+  ["reference", ["detail", "reference"]],
+  ["note", ["detail", "note"]],
+  ["invoice_date", ["detail", "invoice_date"]],
+  ["invoicer_email_address", ["invoicer", "email_address"]],
+];
+
+type FlatField = "currency_code" | "invoice_number" | "reference" | "note" | "invoicer_email_address";
+
+export interface InvoiceFields {
+  /** Flat fields as given (null when absent or not a string). */
+  values: Readonly<Record<FlatField, string | null>>;
+  /** Flat fields that are absent while their nested spelling is present: flat field → nested path. */
+  nestedOnly: Readonly<Partial<Record<string, string>>>;
+  /** Readable `primary_recipients[].billing_info.email_address` values. */
   recipientEmails: string[];
-  items: {
-    name: string | null;
-    quantity: string | null;
-    unitAmountCents: number | null;
-    currency: string | null;
-  }[];
 }
 
-export function readInvoiceDraft(args: unknown): InvoiceDraftView {
-  const a = obj(args);
-  const detail = obj(a.detail);
-  const term = obj(detail.payment_term);
-  const invoicer = obj(a.invoicer);
-  const recipients = Array.isArray(a.primary_recipients) ? a.primary_recipients : [];
-  const items = Array.isArray(a.items) ? a.items : [];
+export type InvoiceFieldsRead = { ok: true; fields: InvoiceFields } | { ok: false; reason: string };
+
+/** Reads a create_invoice draft in its one canonical shape, refusing ambiguity. */
+export function readInvoiceFields(args: unknown): InvoiceFieldsRead {
+  if (!isRecord(args)) return { ok: false, reason: "The draft is not an invoice body" };
+  const nestedOnly: Record<string, string> = {};
+  for (const [flat, [parent, key]] of NESTED_ALIASES) {
+    const container = args[parent];
+    const nested = isRecord(container) && has(container, key);
+    if (!nested) continue;
+    const nestedPath = `${parent}.${key}`;
+    if (has(args, flat)) {
+      return { ok: false, reason: `Ambiguous draft: ${flat} is given both as ${flat} and as ${nestedPath}` };
+    }
+    nestedOnly[flat] = nestedPath;
+  }
+  const str = (k: FlatField) => (typeof args[k] === "string" ? (args[k] as string) : null);
+  const recipients = Array.isArray(args.primary_recipients) ? args.primary_recipients : [];
   return {
-    currencyCode: str(detail.currency_code) ?? str(a.currency_code),
-    invoiceNumber: str(detail.invoice_number) ?? str(a.invoice_number),
-    reference: str(detail.reference) ?? str(a.reference),
-    note: str(detail.note) ?? str(a.note),
-    invoiceDate: str(detail.invoice_date) ?? str(a.invoice_date),
-    dueDate: str(term.due_date) ?? str(a.due_date),
-    invoicerEmail: str(invoicer.email_address) ?? str(a.invoicer_email_address),
-    recipientEmails: recipients
-      .map((r) => str(obj(obj(r).billing_info).email_address) ?? str(obj(r).email_address))
-      .filter((e): e is string => e !== null),
-    items: items.map((raw) => {
-      const it = obj(raw);
-      const unit = obj(it.unit_amount);
-      const value = str(unit.value);
-      return {
-        name: str(it.name),
-        quantity: str(it.quantity),
-        unitAmountCents: value === null ? null : parseDecimalMinor(value),
-        currency: str(unit.currency_code),
-      };
-    }),
+    ok: true,
+    fields: {
+      values: {
+        currency_code: str("currency_code"),
+        invoice_number: str("invoice_number"),
+        reference: str("reference"),
+        note: str("note"),
+        invoicer_email_address: str("invoicer_email_address"),
+      },
+      nestedOnly,
+      recipientEmails: recipients
+        .map((r) => (isRecord(r) && isRecord(r.billing_info) ? r.billing_info.email_address : null))
+        .filter((e): e is string => typeof e === "string" && EMAIL.test(e)),
+    },
   };
 }
 
-/** Every YYYY-MM-DD found under a key containing "date" (except invoice_date), anywhere in the args. */
-export function scheduleDates(args: unknown): string[] {
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** One flat field's value, or why it cannot be read (ambiguous or only in the nested form). */
+function field(
+  read: InvoiceFieldsRead,
+  k: FlatField,
+): { ok: true; value: string | null } | { ok: false; reason: string } {
+  if (!read.ok) return read;
+  const nested = read.fields.nestedOnly[k];
+  if (nested) return { ok: false, reason: `Non-canonical draft: ${k} must be the flat field, not ${nested}` };
+  return { ok: true, value: read.fields.values[k] };
+}
+
+/** Keys that name where an invoice or its notifications go. */
+const RECIPIENT_KEYS: ReadonlySet<string> = new Set([
+  "primary_recipients",
+  "additional_recipients",
+  "recipients",
+  "recipient",
+  "email_address",
+  "email",
+  "emails",
+  "phones",
+  "phone",
+  "shipping_info",
+  "cc",
+  "bcc",
+  "cc_recipients",
+  "send_to",
+  "to",
+]);
+const RECIPIENT_EMAIL_PATH = /^primary_recipients\[\d+\]\.billing_info\.email_address$/;
+
+/** Paths of recipient-bearing keys anywhere in the draft other than the one allowed place. */
+function strayRecipientFields(args: unknown): string[] {
   const out: string[] = [];
-  const walk = (v: unknown, key: string) => {
-    if (typeof v === "string") {
-      if (/date/i.test(key) && key !== "invoice_date" && /^\d{4}-\d{2}-\d{2}/.test(v))
-        out.push(v.slice(0, 10));
+  const walk = (v: unknown, path: string) => {
+    if (Array.isArray(v)) {
+      for (const [i, x] of v.entries()) walk(x, `${path}[${i}]`);
       return;
     }
-    if (Array.isArray(v)) for (const x of v) walk(x, key);
-    else if (v !== null && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
+    if (!isRecord(v)) return;
+    for (const [k, x] of Object.entries(v)) {
+      const at = join(path, k);
+      const allowed = (path === "" && k === "primary_recipients") || RECIPIENT_EMAIL_PATH.test(at);
+      if (RECIPIENT_KEYS.has(k) && !allowed) out.push(at);
+      else walk(x, at);
+    }
   };
   walk(args, "");
+  return out.sort();
+}
+
+/** Paths of keys that set a date or a payment term, anywhere in the args (not descended into). */
+function dateFields(args: unknown): string[] {
+  const out: string[] = [];
+  const walk = (v: unknown, path: string) => {
+    if (Array.isArray(v)) {
+      for (const [i, x] of v.entries()) walk(x, `${path}[${i}]`);
+      return;
+    }
+    if (!isRecord(v)) return;
+    for (const [k, x] of Object.entries(v)) {
+      const at = join(path, k);
+      if (/date/i.test(k) || k === "payment_term" || k === "term_type") out.push(at);
+      else walk(x, at);
+    }
+  };
+  walk(args, "");
+  return out.sort();
+}
+
+/** A strict allowlist: "leaf" is any value, `[s]` a list of `s`, an object only the keys it names. */
+type Shape = "leaf" | readonly [Shape] | { readonly [key: string]: Shape };
+
+const INVOICE_SHAPE: Shape = {
+  currency_code: "leaf",
+  invoice_number: "leaf",
+  reference: "leaf",
+  note: "leaf",
+  invoicer_email_address: "leaf",
+  primary_recipients: [{ billing_info: { business_name: "leaf", email_address: "leaf" } }],
+  items: [
+    {
+      name: "leaf",
+      quantity: "leaf",
+      unit_amount: { currency_code: "leaf", value: "leaf" },
+      unit_of_measure: "leaf",
+    },
+  ],
+};
+
+const RULE_SHAPE: Shape = {
+  invoice_id: "leaf",
+  rules: [
+    {
+      conditional_rule_type: "leaf",
+      rule_expiry_terms: { rule_expiry_condition: "leaf", condition_rule_end_date: "leaf" },
+    },
+  ],
+};
+
+/** Every key the shape does not allow, by path, sorted. */
+function unknownKeys(value: unknown, shape: Shape, path = "", out: string[] = []): string[] {
+  if (shape === "leaf") return out;
+  if (Array.isArray(shape)) {
+    if (Array.isArray(value)) {
+      for (const [i, x] of value.entries()) unknownKeys(x, shape[0] as Shape, `${path}[${i}]`, out);
+    }
+    return out;
+  }
+  if (!isRecord(value)) return out;
+  const allowed = shape as { readonly [key: string]: Shape };
+  for (const [k, x] of Object.entries(value)) {
+    const sub = Object.hasOwn(allowed, k) ? allowed[k] : undefined;
+    if (sub === undefined) out.push(join(path, k));
+    else unknownKeys(x, sub, join(path, k), out);
+  }
+  return out.sort();
+}
+
+/** Paths where two JSON values differ (missing keys, lengths, types and values). */
+function differences(a: unknown, b: unknown, path = "", out: string[] = []): string[] {
+  if (isRecord(a) && isRecord(b)) {
+    for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+      if (!has(a, k) || !has(b, k)) out.push(join(path, k));
+      else differences(a[k], b[k], join(path, k), out);
+    }
+  } else if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) out.push(path || "(body)");
+    else for (const [i, x] of a.entries()) differences(x, b[i], `${path}[${i}]`, out);
+  } else if (a !== b) {
+    out.push(path || "(body)");
+  }
   return out;
 }
+
+/** Normalisation before comparing: amounts as two-decimal cents, e-mail addresses in lower case. */
+function normalised(body: unknown): unknown {
+  const copy = JSON.parse(JSON.stringify(body ?? null)) as unknown;
+  if (!isRecord(copy)) return copy;
+  const lower = (o: Record<string, unknown>, k: string) => {
+    if (typeof o[k] === "string") o[k] = (o[k] as string).toLowerCase();
+  };
+  lower(copy, "invoicer_email_address");
+  for (const r of Array.isArray(copy.primary_recipients) ? copy.primary_recipients : []) {
+    if (isRecord(r) && isRecord(r.billing_info)) lower(r.billing_info, "email_address");
+  }
+  for (const it of Array.isArray(copy.items) ? copy.items : []) {
+    if (isRecord(it) && isRecord(it.unit_amount) && typeof it.unit_amount.value === "string") {
+      const cents = parseDecimalMinor(it.unit_amount.value);
+      if (cents !== null) it.unit_amount.value = minorToDecimal(cents);
+    }
+  }
+  return copy;
+}
+
+const differReason = (paths: readonly string[], what: string) =>
+  `${paths.join(", ")} ${paths.length === 1 ? "differs" : "differ"} from the code's ${what}`;
 
 const rankOf = (s: PolicyCtx["runState"]) => PAY_RUN_RANK[s];
 
@@ -175,152 +342,146 @@ export const budgetCap: Policy = (_call, ctx) => {
   return ALLOW;
 };
 
+/** The invoice date PayPal recorded and today, both read strictly, or why not. */
+function invoiceDates(
+  ctx: PolicyCtx,
+): { ok: true; invoiceDate: string; today: string } | { ok: false; reason: string } {
+  if (ctx.expected.invoiceDate === null) return { ok: false, reason: "The invoice's date is not known yet" };
+  const invoiceDate = parseStrictIsoDate(ctx.expected.invoiceDate);
+  if (invoiceDate === null) return { ok: false, reason: "The invoice's date is not a YYYY-MM-DD date" };
+  const today = parseStrictIsoDate(ctx.today);
+  if (today === null) return { ok: false, reason: "Today is not a YYYY-MM-DD date" };
+  return { ok: true, invoiceDate, today };
+}
+
 /**
- * Keys that move money on an Invoicing v2 create body. A code quote has none of them, so any one,
- * at any depth, means PayPal would bill something other than the quote (I1).
+ * I1: each invoice call deep-equals its canonical form, built by code. For create_invoice that is
+ * `canonicalInvoice(quote, labels)`, where only the three item labels are the agent's; for the
+ * AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`. Every key the canonical
+ * form does not carry (tax, discount, shipping, tip, partial payment, pay by bank, theme, extra
+ * recipients, dates…) is named in the verdict; then the whole body is compared after normalising.
  */
-export const INVOICE_MONEY_KEYS: ReadonlySet<string> = new Set([
-  "amount",
-  "breakdown",
-  "item_total",
-  "tax",
-  "tax_total",
-  "discount",
-  "item_discount",
-  "invoice_discount",
-  "shipping",
-  "custom",
-  "gratuity",
-  "minimum_amount_due",
-  "due_amount",
-  "payments",
-  "refunds",
-  "template_id",
-]);
-
-/** Toggles that let the payer pay a different amount: they must be absent or false. */
-const PAYMENT_TOGGLES: ReadonlySet<string> = new Set(["allow_partial_payment", "allow_tip"]);
-
-/** Item fields that move no money; anything else on an item is refused. */
-const ITEM_WORD_KEYS: ReadonlySet<string> = new Set([
-  "name",
-  "description",
-  "quantity",
-  "unit_amount",
-  "unit_of_measure",
-  "item_date",
-]);
-
-/** The money a create_invoice body carries, normalised: what the quote must deep-equal. */
-export interface InvoiceMoney {
-  currency: string | null;
-  items: {
-    name: string | null;
-    quantity: string | null;
-    unitAmountCents: number | null;
-    currency: string | null;
-  }[];
-  /** Paths of money-bearing keys and payment toggles that are on, e.g. "items[1].discount". */
-  extras: string[];
-}
-
-export function invoiceMoney(args: unknown): InvoiceMoney {
-  const d = readInvoiceDraft(args);
-  const extras: string[] = [];
-  const walk = (v: unknown, path: string) => {
-    if (Array.isArray(v)) {
-      for (const [i, x] of v.entries()) walk(x, `${path}[${i}]`);
-      return;
-    }
-    if (v === null || typeof v !== "object") return;
-    for (const [k, x] of Object.entries(v)) {
-      const at = path ? `${path}.${k}` : k;
-      if (INVOICE_MONEY_KEYS.has(k) || (PAYMENT_TOGGLES.has(k) && x !== false)) extras.push(at);
-      else walk(x, at);
-    }
-  };
-  walk(args, "");
-  const items = Array.isArray(obj(args).items) ? (obj(args).items as unknown[]) : [];
-  items.forEach((raw, i) => {
-    for (const k of Object.keys(obj(raw))) {
-      if (!ITEM_WORD_KEYS.has(k) && !INVOICE_MONEY_KEYS.has(k)) extras.push(`items[${i}].${k}`);
-    }
-  });
-  return { currency: d.currencyCode, items: d.items, extras };
-}
-
-/** The money fields create_invoice must carry for a quote: its three lines, nothing else. */
-export function quoteMoney(quote: InvoiceQuote): InvoiceMoney {
-  return {
-    currency: quote.currency,
-    items: quote.items.map((i) => ({
-      name: i.name,
-      quantity: i.quantity,
-      unitAmountCents: i.unitAmountCents,
-      currency: quote.currency,
-    })),
-    extras: [],
-  };
-}
-
-/** I1: the agent's draft must deep-equal the code quote in every field that moves money. */
 export const invoiceEqualsQuote: Policy = (call, ctx) => {
-  if (call.name !== "create_invoice") return ALLOW;
-  const want = quoteMoney(ctx.expected.quote);
-  const got = invoiceMoney(call.args);
-  const extra = got.extras[0];
-  if (extra !== undefined) return deny(`${extra} is not in the quote`);
-  if (got.currency !== want.currency) return deny("currency differs from the quote");
-  if (readInvoiceDraft(call.args).invoiceNumber !== ctx.expected.invoiceNumber) {
-    return deny("invoice_number differs from the code's");
+  if (call.name === "create_invoice") {
+    const read = readInvoiceFields(call.args);
+    if (!read.ok) return deny(read.reason);
+    const nested = Object.entries(read.fields.nestedOnly)[0];
+    if (nested) return deny(`Non-canonical draft: ${nested[0]} must be the flat field, not ${nested[1]}`);
+    const extra = unknownKeys(call.args, INVOICE_SHAPE);
+    if (extra.length > 0) return deny(`Not in the canonical invoice: ${extra.join(", ")}`);
+    const items = (call.args as Record<string, unknown>).items;
+    let labels: string[] | undefined;
+    if (Array.isArray(items) && items.length === ctx.expected.quote.items.length) {
+      const names = items.map((it) => (isRecord(it) ? it.name : undefined));
+      const problem = itemLabelProblem(names);
+      if (problem) return deny(problem);
+      labels = names as string[];
+    }
+    let want: unknown;
+    try {
+      want = canonicalInvoice(ctx.expected, labels);
+    } catch {
+      return deny("The code's quote cannot be invoiced");
+    }
+    const diff = differences(normalised(call.args), normalised(want));
+    return diff.length === 0 ? ALLOW : deny(differReason(diff, "invoice"));
   }
-  if (got.items.length !== want.items.length) return deny("item count differs from the quote");
-  for (let i = 0; i < want.items.length; i++) {
-    const w = want.items[i];
-    const g = got.items[i];
-    if (!w || !g) return deny("item missing");
-    if (g.name !== w.name) return deny(`item ${i + 1} name differs from the quote`);
-    if (g.quantity !== w.quantity) return deny(`item ${i + 1} quantity differs`);
-    if (g.unitAmountCents !== w.unitAmountCents) return deny(`item ${i + 1} amount differs from the quote`);
-    if (g.currency !== w.currency) return deny(`item ${i + 1} currency differs`);
+  if (call.name === "create_conditional_rules_for_invoice") {
+    if (!isRecord(call.args)) return deny("The rule arguments are not an object");
+    const extra = unknownKeys(call.args, RULE_SHAPE);
+    if (extra.length > 0) return deny(`Not in the canonical rule: ${extra.join(", ")}`);
+    if (ctx.expected.invoiceId === null) return deny("There is no invoice to attach the rule to");
+    const dates = invoiceDates(ctx);
+    if (!dates.ok) return deny(dates.reason);
+    const want = autoCancelRuleArgs(ctx.expected.invoiceId, autoCancelDate(dates.invoiceDate));
+    const diff = differences(call.args, want);
+    return diff.length === 0 ? ALLOW : deny(differReason(diff, "rule"));
   }
-  // Belt and braces: the normalised draft must be exactly the quote's money.
-  return jcs(got) === jcs(want) ? ALLOW : deny("the draft's money differs from the quote");
+  return ALLOW;
 };
 
 export const invoicerIsBusinessEmail: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
-  const e = readInvoiceDraft(call.args).invoicerEmail;
-  return e !== null && e.toLowerCase() === ctx.expected.businessEmail.toLowerCase()
+  const f = field(readInvoiceFields(call.args), "invoicer_email_address");
+  if (!f.ok) return deny(f.reason);
+  return f.value !== null && f.value.toLowerCase() === ctx.expected.businessEmail.toLowerCase()
     ? ALLOW
-    : deny("the invoicer is not the co-op's business account");
+    : deny("The invoicer is not the co-op's business account");
 };
 
+/**
+ * Exactly one recipient, read only from `primary_recipients[0].billing_info.email_address`, which
+ * must be a readable e-mail on the brand allowlist. Any other recipient-bearing field (extra
+ * recipients, cc, shipping info, phones, a flattened e-mail…) is named and denied.
+ */
 export const recipientInBrandAllowlist: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
-  const emails = readInvoiceDraft(call.args).recipientEmails;
+  const read = readInvoiceFields(call.args);
+  if (!read.ok) return deny(read.reason);
+  const stray = strayRecipientFields(call.args);
+  if (stray.length > 0) return deny(`Not a recipient field the draft may set: ${stray.join(", ")}`);
+  const recipients = (call.args as Record<string, unknown>).primary_recipients;
+  if (!Array.isArray(recipients))
+    return deny("primary_recipients must list one recipient with a readable e-mail");
+  if (recipients.length !== 1) return deny("Exactly one recipient is allowed");
+  const r = recipients[0];
+  const email = isRecord(r) && isRecord(r.billing_info) ? r.billing_info.email_address : undefined;
+  if (typeof email !== "string" || !EMAIL.test(email)) {
+    return deny("The recipient has no readable e-mail at billing_info.email_address");
+  }
   const allowed = new Set(ctx.expected.brandAllowlist.map((e) => e.toLowerCase()));
-  if (emails.length === 0) return deny("no recipient");
-  return emails.every((e) => allowed.has(e.toLowerCase()))
-    ? ALLOW
-    : deny("a recipient is not on the brand allowlist");
+  return allowed.has(email.toLowerCase()) ? ALLOW : deny("A recipient is not on the brand allowlist");
 };
 
 export const referenceCarriesHash: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
-  const d = readInvoiceDraft(call.args);
-  if (d.reference !== ctx.expected.reference) return deny("reference must be rc:{rateCardSha16}");
-  return d.note?.includes(ctx.expected.memo) ? ALLOW : deny("the note must carry the code-rendered memo");
+  const read = readInvoiceFields(call.args);
+  const reference = field(read, "reference");
+  if (!reference.ok) return deny(reference.reason);
+  if (reference.value !== ctx.expected.reference) return deny("The reference must be rc:{rateCardSha16}");
+  const note = field(read, "note");
+  if (!note.ok) return deny(note.reason);
+  return note.value === ctx.expected.memo ? ALLOW : deny("The note must be exactly the code-rendered memo");
 };
 
+const RULE_DATE_PATH = "rules[0].rule_expiry_terms.condition_rule_end_date";
+
+/**
+ * Dates (C-27, S3.6.3). An invoice draft sets no date and no payment term: PayPal dates the
+ * invoice. The only date we send is the AUTO_CANCEL rule's, one SPECIFIC_DATE rule whose date,
+ * read strictly as YYYY-MM-DD, is exactly PayPal's invoice date + 25 days, after today and at most
+ * 30 days out. Anything unreadable is denied.
+ */
 export const dueWithin30Days: Policy = (call, ctx) => {
-  if (call.name !== "create_invoice" && call.name !== "create_conditional_rules_for_invoice") return ALLOW;
-  const dates = scheduleDates(call.args);
-  if (dates.length === 0) return deny("no due or AUTO_CANCEL date");
-  const latest = addDays(ctx.today, 30);
-  return dates.every((d) => d > ctx.today && d <= latest)
-    ? ALLOW
-    : deny("dates must be after today and within 30 days");
+  if (call.name === "create_invoice") {
+    const dates = dateFields(call.args);
+    return dates.length === 0 ? ALLOW : deny(`The draft may not set dates: ${dates.join(", ")}`);
+  }
+  if (call.name !== "create_conditional_rules_for_invoice") return ALLOW;
+  const a = isRecord(call.args) ? call.args : {};
+  const rules = Array.isArray(a.rules) ? a.rules : [];
+  const rule = rules.length === 1 && isRecord(rules[0]) ? rules[0] : null;
+  const terms = rule && isRecord(rule.rule_expiry_terms) ? rule.rule_expiry_terms : null;
+  if (
+    !rule ||
+    !terms ||
+    rule.conditional_rule_type !== "AUTO_CANCEL" ||
+    terms.rule_expiry_condition !== "SPECIFIC_DATE"
+  ) {
+    return deny("There must be exactly one AUTO_CANCEL rule on SPECIFIC_DATE");
+  }
+  const stray = dateFields(a).filter((p) => p !== RULE_DATE_PATH);
+  if (stray.length > 0) return deny(`The draft may not set dates: ${stray.join(", ")}`);
+  const date = parseStrictIsoDate(terms.condition_rule_end_date);
+  if (date === null) return deny("The AUTO_CANCEL date is not a YYYY-MM-DD date");
+  const dated = invoiceDates(ctx);
+  if (!dated.ok) return deny(dated.reason);
+  const want = autoCancelDate(dated.invoiceDate);
+  if (date !== want) return deny(`The AUTO_CANCEL date must be the invoice date + 25 days (${want})`);
+  if (date <= dated.today || date > addDays(dated.today, AUTO_CANCEL_MAX_DAYS_AHEAD)) {
+    return deny("The AUTO_CANCEL date must be after today and within 30 days");
+  }
+  return ALLOW;
 };
 
 export const sendNeedsTreasurer: Policy = (call) =>

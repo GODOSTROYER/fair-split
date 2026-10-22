@@ -595,13 +595,20 @@ export const PolicyCtx = z.strictObject({
     iteration: z.int().nonnegative(),
     maxIterations: z.int().positive(),
   }),
+  /** What code expects; the canonical invoice and its AUTO_CANCEL rule are built from these alone. */
   expected: z.strictObject({
     quote: InvoiceQuote,
     invoiceNumber: z.string(),
     reference: z.string(),
     memo: z.string(),
     businessEmail: z.string(),
+    /** The brand this run invoices (`PP_PAYER_EMAIL` and its business name): the one recipient. */
+    payer: z.strictObject({ email: z.string(), businessName: z.string() }),
     brandAllowlist: z.array(z.string()),
+    /** PayPal's ID of this run's invoice, once created; null before. */
+    invoiceId: z.string().nullable(),
+    /** PayPal's `invoice_date` for it, read back by a GET (we never send one); null before. */
+    invoiceDate: z.string().nullable(),
   }),
   today: IsoDate,
 });
