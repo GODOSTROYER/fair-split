@@ -47,9 +47,9 @@ figures are kept exact.
 ## Interpretations (no conflict, but a choice had to be made)
 
 - **M-018's rounding.** 55.63 is reachable as 35.55 + 17.77 − 0.89 + 3.20 or 35.54 + 17.78 − 0.89
-  + 3.20. The tuner targets the first. All nine named members' premium and bonus shares are listed
-  in `src/named.ts` (`NAMED_SHARE_TARGETS`); the background tuner searches until largest-remainder
-  rounding lands on them in both the final scenario and with 0457 counted twice (80.65).
+  - 3.20. The tuner targets the first. All nine named members' premium and bonus shares are listed
+    in `src/named.ts` (`NAMED_SHARE_TARGETS`); the background tuner searches until largest-remainder
+    rounding lands on them in both the final scenario and with 0457 counted twice (80.65).
 - **Verified kilos** are box 11 (payable) kilos. Every seed slip has moisture at or below 7.0%, so
   the moisture deduction is 0.00 and payable = net (slip 0403 reads 38.45 in boxes 8 and 11).
 - **The dial before slip 0462 is entered.** "Seed holds, exactly these five items" lists the dial.
