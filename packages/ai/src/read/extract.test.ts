@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   ClaudeGateway,
+  GatewayError,
   MemoryCallLedger,
   MemoryReplayStore,
   MemorySpendMeter,
@@ -451,6 +452,53 @@ describe("extract: a failed zoom sends its field to a person, never fails the do
       expect(ledger.rows.filter((x) => x.purpose === "zoom")).toHaveLength(1);
     },
   );
+
+  it("a zoom the budget refuses (AI_BUDGET) is recorded on the field; only that field goes By hand", async () => {
+    // Reads A and B and the screen reserve first (S4.2's order), so the fourth reservation is the zoom.
+    class RefuseAfter extends MemorySpendMeter {
+      private n = 0;
+      constructor(private readonly allow: number) {
+        super();
+      }
+      override async reserve(key: string, estimate: number, cap: number) {
+        if (++this.n > this.allow) throw new GatewayError("AI_BUDGET", `budget ${key}: test cap reached`);
+        return super.reserve(key, estimate, cap);
+      }
+    }
+    script({ ...disagreeing(), screen: { suspected: false }, zoom: () => ({ fault: "max_tokens" }) });
+    const gateway = new ClaudeGateway({
+      store,
+      ledger,
+      apiKey: "test-key",
+      maxRetries: 0,
+      flags: staticFlags({}),
+      spend: new RefuseAfter(3),
+      semaphore: new Semaphore(6),
+    });
+    const r = await extract(
+      {
+        docId: "doc-zb",
+        kind: "slip_page",
+        bytes: await plainPage(),
+        fixture: pageFixture(),
+        validation: ctx,
+      },
+      { gateway, mode: "auto", lane: "dev" },
+    );
+    expect(hits.zoom).toEqual([]);
+    const gross = r.rows[0]?.fields.gross_kg;
+    expect(gross).toMatchObject({ zoom: null, zoomError: { code: "AI_BUDGET" } });
+    expect(gross?.outcome).toMatchObject({ score: 0.4, rule: 7, state: "PERSON_TYPES" });
+    expect(r.rows[0]?.fields.tare_kg?.outcome?.score).toBe(0.97);
+    expect(r.holds).toEqual([
+      expect.objectContaining({
+        kind: "LOW_CONFIDENCE",
+        gate: "BLOCKS_APPROVAL",
+        reason: "By hand: gross_kg",
+      }),
+    ]);
+    expect(r.calls).toHaveLength(3);
+  });
 
   it("a zoom missing from the recording fails the replay loudly (a configuration error)", async () => {
     script({
