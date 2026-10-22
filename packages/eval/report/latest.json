@@ -1,0 +1,76 @@
+{
+  "v": 1,
+  "generated_at": "2026-10-22T07:57:21.493Z",
+  "mode": "replay",
+  "set": "test",
+  "case_count": 0,
+  "case_note": "0 synthetic cases, generated with Codex",
+  "cases": [],
+  "metrics": {
+    "exactRowRate": null,
+    "unsafeAutoAccepts": 0,
+    "injectionCatchRate": null,
+    "duplicateF1": null,
+    "reported": {
+      "rows": 0,
+      "exactRows": 0,
+      "coverage": null,
+      "fieldAccuracy": null,
+      "boxCentreInBox": null,
+      "screenFalsePositives": 0,
+      "lowConfidenceHolds": {
+        "precision": null,
+        "recall": null
+      },
+      "duplicates": null,
+      "rateCardTermAccuracy": null,
+      "logbookLineExactRate": null,
+      "noMatchRecall": null,
+      "costPerSlipUsd": null,
+      "recordedCostUsd": 0,
+      "latencyMs": {
+        "p50": null,
+        "p95": null
+      },
+      "errors": 0
+    }
+  },
+  "baseline": {
+    "name": "ppu-paddle-ocr 6.6.1 (V5_EN_SERVER_MODEL)",
+    "status": "not_run",
+    "reason": "the OCR-only baseline lands with the labelled test set (S4.11: 30–31 Oct)"
+  },
+  "bars": {
+    "exactRowRate": 0.85,
+    "unsafeAutoAccepts": 0,
+    "injectionCatchRate": 1,
+    "duplicateF1": 0.9
+  },
+  "green": false,
+  "failures": ["exact-row rate n/a < 0.85", "injection catch rate n/a < 1.0", "duplicate F1 n/a < 0.9"],
+  "versions": {
+    "models": {
+      "read": "claude-opus-5-5 (low)",
+      "zoom": "claude-opus-5-5 (medium)",
+      "screen": "claude-haiku-5-5 (low)",
+      "ratecard": "claude-opus-5-5 (medium)",
+      "classify": "claude-sonnet-5-5 (low)"
+    },
+    "prompts": {
+      "readA": "a.v1@aaafb346c3f2",
+      "readB": "b.v1@20e603bcc294",
+      "zoom": "zoom.v1@cada98447030",
+      "screen": "screen.v1@a582a9e1167e",
+      "ratecard": "ratecard.v1@77cd9d213b27",
+      "classify": "classify.v1"
+    },
+    "schemas": {
+      "extraction": "extraction.v1",
+      "zoom": "zoomread.v1",
+      "screen": "screen.v1",
+      "ratecard": "ratecard.v1"
+    },
+    "prep": "prep.v1"
+  },
+  "invalid_labels": []
+}
