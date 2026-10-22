@@ -27,7 +27,7 @@ import {
 } from "@fairsplit/ui-web";
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { en } from "../content.js";
+import { approveConfirm, en } from "../content.js";
 import { BATCH_SHA256, SEASON, TOTALS } from "../fixture.js";
 import { money, usd } from "../format.js";
 import { PageTitle, Section, useProtoSearch } from "../Shell.js";
@@ -368,6 +368,12 @@ function TwoKeysFrame({
   const inked = val("inked");
   const m = (key: Parameters<typeof translate>[1], values?: Parameters<typeof translate>[2]) =>
     translate(lang, key, values);
+  const coSign = m("M-BD-01.push", {
+    season: SEASON.code,
+    count: TOTALS.paypalCount,
+    amount: usd(TOTALS.paypalCents),
+  });
+  const coSignWhy = m("M-BD-01.why", { threshold: "US$300" });
 
   return (
     <div className="mo-mm5">
@@ -394,6 +400,7 @@ function TwoKeysFrame({
           unavailableReason={phase === "blocked" ? en("W-TR-07.blocked") : undefined}
           testId="MM-5.slab.console"
           onCommit={() => undefined}
+          confirm={approveConfirm()}
           frame={consoleSlab}
         />
         <div className="mo-keys">
@@ -444,10 +451,8 @@ function TwoKeysFrame({
         <PhoneFrame label="Chair frame: Ernesto P. Cabahug" width={340} height={600} testId="MM-5.phone">
           <UiProvider lang={lang} motion={search.motion ?? "system"}>
             <div className="mo-chair" lang={lang}>
-              <p className="fs-t-label">
-                {m("M-BD-01.push", { season: SEASON.code, count: 8, amount: usd(TOTALS.paypalCents) })}
-              </p>
-              <p className="fs-t-caption mo-muted">{m("M-BD-01.why", { threshold: "US$300" })}</p>
+              <p className="fs-t-label">{coSign}</p>
+              <p className="fs-t-caption mo-muted">{coSignWhy}</p>
               <div className="mo-chair__seal">
                 <Seal
                   batchSha256={BATCH_SHA256}
@@ -470,6 +475,7 @@ function TwoKeysFrame({
                   hint={false}
                   testId="MM-5.slab.phone"
                   onCommit={() => undefined}
+                  confirm={{ title: coSign, body: <p>{coSignWhy}</p>, confirmLabel: m("M-BD-02.sign") }}
                   frame={phoneSlab}
                 />
                 <p className="fs-t-caption mo-muted">
@@ -545,7 +551,7 @@ function BayadNaFrame({
         </ol>
         <p className="proto-note">
           The same item.updated event updates the console grid and the Proof counter within 100 ms; nothing
-          moves before PayPal’s verified webhook.
+          moves before PayPal’s webhook passes our signature check.
         </p>
       </section>
     </div>

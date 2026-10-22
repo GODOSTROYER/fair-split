@@ -38,8 +38,8 @@ export function OverviewPage() {
             <Link to="/prototype/primitives" search={(prev) => prev} className="fs-link">
               Slab, Print, Seal, ReceiptBar and HoldCard
             </Link>{" "}
-            in every state, in both themes, under the motion switch above. The live ones respond to pointer
-            and keyboard.
+            in every state, in both themes, under the motion switch above. The interactive ones respond to
+            pointer and keyboard.
           </dd>
           <dt>Screens</dt>
           <dd>
@@ -101,7 +101,7 @@ export function OverviewPage() {
             follows your operating system.
           </li>
           <li>Sound stays off until you turn it on; it is remembered in this browser only.</li>
-          <li>Every view is a link: the theme, motion, language and moment time live in the address.</li>
+          <li>Every view is a link: the theme, motion, language and moment time are kept in the address.</li>
         </ul>
       </Section>
 

@@ -25,12 +25,25 @@ export type SlabState = (typeof SLAB_STATES)[number];
 /** Hold progress is reported in quarters on `data-hold-progress`. */
 export type HoldProgress = 0 | 25 | 50 | 75 | 100;
 
-export interface SlabProps {
+/**
+ * The hold slab's dialog route (design §5, S2 §2.7): it states the amount, the recipients and the consequence
+ * before asking for the key. `Body` is the platform's node type (ReactNode on web and on native).
+ */
+export interface SlabConfirm<Body = string> {
+  /** "Approve 8 payouts" */
+  readonly title: string;
+  /** The amount, the recipients and the consequence. */
+  readonly body: Body;
+  /** Defaults to "Approve with my key". */
+  readonly confirmLabel?: string;
+  /** Defaults to "Not now". */
+  readonly cancelLabel?: string;
+}
+
+interface SlabBaseProps {
   readonly label: string;
   readonly depth: Depth;
   readonly tone: SlabTone;
-  /** Hold-to-commit length. Only d3 slabs hold: 1,600 ms on the console, 1,200 ms on the Chair's phone. */
-  readonly hold?: HoldMs;
   /** Zero travel: the rules the Board ratified will not move for anyone. */
   readonly bolted?: boolean;
   /** The slab sinks flush with a hatched face and this reason beneath. Never greyed out. */
@@ -40,6 +53,25 @@ export interface SlabProps {
   readonly onCommit: () => void;
   readonly testId: string;
 }
+
+/** A press slab: commits on release (d1 springs back, d2 and d3 stay flush). It has no dialog route. */
+export interface PressSlabProps {
+  readonly hold?: undefined;
+  readonly confirm?: undefined;
+}
+
+/**
+ * A hold slab. It always carries its dialog route, opened by Enter, a screen reader's activation or the
+ * visible "Can't hold? Approve another way" link, so no action depends on timing alone: a hold slab without
+ * `confirm` does not type-check.
+ */
+export interface HoldSlabProps<Body = string> {
+  /** Hold-to-commit length. Only d3 slabs hold: 1,600 ms on the console, 1,200 ms on the Chair's phone. */
+  readonly hold: HoldMs;
+  readonly confirm: SlabConfirm<Body>;
+}
+
+export type SlabProps<Body = string> = SlabBaseProps & (PressSlabProps | HoldSlabProps<Body>);
 
 export type PrintProvenance = "claude" | "engine";
 export type PrintState = "pencil" | "hollow" | "ink";
@@ -136,9 +168,27 @@ export type HoldKind =
   | "LOW_CONFIDENCE"
   | "MASS_BALANCE";
 
-/** `data-state` values a HoldCard can show (S2 §2.7). */
-export const HOLD_CARD_STATES = ["open", "resolving", "resolved", "asked-chair", "conflict"] as const;
+/**
+ * `data-state` values a HoldCard can show: S2 §2.7's five, plus the register's EXCLUDED (register §7 states
+ * OPEN, ASKED_CHAIR, RESOLVED, EXCLUDED; the register outranks S2). Resolved and excluded are final: they
+ * never show actions.
+ */
+export const HOLD_CARD_STATES = [
+  "open",
+  "resolving",
+  "resolved",
+  "asked-chair",
+  "conflict",
+  "excluded",
+] as const;
 export type HoldCardState = (typeof HOLD_CARD_STATES)[number];
+
+/** The states in which a hold is decided: flush, stamped, with no actions. */
+export const HOLD_CARD_FINAL_STATES = ["resolved", "excluded"] as const satisfies readonly HoldCardState[];
+
+export function isFinalHoldState(state: HoldCardState): state is (typeof HOLD_CARD_FINAL_STATES)[number] {
+  return (HOLD_CARD_FINAL_STATES as readonly HoldCardState[]).includes(state);
+}
 
 export interface HoldView {
   readonly id: string;
@@ -183,8 +233,9 @@ export interface FlatAction {
 export interface HoldCardProps {
   readonly hold: HoldView;
   readonly gate: HoldGate;
-  /** At most one d2 slab and one flat action. */
+  /** At most one d2 slab and one flat action. Never shown once the hold is resolved or excluded. */
   readonly actions: readonly [SlabAction] | readonly [SlabAction, FlatAction];
+  /** Who resolved or excluded the hold, and when: the flush stamp on a final card. */
   readonly resolution?: StampView;
 }
 

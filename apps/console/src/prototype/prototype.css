@@ -253,6 +253,11 @@
   max-width: 80ch;
 }
 
+/* The dialog route's recipient line: quieter than the amount and the consequence above it. */
+.proto-dialog-note {
+  color: var(--fs-ink-3);
+}
+
 .proto-label {
   color: var(--fs-ink-3);
 }

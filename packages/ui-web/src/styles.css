@@ -606,7 +606,7 @@
     color: var(--fs-ink);
   }
 
-  .fs-hold[data-state="resolved"] {
+  .fs-hold:is([data-state="resolved"], [data-state="excluded"]) {
     background: var(--fs-plate);
   }
 
@@ -627,7 +627,7 @@
     color: var(--fs-canary-text);
   }
 
-  .fs-hold[data-state="resolved"] .fs-hold__kind {
+  .fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__kind {
     border-color: var(--fs-rule);
     background: var(--fs-plate);
     color: var(--fs-ink);
@@ -653,12 +653,12 @@
     color: var(--fs-canary-text);
   }
 
-  .fs-hold[data-state="resolved"] .fs-hold__gate {
+  .fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__gate {
     border-color: var(--fs-rule);
     background: transparent;
   }
 
-  .fs-hold[data-state="resolved"] .fs-hold__gate .fs-glyph {
+  .fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__gate .fs-glyph {
     color: var(--fs-ink-3);
   }
 
@@ -1057,6 +1057,8 @@
   }
 
   .fs-dialog__body {
+    display: grid;
+    gap: 8px;
     color: var(--fs-ink-2);
   }
 

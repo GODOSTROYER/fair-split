@@ -1,7 +1,6 @@
 // G1 static screens, at true scale, on the register's figures (register §12): W-JG-01, W-TR-05 with the H1
 // drawer, W-TR-07 ready and with key 1 signed, M-MB-01 sent and paid in phone frames, and W-PF-01.
 
-import { translate } from "@fairsplit/i18n";
 import {
   AmountDisplay,
   Glyph,
@@ -17,7 +16,7 @@ import {
 } from "@fairsplit/ui-web";
 import { useEffect, useRef } from "react";
 import { ConsoleFrame, InvoicePlate, KeySlot, RateCardPlate, RunStrip } from "../console.js";
-import { en, holdH1, RC_SHORT, splitRows, TwinEvidence } from "../content.js";
+import { approveConfirm, en, feeFigures, holdH1, RC_SHORT, splitRows, TwinEvidence } from "../content.js";
 import {
   BATCH_SHA256,
   HOLDS,
@@ -407,13 +406,7 @@ function Approve({ stage }: { readonly stage: "ready" | "key1" }) {
           testId="W-TR-07.rail"
         />
         <p className="approve__fees fs-t-caption">
-          {en("W-TR-07.fees", {
-            sandboxEach: "$0.25",
-            count: 8,
-            sandboxTotal: "$2.00",
-            production: "$7.37",
-            disbursement: "$60.00",
-          })}{" "}
+          {en("W-TR-07.fees", feeFigures())}{" "}
           <span className="approve__muted">{en("W-TR-07.feesLabel")}.</span>
         </p>
         <Print
@@ -445,18 +438,7 @@ function Approve({ stage }: { readonly stage: "ready" | "key1" }) {
             onCommit={() => undefined}
             frame={key1 ? { state: "committed", travel: 8, fill: 1 } : undefined}
             hint={!key1}
-            confirm={{
-              title: translate("en", "confirm.title", { count: 8 }),
-              body: (
-                <>
-                  <p>{translate("en", "confirm.body", { amount: amount.display, count: 8 })}</p>
-                  <p className="approve__muted">
-                    {translate("en", "confirm.recipients")}: M-002, M-007, M-014, M-018, M-022, M-031, M-039,
-                    M-060.
-                  </p>
-                </>
-              ),
-            }}
+            confirm={approveConfirm()}
           />
         </div>
         <div className="approve__keys">
@@ -519,7 +501,7 @@ function Statements() {
       <figure className="statements__frame">
         <PhoneFrame
           label="Member frame: paid"
-          caption="Paid: PayPal’s verified SUCCEEDED pressed the capsule flush and flooded it jade."
+          caption="Paid: PayPal’s SUCCEEDED event pressed the capsule flush and flooded it jade."
           testId="M-MB-01.frame.paid"
         >
           <MemberStatement lang={lang} state="paid" motion={motion} testId="M-MB-01.paid" />
