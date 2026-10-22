@@ -197,6 +197,11 @@ export const idempotencyKeys = pgTable(
     method: text("method").notNull(),
     route: text("route").notNull(),
     requestSha256: sha256("request_sha256").notNull(),
+    /**
+     * Random per claim (a reclaim after expiry writes a new one): complete and release must present it, so a claim
+     * that outlived its key or was released never touches the request that holds the key now.
+     */
+    claimToken: uuid("claim_token").notNull().default(sql`gen_random_uuid()`),
     /** null while the first request is still in flight */
     responseStatus: integer("response_status"),
     responseBody: jsonb("response_body"),
