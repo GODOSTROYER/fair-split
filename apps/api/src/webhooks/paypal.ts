@@ -27,6 +27,7 @@
 // framework to compile or test.
 
 import { createHash } from "node:crypto";
+import { isIP } from "node:net";
 import {
   MAX_WEBHOOK_BODY_BYTES as CORE_MAX_WEBHOOK_BODY_BYTES,
   type HeadersLike,
@@ -411,6 +412,29 @@ export async function readBodyWithLimit(request: Request, maxBytes: number): Pro
   return Buffer.concat(chunks, total);
 }
 
+/** Strip `[v6]:port`, `v4:port` and surrounding space from one forwarded address; null when it is not an IP. */
+function bareAddress(entry: string): string | null {
+  let value = entry.trim();
+  const bracketed = /^\[([^\]]+)\](?::\d+)?$/.exec(value);
+  if (bracketed?.[1]) value = bracketed[1];
+  else if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(value)) value = value.slice(0, value.lastIndexOf(":"));
+  return isIP(value) !== 0 ? value : null;
+}
+
+/**
+ * The client address for the per-IP certificate-fetch budget, from `X-Forwarded-For`. A client can
+ * put anything in the header; each proxy we run behind appends the address it saw, so only the
+ * rightmost `trustedHops` entries are ours and the entry `trustedHops` from the right is the client.
+ * Render appends the connecting address (UNVERIFIED: WS-API confirms the hop count at spike S5 and
+ * passes `clientIp` to the adapter if it differs). Null when there is no such entry or it is not an IP.
+ */
+export function clientIpFromForwardedFor(header: string | null, trustedHops = 1): string | null {
+  if (!header) return null;
+  const entries = header.split(",").filter((entry) => entry.trim() !== "");
+  const entry = entries[entries.length - trustedHops];
+  return entry === undefined ? null : bareAddress(entry);
+}
+
 /** The slice of Hono's Context this route needs (keeps this file free of a Hono import). */
 export interface HonoLikeContext {
   req: { raw: Request; arrayBuffer(): Promise<ArrayBuffer> };
@@ -419,19 +443,30 @@ export interface HonoLikeContext {
 /**
  * Hono adapter: `app.post('/webhooks/paypal', honoPayPalWebhook(handler))`. Reads the raw bytes
  * (bounded) before anything parses them; if a middleware already consumed the body, Hono's cached
- * copy is used instead.
+ * copy is used instead. The client address comes from `options.clientIp`, by default the rightmost
+ * `X-Forwarded-For` entry. A 503 carries `Retry-After`.
  */
 export function honoPayPalWebhook(
   handler: PayPalWebhookHandler,
-  options: { maxBodyBytes?: number } = {},
+  options: { maxBodyBytes?: number; clientIp?: (request: Request) => string | null } = {},
 ): (c: HonoLikeContext) => Promise<Response> {
   const maxBytes = options.maxBodyBytes ?? MAX_WEBHOOK_BODY_BYTES;
+  const clientIpOf =
+    options.clientIp ??
+    ((request: Request) => clientIpFromForwardedFor(request.headers.get("x-forwarded-for")));
   return async (c) => {
     const raw = c.req.raw.bodyUsed
       ? new Uint8Array(await c.req.arrayBuffer())
       : await readBodyWithLimit(c.req.raw, maxBytes);
     if (raw === null || raw.byteLength > maxBytes) return new Response(null, { status: 413 });
-    const result = await handler({ rawBody: raw, headers: c.req.raw.headers });
-    return new Response(null, { status: result.status });
+    const result = await handler({
+      rawBody: raw,
+      headers: c.req.raw.headers,
+      clientIp: clientIpOf(c.req.raw),
+    });
+    return new Response(null, {
+      status: result.status,
+      ...(result.status === 503 ? { headers: { "retry-after": String(RETRY_AFTER_SECONDS) } } : {}),
+    });
   };
 }

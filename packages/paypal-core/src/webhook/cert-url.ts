@@ -28,7 +28,9 @@ const MAX_CERT_URL_LENGTH = 500;
 export const CERT_ID_PATTERN = /^CERT-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8}$/;
 const CERT_PATH = /^\/v1\/notifications\/certs\/CERT-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8}$/;
 
-export type CertUrlCheck = { ok: true; url: URL; cacheKey: string } | { ok: false; reason: CertUrlRejection };
+export type CertUrlCheck =
+  /** `certId` (CERT-…) names the certificate whichever allowlisted host serves it. */
+  { ok: true; url: URL; cacheKey: string; certId: string } | { ok: false; reason: CertUrlRejection };
 
 export function checkCertUrl(value: string, allowedHosts: readonly string[]): CertUrlCheck {
   if (value.length === 0 || value.length > MAX_CERT_URL_LENGTH) return { ok: false, reason: "NOT_A_URL" };
@@ -47,5 +49,6 @@ export function checkCertUrl(value: string, allowedHosts: readonly string[]): Ce
     return { ok: false, reason: "HAS_QUERY_OR_FRAGMENT" };
   }
   if (!CERT_PATH.test(url.pathname)) return { ok: false, reason: "BAD_PATH" };
-  return { ok: true, url, cacheKey: `${url.origin}${url.pathname}` };
+  const certId = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+  return { ok: true, url, cacheKey: `${url.origin}${url.pathname}`, certId };
 }

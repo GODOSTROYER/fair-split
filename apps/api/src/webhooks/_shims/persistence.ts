@@ -16,6 +16,13 @@ export type Enqueue<Tx> = (
 export type RunInTransaction<Tx> = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 
 /**
+ * PROPOSED for WS-DATA: the replay record behind paypal-core's `TransmissionStore`, a table
+ * `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at timestamptz NOT NULL)`; the
+ * claim/release SQL is in packages/paypal-core/src/webhook/transmission.ts. Separate from
+ * `webhook_events` on purpose: an id is recorded before the event row and released if storing fails.
+ */
+
+/**
  * PROPOSED for WS-DATA (not in architecture §3 or S3.4 yet): one nullable column
  * `webhook_events.delivery jsonb` holding how this copy of the event reached us. It replaces the four
  * extra columns an earlier draft used (resource_type, transmission_id, reject_reason, received_at):

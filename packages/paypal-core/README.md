@@ -29,16 +29,30 @@ so the bearer token cannot be sent anywhere else.
 
 ## Webhook trust model
 
+0. Before anything else: bodies over 64 KB, malformed `paypal-transmission-id` values, and a
+   `paypal-transmission-time` that is not a strict ISO 8601 instant or is more than 5 minutes from our
+   clock (either way; the clock is injectable) are refused without touching the network.
 1. `paypal-cert-url` must be `https://api.sandbox.paypal.com` or `https://api-m.sandbox.paypal.com` (any
    configured host must be a `*.paypal.com` host), path `/v1/notifications/certs/CERT-xxxxxxxx-xxxxxxxx-xxxxxxxx`
    (PayPal's id shape, lowercase hex), no port, credentials, query or fragment. Refused before any fetch.
 2. Certificate fetches are PayPal calls: each takes a background token from the shared limiter (so it
    counts toward the 40/min budget), is written to `paypal_calls` (`webhooks.cert`), and a 429 opens the
-   6-minute circuit. Before that, a local budget allows 6 unknown URLs a minute, plus one reserved slot a
-   minute for URLs that already signed a verified delivery, so forged requests cannot starve a genuine
-   one. PEMs are fetched over TLS with redirects refused, at most 64 KB, cached per URL (24 h, LRU) and
-   single-flighted; failed URLs are not retried for a minute. `prewarm(urls)` loads the certificate of
-   the newest stored verified event at boot (`prewarmWebhookCertificates` in `apps/api/src/webhooks`).
+   6-minute circuit. Before that, local budgets (`DEFAULT_CERT_FETCH_BUDGET`, per hour, by cert id so
+   `api` and `api-m` count once) decide whether an unauthenticated request may cause a fetch at all:
+   - a certificate that signed a verified delivery, was pre-warmed or is pinned (`knownCertIds`, e.g.
+     from `PP_CERT_ALLOW`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
+     fetched again (validity is still checked on every use);
+   - **per client IP** first (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
+   - then **global**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
+     hour, every other well-formed id 1 an hour (S3.6.7: at most 3 an hour), and 2 an hour **reserved**
+     for known ids not loaded yet (after a restart) that nothing else can spend;
+   - a delivery refused by a budget is `CERT_FETCH_THROTTLED` with `retryable: true`: the route answers
+     **503** with `Retry-After` (PayPal retries 25 times over 3 days) and stores nothing. So are a limiter
+     refusal, a timeout, a network error and a PayPal 5xx/429 on the fetch; a 404 or junk PEM stays a 400;
+   - 1,000 forged deliveries cost at most 3 certificate fetches and no other PayPal call (tested);
+   - PEMs are fetched over TLS with redirects refused, at most 64 KB, cached (24 h, LRU) and
+     single-flighted; failed ids are not retried for a minute. `prewarm(urls)` loads the certificate of
+     the newest stored verified event at boot (`prewarmWebhookCertificates` in `apps/api/src/webhooks`).
 3. On every use the leaf must carry the subject `messageverificationcerts.sandbox.paypal.com`, hold an
    RSA key of 2048 bits or more, not be a CA, and (with optional `trustAnchors`) chain to a pinned
    certificate. Its validity window is checked separately, after the signature:
@@ -51,12 +65,24 @@ so the bearer token cannot be sent anywhere else.
 4. Signature: RSA-SHA256 over `transmissionId|transmissionTime|webhookId|crc32(raw)`, CRC as unsigned
    decimal. Simulator events (signed with the literal `WEBHOOK_ID`) are accepted only with dev mocks on
    (`PP_DEV_MOCKS=1`, refused when `NODE_ENV=production`) and labelled `dev_mock`.
-5. The webhook route never asks for a postback: processWebhook calls `confirmWebhookByPostback`
+5. Replay: once the signature verifies, the transmission id is recorded through the injected
+   `TransmissionStore` (unique; kept until transmission time + 6 min) and a repeat is
+   `TRANSMISSION_REPLAYED` (400). A store failure is `REPLAY_CHECK_FAILED`, retryable (503). This is
+   separate from event-id dedupe: PayPal's resend has a new transmission id and lands as a duplicate.
+   The route releases the id when it could not store the event, so PayPal's retry is not a "replay".
+   UNVERIFIED until spike S5: whether PayPal's retries after a non-2xx carry new transmission headers;
+   if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event.
+6. The webhook route never asks for a postback: processWebhook calls `confirmWebhookByPostback`
    (`apps/api/src/webhooks/postback.ts`) after the 200, from the transmission headers kept in the row.
+7. Applying events (`apps/api/src/webhooks/apply.ts`, re-exported by the route): only a signature-verified
+   (`self`/`postback`) PAYOUTS-ITEM.SUCCEEDED applies at once (MM-1), corroborated by the settle GETs at
+   +25 s (Judge) / +90 s; a GET that disagrees wins and raises `WEBHOOK_GET_MISMATCH` on `/ops` (a lower
+   rank is written as a correction, the one sanctioned exception to forward-only); every other status,
+   and a SUCCEEDED labelled `dev_mock` or `fetched`, changes state only after a fresh GET.
 
 `verifier.health()` reports `ok | degraded` with plain-language problems: deliveries signed with an
-expired certificate, a known certificate URL that can no longer be fetched, or a signing certificate
-with fewer than 14 days left. WS-API: put it in the `/readyz` body as `webhooks`, but never fail
+expired certificate, a known certificate URL that can no longer be fetched, deliveries answered 503
+because the fetch budget was used up, or a signing certificate with fewer than 14 days left. WS-API: put it in the `/readyz` body as `webhooks`, but never fail
 readiness on it (Render's health check would restart a healthy process); show it on `/ops`.
 
 ## Spike results
@@ -85,6 +111,12 @@ readiness on it (Render's health check would restart a healthy process); show it
 
 ## S5 / G2 checklist (hard items for WS-PPCORE with the user)
 
+- [ ] Answer one real delivery 503 once and log the retry's headers: does PayPal re-sign a retry with a new
+  transmission id and time (replay and freshness rules hold as built), or resend the first headers
+  (then retries after 5 minutes are refused and catch-up recovers the event)?
+- [ ] On Render, log `X-Forwarded-For` for one real delivery and confirm the rightmost entry is PayPal's
+  address (the per-IP budget's key); otherwise pass `clientIp` to `honoPayPalWebhook`.
+
 - [ ] With `fs-dev` registered (`tools/setup-webhooks.ts --app dev`), capture one real sandbox delivery
   (the S5 hosted-page INVOICE.PAID) and verify it **with the real clock**: expect `self`, note the
   `paypal-cert-url` and its expiry, and that `verifier.health().signingCert.daysLeft` is positive.
@@ -105,6 +137,13 @@ readiness on it (Render's health check would restart a healthy process); show it
   from `"self" | "postback"` (architecture §5) to also allow `"dev_mock"` and `"fetched"`, so simulator
   and catch-up events keep their label (I8). Until then `webhookRunEvent()` returns null for them rather
   than relabelling.
+- **Proposed to WS-DATA:** table `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at
+  timestamptz NOT NULL)` behind `TransmissionStore` (SQL in `src/webhook/transmission.ts`), injected as
+  `createPayPalCore({ webhookTransmissionStore })`. Until then the in-memory store (one fs-api instance)
+  applies; a restart forgets ids, and event-id dedupe still stops a second apply.
+- **For WS-API:** mount `honoPayPalWebhook(handler)`; it takes the client address from the rightmost
+  `X-Forwarded-For` entry (Render appends the connecting address; UNVERIFIED, confirm at S5 and pass
+  `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`.
 - Until WS-API scaffolds `apps/api`, the webhook route is typechecked by `tsconfig.consumers.json` and
   tested by the `api-webhooks` vitest project here.
 
@@ -113,7 +152,8 @@ readiness on it (Render's health check would restart a healthy process); show it
 - Live OAuth, postback and webhook registration against the sandbox: waiting for S1 credentials, then
   `tools/setup-webhooks.ts` and spike S5 with the user (checklist above).
 - `processWebhook` (resolution, re-GET, state transitions); its postback step exists
-  (`confirmWebhookByPostback`). Catch-up exists (`apps/api/src/webhooks/catchup.ts`, rows labelled
+  (`confirmWebhookByPostback`) and the rules it must follow are code (`apply.ts`: `webhookApplyRule`,
+  `corroborateWithSettleGet`, `openForSettleGets`). Catch-up exists (`apps/api/src/webhooks/catchup.ts`, rows labelled
   `fetched`); WS-OPS schedules it in `reconcile{catchup}` and persists `resume` between passes.
 
 ## `tools/setup-webhooks.ts`

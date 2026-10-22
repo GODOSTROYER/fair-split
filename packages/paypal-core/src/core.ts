@@ -36,6 +36,8 @@ export interface PayPalCoreOptions {
   webhookExpiredCertPolicy?: ExpiredCertPolicy;
   /** Replay tracking of webhook transmission ids (production: WS-DATA's Postgres store; default in memory). */
   webhookTransmissionStore?: TransmissionStore;
+  /** PayPal cert ids trusted before any delivery (`PP_CERT_ALLOW`): reserved fetch budget, kept once loaded. */
+  webhookKnownCertIds?: readonly string[];
 }
 
 export interface PayPalCore {
@@ -84,6 +86,7 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...(options.webhookTrustAnchors ? { trustAnchors: options.webhookTrustAnchors } : {}),
     ...(options.webhookExpiredCertPolicy ? { expiredCertPolicy: options.webhookExpiredCertPolicy } : {}),
     ...(options.webhookTransmissionStore ? { transmissionStore: options.webhookTransmissionStore } : {}),
+    ...(options.webhookKnownCertIds ? { knownCertIds: options.webhookKnownCertIds } : {}),
     ...shared,
   });
   return {

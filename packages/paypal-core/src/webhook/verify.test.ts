@@ -59,7 +59,10 @@ const event = syntheticEvent("PAYMENT.PAYOUTS-ITEM.SUCCEEDED", {
 });
 const signed = (overrides: Partial<Parameters<typeof signWebhook>[0]> = {}) =>
   signWebhook({ body: event, webhookId: TEST_WEBHOOK_ID, privateKey: leaf.privateKey, ...overrides });
-const verifier = (config: WebhookVerifierConfig = {}) => createPayPalWebhookVerifier(config);
+// The synthetic test cert ids (CERT-00000000-…) stand in for PayPal's own ids here, so they get the
+// budget PayPal-shaped ids get. Budgets themselves are tested in verify.budget.test.ts.
+const verifier = (config: WebhookVerifierConfig = {}) =>
+  createPayPalWebhookVerifier({ expectedCertIdPattern: /^CERT-00000000-/, ...config });
 
 describe("verifyPayPal: self-verification (CRC32 + RSA-SHA256)", () => {
   it("accepts a correctly signed delivery as 'self'", async () => {
@@ -395,7 +398,7 @@ describe("verifyPayPal: certificate fetching and caching", () => {
   });
 
   it("bounds how many unknown cert URLs forged requests can make us fetch; cached certs are unaffected", async () => {
-    const v = verifier({ newCertFetchesPerMinute: 3 });
+    const v = verifier({ certFetchBudget: { expectedPerHour: 3, otherPerHour: 0 } });
     const good = signed();
     expect(await v.verifyPayPal(good.body, good.headers, TEST_WEBHOOK_ID)).toBe("self");
     const reasons: (string | null)[] = [];
@@ -494,18 +497,18 @@ describe("verifyPayPal: certificate fetches are PayPal calls (limiter, recorder,
 });
 
 describe("verifyPayPal: a reserved fetch slot for certificate URLs PayPal really signs with", () => {
-  it("forged URLs use up the budget, yet a URL that signed a verified delivery is still fetched", async () => {
+  it("forged URLs use up the budget, yet a certificate that signed a verified delivery is kept and needs no fetch", async () => {
     let t = Date.parse("2026-10-29T09:00:00Z");
     const now = () => t;
     const v = verifier({
       now,
       certCache: createMemoryCertCache({ now, ttlMs: 60_000 }),
-      newCertFetchesPerMinute: 2,
+      certFetchBudget: { expectedPerHour: 3, otherPerHour: 0 },
     });
     const at = () => ({ transmissionTime: new Date(t).toISOString() });
     const genuine = signed(at());
     expect(await v.verifyPayPal(genuine.body, genuine.headers, TEST_WEBHOOK_ID)).toBe("self");
-    t += 61_000; // the cached certificate expires from the cache; the budget is full again
+    t += 61_000; // the certificate drops out of the cache; the budget has 2 fetches left
 
     const forged = [0, 1, 2].map((i) => signed({ ...at(), certUrl: testCertUrl(`random-${i}`) }));
     const reasons = [];
@@ -519,9 +522,10 @@ describe("verifyPayPal: a reserved fetch slot for certificate URLs PayPal really
     const again = signed(at());
     expect(await v.verifyDetailed(again.body, again.headers, TEST_WEBHOOK_ID)).toMatchObject({
       mode: "self",
-      certSource: "network",
+      certSource: "cache",
     });
-    expect(certFetches).toBe(4);
+    expect(certFetches).toBe(3);
+    expect(v.health()).toMatchObject({ knownCertIds: 1, lastKnownGoodCerts: 1 });
   });
 });
 
@@ -560,7 +564,7 @@ describe("verifier.prewarm", () => {
   });
 
   it("gives pre-warmed URLs the reserved slot when forged traffic has used the budget", async () => {
-    const v = verifier({ newCertFetchesPerMinute: 1 });
+    const v = verifier({ certFetchBudget: { expectedPerHour: 1, otherPerHour: 0 } });
     const forged = signed({ certUrl: testCertUrl("forged-first") });
     expect((await v.verifyDetailed(forged.body, forged.headers, TEST_WEBHOOK_ID)).reason).toBe(
       "CERT_FETCH_FAILED",
@@ -869,19 +873,29 @@ describe("verifier.health (for /readyz and /ops)", () => {
     expect(health.problems[0]).toMatch(/signing certificate expires in \d+ days/);
   });
 
-  it("reports a certificate URL that signed earlier deliveries but can no longer be fetched", async () => {
-    let t = Date.now();
-    const now = () => t;
-    const v = verifier({ now, certCache: createMemoryCertCache({ now, ttlMs: 60_000 }) });
-    const s = signed();
-    expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
-    t += 61_000;
+  it("reports a known PayPal certificate (pinned, pre-warmed or seen) that can no longer be fetched", async () => {
+    const v = verifier({ knownCertIds: [TEST_CERT_URL.slice(TEST_CERT_URL.lastIndexOf("/") + 1)] });
     certs.delete(TEST_CERT_URL);
+    const s = signed();
     expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).reason).toBe("CERT_FETCH_FAILED");
     const health = v.health();
     expect(health.status).toBe("degraded");
     expect(health.problems).toContain(
-      `could not fetch ${TEST_CERT_URL}, which signed earlier deliveries: CERT_FETCH_FAILED (HTTP 404)`,
+      `could not fetch ${TEST_CERT_URL}, a known PayPal signing certificate: CERT_FETCH_FAILED (HTTP 404)`,
     );
+  });
+
+  it("refuses a pinned cert id that is not shaped like PayPal's", () => {
+    expect(() => verifier({ knownCertIds: ["CERT-nope"] })).toThrow(/cert ids/);
+  });
+
+  it("reports deliveries answered 503 because the certificate fetch budget was used up", async () => {
+    const v = verifier({ certFetchBudget: { expectedPerHour: 0, otherPerHour: 0 } });
+    const s = signed();
+    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      reason: "CERT_FETCH_THROTTLED",
+      retryable: true,
+    });
+    expect(v.health().problems.join(" ")).toMatch(/1 delivery .* certificate fetch budget used up/);
   });
 });

@@ -24,6 +24,13 @@ describe("checkCertUrl", () => {
     expect(a.ok && b.ok && a.cacheKey === b.cacheKey).toBe(true);
   });
 
+  it("names the certificate by its id whichever allowlisted host serves it (one budget and cache entry per id)", () => {
+    const a = checkCertUrl(`https://api.sandbox.paypal.com/v1/notifications/certs/${ID}`, sandbox);
+    const b = checkCertUrl(`https://api-m.sandbox.paypal.com/v1/notifications/certs/${ID}`, sandbox);
+    expect(a.ok && a.certId).toBe(ID);
+    expect(b.ok && b.certId).toBe(ID);
+  });
+
   it.each([
     ["", "NOT_A_URL"],
     ["not a url", "NOT_A_URL"],

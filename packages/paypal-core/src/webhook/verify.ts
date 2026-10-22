@@ -11,9 +11,21 @@
 //
 // Certificate fetches are PayPal calls like any other: they take a token from the injected limiter
 // (purpose `webhooks.cert`, background priority), are written to `paypal_calls` by the injected
-// recorder, and a 429 opens the circuit. Before that, a local budget (6 new URLs a minute) keeps
-// forged requests away from the shared limiter, with one extra slot a minute held back for URLs that
-// already signed a verified delivery (or were pre-warmed from stored ones at boot).
+// recorder, and a 429 opens the circuit. Before that, local budgets decide whether an unauthenticated
+// request may make us fetch at all (security review finding 2; S3.6.7 "cert fetches: at most 3 an
+// hour"). In order:
+//   1. Known certificates never need a fetch: a certificate that signed a verified delivery (or was
+//      pre-warmed, or is pinned with `knownCertIds`) is kept as last-known-good, outside the cache's
+//      TTL and LRU, for as long as the process lives. Its validity is still checked on every use.
+//   2. Per client IP (IPv6 by /64, ./client-ip.ts), 2 fetches an hour. One address cannot drain the
+//      global budget; requests with no address share one budget.
+//   3. Global, by cert id: ids with PayPal's shape (`CERT-360caa42-…`, every PayPal cert id since
+//      2015) have their own 2 an hour; any other well-formed id shares 1 an hour (PayPal-shaped ids may
+//      use it too). Known ids that are not loaded yet (after a restart) have 2 an hour reserved that
+//      nothing else can spend. A local token is given back when the limiter refuses the fetch.
+// A delivery refused by any budget is CERT_FETCH_THROTTLED and retryable: the route answers 503 and
+// PayPal retries (25 times over 3 days), so a flood delays a genuine delivery but cannot make us
+// call it forged. 1,000 forged deliveries cost at most 3 certificate fetches and no other PayPal call.
 //
 // Expired certificates. PayPal rotates its signing certificate yearly with a few weeks of overlap
 // (sandbox: …ab66f33d to 7 Mar 2025, …90621ecd to 1 Mar 2026, …bf9ab596 from 27 Jan 2026 to 26 Jan
@@ -53,7 +65,7 @@ import {
   readHeader,
 } from "../types.js";
 import { isTimeoutError } from "../util.js";
-import { checkCertUrl } from "./cert-url.js";
+import { CERT_ID_PATTERN, checkCertUrl } from "./cert-url.js";
 import {
   type CertCache,
   checkCertValidity,
@@ -62,6 +74,7 @@ import {
   type LoadedCert,
   parsePemChain,
 } from "./certs.js";
+import { clientIpKey } from "./client-ip.js";
 import { POSTBACK_DEADLINE_MS, postbackWithDeadline } from "./postback.js";
 import {
   createMemoryTransmissionStore,
@@ -85,6 +98,32 @@ export const MOCK_WEBHOOK_ID = "WEBHOOK_ID";
 
 /** PayPal webhook events are a few KB; larger bodies are refused before any work (plan: 64 KB cap). */
 export const MAX_WEBHOOK_BODY_BYTES = 64 * 1024;
+
+/**
+ * The shape of PayPal's own certificate ids: all 13 seen from 2015 to 2026, sandbox and live, start
+ * `CERT-360caa42-` (e.g. CERT-360caa42-fca2a594-bf9ab596, CERT-360caa42-fca2a784-5edc0ebc).
+ */
+export const PAYPAL_CERT_ID_PATTERN = /^CERT-360caa42-[0-9a-f]{8}-[0-9a-f]{8}$/;
+
+/** Certificate fetches allowed per hour (token buckets that refill continuously). */
+export interface CertFetchBudget {
+  /** Per client IP (IPv6 by /64), checked before any global budget. */
+  perIpPerHour: number;
+  /** Unknown ids with PayPal's shape (PAYPAL_CERT_ID_PATTERN). */
+  expectedPerHour: number;
+  /** Shared by every other unknown id (and PayPal-shaped ids once their own budget is spent). */
+  otherPerHour: number;
+  /** Reserved for known ids that are not loaded yet (pinned, pre-warmed, or seen before a restart). */
+  knownPerHour: number;
+}
+
+/** expected + other = 3 an hour for certificates nobody has verified yet (S3.6.7). */
+export const DEFAULT_CERT_FETCH_BUDGET: Readonly<CertFetchBudget> = Object.freeze({
+  perIpPerHour: 2,
+  expectedPerHour: 2,
+  otherPerHour: 1,
+  knownPerHour: 2,
+});
 
 export type VerifyMode = "self" | "postback" | "dev_mock";
 
@@ -210,10 +249,15 @@ export interface WebhookVerifierConfig {
   certCache?: CertCache;
   certFetchTimeoutMs?: number;
   maxCertBytes?: number;
-  /** Fetches of cert URLs not yet cached, per minute. Bounds what forged requests can make us fetch. */
-  newCertFetchesPerMinute?: number;
-  /** Extra fetches per minute held back for cert URLs that already signed a verified delivery (default 1). */
-  knownCertFetchReserve?: number;
+  /** Certificate-fetch budgets (see the header comment); unset fields keep DEFAULT_CERT_FETCH_BUDGET. */
+  certFetchBudget?: Partial<CertFetchBudget>;
+  /** Ids with PayPal's own shape get their own global budget. Default PAYPAL_CERT_ID_PATTERN. */
+  expectedCertIdPattern?: RegExp;
+  /**
+   * Cert ids trusted to be PayPal's before any delivery (e.g. from `PP_CERT_ALLOW` after spike S5):
+   * they get the reserved budget and, once loaded, stay as last-known-good. Default none.
+   */
+  knownCertIds?: readonly string[];
   /** How long a failed cert URL is not retried. */
   failedCertRetryMs?: number;
   /** Window of the health() counters (default 15 min). */
@@ -251,7 +295,10 @@ export interface WebhookVerifierHealth {
   /** Certificate of the most recent accepted delivery. */
   signingCert: { certUrl: string; validTo: string; daysLeft: number } | null;
   certsCached: number;
-  knownCertUrls: number;
+  /** Cert ids known to be PayPal's: pinned, pre-warmed or seen on a verified delivery. */
+  knownCertIds: number;
+  /** Of those, loaded and kept as last-known-good (never re-fetched). */
+  lastKnownGoodCerts: number;
 }
 
 export interface PayPalWebhookVerifier {
@@ -301,6 +348,11 @@ const SIGNATURE_B64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const DAY_MS = 86_400_000;
 const MAX_TRACKED = 64;
 const MAX_FAILED_URLS = 256;
+/** Last-known-good certificates kept (PayPal overlaps at most two signing certificates at a time). */
+const MAX_LAST_GOOD = 8;
+/** Client addresses with their own fetch budget; beyond that the oldest are forgotten. */
+const MAX_IP_BUDGETS = 4_096;
+const HOUR_MS = 3_600_000;
 const MAX_MARKS = 2_000;
 /** How long a PayPal-confirmed expired certificate keeps being accepted without asking again. */
 const EXPIRED_CONFIRMATION_TTL_MS = DAY_MS;
@@ -313,17 +365,32 @@ function toBytes(raw: RawBody): Uint8Array {
   return new Uint8Array(raw);
 }
 
-/** A continuously refilled token bucket holding at most `perMinute` tokens. */
-function tokenBucket(perMinute: number, now: () => number): () => boolean {
-  let tokens = perMinute;
+interface Bucket {
+  take(): boolean;
+  /** Give back a token that was taken but not spent (the fetch never happened). */
+  refund(): void;
+}
+
+/** A continuously refilled token bucket holding at most `perHour` tokens, starting full. */
+function tokenBucket(perHour: number, now: () => number): Bucket {
+  let tokens = perHour;
   let at = now();
-  return () => {
+  const refill = () => {
     const t = now();
-    tokens = Math.min(perMinute, tokens + ((t - at) * perMinute) / 60_000);
+    tokens = Math.min(perHour, tokens + ((t - at) * perHour) / HOUR_MS);
     at = t;
-    if (tokens < 1) return false;
-    tokens -= 1;
-    return true;
+  };
+  return {
+    take() {
+      refill();
+      if (tokens < 1) return false;
+      tokens -= 1;
+      return true;
+    },
+    refund() {
+      refill();
+      tokens = Math.min(perHour, tokens + 1);
+    },
   };
 }
 
@@ -367,13 +434,25 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const { limiter, recorder, logger } = config;
   const leafOptions = (at: number) => ({ at, subjects, ...(anchors ? { trustAnchors: anchors } : {}) });
 
-  const takeNewSlot = tokenBucket(config.newCertFetchesPerMinute ?? 6, now);
-  const takeReservedSlot = tokenBucket(config.knownCertFetchReserve ?? 1, now);
+  const budget: CertFetchBudget = { ...DEFAULT_CERT_FETCH_BUDGET, ...config.certFetchBudget };
+  const expectedIds = config.expectedCertIdPattern ?? PAYPAL_CERT_ID_PATTERN;
+  const expectedBucket = tokenBucket(budget.expectedPerHour, now);
+  const otherBucket = tokenBucket(budget.otherPerHour, now);
+  const knownBucket = tokenBucket(budget.knownPerHour, now);
+  const ipBuckets = new Map<string, Bucket>();
+  // Everything below is keyed by cert id: api.sandbox and api-m.sandbox serve the same certificates.
   const inflight = new Map<string, Promise<LoadResult>>();
-  /** Cert URLs whose fetch failed: until when they are not retried, and whether that failure was retryable. */
+  /** Cert ids whose fetch failed: until when they are not retried, and whether that failure was retryable. */
   const failedUntil = new Map<string, { until: number; retryable: boolean }>();
-  /** Cert URLs (cache keys) that signed a verified delivery or were pre-warmed from stored ones. */
+  /** Cert ids known to be PayPal's: pinned, pre-warmed from stored deliveries, or seen on a verified one. */
   const knownGood = new Map<string, number>();
+  for (const id of config.knownCertIds ?? []) {
+    if (!CERT_ID_PATTERN.test(id))
+      throw new PayPalConfigError("INVALID_VALUE", "knownCertIds must be PayPal cert ids");
+    knownGood.set(id, 0);
+  }
+  /** Certificates of known ids, kept outside the cache's TTL and LRU: never fetched twice. */
+  const lastGood = new Map<string, LoadedCert>();
   /** Expired certificates PayPal confirmed by postback: fingerprint → when. */
   const confirmedExpired = new Map<string, number>();
   /** Last postback about an expired certificate: fingerprint → when. */
@@ -491,12 +570,47 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     return { ok: true, cert: { leaf, intermediates, fetchedAt: now() }, source: "network" };
   }
 
-  function loadCert(url: URL, key: string): Promise<LoadResult> {
-    const hit = cache.get(key);
-    if (hit) return Promise.resolve({ ok: true, cert: hit, source: "cache" });
-    const pending = inflight.get(key);
+  /** Keep a certificate of a known id for good (bounded), and remember the id. */
+  function rememberKnown(certId: string, cert: LoadedCert): void {
+    touch(knownGood, certId, now(), MAX_TRACKED);
+    touch(lastGood, certId, cert, MAX_LAST_GOOD);
+  }
+
+  function ipBucket(clientIp: string | null): Bucket {
+    const key = clientIpKey(clientIp);
+    const bucket = ipBuckets.get(key) ?? tokenBucket(budget.perIpPerHour, now);
+    touch(ipBuckets, key, bucket, MAX_IP_BUDGETS);
+    return bucket;
+  }
+
+  /** Take a global token for this cert id; returns the bucket to refund, or null when none is left. */
+  function takeGlobal(certId: string): Bucket | null {
+    const order = knownGood.has(certId)
+      ? [knownBucket, expectedBucket, otherBucket]
+      : expectedIds.test(certId)
+        ? [expectedBucket, otherBucket]
+        : [otherBucket];
+    return order.find((bucket) => bucket.take()) ?? null;
+  }
+
+  const throttled = (detail: string): Promise<LoadResult> =>
+    Promise.resolve({ ok: false, reason: "CERT_FETCH_THROTTLED", detail, retryable: true });
+
+  /**
+   * `clientIp` undefined: an internal caller (prewarm), no per-IP budget. A string or null: a request
+   * from outside, budgeted per address (null = unknown, one shared budget).
+   */
+  function loadCert(url: URL, certId: string, clientIp?: string | null): Promise<LoadResult> {
+    const kept = lastGood.get(certId);
+    if (kept) return Promise.resolve({ ok: true, cert: kept, source: "cache" });
+    const hit = cache.get(certId);
+    if (hit) {
+      if (knownGood.has(certId)) rememberKnown(certId, hit);
+      return Promise.resolve({ ok: true, cert: hit, source: "cache" });
+    }
+    const pending = inflight.get(certId);
     if (pending) return pending;
-    const blocked = failedUntil.get(key);
+    const blocked = failedUntil.get(certId);
     if (blocked !== undefined && blocked.until > now()) {
       return Promise.resolve({
         ok: false,
@@ -505,32 +619,36 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         retryable: blocked.retryable,
       });
     }
-    // The local budget comes first, so forged requests never reach the shared limiter.
-    if (!takeNewSlot() && !(knownGood.has(key) && takeReservedSlot())) {
-      return Promise.resolve({
-        ok: false,
-        reason: "CERT_FETCH_THROTTLED",
-        detail: "fetch budget",
-        retryable: true,
-      });
+    // Local budgets come first, per IP before global, so forged requests never reach the shared limiter.
+    const perIp = clientIp === undefined ? null : ipBucket(clientIp);
+    if (perIp && !perIp.take()) return throttled("per-ip budget");
+    const global = takeGlobal(certId);
+    if (!global) {
+      perIp?.refund();
+      return throttled("global budget");
     }
     const run = fetchCert(url)
       .then((result) => {
         if (result.ok) {
-          cache.set(key, result.cert);
-          failedUntil.delete(key);
-        } else if (result.reason !== "CERT_FETCH_THROTTLED") {
+          cache.set(certId, result.cert);
+          failedUntil.delete(certId);
+          if (knownGood.has(certId)) rememberKnown(certId, result.cert);
+        } else if (result.reason === "CERT_FETCH_THROTTLED") {
+          // The limiter refused: nothing was fetched, so the local tokens are given back.
+          perIp?.refund();
+          global.refund();
+        } else {
           touch(
             failedUntil,
-            key,
+            certId,
             { until: now() + failedRetryMs, retryable: result.retryable },
             MAX_FAILED_URLS,
           );
         }
         return result;
       })
-      .finally(() => inflight.delete(key));
-    inflight.set(key, run);
+      .finally(() => inflight.delete(certId));
+    inflight.set(certId, run);
     return run;
   }
 
@@ -606,6 +724,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     const urlCheck = checkCertUrl(certUrl, certHosts);
     if (!urlCheck.ok) return fail("CERT_URL_REJECTED", urlCheck.reason);
     const certKey = urlCheck.cacheKey;
+    const certId = urlCheck.certId;
 
     const sigText = transmissionSig.trim();
     const signature = SIGNATURE_B64.test(sigText) ? Buffer.from(sigText, "base64") : null;
@@ -615,9 +734,9 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (bytes.length === 0) return fail("EMPTY_BODY");
     crc = crc32(bytes) >>> 0;
 
-    const loaded = await loadCert(urlCheck.url, certKey);
+    const loaded = await loadCert(urlCheck.url, certId, opts.clientIp);
     if (!loaded.ok) {
-      if (knownGood.has(certKey)) {
+      if (knownGood.has(certId)) {
         mark({
           at: now(),
           kind: "known_fetch_failed",
@@ -741,8 +860,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     }
     if (validity === "CERT_EXPIRED") mark({ at: now(), kind: "accepted_expired" });
 
-    // Accepted. Remember the certificate URL as one PayPal really signs with.
-    touch(knownGood, certKey, now(), MAX_TRACKED);
+    // Accepted. This certificate is one PayPal really signs with: keep it as last-known-good.
+    rememberKnown(certId, loaded.cert);
     lastVerified = { at: now(), certUrl: certKey, validTo: leaf.validToDate.getTime() };
     mark({ at: now(), kind: "verified" });
 
@@ -779,9 +898,9 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         });
         continue;
       }
-      // These URLs signed stored, verified events, so they may use the reserved fetch slot.
-      touch(knownGood, check.cacheKey, now(), MAX_TRACKED);
-      const loaded = await loadCert(check.url, check.cacheKey);
+      // These URLs signed stored, verified events, so their ids are known: the reserved budget applies.
+      touch(knownGood, check.certId, now(), MAX_TRACKED);
+      const loaded = await loadCert(check.url, check.certId);
       if (!loaded.ok) {
         results.push({
           certUrl: check.cacheKey,
@@ -830,6 +949,13 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
 
     const minutes = Math.round(healthWindowMs / 60_000);
     const problems: string[] = [];
+    const throttledCount = rejected.CERT_FETCH_THROTTLED ?? 0;
+    if (throttledCount > 0) {
+      problems.push(
+        `${throttledCount} ${throttledCount === 1 ? "delivery" : "deliveries"} in the last ${minutes} min ` +
+          "could not be checked: certificate fetch budget used up (answered 503; PayPal retries)",
+      );
+    }
     if (signedExpired > 0) {
       problems.push(
         `${signedExpired} PayPal ${signedExpired === 1 ? "delivery" : "deliveries"} in the last ${minutes} min ` +
@@ -837,7 +963,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       );
     }
     for (const [url, why] of fetchProblems) {
-      problems.push(`could not fetch ${url}, which signed earlier deliveries: ${why}`);
+      problems.push(`could not fetch ${url}, a known PayPal signing certificate: ${why}`);
     }
     let signingCert: WebhookVerifierHealth["signingCert"] = null;
     if (lastVerified) {
@@ -867,7 +993,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       lastVerifiedAt: lastVerified ? new Date(lastVerified.at).toISOString() : null,
       signingCert,
       certsCached: cache.size,
-      knownCertUrls: knownGood.size,
+      knownCertIds: knownGood.size,
+      lastKnownGoodCerts: lastGood.size,
     };
   }
 

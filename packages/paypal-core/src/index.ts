@@ -128,6 +128,7 @@ export {
   type LoadedCert,
   parsePemChain,
 } from "./webhook/certs.js";
+export { clientIpKey, UNKNOWN_CLIENT } from "./webhook/client-ip.js";
 export {
   type EnvelopeParse,
   isSubscribedEventType,
@@ -148,13 +149,16 @@ export {
   postbackWithDeadline,
 } from "./webhook/postback.js";
 export {
+  type CertFetchBudget,
   type CertWarning,
   createMemoryTransmissionStore,
   createPayPalWebhookVerifier,
+  DEFAULT_CERT_FETCH_BUDGET,
   type ExpiredCertPolicy,
   MAX_TRANSMISSION_SKEW_MS,
   MAX_WEBHOOK_BODY_BYTES,
   MOCK_WEBHOOK_ID,
+  PAYPAL_CERT_ID_PATTERN,
   type PayPalWebhookVerifier,
   type PostbackFn,
   type PostbackInput,
