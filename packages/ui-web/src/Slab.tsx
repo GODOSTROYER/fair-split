@@ -383,7 +383,7 @@ export function Slab(props: WebSlabProps) {
           </span>
         </motion.button>
       </div>
-      {hold && (reduced || frame?.step !== undefined) && state !== "unavailable" && (
+      {hold && (reduced || frame?.step !== undefined) && (state === "holding" || shownStep > 0) && (
         <div className="fs-slab__steps" data-testid={`${testId}.steps`}>
           <span className="fs-slab__steps-bar" aria-hidden>
             {[1, 2, 3, 4].map((q) => (
