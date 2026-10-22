@@ -2,8 +2,9 @@
  * Co-op and rules group (register §7): coops, members, plots, seasons, lots, rate_cards, rate_rules,
  * ratifications. Figures (thresholds, prices) are never defaults here: they come from the seed snapshot (IC-03).
  *
- * I2 lives in SQL (migrations/0002): once `rate_cards.ratified_at` is set, any write to the card or its
- * rules raises `FS409 RATE_CARD_RATIFIED:<sha256>`; `rate_cards.sha256` must equal sha256(canonical_jcs).
+ * I2 lives in SQL (migrations/0002, 0008): once `rate_cards.ratified_at` is set, any write to the card or its
+ * rules, and any change to its season's terms (SEASON_RULE_COLUMNS), raises `FS409 RATE_CARD_RATIFIED:<sha256>`;
+ * `rate_cards.sha256` must equal sha256(canonical_jcs).
  */
 import { sql } from "drizzle-orm";
 import { check, date, integer, jsonb, numeric, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
@@ -128,6 +129,25 @@ export const seasons = pgTable(
     wsFk("seasons_coop_fk", t, t.coopId, coops),
   ],
 );
+
+/**
+ * The season's terms, which belong to its rate card (register §2: the Chair co-signs any batch over US$300 and any
+ * line over US$150, mass-balance tolerance ±2.0%, yield limit 1.6 kg per tree, auto-accept at 0.85), with the zone,
+ * currency and dates the card's rules are read in. Once the card is ratified none of them changes, for any role
+ * (I2, migrations/0008: `FS409 RATE_CARD_RATIFIED:<card sha256>`). `repos(scope).seasons.update` never writes them;
+ * `seasons.setRules()` does, while the card is still a draft.
+ */
+export const SEASON_RULE_COLUMNS = [
+  "tz",
+  "currency",
+  "opensOn",
+  "closesOn",
+  "cosignBatchCents",
+  "cosignLineCents",
+  "massBalanceTolBp",
+  "kgPerTreeMaxG",
+  "autoAcceptBp",
+] as const satisfies readonly (keyof typeof seasons.$inferInsert)[];
 
 export const lots = pgTable(
   "lots",

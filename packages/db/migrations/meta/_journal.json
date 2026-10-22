@@ -57,6 +57,13 @@
       "when": 1792672141754,
       "tag": "0007_fs_ratified_now",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792674526106,
+      "tag": "0008_fs_season_rules_frozen",
+      "breakpoints": true
     }
   ]
 }

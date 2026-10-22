@@ -19,6 +19,7 @@ import * as s from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
 import { withWorkspaceTx } from "../tx.js";
 import { type ScopedTable, scopedTable, type WsTable } from "./scoped.js";
+import { type SeasonRules, setSeasonRules } from "./seasons.js";
 import {
   type ApprovalVoid,
   applyItemStatus,
@@ -38,6 +39,7 @@ import {
 } from "./transitions.js";
 
 export * from "./scoped.js";
+export * from "./seasons.js";
 export * from "./transitions.js";
 
 /** A signed approval never changes (I4, I6): every column is guarded; `approvals.void()` is the one write. */
@@ -48,7 +50,11 @@ export const tables = {
   coops: scopedTable(s.coops, "coops"),
   members: scopedTable(s.members, "members"),
   plots: scopedTable(s.plots, "plots"),
-  seasons: scopedTable(s.seasons, "seasons"),
+  /** A ratified card freezes its season's terms (I2): only `seasons.setRules()` writes them, while it is a draft. */
+  seasons: scopedTable(s.seasons, "seasons", {
+    guarded: s.SEASON_RULE_COLUMNS,
+    use: "seasons.setRules(), and only before the season's rate card is ratified (I2)",
+  }),
   lots: scopedTable(s.lots, "lots"),
   rateCards: scopedTable(s.rateCards, "rate_cards"),
   rateRules: scopedTable(s.rateRules, "rate_rules"),
@@ -122,6 +128,11 @@ export function repos(scope: WorkspaceScope, policy: TransitionPolicy = DEFAULT_
     /** a transaction that holds this workspace's lock before anything else (tx.ts lock order) */
     tx: <R>(db: DbOrTx, fn: (tx: Tx) => Promise<R>) => withWorkspaceTx(db, scope, fn),
     ...bound,
+    seasons: {
+      ...bound.seasons,
+      /** writes the season's terms while its rate card is a draft; FS409 RATE_CARD_RATIFIED once it is ratified */
+      setRules: (db: DbOrTx, id: string, rules: SeasonRules) => setSeasonRules(db, scope, id, rules),
+    },
     runs: {
       ...bound.payRuns,
       transition: (db: DbOrTx, t: RunTransition) => transitionRun(db, scope, t, policy),

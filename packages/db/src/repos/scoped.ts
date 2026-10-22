@@ -6,7 +6,9 @@
  * Lifecycle columns are "guarded" (I5): a table names the columns only its dedicated helper may write — a run's
  * `state` and `version` move only through `runs.transition()`, an item's `status` only through
  * `items.applyStatus()`, and so on. The generic patch type omits them, and `update` refuses them at runtime
- * (GuardedColumnError, nothing written); migrations/0006 refuses the same writes in SQL for every role.
+ * (GuardedColumnError, nothing written); migrations/0006 refuses the same writes in SQL for every role. A season's
+ * terms are guarded the same way (I2): only `seasons.setRules()` writes them, and migrations/0008 refuses any change
+ * once the season's rate card is ratified.
  */
 import { and, eq, type SQL } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
