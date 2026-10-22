@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "include": [
+    "src",
+    "test",
+    "tsdown.config.ts",
+    "vitest.config.ts",
+    "../../tools/verify.ts",
+    "../../tools/health-check.ts",
+    "../../tools/spike-s6.ts",
+    "../../tools/lib/**/*.ts"
+  ]
+}

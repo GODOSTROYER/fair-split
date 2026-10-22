@@ -67,6 +67,8 @@ catalog:
   "@noble/curves": 2.4.0
   "embedded-postgres": 17.10.0-beta.17
   "zod-to-json-schema": 3.25.2
+  "yaml": 2.9.1
+  "ajv": 8.20.0
 
 catalogs:
   zod3:
