@@ -78,8 +78,19 @@ export interface GatewayCall {
   acceptStopReasons?: readonly StopReason[];
   /** Extension: replay pacing. Recorded offsets are divided by this factor. Default Infinity (no waits). */
   replaySpeed?: number;
-  /** Extension: called when a mid-stream fallback starts; the caller discards its partial snapshot. */
+  /**
+   * Extension: called when a server-side fallback block arrives (live) or is replayed. Snapshots are
+   * never reset by it: before any text there is nothing to discard, and after text the fallback model
+   * continues the partial, so `onSnapshot` keeps receiving one growing JSON prefix.
+   */
+  onFallback?: (event: FallbackEvent) => void;
+  /** Extension, legacy: called only when replaying a recording that holds a `reset` entry. */
   onReset?: () => void;
+  /**
+   * Extension: the workspace whose `system_flags.kill_ai_live` applies (S3.11: a judge can only stop
+   * their own demo). Passed to the FlagSource; a call without it sees deployment-wide flags only.
+   */
+  workspaceId?: string;
   /** Extension: abort the live request or the replay pacing. */
   signal?: AbortSignal;
   /** Extension: whether a live result is stored as the replay recording (insert-if-absent). Default "if_absent". */
@@ -127,11 +138,25 @@ export interface ClaudeMessage {
   [k: string]: unknown;
 }
 
-/** One `replay_timeline` entry: a text delta at `ms` since the request started, or a fallback reset. */
+/**
+ * One `replay_timeline` entry, at `ms` since the request started: a text delta, or the point where a
+ * server-side fallback took over. A fallback never discards text: a stream keeps the declined partial
+ * and the fallback model continues it (the partial's text is its continuation context).
+ */
 export interface TimelineEntry {
   ms: number;
   d?: string;
+  fallback?: { from: string | null; to: string | null };
+  /** Legacy (recordings made before continuation semantics): the snapshot was discarded here. */
   reset?: true;
+}
+
+/** A server-side fallback took over the request (S4.1 step 5; continuation semantics, step 7). */
+export interface FallbackEvent {
+  from: string | null;
+  to: string | null;
+  /** Text had already streamed: the fallback model continues it, so the snapshot keeps growing. */
+  afterText: boolean;
 }
 
 export interface GatewayResult {
@@ -191,6 +216,11 @@ export interface LlmCallRow {
   prompt_v: string;
   schema_v: string;
   input_sha: string;
+  /**
+   * sha256 of the exact bytes sent when `input_sha` is a derivation identity (S4.1 says image bytes;
+   * libvips output differs across machines, so the key uses the identity; ADR requested).
+   */
+  sent_sha: string | null;
   budget: BudgetKind;
   budget_scope: string | null;
   usage: UsageSummary | null;

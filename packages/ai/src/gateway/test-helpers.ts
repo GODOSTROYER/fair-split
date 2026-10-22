@@ -43,7 +43,11 @@ export interface SseOptions {
   stopReason?: string;
   inputTokens?: number;
   outputTokens?: number;
-  /** Emits a `fallback` block (from → to) before the text block when set. */
+  /**
+   * Emits a `fallback` block (from → to) before the text block when set. With `partialText`, the
+   * declined model's partial streams first (mid-stream case) and `text` is the fallback model's
+   * continuation of it; without it the fallback is pre-output and `text` is the whole answer.
+   */
   fallback?: { from: string; to: string; partialText?: string };
   usageExtra?: Record<string, unknown>;
 }

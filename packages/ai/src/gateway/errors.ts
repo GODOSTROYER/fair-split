@@ -9,6 +9,7 @@ import type { GatewayResult } from "./types.js";
  * - AI_REQUEST_RULE: the request broke a gateway rule (sampling params, forced tool_choice, ...).
  * - AI_UPSTREAM: the API failed after the SDK's retries (network, 5xx, 429, 4xx).
  * - AI_BAD_CALL: the GatewayCall itself is malformed.
+ * - AI_CONFIG: the gateway was built without the controls it needs (spend meter, flag source).
  */
 export type GatewayErrorCode =
   | "AI_LIVE_DISABLED"
@@ -17,7 +18,8 @@ export type GatewayErrorCode =
   | "AI_SCHEMA"
   | "AI_REQUEST_RULE"
   | "AI_UPSTREAM"
-  | "AI_BAD_CALL";
+  | "AI_BAD_CALL"
+  | "AI_CONFIG";
 
 export interface GatewayErrorDetails {
   cacheKey?: string;

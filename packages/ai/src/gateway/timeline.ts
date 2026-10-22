@@ -1,4 +1,4 @@
-import type { TimelineEntry } from "./types.js";
+import type { FallbackEvent, TimelineEntry } from "./types.js";
 
 export type Sleep = (ms: number, signal?: AbortSignal) => Promise<void>;
 
@@ -35,9 +35,15 @@ export class TimelineRecorder {
     return this.text;
   }
 
-  reset(): void {
-    this.entries.push({ ms: Math.round(performance.now() - this.t0), reset: true });
-    this.text = "";
+  /**
+   * A server-side fallback block arrived. Nothing is discarded: a pre-output fallback has no text yet,
+   * and after text the fallback model continues the partial. This is the API's fixed behaviour for
+   * streams (non-streamed calls omit the declined partial); S4.1 step 7's "discard the partial"
+   * predates it, and the WS-READ report asks for the ADR.
+   */
+  fallback(from: string | null, to: string | null): FallbackEvent {
+    this.entries.push({ ms: Math.round(performance.now() - this.t0), fallback: { from, to } });
+    return { from, to, afterText: this.text.length > 0 };
   }
 
   get firstDeltaMs(): number | null {
@@ -47,6 +53,8 @@ export class TimelineRecorder {
 
 export interface ReplayHandlers {
   onSnapshot?: (jsonSoFar: string) => void;
+  onFallback?: (event: FallbackEvent) => void;
+  /** Legacy `reset` entries only. */
   onReset?: () => void;
 }
 
@@ -73,7 +81,12 @@ export async function replayTimeline(
         elapsed = due;
       }
     }
+    if (entry.fallback) {
+      handlers.onFallback?.({ ...entry.fallback, afterText: text.length > 0 });
+      continue;
+    }
     if (entry.reset) {
+      // Legacy recordings only: the snapshot used to be discarded at a mid-stream fallback.
       text = "";
       handlers.onReset?.();
       handlers.onSnapshot?.("");

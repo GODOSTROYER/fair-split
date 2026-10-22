@@ -17,6 +17,7 @@ function fo(field: RowField | "deductions", v: V): FieldOutcome {
     a: read,
     b: read,
     zoom: null,
+    zoomError: null,
     boxOk: { a: true, b: true, zoom: null },
     outcome: {
       score,
@@ -53,6 +54,7 @@ function row(
   return {
     docId,
     row: n,
+    slot: 0,
     matched: "both",
     copy: "WHITE_ORIGINAL",
     slipBox: BOX,
@@ -80,6 +82,7 @@ function result(docId: string, rows: RowOutcome[], extra: Partial<ExtractResult>
     rows,
     anomalies: [],
     screen: null,
+    rescreen: null,
     quarantined: [],
     holds: [],
     events: [],

@@ -11,7 +11,14 @@ export {
 } from "./budget.js";
 export { loadEnv } from "./env.js";
 export { GatewayError, type GatewayErrorCode, isGatewayError, LIVE_DISABLED_COPY } from "./errors.js";
-export { type AiFlag, anyFlagSource, envFlagSource, type FlagSource, staticFlags } from "./flags.js";
+export {
+  type AiFlag,
+  anyFlagSource,
+  envFlagSource,
+  type FlagScope,
+  type FlagSource,
+  staticFlags,
+} from "./flags.js";
 export { ClaudeGateway, fallbackServed, type GatewayOptions, measureInput, usageSummary } from "./gateway.js";
 export { cacheKey, inputShaOf, jcs, sha256Hex } from "./key.js";
 export { costMicros, estimateMicros, microsFromUsd, PRICES, priceOf, usd, visualTokens } from "./pricing.js";

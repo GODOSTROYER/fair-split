@@ -180,6 +180,8 @@ async function makeSet(): Promise<{ media: string; cleanup: () => void }> {
   return { media, cleanup: () => rmSync(media, { recursive: true, force: true }) };
 }
 
+const screens = { rescreen: 0 };
+
 function mockApi(counter: { n: number }) {
   server.use(
     http.post("https://api.anthropic.com/v1/messages", async ({ request }) => {
@@ -188,16 +190,19 @@ function mockApi(counter: { n: number }) {
         model: string;
         messages: Array<{ content: Array<{ type: string; source?: { data: string } }> }>;
       };
-      const image = body.messages[0]?.content.find((c) => c.type === "image")?.source?.data ?? "";
-      const meta = await sharp(Buffer.from(image, "base64")).metadata();
-      const page = PAGES.find((p) => W + p.seed === meta.width) ?? PAGES[0];
+      const image = body.messages[0]?.content.find((c) => c.type === "image")?.source?.data;
+      const width = image ? (await sharp(Buffer.from(image, "base64")).metadata()).width : null;
+      const page = PAGES.find((p) => W + p.seed === width) ?? PAGES[0];
       if (body.model === "claude-haiku-5-5") {
+        // The screen sees the image; the text-only re-screen sees the strings the located note does
+        // not explain, which are clean here.
+        if (!image) screens.rescreen++;
         return HttpResponse.json({
           id: "msg_s",
           type: "message",
           role: "assistant",
           model: "claude-haiku-5-5",
-          content: [{ type: "text", text: JSON.stringify({ injection_suspected: !!page.note }) }],
+          content: [{ type: "text", text: JSON.stringify({ injection_suspected: !!image && !!page.note }) }],
           stop_reason: "end_turn",
           usage: { input_tokens: 900, output_tokens: 10 },
         });
@@ -280,7 +285,10 @@ describe("eval harness", () => {
           now,
         }),
       );
-      expect(calls.n).toBe(9); // 3 pages × (read A + read B + screen)
+      // 3 pages × (read A + read B + screen), plus one text-only re-screen on T3, whose screen fired
+      // on a note the reads located.
+      expect(calls.n).toBe(10);
+      expect(screens.rescreen).toBe(1);
       expect(live.report.case_note).toBe("3 synthetic cases, generated with Codex");
       expect(live.report.metrics).toMatchObject({
         exactRowRate: 1,

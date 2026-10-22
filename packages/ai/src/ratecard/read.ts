@@ -6,7 +6,7 @@ import {
   sha256Hex,
   type WarmTarget,
 } from "../gateway/index.js";
-import type { ReadDeps } from "../read/calls.js";
+import { callOptions, type ReadDeps } from "../read/calls.js";
 import { PREP_V, prepareImage } from "../read/prep.js";
 import { loadPromptFile } from "../read/prompts.js";
 import { checkRateCard, type RateCardDraft } from "./check.js";
@@ -59,6 +59,7 @@ export async function readRateCard(input: RateCardInput, deps: ReadDeps): Promis
   });
   content.push({ type: "text", text: "Read every rule of the rate card on these pages." });
   const result = await deps.gateway.call({
+    ...callOptions(deps),
     purpose: "ratecard",
     model: "claude-opus-5-5",
     effort: "medium",
@@ -67,14 +68,9 @@ export async function readRateCard(input: RateCardInput, deps: ReadDeps): Promis
     promptSha: p.sha256,
     schemaV: RATECARD_SCHEMA_V,
     inputSha: inputShaOf({ pages: pageShas, prep: PREP_V }),
-    mode: deps.mode,
+    sentSha: inputShaOf(prepared.map((page) => page.sentSha.A)),
     stream: true,
     maxTokens: RATECARD_MAX_TOKENS,
-    budget: deps.budget,
-    budgetScope: deps.budgetScope,
-    replaySpeed: deps.replaySpeed,
-    signal: deps.signal,
-    record: deps.record,
     body: {
       system: [{ type: "text", text: p.text, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content }],

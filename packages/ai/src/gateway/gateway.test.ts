@@ -8,13 +8,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { z } from "zod";
 import { MemorySpendMeter } from "./budget.js";
 import { GatewayError } from "./errors.js";
-import { staticFlags } from "./flags.js";
+import { anyFlagSource, envFlagSource, staticFlags } from "./flags.js";
 import { ClaudeGateway, measureInput } from "./gateway.js";
 import { inputShaOf } from "./key.js";
 import { FALLBACK_BETA } from "./request.js";
 import { Semaphore } from "./semaphore.js";
 import { FsReplayStore, MemoryCallLedger, MemoryReplayStore } from "./store.js";
-import { jsonOutputFormat, parseStructured } from "./structured.js";
+import { jsonOutputFormat, parseStructured, structuredText } from "./structured.js";
 import { fakeMessage, JSON_HEADERS, SSE_HEADERS, sseBody } from "./test-helpers.js";
 import type { GatewayCall } from "./types.js";
 import { warmStructuredOutputs } from "./warm.js";
@@ -307,9 +307,10 @@ describe("ClaudeGateway: streaming", () => {
     expect(waits.reduce((a, b) => a + b, 0)).toBeCloseTo(rec.replay_timeline.length * 25, 5);
   });
 
-  it("a mid-stream fallback resets the snapshot and the answer is the text after the fallback block", async () => {
-    respondSse(json, {
-      fallback: { from: "claude-opus-5-5", to: "claude-opus-5", partialText: '{"verdict":"Y' },
+  it("a mid-stream fallback keeps the partial: snapshots grow across the boundary, the answer is partial + continuation", async () => {
+    const cut = json.indexOf('"note"');
+    respondSse(json.slice(cut), {
+      fallback: { from: "claude-opus-5-5", to: "claude-opus-5", partialText: json.slice(0, cut) },
       usageExtra: {
         iterations: [
           {
@@ -333,21 +334,160 @@ describe("ClaudeGateway: streaming", () => {
       model: "claude-opus-5",
     });
     let resets = 0;
+    const fallbacks: unknown[] = [];
+    const snaps: string[] = [];
+    const gw = gateway();
+    const call = (over: Partial<GatewayCall> = {}) =>
+      baseCall({
+        model: "claude-opus-5-5",
+        stream: true,
+        onReset: () => resets++,
+        onFallback: (e) => fallbacks.push(e),
+        onSnapshot: (s) => snaps.push(s),
+        ...over,
+      });
+    const r = await gw.call(call());
+    expect(resets).toBe(0);
+    expect(snaps).not.toContain("");
+    // One growing JSON prefix: every snapshot extends the one before it, ending in the whole answer.
+    snaps.forEach((s, i) => {
+      expect(s.startsWith(snaps[i - 1] ?? "")).toBe(true);
+    });
+    expect(snaps.at(-1)).toBe(json);
+    expect(fallbacks).toEqual([{ from: "claude-opus-5-5", to: "claude-opus-5", afterText: true }]);
+    expect(r.fallbackServed).toBe(true);
+    expect(r.modelServed).toBe("claude-opus-5");
+    expect(r.costMicros).toBe(1000 * 4 + 5 * 20 + 1000 * 5 + 200 * 25);
+    expect(parseStructured(r.message, Answer)).toEqual({ verdict: "NO", note: "streamed answer" });
+    const rec = await store.get(r.cacheKey);
+    expect(rec?.replay_timeline.filter((e) => e.fallback)).toHaveLength(1);
+    expect(rec?.replay_timeline.some((e) => e.reset)).toBe(false);
+
+    // The replay drives the same snapshots and the same fallback event.
+    const live = [...snaps];
+    snaps.length = 0;
+    fallbacks.length = 0;
+    expect((await gw.call(call())).provenance).toBe("replay");
+    expect(snaps).toEqual(live);
+    expect(fallbacks).toEqual([{ from: "claude-opus-5-5", to: "claude-opus-5", afterText: true }]);
+  });
+
+  it("a pre-output fallback is seamless: nothing to discard, afterText false", async () => {
+    respondSse(json, {
+      fallback: { from: "claude-opus-5-5", to: "claude-opus-4-8" },
+      model: "claude-opus-4-8",
+    });
+    const fallbacks: unknown[] = [];
     const snaps: string[] = [];
     const r = await gateway().call(
       baseCall({
         model: "claude-opus-5-5",
         stream: true,
-        onReset: () => resets++,
+        onFallback: (e) => fallbacks.push(e),
         onSnapshot: (s) => snaps.push(s),
       }),
     );
-    expect(resets).toBe(1);
-    expect(snaps).toContain("");
-    expect(r.fallbackServed).toBe(true);
-    expect(r.modelServed).toBe("claude-opus-5");
-    expect(r.costMicros).toBe(1000 * 4 + 5 * 20 + 1000 * 5 + 200 * 25);
+    expect(fallbacks).toEqual([{ from: "claude-opus-5-5", to: "claude-opus-4-8", afterText: false }]);
+    expect(snaps).not.toContain("");
+    expect(snaps.at(-1)).toBe(json);
     expect(parseStructured(r.message, Answer).verdict).toBe("NO");
+  });
+
+  it("replays a legacy recording whose timeline holds a reset entry", async () => {
+    respondSse(json);
+    const gw = gateway();
+    const r = await gw.call(baseCall({ stream: true }));
+    const rec = await store.get(r.cacheKey);
+    if (!rec) throw new Error("no recording");
+    rec.replay_timeline = [{ ms: 1, d: '{"verdict":"Y' }, { ms: 2, reset: true }, ...rec.replay_timeline];
+    let resets = 0;
+    const snaps: string[] = [];
+    await gw.call(baseCall({ stream: true, onReset: () => resets++, onSnapshot: (s) => snaps.push(s) }));
+    expect(resets).toBe(1);
+    expect(snaps.slice(0, 2)).toEqual(['{"verdict":"Y', ""]);
+    expect(snaps.at(-1)).toBe(json);
+  });
+});
+
+describe("structuredText after a fallback", () => {
+  const msg = (content: Array<Record<string, unknown>>) =>
+    ({ ...fakeMessage({ text: "" }), content }) as ReturnType<typeof fakeMessage>;
+  const fb = { type: "fallback", from: { model: "claude-opus-5-5" }, to: { model: "claude-opus-5" } };
+
+  it("joins the partial and the continuation of a streamed mid-stream fallback", () => {
+    const m = msg([{ type: "text", text: '{"verdict":"Y' }, fb, { type: "text", text: 'ES","note":""}' }]);
+    expect(structuredText(m)).toBe('{"verdict":"YES","note":""}');
+  });
+
+  it("a non-streamed fallback omits the partial: the text after the block is the answer", () => {
+    const m = msg([fb, { type: "text", text: '{"verdict":"NO","note":""}' }]);
+    expect(structuredText(m)).toBe('{"verdict":"NO","note":""}');
+  });
+
+  it("falls back to the tail when a fallback restarted instead of continuing", () => {
+    const m = msg([
+      { type: "text", text: '{"verdict":"Y' },
+      fb,
+      { type: "text", text: '{"verdict":"NO","note":""}' },
+    ]);
+    expect(structuredText(m)).toBe('{"verdict":"NO","note":""}');
+  });
+});
+
+describe("ClaudeGateway: register §9 controls are explicit", () => {
+  it("refuses to build without a spend meter or a flag source", () => {
+    const bad = { store: new MemoryReplayStore(), apiKey: "k" } as unknown as ConstructorParameters<
+      typeof ClaudeGateway
+    >[0];
+    expect(() => new ClaudeGateway(bad)).toThrow(/spend meter and flag source/);
+    expect(() => new ClaudeGateway({ ...bad, spend: new MemorySpendMeter() })).toThrow(GatewayError);
+  });
+
+  it("in production refuses process-local meters and flag sources", () => {
+    const shared = {
+      spend: {
+        reserve: async () => ({ settle: async () => {}, release: async () => {} }),
+        spent: async () => 0,
+      },
+      flags: { isOn: async () => false },
+    };
+    const base = { store: new MemoryReplayStore(), apiKey: "k", nodeEnv: "production" };
+    expect(() => new ClaudeGateway({ ...base, ...shared })).not.toThrow();
+    expect(() => new ClaudeGateway({ ...base, ...shared, spend: new MemorySpendMeter() })).toThrow(
+      /process-local: spend meter/,
+    );
+    expect(() => new ClaudeGateway({ ...base, ...shared, flags: envFlagSource({}) })).toThrow(
+      /process-local: flag source/,
+    );
+    // A shared source combined with FS_KILL from the environment is not process-local.
+    const combined = anyFlagSource(shared.flags, envFlagSource({}));
+    expect(() => new ClaudeGateway({ ...base, ...shared, flags: combined })).not.toThrow();
+    const dev = { ...base, nodeEnv: "development", spend: new MemorySpendMeter(), flags: staticFlags({}) };
+    expect(() => new ClaudeGateway(dev)).not.toThrow();
+  });
+
+  it("asks the flag source about the call's workspace: one judge's kill flag stops only their calls", async () => {
+    respondJson();
+    const asked: unknown[] = [];
+    const flags = {
+      isOn: async (_flag: string, scope?: { workspaceId?: string | null }) => {
+        asked.push(scope?.workspaceId);
+        return scope?.workspaceId === "ws-judge-a";
+      },
+    };
+    const gw = gateway({ flags });
+    await expect(gw.call(baseCall({ workspaceId: "ws-judge-a" }))).rejects.toMatchObject({
+      code: "AI_LIVE_DISABLED",
+      details: { reason: "kill_switch" },
+    });
+    expect((await gw.call(baseCall({ workspaceId: "ws-judge-b" }))).provenance).toBe("live");
+    expect(asked).toEqual(["ws-judge-a", "ws-judge-b"]);
+  });
+
+  it("records sent_sha (the exact bytes sent) on the ledger row next to the derived input_sha", async () => {
+    respondJson();
+    await gateway().call(baseCall({ sentSha: "c".repeat(64) }));
+    expect(ledger.rows[0]).toMatchObject({ sent_sha: "c".repeat(64), input_sha: baseCall().inputSha });
   });
 });
 

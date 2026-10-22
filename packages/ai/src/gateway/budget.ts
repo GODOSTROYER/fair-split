@@ -40,10 +40,17 @@ export interface SpendReservation {
 /**
  * Meters spend per budget key. A reservation holds the estimate while a call is in flight, so six
  * concurrent calls cannot each pass the check against the same headroom.
+ *
+ * Production (fs-api plus fs-tasks) needs one meter shared by every process and surviving restarts:
+ * WS-DATA's `llm_calls`-backed meter, reserving and settling inside a transaction. The in-process
+ * meters below are for tests, one eval run and the dev machine; the gateway refuses them when
+ * NODE_ENV is production.
  */
 export interface SpendMeter {
   reserve(key: string, estimateMicros: number, capMicros: number): Promise<SpendReservation>;
   spent(key: string): Promise<number>;
+  /** True when spend is kept by this process or machine only (it resets on a restart or a new instance). */
+  readonly processLocal?: boolean;
 }
 
 abstract class ReservingMeter implements SpendMeter {
@@ -87,6 +94,7 @@ abstract class ReservingMeter implements SpendMeter {
 
 /** In-process meter (tests, one eval run). */
 export class MemorySpendMeter extends ReservingMeter {
+  readonly processLocal = true;
   private readonly totals = new Map<string, number>();
   protected async settledMicros(key: string): Promise<number> {
     return this.totals.get(key) ?? 0;
@@ -101,6 +109,7 @@ export class MemorySpendMeter extends ReservingMeter {
  * `{"at", "key", "micros"}`. The file is re-read on every reservation, so spend is always fresh.
  */
 export class FileSpendMeter extends ReservingMeter {
+  readonly processLocal = true;
   constructor(private readonly path: string) {
     super();
   }

@@ -8,7 +8,7 @@ import {
 } from "../gateway/index.js";
 import type { HoldDraft } from "../read/_shims/contracts.js";
 import { normaliseDeduction } from "../read/_shims/domain.js";
-import type { ReadDeps } from "../read/calls.js";
+import { callOptions, type ReadDeps } from "../read/calls.js";
 import { loadPromptFile } from "../read/prompts.js";
 import {
   type AmountCheck,
@@ -88,6 +88,7 @@ export async function classifyDeduction(input: ClassifyInput, deps: ReadDeps): P
   const shown = terms.map((t) => ({ rule_id: t.rule_id, label: t.label, quote: t.quote }));
   const text = loadPromptFile(PROMPTS_DIR, CLASSIFY_PROMPT_V);
   const result = await deps.gateway.call({
+    ...callOptions(deps),
     purpose: "classify",
     model: "claude-sonnet-5-5",
     effort: "low",
@@ -96,14 +97,8 @@ export async function classifyDeduction(input: ClassifyInput, deps: ReadDeps): P
     promptSha: sha256Hex(text),
     schemaV: `${CLASSIFY_SCHEMA_BASE}+rc:${input.rc8}+${sha256Hex(JSON.stringify(format.schema)).slice(0, 8)}`,
     inputSha: inputShaOf({ line, terms: shown }),
-    mode: deps.mode,
     stream: false,
     maxTokens: CLASSIFY_MAX_TOKENS,
-    budget: deps.budget,
-    budgetScope: deps.budgetScope,
-    replaySpeed: deps.replaySpeed,
-    signal: deps.signal,
-    record: deps.record,
     body: {
       system: [{ type: "text", text }],
       messages: [

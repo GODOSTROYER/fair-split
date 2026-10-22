@@ -2,11 +2,14 @@ import { z } from "zod";
 import {
   type BudgetKind,
   type ClaudeGateway,
+  type GatewayCall,
+  GatewayError,
   type GatewayMode,
   type GatewayResult,
   inputShaOf,
   isGatewayError,
   jsonOutputFormat,
+  type OutputFormat,
   parseStructured,
   type WarmTarget,
 } from "../gateway/index.js";
@@ -25,6 +28,46 @@ export interface ReadDeps {
   signal?: AbortSignal;
   /** "never" for the Judge live lane: a live read must not become the recording. Default "if_absent". */
   record?: "if_absent" | "never";
+  /** The workspace whose `kill_ai_live` applies (S3.11). */
+  workspaceId?: string;
+}
+
+/** The gateway fields every stage takes from its deps. */
+export function callOptions(
+  deps: ReadDeps,
+): Pick<
+  GatewayCall,
+  "mode" | "budget" | "budgetScope" | "replaySpeed" | "signal" | "record" | "workspaceId"
+> {
+  return {
+    mode: deps.mode,
+    budget: deps.budget,
+    budgetScope: deps.budgetScope,
+    replaySpeed: deps.replaySpeed,
+    signal: deps.signal,
+    record: deps.record,
+    workspaceId: deps.workspaceId,
+  };
+}
+
+/**
+ * Parses a structured answer; a schema failure keeps the call's result on the error, so a caller
+ * that recovers from it still accounts for the call's cost.
+ */
+export function parseWithResult<T>(result: GatewayResult, schema: z.ZodType<T>, format: OutputFormat): T {
+  try {
+    return parseStructured(result.message, schema, format);
+  } catch (err) {
+    if (isGatewayError(err) && !err.details.result) {
+      throw new GatewayError(
+        err.code,
+        err.message.replace(/^[A-Z_]+: /, ""),
+        { ...err.details, result },
+        err.cause,
+      );
+    }
+    throw err;
+  }
 }
 
 export const READ_MODEL = "claude-opus-5-5" as const;
@@ -39,11 +82,15 @@ export const ScreenVerdict = z.strictObject({ injection_suspected: z.boolean() }
 export const SCREEN_SCHEMA_V = "screen.v1";
 export const SCREEN_FORMAT = jsonOutputFormat(ScreenVerdict);
 
-const imageBlock = (jpeg: Buffer) => ({
+/**
+ * An image block. Reads and zooms mark it `oversized_image: "error"`: returned boxes must map 1:1
+ * onto the image sent, so the server may never resize it (S4.2 step 5). The screen returns no
+ * coordinates and has no server-side fallback, so it leaves the server free to fit the image.
+ */
+const imageBlock = (jpeg: Buffer, opts: { boxes: boolean }) => ({
   type: "image",
   source: { type: "base64", media_type: "image/jpeg", data: jpeg.toString("base64") },
-  // Returned boxes must map 1:1 onto the master: never let the server resize a marked image.
-  transformations: { oversized_image: "error" },
+  ...(opts.boxes ? { transformations: { oversized_image: "error" } } : {}),
 });
 
 const systemOf = (text: string) => [{ type: "text", text, cache_control: { type: "ephemeral" } }];
@@ -56,7 +103,6 @@ export interface VariantReadInput {
   kind: "photo" | "page";
   seasonLabel: string;
   onSnapshot?: (jsonSoFar: string) => void;
-  onReset?: () => void;
 }
 
 /** AI-1 (variant A) and AI-2 (variant B): claude-opus-5-5 at effort low, streamed, `Extraction`. */
@@ -66,6 +112,7 @@ export async function readVariant(
 ): Promise<{ extraction: Extraction; result: GatewayResult }> {
   const p = prompt(input.variant === "A" ? "a.v1" : "b.v1");
   const result = await deps.gateway.call({
+    ...callOptions(deps),
     purpose: "read",
     model: READ_MODEL,
     effort: "low",
@@ -75,14 +122,8 @@ export async function readVariant(
     schemaV: EXTRACTION_SCHEMA_V,
     inputSha: input.identity,
     sentSha: input.sentSha,
-    mode: deps.mode,
     stream: true,
     maxTokens: input.kind === "photo" ? MAX_TOKENS.photo : MAX_TOKENS.page,
-    budget: deps.budget,
-    budgetScope: deps.budgetScope,
-    replaySpeed: deps.replaySpeed,
-    signal: deps.signal,
-    record: deps.record,
     body: {
       system: systemOf(p.text),
       messages: [
@@ -90,7 +131,7 @@ export async function readVariant(
           role: "user",
           content: [
             { type: "text", text: "Image 0:" },
-            imageBlock(input.jpeg),
+            imageBlock(input.jpeg, { boxes: true }),
             { type: "text", text: `${input.seasonLabel}. Read every slip in this image.` },
           ],
         },
@@ -98,7 +139,6 @@ export async function readVariant(
     },
     format: EXTRACTION_FORMAT,
     onSnapshot: input.onSnapshot,
-    onReset: input.onReset,
   });
   return { extraction: parseStructured(result.message, Extraction, EXTRACTION_FORMAT), result };
 }
@@ -110,13 +150,17 @@ export interface ZoomInput {
   label: string;
 }
 
-/** AI-3: one field re-read on a tighter crop, claude-opus-5-5 at effort medium. Box in crop pixels. */
+/**
+ * AI-3: one field re-read on a tighter crop, claude-opus-5-5 at effort medium. Box in crop pixels.
+ * The crop must come from a reviewed rectangle (C-10); `extract` never builds one from model boxes.
+ */
 export async function zoomRead(
   input: ZoomInput,
   deps: ReadDeps,
 ): Promise<{ read: ZoomRead; result: GatewayResult }> {
   const p = prompt("zoom.v1");
   const result = await deps.gateway.call({
+    ...callOptions(deps),
     purpose: "zoom",
     model: READ_MODEL,
     effort: "medium",
@@ -129,23 +173,20 @@ export async function zoomRead(
       label: input.label,
       rotation: input.rotation,
     }),
-    mode: deps.mode,
     stream: false,
     maxTokens: MAX_TOKENS.zoom,
-    budget: deps.budget,
-    budgetScope: deps.budgetScope,
-    replaySpeed: deps.replaySpeed,
-    signal: deps.signal,
-    record: deps.record,
     body: {
       system: systemOf(p.text),
       messages: [
-        { role: "user", content: [imageBlock(input.crop.image), { type: "text", text: input.label }] },
+        {
+          role: "user",
+          content: [imageBlock(input.crop.image, { boxes: true }), { type: "text", text: input.label }],
+        },
       ],
     },
     format: ZOOM_FORMAT,
   });
-  return { read: parseStructured(result.message, ZoomRead, ZOOM_FORMAT), result };
+  return { read: parseWithResult(result, ZoomRead, ZOOM_FORMAT), result };
 }
 
 export interface ScreenInput {
@@ -164,14 +205,11 @@ export interface ScreenOutcome {
   result: GatewayResult | null;
 }
 
-/**
- * AI-4: claude-haiku-5-5 (effort low — the gateway always sets effort; register deviation 1), the
- * variant-A image plus every transcribed string JSON-encoded inside <transcription>.
- */
-export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promise<ScreenOutcome> {
+async function screenCall(content: unknown[], inputSha: string, deps: ReadDeps): Promise<ScreenOutcome> {
   const p = prompt("screen.v1");
   try {
     const result = await deps.gateway.call({
+      ...callOptions(deps),
       purpose: "screen",
       model: SCREEN_MODEL,
       effort: "low",
@@ -179,48 +217,78 @@ export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promi
       promptV: p.promptV,
       promptSha: p.sha256,
       schemaV: SCREEN_SCHEMA_V,
-      inputSha: imageIdentity(input.documentSha256, {
-        screen: "A",
-        rotation: input.rotation,
-        transcription: inputShaOf(input.transcription),
-      }),
-      mode: deps.mode,
+      inputSha,
       stream: false,
       maxTokens: MAX_TOKENS.screen,
-      budget: deps.budget,
-      budgetScope: deps.budgetScope,
-      replaySpeed: deps.replaySpeed,
-      signal: deps.signal,
-      record: deps.record,
       acceptStopReasons: ["end_turn", "refusal"],
-      body: {
-        system: systemOf(p.text),
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Image 0:" },
-              imageBlock(input.jpegA),
-              { type: "text", text: `<transcription>${JSON.stringify(input.transcription)}</transcription>` },
-            ],
-          },
-        ],
-      },
+      body: { system: systemOf(p.text), messages: [{ role: "user", content }] },
       format: SCREEN_FORMAT,
     });
     if (result.stopReason === "refusal") return { suspected: true, refusal: true, failed: null, result };
-    const verdict = parseStructured(result.message, ScreenVerdict, SCREEN_FORMAT);
+    // An answer that does not parse fails closed below, its cost still counted.
+    const verdict = parseWithResult(result, ScreenVerdict, SCREEN_FORMAT);
     return { suspected: verdict.injection_suspected, refusal: false, failed: null, result };
   } catch (err) {
     // Replay misses are a configuration error, not a verdict: surface them.
     if (isGatewayError(err, "AI_LIVE_DISABLED") && err.details.reason === "replay_only") throw err;
+    if (deps.signal?.aborted) throw err;
     return {
       suspected: true,
       refusal: false,
       failed: err instanceof Error ? err.message : String(err),
-      result: null,
+      result: isGatewayError(err) ? (err.details.result ?? null) : null,
     };
   }
+}
+
+/**
+ * AI-4: claude-haiku-5-5 (effort low — the gateway always sets effort; register deviation 1), the
+ * variant-A image plus every transcribed string JSON-encoded inside <transcription>.
+ */
+export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promise<ScreenOutcome> {
+  return screenCall(
+    [
+      { type: "text", text: "Image 0:" },
+      imageBlock(input.jpegA, { boxes: false }),
+      { type: "text", text: `<transcription>${JSON.stringify(input.transcription)}</transcription>` },
+    ],
+    imageIdentity(input.documentSha256, {
+      screen: "A",
+      rotation: input.rotation,
+      transcription: inputShaOf(input.transcription),
+    }),
+    deps,
+  );
+}
+
+export interface RescreenInput {
+  documentSha256: string;
+  rotation: number;
+  /** The transcribed strings the located instruction-like text does not explain. */
+  strings: readonly string[];
+}
+
+/**
+ * AI-4 again, text only, when the screen fired and the reads located some instruction-like text: are
+ * the remaining strings clean? If they are not, a second injection hides in ordinary-looking text
+ * (say, a box-13 line) and the document is handled as unlocated (S4.7 layer 4).
+ */
+export async function rescreenStrings(input: RescreenInput, deps: ReadDeps): Promise<ScreenOutcome> {
+  return screenCall(
+    [
+      {
+        type: "text",
+        text: "Transcription only (no image): every remaining string two readers copied from the document.",
+      },
+      { type: "text", text: `<transcription>${JSON.stringify(input.strings)}</transcription>` },
+    ],
+    imageIdentity(input.documentSha256, {
+      screen: "remaining",
+      rotation: input.rotation,
+      transcription: inputShaOf(input.strings),
+    }),
+    deps,
+  );
 }
 
 /** The read stage's structured-output schemas, for warmStructuredOutputs (S4.9 warmCaches). */

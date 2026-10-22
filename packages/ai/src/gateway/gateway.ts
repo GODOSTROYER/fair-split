@@ -1,9 +1,9 @@
 // The repo's only import of @anthropic-ai/sdk (S4.1; dependency-cruiser enforces it).
 import Anthropic, { toFile } from "@anthropic-ai/sdk";
 import sharp from "sharp";
-import { budgetKey, capsFromEnv, MemorySpendMeter, type SpendMeter } from "./budget.js";
+import { budgetKey, capsFromEnv, type SpendMeter } from "./budget.js";
 import { GatewayError, isGatewayError } from "./errors.js";
-import { envFlagSource, type FlagSource } from "./flags.js";
+import type { FlagSource } from "./flags.js";
 import { cacheKey, sha256Hex } from "./key.js";
 import { costMicros, estimateMicros, microsFromUsd, visualTokens } from "./pricing.js";
 import { assertBodyCompliant, buildRequest } from "./request.js";
@@ -37,8 +37,19 @@ export interface GatewayOptions {
   maxRetries?: number;
   timeoutMs?: number;
   ledger?: CallLedger;
-  spend?: SpendMeter;
-  flags?: FlagSource;
+  /**
+   * Required: the daily cap is a register §9 control, so there is no silent in-process default.
+   * fs-api and fs-tasks pass WS-DATA's `llm_calls`-backed meter (reserve and settle inside a
+   * transaction, shared by every process, surviving restarts); tests and one-off runs pass
+   * MemorySpendMeter or FileSpendMeter explicitly. Process-local meters are refused in production.
+   */
+  spend: SpendMeter;
+  /**
+   * Required: `kill_ai_live` is a register §9 control. fs-api and fs-tasks pass WS-DATA's
+   * `system_flags` source (per workspace, read fresh), usually `anyFlagSource(db, envFlagSource())`;
+   * tests pass `staticFlags`. Process-local sources are refused in production.
+   */
+  flags: FlagSource;
   /** Caps in US$ per budget kind. Defaults: AI_DAILY_CAP_USD (8), eval 3, session 0.75. */
   caps?: Partial<Record<BudgetKind, number>>;
   semaphore?: Semaphore;
@@ -48,6 +59,8 @@ export interface GatewayOptions {
   filesApi?: boolean;
   /** Scrub recordings before storing them (default true). */
   scrub?: boolean;
+  /** The deployment environment; defaults to process.env.NODE_ENV. "production" refuses process-local controls. */
+  nodeEnv?: string;
 }
 
 interface LiveOutcome {
@@ -165,9 +178,29 @@ export class ClaudeGateway {
   private readonly sleep: Sleep;
 
   constructor(private readonly opts: GatewayOptions) {
+    // The register §9 controls never fall back to in-process defaults: a per-process cap resets on
+    // every restart and per-workspace kill flags would be ignored.
+    if (!opts.spend || !opts.flags) {
+      throw new GatewayError(
+        "AI_CONFIG",
+        "ClaudeGateway needs an explicit spend meter and flag source (daily cap and kill_ai_live)",
+      );
+    }
+    if ((opts.nodeEnv ?? process.env.NODE_ENV) === "production") {
+      const local = [
+        ...(opts.spend.processLocal ? ["spend meter (use the llm_calls-backed meter)"] : []),
+        ...(opts.flags.processLocal ? ["flag source (use the system_flags source)"] : []),
+      ];
+      if (local.length > 0) {
+        throw new GatewayError(
+          "AI_CONFIG",
+          `production needs controls shared across processes; process-local: ${local.join(", ")}`,
+        );
+      }
+    }
     this.store = opts.store;
-    this.spend = opts.spend ?? new MemorySpendMeter();
-    this.flags = opts.flags ?? envFlagSource();
+    this.spend = opts.spend;
+    this.flags = opts.flags;
     this.caps = { ...capsFromEnv(), ...opts.caps };
     this.semaphore = opts.semaphore ?? processSemaphore;
     this.clock = opts.clock ?? (() => new Date());
@@ -206,7 +239,7 @@ export class ClaudeGateway {
         reason: "replay_only",
       });
     }
-    if (await this.flags.isOn("kill_ai_live")) {
+    if (await this.flags.isOn("kill_ai_live", { workspaceId: call.workspaceId ?? null })) {
       throw new GatewayError("AI_LIVE_DISABLED", "kill_ai_live is on", {
         cacheKey: key,
         reason: "kill_switch",
@@ -301,7 +334,7 @@ export class ClaudeGateway {
   ): Promise<GatewayResult> {
     await replayTimeline(
       rec.replay_timeline,
-      { onSnapshot: call.onSnapshot, onReset: call.onReset },
+      { onSnapshot: call.onSnapshot, onFallback: call.onFallback, onReset: call.onReset },
       { speed: call.replaySpeed, sleep: this.sleep, signal: call.signal },
     );
     const result = this.resultOf(call, rec, "replay", 0);
@@ -360,6 +393,7 @@ export class ClaudeGateway {
       prompt_v: call.promptV,
       schema_v: call.schemaV,
       input_sha: call.inputSha,
+      sent_sha: call.sentSha ?? null,
       budget: call.budget,
       budget_scope: call.budgetScope ?? null,
       usage: rec?.usage ?? null,
@@ -449,9 +483,10 @@ export class ClaudeGateway {
           event.type === "content_block_start" &&
           (event.content_block as { type: string }).type === "fallback"
         ) {
-          timeline.reset();
-          call.onReset?.();
-          call.onSnapshot?.("");
+          // A pre-output fallback is seamless; a mid-stream one keeps the partial, marks the boundary
+          // with this block and continues it. Either way the snapshot keeps growing: record a marker.
+          const block = event.content_block as { from?: { model?: string }; to?: { model?: string } };
+          call.onFallback?.(timeline.fallback(block.from?.model ?? null, block.to?.model ?? null));
         } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
           const snapshot = timeline.delta(event.delta.text);
           call.onSnapshot?.(snapshot);
@@ -476,13 +511,24 @@ export class ClaudeGateway {
     const message = toPlainMessage(data);
     const latencyMs = Math.round(performance.now() - t0);
     // A non-streamed answer is recorded as one delta at its arrival time, so replays still drive
-    // snapshot consumers the same way.
+    // snapshot consumers the same way. A non-streamed fallback omits the declined partial, so its
+    // markers simply precede the text.
+    const entries: TimelineEntry[] = [];
+    for (const b of message.content) {
+      if (b.type !== "fallback") continue;
+      const fb = b as { from?: { model?: string }; to?: { model?: string } };
+      const info = { from: fb.from?.model ?? null, to: fb.to?.model ?? null };
+      entries.push({ ms: latencyMs, fallback: info });
+      call.onFallback?.({ ...info, afterText: false });
+    }
     const text = message.content
       .filter((b) => b.type === "text" && typeof b.text === "string")
       .map((b) => b.text as string)
       .join("");
-    const entries: TimelineEntry[] = text ? [{ ms: latencyMs, d: text }] : [];
-    if (text) call.onSnapshot?.(text);
+    if (text) {
+      entries.push({ ms: latencyMs, d: text });
+      call.onSnapshot?.(text);
+    }
     return {
       message,
       timeline: entries,

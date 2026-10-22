@@ -22,7 +22,10 @@ export interface TrackerHandlers {
   onRow?: (row: number, data: Row) => void;
   /** The page header (rotation, issues) is complete: rows follow it in schema order. */
   onPage?: (page: { rotation: string; issues: string[] }) => void;
-  /** A mid-stream fallback discarded the partial snapshot. */
+  /**
+   * The snapshot restarted (an empty snapshot). Only legacy recordings do this: a server-side fallback
+   * keeps the streamed partial and continues it, so live snapshots never shrink.
+   */
   onReset?: () => void;
 }
 
