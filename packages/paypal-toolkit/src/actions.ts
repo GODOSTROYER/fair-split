@@ -10,8 +10,17 @@ export const AGENT_TOOL_METHODS = [
   "get_invoice",
 ] as const;
 
-/** Server-only: never declared to the model. */
-export const SERVER_ONLY_METHODS = ["record_payment_for_invoice", "search_invoicing"] as const;
+/**
+ * Server-only: never declared to the model (S3 §S3.6.3). record_payment_for_invoice funds a Judge run
+ * (labelled simulated rail), search_invoicing adopts a duplicate number, and delete_invoice removes
+ * an invoice PayPal SCHEDULED so the chain can recreate it once (PayPal deletes only DRAFT and
+ * SCHEDULED invoices).
+ */
+export const SERVER_ONLY_METHODS = [
+  "record_payment_for_invoice",
+  "search_invoicing",
+  "delete_invoice",
+] as const;
 
 export const TOOLKIT_METHODS = [...AGENT_TOOL_METHODS, ...SERVER_ONLY_METHODS] as const;
 
@@ -24,7 +33,7 @@ export const AGENT_ACTIONS = {
 } as const;
 
 export const SERVER_ACTIONS = {
-  invoices: { ...AGENT_ACTIONS.invoices, recordPayment: true, search: true },
+  invoices: { ...AGENT_ACTIONS.invoices, recordPayment: true, search: true, delete: true },
 } as const;
 
 /** sendNeedsTreasurer (S4 policy lattice): the agent may draft a send, only Analyn's approval sends it. */
@@ -32,7 +41,11 @@ export const TREASURER_APPROVAL_METHODS: ReadonlySet<AgentToolMethod> = new Set<
   "send_invoice",
 ]);
 
-/** Every call the toolkit could make that moves, refunds, cancels or deletes something; none is ever exposed. */
+/**
+ * Every call the toolkit could make that moves, refunds, cancels or deletes something. None is ever
+ * declared to the agent; of these, only record_payment_for_invoice and delete_invoice are on the
+ * server allowlist, and only Invoices calls them.
+ */
 export const MONEY_MOVING_TOOLKIT_METHODS = [
   "record_payment_for_invoice",
   "record_refund_for_invoice",

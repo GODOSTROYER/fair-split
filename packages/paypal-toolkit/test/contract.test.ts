@@ -67,8 +67,14 @@ describe("allowlist contract: @paypal/agent-toolkit 1.11.0", () => {
     expect(agentToolSchemas()[0]?.description).not.toBe("tampered");
   });
 
-  it("validates with the toolkit's own zod for exactly the six server methods", () => {
+  it("validates with the toolkit's own zod for exactly the seven server methods (S3.6.3)", () => {
+    expect([...SERVER_ONLY_METHODS]).toEqual([
+      "record_payment_for_invoice",
+      "search_invoicing",
+      "delete_invoice",
+    ]);
     expect([...toolkitZodSchemas().keys()].sort()).toEqual([...TOOLKIT_METHODS].sort());
+    expect(TOOLKIT_METHODS).toHaveLength(7);
     expect(() => assertToolkitAllowlists()).not.toThrow();
   });
 

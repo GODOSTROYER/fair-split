@@ -7,6 +7,7 @@ import {
   conditionalRuleRequestId,
   INVOICE_NOTE_CLOSINGS,
   type InvoiceCheckpoint,
+  InvoiceNotPayableError,
   Invoices,
   PayPalToolkit,
   runAgentToolkitTool,
@@ -17,9 +18,11 @@ import {
   BUSINESS_EMAIL,
   createdLink,
   fakeAuth,
+  HERO_MEMO,
   heroRun,
   INVOICE_ID,
   invoiceBody,
+  openLimiter,
   payerViewLink,
 } from "./support/fixtures.js";
 import { onGet, onPost, paypalEmpty, paypalJson, requests, useMsw } from "./support/msw.js";
@@ -34,22 +37,26 @@ const APPROVAL: TreasurerApproval = {
   approvedAt: "2026-11-05T02:00:00.000Z",
   invoiceNumber: "FS-2026A-r37",
 };
+/** Created, not yet sent: PayPal's date is not read yet. */
 const CREATED: Partial<InvoiceCheckpoint> = {
   invoiceId: INVOICE_ID,
   invoiceNumber: "FS-2026A-r37",
   adopted: false,
-  invoiceDate: "2026-11-05",
+  note: HERO_MEMO,
 };
-const SENT: Partial<InvoiceCheckpoint> = {
+/** Sent, and a fresh GET showed it payable, dated 5 Nov by PayPal. */
+const PAYABLE: Partial<InvoiceCheckpoint> = {
   ...CREATED,
+  invoiceDate: "2026-11-05",
   sentAt: "2026-11-05T02:00:02.000Z",
   payerViewUrl: payerViewLink().href,
+  payableAt: "2026-11-05T02:00:03.000Z",
 };
 
 function session(seed: Partial<InvoiceCheckpoint> | null = null, tk?: Tk) {
   const repo = new MemoryInvoiceRepo(seed ? { [RUN.runId]: seed } : {});
   const invoices = new Invoices({
-    tk: tk ?? new PayPalToolkit({ auth: fakeAuth() }).tk,
+    tk: tk ?? new PayPalToolkit({ auth: fakeAuth(), limiter: openLimiter() }).tk,
     repo,
     businessEmail: BUSINESS_EMAIL,
     now: () => NOW,
@@ -60,7 +67,7 @@ function session(seed: Partial<InvoiceCheckpoint> | null = null, tk?: Tk) {
 
 /** The draft a well-behaved agent sends: the code-built invoice, with one listed closing. */
 const goodDraft = () => {
-  const plan = buildInvoicePlan(RUN, { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL });
+  const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
   return { ...structuredClone(plan.createArgs), note: `${plan.note}. ${INVOICE_NOTE_CLOSINGS[1]}` };
 };
 
@@ -75,6 +82,7 @@ const autoCancel = (date = "2026-11-30", invoiceId = INVOICE_ID) => ({
 });
 
 const refusal = (p: Promise<unknown>) => p.then(() => null).catch((e: unknown) => e as AgentToolRefusedError);
+const callLog = () => requests.map((r) => `${r.method} ${r.url.pathname}`);
 
 describe("runAgentToolkitTool: create_invoice through the run's checkpointed chain", () => {
   it("creates the run's invoice from a draft equal to the code-built one, and checkpoints it", async () => {
@@ -91,9 +99,10 @@ describe("runAgentToolkitTool: create_invoice through the run's checkpointed cha
       adopted: false,
       alreadyDone: false,
     });
-    const body = requests[0]?.body as { detail: { note: string; invoice_number: string } };
+    const body = requests[0]?.body as { detail: Record<string, unknown> };
     expect(body.detail.note).toBe(goodDraft().note);
     expect(body.detail.invoice_number).toBe("FS-2026A-r37");
+    expect(body.detail).not.toHaveProperty("invoice_date");
     expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceId: INVOICE_ID, adopted: false });
   });
 
@@ -162,6 +171,8 @@ describe("runAgentToolkitTool: create_invoice through the run's checkpointed cha
       (d) => ({ ...d, invoice_number: "FS-2026A-r38" }),
       "invoice_number: differs from the code-built invoice",
     ],
+    ["an invoice date", (d) => ({ ...d, invoice_date: "2026-11-05" }), "invoice_date"],
+    ["a due date the toolkit schema would strip", (d) => ({ ...d, due_date: "2026-11-06" }), "due_date"],
     [
       "free text in the note",
       (d) => ({ ...d, note: `${d.note} Pay at pay-me.example.test instead.` }),
@@ -208,8 +219,9 @@ describe("runAgentToolkitTool: send_invoice (sendNeedsTreasurer)", () => {
     expect(requests).toHaveLength(0);
   });
 
-  it("sends this run's invoice, never e-mailed and without agent text, once approved", async () => {
+  it("sends this run's invoice, never e-mailed and without agent text, then checks it is payable", async () => {
     onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
+    onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "UNPAID" })));
     const { session: s, repo } = session(CREATED);
     const out = await runAgentToolkitTool(
       s,
@@ -221,25 +233,33 @@ describe("runAgentToolkitTool: send_invoice (sendNeedsTreasurer)", () => {
       status: "DONE",
       method: "send_invoice",
       invoiceId: INVOICE_ID,
-      payerViewUrl: payerViewLink().href,
+      payerViewUrl: invoiceBody().detail.metadata.recipient_view_url,
       alreadyDone: false,
     });
     // The toolkit posts its parsed arguments as the body: no note, and never e-mailed.
     expect(requests[0]?.body).toEqual({ invoice_id: INVOICE_ID, send_to_recipient: false });
-    expect(requests[0]?.url.pathname).toBe(`/v2/invoicing/invoices/${INVOICE_ID}/send`);
-    expect(repo.rows.get(RUN.runId)?.sentAt).toBeTruthy();
+    expect(callLog()).toEqual([
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+    ]);
+    expect(repo.rows.get(RUN.runId)).toMatchObject({ sentAt: NOW.toISOString(), invoiceDate: "2026-11-05" });
   });
 
-  it("is a no-op for an invoice already sent", async () => {
-    const { session: s } = session(SENT);
-    const out = await runAgentToolkitTool(
-      s,
-      "send_invoice",
-      { invoice_id: INVOICE_ID },
-      { treasurerApproval: APPROVAL },
-    );
-    expect(out).toMatchObject({ status: "DONE", alreadyDone: true, payerViewUrl: SENT.payerViewUrl });
+  it("is a no-op for an invoice already sent and payable", async () => {
+    const { session: s } = session(PAYABLE);
+    const out = await runAgentToolkitTool(s, "send_invoice", { invoice_id: INVOICE_ID });
+    expect(out).toMatchObject({ status: "DONE", alreadyDone: true, payerViewUrl: PAYABLE.payerViewUrl });
     expect(requests).toHaveLength(0);
+  });
+
+  it("leaves a SCHEDULED invoice to the server chain: it reports it and deletes nothing", async () => {
+    onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
+    onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "SCHEDULED" })));
+    const { session: s } = session(CREATED);
+    await expect(
+      runAgentToolkitTool(s, "send_invoice", { invoice_id: INVOICE_ID }, { treasurerApproval: APPROVAL }),
+    ).rejects.toBeInstanceOf(InvoiceNotPayableError);
+    expect(callLog().some((c) => c.startsWith("DELETE"))).toBe(false);
   });
 
   it.each([
@@ -275,9 +295,9 @@ describe("runAgentToolkitTool: send_invoice (sendNeedsTreasurer)", () => {
 });
 
 describe("runAgentToolkitTool: create_conditional_rules_for_invoice", () => {
-  it("adds AUTO_CANCEL on the invoice date + 25 days under request id cr-{invoiceId}", async () => {
+  it("adds AUTO_CANCEL on PayPal's invoice date + 25 days under request id cr-{invoiceId}", async () => {
     onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
-    const { session: s, repo } = session(SENT);
+    const { session: s, repo } = session(PAYABLE);
     const out = await runAgentToolkitTool(s, "create_conditional_rules_for_invoice", autoCancel());
     expect(out).toEqual({
       status: "DONE",
@@ -290,11 +310,29 @@ describe("runAgentToolkitTool: create_conditional_rules_for_invoice", () => {
     expect(conditionalRuleRequestId(INVOICE_ID)).toBe(`cr-${INVOICE_ID}`);
     expect(repo.rows.get(RUN.runId)).toMatchObject({ autoCancelOn: "2026-11-30" });
 
-    // A second identical call is a no-op.
+    // A second identical call is a no-op; a different date is refused even then.
     await expect(
       runAgentToolkitTool(s, "create_conditional_rules_for_invoice", autoCancel()),
     ).resolves.toMatchObject({ alreadyDone: true });
+    await expect(
+      runAgentToolkitTool(s, "create_conditional_rules_for_invoice", autoCancel("2026-12-01")),
+    ).rejects.toBeInstanceOf(AgentToolRefusedError);
     expect(requests).toHaveLength(1);
+  });
+
+  it("reads PayPal's invoice date first when the run does not hold it yet", async () => {
+    onGet("/v2/invoicing/invoices/:id", () =>
+      paypalJson(invoiceBody({ status: "DRAFT", invoiceDate: "2026-11-04" })),
+    );
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+    const { session: s } = session(CREATED);
+    await expect(
+      runAgentToolkitTool(s, "create_conditional_rules_for_invoice", autoCancel("2026-11-29")),
+    ).resolves.toMatchObject({ status: "DONE", autoCancelOn: "2026-11-29" });
+    expect(callLog()).toEqual([
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`,
+    ]);
   });
 
   it.each([
@@ -337,15 +375,15 @@ describe("runAgentToolkitTool: create_conditional_rules_for_invoice", () => {
     ["a date other than invoice date + 25 days (C-27)", autoCancel("2026-12-04")],
     ["another invoice", autoCancel("2026-11-30", "INV2-AAAA-BBBB-CCCC-DDDD")],
   ])("refuses %s", async (_label, args) => {
-    const { session: s } = session(SENT);
+    const { session: s } = session(PAYABLE);
     const error = await refusal(runAgentToolkitTool(s, "create_conditional_rules_for_invoice", args));
     expect(error).toBeInstanceOf(AgentToolRefusedError);
     expect(requests).toHaveLength(0);
   });
 
   it("refuses an AUTO_CANCEL date that is already past (dueWithin30Days), before any call", async () => {
-    // An invoice dated 1 Oct cancels on 26 Oct: on 5 Nov that is not after today.
-    const { session: s } = session({ ...SENT, invoiceDate: "2026-10-01" });
+    // An invoice PayPal dated 1 Oct cancels on 26 Oct: on 5 Nov that is not after today.
+    const { session: s } = session({ ...PAYABLE, invoiceDate: "2026-10-01" });
     const error = await refusal(
       runAgentToolkitTool(s, "create_conditional_rules_for_invoice", autoCancel("2026-10-26")),
     );
@@ -358,7 +396,7 @@ describe("runAgentToolkitTool: create_conditional_rules_for_invoice", () => {
 describe("runAgentToolkitTool: get_invoice and the allowlist", () => {
   it("reads this run's invoice, and no other", async () => {
     onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody()));
-    const { session: s } = session(SENT);
+    const { session: s } = session(PAYABLE);
     const got = await runAgentToolkitTool(s, "get_invoice", { invoice_id: INVOICE_ID });
     expect(got).toMatchObject({ status: "DONE", method: "get_invoice", invoiceId: INVOICE_ID });
     const other = await refusal(
@@ -369,7 +407,7 @@ describe("runAgentToolkitTool: get_invoice and the allowlist", () => {
   });
 
   it("refuses arguments the toolkit schema rejects, before anything is sent", async () => {
-    const { session: s } = session(SENT);
+    const { session: s } = session(PAYABLE);
     await expect(runAgentToolkitTool(s, "get_invoice", { invoice_id: "a/b" })).rejects.toBeInstanceOf(
       AgentToolRefusedError,
     );
@@ -379,10 +417,10 @@ describe("runAgentToolkitTool: get_invoice and the allowlist", () => {
   it.each([
     "record_payment_for_invoice",
     "search_invoicing",
+    "delete_invoice",
     "create_payout_batch",
     "cancel_unclaimed_payout_item",
     "cancel_sent_invoice",
-    "delete_invoice",
     "create_refund",
     "pay_order",
     "generate_invoice_qr_code",
@@ -390,7 +428,7 @@ describe("runAgentToolkitTool: get_invoice and the allowlist", () => {
     "record_refund_for_invoice",
   ])("contract: the agent cannot reach %s", async (tool) => {
     const spy = vi.fn() as unknown as Tk;
-    const { session: s } = session(SENT, spy);
+    const { session: s } = session(PAYABLE, spy);
     await expect(runAgentToolkitTool(s, tool, {})).rejects.toBeInstanceOf(AgentToolNotAllowedError);
     expect(spy).not.toHaveBeenCalled();
   });
@@ -412,8 +450,12 @@ describe("runAgentToolkitTool: get_invoice and the allowlist", () => {
     expect(methods).toEqual([
       "create_invoice",
       "send_invoice",
+      "get_invoice",
       "create_conditional_rules_for_invoice",
       "get_invoice",
     ]);
+    expect(new Set(methods)).toEqual(
+      new Set(["create_invoice", "send_invoice", "create_conditional_rules_for_invoice", "get_invoice"]),
+    );
   });
 });

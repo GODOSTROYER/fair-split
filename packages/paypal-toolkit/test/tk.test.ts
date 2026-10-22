@@ -1,14 +1,23 @@
 import { delay, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   PayPalToolkit,
   ToolkitArgsError,
   type ToolkitCallRecord,
+  type ToolkitDeps,
   ToolkitError,
+  ToolkitLimitedError,
   type ToolkitMethod,
   ToolkitMethodError,
 } from "../src/index.js";
-import { createdLink, fakeAuth, INVOICE_ID, invoiceBody, paypalError } from "./support/fixtures.js";
+import {
+  createdLink,
+  fakeAuth,
+  INVOICE_ID,
+  invoiceBody,
+  openLimiter,
+  paypalError,
+} from "./support/fixtures.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
 
 useMsw();
@@ -23,7 +32,12 @@ const minimalCreate = {
 function kit(overrides: Partial<ConstructorParameters<typeof PayPalToolkit>[0]> = {}) {
   const auth = fakeAuth();
   const calls: ToolkitCallRecord[] = [];
-  const toolkit = new PayPalToolkit({ auth, onCall: (r) => void calls.push(r), ...overrides });
+  const toolkit = new PayPalToolkit({
+    auth,
+    limiter: openLimiter(),
+    onCall: (r) => void calls.push(r),
+    ...overrides,
+  });
   return { toolkit, auth, calls };
 }
 
@@ -127,6 +141,8 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
     const { toolkit, auth, calls } = kit();
     const out = await toolkit.tk<{ id: string }>("get_invoice", { invoice_id: INVOICE_ID });
     expect(out.id).toBe(INVOICE_ID);
+    // Only the token that failed is dropped, so a token another call just refreshed survives.
+    expect(auth.invalidate).toHaveBeenCalledWith("test-token-1");
     expect(auth.invalidate).toHaveBeenCalledTimes(1);
     expect(requests.map((r) => r.headers.get("authorization"))).toEqual([
       "Bearer test-token-1",
@@ -173,7 +189,7 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
 
   it("takes a limiter token per attempt, at the caller's priority", async () => {
     onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody()));
-    const take = vi.fn(async () => undefined);
+    const { take } = openLimiter();
     const { toolkit } = kit({ limiter: { take }, priority: "background" });
     await toolkit.tk("get_invoice", { invoice_id: INVOICE_ID });
     await toolkit.tk("get_invoice", { invoice_id: INVOICE_ID }, undefined, { priority: "live" });
@@ -183,7 +199,29 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
     ]);
   });
 
-  it("sends nothing when the limiter denies the call", async () => {
+  it("sends nothing when the limiter decides no (window full or the 429 circuit open)", async () => {
+    const { toolkit, auth } = kit({
+      limiter: { take: async () => ({ ok: false, reason: "CIRCUIT_OPEN", retryAfterMs: 360_000 }) },
+    });
+    const error = (await toolkit
+      .tk("get_invoice", { invoice_id: INVOICE_ID })
+      .catch((e: unknown) => e)) as ToolkitLimitedError;
+    expect(error).toBeInstanceOf(ToolkitLimitedError);
+    // Not a ToolkitError: nothing reached PayPal, so no adoption search or GET may follow.
+    expect(error).not.toBeInstanceOf(ToolkitError);
+    expect(error).toMatchObject({ method: "get_invoice", reason: "CIRCUIT_OPEN", retryAfterMs: 360_000 });
+    expect(auth.token).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
+  });
+
+  it("refuses to be built without the shared auth or the limiter", () => {
+    expect(() => new PayPalToolkit({ auth: fakeAuth() } as unknown as ToolkitDeps)).toThrow(/limiter/);
+    expect(() => new PayPalToolkit({ limiter: openLimiter() } as unknown as ToolkitDeps)).toThrow(
+      /PayPalAuth/,
+    );
+  });
+
+  it("sends nothing when the limiter rejects the call", async () => {
     const { toolkit, auth } = kit({
       limiter: { take: async () => Promise.reject(new Error("RATE_LIMITED")) },
     });

@@ -8,18 +8,32 @@ import {
   autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
+  INVOICE_ITEM_KEYS,
   INVOICE_NOTE_CLOSINGS,
   InvoicePlanError,
+  type InvoiceQuote,
   invoiceMemo,
   invoiceNumberFor,
+  isInvoiceItemLabel,
+  ppDate,
   rateCardReference,
   reconcileAgentDraft,
   runSlug,
   seasonIdCode,
 } from "../src/index.js";
-import { BUSINESS_EMAIL, HERO_QUOTE, heroRun, PAYER, RATE_CARD_SHA256 } from "./support/fixtures.js";
+import {
+  BUSINESS_EMAIL,
+  HERO_QUOTE,
+  heroQuote,
+  heroRun,
+  LOT_CODE,
+  PAYER,
+  RATE_CARD_SHA256,
+} from "./support/fixtures.js";
 
-const plan = () => buildInvoicePlan(heroRun(), { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL });
+const plan = () => buildInvoicePlan(heroRun(), { businessEmail: BUSINESS_EMAIL });
+const planFor = (quote: InvoiceQuote) => () =>
+  buildInvoicePlan(heroRun({ quote }), { businessEmail: BUSINESS_EMAIL });
 
 describe("register §8 invoice fields", () => {
   it("derives the season ID code, run slug and invoice number", () => {
@@ -28,9 +42,8 @@ describe("register §8 invoice fields", () => {
     expect(invoiceNumberFor("2026-A", 37)).toBe("FS-2026A-r37");
   });
 
-  it("keeps invoice_number within PayPal's 25 characters for every environment offset (S3.4)", () => {
-    // judge/prod from 1, dev from 100000, nightly smoke from 900000 + 10 × run number
-    for (const runSeq of [1, 100_000, 900_000 + 10 * 99_999]) {
+  it("keeps invoice_number within PayPal's 25 characters for every run block (k × 10,000 + 1, k ≤ 999)", () => {
+    for (const runSeq of [1, 37, 999_999, 1_000_001, 9_990_001, 9_999_999]) {
       expect(invoiceNumberFor("2026-A", runSeq).length).toBeLessThanOrEqual(25);
     }
   });
@@ -66,7 +79,6 @@ describe("register §8 invoice fields", () => {
     expect(p.createArgs).toEqual<CreateInvoiceArgs>({
       currency_code: "USD",
       invoice_number: "FS-2026A-r37",
-      invoice_date: "2026-11-05",
       reference: `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
       note: invoiceMemo("2026-A", RATE_CARD_SHA256, "LB-PH-2026-03"),
       invoicer_email_address: BUSINESS_EMAIL,
@@ -94,30 +106,73 @@ describe("register §8 invoice fields", () => {
         },
       ],
     });
-    expect(p.totalCents).toBe(HERO_QUOTE.totalCents);
-    expect(p.autoCancelOn).toBe("2026-11-30");
+    expect(p.totalCents).toBe(BigInt(HERO_QUOTE.totalCents));
   });
 
-  it("refuses a quote whose total is not the sum of its parts, a non-USD quote, or a negative part", () => {
-    const bad = (quote: object) => () =>
-      buildInvoicePlan(heroRun({ quote: { ...HERO_QUOTE, ...quote } }), {
-        invoiceDate: "2026-11-05",
-        businessEmail: BUSINESS_EMAIL,
-      });
-    expect(bad({ totalCents: HERO_QUOTE.totalCents + 1n })).toThrow(/not the sum/);
-    expect(bad({ currency: "PHP" })).toThrow(/USD only/);
-    expect(bad({ bonusCents: -1n, totalCents: HERO_QUOTE.totalCents - HERO_QUOTE.bonusCents - 1n })).toThrow(
-      /non-negative/,
-    );
+  it("never sends an invoice date or a payment term: PayPal dates the invoice, so a send cannot schedule it", () => {
+    const p = plan();
+    expect(p.createArgs).not.toHaveProperty("invoice_date");
+    expect(JSON.stringify(p.createArgs)).not.toMatch(/date|due|payment_term/);
   });
 
-  it("keeps a zero component as a 0.00 line, so the invoice always has the quote's three lines", () => {
-    const p = buildInvoicePlan(
-      heroRun({
-        quote: { ...HERO_QUOTE, disbursementCents: 0n, totalCents: HERO_QUOTE.totalCents - 6_000n },
-      }),
-      { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL },
-    );
+  it("refuses a quote whose total is not the sum of its lines, a non-USD quote, or a negative line", () => {
+    expect(planFor({ ...HERO_QUOTE, totalCents: HERO_QUOTE.totalCents + 1 })).toThrow(/not the sum/);
+    expect(planFor({ ...HERO_QUOTE, currency: "PHP" as "USD" })).toThrow(/USD only/);
+    expect(planFor(heroQuote({ bonus: -1 }))).toThrow(/non-negative/);
+    expect(planFor(heroQuote({ premium: 2887.5 }))).toThrow(/integer cents/);
+  });
+
+  it("refuses a quote computed for another rate card or another lot (it would bill another season)", () => {
+    expect(planFor({ ...HERO_QUOTE, rateCardSha256: "0".repeat(64) })).toThrow(/another rate card/);
+    expect(planFor({ ...HERO_QUOTE, lotCode: "LB-PH-2026-04" })).toThrow(/another lot/);
+    expect(LOT_CODE).toBe(HERO_QUOTE.lotCode);
+  });
+
+  it("refuses a quote whose pools disagree with its lines", () => {
+    expect(planFor({ ...HERO_QUOTE, poolCents: HERO_QUOTE.poolCents + 1 })).toThrow(/pools disagree/);
+    expect(planFor({ ...HERO_QUOTE, bonusPoolCents: 0 })).toThrow(/pools disagree/);
+  });
+
+  it("refuses a quote with lines missing, out of order or not in quantity 1", () => {
+    const [premium, bonus, disbursement] = HERO_QUOTE.items as [
+      InvoiceQuote["items"][number],
+      InvoiceQuote["items"][number],
+      InvoiceQuote["items"][number],
+    ];
+    expect(INVOICE_ITEM_KEYS).toEqual(["PREMIUM", "BONUS", "DISBURSEMENT"]);
+    expect(planFor({ ...HERO_QUOTE, items: [premium, bonus] })).toThrow(/exactly three/);
+    expect(planFor({ ...HERO_QUOTE, items: [bonus, premium, disbursement] })).toThrow(/must be PREMIUM/);
+    expect(
+      planFor({ ...HERO_QUOTE, items: [premium, bonus, { ...disbursement, quantity: "2" as "1" }] }),
+    ).toThrow(/quantity/);
+  });
+
+  it.each([
+    ["a digit", "Premium 2026"],
+    ["an amount", "Premium $2,887.50"],
+    ["over 40 characters", "Premium paid to the members of the co-op as ratified"],
+    ["a leading space", " Premium"],
+    ["a colon", "Premium: season"],
+    ["an empty label", ""],
+  ])("refuses an item label with %s (register §8 labels)", (_label, name) => {
+    const items = HERO_QUOTE.items.map((i) => (i.key === "PREMIUM" ? { ...i, name } : i));
+    expect(isInvoiceItemLabel(name)).toBe(false);
+    expect(planFor({ ...HERO_QUOTE, items })).toThrow(/label/);
+  });
+
+  it("accepts register §8 labels: letters, spaces and ,'()-", () => {
+    for (const name of [
+      "Premium",
+      "Quality bonus",
+      "Disbursement costs",
+      "Members' premium (Fairtrade)",
+      "Co-op fee, audit",
+    ])
+      expect(isInvoiceItemLabel(name)).toBe(true);
+  });
+
+  it("keeps a zero line as a 0.00 line, so the invoice always has the quote's three lines", () => {
+    const p = planFor(heroQuote({ disbursement: 0 }))();
     expect(p.createArgs.items.map((i) => [i.name, i.unit_amount.value])).toEqual([
       ["Premium", "2887.50"],
       ["Quality bonus", "1386.00"],
@@ -126,25 +181,13 @@ describe("register §8 invoice fields", () => {
   });
 
   it("refuses a quote that asks for nothing", () => {
-    expect(() =>
-      buildInvoicePlan(
-        heroRun({
-          quote: { currency: "USD", premiumCents: 0n, bonusCents: 0n, disbursementCents: 0n, totalCents: 0n },
-        }),
-        { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL },
-      ),
-    ).toThrow(/more than zero/);
+    expect(planFor(heroQuote({ premium: 0, bonus: 0, disbursement: 0 }))).toThrow(/more than zero/);
   });
 
   it("requires a real invoicer and payer e-mail", () => {
-    expect(() => buildInvoicePlan(heroRun(), { invoiceDate: "2026-11-05", businessEmail: "coop" })).toThrow(
-      InvoicePlanError,
-    );
+    expect(() => buildInvoicePlan(heroRun(), { businessEmail: "coop" })).toThrow(InvoicePlanError);
     expect(() =>
-      buildInvoicePlan(heroRun({ payer: { ...PAYER, email: "nobody" } }), {
-        invoiceDate: "2026-11-05",
-        businessEmail: BUSINESS_EMAIL,
-      }),
+      buildInvoicePlan(heroRun({ payer: { ...PAYER, email: "nobody" } }), { businessEmail: BUSINESS_EMAIL }),
     ).toThrow(InvoicePlanError);
   });
 });
@@ -153,7 +196,7 @@ describe("the AUTO_CANCEL window (dueWithin30Days), and no due date", () => {
   it("inv.i8.labels: carries no due date, because PayPal never receives one (no payment_term)", () => {
     const p = plan();
     expect(p).not.toHaveProperty("dueDate");
-    expect(JSON.stringify(p.createArgs)).not.toMatch(/due|payment_term/);
+    expect(p).not.toHaveProperty("autoCancelOn");
   });
 
   it("accepts a date after today and at most 30 days out", () => {
@@ -168,6 +211,13 @@ describe("the AUTO_CANCEL window (dueWithin30Days), and no due date", () => {
     expect(autoCancelWindowError("2026-10-26", "2026-11-05")).toMatch(/not after today/);
     expect(autoCancelWindowError("2026-12-06", "2026-11-05")).toMatch(/more than 30 days/);
     expect(() => autoCancelWindowError("2026-11-31", "2026-11-05")).toThrow(RangeError);
+  });
+
+  it("measures today on PayPal's calendar (ppDate, America/Los_Angeles), not UTC", () => {
+    // 00:30 UTC on 6 Nov is 16:30 on 5 Nov in Los Angeles (PST after 1 Nov), and 17:30 PDT before it.
+    expect(ppDate(new Date("2026-11-06T00:30:00Z"))).toBe("2026-11-05");
+    expect(ppDate(new Date("2026-10-23T00:30:00Z"))).toBe("2026-10-22");
+    expect(ppDate(new Date("2026-11-05T20:00:00Z"))).toBe("2026-11-05");
   });
 });
 
@@ -256,7 +306,31 @@ describe("inv.i1.no-model-numbers: the agent's draft may choose words from a clo
       "another payer",
       (d) => ({ ...d, primary_recipients: [{ billing_info: { email_address: "attacker@example.test" } }] }),
     ],
-    ["another date", (d) => ({ ...d, invoice_date: "2026-11-06" })],
+    ["an invoice date (the code never sends one)", (d) => ({ ...d, invoice_date: "2026-11-05" })],
+    ["a due date the toolkit schema would strip", (d) => ({ ...d, due_date: "2026-11-20" })],
+    [
+      "a payment term the toolkit schema would strip",
+      (d) => ({ ...d, payment_term: { term_type: "NET_10" } }),
+    ],
+    [
+      "a recipient field the schema would strip",
+      (d) => ({
+        ...d,
+        primary_recipients: [
+          {
+            billing_info: {
+              business_name: PAYER.businessName,
+              email_address: PAYER.email,
+              pay_to: "attacker@example.test",
+            },
+          },
+        ],
+      }),
+    ],
+    [
+      "an item field the schema would strip",
+      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, total: "9999.00" } : i)) }),
+    ],
     ["a note without the memo", (d) => ({ ...d, note: "Season premium" })],
     ["a number in the note", (d) => ({ ...d, note: `${plan().note}. Please pay 5000 instead.` })],
     [

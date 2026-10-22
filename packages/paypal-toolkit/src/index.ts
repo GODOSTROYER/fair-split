@@ -3,8 +3,15 @@
 // deterministic, goes through the toolkit's PayPalAPI (from /mcp) on our injected token.
 
 export type { Provenance } from "./_shims/contracts.js";
-export type { InvoiceQuote } from "./_shims/domain.js";
-export type { CallPriority, PayPalAuth, PayPalToken } from "./_shims/paypal-core.js";
+export type { InvoiceQuote, InvoiceQuoteItem, QuoteItemKey } from "./_shims/domain.js";
+export {
+  type CallPriority,
+  type LimiterDecision,
+  type PayPalAuth,
+  type PayPalLimiter,
+  type PayPalToken,
+  ppDate,
+} from "./_shims/paypal-core.js";
 export {
   AGENT_ACTIONS,
   AGENT_TOOL_METHODS,
@@ -40,7 +47,8 @@ export {
   type CreateInvoiceItem,
   conditionalRuleRequestId,
   type DraftReconciliation,
-  INVOICE_ITEM_NAMES,
+  INVOICE_ITEM_KEYS,
+  INVOICE_ITEM_LABEL,
   INVOICE_NOTE_CLOSINGS,
   type InvoicePayer,
   type InvoicePlan,
@@ -48,6 +56,7 @@ export {
   type InvoiceRun,
   invoiceMemo,
   invoiceNumberFor,
+  isInvoiceItemLabel,
   rateCardReference,
   reconcileAgentDraft,
   runSlug,
@@ -64,11 +73,14 @@ export {
   InvoiceApprovalError,
   type InvoiceCheckpoint,
   InvoiceDraftRejectedError,
+  InvoiceNotPayableError,
   type InvoiceRepository,
+  InvoiceRuleDateError,
   InvoiceStateError,
   Invoices,
   type InvoicesDeps,
   invoiceIdFromCreate,
+  invoiceMoneyExtras,
   payerViewUrlFromSend,
   RECORD_PAYMENT_NOTE,
   type RecordPaymentResult,
@@ -97,6 +109,7 @@ export {
   type ToolkitCallRecord,
   type ToolkitDeps,
   ToolkitError,
+  ToolkitLimitedError,
   type ToolkitLimiter,
   ToolkitMethodError,
 } from "./tk.js";

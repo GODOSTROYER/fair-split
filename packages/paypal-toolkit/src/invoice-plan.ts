@@ -1,9 +1,12 @@
-// The code-owned invoice (register §8, S3 §S3.6.3). Every field PayPal sees is derived here from
-// the run and the code-computed quote. The agent's draft may differ only by choosing one closing
-// phrase for the note from a fixed list (invariant I1: free text could carry an amount in words).
+// The code-owned invoice (register §8; the approved plan's "PayPal integration contract"; S3
+// §S3.6.3). Every field PayPal sees is derived here from the run and the code-computed quote.
+// invoice_date and payment_term are never sent: PayPal dates the invoice itself, so sending can
+// never schedule it, and the AUTO_CANCEL date follows the date PayPal holds (C-27). The agent's
+// draft may differ only by choosing one closing phrase for the note from a fixed list (invariant
+// I1: free text could carry an amount in words).
 
 import { isDeepStrictEqual } from "node:util";
-import type { InvoiceQuote } from "./_shims/domain.js";
+import type { InvoiceQuote, QuoteItemKey } from "./_shims/domain.js";
 import { addDays, parseIsoDate } from "./dates.js";
 import { centsToValue } from "./money.js";
 import { toolkitZodSchemas } from "./schemas.js";
@@ -16,12 +19,11 @@ export const AUTO_CANCEL_MAX_DAYS_AHEAD = 30;
 export const INVOICE_NUMBER_MAX = 25;
 export const REFERENCE_MAX = 120;
 
-/** Item names of the code-built invoice (S3 §S3.6.3; the quote's names in IC-02). Never agent text. */
-export const INVOICE_ITEM_NAMES = {
-  premium: "Premium",
-  bonus: "Quality bonus",
-  disbursement: "Disbursement costs",
-} as const;
+/** The quote's three lines, in invoice order (register §2): premium, quality bonus, disbursement costs. */
+export const INVOICE_ITEM_KEYS: readonly QuoteItemKey[] = ["PREMIUM", "BONUS", "DISBURSEMENT"];
+
+/** Register §8 item labels: at most 40 characters, letters, spaces and `,'()-`, no digits. */
+export const INVOICE_ITEM_LABEL = /^[\p{L} ,'()-]{1,40}$/u;
 
 /**
  * The only words the agent adds to an invoice: at most one of these closings after the code-rendered
@@ -72,7 +74,7 @@ export interface InvoiceRun {
   runId: string;
   /** From the global `fs_run_seq`, never reset. */
   runSeq: number;
-  /** "2026-A"; its ID code ("2026A") is derived. */
+  /** The season label "2026-A"; its ID code ("2026A") is derived. */
   seasonCode: string;
   /** sha256 (lowercase hex) of the ratified rate card's JCS. */
   rateCardSha256: string;
@@ -87,17 +89,15 @@ export interface InvoiceRun {
 
 export interface CreateInvoiceItem {
   name: string;
-  description?: string;
   quantity: string;
   unit_amount: { currency_code: "USD"; value: string };
   unit_of_measure: "AMOUNT";
 }
 
-/** Exactly the toolkit 1.11.0 `create_invoice` arguments we send. */
+/** Exactly the toolkit 1.11.0 `create_invoice` arguments we send: no invoice_date, no payment term. */
 export interface CreateInvoiceArgs {
   currency_code: "USD";
   invoice_number: string;
-  invoice_date: string;
   reference: string;
   note: string;
   invoicer_email_address: string;
@@ -105,19 +105,17 @@ export interface CreateInvoiceArgs {
   items: CreateInvoiceItem[];
 }
 
+/**
+ * The code-built invoice for one run. It carries no date: the AUTO_CANCEL date is the date PayPal
+ * gives the invoice + 25 days (`autoCancelDate`), and there is no due date at all, because toolkit
+ * 1.11.0 cannot send a payment_term and nothing PayPal does not hold may look like one (I8).
+ */
 export interface InvoicePlan {
   runId: string;
   invoiceNumber: string;
   reference: string;
   /** The memo, e.g. "Season 2026-A, RC 7f3a 91c2, lot LB-PH-2026-03". */
   note: string;
-  invoiceDate: string;
-  /**
-   * The AUTO_CANCEL date (C-27): the invoice date + 25 days, the rule's SPECIFIC_DATE. There is no
-   * due date: toolkit 1.11.0 cannot send a payment_term, so PayPal keeps its default term and no
-   * Fair Split date may be shown as the invoice's due date (I8).
-   */
-  autoCancelOn: string;
   totalCents: bigint;
   createArgs: CreateInvoiceArgs;
 }
@@ -175,11 +173,15 @@ export function invoiceMemo(seasonCode: string, rateCardSha256: string, lotCode:
   return `Season ${seasonCode}, RC ${rateCardSha256.slice(0, 4)} ${rateCardSha256.slice(4, 8)}, lot ${lotCode}`;
 }
 
+/** C-27: the AUTO_CANCEL date is the invoice date PayPal holds + 25 days. */
 export function autoCancelDate(invoiceDate: string): string {
   return addDays(invoiceDate, AUTO_CANCEL_AFTER_DAYS);
 }
 
-/** dueWithin30Days: null when `autoCancelOn` is after `today` and at most 30 days out, else why not. */
+/**
+ * dueWithin30Days: null when `autoCancelOn` is after `today` and at most 30 days out, else why not.
+ * `today` is PayPal's date (`ppDate`), the calendar the invoice date comes from.
+ */
 export function autoCancelWindowError(autoCancelOn: string, today: string): string | null {
   parseIsoDate(autoCancelOn);
   const latest = addDays(today, AUTO_CANCEL_MAX_DAYS_AHEAD);
@@ -188,41 +190,73 @@ export function autoCancelWindowError(autoCancelOn: string, today: string): stri
   return null;
 }
 
+/** True when `name` is a register §8 item label. */
+export function isInvoiceItemLabel(name: unknown): name is string {
+  return typeof name === "string" && name.trim() === name && INVOICE_ITEM_LABEL.test(name);
+}
+
+function quoteCents(value: unknown, what: string): bigint {
+  check(
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0,
+    `${what} must be non-negative integer cents`,
+  );
+  return BigInt(value);
+}
+
 /**
- * The quote's three components, always three lines in quote order (architecture §6.2: the items
- * deep-equal the quote). A zero component stays as a 0.00 line rather than changing the invoice's
- * shape; whether PayPal accepts a 0.00 line is checked in spike S2 (the hero quote has none).
+ * The quote's three lines, always three, in quote order (architecture §6.2: the items deep-equal the
+ * quote). A zero line stays a 0.00 line rather than changing the invoice's shape, as WS-CORE's
+ * `invoiceEqualsQuote` expects. The quote must belong to this run's card and lot, its lines must sum
+ * to its total and agree with its pools; nothing here adjusts a figure.
  */
-function quoteItems(quote: InvoiceQuote): CreateInvoiceItem[] {
+function quoteItems(run: InvoiceRun): { items: CreateInvoiceItem[]; totalCents: bigint } {
+  const { quote } = run;
   check(quote.currency === "USD", `Invoices are USD only (sandbox accounts are US): ${quote.currency}`);
-  const parts = [
-    [INVOICE_ITEM_NAMES.premium, quote.premiumCents],
-    [INVOICE_ITEM_NAMES.bonus, quote.bonusCents],
-    [INVOICE_ITEM_NAMES.disbursement, quote.disbursementCents],
-  ] as const;
-  let sum = 0n;
-  const items: CreateInvoiceItem[] = [];
-  for (const [name, cents] of parts) {
-    check(typeof cents === "bigint" && cents >= 0n, `${name} must be a non-negative bigint of cents`);
-    sum += cents;
-    items.push({
-      name,
+  check(quote.rateCardSha256 === run.rateCardSha256, "The quote was computed from another rate card");
+  check(quote.lotCode === run.lotCode, "The quote was computed for another lot");
+  check(
+    Array.isArray(quote.items) && quote.items.length === INVOICE_ITEM_KEYS.length,
+    "A quote has exactly three lines",
+  );
+  const byKey = new Map<QuoteItemKey, bigint>();
+  const items = INVOICE_ITEM_KEYS.map((key, i): CreateInvoiceItem => {
+    const item = quote.items[i];
+    check(item?.key === key, `Quote line ${i + 1} must be ${key}`);
+    check(item.quantity === "1", `${key}: the quantity is always 1`);
+    check(
+      isInvoiceItemLabel(item.name),
+      `${key}: a label is at most 40 letters, spaces or ,'()- (no digits)`,
+    );
+    const cents = quoteCents(item.unitAmountCents, `${key} amount`);
+    byKey.set(key, cents);
+    return {
+      name: item.name,
       quantity: "1",
       unit_amount: { currency_code: "USD", value: centsToValue(cents) },
       unit_of_measure: "AMOUNT",
-    });
-  }
-  check(sum === quote.totalCents, `Quote total ${quote.totalCents} is not the sum of its parts ${sum}`);
-  check(sum > 0n, "An invoice must ask for more than zero");
-  return items;
+    };
+  });
+  const premium = byKey.get("PREMIUM") ?? 0n;
+  const bonus = byKey.get("BONUS") ?? 0n;
+  const disbursement = byKey.get("DISBURSEMENT") ?? 0n;
+  const total = quoteCents(quote.totalCents, "totalCents");
+  check(
+    premium + bonus + disbursement === total,
+    `Quote total ${total} is not the sum of its lines ${premium + bonus + disbursement}`,
+  );
+  check(total > 0n, "An invoice must ask for more than zero");
+  check(
+    quoteCents(quote.premiumPoolCents, "premiumPoolCents") === premium &&
+      quoteCents(quote.bonusPoolCents, "bonusPoolCents") === bonus &&
+      quoteCents(quote.disbursementCents, "disbursementCents") === disbursement &&
+      quoteCents(quote.poolCents, "poolCents") === premium + bonus,
+    "The quote's pools disagree with its lines",
+  );
+  return { items, totalCents: total };
 }
 
-/** Builds every code-owned field of the invoice for one run (no IO, no clock). */
-export function buildInvoicePlan(
-  run: InvoiceRun,
-  context: { invoiceDate: string; businessEmail: string },
-): InvoicePlan {
-  parseIsoDate(context.invoiceDate);
+/** Builds every code-owned field of the invoice for one run (no IO, no clock, no date). */
+export function buildInvoicePlan(run: InvoiceRun, context: { businessEmail: string }): InvoicePlan {
   check(EMAIL.test(context.businessEmail), "The invoicer must be the business account's e-mail");
   check(EMAIL.test(run.payer.email), "The payer e-mail is not an e-mail address");
   check(run.payer.businessName.trim().length > 0, "The payer needs a business name");
@@ -230,20 +264,16 @@ export function buildInvoicePlan(
   const reference = rateCardReference(run.rateCardSha256);
   check(reference.length <= REFERENCE_MAX, "reference too long");
   const note = invoiceMemo(run.seasonCode, run.rateCardSha256, run.lotCode);
-  const autoCancelOn = autoCancelDate(context.invoiceDate);
-  const items = quoteItems(run.quote);
+  const { items, totalCents } = quoteItems(run);
   return {
     runId: run.runId,
     invoiceNumber,
     reference,
     note,
-    invoiceDate: context.invoiceDate,
-    autoCancelOn,
-    totalCents: run.quote.totalCents,
+    totalCents,
     createArgs: {
       currency_code: "USD",
       invoice_number: invoiceNumber,
-      invoice_date: context.invoiceDate,
       reference,
       note,
       invoicer_email_address: context.businessEmail,
@@ -281,43 +311,48 @@ export type DraftReconciliation = { ok: true; args: CreateInvoiceArgs } | { ok: 
 const ITEM_FIELDS = ["name", "quantity", "unit_amount", "unit_of_measure"] as const;
 const ITEM_FIELD_SET: ReadonlySet<string> = new Set(ITEM_FIELDS);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /**
  * Invariant I1 at the money edge: the agent writes no number and no free text. Accepts the agent's
- * create_invoice draft only if every field equals the code-built invoice (currency, number, date,
- * reference, invoicer, recipients, and all three items with their names, quantities and amounts), no
- * other field is set (no shipping, tip, partial payment, pay-by-bank, discount, tax or description),
- * and the note is the code-rendered memo, optionally closed by one phrase from
- * INVOICE_NOTE_CLOSINGS. Returns the plan's arguments carrying the chosen note.
+ * create_invoice draft only if it passes the toolkit's own schema, every field equals the code-built
+ * invoice (currency, number, reference, invoicer, recipients, and all three items with their names,
+ * quantities and amounts), no other field is set (no date, shipping, tip, partial payment,
+ * pay-by-bank, discount, tax or description, at any depth: the draft is compared as written, so a
+ * key the schema would strip still counts), and the note is the code-rendered memo, optionally closed
+ * by one phrase from INVOICE_NOTE_CLOSINGS. Returns the plan's arguments carrying the chosen note.
  */
 export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftReconciliation {
   const parsed = toolkitZodSchemas().get("create_invoice")?.safeParse(draft);
-  if (!parsed?.success)
+  if (!parsed?.success || !isRecord(draft))
     return { ok: false, mismatches: ["draft does not match the toolkit create_invoice schema"] };
-  const d = parsed.data as Record<string, unknown>;
   const expected = plan.createArgs as unknown as Record<string, unknown>;
   const mismatches: string[] = [];
 
-  for (const [key, value] of Object.entries(d)) {
+  for (const [key, value] of Object.entries(draft)) {
     if (key === "note" || key === "items" || value === undefined) continue;
     if (!(key in expected)) mismatches.push(`${key}: not a field the agent may set`);
     else if (!isDeepStrictEqual(value, expected[key]))
       mismatches.push(`${key}: differs from the code-built invoice`);
   }
   for (const key of Object.keys(expected)) {
-    if (key !== "note" && key !== "items" && d[key] === undefined) mismatches.push(`${key}: missing`);
+    if (key !== "note" && key !== "items" && draft[key] === undefined) mismatches.push(`${key}: missing`);
   }
 
-  const note = typeof d.note === "string" ? d.note : null;
+  const note = typeof draft.note === "string" ? draft.note : null;
   if (note === null || !allowedInvoiceNotes(plan.note).includes(note)) {
     mismatches.push("note: must be the code-rendered memo, optionally closed by one listed phrase");
   }
 
-  const items = Array.isArray(d.items) ? (d.items as Record<string, unknown>[]) : [];
+  const items = Array.isArray(draft.items) ? (draft.items as unknown[]) : [];
   const wanted = plan.createArgs.items;
   if (items.length !== wanted.length) {
     mismatches.push(`items: ${items.length} lines, the quote has ${wanted.length}`);
   } else {
-    items.forEach((got, i) => {
+    items.forEach((raw, i) => {
+      const got = isRecord(raw) ? raw : {};
       const want = wanted[i] as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries(got)) {
         if (value === undefined) continue;

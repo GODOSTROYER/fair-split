@@ -45,7 +45,7 @@ async function record(request: Request): Promise<RecordedRequest> {
 
 type Reply = (req: RecordedRequest, params: Record<string, string>) => Response | Promise<Response>;
 
-function handler(method: "get" | "post", path: string, reply: Reply) {
+function handler(method: "get" | "post" | "delete", path: string, reply: Reply) {
   return http[method](`${TOOLKIT_BASE}${path}`, async ({ request, params }) => {
     const entry = await record(request);
     return reply(entry, params as Record<string, string>);
@@ -54,6 +54,7 @@ function handler(method: "get" | "post", path: string, reply: Reply) {
 
 export const onGet = (path: string, reply: Reply) => server.use(handler("get", path, reply));
 export const onPost = (path: string, reply: Reply) => server.use(handler("post", path, reply));
+export const onDelete = (path: string, reply: Reply) => server.use(handler("delete", path, reply));
 
 /** A PayPal JSON response carrying a paypal-debug-id header, as every PayPal REST response does. */
 export function paypalJson(body: JsonBodyType, status = 200, debugId = "f0d1e2c3b4a59"): Response {

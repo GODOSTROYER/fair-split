@@ -24,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 // One JSON line per live run; JSON Lines also keeps the gitignored cache out of Biome's way.
 const cacheFile = join(here, "..", ".cache", "spikes", "s2.jsonl");
 const MODEL = "claude-opus-5-5";
+const SPIKE_CARD = createHash("sha256").update("spike S2 rate card").digest("hex");
 const PRICE_PER_MTOK = { input: 4, output: 20 };
 
 interface Probe {
@@ -147,18 +148,26 @@ async function main(): Promise<void> {
       runId: "spike-s2",
       runSeq: 900_001,
       seasonCode: "2026-A",
-      rateCardSha256: createHash("sha256").update("spike S2 rate card").digest("hex"),
+      rateCardSha256: SPIKE_CARD,
       lotCode: "LB-PH-2026-03",
       quote: {
         currency: "USD",
-        premiumCents: 288_750n,
-        bonusCents: 138_600n,
-        disbursementCents: 6_000n,
-        totalCents: 433_350n,
+        items: [
+          { key: "PREMIUM", name: "Premium", quantity: "1", unitAmountCents: 288_750 },
+          { key: "BONUS", name: "Quality bonus", quantity: "1", unitAmountCents: 138_600 },
+          { key: "DISBURSEMENT", name: "Disbursement costs", quantity: "1", unitAmountCents: 6_000 },
+        ],
+        totalCents: 433_350,
+        premiumPoolCents: 288_750,
+        bonusPoolCents: 138_600,
+        poolCents: 427_350,
+        disbursementCents: 6_000,
+        lotCode: "LB-PH-2026-03",
+        rateCardSha256: SPIKE_CARD,
       },
       payer: { businessName: "Lantern Bay Chocolate Co.", email: "lantern-bay@example.test" },
     },
-    { invoiceDate: "2026-10-23", businessEmail: "coop-business@example.test" },
+    { businessEmail: "coop-business@example.test" },
   );
   const a = plan.createArgs;
   const lines = a.items
@@ -173,7 +182,7 @@ async function main(): Promise<void> {
     [
       "Draft and create this invoice with create_invoice. Use every value below exactly. The note may end with one of these closings, after a full stop and a space: " +
         INVOICE_NOTE_CLOSINGS.map((c) => JSON.stringify(c)).join(", "),
-      `currency_code ${a.currency_code}; invoice_number ${a.invoice_number}; invoice_date ${a.invoice_date}; reference ${a.reference}`,
+      `currency_code ${a.currency_code}; invoice_number ${a.invoice_number}; reference ${a.reference}`,
       `note: ${a.note}`,
       `invoicer_email_address ${a.invoicer_email_address}`,
       `primary recipient: business_name ${a.primary_recipients[0]?.billing_info.business_name}, email_address ${a.primary_recipients[0]?.billing_info.email_address}`,

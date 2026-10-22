@@ -2,24 +2,45 @@
 // openapi/invoicing_v2.json): link_description, invoice, invoices (search), payment_reference
 // and the common error body. E-mails are sandbox aliases; no token or secret appears here.
 //
-// TEMPORARY: the hero figures below mirror register §2 until the IC-03 seed snapshot
-// (packages/seed/snapshot/season-2026A.json) lands; then read them from there.
+// TEMPORARY: the hero figures below mirror register §2 (and WS-CORE's seed snapshot on ws/core)
+// until the IC-03 seed snapshot (packages/seed/snapshot/season-2026A.json) lands; then read them
+// from there.
 
 import { createHash } from "node:crypto";
 import { vi } from "vitest";
-import type { InvoiceQuote, InvoiceRun } from "../../src/index.js";
+import { type InvoiceQuote, type InvoiceRun, invoiceMemo, type PayPalLimiter } from "../../src/index.js";
 import { TOOLKIT_BASE } from "./msw.js";
 
 /** Hashes are computed, never typed (register §2). */
 export const RATE_CARD_SHA256 = createHash("sha256").update("BR 2026-04 fixture card").digest("hex");
+export const LOT_CODE = "LB-PH-2026-03";
 
-export const HERO_QUOTE: InvoiceQuote = {
-  currency: "USD",
-  premiumCents: 288_750n,
-  bonusCents: 138_600n,
-  disbursementCents: 6_000n,
-  totalCents: 433_350n,
-};
+/** IC-02 quoteInvoice for the hero lot: US$4,333.50 = 2,887.50 + 1,386.00 + 60.00. */
+export function heroQuote(
+  cents: { premium?: number; bonus?: number; disbursement?: number } = {},
+): InvoiceQuote {
+  const premium = cents.premium ?? 288_750;
+  const bonus = cents.bonus ?? 138_600;
+  const disbursement = cents.disbursement ?? 6_000;
+  return {
+    currency: "USD",
+    items: [
+      { key: "PREMIUM", name: "Premium", quantity: "1", unitAmountCents: premium },
+      { key: "BONUS", name: "Quality bonus", quantity: "1", unitAmountCents: bonus },
+      { key: "DISBURSEMENT", name: "Disbursement costs", quantity: "1", unitAmountCents: disbursement },
+    ],
+    totalCents: premium + bonus + disbursement,
+    premiumPoolCents: premium,
+    bonusPoolCents: bonus,
+    poolCents: premium + bonus,
+    disbursementCents: disbursement,
+    lotCode: LOT_CODE,
+    rateCardSha256: RATE_CARD_SHA256,
+  };
+}
+
+export const HERO_QUOTE: InvoiceQuote = heroQuote();
+export const HERO_MEMO = invoiceMemo("2026-A", RATE_CARD_SHA256, LOT_CODE);
 
 export const BUSINESS_EMAIL = "coop-business@example.test";
 export const PAYER = { businessName: "Lantern Bay Chocolate Co.", email: "lantern-bay@example.test" };
@@ -30,7 +51,7 @@ export function heroRun(overrides: Partial<InvoiceRun> = {}): InvoiceRun {
     runSeq: 37,
     seasonCode: "2026-A",
     rateCardSha256: RATE_CARD_SHA256,
-    lotCode: "LB-PH-2026-03",
+    lotCode: LOT_CODE,
     quote: HERO_QUOTE,
     payer: PAYER,
     sendApproval: {
@@ -64,12 +85,20 @@ const HERO_ITEMS = [
   ["Disbursement costs", "60.00"],
 ] as const;
 
+type ItemBody = {
+  name: string;
+  quantity: string;
+  unit_amount: { currency_code: string; value: string };
+  [key: string]: unknown;
+};
+
 /** 200 GET (`invoice`), as PayPal returns it for the hero invoice. A field set to null is left out. */
 export function invoiceBody(
   overrides: {
     id?: string;
     status?: string;
     reference?: string | null;
+    note?: string | null;
     total?: string | null;
     due?: string;
     number?: string;
@@ -77,12 +106,15 @@ export function invoiceBody(
     invoiceDate?: string | null;
     invoicer?: string;
     recipient?: string;
-    items?: { name: string; quantity: string; unit_amount: { currency_code: string; value: string } }[];
+    items?: ItemBody[];
+    configuration?: Record<string, unknown>;
+    breakdown?: Record<string, unknown>;
   } = {},
 ) {
   const id = overrides.id ?? INVOICE_ID;
   const reference =
     overrides.reference === undefined ? `rc:${RATE_CARD_SHA256.slice(0, 16)}` : overrides.reference;
+  const note = overrides.note === undefined ? HERO_MEMO : overrides.note;
   const total = overrides.total === undefined ? "4333.50" : overrides.total;
   const invoiceDate = overrides.invoiceDate === undefined ? "2026-11-05" : overrides.invoiceDate;
   return {
@@ -93,8 +125,8 @@ export function invoiceBody(
       currency_code: "USD",
       invoice_number: overrides.number ?? "FS-2026A-r37",
       ...(invoiceDate === null ? {} : { invoice_date: invoiceDate }),
-      note: "Season 2026-A, RC …",
-      payment_term: { term_type: "DUE_ON_RECEIPT", due_date: "2026-11-05" },
+      ...(note === null ? {} : { note }),
+      payment_term: { term_type: "DUE_ON_RECEIPT", due_date: invoiceDate ?? "2026-11-05" },
       metadata: {
         create_time: "2026-11-05T02:00:01Z",
         recipient_view_url: `https://www.sandbox.paypal.com/invoice/p/#${id}`,
@@ -118,7 +150,25 @@ export function invoiceBody(
         unit_amount: { currency_code: "USD", value },
         unit_of_measure: "AMOUNT",
       })),
-    amount: total === null ? { currency_code: "USD" } : { currency_code: "USD", value: total },
+    configuration: {
+      tax_calculated_after_discount: true,
+      tax_inclusive: false,
+      allow_tip: false,
+      ...overrides.configuration,
+    },
+    amount:
+      total === null
+        ? { currency_code: "USD" }
+        : {
+            currency_code: "USD",
+            value: total,
+            breakdown: {
+              item_total: { currency_code: "USD", value: total },
+              discount: { invoice_discount: { amount: { currency_code: "USD", value: "0.00" } } },
+              tax_total: { currency_code: "USD", value: "0.00" },
+              ...overrides.breakdown,
+            },
+          },
     due_amount: { currency_code: "USD", value: overrides.due ?? "4333.50" },
     links: [{ href: `${TOOLKIT_BASE}/v2/invoicing/invoices/${id}`, rel: "self", method: "GET" }],
   };
@@ -159,8 +209,18 @@ export function fakeAuth(tokens: string[] = ["test-token-1", "test-token-2"]) {
       exp: Date.now() + 3_600_000,
       scopes: [],
     })),
-    invalidate: vi.fn(() => {
+    invalidate: vi.fn((_stale?: string) => {
       i += 1;
     }),
   };
+}
+
+/** An IC-04 limiter double that admits every call and records what it was asked. */
+export function openLimiter() {
+  const take = vi.fn(
+    async (_request: Parameters<PayPalLimiter["take"]>[0]): ReturnType<PayPalLimiter["take"]> => ({
+      ok: true,
+    }),
+  );
+  return { take };
 }

@@ -5,11 +5,15 @@ import {
   INVOICE_NOTE_CLOSINGS,
   InvoiceAdoptError,
   InvoiceApprovalError,
+  type InvoiceCheckpoint,
   InvoiceDraftRejectedError,
+  InvoiceNotPayableError,
+  InvoiceRuleDateError,
   InvoiceStateError,
   Invoices,
   type InvoicesDeps,
   invoiceMemo,
+  invoiceMoneyExtras,
   PayPalToolkit,
   RECORD_PAYMENT_NOTE,
   ToolkitError,
@@ -18,29 +22,42 @@ import {
   BUSINESS_EMAIL,
   createdLink,
   fakeAuth,
+  HERO_MEMO,
   heroRun,
   INVOICE_ID,
   invoiceBody,
+  openLimiter,
   PAYER,
   payerViewLink,
   paypalError,
   RATE_CARD_SHA256,
   searchResult,
 } from "./support/fixtures.js";
-import { onGet, onPost, paypalEmpty, paypalJson, requests, useMsw } from "./support/msw.js";
+import {
+  onDelete,
+  onGet,
+  onPost,
+  paypalEmpty,
+  paypalJson,
+  requests,
+  sequence,
+  useMsw,
+} from "./support/msw.js";
 import { MemoryInvoiceRepo } from "./support/repo.js";
 
 useMsw();
 
+/** 02:00 UTC on 5 Nov is 18:00 on 4 Nov in Los Angeles: PayPal's "today" (ppDate) is 4 Nov. */
 const NOW = new Date("2026-11-05T02:00:00.000Z");
 const RUN = heroRun();
+const SECOND_ID = "INV2-AB12-CD34-EF56-GH78";
 
 function setup(
   seed: ConstructorParameters<typeof MemoryInvoiceRepo>[0] = {},
   extra: Partial<InvoicesDeps> = {},
 ) {
   const repo = new MemoryInvoiceRepo(seed);
-  const toolkit = new PayPalToolkit({ auth: fakeAuth() });
+  const toolkit = new PayPalToolkit({ auth: fakeAuth(), limiter: openLimiter() });
   const invoices = new Invoices({
     tk: toolkit.tk,
     repo,
@@ -51,16 +68,34 @@ function setup(
   return { repo, invoices };
 }
 
-const happyPayPal = () => {
+const happyPayPal = (getStatus = "UNPAID") => {
   onPost("/v2/invoicing/invoices", () => paypalJson(createdLink(), 201, "dbg-create"));
   onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink(), 200, "dbg-send"));
+  onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: getStatus }), 200, "dbg-get"));
   onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty(204, "dbg-rule"));
 };
 
 const callLog = () => requests.map((r) => `${r.method} ${r.url.pathname}`);
+const ruleDate = (i = -1) =>
+  (
+    requests.at(i)?.body as
+      | { rules?: { rule_expiry_terms: { condition_rule_end_date: string } }[] }
+      | undefined
+  )?.rules?.[0]?.rule_expiry_terms.condition_rule_end_date;
 
-describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
-  it("builds exactly the register §8 invoice and checkpoints each step", async () => {
+/** What a run's checkpoint holds once the invoice is created, sent and confirmed payable. */
+const PAYABLE: Partial<InvoiceCheckpoint> = {
+  invoiceId: INVOICE_ID,
+  invoiceNumber: "FS-2026A-r37",
+  note: HERO_MEMO,
+  invoiceDate: "2026-11-05",
+  sentAt: "2026-11-05T02:00:02.000Z",
+  payerViewUrl: payerViewLink().href,
+  payableAt: "2026-11-05T02:00:03.000Z",
+};
+
+describe("Invoices.ensureForRun: create → send → payable GET → AUTO_CANCEL rule", () => {
+  it("builds exactly the register §8 invoice, never sends a date, and checkpoints each step", async () => {
     happyPayPal();
     const { invoices, repo } = setup();
 
@@ -72,22 +107,23 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
       invoiceNumber: "FS-2026A-r37",
       adopted: false,
       invoiceDate: "2026-11-05",
-      payerViewUrl: payerViewLink().href,
+      payerViewUrl: invoiceBody().detail.metadata.recipient_view_url,
       autoCancelOn: "2026-11-30",
-      calls: 3,
+      recreated: false,
+      calls: 4,
     });
     expect(callLog()).toEqual([
       "POST /v2/invoicing/invoices",
       `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
       `POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`,
     ]);
-    const [create, send, rule] = requests;
-    // The body PayPal receives, as the toolkit nests our flat create_invoice arguments.
+    const [create, send, , rule] = requests;
+    // The body PayPal receives, as the toolkit nests our flat create_invoice arguments: no invoice_date.
     expect(create?.body).toEqual({
       detail: {
         reference: `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
         invoice_number: "FS-2026A-r37",
-        invoice_date: "2026-11-05",
         currency_code: "USD",
         note: invoiceMemo("2026-A", RATE_CARD_SHA256, "LB-PH-2026-03"),
       },
@@ -131,10 +167,28 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
     expect(rule?.headers.get("paypal-request-id")).toBe(`cr-${INVOICE_ID}`);
     expect(create?.headers.get("paypal-request-id")).toBeNull();
     expect(repo.saves.map((s) => Object.keys(s.patch).sort())).toEqual([
-      ["adopted", "invoiceDate", "invoiceId", "invoiceNumber"],
+      ["adopted", "invoiceDate", "invoiceId", "invoiceNumber", "note"],
       ["payerViewUrl", "sentAt"],
+      ["invoiceDate", "payableAt", "payerViewUrl"],
       ["autoCancelOn", "ruleSetAt"],
     ]);
+  });
+
+  it("dates the AUTO_CANCEL rule from the date PayPal gave the invoice (C-27), not from our clock", async () => {
+    happyPayPal();
+    onGet("/v2/invoicing/invoices/:id", () =>
+      paypalJson(invoiceBody({ status: "UNPAID", invoiceDate: "2026-11-04" })),
+    );
+    const { invoices, repo } = setup();
+    const out = await invoices.ensureForRun(RUN);
+    expect(out).toMatchObject({ invoiceDate: "2026-11-04", autoCancelOn: "2026-11-29" });
+    expect(ruleDate()).toBe("2026-11-29");
+    expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceDate: "2026-11-04", autoCancelOn: "2026-11-29" });
+  });
+
+  it.each(["SENT", "UNPAID", "SHARED"])("accepts %s on the payable GET", async (status) => {
+    happyPayPal(status);
+    await expect(setup().invoices.ensureForRun(RUN)).resolves.toMatchObject({ status: "SENT" });
   });
 
   it("adopts the invoice already carrying our number when create fails", async () => {
@@ -148,20 +202,27 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
       ),
     );
     onPost("/v2/invoicing/search-invoices", () => paypalJson(searchResult(invoiceBody({ status: "DRAFT" }))));
-    onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "DRAFT" })));
+    onGet(
+      "/v2/invoicing/invoices/:id",
+      sequence(
+        () => paypalJson(invoiceBody({ status: "DRAFT" })),
+        () => paypalJson(invoiceBody({ status: "UNPAID" })),
+      ),
+    );
     onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
     onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
     const { invoices, repo } = setup();
 
     const out = await invoices.ensureForRun(RUN);
 
-    expect(out).toMatchObject({ status: "SENT", invoiceId: INVOICE_ID, adopted: true, calls: 5 });
+    expect(out).toMatchObject({ status: "SENT", invoiceId: INVOICE_ID, adopted: true, calls: 6 });
     expect(callLog()).toEqual([
       "POST /v2/invoicing/invoices",
       "POST /v2/invoicing/search-invoices",
       // The match is verified on a fresh GET, never on the search result alone.
       `GET /v2/invoicing/invoices/${INVOICE_ID}`,
       `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
       `POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`,
     ]);
     expect(requests[1]?.body).toEqual({ invoice_number: "FS-2026A-r37" });
@@ -179,19 +240,20 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
 
     const out = await invoices.ensureForRun(RUN);
 
+    // The adoption GET was a fresh GET of a sent invoice: it is the payable check too.
     expect(out).toMatchObject({ status: "SENT", adopted: true, calls: 4 });
     expect(out.payerViewUrl).toBe(invoiceBody().detail.metadata.recipient_view_url);
     expect(callLog()).not.toContain(`POST /v2/invoicing/invoices/${INVOICE_ID}/send`);
   });
 
   it("keeps PayPal's date for an invoice adopted a day later, and cancels 25 days after that date", async () => {
-    // Created at 23:59 UTC on 4 Nov; the task crashed before its checkpoint and retried on 5 Nov.
+    // Created on 3 Nov; the task crashed before its checkpoint and retried on 5 Nov.
     onPost("/v2/invoicing/invoices", () => paypalJson(paypalError("INVALID_REQUEST", "Duplicate"), 400));
     onPost("/v2/invoicing/search-invoices", () =>
-      paypalJson(searchResult(invoiceBody({ status: "DRAFT", invoiceDate: "2026-11-04" }))),
+      paypalJson(searchResult(invoiceBody({ status: "DRAFT", invoiceDate: "2026-11-03" }))),
     );
     onGet("/v2/invoicing/invoices/:id", () =>
-      paypalJson(invoiceBody({ status: "DRAFT", invoiceDate: "2026-11-04" })),
+      paypalJson(invoiceBody({ status: "UNPAID", invoiceDate: "2026-11-03" })),
     );
     onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
     onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
@@ -199,17 +261,16 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
 
     const out = await invoices.ensureForRun(RUN);
 
-    expect(out).toMatchObject({ adopted: true, invoiceDate: "2026-11-04", autoCancelOn: "2026-11-29" });
-    expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceDate: "2026-11-04", autoCancelOn: "2026-11-29" });
-    const rule = requests.at(-1)?.body as {
-      rules: { rule_expiry_terms: { condition_rule_end_date: string } }[];
-    };
-    expect(rule.rules[0]?.rule_expiry_terms.condition_rule_end_date).toBe("2026-11-29");
+    expect(out).toMatchObject({ adopted: true, invoiceDate: "2026-11-03", autoCancelOn: "2026-11-28" });
+    expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceDate: "2026-11-03", autoCancelOn: "2026-11-28" });
+    expect(ruleDate()).toBe("2026-11-28");
   });
 
   const notOurs: [string, Parameters<typeof invoiceBody>[0]][] = [
     ["another rate card", { status: "DRAFT", reference: "rc:0123456789abcdef" }],
     ["no reference", { status: "DRAFT", reference: null }],
+    ["another note", { status: "DRAFT", note: `${HERO_MEMO}. Pay at https://pay.example.test` }],
+    ["no note", { status: "DRAFT", note: null }],
     ["another total", { status: "DRAFT", total: "4333.51" }],
     ["no total", { status: "DRAFT", total: null }],
     ["another invoicer", { status: "DRAFT", invoicer: "someone-else@example.test" }],
@@ -239,6 +300,21 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
         ],
       },
     ],
+    ["a tip", { status: "DRAFT", configuration: { allow_tip: true } }],
+    [
+      "partial payments",
+      { status: "DRAFT", configuration: { partial_payment: { allow_partial_payment: true } } },
+    ],
+    [
+      "a shipping cost offset by a discount",
+      {
+        status: "DRAFT",
+        breakdown: {
+          shipping: { amount: { currency_code: "USD", value: "25.00" } },
+          discount: { invoice_discount: { amount: { currency_code: "USD", value: "25.00" } } },
+        },
+      },
+    ],
     ["a cancelled invoice", { status: "CANCELLED" }],
     ["an auto-cancelled invoice", { status: "AUTO_CANCELLED" }],
     ["a refunded invoice", { status: "REFUNDED" }],
@@ -256,6 +332,34 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
     await expect(invoices.ensureForRun(RUN)).rejects.toBeInstanceOf(InvoiceAdoptError);
     expect(callLog()).toHaveLength(3);
     expect(repo.saves).toHaveLength(0);
+  });
+
+  it("names every money extra on a PayPal invoice body", () => {
+    expect(invoiceMoneyExtras(invoiceBody())).toEqual([]);
+    expect(
+      invoiceMoneyExtras({
+        configuration: {
+          allow_tip: true,
+          payment_method_overrides: [{ payment_method_type: "PAY_BY_BANK" }],
+        },
+        amount: {
+          breakdown: {
+            custom: { label: "Fee", amount: { value: "1.00" } },
+            tax_total: { value: "0.01" },
+            discount: { item_discount: { value: "2.00" } },
+          },
+        },
+        items: [{ tax: { percent: "12" } }, { discount: { amount: { value: "0.50" } } }],
+      }),
+    ).toEqual([
+      "configuration.allow_tip",
+      "configuration.payment_method_overrides",
+      "amount.breakdown.custom",
+      "amount.breakdown.tax_total",
+      "amount.breakdown.discount.item_discount",
+      "items[0].tax",
+      "items[1].discount",
+    ]);
   });
 
   it("refuses to choose between two invoices carrying our number (HALT)", async () => {
@@ -303,33 +407,33 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
 
   it("resumes from its checkpoint without repeating a step", async () => {
     onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
-    const { invoices } = setup({
-      [RUN.runId]: {
-        invoiceId: INVOICE_ID,
-        invoiceNumber: "FS-2026A-r37",
-        invoiceDate: "2026-11-04",
-        sentAt: "2026-11-04T23:59:00.000Z",
-        payerViewUrl: payerViewLink().href,
-      },
-    });
+    const { invoices } = setup({ [RUN.runId]: { ...PAYABLE, invoiceDate: "2026-11-04" } });
     const out = await invoices.ensureForRun(RUN);
     expect(callLog()).toEqual([`POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`]);
-    // The checkpointed invoice date wins over today's date: the run is never re-dated.
+    // The date PayPal gave the invoice wins over today's date: the run is never re-dated.
     expect(out).toMatchObject({ invoiceDate: "2026-11-04", autoCancelOn: "2026-11-29", calls: 1 });
+  });
+
+  it("resumes a sent invoice with the payable GET it has not had yet", async () => {
+    onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "UNPAID" })));
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+    const { invoices } = setup({ [RUN.runId]: { ...PAYABLE, invoiceDate: null, payableAt: null } });
+    await expect(invoices.ensureForRun(RUN)).resolves.toMatchObject({ status: "SENT", calls: 2 });
+    expect(callLog()).toEqual([
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`,
+    ]);
   });
 
   it("does nothing for a run that is already done", async () => {
     const { invoices } = setup({
-      [RUN.runId]: {
-        invoiceId: INVOICE_ID,
-        invoiceNumber: "FS-2026A-r37",
-        invoiceDate: "2026-11-05",
-        sentAt: "x",
-        ruleSetAt: "y",
-        autoCancelOn: "2026-11-30",
-      },
+      [RUN.runId]: { ...PAYABLE, ruleSetAt: "2026-11-05T02:00:04.000Z", autoCancelOn: "2026-11-30" },
     });
-    await expect(invoices.ensureForRun(RUN)).resolves.toMatchObject({ status: "SENT", calls: 0 });
+    await expect(invoices.ensureForRun(RUN)).resolves.toMatchObject({
+      status: "SENT",
+      autoCancelOn: "2026-11-30",
+      calls: 0,
+    });
     expect(requests).toHaveLength(0);
   });
 
@@ -342,23 +446,40 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
     happyPayPal();
     const { invoices } = setup();
     const pending = await invoices.ensureForRun(heroRun({ sendApproval: null }));
-    expect(pending).toMatchObject({ status: "PENDING_APPROVAL", calls: 1, autoCancelOn: null });
+    expect(pending).toMatchObject({
+      status: "PENDING_APPROVAL",
+      calls: 1,
+      autoCancelOn: null,
+      invoiceDate: null,
+    });
     expect(callLog()).toEqual(["POST /v2/invoicing/invoices"]);
 
     const sent = await invoices.ensureForRun(RUN);
-    expect(sent).toMatchObject({ status: "SENT", calls: 2, adopted: false });
-    expect(callLog()).toHaveLength(3);
+    expect(sent).toMatchObject({ status: "SENT", calls: 3, adopted: false });
+    expect(callLog()).toHaveLength(4);
   });
 
-  it("can put the AUTO_CANCEL rule on before the send (S2 fallback order)", async () => {
-    happyPayPal();
+  it("can put the AUTO_CANCEL rule on before the send (S2 fallback order), reading PayPal's date first", async () => {
+    onPost("/v2/invoicing/invoices", () => paypalJson(createdLink(), 201));
+    onGet(
+      "/v2/invoicing/invoices/:id",
+      sequence(
+        () => paypalJson(invoiceBody({ status: "DRAFT" })),
+        () => paypalJson(invoiceBody({ status: "UNPAID" })),
+      ),
+    );
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+    onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
     const { invoices } = setup({}, { ruleBeforeSend: true });
-    await invoices.ensureForRun(RUN);
+    await expect(invoices.ensureForRun(RUN)).resolves.toMatchObject({ status: "SENT", calls: 5 });
     expect(callLog()).toEqual([
       "POST /v2/invoicing/invoices",
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
       `POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`,
       `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
     ]);
+    expect(ruleDate(2)).toBe("2026-11-30");
   });
 
   it("checks a failed send with a GET and treats a sent invoice as sent", async () => {
@@ -390,8 +511,8 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
 
   it("uses the agent's chosen closing; every name and number stays the code's", async () => {
     happyPayPal();
-    const { invoices } = setup();
-    const plan = buildInvoicePlan(RUN, { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL });
+    const { invoices, repo } = setup();
+    const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
     const draft = { ...plan.createArgs, note: `${plan.note}. ${INVOICE_NOTE_CLOSINGS[2]}` };
     await invoices.ensureForRun(RUN, { draft });
     const body = requests[0]?.body as {
@@ -400,11 +521,12 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
     };
     expect(body.detail.note).toBe(draft.note);
     expect(body.items).toEqual(plan.createArgs.items);
+    expect(repo.rows.get(RUN.runId)?.note).toBe(draft.note);
   });
 
   it("refuses an agent draft with free text before any call", async () => {
     const { invoices } = setup();
-    const plan = buildInvoicePlan(RUN, { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL });
+    const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
     const draft = { ...plan.createArgs, note: `${plan.note}. Thank you, Lantern Bay.` };
     await expect(invoices.ensureForRun(RUN, { draft })).rejects.toBeInstanceOf(InvoiceDraftRejectedError);
     expect(requests).toHaveLength(0);
@@ -442,15 +564,8 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
   });
 
   it("refuses an AUTO_CANCEL date that has already passed (dueWithin30Days), before calling", async () => {
-    // A run whose invoice is dated 1 Oct, resumed on 5 Nov: invoice date + 25 = 26 Oct is past.
-    const { invoices, repo } = setup({
-      [RUN.runId]: {
-        invoiceId: INVOICE_ID,
-        invoiceNumber: "FS-2026A-r37",
-        invoiceDate: "2026-10-01",
-        sentAt: "2026-10-01T02:00:00.000Z",
-      },
-    });
+    // A run whose invoice PayPal dated 1 Oct, resumed on 5 Nov: invoice date + 25 = 26 Oct is past.
+    const { invoices, repo } = setup({ [RUN.runId]: { ...PAYABLE, invoiceDate: "2026-10-01" } });
     await expect(invoices.ensureForRun(RUN)).rejects.toThrow(/not after today/);
     expect(requests).toHaveLength(0);
     expect(repo.rows.get(RUN.runId)?.ruleSetAt ?? null).toBeNull();
@@ -458,7 +573,7 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
 
   it("inv.i1.no-model-numbers: a draft with a model-written amount is refused before any call", async () => {
     const { invoices, repo } = setup();
-    const plan = buildInvoicePlan(RUN, { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL });
+    const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
     const draft = {
       ...plan.createArgs,
       items: plan.createArgs.items.map((item, i) =>
@@ -475,8 +590,120 @@ describe("Invoices.ensureForRun: create → send → AUTO_CANCEL rule", () => {
   });
 });
 
+describe("Invoices.ensureForRun: a SCHEDULED invoice is deleted and recreated once", () => {
+  const twoInvoices = (secondGetStatus: string) => {
+    onPost(
+      "/v2/invoicing/invoices",
+      sequence(
+        () => paypalJson(createdLink(INVOICE_ID), 201),
+        () => paypalJson(createdLink(SECOND_ID), 201),
+      ),
+    );
+    onPost("/v2/invoicing/invoices/:id/send", ({ url }) =>
+      paypalJson(payerViewLink(url.pathname.split("/").at(-2) as string)),
+    );
+    onGet("/v2/invoicing/invoices/:id", (_req, { id }) =>
+      paypalJson(invoiceBody({ id, status: id === INVOICE_ID ? "SCHEDULED" : secondGetStatus })),
+    );
+    onDelete("/v2/invoicing/invoices/:id", () => paypalEmpty(204));
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+  };
+
+  it("deletes the SCHEDULED invoice, creates the run's invoice again, sends it and checks it", async () => {
+    twoInvoices("UNPAID");
+    const { invoices, repo } = setup();
+
+    const out = await invoices.ensureForRun(RUN);
+
+    expect(out).toMatchObject({ status: "SENT", invoiceId: SECOND_ID, recreated: true, calls: 8 });
+    expect(callLog()).toEqual([
+      "POST /v2/invoicing/invoices",
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+      `DELETE /v2/invoicing/invoices/${INVOICE_ID}`,
+      "POST /v2/invoicing/invoices",
+      `POST /v2/invoicing/invoices/${SECOND_ID}/send`,
+      `GET /v2/invoicing/invoices/${SECOND_ID}`,
+      `POST /v2/invoicing/invoices/${SECOND_ID}/conditional-rules`,
+    ]);
+    // The same number, the same body: deleting a SCHEDULED invoice frees its number.
+    expect(requests[4]?.body).toEqual(requests[0]?.body);
+    expect(repo.rows.get(RUN.runId)).toMatchObject({
+      invoiceId: SECOND_ID,
+      scheduledInvoiceId: INVOICE_ID,
+      ruleSetAt: expect.any(String),
+    });
+  });
+
+  it("halts on a second SCHEDULED: never a third invoice", async () => {
+    twoInvoices("SCHEDULED");
+    const { invoices } = setup();
+
+    const error = (await invoices.ensureForRun(RUN).catch((e: unknown) => e)) as InvoiceNotPayableError;
+
+    expect(error).toBeInstanceOf(InvoiceNotPayableError);
+    expect(error).toMatchObject({ invoiceId: SECOND_ID, status: "SCHEDULED" });
+    expect(callLog().filter((c) => c === "POST /v2/invoicing/invoices")).toHaveLength(2);
+    expect(callLog()).not.toContain(`DELETE /v2/invoicing/invoices/${SECOND_ID}`);
+  });
+
+  it("a retry halts too, once the one recreate is spent", async () => {
+    twoInvoices("SCHEDULED");
+    const { invoices } = setup();
+    await invoices.ensureForRun(RUN).catch(() => undefined);
+    requests.length = 0;
+    await expect(invoices.ensureForRun(RUN)).rejects.toBeInstanceOf(InvoiceNotPayableError);
+    expect(callLog()).toEqual([`GET /v2/invoicing/invoices/${SECOND_ID}`]);
+  });
+
+  it("finishes a recreate interrupted between the delete and the checkpoint", async () => {
+    onGet("/v2/invoicing/invoices/:id", (_req, { id }) =>
+      id === INVOICE_ID
+        ? paypalJson(paypalError("RESOURCE_NOT_FOUND", "The specified resource does not exist."), 404)
+        : paypalJson(invoiceBody({ id, status: "UNPAID" })),
+    );
+    onPost("/v2/invoicing/invoices", () => paypalJson(createdLink(SECOND_ID), 201));
+    onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink(SECOND_ID)));
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+    const closing = `${HERO_MEMO}. ${INVOICE_NOTE_CLOSINGS[0]}`;
+    const { invoices } = setup({
+      [RUN.runId]: { ...PAYABLE, note: closing, payableAt: null, scheduledInvoiceId: INVOICE_ID },
+    });
+
+    const out = await invoices.ensureForRun(RUN);
+
+    expect(out).toMatchObject({ status: "SENT", invoiceId: SECOND_ID, recreated: true });
+    expect(callLog()[0]).toBe(`GET /v2/invoicing/invoices/${INVOICE_ID}`);
+    // The recreated invoice reads as the first did: the agent's closing is kept from the checkpoint.
+    expect((requests[1]?.body as { detail?: { note?: string } } | undefined)?.detail?.note).toBe(closing);
+  });
+
+  it.each(["CANCELLED", "AUTO_CANCELLED", "DRAFT", "SOMETHING_NEW"])(
+    "halts when the payable GET shows %s after the send",
+    async (status) => {
+      onPost("/v2/invoicing/invoices", () => paypalJson(createdLink(), 201));
+      onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
+      onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status })));
+      const { invoices, repo } = setup();
+      await expect(invoices.ensureForRun(RUN)).rejects.toBeInstanceOf(InvoiceNotPayableError);
+      expect(callLog()).toHaveLength(3);
+      expect(repo.rows.get(RUN.runId)?.payableAt ?? null).toBeNull();
+    },
+  );
+
+  it("halts when PayPal's invoice date is unreadable (no AUTO_CANCEL date can be derived)", async () => {
+    onPost("/v2/invoicing/invoices", () => paypalJson(createdLink(), 201));
+    onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
+    onGet("/v2/invoicing/invoices/:id", () =>
+      paypalJson(invoiceBody({ status: "UNPAID", invoiceDate: null })),
+    );
+    await expect(setup().invoices.ensureForRun(RUN)).rejects.toBeInstanceOf(InvoiceNotPayableError);
+    expect(callLog()).toHaveLength(3);
+  });
+});
+
 describe("Invoices steps one at a time (the agent's create, send, rule and read)", () => {
-  const created = { invoiceId: INVOICE_ID, invoiceNumber: "FS-2026A-r37", invoiceDate: "2026-11-05" };
+  const created = { invoiceId: INVOICE_ID, invoiceNumber: "FS-2026A-r37", note: HERO_MEMO };
   const approval = {
     approverId: "persona:analyn",
     approvedAt: NOW.toISOString(),
@@ -490,52 +717,86 @@ describe("Invoices steps one at a time (the agent's create, send, rule and read)
     expect(first).toEqual({
       invoiceId: INVOICE_ID,
       invoiceNumber: "FS-2026A-r37",
-      invoiceDate: "2026-11-05",
+      invoiceDate: null,
       adopted: false,
       alreadyDone: false,
       sent: false,
       payerViewUrl: null,
       calls: 1,
     });
-    expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceId: INVOICE_ID, invoiceDate: "2026-11-05" });
+    expect(repo.rows.get(RUN.runId)).toMatchObject({
+      invoiceId: INVOICE_ID,
+      invoiceDate: null,
+      note: HERO_MEMO,
+    });
     await expect(invoices.create(RUN)).resolves.toMatchObject({ alreadyDone: true, calls: 0 });
     expect(callLog()).toEqual(["POST /v2/invoicing/invoices"]);
   });
 
-  it("create() records an adopted invoice that PayPal already shows sent", async () => {
+  it("create() records an adopted invoice that PayPal already shows sent and payable", async () => {
     onPost("/v2/invoicing/invoices", () => HttpResponse.error());
     onPost("/v2/invoicing/search-invoices", () => paypalJson(searchResult(invoiceBody({ status: "SENT" }))));
     onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "SENT" })));
     const { invoices, repo } = setup();
-    await expect(invoices.create(RUN)).resolves.toMatchObject({ adopted: true, sent: true, calls: 3 });
-    expect(repo.rows.get(RUN.runId)?.sentAt).toBe(NOW.toISOString());
+    await expect(invoices.create(RUN)).resolves.toMatchObject({
+      adopted: true,
+      sent: true,
+      invoiceDate: "2026-11-05",
+      calls: 3,
+    });
+    expect(repo.rows.get(RUN.runId)).toMatchObject({
+      sentAt: NOW.toISOString(),
+      payableAt: NOW.toISOString(),
+    });
   });
 
-  it("send() sends the run's invoice once, and needs the invoice first", async () => {
+  it("send() sends the run's invoice once and checks it is payable; it needs the invoice first", async () => {
     onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
+    onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "UNPAID" })));
     await expect(setup().invoices.send(RUN, approval)).rejects.toBeInstanceOf(InvoiceStateError);
-    const { invoices } = setup({ [RUN.runId]: created });
+    const { invoices, repo } = setup({ [RUN.runId]: created });
     await expect(invoices.send(RUN, approval)).resolves.toEqual({
       invoiceId: INVOICE_ID,
-      payerViewUrl: payerViewLink().href,
+      payerViewUrl: invoiceBody().detail.metadata.recipient_view_url,
       alreadyDone: false,
-      calls: 1,
+      calls: 2,
     });
     await expect(invoices.send(RUN, approval)).resolves.toMatchObject({ alreadyDone: true, calls: 0 });
-    expect(callLog()).toEqual([`POST /v2/invoicing/invoices/${INVOICE_ID}/send`]);
+    expect(callLog()).toEqual([
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+    ]);
+    expect(repo.rows.get(RUN.runId)).toMatchObject({
+      invoiceDate: "2026-11-05",
+      payableAt: NOW.toISOString(),
+    });
   });
 
-  it("send() refuses an approval of another invoice", async () => {
+  it("send() refuses an approval of another invoice, and an unsent invoice without one", async () => {
     const { invoices } = setup({ [RUN.runId]: created });
     await expect(invoices.send(RUN, { ...approval, invoiceNumber: "FS-2026A-r38" })).rejects.toBeInstanceOf(
       InvoiceApprovalError,
     );
+    await expect(invoices.send(RUN, null)).rejects.toBeInstanceOf(InvoiceApprovalError);
     expect(requests).toHaveLength(0);
   });
 
-  it("ensureRule() dates the rule from the checkpointed invoice date, once", async () => {
+  it("send() leaves a SCHEDULED invoice to the server chain: the agent path never deletes", async () => {
+    onPost("/v2/invoicing/invoices/:id/send", () => paypalJson(payerViewLink()));
+    onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "SCHEDULED" })));
+    const { invoices, repo } = setup({ [RUN.runId]: created });
+    await expect(invoices.send(RUN, approval)).rejects.toBeInstanceOf(InvoiceNotPayableError);
+    expect(callLog()).toEqual([
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+    ]);
+    expect(repo.rows.get(RUN.runId)?.sentAt).toBe(NOW.toISOString());
+    expect(repo.rows.get(RUN.runId)?.payableAt ?? null).toBeNull();
+  });
+
+  it("ensureRule() dates the rule from PayPal's invoice date, once", async () => {
     onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
-    const { invoices } = setup({ [RUN.runId]: { ...created, invoiceDate: "2026-11-04" } });
+    const { invoices } = setup({ [RUN.runId]: { ...PAYABLE, invoiceDate: "2026-11-04" } });
     await expect(invoices.ensureRule(RUN)).resolves.toEqual({
       invoiceId: INVOICE_ID,
       autoCancelOn: "2026-11-29",
@@ -547,28 +808,43 @@ describe("Invoices steps one at a time (the agent's create, send, rule and read)
     await expect(setup().invoices.ensureRule(RUN)).rejects.toBeInstanceOf(InvoiceStateError);
   });
 
-  it("fetch() reads the run's own invoice", async () => {
+  it("ensureRule() reads PayPal's date with a GET when the run does not hold it yet", async () => {
+    onGet("/v2/invoicing/invoices/:id", () =>
+      paypalJson(invoiceBody({ status: "DRAFT", invoiceDate: "2026-11-04" })),
+    );
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+    const { invoices, repo } = setup({ [RUN.runId]: created });
+    await expect(invoices.ensureRule(RUN)).resolves.toMatchObject({ autoCancelOn: "2026-11-29", calls: 2 });
+    expect(repo.rows.get(RUN.runId)?.invoiceDate).toBe("2026-11-04");
+    expect(repo.rows.get(RUN.runId)?.payableAt ?? null).toBeNull();
+  });
+
+  it("ensureRule() refuses an end date other than PayPal's invoice date + 25 days, before the rule call", async () => {
+    const { invoices } = setup({ [RUN.runId]: PAYABLE });
+    const error = (await invoices
+      .ensureRule(RUN, { endDate: "2026-12-04" })
+      .catch((e: unknown) => e)) as InvoiceRuleDateError;
+    expect(error).toBeInstanceOf(InvoiceRuleDateError);
+    expect(error).toMatchObject({ asked: "2026-12-04", expected: "2026-11-30" });
+    expect(requests).toHaveLength(0);
+  });
+
+  it("fetch() reads the run's own invoice and writes nothing", async () => {
     onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody()));
-    const { invoices } = setup({ [RUN.runId]: created });
+    const { invoices, repo } = setup({ [RUN.runId]: created });
     await expect(invoices.fetch(RUN)).resolves.toMatchObject({ id: INVOICE_ID });
     await expect(setup().invoices.fetch(RUN)).rejects.toBeInstanceOf(InvoiceStateError);
     expect(callLog()).toEqual([`GET /v2/invoicing/invoices/${INVOICE_ID}`]);
+    expect(repo.saves).toHaveLength(0);
   });
 });
 
 describe("Invoices.recordPayment: Judge Mode funding, labelled simulated rail", () => {
-  const sentCheckpoint = {
-    invoiceId: INVOICE_ID,
-    invoiceNumber: "FS-2026A-r37",
-    invoiceDate: "2026-11-05",
-    sentAt: "2026-11-05T02:00:01.000Z",
-  };
-
-  it("records the code total by BANK_TRANSFER with the labelled note", async () => {
+  it("records the code total by BANK_TRANSFER with the labelled note, and no payment date", async () => {
     onPost("/v2/invoicing/invoices/:id/payments", () =>
       paypalJson({ payment_id: "EXTR-86F38350LX4353815" }, 200),
     );
-    const { invoices, repo } = setup({ [RUN.runId]: sentCheckpoint });
+    const { invoices, repo } = setup({ [RUN.runId]: PAYABLE });
 
     const out = await invoices.recordPayment(RUN);
 
@@ -580,9 +856,9 @@ describe("Invoices.recordPayment: Judge Mode funding, labelled simulated rail", 
       provenance: "simulated_rail",
       calls: 1,
     });
+    // PayPal dates the payment itself (S3): no UTC date can land on PayPal's tomorrow.
     expect(requests[0]?.body).toEqual({
       method: "BANK_TRANSFER",
-      payment_date: "2026-11-05",
       amount: { currency_code: "USD", value: "4333.50" },
       note: RECORD_PAYMENT_NOTE,
     });
@@ -594,7 +870,7 @@ describe("Invoices.recordPayment: Judge Mode funding, labelled simulated rail", 
 
   it("is idempotent: a recorded payment is never recorded twice", async () => {
     onPost("/v2/invoicing/invoices/:id/payments", () => paypalJson({ payment_id: "EXTR-1" }));
-    const { invoices } = setup({ [RUN.runId]: sentCheckpoint });
+    const { invoices } = setup({ [RUN.runId]: PAYABLE });
     await invoices.recordPayment(RUN);
     const again = await invoices.recordPayment(RUN);
     expect(again).toMatchObject({ recorded: false, alreadyRecorded: true, calls: 0 });
@@ -606,7 +882,7 @@ describe("Invoices.recordPayment: Judge Mode funding, labelled simulated rail", 
       paypalJson(invoiceBody({ status: "MARKED_AS_PAID", due: "0.00" })),
     );
     const { invoices } = setup({
-      [RUN.runId]: { ...sentCheckpoint, paymentAttemptedAt: "2026-11-05T02:01:00.000Z" },
+      [RUN.runId]: { ...PAYABLE, paymentAttemptedAt: "2026-11-05T02:01:00.000Z" },
     });
     const out = await invoices.recordPayment(RUN);
     expect(out).toMatchObject({ recorded: false, alreadyRecorded: true, calls: 1 });
@@ -617,15 +893,17 @@ describe("Invoices.recordPayment: Judge Mode funding, labelled simulated rail", 
     onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody({ status: "SENT" })));
     onPost("/v2/invoicing/invoices/:id/payments", () => paypalJson({ payment_id: "EXTR-2" }));
     const { invoices } = setup({
-      [RUN.runId]: { ...sentCheckpoint, paymentAttemptedAt: "2026-11-05T02:01:00.000Z" },
+      [RUN.runId]: { ...PAYABLE, paymentAttemptedAt: "2026-11-05T02:01:00.000Z" },
     });
     await expect(invoices.recordPayment(RUN)).resolves.toMatchObject({ recorded: true, calls: 2 });
   });
 
-  it("refuses to pay an invoice that does not exist or was not sent", async () => {
+  it("refuses to pay an invoice that does not exist, was not sent, or is not confirmed payable", async () => {
     await expect(setup().invoices.recordPayment(RUN)).rejects.toBeInstanceOf(InvoiceStateError);
     const draftOnly = setup({ [RUN.runId]: { invoiceId: INVOICE_ID, invoiceNumber: "FS-2026A-r37" } });
     await expect(draftOnly.invoices.recordPayment(RUN)).rejects.toBeInstanceOf(InvoiceStateError);
+    const unchecked = setup({ [RUN.runId]: { ...PAYABLE, payableAt: null } });
+    await expect(unchecked.invoices.recordPayment(RUN)).rejects.toBeInstanceOf(InvoiceStateError);
     expect(requests).toHaveLength(0);
   });
 });
