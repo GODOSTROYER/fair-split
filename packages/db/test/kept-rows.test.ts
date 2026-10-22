@@ -1,6 +1,6 @@
 /**
- * Rows that must outlive a Judge workspace (review major, paypal.ts). Judge workspaces are purged hourly and the
- * Reset button expires one at once, but three tables are global memory that only happens to name a workspace:
+ * Rows that must outlive a Judge workspace (review major, paypal.ts). The hourly judgeReset purges every judge
+ * workspace whose expiry has passed, but three tables are global memory that only happens to name a workspace:
  *
  * - `paypal_calls` is the limiter's 60 s window and its 6-minute 429 circuit (the sandbox blocks the IP above 50/min);
  * - `webhook_events` is the event-id dedupe record (a resent duplicate must stay a duplicate);
@@ -28,37 +28,40 @@ afterAll(async () => {
 
 const live = { purpose: "toolkit:create_invoice", priority: "live" as const };
 
-/** What the Reset button and the hourly judgeReset do: expire the workspace, then purge it. */
-async function expireAndPurge(workspaceId: string): Promise<void> {
-  await t.app.db
-    .update(workspaces)
-    .set({ expiresAt: new Date(Date.now() - 1000) })
-    .where(eq(workspaces.id, workspaceId));
+/**
+ * A judge workspace whose expiry has passed (an expiry never moves earlier, migrations/0009, so the fixture is
+ * created with one already past: its 24 h are over).
+ */
+const expiredJudge = () =>
+  fixtureWorkspace(t.app.db, { kind: "judge", expiresAt: new Date(Date.now() - 1000) });
+
+/** What the hourly judgeReset does with it: purge it. */
+async function purge(workspaceId: string): Promise<void> {
   const [res] = await t.app.sql<{ ok: boolean }[]>`select fs_purge_workspace(${workspaceId}) as ok`;
   expect(res?.ok).toBe(true);
   expect(await t.owner.db.select().from(workspaces).where(eq(workspaces.id, workspaceId))).toHaveLength(0);
 }
 
 describe("a purge keeps the limiter's memory (paypal_calls ON DELETE SET NULL)", () => {
-  it("a 429 recorded against judge workspace W keeps the circuit open after W is expired and purged", async () => {
-    const w = await fixtureWorkspace(t.app.db, { kind: "judge" });
+  it("a 429 recorded against judge workspace W keeps the circuit open after W is purged", async () => {
+    const w = await expiredJudge();
     const limiter = createLimiter(t.app.db);
     const g = await limiter.take({ ...live, workspaceId: w.workspaceId });
     if (!g.ok) throw new Error("expected a grant");
     await limiter.record(g.callId, { status: 429, ms: 40, debugId: "f2f3a1b0c9d8e" });
-    await expireAndPurge(w.workspaceId);
+    await purge(w.workspaceId);
     expect(await limiter.take(live)).toMatchObject({ ok: false, reason: "CIRCUIT_OPEN" });
     const [row] = await t.owner.db.select().from(paypalCalls).where(eq(paypalCalls.id, g.callId));
     expect(row).toMatchObject({ status: 429, workspaceId: null, debugId: "f2f3a1b0c9d8e" });
   });
 
   it("slots a purged workspace spent still count against the 60 s window", async () => {
-    const w = await fixtureWorkspace(t.app.db, { kind: "judge" });
+    const w = await expiredJudge();
     const limiter = createLimiter(t.app.db, { perWindow: 3 });
     for (let i = 0; i < 3; i++) {
       expect((await limiter.take({ ...live, workspaceId: w.workspaceId })).ok).toBe(true);
     }
-    await expireAndPurge(w.workspaceId);
+    await purge(w.workspaceId);
     expect(await limiter.take(live)).toMatchObject({ ok: false, reason: "WINDOW_FULL" });
     expect((await limiter.state()).inWindow).toBe(3);
   });
@@ -66,7 +69,7 @@ describe("a purge keeps the limiter's memory (paypal_calls ON DELETE SET NULL)",
 
 describe("a purge keeps webhook dedupe and AI spend", () => {
   it("a purged workspace's webhook event stays, so PayPal's resent duplicate is still a duplicate", async () => {
-    const w = await fixtureWorkspace(t.app.db, { kind: "judge" });
+    const w = await expiredJudge();
     const event = {
       paypalEventId: "WH-7Y7254563A4550640-11V2185806837105M",
       eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
@@ -76,7 +79,7 @@ describe("a purge keeps webhook dedupe and AI spend", () => {
       provenance: "simulated_rail" as const,
     };
     await t.app.db.insert(webhookEvents).values({ ...event, workspaceId: w.workspaceId });
-    await expireAndPurge(w.workspaceId);
+    await purge(w.workspaceId);
     const [kept] = await t.owner.db
       .select()
       .from(webhookEvents)
@@ -91,7 +94,7 @@ describe("a purge keeps webhook dedupe and AI spend", () => {
   });
 
   it("a purged workspace's Claude spend still counts against the day's budget", async () => {
-    const w = await fixtureWorkspace(t.app.db, { kind: "judge" });
+    const w = await expiredJudge();
     await t.app.db.insert(llmCalls).values({
       workspaceId: w.workspaceId,
       cacheKey: "a".repeat(64),
@@ -103,7 +106,7 @@ describe("a purge keeps webhook dedupe and AI spend", () => {
       costMicros: 412_000n,
       provenance: "live",
     });
-    await expireAndPurge(w.workspaceId);
+    await purge(w.workspaceId);
     const [spent] = await t.app.db
       .select({ micros: sql<string>`coalesce(sum(${llmCalls.costMicros}), 0)::text` })
       .from(llmCalls)

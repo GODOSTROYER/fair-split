@@ -69,7 +69,9 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
 - **History**: `fs_app` has no UPDATE/DELETE/TRUNCATE on `run_events`, `ledger_entries`, `agent_sessions`; triggers refuse
   those for every role unless `fs_purge_workspace()` is purging an expired judge workspace. The purge holds an owner-only
   ticket for (workspace, transaction) that the SECURITY DEFINER guards check; no setting the app can change opens them.
-  `fs_app` cannot DELETE workspaces, and a workspace's id, kind and creation time never change.
+  `fs_app` cannot DELETE workspaces, and a workspace's id, kind and creation time never change. Its `expires_at` only
+  moves later: never earlier, never back to NULL and never into the past (0009), so nothing the app writes brings a
+  purge forward. A judge's Reset ends the session; the hourly purge takes the workspace once it has expired.
 - **Ledger**: an entry must extend `ledger_heads` (seq + 1, prev hash) or it is refused (`LEDGER_FORK`); heads move only by appending.
 - **I5** runs, lines and holds: a state change must be an edge of its machine (`fs_private.state_edges`, the same
   tables as the transition policy) and must set `version = version + 1`; version never moves otherwise
