@@ -58,6 +58,7 @@ catalog:
   "i18next": 26.5.4
   "react-i18next": 17.1.0
   "@noble/curves": 2.4.0
+  "zod-to-json-schema": 3.25.2
 
 catalogs:
   zod3:
