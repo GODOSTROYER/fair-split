@@ -68,7 +68,7 @@ export interface GatewayCall {
   schemaV: string;
   /**
    * Fills the register's `imageSha` slot. For image calls it is the derivation identity of the image
-   * sent (see read/prep.ts `imageIdentity`, ADR 003); for text calls it is sha256(JCS(input)).
+   * sent (see read/prep.ts `imageIdentity`, ADR 0003); for text calls it is sha256(JCS(input)).
    */
   inputSha: string;
   mode: GatewayMode;
@@ -203,7 +203,7 @@ export interface LlmCallRow {
   input_sha: string;
   /**
    * sha256 of the exact bytes sent when `input_sha` is a derivation identity (S4.1 says image bytes;
-   * libvips output differs across machines, so the key uses the identity: ADR 003).
+   * libvips output differs across machines, so the key uses the identity: ADR 0003).
    */
   sent_sha: string | null;
   usage: UsageSummary | null;

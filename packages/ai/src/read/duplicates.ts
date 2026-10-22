@@ -14,7 +14,7 @@ import type { CopyColour } from "./schema.js";
  * 4. MEMBER_DATE_KILOS: the same member, date and payable kilos under different serials, counted only
  *    with signal 3 (a re-shoot whose serial was misread), so two real deliveries on one day stay clean.
  *
- * A pair is proposed on signal 1, on signal 2, or on signals 3 and 4 together; never on 3 alone.
+ * A pair is proposed on signal 1, on signal 2, or on signals 3 and 4 together; never on 3 alone (ADR 0003).
  */
 export type DuplicateSignal = "EXACT_DOCUMENT" | "SAME_SERIAL" | "DHASH" | "MEMBER_DATE_KILOS";
 

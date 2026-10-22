@@ -30,7 +30,7 @@ export interface PreparedImage {
 /**
  * The replay identity of a derived image: the source document's sha256, the prep version and the
  * operation. sharp/libvips output is not guaranteed bit-identical across platforms and CPUs, and CI
- * replays recordings made on the dev machine, so keying on the derived bytes would miss.
+ * replays recordings made on the dev machine, so keying on the derived bytes would miss (ADR 0003).
  */
 export function imageIdentity(documentSha256: string, op: Record<string, unknown>): string {
   return inputShaOf({ doc: documentSha256, prep: PREP_V, ...op });
