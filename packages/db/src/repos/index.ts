@@ -10,12 +10,13 @@
  *   });
  */
 import type { Provenance, SystemFlag } from "../_shims/contracts.js";
-import type { DbOrTx } from "../client.js";
+import type { DbOrTx, Tx } from "../client.js";
 import { appendEvent, type NewRunEvent, scopedEvent } from "../events.js";
 import { isKilled, readFlags, setFlag } from "../flags.js";
 import { appendLedger, type LedgerAppend } from "../ledger.js";
 import * as s from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
+import { withWorkspaceTx } from "../tx.js";
 import { type ScopedTable, scopedTable, type WsTable } from "./scoped.js";
 import {
   applyItemStatus,
@@ -95,6 +96,8 @@ export function repos(scope: WorkspaceScope, policy: TransitionPolicy = DEFAULT_
   ) as unknown as BoundTables;
   return {
     scope,
+    /** a transaction that holds this workspace's lock before anything else (tx.ts lock order) */
+    tx: <R>(db: DbOrTx, fn: (tx: Tx) => Promise<R>) => withWorkspaceTx(db, scope, fn),
     ...bound,
     runs: {
       ...bound.payRuns,

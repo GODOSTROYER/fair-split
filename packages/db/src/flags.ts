@@ -5,13 +5,13 @@
  * transaction.
  */
 import { and, eq, sql } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
 import { type Provenance, SYSTEM_FLAGS, type SystemFlag } from "./_shims/contracts.js";
-import type { DbOrTx, Tx } from "./client.js";
-import { appendEvent, lockWorkspaceLog } from "./events.js";
+import type { DbOrTx } from "./client.js";
+import { appendEvent } from "./events.js";
 import { appendLedger } from "./ledger.js";
 import { systemFlags } from "./schema/index.js";
 import type { WorkspaceScope } from "./scope.js";
+import { isTransaction, lockWorkspaceLog } from "./tx.js";
 
 export type FlagSource = "env" | "workspace" | "default";
 
@@ -84,10 +84,10 @@ export async function setFlag(
   on: boolean,
   opts: { reason?: string; provenance: Provenance },
 ): Promise<{ changed: boolean }> {
-  if (!(db instanceof PgTransaction)) return db.transaction((tx) => setFlag(tx, scope, flag, on, opts));
-  const tx = db as Tx;
+  if (!isTransaction(db)) return db.transaction((tx) => setFlag(tx, scope, flag, on, opts));
+  const tx = db;
   if (!SYSTEM_FLAGS.includes(flag)) throw new TypeError(`unknown flag ${flag}`);
-  // the workspace log lock serialises flips with each other and with ledger appends
+  // the workspace lock first (tx.ts): it serialises flips with each other and with ledger appends
   await lockWorkspaceLog(tx, scope.workspaceId);
   const [prev] = await tx
     .select({ on: systemFlags.on })

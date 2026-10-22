@@ -2,17 +2,17 @@
  * `run_events` — the append-only realtime feed, audit timeline and replay source (IC-04 `appendEvent`).
  *
  * - The insert fires `pg_notify('run_events', '<ws>:<id>')` (trigger), which Postgres delivers on commit only.
- * - Appends take a per-workspace transaction lock, so within a workspace event ids are assigned in commit
- *   order. An SSE client resuming from Last-Event-ID can therefore never miss an event that committed late
- *   with a smaller id. Call appendEvent after your row writes, inside the same transaction.
+ * - Appends take the per-workspace lock (tx.ts), so within a workspace event ids are assigned in commit order. An
+ *   SSE client resuming from Last-Event-ID can therefore never miss an event that committed late with a smaller id.
+ * - Lock order: the workspace lock comes before any row lock. A transaction that writes rows with raw Drizzle and
+ *   then appends opens with `withWorkspaceTx` (repository writes and transitions already take the lock first).
  */
-import { sql } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
 import { type Provenance, RUN_EVENT_TYPES, type RunEventType } from "./_shims/contracts.js";
-import type { DbOrTx, Tx } from "./client.js";
+import type { DbOrTx } from "./client.js";
 import { type JsonValue, toJsonObject } from "./json.js";
 import { runEvents } from "./schema/index.js";
 import type { Actor, WorkspaceScope } from "./scope.js";
+import { isTransaction, lockWorkspaceLog } from "./tx.js";
 
 export interface NewRunEvent {
   workspaceId: string;
@@ -53,14 +53,9 @@ export interface RunEventEnvelope {
 
 const EVENT_TYPES = new Set<string>(RUN_EVENT_TYPES);
 
-/** Serialises event (and ledger) appends per workspace until the transaction ends. */
-export async function lockWorkspaceLog(tx: DbOrTx, workspaceId: string): Promise<void> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`fs:ws-log:${workspaceId}`}, 0))`);
-}
-
 export async function appendEvents(tx: DbOrTx, events: readonly NewRunEvent[]): Promise<StoredRunEvent[]> {
   if (events.length === 0) return [];
-  if (!(tx instanceof PgTransaction)) return tx.transaction((inner) => appendEvents(inner, events));
+  if (!isTransaction(tx)) return tx.transaction((inner) => appendEvents(inner, events));
   const values = events.map((e) => {
     if (!EVENT_TYPES.has(e.type)) throw new TypeError(`appendEvent: unknown RunEvent type ${e.type}`);
     return {
@@ -77,7 +72,7 @@ export async function appendEvents(tx: DbOrTx, events: readonly NewRunEvent[]): 
   });
   const workspaces = [...new Set(values.map((v) => v.workspaceId))].sort();
   for (const ws of workspaces) await lockWorkspaceLog(tx, ws);
-  const rows = await (tx as Tx).insert(runEvents).values(values).returning();
+  const rows = await tx.insert(runEvents).values(values).returning();
   return rows as StoredRunEvent[];
 }
 

@@ -16,3 +16,4 @@ export * from "./repos/index.js";
 export * from "./roles.js";
 export * as schema from "./schema/index.js";
 export * from "./scope.js";
+export * from "./tx.js";

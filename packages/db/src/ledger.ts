@@ -9,13 +9,12 @@
  * every hash from the stored rows.
  */
 import { asc, eq, sql } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
 import { GENESIS_HASH, ledgerEntryHash } from "./_shims/domain.js";
-import type { DbOrTx, Tx } from "./client.js";
-import { lockWorkspaceLog } from "./events.js";
+import type { DbOrTx } from "./client.js";
 import { type JsonValue, toJsonObject } from "./json.js";
 import { ledgerEntries, ledgerHeads } from "./schema/index.js";
 import type { Actor, WorkspaceScope } from "./scope.js";
+import { isTransaction, lockWorkspaceLog } from "./tx.js";
 
 export interface LedgerAppend {
   /** e.g. ratification, row.accepted, hold.raised, approval.signed, payout.submitting, webhook.applied, flag.flipped, agent.tool */
@@ -63,8 +62,8 @@ export async function appendLedger(
   scope: WorkspaceScope,
   entry: LedgerAppend,
 ): Promise<LedgerEntry> {
-  if (!(db instanceof PgTransaction)) return db.transaction((tx) => appendLedger(tx, scope, entry));
-  const tx = db as Tx;
+  if (!isTransaction(db)) return db.transaction((tx) => appendLedger(tx, scope, entry));
+  const tx = db;
   const actor = entry.actor ?? scope.actor;
   const at = new Date(Math.floor((entry.at ?? new Date()).getTime()));
   const payload = toJsonObject(entry.payload, `${entry.kind}.payload`);

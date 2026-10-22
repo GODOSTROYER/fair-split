@@ -59,6 +59,25 @@ describe("inv.i7.outbox: the task is enqueued in the transaction that requires i
   it("refuses to enqueue outside a transaction", async () => {
     await expect(enqueue(t.app.db as never, "computeRun", {}, key())).rejects.toThrow(/I7/);
   });
+
+  it("accepts a transaction from another copy of drizzle-orm (entity kind, not instanceof)", async () => {
+    const kind = Symbol.for("drizzle:entityKind");
+    class ForeignPgTransaction {
+      static readonly [kind]: string = "PgTransaction";
+    }
+    const k = key("foreign");
+    await t.app.db.transaction(async (tx) => {
+      // a transaction object whose class comes from a "different" drizzle-orm, driving the same connection
+      const foreign = Object.assign(Object.create(ForeignPgTransaction.prototype), {
+        insert: tx.insert.bind(tx),
+        select: tx.select.bind(tx),
+      });
+      const res = await enqueue(foreign, "computeRun", { runId: "r" }, k);
+      expect(res.inserted).toBe(true);
+    });
+    const rows = await t.app.db.select().from(s.taskOutbox).where(eq(s.taskOutbox.dedupeKey, k));
+    expect(rows).toHaveLength(1);
+  });
 });
 
 describe("inv.i7.dedupe: one row per dedupe key", () => {

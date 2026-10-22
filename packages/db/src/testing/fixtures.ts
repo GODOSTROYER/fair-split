@@ -3,7 +3,7 @@
  * from the seed snapshot (IC-03). Values here are deliberately round and obviously fake.
  */
 import { eq } from "drizzle-orm";
-import type { WorkspaceKind } from "../_shims/contracts.js";
+import type { RunState, WorkspaceKind } from "../_shims/contracts.js";
 import { jcs, sha256Hex } from "../_shims/domain.js";
 import type { DbOrTx } from "../client.js";
 import { coops, lots, members, payRuns, rateCards, rateRules, seasons, workspaces } from "../schema/index.js";
@@ -15,6 +15,8 @@ export interface FixtureOptions {
   ratifiedAt?: Date | false;
   members?: number;
   withRun?: boolean;
+  /** insert the run directly in this state (inserts may place a run anywhere; updates must follow the machine) */
+  runState?: RunState;
   expiresAt?: Date | null;
 }
 
@@ -142,6 +144,7 @@ export async function fixtureWorkspace(db: DbOrTx, opts: FixtureOptions = {}): P
         currency: "USD",
         rateCardSha256,
         provenance: "seeded",
+        ...(opts.runState ? { state: opts.runState } : {}),
       })
       .returning({ id: payRuns.id });
     runId = must(run).id;

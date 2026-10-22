@@ -1,12 +1,13 @@
 /**
  * Scoped table access: every read and write is filtered by, or stamped with, the WorkspaceScope's workspace.
  * A row id from a request can never reach another workspace's row, and an insert can never choose its own
- * workspace (the scope overwrites workspace_id).
+ * workspace (the scope overwrites workspace_id). Writes take the workspace lock first (tx.ts lock order).
  */
 import { and, eq, type SQL } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { DbOrTx } from "../client.js";
 import type { WorkspaceScope } from "../scope.js";
+import { withWorkspaceTx } from "../tx.js";
 
 export type WsTable = PgTable & { workspaceId: PgColumn; id: PgColumn };
 
@@ -63,7 +64,7 @@ export function scopedTable<T extends WsTable>(table: T, name: string): ScopedTa
     async insertMany(db, scope, values) {
       if (values.length === 0) return [];
       const rows = values.map((v) => ({ ...v, workspaceId: scope.workspaceId }));
-      return (db as AnyDb).insert(table).values(rows).returning();
+      return withWorkspaceTx(db, scope, (tx) => (tx as AnyDb).insert(table).values(rows).returning());
     },
     async get(db, scope, id) {
       const rows = await (db as AnyDb)
@@ -84,11 +85,13 @@ export function scopedTable<T extends WsTable>(table: T, name: string): ScopedTa
     },
     async update(db, scope, id, patch) {
       const { workspaceId: _ws, id: _id, ...safe } = patch as Record<string, unknown>;
-      const rows = await (db as AnyDb)
-        .update(table)
-        .set(safe)
-        .where(where(scope, eq(table.id, id)))
-        .returning();
+      const rows: T["$inferSelect"][] = await withWorkspaceTx(db, scope, (tx) =>
+        (tx as AnyDb)
+          .update(table)
+          .set(safe)
+          .where(where(scope, eq(table.id, id)))
+          .returning(),
+      );
       return rows[0] ?? null;
     },
   };

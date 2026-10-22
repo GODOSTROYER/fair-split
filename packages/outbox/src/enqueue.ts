@@ -6,9 +6,8 @@
  * yields one row. The insert trigger sends `NOTIFY fs_outbox`, which Postgres delivers only if the transaction
  * commits: a rolled-back state change leaves no task behind, and a committed one can never lose its task.
  */
-import { type JsonValue, schema as s, type Tx, toJsonObject } from "@fairsplit/db";
+import { isTransaction, type JsonValue, schema as s, type Tx, toJsonObject } from "@fairsplit/db";
 import { eq } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
 import { TASK_NAMES, type TaskName } from "./_shims/contracts.js";
 
 /** Task arguments are ids (Render Workflows caps arguments at 4 MB; we cap at 8 KB). */
@@ -42,7 +41,8 @@ export async function enqueue(
   dedupeKey: string,
   opts: EnqueueOptions = {},
 ): Promise<Enqueued> {
-  if (!(tx instanceof PgTransaction)) {
+  // is(), not instanceof: an app that resolves another copy of drizzle-orm must still be recognised (tx.ts)
+  if (!isTransaction(tx)) {
     throw new TypeError("enqueue needs the transaction that makes the state change (I7), not the pool");
   }
   if (!TASKS.has(name)) throw new TypeError(`enqueue: unknown task ${name}`);

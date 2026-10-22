@@ -7,9 +7,11 @@
  * The edge itself is checked against a transition policy first (default: the register's tables in the domain
  * shim; inject WS-CORE's `fsm` once it lands). A successful transition appends its run_event in the same
  * transaction. Payout item statuses climb ranks only (`applyItemStatus`), mirrored by a SQL trigger.
+ *
+ * Every helper takes the workspace lock before its first row lock (tx.ts), so a transition can never deadlock
+ * against another transaction that holds the lock and wants the same row (e.g. the kill-switch handler).
  */
 import { and, eq, type SQL, sql } from "drizzle-orm";
-import { PgTransaction } from "drizzle-orm/pg-core";
 import {
   type HoldState,
   ITEM_STATUS_RANK,
@@ -23,6 +25,7 @@ import type { DbOrTx, Tx } from "../client.js";
 import { appendEvent, type StoredRunEvent } from "../events.js";
 import { holds, memberLines, payoutItems, payRuns } from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
+import { withWorkspaceTx } from "../tx.js";
 
 export interface TransitionPolicy {
   run(from: RunState, to: RunState): boolean;
@@ -57,10 +60,6 @@ type MemberLine = typeof memberLines.$inferSelect;
 type Hold = typeof holds.$inferSelect;
 type PayoutItem = typeof payoutItems.$inferSelect;
 
-function inTx<R>(db: DbOrTx, fn: (tx: Tx) => Promise<R>): Promise<R> {
-  return db instanceof PgTransaction ? fn(db as Tx) : db.transaction(fn);
-}
-
 async function currentState(
   tx: Tx,
   table: typeof payRuns | typeof memberLines | typeof holds,
@@ -91,7 +90,7 @@ export async function transitionRun(
   policy: TransitionPolicy = DEFAULT_POLICY,
 ): Promise<TransitionResult<PayRun>> {
   if (!policy.run(t.from, t.to)) return { ok: false, reason: "ILLEGAL", current: t.from };
-  return inTx(db, async (tx) => {
+  return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(payRuns)
       .set({ ...(t.patch ?? {}), state: t.to, version: sql`${payRuns.version} + 1` })
@@ -128,7 +127,7 @@ export async function transitionLine(
   policy: TransitionPolicy = DEFAULT_POLICY,
 ): Promise<TransitionResult<MemberLine>> {
   if (!policy.line(t.from, t.to)) return { ok: false, reason: "ILLEGAL", current: t.from };
-  return inTx(db, async (tx) => {
+  return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(memberLines)
       .set({ ...(t.patch ?? {}), state: t.to, version: sql`${memberLines.version} + 1` })
@@ -171,7 +170,7 @@ export async function transitionHold(
 ): Promise<TransitionResult<Hold>> {
   if (!policy.hold(t.from, t.to)) return { ok: false, reason: "ILLEGAL", current: t.from };
   const terminal = t.to === "RESOLVED" || t.to === "EXCLUDED";
-  return inTx(db, async (tx) => {
+  return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(holds)
       .set({
@@ -235,7 +234,7 @@ export async function applyItemStatus(
 ): Promise<ItemStatusResult> {
   if (!u.id && !u.senderItemId) throw new TypeError("applyItemStatus: id or senderItemId is required");
   const key: SQL = u.id ? eq(payoutItems.id, u.id) : eq(payoutItems.senderItemId, u.senderItemId as string);
-  return inTx(db, async (tx) => {
+  return withWorkspaceTx(db, scope, async (tx) => {
     const [cur] = await tx
       .select()
       .from(payoutItems)
@@ -299,6 +298,14 @@ async function runIdOfLine(tx: Tx, scope: WorkspaceScope, lineId: string): Promi
 /** Marks our own cancel of an UNCLAIMED item (S3.6.4 step 1); only then may RETURNED apply. Idempotent. */
 export async function requestItemCancel(
   db: DbOrTx,
+  scope: WorkspaceScope,
+  r: { id: string; intent: "cash" | "reroute" },
+): Promise<{ ok: true; row: PayoutItem } | { ok: false; current: string | null }> {
+  return withWorkspaceTx(db, scope, (tx) => requestItemCancelLocked(tx, scope, r));
+}
+
+async function requestItemCancelLocked(
+  db: Tx,
   scope: WorkspaceScope,
   r: { id: string; intent: "cash" | "reroute" },
 ): Promise<{ ok: true; row: PayoutItem } | { ok: false; current: string | null }> {
