@@ -1,6 +1,6 @@
 /**
- * PayPal mirror group (register §7, §8): payout_batches, payout_items, webhook_events, paypal_calls
- * (also the limiter window), reconciliation_reports.
+ * PayPal mirror group (register §7, §8): payout_batches, payout_items, webhook_events, webhook_transmissions
+ * (the webhook replay record), paypal_calls (also the limiter window), reconciliation_reports.
  *
  * - Batch and item rows are written as SUBMITTED before the POST, so early webhooks join on our keys.
  * - Item statuses follow register ranks; `status_rank` must equal the status's rank and only ever rises
@@ -173,6 +173,24 @@ export const webhookEvents = pgTable(
     checkProvenance("webhook_events", t.provenance),
     index("webhook_events_status_idx").on(t.status, t.receivedAt),
     index("webhook_events_resource_idx").on(t.resourceKey),
+  ],
+);
+
+/**
+ * The replay record behind paypal-core's `TransmissionStore` (src/webhook-transmissions.ts): a verified delivery's
+ * transmission id is accepted once, until `expires_at` (transmission time + 6 min). Global, like the event-id dedupe:
+ * a delivery reaches us before it names a workspace. Expiry is judged by the app's clock (an app-supplied `now`),
+ * never the database's now().
+ */
+export const webhookTransmissions = pgTable(
+  "webhook_transmissions",
+  {
+    transmissionId: text("transmission_id").primaryKey(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [
+    check("webhook_transmissions_id_ck", sql`${t.transmissionId} ~ '^[A-Za-z0-9_-]{1,64}$'`),
+    index("webhook_transmissions_expires_idx").on(t.expiresAt),
   ],
 );
 

@@ -18,3 +18,4 @@ export * as schema from "./schema/index.js";
 export * from "./scope.js";
 export * from "./seeding.js";
 export * from "./tx.js";
+export * from "./webhook-transmissions.js";
