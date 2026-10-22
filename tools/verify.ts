@@ -14,7 +14,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { isMain } from "../apps/tasks/src/main.js";
 import { REPO_ROOT } from "./lib/blueprint.js";
 
@@ -86,14 +86,18 @@ export type StepRunner = (
   env: NodeJS.ProcessEnv,
 ) => { exitCode: number | null; output: string };
 
+/** Node ships corepack as a script next to the binary; running it with node avoids a shell on Windows. */
+export function resolveCommand(command: string, args: readonly string[]): [string, string[]] {
+  if (command === "corepack") {
+    const js = join(dirname(process.execPath), "node_modules", "corepack", "dist", "corepack.js");
+    if (existsSync(js)) return [process.execPath, [js, ...args]];
+  }
+  return [command, [...args]];
+}
+
 export const spawnRunner: StepRunner = (step, cwd, env) => {
-  const r = spawnSync(step.command, [...step.args], {
-    cwd,
-    env,
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  const [command, args] = resolveCommand(step.command, step.args);
+  const r = spawnSync(command, args, { cwd, env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   return {
     exitCode: r.status,
     output: `${r.stdout ?? ""}${r.stderr ?? ""}${r.error ? String(r.error) : ""}`,

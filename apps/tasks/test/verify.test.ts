@@ -3,6 +3,7 @@ import {
   childEnv,
   parseArgs,
   planVerify,
+  resolveCommand,
   runVerify,
   type StepRunner,
   type VerifyStep,
@@ -95,5 +96,15 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
       json: true,
     });
     expect(() => parseArgs(["--nope"])).toThrow();
+  });
+});
+
+describe("resolveCommand", () => {
+  it("runs corepack through node (no shell), and other commands as given", () => {
+    const [cmd, args] = resolveCommand("corepack", ["pnpm", "test"]);
+    expect(cmd).toBe(process.execPath);
+    expect(args.slice(-2)).toEqual(["pnpm", "test"]);
+    expect(args[0]?.replaceAll("\\", "/")).toMatch(/corepack\/dist\/corepack\.js$/);
+    expect(resolveCommand("git", ["status"])).toEqual(["git", ["status"]]);
   });
 });
