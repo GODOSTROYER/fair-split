@@ -67,17 +67,21 @@ export function parseTransmissionTime(value: string): number | null {
  * Where accepted transmission ids are recorded. Production (PROPOSED to WS-DATA): a table
  * `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at timestamptz NOT NULL)` and
  *   claim:   INSERT … VALUES ($1, $2) ON CONFLICT (transmission_id) DO UPDATE SET expires_at = EXCLUDED.expires_at
- *            WHERE webhook_transmissions.expires_at <= now() RETURNING 1   -- a row back means "first time"
+ *            WHERE webhook_transmissions.expires_at <= $3 RETURNING 1   -- a row back means "first time"
  *   release: DELETE FROM webhook_transmissions WHERE transmission_id = $1
- * plus an hourly `DELETE … WHERE expires_at < now()`. The primary key is the uniqueness guarantee.
+ * plus an hourly `DELETE … WHERE expires_at < $1` with an app-supplied time. $3 is `now`, the app's
+ * clock, never the database's now(): freshness is judged by the app clock, and a database clock
+ * running ahead would expire ids early and let a replay through. The primary key is the uniqueness
+ * guarantee.
  */
 export interface TransmissionStore {
   /**
    * Record `transmissionId` until `expiresAt` (epoch ms). Resolves true when it was not recorded (or
    * its record had expired), false when it is a repeat. Must be atomic. Throwing fails the delivery
-   * closed and retryable (503).
+   * closed and retryable (503). `now` (epoch ms) is the app clock the verifier judged freshness by:
+   * compare `expiresAt` of an existing record with it, never with the store's own clock.
    */
-  claim(transmissionId: string, expiresAt: number): Promise<boolean>;
+  claim(transmissionId: string, expiresAt: number, now?: number): Promise<boolean>;
   /** Forget an id: the delivery was accepted but not stored, so PayPal's retry must not look like a replay. */
   release(transmissionId: string): Promise<void>;
 }
@@ -99,8 +103,8 @@ export function createMemoryTransmissionStore(
   };
   return {
     // No await before the check-and-set: concurrent claims of one id cannot both see it as new.
-    async claim(transmissionId, expiresAt) {
-      const t = now();
+    async claim(transmissionId, expiresAt, at) {
+      const t = at ?? now();
       const existing = seen.get(transmissionId);
       if (existing !== undefined && existing > t) return false;
       if (existing === undefined && seen.size >= maxEntries) {

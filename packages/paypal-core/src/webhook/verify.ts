@@ -899,6 +899,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       firstTime = await transmissions.claim(
         transmissionId,
         sentAt + MAX_TRANSMISSION_SKEW_MS + TRANSMISSION_RETENTION_MARGIN_MS,
+        now(),
       );
     } catch (err) {
       logger?.error?.(

@@ -288,6 +288,33 @@ describe("createMemoryTransmissionStore", () => {
     expect(await store.claim("a", t + 10 * MINUTE)).toBe(true);
   });
 
+  it("judges expiry by the app clock it is handed, when one is (the verifier always hands it)", async () => {
+    const store = createMemoryTransmissionStore({ now: () => T0 + DAY });
+    expect(await store.claim("a", T0 + MINUTE, T0)).toBe(true);
+    expect(await store.claim("a", T0 + MINUTE, T0 + 30_000)).toBe(false);
+    expect(await store.claim("a", T0 + 2 * MINUTE, T0 + MINUTE)).toBe(true);
+  });
+
+  it("is handed the verifier's clock, so a database store compares expires_at with the app's time, not its own now()", async () => {
+    const claims: [string, number, number | undefined][] = [];
+    const store: TransmissionStore = {
+      claim: async (id, expiresAt, at) => {
+        claims.push([id, expiresAt, at]);
+        return true;
+      },
+      release: async () => undefined,
+    };
+    const s = signedAt(T0 - 2 * MINUTE);
+    expect(
+      await verifierAt(() => T0, { transmissionStore: store }).verifyPayPal(
+        s.body,
+        s.headers,
+        TEST_WEBHOOK_ID,
+      ),
+    ).toBe("self");
+    expect(claims).toEqual([[s.headers["paypal-transmission-id"], T0 - 2 * MINUTE + 6 * MINUTE, T0]]);
+  });
+
   it("fails closed when full of live ids, and makes room once they expire", async () => {
     let t = T0;
     const store = createMemoryTransmissionStore({ now: () => t, maxEntries: 2 });

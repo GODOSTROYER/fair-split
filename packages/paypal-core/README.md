@@ -170,6 +170,11 @@ check would restart a healthy process); show them on `/ops`.
   timestamptz NOT NULL)` behind `TransmissionStore` (SQL in `src/webhook/transmission.ts`), injected as
   `createPayPalCore({ webhookTransmissionStore })`. Until then the in-memory store (one fs-api instance)
   applies; a restart forgets ids, and event-id dedupe still stops a second apply.
+- **For WS-DATA (record only; theirs to build):** the production `TransmissionStore` must compare
+  `expires_at` against the app-supplied timestamp, the `now` argument of `claim(id, expiresAt, now)`
+  (`… WHERE webhook_transmissions.expires_at <= $3`), never the database's `now()`: freshness (the
+  5-minute window) is judged by the app clock, so a database clock running ahead would treat a live id
+  as expired and let a replayed copy through. The hourly purge takes an app-supplied time too.
 - **For WS-API:** mount `honoPayPalWebhook(handler)`; it takes the client address from the rightmost
   `X-Forwarded-For` entry (Render appends the connecting address; UNVERIFIED, confirm at S5 and pass
   `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`
