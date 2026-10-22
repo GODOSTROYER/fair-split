@@ -12,11 +12,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
-  "dependencies": {
-    "@fairsplit/contracts": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:",
