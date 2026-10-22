@@ -25919,6 +25919,44 @@
         "prevHash": "06ea3c165c364443b3aa790deeb4b6f556e5c20386ce12a03edae2b71613d12b",
         "entryHash": "3ab01bb770f6ef4cfc9ed000e0a3584e0f7925036e26c92b12e783c989320b4e"
       }
-    ]
+    ],
+    "checkpoint": {
+      "v": 1,
+      "runId": "01a1852b-c280-792f-8540-bc7919b9823f",
+      "seq": 91,
+      "entryHash": "3ab01bb770f6ef4cfc9ed000e0a3584e0f7925036e26c92b12e783c989320b4e",
+      "at": "2026-10-29T02:15:00.000Z",
+      "keyId": "fs-ledger-s1",
+      "signatureHex": "029c06aaa81935c3eb56492111e56c3983b5f6ef195c8c871cb52f0c3777e71b61d060e479a9681757f8d963ae44c463fd4c21913d568ca715d6bb196ff95d04"
+    }
+  },
+  "publishedKeys": {
+    "officers": [
+      {
+        "keyId": "fs-analyn-s1",
+        "approverId": "treasurer:analyn",
+        "role": "treasurer",
+        "publicKeyHex": "a0878a5a56477de6e9a28e3d93e23d1e1783c946ed5d70a5a432cf2a43c6d2a3",
+        "kind": "seeded",
+        "revokedAt": null
+      },
+      {
+        "keyId": "fs-ernesto-s1",
+        "approverId": "board:ernesto",
+        "role": "chair",
+        "publicKeyHex": "eb7e7e490e4347b61a9840d56ed87773a17d4098f7428742143d024d857d4b9b",
+        "kind": "seeded",
+        "revokedAt": null
+      }
+    ],
+    "ledger": [
+      {
+        "keyId": "fs-ledger-s1",
+        "publicKeyHex": "0288daea7911b49aaa8e2acbfb3a18fff7f923a7bfe3f52fe8f85c352f85a04d",
+        "kind": "seeded",
+        "revokedAt": null
+      }
+    ],
+    "v": 1
   }
 }

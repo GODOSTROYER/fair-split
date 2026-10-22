@@ -4,14 +4,20 @@
 // with a genesis prev_hash of 64 zeros; then the six Proof plates (S3.12).
 //
 // Every plate is bound to the chain. A bundle field counts only where a ledger entry of the
-// contract's shape attests it, and public keys come only from `key.registered` entries, so editing
-// the bundle and re-hashing or re-signing it still fails. PayPal's own records anchor the chain:
-// the invoice reference carries the card hash, `sender_batch_id` carries rc8 and the runSeq, and the
-// batch note carries the batch digest's first 8 hex digits.
+// contract's shape attests it, so editing the bundle and re-hashing it still fails. Trust never
+// comes from the bundle: approvals verify against the published officer keys and the ledger's head
+// against a checkpoint signed by a pinned ledger key, both passed in by the caller (the app
+// publishes them at /.well-known/fairsplit-keys.json). A re-chained bundle cannot be re-signed.
+// Seeded and demo keys are samples: they fail, or read "sample" in an explicit demo mode, and never
+// "verified". PayPal's own records anchor the run and are returned for matching: the invoice
+// reference carries the card hash, `sender_batch_id` carries rc8 and the runSeq, and the batch note
+// carries the batch digest's first 8 hex digits.
 import {
   type ChainVerification,
   GENESIS_PREV_HASH,
+  isSeededKeyId,
   type Json,
+  LedgerCheckpoint,
   type LedgerEntry,
   type LedgerPayload,
   LedgerPayloads,
@@ -19,9 +25,20 @@ import {
   type PlateResult,
   type ProofBundle,
   type ProofLedgerKind,
+  type ProofStatus,
+  ProofTrust,
+  PublishedKeys,
+  SAMPLE_KEY_KINDS,
   type SignedApproval,
+  type SigningKeyKind,
 } from "@fairsplit/contracts";
-import { approvalBytes, batchCanonical, invoiceReference, linesRootJcs } from "./digest-input.js";
+import {
+  approvalBytes,
+  batchCanonical,
+  checkpointBytes,
+  invoiceReference,
+  linesRootJcs,
+} from "./digest-input.js";
 import { applyItemStatus, itemStatusFromEvent } from "./fsm.js";
 import { batchNote, parseRunSlug, parseSenderItemId, seasonLabelOf, senderBatchId } from "./ids.js";
 import { jcs } from "./jcs.js";
@@ -257,10 +274,23 @@ function plateComputed(p: ProofBundle, c: ProofCrypto): PlateResult {
   return PASS;
 }
 
+const isSampleKind = (kind: SigningKeyKind | string) =>
+  (SAMPLE_KEY_KINDS as readonly string[]).includes(kind);
+const revokedBy = (revokedAt: string | null, at: string) =>
+  revokedAt !== null && !(Date.parse(revokedAt) > Date.parse(at));
+
 // 5 Two keys: the treasurer always signs and the Chair co-signs above the card's thresholds (R5).
-// Each signature is over this batch, recorded by an `approval.signed` entry, and verifies against
-// the public key of a `key.registered` entry for the signer. The bundle's own key is never trusted.
-function plateTwoKeys(p: ProofBundle, c: ProofCrypto): PlateResult {
+// Each signature is over this batch, recorded by an `approval.signed` entry after its key's
+// `key.registered` entry, and verifies against the key the officer registry publishes for that key
+// ID, role and approver (passed in from outside the bundle). The bundle's keys, in the approval or
+// in the ledger, are never trusted. Seeded or demo keys make the plate a sample (demo mode only).
+function plateTwoKeys(
+  p: ProofBundle,
+  c: ProofCrypto,
+  trust: ProofTrust,
+  demoMode: boolean,
+  sample: Set<string>,
+): PlateResult {
   const items = p.batch.items;
   const total = sumOf(items.map((i) => i.amountCents));
   const cosign = p.rateCard.canonical.rules.cosign;
@@ -277,6 +307,8 @@ function plateTwoKeys(p: ProofBundle, c: ProofCrypto): PlateResult {
     return fail("Each signature must come from a different person with a different key.");
   }
   const keys = attestedEntries(p.ledger, "key.registered");
+  const publishedKeys: string[] = [];
+  const sampleHere: string[] = [];
   for (const a of p.approvals) {
     const q = a.payload;
     if (
@@ -293,13 +325,22 @@ function plateTwoKeys(p: ProofBundle, c: ProofCrypto): PlateResult {
     const entry = signedEntry(p, a);
     if (!entry) return fail("A signature is not recorded in the chain.");
     if (Date.parse(entry.at) > Date.parse(q.exp)) return fail("A signature was recorded after it expired.");
+    const published = trust.officers.filter((k) => k.keyId === a.keyId);
+    const pub = published[0];
+    if (!pub || published.length !== 1) return fail("A signing key is not among the published officer keys.");
+    if (pub.role !== a.role || pub.approverId !== q.approverId) {
+      return fail("A signing key is not published for its signer and role.");
+    }
+    if (revokedBy(pub.revokedAt, entry.at)) return fail("A signing key was revoked before it signed.");
     const regs = keys.filter((e) => e.payload.keyId === a.keyId);
     const reg = regs[0];
     if (
       !reg ||
       regs.some(
         (e) =>
-          e.payload.publicKeyHex !== reg.payload.publicKeyHex || e.payload.persona !== reg.payload.persona,
+          e.payload.publicKeyHex !== reg.payload.publicKeyHex ||
+          e.payload.persona !== reg.payload.persona ||
+          e.payload.kind !== reg.payload.kind,
       )
     ) {
       return fail("A signing key is not registered in the chain.");
@@ -307,14 +348,93 @@ function plateTwoKeys(p: ProofBundle, c: ProofCrypto): PlateResult {
     if (reg.seq > entry.seq || reg.payload.persona !== q.approverId) {
       return fail("A signing key is not registered to its signer.");
     }
-    if (a.publicKeyHex !== reg.payload.publicKeyHex) {
-      return fail("A signature's key differs from the registered key.");
+    if (reg.payload.publicKeyHex !== pub.publicKeyHex || a.publicKeyHex !== pub.publicKeyHex) {
+      return fail("A signature's key differs from the published key.");
     }
-    if (!c.verifyEd25519(reg.payload.publicKeyHex, approvalBytes(q), a.signatureHex)) {
+    if (!c.verifyEd25519(pub.publicKeyHex, approvalBytes(q), a.signatureHex)) {
       return fail("The two signatures do not both verify over the same batch hash.");
     }
+    publishedKeys.push(pub.publicKeyHex);
+    if (isSampleKind(pub.kind) || isSampleKind(reg.payload.kind) || isSeededKeyId(a.keyId)) {
+      sampleHere.push(a.keyId);
+    }
+  }
+  if (new Set(publishedKeys).size !== publishedKeys.length) {
+    return fail("Each signature must come from a different person with a different key.");
+  }
+  if (sampleHere.length > 0) {
+    for (const k of sampleHere) sample.add(k);
+    if (!demoMode) return fail("A signature uses a sample key, so this Proof can only read as a Sample.");
   }
   return PASS;
+}
+
+type CheckpointResult = ChainVerification["checkpoint"];
+
+/**
+ * The ledger's head must be exactly what a pinned ledger key signed for this run: the checkpoint's
+ * key ID is pinned once, it names this run, its seq and entry hash are the last entry's (nothing
+ * truncated or appended), the key was not revoked before signing, and the signature verifies. A
+ * seeded ledger key makes it a sample (demo mode only). Without a valid checkpoint, nothing verifies.
+ */
+function checkCheckpoint(
+  p: ProofBundle,
+  ledger: readonly LedgerEntry[],
+  c: ProofCrypto,
+  trust: ProofTrust,
+  demoMode: boolean,
+  sample: Set<string>,
+): CheckpointResult {
+  const raw = (p as { checkpoint?: unknown }).checkpoint;
+  if (raw === undefined || raw === null) {
+    return { ok: false, reason: "There is no signed ledger checkpoint.", seq: null, keyId: null };
+  }
+  const parsed = LedgerCheckpoint.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, reason: "The ledger checkpoint could not be read.", seq: null, keyId: null };
+  }
+  const cp = parsed.data;
+  const no = (reason: string): CheckpointResult => ({ ok: false, reason, seq: cp.seq, keyId: cp.keyId });
+  const pinned = trust.ledger.filter((k) => k.keyId === cp.keyId);
+  const key = pinned[0];
+  if (!key || pinned.length !== 1) return no("The ledger checkpoint is not signed by a pinned ledger key.");
+  if (cp.runId !== p.runId) return no("The checkpoint is for another run.");
+  const head = ledger.at(-1);
+  if (!head || ledger.length !== cp.seq || head.seq !== cp.seq || head.entryHash !== cp.entryHash) {
+    return no("The signed checkpoint does not match the ledger's head.");
+  }
+  if (revokedBy(key.revokedAt, cp.at))
+    return no("The ledger key was revoked before it signed this checkpoint.");
+  if (!c.verifyEd25519(key.publicKeyHex, checkpointBytes(cp), cp.signatureHex)) {
+    return no("The ledger checkpoint's signature does not verify.");
+  }
+  if (key.kind === "seeded" || /^fs-ledger-s\d+$/.test(cp.keyId)) {
+    sample.add(cp.keyId);
+    if (!demoMode)
+      return no(
+        "The ledger checkpoint is signed with a sample key, so this Proof can only read as a Sample.",
+      );
+  }
+  return { ok: true, reason: null, seq: cp.seq, keyId: cp.keyId };
+}
+
+/** PayPal's own records of the run, as the bundle states them (plates 1 and 6 check them). */
+function anchorsOf(p: ProofBundle): ChainVerification["anchors"] {
+  const read = (get: () => unknown): string | null => {
+    try {
+      const v = get();
+      return typeof v === "string" ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    invoiceNumber: read(() => p.invoice.invoiceNumber),
+    invoiceReference: read(() => p.invoice.reference),
+    senderBatchId: read(() => p.batch.senderBatchId),
+    batchNote: read(() => p.batch.note),
+    batchNoteDigest: read(() => p.batch.batchSha256.slice(0, 8)),
+  };
 }
 
 // 6 Payout items: the items recompute to the signed hash, carry this run's IDs, pay exactly the
@@ -418,22 +538,77 @@ function platePayoutItems(p: ProofBundle, c: ProofCrypto): PlateResult {
   return PASS;
 }
 
-/** Verifies the ledger chain, then the six Proof plates, each bound to the chain. */
-export function verifyChainWith(proof: ProofBundle, c: ProofCrypto): ChainVerification {
-  const chain = verifyLedgerWith(proof.ledger, c);
+/**
+ * The trust anchors as given: a bare `ProofTrust` or the published `/.well-known/fairsplit-keys.json`
+ * document (version 1). Anything unreadable trusts nothing, so verification fails closed.
+ */
+function readTrust(trust: unknown): ProofTrust {
+  const published = PublishedKeys.safeParse(trust);
+  if (published.success) return { officers: published.data.officers, ledger: published.data.ledger };
+  const bare = ProofTrust.safeParse(trust);
+  return bare.success ? bare.data : { officers: [], ledger: [] };
+}
+
+export interface VerifyOptions {
+  /**
+   * Explicitly labelled demo mode (the seeded showcase and Judge Mode's browser keys): a bundle
+   * signed with seeded or demo keys reads "sample" instead of failing. It never yields "verified".
+   */
+  demoMode?: boolean;
+}
+
+/**
+ * Verifies the ledger chain and its signed checkpoint, then the six Proof plates, each bound to the
+ * chain. `trust` must come from outside the bundle (the published keys); an unreadable `trust`
+ * trusts nothing. `ok` is true only when `status` is "verified".
+ */
+export function verifyChainWith(
+  proof: ProofBundle,
+  c: ProofCrypto,
+  trust: ProofTrust | PublishedKeys,
+  options: VerifyOptions = {},
+): ChainVerification {
+  const demoMode = options.demoMode === true;
+  const t = readTrust(trust);
+  const ledger = Array.isArray(proof.ledger) ? proof.ledger : [];
+  let chain: { ok: boolean; brokenAtSeq: number | null };
+  try {
+    chain = verifyLedgerWith(ledger, c);
+  } catch {
+    chain = { ok: false, brokenAtSeq: null };
+  }
+  const sample = new Set<string>();
+  let checkpoint: CheckpointResult;
+  try {
+    checkpoint = checkCheckpoint(proof, ledger, c, t, demoMode, sample);
+  } catch {
+    checkpoint = { ok: false, reason: "The ledger checkpoint could not be read.", seq: null, keyId: null };
+  }
   const plates = {
     paid: guarded("The invoice could not be read.", () => platePaid(proof)),
     ratified: guarded("The rate card could not be read.", () => plateRatified(proof, c)),
     read: guarded("The slip photos could not be read.", () => plateRead(proof)),
     computed: guarded("The lines could not be read.", () => plateComputed(proof, c)),
-    twoKeys: guarded("The signatures could not be read.", () => plateTwoKeys(proof, c)),
+    twoKeys: guarded("The signatures could not be read.", () => plateTwoKeys(proof, c, t, demoMode, sample)),
     payoutItems: guarded("The batch hash doesn't match the signed batch. Proof withheld.", () =>
       platePayoutItems(proof, c),
     ),
   };
+  const consistent = chain.ok && checkpoint.ok && Object.values(plates).every((p) => p.ok);
+  const status: ProofStatus = !consistent
+    ? "failed"
+    : sample.size === 0
+      ? "verified"
+      : demoMode
+        ? "sample"
+        : "failed";
   return {
-    ok: chain.ok && Object.values(plates).every((p) => p.ok),
-    chain: { ok: chain.ok, entries: proof.ledger.length, brokenAtSeq: chain.brokenAtSeq },
+    ok: status === "verified",
+    status,
+    chain: { ok: chain.ok, entries: ledger.length, brokenAtSeq: chain.brokenAtSeq },
+    checkpoint,
     plates,
+    sampleKeys: [...sample].sort(),
+    anchors: anchorsOf(proof),
   };
 }

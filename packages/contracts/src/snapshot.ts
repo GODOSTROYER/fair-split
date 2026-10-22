@@ -8,6 +8,7 @@ import {
   InvoiceQuote,
   Lot,
   ProofBundle,
+  PublishedKeys,
   RatifiedRateCard,
   SignedApproval,
 } from "./domain.js";
@@ -343,5 +344,11 @@ export const SeasonSnapshot = z.strictObject({
   run: SnapshotRun,
   figures: SnapshotFigures,
   proof: ProofBundle,
+  /**
+   * The keys a verifier pins for `proof`, kept apart from the bundle (the live app serves its own
+   * at /.well-known/fairsplit-keys.json). All are seeded sample keys: `proof` reads "Sample" in
+   * demo mode and fails outside it, never "Verified".
+   */
+  publishedKeys: PublishedKeys,
 });
 export type SeasonSnapshot = z.infer<typeof SeasonSnapshot>;

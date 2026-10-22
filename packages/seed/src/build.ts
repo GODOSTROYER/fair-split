@@ -11,6 +11,7 @@ import {
   type PriorHold,
   type ProofBundle,
   type ProofLedgerKind,
+  type PublishedKeys,
   type SeasonSnapshot,
   SeasonSnapshot as SeasonSnapshotSchema,
   type SignedApproval,
@@ -44,6 +45,7 @@ import {
   senderBatchId,
   senderItemId,
   sha256Hex,
+  signCheckpoint,
   uuidv7,
 } from "@fairsplit/domain";
 import {
@@ -59,6 +61,7 @@ import {
   RUN,
   SEASON,
   SEEDED_KEY_IDS,
+  SEEDED_LEDGER_KEY_ID,
 } from "./constants.js";
 import { TEXT_LAYER } from "./ratecard.js";
 import { buildWorld, engineInputs, type World } from "./world.js";
@@ -83,6 +86,8 @@ export const TIMELINE = {
   unclaimed: at("02:11:20"),
   cancelled: at("02:12:30"),
   returned: at("02:12:44"),
+  /** The Proof is served, and its ledger checkpoint signed, after the last item event. */
+  proofServed: at("02:15:00"),
 } as const;
 
 /** Item webhooks: each member's SUCCEEDED (Rhea's goes UNCLAIMED). */
@@ -120,6 +125,40 @@ function hold(out: EngineOutput, key: string): EngineHold {
  */
 function seededKey(keyId: string) {
   return ed25519FromSeed(sha256Hex(`fair-split seeded demo key ${keyId} (public, synthetic)`));
+}
+
+/**
+ * The keys a verifier pins for the seeded data, in the shape of /.well-known/fairsplit-keys.json.
+ * Every one is a sample key derived from public text, so the seeded Proof reads "Sample" in demo
+ * mode and fails outside it; it is never "Verified". The live app publishes its own keys.
+ */
+export function seededPublishedKeys(): PublishedKeys {
+  const treasurer = OFFICERS.find((o) => o.role === "TREASURER");
+  const chair = OFFICERS.find((o) => o.role === "CHAIR");
+  if (!treasurer || !chair) throw new Error("officers missing");
+  const officer = (role: "treasurer" | "chair", keyId: string, approverId: string) => ({
+    keyId,
+    approverId,
+    role,
+    publicKeyHex: seededKey(keyId).publicKeyHex,
+    kind: "seeded" as const,
+    revokedAt: null,
+  });
+  return {
+    v: 1,
+    officers: [
+      officer("treasurer", SEEDED_KEY_IDS.treasurer, treasurer.persona),
+      officer("chair", SEEDED_KEY_IDS.chair, chair.persona),
+    ],
+    ledger: [
+      {
+        keyId: SEEDED_LEDGER_KEY_ID,
+        publicKeyHex: seededKey(SEEDED_LEDGER_KEY_ID).publicKeyHex,
+        kind: "seeded",
+        revokedAt: null,
+      },
+    ],
+  };
 }
 
 /** A ledger fact whose payload is checked against the contract's shape for its kind. */
@@ -630,6 +669,12 @@ export function buildSnapshot(): Built {
       : []),
   ];
   const ledger: LedgerEntry[] = buildLedger(facts.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)));
+  const checkpoint = signCheckpoint(
+    ledger,
+    runId,
+    { keyId: SEEDED_LEDGER_KEY_ID, privateKey: seededKey(SEEDED_LEDGER_KEY_ID).privateKey },
+    TIMELINE.proofServed,
+  );
   const proof: ProofBundle = {
     v: 1,
     runId,
@@ -664,6 +709,7 @@ export function buildSnapshot(): Built {
       })),
     },
     ledger,
+    checkpoint,
   };
 
   const slipDates = world.slips.map((s) => s.slipDate).sort();
@@ -748,6 +794,7 @@ export function buildSnapshot(): Built {
     },
     figures,
     proof,
+    publishedKeys: seededPublishedKeys(),
   };
   return { snapshot: SeasonSnapshotSchema.parse(snapshot), world };
 }

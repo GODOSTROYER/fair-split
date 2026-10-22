@@ -102,3 +102,12 @@ export function getFigures(): SeasonSnapshot["figures"] {
 export function getProof(): SeasonSnapshot["proof"] {
   return getSnapshot().proof;
 }
+
+/**
+ * The keys a verifier pins for the seeded Proof (`/.well-known/fairsplit-keys.json` shape), passed
+ * to `verifyChain` separately from the bundle. All are sample keys: the result is "sample" in demo
+ * mode and "failed" otherwise.
+ */
+export function getPublishedKeys(): SeasonSnapshot["publishedKeys"] {
+  return getSnapshot().publishedKeys;
+}

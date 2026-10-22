@@ -4,6 +4,7 @@ import {
   DeviceKeyId,
   type EngineInput,
   type ProofBundle,
+  PublishedKeys,
   SeasonSnapshot,
   SeededKeyId,
 } from "@fairsplit/contracts";
@@ -36,6 +37,7 @@ import {
   getMember,
   getMembers,
   getPhotos,
+  getPublishedKeys,
   getRateCard,
   getRun,
   getSlips,
@@ -636,8 +638,35 @@ describe("everything is computed, never typed", () => {
     }
   });
 
-  it("the Proof bundle verifies: chain intact and all six plates match", () => {
-    const v = verifyChain(s.proof);
+  it("inv.i8.sample-keys: the seeded Proof reads Sample in demo mode, never Verified, and fails outside it", () => {
+    const keys = getPublishedKeys();
+    expect(PublishedKeys.safeParse(keys).success).toBe(true);
+    expect(keys.officers.map((k) => [k.keyId, k.role, k.kind])).toEqual([
+      ["fs-analyn-s1", "treasurer", "seeded"],
+      ["fs-ernesto-s1", "chair", "seeded"],
+    ]);
+    expect(keys.ledger.map((k) => [k.keyId, k.kind])).toEqual([["fs-ledger-s1", "seeded"]]);
+    expect(s.proof.checkpoint).toMatchObject({
+      runId: s.run.id,
+      seq: s.proof.ledger.length,
+      keyId: "fs-ledger-s1",
+    });
+    const strict = verifyChain(s.proof, keys);
+    expect(strict).toMatchObject({ ok: false, status: "failed" });
+    expect(strict.plates.twoKeys.reason).toBe(
+      "A signature uses a sample key, so this Proof can only read as a Sample.",
+    );
+    const v = verifyChain(s.proof, keys, { demoMode: true });
+    expect(v).toMatchObject({ ok: false, status: "sample" });
+    expect(v.sampleKeys).toEqual(["fs-analyn-s1", "fs-ernesto-s1", "fs-ledger-s1"]);
+    expect(v.checkpoint).toMatchObject({ ok: true, keyId: "fs-ledger-s1" });
+    expect(v.anchors).toEqual({
+      invoiceNumber: "FS-2026A-r37",
+      invoiceReference: `rc:${getRateCard().sha256.slice(0, 16)}`,
+      senderBatchId: s.run.senderBatchId,
+      batchNote: s.run.batchNote,
+      batchNoteDigest: s.run.batchSha256.slice(0, 8),
+    });
     expect(v.chain.ok).toBe(true);
     expect(v.plates).toEqual({
       paid: { ok: true, reason: null },
@@ -656,7 +685,7 @@ describe("everything is computed, never typed", () => {
         items: s.proof.batch.items.map((i, k) => (k === 0 ? { ...i, amountCents: i.amountCents + 100 } : i)),
       },
     };
-    expect(verifyChain(tampered).ok).toBe(false);
+    expect(verifyChain(tampered, keys, { demoMode: true }).status).toBe("failed");
   });
 });
 
@@ -800,8 +829,8 @@ describe("the Proof bundle is bound to its ledger (S3.12)", () => {
       approvals,
       batch: { ...p.batch, items, batchSha256: d.batchSha256, note: batchNote("2026-A", d.batchSha256) },
     };
-    const v = verifyChain(forged);
-    expect(v.ok).toBe(false);
+    const v = verifyChain(forged, getPublishedKeys(), { demoMode: true });
+    expect(v).toMatchObject({ ok: false, status: "failed" });
     expect(v.chain.ok).toBe(true);
     expect(v.plates.payoutItems).toEqual({
       ok: false,

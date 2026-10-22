@@ -16,6 +16,7 @@ import {
   PayoutItemStatus,
   PayRunState,
   PolicyName,
+  ProofStatus,
   Rail,
   SlipFieldName,
   Station,
@@ -564,6 +565,33 @@ export const OfficerKey = z.strictObject({
 });
 export type OfficerKey = z.infer<typeof OfficerKey>;
 
+/** The server's ledger signing key: `fs-ledger-k{n}`; a seed-only key is `fs-ledger-s{n}`. */
+export const LedgerKeyId = z.string().regex(/^fs-ledger-[ks]\d+$/);
+export type LedgerKeyId = z.infer<typeof LedgerKeyId>;
+
+/** A pinned ledger key. `seeded` derives from public text: a checkpoint it signs reads "Sample". */
+export const LedgerKey = z.strictObject({
+  keyId: LedgerKeyId,
+  publicKeyHex: Ed25519PublicKeyHex,
+  kind: z.enum(["server", "seeded"]),
+  revokedAt: IsoDateTime.nullable(),
+});
+export type LedgerKey = z.infer<typeof LedgerKey>;
+
+/**
+ * The Proof verifier's trust anchors, always passed in from outside the bundle: the published
+ * officer keys (plate 5) and the pinned ledger keys (the checkpoint). Nothing in a bundle is trusted.
+ */
+export const ProofTrust = z.strictObject({
+  officers: z.array(OfficerKey),
+  ledger: z.array(LedgerKey),
+});
+export type ProofTrust = z.infer<typeof ProofTrust>;
+
+/** `/.well-known/fairsplit-keys.json`, which the app publishes and the README pins. */
+export const PublishedKeys = ProofTrust.extend({ v: z.literal(1) });
+export type PublishedKeys = z.infer<typeof PublishedKeys>;
+
 export const CosignReason = z.enum(["BATCH_OVER_THRESHOLD", "LINE_OVER_THRESHOLD", "OVERRIDE"]);
 export type CosignReason = z.infer<typeof CosignReason>;
 
@@ -821,8 +849,25 @@ export const ProofItem = z.strictObject({
 export type ProofItem = z.infer<typeof ProofItem>;
 
 /**
+ * The ledger's head when the Proof was served, signed with a pinned ledger key over
+ * JCS{purpose: "fairsplit.ledger.checkpoint", v, keyId, runId, seq, entryHash, at}. It anchors the
+ * hash chain: an edited bundle can be re-chained, but not re-signed.
+ */
+export const LedgerCheckpoint = z.strictObject({
+  v: z.literal(1),
+  runId: z.string(),
+  seq: z.int().positive(),
+  entryHash: Sha256Hex,
+  at: IsoDateTime,
+  keyId: LedgerKeyId,
+  signatureHex: z.string().regex(/^[0-9a-f]{128}$/),
+});
+export type LedgerCheckpoint = z.infer<typeof LedgerCheckpoint>;
+
+/**
  * The public Proof bundle (S3.12). Every plate is bound to the hash-chained `ledger`: a field the
- * ledger does not attest fails verification, so re-hashing and re-signing the bundle is not enough.
+ * ledger does not attest fails verification, so re-hashing and re-signing the bundle is not enough,
+ * and the ledger's head is anchored by `checkpoint`, signed with a pinned ledger key.
  */
 export const ProofBundle = z.strictObject({
   v: z.literal(1),
@@ -851,6 +896,7 @@ export const ProofBundle = z.strictObject({
     items: z.array(ProofItem),
   }),
   ledger: z.array(LedgerEntry),
+  checkpoint: LedgerCheckpoint,
 });
 export type ProofBundle = z.infer<typeof ProofBundle>;
 
@@ -861,8 +907,30 @@ export const PlateResult = z.strictObject({ ok: z.boolean(), reason: z.string().
 export type PlateResult = z.infer<typeof PlateResult>;
 
 export const ChainVerification = z.strictObject({
+  /** True only when `status` is "verified". */
   ok: z.boolean(),
+  /**
+   * "verified": every check passed with published keys. "sample": every check passed in demo mode,
+   * but a seeded or demo key signed (rendered "Sample", never "Verified"). "failed": anything else.
+   */
+  status: ProofStatus,
   chain: z.strictObject({ ok: z.boolean(), entries: z.int().nonnegative(), brokenAtSeq: z.int().nullable() }),
+  checkpoint: z.strictObject({
+    ok: z.boolean(),
+    reason: z.string().nullable(),
+    seq: z.int().nullable(),
+    keyId: z.string().nullable(),
+  }),
+  /** Key IDs of the seeded or demo keys that signed (approvals or the checkpoint). */
+  sampleKeys: z.array(z.string()),
+  /** PayPal's own records of this run, to match in PayPal: invoice reference, batch ID and note. */
+  anchors: z.strictObject({
+    invoiceNumber: z.string().nullable(),
+    invoiceReference: z.string().nullable(),
+    senderBatchId: z.string().nullable(),
+    batchNote: z.string().nullable(),
+    batchNoteDigest: z.string().nullable(),
+  }),
   plates: z.strictObject({
     paid: PlateResult,
     ratified: PlateResult,

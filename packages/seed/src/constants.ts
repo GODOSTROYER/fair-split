@@ -59,6 +59,8 @@ export const OFFICERS = [
  * keys are registered from the devices, never from this snapshot.
  */
 export const SEEDED_KEY_IDS = { treasurer: "fs-analyn-s1", chair: "fs-ernesto-s1" } as const;
+/** The seed-only ledger key that signs the seeded Proof's checkpoint (a sample, like the keys above). */
+export const SEEDED_LEDGER_KEY_ID = "fs-ledger-s1";
 
 export const PAYER = {
   name: "Lantern Bay Chocolate Co.",

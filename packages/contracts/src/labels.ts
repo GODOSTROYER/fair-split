@@ -10,6 +10,7 @@ import type {
   MemberLineState,
   PayoutItemStatus,
   PayRunState,
+  ProofStatus,
   Rail,
   RunStripStep,
 } from "./enums.js";
@@ -208,6 +209,16 @@ export const PROVENANCE_LABELS: Readonly<Record<Provenance, Words>> = {
   },
   simulated_rail: { en: "Simulated rail", ceb: "Simulated nga rail", fil: "Simulated na rail" },
   seeded: { en: "Seeded sample", ceb: "Sample nga gi-seed", fil: "Sample na naka-seed" },
+};
+
+/**
+ * Proof verification outcome (W-PF-01). A Proof signed with seeded or demo keys reads "Sample" and
+ * is never called verified, in any language.
+ */
+export const PROOF_STATUS_LABELS: Readonly<Record<ProofStatus, Words>> = {
+  verified: { en: "Verified", ceb: "Napamatud-an", fil: "Napatunayan" },
+  sample: { en: "Sample", ceb: "Sample lang", fil: "Sample lamang" },
+  failed: { en: "Does not match", ceb: "Dili motugma", fil: "Hindi tugma" },
 };
 
 export const INVOICE_STATUS_LABELS: Readonly<Record<InvoiceStatus, Words>> = {

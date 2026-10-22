@@ -274,6 +274,10 @@ export const WEBHOOK_EVENT_TYPES = [
 export const WebhookEventType = z.enum(WEBHOOK_EVENT_TYPES);
 export type WebhookEventType = z.infer<typeof WebhookEventType>;
 
+/** A Proof verification's outcome (W-PF-01): "sample" renders as "Sample", never "Verified". */
+export const ProofStatus = z.enum(["verified", "sample", "failed"]);
+export type ProofStatus = z.infer<typeof ProofStatus>;
+
 export const WebhookVerified = z.enum(["self", "postback", "dev_mock", "fetched"]);
 export type WebhookVerified = z.infer<typeof WebhookVerified>;
 

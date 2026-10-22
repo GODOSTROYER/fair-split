@@ -1,6 +1,6 @@
 // The exact bytes behind the batch digest and the approval signature, without hashing. Pure, so
 // the browser verifier (Proof, W-PF-01) can rebuild them and hash with its own crypto.
-import type { ApprovalPayload, BatchItem } from "@fairsplit/contracts";
+import type { ApprovalPayload, BatchItem, LedgerCheckpoint } from "@fairsplit/contracts";
 import { jcs, jcsBytes } from "./jcs.js";
 
 export interface BatchRun {
@@ -72,4 +72,23 @@ export function linesRootJcs(lines: readonly { memberNo: string; lineSha256: str
 /** UTF-8 bytes of the approval payload's JCS form: exactly what each approver signs. */
 export function approvalBytes(payload: ApprovalPayload): Uint8Array {
   return jcsBytes(payload);
+}
+
+/** Domain separation for checkpoint signatures, so no other signed JCS can pass as one. */
+export const CHECKPOINT_PURPOSE = "fairsplit.ledger.checkpoint";
+
+/**
+ * UTF-8 bytes of what the ledger key signs for a checkpoint:
+ * JCS{purpose, v, keyId, runId, seq, entryHash, at}.
+ */
+export function checkpointBytes(c: Omit<LedgerCheckpoint, "signatureHex">): Uint8Array {
+  return jcsBytes({
+    purpose: CHECKPOINT_PURPOSE,
+    v: c.v,
+    keyId: c.keyId,
+    runId: c.runId,
+    seq: c.seq,
+    entryHash: c.entryHash,
+    at: c.at,
+  });
 }

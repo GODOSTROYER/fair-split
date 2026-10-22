@@ -1,5 +1,11 @@
 // An honest Proof bundle whose ledger follows the contract (S3.12): what the seed and the API write.
-import type { LedgerPayload, ProofBundle, ProofLedgerKind, SignedApproval } from "@fairsplit/contracts";
+import type {
+  LedgerPayload,
+  ProofBundle,
+  ProofLedgerKind,
+  ProofTrust,
+  SignedApproval,
+} from "@fairsplit/contracts";
 import { approvalBytes, buildApprovalPayload } from "../approval.js";
 import {
   batchDigest,
@@ -10,7 +16,7 @@ import {
   senderItemId,
 } from "../batch.js";
 import { sha256Hex } from "../canon.js";
-import { buildLedger, type LedgerFact } from "../chain.js";
+import { buildLedger, type LedgerFact, signCheckpoint } from "../chain.js";
 import { computeLines, lineCanonical, linesRootSha256 } from "../engine.js";
 import { quoteInvoice } from "../quote.js";
 import { ed25519FromSeed, ed25519Sign } from "../sig.js";
@@ -22,6 +28,35 @@ export const PROOF_KEYS = {
 };
 export const APPROVERS = { treasurer: "treasurer:analyn", chair: "board:ernesto" } as const;
 export const KEY_IDS = { treasurer: "fs-analyn-a1", chair: "fs-ernesto-a1" } as const;
+/** The server's ledger key: it signs each Proof's checkpoint; verifiers pin its public key. */
+export const LEDGER_KEY = {
+  keyId: "fs-ledger-k1",
+  ...ed25519FromSeed(sha256Hex("proof fixture ledger key")),
+};
+
+/** What the app publishes at /.well-known/fairsplit-keys.json: the verifier's only trust anchors. */
+export const PROOF_TRUST: ProofTrust = {
+  officers: (["treasurer", "chair"] as const).map((role) => ({
+    keyId: KEY_IDS[role],
+    approverId: APPROVERS[role],
+    role,
+    publicKeyHex: PROOF_KEYS[role].publicKeyHex,
+    kind: "app" as const,
+    revokedAt: null,
+  })),
+  ledger: [
+    { keyId: LEDGER_KEY.keyId, publicKeyHex: LEDGER_KEY.publicKeyHex, kind: "server", revokedAt: null },
+  ],
+};
+
+/** Signs a checkpoint over the bundle's current ledger head (what the server does when it serves Proof). */
+export function withCheckpoint(
+  p: Omit<ProofBundle, "checkpoint">,
+  key: { keyId: string; privateKey: typeof LEDGER_KEY.privateKey } = LEDGER_KEY,
+  runId = p.runId,
+): ProofBundle {
+  return { ...p, checkpoint: signCheckpoint(p.ledger, runId, key, T("02:14:00")) };
+}
 
 export function fact<K extends ProofLedgerKind>(
   kind: K,
@@ -220,7 +255,7 @@ export function honestProof(): ProofBundle {
       { actorKind: "paypal", actorId: "paypal" },
     ),
   ]);
-  return {
+  return withCheckpoint({
     v: 1,
     runId,
     runSlug: slug,
@@ -256,5 +291,5 @@ export function honestProof(): ProofBundle {
       ],
     },
     ledger,
-  };
+  });
 }
