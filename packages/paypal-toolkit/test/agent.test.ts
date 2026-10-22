@@ -5,7 +5,6 @@ import {
   AgentToolRefusedError,
   buildInvoicePlan,
   conditionalRuleRequestId,
-  INVOICE_NOTE_CLOSINGS,
   type InvoiceCheckpoint,
   InvoiceNotPayableError,
   Invoices,
@@ -13,6 +12,7 @@ import {
   runAgentToolkitTool,
   type Tk,
   type TreasurerApproval,
+  withItemLabels,
 } from "../src/index.js";
 import {
   BUSINESS_EMAIL,
@@ -37,12 +37,14 @@ const APPROVAL: TreasurerApproval = {
   approvedAt: "2026-11-05T02:00:00.000Z",
   invoiceNumber: "FS-2026A-r37",
 };
+/** Claude's three item labels: the only words the agent adds to the invoice (S4.4 create_run_invoice). */
+const LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout and audit costs"] as const;
 /** Created, not yet sent: PayPal's date is not read yet. */
 const CREATED: Partial<InvoiceCheckpoint> = {
   invoiceId: INVOICE_ID,
   invoiceNumber: "FS-2026A-r37",
   adopted: false,
-  note: HERO_MEMO,
+  itemLabels: [...LABELS],
 };
 /** Sent, and a fresh GET showed it payable, dated 5 Nov by PayPal. */
 const PAYABLE: Partial<InvoiceCheckpoint> = {
@@ -59,16 +61,17 @@ function session(seed: Partial<InvoiceCheckpoint> | null = null, tk?: Tk) {
     tk: tk ?? new PayPalToolkit({ auth: fakeAuth(), limiter: openLimiter() }).tk,
     repo,
     businessEmail: BUSINESS_EMAIL,
+    ppMode: "sandbox",
     now: () => NOW,
   });
   const s: AgentInvoiceSession = { run: RUN, invoices };
   return { session: s, repo };
 }
 
-/** The draft a well-behaved agent sends: the code-built invoice, with one listed closing. */
+/** The draft a well-behaved agent sends: the code-built invoice with its own labels as item names. */
 const goodDraft = () => {
   const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
-  return { ...structuredClone(plan.createArgs), note: `${plan.note}. ${INVOICE_NOTE_CLOSINGS[1]}` };
+  return structuredClone(withItemLabels(plan, LABELS));
 };
 
 const autoCancel = (date = "2026-11-30", invoiceId = INVOICE_ID) => ({
@@ -99,11 +102,24 @@ describe("runAgentToolkitTool: create_invoice through the run's checkpointed cha
       adopted: false,
       alreadyDone: false,
     });
-    const body = requests[0]?.body as { detail: Record<string, unknown> };
-    expect(body.detail.note).toBe(goodDraft().note);
+    const body = requests[0]?.body as {
+      detail: Record<string, unknown>;
+      items: { name: string; unit_amount: { value: string } }[];
+    };
+    expect(body.detail.note).toBe(HERO_MEMO);
     expect(body.detail.invoice_number).toBe("FS-2026A-r37");
     expect(body.detail).not.toHaveProperty("invoice_date");
-    expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceId: INVOICE_ID, adopted: false });
+    // The labels are Claude's; every amount is the code's.
+    expect(body.items.map((i) => [i.name, i.unit_amount.value])).toEqual([
+      ["Fairtrade premium", "2887.50"],
+      ["Bean quality bonus", "1386.00"],
+      ["Payout and audit costs", "60.00"],
+    ]);
+    expect(repo.rows.get(RUN.runId)).toMatchObject({
+      invoiceId: INVOICE_ID,
+      adopted: false,
+      itemLabels: [...LABELS],
+    });
   });
 
   it("does not create a second invoice for a run that holds one (a retried tool call is a no-op)", async () => {
@@ -179,6 +195,20 @@ describe("runAgentToolkitTool: create_invoice through the run's checkpointed cha
       "note",
     ],
     ["an amount in words", (d) => ({ ...d, note: `${d.note}. Please pay five thousand dollars.` }), "note"],
+    ["a closing phrase after the memo", (d) => ({ ...d, note: `${d.note}. Thank you.` }), "note"],
+    [
+      "an amount in words as an item label",
+      (d) => ({
+        ...d,
+        items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Five thousand dollars" } : i)),
+      }),
+      "items[0].name",
+    ],
+    [
+      "a digit in an item label",
+      (d) => ({ ...d, items: d.items.map((i, n) => (n === 2 ? { ...i, name: "Costs 60" } : i)) }),
+      "items[2].name",
+    ],
     [
       "another recipient",
       (d) => ({ ...d, primary_recipients: [{ billing_info: { email_address: "attacker@example.test" } }] }),

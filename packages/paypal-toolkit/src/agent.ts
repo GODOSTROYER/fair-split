@@ -4,7 +4,8 @@
 // (Invoices), never through raw tk(), so the agent and the deterministic path share one
 // idempotency key (FS-{runSlug}), one adoption rule and one checkpoint:
 //   - create_invoice creates (or adopts) the run's invoice only if the draft equals the code-built
-//     invoice (I1); a run that already holds its invoice is not created again.
+//     invoice but for the three item labels, the agent's only words (I1); a run that already holds
+//     its invoice is not created again.
 //   - send_invoice sends only this run's invoice, never e-mailed, and only with the treasurer's
 //     approval of that very invoice; without one it parks as PENDING_APPROVAL. The payable GET
 //     follows; a SCHEDULED invoice is left for the server chain, which recreates it once.

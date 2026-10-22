@@ -2,8 +2,9 @@
 // §S3.6.3). Every field PayPal sees is derived here from the run and the code-computed quote.
 // invoice_date and payment_term are never sent: PayPal dates the invoice itself, so sending can
 // never schedule it, and the AUTO_CANCEL date follows the date PayPal holds (C-27). The agent's
-// draft may differ only by choosing one closing phrase for the note from a fixed list (invariant
-// I1: free text could carry an amount in words).
+// draft may differ in one thing only: the three item labels (the plan: "Item names: Claude's recorded
+// labels"; S4.4 `canonicalInvoice(quote, labels)`), which can spell no number, link or address (I1).
+// The note is the memo, exactly.
 
 import { isDeepStrictEqual } from "node:util";
 import type { InvoiceQuote, QuoteItemKey } from "./_shims/domain.js";
@@ -22,22 +23,47 @@ export const REFERENCE_MAX = 120;
 /** The quote's three lines, in invoice order (register §2): premium, quality bonus, disbursement costs. */
 export const INVOICE_ITEM_KEYS: readonly QuoteItemKey[] = ["PREMIUM", "BONUS", "DISBURSEMENT"];
 
-/** Register §8 item labels: at most 40 characters, letters, spaces and `,'()-`, no digits. */
-export const INVOICE_ITEM_LABEL = /^[\p{L} ,'()-]{1,40}$/u;
+/**
+ * Register §8 item labels, as S4.4's `checkLabels` (and WS-CORE's `itemLabelProblem`) reads them: 1–40
+ * characters, a letter first, then letters, spaces and `,'()-`. No digit, `@`, `.`, `/` or `:`, so no
+ * amount, link, e-mail address or phone number fits.
+ */
+export const INVOICE_ITEM_LABEL = /^[A-Za-z][A-Za-z ,'()-]{0,39}$/;
 
 /**
- * The only words the agent adds to an invoice: at most one of these closings after the code-rendered
- * memo, as `${memo}. ${closing}`. A closed list, because any free text could carry an amount in words.
+ * English number words. Letters alone can still spell an amount ("Four thousand dollars"), so I1 also
+ * refuses these at the money edge. Ordinals ("Second payment") and fractions carry no amount and pass.
  */
-export const INVOICE_NOTE_CLOSINGS = [
-  "Thank you.",
-  "Thank you for funding the season.",
-  "Paid out to members under the ratified rate card.",
-] as const;
+const NUMBER_WORD =
+  /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fourty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|trillions?|dozens?)\b/i;
 
-/** Every note the agent may choose for an invoice whose memo is `memo`. */
-export function allowedInvoiceNotes(memo: string): string[] {
-  return [memo, ...INVOICE_NOTE_CLOSINGS.map((closing) => `${memo}. ${closing}`)];
+/** Why `label` is not a register §8 item label, or null. */
+function itemLabelProblem(label: unknown): string | null {
+  if (typeof label !== "string" || label.trim() !== label || !INVOICE_ITEM_LABEL.test(label)) {
+    return "a label is 1-40 letters, spaces and ,'()-, starting with a letter";
+  }
+  const word = NUMBER_WORD.exec(label);
+  return word ? `a label may not spell a number ("${word[0]}")` : null;
+}
+
+/** True when `name` is a register §8 item label (letters only, no number words). */
+export function isInvoiceItemLabel(name: unknown): name is string {
+  return itemLabelProblem(name) === null;
+}
+
+/**
+ * Why `labels` cannot name the invoice's three lines, or null: one label per quote line, each a
+ * register §8 label, all distinct (ignoring case). The same check covers the agent's labels and the
+ * quote's own names.
+ */
+export function itemLabelsProblem(labels: readonly unknown[]): string | null {
+  if (labels.length !== INVOICE_ITEM_KEYS.length) return "there must be three labels, one per quote line";
+  for (const [i, label] of labels.entries()) {
+    const problem = itemLabelProblem(label);
+    if (problem) return `item ${i + 1}: ${problem}`;
+  }
+  const folded = new Set(labels.map((l) => (l as string).toLowerCase()));
+  return folded.size === labels.length ? null : "the three labels must be distinct";
 }
 
 /**
@@ -190,11 +216,6 @@ export function autoCancelWindowError(autoCancelOn: string, today: string): stri
   return null;
 }
 
-/** True when `name` is a register §8 item label. */
-export function isInvoiceItemLabel(name: unknown): name is string {
-  return typeof name === "string" && name.trim() === name && INVOICE_ITEM_LABEL.test(name);
-}
-
 function quoteCents(value: unknown, what: string): bigint {
   check(
     typeof value === "number" && Number.isSafeInteger(value) && value >= 0,
@@ -223,10 +244,8 @@ function quoteItems(run: InvoiceRun): { items: CreateInvoiceItem[]; totalCents: 
     const item = quote.items[i];
     check(item?.key === key, `Quote line ${i + 1} must be ${key}`);
     check(item.quantity === "1", `${key}: the quantity is always 1`);
-    check(
-      isInvoiceItemLabel(item.name),
-      `${key}: a label is at most 40 letters, spaces or ,'()- (no digits)`,
-    );
+    const problem = itemLabelProblem(item.name);
+    check(problem === null, `${key}: ${problem}`);
     const cents = quoteCents(item.unitAmountCents, `${key} amount`);
     byKey.set(key, cents);
     return {
@@ -236,6 +255,8 @@ function quoteItems(run: InvoiceRun): { items: CreateInvoiceItem[]; totalCents: 
       unit_of_measure: "AMOUNT",
     };
   });
+  const names = itemLabelsProblem(items.map((item) => item.name));
+  check(names === null, `The quote's line labels: ${names}`);
   const premium = byKey.get("PREMIUM") ?? 0n;
   const bonus = byKey.get("BONUS") ?? 0n;
   const disbursement = byKey.get("DISBURSEMENT") ?? 0n;
@@ -285,6 +306,20 @@ export function buildInvoicePlan(run: InvoiceRun, context: { businessEmail: stri
   };
 }
 
+/**
+ * S4.4 `canonicalInvoice(quote, labels)`: the plan's create arguments with `labels` as the three item
+ * names. Everything else, every amount included, stays the code's. Throws InvoicePlanError when the
+ * labels are not three distinct register §8 labels.
+ */
+export function withItemLabels(plan: InvoicePlan, labels: readonly unknown[]): CreateInvoiceArgs {
+  const problem = itemLabelsProblem(labels);
+  check(problem === null, `Item labels refused: ${problem}`);
+  return {
+    ...plan.createArgs,
+    items: plan.createArgs.items.map((item, i) => ({ ...item, name: labels[i] as string })),
+  };
+}
+
 /** Builds the PayPal-Request-Id for a conditional rule (register §8). */
 export const conditionalRuleRequestId = (invoiceId: string): string => `cr-${invoiceId}`;
 
@@ -307,7 +342,7 @@ export function autoCancelRuleArgs(invoiceId: string, autoCancelOn: string) {
 
 export type DraftReconciliation = { ok: true; args: CreateInvoiceArgs } | { ok: false; mismatches: string[] };
 
-/** Item fields a draft may carry; each must equal the code-built line exactly (names included). */
+/** Item fields a draft may carry. All but the name must equal the code-built line exactly. */
 const ITEM_FIELDS = ["name", "quantity", "unit_amount", "unit_of_measure"] as const;
 const ITEM_FIELD_SET: ReadonlySet<string> = new Set(ITEM_FIELDS);
 
@@ -318,11 +353,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Invariant I1 at the money edge: the agent writes no number and no free text. Accepts the agent's
  * create_invoice draft only if it passes the toolkit's own schema, every field equals the code-built
- * invoice (currency, number, reference, invoicer, recipients, and all three items with their names,
- * quantities and amounts), no other field is set (no date, shipping, tip, partial payment,
- * pay-by-bank, discount, tax or description, at any depth: the draft is compared as written, so a
- * key the schema would strip still counts), and the note is the code-rendered memo, optionally closed
- * by one phrase from INVOICE_NOTE_CLOSINGS. Returns the plan's arguments carrying the chosen note.
+ * invoice (currency, number, reference, the memo as the note, invoicer, recipients, and each of the
+ * three lines' quantity, amount and unit), no other field is set (no date, shipping, tip, partial
+ * payment, pay-by-bank, discount, tax or description, at any depth: the draft is compared as written,
+ * so a key the schema would strip still counts), and the three item names are distinct register §8
+ * labels with no number words. Returns the plan's arguments carrying those labels, so every value sent
+ * is the code's except the labels (S4.4 `canonicalInvoice(quote, labels)`).
  */
 export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftReconciliation {
   const parsed = toolkitZodSchemas().get("create_invoice")?.safeParse(draft);
@@ -332,22 +368,18 @@ export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftRec
   const mismatches: string[] = [];
 
   for (const [key, value] of Object.entries(draft)) {
-    if (key === "note" || key === "items" || value === undefined) continue;
+    if (key === "items" || value === undefined) continue;
     if (!(key in expected)) mismatches.push(`${key}: not a field the agent may set`);
     else if (!isDeepStrictEqual(value, expected[key]))
       mismatches.push(`${key}: differs from the code-built invoice`);
   }
   for (const key of Object.keys(expected)) {
-    if (key !== "note" && key !== "items" && draft[key] === undefined) mismatches.push(`${key}: missing`);
-  }
-
-  const note = typeof draft.note === "string" ? draft.note : null;
-  if (note === null || !allowedInvoiceNotes(plan.note).includes(note)) {
-    mismatches.push("note: must be the code-rendered memo, optionally closed by one listed phrase");
+    if (key !== "items" && draft[key] === undefined) mismatches.push(`${key}: missing`);
   }
 
   const items = Array.isArray(draft.items) ? (draft.items as unknown[]) : [];
   const wanted = plan.createArgs.items;
+  const labels: unknown[] = [];
   if (items.length !== wanted.length) {
     mismatches.push(`items: ${items.length} lines, the quote has ${wanted.length}`);
   } else {
@@ -355,7 +387,7 @@ export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftRec
       const got = isRecord(raw) ? raw : {};
       const want = wanted[i] as unknown as Record<string, unknown>;
       for (const [key, value] of Object.entries(got)) {
-        if (value === undefined) continue;
+        if (value === undefined || key === "name") continue;
         if (!ITEM_FIELD_SET.has(key)) mismatches.push(`items[${i}].${key}: not a field the agent may set`);
         else if (!isDeepStrictEqual(value, want[key]))
           mismatches.push(`items[${i}].${key}: differs from the quote`);
@@ -363,9 +395,18 @@ export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftRec
       for (const key of ITEM_FIELDS) {
         if (got[key] === undefined) mismatches.push(`items[${i}].${key}: missing`);
       }
+      if (got.name !== undefined) {
+        const problem = itemLabelProblem(got.name);
+        if (problem) mismatches.push(`items[${i}].name: ${problem}`);
+      }
+      labels.push(got.name);
     });
+    if (mismatches.length === 0) {
+      const problem = itemLabelsProblem(labels);
+      if (problem) mismatches.push(`items: ${problem}`);
+    }
   }
 
-  if (mismatches.length > 0 || note === null) return { ok: false, mismatches };
-  return { ok: true, args: { ...plan.createArgs, note } };
+  if (mismatches.length > 0) return { ok: false, mismatches };
+  return { ok: true, args: withItemLabels(plan, labels) };
 }

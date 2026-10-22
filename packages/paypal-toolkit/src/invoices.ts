@@ -11,7 +11,6 @@ import { type CallPriority, ppDate } from "./_shims/paypal-core.js";
 import type { ToolkitMethod } from "./actions.js";
 import { parseIsoDate } from "./dates.js";
 import {
-  allowedInvoiceNotes,
   approvalCovers,
   autoCancelDate,
   autoCancelRuleArgs,
@@ -21,8 +20,10 @@ import {
   conditionalRuleRequestId,
   type InvoicePlan,
   type InvoiceRun,
+  itemLabelsProblem,
   reconcileAgentDraft,
   type TreasurerApproval,
+  withItemLabels,
 } from "./invoice-plan.js";
 import { centsToValue, readValueCents } from "./money.js";
 import { type Tk, ToolkitError } from "./tk.js";
@@ -32,8 +33,11 @@ export interface InvoiceCheckpoint {
   invoiceId: string | null;
   invoiceNumber: string | null;
   adopted: boolean;
-  /** The note the invoice was created with: the memo, or the memo and the agent's listed closing. */
-  note: string | null;
+  /**
+   * The three item labels the invoice carries (the agent's, or the quote's names), so a recreated
+   * invoice reads as the first did. The note is always the memo, so it is not stored.
+   */
+  itemLabels: readonly string[] | null;
   /** The invoice date PayPal holds, read from a GET; we never send one. */
   invoiceDate: string | null;
   sentAt: string | null;
@@ -53,7 +57,7 @@ export const EMPTY_INVOICE_CHECKPOINT: Readonly<InvoiceCheckpoint> = Object.free
   invoiceId: null,
   invoiceNumber: null,
   adopted: false,
-  note: null,
+  itemLabels: null,
   invoiceDate: null,
   sentAt: null,
   payerViewUrl: null,
@@ -72,11 +76,20 @@ export interface InvoiceRepository {
   save(runId: string, patch: Partial<InvoiceCheckpoint>): Promise<void>;
 }
 
+/** ADR-0002 `PP_MODE`: PayPal's sandbox, or the contract-faithful simulator standing in for it. */
+export type PayPalMode = "sandbox" | "simulator";
+const PAYPAL_MODES: ReadonlySet<string> = new Set<PayPalMode>(["sandbox", "simulator"]);
+
 export interface InvoicesDeps {
   tk: Tk;
   repo: InvoiceRepository;
   /** PP_BUSINESS_EMAIL: the co-op's business account, invoicer and payout sender. */
   businessEmail: string;
+  /**
+   * Required (I8): in simulator mode every PayPal-derived state is labelled `simulated_rail`, so a
+   * wiring that forgets the mode cannot show a simulated PAID as live.
+   */
+  ppMode: PayPalMode;
   now?: () => Date;
   /**
    * Spike S2's fallback: put the AUTO_CANCEL rule on before the send, should PayPal refuse a rule on
@@ -86,7 +99,10 @@ export interface InvoicesDeps {
 }
 
 export interface EnsureInvoiceOptions {
-  /** The audit agent's create_invoice draft: it may only choose the note's closing (I1). */
+  /**
+   * The audit agent's create_invoice draft, e.g. S4.4's `canonicalInvoice(quote, labels)`: it may only
+   * choose the three item labels (I1). Everything sent is the code's except those labels.
+   */
   draft?: unknown;
   priority?: CallPriority;
 }
@@ -105,6 +121,8 @@ export interface EnsureInvoiceResult {
   recreated: boolean;
   /** PayPal calls this invocation made (a live Judge run budgets about 11). */
   calls: number;
+  /** I8: `live` on PayPal's sandbox, `simulated_rail` on the simulator (ADR-0002). */
+  provenance: Extract<Provenance, "live" | "simulated_rail">;
 }
 
 export interface CreateStepResult {
@@ -249,6 +267,7 @@ interface InvoiceLike {
     invoice_number?: unknown;
     reference?: unknown;
     note?: unknown;
+    terms_and_conditions?: unknown;
     currency_code?: unknown;
     invoice_date?: unknown;
     metadata?: { recipient_view_url?: unknown };
@@ -257,6 +276,7 @@ interface InvoiceLike {
   primary_recipients?: { billing_info?: { email_address?: unknown } }[];
   items?: {
     name?: unknown;
+    description?: unknown;
     quantity?: unknown;
     unit_amount?: MoneyLike;
     tax?: { percent?: unknown; amount?: MoneyLike };
@@ -365,17 +385,19 @@ export function invoiceMoneyExtras(body: unknown): string[] {
 }
 
 /**
- * Adopt only our own invoice, deep-equal to the canonical body: the fresh GET must show our number,
- * reference, a listed note, currency, total, the business account as invoicer, the brand as the one
- * recipient, the three quote lines, no money extras, a readable invoice date and a status we can carry
- * on from. Anything missing or different is a HALT (InvoiceAdoptError). Returns the status and PayPal's
- * invoice date, which the AUTO_CANCEL date is computed from.
+ * Adopt only our own invoice, deep-equal to the canonical body `canonicalInvoice(quote, labels)` for
+ * the labels it carries: the fresh GET must show our number, reference, the memo as its note,
+ * currency, total, the business account as invoicer, the brand as the one recipient, the three quote
+ * lines (quantity and amount; their names three distinct register §8 labels), no free text we never
+ * send (line descriptions, terms), no money extras, a readable invoice date and a status we can carry
+ * on from. Anything missing or different is a HALT (InvoiceAdoptError). Returns the status, PayPal's
+ * invoice date (the AUTO_CANCEL date is computed from it) and the labels.
  */
 function verifyAdoptable(
   invoice: InvoiceLike,
   plan: InvoicePlan,
   invoiceId: string,
-): { status: string; invoiceDate: string; note: string } {
+): { status: string; invoiceDate: string; itemLabels: string[] } {
   const halt = (why: string) =>
     new InvoiceAdoptError(`${plan.invoiceNumber} (${invoiceId}) not adopted: ${why}`);
   if (str(invoice.id) !== invoiceId) throw halt("the GET returned another invoice");
@@ -385,9 +407,8 @@ function verifyAdoptable(
   const reference = str(invoice.detail?.reference);
   if (reference !== plan.reference)
     throw halt(`it carries ${reference ?? "no reference"}, not ${plan.reference}`);
-  const note = str(invoice.detail?.note);
-  if (note === null || !allowedInvoiceNotes(plan.note).includes(note))
-    throw halt("its note is not the code-rendered memo");
+  if (str(invoice.detail?.note) !== plan.note) throw halt("its note is not the code-rendered memo");
+  if (str(invoice.detail?.terms_and_conditions) !== null) throw halt("it carries terms we never send");
   const currency = str(invoice.detail?.currency_code) ?? str(invoice.amount?.currency_code);
   if (currency !== "USD") throw halt(`its currency is ${currency ?? "missing"}`);
   const total = readValueCents(invoice.amount?.value);
@@ -411,24 +432,28 @@ function verifyAdoptable(
     wanted.every((want, i) => {
       const got = items[i];
       return (
-        got?.name === want.name &&
         Number(got?.quantity) === Number(want.quantity) &&
         got?.unit_amount?.currency_code === "USD" &&
         readValueCents(got?.unit_amount?.value) === readValueCents(want.unit_amount.value)
       );
     });
   if (!sameItems) throw halt("its lines differ from the quote");
+  const itemLabels = items.map((item) => item?.name);
+  const labels = itemLabelsProblem(itemLabels);
+  if (labels) throw halt(`its line labels are not ours: ${labels}`);
+  if (items.some((item) => str(item?.description) !== null)) throw halt("its lines carry descriptions");
   const extras = invoiceMoneyExtras(invoice);
   if (extras.length > 0) throw halt(`it carries ${extras.join(", ")}`);
   const status = str(invoice.status);
   if (status === null || !ADOPTABLE_STATUSES.has(status)) throw halt(`its status is ${status ?? "unknown"}`);
-  return { status, invoiceDate, note };
+  return { status, invoiceDate, itemLabels: itemLabels as string[] };
 }
 
 interface CreatedOrAdopted {
   invoiceId: string;
   adopted: boolean;
-  note: string;
+  /** The labels the invoice carries: the ones sent, or the adopted invoice's own. */
+  itemLabels: string[];
   /** PayPal's date for an adopted invoice; a new one's is read by the next GET. */
   invoiceDate: string | null;
   /** PayPal shows the adopted invoice sent (SCHEDULED included: the payable GET recreates it). */
@@ -449,13 +474,18 @@ export class Invoices {
   readonly #businessEmail: string;
   readonly #now: () => Date;
   readonly #ruleBeforeSend: boolean;
+  readonly #rail: Extract<Provenance, "live" | "simulated_rail">;
 
   constructor(deps: InvoicesDeps) {
+    if (!PAYPAL_MODES.has(deps.ppMode)) {
+      throw new TypeError(`Invoices needs PP_MODE (sandbox or simulator), not ${String(deps.ppMode)}`);
+    }
     this.#tk = deps.tk;
     this.#repo = deps.repo;
     this.#businessEmail = deps.businessEmail;
     this.#now = deps.now ?? (() => new Date());
     this.#ruleBeforeSend = deps.ruleBeforeSend ?? false;
+    this.#rail = deps.ppMode === "simulator" ? "simulated_rail" : "live";
   }
 
   /** What the chain has done for a run (read-only). */
@@ -492,8 +522,8 @@ export class Invoices {
   }
 
   /**
-   * The create arguments: an agent draft that reconciles with the plan (I1), else the note the run's
-   * invoice was first created with (so a recreated invoice reads the same), else the plan's.
+   * The create arguments: an agent draft that reconciles with the plan (I1), else the labels the run's
+   * invoice was first created with (so a recreated invoice reads the same), else the quote's names.
    */
   #argsFor(plan: InvoicePlan, draft: unknown, cp: InvoiceCheckpoint): CreateInvoiceArgs {
     if (draft !== undefined) {
@@ -501,8 +531,8 @@ export class Invoices {
       if (!reconciled.ok) throw new InvoiceDraftRejectedError(reconciled.mismatches);
       return reconciled.args;
     }
-    if (cp.note && allowedInvoiceNotes(plan.note).includes(cp.note))
-      return { ...plan.createArgs, note: cp.note };
+    if (cp.itemLabels && itemLabelsProblem(cp.itemLabels) === null)
+      return withItemLabels(plan, cp.itemLabels);
     return plan.createArgs;
   }
 
@@ -562,6 +592,7 @@ export class Invoices {
       autoCancelOn: cp.ruleSetAt ? cp.autoCancelOn : null,
       recreated,
       calls: calls(),
+      provenance: this.#rail,
     });
 
     // At most two passes: a SCHEDULED invoice is replaced once, and a second SCHEDULED halts.
@@ -662,7 +693,7 @@ export class Invoices {
       invoiceId: created.invoiceId,
       invoiceNumber: plan.invoiceNumber,
       adopted: created.adopted,
-      note: created.note,
+      itemLabels: created.itemLabels,
       invoiceDate: created.invoiceDate,
       ...(created.alreadySent
         ? {
@@ -804,7 +835,7 @@ export class Invoices {
         return {
           invoiceId,
           adopted: false,
-          note: args.note,
+          itemLabels: args.items.map((item) => item.name),
           invoiceDate: null,
           alreadySent: false,
           payable: false,
@@ -841,11 +872,11 @@ export class Invoices {
     } catch {
       throw failure;
     }
-    const { status, invoiceDate, note } = verifyAdoptable(invoice, plan, invoiceId);
+    const { status, invoiceDate, itemLabels } = verifyAdoptable(invoice, plan, invoiceId);
     return {
       invoiceId,
       adopted: true,
-      note,
+      itemLabels,
       invoiceDate,
       alreadySent: status === "SCHEDULED" || SENT_STATUSES.has(status),
       payable: SENT_STATUSES.has(status),
@@ -939,7 +970,8 @@ export class Invoices {
       state: isFunded(invoice) ? "FUNDED" : "NOT_YET",
       invoiceStatus,
       dueCents: readValueCents(invoice?.due_amount?.value),
-      provenance: invoiceStatus === "MARKED_AS_PAID" ? "simulated_rail" : "live",
+      // A recorded payment is a simulated rail on either rail; on the simulator, everything is.
+      provenance: invoiceStatus === "MARKED_AS_PAID" ? "simulated_rail" : this.#rail,
     };
   }
 }

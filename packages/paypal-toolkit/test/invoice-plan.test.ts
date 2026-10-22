@@ -2,24 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   AUTO_CANCEL_AFTER_DAYS,
   AUTO_CANCEL_MAX_DAYS_AHEAD,
-  allowedInvoiceNotes,
   approvalCovers,
   autoCancelDate,
   autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
   INVOICE_ITEM_KEYS,
-  INVOICE_NOTE_CLOSINGS,
+  INVOICE_ITEM_LABEL,
   InvoicePlanError,
   type InvoiceQuote,
   invoiceMemo,
   invoiceNumberFor,
   isInvoiceItemLabel,
+  itemLabelsProblem,
   ppDate,
   rateCardReference,
   reconcileAgentDraft,
   runSlug,
   seasonIdCode,
+  withItemLabels,
 } from "../src/index.js";
 import {
   BUSINESS_EMAIL,
@@ -150,9 +151,16 @@ describe("register §8 invoice fields", () => {
   it.each([
     ["a digit", "Premium 2026"],
     ["an amount", "Premium $2,887.50"],
+    ["an amount in words", "Four thousand dollars"],
+    ["a number word inside a hyphenated phrase", "Twenty-five percent bonus"],
     ["over 40 characters", "Premium paid to the members of the co-op as ratified"],
     ["a leading space", " Premium"],
+    ["a trailing space", "Premium "],
+    ["a leading punctuation mark", "(Premium)"],
     ["a colon", "Premium: season"],
+    ["a domain", "Pay at example.test"],
+    ["an e-mail address", "Pay ann@example"],
+    ["a non-ASCII letter", "Prémium"],
     ["an empty label", ""],
   ])("refuses an item label with %s (register §8 labels)", (_label, name) => {
     const items = HERO_QUOTE.items.map((i) => (i.key === "PREMIUM" ? { ...i, name } : i));
@@ -160,15 +168,24 @@ describe("register §8 invoice fields", () => {
     expect(planFor({ ...HERO_QUOTE, items })).toThrow(/label/);
   });
 
-  it("accepts register §8 labels: letters, spaces and ,'()-", () => {
+  it("accepts register §8 labels: letters, spaces and ,'()-, a letter first, no number words", () => {
     for (const name of [
       "Premium",
       "Quality bonus",
       "Disbursement costs",
       "Members' premium (Fairtrade)",
       "Co-op fee, audit",
+      "Second payment",
+      "Someone's tone",
     ])
       expect(isInvoiceItemLabel(name)).toBe(true);
+    expect(INVOICE_ITEM_LABEL.test("A".repeat(40))).toBe(true);
+    expect(INVOICE_ITEM_LABEL.test("A".repeat(41))).toBe(false);
+  });
+
+  it("refuses a quote whose three labels are not distinct", () => {
+    const items = HERO_QUOTE.items.map((i) => ({ ...i, name: i.key === "BONUS" ? "premium" : i.name }));
+    expect(planFor({ ...HERO_QUOTE, items })).toThrow(/distinct/);
   });
 
   it("keeps a zero line as a 0.00 line, so the invoice always has the quote's three lines", () => {
@@ -244,29 +261,46 @@ describe("sendNeedsTreasurer: an approval sends exactly one invoice", () => {
   });
 });
 
-describe("inv.i1.no-model-numbers: the agent's draft may choose words from a closed list, never numbers", () => {
-  const agentDraft = (closing: string = INVOICE_NOTE_CLOSINGS[0]) => {
+describe("inv.i1.no-model-numbers: the agent chooses the three item labels and nothing else", () => {
+  /** Claude's labels (the approved plan: "Item names: Claude's recorded labels"); S4.4 `checkLabels`. */
+  const LABELS = ["Fairtrade premium", "Quality bonus (Grade one)", "Payout costs"] as const;
+  const GOOD_LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout and audit costs"] as const;
+  const agentDraft = (labels: readonly string[] = GOOD_LABELS) => {
     const p = plan();
-    return { ...structuredClone(p.createArgs), note: `${p.note}. ${closing}` };
+    return { ...structuredClone(p.createArgs), items: withItemLabels(p, labels).items };
   };
 
-  it("offers the memo alone or the memo with one listed closing, none with a digit", () => {
-    const memo = plan().note;
-    expect(allowedInvoiceNotes(memo)).toEqual([memo, ...INVOICE_NOTE_CLOSINGS.map((c) => `${memo}. ${c}`)]);
-    for (const closing of INVOICE_NOTE_CLOSINGS) expect(closing).not.toMatch(/\p{Nd}/u);
-  });
-
-  it.each(INVOICE_NOTE_CLOSINGS)("accepts the closing %j and keeps every code-owned field", (closing) => {
+  it("accepts the agent's three labels, keeping every number and every other field the code's", () => {
     const p = plan();
-    const result = reconcileAgentDraft(agentDraft(closing), p);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.args).toEqual({ ...p.createArgs, note: `${p.note}. ${closing}` });
+    const result = reconcileAgentDraft(agentDraft(), p);
+    expect(result).toEqual({
+      ok: true,
+      args: {
+        ...p.createArgs,
+        items: p.createArgs.items.map((item, i) => ({ ...item, name: GOOD_LABELS[i] })),
+      },
+    });
   });
 
-  it("accepts the bare memo", () => {
+  it("accepts the code's own names (the deterministic path's draft)", () => {
     const p = plan();
     expect(reconcileAgentDraft(structuredClone(p.createArgs), p)).toEqual({ ok: true, args: p.createArgs });
+  });
+
+  it("checks a set of labels as S4.4's checkLabels does, and refuses number words too", () => {
+    expect(itemLabelsProblem(GOOD_LABELS)).toBeNull();
+    expect(itemLabelsProblem(GOOD_LABELS.slice(0, 2))).toMatch(/three/);
+    expect(itemLabelsProblem(["Premium", "PREMIUM", "Costs"])).toMatch(/distinct/);
+    expect(itemLabelsProblem(LABELS)).toMatch(/number/);
+    expect(itemLabelsProblem(["Premium", 7, "Costs"])).toMatch(/letters/);
+    expect(() => withItemLabels(plan(), LABELS)).toThrow(InvoicePlanError);
+  });
+
+  it("the note is exactly the code-rendered memo: no closing phrase, no free text", () => {
+    const p = plan();
+    expect(p.note).toBe(invoiceMemo("2026-A", RATE_CARD_SHA256, LOT_CODE));
+    const result = reconcileAgentDraft({ ...agentDraft(), note: `${p.note}. Thank you.` }, p);
+    expect(result).toEqual({ ok: false, mismatches: ["note: differs from the code-built invoice"] });
   });
 
   const cases: [string, (d: ReturnType<typeof agentDraft>) => unknown][] = [
@@ -343,23 +377,40 @@ describe("inv.i1.no-model-numbers: the agent's draft may choose words from a clo
     ],
     ["a missing currency", (d) => ({ ...d, currency_code: undefined })],
     ["not an invoice at all", () => ({ hello: "world" })],
-    // No free text either: words can carry an amount ("five thousand") or an injected instruction.
+    // Labels are the agent's only words, and they cannot carry an amount, a link or an address.
     [
-      "a renamed item, even without digits",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Season premium" } : i)) }),
+      "an amount in words in a label",
+      (d) => ({
+        ...d,
+        items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Four thousand dollars" } : i)),
+      }),
     ],
+    [
+      "a label with a number word",
+      (d) => ({ ...d, items: d.items.map((i, n) => (n === 1 ? { ...i, name: "Grade one bonus" } : i)) }),
+    ],
+    [
+      "a link in a label",
+      (d) => ({ ...d, items: d.items.map((i, n) => (n === 2 ? { ...i, name: "Pay at pay.example" } : i)) }),
+    ],
+    [
+      "two labels that are the same",
+      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, name: "Season premium" })) }),
+    ],
+    [
+      "a label that is not text",
+      (d) => ({ ...d, items: d.items.map((i, n) => (n ? i : { ...i, name: 7 })) }),
+    ],
+    ["a missing label", (d) => ({ ...d, items: d.items.map((i, n) => (n ? i : { ...i, name: undefined })) })],
     [
       "an item description, even without digits",
       (d) => ({ ...d, items: d.items.map((i) => ({ ...i, description: "Paid to members as ratified" })) }),
     ],
+    // The note is the memo, exactly (register §8; S4.4 referenceCarriesHash).
     ["a free-text closing", (d) => ({ ...d, note: `${plan().note}. Thank you, Lantern Bay.` })],
     ["an amount in words", (d) => ({ ...d, note: `${plan().note}. Please pay five thousand dollars.` })],
     ["a link in the note", (d) => ({ ...d, note: `${plan().note}. Pay at https://pay.example.test` })],
-    [
-      "two listed closings",
-      (d) => ({ ...d, note: `${plan().note}. ${INVOICE_NOTE_CLOSINGS[0]} ${INVOICE_NOTE_CLOSINGS[1]}` }),
-    ],
-    ["a closing before the memo", (d) => ({ ...d, note: `${INVOICE_NOTE_CLOSINGS[0]} ${plan().note}` })],
+    ["a polite closing phrase", (d) => ({ ...d, note: `${plan().note}. Thank you.` })],
     ["a missing note", (d) => ({ ...d, note: undefined })],
     ["pay-by-bank", (d) => ({ ...d, enable_pay_by_bank: true })],
     ["a theme colour", (d) => ({ ...d, theme_color: "#000000" })],

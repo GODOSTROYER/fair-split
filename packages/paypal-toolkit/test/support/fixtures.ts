@@ -107,6 +107,8 @@ export function invoiceBody(
     invoicer?: string;
     recipient?: string;
     items?: ItemBody[];
+    /** detail.terms_and_conditions: payer-visible free text the code never sends. */
+    terms?: string;
     configuration?: Record<string, unknown>;
     breakdown?: Record<string, unknown>;
   } = {},
@@ -126,6 +128,7 @@ export function invoiceBody(
       invoice_number: overrides.number ?? "FS-2026A-r37",
       ...(invoiceDate === null ? {} : { invoice_date: invoiceDate }),
       ...(note === null ? {} : { note }),
+      ...(overrides.terms === undefined ? {} : { terms_and_conditions: overrides.terms }),
       payment_term: { term_type: "DUE_ON_RECEIPT", due_date: invoiceDate ?? "2026-11-05" },
       metadata: {
         create_time: "2026-11-05T02:00:01Z",

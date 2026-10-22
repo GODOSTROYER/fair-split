@@ -6,7 +6,7 @@ toolkit's `PayPalAPI` (from `/mcp`) on **our** token. Nothing uses `handleToolCa
 
 ```ts
 const tk = createTk({ auth, limiter, onCall }); // IC-06 tk(method, args, requestId?)
-const invoices = new Invoices({ tk, repo, businessEmail }); // PP_BUSINESS_EMAIL
+const invoices = new Invoices({ tk, repo, businessEmail, ppMode }); // PP_BUSINESS_EMAIL, PP_MODE (ADR-0002)
 await invoices.ensureForRun(run, { draft }); // create (adopt) → send (approved) → payable GET → AUTO_CANCEL
 await invoices.recordPayment(run); // Judge Mode, labelled simulated_rail
 await invoices.confirmFunding(run); // FUNDED only on PAID|MARKED_AS_PAID, 0.00 due
@@ -24,8 +24,9 @@ await runAgentToolkitTool({ run, invoices }, name, input, { treasurerApproval })
   sets are asserted against the installed package.
 - **The chain** (the approved plan; S3 §S3.6.3), checkpointed step by step:
   1. `create_invoice` under `FS-{runSlug}`; on any failure, `search_invoicing` and adopt only an invoice
-     deep-equal to the canonical body (number, reference, a listed note, total, invoicer, recipient, the
-     three lines, no tip, partial payment, shipping, tax or discount, an adoptable status), else HALT.
+     deep-equal to the canonical body for the labels it carries (number, reference, the memo, total,
+     invoicer, recipient, the three lines' amounts under three distinct valid labels, no descriptions or
+     terms, no tip, partial payment, shipping, tax or discount, an adoptable status), else HALT.
   2. `send_invoice` with `send_to_recipient: false`, only with a `TreasurerApproval` naming this invoice
      (`FS-{runSlug}`, and PayPal's id when known).
   3. A payable GET: SENT, UNPAID, SHARED or later. It stores the date PayPal gave the invoice. SCHEDULED is
@@ -35,16 +36,23 @@ await runAgentToolkitTool({ run, invoices }, name, input, { treasurerApproval })
 
   `invoice_date`, `payment_term` and `payment_date` are never sent, so a send can never schedule the
   invoice and no UTC date lands on PayPal's tomorrow. There is no due date anywhere (I8).
-- **Invoice fields** (register §8): `FS-{runSlug}`, `rc:{rateCardSha16}`, the memo note, the business
-  e-mail as invoicer, the brand as the one recipient, and the IC-02 quote's three USD lines (labels of at
-  most 40 letters, spaces or `,'()-`, no digits; a 0.00 line stays). The quote must belong to the run's
-  card and lot and agree with its own pools.
-- **I1 on the agent's path.** `runAgentToolkitTool` is bound to one run and calls the same steps
-  (`create`, `send`, `ensureRule`, `fetch`), never raw `tk()`. A draft is compared as the model wrote it
-  (so a key the toolkit's zod would strip still counts) and must equal the code-built invoice; it may only
-  close the memo with one phrase from `INVOICE_NOTE_CLOSINGS`. Calls about any other invoice, other
-  approvals and other rule dates are refused before anything is sent. The agent never deletes an
-  invoice: a SCHEDULED one is left for the server chain.
+- **Invoice fields** (register §8; the approved plan): `FS-{runSlug}`, `rc:{rateCardSha16}`, the memo as
+  the note (exactly), the business e-mail as invoicer, the brand as the one recipient, and the IC-02
+  quote's three USD lines (a 0.00 line stays). The quote must belong to the run's card and lot and agree
+  with its own pools.
+- **I1: the agent's only words are the three item labels** (the plan: "Item names: Claude's recorded
+  labels"; S4.4 `canonicalInvoice(quote, labels)`). A label is 1–40 characters, a letter first, then
+  letters, spaces and `,'()-` (S4.4 `checkLabels`, so no digit, link, e-mail or phone), the three are
+  distinct, and none spells a number in English words ("Four thousand dollars"), which `checkLabels`
+  alone lets through. `withItemLabels(plan, labels)` builds the arguments; every amount is the code's.
+  The checkpoint keeps the labels, so a recreated invoice reads as the first did.
+- **The agent's path.** `runAgentToolkitTool` is bound to one run and calls the same steps (`create`,
+  `send`, `ensureRule`, `fetch`), never raw `tk()`. A draft is compared as the model wrote it (so a key the
+  toolkit's zod would strip still counts) and must equal the code-built invoice but for the labels. Calls
+  about any other invoice, other approvals and other rule dates are refused before anything is sent. The
+  agent never deletes an invoice: a SCHEDULED one is left for the server chain.
+- **Labels (I8, ADR-0002).** `ppMode` is required: on the simulator every result and funding check is
+  `simulated_rail`; on the sandbox a recorded payment (MARKED_AS_PAID) still is, and the rest is `live`.
 - **Shims** in `src/_shims/` stand in for `@fairsplit/paypal-core` (WS-PPCORE's `PayPalAuth` and
   `PayPalLimiter`, S3's `ppDate`), `domain` (WS-CORE's `InvoiceQuote`) and `contracts` until those merge;
   each says what replaces it.

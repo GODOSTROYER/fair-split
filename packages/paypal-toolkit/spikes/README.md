@@ -13,10 +13,15 @@ AUTO_CANCEL rule, get, record payment, verified INVOICE.PAID."
 | Payout read tools (`../../paypal-payouts/spikes/s2-payout-read-schemas.ts --live`)                                            | Accepted; 1,167 input tokens; one `get_payout_item` call, valid under the vendored PR #107 schema; 1.5 s                                       |
 
 Re-run 22 Oct 2026 after the I1 rule was tightened (the note may only close the memo with one phrase from
-`INVOICE_NOTE_CLOSINGS`; item names are the code's): Opus 5.5 chose "Thank you.", kept the code's item names,
+a closed list; item names are the code's): Opus 5.5 chose "Thank you.", kept the code's item names,
 and the draft reconciles; 5.3 s, US$0.0629.
 
-Spend: US$0.0614 + US$0.0061 + US$0.0629 at US$4 / US$20 per MTok, effort `low`, no sampling parameters,
+Rule changed again on 23 Oct to the approved plan and S4.4: the note is the memo exactly, and the agent
+chooses the three item labels (letters, spaces and `,'()-`, distinct, no number words). Re-run with a prompt
+that asks for labels: Opus 5.5 labelled the lines "Premium", "Quality bonus" and "Disbursement costs", kept
+every other value, and the draft reconciles; 5.2 s, US$0.0609.
+
+Spend: US$0.0614 + US$0.0061 + US$0.0629 + US$0.0609 at US$4 / US$20 per MTok, effort `low`, no sampling parameters,
 no forced `tool_choice`. Server-side fallbacks were left off on purpose, so the result is Opus 5.5's own.
 
 **Still open (needs the S1 sandbox credentials, not yet in `.env`):** the PayPal half: create → send

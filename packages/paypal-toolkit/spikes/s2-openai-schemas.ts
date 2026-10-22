@@ -12,13 +12,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
-import {
-  agentToolSchemas,
-  buildInvoicePlan,
-  INVOICE_NOTE_CLOSINGS,
-  reconcileAgentDraft,
-  toolkitZodSchemas,
-} from "../src/index.js";
+import { agentToolSchemas, buildInvoicePlan, reconcileAgentDraft, toolkitZodSchemas } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // One JSON line per live run; JSON Lines also keeps the gitignored cache out of Biome's way.
@@ -180,8 +174,8 @@ async function main(): Promise<void> {
     "create_invoice draft (I1 check)",
     system,
     [
-      "Draft and create this invoice with create_invoice. Use every value below exactly. The note may end with one of these closings, after a full stop and a space: " +
-        INVOICE_NOTE_CLOSINGS.map((c) => JSON.stringify(c)).join(", "),
+      "Draft and create this invoice with create_invoice. Use every value below exactly, except the three item names: " +
+        "give each line a short label of your own (at most 40 characters: letters, spaces and ,'()- only; no digits and no number words).",
       `currency_code ${a.currency_code}; invoice_number ${a.invoice_number}; reference ${a.reference}`,
       `note: ${a.note}`,
       `invoicer_email_address ${a.invoicer_email_address}`,

@@ -37,7 +37,6 @@ export {
 export {
   AUTO_CANCEL_AFTER_DAYS,
   AUTO_CANCEL_MAX_DAYS_AHEAD,
-  allowedInvoiceNotes,
   approvalCovers,
   autoCancelDate,
   autoCancelRuleArgs,
@@ -49,7 +48,6 @@ export {
   type DraftReconciliation,
   INVOICE_ITEM_KEYS,
   INVOICE_ITEM_LABEL,
-  INVOICE_NOTE_CLOSINGS,
   type InvoicePayer,
   type InvoicePlan,
   InvoicePlanError,
@@ -57,11 +55,13 @@ export {
   invoiceMemo,
   invoiceNumberFor,
   isInvoiceItemLabel,
+  itemLabelsProblem,
   rateCardReference,
   reconcileAgentDraft,
   runSlug,
   seasonIdCode,
   type TreasurerApproval,
+  withItemLabels,
 } from "./invoice-plan.js";
 export {
   type CreateStepResult,
@@ -81,6 +81,7 @@ export {
   type InvoicesDeps,
   invoiceIdFromCreate,
   invoiceMoneyExtras,
+  type PayPalMode,
   payerViewUrlFromSend,
   RECORD_PAYMENT_NOTE,
   type RecordPaymentResult,
