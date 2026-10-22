@@ -86,6 +86,10 @@ export interface FsColours {
   slabJadeBottom: string;
   /** Jade slab label */
   slabJadeLabel: string;
+  /** Words printed on evidence paper (the Synthetic sample tag); paper is light in both themes */
+  paperInk: string;
+  /** Phone frames on the Judge stage (chrome, not the app) */
+  bezel: string;
 }
 
 export interface FsTheme {
@@ -142,6 +146,8 @@ export const tablea: FsTheme = {
     slabJadeRight: "#1F9E78",
     slabJadeBottom: "#12704F",
     slabJadeLabel: "#201712",
+    paperInk: "#1C1511",
+    bezel: "#0E0A08",
   },
   shadowPaper: "0 1px 1px rgb(0 0 0 / 0.35), 0 12px 28px -10px rgb(0 0 0 / 0.55)",
 };
@@ -192,6 +198,8 @@ export const adlaw: FsTheme = {
     slabJadeRight: "#1F9E78",
     slabJadeBottom: "#12704F",
     slabJadeLabel: "#1C1511",
+    paperInk: "#1C1511",
+    bezel: "#0E0A08",
   },
   shadowPaper: "0 1px 1px rgb(28 21 17 / 0.1), 0 10px 24px -10px rgb(28 21 17 / 0.22)",
 };
