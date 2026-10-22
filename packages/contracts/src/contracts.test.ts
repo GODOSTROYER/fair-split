@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   API_COMMANDS,
   apiError,
@@ -15,6 +16,7 @@ import {
   HOLD_KINDS,
   HOLD_STATE_LABELS,
   HOLD_STATES,
+  HoldProposal,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUSES,
   ITEM_EVENT_TO_STATUS,
@@ -40,6 +42,7 @@ import {
   RunEvent,
   SCREEN_IDS,
   SCREENS,
+  StatementText,
   TASK_NAMES,
   TASKS,
   taskDedupeKey,
@@ -411,5 +414,47 @@ describe("errors and API commands", () => {
 
   it("engine input requires integer money and known shapes", () => {
     expect(EngineInput.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("inv.i1.no-model-numbers", () => {
+  function numericPaths(schema: unknown, path = "$"): string[] {
+    if (schema === null || typeof schema !== "object") return [];
+    const node = schema as Record<string, unknown>;
+    const here = node.type === "number" || node.type === "integer" ? [path] : [];
+    return [
+      ...here,
+      ...Object.entries(node).flatMap(([k, v]) =>
+        Array.isArray(v)
+          ? v.flatMap((x, i) => numericPaths(x, `${path}.${k}[${i}]`))
+          : numericPaths(v, `${path}.${k}`),
+      ),
+    ];
+  }
+
+  it("the model's outputs (statement text, hold proposals) carry no number fields", () => {
+    expect(numericPaths(z.toJSONSchema(z.object({ amount: z.number() })))).toEqual(["$.properties.amount"]);
+    expect(numericPaths(z.toJSONSchema(StatementText))).toEqual([]);
+    expect(numericPaths(z.toJSONSchema(HoldProposal))).toEqual([]);
+  });
+});
+
+describe("inv.i7.outbox dedupe keys", () => {
+  it("identical arguments give identical keys, so a second enqueue is a no-op", () => {
+    const samples: [Parameters<typeof taskDedupeKey>[0], unknown][] = [
+      ["recordPayment", { runId: "r", invoiceId: "INV2" }],
+      ["cancelUnclaimed", { payoutItemId: "p", afterCancel: "cash" }],
+      ["computeRun", { runId: "r", version: 3 }],
+      ["explain", { lineId: "l", lang: "ceb" }],
+      ["agentTurn", { runId: "r", purpose: "INVESTIGATE_HOLD", holdId: "h", turn: 1 }],
+      ["pushNotify", { kind: "bayad_na", targetId: "l", eventId: "WH-1" }],
+      ["reconcile", { mode: "nightly", windowStart: "2026-10-29T02:07:00.000Z" }],
+      ["judgeReset", { trigger: "cron", workspaceId: null, slot: "2026-10-29T03" }],
+      ["warmCaches", { slot: "2026-10-29" }],
+      ["readRateCard", { documentId: "d" }],
+    ];
+    const keys = samples.map(([name, args]) => taskDedupeKey(name, args));
+    expect(samples.map(([name, args]) => taskDedupeKey(name, structuredClone(args)))).toEqual(keys);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
