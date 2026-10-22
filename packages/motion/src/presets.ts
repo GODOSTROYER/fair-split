@@ -133,7 +133,7 @@ export const TWEENS = {
   ring: { ms: 240, ease: "out", use: "Confidence ring drawing" },
   invite: { ms: 400, ease: "out", use: "One 1 px ink ring pulsing on Paminawa" },
   converge: { ms: 450, ease: "out", use: "Twin crops converging" },
-  underline: { ms: 300, ease: "out", use: "Canary underline drawing under both serials" },
+  pair: { ms: 150, ease: "out", use: "A canary outline and connector on one matching field pair (MM-3)" },
   ink: { ms: 240, ease: "out", use: "Pencil figures turning to ink" },
   microPress: { ms: 110, ease: "out", use: "Press feedback (100–120 ms)" },
   tooltip: { ms: 150, ease: "out", use: "Tooltips" },
@@ -173,6 +173,8 @@ export const TIMING = {
   scaleThrottle: 250,
   /** Duplicate-found ticks and paid-chime haptics are 90 ms apart. */
   doubleTap: 90,
+  /** MM-3's matching field pairs light in turn, this far apart. */
+  pairStagger: 120,
   /** Exits run 20% faster than entrances. */
   exitFactor: 0.8,
 } as const;

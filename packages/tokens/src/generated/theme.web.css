@@ -274,7 +274,7 @@
   --fs-dur-ring: 240ms;
   --fs-dur-invite: 400ms;
   --fs-dur-converge: 450ms;
-  --fs-dur-underline: 300ms;
+  --fs-dur-pair: 150ms;
   --fs-dur-ink: 240ms;
   --fs-dur-micro-press: 110ms;
   --fs-dur-tooltip: 150ms;
