@@ -1,4 +1,4 @@
-# ADR 002: packages/ai reads payouts only through `@fairsplit/paypal-payouts/read`
+# ADR-0004: packages/ai reads payouts only through `@fairsplit/paypal-payouts/read`
 
 - **Status:** Accepted (user, on merge)
 - **Date:** 23 Oct 2026 (IST)

@@ -7,7 +7,7 @@ issues are the best way to help.
 ## Ground rules
 
 - Read [`AGENTS.md`](AGENTS.md) first. The specs in [`docs/spec/`](docs/spec/) are the source of truth, and the
-  [decision register](docs/decision-register.md) wins every conflict.
+  [decision register](docs/spec/00-decision-register.md) wins every conflict.
 - Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Never commit a secret or a `.env` file. Recorded fixtures go through the scrubber in `@fairsplit/test-kit`.
   See [`docs/security.md`](docs/security.md).
@@ -26,7 +26,7 @@ corepack pnpm deps:check
 ```
 
 On Windows, use a local NTFS drive (never a mapped drive), enable long paths and run
-`git config core.longpaths true` ([ADR 001](docs/adr/001-working-copy-on-local-z-drive.md)).
+`git config core.longpaths true` ([ADR-0003](docs/adr/0003-working-copy-on-local-z-drive.md)).
 
 ## Workstreams, branches and ownership
 
@@ -40,7 +40,7 @@ On Windows, use a local NTFS drive (never a mapped drive), enable long paths and
 - CI runs the check on every PR with the **base** commit's checker and rules, and fails a branch that is not
   `ws/<id>` or `deps/<topic>`.
 - `docs/spikes/`, `docs/gates/` and `docs/adr/` accept new files from anyone; existing files there are never edited.
-- Frozen contracts (IC-01 to IC-11) change only through an ADR (`docs/adr/000-template.md`) that the user accepts.
+- Frozen contracts (IC-01 to IC-11) change only through an ADR (`docs/adr/0000-template.md`) that the user accepts.
   The user accepts an ADR by merging its PR, so an ADR is committed with status `Accepted (user, on merge)`;
   a rejected ADR is never merged.
 

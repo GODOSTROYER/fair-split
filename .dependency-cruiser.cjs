@@ -9,7 +9,7 @@
 // Every import must be declared in the importing package's own package.json; the packages AGENTS.md
 // excludes on purpose are rejected; zod 3.25.76 is imported only inside packages/paypal-*, which in turn
 // never import zod 4. packages/ai reaches the money packages only through paypal-toolkit and the read-only
-// entry of paypal-payouts (ADR 002).
+// entry of paypal-payouts (ADR-0004).
 //
 // Paths are relative to the working directory, so run it from the repository root:
 //   corepack pnpm deps:check
@@ -28,7 +28,7 @@ const SERVER_ALLOWED = {
   "paypal-payouts": ["contracts", "domain", "seed", "db", "outbox", "paypal-core"],
   // ai and paypal-* share a layer (register section 6). The agent's PayPal tools come from paypal-toolkit
   // (agentToolSchemas, tk) and, for get_payout_batch / get_payout_item only, from the read-only entry
-  // `@fairsplit/paypal-payouts/read` (rule ai-payouts-read-only, ADR 002). Never PayoutsService.
+  // `@fairsplit/paypal-payouts/read` (rule ai-payouts-read-only, ADR-0004). Never PayoutsService.
   ai: ["contracts", "domain", "seed", "db", "outbox", "paypal-toolkit", "paypal-payouts"],
   // The eval scores the readers in packages/ai; it is tooling, never imported by runtime code.
   eval: ["contracts", "domain", "seed", "ai"],
@@ -172,7 +172,7 @@ module.exports = {
       comment:
         "packages/ai may use paypal-payouts only through @fairsplit/paypal-payouts/read (get_payout_batch, " +
         "get_payout_item). create_payout_batch and cancel stay server-only behind PayoutsService (register " +
-        "section 8, AI-7, ADR 002)",
+        "section 8, AI-7, ADR-0004)",
       severity: "error",
       from: { path: "^packages/ai/" },
       to: {

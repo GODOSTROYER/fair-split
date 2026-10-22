@@ -131,7 +131,7 @@ hashed rate card, and proves each payment on the member's phone and the brand's 
 
 ## Repository
 
-- Specs: [`docs/spec/`](docs/spec/); the [decision register](docs/decision-register.md) wins every conflict.
+- Specs: [`docs/spec/`](docs/spec/); the [decision register](docs/spec/00-decision-register.md) wins every conflict.
 - Agent rules: [`AGENTS.md`](AGENTS.md). Ownership: [`docs/ownership.md`](docs/ownership.md).
 - Pins: [`docs/versions.md`](docs/versions.md). Security: [`SECURITY.md`](SECURITY.md),
   [`docs/security.md`](docs/security.md).

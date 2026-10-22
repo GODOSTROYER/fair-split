@@ -1,6 +1,7 @@
 # Security: secrets and the leak playbook
 
-The repository is public from the first commit. Secrets live only in the gitignored `.env`, Render env vars
+The repository stays private until the submission window and is then made public (ADR-0002), so every commit is
+written as if public. Secrets live only in the gitignored `.env`, Render env vars
 (`fs-secrets`), GitHub environments (`sandbox-smoke`, `eval-live`) and EAS secrets. Clients read only
 `VITE_PUBLIC_*` and `EXPO_PUBLIC_*`.
 

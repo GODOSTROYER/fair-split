@@ -1,5 +1,5 @@
-// Repo hygiene checks owned by WS-QA: the register copy stays verbatim, and every catalog pin is recorded.
-import { readdirSync, readFileSync } from "node:fs";
+// Repo hygiene checks owned by WS-QA: one decision register, every catalog pin recorded, ADRs numbered.
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -17,8 +17,13 @@ const recordsPin = (md, name, version) =>
   new RegExp(`\\|\\s*\`${esc(name)}\`\\s*\\|\\s*${esc(version)}\\s*\\|`).test(md);
 
 describe("repo docs", () => {
-  it("docs/decision-register.md is a verbatim copy of docs/spec/00-decision-register.md", () => {
-    expect(read("docs/decision-register.md")).toBe(read("docs/spec/00-decision-register.md"));
+  it("the decision register lives only in docs/spec/, and the docs link it there", () => {
+    expect(existsSync(resolve(root, "docs/spec/00-decision-register.md"))).toBe(true);
+    expect(existsSync(resolve(root, "docs/decision-register.md"))).toBe(false);
+    for (const f of ["AGENTS.md", "README.md", "CONTRIBUTING.md"]) {
+      expect(read(f), f).toContain("docs/spec/00-decision-register.md");
+      expect(read(f), f).not.toMatch(/[(`]docs\/decision-register\.md/);
+    }
   });
 
   it("docs/versions.md records every catalog pin at its exact version", () => {
@@ -86,11 +91,16 @@ describe("repo docs", () => {
     }
   });
 
-  it("ADRs on main are accepted by merging them, so none is left 'Proposed'", () => {
-    const adrs = readdirSync(resolve(root, "docs/adr")).filter((f) => /^\d{3}-.+\.md$/.test(f));
-    expect(adrs).toContain("000-template.md");
+  it("ADRs are NNNN-title.md with unique numbers, and none on main is left 'Proposed'", () => {
+    const adrs = readdirSync(resolve(root, "docs/adr")).filter((f) => f.endsWith(".md"));
+    expect(adrs).toContain("0000-template.md");
+    for (const f of adrs) expect(f).toMatch(/^\d{4}-[a-z0-9-]+\.md$/);
+    const numbers = adrs.map((f) => f.slice(0, 4));
+    expect(new Set(numbers).size).toBe(numbers.length);
     for (const f of adrs) {
-      expect(read(`docs/adr/${f}`), f).toMatch(/^- \*\*Status:\*\* Accepted \(user, on merge\)/m);
+      const text = read(`docs/adr/${f}`);
+      expect(text, f).toMatch(/\bStatus\b[:*\s]*Accepted\b/i);
+      expect(text, f).not.toMatch(/\bStatus\b[:*\s]*Proposed\b/i);
     }
   });
 
