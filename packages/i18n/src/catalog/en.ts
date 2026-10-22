@@ -155,6 +155,11 @@ export const en = {
   "W-TR-01.invoice.autoCancel": "Auto-cancels {date} if unpaid.",
   "W-TR-01.invoice.waiting": "Sent to Lantern Bay. Waiting for payment.",
   "W-TR-02.bolted": "sha256 {hash}, sealed {date} by {card}",
+  "W-TR-02.R0": "Premium is paid by verified kilos and is never deducted.",
+  "W-TR-02.R1": "CBU: 5% of the bonus until ₱5,000 is paid up.",
+  "W-TR-02.R2": "Hauling: ₱1.50 a kg for purok pickups.",
+  "W-TR-02.R3": "Loan: only with a signed Authority to Deduct, up to 50% of the bonus.",
+  "W-TR-02.R4": "Advance: only with a voucher, up to 30% of the bonus.",
 
   // ---------------------------------------------------------------- W-TR-05 Split review
   "W-TR-05.title": "Split review",
@@ -193,6 +198,17 @@ export const en = {
   "W-TR-06.H1.flat": "These are two deliveries",
   "W-TR-06.H1.flatNote": "Needs a reason, then the Chair",
   "W-TR-06.H1.returned": "Returned to {members} members: {amount}.",
+  "W-TR-06.H2.title": "{name}: more than the plot can grow",
+  "W-TR-06.H2.engine":
+    "{name}: {kg} from {trees} registered trees is {perTree} a tree. The limit is {limit}.",
+  "W-TR-06.H2.claude": "Her deliveries suggest a second plot that isn’t in the registry yet.",
+  "W-TR-06.H2.action": "Register a plot",
+  "W-TR-06.H2.result": "{kg} from {trees} trees is {perTree} a tree. Inside the limit.",
+  "W-TR-06.H3.title": "A deduction with no rule on slip {slip}",
+  "W-TR-06.H3.engine":
+    "‘Multa (absent GA) {multa}’ on slip {slip} matches no Schedule A rule. It was netted from {name}’s cash at the bodega, so it returns as a {credit} correction credit paid by the co-op, not from Lantern Bay’s pool. Hauling {hauling} (R2) stays.",
+  "W-TR-06.H3.claude": "The clerk noted a fine for missing the general assembly.",
+  "W-TR-06.H3.action": "Return the {multa} as a credit",
   "W-TR-06.close": "Close",
 
   // ---------------------------------------------------------------- W-TR-07 Approve
@@ -269,6 +285,7 @@ export const en = {
   "M-MB-01.season": "Season {season}",
   "M-MB-01.greeting": "Good day, {name}. Thank you for your hard work.",
   "M-MB-01.checking": "Still checking",
+  "M-MB-01.checkingDetail": "{kg} from {count} slips. Pay expected {date}.",
   "M-MB-01.sent": "Sent, waiting for PayPal {elapsed}",
   "M-MB-01.paid": "Paid, {date}",
   "M-MB-01.cashDue": "Ready at the bodega, {date}",
@@ -292,6 +309,13 @@ export const en = {
   "M-MB-01.questions": "Questions? See Treasurer {treasurer} at the bodega.",
   "M-MB-01.recheck": "Ask for a re-check",
   "M-MB-01.amountSpoken": "{amount}, {estimate}",
+  "M-BD-01.push": "Co-sign Season {season}: {count, plural, one {# payout} other {# payouts}}, {amount}",
+  "M-BD-01.why": "The batch is over {threshold}.",
+  "M-BD-01.analyn": "Analyn is on the approval screen",
+  "M-BD-02.sign": "Sign",
+  "M-BD-02.hint": "Hold, then use your fingerprint.",
+  "M-BD-02.signed": "Signed. Key {key}. The batch hash matches the console.",
+  "M-BD-02.demo": "Demo key (this browser)",
 } as const;
 
 export type MessageKey = keyof typeof en;
