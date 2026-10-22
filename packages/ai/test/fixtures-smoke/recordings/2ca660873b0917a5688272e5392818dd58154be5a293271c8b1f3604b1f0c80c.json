@@ -1,0 +1,694 @@
+{
+  "v": 1,
+  "cache_key": "2ca660873b0917a5688272e5392818dd58154be5a293271c8b1f3604b1f0c80c",
+  "purpose": "read",
+  "model": "claude-opus-5-5",
+  "model_served": "claude-opus-5-5",
+  "fallback_served": false,
+  "effort": "low",
+  "variant": "A",
+  "prompt_v": "a.v1",
+  "schema_v": "extraction.v1",
+  "input_sha": "2b42aa80bd88439ac516aa3f2795ef43270f1e14b03bfe57623a8e622c02afc5",
+  "sent_sha": "809a29d9d556158818c0f94a322a5284d53bb53487d6c89e86fbfedd7c71906d",
+  "prompt_sha": "aaafb346c3f2d97ea9d70fe057806c137d3aef52302aabf4da19a89a1e638f9a",
+  "usage": {
+    "input_tokens": 2138,
+    "output_tokens": 1167,
+    "cache_read_input_tokens": 3801,
+    "cache_creation_input_tokens": 0,
+    "thinking_tokens": 0,
+    "iterations": [
+      {
+        "type": "message",
+        "model": null,
+        "input_tokens": 2138,
+        "output_tokens": 1167,
+        "cache_read_input_tokens": 3801,
+        "cache_creation_input_tokens": 0
+      }
+    ]
+  },
+  "cost_micros": 32653,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011CgGuCrsQAbzoo7KCqBas2",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"page\":{\"rotation\":\"0\",\"issues\":[]},\"rows\":[{\"slip_box\":{\"x1\":40,\"y1\":40,\"x2\":1040,\"y2\":1454},\"copy\":\"PINK_DUPLICATE\",\"serial\":{\"box\":{\"x1\":750,\"y1\":205,\"x2\":915,\"y2\":248},\"value_text\":\"0902\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"line_no\":{\"box\":{\"x1\":0,\"y1\":0,\"x2\":0,\"y2\":0},\"value_text\":\"\",\"legibility\":\"ABSENT\",\"overwritten_from\":\"\"},\"date\":{\"box\":{\"x1\":100,\"y1\":335,\"x2\":310,\"y2\":395},\"value_text\":\"7/15/26\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"member_no\":{\"box\":{\"x1\":575,\"y1\":340,\"x2\":735,\"y2\":392},\"value_text\":\"M-102\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"member_name\":{\"box\":{\"x1\":100,\"y1\":472,\"x2\":445,\"y2\":527},\"value_text\":\"BENJIE TAN\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"plot_no\":{\"box\":{\"x1\":100,\"y1\":610,\"x2\":308,\"y2\":662},\"value_text\":\"P-102-B\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"sacks\":{\"box\":{\"x1\":575,\"y1\":608,\"x2\":772,\"y2\":662},\"value_text\":\"3 JUTE\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"gross_kg\":{\"box\":{\"x1\":100,\"y1\":745,\"x2\":250,\"y2\":798},\"value_text\":\"81.20\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"tare_kg\":{\"box\":{\"x1\":410,\"y1\":745,\"x2\":525,\"y2\":798},\"value_text\":\"0.45\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"net_kg\":{\"box\":{\"x1\":715,\"y1\":742,\"x2\":865,\"y2\":798},\"value_text\":\"80.75\",\"legibility\":\"SMUDGED\",\"overwritten_from\":\"\"},\"mc_pct\":{\"box\":{\"x1\":100,\"y1\":882,\"x2\":188,\"y2\":932},\"value_text\":\"8.0\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"mc_less_kg\":{\"box\":{\"x1\":410,\"y1\":882,\"x2\":518,\"y2\":932},\"value_text\":\"0.81\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"payable_kg\":{\"box\":{\"x1\":715,\"y1\":880,\"x2\":872,\"y2\":932},\"value_text\":\"79.94\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"grade\":{\"box\":{\"x1\":98,\"y1\":1072,\"x2\":282,\"y2\":1130},\"value_text\":\"G2\",\"legibility\":\"OVERWRITTEN\",\"overwritten_from\":\"G1\"},\"clerk_initials\":{\"box\":{\"x1\":660,\"y1\":1210,\"x2\":735,\"y2\":1262},\"value_text\":\"JD\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"deductions\":[{\"box\":{\"x1\":410,\"y1\":1008,\"x2\":865,\"y2\":1060},\"value_text\":\"Multa (absent GA) 200\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"}],\"signature\":\"THUMBMARK\"}],\"anomalies\":[]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 2138,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 3801,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 1167,
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard",
+      "iterations": [
+        {
+          "input_tokens": 2138,
+          "output_tokens": 1167,
+          "cache_read_input_tokens": 3801,
+          "cache_creation_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      }
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 2365,
+      "d": "{\"page\":{\"rot"
+    },
+    {
+      "ms": 2414,
+      "d": "ation\":\"0\",\"issues\":"
+    },
+    {
+      "ms": 2461,
+      "d": "[]},\"rows\":["
+    },
+    {
+      "ms": 2509,
+      "d": "{\"slip_box\":{"
+    },
+    {
+      "ms": 2571,
+      "d": "\"x1\":40,\"y"
+    },
+    {
+      "ms": 2610,
+      "d": "1\":40,\"x2\":"
+    },
+    {
+      "ms": 2661,
+      "d": "1040,\"y2\":1"
+    },
+    {
+      "ms": 2709,
+      "d": "454},\"copy\":\"P"
+    },
+    {
+      "ms": 2760,
+      "d": "INK_DUPLIC"
+    },
+    {
+      "ms": 2816,
+      "d": "ATE\",\"serial\":{\""
+    },
+    {
+      "ms": 2876,
+      "d": "box\":{\"x1\":750"
+    },
+    {
+      "ms": 3268,
+      "d": ",\"y1\":205,\""
+    },
+    {
+      "ms": 3268,
+      "d": "x2\":915,\"y2"
+    },
+    {
+      "ms": 3268,
+      "d": "\":248"
+    },
+    {
+      "ms": 3268,
+      "d": "},\"value_text\":\"0"
+    },
+    {
+      "ms": 3268,
+      "d": "902\",\"legibility\":\"C"
+    },
+    {
+      "ms": 3268,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 3268,
+      "d": "ten_from\":\"\"},\"line"
+    },
+    {
+      "ms": 3268,
+      "d": "_no\":{\"box\":{"
+    },
+    {
+      "ms": 3311,
+      "d": "\"x1\":0,\"y"
+    },
+    {
+      "ms": 3384,
+      "d": "1\":0,\"x2\":"
+    },
+    {
+      "ms": 3438,
+      "d": "0,\"y2\":0},"
+    },
+    {
+      "ms": 3459,
+      "d": "\"value_text\":\"\",\"leg"
+    },
+    {
+      "ms": 3697,
+      "d": "ibility\":\"ABSEN"
+    },
+    {
+      "ms": 3697,
+      "d": "T\",\"overwritten_from"
+    },
+    {
+      "ms": 3697,
+      "d": "\":\"\"},\"date\":{\""
+    },
+    {
+      "ms": 3697,
+      "d": "box\":{\"x1\":100"
+    },
+    {
+      "ms": 3707,
+      "d": ",\"y1\":335"
+    },
+    {
+      "ms": 3761,
+      "d": ",\"x2\":310,\""
+    },
+    {
+      "ms": 3808,
+      "d": "y2\":395},\"value_"
+    },
+    {
+      "ms": 3869,
+      "d": "text\":\"7/15/26"
+    },
+    {
+      "ms": 3945,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 3976,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 4040,
+      "d": "_from\":\"\"},\"member_"
+    },
+    {
+      "ms": 4070,
+      "d": "no\":{\"box\":{\""
+    },
+    {
+      "ms": 4158,
+      "d": "x1\":575,\"y1"
+    },
+    {
+      "ms": 4185,
+      "d": "\":340"
+    },
+    {
+      "ms": 4227,
+      "d": ",\"x2\":735,\""
+    },
+    {
+      "ms": 4259,
+      "d": "y2\":392"
+    },
+    {
+      "ms": 4348,
+      "d": "},\"value_text\":\"M"
+    },
+    {
+      "ms": 4356,
+      "d": "-102\",\"legibility\":\""
+    },
+    {
+      "ms": 4406,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 4472,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 4549,
+      "d": "member_name\":{\"box\":"
+    },
+    {
+      "ms": 4571,
+      "d": "{\"x1\":100,\""
+    },
+    {
+      "ms": 4638,
+      "d": "y1\":472"
+    },
+    {
+      "ms": 4663,
+      "d": ",\"x2\":445,\""
+    },
+    {
+      "ms": 4740,
+      "d": "y2\":527"
+    },
+    {
+      "ms": 4819,
+      "d": "},\"value_text\":\"B"
+    },
+    {
+      "ms": 4825,
+      "d": "ENJIE TAN\",\""
+    },
+    {
+      "ms": 4866,
+      "d": "legibility\":\"CLE"
+    },
+    {
+      "ms": 4907,
+      "d": "AR\",\"overwritten_"
+    },
+    {
+      "ms": 4960,
+      "d": "from\":\"\"},\"plot_"
+    },
+    {
+      "ms": 5018,
+      "d": "no\":{\"box\":{\""
+    },
+    {
+      "ms": 5064,
+      "d": "x1\":100,\"y1"
+    },
+    {
+      "ms": 5122,
+      "d": "\":610,\"x2\":308"
+    },
+    {
+      "ms": 5156,
+      "d": ",\"y2\":662},\""
+    },
+    {
+      "ms": 5220,
+      "d": "value_text\":\"P-102"
+    },
+    {
+      "ms": 5259,
+      "d": "-B\",\"legibility\":\""
+    },
+    {
+      "ms": 5371,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 5371,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 5408,
+      "d": "sacks\":{\"box\":"
+    },
+    {
+      "ms": 5540,
+      "d": "{\"x1\":575,\""
+    },
+    {
+      "ms": 5540,
+      "d": "y1\":608,\"x2"
+    },
+    {
+      "ms": 5574,
+      "d": "\":772,\"y2\":662"
+    },
+    {
+      "ms": 5608,
+      "d": "},\"value_text\":\"3"
+    },
+    {
+      "ms": 5701,
+      "d": " JUTE\",\"legib"
+    },
+    {
+      "ms": 5725,
+      "d": "ility\":\"CLEAR"
+    },
+    {
+      "ms": 5765,
+      "d": "\",\"overwritten_from\":"
+    },
+    {
+      "ms": 5813,
+      "d": "\"\"},\"gross_kg"
+    },
+    {
+      "ms": 5887,
+      "d": "\":{\"box\":{\"x"
+    },
+    {
+      "ms": 5934,
+      "d": "1\":100,\"y1\":"
+    },
+    {
+      "ms": 5967,
+      "d": "745,\"x2\":250,"
+    },
+    {
+      "ms": 6013,
+      "d": "\"y2\":798},\"value"
+    },
+    {
+      "ms": 6066,
+      "d": "_text\":\"81.20\",\""
+    },
+    {
+      "ms": 6117,
+      "d": "legibility\":\"CLE"
+    },
+    {
+      "ms": 6188,
+      "d": "AR\",\"overwritten_"
+    },
+    {
+      "ms": 6227,
+      "d": "from\":\"\"},\"tare_"
+    },
+    {
+      "ms": 6311,
+      "d": "kg\":{\"box\":{"
+    },
+    {
+      "ms": 6326,
+      "d": "\"x1\":410,\"y"
+    },
+    {
+      "ms": 6368,
+      "d": "1\":745,\"x2\":"
+    },
+    {
+      "ms": 6416,
+      "d": "525,\"y2\":798},"
+    },
+    {
+      "ms": 6468,
+      "d": "\"value_text\":\"0."
+    },
+    {
+      "ms": 6538,
+      "d": "45\",\"legibility\":\"C"
+    },
+    {
+      "ms": 6566,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 6639,
+      "d": "ten_from\":\"\"},\"net"
+    },
+    {
+      "ms": 6690,
+      "d": "_kg\":{\"box\":"
+    },
+    {
+      "ms": 6722,
+      "d": "{\"x1\":715,\""
+    },
+    {
+      "ms": 6789,
+      "d": "y1\":742"
+    },
+    {
+      "ms": 6825,
+      "d": ",\"x2\":865,\""
+    },
+    {
+      "ms": 6866,
+      "d": "y2\":798},\"value_"
+    },
+    {
+      "ms": 6941,
+      "d": "text\":\"80.75\",\"leg"
+    },
+    {
+      "ms": 6975,
+      "d": "ibility\":\"SMUD"
+    },
+    {
+      "ms": 7022,
+      "d": "GED\",\"overwritten_"
+    },
+    {
+      "ms": 7065,
+      "d": "from\":\"\"},\"mc_"
+    },
+    {
+      "ms": 7116,
+      "d": "pct\":{\"box\":{"
+    },
+    {
+      "ms": 7192,
+      "d": "\"x1\":100,\"y"
+    },
+    {
+      "ms": 7228,
+      "d": "1\":882"
+    },
+    {
+      "ms": 7261,
+      "d": ",\"x2\":188"
+    },
+    {
+      "ms": 7326,
+      "d": ",\"y2\":932},\""
+    },
+    {
+      "ms": 7370,
+      "d": "value_text\":\"8.0"
+    },
+    {
+      "ms": 7417,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 7481,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 7526,
+      "d": "_from\":\"\"},\"mc"
+    },
+    {
+      "ms": 7566,
+      "d": "_less_kg\":{\""
+    },
+    {
+      "ms": 7626,
+      "d": "box\":{\"x1\":410"
+    },
+    {
+      "ms": 7661,
+      "d": ",\"y1\":882,\""
+    },
+    {
+      "ms": 7714,
+      "d": "x2\":518,\"y2"
+    },
+    {
+      "ms": 7785,
+      "d": "\":932},\"value_text\":"
+    },
+    {
+      "ms": 7814,
+      "d": "\"0.81\",\"legibility"
+    },
+    {
+      "ms": 7867,
+      "d": "\":\"CLEAR\",\""
+    },
+    {
+      "ms": 7940,
+      "d": "overwritten_from\":\"\""
+    },
+    {
+      "ms": 7971,
+      "d": "},\"payable_kg\":"
+    },
+    {
+      "ms": 8009,
+      "d": "{\"box\":{\"x1"
+    },
+    {
+      "ms": 8088,
+      "d": "\":715,\"y1\":880"
+    },
+    {
+      "ms": 8123,
+      "d": ",\"x2\":872,\""
+    },
+    {
+      "ms": 8182,
+      "d": "y2\":932},\"value_"
+    },
+    {
+      "ms": 8209,
+      "d": "text\":\"79.94\",\"leg"
+    },
+    {
+      "ms": 8272,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 8341,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 8364,
+      "d": "\":\"\"},\"grade\":{"
+    },
+    {
+      "ms": 8461,
+      "d": "\"box\":{\"x1\":"
+    },
+    {
+      "ms": 8461,
+      "d": "98,\"y1\":1072"
+    },
+    {
+      "ms": 8511,
+      "d": ",\"x2\":282"
+    },
+    {
+      "ms": 8559,
+      "d": ",\"y2\":1130"
+    },
+    {
+      "ms": 8614,
+      "d": "},\"value_text\":\"G"
+    },
+    {
+      "ms": 8668,
+      "d": "2\",\"legibility\":\"O"
+    },
+    {
+      "ms": 8708,
+      "d": "VERWRITTEN"
+    },
+    {
+      "ms": 8773,
+      "d": "\",\"overwritten_from\":"
+    },
+    {
+      "ms": 8835,
+      "d": "\"G1\"},\"cl"
+    },
+    {
+      "ms": 8885,
+      "d": "erk_initials\":{\""
+    },
+    {
+      "ms": 8933,
+      "d": "box\":{\"x1\":660"
+    },
+    {
+      "ms": 8960,
+      "d": ",\"y1\":1210,"
+    },
+    {
+      "ms": 9033,
+      "d": "\"x2\":735,\"y"
+    },
+    {
+      "ms": 9061,
+      "d": "2\":1262},\"value_"
+    },
+    {
+      "ms": 9123,
+      "d": "text\":\"JD\",\"legib"
+    },
+    {
+      "ms": 9165,
+      "d": "ility\":\"CLEAR"
+    },
+    {
+      "ms": 9223,
+      "d": "\",\"overwritten_from\":"
+    },
+    {
+      "ms": 9257,
+      "d": "\"\"},\"deductions\":["
+    },
+    {
+      "ms": 9319,
+      "d": "{\"box\":{\"x1"
+    },
+    {
+      "ms": 9386,
+      "d": "\":410,\"y1\":1"
+    },
+    {
+      "ms": 9420,
+      "d": "008"
+    },
+    {
+      "ms": 9470,
+      "d": ",\"x2\":865,\""
+    },
+    {
+      "ms": 9525,
+      "d": "y2\":1060},\"value"
+    },
+    {
+      "ms": 9560,
+      "d": "_text\":\"Multa ("
+    },
+    {
+      "ms": 9643,
+      "d": "absent GA) 200\",\""
+    },
+    {
+      "ms": 9676,
+      "d": "legibility\":\"CLE"
+    },
+    {
+      "ms": 9719,
+      "d": "AR\",\"overwritten_"
+    },
+    {
+      "ms": 9771,
+      "d": "from\":\"\"}],\"signature"
+    },
+    {
+      "ms": 9807,
+      "d": "\":\"THUMBMAR"
+    },
+    {
+      "ms": 9857,
+      "d": "K\"}],\"anomal"
+    },
+    {
+      "ms": 9908,
+      "d": "ies\":[]}"
+    }
+  ],
+  "recorded_at": "2026-10-22T07:43:22.877Z",
+  "latency_ms": 9914,
+  "first_delta_ms": 2365
+}

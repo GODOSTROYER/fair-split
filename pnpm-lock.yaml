@@ -125,6 +125,9 @@ importers:
       "@fairsplit/domain":
         specifier: workspace:*
         version: link:../domain
+      canonicalize:
+        specifier: "catalog:"
+        version: 5.1.0
       partial-json:
         specifier: "catalog:"
         version: 0.1.7
@@ -138,6 +141,12 @@ importers:
       "@types/node":
         specifier: "catalog:"
         version: 24.10.1
+      msw:
+        specifier: "catalog:"
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.10.1)(esbuild@0.28.2)(tsx@4.23.15))
+      tsx:
+        specifier: "catalog:"
+        version: 4.23.15
       typescript:
         specifier: "catalog:"
         version: 6.0.3
