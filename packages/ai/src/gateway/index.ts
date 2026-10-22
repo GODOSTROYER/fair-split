@@ -43,3 +43,4 @@ export {
 } from "./structured.js";
 export { realSleep, replayTimeline, type Sleep, TimelineRecorder } from "./timeline.js";
 export * from "./types.js";
+export { WARM_PROMPT, type WarmOutcome, type WarmTarget, warmStructuredOutputs } from "./warm.js";

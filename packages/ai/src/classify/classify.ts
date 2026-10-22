@@ -103,6 +103,7 @@ export async function classifyDeduction(input: ClassifyInput, deps: ReadDeps): P
     budgetScope: deps.budgetScope,
     replaySpeed: deps.replaySpeed,
     signal: deps.signal,
+    record: deps.record,
     body: {
       system: [{ type: "text", text }],
       messages: [

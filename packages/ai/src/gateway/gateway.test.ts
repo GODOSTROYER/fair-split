@@ -17,6 +17,7 @@ import { FsReplayStore, MemoryCallLedger, MemoryReplayStore } from "./store.js";
 import { jsonOutputFormat, parseStructured } from "./structured.js";
 import { fakeMessage, JSON_HEADERS, SSE_HEADERS, sseBody } from "./test-helpers.js";
 import type { GatewayCall } from "./types.js";
+import { warmStructuredOutputs } from "./warm.js";
 
 const MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const FILES_URL = "https://api.anthropic.com/v1/files";
@@ -445,5 +446,26 @@ describe("measureInput", () => {
       ],
     });
     expect(m).toEqual({ visualTokens: 2035, characters: 12 });
+  });
+});
+
+describe("warmStructuredOutputs (S4.9 warmCaches)", () => {
+  it("makes one live call per schema, never records, and tolerates max_tokens", async () => {
+    respondJson(fakeMessage({ text: '{"verdict":', model: "claude-sonnet-5-5", stopReason: "max_tokens" }));
+    const gw = gateway();
+    const out = await warmStructuredOutputs(gw, [
+      { name: "answer", model: "claude-sonnet-5-5", effort: "low", schemaV: "answer.v1", format },
+      { name: "answer2", model: "claude-sonnet-5-5", effort: "low", schemaV: "answer.v2", format },
+    ]);
+    expect(out.map((o) => [o.name, o.ok])).toEqual([
+      ["answer", true],
+      ["answer2", true],
+    ]);
+    expect(captured).toHaveLength(2);
+    expect(store.records.size).toBe(0);
+    expect(captured[0]?.body).toMatchObject({
+      max_tokens: 400,
+      output_config: { effort: "low", format: { type: "json_schema" } },
+    });
   });
 });

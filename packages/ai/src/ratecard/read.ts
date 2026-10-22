@@ -4,6 +4,7 @@ import {
   jsonOutputFormat,
   parseStructured,
   sha256Hex,
+  type WarmTarget,
 } from "../gateway/index.js";
 import type { ReadDeps } from "../read/calls.js";
 import { PREP_V, prepareImage } from "../read/prep.js";
@@ -73,6 +74,7 @@ export async function readRateCard(input: RateCardInput, deps: ReadDeps): Promis
     budgetScope: deps.budgetScope,
     replaySpeed: deps.replaySpeed,
     signal: deps.signal,
+    record: deps.record,
     body: {
       system: [{ type: "text", text: p.text, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content }],
@@ -88,3 +90,11 @@ export async function readRateCard(input: RateCardInput, deps: ReadDeps): Promis
     pageShas,
   };
 }
+
+export const RATECARD_WARM_TARGET: WarmTarget = {
+  name: "ratecard",
+  model: "claude-opus-5-5",
+  effort: "medium",
+  schemaV: RATECARD_SCHEMA_V,
+  format: RATECARD_FORMAT,
+};

@@ -12,7 +12,7 @@ import {
 import { fakeMessage, JSON_HEADERS, SSE_HEADERS, sseBody } from "../gateway/test-helpers.js";
 import type { ReadingEvent } from "./_shims/contracts.js";
 import type { ReadDeps } from "./calls.js";
-import { extract } from "./extract.js";
+import { compareRows, extract } from "./extract.js";
 import type { Extraction, ZoomRead } from "./schema.js";
 import {
   CLEAN_VALUES,
@@ -471,5 +471,42 @@ describe("extract: rows, rotation and coverage", () => {
     expect(n).toBe(4);
     expect(r.rotation).toBe(90);
     expect([r.width, r.height]).toEqual([1400, 1000]);
+  });
+});
+
+describe("extract: the Judge live lane", () => {
+  it("a live_only read with record never leaves the recording untouched and compares field by field", async () => {
+    const recordedDoc = extraction([row()]);
+    script({ A: recordedDoc, B: recordedDoc });
+    const bytes = await plainPage();
+    const recorded = await extract(
+      { docId: "live-1", kind: "slip_page", bytes, fixture: pageFixture(), validation: ctx },
+      deps(),
+    );
+    const before = [...store.records.keys()].sort();
+
+    const liveDoc = extraction([
+      row({
+        gross_kg: field("64.70", FIELD_RECTS.gross_kg),
+        net_kg: field("64.40", FIELD_RECTS.net_kg),
+        payable_kg: field("64.40", FIELD_RECTS.payable_kg),
+      }),
+    ]);
+    script({ A: liveDoc, B: liveDoc });
+    const live = await extract(
+      { docId: "live-1", kind: "slip_page", bytes, fixture: pageFixture(), validation: ctx },
+      { ...deps("live_only"), record: "never" },
+    );
+    expect([...store.records.keys()].sort()).toEqual(before);
+    expect(live.provenance).toBe("live");
+    const cmp = compareRows(live.rows[0] as never, recorded.rows[0] as never);
+    expect(cmp.total).toBe(13);
+    expect(cmp.matching).toBe(10);
+    expect(
+      cmp.fields
+        .filter((f) => !f.same)
+        .map((f) => f.field)
+        .sort(),
+    ).toEqual(["gross_kg", "net_kg", "payable_kg"]);
   });
 });

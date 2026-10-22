@@ -8,6 +8,7 @@ import {
   isGatewayError,
   jsonOutputFormat,
   parseStructured,
+  type WarmTarget,
 } from "../gateway/index.js";
 import { imageIdentity } from "./prep.js";
 import { prompt } from "./prompts.js";
@@ -22,6 +23,8 @@ export interface ReadDeps {
   /** Replay pacing (×k); default Infinity. */
   replaySpeed?: number;
   signal?: AbortSignal;
+  /** "never" for the Judge live lane: a live read must not become the recording. Default "if_absent". */
+  record?: "if_absent" | "never";
 }
 
 export const READ_MODEL = "claude-opus-5-5" as const;
@@ -79,6 +82,7 @@ export async function readVariant(
     budgetScope: deps.budgetScope,
     replaySpeed: deps.replaySpeed,
     signal: deps.signal,
+    record: deps.record,
     body: {
       system: systemOf(p.text),
       messages: [
@@ -132,6 +136,7 @@ export async function zoomRead(
     budgetScope: deps.budgetScope,
     replaySpeed: deps.replaySpeed,
     signal: deps.signal,
+    record: deps.record,
     body: {
       system: systemOf(p.text),
       messages: [
@@ -186,6 +191,7 @@ export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promi
       budgetScope: deps.budgetScope,
       replaySpeed: deps.replaySpeed,
       signal: deps.signal,
+      record: deps.record,
       acceptStopReasons: ["end_turn", "refusal"],
       body: {
         system: systemOf(p.text),
@@ -216,3 +222,16 @@ export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promi
     };
   }
 }
+
+/** The read stage's structured-output schemas, for warmStructuredOutputs (S4.9 warmCaches). */
+export const READ_WARM_TARGETS: readonly WarmTarget[] = [
+  {
+    name: "extraction",
+    model: READ_MODEL,
+    effort: "low",
+    schemaV: EXTRACTION_SCHEMA_V,
+    format: EXTRACTION_FORMAT,
+  },
+  { name: "zoomread", model: READ_MODEL, effort: "medium", schemaV: ZOOM_SCHEMA_V, format: ZOOM_FORMAT },
+  { name: "screen", model: SCREEN_MODEL, effort: "low", schemaV: SCREEN_SCHEMA_V, format: SCREEN_FORMAT },
+];

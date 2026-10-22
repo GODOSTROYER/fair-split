@@ -241,7 +241,7 @@ export class ClaudeGateway {
     const usage = usageSummary(outcome.message);
     const cost = costMicros(usage, outcome.message.model);
     await reservation.settle(cost);
-    let recording: Recording = {
+    const raw: Recording = {
       v: 1,
       cache_key: key,
       purpose: call.purpose,
@@ -264,16 +264,18 @@ export class ClaudeGateway {
       latency_ms: outcome.latencyMs,
       first_delta_ms: outcome.firstDeltaMs,
     };
-    if (this.opts.scrub !== false) recording = scrubRecording(recording);
+    // Only the stored copy is scrubbed: the live caller gets the message exactly as the API sent it
+    // (thinking signatures must round-trip unmodified in multi-turn use).
+    const recording = this.opts.scrub === false ? raw : scrubRecording(raw);
     // 8. Ledger, then the replay store (insert-if-absent).
-    const accepted = accept.includes(recording.stop_reason as StopReason);
+    const accepted = accept.includes(raw.stop_reason as StopReason);
     await this.opts.ledger?.append({
       ...this.ledgerRow(call, key, at, recording, null),
       accepted,
       request_id: outcome.requestId,
     });
     if ((call.record ?? "if_absent") === "if_absent") await this.store.put(recording);
-    const result = this.resultOf(call, recording, "live", cost);
+    const result = this.resultOf(call, raw, "live", cost);
     this.checkStop(result, accept, key);
     return result;
   }

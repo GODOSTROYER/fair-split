@@ -236,7 +236,15 @@ async function runPass(
     }
     return `r${idx}`;
   };
-  const rowNumber = (key: string, idx: number) => (key.startsWith("s") ? Number(key.slice(1)) : idx);
+  // Row numbers are stable across live and replayed runs: a fixture slot keeps its index; rows the
+  // fixture does not place follow the slots in read order; a second row read onto an occupied slot
+  // gets a number far past both.
+  const rowNumber = (key: string, idx: number): number => {
+    const slot = /^s(\d+)$/.exec(key);
+    if (slot) return Number(slot[1]);
+    if (/^r\d+$/.test(key)) return slots.length + idx;
+    return slots.length + (key.includes("#B") ? 2000 : 1000) + idx;
+  };
 
   const completed = {
     A: new Map<string, { idx: number; row: Row }>(),
@@ -743,4 +751,29 @@ export function quarantine(
     }
   }
   return { anomalies, quarantined, holds };
+}
+
+/**
+ * The Judge live lane's comparison (S4.9): "Live read matches the recorded read on n of N fields".
+ * Compares each field's proposed value (normalised); a live read never writes rows.
+ */
+export function compareRows(
+  live: RowOutcome,
+  recorded: RowOutcome,
+): {
+  matching: number;
+  total: number;
+  fields: Array<{ field: RowField; live: string; recorded: string; same: boolean }>;
+} {
+  const fields: Array<{ field: RowField; live: string; recorded: string; same: boolean }> = [];
+  const names = new Set([...Object.keys(recorded.fields), ...Object.keys(live.fields)] as RowField[]);
+  for (const field of names) {
+    const l = live.fields[field]?.outcome?.value ?? "";
+    const r = recorded.fields[field]?.outcome?.value ?? "";
+    const nl = normaliseField(field, l);
+    const nr = normaliseField(field, r);
+    const same = nl && nr ? nl.key === nr.key : l.trim() === r.trim();
+    fields.push({ field, live: l, recorded: r, same });
+  }
+  return { matching: fields.filter((f) => f.same).length, total: fields.length, fields };
 }
