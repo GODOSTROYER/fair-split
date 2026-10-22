@@ -146,7 +146,7 @@ export interface ExtractResult {
   rows: RowOutcome[];
   anomalies: LocatedAnomaly[];
   screen: ScreenOutcome | null;
-  /** The text-only re-screen of the strings located instruction-like text does not explain, when one ran. */
+  /** The text-only re-screen of the strings the quarantine does not account for, when one ran. */
   rescreen: ScreenOutcome | null;
   quarantined: ExtractQuarantinedEvent[];
   /**
@@ -682,9 +682,9 @@ async function runPass(
   if (screen?.result) calls.push(screen.result);
 
   // Quarantine. When the screen fired and the reads located some instruction-like text, does that
-  // text explain the hit? The remaining strings are screened once more, text only: a second
-  // injection transcribed as an ordinary line (box 13, say) must not reach the classifier (S4.7
-  // layer 4).
+  // text explain the hit? Every string the quarantine does not account for is screened once more,
+  // text only: a second injection transcribed as an ordinary line (box 13, say) must not reach the
+  // classifier (S4.7 layer 4).
   const located = locateInjections(input.docId, ra.extraction, rb.extraction, rows, slots, {
     width: W,
     height: H,
@@ -810,6 +810,7 @@ function clampBox(b: Box, w: number, h: number): Box {
 const OVERLAP_REASON = "Instruction-like text overlaps slip data";
 const UNPLACED_REASON = "Instruction-like text found where no reviewed rectangle rules out an overlap";
 const UNLOCATED_REASON = "Instruction-like text no read could place on the page";
+const REPEATS_REASON = "A deduction line repeats instruction-like text";
 
 /** SUSPECTED_INJECTION drafts, one per row: a second reason on the same row only raises the gate. */
 function holdBook(docId: string) {
@@ -833,6 +834,42 @@ function holdBook(docId: string) {
   };
 }
 
+/** The comparison form of transcribed text: deduction-normalised (spaces, peso marks), case-folded. */
+const canon = (s: string): string => normaliseDeduction(s).toLowerCase();
+
+/** A shorter piece of text is too common to pin on an instruction ("TO AI", "₱200"). */
+export const FRAGMENT_MIN = 8;
+
+/**
+ * The one matcher for "this transcribed text is the located instruction-like text, or part of it":
+ * equal to one of `instructions`, or the shorter of the two, at least FRAGMENT_MIN characters long,
+ * inside the other (compared deduction-normalised and case-folded). `locateInjections` quarantines
+ * every deduction line it matches, and `remainingStrings` skips only matched or quarantined text that
+ * no field or open line carries, so text the re-screen skips never reaches a later prompt (S4.7
+ * layer 4).
+ */
+export function repeatsInstruction(text: string, instructions: readonly string[]): boolean {
+  const t = canon(text);
+  if (!t) return false;
+  return instructions.some((said) => {
+    const v = canon(said);
+    if (!v) return false;
+    if (t === v) return true;
+    const [short, long] = t.length <= v.length ? [t, v] : [v, t];
+    return short.length >= FRAGMENT_MIN && long.includes(short);
+  });
+}
+
+/** What both reads transcribed for one field or line: the values and what each saw written over. */
+function readTexts(f: Pick<FieldOutcome, "a" | "b">): string[] {
+  return [f.a.value_text, f.b.value_text, f.a.overwritten_from, f.b.overwritten_from];
+}
+
+/** Every text of a deduction line: the line as proposed and whatever either read transcribed. */
+export function deductionTexts(d: Pick<DeductionOutcome, "text" | "a" | "b">): string[] {
+  return [d.text, ...readTexts(d)];
+}
+
 export interface LocatedInjections {
   anomalies: LocatedAnomaly[];
   /** Distinct instruction-like texts: B's report of A's text is not a second one. */
@@ -846,7 +883,9 @@ export interface LocatedInjections {
 /**
  * Quarantine by location (S4.2 AI-4): each instruction-like text either read reported is quarantined.
  * A SUSPECTED_INJECTION hold is drafted when the text overlaps a reviewed field rectangle or deduction
- * line (RESERVES_LINE; BLOCKS_APPROVAL for a kilo field), or when a deduction line reads as the text.
+ * line (RESERVES_LINE; BLOCKS_APPROVAL for a kilo field), or when a deduction line repeats the text,
+ * whole or in part (`repeatsInstruction`): that line is quarantined and reserved wherever it is, so
+ * nothing the re-screen skips (`remainingStrings`) reaches the classifier.
  * Model field boxes never decide: where no reviewed rectangle exists (no fixture, a row the fixture
  * does not place, a line or field without its rectangle), or where the text has no box that places it
  * on the page, an overlap cannot be ruled out, so the line fails closed: its deductions are
@@ -895,27 +934,14 @@ export function locateInjections(
   const book = holdBook(docId);
   let unlocated = false;
   for (const x of distinct) {
-    const said = normaliseDeduction(x.verbatim);
     const placed = placesText(x.box, size);
     if (!placed) unlocated = true;
     for (const r of rows) {
-      if (r.slot === null || !placed) {
-        // No reviewed rectangle places this row (no fixture, or a second row read onto an occupied
-        // slip), or no box places the text: an overlap with the row's data cannot be ruled out.
-        for (const d of r.deductions) d.quarantined = true;
-        book.reserve(r.row, "RESERVES_LINE", undefined, placed ? UNPLACED_REASON : UNLOCATED_REASON);
-        continue;
-      }
-      // A deduction line either read transcribed as the instruction is quarantined wherever it is.
-      for (const d of r.deductions) {
-        const readsAs = [d.text, d.a.value_text, d.b.value_text].some(
-          (t) => t !== "" && normaliseDeduction(t) === said,
-        );
-        if (said && readsAs) {
-          d.quarantined = true;
-          book.reserve(r.row, "RESERVES_LINE", "deductions", OVERLAP_REASON);
-        }
-      }
+      if (r.slot !== null && placed) continue;
+      // No reviewed rectangle places this row (no fixture, or a second row read onto an occupied
+      // slip), or no box places the text: an overlap with the row's data cannot be ruled out.
+      for (const d of r.deductions) d.quarantined = true;
+      book.reserve(r.row, "RESERVES_LINE", undefined, placed ? UNPLACED_REASON : UNLOCATED_REASON);
     }
     if (!placed) continue;
     // Every reviewed slip the text touches: is it over that slip's data?
@@ -938,6 +964,17 @@ export function locateInjections(
         }
       }
     });
+  }
+  // A deduction line that repeats instruction-like text (whole, or a fragment of FRAGMENT_MIN or more
+  // characters, in any of its texts) is that text wherever either read put it: quarantined, its line
+  // reserved. Every instruction-like text counts, B's report of A's note included.
+  const said = instructions.map((x) => x.verbatim);
+  for (const r of rows) {
+    for (const d of r.deductions) {
+      if (d.quarantined || !deductionTexts(d).some((t) => repeatsInstruction(t, said))) continue;
+      d.quarantined = true;
+      book.reserve(r.row, "RESERVES_LINE", "deductions", REPEATS_REASON);
+    }
   }
   return { anomalies, distinct, quarantined, holds: book.list(), unlocated };
 }
@@ -985,36 +1022,41 @@ export async function slipEvidenceCrop(
   return sanitizeForModel(master, size, { rect, slip, hatch: doc.quarantinedBoxes });
 }
 
-const squash = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
-
 /**
- * The transcribed strings the located instruction-like text does not explain: the re-screen input.
- * Drops the located texts themselves (and fragments of them of 8 or more characters) and the text of
- * deduction lines already quarantined.
+ * The re-screen's input (S4.2 AI-4): the transcribed strings the quarantine does not account for.
+ * Skipped: the instruction-like text either read reported, strings `repeatsInstruction` matches to
+ * it, and the text of quarantined deduction lines. Never skipped: a string that a scored field or an
+ * open (unquarantined) line carries, since a later prompt may see it (AI-6's line, WS-AGENT's slip
+ * evidence). `locateInjections` has already quarantined every line the matcher matches, so whatever
+ * this skips is quarantined (S4.7 layer 4).
  */
 export function remainingStrings(
   transcription: readonly string[],
-  located: Pick<LocatedInjections, "distinct">,
-  rows: readonly RowOutcome[],
+  located: Pick<LocatedInjections, "anomalies">,
+  rows: readonly Pick<RowOutcome, "fields" | "deductions">[],
 ): string[] {
-  const explained = located.distinct.map((x) => squash(x.verbatim)).filter(Boolean);
-  const quarantinedText = new Set(
-    rows
-      .flatMap((r) => r.deductions.filter((d) => d.quarantined))
-      .flatMap((d) => [d.a.value_text, d.b.value_text, d.a.overwritten_from, d.b.overwritten_from])
-      .map(squash)
-      .filter(Boolean),
-  );
+  const said = located.anomalies.filter((x) => x.kind === "INSTRUCTION_LIKE_TEXT").map((x) => x.verbatim);
+  const open = new Set<string>();
+  const quarantinedText = new Set<string>();
+  for (const r of rows) {
+    for (const fo of Object.values(r.fields)) {
+      if (fo) for (const t of readTexts(fo)) open.add(canon(t));
+    }
+    for (const d of r.deductions) {
+      for (const t of deductionTexts(d)) (d.quarantined ? quarantinedText : open).add(canon(t));
+    }
+  }
   return transcription.filter((s) => {
-    const n = squash(s);
-    if (!n || quarantinedText.has(n)) return false;
-    return !explained.some((v) => v === n || (n.length >= 8 && v.includes(n)));
+    const n = canon(s);
+    if (!n) return false;
+    if (open.has(n)) return true;
+    return !quarantinedText.has(n) && !repeatsInstruction(s, said);
   });
 }
 
 /**
  * What the screen adds (S4.2): when it fires and no read located the text, or the re-screen of the
- * strings the located text does not explain fires too, every deduction on the document is
+ * strings the quarantine does not account for fires too, every deduction on the document is
  * quarantined, every row is reserved (RESERVES_LINE), one `extract.quarantined` comes from the
  * screen, and the document's crops are withheld from every model. A refusal or a failure counts as
  * firing (fail closed).
