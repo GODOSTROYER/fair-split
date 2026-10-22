@@ -31,7 +31,7 @@ export interface EvalReport {
 }
 
 export function versions(): EvalReport["versions"] {
-  const p = (n: "a.v1" | "b.v1" | "zoom.v1" | "screen.v1") => `${n}@${prompt(n).sha256.slice(0, 12)}`;
+  const p = (n: "a.v1" | "b.v1" | "zoom.v2" | "screen.v1") => `${n}@${prompt(n).sha256.slice(0, 12)}`;
   return {
     models: {
       read: "claude-opus-5-5 (low)",
@@ -43,7 +43,7 @@ export function versions(): EvalReport["versions"] {
     prompts: {
       readA: p("a.v1"),
       readB: p("b.v1"),
-      zoom: p("zoom.v1"),
+      zoom: p("zoom.v2"),
       screen: p("screen.v1"),
       ratecard: `${RATECARD_PROMPT_V}@${ratecardPrompt().sha256.slice(0, 12)}`,
       classify: CLASSIFY_PROMPT_V,

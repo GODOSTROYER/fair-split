@@ -84,6 +84,8 @@ function result(docId: string, rows: RowOutcome[], extra: Partial<ExtractResult>
     screen: null,
     rescreen: null,
     quarantined: [],
+    cropsWithheld: false,
+    quarantinedBoxes: [],
     holds: [],
     events: [],
     calls: [],
