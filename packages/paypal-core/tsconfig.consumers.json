@@ -1,0 +1,15 @@
+{
+  "//": [
+    "TEMPORARY: typechecks WS-PPCORE files that live outside this package. apps/api has no package.json yet,",
+    "so its files sit under the root package.json (no type: module) and NodeNext would treat them as CommonJS.",
+    "`module: preserve` checks them as the ES modules they are; tsx runs tools/setup-webhooks.ts either way.",
+    "Drop the webhooks entry once WS-API scaffolds apps/api (type: module, NodeNext)."
+  ],
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "preserve",
+    "moduleResolution": "bundler"
+  },
+  "include": ["../../apps/api/src/webhooks/**/*.ts", "../../tools/setup-webhooks.ts"]
+}
