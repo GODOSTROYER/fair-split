@@ -1,0 +1,203 @@
+# Fair Split: co-op payroll. Render Blueprint (https://render.com/docs/blueprint-spec).
+# Validated against https://render.com/schema/render.yaml.json by apps/tasks/test/render-blueprint.test.ts.
+#
+# Four resources, one region (register §6, S3.3): fs-api (web, paid, always on), fs-tasks (Render
+# Workflows), fs-cron (hourly at :07) and fs-db (paid Postgres 18). `virginia`, not the default
+# `oregon`: the PayPal sandbox throttle counts per egress IP and Render shares egress IPs per region.
+#
+# Secrets are declared per service with `sync: false` (Render prompts once at Blueprint creation and
+# never overwrites them on sync). Environment groups cannot hold `sync: false` values, so the shared
+# group below carries only non-secret configuration. Each service gets only the secrets it uses.
+version: "1"
+
+envVarGroups:
+  - name: fs-config
+    envVars:
+      - key: PP_ENV
+        value: sandbox
+      - key: NODE_VERSION
+        value: "24.19.0"
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: "0"
+      - key: TZ
+        value: UTC
+      - key: LOG_LEVEL
+        value: info
+
+services:
+  - type: web
+    name: fs-api
+    runtime: node
+    region: virginia
+    # Paid instance: never spins down, keeps SSE and the LISTEN connection alive (register §6).
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: >-
+      corepack pnpm install --frozen-lockfile &&
+      corepack pnpm turbo run build --filter=@fairsplit/api... --filter=@fairsplit/console --filter=@fairsplit/mobile
+    preDeployCommand: corepack pnpm --filter @fairsplit/db migrate
+    startCommand: node apps/api/dist/index.js
+    # Liveness only. /readyz depends on PayPal token scope and webhook registration; failing the
+    # platform health check on a PayPal outage would restart a healthy process and block deploys.
+    # /readyz is watched by tools/health-check.ts and the uptime workflow instead.
+    healthCheckPath: /healthz
+    maxShutdownDelaySeconds: 60
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/api/**
+        - apps/console/**
+        - apps/mobile/**
+        - packages/**
+        - media/**
+        - assets/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - turbo.json
+        - tsconfig.base.json
+      ignoredPaths:
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - "**/*.md"
+        - "**/test/**"
+        - packages/eval/**
+        - packages/test-kit/**
+    envVars:
+      - fromGroup: fs-config
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fs-db
+          property: connectionString
+      - key: EXECUTOR
+        value: workflow
+      - key: FS_TASKS_SLUG
+        fromService:
+          type: workflow
+          name: fs-tasks
+          property: slug
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: PP_CLIENT_ID
+        sync: false
+      - key: PP_CLIENT_SECRET
+        sync: false
+      - key: PP_WEBHOOK_ID
+        sync: false
+      - key: PP_BUSINESS_EMAIL
+        sync: false
+      - key: PP_PAYER_EMAIL
+        sync: false
+      - key: PP_RECEIVERS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false
+      - key: STATEMENT_SIGNING_KEY
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: FS_KILL
+        sync: false
+
+  - type: workflow
+    name: fs-tasks
+    runtime: node
+    region: virginia
+    # No `plan` (each task defaults to `flex`), no `preDeployCommand`, no health check: Blueprint
+    # workflows accept none of them. Only fs-api migrates; migrations are expand-then-contract.
+    buildCommand: >-
+      corepack pnpm install --frozen-lockfile &&
+      corepack pnpm turbo run build --filter=@fairsplit/tasks...
+    startCommand: node apps/tasks/dist/index.js
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/tasks/**
+        - packages/contracts/**
+        - packages/domain/**
+        - packages/seed/**
+        - packages/db/**
+        - packages/outbox/**
+        - packages/paypal-core/**
+        - packages/paypal-toolkit/**
+        - packages/paypal-payouts/**
+        - packages/ai/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - turbo.json
+        - tsconfig.base.json
+      ignoredPaths:
+        - "**/*.test.ts"
+        - "**/*.md"
+        - "**/test/**"
+    envVars:
+      - fromGroup: fs-config
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fs-db
+          property: connectionString
+      - key: EXECUTOR
+        value: workflow
+      - key: PP_CLIENT_ID
+        sync: false
+      - key: PP_CLIENT_SECRET
+        sync: false
+      - key: PP_WEBHOOK_ID
+        sync: false
+      - key: PP_BUSINESS_EMAIL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: STATEMENT_SIGNING_KEY
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: FS_KILL
+        sync: false
+
+  - type: cron
+    name: fs-cron
+    runtime: node
+    region: virginia
+    plan: 0.5c-512mb
+    # Minute 7 of every hour, UTC (register §6). Must equal CRON_SCHEDULE in apps/tasks/src/cron.ts.
+    schedule: "7 * * * *"
+    buildCommand: >-
+      corepack pnpm install --frozen-lockfile &&
+      corepack pnpm turbo run build --filter=@fairsplit/tasks...
+    startCommand: node apps/tasks/dist/cron.js
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/tasks/**
+        - packages/contracts/**
+        - packages/db/**
+        - packages/outbox/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - turbo.json
+        - tsconfig.base.json
+      ignoredPaths:
+        - "**/*.test.ts"
+        - "**/*.md"
+        - "**/test/**"
+    # The cron only enqueues outbox rows; it holds no PayPal, Claude or Render credentials.
+    envVars:
+      - fromGroup: fs-config
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fs-db
+          property: connectionString
+
+databases:
+  - name: fs-db
+    region: virginia
+    # Smallest paid Postgres; the free tier expires before the December judging window.
+    plan: 0.1c-256mb
+    postgresMajorVersion: "18"
+    databaseName: fairsplit
+    user: fairsplit
