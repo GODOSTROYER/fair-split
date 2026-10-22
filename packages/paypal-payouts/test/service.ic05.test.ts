@@ -23,6 +23,7 @@ import {
   HERO_LINES,
   HERO_SENDER_BATCH_ID,
   itemBody,
+  PAYOUT_BATCH_ID,
   postingSnapshot,
   RHEA_ITEM_ID,
   RUN_FACTS,
@@ -185,6 +186,63 @@ describe("PayoutsService on the real IC-05 PayPalHttp: create_payout_batch", () 
       payPalRequestId(HERO_SENDER_BATCH_ID),
       payPalRequestId(HERO_SENDER_BATCH_ID),
     ]);
+  });
+});
+
+describe("PayoutsService on the real IC-05 PayPalHttp: adopting after 'already exists'", () => {
+  /** PayPal's 400 for a reused sender_batch_id, as the real client returns it (link merged from details). */
+  const duplicate = (): PayPalFailure => ({
+    ...ic05Failure("http", { status: 400, name: "USER_BUSINESS_ERROR", delivery: "received" }),
+    message: "User business error.",
+    details: [
+      {
+        field: "SENDER_BATCH_ID",
+        location: "body",
+        issue: "Batch with given sender_batch_id already exists",
+      },
+    ],
+    links: [
+      {
+        href: `https://api.sandbox.paypal.com/v1/payments/payouts/${PAYOUT_BATCH_ID}`,
+        rel: "self",
+        method: "GET",
+      },
+    ],
+  });
+
+  it.each([
+    ["a limiter refusal", ic05Failure("limited"), { kind: "refused", code: "QUEUED" }],
+    ["an open circuit", ic05Failure("circuit_open"), { kind: "refused", code: "CIRCUIT_OPEN" }],
+    [
+      "a 429",
+      ic05Failure("http", { status: 429, name: "RATE_LIMIT_REACHED", delivery: "received" }),
+      { kind: "refused", code: "CIRCUIT_OPEN" },
+    ],
+    [
+      "no OAuth token",
+      ic05Failure("auth"),
+      { kind: "unresolved", reason: "AUTH_FAILED", payoutBatchId: PAYOUT_BATCH_ID },
+    ],
+    [
+      "a timeout",
+      ic05Failure("timeout"),
+      { kind: "unresolved", reason: "ADOPT_PENDING", lastStatus: 0, payoutBatchId: PAYOUT_BATCH_ID },
+    ],
+    [
+      "a request PayPalHttp would not send",
+      ic05Failure("invalid_request"),
+      { kind: "refused", code: "ADOPT_FAILED" },
+    ],
+  ])("%s on the GET adopts nothing and leaves the rows SUBMITTED", async (_label, getFailure, outcome) => {
+    const { http, calls } = scripted(duplicate(), getFailure);
+    const { service, repo } = await postingService(http);
+    await expect(service.executeApproved(RUN_FACTS.runId)).resolves.toMatchObject(outcome);
+    expect(calls.map((c) => [c.method, c.purpose])).toEqual([
+      ["POST", "payouts.create"],
+      ["GET", "payouts.get"],
+    ]);
+    expect(repo.types()).toEqual(["writeSubmitted"]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
   });
 });
 

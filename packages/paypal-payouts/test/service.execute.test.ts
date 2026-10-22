@@ -236,14 +236,121 @@ describe("PayoutsService.executeApproved(runId): the approved digest is the payo
     expect(repo.events.at(-1)).toMatchObject({ type: "markPosted", outcome: "adopted" });
   });
 
-  it("adopts on 'already exists' by the header total while PayPal lists no items yet", async () => {
-    const { service } = await setup();
+  it("does not adopt on 'already exists' by the header total while PayPal lists no items yet", async () => {
+    const { service, repo } = await setup();
+    onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400, "dbg-dup"));
+    onGet("/v1/payments/payouts/:id", () =>
+      paypalJson(batchBody(HERO_LINES, { listItems: false }), 200, "dbg-empty"),
+    );
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+      kind: "unresolved",
+      senderBatchId: HERO_SENDER_BATCH_ID,
+      attempts: 1,
+      lastStatus: 200,
+      debugId: "dbg-empty",
+      reason: "ADOPT_PENDING",
+      payoutBatchId: PAYOUT_BATCH_ID,
+    });
+    // Not POSTED: the rows stay SUBMITTED for the sweeper's resume, which re-GETs the items.
+    expect(repo.types()).toEqual(["writeSubmitted"]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+  });
+
+  it("adopts on a resume once PayPal lists the items and they rebuild the signed digest", async () => {
+    const digest = await digestFor(HERO_LINES);
+    const { service, repo } = await setup();
     onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
-    onGet("/v1/payments/payouts/:id", () => paypalJson(batchBody(HERO_LINES, { listItems: false })));
+    onGet(
+      "/v1/payments/payouts/:id",
+      sequence(
+        () => paypalJson(batchBody(HERO_LINES, { digest, listItems: false }), 200, "dbg-empty"),
+        () => paypalJson(batchBody(HERO_LINES, { digest }), 200, "dbg-items"),
+      ),
+    );
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ reason: "ADOPT_PENDING" });
     await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
       kind: "adopted",
-      verifiedBy: "header",
+      payoutBatchId: PAYOUT_BATCH_ID,
+      verifiedBy: "items",
+      debugId: "dbg-items",
     });
+    expect(repo.types()).toEqual(["writeSubmitted", "markPosted"]);
+    expect(repo.events.at(-1)).toMatchObject({ type: "markPosted", outcome: "adopted" });
+    expect(new Set(posts().map((r) => r.headers.get("paypal-request-id")))).toEqual(
+      new Set([payPalRequestId(HERO_SENDER_BATCH_ID)]),
+    );
+  });
+
+  it("inv.i4.digest-is-payout: a same-total batch another database posted under our id is never adopted", async () => {
+    // Dev, CI and the judge share one sandbox business account. A run_seq block collision there gives
+    // "already exists" for a batch with our sender_batch_id, our item count and our total, but its
+    // own receivers' split: M-014's and M-007's amounts swapped.
+    const [m014, m007, ...rest] = HERO_LINES as [ApprovedLine, ApprovedLine, ...ApprovedLine[]];
+    const foreign = [
+      { ...m014, amountCents: m007.amountCents },
+      { ...m007, amountCents: m014.amountCents },
+      ...rest,
+    ];
+    const total = (lines: readonly ApprovedLine[]) => lines.reduce((s, l) => s + l.amountCents, 0n);
+    expect(total(foreign)).toBe(total(HERO_LINES));
+    const { service, repo } = await setup();
+    onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
+    onGet(
+      "/v1/payments/payouts/:id",
+      sequence(
+        () => paypalJson(batchBody(foreign, { listItems: false })),
+        () => paypalJson(batchBody(foreign)),
+      ),
+    );
+
+    // The header matches ours to the cent, yet nothing is adopted while no item is listed...
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "unresolved",
+      reason: "ADOPT_PENDING",
+    });
+    // ...and once the items are listed they do not rebuild the signed digest: HALT.
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "refused",
+      code: "ADOPT_FAILED",
+      reason: "The existing batch differs from the approved digest",
+    });
+    expect(repo.types()).toEqual(["writeSubmitted"]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+  });
+
+  it("leaves the rows SUBMITTED when the GET of the existing batch goes unanswered", async () => {
+    const { service, repo } = await setup();
+    onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
+    onGet("/v1/payments/payouts/:id", () =>
+      paypalJson(paypalError("SERVICE_UNAVAILABLE", "Service Unavailable."), 503, "dbg-503"),
+    );
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "unresolved",
+      reason: "ADOPT_PENDING",
+      lastStatus: 503,
+      debugId: "dbg-503",
+      payoutBatchId: PAYOUT_BATCH_ID,
+    });
+    // The GET is idempotent: PayPalHttp itself tried it 4 times (1, 3, 9 s); one POST.
+    expect(requests.filter((r) => r.method === "GET")).toHaveLength(4);
+    expect(posts()).toHaveLength(1);
+    expect(repo.types()).toEqual(["writeSubmitted"]);
+  });
+
+  it("halts when the linked batch is not there (404): ADOPT_FAILED, nothing adopted", async () => {
+    const { service, repo } = await setup();
+    onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
+    onGet("/v1/payments/payouts/:id", () =>
+      paypalJson(paypalError("INVALID_RESOURCE_ID", "Requested resource ID was not found."), 404),
+    );
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "refused",
+      code: "ADOPT_FAILED",
+      reason: "GET of the existing batch failed (404 INVALID_RESOURCE_ID)",
+    });
+    expect(repo.types()).toEqual(["writeSubmitted"]);
   });
 
   it("refuses to adopt a batch whose items differ from the approved digest (HALT)", async () => {

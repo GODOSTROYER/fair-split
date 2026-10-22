@@ -31,8 +31,13 @@ as SUBMITTED → `POST /v1/payments/payouts` with `sender_batch_id` `{season}-{r
 `r{runSeq}-{memberNo}`, note "Fair Split 2026-A, batch {digest8}", `recipient_type: EMAIL`, USD, and
 `PayPal-Request-Id: sha256(sender_batch_id)` → on 5xx or timeout, the same request again at 1 s, 3 s,
 9 s, re-reading the kill switch first → on 400 "already exists", GET the batch from the HATEOAS link and
-adopt it only if its items re-hash to the approved digest. A post left `unresolved` resumes later with
-the same ids, its approvals judged as of the moment its rows were written.
+adopt it only if every item it lists re-hashes to the approved digest. Never on the header total: dev, CI
+and the judge share one sandbox business account, so a run_seq collision can show our id and our total
+with another split. While PayPal lists no items (or the GET goes unanswered) the outcome is `unresolved
+ADOPT_PENDING` with the batch's id, nothing is marked POSTED, and the rows stay SUBMITTED; a batch whose
+items differ, or under another sender_batch_id, is `refused ADOPT_FAILED` (HALT). A post left
+`unresolved` resumes later with the same ids, its approvals judged as of the moment its rows were
+written.
 
 **On WS-PPCORE's PayPalHttp** (IC-05, on `main` since 23 Oct). That client retries idempotent calls
 itself, so the create and cancel POSTs go out with `idempotent: false`: their retries are the service's,

@@ -30,6 +30,7 @@ import {
   getPayoutBatch,
   getPayoutItem,
   type PayoutBatchHeader,
+  type PayoutBatchResponse,
   type PayoutItemResponse,
   PayoutParamsError,
 } from "./functions.js";
@@ -131,8 +132,13 @@ export type RefusalCode =
   | "NOT_FOR_REROUTE"
   | "ALREADY_REROUTED";
 
-/** Why a post or a cancel stopped without knowing PayPal's answer; the rows stay as written. */
-export type UnresolvedReason = "RETRIES_EXHAUSTED" | "KILL_SWITCH_ON" | "AUTH_FAILED";
+/**
+ * Why a post or a cancel stopped without knowing PayPal's answer; the rows stay as written.
+ * ADOPT_PENDING: PayPal holds a batch under our sender_batch_id, but it could not yet be shown to be
+ * the approved one (no items listed yet, or the GET went unanswered). Nothing is adopted on a header
+ * total: a later call (the sweeper) posts the same ids again, re-GETs and adopts only on the items.
+ */
+export type UnresolvedReason = "RETRIES_EXHAUSTED" | "KILL_SWITCH_ON" | "AUTH_FAILED" | "ADOPT_PENDING";
 
 export type BatchOutcome =
   | {
@@ -144,8 +150,8 @@ export type BatchOutcome =
       requestId: string;
       debugId: string | null;
       attempts: number;
-      /** For an adopted batch: re-hashed from its items, or (items not listed yet) its header total. */
-      verifiedBy: "items" | "header" | null;
+      /** "items": an adopted batch, re-hashed from every item PayPal lists (I4); null when created. */
+      verifiedBy: "items" | null;
     }
   /**
    * Nothing was sent (or, for ADOPT_FAILED, nothing new was created): HALT or wait. QUEUED and
@@ -169,6 +175,8 @@ export type BatchOutcome =
       lastStatus: number | null;
       debugId: string | null;
       reason: UnresolvedReason;
+      /** Set after "already exists": the batch PayPal holds under our sender_batch_id, NOT adopted. */
+      payoutBatchId?: string;
     };
 
 export type CancelIntent = "cash" | "reroute";
@@ -349,7 +357,6 @@ interface PostContext {
   senderBatchId: string;
   requestId: string;
   digest: string;
-  totalCents: bigint;
 }
 
 interface Refusal {
@@ -673,7 +680,7 @@ export class PayoutsService {
         at: at.toISOString(),
       });
     }
-    return this.#send(body, { run, senderBatchId, requestId, digest, totalCents });
+    return this.#send(body, { run, senderBatchId, requestId, digest });
   }
 
   /**
@@ -887,15 +894,37 @@ export class PayoutsService {
     }
   }
 
-  /** "Already exists": follow the link to the original batch and adopt it only if it is the approved one. */
+  /**
+   * "Already exists" (S3 §S3.6.4 step 7): follow the HATEOAS link to the batch PayPal holds under our
+   * sender_batch_id and adopt it only if every item it lists rebuilds the approved digest (I4). A
+   * header total proves neither the receivers nor the split: two databases sharing the one sandbox
+   * business account can collide on a run_seq block with the same total. So a batch that lists no
+   * items yet, or a GET that went unanswered, leaves the rows SUBMITTED (ADOPT_PENDING) for a later
+   * call to post the same ids again and re-GET; only a batch shown NOT to be ours is ADOPT_FAILED,
+   * the HALT-and-alert case.
+   */
   async #adopt(result: Failure, ctx: PostContext, attempts: number): Promise<BatchOutcome> {
     const fail = (reason: string) => refused("ADOPT_FAILED", reason, ctx.senderBatchId);
     const payoutBatchId = linkedBatchId(result);
     if (!payoutBatchId) return fail("PayPal says the batch exists but gave no link to it");
+    const unresolved = (
+      reason: "ADOPT_PENDING" | "AUTH_FAILED",
+      answer: { status: number; debugId: string | null },
+    ): BatchOutcome => ({
+      kind: "unresolved",
+      senderBatchId: ctx.senderBatchId,
+      attempts,
+      lastStatus: answer.status,
+      debugId: answer.debugId,
+      reason,
+      payoutBatchId,
+    });
+    const paced = (code: "QUEUED" | "CIRCUIT_OPEN") =>
+      refused(code, "PayPal's sandbox is pacing us; the batch is not adopted yet", ctx.senderBatchId);
 
     const items: PayoutItemResponse[] = [];
     let header: PayoutBatchHeader | undefined;
-    let debugId: string | null = null;
+    let last: { status: number; debugId: string | null } = { status: result.status, debugId: result.debugId };
     for (let page = 1; page <= MAX_ADOPT_PAGES; page++) {
       const got = await getPayoutBatch(
         this.#http,
@@ -903,40 +932,61 @@ export class PayoutsService {
         { payout_batch_id: payoutBatchId, page, page_size: ADOPT_PAGE_SIZE, total_required: true },
         { priority: this.#priority },
       );
-      if (!got.ok) return fail(`GET of the existing batch failed (${got.status} ${got.name})`);
-      header ??= got.body.batch_header;
-      debugId = got.debugId;
-      const pageItems = got.body.items ?? [];
+      if (!got.ok) {
+        switch (localRefusal(got)) {
+          case "limited":
+            return paced("QUEUED");
+          case "circuit_open":
+            return paced("CIRCUIT_OPEN");
+          case "auth":
+            return unresolved("AUTH_FAILED", got);
+          case "invalid_request":
+            return fail(`PayPalHttp would not GET the linked batch: ${got.message}`);
+          case null:
+            break;
+        }
+        if (got.status === 429) return paced("CIRCUIT_OPEN");
+        // PayPalHttp already dropped the stale token and resent once: the credentials are refused.
+        if (got.status === 401) return unresolved("AUTH_FAILED", got);
+        // No answer, or PayPal failing: nothing is known about the batch yet. Any other 4xx is an
+        // answer about the link itself (gone, forbidden): HALT.
+        if (!isRetryable(got)) return fail(`GET of the existing batch failed (${got.status} ${got.name})`);
+        return unresolved("ADOPT_PENDING", got);
+      }
+      last = got;
+      const body = got.body as Partial<PayoutBatchResponse> | null;
+      if (!body || typeof body !== "object" || !body.batch_header) return unresolved("ADOPT_PENDING", got);
+      header ??= body.batch_header;
+      const pageItems = Array.isArray(body.items) ? body.items : [];
       items.push(...pageItems);
-      const totalPages = got.body.total_pages ?? 1;
+      const totalPages = body.total_pages ?? 1;
       if (page >= totalPages || pageItems.length < ADOPT_PAGE_SIZE) break;
     }
     if (header?.sender_batch_header?.sender_batch_id !== ctx.senderBatchId) {
       return fail("The linked batch carries another sender_batch_id");
     }
+    // Nothing to re-hash yet: adopting now would trust the header total alone (not I4).
+    if (items.length === 0) return unresolved("ADOPT_PENDING", last);
 
-    let verifiedBy: "items" | "header";
-    if (items.length > 0) {
-      const specs: PayoutItemSpec[] = [];
-      for (const it of items) {
-        const amountCents = readValueCents(it.payout_item?.amount?.value);
-        const senderItemId = it.payout_item?.sender_item_id;
-        if (amountCents === null || !senderItemId || it.payout_item?.amount?.currency !== "USD") {
-          return fail("The existing batch has an item we cannot read");
-        }
-        specs.push({ senderItemId, receiver: it.payout_item.receiver, amountCents, currency: "USD" });
+    const specs: PayoutItemSpec[] = [];
+    for (const it of items) {
+      const amountCents = readValueCents(it?.payout_item?.amount?.value);
+      const senderItemId = it?.payout_item?.sender_item_id;
+      const receiver = it?.payout_item?.receiver;
+      if (
+        amountCents === null ||
+        typeof senderItemId !== "string" ||
+        senderItemId.length === 0 ||
+        typeof receiver !== "string" ||
+        it.payout_item.amount.currency !== "USD"
+      ) {
+        return fail("The existing batch has an item we cannot read");
       }
-      specs.sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : a.senderItemId > b.senderItemId ? 1 : 0));
-      if ((await this.#digest(ctx.run, specs)) !== ctx.digest) {
-        return fail("The existing batch differs from the approved digest");
-      }
-      verifiedBy = "items";
-    } else {
-      const total = readValueCents(header?.amount?.value);
-      if (total === null || header?.amount?.currency !== "USD" || total !== ctx.totalCents) {
-        return fail("The existing batch lists no items yet and its total cannot be matched");
-      }
-      verifiedBy = "header";
+      specs.push({ senderItemId, receiver, amountCents, currency: "USD" });
+    }
+    specs.sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : a.senderItemId > b.senderItemId ? 1 : 0));
+    if ((await this.#digest(ctx.run, specs)) !== ctx.digest) {
+      return fail("The existing batch differs from the approved digest");
     }
 
     await this.#repo.markPosted({
@@ -944,7 +994,7 @@ export class PayoutsService {
       payoutBatchId,
       batchStatus: header.batch_status ?? null,
       outcome: "adopted",
-      debugId,
+      debugId: last.debugId,
     });
     return {
       kind: "adopted",
@@ -953,9 +1003,9 @@ export class PayoutsService {
       batchStatus: header.batch_status ?? null,
       batchSha256: ctx.digest,
       requestId: ctx.requestId,
-      debugId,
+      debugId: last.debugId,
       attempts,
-      verifiedBy,
+      verifiedBy: "items",
     };
   }
 
