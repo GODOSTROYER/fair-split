@@ -77,21 +77,29 @@ describe("verifyPayPal: self-verification (CRC32 + RSA-SHA256)", () => {
   });
 
   it("accepts the raw body as string, Buffer, Uint8Array or ArrayBuffer alike", async () => {
-    const s = signed();
     const v = verifier();
-    const bytes = Buffer.from(s.body, "utf8");
-    const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    for (const raw of [s.body, bytes, new Uint8Array(bytes), arrayBuffer]) {
-      expect(await v.verifyPayPal(raw, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    const forms = [
+      (body: string) => body,
+      (body: string) => Buffer.from(body, "utf8"),
+      (body: string) => new Uint8Array(Buffer.from(body, "utf8")),
+      (body: string) => {
+        const bytes = Buffer.from(body, "utf8");
+        return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      },
+    ];
+    for (const form of forms) {
+      const s = signed(); // a new transmission each time: a transmission id is accepted once
+      expect(await v.verifyPayPal(form(s.body), s.headers, TEST_WEBHOOK_ID)).toBe("self");
     }
   });
 
   it("reads headers case-insensitively from Headers and plain objects (Node style, arrays joined)", async () => {
+    const v = verifier();
     const s = signed();
     const upper = Object.fromEntries(Object.entries(s.headers).map(([k, v]) => [k.toUpperCase(), v]));
-    const v = verifier();
     expect(await v.verifyPayPal(s.body, upper, TEST_WEBHOOK_ID)).toBe("self");
-    expect(await v.verifyPayPal(s.body, new Headers(s.headers), TEST_WEBHOOK_ID)).toBe("self");
+    const s2 = signed();
+    expect(await v.verifyPayPal(s2.body, new Headers(s2.headers), TEST_WEBHOOK_ID)).toBe("self");
   });
 
   it("rejects a tampered body (one byte changed)", async () => {
@@ -110,18 +118,19 @@ describe("verifyPayPal: self-verification (CRC32 + RSA-SHA256)", () => {
     );
   });
 
-  it.each(["paypal-transmission-id", "paypal-transmission-time"] as const)(
-    "rejects a changed %s",
-    async (header) => {
-      const s = signed();
-      const outcome = await verifier().verifyDetailed(
-        s.body,
-        { ...s.headers, [header]: `${s.headers[header]}0` },
-        TEST_WEBHOOK_ID,
-      );
-      expect(outcome.reason).toBe("SIGNATURE_MISMATCH");
-    },
-  );
+  it.each([
+    ["paypal-transmission-id", (id: string) => `${id}0`],
+    // Still well-formed and fresh, one second later: only the signature can tell.
+    ["paypal-transmission-time", (time: string) => new Date(Date.parse(time) + 1_000).toISOString()],
+  ] as const)("rejects a changed %s", async (header, change) => {
+    const s = signed();
+    const outcome = await verifier().verifyDetailed(
+      s.body,
+      { ...s.headers, [header]: change(s.headers[header] ?? "") },
+      TEST_WEBHOOK_ID,
+    );
+    expect(outcome.reason).toBe("SIGNATURE_MISMATCH");
+  });
 
   it("rejects a delivery signed for another webhook id", async () => {
     const s = signed({ webhookId: "OTHERWEBHOOK1" });
@@ -469,10 +478,11 @@ describe("verifyPayPal: certificate fetches are PayPal calls (limiter, recorder,
       ),
     );
     const v = verifier({ limiter, now: () => t, recorder: { record: (r) => void records.push(r) } });
-    const s = signed();
+    const s = signed({ transmissionTime: new Date(t).toISOString() });
     expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
       reason: "CERT_FETCH_FAILED",
       detail: "HTTP 429",
+      retryable: true,
     });
     expect(records[0]).toMatchObject({ status: 429, outcome: "http_error", debugId: "dbg-429" });
     expect(limiter.snapshot().circuitOpenUntil).toBe(t + 6 * 60_000);
@@ -492,20 +502,21 @@ describe("verifyPayPal: a reserved fetch slot for certificate URLs PayPal really
       certCache: createMemoryCertCache({ now, ttlMs: 60_000 }),
       newCertFetchesPerMinute: 2,
     });
-    const genuine = signed();
+    const at = () => ({ transmissionTime: new Date(t).toISOString() });
+    const genuine = signed(at());
     expect(await v.verifyPayPal(genuine.body, genuine.headers, TEST_WEBHOOK_ID)).toBe("self");
     t += 61_000; // the cached certificate expires from the cache; the budget is full again
 
-    const forged = [0, 1, 2].map((i) => signed({ certUrl: testCertUrl(`random-${i}`) }));
+    const forged = [0, 1, 2].map((i) => signed({ ...at(), certUrl: testCertUrl(`random-${i}`) }));
     const reasons = [];
     for (const f of forged) reasons.push((await v.verifyDetailed(f.body, f.headers, TEST_WEBHOOK_ID)).reason);
     expect(reasons).toEqual(["CERT_FETCH_FAILED", "CERT_FETCH_FAILED", "CERT_FETCH_THROTTLED"]);
-    const unknown = signed({ certUrl: serve("new-but-unknown", leaf.pem) });
+    const unknown = signed({ ...at(), certUrl: serve("new-but-unknown", leaf.pem) });
     expect((await v.verifyDetailed(unknown.body, unknown.headers, TEST_WEBHOOK_ID)).reason).toBe(
       "CERT_FETCH_THROTTLED",
     );
 
-    const again = signed();
+    const again = signed(at());
     expect(await v.verifyDetailed(again.body, again.headers, TEST_WEBHOOK_ID)).toMatchObject({
       mode: "self",
       certSource: "network",
@@ -650,7 +661,13 @@ describe("verifyPayPal: deliveries signed with an expired PayPal certificate", (
     expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).detail).toMatch(/asked recently/);
     expect(postback).toHaveBeenCalledTimes(1);
     t += 11 * 60_000;
-    await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID);
+    // PayPal's retry 11 minutes on is a fresh transmission (the first one is now outside the 5-minute window).
+    const retry = signed({
+      privateKey: expiredLeaf.privateKey,
+      certUrl: testCertUrl("expired"),
+      transmissionTime: new Date(t).toISOString(),
+    });
+    await v.verifyDetailed(retry.body, retry.headers, TEST_WEBHOOK_ID);
     expect(postback).toHaveBeenCalledTimes(2);
   });
 

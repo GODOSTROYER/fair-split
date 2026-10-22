@@ -16,6 +16,7 @@ import {
   type PayPalWebhookVerifier,
   type PostbackFn,
   type RawBody,
+  type TransmissionStore,
   type VerifyMode,
   type VerifyOptions,
 } from "./webhook/verify.js";
@@ -33,6 +34,8 @@ export interface PayPalCoreOptions {
   webhookTrustAnchors?: readonly string[];
   /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms once). */
   webhookExpiredCertPolicy?: ExpiredCertPolicy;
+  /** Replay tracking of webhook transmission ids (production: WS-DATA's Postgres store; default in memory). */
+  webhookTransmissionStore?: TransmissionStore;
 }
 
 export interface PayPalCore {
@@ -80,6 +83,7 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...(options.recorder ? { recorder: options.recorder } : {}),
     ...(options.webhookTrustAnchors ? { trustAnchors: options.webhookTrustAnchors } : {}),
     ...(options.webhookExpiredCertPolicy ? { expiredCertPolicy: options.webhookExpiredCertPolicy } : {}),
+    ...(options.webhookTransmissionStore ? { transmissionStore: options.webhookTransmissionStore } : {}),
     ...shared,
   });
   return {

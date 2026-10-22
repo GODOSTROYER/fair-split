@@ -29,6 +29,14 @@
 // Postback (`POST /v1/notifications/verify-webhook-signature`) otherwise runs only when asked and only
 // after a successful self-verification, so a forged request can never make us spend a PayPal call.
 // It is bounded to one attempt under a 6 s deadline. The webhook route does not ask for it.
+//
+// Freshness and replay (./transmission.ts): bodies over 64 KB, malformed transmission ids and
+// transmission times more than 5 minutes from our (injectable) clock are refused before any other
+// work; after the signature verifies, the transmission id is recorded in the injected store and a
+// repeat is refused (TRANSMISSION_REPLAYED). Event-id dedupe is the route's, and separate.
+//
+// `retryable` on a refusal means "could not be checked now" (fetch budget, limiter, PayPal's cert host
+// down, replay store down): the route answers 503 so PayPal retries, instead of a 4xx verdict.
 
 import { verify as rsaVerify, type X509Certificate } from "node:crypto";
 import { crc32 } from "node:zlib";
@@ -55,14 +63,43 @@ import {
   parsePemChain,
 } from "./certs.js";
 import { POSTBACK_DEADLINE_MS, postbackWithDeadline } from "./postback.js";
+import {
+  createMemoryTransmissionStore,
+  MAX_TRANSMISSION_SKEW_MS,
+  parseTransmissionTime,
+  TRANSMISSION_ID_PATTERN,
+  TRANSMISSION_RETENTION_MARGIN_MS,
+  type TransmissionStore,
+} from "./transmission.js";
+
+export {
+  createMemoryTransmissionStore,
+  MAX_TRANSMISSION_SKEW_MS,
+  parseTransmissionTime,
+  TRANSMISSION_ID_PATTERN,
+  type TransmissionStore,
+};
 
 /** The webhook id PayPal's simulator signs with. */
 export const MOCK_WEBHOOK_ID = "WEBHOOK_ID";
 
+/** PayPal webhook events are a few KB; larger bodies are refused before any work (plan: 64 KB cap). */
+export const MAX_WEBHOOK_BODY_BYTES = 64 * 1024;
+
 export type VerifyMode = "self" | "postback" | "dev_mock";
 
 export type VerifyFailureReason =
+  | "BODY_TOO_LARGE"
   | "MISSING_HEADER"
+  /** A header PayPal always sends in a fixed shape does not have it (detail: which header). */
+  | "MALFORMED_HEADER"
+  | "TRANSMISSION_TIME_INVALID"
+  /** `paypal-transmission-time` more than 5 minutes from our clock (detail: `skew ±N s`). */
+  | "TRANSMISSION_TIME_OUT_OF_WINDOW"
+  /** This transmission id was already accepted: a replayed copy of a genuine delivery. */
+  | "TRANSMISSION_REPLAYED"
+  /** The transmission store failed; retryable. */
+  | "REPLAY_CHECK_FAILED"
   | "WEBHOOK_ID_MISSING"
   | "WEBHOOK_ID_IS_MOCK_LITERAL"
   | "UNSUPPORTED_ALGO"
@@ -111,6 +148,12 @@ export interface VerifyOutcome {
   reason: VerifyFailureReason | null;
   /** Non-secret detail for logs (which header, why a URL was refused, HTTP status of a cert fetch). */
   detail: string | null;
+  /**
+   * True when the delivery could not be checked now and may pass later (budget, limiter, PayPal's
+   * certificate host, the transmission store): answer 503 so PayPal retries. False for verdicts.
+   */
+  retryable: boolean;
+  /** `paypal-transmission-id` when it has PayPal's shape; null otherwise. */
   transmissionId: string | null;
   certUrl: string | null;
   crc32: number | null;
@@ -124,6 +167,12 @@ export interface VerifyOutcome {
 export interface VerifyOptions {
   /** Also ask PayPal (one call, bounded). `true` uses the verifier's configured postback function. */
   postback?: boolean | PostbackFn;
+  /**
+   * The requesting client's address, for the per-IP certificate-fetch budget (IPv6 counted by /64).
+   * The webhook route always passes it (null when unknown: all such requests share one budget);
+   * leave it out only for internal callers.
+   */
+  clientIp?: string | null;
 }
 
 export type RawBody = Uint8Array | ArrayBuffer | string;
@@ -152,7 +201,12 @@ export interface WebhookVerifierConfig {
   /** Limiter lane for certificate fetches (default background). */
   certFetchPriority?: CallPriority;
   fetch?: FetchLike;
+  /** Our clock: certificate validity, the 5-minute freshness window and every budget use it. */
   now?: () => number;
+  /** Records accepted transmission ids (replay tracking). Default: in memory, per verifier. */
+  transmissionStore?: TransmissionStore;
+  /** Bodies above this are refused before any work (default 64 KB). */
+  maxBodyBytes?: number;
   certCache?: CertCache;
   certFetchTimeoutMs?: number;
   maxCertBytes?: number;
@@ -218,6 +272,11 @@ export interface PayPalWebhookVerifier {
    * warmCaches with the newest `paypal-cert-url` on file). They are also given the reserved fetch slot.
    */
   prewarm(certUrls: readonly string[]): Promise<PrewarmResult[]>;
+  /**
+   * Forget an accepted transmission id. The route calls it when it could not store the event (or
+   * gave up waiting for verification), so PayPal's retry of that transmission is judged afresh. Never throws.
+   */
+  releaseTransmission(transmissionId: string): Promise<void>;
   health(): WebhookVerifierHealth;
   /** Number of cached certificates (for /ops). */
   cachedCerts(): number;
@@ -229,6 +288,8 @@ type LoadResult =
       ok: false;
       reason: "CERT_FETCH_FAILED" | "CERT_FETCH_THROTTLED" | "CERT_PARSE_FAILED";
       detail: string | null;
+      /** Could pass later: budget, limiter, timeout, network, PayPal 5xx or 429. Not: 404, junk, too large. */
+      retryable: boolean;
     };
 
 type Mark =
@@ -290,6 +351,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const anchors = config.trustAnchors?.flatMap((pem) => parsePemChain(pem));
   const fetchImpl = config.fetch ?? defaultFetch;
   const now = config.now ?? Date.now;
+  const transmissions = config.transmissionStore ?? createMemoryTransmissionStore({ now });
+  const maxBodyBytes = config.maxBodyBytes ?? MAX_WEBHOOK_BODY_BYTES;
   const cache = config.certCache ?? createMemoryCertCache({ now });
   const fetchTimeoutMs = config.certFetchTimeoutMs ?? 5_000;
   const maxCertBytes = config.maxCertBytes ?? 64 * 1024;
@@ -307,7 +370,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const takeNewSlot = tokenBucket(config.newCertFetchesPerMinute ?? 6, now);
   const takeReservedSlot = tokenBucket(config.knownCertFetchReserve ?? 1, now);
   const inflight = new Map<string, Promise<LoadResult>>();
-  const failedUntil = new Map<string, number>();
+  /** Cert URLs whose fetch failed: until when they are not retried, and whether that failure was retryable. */
+  const failedUntil = new Map<string, { until: number; retryable: boolean }>();
   /** Cert URLs (cache keys) that signed a verified delivery or were pre-warmed from stored ones. */
   const knownGood = new Map<string, number>();
   /** Expired certificates PayPal confirmed by postback: fingerprint → when. */
@@ -329,14 +393,21 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (limiter) {
       try {
         const gate = await limiter.take({ purpose: "webhooks.cert", priority: certPriority });
-        if (!gate.ok) return { ok: false, reason: "CERT_FETCH_THROTTLED", detail: `limiter ${gate.reason}` };
+        if (!gate.ok) {
+          return {
+            ok: false,
+            reason: "CERT_FETCH_THROTTLED",
+            detail: `limiter ${gate.reason}`,
+            retryable: true,
+          };
+        }
         ticket = gate.ticket ?? null;
       } catch (err) {
         logger?.error?.(
           { error: err instanceof Error ? err.message : String(err) },
           "limiter.take failed for a webhook certificate fetch",
         );
-        return { ok: false, reason: "CERT_FETCH_THROTTLED", detail: "limiter error" };
+        return { ok: false, reason: "CERT_FETCH_THROTTLED", detail: "limiter error", retryable: true };
       }
     }
     const startedAt = now();
@@ -370,7 +441,12 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     } catch (err) {
       const timedOut = isTimeoutError(err);
       await record(0, timedOut ? "timeout" : "network_error", null);
-      return { ok: false, reason: "CERT_FETCH_FAILED", detail: timedOut ? "timeout" : "network" };
+      return {
+        ok: false,
+        reason: "CERT_FETCH_FAILED",
+        detail: timedOut ? "timeout" : "network",
+        retryable: true,
+      };
     }
     await record(res.status, res.status === 200 ? "ok" : "http_error", res.headers.get("paypal-debug-id"));
     if (res.status === 429) {
@@ -385,24 +461,33 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     }
     if (res.status !== 200) {
       await res.body?.cancel().catch(() => undefined);
-      return { ok: false, reason: "CERT_FETCH_FAILED", detail: `HTTP ${res.status}` };
+      return {
+        ok: false,
+        reason: "CERT_FETCH_FAILED",
+        detail: `HTTP ${res.status}`,
+        retryable: res.status === 429 || res.status >= 500,
+      };
     }
     const declared = Number(res.headers.get("content-length") ?? "0");
     if (declared > maxCertBytes) {
       await res.body?.cancel().catch(() => undefined);
-      return { ok: false, reason: "CERT_FETCH_FAILED", detail: "too large" };
+      return { ok: false, reason: "CERT_FETCH_FAILED", detail: "too large", retryable: false };
     }
     const text = await res.text().catch(() => null);
-    if (text === null) return { ok: false, reason: "CERT_FETCH_FAILED", detail: "body read failed" };
-    if (text.length > maxCertBytes) return { ok: false, reason: "CERT_FETCH_FAILED", detail: "too large" };
+    if (text === null) {
+      return { ok: false, reason: "CERT_FETCH_FAILED", detail: "body read failed", retryable: true };
+    }
+    if (text.length > maxCertBytes) {
+      return { ok: false, reason: "CERT_FETCH_FAILED", detail: "too large", retryable: false };
+    }
     let chain: X509Certificate[];
     try {
       chain = parsePemChain(text);
     } catch {
-      return { ok: false, reason: "CERT_PARSE_FAILED", detail: null };
+      return { ok: false, reason: "CERT_PARSE_FAILED", detail: null, retryable: false };
     }
     const [leaf, ...intermediates] = chain;
-    if (!leaf) return { ok: false, reason: "CERT_PARSE_FAILED", detail: null };
+    if (!leaf) return { ok: false, reason: "CERT_PARSE_FAILED", detail: null, retryable: false };
     return { ok: true, cert: { leaf, intermediates, fetchedAt: now() }, source: "network" };
   }
 
@@ -412,12 +497,22 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     const pending = inflight.get(key);
     if (pending) return pending;
     const blocked = failedUntil.get(key);
-    if (blocked !== undefined && blocked > now()) {
-      return Promise.resolve({ ok: false, reason: "CERT_FETCH_FAILED", detail: "recently failed" });
+    if (blocked !== undefined && blocked.until > now()) {
+      return Promise.resolve({
+        ok: false,
+        reason: "CERT_FETCH_FAILED",
+        detail: "recently failed",
+        retryable: blocked.retryable,
+      });
     }
     // The local budget comes first, so forged requests never reach the shared limiter.
     if (!takeNewSlot() && !(knownGood.has(key) && takeReservedSlot())) {
-      return Promise.resolve({ ok: false, reason: "CERT_FETCH_THROTTLED", detail: "fetch budget" });
+      return Promise.resolve({
+        ok: false,
+        reason: "CERT_FETCH_THROTTLED",
+        detail: "fetch budget",
+        retryable: true,
+      });
     }
     const run = fetchCert(url)
       .then((result) => {
@@ -425,7 +520,12 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
           cache.set(key, result.cert);
           failedUntil.delete(key);
         } else if (result.reason !== "CERT_FETCH_THROTTLED") {
-          touch(failedUntil, key, now() + failedRetryMs, MAX_FAILED_URLS);
+          touch(
+            failedUntil,
+            key,
+            { until: now() + failedRetryMs, retryable: result.retryable },
+            MAX_FAILED_URLS,
+          );
         }
         return result;
       })
@@ -440,17 +540,23 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     webhookId: string,
     opts: VerifyOptions = {},
   ): Promise<VerifyOutcome> {
-    const transmissionId = readHeader(headers, "paypal-transmission-id");
+    const transmissionHeader = readHeader(headers, "paypal-transmission-id");
     const transmissionTime = readHeader(headers, "paypal-transmission-time");
     const transmissionSig = readHeader(headers, "paypal-transmission-sig");
     const certUrl = readHeader(headers, "paypal-cert-url");
     const authAlgo = readHeader(headers, "paypal-auth-algo");
+    // Only an id with PayPal's shape is ever reported back (it becomes a key and a log field).
+    const transmissionId =
+      transmissionHeader !== null && TRANSMISSION_ID_PATTERN.test(transmissionHeader)
+        ? transmissionHeader
+        : null;
     let crc: number | null = null;
     let certSource: VerifyOutcome["certSource"] = null;
     const outcome = (
       fields: Pick<VerifyOutcome, "mode" | "reason" | "detail"> &
-        Partial<Pick<VerifyOutcome, "postback" | "certWarning">>,
+        Partial<Pick<VerifyOutcome, "postback" | "certWarning" | "retryable">>,
     ): VerifyOutcome => ({
+      retryable: false,
       transmissionId,
       certUrl,
       crc32: crc,
@@ -462,20 +568,40 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     const fail = (
       reason: VerifyFailureReason,
       detail: string | null = null,
-      postback: VerifyOutcome["postback"] = null,
+      extra: { postback?: VerifyOutcome["postback"]; retryable?: boolean } = {},
     ): VerifyOutcome => {
       mark({ at: now(), kind: "rejected", reason });
-      return outcome({ mode: false, reason, detail, postback });
+      return outcome({
+        mode: false,
+        reason,
+        detail,
+        postback: extra.postback ?? null,
+        retryable: extra.retryable ?? false,
+      });
     };
 
-    if (!transmissionId) return fail("MISSING_HEADER", "paypal-transmission-id");
+    // Cheapest checks first: nothing below reads the body or touches the network until these pass.
+    const bytes = toBytes(raw);
+    if (bytes.length > maxBodyBytes) return fail("BODY_TOO_LARGE", `${bytes.length} bytes`);
+    if (!transmissionHeader) return fail("MISSING_HEADER", "paypal-transmission-id");
     if (!transmissionTime) return fail("MISSING_HEADER", "paypal-transmission-time");
     if (!transmissionSig) return fail("MISSING_HEADER", "paypal-transmission-sig");
     if (!certUrl) return fail("MISSING_HEADER", "paypal-cert-url");
     if (!authAlgo) return fail("MISSING_HEADER", "paypal-auth-algo");
+    if (!transmissionId) return fail("MALFORMED_HEADER", "paypal-transmission-id");
     if (!webhookId) return fail("WEBHOOK_ID_MISSING");
     if (webhookId === MOCK_WEBHOOK_ID && !devMocks) return fail("WEBHOOK_ID_IS_MOCK_LITERAL");
     if (authAlgo.toUpperCase() !== "SHA256WITHRSA") return fail("UNSUPPORTED_ALGO", authAlgo.slice(0, 40));
+
+    const sentAt = parseTransmissionTime(transmissionTime);
+    if (sentAt === null) return fail("TRANSMISSION_TIME_INVALID");
+    const skew = sentAt - now();
+    if (Math.abs(skew) > MAX_TRANSMISSION_SKEW_MS) {
+      return fail(
+        "TRANSMISSION_TIME_OUT_OF_WINDOW",
+        `skew ${skew < 0 ? "-" : "+"}${Math.round(Math.abs(skew) / 1000)} s`,
+      );
+    }
 
     const urlCheck = checkCertUrl(certUrl, certHosts);
     if (!urlCheck.ok) return fail("CERT_URL_REJECTED", urlCheck.reason);
@@ -486,7 +612,6 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (!signature || signature.length < 128 || signature.length > 1024)
       return fail("BAD_SIGNATURE_ENCODING");
 
-    const bytes = toBytes(raw);
     if (bytes.length === 0) return fail("EMPTY_BODY");
     crc = crc32(bytes) >>> 0;
 
@@ -500,7 +625,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
           why: loaded.detail ? `${loaded.reason} (${loaded.detail})` : loaded.reason,
         });
       }
-      return fail(loaded.reason, loaded.detail);
+      return fail(loaded.reason, loaded.detail, { retryable: loaded.retryable });
     }
     certSource = loaded.source;
     const leaf = loaded.cert.leaf;
@@ -585,7 +710,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
             confirming.set(fingerprint, asking);
             const answer = await asking.finally(() => confirming.delete(fingerprint));
             if (answer !== "SUCCESS") {
-              return fail("CERT_EXPIRED", `signature valid; postback ${answer}`, answer);
+              return fail("CERT_EXPIRED", `signature valid; postback ${answer}`, { postback: answer });
             }
             touch(confirmedExpired, fingerprint, now(), MAX_TRACKED);
             certWarning = "CERT_EXPIRED_CONFIRMED";
@@ -594,8 +719,27 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
           }
         }
       }
-      mark({ at: now(), kind: "accepted_expired" });
     }
+
+    // Signed by PayPal and fresh: record the transmission id, once. A repeat is a replayed copy.
+    let firstTime: boolean;
+    try {
+      firstTime = await transmissions.claim(
+        transmissionId,
+        sentAt + MAX_TRANSMISSION_SKEW_MS + TRANSMISSION_RETENTION_MARGIN_MS,
+      );
+    } catch (err) {
+      logger?.error?.(
+        { error: err instanceof Error ? err.message : String(err), transmissionId },
+        "recording a webhook transmission id failed",
+      );
+      return fail("REPLAY_CHECK_FAILED", "transmission store error", { retryable: true });
+    }
+    if (!firstTime) {
+      logger?.warn?.({ transmissionId, certUrl: certKey }, "paypal webhook transmission replayed");
+      return fail("TRANSMISSION_REPLAYED");
+    }
+    if (validity === "CERT_EXPIRED") mark({ at: now(), kind: "accepted_expired" });
 
     // Accepted. Remember the certificate URL as one PayPal really signs with.
     touch(knownGood, certKey, now(), MAX_TRACKED);
@@ -733,6 +877,16 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       return (await verifyDetailed(raw, headers, webhookId, opts)).mode;
     },
     prewarm,
+    async releaseTransmission(transmissionId) {
+      try {
+        await transmissions.release(transmissionId);
+      } catch (err) {
+        logger?.error?.(
+          { error: err instanceof Error ? err.message : String(err), transmissionId },
+          "releasing a webhook transmission id failed",
+        );
+      }
+    },
     health,
     cachedCerts: () => cache.size,
   };

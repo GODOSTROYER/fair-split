@@ -74,14 +74,18 @@ describe("createPayPalCore", () => {
     );
     const records: PayPalCallRecord[] = [];
     const c = core(records);
-    const s = signWebhook({
-      body: syntheticEvent("INVOICING.INVOICE.PAID", { invoice: { id: "INV2-A" } }),
-      webhookId: TEST_WEBHOOK_ID,
-      privateKey: leaf.privateKey,
-    });
+    // Two transmissions of the event (each transmission id is accepted once).
+    const delivery = () =>
+      signWebhook({
+        body: syntheticEvent("INVOICING.INVOICE.PAID", { invoice: { id: "INV2-A" } }),
+        webhookId: TEST_WEBHOOK_ID,
+        privateKey: leaf.privateKey,
+      });
+    const s = delivery();
     expect(await c.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
     expect(postbacks).toBe(0);
-    expect(await c.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID, { postback: true })).toBe("postback");
+    const s2 = delivery();
+    expect(await c.verifyPayPal(s2.body, s2.headers, TEST_WEBHOOK_ID, { postback: true })).toBe("postback");
     expect(postbacks).toBe(1);
     expect(records.filter((r) => r.purpose === "webhooks.verify")).toHaveLength(1);
   });

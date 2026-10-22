@@ -1,8 +1,10 @@
 // POST /webhooks/paypal: framework-agnostic handler factory plus a Hono adapter
 // (architecture §6.4, S3.6.5, register §8 "Webhooks").
 //
-//   1. Read the raw body before any parse (bounded; PayPal events are a few KB).
-//   2. Verify offline: CRC32 of the raw bytes + RSA-SHA256 with PayPal's cert (injected verifier).
+//   1. Read the raw body before any parse (64 KB cap; PayPal events are a few KB).
+//   2. Verify offline: CRC32 of the raw bytes + RSA-SHA256 with PayPal's cert (injected verifier),
+//      transmission time within 5 minutes, each transmission id once (replay), per-IP and global
+//      certificate-fetch budgets keyed by the client address the adapter derives.
 //      The route never asks for a postback, so a delivery costs no PayPal call beyond a first-time
 //      certificate fetch; verification is capped at `verifyTimeoutMs` (20 s; PayPal waits 30 s).
 //   3. One transaction: INSERT webhook_events ON CONFLICT (paypal_event_id) DO NOTHING;
@@ -11,13 +13,22 @@
 //   4. Return 200 at once. Everything else happens in processWebhook, including the once-per-run
 //      postback that upgrades `verified` to 'postback' (./postback.ts) from the transmission headers
 //      kept in the row's `delivery`.
-//   Bad signature → a 'rejected' row (raw truncated) and 400, so PayPal retries a genuine event.
+//   Bad signature, stale or replayed transmission → a 'rejected' row (raw truncated) and 400.
+//   Could not be checked now (fetch budget, limiter, PayPal's cert host, replay store) → 503 and no
+//   row: PayPal retries, and nothing is recorded as forged that was merely unchecked.
+//   If the event could not be stored (500), the transmission id is released so PayPal's retry passes.
+//
+// The route changes no state. processWebhook applies events under the contract in ./apply.ts
+// (re-exported here): only a signature-verified PAYOUTS-ITEM.SUCCEEDED applies at once, corroborated
+// by the settle GETs at +25 s / +90 s (a GET that disagrees wins, with an /ops alert); every other
+// status changes state only after a fresh GET.
 //
 // Persistence, the outbox and the verifier are injected, so this file needs no database or HTTP
 // framework to compile or test.
 
 import { createHash } from "node:crypto";
 import {
+  MAX_WEBHOOK_BODY_BYTES as CORE_MAX_WEBHOOK_BODY_BYTES,
   type HeadersLike,
   type LoggerLike,
   type PayPalWebhookVerifier,
@@ -25,6 +36,7 @@ import {
   parseWebhookEnvelope,
   readHeader,
   resourceKeyOf,
+  TRANSMISSION_ID_PATTERN,
   type VerifyMode,
   type VerifyOutcome,
 } from "@fairsplit/paypal-core";
@@ -37,15 +49,25 @@ import {
 } from "./_shims/contracts.js";
 import type { Enqueue, RunInTransaction, WebhookDelivery } from "./_shims/persistence.js";
 
-/** PayPal webhook events are a few KB; anything this large is not PayPal. */
-export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
+export {
+  corroborateWithSettleGet,
+  openForSettleGets,
+  SETTLE_GET_DELAYS_MS,
+  type SettleCorroboration,
+  type WebhookApplyRule,
+  type WebhookGetMismatchAlert,
+  webhookApplyRule,
+} from "./apply.js";
+
+/** PayPal webhook events are a few KB; anything over 64 KB is refused before verification (plan). */
+export const MAX_WEBHOOK_BODY_BYTES = CORE_MAX_WEBHOOK_BODY_BYTES;
 /** Rejected bodies are kept for forensics, truncated. */
 export const MAX_REJECTED_RAW_BYTES = 8 * 1024;
 /** Upper bound on verification (a cold certificate fetch is capped at 5 s, an expired-cert postback at 6 s). */
 export const VERIFY_TIMEOUT_MS = 20_000;
 
-/** PayPal transmission ids are UUIDs (spec: `\w+\S+`, at most 50 characters). */
-const TRANSMISSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** Seconds PayPal is asked to wait before retrying a 503 (it may ignore it; its own schedule is fine). */
+export const RETRY_AFTER_SECONDS = 60;
 
 /**
  * A row for `webhook_events`: exactly the columns of architecture §3 / S3.4, plus the proposed
@@ -71,12 +93,24 @@ export interface DuplicateDelivery {
   transmissionId: string | null;
 }
 
+/** What the route knows about the request beyond its bytes. */
+export interface WebhookRequestContext {
+  /** The client address the adapter derived (null when unknown); feeds the per-IP fetch budget. */
+  clientIp: string | null;
+}
+
 export interface PayPalWebhookDeps<Tx> {
   /**
-   * Verify the raw delivery offline, e.g. `(raw, h) => core.verifier.verifyDetailed(raw, h, env.PP_WEBHOOK_ID)`.
+   * Verify the raw delivery offline, e.g.
+   * `(raw, h, ctx) => core.verifier.verifyDetailed(raw, h, env.PP_WEBHOOK_ID, { clientIp: ctx.clientIp })`.
    * Do not request a postback here: processWebhook makes it after the 200 (./postback.ts).
    */
-  verify(raw: Uint8Array, headers: HeadersLike): Promise<VerifyOutcome>;
+  verify(raw: Uint8Array, headers: HeadersLike, context: WebhookRequestContext): Promise<VerifyOutcome>;
+  /**
+   * `core.verifier.releaseTransmission`: called when an accepted delivery could not be stored, or
+   * finished verifying after the route gave up, so PayPal's retry of that transmission is not a replay.
+   */
+  releaseTransmission?(transmissionId: string): Promise<void>;
   transaction: RunInTransaction<Tx>;
   /** INSERT … ON CONFLICT (paypal_event_id) DO NOTHING RETURNING id: null when the event was already stored. */
   insertWebhookEvent(tx: Tx, row: WebhookEventInsert): Promise<{ id: string } | null>;
@@ -88,10 +122,10 @@ export interface PayPalWebhookDeps<Tx> {
   verifyTimeoutMs?: number;
 }
 
-export type WebhookOutcome = "accepted" | "duplicate" | "rejected" | "too_large" | "error";
+export type WebhookOutcome = "accepted" | "duplicate" | "rejected" | "unavailable" | "too_large" | "error";
 
 export interface WebhookResponse {
-  status: 200 | 400 | 413 | 500;
+  status: 200 | 400 | 413 | 500 | 503;
   outcome: WebhookOutcome;
   paypalEventId: string | null;
   /** Rejection or error reason (verifier reason, MALFORMED_EVENT, VERIFY_TIMEOUT, …); null otherwise. */
@@ -101,6 +135,8 @@ export interface WebhookResponse {
 export interface WebhookRequest {
   rawBody: Uint8Array;
   headers: HeadersLike;
+  /** See WebhookRequestContext; the Hono adapter fills it in. */
+  clientIp?: string | null;
 }
 
 export type PayPalWebhookHandler = (req: WebhookRequest) => Promise<WebhookResponse>;
@@ -193,7 +229,20 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
     }
   }
 
-  return async function handlePayPalWebhook({ rawBody, headers }) {
+  /** Free an accepted transmission id we will not store, so PayPal's retry of it is judged afresh. */
+  async function release(transmissionId: string | null) {
+    if (!transmissionId || !deps.releaseTransmission) return;
+    try {
+      await deps.releaseTransmission(transmissionId);
+    } catch (err) {
+      log?.error?.(
+        { error: errorMessage(err), transmissionId },
+        "releasing a webhook transmission id failed",
+      );
+    }
+  }
+
+  return async function handlePayPalWebhook({ rawBody, headers, clientIp = null }) {
     if (rawBody.byteLength > maxBodyBytes) {
       log?.warn?.({ bytes: rawBody.byteLength }, "paypal webhook body too large");
       return { status: 413, outcome: "too_large", paypalEventId: null, reason: "TOO_LARGE" };
@@ -204,11 +253,17 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
 
     let verification: VerifyOutcome;
     try {
-      const result = await within(deps.verify(rawBody, headers), verifyTimeoutMs);
+      const pending = deps.verify(rawBody, headers, { clientIp });
+      const result = await within(pending, verifyTimeoutMs);
       if (result === TIMED_OUT) {
         log?.error?.(
           { timeoutMs: verifyTimeoutMs, eventType: hintType },
           "paypal webhook verification timed out",
+        );
+        // If it still completes and records the transmission id, free it: we answered 500, so PayPal retries.
+        pending.then(
+          (late) => (late.mode !== false ? release(late.transmissionId) : undefined),
+          () => undefined,
         );
         return { status: 500, outcome: "error", paypalEventId: null, reason: "VERIFY_TIMEOUT" };
       }
@@ -221,7 +276,18 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
     const headerTransmissionId = verification.transmissionId ?? readHeader(headers, "paypal-transmission-id");
     // Anything that does not look like a PayPal transmission id never becomes a key or a log field as-is.
     const transmissionId =
-      headerTransmissionId && TRANSMISSION_ID.test(headerTransmissionId) ? headerTransmissionId : null;
+      headerTransmissionId && TRANSMISSION_ID_PATTERN.test(headerTransmissionId)
+        ? headerTransmissionId
+        : null;
+
+    if (verification.mode === false && verification.retryable) {
+      // Not a verdict: the delivery could not be checked now. PayPal retries a 503; store nothing.
+      log?.warn?.(
+        { reason: verification.reason, detail: verification.detail, transmissionId, eventType: hintType },
+        "paypal webhook could not be verified now; answering 503",
+      );
+      return { status: 503, outcome: "unavailable", paypalEventId: null, reason: verification.reason };
+    }
 
     if (verification.mode === false || !envelope.ok) {
       const reason = verification.mode === false ? (verification.reason ?? "UNVERIFIED") : "MALFORMED_EVENT";
@@ -285,8 +351,10 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
       );
       return { status: 200, outcome, paypalEventId: event.id, reason: null };
     } catch (err) {
-      // Nothing was committed: PayPal retries a non-2xx delivery, so the event is not lost.
+      // Nothing was committed: PayPal retries a non-2xx delivery, so the event is not lost, and the
+      // transmission id is freed so that retry is not refused as a replay.
       log?.error?.({ error: errorMessage(err), paypalEventId: event.id }, "paypal webhook store failed");
+      await release(transmissionId);
       return { status: 500, outcome: "error", paypalEventId: event.id, reason: "STORE_FAILED" };
     }
   };

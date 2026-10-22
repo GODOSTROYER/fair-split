@@ -12,15 +12,20 @@ import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import type { ProcessWebhookArgs, TaskName } from "./_shims/contracts.js";
 import type { RunInTransaction } from "./_shims/persistence.js";
+import * as applyModule from "./apply.js";
 import {
+  corroborateWithSettleGet,
   createPayPalWebhookHandler,
   type DuplicateDelivery,
   honoPayPalWebhook,
   MAX_REJECTED_RAW_BYTES,
+  MAX_WEBHOOK_BODY_BYTES,
   type PayPalWebhookDeps,
   prewarmWebhookCertificates,
   readBodyWithLimit,
+  SETTLE_GET_DELAYS_MS,
   type WebhookEventInsert,
+  webhookApplyRule,
   webhookRunEvent,
 } from "./paypal.js";
 
@@ -73,17 +78,27 @@ const pemServer = (pems: Record<string, string>) => async (input: string | URL) 
     : new Response(null, { status: 404 });
 };
 
+/** The route's verifier wiring, as apps/api does it: verify with the client IP, release on a failed store. */
 function realVerifier(
-  options: { devMocks?: boolean; postback?: PostbackFn; pems?: Record<string, string> } = {},
-) {
+  options: {
+    devMocks?: boolean;
+    postback?: PostbackFn;
+    pems?: Record<string, string>;
+    now?: () => number;
+  } = {},
+): Pick<PayPalWebhookDeps<unknown>, "verify" | "releaseTransmission"> {
   const verifier = createPayPalWebhookVerifier({
     ...(options.devMocks ? { devMocks: true } : {}),
     ...(options.postback ? { postback: options.postback } : {}),
+    ...(options.now ? { now: options.now } : {}),
     expiredCertPolicy: "accept",
     fetch: pemServer({ [TEST_CERT_URL]: leaf.pem, ...options.pems }),
   });
-  return (raw: Uint8Array, headers: Parameters<typeof verifier.verifyDetailed>[1]) =>
-    verifier.verifyDetailed(raw, headers, TEST_WEBHOOK_ID);
+  return {
+    verify: (raw, headers, context) =>
+      verifier.verifyDetailed(raw, headers, TEST_WEBHOOK_ID, { clientIp: context.clientIp }),
+    releaseTransmission: (transmissionId) => verifier.releaseTransmission(transmissionId),
+  };
 }
 
 function setup(
@@ -96,7 +111,9 @@ function setup(
   const db = fakeDb();
   const handler = createPayPalWebhookHandler({
     ...db.deps,
-    verify: options.verify ?? realVerifier(options.devMocks ? { devMocks: true } : {}),
+    ...(options.verify
+      ? { verify: options.verify }
+      : realVerifier(options.devMocks ? { devMocks: true } : {})),
     ...(options.verifyTimeoutMs ? { verifyTimeoutMs: options.verifyTimeoutMs } : {}),
   });
   return { ...db, handler };
@@ -165,19 +182,19 @@ describe("POST /webhooks/paypal handler", () => {
     });
   });
 
-  it("dedupes on paypal_event_id: a repeated or resent delivery is 200 with no second task", async () => {
+  it("dedupes on paypal_event_id: PayPal's resend (new transmission id) is 200 with no second task", async () => {
     const { handler, committed, outbox, duplicates } = setup();
     const first = sign();
     expect((await handler(request(first))).outcome).toBe("accepted");
-    expect((await handler(request(first))).outcome).toBe("duplicate");
     const resent = sign(); // PayPal's resend: same event id, new transmission id and signature
-    const res = await handler(request(resent));
-    expect(res).toMatchObject({ status: 200, outcome: "duplicate" });
+    const again = sign();
+    expect(await handler(request(resent))).toMatchObject({ status: 200, outcome: "duplicate" });
+    expect(await handler(request(again))).toMatchObject({ status: 200, outcome: "duplicate" });
     expect(committed.size).toBe(1);
     expect(outbox).toHaveLength(1);
     expect(duplicates.map((d) => d.transmissionId)).toEqual([
-      first.headers["paypal-transmission-id"],
       resent.headers["paypal-transmission-id"],
+      again.headers["paypal-transmission-id"],
     ]);
     expect(duplicates.map((d) => webhookRunEvent(d, true))).toEqual([
       {
@@ -189,6 +206,101 @@ describe("POST /webhooks/paypal handler", () => {
       },
       expect.objectContaining({ verified: "self", duplicate: true }),
     ]);
+  });
+
+  it("refuses a byte-identical replay of an accepted delivery (same transmission id): 400, no second task, no duplicate beat", async () => {
+    const { handler, committed, outbox, duplicates } = setup();
+    const first = sign();
+    expect((await handler(request(first))).outcome).toBe("accepted");
+    expect(await handler(request(first))).toEqual({
+      status: 400,
+      outcome: "rejected",
+      paypalEventId: null,
+      reason: "TRANSMISSION_REPLAYED",
+    });
+    expect(outbox).toHaveLength(1);
+    expect(duplicates).toEqual([]);
+    expect(committed.get(`rejected:${first.headers["paypal-transmission-id"]}`)?.delivery?.rejectReason).toBe(
+      "TRANSMISSION_REPLAYED",
+    );
+  });
+
+  it("refuses a correctly signed delivery transmitted more than 5 minutes ago, before fetching a certificate", async () => {
+    let fetches = 0;
+    const db = fakeDb();
+    const verifier = createPayPalWebhookVerifier({
+      fetch: async (input) => {
+        fetches += 1;
+        return pemServer({ [TEST_CERT_URL]: leaf.pem })(input);
+      },
+    });
+    const handler = createPayPalWebhookHandler({
+      ...db.deps,
+      verify: (raw, headers, context) =>
+        verifier.verifyDetailed(raw, headers, TEST_WEBHOOK_ID, { clientIp: context.clientIp }),
+    });
+    const stale = signWebhook({
+      body: itemEvent,
+      webhookId: TEST_WEBHOOK_ID,
+      privateKey: leaf.privateKey,
+      transmissionTime: new Date(Date.now() - 6 * 60_000).toISOString(),
+    });
+    expect(await handler(request(stale))).toMatchObject({
+      status: 400,
+      outcome: "rejected",
+      reason: "TRANSMISSION_TIME_OUT_OF_WINDOW",
+    });
+    expect(fetches).toBe(0);
+    expect(db.outbox).toEqual([]);
+  });
+
+  it("caps bodies at 64 KB: 413 before verification", async () => {
+    expect(MAX_WEBHOOK_BODY_BYTES).toBe(64 * 1024);
+    const verify = vi.fn(async (): Promise<VerifyOutcome> => {
+      throw new Error("must not be called");
+    });
+    const { handler } = setup({ verify });
+    const res = await handler({ rawBody: new Uint8Array(64 * 1024 + 1), headers: {} });
+    expect(res).toMatchObject({ status: 413, outcome: "too_large" });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("a verification that finishes after the route timed out frees its transmission id, so PayPal's retry is judged afresh", async () => {
+    const released: string[] = [];
+    let finish: (o: VerifyOutcome) => void = () => undefined;
+    const db = fakeDb();
+    const handler = createPayPalWebhookHandler({
+      ...db.deps,
+      verify: () =>
+        new Promise<VerifyOutcome>((resolve) => {
+          finish = resolve;
+        }),
+      releaseTransmission: async (id) => void released.push(id),
+      verifyTimeoutMs: 20,
+    });
+    expect(await handler(request(sign()))).toMatchObject({ status: 500, reason: "VERIFY_TIMEOUT" });
+    finish({
+      mode: "self",
+      reason: null,
+      detail: null,
+      retryable: false,
+      transmissionId: "tid-late",
+      certUrl: TEST_CERT_URL,
+      crc32: 1,
+      postback: null,
+      certSource: "network",
+      certWarning: null,
+    });
+    await vi.waitFor(() => expect(released).toEqual(["tid-late"]));
+  });
+
+  it("exposes the apply contract processWebhook follows (./apply.ts); the route itself changes no state", () => {
+    expect(webhookApplyRule).toBe(applyModule.webhookApplyRule);
+    expect(corroborateWithSettleGet).toBe(applyModule.corroborateWithSettleGet);
+    expect(SETTLE_GET_DELAYS_MS).toBe(applyModule.SETTLE_GET_DELAYS_MS);
+    expect(webhookApplyRule({ eventType: "PAYMENT.PAYOUTS-ITEM.UNCLAIMED", verified: "self" }).action).toBe(
+      "fresh_get_first",
+    );
   });
 
   it("rejects a tampered body with 400, stores a 'rejected' row with its reason and enqueues nothing", async () => {
@@ -279,7 +391,7 @@ describe("POST /webhooks/paypal handler", () => {
 
   it("never spends a postback in the request: INVOICE.PAID gets its 200 at once while the postback would hang", async () => {
     const postback = vi.fn<PostbackFn>(() => new Promise(() => undefined));
-    const { handler, committed, outbox } = setup({ verify: realVerifier({ postback }) });
+    const { handler, committed, outbox } = setup({ verify: realVerifier({ postback }).verify });
     const paid = syntheticEvent("INVOICING.INVOICE.PAID", { invoice: { id: "INV2-A" } });
     const started = performance.now();
     const res = await handler(request(sign(paid)));
@@ -300,7 +412,7 @@ describe("POST /webhooks/paypal handler", () => {
     const db = fakeDb();
     const handler = createPayPalWebhookHandler({
       ...db.deps,
-      verify: realVerifier({ pems: { [url]: expired.pem } }),
+      ...realVerifier({ pems: { [url]: expired.pem } }),
       logger: { warn },
     });
     const s = signWebhook({
@@ -325,7 +437,7 @@ describe("POST /webhooks/paypal handler", () => {
     let failEnqueue = true;
     const handler = createPayPalWebhookHandler({
       ...db.deps,
-      verify: realVerifier(),
+      ...realVerifier(),
       enqueue: async (tx, name, args, key) => {
         if (failEnqueue) throw new Error("outbox insert failed");
         return db.deps.enqueue(tx, name, args, key);
@@ -359,9 +471,8 @@ describe("POST /webhooks/paypal handler", () => {
 
   it("inv.i8.labels: a repeated simulator delivery is never reported as a 'self' or 'postback' run event", async () => {
     const dev = setup({ devMocks: true });
-    const simulated = sign(itemEvent, "WEBHOOK_ID");
-    await dev.handler(request(simulated));
-    expect((await dev.handler(request(simulated))).outcome).toBe("duplicate");
+    await dev.handler(request(sign(itemEvent, "WEBHOOK_ID")));
+    expect((await dev.handler(request(sign(itemEvent, "WEBHOOK_ID")))).outcome).toBe("duplicate");
     expect(dev.duplicates.map((d) => d.verified)).toEqual(["dev_mock"]);
     // The frozen contract (architecture §5) has no 'dev_mock' or 'fetched': refuse rather than relabel.
     expect(dev.duplicates.map((d) => webhookRunEvent(d, true))).toEqual([null]);
@@ -426,7 +537,7 @@ describe("prewarmWebhookCertificates (boot / warmCaches)", () => {
 describe("Hono adapter", () => {
   function app(options: { consumeBodyFirst?: boolean } = {}) {
     const db = fakeDb();
-    const handler = createPayPalWebhookHandler({ ...db.deps, verify: realVerifier() });
+    const handler = createPayPalWebhookHandler({ ...db.deps, ...realVerifier() });
     const hono = new Hono();
     if (options.consumeBodyFirst) {
       hono.use("/webhooks/paypal", async (c, next) => {
