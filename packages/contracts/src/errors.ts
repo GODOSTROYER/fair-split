@@ -11,6 +11,9 @@ export const ERROR_CODES = [
   "APPROVAL_EXPIRED",
   "NONCE_REUSED",
   "SIGNATURE_INVALID",
+  "KEY_NOT_REGISTERED",
+  "APPROVER_MISMATCH",
+  "SEASON_MISMATCH",
   "BLOCKING_HOLDS_OPEN",
   "HOLD_NOT_OPEN",
   "RESOLUTION_NOT_ALLOWED",
@@ -49,6 +52,12 @@ export const ERROR_HTTP_STATUS: Readonly<Record<ErrorCode, number>> = {
   APPROVAL_EXPIRED: 422,
   NONCE_REUSED: 409,
   SIGNATURE_INVALID: 422,
+  /** The key is not the approver's registered device key (or it is a seeded key). */
+  KEY_NOT_REGISTERED: 403,
+  /** The payload names another approver, or the key's holder may not sign for this role. */
+  APPROVER_MISMATCH: 403,
+  /** The payload was built for another season. */
+  SEASON_MISMATCH: 409,
   BLOCKING_HOLDS_OPEN: 409,
   HOLD_NOT_OPEN: 409,
   RESOLUTION_NOT_ALLOWED: 422,

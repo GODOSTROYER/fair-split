@@ -56,9 +56,31 @@ export type PhotoId = z.infer<typeof PhotoId>;
 export const PlotNo = z.string().regex(/^P-\d{3}-[A-Z]$/);
 export type PlotNo = z.infer<typeof PlotNo>;
 
-/** Ed25519 key IDs: `fs-{persona}-{a|w}{n}`, e.g. "fs-ernesto-a1". */
-export const KeyId = z.string().regex(/^fs-[a-z]+-[aw]\d+$/);
+/**
+ * A key a person holds: `fs-{persona}-{a|w}{n}`. `a` keys live in the app's SecureStore, `w` keys in
+ * one browser session (S3.8). Only these are registered in `device_keys` or accepted by the API.
+ */
+export const DeviceKeyId = z.string().regex(/^fs-[a-z]+-[aw]\d+$/);
+export type DeviceKeyId = z.infer<typeof DeviceKeyId>;
+
+/**
+ * A seed-only key: `fs-{persona}-s{n}`. Its private half derives from public text so the seeded
+ * Proof verifies; it is labelled seeded, never registered in `device_keys` and never trusted.
+ */
+export const SeededKeyId = z.string().regex(/^fs-[a-z]+-s\d+$/);
+export type SeededKeyId = z.infer<typeof SeededKeyId>;
+
+/** Any key ID a signed approval may carry: a device key, or a seeded key in seeded data. */
+export const KeyId = z.string().regex(/^fs-[a-z]+-[aws]\d+$/);
 export type KeyId = z.infer<typeof KeyId>;
+
+export function isSeededKeyId(keyId: string): boolean {
+  return SeededKeyId.safeParse(keyId).success;
+}
+
+/** Raw 32-byte Ed25519 public key, lowercase hex. */
+export const Ed25519PublicKeyHex = z.string().regex(/^[0-9a-f]{64}$/);
+export type Ed25519PublicKeyHex = z.infer<typeof Ed25519PublicKeyHex>;
 
 export const Lang = z.enum(["ceb", "fil", "en"]);
 export type Lang = z.infer<typeof Lang>;

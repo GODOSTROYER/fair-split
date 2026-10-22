@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { TEST_LOT, testCanonical, testCard } from "./__fixtures__/world.js";
 import { jcsSha256 } from "./canon.js";
@@ -209,6 +210,72 @@ describe("engine lines (copy)", () => {
       ),
     ).toBe(
       "Slips 0301 and 0391 look like the same paper photographed twice. Counting both moves US$1.00 from 63 members to Nong Dioning and puts shrink at 1.70%, inside the 2.0% limit.",
+    );
+  });
+});
+
+describe("inv.i2.rules-before-facts (property)", () => {
+  const day = fc
+    .integer({ min: Date.parse("2026-01-01T00:00:00.000Z"), max: Date.parse("2026-12-31T23:59:59.000Z") })
+    .map((ms) => new Date(ms).toISOString());
+
+  it("flags exactly the slips dated before the ratification day, whatever the times", () => {
+    fc.assert(
+      fc.property(day, fc.array(day, { maxLength: 30 }), (ratifiedAt, slipTimes) => {
+        const dates = slipTimes.map((t) => t.slice(0, 10));
+        expect(factsBeforeRules(ratifiedAt, dates)).toEqual(dates.filter((d) => d < ratifiedAt.slice(0, 10)));
+        expect(factsBeforeRules(ratifiedAt, [ratifiedAt.slice(0, 10)])).toEqual([]);
+      }),
+    );
+  });
+
+  it("any edit to a typed value of the ratified card changes its hash, so the stored hash fails", () => {
+    const base = testCard();
+    const edits = [
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        rules: { ...c.rules, cbu: { ...c.rules.cbu, bp: c.rules.cbu.bp + n } },
+      }),
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        rules: {
+          ...c.rules,
+          hauling: { ...c.rules.hauling, centavosPerNetKg: c.rules.hauling.centavosPerNetKg + n },
+        },
+      }),
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        rules: { ...c.rules, loan: { ...c.rules.loan, capBp: c.rules.loan.capBp + n } },
+      }),
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        rules: {
+          ...c.rules,
+          cosign: { ...c.rules.cosign, batchOverCents: c.rules.cosign.batchOverCents + n },
+        },
+      }),
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        rules: {
+          ...c.rules,
+          tolerances: { ...c.rules.tolerances, massBalanceTolBp: c.rules.tolerances.massBalanceTolBp + n },
+        },
+      }),
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        pricing: { ...c.pricing, premiumCentsPerShippedKg: c.pricing.premiumCentsPerShippedKg + n },
+      }),
+      (c: ReturnType<typeof testCanonical>, n: number) => ({
+        ...c,
+        pricing: { ...c.pricing, disbursementCents: c.pricing.disbursementCents + n },
+      }),
+    ];
+    fc.assert(
+      fc.property(fc.nat({ max: edits.length - 1 }), fc.integer({ min: 1, max: 10_000 }), (i, n) => {
+        const edited = (edits[i] as (typeof edits)[number])(base.canonical, n);
+        expect(hashRateCard(edited).sha256).not.toBe(base.sha256);
+        expect(rateCardIntact({ canonical: edited, sha256: base.sha256 })).toBe(false);
+      }),
     );
   });
 });

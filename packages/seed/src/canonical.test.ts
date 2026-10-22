@@ -1,10 +1,23 @@
 // canonical.test.ts (register §2): every figure of the canonical world, to the cent. This file is
 // the one place the register's figures are typed; everything it checks was computed by the engine.
-import { type EngineInput, SeasonSnapshot } from "@fairsplit/contracts";
 import {
+  DeviceKeyId,
+  type EngineInput,
+  type ProofBundle,
+  SeasonSnapshot,
+  SeededKeyId,
+} from "@fairsplit/contracts";
+import {
+  approvalBytes,
   approvalSignatureValid,
+  attestedEntries,
   batchDigest,
+  batchNote,
+  buildApprovalPayload,
+  checkApproval,
   computeLines,
+  ed25519FromSeed,
+  ed25519Sign,
   factsBeforeRules,
   format,
   jcsSha256,
@@ -504,13 +517,15 @@ describe("batch, approvals and end state", () => {
 
   it("two Ed25519 signatures over the same batch; the Chair is needed because the batch is over US$300", () => {
     expect(run.approvals.map((a) => [a.role, a.keyId])).toEqual([
-      ["treasurer", "fs-analyn-a1"],
-      ["chair", "fs-ernesto-a1"],
+      ["treasurer", "fs-analyn-s1"],
+      ["chair", "fs-ernesto-s1"],
     ]);
+    const registered = attestedEntries(s.proof.ledger, "key.registered");
     for (const a of run.approvals) {
       expect(a.payload.batchSha256).toBe(run.batchSha256);
       expect(a.payload).toMatchObject({ itemCount: 8, totalCents: 36_839, currency: "USD" });
-      expect(approvalSignatureValid(a)).toBe(true);
+      const key = registered.find((e) => e.payload.keyId === a.keyId)?.payload.publicKeyHex ?? "";
+      expect(approvalSignatureValid(a, key)).toBe(true);
     }
     expect(run.chairNeeded).toEqual({ required: true, reasons: ["BATCH_OVER_THRESHOLD"] });
   });
@@ -641,5 +656,143 @@ describe("everything is computed, never typed", () => {
       },
     };
     expect(verifyChain(tampered).ok).toBe(false);
+  });
+});
+
+describe("seeded keys never stand in for a person (I6)", () => {
+  const run = getRun();
+  const deviceIds = s.officers.map((o) => o.keyId).filter((k): k is string => k !== null);
+
+  it("no seeded approval carries a device key ID fs-{persona}-{a|w}{n}; officers keep theirs as identity only", () => {
+    expect(deviceIds).toEqual(["fs-analyn-a1", "fs-ernesto-a1"]);
+    for (const a of [...run.approvals, ...s.proof.approvals]) {
+      expect(DeviceKeyId.safeParse(a.keyId).success, a.keyId).toBe(false);
+      expect(SeededKeyId.safeParse(a.keyId).success, a.keyId).toBe(true);
+    }
+    const registered = attestedEntries(s.proof.ledger, "key.registered");
+    expect(registered.map((e) => [e.payload.keyId, e.payload.kind])).toEqual([
+      ["fs-analyn-s1", "seeded"],
+      ["fs-ernesto-s1", "seeded"],
+    ]);
+    // A device key ID appears only once, as the officer's identity, never next to a public key.
+    const text = JSON.stringify(s);
+    for (const id of deviceIds) {
+      expect(registered.some((e) => e.payload.keyId === id)).toBe(false);
+      expect(text.split(`"keyId":"${id}"`).length - 1).toBe(1);
+    }
+  });
+
+  it("the server refuses the seeded approvals even when everything else matches", () => {
+    for (const a of run.approvals) {
+      const r = checkApproval(
+        a,
+        {
+          runId: run.id,
+          seasonId: s.season.id,
+          rateCardSha256: getRateCard().sha256,
+          batchSha256: run.batchSha256,
+          itemCount: 8,
+          totalCents: 36_839,
+          role: a.role,
+          registered: {
+            keyId: a.keyId,
+            publicKeyHex: a.publicKeyHex,
+            approverId: a.payload.approverId,
+            role: a.role,
+          },
+        },
+        new Date(Date.parse(a.payload.exp) - 60_000),
+      );
+      expect(r).toMatchObject({ ok: false, code: "KEY_NOT_REGISTERED" });
+    }
+  });
+});
+
+describe("the Proof bundle is bound to its ledger (S3.12)", () => {
+  const p = s.proof;
+  const run = getRun();
+
+  it("every plate's facts are in the chain", () => {
+    expect(attestedEntries(p.ledger, "rate_card.ratified").map((e) => e.payload.rateCardSha256)).toEqual([
+      getRateCard().sha256,
+    ]);
+    expect(attestedEntries(p.ledger, "invoice.funded").map((e) => e.payload)).toEqual([
+      { runId: run.id, ...p.invoice },
+    ]);
+    expect(p.invoice.amountCents).toBe(433_350);
+    expect(attestedEntries(p.ledger, "rows.accepted")).toHaveLength(66);
+    expect(attestedEntries(p.ledger, "lines.computed")[0]?.payload).toMatchObject({
+      lineCount: 64,
+      premiumPoolCents: 288_750,
+      bonusPoolCents: 138_600,
+      netCents: 421_817,
+      onRailNetCents: 36_839,
+      balanced: true,
+    });
+    expect(attestedEntries(p.ledger, "payout.submitting").map((e) => e.payload)).toEqual([
+      {
+        runId: run.id,
+        senderBatchId: run.senderBatchId,
+        batchSha256: run.batchSha256,
+        itemCount: 8,
+        totalCents: 36_839,
+        note: `Fair Split 2026-A, batch ${run.batchSha256.slice(0, 8)}`,
+      },
+    ]);
+    expect(p.batch.note).toBe(run.batchNote);
+    const applied = attestedEntries(p.ledger, "webhook.applied").map((e) => e.payload.eventId);
+    for (const it of p.batch.items) expect(applied).toContain(it.eventId);
+    expect(
+      attestedEntries(p.ledger, "approval.signed").map((e) => [e.payload.role, e.payload.keyId]),
+    ).toEqual([
+      ["treasurer", "fs-analyn-s1"],
+      ["chair", "fs-ernesto-s1"],
+    ]);
+  });
+
+  it("refuses the reviewer's attack: a new receiver, a re-hashed batch and approvals re-signed with other keys", () => {
+    const items = p.batch.items.map((i, k) => (k === 0 ? { ...i, receiver: "attacker@evil.example" } : i));
+    const d = batchDigest(
+      { runId: p.batch.runId, senderBatchId: p.batch.senderBatchId, rateCardSha256: p.batch.rateCardSha256 },
+      items.map(({ senderItemId, receiver, amountCents, currency }) => ({
+        senderItemId,
+        receiver,
+        amountCents,
+        currency,
+      })),
+    );
+    const approvals = p.approvals.map((a) => {
+      const key = ed25519FromSeed(jcsSha256({ attacker: a.role }));
+      const payload = buildApprovalPayload({
+        runId: p.runId,
+        seasonId: a.payload.seasonId,
+        rateCardSha256: p.rateCard.sha256,
+        batch: d,
+        role: a.role,
+        approverId: a.payload.approverId,
+        nonce: a.payload.nonce,
+        exp: a.payload.exp,
+      });
+      return {
+        ...a,
+        payload,
+        publicKeyHex: key.publicKeyHex,
+        signatureHex: ed25519Sign(key.privateKey, approvalBytes(payload)),
+      };
+    });
+    const forged: ProofBundle = {
+      ...p,
+      approvals,
+      batch: { ...p.batch, items, batchSha256: d.batchSha256, note: batchNote("2026-A", d.batchSha256) },
+    };
+    const v = verifyChain(forged);
+    expect(v.ok).toBe(false);
+    expect(v.chain.ok).toBe(true);
+    expect(v.plates.payoutItems).toEqual({
+      ok: false,
+      reason: "The posted batch differs from the one in the chain.",
+    });
+    expect(v.plates.twoKeys.ok).toBe(false);
+    expect(v.plates.paid.ok && v.plates.ratified.ok && v.plates.read.ok && v.plates.computed.ok).toBe(true);
   });
 });

@@ -17,4 +17,10 @@ export * from "./quote.js";
 export * from "./ratecard.js";
 export * from "./sig.js";
 export * from "./uuid.js";
-export { ledgerPreimage, verifyChainWith, verifyLedgerWith } from "./verify-core.js";
+export {
+  type Attested,
+  attestedEntries,
+  ledgerPreimage,
+  verifyChainWith,
+  verifyLedgerWith,
+} from "./verify-core.js";

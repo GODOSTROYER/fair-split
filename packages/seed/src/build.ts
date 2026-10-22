@@ -6,9 +6,11 @@ import {
   type EngineInput,
   type EngineOutput,
   type LedgerEntry,
+  type LedgerPayload,
   type MemberLineState,
   type PriorHold,
   type ProofBundle,
+  type ProofLedgerKind,
   type SeasonSnapshot,
   SeasonSnapshot as SeasonSnapshotSchema,
   type SignedApproval,
@@ -31,6 +33,7 @@ import {
   invoiceReference,
   type LedgerFact,
   lineCanonical,
+  linesRootSha256,
   paypalRequestId,
   publishedFees,
   quarantineNotice,
@@ -55,6 +58,7 @@ import {
   PAYER,
   RUN,
   SEASON,
+  SEEDED_KEY_IDS,
 } from "./constants.js";
 import { TEXT_LAYER } from "./ratecard.js";
 import { buildWorld, engineInputs, type World } from "./world.js";
@@ -109,9 +113,23 @@ function hold(out: EngineOutput, key: string): EngineHold {
   return h;
 }
 
-/** Demo keys are derived from public labels: they are labelled seeded keys, never secrets. */
-function demoKey(keyId: string) {
+/**
+ * Seeded keys derive from public text, so anyone can sign with them: they carry seeded key IDs
+ * (`fs-{persona}-s{n}`), are registered only in the seeded ledger as kind "seeded", and are never
+ * written to `device_keys` or accepted by the API (I6).
+ */
+function seededKey(keyId: string) {
   return ed25519FromSeed(sha256Hex(`fair-split seeded demo key ${keyId} (public, synthetic)`));
+}
+
+/** A ledger fact whose payload is checked against the contract's shape for its kind. */
+function proofFact<K extends ProofLedgerKind>(
+  kind: K,
+  payload: LedgerPayload<K>,
+  at: string,
+  actor: Pick<LedgerFact, "actorKind" | "actorId">,
+): LedgerFact {
+  return { kind, actorKind: actor.actorKind, actorId: actor.actorId, impersonatedBy: null, payload, at };
 }
 
 const idOf = (prefix: string, label: string) =>
@@ -295,7 +313,7 @@ export function buildSnapshot(): Built {
       nonce: sha256Hex(`nonce:${slug}:${role}`).slice(0, 32),
       exp: new Date(Date.parse(signedAt) + 30 * 60 * 1000).toISOString(),
     });
-    const key = demoKey(keyId);
+    const key = seededKey(keyId);
     return {
       role,
       keyId,
@@ -305,9 +323,10 @@ export function buildSnapshot(): Built {
     };
   };
   const approvals = [
-    sign("treasurer", treasurer.keyId as string, treasurer.persona, TIMELINE.treasurerSigned),
-    sign("chair", chair.keyId as string, chair.persona, TIMELINE.chairSigned),
+    sign("treasurer", SEEDED_KEY_IDS.treasurer, treasurer.persona, TIMELINE.treasurerSigned),
+    sign("chair", SEEDED_KEY_IDS.chair, chair.persona, TIMELINE.chairSigned),
   ];
+  const note = batchNote(SEASON.label, digest.batchSha256);
   const chairNeeded = requiresChair(
     { batchTotalCents: digest.totalCents, lineAmountsCents: items.map((i) => i.amountCents), overrides: 0 },
     rules.cosign,
@@ -429,6 +448,20 @@ export function buildSnapshot(): Built {
   const sortedPhotos = [...world.photos].sort((a, b) =>
     (a.readOn ?? "9999") + a.photoId < (b.readOn ?? "9999") + b.photoId ? -1 : 1,
   );
+  const slipDatesOf = (p: World["photos"][number]) =>
+    p.slips.map((ps) => {
+      const slip = world.slips.find(
+        (x) => x.photoId === p.photoId && x.serial === ps.serial && x.copy === ps.copy,
+      );
+      if (!slip) throw new Error(`slip ${ps.serial} missing from photo ${p.photoId}`);
+      return slip.slipDate;
+    });
+  const reference = invoiceReference(card.sha256);
+  const returnedItem = snapshotItems.find((i) => i.status === "RETURNED");
+  const unclaimedEventId = (it: SnapshotItem) => `WH-SEED-${idOf("", `event:${it.senderItemId}:UNCLAIMED`)}`;
+  const human = (actorId: string) => ({ actorKind: "human" as const, actorId });
+  const engine = { actorKind: "engine" as const, actorId: "engine v1" };
+  const paypal = { actorKind: "paypal" as const, actorId: "paypal" };
   const facts: LedgerFact[] = [
     {
       kind: "rate_card.certified",
@@ -438,29 +471,47 @@ export function buildSnapshot(): Built {
       payload: { rateCardSha256: card.sha256, resolutionNo: card.canonical.resolutionNo },
       at: card.ratifications[0]?.at ?? card.ratifiedAt,
     },
-    {
-      kind: "rate_card.ratified",
-      actorKind: "human",
-      actorId: chair.persona,
-      impersonatedBy: null,
-      payload: { rateCardSha256: card.sha256, resolutionNo: card.canonical.resolutionNo },
-      at: card.ratifications[1]?.at ?? card.ratifiedAt,
-    },
-    ...sortedPhotos.map(
-      (p): LedgerFact => ({
-        kind: "rows.accepted",
-        actorKind: "engine",
-        actorId: "engine v1",
-        impersonatedBy: null,
-        payload: {
+    proofFact(
+      "rate_card.ratified",
+      { rateCardSha256: card.sha256, resolutionNo: card.canonical.resolutionNo, ratifiedAt: card.ratifiedAt },
+      card.ratifications[1]?.at ?? card.ratifiedAt,
+      human(chair.persona),
+    ),
+    ...sortedPhotos.map((p) =>
+      proofFact(
+        "rows.accepted",
+        {
           documentId: p.documentId,
           photoId: p.photoId,
           sha256: p.manifestSha256,
-          serials: p.slips.map((s) => s.serial),
+          serials: p.slips.map((x) => x.serial),
+          slipDates: slipDatesOf(p),
           provenance: p.readProvenance,
         },
-        at: p.readOn ? `${p.readOn}T09:30:00.000Z` : TIMELINE.readStart,
-      }),
+        p.readOn ? `${p.readOn}T09:30:00.000Z` : TIMELINE.readStart,
+        engine,
+      ),
+    ),
+    ...approvals.map((a) =>
+      proofFact(
+        "key.registered",
+        { keyId: a.keyId, persona: a.payload.approverId, kind: "seeded", publicKeyHex: a.publicKeyHex },
+        RUN.createdAt,
+        { actorKind: "system", actorId: "seed" },
+      ),
+    ),
+    proofFact(
+      "invoice.funded",
+      {
+        runId,
+        invoiceNumber: invoiceNumber(slug),
+        status: "MARKED_AS_PAID",
+        amountCents: quote.totalCents,
+        dueCents: 0,
+        reference,
+      },
+      TIMELINE.funded,
+      { actorKind: "system", actorId: "ensureInvoice" },
     ),
     {
       kind: "field.entered",
@@ -485,82 +536,111 @@ export function buildSnapshot(): Built {
         at: h.resolvedAt ?? TIMELINE.computed,
       }),
     ),
-    {
-      kind: "lines.computed",
-      actorKind: "engine",
-      actorId: "engine v1",
-      impersonatedBy: null,
-      payload: {
-        lineHashesSha256: sha256Hex(resolved.lines.map((l) => l.lineSha256).join("")),
-        poolCents: c.poolCents,
+    proofFact(
+      "lines.computed",
+      {
+        runId,
+        engine: "engine v1",
+        rateCardSha256: card.sha256,
+        lineCount: resolved.lines.length,
+        linesRootSha256: linesRootSha256(resolved.lines),
+        premiumPoolCents: c.premiumPoolCents,
+        bonusPoolCents: c.bonusPoolCents,
         netCents: c.netCents,
+        onRailNetCents: c.onRailNetCents,
         balanced: c.balanced,
       },
-      at: TIMELINE.computed,
-    },
-    ...approvals.map(
-      (a): LedgerFact => ({
-        kind: "approval.signed",
-        actorKind: "human",
-        actorId: a.payload.approverId,
-        impersonatedBy: null,
-        payload: { role: a.role, keyId: a.keyId, batchSha256: a.payload.batchSha256 },
-        at: a.role === "treasurer" ? TIMELINE.treasurerSigned : TIMELINE.chairSigned,
-      }),
+      TIMELINE.computed,
+      engine,
     ),
-    {
-      kind: "payout.submitting",
-      actorKind: "system",
-      actorId: "PayoutsService",
-      impersonatedBy: null,
-      payload: { senderBatchId: sbid, batchSha256: digest.batchSha256, itemCount: digest.itemCount },
-      at: TIMELINE.posted,
-    },
-    ...snapshotItems.map(
-      (it, k): LedgerFact => ({
-        kind: "webhook.applied",
-        actorKind: "paypal",
-        actorId: "paypal",
-        impersonatedBy: null,
-        payload: {
-          eventId:
-            it.status === "RETURNED"
-              ? `WH-SEED-${idOf("", `event:${it.senderItemId}:UNCLAIMED`)}`
-              : (it.eventId as string),
-          senderItemId: it.senderItemId,
-          status: it.status === "RETURNED" ? "UNCLAIMED" : "SUCCESS",
+    ...approvals.map((a) =>
+      proofFact(
+        "approval.signed",
+        {
+          runId,
+          role: a.role,
+          keyId: a.keyId,
+          approverId: a.payload.approverId,
+          batchSha256: a.payload.batchSha256,
+          nonce: a.payload.nonce,
         },
-        at: it.status === "RETURNED" ? TIMELINE.unclaimed : at(ITEM_EVENT_TIMES[k] ?? "02:13:00"),
-      }),
+        a.role === "treasurer" ? TIMELINE.treasurerSigned : TIMELINE.chairSigned,
+        human(a.payload.approverId),
+      ),
     ),
-    {
-      kind: "payout.cancel",
-      actorKind: "human",
-      actorId: treasurer.persona,
-      impersonatedBy: null,
-      payload: { senderItemId: senderItemId(runSeq, unclaimedNo ?? ""), afterCancel: "cash" },
-      at: TIMELINE.cancelled,
-    },
-    {
-      kind: "webhook.applied",
-      actorKind: "paypal",
-      actorId: "paypal",
-      impersonatedBy: null,
-      payload: {
-        eventId: snapshotItems.find((i) => i.status === "RETURNED")?.eventId ?? null,
-        senderItemId: senderItemId(runSeq, unclaimedNo ?? ""),
-        status: "RETURNED",
+    proofFact(
+      "payout.submitting",
+      {
+        runId,
+        senderBatchId: sbid,
+        batchSha256: digest.batchSha256,
+        itemCount: digest.itemCount,
+        totalCents: digest.totalCents,
+        note,
       },
-      at: TIMELINE.returned,
-    },
+      TIMELINE.posted,
+      { actorKind: "system", actorId: "PayoutsService" },
+    ),
+    ...snapshotItems.map((it, k) => {
+      const parked = it.status === "RETURNED";
+      return proofFact(
+        "webhook.applied",
+        {
+          resource: "payout_item",
+          eventId: parked ? unclaimedEventId(it) : (it.eventId as string),
+          eventType: parked ? "PAYMENT.PAYOUTS-ITEM.UNCLAIMED" : "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+          verified: "self",
+          provenance: "seeded",
+          senderItemId: it.senderItemId,
+          payoutItemId: it.payoutItemId,
+          status: parked ? "UNCLAIMED" : "SUCCESS",
+        },
+        parked ? TIMELINE.unclaimed : at(ITEM_EVENT_TIMES[k] ?? "02:13:00"),
+        paypal,
+      );
+    }),
+    ...(returnedItem
+      ? [
+          proofFact(
+            "payout.cancel",
+            {
+              senderItemId: returnedItem.senderItemId,
+              payoutItemId: returnedItem.payoutItemId,
+              afterCancel: "cash",
+            },
+            TIMELINE.cancelled,
+            human(treasurer.persona),
+          ),
+          proofFact(
+            "webhook.applied",
+            {
+              resource: "payout_item",
+              eventId: returnedItem.eventId as string,
+              eventType: "PAYMENT.PAYOUTS-ITEM.CANCELED",
+              verified: "self",
+              provenance: "seeded",
+              senderItemId: returnedItem.senderItemId,
+              payoutItemId: returnedItem.payoutItemId,
+              status: "RETURNED",
+            },
+            TIMELINE.returned,
+            paypal,
+          ),
+        ]
+      : []),
   ];
   const ledger: LedgerEntry[] = buildLedger(facts.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)));
-  const reference = invoiceReference(card.sha256);
   const proof: ProofBundle = {
     v: 1,
     runId,
     runSlug: slug,
-    invoice: { invoiceNumber: invoiceNumber(slug), status: "MARKED_AS_PAID", dueCents: 0, reference },
+    invoice: {
+      invoiceNumber: invoiceNumber(slug),
+      status: "MARKED_AS_PAID",
+      amountCents: quote.totalCents,
+      dueCents: 0,
+      reference,
+    },
     rateCard: { canonical: card.canonical, sha256: card.sha256, ratifiedAt: card.ratifiedAt },
     firstSlipDate: [...world.slips].map((s) => s.slipDate).sort()[0] as string,
     documents: docs,
@@ -572,6 +652,7 @@ export function buildSnapshot(): Built {
       senderBatchId: sbid,
       rateCardSha256: card.sha256,
       batchSha256: digest.batchSha256,
+      note,
       items: snapshotItems.map((i) => ({
         senderItemId: i.senderItemId,
         receiver: i.receiver,
@@ -658,7 +739,7 @@ export function buildSnapshot(): Built {
       },
       senderBatchId: sbid,
       paypalRequestId: paypalRequestId(sbid),
-      batchNote: batchNote(SEASON.label, digest.batchSha256),
+      batchNote: note,
       batchSha256: digest.batchSha256,
       items: snapshotItems,
       approvals,

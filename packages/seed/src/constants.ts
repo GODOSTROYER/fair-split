@@ -52,6 +52,14 @@ export const OFFICERS = [
   },
 ] as const;
 
+/**
+ * Keys that sign the seeded run r37. Their private halves derive from public text, so they are
+ * seeded keys (`fs-{persona}-s{n}`): labelled, never written to `device_keys`, refused by the API
+ * and by `checkApproval`. The officers' real key IDs above are identity metadata only; their public
+ * keys are registered from the devices, never from this snapshot.
+ */
+export const SEEDED_KEY_IDS = { treasurer: "fs-analyn-s1", chair: "fs-ernesto-s1" } as const;
+
 export const PAYER = {
   name: "Lantern Bay Chocolate Co.",
   shortName: "Lantern Bay",

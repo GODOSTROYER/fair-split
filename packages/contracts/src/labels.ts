@@ -243,12 +243,45 @@ export interface LabelVars {
   chair?: string;
 }
 
-/** Picks a language and fills `{treasurer}` / `{chair}`. Missing names are left as an initial-free word. */
+const LABEL_VAR_NAMES = ["treasurer", "chair"] as const satisfies readonly (keyof LabelVars)[];
+
+/** The role noun a label uses when the officer's name is not known, in the label's own language. */
+export const ROLE_NOUNS: Readonly<Record<Lang, Readonly<Record<keyof LabelVars, string>>>> = {
+  en: { treasurer: "the treasurer", chair: "the Chair" },
+  ceb: { treasurer: "tesorero", chair: "Chair" },
+  fil: { treasurer: "ingat-yaman", chair: "Chair" },
+};
+
+/**
+ * Cebuano and Filipino mark a name and a common noun differently ("ni Analyn" but "sa tesorero" /
+ * "ng ingat-yaman"). Without the name, the personal marker before the slot becomes the noun's.
+ */
+const NOUN_MARKERS: Readonly<Record<"ceb" | "fil", Readonly<Record<string, string>>>> = {
+  ceb: { si: "ang", ni: "sa", kang: "sa" },
+  fil: { si: "ang", ni: "ng", kay: "sa" },
+};
+
+/** Picks a language and fills `{treasurer}` / `{chair}`; a missing name becomes the role noun in that language. */
 export function pickLabel(words: Words, lang: Lang, vars: LabelVars = {}): string {
-  const raw = words[lang];
-  return raw
-    .replaceAll("{treasurer}", vars.treasurer ?? "the treasurer")
-    .replaceAll("{chair}", vars.chair ?? "the Chair");
+  let out = words[lang];
+  for (const key of LABEL_VAR_NAMES) {
+    const slot = `{${key}}`;
+    const name = vars[key];
+    if (name !== undefined) {
+      out = out.replaceAll(slot, name);
+      continue;
+    }
+    const noun = ROLE_NOUNS[lang][key];
+    if (lang === "en") {
+      out = out.replaceAll(slot, noun);
+      continue;
+    }
+    const markers = NOUN_MARKERS[lang];
+    const marked = new RegExp(`\\b(${Object.keys(markers).join("|")}) \\{${key}\\}`, "g");
+    out = out.replace(marked, (_all, marker: string) => `${markers[marker]} ${noun}`);
+    out = out.replaceAll(slot, `ang ${noun}`);
+  }
+  return out;
 }
 
 /** Console word for a member line, adding the reserved note for RESERVES_LINE holds. */

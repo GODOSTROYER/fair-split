@@ -10,16 +10,22 @@ import {
   HoldGate,
   HoldKind,
   HoldResolutionKind,
+  InvoiceStatus,
   Legibility,
+  PayoutBatchStatus,
+  PayoutItemStatus,
   PayRunState,
   PolicyName,
   Rail,
   SlipFieldName,
   Station,
   Verdict,
+  WebhookEventType,
+  WebhookVerified,
 } from "./enums.js";
 import {
   Cents,
+  Ed25519PublicKeyHex,
   Grams,
   IsoDate,
   IsoDateTime,
@@ -28,7 +34,9 @@ import {
   MemberNo,
   NonNegCents,
   PlotNo,
+  Provenance,
   Rational,
+  RunSlug,
   SeasonCode,
   Sha256Hex,
   SlipSerial,
@@ -521,8 +529,11 @@ export type ApprovalPayload = z.infer<typeof ApprovalPayload>;
 export const SignedApproval = z.strictObject({
   role: ApprovalRole,
   keyId: KeyId,
-  /** Raw 32-byte Ed25519 public key, hex. */
-  publicKeyHex: z.string().regex(/^[0-9a-f]{64}$/),
+  /**
+   * Raw 32-byte Ed25519 public key, hex, as presented. Never a trust anchor: the server checks the
+   * registered `device_keys` row and the Proof checks the ledger's `key.registered` entry.
+   */
+  publicKeyHex: Ed25519PublicKeyHex,
   payload: ApprovalPayload,
   /** 64-byte Ed25519 signature over the payload's JCS bytes, hex. */
   signatureHex: z.string().regex(/^[0-9a-f]{128}$/),
@@ -606,6 +617,152 @@ export const LedgerEntry = z.strictObject({
 });
 export type LedgerEntry = z.infer<typeof LedgerEntry>;
 
+/**
+ * Ledger kinds whose payloads the Proof verifier reads (S3.12). Writers must append exactly these
+ * shapes, in the transaction that causes them. Every other kind (rate_card.certified,
+ * field.entered, hold.raised, hold.resolved, approval.declined, approval.voided, flag.changed,
+ * agent.tool_call and so on) carries free JSON.
+ */
+export const PROOF_LEDGER_KINDS = [
+  "key.registered",
+  "rate_card.ratified",
+  "invoice.funded",
+  "rows.accepted",
+  "lines.computed",
+  "approval.signed",
+  "payout.submitting",
+  "payout.cancel",
+  "webhook.applied",
+] as const;
+export const ProofLedgerKind = z.enum(PROOF_LEDGER_KINDS);
+export type ProofLedgerKind = z.infer<typeof ProofLedgerKind>;
+
+const webhookApplied = {
+  eventId: z.string().min(1),
+  eventType: WebhookEventType,
+  verified: WebhookVerified,
+  provenance: Provenance,
+};
+
+export const LedgerPayloads = {
+  /**
+   * A key enters the ledger before it signs; `persona` is the approverId it signs as. Proof plate 5
+   * takes public keys only from here, never from the bundle.
+   */
+  "key.registered": z.strictObject({
+    keyId: KeyId,
+    persona: z.string().min(1),
+    kind: z.enum(["app", "web_demo", "seeded"]),
+    publicKeyHex: Ed25519PublicKeyHex,
+  }),
+  "rate_card.ratified": z.strictObject({
+    rateCardSha256: Sha256Hex,
+    resolutionNo: z.string(),
+    ratifiedAt: IsoDateTime,
+  }),
+  /** Appended with the FUNDED transition, from a fresh GET of the invoice. */
+  "invoice.funded": z.strictObject({
+    runId: z.string(),
+    invoiceNumber: z.string().max(25),
+    status: z.enum(["PAID", "MARKED_AS_PAID"]),
+    amountCents: NonNegCents,
+    dueCents: NonNegCents,
+    reference: z.string(),
+  }),
+  "rows.accepted": z.strictObject({
+    documentId: z.string(),
+    photoId: z.string().nullable(),
+    sha256: Sha256Hex,
+    serials: z.array(SlipSerial).min(1),
+    slipDates: z.array(IsoDate).min(1),
+    provenance: Provenance,
+  }),
+  /** linesRootSha256 = sha256(JCS([{memberNo, lineSha256}] sorted by memberNo)). */
+  "lines.computed": z.strictObject({
+    runId: z.string(),
+    engine: z.literal("engine v1"),
+    rateCardSha256: Sha256Hex,
+    lineCount: z.int().nonnegative(),
+    linesRootSha256: Sha256Hex,
+    premiumPoolCents: NonNegCents,
+    bonusPoolCents: NonNegCents,
+    netCents: Cents,
+    onRailNetCents: Cents,
+    balanced: z.boolean(),
+  }),
+  /** Appended with the approval, by the approver: the entry's actorId is `approverId`. */
+  "approval.signed": z.strictObject({
+    runId: z.string(),
+    role: ApprovalRole,
+    keyId: KeyId,
+    approverId: z.string(),
+    batchSha256: Sha256Hex,
+    nonce: z.string(),
+  }),
+  /** Appended with the batch and item rows written as SUBMITTED, before the POST. */
+  "payout.submitting": z.strictObject({
+    runId: z.string(),
+    senderBatchId: z.string().max(256),
+    batchSha256: Sha256Hex,
+    itemCount: z.int().positive(),
+    totalCents: z.int().positive(),
+    note: z.string(),
+  }),
+  /** Our cancel of an UNCLAIMED item: RETURNED is accepted only after it (register §7). */
+  "payout.cancel": z.strictObject({
+    senderItemId: z.string(),
+    payoutItemId: z.string(),
+    afterCancel: z.enum(["cash", "reroute"]),
+  }),
+  "webhook.applied": z.discriminatedUnion("resource", [
+    z.strictObject({
+      ...webhookApplied,
+      resource: z.literal("payout_item"),
+      senderItemId: z.string(),
+      payoutItemId: z.string(),
+      status: PayoutItemStatus,
+    }),
+    z.strictObject({
+      ...webhookApplied,
+      resource: z.literal("payout_batch"),
+      senderBatchId: z.string(),
+      batchStatus: PayoutBatchStatus,
+    }),
+    z.strictObject({
+      ...webhookApplied,
+      resource: z.literal("invoice"),
+      invoiceNumber: z.string(),
+      status: InvoiceStatus,
+    }),
+  ]),
+} as const satisfies Record<ProofLedgerKind, z.ZodType>;
+export type LedgerPayload<K extends ProofLedgerKind> = z.infer<(typeof LedgerPayloads)[K]>;
+
+/** Exactly what a line hash covers (`lineSha256 = sha256(JCS(canonical))`); Proof plate 4 re-hashes it. */
+export const LineCanonical = z.strictObject({
+  v: z.literal(1),
+  engine: z.literal("engine v1"),
+  rateCardSha256: Sha256Hex,
+  memberNo: MemberNo,
+  rail: Rail,
+  verifiedG: Grams,
+  grade1G: Grams,
+  slipSerials: z.array(SlipSerial),
+  premiumCents: NonNegCents,
+  bonusCents: NonNegCents,
+  deductions: z.array(
+    z.strictObject({
+      ruleId: z.enum(["R1", "R3", "R4"]),
+      amountCents: NonNegCents,
+      ref: z.string().nullable(),
+      carriedCentavos: z.int().nonnegative().nullable(),
+    }),
+  ),
+  credits: z.array(z.strictObject({ markId: z.string(), amountCents: NonNegCents })),
+  netCents: Cents,
+});
+export type LineCanonical = z.infer<typeof LineCanonical>;
+
 export const ProofLine = z.strictObject({
   memberNo: MemberNo,
   rail: Rail,
@@ -615,7 +772,7 @@ export const ProofLine = z.strictObject({
   creditsCents: NonNegCents,
   netCents: Cents,
   /** The canonical content the line hash covers. */
-  canonical: Json,
+  canonical: LineCanonical,
   lineSha256: Sha256Hex,
 });
 export type ProofLine = z.infer<typeof ProofLine>;
@@ -626,19 +783,24 @@ export const ProofItem = z.strictObject({
   amountCents: z.int().positive(),
   currency: z.literal("USD"),
   payoutItemId: z.string().nullable(),
-  status: z.string(),
+  status: PayoutItemStatus,
   /** The verified webhook event the status rests on (null only while SUBMITTED or PENDING). */
   eventId: z.string().nullable(),
 });
 export type ProofItem = z.infer<typeof ProofItem>;
 
+/**
+ * The public Proof bundle (S3.12). Every plate is bound to the hash-chained `ledger`: a field the
+ * ledger does not attest fails verification, so re-hashing and re-signing the bundle is not enough.
+ */
 export const ProofBundle = z.strictObject({
   v: z.literal(1),
   runId: z.string(),
-  runSlug: z.string(),
+  runSlug: RunSlug,
   invoice: z.strictObject({
     invoiceNumber: z.string(),
-    status: z.string(),
+    status: InvoiceStatus,
+    amountCents: NonNegCents,
     dueCents: z.int().nonnegative(),
     reference: z.string(),
   }),
@@ -653,6 +815,8 @@ export const ProofBundle = z.strictObject({
     senderBatchId: z.string(),
     rateCardSha256: Sha256Hex,
     batchSha256: Sha256Hex,
+    /** The batch note sent to PayPal: "Fair Split 2026-A, batch {digest8}". */
+    note: z.string(),
     items: z.array(ProofItem),
   }),
   ledger: z.array(LedgerEntry),

@@ -7,53 +7,26 @@ import { type BatchRun, batchCanonical } from "./digest-input.js";
 import { hashGroups } from "./format.js";
 import { bpHalfUp } from "./money.js";
 
-export { type BatchRun, invoiceReference } from "./digest-input.js";
-
-/** runSlug = `{seasonCode}-r{runSeq}`, e.g. "2026A-r37". */
-export function runSlug(seasonCode: string, runSeq: number): string {
-  return `${seasonCode}-r${runSeq}`;
-}
-
-/** `FS-{runSlug}`, at most 25 characters (PayPal invoice_number limit). */
-export function invoiceNumber(slug: string): string {
-  const n = `FS-${slug}`;
-  if (n.length > 25) throw new RangeError(`invoice_number too long: ${n}`);
-  return n;
-}
+export { type BatchRun, invoiceReference, linesRootJcs } from "./digest-input.js";
+export {
+  batchNote,
+  invoiceNumber,
+  parseRunSlug,
+  parseSenderItemId,
+  runSlug,
+  seasonLabelOf,
+  senderBatchId,
+  senderItemId,
+} from "./ids.js";
 
 /** The payer-visible memo: "Season 2026-A, RC 7f3a 91c2, lot LB-PH-2026-03". */
 export function invoiceMemo(seasonLabel: string, rateCardSha256: string, lotCode: string): string {
   return `Season ${seasonLabel}, RC ${hashGroups(rateCardSha256, 2)}, lot ${lotCode}`;
 }
 
-/** `{season}-{rc8}-r{runSeq}`; a re-route adds `-x{n}` (≤ 256 characters). */
-export function senderBatchId(
-  seasonCode: string,
-  rateCardSha256: string,
-  runSeq: number,
-  rerouteN?: number,
-): string {
-  const base = `${seasonCode}-${rateCardSha256.slice(0, 8)}-r${runSeq}`;
-  const id = rerouteN ? `${base}-x${rerouteN}` : base;
-  if (id.length > 256) throw new RangeError("sender_batch_id too long");
-  return id;
-}
-
-/** `r{runSeq}-{memberNo}`; a re-route uses `r{runSeq}x{n}-{memberNo}` (≤ 63 characters). */
-export function senderItemId(runSeq: number, memberNo: string, rerouteN?: number): string {
-  const id = rerouteN ? `r${runSeq}x${rerouteN}-${memberNo}` : `r${runSeq}-${memberNo}`;
-  if (id.length > 63) throw new RangeError("sender_item_id too long");
-  return id;
-}
-
 /** PayPal-Request-Id = sha256(sender_batch_id). */
 export function paypalRequestId(senderBatch: string): string {
   return sha256Hex(senderBatch);
-}
-
-/** "Fair Split 2026-A, batch {digest8}". */
-export function batchNote(seasonLabel: string, batchSha256: string): string {
-  return `Fair Split ${seasonLabel}, batch ${batchSha256.slice(0, 8)}`;
 }
 
 /**

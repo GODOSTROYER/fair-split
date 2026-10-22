@@ -4,6 +4,7 @@
 import {
   AGENT_TOOL_NAMES,
   type Decision,
+  type InvoiceQuote,
   PAY_RUN_RANK,
   PAYOUT_READ_TOOLS,
   type PolicyCtx,
@@ -17,6 +18,7 @@ import {
 } from "@fairsplit/contracts";
 import { match, P } from "ts-pattern";
 import { addDays } from "./format.js";
+import { jcs } from "./jcs.js";
 import { parseDecimalMinor } from "./money.js";
 
 export type Rank = 0 | 1 | 2;
@@ -173,24 +175,117 @@ export const budgetCap: Policy = (_call, ctx) => {
   return ALLOW;
 };
 
+/**
+ * Keys that move money on an Invoicing v2 create body. A code quote has none of them, so any one,
+ * at any depth, means PayPal would bill something other than the quote (I1).
+ */
+export const INVOICE_MONEY_KEYS: ReadonlySet<string> = new Set([
+  "amount",
+  "breakdown",
+  "item_total",
+  "tax",
+  "tax_total",
+  "discount",
+  "item_discount",
+  "invoice_discount",
+  "shipping",
+  "custom",
+  "gratuity",
+  "minimum_amount_due",
+  "due_amount",
+  "payments",
+  "refunds",
+  "template_id",
+]);
+
+/** Toggles that let the payer pay a different amount: they must be absent or false. */
+const PAYMENT_TOGGLES: ReadonlySet<string> = new Set(["allow_partial_payment", "allow_tip"]);
+
+/** Item fields that move no money; anything else on an item is refused. */
+const ITEM_WORD_KEYS: ReadonlySet<string> = new Set([
+  "name",
+  "description",
+  "quantity",
+  "unit_amount",
+  "unit_of_measure",
+  "item_date",
+]);
+
+/** The money a create_invoice body carries, normalised: what the quote must deep-equal. */
+export interface InvoiceMoney {
+  currency: string | null;
+  items: {
+    name: string | null;
+    quantity: string | null;
+    unitAmountCents: number | null;
+    currency: string | null;
+  }[];
+  /** Paths of money-bearing keys and payment toggles that are on, e.g. "items[1].discount". */
+  extras: string[];
+}
+
+export function invoiceMoney(args: unknown): InvoiceMoney {
+  const d = readInvoiceDraft(args);
+  const extras: string[] = [];
+  const walk = (v: unknown, path: string) => {
+    if (Array.isArray(v)) {
+      for (const [i, x] of v.entries()) walk(x, `${path}[${i}]`);
+      return;
+    }
+    if (v === null || typeof v !== "object") return;
+    for (const [k, x] of Object.entries(v)) {
+      const at = path ? `${path}.${k}` : k;
+      if (INVOICE_MONEY_KEYS.has(k) || (PAYMENT_TOGGLES.has(k) && x !== false)) extras.push(at);
+      else walk(x, at);
+    }
+  };
+  walk(args, "");
+  const items = Array.isArray(obj(args).items) ? (obj(args).items as unknown[]) : [];
+  items.forEach((raw, i) => {
+    for (const k of Object.keys(obj(raw))) {
+      if (!ITEM_WORD_KEYS.has(k) && !INVOICE_MONEY_KEYS.has(k)) extras.push(`items[${i}].${k}`);
+    }
+  });
+  return { currency: d.currencyCode, items: d.items, extras };
+}
+
+/** The money fields create_invoice must carry for a quote: its three lines, nothing else. */
+export function quoteMoney(quote: InvoiceQuote): InvoiceMoney {
+  return {
+    currency: quote.currency,
+    items: quote.items.map((i) => ({
+      name: i.name,
+      quantity: i.quantity,
+      unitAmountCents: i.unitAmountCents,
+      currency: quote.currency,
+    })),
+    extras: [],
+  };
+}
+
+/** I1: the agent's draft must deep-equal the code quote in every field that moves money. */
 export const invoiceEqualsQuote: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
-  const d = readInvoiceDraft(call.args);
-  const q = ctx.expected.quote;
-  if (d.currencyCode !== q.currency) return deny("currency differs from the quote");
-  if (d.invoiceNumber !== ctx.expected.invoiceNumber) return deny("invoice_number differs from the code's");
-  if (d.items.length !== q.items.length) return deny("item count differs from the quote");
-  for (let i = 0; i < q.items.length; i++) {
-    const want = q.items[i];
-    const got = d.items[i];
-    if (!want || !got) return deny("item missing");
-    if (got.quantity !== want.quantity) return deny(`item ${i + 1} quantity differs`);
-    if (got.unitAmountCents !== want.unitAmountCents)
-      return deny(`item ${i + 1} amount differs from the quote`);
-    if (got.currency !== null && got.currency !== q.currency) return deny(`item ${i + 1} currency differs`);
+  const want = quoteMoney(ctx.expected.quote);
+  const got = invoiceMoney(call.args);
+  const extra = got.extras[0];
+  if (extra !== undefined) return deny(`${extra} is not in the quote`);
+  if (got.currency !== want.currency) return deny("currency differs from the quote");
+  if (readInvoiceDraft(call.args).invoiceNumber !== ctx.expected.invoiceNumber) {
+    return deny("invoice_number differs from the code's");
   }
-  const total = d.items.reduce((s, it) => s + (it.unitAmountCents ?? 0), 0);
-  return total === q.totalCents ? ALLOW : deny("total differs from the quote");
+  if (got.items.length !== want.items.length) return deny("item count differs from the quote");
+  for (let i = 0; i < want.items.length; i++) {
+    const w = want.items[i];
+    const g = got.items[i];
+    if (!w || !g) return deny("item missing");
+    if (g.name !== w.name) return deny(`item ${i + 1} name differs from the quote`);
+    if (g.quantity !== w.quantity) return deny(`item ${i + 1} quantity differs`);
+    if (g.unitAmountCents !== w.unitAmountCents) return deny(`item ${i + 1} amount differs from the quote`);
+    if (g.currency !== w.currency) return deny(`item ${i + 1} currency differs`);
+  }
+  // Belt and braces: the normalised draft must be exactly the quote's money.
+  return jcs(got) === jcs(want) ? ALLOW : deny("the draft's money differs from the quote");
 };
 
 export const invoicerIsBusinessEmail: Policy = (call, ctx) => {

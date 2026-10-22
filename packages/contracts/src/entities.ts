@@ -43,6 +43,8 @@ import {
 import {
   Cents,
   Currency,
+  DeviceKeyId,
+  Ed25519PublicKeyHex,
   Grams,
   IsoDate,
   IsoDateTime,
@@ -104,11 +106,12 @@ export const PairingToken = z.strictObject({
 });
 export type PairingToken = z.infer<typeof PairingToken>;
 
+/** A registered signing key. Seeded keys (`fs-{persona}-s{n}`) are never written here. */
 export const DeviceKey = z.strictObject({
   ...scoped,
-  keyId: KeyId,
+  keyId: DeviceKeyId,
   persona: z.string(),
-  publicKeyHex: z.string().regex(/^[0-9a-f]{64}$/),
+  publicKeyHex: Ed25519PublicKeyHex,
   kind: DeviceKeyKind,
   label: z.string(),
   revokedAt: IsoDateTime.nullable(),

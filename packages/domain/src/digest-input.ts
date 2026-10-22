@@ -58,6 +58,17 @@ export function invoiceReference(rateCardSha256: string): string {
   return `rc:${rateCardSha256.slice(0, 16)}`;
 }
 
+/**
+ * JCS of `[{memberNo, lineSha256}]` sorted by member number: the preimage of the lines root that the
+ * `lines.computed` ledger entry carries and Proof plate 4 recomputes.
+ */
+export function linesRootJcs(lines: readonly { memberNo: string; lineSha256: string }[]): string {
+  const sorted = lines
+    .map((l) => ({ memberNo: l.memberNo, lineSha256: l.lineSha256 }))
+    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
+  return jcs(sorted);
+}
+
 /** UTF-8 bytes of the approval payload's JCS form: exactly what each approver signs. */
 export function approvalBytes(payload: ApprovalPayload): Uint8Array {
   return jcsBytes(payload);

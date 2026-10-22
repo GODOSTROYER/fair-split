@@ -1,12 +1,10 @@
 import type { EngineInput, EngineOutput } from "@fairsplit/contracts";
-import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { AT, input, member, row, TEST_RULES } from "./__fixtures__/world.js";
 import {
   ALLOWED_RESOLUTIONS,
   checkRuledMark,
   computeLines,
-  conserve,
   holdKey,
   isOverride,
   isResolutionAllowed,
@@ -522,91 +520,48 @@ describe("line hashes", () => {
   });
 });
 
-describe("inv.i3.conservation", () => {
-  const arbWorld = fc
-    .record({
-      n: fc.integer({ min: 1, max: 12 }),
-      kilos: fc.array(fc.integer({ min: 0, max: 400_000 }), { minLength: 1, maxLength: 30 }),
-      g2: fc.array(fc.boolean(), { minLength: 30, maxLength: 30 }),
-      rails: fc.array(fc.boolean(), { minLength: 12, maxLength: 12 }),
-      paidUp: fc.array(fc.integer({ min: 0, max: 600_000 }), { minLength: 12, maxLength: 12 }),
-      loans: fc.array(fc.integer({ min: 0, max: 200_000 }), { minLength: 12, maxLength: 12 }),
-      advances: fc.array(fc.integer({ min: 0, max: 200_000 }), { minLength: 12, maxLength: 12 }),
-      trees: fc.array(fc.integer({ min: 0, max: 400 }), { minLength: 12, maxLength: 12 }),
-      multa: fc.option(fc.integer({ min: 0, max: 100_000 })),
-      returnIt: fc.boolean(),
-      shippedKg: fc.integer({ min: 1, max: 20_000 }),
-    })
-    .map((w) => {
-      const members = Array.from({ length: w.n }, (_, i) =>
-        member(`M-${String(i + 1).padStart(3, "0")}`, {
-          rail: w.rails[i] ? "PAYPAL" : "CASH",
-          cbuPaidUpCentavos: w.paidUp[i] ?? 0,
-          registeredTrees: w.trees[i] ?? 0,
-          loans: [{ ref: `ATD-${i}`, outstandingCentavos: w.loans[i] ?? 0, authorityToDeduct: true }],
-          advances: [{ voucherNo: `CA-${i}`, outstandingCentavos: w.advances[i] ?? 0 }],
-        }),
-      );
-      const rows = w.kilos.map((g, k) =>
-        row(`M-${String((k % w.n) + 1).padStart(3, "0")}`, g / 1000, {
-          serial: String(301 + k).padStart(4, "0"),
-          rowId: `r${k}`,
-          grade: w.g2[k] ? "G2" : "G1",
-          marks:
-            k === 0 && w.multa !== null
-              ? [
-                  {
-                    markId: "mk",
-                    text: "Multa",
-                    ruleId: "NO_MATCH",
-                    writtenCentavos: w.multa,
-                    documentRef: null,
-                  },
-                ]
-              : [],
-        }),
-      );
-      const ok =
-        rows.some((r) => (r.payableG ?? 0) > 0) &&
-        rows.some((r) => r.grade === "G1" && (r.payableG ?? 0) > 0);
-      return {
-        ok,
-        input: input(members, rows, {
-          lot: {
-            lotCode: "L",
-            shippedG: w.shippedKg * 1000,
-            grade1ShippedG: w.shippedKg * 900,
-            sacks: 1,
-            sackKind: "jute",
-            shippedOn: "2026-09-18",
-          },
-          resolutions:
-            w.multa !== null && w.returnIt
-              ? [{ holdKey: holdKey.noRule("mk"), resolution: "RETURN_AS_CREDIT", by: "AS", at: AT }]
-              : [],
-        }),
-      };
-    });
+// The I3 property worlds (and 'never redistributed') live in engine.property.test.ts.
 
-  it("money is conserved to the cent for any world (fast-check)", () => {
-    fc.assert(
-      fc.property(arbWorld, ({ ok, input: inp }) => {
-        fc.pre(ok);
-        const out = computeLines(inp, { validate: false });
-        const c = out.conservation;
-        expect(c.balanced).toBe(true);
-        expect(c.premiumSumCents).toBe(c.premiumPoolCents);
-        expect(c.bonusSumCents).toBe(c.bonusPoolCents);
-        expect(c.netCents + c.deductionsCents - c.creditsCents).toBe(c.poolCents);
-        expect(c.onRailNetCents + c.offRailNetCents + c.carriedNetCents).toBe(c.netCents);
-        for (const l of out.lines) {
-          expect(Number.isSafeInteger(l.netCents)).toBe(true);
-          expect(l.deductionsCents).toBeLessThanOrEqual(l.bonusCents);
-          expect(l.netCents).toBeGreaterThanOrEqual(l.premiumCents);
-        }
-        expect(conserve(out.lines, c.premiumPoolCents, c.bonusPoolCents)).toEqual(c);
+describe("computeLines: kilos no person confirmed, and pools with nothing to share them by", () => {
+  it("excluding a line with doubtful kilos carries it, but the kilos stay unconfirmed and approval waits", () => {
+    const doubtful = row("M-060", 64.5, { pendingFields: [{ fieldId: "f1", field: "net_kg", score: 0.4 }] });
+    const members = [member("M-060"), member("M-001")];
+    const rows = [doubtful, row("M-001", 935.5)];
+    const open = computeLines(input(members, rows));
+    const key = holdKey.lowConfidence(doubtful.rowId);
+    const excluded = computeLines(
+      input(members, rows, {
+        resolutions: [{ holdKey: key, resolution: "EXCLUDE_LINE", reason: "carry over", by: "AS", at: AT }],
       }),
-      { numRuns: 150 },
     );
+    expect(holdOf(excluded, key)?.state).toBe("EXCLUDED");
+    expect(line(excluded, "M-060").state).toBe("EXCLUDED");
+    // The doubtful 64.5 kg do not enter anyone's split, exactly as while the hold was open.
+    expect(line(excluded, "M-060").verifiedG).toBe(0);
+    expect(line(excluded, "M-001")).toEqual(line(open, "M-001"));
+    expect(excluded.massBalance.status).toBe("PENDING");
+    expect(excluded.approvalBlocked).toBe(true);
+    const confirmed = computeLines(
+      input(members, rows, {
+        resolutions: [{ holdKey: key, resolution: "CONFIRM_AS_READ", by: "AS", at: AT }],
+      }),
+    );
+    expect(line(confirmed, "M-060").verifiedG).toBe(64_500);
+    expect(confirmed.approvalBlocked).toBe(false);
+  });
+
+  it("a pool with no verified kilos to share it by stays unallocated and blocks approval", () => {
+    // The lot shipped Grade 1, but every verified slip is Grade 2: the bonus pool has no weights.
+    const out = computeLines(
+      input(
+        [member("M-001"), member("M-002")],
+        [row("M-001", 600, { grade: "G2" }), row("M-002", 400, { grade: "G2" })],
+      ),
+    );
+    expect(out.massBalance.status).toBe("INSIDE");
+    expect(out.blockingHoldKeys).toEqual([]);
+    expect(out.conservation.bonusSumCents).toBe(0);
+    expect(out.conservation.balanced).toBe(false);
+    expect(out.approvalBlocked).toBe(true);
   });
 });

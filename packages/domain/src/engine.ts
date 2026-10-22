@@ -23,6 +23,7 @@ import {
   type HoldKind,
   type HoldResolutionKind,
   type Json,
+  type LineCanonical,
   type LineCredit,
   type LineDeduction,
   type MassBalance,
@@ -31,7 +32,8 @@ import {
   type RuleId,
   type SlipFieldName,
 } from "@fairsplit/contracts";
-import { jcsSha256 } from "./canon.js";
+import { jcsSha256, sha256Hex } from "./canon.js";
+import { linesRootJcs } from "./digest-input.js";
 import * as fmt from "./format.js";
 import {
   bpFloor,
@@ -246,7 +248,9 @@ function compute(input: EngineInput, withEffects: boolean): EngineOutput {
   }
 
   // ------------------------------------------------ low confidence ("By hand")
-  const openKiloDoubt = new Set<string>();
+  // Kilos no person has confirmed never count (C-17), whatever happens to the line: excluding it
+  // carries the line but does not make a doubtful reading count in everyone else's split.
+  const unconfirmedKilos = new Set<string>();
   for (const row of rows) {
     if (excludedRows.has(row.rowId) || row.pendingFields.length === 0) continue;
     const key = holdKey.lowConfidence(row.rowId);
@@ -257,8 +261,8 @@ function compute(input: EngineInput, withEffects: boolean): EngineOutput {
     let state: EngineHoldState = "OPEN";
     if (r?.resolution === "CONFIRM_AS_READ" && row.payableG !== null) state = "RESOLVED";
     else if (r?.resolution === "EXCLUDE_LINE") state = "EXCLUDED";
-    if (state === "OPEN" && row.pendingFields.some((f) => KILO_FIELDS.has(f.field)))
-      openKiloDoubt.add(row.rowId);
+    if (state !== "RESOLVED" && row.pendingFields.some((f) => KILO_FIELDS.has(f.field)))
+      unconfirmedKilos.add(row.rowId);
     putHold({
       key,
       kind: "LOW_CONFIDENCE",
@@ -282,7 +286,7 @@ function compute(input: EngineInput, withEffects: boolean): EngineOutput {
   const pendingRowIds: string[] = [];
   for (const row of rows) {
     if (excludedRows.has(row.rowId)) continue;
-    if (row.payableG === null || openKiloDoubt.has(row.rowId)) {
+    if (row.payableG === null || unconfirmedKilos.has(row.rowId)) {
       pendingRowIds.push(row.rowId);
       continue;
     }
@@ -646,7 +650,9 @@ function compute(input: EngineInput, withEffects: boolean): EngineOutput {
     massBalance,
     conservation,
     quarantines,
-    approvalBlocked: blockingHoldKeys.length > 0 || massBalance.status !== "INSIDE",
+    // A pool with no verified kilos to share it by stays unallocated: conservation fails, and so
+    // does approval, rather than paying the lines without it.
+    approvalBlocked: blockingHoldKeys.length > 0 || massBalance.status !== "INSIDE" || !conservation.balanced,
     blockingHoldKeys,
   };
 }
@@ -796,7 +802,7 @@ export function payTimeDeductions(
 }
 
 /** The canonical content a line hash covers (Proof plate 4 recomputes it). */
-export function lineCanonical(line: Omit<EngineLine, "lineSha256">, rateCardSha256: string): Json {
+export function lineCanonical(line: Omit<EngineLine, "lineSha256">, rateCardSha256: string): LineCanonical {
   return {
     v: 1,
     engine: ENGINE_VERSION,
@@ -821,6 +827,11 @@ export function lineCanonical(line: Omit<EngineLine, "lineSha256">, rateCardSha2
 
 export function lineSha256(line: Omit<EngineLine, "lineSha256">, rateCardSha256: string): string {
   return jcsSha256(lineCanonical(line, rateCardSha256));
+}
+
+/** The lines root a `lines.computed` ledger entry carries: sha256(JCS([{memberNo, lineSha256}])). */
+export function linesRootSha256(lines: readonly Pick<EngineLine, "memberNo" | "lineSha256">[]): string {
+  return sha256Hex(linesRootJcs(lines));
 }
 
 /** I3: pool = Σ gross = Σ net + Σ deductions − Σ credits, and Σ net = on-rail + off-rail + carried. */

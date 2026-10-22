@@ -24,6 +24,12 @@ figures are kept exact.
    **Decision:** `figures.redirectedDuplicateCents` = 1794 (the register's figure, defined as the
    holder's difference) and the H1 card prints US$17.94; `figures.othersGainOnCountOnceCents` =
    1806 is published too, so a UI that sums the 63 rows can label it honestly.
+   **Pending ADR (raised 23 Oct by review).** The design copy is kept until the user decides,
+   because it is design copy: the H1 engine line ("Counting both moves US$17.94 from 63 members to
+   Nong Dioning") and the MM-3 line ("Returned to 63 members: US$17.94.") both contradict a judge
+   who sums the 63 rows (18.06). Proposed wording: "Counting both adds US$17.94 to Nong Dioning's
+   line and puts shrink at 2.05%, over the 2.0% limit." and "Returned to 63 members: US$18.06.";
+   the alternative keeps the sentences and prints 18.06 for the 63 members.
 
 3. **Auto-cancel date.** C-27: invoice date + 25 days. S1/design showcase copy: "Auto-cancels
    30 Nov 2026" with the cash day on 30 Oct. A 30 Nov auto-cancel needs a 5 Nov invoice, which is
@@ -43,6 +49,16 @@ figures are kept exact.
 6. **Routes and test hooks.** S1 uses `/console/…`, `/p/:runId` and `data-testid="<ID>/<control>"`;
    register §4 uses `/season/…`, `/runs/…`, `/proof/:runSlug` and `{screenId}.{element}`.
    **Decision:** register (contracts `webRoutes`, `appRoutes`, `testId`).
+
+7. **Key IDs on Proof plate 5.** S1 shows `fs-analyn-a1` and `fs-ernesto-a1` on the two-keys
+   plate, and S3.8 makes `fs-ernesto-a1` the showcase Chair's SecureStore key on the phone. A key
+   whose private half derives from public text must never carry a device key ID, or a workspace that
+   registers keys from the snapshot would accept a Chair co-sign anyone can forge (I6).
+   **Decision:** the seeded run r37 is signed with seeded keys `fs-analyn-s1` and `fs-ernesto-s1`
+   (`SeededKeyId`, `fs-{persona}-s{n}`), registered only in the seeded ledger as kind `seeded`.
+   `officers[].keyId` keeps the device IDs as identity metadata; no public key for them is in the
+   snapshot. `device_keys` and the API accept only `DeviceKeyId` (`a` or `w`), and `checkApproval`
+   refuses seeded keys. A recorded live run shows the device keys on plate 5.
 
 ## Interpretations (no conflict, but a choice had to be made)
 
@@ -67,8 +83,19 @@ figures are kept exact.
 - **Synthetic PayPal IDs.** Seeded payout item IDs (`SEED…`) and event IDs (`WH-SEED-…`) are
   labelled seeded. Receivers are `.example` aliases; the runtime maps member numbers to
   `PP_RECEIVERS` from env, so live batch digests differ from the seeded one.
-- **Demo keys.** `fs-analyn-a1` and `fs-ernesto-a1` in the snapshot are derived from public labels
-  so the seeded Proof verifies; they are demo keys, never secrets. Real keys live on devices.
+- **Seeded keys** (conflict 7). `fs-analyn-s1` and `fs-ernesto-s1` derive from public labels so the
+  seeded Proof verifies. They are labelled seeded, never secrets, and never trusted. Real keys live
+  on devices.
+- **The Proof ledger** follows the contracts' `LedgerPayloads`: `rate_card.ratified` (card hash),
+  `rows.accepted` (photo hash and slip dates), `key.registered` (the seeded keys, at the run's
+  creation), `invoice.funded`, `lines.computed` (lines root, pools, on-rail net),
+  `approval.signed`, `payout.submitting` (batch hash, sender_batch_id, note), `payout.cancel` and
+  `webhook.applied`. Seeded webhook entries carry `provenance: "seeded"` and synthetic `WH-SEED-…`
+  IDs. `verifyChain` checks every plate against these entries, never against the bundle alone.
+- **Unconfirmed kilos** (engine). Kilos no person has confirmed never count, even when their line is
+  excluded (C-17: the run waits for them). A pool with no verified kilos to share it by (no Grade-1
+  slips while the lot shipped Grade 1) leaves conservation unbalanced and blocks approval. Neither
+  case occurs in the seed, so no figure moves.
 - **The 9 sandbox accounts.** The seed confirms S5's list: seven on-rail members with sandbox
   personal accounts (M-014, M-007, M-060, M-018, M-039, M-022, M-002), Rhea (M-031) on an address
   with no PayPal account, Merlyn (M-053) and the 55 background members in cash. With the co-op's

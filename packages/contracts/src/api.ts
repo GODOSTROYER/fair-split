@@ -20,8 +20,8 @@ import {
 } from "./enums.js";
 import type { ErrorCode } from "./errors.js";
 import {
+  DeviceKeyId,
   IsoDateTime,
-  KeyId,
   MemberNo,
   PlotNo,
   Provenance,
@@ -118,7 +118,8 @@ export const ApprovalPayloadResponse = z.strictObject({ payload: ApprovalPayload
 
 export const SubmitApprovalRequest = z.strictObject({
   role: ApprovalRole,
-  keyId: KeyId,
+  /** Only a device key (`a` or `w`) can sign; a seeded key (`s`) is refused by the schema. */
+  keyId: DeviceKeyId,
   /** Ed25519 signature over the JCS bytes of `payload`, hex. */
   signature: z.string().regex(/^[0-9a-f]{128}$/),
   payload: ApprovalPayload,
@@ -132,7 +133,7 @@ export const SubmitApprovalResponse = z.strictObject({
 
 export const DeclineApprovalRequest = z.strictObject({
   role: ApprovalRole,
-  keyId: KeyId.optional(),
+  keyId: DeviceKeyId.optional(),
   reason: z.string().min(3),
 });
 export const DeclineApprovalResponse = z.strictObject({ runState: PayRunState });
@@ -144,7 +145,7 @@ export const PayCashResponse = z.strictObject({ line: MemberLineDTO, cancelled: 
 
 export const ResendRequest = z.strictObject({
   newReceiver: z.email().max(127),
-  keyId: KeyId,
+  keyId: DeviceKeyId,
   signature: z.string().regex(/^[0-9a-f]{128}$/),
   payload: ApprovalPayload,
 });
@@ -299,6 +300,9 @@ export const API_COMMANDS = {
     errors: [
       "DIGEST_MISMATCH",
       "SIGNATURE_INVALID",
+      "KEY_NOT_REGISTERED",
+      "APPROVER_MISMATCH",
+      "SEASON_MISMATCH",
       "APPROVAL_EXPIRED",
       "NONCE_REUSED",
       "BLOCKING_HOLDS_OPEN",
@@ -331,7 +335,14 @@ export const API_COMMANDS = {
     auth: "frame_or_session",
     request: ResendRequest,
     response: ResendResponse,
-    errors: ["INVALID_TRANSITION", "SIGNATURE_INVALID", "KILL_SWITCH_ON", "PAYPAL_REJECTED"],
+    errors: [
+      "INVALID_TRANSITION",
+      "SIGNATURE_INVALID",
+      "KEY_NOT_REGISTERED",
+      "APPROVER_MISMATCH",
+      "KILL_SWITCH_ON",
+      "PAYPAL_REJECTED",
+    ],
   },
   capture: {
     name: "capture",

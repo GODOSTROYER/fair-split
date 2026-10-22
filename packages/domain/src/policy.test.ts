@@ -10,7 +10,15 @@ import { describe, expect, it } from "vitest";
 import { TEST_LOT, testCard } from "./__fixtures__/world.js";
 import { invoiceMemo, invoiceNumber, invoiceReference } from "./batch.js";
 import { minorToDecimal } from "./money.js";
-import { decide, decideWith, POLICIES, readInvoiceDraft, scheduleDates } from "./policy.js";
+import {
+  decide,
+  decideWith,
+  invoiceMoney,
+  POLICIES,
+  quoteMoney,
+  readInvoiceDraft,
+  scheduleDates,
+} from "./policy.js";
 import { quoteInvoice } from "./quote.js";
 
 const card = testCard();
@@ -53,7 +61,8 @@ function draft(over: Record<string, unknown> = {}) {
     invoicer: { email_address: BUSINESS },
     primary_recipients: [{ billing_info: { email_address: PAYER } }],
     items: quote.items.map((i) => ({
-      name: `${i.name} (free text)`,
+      name: i.name,
+      description: `${i.name} for lot ${TEST_LOT.lotCode} (free text)`,
       quantity: "1",
       unit_amount: { currency_code: "USD", value: minorToDecimal(i.unitAmountCents) },
       unit_of_measure: "AMOUNT",
@@ -79,6 +88,130 @@ describe("policy lattice: decide(call, ctx) = max verdict (register §9)", () =>
     const d = decide(call("create_invoice", bad), ctx());
     expect(d.verdict).toBe("DENY");
     expect(d.decidedBy).toEqual(["invoiceEqualsQuote"]);
+  });
+
+  it("DENY · invoiceEqualsQuote for any money the quote does not carry (I1)", () => {
+    const withItem = (i: number, extra: Record<string, unknown>) => {
+      const d = draft();
+      Object.assign(d.items[i] as object, extra);
+      return d;
+    };
+    const cases: [string, unknown, string][] = [
+      [
+        "item discount",
+        withItem(0, { discount: { percent: "10" } }),
+        "items[0].discount is not in the quote",
+      ],
+      ["item tax", withItem(1, { tax: { name: "VAT", percent: "12" } }), "items[1].tax is not in the quote"],
+      [
+        "invoice-level shipping",
+        draft({ amount: { breakdown: { shipping: { amount: { currency_code: "USD", value: "10.00" } } } } }),
+        "amount is not in the quote",
+      ],
+      [
+        "invoice-level discount",
+        draft({ amount: { breakdown: { discount: { invoice_discount: { percent: "5" } } } } }),
+        "amount is not in the quote",
+      ],
+      [
+        "custom amount",
+        draft({
+          amount: {
+            breakdown: { custom: { label: "Handling", amount: { currency_code: "USD", value: "5.00" } } },
+          },
+        }),
+        "amount is not in the quote",
+      ],
+      [
+        "partial payment",
+        draft({ configuration: { partial_payment: { allow_partial_payment: true } } }),
+        "configuration.partial_payment.allow_partial_payment is not in the quote",
+      ],
+      [
+        "minimum amount due",
+        draft({
+          configuration: { partial_payment: { minimum_amount_due: { currency_code: "USD", value: "1.00" } } },
+        }),
+        "configuration.partial_payment.minimum_amount_due is not in the quote",
+      ],
+      ["tip", draft({ configuration: { allow_tip: true } }), "configuration.allow_tip is not in the quote"],
+      [
+        "template",
+        draft({ configuration: { template_id: "TEMP-1" } }),
+        "configuration.template_id is not in the quote",
+      ],
+      [
+        "renamed item",
+        withItem(2, { name: "Disbursement and handling" }),
+        "item 3 name differs from the quote",
+      ],
+      ["unknown item field", withItem(0, { surcharge: "1.00" }), "items[0].surcharge is not in the quote"],
+      ["fractional quantity", withItem(0, { quantity: "1.5" }), "item 1 quantity differs"],
+      [
+        "missing item currency",
+        withItem(0, { unit_amount: { value: minorToDecimal(quote.items[0]?.unitAmountCents ?? 0) } }),
+        "item 1 currency differs",
+      ],
+    ];
+    for (const [label, args, reason] of cases) {
+      const d = decide(call("create_invoice", args), ctx());
+      expect(d.verdict, label).toBe("DENY");
+      expect(d.decidedBy, label).toContain("invoiceEqualsQuote");
+      expect(d.results.find((r) => r.policy === "invoiceEqualsQuote")?.reason, label).toBe(reason);
+    }
+    // Toggles explicitly off move no money.
+    const off = draft({
+      configuration: { partial_payment: { allow_partial_payment: false }, allow_tip: false },
+    });
+    expect(decide(call("create_invoice", off), ctx()).verdict).toBe("ALLOW");
+    expect(invoiceMoney(draft())).toEqual(quoteMoney(quote));
+  });
+
+  it("inv.i1.no-model-numbers: property, any draft whose money differs from the code quote is denied", () => {
+    const moneyEdit = fc.oneof(
+      fc.record({
+        kind: fc.constant("amount"),
+        item: fc.integer({ min: 0, max: 2 }),
+        delta: fc.integer({ min: -500_000, max: 500_000 }).filter((x) => x !== 0),
+      }),
+      fc.record({
+        kind: fc.constant("key"),
+        item: fc.integer({ min: 0, max: 2 }),
+        key: fc.constantFrom("tax", "discount"),
+      }),
+      fc.record({
+        kind: fc.constant("top"),
+        key: fc.constantFrom("amount", "gratuity", "due_amount", "payments"),
+      }),
+      fc.record({ kind: fc.constant("toggle"), key: fc.constantFrom("allow_partial_payment", "allow_tip") }),
+      fc.record({
+        kind: fc.constant("name"),
+        item: fc.integer({ min: 0, max: 2 }),
+        name: fc.string({ minLength: 1, maxLength: 20 }),
+      }),
+      fc.record({ kind: fc.constant("drop"), item: fc.integer({ min: 0, max: 2 }) }),
+    );
+    fc.assert(
+      fc.property(moneyEdit, (e) => {
+        const d = draft() as Record<string, unknown> & { items: Record<string, unknown>[] };
+        const item = "item" in e ? (d.items[e.item] as Record<string, unknown>) : undefined;
+        if (e.kind === "amount" && item) {
+          const cents = (quote.items[e.item]?.unitAmountCents ?? 0) + e.delta;
+          fc.pre(cents >= 0);
+          item.unit_amount = { currency_code: "USD", value: minorToDecimal(cents) };
+        } else if (e.kind === "key" && item) item[e.key] = { percent: "1" };
+        else if (e.kind === "top") d[e.key] = { currency_code: "USD", value: "1.00" };
+        else if (e.kind === "toggle") d.configuration = { [e.key]: true };
+        else if (e.kind === "name" && item) {
+          fc.pre(e.name !== quote.items[e.item]?.name);
+          item.name = e.name;
+        } else if (e.kind === "drop") d.items.splice(e.item, 1);
+        const verdict = decide(call("create_invoice", d), ctx());
+        expect(verdict.verdict).toBe("DENY");
+        expect(verdict.decidedBy).toContain("invoiceEqualsQuote");
+      }),
+      { numRuns: 300 },
+    );
   });
 
   it("checks invoicer, recipients, reference, memo and dates", () => {

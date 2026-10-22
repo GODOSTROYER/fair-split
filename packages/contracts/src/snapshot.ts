@@ -28,6 +28,7 @@ import {
   Station,
 } from "./enums.js";
 import {
+  DeviceKeyId,
   Fx,
   Grams,
   IsoDate,
@@ -51,7 +52,11 @@ export const SnapshotOfficer = z.strictObject({
   shortName: z.string(),
   initials: z.string().regex(/^[A-Z]{2}$/),
   persona: z.string(),
-  keyId: z.string().nullable(),
+  /**
+   * The officer's own device key ID (identity metadata only). The snapshot never carries a public or
+   * private key for it; seeded approvals are signed with seeded keys (`fs-{persona}-s{n}`).
+   */
+  keyId: DeviceKeyId.nullable(),
 });
 export type SnapshotOfficer = z.infer<typeof SnapshotOfficer>;
 
