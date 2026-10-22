@@ -26,9 +26,12 @@ const NO_WORKSPACE = new Set([
 const NULLABLE_WORKSPACE = new Set([
   "webhook_events",
   "paypal_calls",
+  "llm_calls",
   "task_outbox",
   "reconciliation_reports",
 ]);
+/** Global memory that only names a workspace: it outlives a purge (ON DELETE SET NULL); everything else cascades. */
+const KEPT_ON_PURGE = new Set(["webhook_events", "paypal_calls", "llm_calls"]);
 /** Infrastructure bookkeeping without data provenance (I8 labels data rows). */
 const NO_PROVENANCE = new Set([
   ...NO_WORKSPACE,
@@ -107,6 +110,27 @@ describe("register §7 table conventions", () => {
         NULLABLE_WORKSPACE.has(tbl) ? "YES" : "NO",
       );
     }
+  });
+
+  it("workspace_id cascades on purge, except the global memory that must outlive it (SET NULL)", async () => {
+    const rows = await t.owner.sql<{ table_name: string; on_delete: string }[]>`
+      select c.conrelid::regclass::text as table_name,
+             case c.confdeltype when 'c' then 'cascade' when 'n' then 'set null' else c.confdeltype::text end
+               as on_delete
+        from pg_constraint c
+        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+       where c.contype = 'f' and c.confrelid = 'workspaces'::regclass
+         and array_length(c.conkey, 1) = 1 and a.attname = 'workspace_id'`;
+    expect(rows.length).toBeGreaterThan(35);
+    for (const r of rows) {
+      expect(r.on_delete, r.table_name).toBe(KEPT_ON_PURGE.has(r.table_name) ? "set null" : "cascade");
+    }
+    expect(
+      rows
+        .filter((r) => r.on_delete === "set null")
+        .map((r) => r.table_name)
+        .sort(),
+    ).toEqual([...KEPT_ON_PURGE].sort());
   });
 
   it("uuid primary keys default to fs_uuidv7(), which returns RFC 9562 v7 ids in time order", async () => {

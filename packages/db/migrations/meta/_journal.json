@@ -29,6 +29,20 @@
       "when": 1792668372166,
       "tag": "0003_fs_purge_tickets",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792670650462,
+      "tag": "0004_purge_safe_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792670662941,
+      "tag": "0005_fs_kept_rows",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,14 @@ export const workspaceId = () =>
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" });
 
-/** Nullable variant for system-wide rows: unresolved webhooks, PayPal calls, cron tasks, health reports. */
+/** Nullable variant for system-wide rows that die with their workspace: cron tasks, health reports. */
 export const workspaceIdNullable = () =>
   uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" });
+
+/**
+ * Nullable, ON DELETE SET NULL: global memory that merely names a workspace and must outlive its purge — the
+ * limiter's window and 429 circuit (`paypal_calls`), the webhook event-id dedupe (`webhook_events`) and the Claude
+ * spend meter (`llm_calls`). A cascade here let a Judge Reset reopen the circuit or the day's budget early.
+ */
+export const workspaceIdKept = () =>
+  uuid("workspace_id").references(() => workspaces.id, { onDelete: "set null" });

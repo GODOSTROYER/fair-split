@@ -60,6 +60,9 @@ await db.transaction(async (tx) => {
   `fs_app` cannot DELETE workspaces, and a workspace's id, kind and creation time never change.
 - **Ledger**: an entry must extend `ledger_heads` (seq + 1, prev hash) or it is refused (`LEDGER_FORK`); heads move only by appending.
 - **I5** payout items: `status_rank` must match the status and only rise; RETURNED needs `cancel_requested_at`.
+- **Kept rows**: `paypal_calls` (the limiter's window and 429 circuit), `webhook_events` (event-id dedupe) and
+  `llm_calls` (the Claude spend meter) reference workspaces `ON DELETE SET NULL`, so a Judge purge or Reset cannot
+  reopen the circuit or the day's budget; `fs_app` cannot delete them.
 - **Tenancy**: every intra-workspace reference is a composite `(workspace_id, x_id)` foreign key.
 - **I3/I1/I8 at rest**: `member_lines.net = premium + bonus − deductions + credits`; `holds.claude_line` has no digit;
   data rows carry `provenance` (NOT NULL, no default).

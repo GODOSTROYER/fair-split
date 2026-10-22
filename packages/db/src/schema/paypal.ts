@@ -27,7 +27,7 @@ import {
   wsIdUnique,
 } from "./_columns.js";
 import { memberLines, payRuns } from "./runs.js";
-import { workspaceId, workspaceIdNullable } from "./workspace.js";
+import { workspaceId, workspaceIdKept, workspaceIdNullable } from "./workspace.js";
 
 /** Our own pre-POST status (rank 0) followed by PayPal's ranked item statuses. */
 export const PAYOUT_ITEM_STATUS_RANK = { SUBMITTED: 0, ...ITEM_STATUS_RANK } as const;
@@ -148,8 +148,8 @@ export const webhookEvents = pgTable(
   "webhook_events",
   {
     id: id(),
-    /** null until the event is resolved to a workspace (S3 deviation 4) */
-    workspaceId: workspaceIdNullable(),
+    /** null until the event is resolved to a workspace (S3 deviation 4); SET NULL on purge, so dedupe survives */
+    workspaceId: workspaceIdKept(),
     paypalEventId: text("paypal_event_id").notNull().unique("webhook_events_paypal_event_id_uq"),
     eventType: text("event_type").notNull(),
     resourceType: text("resource_type"),
@@ -182,8 +182,8 @@ export const paypalCalls = pgTable(
   "paypal_calls",
   {
     id: id(),
-    /** null for system calls (OAuth, health checks) */
-    workspaceId: workspaceIdNullable(),
+    /** null for system calls (OAuth, health checks); SET NULL on purge: the window and circuit are global */
+    workspaceId: workspaceIdKept(),
     /** the moment the limiter granted the slot; the 60 s window and the 6 min circuit read this column */
     at: tstz("at").notNull().default(sql`clock_timestamp()`),
     purpose: text("purpose").notNull(),
