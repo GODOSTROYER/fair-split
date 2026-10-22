@@ -166,7 +166,7 @@ describe("FOR UPDATE SKIP LOCKED", () => {
   });
 });
 
-describe("the runner's claim is the idempotency guard", () => {
+describe("inv.i7.claim: the runner's claim is the idempotency guard", () => {
   it("two deliveries of the same task run the handler once", async () => {
     const { handlers, calls } = counting();
     const id = await enqueued(t.app.db);

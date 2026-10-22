@@ -243,7 +243,7 @@ describe("tenancy and money guards", () => {
     expect(err).toBe("23503");
   });
 
-  it("inv.i3 at line grain: net = premium + bonus − deductions + credits, in integer cents", async () => {
+  it("inv.i3.line-conservation: net = premium + bonus − deductions + credits, in integer cents", async () => {
     const a = await fixtureWorkspace(t.owner.db, { withRun: true });
     const line = {
       workspaceId: a.workspaceId,
@@ -270,7 +270,7 @@ describe("tenancy and money guards", () => {
     expect(ok?.netCents).toBe(6445n);
   });
 
-  it("inv.i1 at rest: a hold's Claude line can carry words and placeholders but no digit", async () => {
+  it("inv.i1.no-model-numbers-at-rest: a hold's Claude line can carry words and placeholders but no digit", async () => {
     const a = await fixtureWorkspace(t.owner.db, { withRun: true });
     const base = {
       workspaceId: a.workspaceId,

@@ -61,7 +61,7 @@ describe("inv.i7.outbox: the task is enqueued in the transaction that requires i
   });
 });
 
-describe("dedupe keys", () => {
+describe("inv.i7.dedupe: one row per dedupe key", () => {
   it("the same key twice yields one row; the second call reports inserted: false with the same id", async () => {
     const k = key("fund");
     const a = await t.app.db.transaction((tx) => enqueue(tx, "ensureInvoice", { invoiceId: "INV2-1" }, k));

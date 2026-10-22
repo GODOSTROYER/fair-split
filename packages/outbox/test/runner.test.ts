@@ -64,7 +64,7 @@ describe("failure handling", () => {
   });
 });
 
-describe("idempotent execution contract", () => {
+describe("inv.i7.idempotent-execution: at-least-once delivery, exactly-once effect", () => {
   it("ctx.complete(tx) marks the task done atomically with the handler's own writes", async () => {
     const ws = await fixtureWorkspace(t.app.db, { withRun: true });
     const runId = ws.runId ?? "";
