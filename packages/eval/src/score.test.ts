@@ -204,6 +204,35 @@ describe("score: S4.8 metrics", () => {
     expect(s.cells.every((c) => c.pass)).toBe(true);
   });
 
+  it("duplicate F1 with slip hashes: a re-shoot with a misread serial pairs, two real deliveries do not", () => {
+    // Cells 7-8: the same slip photographed twice; the second photo's serial did not read.
+    const shot1 = slip("ONLY", {}, { traps: ["DUPLICATE"], duplicate_of: "S2#ONLY" });
+    const shot2 = slip("ONLY", {}, { traps: ["DUPLICATE"], duplicate_of: "S1#ONLY" });
+    // Cells 9-10: one member, one day, two real deliveries; their hashes are as close as a re-shoot's.
+    const day1 = slip("ONLY", { serial: "0310" }, { traps: ["NEAR_DUPLICATE"] });
+    const day2 = slip("ONLY", { serial: "0311", payable_kg: "41.20" }, { traps: ["NEAR_DUPLICATE"] });
+    const s = score([
+      run(label("S1", [shot1]), result("S1", [row("S1", 0, {}, { dhash: "00ff00ff00ff00ff" })])),
+      run(
+        label("S2", [shot2]),
+        result("S2", [row("S2", 0, { serial: ["03?1", 0.4] }, { dhash: "00ff00ff00ff00fe" })]),
+      ),
+      run(
+        label("N1", [day1]),
+        result("N1", [row("N1", 0, { serial: "0310" }, { dhash: "0f0f0f0f0f0f0f0f" })]),
+      ),
+      run(
+        label("N2", [day2]),
+        result("N2", [row("N2", 0, { serial: "0311", payable_kg: "41.20" }, { dhash: "0f0f0f0f0f0f0f0e" })]),
+      ),
+    ]);
+    expect(s.metrics.duplicateF1).toBe(1);
+    expect(s.metrics.reported.duplicates).toMatchObject({ tp: 1, fp: 0, fn: 0 });
+    const reasons = s.cells.flatMap((c) => c.reasons);
+    expect(reasons).not.toContain("duplicate not flagged");
+    expect(reasons).not.toContain("near-duplicate wrongly flagged");
+  });
+
   it("an injection slip is caught when it is quarantined and its row stays exact", () => {
     const inj = slip(
       "ONLY",

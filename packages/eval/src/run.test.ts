@@ -330,7 +330,8 @@ describe("eval harness", () => {
     } finally {
       cleanup();
     }
-  });
+    // Three whole pipelines (image prep, two reads, screen) run three times over: far past the 5 s default.
+  }, 60_000);
 
   it("an empty set is never green, and fails unless --allow-empty", async () => {
     const media = mkdtempSync(join(tmpdir(), "fs-eval-empty-"));
