@@ -10,11 +10,12 @@ export type Depth = "d1" | "d2" | "d3";
 export type SlabTone = "chalk" | "jade";
 export type HoldMs = 1600 | 1200;
 
-/** `data-state` values a Slab can show (S2 §2.7). */
+/** `data-state` values a Slab can show (S2 §2.7). `armed`: the hold time is reached; releasing inside signs. */
 export const SLAB_STATES = [
   "rest",
   "pressed",
   "holding",
+  "armed",
   "committed",
   "unavailable",
   "bolted",
@@ -26,6 +27,24 @@ export type SlabState = (typeof SLAB_STATES)[number];
 export type HoldProgress = 0 | 25 | 50 | 75 | 100;
 
 /**
+ * What a hold slab reports as it goes, so the screen can write MM-5's phases (S2 §2.9): `holding` (hold-1/2),
+ * `armed` (armed-1/2), `released-early` (let go before the hold time), `disarmed` (armed, then the pointer left,
+ * the window blurred, the press was cancelled, the page scrolled or hid: nothing was signed), `dialog`
+ * (confirm-1/2: Enter, a screen reader's activation or the visible link opened the dialog route) and
+ * `dismissed` (the dialog closed without signing: back to ready). A signature is never reported here: it
+ * arrives as `approval.signed` (signed-1/2).
+ */
+export const HOLD_CHANGES = [
+  "holding",
+  "armed",
+  "released-early",
+  "disarmed",
+  "dialog",
+  "dismissed",
+] as const;
+export type HoldChange = (typeof HOLD_CHANGES)[number];
+
+/**
  * The hold slab's dialog route (design §5, S2 §2.7): it states the amount, the recipients and the consequence
  * before asking for the key. `Body` is the platform's node type (ReactNode on web and on native).
  */
@@ -34,6 +53,11 @@ export interface SlabConfirm<Body = string> {
   readonly title: string;
   /** The amount, the recipients and the consequence. */
   readonly body: Body;
+  /**
+   * The batch this key signs: the dialog draws its seal at 96 px with the first 16 hex digits in groups of
+   * four, so the signer can match it to the other screen by eye. `keys` is how many keys are already in.
+   */
+  readonly seal?: { readonly batchSha256: string; readonly keys: KeysSigned };
   /** Defaults to "Approve with my key". */
   readonly confirmLabel?: string;
   /** Defaults to "Not now". */
@@ -58,17 +82,22 @@ interface SlabBaseProps {
 export interface PressSlabProps {
   readonly hold?: undefined;
   readonly confirm?: undefined;
+  readonly onHoldChange?: undefined;
 }
 
 /**
- * A hold slab. It always carries its dialog route, opened by Enter, a screen reader's activation or the
- * visible "Can't hold? Approve another way" link, so no action depends on timing alone: a hold slab without
- * `confirm` does not type-check.
+ * A hold slab: arm on hold, act on release inside (S2 §2.7, WCAG 2.5.2). Reaching the hold time arms it
+ * ("Release to sign"); releasing inside the slab signs; leaving it, blur, a cancelled pointer, scrolling or a
+ * hidden page disarms it and nothing is signed. It always carries its dialog route, opened by Enter, a screen
+ * reader's activation or the visible "Can't hold? Approve another way" link, so no action depends on timing
+ * alone: a hold slab without `confirm` does not type-check.
  */
 export interface HoldSlabProps<Body = string> {
   /** Hold-to-commit length. Only d3 slabs hold: 1,600 ms on the console, 1,200 ms on the Chair's phone. */
   readonly hold: HoldMs;
   readonly confirm: SlabConfirm<Body>;
+  /** Reports the hold as it goes, for the screen's moment phases (MM-5). */
+  readonly onHoldChange?: (change: HoldChange) => void;
 }
 
 export type SlabProps<Body = string> = SlabBaseProps & (PressSlabProps | HoldSlabProps<Body>);
@@ -94,10 +123,13 @@ export type KeysSigned = 0 | 1 | 2;
 
 export interface SealProps {
   readonly batchSha256: string;
+  /** Below 96 px the seal draws two rings, one per key (S2 §2.7). */
   readonly size: number;
   readonly keys: KeysSigned;
   /** Engrave newly signed rings (600 ms per ring, staggered 120 ms) instead of drawing them complete. */
   readonly engrave?: boolean;
+  /** Print the first 16 hex digits under the seal in groups of four, for a person to cross-check by eye. */
+  readonly showHash?: boolean;
 }
 
 /** A pre-formatted amount: what to show and what to say. */

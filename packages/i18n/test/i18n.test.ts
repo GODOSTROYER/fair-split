@@ -69,6 +69,36 @@ describe("catalogs", () => {
     }
   });
 
+  it("the hold slab speaks the Chair's language on his phone (S1 M-BD-02)", () => {
+    const phoneWords = [
+      "slab.release",
+      "slab.nothingSigned",
+      "slab.holdUntilClick",
+      "slab.altRoute",
+      "slab.progress",
+      "confirm.cancel",
+    ] as const;
+    for (const key of phoneWords) {
+      expect(MEMBER_KEYS).toContain(key);
+      for (const lang of LANGS) expect(CATALOGS[lang][key], `${lang} ${key}`).toBeTruthy();
+    }
+    expect(translate("ceb", "slab.altRoute")).toBe("Dili makakupti? Pirmahi sa laing paagi");
+    expect(translate("ceb", "slab.nothingSigned")).toBe("Walay napirmahan.");
+    expect(translate("en", "slab.release")).toBe("Release to sign");
+    expect(translate("en", "slab.nothingSigned")).toBe("Nothing was signed.");
+  });
+
+  it("names the simulated rail (ADR-0002) and never calls it live or verified", () => {
+    for (const key of [
+      "W-JG-01.notice.simulator",
+      "W-PF-01.heroMarked.simulator",
+      "W-PF-01.footer.simulator",
+    ] as const) {
+      expect(CATALOGS.en[key], key).toMatch(/simulated PayPal sandbox/);
+      expect(CATALOGS.en[key], key).not.toMatch(/\blive\b|\bverified\b|real PayPal/i);
+    }
+  });
+
   it("never says error, fraud or certified, and never shouts", () => {
     for (const lang of LANGS) {
       for (const [key, message] of Object.entries(CATALOGS[lang])) {

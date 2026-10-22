@@ -163,8 +163,11 @@
     line-height: 1.25rem;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
+    /* A long press must stay a hold (S2 §2.7): no panning, text selection, callout or tap flash. */
     touch-action: none;
+    -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -357,6 +360,19 @@
 
   .fs-seal__ring {
     stroke: var(--fs-ink);
+  }
+
+  .fs-seal-figure {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+
+  .fs-seal-figure__hash {
+    color: var(--fs-ink-2);
+    white-space: nowrap;
   }
 
   /* ------------------------------------------------------------------ receipt bar */
@@ -1060,6 +1076,24 @@
     display: grid;
     gap: 8px;
     color: var(--fs-ink-2);
+  }
+
+  /* With a seal, the words read first and the seal sits to their right, top-aligned, for matching by eye. */
+  .fs-dialog__content[data-sealed] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 24px;
+  }
+
+  @media (max-width: 440px) {
+    .fs-dialog__content[data-sealed] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .fs-dialog__seal {
+    padding-top: 2px;
   }
 
   .fs-dialog__actions {

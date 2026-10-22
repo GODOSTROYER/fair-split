@@ -334,7 +334,7 @@ function TwoKeysFrame({
     if (phase === "rising" || phase === "ready")
       return { state: "rest", travel: 8 - val("slab.edge"), edgeOpacity: val("slab.edgeOpacity") };
     if (phase === "released-early")
-      return { state: "rest", travel: val("slab.travel"), fill: val("slab.fill"), showEarlyHint: true };
+      return { state: "rest", travel: val("slab.travel"), fill: val("slab.fill"), notice: "early" };
     if (phase === "hold-1" && val("slab.fill") < 1)
       return {
         state: "holding",

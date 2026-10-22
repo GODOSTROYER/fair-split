@@ -313,7 +313,7 @@ export function PrimitivesPage() {
                   confirm={approveConfirm()}
                   testId={`W-DP-01.slab.${theme}.early`}
                   onCommit={noop}
-                  frame={{ state: "rest", showEarlyHint: true }}
+                  frame={{ state: "rest", notice: "early" }}
                 />
               </State>
               <State name="committed d3" note="clunked flush, signed">

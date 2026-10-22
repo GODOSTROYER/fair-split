@@ -1,7 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type MotionPreference, Slab, UiProvider, type WebSlabConfirm } from "../src/index.js";
+import {
+  type HoldChange,
+  type MotionPreference,
+  Slab,
+  UiProvider,
+  type WebSlabConfirm,
+} from "../src/index.js";
 
 const wrap = (node: ReactNode, motion: MotionPreference = "full") => (
   <UiProvider lang="en" motion={motion}>
@@ -155,6 +161,20 @@ describe("Slab", () => {
     expect(root("s").dataset.state).toBe("committed");
   });
 
+  it("a d1 slab commits once per Space press, even if the browser follows the key with its own click", () => {
+    const onCommit = vi.fn();
+    render(
+      wrap(<Slab label="Listen" srLabel="Listen" depth="d1" tone="chalk" testId="s" onCommit={onCommit} />),
+    );
+    fireEvent.keyDown(face("s"), { key: " " });
+    fireEvent.keyUp(face("s"), { key: " " });
+    fireEvent.click(face("s"), { detail: 0 });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(face("s"), { key: "Enter" });
+    fireEvent.click(face("s"), { detail: 0 });
+    expect(onCommit).toHaveBeenCalledTimes(2);
+  });
+
   it("a screen reader's activation (a click with no pointer behind it) commits a press slab once", () => {
     const onCommit = vi.fn();
     render(
@@ -217,8 +237,12 @@ describe("Slab", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  describe("hold to commit", () => {
-    const approve = (onCommit: () => void, motion: MotionPreference = "full") =>
+  describe("hold to commit: arm on hold, act on release inside (S2 §2.7, WCAG 2.5.2)", () => {
+    const approve = (
+      onCommit: () => void,
+      motion: MotionPreference = "full",
+      onHoldChange?: (change: HoldChange) => void,
+    ) =>
       render(
         wrap(
           <Slab
@@ -229,31 +253,170 @@ describe("Slab", () => {
             hold={1600}
             testId="approve"
             onCommit={onCommit}
+            onHoldChange={onHoldChange}
             confirm={{ title: "Approve 8 payouts", body: "US$368.39 to 8 members by PayPal." }}
           />,
           motion,
         ),
       );
 
-    it("steps through the quarters and commits at 1,600 ms", () => {
+    /**
+     * jsdom lays nothing out: give the slab's body (the face at rest) a 300 × 64 box so a release can land
+     * outside it. The face itself reports a box sunk by 8 px, as it would while held, which must not matter.
+     */
+    const boxFace = (testId: string) => {
+      const body = face(testId).parentElement;
+      if (!body) throw new Error("the face sits in the slab body");
+      body.getBoundingClientRect = () =>
+        ({ x: 0, y: 0, left: 0, top: 0, right: 300, bottom: 64, width: 300, height: 64 }) as DOMRect;
+      face(testId).getBoundingClientRect = () =>
+        ({ x: 8, y: 8, left: 8, top: 8, right: 308, bottom: 72, width: 300, height: 64 }) as DOMRect;
+    };
+
+    it("steps through the quarters, arms at 1,600 ms, and signs only on release inside", () => {
       const onCommit = vi.fn();
-      approve(onCommit);
+      const changes = vi.fn();
+      approve(onCommit, "full", changes);
       fireEvent.keyDown(face("approve"), { key: " " });
       expect(root("approve").dataset.state).toBe("holding");
       act(() => vi.advanceTimersByTime(400));
       expect(root("approve").dataset.holdProgress).toBe("25");
       act(() => vi.advanceTimersByTime(800));
       expect(root("approve").dataset.holdProgress).toBe("75");
-      expect(onCommit).not.toHaveBeenCalled();
       act(() => vi.advanceTimersByTime(400));
+      // Armed: the face clunks flush and says what releasing does. Nothing is signed yet.
+      expect(root("approve").dataset).toMatchObject({ state: "armed", holdProgress: "100" });
+      expect(face("approve").textContent).toBe("Release to sign");
+      act(() => vi.advanceTimersByTime(5000));
+      expect(onCommit).not.toHaveBeenCalled();
+      fireEvent.keyUp(face("approve"), { key: " " });
       expect(onCommit).toHaveBeenCalledTimes(1);
       expect(root("approve").dataset.state).toBe("committed");
-      expect(root("approve").dataset.holdProgress).toBe("100");
+      expect(changes.mock.calls.map(([c]) => c)).toEqual(["holding", "armed"]);
+    });
+
+    it("a 1,700 ms Space hold sends exactly one commit", () => {
+      const onCommit = vi.fn();
+      approve(onCommit);
+      fireEvent.keyDown(face("approve"), { key: " " });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.keyUp(face("approve"), { key: " " });
+      fireEvent.keyDown(face("approve"), { key: " " });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.keyUp(face("approve"), { key: " " });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it("a 1,700 ms mouse hold released inside signs; released outside it signs nothing and disarms", () => {
+      const onCommit = vi.fn();
+      const changes = vi.fn();
+      approve(onCommit, "full", changes);
+      boxFace("approve");
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1, clientX: 150, clientY: 30 });
+      act(() => vi.advanceTimersByTime(1700));
+      expect(root("approve").dataset.state).toBe("armed");
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1, clientX: 420, clientY: 300 });
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(root("approve").dataset).toMatchObject({ state: "rest", holdProgress: "0" });
+      expect(screen.getByTestId("approve.hint").textContent).toContain("Nothing was signed.");
+      expect(changes.mock.calls.map(([c]) => c)).toEqual(["holding", "armed", "disarmed"]);
+      // The same hold released inside signs, once.
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 2, clientX: 150, clientY: 30 });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 2, clientX: 160, clientY: 40 });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it("judges inside by the slab's footprint, not the sunk face: a press by its top-left corner still signs", () => {
+      const onCommit = vi.fn();
+      const changes = vi.fn();
+      approve(onCommit, "full", changes);
+      boxFace("approve");
+      // The face has sunk 8 px, so (2, 2) is off the face as drawn, yet it is where the person pressed.
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1, clientX: 2, clientY: 2 });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.pointerMove(face("approve"), { pointerId: 1, clientX: 3, clientY: 1 });
+      expect(root("approve").dataset.state).toBe("armed");
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1, clientX: 2, clientY: 2 });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+      expect(changes.mock.calls.map(([c]) => c)).toEqual(["holding", "armed"]);
+    });
+
+    it("counts the edges as the slab: a release on the right edge signs, one past it disarms", () => {
+      const onCommit = vi.fn();
+      approve(onCommit);
+      boxFace("approve");
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1, clientX: 150, clientY: 30 });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1, clientX: 309, clientY: 30 });
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(screen.getByTestId("approve.hint").textContent).toContain("Nothing was signed.");
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 2, clientX: 150, clientY: 30 });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 2, clientX: 306, clientY: 70 });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it("a scroll elsewhere (a log filling up beside the slab) does not disarm it", () => {
+      const onCommit = vi.fn();
+      approve(onCommit);
+      const log = document.createElement("div");
+      document.body.append(log);
+      fireEvent.keyDown(face("approve"), { key: " " });
+      act(() => vi.advanceTimersByTime(1650));
+      fireEvent.scroll(log);
+      expect(root("approve").dataset.state).toBe("armed");
+      fireEvent.keyUp(face("approve"), { key: " " });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+      log.remove();
+    });
+
+    it("leaving the slab disarms it, even before the release", () => {
+      const onCommit = vi.fn();
+      approve(onCommit);
+      boxFace("approve");
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1, clientX: 150, clientY: 30 });
+      act(() => vi.advanceTimersByTime(1700));
+      fireEvent.pointerMove(face("approve"), { pointerId: 1, clientX: 150, clientY: 140 });
+      expect(root("approve").dataset.state).toBe("rest");
+      // Coming back and letting go does not sign either: the hold is over.
+      fireEvent.pointerMove(face("approve"), { pointerId: 1, clientX: 150, clientY: 30 });
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1, clientX: 150, clientY: 30 });
+      expect(onCommit).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["losing focus", () => fireEvent.blur(face("approve"))],
+      ["a cancelled pointer", () => fireEvent.pointerCancel(face("approve"), { pointerId: 1 })],
+      ["the window losing focus", () => fireEvent.blur(window)],
+      ["the page scrolling", () => fireEvent.scroll(window)],
+      [
+        "a hidden page",
+        () => {
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+          fireEvent(document, new Event("visibilitychange"));
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        },
+      ],
+    ])("%s disarms an armed slab and signs nothing", (_, interrupt) => {
+      const onCommit = vi.fn();
+      const changes = vi.fn();
+      approve(onCommit, "full", changes);
+      fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+      act(() => vi.advanceTimersByTime(1650));
+      expect(root("approve").dataset.state).toBe("armed");
+      act(() => interrupt());
+      expect(root("approve").dataset.state).toBe("rest");
+      fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1 });
+      fireEvent.keyUp(face("approve"), { key: " " });
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(changes).toHaveBeenLastCalledWith("disarmed");
     });
 
     it("an early release springs back, signs nothing, and says to hold until it clicks", () => {
       const onCommit = vi.fn();
-      approve(onCommit);
+      const changes = vi.fn();
+      approve(onCommit, "full", changes);
       fireEvent.keyDown(face("approve"), { key: " " });
       act(() => vi.advanceTimersByTime(900));
       fireEvent.keyUp(face("approve"), { key: " " });
@@ -261,6 +424,103 @@ describe("Slab", () => {
       expect(onCommit).not.toHaveBeenCalled();
       expect(root("approve").dataset.state).toBe("rest");
       expect(screen.getByText(/Hold until it clicks/)).toBeTruthy();
+      expect(changes.mock.calls.map(([c]) => c)).toEqual(["holding", "released-early"]);
+    });
+
+    it("a long press never opens the browser's context menu", () => {
+      approve(() => undefined);
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+      face("approve").dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it("reduced motion arms with a full stepped bar and no travel", () => {
+      const onCommit = vi.fn();
+      approve(onCommit, "reduced");
+      fireEvent.keyDown(face("approve"), { key: " " });
+      act(() => vi.advanceTimersByTime(1600));
+      expect(root("approve").dataset.state).toBe("armed");
+      expect(screen.getByTestId("approve.steps").textContent).toContain("100% held");
+      fireEvent.keyUp(face("approve"), { key: " " });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it("a hold slab that has signed never signs again, by any route", () => {
+      vi.useRealTimers();
+      const onCommit = vi.fn();
+      approve(onCommit);
+      fireEvent.keyDown(face("approve"), { key: "Enter" });
+      fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter" });
+      expect(onCommit).toHaveBeenCalledTimes(1);
+      expect(root("approve").dataset.state).toBe("committed");
+      expect(screen.queryByTestId("approve.alt")).toBeNull();
+      fireEvent.keyDown(face("approve"), { key: "Enter" });
+      fireEvent.click(face("approve"), { detail: 0 });
+      fireEvent.keyDown(face("approve"), { key: " " });
+      fireEvent.keyUp(face("approve"), { key: " " });
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(onCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it("the dialog shows the seal at 96 px with the first 16 hex digits of the batch", () => {
+      vi.useRealTimers();
+      const batch = "7f3a91c2deadbeef0123456789abcdef0123456789abcdef0123456789abcdef";
+      render(
+        wrap(
+          <Slab
+            label="Pirmahi"
+            srLabel="Pirmahi, signs the batch"
+            depth="d3"
+            tone="jade"
+            hold={1200}
+            testId="sign"
+            onCommit={() => undefined}
+            confirm={{ ...CONFIRM, seal: { batchSha256: batch, keys: 1 } }}
+          />,
+        ),
+      );
+      fireEvent.click(screen.getByTestId("sign.alt"));
+      const seal = screen.getByTestId("sign.dialog.seal");
+      expect(seal.getAttribute("width")).toBe("96");
+      expect(seal.dataset.state).toBe("keys-1");
+      expect(screen.getByTestId("sign.dialog.seal.hash").textContent).toBe("7f3a 91c2 dead beef");
+    });
+
+    it("reports the dialog route to the screen (MM-5 confirm phases), and its dismissal", () => {
+      vi.useRealTimers();
+      const changes = vi.fn();
+      approve(() => undefined, "full", changes);
+      fireEvent.keyDown(face("approve"), { key: "Enter" });
+      expect(changes.mock.calls.map(([c]) => c)).toEqual(["dialog"]);
+      fireEvent.click(screen.getByTestId("approve.dialog.cancel"));
+      expect(changes.mock.calls.map(([c]) => c)).toEqual(["dialog", "dismissed"]);
+    });
+
+    it("opens the dialog on Not now, so the Enter that opened it cannot sign by repeating", async () => {
+      vi.useRealTimers();
+      const onCommit = vi.fn();
+      approve(onCommit);
+      fireEvent.keyDown(face("approve"), { key: "Enter" });
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("approve.dialog.cancel")));
+      // A held Enter repeats; the repeat never confirms.
+      fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter", repeat: true });
+      expect(onCommit).not.toHaveBeenCalled();
+    });
+
+    it("a click the browser sends straight after a key press is that press, not a second activation", () => {
+      const onCommit = vi.fn();
+      approve(onCommit);
+      // Space let go early: nothing signed, and the trailing click must not open the dialog either.
+      fireEvent.keyDown(face("approve"), { key: " " });
+      act(() => vi.advanceTimersByTime(500));
+      fireEvent.keyUp(face("approve"), { key: " " });
+      fireEvent.click(face("approve"), { detail: 0 });
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      // Later, with no key behind it, the same click is a screen reader's activation.
+      act(() => vi.advanceTimersByTime(10));
+      fireEvent.click(face("approve"), { detail: 0 });
+      expect(screen.getByRole("alertdialog")).toBeTruthy();
+      expect(onCommit).not.toHaveBeenCalled();
     });
 
     it("Enter opens the dialog route, which commits without timing", () => {

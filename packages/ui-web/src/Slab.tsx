@@ -1,10 +1,15 @@
 // Slab: a human commit (design §2.5, S2 §2.5, §2.7). A solid face with a 1 px inner top highlight and two
 // parallelogram edges whose depth equals the consequence: d1 reversible, d2 changes a line, d3 moves money or
-// signs. Pressing moves the face by (t, t) and collapses the edges, transform-only. Hold slabs commit after
-// 1,600 ms (or 1,200 on the Chair's phone) in four ratchet steps, and always offer a dialog route.
+// signs. Pressing moves the face by (t, t) and collapses the edges, transform-only.
 //
-// Every way to commit (release, a finished hold, the dialog) passes one gate: a still frame, an unavailable
-// slab and a bolted slab never commit, and a committed slab never commits twice (S2 §2.7).
+// Hold slabs (d3) arm on hold and act on release inside (S2 §2.7, WCAG 2.5.2): the face sinks in four ratchet
+// steps over 1,600 ms (1,200 on the Chair's phone), clunks flush and reads "Release to sign"; releasing inside
+// signs. Leaving the slab, blur, a cancelled pointer, scrolling or a hidden page disarms it, and nothing is
+// signed. The route is chosen per event, never by detecting a screen reader: a pointer, touch, pen or Space
+// hold drives the slab; Enter, a click with no pointer behind it or the visible link opens the dialog.
+//
+// Every way to commit (release, a signed hold, the dialog) passes one gate: a still frame, an unavailable slab
+// and a bolted slab never commit, and a committed slab never commits twice.
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { DEPTH, TIMING } from "@fairsplit/motion/presets";
@@ -25,6 +30,7 @@ import {
 import { useMotionMode, useT } from "./context.js";
 import {
   edgeScale,
+  type HoldChange,
   type HoldProgress,
   holdQuarter,
   type SlabConfirm,
@@ -33,9 +39,13 @@ import {
 } from "./contract.js";
 import { feedback } from "./feedback.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
+import { Seal } from "./Seal.js";
 
 /** The dialog route on web: the body is any node (the amount, the recipient list, the consequence). */
 export type WebSlabConfirm = SlabConfirm<ReactNode>;
+
+/** What the caption says after a hold that did not sign. */
+export type SlabNotice = "early" | "disarmed";
 
 /** A still frame for galleries and motion studies: no interaction, values set directly. */
 export interface SlabFrame {
@@ -47,7 +57,8 @@ export interface SlabFrame {
   readonly edgeOpacity?: number;
   /** Reduced-motion stepped bar, 0 to 1 in quarters. */
   readonly step?: number;
-  readonly showEarlyHint?: boolean;
+  /** "Hold until it clicks" after an early release; "Nothing was signed." after a disarm. */
+  readonly notice?: SlabNotice;
 }
 
 /** Web presentation on top of the shared contract. */
@@ -72,6 +83,18 @@ export type WebSlabProps = SlabProps<ReactNode> & WebSlabOptions;
 
 const STEP_TRAVEL = TIMING.holdStepTravel;
 
+/**
+ * Whether a client point is over the slab: the face at rest plus its edges, d px to the right and below. The
+ * face sinks up to d px while held, so a press near its top or left edge must not count as leaving. jsdom
+ * lays nothing out (a zero box), so there every point is inside.
+ */
+function withinFootprint(body: HTMLElement | null, d: number, x: number, y: number): boolean {
+  if (!body) return true;
+  const r = body.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return true;
+  return x >= r.left && x <= r.right + d && y >= r.top && y <= r.bottom + d;
+}
+
 export function Slab(props: WebSlabProps) {
   const {
     label,
@@ -87,6 +110,7 @@ export function Slab(props: WebSlabProps) {
     width,
     glyph,
     confirm,
+    onHoldChange,
     onRefuse,
     onReasonClick,
     stayDown = depth !== "d1",
@@ -105,7 +129,7 @@ export function Slab(props: WebSlabProps) {
 
   const [liveState, setLiveStateNow] = useState<SlabState>(baseState);
   const [progress, setProgress] = useState<HoldProgress>(0);
-  const [earlyHint, setEarlyHint] = useState(false);
+  const [notice, setNotice] = useState<SlabNotice | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const state = frame?.state ?? liveState;
 
@@ -115,12 +139,13 @@ export function Slab(props: WebSlabProps) {
     liveRef.current = next;
     setLiveStateNow(next);
   }, []);
-  // Hold timers and the dialog outlive the render that started them, so they read the slab's availability
-  // and the caller's latest onCommit from here, synced before paint.
-  const latest = useRef({ still: frame !== undefined, unavailable, bolted, onCommit });
+  // Hold timers, window listeners and the dialog outlive the render that started them, so they read the
+  // slab's availability and the caller's latest callbacks from here, synced before paint.
+  const latest = useRef({ still: frame !== undefined, unavailable, bolted, onCommit, onHoldChange });
   useLayoutEffect(() => {
-    latest.current = { still: frame !== undefined, unavailable, bolted, onCommit };
+    latest.current = { still: frame !== undefined, unavailable, bolted, onCommit, onHoldChange };
   });
+  const report = useCallback((change: HoldChange) => latest.current.onHoldChange?.(change), []);
 
   const travel = useMotionValue(frame?.travel ?? (unavailable ? d : 0));
   const fill = useMotionValue(frame?.fill ?? 0);
@@ -137,7 +162,10 @@ export function Slab(props: WebSlabProps) {
   );
   const fillTransform = useTransform(fill, (v) => `scaleX(${v})`);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  /** A hold is in progress (pointer, touch, pen or Space down). */
   const holding = useRef(false);
+  /** The hold reached its time: releasing inside signs. */
+  const armed = useRef(false);
   const hintId = useId();
   const reasonId = useId();
 
@@ -186,15 +214,32 @@ export function Slab(props: WebSlabProps) {
     }
   }, [canCommit, stayDown, setLiveState, reduced, edgeOpacity, moveTo]);
 
-  // ------------------------------------------------------------------- hold-to-commit (d3)
+  // ------------------------------------------------------------------- hold: arm on hold, act on release
+  /** The hold time is reached: the face clunks flush and the slab waits for a release inside. */
+  const arm = useCallback(() => {
+    if (!holding.current) return;
+    if (!canCommit()) return;
+    armed.current = true;
+    setLiveState("armed");
+    setProgress(100);
+    setStepValue(1);
+    fill.set(1);
+    moveTo(d, "press60");
+    feedback.play("hold.bottom");
+    report("armed");
+  }, [canCommit, setLiveState, fill, moveTo, d, report]);
+
   const startHold = useCallback(() => {
     if (!hold || holding.current) return;
     holding.current = true;
+    armed.current = false;
+    setNotice(null);
     setLiveState("holding");
     setProgress(0);
     setStepValue(0);
     fill.set(0);
     animate(fill, 1, { duration: hold / 1000, ease: "linear" });
+    report("holding");
     for (const q of [1, 2, 3] as const) {
       timers.current.push(
         setTimeout(
@@ -208,48 +253,78 @@ export function Slab(props: WebSlabProps) {
         ),
       );
     }
-    timers.current.push(
-      setTimeout(() => {
-        holding.current = false;
-        if (!canCommit()) return;
-        setProgress(100);
-        setStepValue(1);
-        moveTo(d, "press60");
-        feedback.play("hold.bottom");
-        commit();
-      }, hold),
-    );
-  }, [hold, setLiveState, fill, moveTo, canCommit, d, commit]);
+    timers.current.push(setTimeout(arm, hold));
+  }, [hold, setLiveState, fill, report, moveTo, arm]);
 
+  /**
+   * Ends a hold without signing: before the hold time it was released early ("Hold until it clicks"); once
+   * armed it is disarmed ("Nothing was signed."). The face springs back and the fill retracts.
+   */
   const cancelHold = useCallback(() => {
     if (!holding.current) return;
+    const wasArmed = armed.current;
     holding.current = false;
+    armed.current = false;
     clearTimers();
     setProgress(0);
     setStepValue(0);
     setLiveState("rest");
-    setEarlyHint(true);
+    setNotice(wasArmed ? "disarmed" : "early");
     animate(fill, 0, reduced ? tween("reduced") : tween("retract200"));
     moveTo(0, "rebound");
-  }, [clearTimers, setLiveState, fill, reduced, moveTo]);
+    report(wasArmed ? "disarmed" : "released-early");
+  }, [clearTimers, setLiveState, fill, reduced, moveTo, report]);
+
+  /** A release inside the slab: an armed slab signs; anything earlier was let go too soon. */
+  const releaseInside = useCallback(() => {
+    if (!holding.current) return;
+    if (!armed.current) {
+      cancelHold();
+      return;
+    }
+    holding.current = false;
+    armed.current = false;
+    clearTimers();
+    commit();
+  }, [cancelHold, clearTimers, commit]);
 
   /** Drops pending steps and any hold in progress, silently: the slab's availability changed under it. */
   const abandonHold = useCallback(() => {
     clearTimers();
     if (!holding.current) return;
     holding.current = false;
+    armed.current = false;
     setProgress(0);
     setStepValue(0);
     fill.jump(0);
   }, [clearTimers, fill]);
 
+  // A hidden page, the window losing focus, or a scroll that moves the slab ends a hold in progress. A scroll
+  // elsewhere (a log filling up beside it) does not.
+  const faceRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!hold) return;
     const onHide = () => {
       if (document.visibilityState === "hidden") cancelHold();
     };
+    const onBlur = () => cancelHold();
+    const onScroll = (e: Event) => {
+      const target = e.target;
+      const face = faceRef.current;
+      // The page scrolling arrives from the window (not a Node; jsdom's window is not even `=== window`) or
+      // from the document, which contains the slab; an element scrolling moves the slab only if it contains it.
+      const movesSlab = !(target instanceof Node) || (face !== null && target.contains(face));
+      if (movesSlab) cancelHold();
+    };
     document.addEventListener("visibilitychange", onHide);
-    return () => document.removeEventListener("visibilitychange", onHide);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("scroll", onScroll, { capture: true });
+    };
   }, [hold, cancelHold]);
 
   // Availability changes. A slab that becomes available rises on the settle spring (MM-5 "rising"); one that
@@ -262,6 +337,7 @@ export function Slab(props: WebSlabProps) {
     if (was === baseState) return;
     abandonHold();
     setDialogOpen(false);
+    setNotice(null);
     setLiveState(baseState);
     if (baseState === "unavailable") {
       travel.jump(d);
@@ -316,7 +392,8 @@ export function Slab(props: WebSlabProps) {
   const pressEnd = useCallback(
     (inside: boolean) => {
       if (hold) {
-        cancelHold();
+        if (inside) releaseInside();
+        else cancelHold();
         return;
       }
       if (!pressed.current) return;
@@ -330,7 +407,7 @@ export function Slab(props: WebSlabProps) {
       if (depth === "d2") feedback.play("slab.d2.commit");
       commit();
     },
-    [hold, cancelHold, depth, setLiveState, moveTo, commit],
+    [hold, releaseInside, cancelHold, depth, setLiveState, moveTo, commit],
   );
 
   // ------------------------------------------------------------------- the dialog route (hold slabs)
@@ -344,8 +421,10 @@ export function Slab(props: WebSlabProps) {
       return;
     }
     if (now !== "rest") return;
+    setNotice(null);
     setDialogOpen(true);
-  }, [hold, frame, unavailable, bolted, refuse]);
+    report("dialog");
+  }, [hold, frame, unavailable, bolted, refuse, report]);
 
   const confirmDialog = useCallback(() => {
     setDialogOpen(false);
@@ -364,19 +443,35 @@ export function Slab(props: WebSlabProps) {
     e.currentTarget.setPointerCapture?.(e.pointerId);
     pressStart();
   };
+  const onPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
+    // Leaving the slab ends a hold: it is released early, or disarmed once armed (S2 §2.7).
+    if (frame || !hold || !holding.current) return;
+    if (!withinFootprint(bodyRef.current, d, e.clientX, e.clientY)) cancelHold();
+  };
   const onPointerUp = (e: PointerEvent<HTMLButtonElement>) => {
     if (frame) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const inside =
-      r.width === 0 ||
-      (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
-    pressEnd(inside);
+    pressEnd(withinFootprint(bodyRef.current, d, e.clientX, e.clientY));
   };
+  // Keyboard presses act on keydown and keyup and cancel the browser's own click. Should a browser send that
+  // click anyway (detail 0, straight after the key), it is the same press, not a screen reader's activation.
+  const keyClick = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markKeyPress = () => {
+    if (keyClick.current) clearTimeout(keyClick.current);
+    keyClick.current = setTimeout(() => {
+      keyClick.current = null;
+    }, 0);
+  };
+  useEffect(
+    () => () => {
+      if (keyClick.current) clearTimeout(keyClick.current);
+    },
+    [],
+  );
   // A click with no pointer press behind it (detail 0) is a screen reader's activation: a hold slab takes the
   // dialog route (S2 §2.7) and a press slab commits as Enter would. Pointer presses are handled on pointerdown
-  // and pointerup, and keyboard presses on keydown and keyup, which cancel the browser's own click.
+  // and pointerup.
   const onClick = (e: MouseEvent<HTMLButtonElement>) => {
-    if (frame || e.detail !== 0) return;
+    if (frame || e.detail !== 0 || keyClick.current) return;
     if (hold) {
       openDialog();
       return;
@@ -388,6 +483,7 @@ export function Slab(props: WebSlabProps) {
     if (frame) return;
     if (e.key === "Enter") {
       e.preventDefault();
+      markKeyPress();
       if (e.repeat) return;
       if (hold) {
         openDialog();
@@ -406,13 +502,19 @@ export function Slab(props: WebSlabProps) {
     if (frame) return;
     if (e.key === " " || e.key === "Spacebar") {
       e.preventDefault();
+      markKeyPress();
       pressEnd(true);
     }
   };
 
   const shownStep = frame?.step ?? stepValue;
   const percent = Math.round(shownStep * 100);
-  const holdProgress: HoldProgress = frame ? holdQuarter(frame.fill ?? frame.step ?? 0) : progress;
+  const holdProgress: HoldProgress = frame
+    ? frame.state === "armed"
+      ? 100
+      : holdQuarter(frame.fill ?? frame.step ?? 0)
+    : progress;
+  const shownNotice = frame ? frame.notice : notice;
   // A hold slab that could still sign shows its route; the caption can be turned off, the link cannot.
   const signable =
     hold !== undefined &&
@@ -422,7 +524,14 @@ export function Slab(props: WebSlabProps) {
     state !== "committed" &&
     state !== "bolted" &&
     state !== "refusing";
-  const showCaption = signable && hint;
+  const caption =
+    shownNotice === "disarmed"
+      ? t("slab.nothingSigned")
+      : shownNotice === "early"
+        ? t("slab.holdUntilClick")
+        : t("slab.holdHint");
+  // The outcome of a hold that did not sign is said even when the standing caption is turned off.
+  const showCaption = signable && (hint || Boolean(shownNotice));
   const describedBy = [signable ? hintId : null, unavailable ? reasonId : null].filter(Boolean).join(" ");
 
   return (
@@ -443,7 +552,7 @@ export function Slab(props: WebSlabProps) {
           : undefined
       }
     >
-      <div className="fs-slab__body">
+      <div className="fs-slab__body" ref={bodyRef}>
         <motion.span
           className="fs-slab__edge fs-slab__edge--r"
           style={{ transform: edgeR, opacity: edgeOpacity }}
@@ -453,6 +562,7 @@ export function Slab(props: WebSlabProps) {
           style={{ transform: edgeB, opacity: edgeOpacity }}
         />
         <motion.button
+          ref={faceRef}
           type="button"
           className="fs-slab__face"
           style={{ transform: faceTransform }}
@@ -461,12 +571,14 @@ export function Slab(props: WebSlabProps) {
           aria-describedby={describedBy || undefined}
           data-testid={`${testId}.face`}
           onPointerDown={onPointerDown}
+          onPointerMove={hold ? onPointerMove : undefined}
           onPointerUp={onPointerUp}
           onPointerCancel={() => pressEnd(false)}
           onClick={onClick}
           onKeyDown={onKeyDown}
           onKeyUp={onKeyUp}
           onBlur={() => (hold ? cancelHold() : pressEnd(false))}
+          onContextMenu={hold ? (e) => e.preventDefault() : undefined}
         >
           {hold && <motion.span className="fs-slab__fill" style={{ transform: fillTransform }} aria-hidden />}
           {bolted && (
@@ -477,26 +589,30 @@ export function Slab(props: WebSlabProps) {
           )}
           <span className="fs-slab__label">
             {glyph && <Glyph name={glyph} size={size === "l" ? 24 : 20} />}
-            <span>{label}</span>
+            <span>{state === "armed" ? t("slab.release") : label}</span>
           </span>
         </motion.button>
       </div>
-      {hold && (reduced || frame?.step !== undefined) && (state === "holding" || shownStep > 0) && (
-        <div className="fs-slab__steps" data-testid={`${testId}.steps`}>
-          <span className="fs-slab__steps-bar" aria-hidden>
-            {[1, 2, 3, 4].map((q) => (
-              <span key={q} data-on={shownStep * 4 >= q ? "" : undefined} />
-            ))}
-          </span>
-          <span className="fs-slab__steps-text" aria-live="polite">
-            {t("slab.progress", { percent })}
-          </span>
-        </div>
-      )}
+      {hold &&
+        (reduced || frame?.step !== undefined) &&
+        (state === "holding" || state === "armed" || shownStep > 0) && (
+          <div className="fs-slab__steps" data-testid={`${testId}.steps`}>
+            <span className="fs-slab__steps-bar" aria-hidden>
+              {[1, 2, 3, 4].map((q) => (
+                <span key={q} data-on={shownStep * 4 >= q ? "" : undefined} />
+              ))}
+            </span>
+            <span className="fs-slab__steps-text" aria-live="polite">
+              {t("slab.progress", { percent })}
+            </span>
+          </div>
+        )}
       {signable && (
         <p className="fs-slab__hint" id={hintId} data-testid={`${testId}.hint`}>
           {showCaption && (
-            <>{earlyHint || frame?.showEarlyHint ? t("slab.holdUntilClick") : t("slab.holdHint")} </>
+            <span className="fs-slab__caption" aria-live="polite" data-notice={shownNotice ?? undefined}>
+              {caption}{" "}
+            </span>
           )}
           {frame ? (
             // A still frame shows the link as it looks, without a control that does nothing.
@@ -529,7 +645,11 @@ export function Slab(props: WebSlabProps) {
       {dialog && (
         <ConfirmDialog
           open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            // "Not now", Escape or a press outside: back to rest, nothing signed (MM-5 leaves confirm-1/2).
+            if (!open) report("dismissed");
+          }}
           confirm={dialog}
           tone={tone}
           testId={`${testId}.dialog`}
@@ -551,19 +671,34 @@ interface ConfirmDialogProps {
 
 /**
  * The hold slab's dialog route (Base UI AlertDialog): it states the amount, the recipients and the
- * consequence before asking for the key, so no action depends on timing alone.
+ * consequence, and shows the batch's seal at 96 px with its hash in groups of four, before asking for the key,
+ * so no action depends on timing alone. Focus opens on "Not now", the least destructive control, so a second
+ * Enter after the one that opened the dialog never signs by accident.
  */
 export function ConfirmDialog({ open, onOpenChange, confirm, tone, onConfirm, testId }: ConfirmDialogProps) {
   const t = useT();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   return (
     <AlertDialog.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
       <AlertDialog.Portal>
         <AlertDialog.Backdrop className="fs-dialog__scrim" />
-        <AlertDialog.Popup className="fs-dialog" data-testid={testId}>
+        <AlertDialog.Popup className="fs-dialog" data-testid={testId} initialFocus={cancelRef}>
           <AlertDialog.Title className="fs-dialog__title fs-t-title-2">{confirm.title}</AlertDialog.Title>
-          <AlertDialog.Description className="fs-dialog__body fs-t-body" render={<div />}>
-            {confirm.body}
-          </AlertDialog.Description>
+          <div className="fs-dialog__content" data-sealed={confirm.seal ? "" : undefined}>
+            <AlertDialog.Description className="fs-dialog__body fs-t-body" render={<div />}>
+              {confirm.body}
+            </AlertDialog.Description>
+            {confirm.seal && (
+              <Seal
+                batchSha256={confirm.seal.batchSha256}
+                size={96}
+                keys={confirm.seal.keys}
+                showHash
+                className="fs-dialog__seal"
+                testId={`${testId}.seal`}
+              />
+            )}
+          </div>
           <div className="fs-dialog__actions">
             <Slab
               label={confirm.confirmLabel ?? t("confirm.approve")}
@@ -574,7 +709,7 @@ export function ConfirmDialog({ open, onOpenChange, confirm, tone, onConfirm, te
               testId={`${testId}.confirm`}
               onCommit={onConfirm}
             />
-            <AlertDialog.Close className="fs-flat" data-testid={`${testId}.cancel`}>
+            <AlertDialog.Close ref={cancelRef} className="fs-flat" data-testid={`${testId}.cancel`}>
               {confirm.cancelLabel ?? t("confirm.cancel")}
             </AlertDialog.Close>
           </div>

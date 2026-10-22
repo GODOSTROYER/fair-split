@@ -5,7 +5,7 @@ signs it off (OD-2, decision due 5 Nov). Judge Mode shows that chip while any ke
 Record a sign-off in `src/review.ts` (`SIGN_OFFS`) with the reviewer and the date, then run
 `pnpm --filter @fairsplit/i18n review` to rewrite this file.
 
-Pending: 106 of 106.
+Pending: 118 of 118.
 
 | Key                        | Lang | Text                                                                                        | English                                                                               | Status                |
 | -------------------------- | ---- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------- |
@@ -62,6 +62,12 @@ Pending: 106 of 106.
 | `M-BD-02.hint`             | ceb  | Kupti, dayon gamita ang inyong fingerprint.                                                 | Hold, then use your fingerprint.                                                      | pending native review |
 | `M-BD-02.signed`           | ceb  | Napirmahan. Key {key}. Parehas ang batch hash sa console.                                   | Signed. Key {key}. The batch hash matches the console.                                | pending native review |
 | `M-BD-02.demo`             | ceb  | Demo key (kini nga browser)                                                                 | Demo key (this browser)                                                               | pending native review |
+| `slab.holdUntilClick`      | ceb  | Kupti hangtod mo-klik                                                                       | Hold until it clicks                                                                  | pending native review |
+| `slab.release`             | ceb  | Buhii aron mopirma                                                                          | Release to sign                                                                       | pending native review |
+| `slab.nothingSigned`       | ceb  | Walay napirmahan.                                                                           | Nothing was signed.                                                                   | pending native review |
+| `slab.altRoute`            | ceb  | Dili makakupti? Pirmahi sa laing paagi                                                      | Can’t hold? Approve another way                                                       | pending native review |
+| `slab.progress`            | ceb  | {percent}% nakupti                                                                          | {percent}% held                                                                       | pending native review |
+| `confirm.cancel`           | ceb  | Dili pa karon                                                                               | Not now                                                                               | pending native review |
 | `status.COMPUTED`          | fil  | Sinusuri pa po                                                                              | Still checking                                                                        | pending native review |
 | `status.READY`             | fil  | Sinusuri pa po                                                                              | Still checking                                                                        | pending native review |
 | `status.HELD`              | fil  | Sinusuri pa po                                                                              | Still checking                                                                        | pending native review |
@@ -115,3 +121,9 @@ Pending: 106 of 106.
 | `M-BD-02.hint`             | fil  | Pindutin nang matagal, saka gamitin ang inyong fingerprint.                                 | Hold, then use your fingerprint.                                                      | pending native review |
 | `M-BD-02.signed`           | fil  | Napirmahan na po. Key {key}. Tugma ang batch hash sa console.                               | Signed. Key {key}. The batch hash matches the console.                                | pending native review |
 | `M-BD-02.demo`             | fil  | Demo key (ang browser na ito)                                                               | Demo key (this browser)                                                               | pending native review |
+| `slab.holdUntilClick`      | fil  | Pindutin nang matagal hanggang mag-click                                                    | Hold until it clicks                                                                  | pending native review |
+| `slab.release`             | fil  | Bitawan para pumirma                                                                        | Release to sign                                                                       | pending native review |
+| `slab.nothingSigned`       | fil  | Walang napirmahan.                                                                          | Nothing was signed.                                                                   | pending native review |
+| `slab.altRoute`            | fil  | Hindi mapindot nang matagal? Pumirma sa ibang paraan                                        | Can’t hold? Approve another way                                                       | pending native review |
+| `slab.progress`            | fil  | {percent}% napindot                                                                         | {percent}% held                                                                       | pending native review |
+| `confirm.cancel`           | fil  | Hindi muna                                                                                  | Not now                                                                               | pending native review |
