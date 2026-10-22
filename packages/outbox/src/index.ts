@@ -16,6 +16,7 @@ export { TASK_NAMES, type TaskName } from "./_shims/contracts.js";
 export * from "./dispatcher.js";
 export * from "./enqueue.js";
 export * from "./executors.js";
+export * from "./routing.js";
 export * from "./runner.js";
 export * from "./worker.js";
 
@@ -30,7 +31,12 @@ export interface OutboxOptions extends Omit<RunnerDeps, "db"> {
   db: Db;
   /** connection string for LISTEN fs_outbox wake-ups */
   listenUrl?: string;
+  /** EXECUTOR: where the tasks the route sends away run (default inline: everything in this process) */
   executor?: ExecutorKind;
+  /** per-task routing (default: S3.3's table, `defaultRoute`); a route to an executor not configured runs inline */
+  route?: DispatcherOptions["route"];
+  /** true for a task that will replay recorded output (Judge Mode, kill_ai_live): it stays inline */
+  replay?: DispatcherOptions["replay"];
   /** required when executor is "workflow" */
   workflowClient?: WorkflowClient;
   /** inline concurrency (default 2) */
@@ -45,14 +51,19 @@ export interface OutboxOptions extends Omit<RunnerDeps, "db"> {
 
 export interface Outbox {
   dispatcher: Dispatcher;
-  /** the in-process executor: primary when executor is inline, fallback otherwise */
+  /** the in-process executor: every task the route keeps here, and the fallback for remote hand-offs */
   inline: InlineExecutor;
+  /** the executor EXECUTOR names (the in-process one when inline) */
   primary: Executor;
   /** run one task by id here (what a Render Workflows task body calls with executor "workflow") */
   runTask(outboxId: string, executor?: ExecutorKind): Promise<RunOutcome>;
 }
 
-/** Wires runner, executors and dispatcher the way fs-api runs them. */
+/**
+ * Wires runner, executors and dispatcher the way fs-api runs them. Each claimed task is routed on its own (S3.3):
+ * money, webhook, engine and agent tasks run inline here even with EXECUTOR=workflow; only the live AI reads and
+ * cache warming go to Render Workflows (or the worker).
+ */
 export function createOutbox(o: OutboxOptions): Outbox {
   const runner: RunnerDeps = {
     db: o.db,
@@ -76,6 +87,8 @@ export function createOutbox(o: OutboxOptions): Outbox {
     executor: primary,
     workerId: o.workerId,
     ...(primary.remote ? { fallback: inline } : {}),
+    ...(o.route ? { route: o.route } : {}),
+    ...(o.replay ? { replay: o.replay } : {}),
     ...(o.listenUrl ? { listenUrl: o.listenUrl } : {}),
     ...(o.dispatcher ?? {}),
   });

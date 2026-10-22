@@ -1,4 +1,4 @@
-import { createDb, schema as s } from "@fairsplit/db";
+import { createDb, repos, schema as s, workspaceScope } from "@fairsplit/db";
 import { fixtureWorkspace, openTestDb, type TestDb } from "@fairsplit/db/testing";
 import { eq, sql } from "drizzle-orm";
 import postgres from "postgres";
@@ -22,11 +22,22 @@ describe("inv.i7.outbox: the task is enqueued in the transaction that requires i
     await listener.listen("fs_outbox", (p) => heard.push(p));
     try {
       let taskId = "";
+      const r = repos(
+        workspaceScope({
+          workspaceId: ws.workspaceId,
+          actor: { kind: "engine", id: "engine" },
+          via: "system",
+        }),
+      );
       await t.app.db.transaction(async (tx) => {
-        await tx
-          .update(s.payRuns)
-          .set({ state: "QUOTED" })
-          .where(eq(s.payRuns.id, ws.runId ?? ""));
+        const moved = await r.runs.transition(tx, {
+          id: ws.runId ?? "",
+          from: "DRAFT",
+          to: "QUOTED",
+          cause: "quote",
+          provenance: "live",
+        });
+        expect(moved.ok).toBe(true);
         taskId = (
           await enqueue(tx, "ensureInvoice", { runId: ws.runId ?? "" }, `inv:${ws.runId}`, {
             workspaceId: ws.workspaceId,
