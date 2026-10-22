@@ -1,5 +1,5 @@
 // The agent's two payout read tools are declared from a checked-in JSON Schema, so nothing converts
-// zod at runtime and zod-to-json-schema (pinned for the S2 fallback only) is not a runtime dependency.
+// zod at runtime and zod-to-json-schema (pinned for the S2 fallback only) is not a dependency at all.
 // This test keeps the file honest: it must equal what scripts/zod-json-schema.ts makes from the
 // vendored PR #107 zod schemas today.
 
@@ -35,11 +35,13 @@ describe("checked-in agent read-tool schemas", () => {
     expect(() => zodObjectToJsonSchema(z.object({ id: z.string() }).strict())).toThrow(UnsupportedZodError);
   });
 
-  it("leave zod-to-json-schema out of the runtime: not a dependency, never imported by src", () => {
+  it("leave zod-to-json-schema out entirely: no dependency of any kind, never imported", () => {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
     expect(Object.keys(pkg.dependencies ?? {})).not.toContain("zod-to-json-schema");
+    expect(Object.keys(pkg.devDependencies ?? {})).not.toContain("zod-to-json-schema");
     const sources = readdirSync(join(root, "src"), { recursive: true, encoding: "utf8" }).filter((f) =>
       f.endsWith(".ts"),
     );

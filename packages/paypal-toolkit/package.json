@@ -26,7 +26,6 @@
     "msw": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "zod-to-json-schema": "catalog:"
+    "vitest": "catalog:"
   }
 }
