@@ -6,7 +6,7 @@
 //   api.healthz      GET {origin}/healthz must be 200 (liveness; Render's health check path)
 //   api.readyz       GET {origin}/readyz (readiness: DB, LISTEN, token scope, webhooks, flags, dispatcher)
 //   paypal.env       PP_ENV must be "sandbox"; anything else stops the PayPal checks
-//   paypal.token     OAuth client-credentials; scope must cover invoicing, payouts and reporting
+//   paypal.token     OAuth client-credentials; exact scopes for invoicing, payouts, search and balances
 //   paypal.webhook   our registration exists, points at {origin}/webhooks/paypal, has all 15 events (register §8)
 //   paypal.balance   USD available balance; warn under US$10,000 (C-21), fail under US$5,000 (S3.9)
 // PayPal checks are skipped until PP_CLIENT_ID and PP_CLIENT_SECRET exist. At most 3 PayPal calls per
@@ -36,12 +36,25 @@ export const REQUIRED_WEBHOOK_EVENTS: readonly string[] = [
   "PAYMENT.PAYOUTS-ITEM.REFUNDED",
 ];
 
-/** Scope fragments the server needs (substring match on PayPal's space-separated scope URIs). */
-export const REQUIRED_SCOPES: readonly { label: string; fragment: string }[] = [
-  { label: "invoicing", fragment: "/services/invoicing" },
-  { label: "payouts", fragment: "payouts" },
-  { label: "reporting", fragment: "/services/reporting" },
+/**
+ * Exact OAuth scopes the server needs, compared token by token (PayPal returns a space-separated
+ * list). Substring matching is wrong here: Transaction Search's `reporting/search/read` would
+ * satisfy a `/services/reporting` fragment while `GET /v1/reporting/balances` still returns 403,
+ * because that endpoint requires `reporting/balances/read` (PayPal Transaction Search OpenAPI).
+ * The REST app needs Invoicing, Payouts, Transaction Search and List Balances ticked.
+ */
+export const REQUIRED_SCOPES: readonly { label: string; scope: string }[] = [
+  { label: "invoicing", scope: "https://uri.paypal.com/services/invoicing" },
+  { label: "payouts", scope: "https://uri.paypal.com/services/payments/payouts" },
+  { label: "reporting/search", scope: "https://uri.paypal.com/services/reporting/search/read" },
+  { label: "reporting/balances", scope: "https://uri.paypal.com/services/reporting/balances/read" },
 ];
+
+/** Labels of required scopes missing from a token's space-separated `scope` string. */
+export function missingScopes(scope: string): string[] {
+  const granted = new Set(scope.split(/\s+/).filter(Boolean));
+  return REQUIRED_SCOPES.filter((s) => !granted.has(s.scope)).map((s) => s.label);
+}
 
 export const BALANCE_WARN_CENTS = 1_000_000; // US$10,000 (register C-21)
 export const BALANCE_FAIL_CENTS = 500_000; // US$5,000 (S3.9: posts switch to replay)
@@ -179,10 +192,10 @@ export async function runHealthChecks(deps: HealthCheckDeps): Promise<CheckResul
     }
     token = body.access_token;
     const scope = body.scope ?? "";
-    const missing = REQUIRED_SCOPES.filter((s) => !scope.includes(s.fragment)).map((s) => s.label);
+    const missing = missingScopes(scope);
     results.push({
       name: "paypal.token",
-      status: missing.length ? "warn" : "ok",
+      status: missing.length ? "fail" : "ok",
       detail: missing.length
         ? `scope missing: ${missing.join(", ")}`
         : `scope covers ${REQUIRED_SCOPES.map((s) => s.label).join(", ")}; expires in ${body.expires_in ?? "?"} s`,
@@ -252,10 +265,11 @@ export async function runHealthChecks(deps: HealthCheckDeps): Promise<CheckResul
       signal: timeout(),
     });
     if (res.status === 403) {
+      // Without the balance the US$5k guard is blind, so this is an outage of the check, not a note.
       results.push({
         name: "paypal.balance",
-        status: "warn",
-        detail: "HTTP 403: app lacks the Balances permission",
+        status: "fail",
+        detail: "HTTP 403: REST app lacks List Balances (scope reporting/balances/read)",
       });
     } else if (!res.ok) {
       results.push({ name: "paypal.balance", status: "fail", detail: `HTTP ${res.status}` });

@@ -3,9 +3,16 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   type Blueprint,
+  checkBuildFilters,
   checkPolicy,
+  dependencyClosure,
+  PINNED_NODE_VERSION,
+  pathsCover,
+  pinnedNodeVersion,
   REPO_ROOT,
   readBlueprint,
+  readWorkspace,
+  serviceRoots,
   startCommandSource,
   validateAgainstSchema,
 } from "../../../tools/lib/blueprint.js";
@@ -118,5 +125,103 @@ describe("render.yaml against Fair Split's deployment rules", () => {
   it("maps start commands to their sources", () => {
     expect(startCommandSource("node apps/tasks/dist/cron.js")).toBe("apps/tasks/src/cron.ts");
     expect(startCommandSource("pnpm start")).toBeUndefined();
+  });
+});
+
+describe("render.yaml: Node pin", () => {
+  it("NODE_VERSION is the repo pin (24.22.1; .node-version once WS-QA adds it)", () => {
+    expect(PINNED_NODE_VERSION).toBe("24.22.1");
+    const group = bp.envVarGroups?.find((g) => g.name === "fs-config");
+    expect(group?.envVars.find((v) => v.key === "NODE_VERSION")?.value).toBe(pinnedNodeVersion());
+  });
+
+  it("the policy rejects the stale dev-machine version", () => {
+    const bad = clone();
+    const v = bad.envVarGroups?.[0]?.envVars.find((e) => e.key === "NODE_VERSION");
+    if (v) v.value = "24.19.0";
+    expect(checkPolicy(bad).join("\n")).toMatch(/NODE_VERSION must equal the 24\.22\.1 pin/);
+  });
+});
+
+describe("render.yaml: database roles (S3.4, register §7)", () => {
+  it("only the migrating service holds the owner connection, as DATABASE_OWNER_URL", () => {
+    for (const s of bp.services ?? []) {
+      const owner = s.envVars?.find((v) => v.key === "DATABASE_OWNER_URL");
+      if (s.name === "fs-api")
+        expect(owner?.fromDatabase).toEqual({ name: "fs-db", property: "connectionString" });
+      else expect(owner, s.name).toBeUndefined();
+    }
+  });
+
+  it("every running process connects as fs_app: DATABASE_URL is sync:false, never fromDatabase", () => {
+    for (const name of ["fs-api", "fs-tasks", "fs-cron"]) {
+      const url = svc(name)?.envVars?.find((v) => v.key === "DATABASE_URL");
+      expect(url, name).toEqual({ key: "DATABASE_URL", sync: false });
+    }
+  });
+
+  it("the policy fails when the app's DATABASE_URL is the owner connection string", () => {
+    const bad = clone();
+    const tasks = bad.services?.find((s) => s.name === "fs-tasks");
+    const url = tasks?.envVars?.find((v) => v.key === "DATABASE_URL");
+    if (url) {
+      delete url.sync;
+      url.fromDatabase = { name: "fs-db", property: "connectionString" };
+    }
+    const cron = bad.services?.find((s) => s.name === "fs-cron");
+    cron?.envVars?.push({
+      key: "DATABASE_OWNER_URL",
+      fromDatabase: { name: "fs-db", property: "connectionString" },
+    });
+    const problems = checkPolicy(bad).join("\n");
+    expect(problems).toMatch(/fs-tasks: DATABASE_URL must be the fs_app role/);
+    expect(problems).toMatch(/fs-cron: only a service that migrates may hold DATABASE_OWNER_URL/);
+  });
+});
+
+describe("render.yaml: build filters follow the dependency closure", () => {
+  it("passes the closure, cron-equals-tasks and fs-api rules", () => {
+    expect(checkBuildFilters(bp)).toEqual([]);
+  });
+
+  it("derives each service's roots from its turbo filter and walks workspace: dependencies", () => {
+    expect(serviceRoots(svc("fs-tasks") ?? { type: "", name: "" })).toEqual(["@fairsplit/tasks"]);
+    const closure = dependencyClosure(["@fairsplit/tasks"], readWorkspace());
+    expect(closure).toContain("apps/tasks");
+    expect(closure).toContain("packages/contracts");
+  });
+
+  it("fs-cron rebuilds on everything fs-tasks does, including packages/domain and packages/seed", () => {
+    const cron = svc("fs-cron")?.buildFilter?.paths ?? [];
+    for (const p of svc("fs-tasks")?.buildFilter?.paths ?? []) expect(cron).toContain(p);
+    expect(cron).toEqual(expect.arrayContaining(["packages/domain/**", "packages/seed/**"]));
+  });
+
+  it("fs-api rebuilds on apps/tasks (shared task policy until it moves to packages/outbox)", () => {
+    expect(svc("fs-api")?.buildFilter?.paths).toContain("apps/tasks/**");
+  });
+
+  it("flags a path the closure needs but the filter misses (outbox → db → domain)", () => {
+    const ws = new Map([
+      ["@fairsplit/tasks", { name: "@fairsplit/tasks", dir: "apps/tasks", deps: ["@fairsplit/outbox"] }],
+      ["@fairsplit/outbox", { name: "@fairsplit/outbox", dir: "packages/outbox", deps: ["@fairsplit/db"] }],
+      ["@fairsplit/db", { name: "@fairsplit/db", dir: "packages/db", deps: ["@fairsplit/domain"] }],
+      ["@fairsplit/domain", { name: "@fairsplit/domain", dir: "packages/domain", deps: [] }],
+    ]);
+    const bad = clone();
+    for (const s of bad.services ?? []) {
+      if (s.buildFilter?.paths)
+        s.buildFilter.paths = s.buildFilter.paths.filter((p) => p !== "packages/domain/**");
+    }
+    const problems = checkBuildFilters(bad, ws);
+    expect(problems).toContain("fs-tasks: buildFilter misses packages/domain/** (dependency closure)");
+    expect(problems).toContain("fs-cron: buildFilter misses packages/domain/** (dependency closure)");
+  });
+
+  it("pathsCover understands nested globs", () => {
+    expect(pathsCover(["packages/**"], "packages/db")).toBe(true);
+    expect(pathsCover(["packages/db/**"], "packages/db")).toBe(true);
+    expect(pathsCover(["packages/db/**"], "packages/dbx")).toBe(false);
+    expect(pathsCover(["apps/api/**"], "apps/tasks")).toBe(false);
   });
 });

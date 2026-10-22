@@ -1,10 +1,12 @@
 // fs-cron: Render runs `node apps/tasks/dist/cron.js` hourly at :07 (render.yaml `schedule`).
 // Each pass enqueues, through the transactional outbox (I7), the scheduled tasks due in this hour:
-//   every hour        judgeReset, reconcile{catchup}
-//   02:07 UTC         reconcile{nightly}            (S3.3: nightly Transaction Search pass)
-//   every 23 hours    warmCaches                    (S4: grammars expire 24 h after last use)
-// Dedupe keys are derived from the UTC hour, so a re-run of the same pass is a no-op.
-import type { TaskName } from "./_shims/contracts.js";
+//   every pass               judgeReset, reconcile{catchup}       keyed by UTC hour
+//   any pass 02:00-05:59 UTC reconcile{nightly}                   keyed by UTC date
+//   every pass               warmCaches                           keyed by 23-hour window
+// Dedupe keys come from the contracts shim (IC-01) and `enqueue` is ON CONFLICT DO NOTHING, so the
+// first successful pass in a slot creates the row and later passes are no-ops. A skipped or failed
+// pass is therefore made up by the next one, instead of waiting a whole day or window.
+import { type ScheduledArgValue, TASK_KEYS, type TaskName } from "./_shims/contracts.js";
 import { loadDotEnv } from "./env.js";
 import { createLogger, type Logger } from "./log.js";
 import { isMain } from "./main.js";
@@ -12,14 +14,16 @@ import { loadCronSink } from "./wiring.js";
 
 /** Render cron expression for fs-cron: minute 7 of every hour (register §6). */
 export const CRON_SCHEDULE = "7 * * * *";
-/** Hour (UTC) of the nightly reconcile pass. */
+/** First UTC hour of the nightly reconcile window (S3.3: 02:07 UTC). */
 export const NIGHTLY_UTC_HOUR = 2;
-/** warmCaches cadence in hours; strictly under the 24 h grammar-cache expiry. */
+/** Passes from 02:00 to 05:59 UTC may enqueue the nightly reconcile, so three missed passes are tolerated. */
+export const NIGHTLY_WINDOW_HOURS = 4;
+/** warmCaches window in hours; strictly under the 24 h grammar-cache expiry (S4). */
 export const WARM_EVERY_HOURS = 23;
 
 const HOUR_MS = 3_600_000;
 
-export type CronArgValue = string | number;
+export type CronArgValue = ScheduledArgValue;
 
 export interface CronJob {
   readonly name: Extract<TaskName, "judgeReset" | "reconcile" | "warmCaches">;
@@ -50,23 +54,24 @@ export function hourIndex(now: Date): number {
   return Math.floor(now.getTime() / HOUR_MS);
 }
 
-/** Pure: the jobs due for the pass that runs at `now`. Order is enqueue order. */
+/** The 23-hour warmCaches window containing `now`. */
+export function warmWindow(now: Date): number {
+  return Math.floor(hourIndex(now) / WARM_EVERY_HOURS);
+}
+
+/** Pure: the jobs this pass offers to the outbox. Order is enqueue order. */
 export function planCronRun(now: Date): CronJob[] {
   if (Number.isNaN(now.getTime())) throw new Error("planCronRun needs a valid date");
   const slot = hourSlot(now);
   const jobs: CronJob[] = [
-    { name: "judgeReset", args: { trigger: "cron", slot }, dedupeKey: `judgeReset:cron:${slot}` },
-    { name: "reconcile", args: { mode: "catchup", slot }, dedupeKey: `reconcile:catchup:${slot}` },
+    { name: "judgeReset", ...TASK_KEYS.judgeResetCron(slot) },
+    { name: "reconcile", ...TASK_KEYS.reconcileCatchup(slot) },
   ];
-  if (now.getUTCHours() === NIGHTLY_UTC_HOUR) {
-    const date = slot.slice(0, 10);
-    jobs.push({ name: "reconcile", args: { mode: "nightly", date }, dedupeKey: `reconcile:nightly:${date}` });
+  const h = now.getUTCHours();
+  if (h >= NIGHTLY_UTC_HOUR && h < NIGHTLY_UTC_HOUR + NIGHTLY_WINDOW_HOURS) {
+    jobs.push({ name: "reconcile", ...TASK_KEYS.reconcileNightly(slot.slice(0, 10)) });
   }
-  const h = hourIndex(now);
-  if (h % WARM_EVERY_HOURS === 0) {
-    const window = h / WARM_EVERY_HOURS;
-    jobs.push({ name: "warmCaches", args: { window, slot }, dedupeKey: `warmCaches:w${window}` });
-  }
+  jobs.push({ name: "warmCaches", ...TASK_KEYS.warmCachesWindow(warmWindow(now)) });
   return jobs;
 }
 

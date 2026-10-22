@@ -8,6 +8,14 @@
 # Secrets are declared per service with `sync: false` (Render prompts once at Blueprint creation and
 # never overwrites them on sync). Environment groups cannot hold `sync: false` values, so the shared
 # group below carries only non-secret configuration. Each service gets only the secrets it uses.
+#
+# Database roles (S3.4, register §7): only fs-api's preDeployCommand connects as the database owner,
+# through DATABASE_OWNER_URL (`fromDatabase`; packages/db `migrate` reads it). Every running process
+# connects as `fs_app` through DATABASE_URL, which is `sync: false` because Render cannot derive a
+# second role's URL: the migrations create `fs_app`, then the operator pastes its URL into fs-api,
+# fs-tasks and fs-cron (apps/tasks/README.md, "Deploying"). `fs_app` cannot UPDATE or DELETE
+# run_events, ledger_entries or agent_sessions; the BEFORE UPDATE/DELETE triggers stay as the
+# second line of defence.
 version: "1"
 
 envVarGroups:
@@ -15,8 +23,9 @@ envVarGroups:
     envVars:
       - key: PP_ENV
         value: sandbox
+      # The repo pin (S3 §1 `.node-version`, eas.json). tools/lib/blueprint.ts enforces it.
       - key: NODE_VERSION
-        value: "24.19.0"
+        value: "24.22.1"
       - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
         value: "0"
       - key: TZ
@@ -35,6 +44,7 @@ services:
     buildCommand: >-
       corepack pnpm install --frozen-lockfile &&
       corepack pnpm turbo run build --filter=@fairsplit/api... --filter=@fairsplit/console --filter=@fairsplit/mobile
+    # Runs as the database owner: `migrate` reads DATABASE_OWNER_URL, never DATABASE_URL.
     preDeployCommand: corepack pnpm --filter @fairsplit/db migrate
     startCommand: node apps/api/dist/index.js
     # Liveness only. /readyz depends on PayPal token scope and webhook registration; failing the
@@ -46,6 +56,9 @@ services:
     buildFilter:
       paths:
         - apps/api/**
+        # Task policy (lanes, retry model, ids-only input) is shared with fs-api's dispatcher until
+        # it moves to packages/outbox; a change there must redeploy both sides together.
+        - apps/tasks/**
         - apps/console/**
         - apps/mobile/**
         - packages/**
@@ -65,10 +78,12 @@ services:
         - packages/test-kit/**
     envVars:
       - fromGroup: fs-config
-      - key: DATABASE_URL
+      - key: DATABASE_OWNER_URL
         fromDatabase:
           name: fs-db
           property: connectionString
+      - key: DATABASE_URL
+        sync: false
       - key: EXECUTOR
         value: workflow
       - key: FS_TASKS_SLUG
@@ -76,6 +91,8 @@ services:
           type: workflow
           name: fs-tasks
           property: slug
+      # Deviation from S3.13 (`sync: false`): Render generates a random 256-bit value once and keeps
+      # it across syncs. Same secrecy, no hand-typed value; rotate it in the dashboard if needed.
       - key: BETTER_AUTH_SECRET
         generateValue: true
       - key: PP_CLIENT_ID
@@ -136,9 +153,7 @@ services:
     envVars:
       - fromGroup: fs-config
       - key: DATABASE_URL
-        fromDatabase:
-          name: fs-db
-          property: connectionString
+        sync: false
       - key: EXECUTOR
         value: workflow
       - key: PP_CLIENT_ID
@@ -171,11 +186,18 @@ services:
     startCommand: node apps/tasks/dist/cron.js
     autoDeployTrigger: checksPass
     buildFilter:
+      # Same bundle as fs-tasks (cron.js imports wiring.ts), so the same dependency closure.
       paths:
         - apps/tasks/**
         - packages/contracts/**
+        - packages/domain/**
+        - packages/seed/**
         - packages/db/**
         - packages/outbox/**
+        - packages/paypal-core/**
+        - packages/paypal-toolkit/**
+        - packages/paypal-payouts/**
+        - packages/ai/**
         - package.json
         - pnpm-lock.yaml
         - pnpm-workspace.yaml
@@ -189,9 +211,7 @@ services:
     envVars:
       - fromGroup: fs-config
       - key: DATABASE_URL
-        fromDatabase:
-          name: fs-db
-          property: connectionString
+        sync: false
 
 databases:
   - name: fs-db

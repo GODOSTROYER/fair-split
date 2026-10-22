@@ -4,7 +4,6 @@ import { isTaskName, TASK_NAMES, type TaskName } from "../src/_shims/contracts.j
 import {
   PermanentTaskError,
   type TaskHandler,
-  type TaskHandlers,
   TaskNotWiredError,
   unwiredHandlers,
   withHandlers,
@@ -12,15 +11,16 @@ import {
 import { MAX_ID_LENGTH, MAX_IDS, validateIds } from "../src/invoke.js";
 import { silentLogger } from "../src/log.js";
 import { TASK_POLICY } from "../src/policy.js";
-import { loadHandlers } from "../src/wiring.js";
+import { loadRuntime } from "../src/wiring.js";
 import {
+  DB_PING_TASK,
   PING_TASK,
   type RegisterFn,
   registerWorkflowTasks,
   taskSlug,
   WORKFLOW_SERVICE,
 } from "../src/workflow.js";
-import { captureLogger, OUTBOX_ID } from "./helpers.js";
+import { captureLogger, OUTBOX_ID, testRuntime } from "./helpers.js";
 
 /** The register's IC-01 list, typed out independently of the shim so a drift fails here. */
 const REGISTER_IC01 = [
@@ -63,9 +63,7 @@ const ctx = (taskRunId = "trn-test-1"): TaskContext => ({
   },
 });
 
-function handlersWith(overrides: Partial<Record<TaskName, TaskHandler>>): TaskHandlers {
-  return withHandlers(unwiredHandlers(TASK_NAMES), overrides);
-}
+const runtimeWith = (overrides: Partial<Record<TaskName, TaskHandler>>) => testRuntime(overrides);
 
 describe("TaskName registry shim (IC-01)", () => {
   it("lists exactly the register's 16 task names, in order, without duplicates", () => {
@@ -81,21 +79,22 @@ describe("TaskName registry shim (IC-01)", () => {
 });
 
 describe("registerWorkflowTasks", () => {
-  it("registers every TaskName once, plus the opsPing diagnostic, synchronously", () => {
+  it("registers every TaskName once, plus the opsPing and opsDbPing diagnostics, synchronously", () => {
     const { register, calls } = recorder();
     const wf = registerWorkflowTasks({
-      resolveHandlers: () => handlersWith({}),
+      resolveRuntime: () => runtimeWith({}),
       logger: silentLogger(),
       register,
     });
-    expect(calls.map((c) => c.options.name)).toEqual([...TASK_NAMES, PING_TASK]);
+    expect(calls.map((c) => c.options.name)).toEqual([...TASK_NAMES, PING_TASK, DB_PING_TASK]);
     expect(Object.keys(wf.tasks)).toEqual([...TASK_NAMES]);
     expect(wf.ping.name).toBe(PING_TASK);
+    expect(wf.dbPing.name).toBe(DB_PING_TASK);
   });
 
   it("registers each task with its policy's timeout and retry", () => {
     const { register, calls } = recorder();
-    registerWorkflowTasks({ resolveHandlers: () => handlersWith({}), logger: silentLogger(), register });
+    registerWorkflowTasks({ resolveRuntime: () => runtimeWith({}), logger: silentLogger(), register });
     for (const name of TASK_NAMES) {
       const call = calls.find((c) => c.options.name === name);
       expect(call?.options.timeoutSeconds).toBe(TASK_POLICY[name].timeoutSeconds);
@@ -116,7 +115,7 @@ describe("registerWorkflowTasks", () => {
       const handler = vi.fn<TaskHandler>(async () => ({ status: "done" as const }));
       const { register, calls } = recorder();
       registerWorkflowTasks({
-        resolveHandlers: () => handlersWith({ [name]: handler }),
+        resolveRuntime: () => runtimeWith({ [name]: handler }),
         logger: silentLogger(),
         register,
       });
@@ -133,38 +132,34 @@ describe("registerWorkflowTasks", () => {
     },
   );
 
-  it("resolves handlers lazily, once per process, and retries resolution after a failure", async () => {
+  it("resolves the runtime lazily, once per process, and retries resolution after a failure", async () => {
     const { register, calls } = recorder();
     let attempts = 0;
-    const resolveHandlers = vi.fn(async () => {
+    const resolveRuntime = vi.fn(async () => {
       attempts++;
       if (attempts === 1) throw new Error("db not ready");
-      return handlersWith({ judgeReset: async () => ({ status: "done" }) });
+      return runtimeWith({ judgeReset: async () => ({ status: "done" }) });
     });
-    registerWorkflowTasks({ resolveHandlers, logger: silentLogger(), register });
-    expect(resolveHandlers).not.toHaveBeenCalled();
+    registerWorkflowTasks({ resolveRuntime, logger: silentLogger(), register });
+    expect(resolveRuntime).not.toHaveBeenCalled();
     const fn = calls.find((c) => c.options.name === "judgeReset")?.func;
     await expect(fn?.(ctx(), OUTBOX_ID)).rejects.toThrow("db not ready");
     await expect(fn?.(ctx(), OUTBOX_ID)).resolves.toEqual({ status: "done" });
     await expect(fn?.(ctx(), OUTBOX_ID)).resolves.toEqual({ status: "done" });
-    expect(resolveHandlers).toHaveBeenCalledTimes(2);
+    expect(resolveRuntime).toHaveBeenCalledTimes(2);
   });
 
-  it("returns a failed outcome (no Render retry) for permanent errors, and rethrows transient ones", async () => {
+  it("returns a failed outcome for permanent errors and records it in the outbox; rethrows transient ones", async () => {
     const { register, calls } = recorder();
-    registerWorkflowTasks({
-      resolveHandlers: () =>
-        handlersWith({
-          postPayoutBatch: async () => {
-            throw new PermanentTaskError("DIGEST_MISMATCH", "approved digest differs from lines");
-          },
-          extract: async () => {
-            throw new Error("529 overloaded");
-          },
-        }),
-      logger: silentLogger(),
-      register,
+    const rt = runtimeWith({
+      postPayoutBatch: async () => {
+        throw new PermanentTaskError("DIGEST_MISMATCH", "approved digest differs from lines");
+      },
+      extract: async () => {
+        throw new Error("529 overloaded");
+      },
     });
+    registerWorkflowTasks({ resolveRuntime: () => rt, logger: silentLogger(), register });
     const post = calls.find((c) => c.options.name === "postPayoutBatch")?.func;
     const extract = calls.find((c) => c.options.name === "extract")?.func;
     await expect(post?.(ctx(), OUTBOX_ID)).resolves.toEqual({
@@ -172,12 +167,20 @@ describe("registerWorkflowTasks", () => {
       code: "DIGEST_MISMATCH",
       detail: "approved digest differs from lines",
     });
+    expect(rt.failed).toEqual([
+      { id: OUTBOX_ID, code: "DIGEST_MISMATCH", detail: "approved digest differs from lines" },
+    ]);
     await expect(extract?.(ctx(), OUTBOX_ID)).rejects.toThrow("529 overloaded");
+    expect(rt.failed).toHaveLength(1); // a transient error leaves the row to the sweeper
   });
 
   it("unwired tasks fail permanently with NOT_WIRED", async () => {
     const { register, calls } = recorder();
-    registerWorkflowTasks({ resolveHandlers: loadHandlers, logger: silentLogger(), register });
+    registerWorkflowTasks({
+      resolveRuntime: () => loadRuntime(silentLogger()),
+      logger: silentLogger(),
+      register,
+    });
     for (const name of TASK_NAMES) {
       const fn = calls.find((c) => c.options.name === name)?.func;
       await expect(fn?.(ctx(), OUTBOX_ID)).resolves.toMatchObject({ status: "failed", code: "NOT_WIRED" });
@@ -188,7 +191,7 @@ describe("registerWorkflowTasks", () => {
     const handler = vi.fn<TaskHandler>(async () => ({ status: "done" as const }));
     const { register, calls } = recorder();
     registerWorkflowTasks({
-      resolveHandlers: () => handlersWith({ explain: handler }),
+      resolveRuntime: () => runtimeWith({ explain: handler }),
       logger: silentLogger(),
       register,
     });
@@ -203,8 +206,8 @@ describe("registerWorkflowTasks", () => {
     const { logger, lines } = captureLogger();
     const { register, calls } = recorder();
     registerWorkflowTasks({
-      resolveHandlers: () =>
-        handlersWith({ reconcile: async () => ({ status: "skipped", detail: "claim lost" }) }),
+      resolveRuntime: () =>
+        runtimeWith({ reconcile: async () => ({ status: "skipped", detail: "claim lost" }) }),
       logger,
       register,
     });
@@ -220,9 +223,9 @@ describe("registerWorkflowTasks", () => {
   });
 
   it("opsPing answers without touching handlers", async () => {
-    const resolveHandlers = vi.fn(() => handlersWith({}));
+    const resolveRuntime = vi.fn(() => runtimeWith({}));
     const { register, calls } = recorder();
-    registerWorkflowTasks({ resolveHandlers, logger: silentLogger(), register });
+    registerWorkflowTasks({ resolveRuntime, logger: silentLogger(), register });
     const ping = calls.find((c) => c.options.name === PING_TASK);
     expect(ping?.options.retry?.maxRetries).toBe(0);
     const out = (await ping?.func(ctx("trn-p"), "x".repeat(100))) as {
@@ -233,7 +236,21 @@ describe("registerWorkflowTasks", () => {
     expect(out.pong).toBe(true);
     expect(out.echo).toHaveLength(64);
     expect(out.taskRunId).toBe("trn-p");
-    expect(resolveHandlers).not.toHaveBeenCalled();
+    expect(resolveRuntime).not.toHaveBeenCalled();
+  });
+
+  it("opsDbPing returns the injected probe's booleans and timings, without retries", async () => {
+    const probe = { configured: true, reachable: true, canCreateRole: false, connectMs: 12, queryMs: 3 };
+    const { register, calls } = recorder();
+    registerWorkflowTasks({
+      resolveRuntime: () => runtimeWith({}),
+      logger: silentLogger(),
+      register,
+      probeDb: async () => probe,
+    });
+    const db = calls.find((c) => c.options.name === DB_PING_TASK);
+    expect(db?.options.retry?.maxRetries).toBe(0);
+    await expect(db?.func(ctx())).resolves.toEqual(probe);
   });
 });
 

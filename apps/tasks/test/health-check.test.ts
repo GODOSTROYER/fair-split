@@ -6,6 +6,7 @@ import {
   type CheckResult,
   exitCodeFor,
   formatUsd,
+  missingScopes,
   PAYPAL_SANDBOX_BASE,
   parseArgs,
   REQUIRED_WEBHOOK_EVENTS,
@@ -25,8 +26,14 @@ const env = {
   PP_CLIENT_SECRET: CLIENT_SECRET,
   PP_WEBHOOK_ID: "WH-TEST-1",
 };
-const FULL_SCOPE =
-  "https://uri.paypal.com/services/invoicing https://uri.paypal.com/services/payments/payouts https://uri.paypal.com/services/reporting/search/read";
+const SEARCH_SCOPE = "https://uri.paypal.com/services/reporting/search/read";
+const FULL_SCOPE = [
+  "openid",
+  "https://uri.paypal.com/services/invoicing",
+  "https://uri.paypal.com/services/payments/payouts",
+  SEARCH_SCOPE,
+  "https://uri.paypal.com/services/reporting/balances/read",
+].join(" ");
 
 let paypalCalls = 0;
 let lastAuth: string | null = null;
@@ -186,27 +193,44 @@ describe("health-check", () => {
     expect(b?.status).toBe(status);
   });
 
-  it("reports a missing Balances permission as a warning, not an outage", async () => {
+  it("matches scopes exactly: Transaction Search's reporting/search/read does not cover balances", () => {
+    expect(missingScopes(FULL_SCOPE)).toEqual([]);
+    expect(missingScopes(SEARCH_SCOPE)).toEqual(["invoicing", "payouts", "reporting/balances"]);
+    // A substring of a required scope is not that scope.
+    expect(
+      missingScopes("https://uri.paypal.com/services/reporting https://uri.paypal.com/services/payments"),
+    ).toEqual(["invoicing", "payouts", "reporting/search", "reporting/balances"]);
+  });
+
+  it("a token with only search/read and a 403 on balances fails the run (exit 1): the US$5k guard is blind", async () => {
+    server.use(
+      http.post(`${PAYPAL_SANDBOX_BASE}/v1/oauth2/token`, () =>
+        HttpResponse.json({ access_token: ACCESS, scope: SEARCH_SCOPE, expires_in: 100 }),
+      ),
+      http.get(`${PAYPAL_SANDBOX_BASE}/v1/reporting/balances`, () =>
+        HttpResponse.json({ name: "NOT_AUTHORIZED" }, { status: 403 }),
+      ),
+    );
+    const results = await runHealthChecks({ env, fetch, origin: ORIGIN });
+    const r = byName(results);
+    expect(r["paypal.token"]).toMatchObject({
+      status: "fail",
+      detail: "scope missing: invoicing, payouts, reporting/balances",
+    });
+    expect(r["paypal.balance"]).toMatchObject({ status: "fail" });
+    expect(r["paypal.balance"]?.detail).toMatch(/List Balances/);
+    expect(exitCodeFor(results)).toBe(1);
+  });
+
+  it("a 403 on balances fails even when the token claims every scope", async () => {
     server.use(
       http.get(`${PAYPAL_SANDBOX_BASE}/v1/reporting/balances`, () =>
         HttpResponse.json({ name: "NOT_AUTHORIZED" }, { status: 403 }),
       ),
     );
-    expect(byName(await runHealthChecks({ env, fetch }))["paypal.balance"]?.status).toBe("warn");
-  });
-
-  it("warns on a token without the scopes the server needs", async () => {
-    server.use(
-      http.post(`${PAYPAL_SANDBOX_BASE}/v1/oauth2/token`, () =>
-        HttpResponse.json({
-          access_token: ACCESS,
-          scope: "https://uri.paypal.com/services/invoicing",
-          expires_in: 100,
-        }),
-      ),
-    );
-    const t = byName(await runHealthChecks({ env, fetch }))["paypal.token"];
-    expect(t).toMatchObject({ status: "warn", detail: "scope missing: payouts, reporting" });
+    const results = await runHealthChecks({ env, fetch });
+    expect(byName(results)["paypal.balance"]?.status).toBe("fail");
+    expect(exitCodeFor(results)).toBe(1);
   });
 
   it("stops after a failed token call", async () => {

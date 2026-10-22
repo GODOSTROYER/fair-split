@@ -4,27 +4,24 @@
   "private": true,
   "type": "module",
   "description": "Render Workflows entry (registers every TaskName), cron.ts and the inline executor",
-  "exports": {
-    ".": {
-      "types": "./src/lib.ts",
-      "default": "./src/lib.ts"
-    }
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "inline": "tsx src/inline.ts",
     "cron:plan": "tsx src/cron.ts --plan"
   },
   "dependencies": {
+    "@fairsplit/contracts": "workspace:*",
     "@renderinc/sdk": "catalog:",
-    "pino": "catalog:"
+    "pino": "catalog:",
+    "postgres": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "ajv": "catalog:",
     "msw": "catalog:",
+    "tsdown": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

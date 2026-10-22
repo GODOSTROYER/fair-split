@@ -1,7 +1,15 @@
-// Per-task execution policy: which executor runs it (S3.3 table, refining architecture G2) and the
-// Render Workflows options it registers with (timeoutSeconds 30..86400; retry per @renderinc/sdk 1.3.0).
+// Per-task registration policy for Render Workflows (timeoutSeconds 30..86400; retry per
+// @renderinc/sdk 1.3.0), plus the S3.3 executor lane each task belongs to, for docs and /ops.
+//
+// Retry model (one owner): the outbox sweeper. S3.3's claim
+// (`UPDATE … SET state='running' … WHERE state IN ('queued','dispatched')`) moves the row before the
+// handler does any I/O, so a Render retry after a transient throw would find no row and return
+// `skipped`. Render-side retries could therefore never do useful work; every task registers with
+// `maxRetries: 0` and the sweeper re-queues a row stuck in `running` after 5 minutes, marking it
+// `dead` after 8 attempts. If WS-DATA later makes the claim re-entrant for the same run
+// (`OR (state='running' AND claimed_by=$taskRunId)`), Render retries can be turned back on here.
 import type { Retry } from "@renderinc/sdk/workflows";
-import { type ExecutorKind, TASK_NAMES, type TaskName } from "./_shims/contracts.js";
+import { TASK_NAMES, type TaskName } from "./_shims/contracts.js";
 
 /**
  * - `inline-api`: money, webhook and push tasks run inline in fs-api (warm OAuth cache, sub-second).
@@ -14,63 +22,42 @@ export interface TaskPolicy {
   readonly lane: TaskLane;
   /** Render kills a run after this long. */
   readonly timeoutSeconds: number;
-  /** Render-side retries. The outbox sweeper is the outer safety net (re-queue after 5 min, dead after 8). */
+  /** Render-side retries: always none (see the retry model above). */
   readonly retry: Retry;
 }
 
-/** Money tasks: PayPal-Request-Id and the claim make a repeat safe, but retries stay few and slow. */
-const MONEY_RETRY: Retry = { maxRetries: 2, waitDurationMs: 5_000, backoffScaling: 2 };
-/** Claude calls: transient overloads clear in seconds. */
-const AI_RETRY: Retry = { maxRetries: 3, waitDurationMs: 2_000, backoffScaling: 2 };
-/** Scheduled housekeeping: the next hourly pass is the real retry. */
-const SCHEDULED_RETRY: Retry = { maxRetries: 1, waitDurationMs: 30_000, backoffScaling: 1 };
+/** The outbox sweeper owns retries. `waitDurationMs` is required by the SDK type but unused at 0 retries. */
+export const NO_RENDER_RETRY: Retry = Object.freeze({ maxRetries: 0, waitDurationMs: 1_000 });
+
+/** S3.3 sweeper: a row stuck in `running` this long is re-queued … */
+export const SWEEPER_STUCK_AFTER_MS = 5 * 60_000;
+/** … and marked `dead` after this many attempts. */
+export const SWEEPER_MAX_ATTEMPTS = 8;
+
+const p = (lane: TaskLane, timeoutSeconds: number): TaskPolicy => ({
+  lane,
+  timeoutSeconds,
+  retry: NO_RENDER_RETRY,
+});
 
 export const TASK_POLICY: Readonly<Record<TaskName, TaskPolicy>> = Object.freeze({
-  ensureInvoice: { lane: "inline-api", timeoutSeconds: 120, retry: MONEY_RETRY },
-  recordPayment: { lane: "inline-api", timeoutSeconds: 120, retry: MONEY_RETRY },
-  processWebhook: { lane: "inline-api", timeoutSeconds: 60, retry: MONEY_RETRY },
-  postPayoutBatch: { lane: "inline-api", timeoutSeconds: 180, retry: MONEY_RETRY },
-  settleBatch: { lane: "inline-api", timeoutSeconds: 120, retry: MONEY_RETRY },
-  cancelUnclaimed: { lane: "inline-api", timeoutSeconds: 120, retry: MONEY_RETRY },
-  reroute: { lane: "inline-api", timeoutSeconds: 180, retry: MONEY_RETRY },
-  extract: { lane: "workflow-live", timeoutSeconds: 900, retry: AI_RETRY },
-  readRateCard: { lane: "workflow-live", timeoutSeconds: 600, retry: AI_RETRY },
-  computeRun: { lane: "workflow-live", timeoutSeconds: 120, retry: AI_RETRY },
-  explain: { lane: "workflow-live", timeoutSeconds: 300, retry: AI_RETRY },
-  agentTurn: { lane: "workflow-live", timeoutSeconds: 600, retry: AI_RETRY },
-  pushNotify: { lane: "inline-api", timeoutSeconds: 60, retry: MONEY_RETRY },
-  reconcile: { lane: "workflow-scheduled", timeoutSeconds: 900, retry: SCHEDULED_RETRY },
-  judgeReset: { lane: "workflow-scheduled", timeoutSeconds: 300, retry: SCHEDULED_RETRY },
-  warmCaches: { lane: "workflow-scheduled", timeoutSeconds: 300, retry: SCHEDULED_RETRY },
+  ensureInvoice: p("inline-api", 120),
+  recordPayment: p("inline-api", 120),
+  processWebhook: p("inline-api", 60),
+  postPayoutBatch: p("inline-api", 180),
+  settleBatch: p("inline-api", 120),
+  cancelUnclaimed: p("inline-api", 120),
+  reroute: p("inline-api", 180),
+  extract: p("workflow-live", 900),
+  readRateCard: p("workflow-live", 600),
+  computeRun: p("workflow-live", 120),
+  explain: p("workflow-live", 300),
+  agentTurn: p("workflow-live", 600),
+  pushNotify: p("inline-api", 60),
+  reconcile: p("workflow-scheduled", 900),
+  judgeReset: p("workflow-scheduled", 300),
+  warmCaches: p("workflow-scheduled", 300),
 } satisfies Record<TaskName, TaskPolicy>);
-
-export interface ExecutorChoiceInput {
-  /** The deployment's `EXECUTOR` env value. CI and local use `inline`. */
-  readonly configured: ExecutorKind;
-  /** True when the run replays recorded Claude output (Judge Mode default, register C-06). */
-  readonly replay: boolean;
-}
-
-/**
- * Which executor should run `name`. `inline` and `worker` deployments run everything their way;
- * a `workflow` deployment still keeps money tasks inline and runs replays inline.
- */
-export function chooseExecutor(name: TaskName, input: ExecutorChoiceInput): ExecutorKind {
-  if (input.configured !== "workflow") return input.configured;
-  const { lane } = TASK_POLICY[name];
-  if (lane === "inline-api") return "inline";
-  if (lane === "workflow-live" && input.replay) return "inline";
-  return "workflow";
-}
-
-export function parseExecutorKind(
-  value: string | undefined,
-  fallback: ExecutorKind = "inline",
-): ExecutorKind {
-  if (value === undefined || value === "") return fallback;
-  if (value === "inline" || value === "workflow" || value === "worker") return value;
-  throw new Error(`EXECUTOR must be inline, workflow or worker (got "${value}")`);
-}
 
 /** Task names grouped by lane, for docs and the /ops capabilities panel. */
 export function tasksInLane(lane: TaskLane): TaskName[] {

@@ -1,18 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { TASK_NAMES } from "../src/_shims/contracts.js";
-import {
-  createInlineExecutor,
-  createWorkflowExecutor,
-  INLINE_CONCURRENCY,
-  runWithFallback,
-  Semaphore,
-  type TaskExecutor,
-  type WorkflowsPort,
-} from "../src/executor.js";
-import { type TaskHandler, unwiredHandlers, withHandlers } from "../src/handlers.js";
+import { createInlineExecutor, INLINE_CONCURRENCY, Semaphore, type TaskExecutor } from "../src/executor.js";
+import type { TaskHandler } from "../src/handlers.js";
+import { createWorkflowExecutor, runWithFallback, type WorkflowsPort } from "../src/handoff/dispatcher.js";
 import { main as inlineMain, parseInlineArgs } from "../src/inline.js";
 import { silentLogger } from "../src/log.js";
-import { OUTBOX_ID } from "./helpers.js";
+import { OUTBOX_ID, testRuntime } from "./helpers.js";
 
 const deferred = () => {
   let resolve!: () => void;
@@ -71,7 +63,7 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
       return { status: "done" };
     };
     const ex = createInlineExecutor({
-      handlers: withHandlers(unwiredHandlers(TASK_NAMES), { extract: handler }),
+      runtime: testRuntime({ extract: handler }),
       logger: silentLogger(),
     });
     const runs = [ex.run("extract", ["a"]), ex.run("extract", ["b"]), ex.run("extract", ["c"])];
@@ -86,7 +78,7 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
   it("returns the handler outcome and marks the executor as inline", async () => {
     const handler = vi.fn<TaskHandler>(async () => ({ status: "skipped" as const, detail: "claim lost" }));
     const ex = createInlineExecutor({
-      handlers: withHandlers(unwiredHandlers(TASK_NAMES), { settleBatch: handler }),
+      runtime: testRuntime({ settleBatch: handler }),
       logger: silentLogger(),
     });
     await expect(ex.run("settleBatch", [OUTBOX_ID])).resolves.toEqual({
@@ -98,7 +90,7 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
 
   it("releases its slot when a handler throws", async () => {
     const ex = createInlineExecutor({
-      handlers: withHandlers(unwiredHandlers(TASK_NAMES), {
+      runtime: testRuntime({
         agentTurn: async () => Promise.reject(new Error("boom")),
       }),
       logger: silentLogger(),
@@ -113,13 +105,22 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
     expect(parseInlineArgs(["judgeReset", OUTBOX_ID])).toEqual({ name: "judgeReset", ids: [OUTBOX_ID] });
     expect(() => parseInlineArgs(["opsPing", "x"])).toThrow(/taskName is one of/);
     expect(() => parseInlineArgs(["reconcile"])).toThrow(/at least one/);
-    const handlers = withHandlers(unwiredHandlers(TASK_NAMES), {
-      reconcile: async () => ({ status: "done" }),
-    });
-    await expect(inlineMain(["reconcile", OUTBOX_ID], { handlers, logger: silentLogger() })).resolves.toBe(0);
-    await expect(inlineMain(["warmCaches", OUTBOX_ID], { handlers, logger: silentLogger() })).resolves.toBe(
-      2,
-    );
+    const runtime = testRuntime({ reconcile: async () => ({ status: "done" }) });
+    const deps = { runtime, logger: silentLogger(), env: { PP_ENV: "sandbox" } };
+    await expect(inlineMain(["reconcile", OUTBOX_ID], deps)).resolves.toBe(0);
+    await expect(inlineMain(["warmCaches", OUTBOX_ID], deps)).resolves.toBe(2);
+    expect(runtime.failed).toEqual([
+      { id: OUTBOX_ID, code: "NOT_WIRED", detail: "Task warmCaches has no handler wired yet" },
+    ]);
+  });
+
+  it("CLI refuses to run outside the sandbox (S3.13)", async () => {
+    const runtime = testRuntime({ reconcile: async () => ({ status: "done" }) });
+    for (const env of [{}, { PP_ENV: "live" }]) {
+      await expect(
+        inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env }),
+      ).rejects.toThrow(/PP_ENV must be "sandbox"/);
+    }
   });
 });
 

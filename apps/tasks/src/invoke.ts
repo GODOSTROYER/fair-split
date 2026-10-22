@@ -1,7 +1,10 @@
-// The one wrapper every executor goes through: validate ids, call the injected handler, time it,
-// log it, and classify failures (permanent -> `failed` outcome; transient -> rethrow for retry).
+// The one wrapper every executor goes through: validate ids, check the kill flags, call the injected
+// handler, time it, log it, and classify failures. A permanent failure is written to `task_outbox`
+// through the OutboxPort and returned as a `failed` outcome; a transient one is rethrown, leaving the
+// row `running` for the outbox sweeper to re-queue (Render retries are off; see policy.ts).
 import type { ExecutorKind, TaskName } from "./_shims/contracts.js";
-import { PermanentTaskError, type TaskHandlers, type TaskOutcome } from "./handlers.js";
+import { KillSwitchError, PermanentTaskError, type TaskHandlers, type TaskOutcome } from "./handlers.js";
+import type { FlagCheck } from "./kill.js";
 import type { Logger } from "./log.js";
 
 /** UUIDv7 outbox ids are 36 chars; 128 leaves room for prefixed ids without allowing payloads. */
@@ -15,16 +18,33 @@ export class InvalidTaskInputError extends PermanentTaskError {
   }
 }
 
+const isId = (v: unknown): v is string =>
+  typeof v === "string" && v.length > 0 && v.length <= MAX_ID_LENGTH && ID_PATTERN.test(v);
+
 /** Arguments are ids only (S3.3). Anything else is refused before a handler sees it. */
 export function validateIds(input: readonly unknown[]): string[] {
   if (input.length === 0) throw new InvalidTaskInputError("a task needs at least one id");
   if (input.length > MAX_IDS) throw new InvalidTaskInputError(`at most ${MAX_IDS} ids per run`);
   return input.map((v, i) => {
-    if (typeof v !== "string" || v.length === 0 || v.length > MAX_ID_LENGTH || !ID_PATTERN.test(v)) {
-      throw new InvalidTaskInputError(`argument ${i} is not an id`);
-    }
+    if (!isId(v)) throw new InvalidTaskInputError(`argument ${i} is not an id`);
     return v;
   });
+}
+
+/**
+ * The slice of `task_outbox` this wrapper writes. WS-DATA implements it in packages/outbox, e.g.
+ * `UPDATE task_outbox SET state = 'dead', last_error = … WHERE id = $1 AND state <> 'done'`.
+ * It must be idempotent; it is called once per id of a run that failed permanently.
+ */
+export interface OutboxPort {
+  markFailed(id: string, code: string, detail: string): Promise<void>;
+}
+
+/** What every executor needs to run a task. Built once per process by wiring.ts. */
+export interface TaskRuntime {
+  readonly handlers: TaskHandlers;
+  readonly outbox: OutboxPort;
+  readonly checkFlags: FlagCheck;
 }
 
 export interface InvokeContext {
@@ -36,7 +56,7 @@ export interface InvokeContext {
 }
 
 export async function invokeTask(
-  handlers: TaskHandlers,
+  runtime: TaskRuntime,
   name: TaskName,
   rawIds: readonly unknown[],
   ctx: InvokeContext,
@@ -46,8 +66,9 @@ export async function invokeTask(
   const log = ctx.logger.child({ task: name, executor: ctx.executor, taskRunId: ctx.taskRunId });
   try {
     const ids = validateIds(rawIds);
-    const handler = handlers[name];
-    const outcome = await handler({
+    const flag = await runtime.checkFlags(name);
+    if (flag) throw new KillSwitchError(name, flag);
+    const outcome = await runtime.handlers[name]({
       name,
       ids,
       executor: ctx.executor,
@@ -59,7 +80,11 @@ export async function invokeTask(
   } catch (err) {
     const ms = now() - started;
     if (err instanceof PermanentTaskError) {
-      log.warn({ code: err.code, ms }, "task.run failed permanently");
+      // Record the dead row first. If that write fails, it throws out of here, so the run fails
+      // visibly and the sweeper retries, instead of reporting success while the row stays `running`.
+      const ids = rawIds.filter(isId).slice(0, MAX_IDS);
+      for (const id of ids) await runtime.outbox.markFailed(id, err.code, err.message);
+      log.warn({ code: err.code, ids, ms }, "task.run failed permanently");
       return { status: "failed", code: err.code, detail: err.message };
     }
     log.error({ err: err instanceof Error ? err.message : String(err), ms }, "task.run failed; retryable");

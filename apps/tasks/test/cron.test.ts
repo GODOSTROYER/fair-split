@@ -8,34 +8,53 @@ import {
   hourSlot,
   main,
   NIGHTLY_UTC_HOUR,
+  NIGHTLY_WINDOW_HOURS,
   parseCronArgs,
   planCronRun,
   runCron,
   WARM_EVERY_HOURS,
+  warmWindow,
 } from "../src/cron.js";
 import { silentLogger } from "../src/log.js";
 import { captureLogger } from "./helpers.js";
 
 const at = (iso: string) => new Date(iso);
-const names = (jobs: CronJob[]) => jobs.map((j) => j.name);
-/** First hour index at or after 2026-10-23T00Z that is a warmCaches hour. */
-const firstWarmAfter = (iso: string) => {
-  let h = hourIndex(at(iso));
-  while (h % WARM_EVERY_HOURS !== 0) h++;
-  return new Date(h * 3_600_000 + 7 * 60_000);
-};
-
-function memorySink(): CronSink & { rows: Map<string, CronJob> } {
+function memorySink(): CronSink & { rows: Map<string, CronJob>; createdAt: Map<string, number> } {
   const rows = new Map<string, CronJob>();
+  const createdAt = new Map<string, number>();
+  let hour = 0;
   return {
     rows,
+    createdAt,
     async enqueue(job) {
       const created = !rows.has(job.dedupeKey);
-      if (created) rows.set(job.dedupeKey, job);
+      if (created) {
+        rows.set(job.dedupeKey, job);
+        createdAt.set(job.dedupeKey, hour);
+      }
       return { id: `ob-${[...rows.keys()].indexOf(job.dedupeKey)}`, created };
     },
-  };
+    set hourIndex(h: number) {
+      hour = h;
+    },
+  } as CronSink & { rows: Map<string, CronJob>; createdAt: Map<string, number> };
 }
+
+/** Run every hourly pass from `startIso` for `hours`, skipping the passes in `missed`. */
+async function simulate(startIso: string, hours: number, missed: ReadonlySet<number> = new Set()) {
+  const sink = memorySink();
+  const start = at(startIso).getTime();
+  for (let i = 0; i < hours; i++) {
+    if (missed.has(i)) continue;
+    (sink as unknown as { hourIndex: number }).hourIndex = i;
+    await runCron(new Date(start + i * 3_600_000), sink, silentLogger());
+  }
+  const createdHours = (prefix: string) =>
+    [...sink.createdAt.entries()].filter(([k]) => k.startsWith(prefix)).map(([, h]) => h);
+  return { sink, createdHours };
+}
+
+const gaps = (hours: number[]) => hours.slice(1).map((h, i) => h - (hours[i] as number));
 
 describe("cron schedule", () => {
   it("runs hourly at minute 7, and render.yaml agrees", () => {
@@ -61,13 +80,14 @@ describe("cron schedule", () => {
     ]);
   });
 
-  it("adds reconcile{nightly} only in the 02:00 UTC hour", () => {
+  it("offers reconcile{nightly} on every pass from 02:00 to 05:59 UTC, keyed by date", () => {
     for (let h = 0; h < 24; h++) {
       const now = at(`2026-10-24T${String(h).padStart(2, "0")}:07:00Z`);
       const nightly = planCronRun(now).filter((j) => j.name === "reconcile" && j.args.mode === "nightly");
-      expect(nightly).toHaveLength(h === NIGHTLY_UTC_HOUR ? 1 : 0);
+      const inWindow = h >= NIGHTLY_UTC_HOUR && h < NIGHTLY_UTC_HOUR + NIGHTLY_WINDOW_HOURS;
+      expect(nightly, `hour ${h}`).toHaveLength(inWindow ? 1 : 0);
     }
-    const [nightly] = planCronRun(at("2026-10-24T02:07:00Z")).filter((j) => j.args.mode === "nightly");
+    const [nightly] = planCronRun(at("2026-10-24T04:07:00Z")).filter((j) => j.args.mode === "nightly");
     expect(nightly).toEqual({
       name: "reconcile",
       args: { mode: "nightly", date: "2026-10-24" },
@@ -75,56 +95,68 @@ describe("cron schedule", () => {
     });
   });
 
-  it("schedules warmCaches exactly every 23 hours, so grammars never pass their 24 h expiry", () => {
-    const start = at("2026-10-22T00:07:00Z").getTime();
-    const warmHours: number[] = [];
-    for (let i = 0; i < 24 * 60; i++) {
-      const now = new Date(start + i * 3_600_000);
-      if (names(planCronRun(now)).includes("warmCaches")) warmHours.push(i);
-    }
-    expect(warmHours.length).toBeGreaterThan(60);
-    const gaps = warmHours.slice(1).map((h, i) => h - (warmHours[i] as number));
-    expect(new Set(gaps)).toEqual(new Set([WARM_EVERY_HOURS]));
+  it("offers warmCaches on every pass, keyed by its 23-hour window", () => {
+    const now = at("2026-10-23T05:07:00Z");
+    const warm = planCronRun(now).filter((j) => j.name === "warmCaches");
+    expect(warm).toEqual([
+      { name: "warmCaches", args: { window: warmWindow(now) }, dedupeKey: `warmCaches:w${warmWindow(now)}` },
+    ]);
+    expect(warmWindow(now)).toBe(Math.floor(hourIndex(now) / WARM_EVERY_HOURS));
     expect(WARM_EVERY_HOURS).toBeLessThan(24);
   });
 
-  it("covers the Judge window through 15 Dec with hourly resets and daily nightly passes", () => {
-    const start = at("2026-10-30T12:07:00Z").getTime();
-    const end = at("2026-12-15T23:07:00Z").getTime();
-    const counts = { judgeReset: 0, nightly: 0, warm: 0 };
-    for (let t = start; t <= end; t += 3_600_000) {
-      for (const j of planCronRun(new Date(t))) {
-        if (j.name === "judgeReset") counts.judgeReset++;
-        if (j.args.mode === "nightly") counts.nightly++;
-        if (j.name === "warmCaches") counts.warm++;
-      }
-    }
-    const hours = (end - start) / 3_600_000 + 1;
-    expect(counts.judgeReset).toBe(hours);
-    expect(counts.nightly).toBe(46); // 31 Oct .. 15 Dec
-    expect(counts.warm).toBeGreaterThanOrEqual(Math.floor(hours / WARM_EVERY_HOURS));
+  it("with every pass succeeding, warmCaches runs exactly every 23 h and nightly once a day at 02:07", async () => {
+    const { createdHours } = await simulate("2026-10-22T00:07:00Z", 24 * 60);
+    const warm = createdHours("warmCaches:");
+    expect(warm.length).toBeGreaterThan(60);
+    expect(new Set(gaps(warm.slice(1)))).toEqual(new Set([WARM_EVERY_HOURS]));
+    const nightly = createdHours("reconcile:nightly:");
+    expect(nightly).toHaveLength(60);
+    for (const h of nightly) expect(h % 24).toBe(NIGHTLY_UTC_HOUR);
   });
 
-  it("dedupe keys are stable within an hour and unique across hours", () => {
-    const a = planCronRun(at("2026-10-23T05:07:00Z")).map((j) => j.dedupeKey);
-    const b = planCronRun(at("2026-10-23T05:59:59Z")).map((j) => j.dedupeKey);
-    const c = planCronRun(at("2026-10-23T06:07:00Z")).map((j) => j.dedupeKey);
+  it("a missed or failed pass is made up by the next one, not a window or a day later", async () => {
+    const start = "2026-10-22T00:07:00Z";
+    const { createdHours: clean } = await simulate(start, 24 * 10);
+    const warmHours = clean("warmCaches:");
+    // Miss the pass that would warm, and the 02:07 and 03:07 nightly passes on day 3.
+    const missed = new Set([warmHours[2] as number, 2 * 24 + 2, 2 * 24 + 3]);
+    const { createdHours } = await simulate(start, 24 * 10, missed);
+    const warm = createdHours("warmCaches:");
+    expect(warm[2]).toBe((warmHours[2] as number) + 1);
+    expect(Math.max(...gaps(warm))).toBeLessThanOrEqual(WARM_EVERY_HOURS + 1);
+    expect(createdHours("reconcile:nightly:")).toContain(2 * 24 + 4);
+  });
+
+  it("covers the Judge window through 15 Dec with hourly resets and daily nightly passes", async () => {
+    const start = at("2026-10-30T12:07:00Z").getTime();
+    const end = at("2026-12-15T23:07:00Z").getTime();
+    const hours = (end - start) / 3_600_000 + 1;
+    const { createdHours } = await simulate("2026-10-30T12:07:00Z", hours);
+    expect(createdHours("judgeReset:")).toHaveLength(hours);
+    expect(createdHours("reconcile:nightly:")).toHaveLength(46); // 31 Oct .. 15 Dec
+    expect(createdHours("warmCaches:").length).toBeGreaterThanOrEqual(Math.floor(hours / WARM_EVERY_HOURS));
+  });
+
+  it("hourly keys are unique per hour; nightly and warm keys repeat until their slot ends", () => {
+    const a = planCronRun(at("2026-10-23T05:07:00Z"));
+    const b = planCronRun(at("2026-10-23T05:59:59Z"));
     expect(b).toEqual(a);
-    expect(c.filter((k) => a.includes(k))).toEqual([]);
-    const all = new Set<string>();
+    const hourly = new Set<string>();
     for (let i = 0; i < 24 * 30; i++) {
-      for (const k of planCronRun(new Date(at("2026-11-01T00:07:00Z").getTime() + i * 3_600_000)).map(
-        (j) => j.dedupeKey,
-      )) {
-        expect(all.has(k)).toBe(false);
-        all.add(k);
+      for (const j of planCronRun(new Date(at("2026-11-01T00:07:00Z").getTime() + i * 3_600_000))) {
+        if (j.name === "warmCaches" || j.args.mode === "nightly") continue;
+        expect(hourly.has(j.dedupeKey)).toBe(false);
+        hourly.add(j.dedupeKey);
       }
     }
+    const night = (iso: string) => planCronRun(at(iso)).find((j) => j.args.mode === "nightly")?.dedupeKey;
+    expect(night("2026-11-02T02:07:00Z")).toBe(night("2026-11-02T05:07:00Z"));
+    expect(night("2026-11-02T02:07:00Z")).not.toBe(night("2026-11-03T02:07:00Z"));
   });
 
   it("arguments are small JSON scalars (the outbox stores them; Workflows sees only ids)", () => {
-    const now = firstWarmAfter("2026-11-02T02:00:00Z");
-    for (const job of [...planCronRun(now), ...planCronRun(at("2026-11-02T02:07:00Z"))]) {
+    for (const job of planCronRun(at("2026-11-02T02:07:00Z"))) {
       for (const v of Object.values(job.args)) expect(["string", "number"]).toContain(typeof v);
       expect(JSON.stringify(job).length).toBeLessThan(200);
     }
@@ -160,7 +192,7 @@ describe("runCron", () => {
     };
     const { logger, lines } = captureLogger();
     const results = await runCron(at("2026-10-23T05:07:00Z"), sink, logger);
-    expect(results.map((r) => r.ok)).toEqual([false, true]);
+    expect(results.map((r) => r.ok)).toEqual([false, true, true, true]);
     expect(results[0]?.error).toBe("lock timeout");
     expect(lines.some((l) => l.msg === "cron.enqueue failed" && l.task === "judgeReset")).toBe(true);
   });
@@ -174,6 +206,7 @@ describe("cron main", () => {
       "judgeReset",
       "reconcile",
       "reconcile",
+      "warmCaches",
     ]);
   });
 

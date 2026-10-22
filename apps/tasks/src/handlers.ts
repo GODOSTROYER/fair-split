@@ -43,6 +43,16 @@ export class PermanentTaskError extends Error {
   }
 }
 
+/** Thrown at task entry when a kill flag that covers the task is on (architecture §11, S3.11). */
+export class KillSwitchError extends PermanentTaskError {
+  constructor(
+    readonly task: TaskName,
+    readonly flag: string,
+  ) {
+    super("KILL_SWITCH", `Task ${task} refused: kill switch ${flag} is on`);
+  }
+}
+
 /** Thrown by the placeholder handlers until the owning workstream's implementation is wired in. */
 export class TaskNotWiredError extends PermanentTaskError {
   constructor(readonly task: TaskName) {

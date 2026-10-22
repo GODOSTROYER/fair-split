@@ -5,6 +5,6 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     environment: "node",
     testTimeout: 30_000,
-    env: { LOG_LEVEL: "silent" },
+    env: { LOG_LEVEL: "silent", PP_ENV: "sandbox" },
   },
 });

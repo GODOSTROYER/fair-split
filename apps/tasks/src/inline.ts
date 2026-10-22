@@ -5,10 +5,11 @@
 import { isTaskName, TASK_NAMES, type TaskName } from "./_shims/contracts.js";
 import { loadDotEnv } from "./env.js";
 import { createInlineExecutor } from "./executor.js";
-import type { TaskHandlers } from "./handlers.js";
+import type { TaskRuntime } from "./invoke.js";
+import { assertSandbox } from "./kill.js";
 import { createLogger, type Logger } from "./log.js";
 import { isMain } from "./main.js";
-import { loadHandlers } from "./wiring.js";
+import { loadRuntime } from "./wiring.js";
 
 export function parseInlineArgs(argv: readonly string[]): { name: TaskName; ids: string[] } {
   const [name, ...ids] = argv;
@@ -19,15 +20,19 @@ export function parseInlineArgs(argv: readonly string[]): { name: TaskName; ids:
   return { name, ids };
 }
 
-/** Exit code: 0 done or skipped, 2 permanent failure; a transient failure rejects (exit 1). */
+/**
+ * Exit code: 0 done or skipped, 2 permanent failure; a transient failure rejects (exit 1).
+ * Refuses to run outside the sandbox (S3.13), like the workflow entry.
+ */
 export async function main(
   argv: readonly string[],
-  deps: { handlers?: TaskHandlers; logger?: Logger } = {},
+  deps: { runtime?: TaskRuntime; logger?: Logger; env?: NodeJS.ProcessEnv } = {},
 ): Promise<number> {
+  assertSandbox(deps.env ?? process.env);
   const { name, ids } = parseInlineArgs(argv);
   const logger = deps.logger ?? createLogger({ entry: "inline" });
-  const handlers = deps.handlers ?? (await loadHandlers());
-  const receipt = await createInlineExecutor({ handlers, logger }).run(name, ids);
+  const runtime = deps.runtime ?? (await loadRuntime(logger));
+  const receipt = await createInlineExecutor({ runtime, logger }).run(name, ids);
   return receipt.outcome?.status === "failed" ? 2 : 0;
 }
 
