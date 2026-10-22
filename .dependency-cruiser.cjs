@@ -143,6 +143,15 @@ const EXCLUDED_RE = `(^|/node_modules/|^node_modules/)(${EXCLUDED_PACKAGES.map((
   p.endsWith("/") ? `${esc(p)}[^/]+` : esc(p),
 ).join("|")})(/|$)`;
 
+// Known debt that lapses by itself. WS-PPCORE's webhook tests landed in apps/api/src/webhooks before WS-API
+// scaffolded apps/api, so there is no apps/api/package.json to declare msw in. While that file is missing,
+// those test files may import msw (catalog-pinned, the test-kit's mocking library) and nothing else
+// undeclared. Once WS-API adds apps/api/package.json, this matches nothing and msw must be declared there
+// (devDependencies, through a deps PR) like any other import.
+const PENDING_API_TESTS = existsSync(join("apps", "api", "package.json"))
+  ? NEVER
+  : "^apps/api/src/webhooks/[^/]+\\.test\\.ts$";
+
 const layerRules = Object.entries(SERVER_ALLOWED).map(([pkg, allowed]) => ({
   name: `layer-${pkg}`,
   comment: `packages/${pkg} may import only: ${allowed.join(", ") || "(no workspace packages)"} (register section 6)`,
@@ -235,8 +244,17 @@ module.exports = {
         "Every npm import must be declared in the importing package's own package.json; with nodeLinker " +
         "hoisted an undeclared import silently resolves to whatever is hoisted (for example zod 3)",
       severity: "error",
-      from: {},
+      from: { pathNot: PENDING_API_TESTS },
       to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"] },
+    },
+    {
+      name: "no-undeclared-deps-until-apps-api-package",
+      comment:
+        "apps/api has no package.json yet: its webhook tests may import msw undeclared, nothing else. " +
+        "Lapses once apps/api/package.json exists",
+      severity: "error",
+      from: { path: PENDING_API_TESTS },
+      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"], pathNot: "(^|/)node_modules/msw/" },
     },
     {
       name: "no-excluded-packages",
@@ -280,9 +298,12 @@ module.exports = {
     },
     {
       name: "no-circular",
+      comment:
+        "No runtime import cycles. A cycle that passes through an `import type` is ignored: with " +
+        "verbatimModuleSyntax those imports are erased, so no module waits on another at load time",
       severity: "error",
       from: {},
-      to: { circular: true },
+      to: { circular: true, viaOnly: { dependencyTypesNot: ["type-only"] } },
     },
     {
       name: "not-to-unresolvable",

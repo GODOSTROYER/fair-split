@@ -124,6 +124,21 @@ beforeAll(() => {
     'import { cents } from "../packages/domain/src/money.js";\nexport const y = cents;\n',
   );
 
+  // apps/api before WS-API scaffolds it (no package.json): its webhook tests may import msw undeclared.
+  npmPackage("node_modules/msw", "msw", "3.0.3");
+  put("apps/api/src/webhooks/plant-msw.test.ts", 'import "msw";\nexport {};\n');
+  put("apps/api/src/webhooks/plant-other.test.ts", 'import "canonicalize";\nexport {};\n');
+  put("apps/api/src/webhooks/plant-runtime.ts", 'import "msw";\nexport {};\n');
+
+  // Cycles: a runtime one (planted) and one that passes through an `import type` (clean).
+  put("packages/db/src/cycle-a.ts", 'import { b } from "./cycle-b.js";\nexport const a = () => b;\n');
+  put("packages/db/src/cycle-b.ts", 'import { a } from "./cycle-a.js";\nexport const b = () => a;\n');
+  put(
+    "packages/db/src/type-a.ts",
+    'import type { B } from "./type-b.js";\nexport type A = { b?: B };\nexport const a = 1;\n',
+  );
+  put("packages/db/src/type-b.ts", 'import { a } from "./type-a.js";\nexport type B = { a: typeof a };\n');
+
   violations = cruise(fx, ["{apps,packages,tools,e2e}"]).summary.violations;
 }, 120_000);
 
@@ -167,6 +182,19 @@ describe("dependency-cruiser rules fire on planted violations", () => {
     );
   });
 
+  it("no-circular: a runtime cycle fires; a cycle through an `import type` does not", () => {
+    expect(hits("no-circular", "packages/db/src/cycle-a.ts").length).toBeGreaterThan(0);
+    expect(rulesFor("packages/db/src/type-a.ts")).toEqual([]);
+    expect(rulesFor("packages/db/src/type-b.ts")).toEqual([]);
+  });
+
+  it("apps/api without a package.json: its webhook tests may import msw undeclared, and nothing else", () => {
+    expect(rulesFor("apps/api/src/webhooks/plant-msw.test.ts")).toEqual([]);
+    const other = "apps/api/src/webhooks/plant-other.test.ts";
+    expect(hits("no-undeclared-deps-until-apps-api-package", other)).toHaveLength(1);
+    expect(hits("no-undeclared-deps", "apps/api/src/webhooks/plant-runtime.ts")).toHaveLength(1);
+  });
+
   it("clean controls stay clean", () => {
     for (const f of [
       "packages/contracts/src/index.ts",
@@ -180,6 +208,16 @@ describe("dependency-cruiser rules fire on planted violations", () => {
       expect(rulesFor(f), f).toEqual([]);
     }
   });
+});
+
+describe("the apps/api msw allowance", () => {
+  // Runs after the planted-violation checks above: it adds apps/api/package.json to the shared fixture.
+  it("lapses once apps/api/package.json exists: msw must then be declared there", () => {
+    put("apps/api/package.json", pkgJson("@fairsplit/api"));
+    const after = cruise(fx, ["apps"]).summary.violations;
+    const msw = after.filter((v) => v.from === "apps/api/src/webhooks/plant-msw.test.ts");
+    expect(msw.map((v) => v.rule.name)).toEqual(["no-undeclared-deps"]);
+  }, 120_000);
 });
 
 describe("the real tree", () => {

@@ -44,7 +44,7 @@ describe("glob matching", () => {
 });
 
 describe("docs/ownership.md", () => {
-  it("lists all thirteen workstreams from register section 11", () => {
+  it("lists the thirteen workstreams from register section 11, plus WS-PPSIM (ADR-0002)", () => {
     expect(Object.keys(ownership.workstreams).sort()).toEqual(
       [
         "WS-AGENT",
@@ -58,6 +58,7 @@ describe("docs/ownership.md", () => {
         "WS-OPS",
         "WS-PPCORE",
         "WS-PPMONEY",
+        "WS-PPSIM",
         "WS-QA",
         "WS-READ",
       ].sort(),
