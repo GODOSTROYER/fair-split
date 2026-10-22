@@ -734,11 +734,11 @@ export type ToStage = { v: 1 } & (
 - **Judge code.** An optional code in Devpost's Testing instructions unlocks a reserved bucket of live runs. Whether only judges can see that field is UNVERIFIED.
 - **Over quota** always means a labelled replay, never a block: the rules require access "without any restriction" until 15 Dec, 08:00 PT.
 
-| Quota key     | Limit ("live" means it posts a real batch)                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------- |
-| Global        | 15 live posts per rolling 24 h, at most 3 per clock hour; the public bucket gets at most 5 of them |
-| Judge cookie  | 3 session starts an hour; 3 live posts per 24 h                                                    |
-| Hashed IP     | 30 session starts an hour (a loose outer bound)                                                    |
+| Quota key    | Limit ("live" means it posts a real batch)                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Global       | 15 live posts per rolling 24 h, at most 3 per clock hour; the public bucket gets at most 5 of them |
+| Judge cookie | 3 session starts an hour; 3 live posts per 24 h                                                    |
+| Hashed IP    | 30 session starts an hour (a loose outer bound)                                                    |
 
 **Client IP**
 - Use `true-client-ip`, else `cf-connecting-ip`. Both are set by the Cloudflare edge in front of Render (S6 confirms).
