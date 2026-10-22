@@ -16,6 +16,10 @@
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./src/testing/index.ts"
+    },
+    "./testing/global-setup": {
+      "types": "./src/testing/global-setup.ts",
+      "default": "./src/testing/global-setup.ts"
     }
   },
   "scripts": {
