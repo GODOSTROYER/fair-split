@@ -4,6 +4,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import sharp from "sharp";
 import { sha256 } from "../util/hash.js";
 import { type CodexRunOptions, type CodexRunResult, codexHome, type FoundImage } from "./codex.js";
+import type { ExecBudget } from "./ledger.js";
 import { mediaRelative } from "./manifest.js";
 import { DEFAULT_EXPECTATION, type ImageExpectation, verifyImage } from "./verify.js";
 
@@ -25,6 +26,8 @@ export interface ExecDeps {
   find: (run: CodexRunResult, home: string) => Promise<FoundImage[]>;
   codexHome?: string;
   log?: (line: string) => void;
+  /** Asked before every exec (the Codex ledger, 12 per 5 hours). */
+  budget?: ExecBudget;
 }
 
 export interface ExecRequest {
@@ -164,6 +167,13 @@ export async function execPrompt(req: ExecRequest, deps: ExecDeps): Promise<Exec
 
   for (let i = 0; i < maxAttempts; i++) {
     const n = prior.count + i + 1;
+    try {
+      await deps.budget?.reserve(`exec:${name}#${n}`);
+    } catch (e) {
+      // Out of Codex budget: keep the attempts already spent on record, then stop.
+      await finish({ ok: false, name, promptLog, attempts });
+      throw e;
+    }
     log(`[exec:${name}] attempt ${n}: codex exec`);
     const run = await deps.run({
       prompt,

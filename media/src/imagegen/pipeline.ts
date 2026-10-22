@@ -4,6 +4,7 @@ import type { AssetKind, AssetSpec } from "../content/types.js";
 import { PROMPT_VERSION, renderPrompt } from "../prompts/render.js";
 import { sha256 } from "../util/hash.js";
 import { type CodexRunOptions, type CodexRunResult, codexHome, type FoundImage } from "./codex.js";
+import type { ExecBudget } from "./ledger.js";
 import {
   type AssetEntry,
   type Attempt,
@@ -28,6 +29,8 @@ export interface PipelineDeps {
   find: (run: CodexRunResult, home: string) => Promise<FoundImage[]>;
   codexHome?: string;
   log?: (line: string) => void;
+  /** Asked before every exec (the Codex ledger, 12 per 5 hours); tests that need no limit leave it out. */
+  budget?: ExecBudget;
 }
 
 export interface GenerateOptions {
@@ -52,6 +55,18 @@ export const DISPLAY_DIR: Record<AssetKind, string> = {
   rate_card_page: "docs",
   logbook_page: "docs",
 };
+
+/** IC-11's photo ids: the replay set A–L and the archived P01–P54. */
+export const IC11_PHOTO_ID = /^(?:[A-L]|P\d{2})$/;
+
+/**
+ * Where an asset's display WebP goes, relative to the media root. `photos/*.webp` is IC-11's photo set
+ * (A–L, P01–P54) and a consumer may glob it, so any other four-slip photo (a spike) goes in `photos/spike/`.
+ */
+export function displayPath(asset: Pick<AssetSpec, "id" | "kind">): string {
+  if (asset.kind === "slip_photo" && !IC11_PHOTO_ID.test(asset.id)) return `photos/spike/${asset.id}.webp`;
+  return `${DISPLAY_DIR[asset.kind]}/${asset.id}.webp`;
+}
 
 export function expectationFor(asset: AssetSpec): ImageExpectation {
   return { ...DEFAULT_EXPECTATION, orientation: asset.orientation };
@@ -110,7 +125,9 @@ export async function generateAsset(
   const purpose = opts.purpose ?? "accept";
   const log = deps.log ?? (() => undefined);
   const prompt = renderPrompt(asset);
-  const { promptSha256, current, history } = await logPrompt(deps.mediaRoot, asset.id, prompt);
+  // prompts/{id}.md is the latest rendered prompt; the manifest only ever points at the immutable history
+  // copy (prompts/history/{id}.{sha8}.md) of the prompt that made the master.
+  const { promptSha256, history } = await logPrompt(deps.mediaRoot, asset.id, prompt);
   const promptFile = mediaRelative(history, deps.mediaRoot);
 
   const inputImages: string[] = [];
@@ -134,6 +151,13 @@ export async function generateAsset(
 
   for (let i = 0; i < maxAttempts; i++) {
     n += 1;
+    try {
+      await deps.budget?.reserve(`${asset.id}#${n} ${purpose}`);
+    } catch (e) {
+      // Out of Codex budget: keep what this call already spent on record, then stop.
+      await record(asset, deps, history, promptSha256, attempts, () => undefined);
+      throw e;
+    }
     log(`[${asset.id}] attempt ${n}: codex exec (${purpose})`);
     const run = await deps.run({
       prompt,
@@ -147,6 +171,7 @@ export async function generateAsset(
       purpose,
       promptFile,
       promptSha256,
+      promptVersion: PROMPT_VERSION,
       inputImages: inputImages.map((p) => mediaRelative(p, deps.mediaRoot)),
       threadId: run.threadId,
       startedAt: run.startedAt.toISOString(),
@@ -198,9 +223,9 @@ export async function generateAsset(
     if (purpose === "accept") {
       const bytes = await readFile(raw);
       master = await writeMaster(bytes, join(deps.mediaRoot, "masters", `${asset.id}.jpg`));
-      display = await writeDisplay(bytes, join(deps.mediaRoot, DISPLAY_DIR[asset.kind], `${asset.id}.webp`));
+      display = await writeDisplay(bytes, join(deps.mediaRoot, displayPath(asset)));
     }
-    await record(asset, deps, current, promptSha256, attempts, (e) => {
+    await record(asset, deps, history, promptSha256, attempts, (e) => {
       if (purpose === "accept" && master && display) {
         e.master = { ...master, file: mediaRelative(master.file, deps.mediaRoot) };
         e.display = { ...display, file: mediaRelative(display.file, deps.mediaRoot) };
@@ -221,7 +246,7 @@ export async function generateAsset(
     );
     return { id: asset.id, ok: true, attempts, raw: rawRel };
   }
-  await record(asset, deps, current, promptSha256, attempts, () => undefined);
+  await record(asset, deps, history, promptSha256, attempts, () => undefined);
   return { id: asset.id, ok: false, attempts };
 }
 
@@ -278,7 +303,7 @@ export async function adoptAttempt(
   if (as === "accept") {
     const bytes = await readFile(raw);
     master = await writeMaster(bytes, join(deps.mediaRoot, "masters", `${asset.id}.jpg`));
-    display = await writeDisplay(bytes, join(deps.mediaRoot, DISPLAY_DIR[asset.kind], `${asset.id}.webp`));
+    display = await writeDisplay(bytes, join(deps.mediaRoot, displayPath(asset)));
   }
   const note = `re-verified under current checks (was: ${attempt.reason ?? attempt.outcome})`;
   await deps.store.update((m) => {
@@ -292,6 +317,14 @@ export async function adoptAttempt(
     if (master && display) {
       e.master = { ...master, file: mediaRelative(master.file, deps.mediaRoot) };
       e.display = { ...display, file: mediaRelative(display.file, deps.mediaRoot) };
+      describeMaster(
+        e,
+        asset,
+        { codexCli: e.codexCli },
+        a.promptFile,
+        a.promptSha256,
+        a.promptVersion ?? e.promptVersion,
+      );
       e.review = {
         status: "pending",
         reviewer: null,
@@ -327,10 +360,7 @@ export async function promoteAttempt(asset: AssetSpec, deps: PipelineDeps, attem
   }
   const bytes = await readFile(join(deps.mediaRoot, attempt.raw));
   const master = await writeMaster(bytes, join(deps.mediaRoot, "masters", `${asset.id}.jpg`));
-  const display = await writeDisplay(
-    bytes,
-    join(deps.mediaRoot, DISPLAY_DIR[asset.kind], `${asset.id}.webp`),
-  );
+  const display = await writeDisplay(bytes, join(deps.mediaRoot, displayPath(asset)));
   await deps.store.update((m) => {
     const e = m.assets[asset.id];
     if (!e) return;
@@ -351,6 +381,14 @@ export async function promoteAttempt(asset: AssetSpec, deps: PipelineDeps, attem
     e.trials = e.trials.filter((t) => t.sha256 !== attempt.output?.sha256);
     e.master = { ...master, file: mediaRelative(master.file, deps.mediaRoot) };
     e.display = { ...display, file: mediaRelative(display.file, deps.mediaRoot) };
+    describeMaster(
+      e,
+      asset,
+      { codexCli: e.codexCli },
+      attempt.promptFile,
+      attempt.promptSha256,
+      attempt.promptVersion ?? e.promptVersion,
+    );
     e.review = {
       status: "pending",
       reviewer: null,
@@ -363,31 +401,50 @@ export async function promoteAttempt(asset: AssetSpec, deps: PipelineDeps, attem
   (deps.log ?? (() => undefined))(`[${asset.id}] attempt ${attemptN} promoted to master`);
 }
 
+/**
+ * Appends attempts to the manifest entry. The entry's provenance (prompt, prompt version, content source,
+ * Codex version) describes its master, so it is rewritten here only while there is no master yet; once a
+ * master exists, only `mutate` (a new master) changes it, and trials leave it alone.
+ */
 async function record(
   asset: AssetSpec,
   deps: PipelineDeps,
-  promptCurrent: string,
+  promptHistory: string,
   promptSha256: string,
   attempts: Attempt[],
   mutate: (e: AssetEntry) => void,
 ): Promise<void> {
   await deps.store.update((m) => {
-    const promptFile = mediaRelative(promptCurrent, deps.mediaRoot);
+    const promptFile = mediaRelative(promptHistory, deps.mediaRoot);
     const e = m.assets[asset.id] ?? newEntry(asset, deps, promptFile, promptSha256);
     e.title = asset.title;
-    e.codexCli = deps.codexCli;
-    e.promptVersion = PROMPT_VERSION;
-    e.prompt = { file: promptFile, sha256: promptSha256 };
-    e.source = asset.source;
+    const hadMaster = e.master?.sha256 ?? null;
+    if (!hadMaster) describeMaster(e, asset, deps, promptFile, promptSha256);
     for (const a of attempts) a.n = e.attempts.length + attempts.indexOf(a) + 1;
     e.attempts.push(...attempts);
     mutate(e);
+    if (e.master && e.master.sha256 !== hadMaster) describeMaster(e, asset, deps, promptFile, promptSha256);
     m.assets[asset.id] = e;
   });
   const logLine = attempts.map((a) => JSON.stringify({ asset: asset.id, ...a })).join("\n");
   if (logLine) {
     await appendFile(join(deps.mediaRoot, "prompts", "attempts.jsonl"), `${logLine}\n`, "utf8");
   }
+}
+
+/** Points the entry's provenance at what made its current master (or, before any master, the last try). */
+function describeMaster(
+  e: AssetEntry,
+  asset: AssetSpec,
+  deps: Pick<PipelineDeps, "codexCli">,
+  promptFile: string,
+  promptSha256: string,
+  promptVersion: string = PROMPT_VERSION,
+): void {
+  e.prompt = { file: promptFile, sha256: promptSha256 };
+  e.promptVersion = promptVersion;
+  e.source = asset.source;
+  e.codexCli = deps.codexCli;
 }
 
 function pick(info: { sha256: string; width: number; height: number; bytes: number }) {

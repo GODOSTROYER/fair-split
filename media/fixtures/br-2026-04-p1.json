@@ -1,6 +1,7 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "br-2026-04-p1",
+  "group": "docs",
   "synthetic": true,
   "image": {
     "master": "masters/br-2026-04-p1.jpg",
@@ -11,12 +12,13 @@
   },
   "review": {
     "status": "agent-checked",
-    "method": "text-block detect v1 (dark-pixel line profile, blocks split on blank lines)",
-    "reviewer": "Claude (WS-MEDIA agent)",
-    "reviewedAt": "2026-10-22T08:02:03.449Z",
+    "method": "text-block detect v1 (dark-pixel line profile, blocks split on blank lines); values and crops checked: Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
+    "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+    "reviewedAt": "2026-10-22T12:20:00.000Z",
     "notes": [
-      "Every rectangle checked on the overlay and the per-field crop sheet: each crop holds exactly its value. Pending the user's review (register section 11)."
-    ]
+      "Values checked: Claude (WS-MEDIA agent), visual check; the user's label review is still required, 2026-10-22T12:20:00.000Z"
+    ],
+    "cropIssues": []
   },
   "kind": "rate_card_page",
   "page": 1,

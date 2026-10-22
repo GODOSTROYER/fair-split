@@ -48,10 +48,10 @@ export interface CodexRunOptions {
 
 export type SpawnLike = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
 
+/** How Codex is started: always a direct spawn, never through a shell. */
 export interface CodexCommand {
   file: string;
   prefixArgs: readonly string[];
-  shell: boolean;
 }
 
 export const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -62,9 +62,10 @@ export function codexHome(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
- * How to start Codex. On Windows `codex` is an npm `.cmd` shim, which Node can only spawn through a
- * shell; when the shim's JavaScript entry is found we run it with this Node instead, so no shell parses
- * the arguments. `CODEX_JS` overrides the entry.
+ * How to start Codex. On Windows `codex` is an npm `.cmd` shim, which Node can spawn only through
+ * cmd.exe, and cmd.exe has no safe quoting for arbitrary arguments (it expands `%VAR%` and treats `^`, `&`
+ * and `|` specially). So on Windows the shim's JavaScript entry is run with this Node, and if it cannot be
+ * found the call fails with instructions instead of falling back to a shell. `CODEX_JS` overrides the entry.
  */
 export function resolveCodexCommand(
   env: NodeJS.ProcessEnv = process.env,
@@ -77,8 +78,13 @@ export function resolveCodexCommand(
       ? join(env.APPDATA, "npm", "node_modules", "@openai", "codex", "bin", "codex.js")
       : undefined,
   ].filter((c): c is string => typeof c === "string" && c !== "");
-  for (const c of candidates) if (exists(c)) return { file: process.execPath, prefixArgs: [c], shell: false };
-  return { file: "codex", prefixArgs: [], shell: platform === "win32" };
+  for (const c of candidates) if (exists(c)) return { file: process.execPath, prefixArgs: [c] };
+  if (platform === "win32") {
+    throw new Error(
+      `codex.js not found (looked at: ${candidates.join(", ") || "nothing: APPDATA is unset"}). Install the CLI with "npm i -g @openai/codex", or set CODEX_JS to the full path of @openai/codex/bin/codex.js. imagegen never runs Codex through cmd.exe.`,
+    );
+  }
+  return { file: "codex", prefixArgs: [] };
 }
 
 /** The `codex exec` argument list (S4.10), with input images attached by `--image=` for edits. */
@@ -100,11 +106,6 @@ export function buildExecArgs(
     "--json",
     "-",
   ];
-}
-
-/** Quotes one argument for cmd.exe when a shell must be used. */
-export function quoteForCmd(arg: string): string {
-  return /^[\w\-.:/=\\]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '\\"')}"`;
 }
 
 export interface ParsedEvents {
@@ -177,9 +178,9 @@ export function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResult> {
   const startedAt = new Date();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   return new Promise((resolvePromise) => {
-    const child = spawnImpl(cmd.file, cmd.shell ? args.map(quoteForCmd) : args, {
+    const child = spawnImpl(cmd.file, args, {
       cwd: opts.workdir,
-      shell: cmd.shell,
+      shell: false,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -276,7 +277,7 @@ export async function findGeneratedImages(
 export function codexVersion(command: CodexCommand = resolveCodexCommand()): string {
   const r = spawnSync(command.file, [...command.prefixArgs, "--version"], {
     encoding: "utf8",
-    shell: command.shell,
+    shell: false,
     windowsHide: true,
   });
   return (r.stdout ?? "").trim() || "unknown";

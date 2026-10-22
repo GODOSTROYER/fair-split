@@ -1,0 +1,96 @@
+{
+  "v": 1,
+  "synthetic": true,
+  "case": "spike-0419",
+  "set": "dev",
+  "status": "agent-checked",
+  "kind": "slip_page",
+  "image": "masters/spike-0419.jpg",
+  "fixture": "fixtures/spike-0419.json",
+  "slips": [
+    {
+      "slot": "ONLY",
+      "serial": "0419",
+      "copy": "WHITE_ORIGINAL",
+      "fields": {
+        "serial": {
+          "value": "0419",
+          "visible": "0419",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "6/10/26",
+          "visible": "6/10/26",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-014",
+          "visible": "M-014",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "CONSOLACION BACUS",
+          "visible": "CONSOLACION BACUS",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "value": "P-014-A",
+          "visible": "P-014-A",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "value": "1 PP",
+          "visible": "1 PP",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "value": "37.10",
+          "visible": "37.10",
+          "expect": "AUTO"
+        },
+        "tare_kg": {
+          "value": "0.30",
+          "visible": "0.30",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "36.80",
+          "visible": "36.80",
+          "expect": "AUTO"
+        },
+        "mc_pct": {
+          "value": "6.6",
+          "visible": "6.6",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "value": "0.00",
+          "visible": "0.00",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "value": "36.80",
+          "visible": "36.80",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "value": "JD",
+          "visible": "JD",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    }
+  ],
+  "rate_card": null,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "reviewed_at": "2026-10-22T12:40:00.000Z"
+}

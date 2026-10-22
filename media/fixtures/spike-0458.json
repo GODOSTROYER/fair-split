@@ -1,6 +1,7 @@
 {
-  "v": 1,
+  "v": 2,
   "id": "spike-0458",
+  "group": "s3-hero",
   "synthetic": true,
   "image": {
     "master": "masters/spike-0458.jpg",
@@ -11,18 +12,19 @@
   },
   "review": {
     "status": "agent-checked",
-    "method": "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands",
-    "reviewer": "Claude (WS-MEDIA agent)",
-    "reviewedAt": "2026-10-22T08:01:46.104Z",
+    "method": "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands; values and crops checked: Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
+    "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+    "reviewedAt": "2026-10-22T12:20:00.000Z",
     "notes": [
-      "Every rectangle checked on the overlay and the per-field crop sheet: each crop holds exactly its value. Pending the user's review (register section 11)."
-    ]
+      "Values checked: Claude (WS-MEDIA agent), visual check; the user's label review is still required, 2026-10-22T12:20:00.000Z"
+    ],
+    "cropIssues": []
   },
   "kind": "slip_page",
   "template": "slip-v1",
   "slips": [
     {
-      "position": "FULL",
+      "slot": "ONLY",
       "serial": "0458",
       "copy": "WHITE_ORIGINAL",
       "quad": [
@@ -43,215 +45,225 @@
           0.9092
         ]
       ],
+      "rect": {
+        "x1": 0.0483,
+        "y1": 0.1201,
+        "x2": 0.9536,
+        "y2": 0.9131
+      },
       "fields": {
         "serial": {
-          "rect": {
-            "x1": 0.779,
-            "y1": 0.1833,
-            "x2": 0.9067,
-            "y2": 0.2012
-          },
+          "x1": 0.779,
+          "y1": 0.1833,
+          "x2": 0.9067,
+          "y2": 0.2012,
           "value": "0458",
+          "requested": "0458",
           "visible": "0458",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "date": {
-          "rect": {
-            "x1": 0.4213,
-            "y1": 0.2429,
-            "x2": 0.8898,
-            "y2": 0.2746
-          },
+          "x1": 0.4213,
+          "y1": 0.2429,
+          "x2": 0.8898,
+          "y2": 0.2746,
           "value": "07/14/2026",
+          "requested": "07/14/2026",
           "visible": "07/14/2026",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "member_no": {
-          "rect": {
-            "x1": 0.4214,
-            "y1": 0.2762,
-            "x2": 0.8905,
-            "y2": 0.3086
-          },
+          "x1": 0.4214,
+          "y1": 0.2762,
+          "x2": 0.8905,
+          "y2": 0.3086,
           "value": "M-018",
+          "requested": "M-018",
           "visible": "M-018",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "member_name": {
-          "rect": {
-            "x1": 0.4214,
-            "y1": 0.3093,
-            "x2": 0.8913,
-            "y2": 0.3416
-          },
+          "x1": 0.4214,
+          "y1": 0.3093,
+          "x2": 0.8913,
+          "y2": 0.3416,
           "value": "TEODORO PACAÑA",
+          "requested": "TEODORO PACAÑA",
           "visible": "TEODORO PACAÑA",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "plot_no": {
-          "rect": {
-            "x1": 0.4215,
-            "y1": 0.3438,
-            "x2": 0.892,
-            "y2": 0.3768
-          },
+          "x1": 0.4215,
+          "y1": 0.3438,
+          "x2": 0.892,
+          "y2": 0.3768,
           "value": "P-018-A",
+          "requested": "P-018-A",
           "visible": "P-018-A",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "sacks": {
-          "rect": {
-            "x1": 0.4216,
-            "y1": 0.3789,
-            "x2": 0.8928,
-            "y2": 0.4114
-          },
+          "x1": 0.4216,
+          "y1": 0.3789,
+          "x2": 0.8928,
+          "y2": 0.4114,
           "value": "1 PP",
+          "requested": "1 PP",
           "visible": "1 PP",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "gross_kg": {
-          "rect": {
-            "x1": 0.4216,
-            "y1": 0.4137,
-            "x2": 0.8936,
-            "y2": 0.4469
-          },
+          "x1": 0.4216,
+          "y1": 0.4137,
+          "x2": 0.8936,
+          "y2": 0.4469,
           "value": "61.10",
+          "requested": "61.10",
           "visible": "61.10",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "tare_kg": {
-          "rect": {
-            "x1": 0.4217,
-            "y1": 0.4489,
-            "x2": 0.8943,
-            "y2": 0.4821
-          },
+          "x1": 0.4217,
+          "y1": 0.4489,
+          "x2": 0.8943,
+          "y2": 0.4821,
           "value": "0.30",
+          "requested": "0.30",
           "visible": "0.30",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "net_kg": {
-          "rect": {
-            "x1": 0.4218,
-            "y1": 0.4842,
-            "x2": 0.8951,
-            "y2": 0.5179
-          },
+          "x1": 0.4218,
+          "y1": 0.4842,
+          "x2": 0.8951,
+          "y2": 0.5179,
           "value": "60.80",
+          "requested": "60.80",
           "visible": "60.80",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "mc_pct": {
-          "rect": {
-            "x1": 0.4219,
-            "y1": 0.5203,
-            "x2": 0.8959,
-            "y2": 0.5558
-          },
+          "x1": 0.4219,
+          "y1": 0.5203,
+          "x2": 0.8959,
+          "y2": 0.5558,
           "value": "6.9",
+          "requested": "6.9",
           "visible": "6.9",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "mc_less_kg": {
-          "rect": {
-            "x1": 0.4219,
-            "y1": 0.5578,
-            "x2": 0.8968,
-            "y2": 0.5927
-          },
+          "x1": 0.4219,
+          "y1": 0.5578,
+          "x2": 0.8968,
+          "y2": 0.5927,
           "value": "0.00",
+          "requested": "0.00",
           "visible": "0.00",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "payable_kg": {
-          "rect": {
-            "x1": 0.422,
-            "y1": 0.5947,
-            "x2": 0.8975,
-            "y2": 0.6277
-          },
+          "x1": 0.422,
+          "y1": 0.5947,
+          "x2": 0.8975,
+          "y2": 0.6277,
           "value": "60.80",
+          "requested": "60.80",
           "visible": "60.80",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "grade": {
-          "rect": {
-            "x1": 0.4221,
-            "y1": 0.6301,
-            "x2": 0.8984,
-            "y2": 0.666
-          },
+          "x1": 0.4221,
+          "y1": 0.6301,
+          "x2": 0.8984,
+          "y2": 0.666,
           "value": "G1",
+          "requested": "G1",
           "visible": "G1",
           "legibility": "CLEAR",
-          "expect": "AUTO"
-        },
-        "deduction_1": {
-          "rect": {
-            "x1": 0.4222,
-            "y1": 0.6682,
-            "x2": 0.8991,
-            "y2": 0.6993
-          },
-          "value": "HAULING ₱91.20",
-          "visible": "HAULING ₱91.20",
-          "legibility": "CLEAR",
-          "expect": "AUTO"
-        },
-        "deduction_2": {
-          "rect": {
-            "x1": 0.4222,
-            "y1": 0.7013,
-            "x2": 0.8999,
-            "y2": 0.7364
-          },
-          "value": "MULTA (ABSENT GA) ₱200",
-          "visible": "MULTA (ABSENT GA) ₱200",
-          "legibility": "CLEAR",
-          "expect": "AUTO"
-        },
-        "signature": {
-          "rect": {
-            "x1": 0.105,
-            "y1": 0.7523,
-            "x2": 0.5108,
-            "y2": 0.8323
-          },
-          "value": "SIGNED",
-          "visible": "SIGNED",
-          "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         },
         "clerk_initials": {
-          "rect": {
-            "x1": 0.5454,
-            "y1": 0.7534,
-            "x2": 0.9009,
-            "y2": 0.8337
-          },
+          "x1": 0.5454,
+          "y1": 0.7534,
+          "x2": 0.9009,
+          "y2": 0.8337,
           "value": "JD",
+          "requested": "JD",
           "visible": "JD",
           "legibility": "CLEAR",
-          "expect": "AUTO"
+          "expect": "AUTO",
+          "checkedBy": "agent"
         }
       },
+      "deductions": [
+        {
+          "x1": 0.4222,
+          "y1": 0.6682,
+          "x2": 0.8991,
+          "y2": 0.6993,
+          "value": "HAULING ₱91.20",
+          "requested": "HAULING ₱91.20",
+          "visible": "HAULING ₱91.20",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        {
+          "x1": 0.4222,
+          "y1": 0.7013,
+          "x2": 0.8999,
+          "y2": 0.7364,
+          "value": "MULTA (ABSENT GA) ₱200",
+          "requested": "MULTA (ABSENT GA) ₱200",
+          "visible": "MULTA (ABSENT GA) ₱200",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      ],
+      "signature": {
+        "x1": 0.105,
+        "y1": 0.7523,
+        "x2": 0.5108,
+        "y2": 0.8323,
+        "value": "SIGNED",
+        "requested": "SIGNED",
+        "visible": "SIGNED",
+        "legibility": "CLEAR",
+        "expect": "AUTO",
+        "checkedBy": "agent"
+      },
+      "anomalies": [],
       "traps": [
         "DEDUCTION_MARKS"
       ],
+      "trapChecks": [],
       "duplicateOf": null
     }
   ]

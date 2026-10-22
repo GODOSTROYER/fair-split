@@ -12,7 +12,9 @@
       "!template/*.json",
       "!docs/*.json",
       "!audio/*.json",
-      "!review/*.json"
+      "!review/*.json",
+      "!eval/*.json",
+      "!eval/labels/*.json"
     ]
   }
 }

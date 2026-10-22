@@ -17,19 +17,28 @@ import {
 } from "./gemini.js";
 import { loadAudioManifest, saveAudioManifest } from "./manifest.js";
 import { type StatementResult, synthesizeStatement } from "./pipeline.js";
-import { pacificDay, QuotaLedger } from "./quota.js";
+import { requestPlan } from "./plan.js";
+import { pacificDay, QuotaLedger, SELF_IMPOSED_DAILY_CAP } from "./quota.js";
 import { joinForRequest, LANGS, type Lang, m014SpikeStatement, STYLE_NOTE } from "./statement.js";
 
 const USAGE = `tools/tts.ts — Gemini TTS for member statements (AI-10). Every clip is a synthetic voice.
 
   tts models                      list the TTS models this key can see (no TTS quota used)
-  tts quota                       today's request counts (Pacific day) per model
+  tts quota                       today's request counts (Pacific day), caps and recorded daily limits
+  tts set-limit <model> <n> --source "<where you read it>"
+                                  record the free-tier daily limit you read at aistudio.google.com/rate-limit
+  tts plan                        S10 request plan: requests needed, days they take, verdict (no API call);
+                                  written into media/audio/spike-s10.json
   tts asr                         listening proxy: transcribe the spike requests with ${ASR_MODEL} and score them
   tts spike [--voice Sulafat] [--langs ceb,fil,en] [--draft-langs ceb]
                                   S10: M-014's greeting and pay sentences, one request per language on
                                   ${TTS_MODEL}, plus drafts on ${TTS_DRAFT_MODEL}; writes
                                   media/audio/{member}/{lang}/{slot}.m4a, media/audio/manifest.json and
                                   media/audio/spike-s10.json`;
+
+/** What the ASR self-check can and cannot show (S10). */
+export const ASR_LIMITS =
+  "A proxy only: Gemini transcribing Gemini shows the words came out in order, nothing about Cebuano pronunciation or naturalness. The S10 verdict waits on a person's listening test (OD-2).";
 
 function client(): GoogleGenAI {
   return new GoogleGenAI({ apiKey: requireEnv("GEMINI_API_KEY") });
@@ -43,6 +52,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       voice: { type: "string" },
       langs: { type: "string" },
       "draft-langs": { type: "string" },
+      source: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -68,6 +78,54 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       const day = pacificDay(new Date());
       console.log(`Pacific day ${day}`);
       console.log(JSON.stringify(q.days[day] ?? {}, null, 2));
+      console.log(
+        `caps: ${JSON.stringify(q.caps)} (${q.capsSource}); default ${SELF_IMPOSED_DAILY_CAP} a day`,
+      );
+      console.log(`daily limits read in AI Studio: ${JSON.stringify(q.dailyLimits ?? {})}`);
+      return 0;
+    }
+    case "set-limit": {
+      const [, model, n] = positionals;
+      if (!model || !n || !values.source) {
+        console.error(
+          'usage: tts set-limit <model> <requests per day> --source "<where you read it, and when>"',
+        );
+        return 1;
+      }
+      await ledger.setDailyLimit(model, Number(n), values.source);
+      console.log(`${model}: daily limit ${n} recorded; the ledger caps the model there`);
+      return 0;
+    }
+    case "plan": {
+      const q = await ledger.read();
+      const limitOf = (model: string) => {
+        const read = q.dailyLimits?.[model];
+        return read
+          ? { value: read.value, source: `${read.source} (recorded ${read.at})` }
+          : {
+              value: null,
+              source:
+                "not read yet: a person reads it at https://aistudio.google.com/rate-limit (tts set-limit)",
+            };
+      };
+      const plans = {
+        [TTS_MODEL]: requestPlan(limitOf(TTS_MODEL), q.caps[TTS_MODEL] ?? SELF_IMPOSED_DAILY_CAP),
+        [TTS_DRAFT_MODEL]: requestPlan(
+          limitOf(TTS_DRAFT_MODEL),
+          q.caps[TTS_DRAFT_MODEL] ?? SELF_IMPOSED_DAILY_CAP,
+        ),
+      };
+      const reportPath = join(mediaRoot, "audio", "spike-s10.json");
+      const report = await readJsonOr<Record<string, unknown>>(reportPath, {});
+      const finalPlan = plans[TTS_MODEL];
+      const asr = report.asrCheck as Record<string, unknown> | undefined;
+      await writeJson(reportPath, {
+        ...report,
+        ...(asr ? { asrCheck: { ...asr, proxyOnly: true, limits: ASR_LIMITS } } : {}),
+        requestPlan: { computedAt: new Date().toISOString(), byModel: plans },
+        verdict: s10Verdict(finalPlan?.dailyLimit.value ?? null),
+      });
+      console.log(finalPlan?.verdict);
       return 0;
     }
     case "asr": {
@@ -130,7 +188,9 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       await writeJson(reportPath, {
         ...report,
         asrCheck: {
-          method: `Each spike request transcribed by ${ASR_MODEL}; character error rate against the text sent (lower case, no punctuation). A proxy only: a person's listening test decides (OD-2).`,
+          proxyOnly: true,
+          method: `Each spike request transcribed by ${ASR_MODEL}; character error rate against the text sent (lower case, no punctuation).`,
+          limits: ASR_LIMITS,
           ranAt: new Date().toISOString(),
           results,
         },
@@ -190,7 +250,9 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         0,
       );
       const reportPath = join(mediaRoot, "audio", "spike-s10.json");
-      const prev = await readJsonOr<{ runs?: unknown[]; requestsSentTotal?: number }>(reportPath, {});
+      const prev = await readJsonOr<
+        { runs?: unknown[]; requestsSentTotal?: number } & Record<string, unknown>
+      >(reportPath, {});
       const run = {
         ranAt: new Date().toISOString(),
         pacificDay: pacificDay(new Date()),
@@ -202,6 +264,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         Object.values(models).flatMap((c) => c.latencyMs),
       );
       const report = {
+        ...(prev as Record<string, unknown>),
         spike: "S10 Voice",
         project: "one Google project, one key (GEMINI_API_KEY), never rotated",
         models: { final: TTS_MODEL, draft: TTS_DRAFT_MODEL },
@@ -216,7 +279,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         ledgerDays: after.days,
         runs: [...(prev.runs ?? []), run],
         notes: [
-          "Free-tier daily TTS limits are not published (ai.google.dev rate-limits page, read 22 Oct 2026); read them at https://aistudio.google.com/rate-limit and set caps in media/audio/.quota.json.",
+          "Free-tier daily TTS limits are not published (ai.google.dev rate-limits page, read 22 Oct 2026); read them at https://aistudio.google.com/rate-limit and record them with tts set-limit (it caps media/audio/.quota.json).",
           "The SDK's automatic retries are off (maxRetries 0), so a 429 is counted once and surfaces instead of being retried; requests to one model are paced 21 s apart.",
           "Cebuano and Filipino wording is machine-translated, pending native review (OD-2); pronunciation needs a person's listening test.",
         ],
@@ -231,6 +294,28 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       console.error(`unknown command "${cmd}"\n\n${USAGE}`);
       return 1;
   }
+}
+
+/**
+ * The S10 verdict as far as code can say it: Cebuano audio comes back on the free tier, but the spike
+ * passes only after a person has listened (OD-2) and someone has read the daily limit in AI Studio.
+ */
+export function s10Verdict(dailyLimit: number | null) {
+  return {
+    status: "PENDING",
+    shown:
+      "gemini-3.8-flash-tts returned Cebuano, Filipino and English audio on the free tier (22 Oct); 3 requests a minute (from a 429)",
+    waitsOn: [
+      "the user's listening test of voice Sulafat in Cebuano, Filipino and English (OD-2)",
+      ...(dailyLimit === null
+        ? [
+            "the free-tier daily limit, read at https://aistudio.google.com/rate-limit and recorded with tts set-limit",
+          ]
+        : []),
+    ],
+    asrCheck: "a proxy only; it does not decide S10",
+    fallback: "Filipino audio with Cebuano text, labelled (S10 fallback)",
+  };
 }
 
 export { REPO_ROOT };

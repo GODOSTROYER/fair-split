@@ -5,10 +5,11 @@ import { readJsonOr, writeJson } from "../util/json.js";
  * limits are per project, and requests per day reset at midnight Pacific (ai.google.dev rate-limits page).
  *
  * Measured on 22 Oct 2026: the free tier allows 3 requests per minute for gemini-3.8-flash-tts (the 429
- * body says so); the daily limit is not published and was not reached. So every request is paced at
- * least `minIntervalMs` after the previous one for the same model, and `caps` is a self-imposed daily
- * ceiling until someone reads the AI Studio rate-limit page (https://aistudio.google.com/rate-limit).
- * The ledger never retries and never switches keys.
+ * body says so). The daily limit is NOT known: Google does not publish it and the spike did not reach it.
+ * Until a person reads it on the AI Studio rate-limit page (https://aistudio.google.com/rate-limit) and
+ * records it with `tts set-limit`, every model is held to {@link SELF_IMPOSED_DAILY_CAP}, a guess (S4.6's
+ * unverified third-party figure), never a measurement. Requests are paced `minIntervalMs` apart; the
+ * ledger never retries and never switches keys.
  */
 export interface DayCounts {
   requests: number;
@@ -31,6 +32,8 @@ export interface QuotaFile {
   /** Requests per Pacific day per model that this tool will send at most. */
   caps: Record<string, number>;
   capsSource: string;
+  /** The daily limit a person read in AI Studio, per model (absent while unknown). */
+  dailyLimits?: Record<string, { value: number; source: string; at: string }>;
   /** Minimum spacing between two requests to the same model. */
   minIntervalMs: Record<string, number>;
   /** Limits read from 429 responses. */
@@ -38,7 +41,8 @@ export interface QuotaFile {
   days: Record<string, Record<string, DayCounts>>;
 }
 
-export const DEFAULT_DAILY_CAP = 15;
+/** A self-imposed ceiling while the real daily limit is unknown (S4.6: "≈10 requests a day, UNVERIFIED"). */
+export const SELF_IMPOSED_DAILY_CAP = 10;
 /** 3 requests per minute (measured) plus a margin. */
 export const DEFAULT_MIN_INTERVAL_MS = 21_000;
 
@@ -47,7 +51,7 @@ export function emptyQuota(): QuotaFile {
     v: 1,
     timeZone: "America/Los_Angeles",
     caps: {},
-    capsSource: `self-imposed default of ${DEFAULT_DAILY_CAP} per model per Pacific day; replace with the AI Studio figure`,
+    capsSource: `self-imposed ${SELF_IMPOSED_DAILY_CAP} per model per Pacific day (a guess, not a measured limit); a person reads the real figure in AI Studio and records it with tts set-limit`,
     minIntervalMs: {},
     observed: {},
     days: {},
@@ -109,7 +113,7 @@ export class QuotaLedger {
     if (wait > 0) await this.sleep(wait);
     const q = await this.read();
     const day = pacificDay(this.now());
-    const cap = q.caps[model] ?? DEFAULT_DAILY_CAP;
+    const cap = q.caps[model] ?? SELF_IMPOSED_DAILY_CAP;
     const c = this.counts(q, model, day);
     if (c.requests >= cap) throw new QuotaExceededError(model, cap, day);
     c.requests += 1;
@@ -137,6 +141,23 @@ export class QuotaLedger {
       }
     }
     if (outcome.latencyMs !== undefined) c.latencyMs.push(outcome.latencyMs);
+    await writeJson(this.path, q);
+  }
+
+  /** Records the daily limit a person read in AI Studio and caps the model there (never above it). */
+  async setDailyLimit(model: string, value: number, source: string): Promise<void> {
+    if (!Number.isInteger(value) || value < 1)
+      throw new Error(`a daily limit is a positive whole number: ${value}`);
+    if (!source.trim())
+      throw new Error("say where the figure was read (for example: AI Studio rate-limit page, 23 Oct)");
+    const q = await this.read();
+    q.dailyLimits = {
+      ...(q.dailyLimits ?? {}),
+      [model]: { value, source: source.trim(), at: this.now().toISOString() },
+    };
+    q.caps[model] = value;
+    q.capsSource =
+      "caps follow the daily limits a person read in AI Studio (dailyLimits); models without one keep the self-imposed cap";
     await writeJson(this.path, q);
   }
 

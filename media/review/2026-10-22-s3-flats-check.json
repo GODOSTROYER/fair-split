@@ -1,0 +1,60 @@
+{
+  "v": 2,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "method": "The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+  "reviewedAt": "2026-10-22T12:40:00.000Z",
+  "images": [
+    {
+      "asset": "spike-0419",
+      "sha256Prefix": "4d5c14dbb9de",
+      "promptVersion": "p2",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    },
+    {
+      "asset": "spike-0436",
+      "sha256Prefix": "82ea9a2ca526",
+      "promptVersion": "p2",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    },
+    {
+      "asset": "spike-0449",
+      "sha256Prefix": "ea23ad39138c",
+      "promptVersion": "p2",
+      "checked": 18,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": [
+        "The margin note is in dark green felt-tip capitals on two lines in the top margin, left of the red serial, touching no box, and reads exactly as specified (S4.7). The MARGIN_NOTE trap renders; whether the note is quarantined needs a recorded Claude read (S3)."
+      ]
+    },
+    {
+      "asset": "spike-0467",
+      "sha256Prefix": "f402121fdbdd",
+      "promptVersion": "p2",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    },
+    {
+      "asset": "spike-0471",
+      "sha256Prefix": "f02bf7d6d429",
+      "promptVersion": "p2",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    }
+  ]
+}

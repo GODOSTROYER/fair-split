@@ -19,7 +19,13 @@ import {
 } from "../src/fixtures/geometry.js";
 import { detectSlipGrid } from "../src/fixtures/grid.js";
 import { loadRgb } from "../src/fixtures/raster.js";
-import { Fixture, fixtureJsonSchema, SlipImageFixture } from "../src/fixtures/schema.js";
+import {
+  Fixture,
+  fixtureJsonSchema,
+  type SlipFixture,
+  SlipImageFixture,
+  slipFieldEntries,
+} from "../src/fixtures/schema.js";
 import { Manifest } from "../src/imagegen/manifest.js";
 import { SLIP_FIELDS, type SlipField } from "../src/template/slip-template.js";
 import { MEDIA_ROOT } from "../src/util/env.js";
@@ -186,20 +192,23 @@ describe("committed fixtures (IC-11)", () => {
   const files = readdirSync(join(MEDIA_ROOT, "fixtures")).filter(
     (f) => f.endsWith(".json") && f !== "fixture.schema.json",
   );
+  const read = (id: string) =>
+    SlipImageFixture.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", `${id}.json`), "utf8")));
 
-  it("parse against the schema, cover every template field and sit inside their slip", () => {
+  it("parse against the schema, have every field checked and sit inside their slip", () => {
     expect(files.length).toBe(Object.values(manifest.assets).filter((e) => e.fixture).length);
     for (const f of files) {
       const fx = Fixture.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", f), "utf8")));
-      expect(fx.review.status).not.toBe("draft");
+      expect(fx.review.status, f).not.toBe("draft");
       if (fx.kind !== "slip_photo" && fx.kind !== "slip_page") continue;
       for (const s of (fx as SlipImageFixture).slips) {
         const xs = s.quad.map((p) => p[0]);
         const ys = s.quad.map((p) => p[1]);
-        for (const name of SLIP_FIELDS) {
-          const r = s.fields[name].rect;
-          const cx = (r.x1 + r.x2) / 2;
-          const cy = (r.y1 + r.y2) / 2;
+        for (const { path, field } of slipFieldEntries(s)) {
+          expect(field.legibility, `${f} ${s.slot} ${path}`).not.toBe("UNVERIFIED");
+          if (path.startsWith("anomalies")) continue;
+          const cx = (field.x1 + field.x2) / 2;
+          const cy = (field.y1 + field.y2) / 2;
           expect(cx).toBeGreaterThan(Math.min(...xs) - 0.01);
           expect(cx).toBeLessThan(Math.max(...xs) + 0.01);
           expect(cy).toBeGreaterThan(Math.min(...ys) - 0.01);
@@ -209,27 +218,53 @@ describe("committed fixtures (IC-11)", () => {
     }
   });
 
-  it("record slip number, copy colour and the stained field as visible, not as the truth", () => {
-    const fx = SlipImageFixture.parse(
-      JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", "spike-4up.json"), "utf8")),
-    );
-    expect(fx.slips.map((s) => `${s.position}:${s.serial}:${s.copy}`)).toEqual([
+  it("record what is visibly written: 0462's stain on the flat, and its leak on the four-slip photo", () => {
+    const flat = read("spike-0462").slips[0];
+    expect(flat?.fields.gross_kg).toMatchObject({
+      value: "64.80",
+      requested: "6?.80",
+      visible: "6?.80",
+      expect: "HUMAN",
+    });
+    expect(flat?.fields.net_kg).toMatchObject({
+      value: "64.50",
+      requested: "6?.50",
+      visible: "6?.50",
+      expect: "HUMAN",
+    });
+    // The trap renders on the flat, but only a recorded Claude read can show that it holds.
+    expect(flat?.trapChecks).toEqual([
+      expect.objectContaining({ trap: "WATER_STAIN", status: "UNVERIFIED", by: null }),
+    ]);
+
+    const photo = read("spike-4up");
+    expect(photo.slips.map((s) => `${s.slot}:${s.serial}:${s.copy}`)).toEqual([
       "TL:0403:WHITE_ORIGINAL",
       "TR:0457:WHITE_ORIGINAL",
       "BL:0458:WHITE_ORIGINAL",
       "BR:0462:WHITE_ORIGINAL",
     ]);
-    const stained = fx.slips[3]?.fields.gross_kg;
-    expect(stained).toMatchObject({
-      value: "64.80",
-      visible: "6?.80",
-      legibility: "SMUDGED",
-      expect: "HUMAN",
-    });
-    const pink = SlipImageFixture.parse(
-      JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", "spike-0457-pink.json"), "utf8")),
-    );
-    expect(pink.slips[0]).toMatchObject({ copy: "PINK_DUPLICATE", duplicateOf: "spike-0457-white" });
+    const br = photo.slips[3];
+    // A faint ghost of the 4 stays readable: the label is what is visible (C-24), and the trap failed.
+    expect(br?.fields.gross_kg).toMatchObject({ requested: "6?.80", visible: "64.80", checkedBy: "agent" });
+    expect(br?.fields.net_kg).toMatchObject({ requested: "6?.50", visible: "64.50", checkedBy: "agent" });
+    expect(br?.trapChecks).toEqual([
+      expect.objectContaining({ trap: "WATER_STAIN", status: "FAILED", by: "agent" }),
+    ]);
+  });
+
+  it("mark only the pink copy as a duplicate, of the white original in its own group (inv.i8.duplicates)", () => {
+    const pink = read("spike-0457-pink").slips[0];
+    expect(pink).toMatchObject({ copy: "PINK_DUPLICATE", duplicateOf: "spike-0457-white#ONLY" });
+    for (const f of files) {
+      const fx = Fixture.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", f), "utf8")));
+      if (fx.kind !== "slip_photo" && fx.kind !== "slip_page") continue;
+      for (const s of (fx as SlipImageFixture).slips) {
+        if (s.copy === "WHITE_ORIGINAL") expect(s.duplicateOf, `${f} ${s.slot}`).toBeNull();
+      }
+    }
+    // The four-slip spike re-renders S3 flats in its own group, so none of its slips points at a flat.
+    expect(read("spike-4up").slips.map((s) => s.duplicateOf)).toEqual([null, null, null, null]);
   });
 
   it("reject malformed fixtures", () => {
@@ -238,26 +273,42 @@ describe("committed fixtures (IC-11)", () => {
     delete missing.slips[0].fields.net_kg;
     expect(SlipImageFixture.safeParse(missing).success).toBe(false);
     const inverted = structuredClone(fx);
-    inverted.slips[0].fields.date.rect = { x1: 0.5, y1: 0.2, x2: 0.4, y2: 0.3 };
+    Object.assign(inverted.slips[0].fields.date, { x1: 0.5, x2: 0.4 });
     expect(SlipImageFixture.safeParse(inverted).success).toBe(false);
     const unlabelled = structuredClone(fx);
     unlabelled.synthetic = false;
     expect(SlipImageFixture.safeParse(unlabelled).success).toBe(false);
+    const whiteDuplicate = structuredClone(fx);
+    whiteDuplicate.slips[0].duplicateOf = "spike-0457-white#ONLY";
+    expect(SlipImageFixture.safeParse(whiteDuplicate).success).toBe(false);
+    const unchecked = structuredClone(fx);
+    Object.assign(unchecked.slips[0].fields.gross_kg, {
+      legibility: "UNVERIFIED",
+      checkedBy: null,
+      visible: unchecked.slips[0].fields.gross_kg.requested,
+    });
+    expect(SlipImageFixture.safeParse(unchecked).success).toBe(false);
+    unchecked.review.status = "draft";
+    expect(SlipImageFixture.safeParse(unchecked).success).toBe(true);
+    const stamped = structuredClone(fx);
+    stamped.review.status = "human-reviewed";
+    expect(SlipImageFixture.safeParse(stamped).success).toBe(false);
   });
 
   it("are reproduced by the detector from the committed masters (golden check)", async () => {
     for (const id of ["spike-0403", "spike-4up"]) {
-      const committed = SlipImageFixture.parse(
-        JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", `${id}.json`), "utf8")),
-      );
+      const committed = read(id);
       const entry = manifest.assets[id];
       if (!entry) throw new Error(`no manifest entry for ${id}`);
       const fresh = await buildSlipFixture(findAsset(id) as SlipPageAsset | SlipPhotoAsset, entry, {
         mediaRoot: MEDIA_ROOT,
       });
       fresh.slips.forEach((s, i) => {
-        for (const name of SLIP_FIELDS) {
-          expect(iou(s.fields[name].rect, committed.slips[i]?.fields[name].rect as Box)).toBeGreaterThan(0.9);
+        const before = new Map(
+          slipFieldEntries(committed.slips[i] as SlipFixture).map((e) => [e.path, e.field]),
+        );
+        for (const { path, field } of slipFieldEntries(s)) {
+          expect(iou(field, before.get(path) as Box), `${id} ${s.slot} ${path}`).toBeGreaterThan(0.9);
         }
       });
     }

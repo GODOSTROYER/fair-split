@@ -9,7 +9,6 @@ import {
   buildExecArgs,
   findGeneratedImages,
   parseCodexEvents,
-  quoteForCmd,
   resolveCodexCommand,
   runCodexExec,
 } from "../src/imagegen/codex.js";
@@ -60,23 +59,32 @@ describe("codex exec wrapper", () => {
     expect(args.slice(-2)).toEqual(["--json", "-"]);
   });
 
-  it("quotes for cmd.exe only when needed", () => {
-    expect(quoteForCmd("model_reasoning_effort=low")).toBe("model_reasoning_effort=low");
-    expect(quoteForCmd("C:/a b/c.png")).toBe('"C:/a b/c.png"');
-  });
-
   it("runs the npm shim's JavaScript entry with Node on Windows, so no shell parses arguments", () => {
     const win = resolveCodexCommand({ APPDATA: "C:/AppData" }, "win32", () => true);
-    expect(win.shell).toBe(false);
     expect(win.file).toBe(process.execPath);
     expect(win.prefixArgs[0]).toMatch(/codex\.js$/);
-    const fallback = resolveCodexCommand({ APPDATA: "C:/AppData" }, "win32", () => false);
-    expect(fallback).toEqual({ file: "codex", prefixArgs: [], shell: true });
-    expect(resolveCodexCommand({}, "linux", () => false)).toEqual({
-      file: "codex",
-      prefixArgs: [],
-      shell: false,
+    const pinned = resolveCodexCommand(
+      { CODEX_JS: "D:/tools/codex.js" },
+      "win32",
+      (p) => p === "D:/tools/codex.js",
+    );
+    expect(pinned).toEqual({ file: process.execPath, prefixArgs: ["D:/tools/codex.js"] });
+    expect(resolveCodexCommand({}, "linux", () => false)).toEqual({ file: "codex", prefixArgs: [] });
+  });
+
+  it("fails clearly on Windows when codex.js is missing, instead of handing arguments to cmd.exe", () => {
+    // cmd.exe would expand %VAR% and treat ^ & | in the prompt arguments; there is no safe quoting.
+    expect(() => resolveCodexCommand({ APPDATA: "C:/AppData" }, "win32", () => false)).toThrow(/CODEX_JS/);
+    expect(() => resolveCodexCommand({}, "win32", () => false)).toThrow(/codex\.js not found/);
+  });
+
+  it("never spawns through a shell", async () => {
+    const { spawnImpl, spawned } = fakeChild((c) => {
+      c.stdout.end();
+      c.emit("close", 0);
     });
+    await runCodexExec({ prompt: "p", workdir: "W", spawnImpl, command: { file: "node", prefixArgs: [] } });
+    expect(spawned[0]?.opts.shell).toBe(false);
   });
 
   it("finds the image in the exec's own thread folder, newer than the start, never another thread's", async () => {
@@ -144,7 +152,7 @@ describe("codex exec wrapper", () => {
       prompt: "draw one slip",
       workdir: "W",
       spawnImpl,
-      command: { file: "node", prefixArgs: ["codex.js"], shell: false },
+      command: { file: "node", prefixArgs: ["codex.js"] },
     });
     expect(spawned[0]?.stdin).toBe("draw one slip");
     expect(spawned[0]?.args.slice(0, 2)).toEqual(["codex.js", "exec"]);
@@ -161,7 +169,7 @@ describe("codex exec wrapper", () => {
       workdir: "W",
       spawnImpl,
       timeoutMs: 30,
-      command: { file: "node", prefixArgs: [], shell: false },
+      command: { file: "node", prefixArgs: [] },
       kill: (c) => {
         killed++;
         setTimeout(() => (c as unknown as FakeChild).emit("close", null), 1);

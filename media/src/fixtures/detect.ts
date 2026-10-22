@@ -216,11 +216,31 @@ export function findLines(
   };
 }
 
+/** Red printed ink (the pre-printed serial). */
+export const isRedInk = (r: number, g: number, b: number): boolean => r > 120 && r - g > 80 && r - b > 60;
+
+/**
+ * Green ink: slip 0449's margin note is written in a dark green felt-tip so it can be told apart from the
+ * clerk's blue ballpoint (B dominant), the red serial (R dominant), black print and the brownish stain.
+ */
+export const isGreenInk = (r: number, g: number, b: number): boolean => g > 50 && g - r > 25 && g - b > 8;
+
 /** Bounding box of red printed ink (the serial) inside a window, or null. */
 export function findRedInk(
   rgb: Raster,
   win: Box,
   keep: (x: number, y: number) => boolean = () => true,
+): Box | null {
+  return findInk(rgb, win, isRedInk, keep);
+}
+
+/** Bounding box (1st–99th percentile extent, padded) of pixels whose colour passes `isInk`, or null. */
+export function findInk(
+  rgb: Raster,
+  win: Box,
+  isInk: (r: number, g: number, b: number) => boolean,
+  keep: (x: number, y: number) => boolean = () => true,
+  minPixels = 25,
 ): Box | null {
   const xs: number[] = [];
   const ys: number[] = [];
@@ -230,13 +250,13 @@ export function findRedInk(
       const r = rgb.data[j] as number;
       const g = rgb.data[j + 1] as number;
       const b = rgb.data[j + 2] as number;
-      if (r > 120 && r - g > 80 && r - b > 60 && keep(x, y)) {
+      if (isInk(r, g, b) && keep(x, y)) {
         xs.push(x);
         ys.push(y);
       }
     }
   }
-  if (xs.length < 25) return null;
+  if (xs.length < minPixels) return null;
   // Trim stray pixels: keep the 1st–99th percentile extent.
   const q = (a: number[], p: number) =>
     [...a].sort((u, v) => u - v)[Math.floor(p * (a.length - 1))] as number;

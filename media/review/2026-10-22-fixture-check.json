@@ -1,0 +1,143 @@
+{
+  "v": 2,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
+  "reviewedAt": "2026-10-22T12:20:00.000Z",
+  "images": [
+    {
+      "asset": "spike-0403",
+      "sha256Prefix": "7c9cc9a68be3",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    },
+    {
+      "asset": "spike-0457-white",
+      "sha256Prefix": "1bfe92bfd68a",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    },
+    {
+      "asset": "spike-0457-pink",
+      "sha256Prefix": "f75ad0944ec3",
+      "promptVersion": "edit of spike-0457-white",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": ["Every character in the same place as on the white original: pink paper, fainter carbon strokes, footer DUPLICATE – OFFICE."]
+    },
+    {
+      "asset": "spike-0458",
+      "sha256Prefix": "c1fc9d60d774",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": []
+    },
+    {
+      "asset": "spike-0462",
+      "sha256Prefix": "effe66d2c03d",
+      "promptVersion": "p2",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": [
+        "Gross and net: the 4 is a formless pale-blue blur with no recognisable stroke (6x crop), so they read 6?.80 and 6?.50 as asked. The WATER_STAIN trap renders; whether it holds needs a recorded Claude read (S3).",
+        "Box 11 Bayranan reads a clear 64.50, and box 10 0.00 and box 7 0.30 are clear, so a reader can work out gross 64.80 from the other boxes: the stain hides the digits, not the values. Open question for the user: should the stain also cover box 11 (or boxes 10 and 11)? The C4 copy names only gross and net."
+      ]
+    },
+    {
+      "asset": "spike-4up",
+      "sha256Prefix": "ae943fbe5f6b",
+      "promptVersion": "p2",
+      "checked": 68,
+      "mismatches": [
+        {
+          "where": "BR.fields.gross_kg",
+          "expected": "6?.80",
+          "visible": "64.80",
+          "cause": "a faint ghost of the 4 stays readable inside the stain (6x crop)"
+        },
+        {
+          "where": "BR.fields.net_kg",
+          "expected": "6?.50",
+          "visible": "64.50",
+          "cause": "a fainter ghost of the 4 stays inside the stain; with box 11's clear 64.50 it reads 64.50"
+        }
+      ],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "observed": [
+        {
+          "where": "BR.fields.gross_kg",
+          "visible": "64.80",
+          "legibility": "SMUDGED",
+          "expect": "EITHER",
+          "note": "faint ghost 4"
+        },
+        {
+          "where": "BR.fields.net_kg",
+          "visible": "64.50",
+          "legibility": "SMUDGED",
+          "expect": "EITHER",
+          "note": "fainter ghost 4"
+        }
+      ],
+      "traps": [
+        {
+          "slot": "BR",
+          "trap": "WATER_STAIN",
+          "status": "FAILED",
+          "evidence": "The 4 under the stain is still readable as a faint ghost in gross (and fainter in net), and box 11 shows a clear 64.50: a reader can read 64.80 and 64.50, so this render cannot carry the by-hand moment (C-17, MM-2)."
+        }
+      ],
+      "notes": [
+        "Corrects the 22 Oct check of this image, which recorded no mismatch and only a note about the ghost: the label is what is visibly written (C-24), so p2 fixed the stain on 2 of 3 renders, not 3 of 3."
+      ]
+    },
+    {
+      "asset": "logbook-p14",
+      "sha256Prefix": "b25229479c0a",
+      "promptVersion": "p1",
+      "checked": 80,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": [
+        "Grade is written G1 with a plain vertical 1 (it can look like GI); the S4.2 normaliser maps I to 1.",
+        "Spike content: only lines 2, 3 and 7 come from the register; regenerate from the seed snapshot and cross-check every line against photos A–L before 27 Oct."
+      ]
+    },
+    {
+      "asset": "br-2026-04-p1",
+      "sha256Prefix": "dbd4641bc591",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": ["Every printed line verbatim; the three clause rectangles each hold their whole clause."]
+    },
+    {
+      "asset": "br-2026-04-p2",
+      "sha256Prefix": "ded93f5ac757",
+      "promptVersion": "p1",
+      "checked": 26,
+      "mismatches": [],
+      "allFieldsChecked": true,
+      "cropsChecked": true,
+      "notes": ["Every printed line verbatim, including ₱, %, ± and US$; the eight clause rectangles (R0–R6, closed list) each hold their whole clause."]
+    }
+  ]
+}

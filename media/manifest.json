@@ -14,7 +14,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p1",
       "prompt": {
-        "file": "prompts/br-2026-04-p1.md",
+        "file": "prompts/history/br-2026-04-p1.4e0803bb.md",
         "sha256": "4e0803bbcfcf3f5dbeed27932476d4067d982ec50e72f20417050546fbefb85d"
       },
       "source": {
@@ -66,14 +66,16 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 17,
           "total": 17,
           "mismatches": []
         },
-        "deviations": []
+        "deviations": [
+          "Every printed line verbatim; the three clause rectangles each hold their whole clause."
+        ]
       },
       "trials": []
     },
@@ -88,7 +90,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p1",
       "prompt": {
-        "file": "prompts/br-2026-04-p2.md",
+        "file": "prompts/history/br-2026-04-p2.85989510.md",
         "sha256": "85989510b1f6aaefee74208f027f1a9b97846cfe3351fe8e8ef656a6907f1195"
       },
       "source": {
@@ -140,14 +142,16 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 26,
           "total": 26,
           "mismatches": []
         },
-        "deviations": []
+        "deviations": [
+          "Every printed line verbatim, including ₱, %, ± and US$; the eight clause rectangles (R0–R6, closed list) each hold their whole clause."
+        ]
       },
       "trials": []
     },
@@ -162,7 +166,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p1",
       "prompt": {
-        "file": "prompts/logbook-p14.md",
+        "file": "prompts/history/logbook-p14.0ef8efbb.md",
         "sha256": "0ef8efbbcad1e0128ca8a0c788793580928dce92335cbf4cb1f85f0a8c238bb4"
       },
       "source": {
@@ -241,15 +245,16 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
-          "matched": 71,
-          "total": 71,
+          "matched": 80,
+          "total": 80,
           "mismatches": []
         },
         "deviations": [
-          "Grade written G1 with a serif-less 1 (reads as GI); the S4.2 normaliser maps I to G1."
+          "Grade is written G1 with a plain vertical 1 (it can look like GI); the S4.2 normaliser maps I to 1.",
+          "Spike content: only lines 2, 3 and 7 come from the register; regenerate from the seed snapshot and cross-check every line against photos A–L before 27 Oct."
         ]
       },
       "trials": [
@@ -275,7 +280,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p1",
       "prompt": {
-        "file": "prompts/spike-0403.md",
+        "file": "prompts/history/spike-0403.1e8df52d.md",
         "sha256": "1e8df52d756c69201d73292e4295f9bc3f9928ae8856018811108f063f856ed1"
       },
       "source": {
@@ -354,8 +359,8 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 17,
           "total": 17,
@@ -375,6 +380,233 @@
         }
       ]
     },
+    "spike-0419": {
+      "id": "spike-0419",
+      "kind": "slip_page",
+      "title": "Hero flat: slip 0419, M-014",
+      "synthetic": true,
+      "label": "Synthetic sample",
+      "pipeline": "direct",
+      "generator": "gpt-image-2 via Codex built-in image_gen",
+      "codexCli": "codex-cli 0.159.3",
+      "promptVersion": "p2",
+      "prompt": {
+        "file": "prompts/history/spike-0419.9a4f9c08.md",
+        "sha256": "9a4f9c08dfe3ea4bcf73ce1d03edd7e4173b579c9245266725a05b191d0fc5b5"
+      },
+      "source": {
+        "kind": "provisional",
+        "note": "Box text from WS-CORE's draft seed snapshot (ws/core 399aa04f, packages/seed/snapshot/season-2026A.json sha256 233ca9cc), not yet on main; register figures mirrored exactly; regenerate from the frozen seed (IC-03)."
+      },
+      "attempts": [
+        {
+          "n": 1,
+          "purpose": "accept",
+          "promptFile": "prompts/history/spike-0419.9a4f9c08.md",
+          "promptSha256": "9a4f9c08dfe3ea4bcf73ce1d03edd7e4173b579c9245266725a05b191d0fc5b5",
+          "promptVersion": "p2",
+          "inputImages": [],
+          "threadId": "01a16389-a148-7651-8821-f96754cad111",
+          "startedAt": "2026-10-22T12:15:25.205Z",
+          "durationMs": 132269,
+          "exitCode": 0,
+          "outcome": "accepted",
+          "raw": "raw/spike-0419/20261022T121525-4d5c14db.png",
+          "output": {
+            "sha256": "4d5c14dbb9de14e07204ba2992a5b07c0a1d0cb8890bdcb27e47e74feecaa965",
+            "width": 1214,
+            "height": 1295,
+            "bytes": 2737293
+          },
+          "usage": {
+            "input_tokens": 84211,
+            "cached_input_tokens": 66816,
+            "output_tokens": 946,
+            "reasoning_output_tokens": 0
+          }
+        }
+      ],
+      "master": {
+        "file": "masters/spike-0419.jpg",
+        "sha256": "013e50059bb46aaf1f153ee96fec7c4fb0175ae72ea9b7d8695e8f8823ed32d9",
+        "width": 1214,
+        "height": 1295,
+        "bytes": 369058
+      },
+      "display": {
+        "file": "slips/spike-0419.webp",
+        "sha256": "fc3f66ac5db103b0bfe2ae6b34fbff251a3f8bc3f35cbd8a3bd8a132132eddc9",
+        "width": 1214,
+        "height": 1295,
+        "bytes": 196596
+      },
+      "fixture": "fixtures/spike-0419.json",
+      "review": {
+        "status": "agent-checked",
+        "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+        "at": "2026-10-22T12:40:00.000Z",
+        "method": "The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+        "fieldMatch": {
+          "matched": 17,
+          "total": 17,
+          "mismatches": []
+        },
+        "deviations": []
+      },
+      "trials": []
+    },
+    "spike-0436": {
+      "id": "spike-0436",
+      "kind": "slip_page",
+      "title": "Hero flat: slip 0436, M-014",
+      "synthetic": true,
+      "label": "Synthetic sample",
+      "pipeline": "direct",
+      "generator": "gpt-image-2 via Codex built-in image_gen",
+      "codexCli": "codex-cli 0.159.3",
+      "promptVersion": "p2",
+      "prompt": {
+        "file": "prompts/history/spike-0436.2d501eb3.md",
+        "sha256": "2d501eb37c9db53a0df6467a1da16111e5aa865766dba82d045bdb38834b1171"
+      },
+      "source": {
+        "kind": "provisional",
+        "note": "Box text from WS-CORE's draft seed snapshot (ws/core 399aa04f, packages/seed/snapshot/season-2026A.json sha256 233ca9cc), not yet on main; register figures mirrored exactly; regenerate from the frozen seed (IC-03)."
+      },
+      "attempts": [
+        {
+          "n": 1,
+          "purpose": "accept",
+          "promptFile": "prompts/history/spike-0436.2d501eb3.md",
+          "promptSha256": "2d501eb37c9db53a0df6467a1da16111e5aa865766dba82d045bdb38834b1171",
+          "promptVersion": "p2",
+          "inputImages": [],
+          "threadId": "01a16389-a261-7f51-b323-93127c3df7a6",
+          "startedAt": "2026-10-22T12:15:24.998Z",
+          "durationMs": 120910,
+          "exitCode": 0,
+          "outcome": "accepted",
+          "raw": "raw/spike-0436/20261022T121524-82ea9a2c.png",
+          "output": {
+            "sha256": "82ea9a2ca526b89fb8e46dfd16861d6a40ca9e075b55edd725f553cb956d6274",
+            "width": 1141,
+            "height": 1379,
+            "bytes": 2675933
+          },
+          "usage": {
+            "input_tokens": 82135,
+            "cached_input_tokens": 66816,
+            "output_tokens": 922,
+            "reasoning_output_tokens": 0
+          }
+        }
+      ],
+      "master": {
+        "file": "masters/spike-0436.jpg",
+        "sha256": "df55951e11984cdf14ddfd81ef2cb677869e5cb8992eef901bcb7855f76e7e8d",
+        "width": 1141,
+        "height": 1379,
+        "bytes": 355367
+      },
+      "display": {
+        "file": "slips/spike-0436.webp",
+        "sha256": "7fec630f6a6eb9fd3ffcb8e4c1453a5144c3a4078f73cdd8ace4219388d3e686",
+        "width": 1141,
+        "height": 1379,
+        "bytes": 194772
+      },
+      "fixture": "fixtures/spike-0436.json",
+      "review": {
+        "status": "agent-checked",
+        "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+        "at": "2026-10-22T12:40:00.000Z",
+        "method": "The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+        "fieldMatch": {
+          "matched": 17,
+          "total": 17,
+          "mismatches": []
+        },
+        "deviations": []
+      },
+      "trials": []
+    },
+    "spike-0449": {
+      "id": "spike-0449",
+      "kind": "slip_page",
+      "title": "Hero flat: slip 0449, M-021 (instruction in the margin)",
+      "synthetic": true,
+      "label": "Synthetic sample",
+      "pipeline": "direct",
+      "generator": "gpt-image-2 via Codex built-in image_gen",
+      "codexCli": "codex-cli 0.159.3",
+      "promptVersion": "p2",
+      "prompt": {
+        "file": "prompts/history/spike-0449.512625e5.md",
+        "sha256": "512625e5af0702901cdd0e78d2118fc7062ec0ecf6f4648e168d63a1e5b0577b"
+      },
+      "source": {
+        "kind": "provisional",
+        "note": "Box text from WS-CORE's draft seed snapshot (ws/core 399aa04f, packages/seed/snapshot/season-2026A.json sha256 233ca9cc), not yet on main; register figures mirrored exactly; regenerate from the frozen seed (IC-03)."
+      },
+      "attempts": [
+        {
+          "n": 1,
+          "purpose": "accept",
+          "promptFile": "prompts/history/spike-0449.512625e5.md",
+          "promptSha256": "512625e5af0702901cdd0e78d2118fc7062ec0ecf6f4648e168d63a1e5b0577b",
+          "promptVersion": "p2",
+          "inputImages": [],
+          "threadId": "01a16389-a13e-7c31-a3ef-d49bee82983e",
+          "startedAt": "2026-10-22T12:15:25.161Z",
+          "durationMs": 60571,
+          "exitCode": 0,
+          "outcome": "accepted",
+          "raw": "raw/spike-0449/20261022T121525-ea23ad39.png",
+          "output": {
+            "sha256": "ea23ad39138ca996c3de5960ee3a387e30ddfe0bb6fef53ed6664674887fb6c7",
+            "width": 1086,
+            "height": 1448,
+            "bytes": 2873588
+          },
+          "usage": {
+            "input_tokens": 82832,
+            "cached_input_tokens": 62848,
+            "output_tokens": 1062,
+            "reasoning_output_tokens": 0
+          }
+        }
+      ],
+      "master": {
+        "file": "masters/spike-0449.jpg",
+        "sha256": "e6e3066b766c6125eb41ea785990ba5a2f9bcebf28d35fc4d285b8852ccf7629",
+        "width": 1086,
+        "height": 1448,
+        "bytes": 381107
+      },
+      "display": {
+        "file": "slips/spike-0449.webp",
+        "sha256": "db2e014435af0b0da8ddfaa7b5d3a275a199b3573804a9da44cb898b2048ed68",
+        "width": 1086,
+        "height": 1448,
+        "bytes": 226440
+      },
+      "fixture": "fixtures/spike-0449.json",
+      "review": {
+        "status": "agent-checked",
+        "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+        "at": "2026-10-22T12:40:00.000Z",
+        "method": "The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+        "fieldMatch": {
+          "matched": 18,
+          "total": 18,
+          "mismatches": []
+        },
+        "deviations": [
+          "The margin note is in dark green felt-tip capitals on two lines in the top margin, left of the red serial, touching no box, and reads exactly as specified (S4.7). The MARGIN_NOTE trap renders; whether the note is quarantined needs a recorded Claude read (S3)."
+        ]
+      },
+      "trials": []
+    },
     "spike-0457-pink": {
       "id": "spike-0457-pink",
       "kind": "slip_page",
@@ -386,7 +618,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p2",
       "prompt": {
-        "file": "prompts/spike-0457-pink.md",
+        "file": "prompts/history/spike-0457-pink.1bd549ab.md",
         "sha256": "1bd549ab0b938812f65c9daa5a47dbe1cf8cee5b1cba375a1ea74a6285135fde"
       },
       "source": {
@@ -441,15 +673,15 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 17,
           "total": 17,
           "mismatches": []
         },
         "deviations": [
-          "Codex edit kept every character in place: pink paper, fainter carbon strokes, footer DUPLICATE – OFFICE."
+          "Every character in the same place as on the white original: pink paper, fainter carbon strokes, footer DUPLICATE – OFFICE."
         ]
       },
       "trials": []
@@ -465,7 +697,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p1",
       "prompt": {
-        "file": "prompts/spike-0457-white.md",
+        "file": "prompts/history/spike-0457-white.a4e0c647.md",
         "sha256": "a4e0c6471e7dbe1b689f5d83d8e105260bdf589d28d1f0060899cb1261c55df1"
       },
       "source": {
@@ -544,8 +776,8 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 17,
           "total": 17,
@@ -576,7 +808,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p1",
       "prompt": {
-        "file": "prompts/spike-0458.md",
+        "file": "prompts/history/spike-0458.91648819.md",
         "sha256": "9164881996de4bab3decdd2230f3c2468795f26ba1a1696f85de39578e9cb0ee"
       },
       "source": {
@@ -654,8 +886,8 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 17,
           "total": 17,
@@ -686,7 +918,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p2",
       "prompt": {
-        "file": "prompts/spike-0462.md",
+        "file": "prompts/history/spike-0462.3e4fe705.md",
         "sha256": "3e4fe705cf47087acf5362ee71e568d483a17a58fb2ff5f99e82ea8655e13ab3"
       },
       "source": {
@@ -815,15 +1047,16 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
           "matched": 17,
           "total": 17,
           "mismatches": []
         },
         "deviations": [
-          "p2 names the washed-out character by position and forbids substitutes: the 4 is a formless blue blur."
+          "Gross and net: the 4 is a formless pale-blue blur with no recognisable stroke (6x crop), so they read 6?.80 and 6?.50 as asked. The WATER_STAIN trap renders; whether it holds needs a recorded Claude read (S3).",
+          "Box 11 Bayranan reads a clear 64.50, and box 10 0.00 and box 7 0.30 are clear, so a reader can work out gross 64.80 from the other boxes: the stain hides the digits, not the values. Open question for the user: should the stain also cover box 11 (or boxes 10 and 11)? The C4 copy names only gross and net."
         ]
       },
       "trials": [
@@ -878,6 +1111,156 @@
         }
       ]
     },
+    "spike-0467": {
+      "id": "spike-0467",
+      "kind": "slip_page",
+      "title": "Hero flat: slip 0467, M-014",
+      "synthetic": true,
+      "label": "Synthetic sample",
+      "pipeline": "direct",
+      "generator": "gpt-image-2 via Codex built-in image_gen",
+      "codexCli": "codex-cli 0.159.3",
+      "promptVersion": "p2",
+      "prompt": {
+        "file": "prompts/history/spike-0467.90526272.md",
+        "sha256": "90526272db763b04179d2d5a75f1bb61e09440373e71788bf4cab985dc62b539"
+      },
+      "source": {
+        "kind": "provisional",
+        "note": "Box text from WS-CORE's draft seed snapshot (ws/core 399aa04f, packages/seed/snapshot/season-2026A.json sha256 233ca9cc), not yet on main; register figures mirrored exactly; regenerate from the frozen seed (IC-03)."
+      },
+      "attempts": [
+        {
+          "n": 1,
+          "purpose": "accept",
+          "promptFile": "prompts/history/spike-0467.90526272.md",
+          "promptSha256": "90526272db763b04179d2d5a75f1bb61e09440373e71788bf4cab985dc62b539",
+          "promptVersion": "p2",
+          "inputImages": [],
+          "threadId": "01a16389-a150-7e02-aa8b-354f64e70723",
+          "startedAt": "2026-10-22T12:15:25.085Z",
+          "durationMs": 128121,
+          "exitCode": 0,
+          "outcome": "accepted",
+          "raw": "raw/spike-0467/20261022T121525-f402121f.png",
+          "output": {
+            "sha256": "f402121fdbdd9fc6a15e7ced582a003bef4bd95635739e22bd575c6ea8dd5281",
+            "width": 1199,
+            "height": 1312,
+            "bytes": 2754262
+          },
+          "usage": {
+            "input_tokens": 82131,
+            "cached_input_tokens": 66816,
+            "output_tokens": 917,
+            "reasoning_output_tokens": 0
+          }
+        }
+      ],
+      "master": {
+        "file": "masters/spike-0467.jpg",
+        "sha256": "e1968ab5dd66e9474f1e030bc6502f14a2366a18090976751606fb5f31e148fd",
+        "width": 1199,
+        "height": 1312,
+        "bytes": 362118
+      },
+      "display": {
+        "file": "slips/spike-0467.webp",
+        "sha256": "af51489c89a7abfbc53291cd48056c25d33f15517dbee9a408edc1c9158ffde9",
+        "width": 1199,
+        "height": 1312,
+        "bytes": 196780
+      },
+      "fixture": "fixtures/spike-0467.json",
+      "review": {
+        "status": "agent-checked",
+        "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+        "at": "2026-10-22T12:40:00.000Z",
+        "method": "The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+        "fieldMatch": {
+          "matched": 17,
+          "total": 17,
+          "mismatches": []
+        },
+        "deviations": []
+      },
+      "trials": []
+    },
+    "spike-0471": {
+      "id": "spike-0471",
+      "kind": "slip_page",
+      "title": "Hero flat: slip 0471, M-053 Merlyn Ponce (plot P-053-B)",
+      "synthetic": true,
+      "label": "Synthetic sample",
+      "pipeline": "direct",
+      "generator": "gpt-image-2 via Codex built-in image_gen",
+      "codexCli": "codex-cli 0.159.3",
+      "promptVersion": "p2",
+      "prompt": {
+        "file": "prompts/history/spike-0471.532f3698.md",
+        "sha256": "532f36988f73a9001a8c1972479ab35e6b57bd27e871316c77cf7ace5381bd34"
+      },
+      "source": {
+        "kind": "provisional",
+        "note": "Box text from WS-CORE's draft seed snapshot (ws/core 399aa04f, packages/seed/snapshot/season-2026A.json sha256 233ca9cc), not yet on main; register figures mirrored exactly; regenerate from the frozen seed (IC-03)."
+      },
+      "attempts": [
+        {
+          "n": 1,
+          "purpose": "accept",
+          "promptFile": "prompts/history/spike-0471.532f3698.md",
+          "promptSha256": "532f36988f73a9001a8c1972479ab35e6b57bd27e871316c77cf7ace5381bd34",
+          "promptVersion": "p2",
+          "inputImages": [],
+          "threadId": "01a1638a-8e36-7463-8c52-8325342631d6",
+          "startedAt": "2026-10-22T12:16:26.783Z",
+          "durationMs": 131793,
+          "exitCode": 0,
+          "outcome": "accepted",
+          "raw": "raw/spike-0471/20261022T121626-f02bf7d6.png",
+          "output": {
+            "sha256": "f02bf7d6d429573876af873130c44b28ca98a41f16ec11a26fcc93bbb24c1e26",
+            "width": 1199,
+            "height": 1312,
+            "bytes": 2815151
+          },
+          "usage": {
+            "input_tokens": 82135,
+            "cached_input_tokens": 66816,
+            "output_tokens": 922,
+            "reasoning_output_tokens": 0
+          }
+        }
+      ],
+      "master": {
+        "file": "masters/spike-0471.jpg",
+        "sha256": "703b94e9c8d74fefe52fdb03c0f410d892971c736fcd948cc53f637045ec00cb",
+        "width": 1199,
+        "height": 1312,
+        "bytes": 382965
+      },
+      "display": {
+        "file": "slips/spike-0471.webp",
+        "sha256": "ce6aab2aaa5518987497fe0f06ab977ebed8dbba68c7866a38a42a6d361e2296",
+        "width": 1199,
+        "height": 1312,
+        "bytes": 212574
+      },
+      "fixture": "fixtures/spike-0471.json",
+      "review": {
+        "status": "agent-checked",
+        "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+        "at": "2026-10-22T12:40:00.000Z",
+        "method": "The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+        "fieldMatch": {
+          "matched": 17,
+          "total": 17,
+          "mismatches": []
+        },
+        "deviations": []
+      },
+      "trials": []
+    },
     "spike-4up": {
       "id": "spike-4up",
       "kind": "slip_photo",
@@ -889,7 +1272,7 @@
       "codexCli": "codex-cli 0.159.3",
       "promptVersion": "p2",
       "prompt": {
-        "file": "prompts/spike-4up.md",
+        "file": "prompts/history/spike-4up.d96de074.md",
         "sha256": "d96de0742d887b4cde87dfae45c364c466cb26705215a431cee8478e90de613d"
       },
       "source": {
@@ -958,7 +1341,7 @@
         "bytes": 441048
       },
       "display": {
-        "file": "photos/spike-4up.webp",
+        "file": "photos/spike/spike-4up.webp",
         "sha256": "62f1a055cd70ca49cccc53ba66d31b3e56ed7d63bb83b0fa4a092ee29a33d8c0",
         "width": 1448,
         "height": 1086,
@@ -968,15 +1351,29 @@
       "review": {
         "status": "agent-checked",
         "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-        "at": "2026-10-22T08:30:00.000Z",
-        "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+        "at": "2026-10-22T12:20:00.000Z",
+        "method": "Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
         "fieldMatch": {
-          "matched": 68,
+          "matched": 66,
           "total": 68,
-          "mismatches": []
+          "mismatches": [
+            {
+              "where": "BR.fields.gross_kg",
+              "expected": "6?.80",
+              "visible": "64.80"
+            },
+            {
+              "where": "BR.fields.net_kg",
+              "expected": "6?.50",
+              "visible": "64.50"
+            }
+          ]
         },
         "deviations": [
-          "Inside the 0462 stain a faint ghost of the 4 remains; a reader may still read 64.80, so A-L must confirm the by-hand trap with a real read before acceptance."
+          "BR.fields.gross_kg: expected \"6?.80\", visible \"64.80\" (a faint ghost of the 4 stays readable inside the stain (6x crop))",
+          "BR.fields.net_kg: expected \"6?.50\", visible \"64.50\" (a fainter ghost of the 4 stays inside the stain; with box 11's clear 64.50 it reads 64.50)",
+          "BR WATER_STAIN trap FAILED: The 4 under the stain is still readable as a faint ghost in gross (and fainter in net), and box 11 shows a clear 64.50: a reader can read 64.80 and 64.50, so this render cannot carry the by-hand moment (C-17, MM-2).",
+          "Corrects the 22 Oct check of this image, which recorded no mismatch and only a note about the ghost: the label is what is visibly written (C-24), so p2 fixed the stain on 2 of 3 renders, not 3 of 3."
         ]
       },
       "trials": [

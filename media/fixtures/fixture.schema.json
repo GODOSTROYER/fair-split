@@ -6,9 +6,13 @@
       "properties": {
         "v": {
           "type": "number",
-          "const": 1
+          "const": 2
         },
         "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
           "type": "string",
           "minLength": 1
         },
@@ -79,6 +83,12 @@
               "items": {
                 "type": "string"
               }
+            },
+            "cropIssues": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": [
@@ -86,7 +96,8 @@
             "method",
             "reviewer",
             "reviewedAt",
-            "notes"
+            "notes",
+            "cropIssues"
           ]
         },
         "kind": {
@@ -107,14 +118,14 @@
           "items": {
             "type": "object",
             "properties": {
-              "position": {
+              "slot": {
                 "type": "string",
                 "enum": [
                   "TL",
                   "TR",
                   "BL",
                   "BR",
-                  "FULL"
+                  "ONLY"
                 ]
               },
               "serial": {
@@ -209,96 +220,1146 @@
                 "minItems": 4,
                 "maxItems": 4
               },
+              "rect": {
+                "type": "object",
+                "properties": {
+                  "x1": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y1": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "x2": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y2": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                },
+                "required": [
+                  "x1",
+                  "y1",
+                  "x2",
+                  "y2"
+                ]
+              },
               "fields": {
                 "type": "object",
-                "propertyNames": {
-                  "type": "string",
-                  "enum": [
-                    "serial",
-                    "date",
-                    "member_no",
-                    "member_name",
-                    "plot_no",
-                    "sacks",
-                    "gross_kg",
-                    "tare_kg",
-                    "net_kg",
-                    "mc_pct",
-                    "mc_less_kg",
-                    "payable_kg",
-                    "grade",
-                    "deduction_1",
-                    "deduction_2",
-                    "signature",
-                    "clerk_initials"
-                  ]
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "rect": {
-                      "type": "object",
-                      "properties": {
-                        "x1": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "y1": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "x2": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "y2": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        }
+                "properties": {
+                  "serial": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
                       },
-                      "required": [
-                        "x1",
-                        "y1",
-                        "x2",
-                        "y2"
-                      ]
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
                     },
-                    "value": {
-                      "type": "string"
-                    },
-                    "visible": {
-                      "type": "string"
-                    },
-                    "legibility": {
-                      "type": "string",
-                      "enum": [
-                        "CLEAR",
-                        "SMUDGED",
-                        "OVERWRITTEN",
-                        "ILLEGIBLE",
-                        "ABSENT"
-                      ]
-                    },
-                    "expect": {
-                      "type": "string",
-                      "enum": [
-                        "AUTO",
-                        "HUMAN",
-                        "EITHER"
-                      ]
-                    }
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
                   },
-                  "required": [
-                    "rect",
-                    "value",
-                    "visible",
-                    "legibility",
-                    "expect"
-                  ]
+                  "date": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "member_no": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "member_name": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "plot_no": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "sacks": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "gross_kg": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "tare_kg": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "net_kg": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "mc_pct": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "mc_less_kg": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "payable_kg": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "grade": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "clerk_initials": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  }
                 },
                 "required": [
                   "serial",
@@ -314,32 +1375,431 @@
                   "mc_less_kg",
                   "payable_kg",
                   "grade",
-                  "deduction_1",
-                  "deduction_2",
-                  "signature",
                   "clerk_initials"
                 ]
+              },
+              "deductions": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  }
+                ],
+                "items": false,
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "signature": {
+                "type": "object",
+                "properties": {
+                  "x1": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y1": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "x2": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "y2": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "requested": {
+                    "type": "string"
+                  },
+                  "visible": {
+                    "type": "string"
+                  },
+                  "legibility": {
+                    "type": "string",
+                    "enum": [
+                      "CLEAR",
+                      "SMUDGED",
+                      "OVERWRITTEN",
+                      "ILLEGIBLE",
+                      "ABSENT",
+                      "UNVERIFIED"
+                    ]
+                  },
+                  "expect": {
+                    "type": "string",
+                    "enum": [
+                      "AUTO",
+                      "HUMAN",
+                      "EITHER"
+                    ]
+                  },
+                  "checkedBy": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "agent",
+                          "human"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "x1",
+                  "y1",
+                  "x2",
+                  "y2",
+                  "value",
+                  "requested",
+                  "visible",
+                  "legibility",
+                  "expect",
+                  "checkedBy"
+                ]
+              },
+              "anomalies": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "INSTRUCTION_LIKE_TEXT"
+                    },
+                    "x1": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y1": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "x2": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "y2": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "requested": {
+                      "type": "string"
+                    },
+                    "visible": {
+                      "type": "string"
+                    },
+                    "legibility": {
+                      "type": "string",
+                      "enum": [
+                        "CLEAR",
+                        "SMUDGED",
+                        "OVERWRITTEN",
+                        "ILLEGIBLE",
+                        "ABSENT",
+                        "UNVERIFIED"
+                      ]
+                    },
+                    "expect": {
+                      "type": "string",
+                      "enum": [
+                        "AUTO",
+                        "HUMAN",
+                        "EITHER"
+                      ]
+                    },
+                    "checkedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "agent",
+                            "human"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "x1",
+                    "y1",
+                    "x2",
+                    "y2",
+                    "value",
+                    "requested",
+                    "visible",
+                    "legibility",
+                    "expect",
+                    "checkedBy"
+                  ]
+                }
               },
               "traps": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "WATER_STAIN",
+                    "MARGIN_NOTE",
+                    "CARBON_COPY",
+                    "DEDUCTION_MARKS"
+                  ]
+                }
+              },
+              "trapChecks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "trap": {
+                      "type": "string",
+                      "enum": [
+                        "WATER_STAIN",
+                        "MARGIN_NOTE"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "UNVERIFIED",
+                        "HOLDS",
+                        "FAILED"
+                      ]
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "agent",
+                            "human",
+                            "read"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "trap",
+                    "status",
+                    "by",
+                    "at",
+                    "evidence"
+                  ]
                 }
               },
               "duplicateOf": {
-                "type": [
-                  "string",
-                  "null"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[\\w-]+#(?:TL|TR|BL|BR|ONLY)$"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               }
             },
             "required": [
-              "position",
+              "slot",
               "serial",
               "copy",
               "quad",
+              "rect",
               "fields",
+              "deductions",
+              "signature",
+              "anomalies",
               "traps",
+              "trapChecks",
               "duplicateOf"
             ]
           }
@@ -348,6 +1808,7 @@
       "required": [
         "v",
         "id",
+        "group",
         "synthetic",
         "image",
         "review",
@@ -361,9 +1822,13 @@
       "properties": {
         "v": {
           "type": "number",
-          "const": 1
+          "const": 2
         },
         "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
           "type": "string",
           "minLength": 1
         },
@@ -434,6 +1899,12 @@
               "items": {
                 "type": "string"
               }
+            },
+            "cropIssues": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": [
@@ -441,7 +1912,8 @@
             "method",
             "reviewer",
             "reviewedAt",
-            "notes"
+            "notes",
+            "cropIssues"
           ]
         },
         "kind": {
@@ -511,6 +1983,7 @@
       "required": [
         "v",
         "id",
+        "group",
         "synthetic",
         "image",
         "review",
@@ -525,9 +1998,13 @@
       "properties": {
         "v": {
           "type": "number",
-          "const": 1
+          "const": 2
         },
         "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
           "type": "string",
           "minLength": 1
         },
@@ -598,6 +2075,12 @@
               "items": {
                 "type": "string"
               }
+            },
+            "cropIssues": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": [
@@ -605,7 +2088,8 @@
             "method",
             "reviewer",
             "reviewedAt",
-            "notes"
+            "notes",
+            "cropIssues"
           ]
         },
         "kind": {
@@ -621,7 +2105,17 @@
           "minItems": 1,
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "line",
+              "date",
+              "serial",
+              "member_no",
+              "member_name",
+              "net_kg",
+              "grade",
+              "remarks"
+            ]
           }
         },
         "lines": {
@@ -670,56 +2164,650 @@
               },
               "cells": {
                 "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {
-                  "type": "object",
-                  "properties": {
-                    "rect": {
-                      "type": "object",
-                      "properties": {
-                        "x1": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "y1": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "x2": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        },
-                        "y2": {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 1
-                        }
+                "properties": {
+                  "line": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
                       },
-                      "required": [
-                        "x1",
-                        "y1",
-                        "x2",
-                        "y2"
-                      ]
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
                     },
-                    "value": {
-                      "type": "string"
-                    },
-                    "visible": {
-                      "type": "string"
-                    }
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
                   },
-                  "required": [
-                    "rect",
-                    "value",
-                    "visible"
-                  ]
-                }
+                  "date": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "serial": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "member_no": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "member_name": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "net_kg": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "grade": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  },
+                  "remarks": {
+                    "type": "object",
+                    "properties": {
+                      "x1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y1": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "x2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y2": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "requested": {
+                        "type": "string"
+                      },
+                      "visible": {
+                        "type": "string"
+                      },
+                      "legibility": {
+                        "type": "string",
+                        "enum": [
+                          "CLEAR",
+                          "SMUDGED",
+                          "OVERWRITTEN",
+                          "ILLEGIBLE",
+                          "ABSENT",
+                          "UNVERIFIED"
+                        ]
+                      },
+                      "expect": {
+                        "type": "string",
+                        "enum": [
+                          "AUTO",
+                          "HUMAN",
+                          "EITHER"
+                        ]
+                      },
+                      "checkedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "agent",
+                              "human"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "x1",
+                      "y1",
+                      "x2",
+                      "y2",
+                      "value",
+                      "requested",
+                      "visible",
+                      "legibility",
+                      "expect",
+                      "checkedBy"
+                    ]
+                  }
+                },
+                "required": [
+                  "line",
+                  "date",
+                  "serial",
+                  "member_no",
+                  "member_name",
+                  "net_kg",
+                  "grade",
+                  "remarks"
+                ]
               }
             },
             "required": [
@@ -734,6 +2822,7 @@
       "required": [
         "v",
         "id",
+        "group",
         "synthetic",
         "image",
         "review",

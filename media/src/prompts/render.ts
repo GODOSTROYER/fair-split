@@ -101,10 +101,20 @@ function artifactLines(slip: SlipSpec): string[] {
         `- One dried water stain on this slip only: a pale brownish tide-mark ring about the size of a coin over the writing boxes of ${fields.join(" and ")}. Inside the stain the blue ink has bled and spread into a soft pale-blue smudge: ${washed}. Draw each washed-out character only as a formless pale-blue blur with no recognisable shape; never draw a question mark, another digit or any other symbol in its place. The other characters of those values, and every other value on the slip, stay crisp and readable.`,
       );
     } else {
-      out.push(`- In the right margin, written in ${a.pen}, a note reading exactly: "${a.text}".`);
+      out.push(
+        `- One note written on this slip by a different person, ${a.placement}, in ${a.pen} (not the clerk's blue ballpoint), reading exactly: "${a.text}". The note stays outside every printed box and does not touch or overlap any printed text, any box or any of the clerk's handwriting; render it legibly, character for character.`,
+      );
     }
   }
   return out;
+}
+
+/** The constraints line; a slip with a margin note allows exactly that one extra piece of handwriting. */
+function slipConstraints(slip: SlipSpec): string {
+  const extra = slip.artifacts.some((a) => a.kind === "MARGIN_NOTE")
+    ? "no other handwriting anywhere apart from the one note described under Artifacts"
+    : "no other handwriting anywhere";
+  return `Constraints: render every quoted value exactly; ${extra}; no extra digits, ticks or corrections; all text legible; the whole slip in frame.`;
 }
 
 const ORDINALS = [
@@ -133,9 +143,6 @@ export function washedOutPhrase(value: string, visible: string): string {
 const HAND =
   "Handwriting: blue ballpoint pen, neat upright BLOCK CAPITALS by one clerk (Jessie), each value written once inside its own row's writing box, digits clear with a visible decimal point. Render every value exactly, character for character.";
 
-const SLIP_CONSTRAINTS =
-  "Constraints: render every quoted value exactly; no other handwriting anywhere; no extra digits, ticks or corrections; all text legible; the whole slip in frame.";
-
 export function renderSlipPage(asset: SlipPageAsset): string {
   const s = asset.slip;
   if (asset.editOf) return renderCarbonCopyEdit(asset);
@@ -157,7 +164,7 @@ export function renderSlipPage(asset: SlipPageAsset): string {
     ...slipValueLines(s),
     ...(s.artifacts.length ? ["", "Artifacts (only these):", ...artifactLines(s)] : []),
     "",
-    SLIP_CONSTRAINTS,
+    slipConstraints(s),
     AVOID,
   ].join("\n");
 }
@@ -312,5 +319,9 @@ export function requiredLiterals(asset: AssetSpec): string[] {
 }
 
 function slipLiterals(s: SlipSpec): string[] {
-  return [`${SLIP_PRINTED.serialPrefix} ${s.serial}`, ...Object.values(s.values).filter((x) => x !== "")];
+  return [
+    `${SLIP_PRINTED.serialPrefix} ${s.serial}`,
+    ...Object.values(s.values).filter((x) => x !== ""),
+    ...s.artifacts.flatMap((a) => (a.kind === "MARGIN_NOTE" ? [a.text] : [])),
+  ];
 }

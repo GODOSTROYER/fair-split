@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { SCHEDULE_A } from "../content/br-2026-04.js";
 import type {
+  AssetSpec,
   LogbookPageAsset,
   PhotoPosition,
   RateCardPageAsset,
@@ -13,29 +14,45 @@ import { expectedVisible } from "../prompts/render.js";
 import { SLIP_BOXES, SLIP_FIELDS, type SlipField } from "../template/slip-template.js";
 import {
   detectTextBlocks,
+  findInk,
   findPaperQuads,
+  isGreenInk,
   orderTwoByTwo,
   pointsToImage,
   type RectifiedSlip,
   rectify,
+  rectToImage,
 } from "./detect.js";
 import { type Box, normaliseBox, type Pt, type Quad, roundBox } from "./geometry.js";
 import { cellCorners, detectLedgerGrid, detectSlipGrid, type Line, type SlipGrid } from "./grid.js";
 import { loadRgb } from "./raster.js";
-import type {
-  FieldFixture,
-  FixtureReview,
-  LogbookPageFixture,
-  RateCardPageFixture,
-  SlipFixture,
-  SlipImageFixture,
+import {
+  type AnomalyFixture,
+  type ArtifactTrap,
+  BEHAVIOURAL_TRAPS,
+  type Expect,
+  FIXTURE_VERSION,
+  type FieldFixture,
+  type Fixture,
+  type FixtureReview,
+  Fixture as FixtureSchema,
+  LOGBOOK_COLUMNS,
+  type LogbookPageFixture,
+  type RateCardPageFixture,
+  SLIP_ROW_FIELDS,
+  type SlipFixture,
+  type SlipImageFixture,
+  type SlipRowField,
+  type Slot,
+  slipFieldEntries,
+  type TrapCheck,
 } from "./schema.js";
 
 export const DETECTOR =
   "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands";
 
-export function draftReview(method = DETECTOR): FixtureReview {
-  return { status: "draft", method, reviewer: null, reviewedAt: null, notes: [] };
+export function draftReview(method = DETECTOR, notes: string[] = []): FixtureReview {
+  return { status: "draft", method, reviewer: null, reviewedAt: null, notes, cropIssues: [] };
 }
 
 function imageRef(entry: AssetEntry) {
@@ -118,60 +135,165 @@ export function checkSlipLayout(rects: Record<SlipField, Box>): string[] {
   return problems;
 }
 
-function fieldFixture(slip: SlipSpec, field: SlipField, rect: Box): FieldFixture {
-  const visible = expectedVisible(slip)[field];
-  const value =
-    field === "serial" ? slip.serial : field === "signature" ? slip.signature.mark : slip.values[field];
-  const stained = visible.includes("?") && visible !== value;
+/** What a reader should do, as the content spec intends it: a washed-out character goes to a person. */
+export function intendedExpect(requested: string): Expect {
+  return requested.includes("?") ? "HUMAN" : "AUTO";
+}
+
+/**
+ * A drafted field: the rectangle plus what was asked for. Nothing has looked at the image yet, so the field
+ * is UNVERIFIED and `visible` repeats `requested` until a recorded check replaces it (C-24).
+ */
+export function draftField(rect: Box, value: string, requested: string): FieldFixture {
   return {
-    rect,
+    ...rect,
     value,
-    visible,
-    legibility: stained ? "SMUDGED" : value === "" ? "ABSENT" : "CLEAR",
-    expect: stained ? "HUMAN" : "AUTO",
+    requested,
+    visible: requested,
+    legibility: "UNVERIFIED",
+    expect: intendedExpect(requested),
+    checkedBy: null,
   };
 }
 
-function slipTraps(slip: SlipSpec): string[] {
-  const traps: string[] = [];
-  for (const a of slip.artifacts) traps.push(a.kind);
+/** The template field holding a fixture path's value ("fields.gross_kg" → gross_kg, "deductions.1" → deduction_2). */
+export function templateFieldOf(path: string): SlipField | null {
+  const m = /^(?:fields\.(\w+)|deductions\.([01])|(signature))$/.exec(path);
+  if (!m) return null;
+  if (m[1]) return (SLIP_FIELDS as readonly string[]).includes(m[1]) ? (m[1] as SlipField) : null;
+  if (m[2] !== undefined) return m[2] === "0" ? "deduction_1" : "deduction_2";
+  return "signature";
+}
+
+export function slipTraps(slip: SlipSpec): ArtifactTrap[] {
+  const traps: ArtifactTrap[] = [];
+  for (const a of slip.artifacts) if (!traps.includes(a.kind)) traps.push(a.kind);
   if (slip.values.deduction_1 || slip.values.deduction_2) traps.push("DEDUCTION_MARKS");
   if (slip.copy !== "WHITE_ORIGINAL") traps.push("CARBON_COPY");
   return traps;
+}
+
+function trapChecksFor(traps: readonly ArtifactTrap[]): TrapCheck[] {
+  return BEHAVIOURAL_TRAPS.filter((t) => traps.includes(t)).map((trap) => ({
+    trap,
+    status: "UNVERIFIED",
+    by: null,
+    at: null,
+    evidence: "",
+  }));
+}
+
+/** Decides `duplicateOf` for a slip: the white original of the same serial in the same set, if any. */
+export type DuplicateResolver = (assetId: string, slip: SlipSpec) => string | null;
+
+/**
+ * S4.10 `duplicate_of`: only the non-original copy points at its original, keyed by serial and copy colour
+ * within one replay or eval set. Two renders of one slip in different sets (an S3 flat and the spike's
+ * four-slip photo) are separate images of the same paper, never a duplicate pair.
+ */
+export function duplicateResolver(assets: readonly AssetSpec[]): DuplicateResolver {
+  const originals = new Map<string, string>();
+  for (const a of assets) {
+    const slips: [Slot, SlipSpec][] =
+      a.kind === "slip_page"
+        ? [["ONLY", a.slip]]
+        : a.kind === "slip_photo"
+          ? (Object.entries(a.slips) as [PhotoPosition, SlipSpec][])
+          : [];
+    for (const [slot, s] of slips) {
+      if (s.copy !== "WHITE_ORIGINAL") continue;
+      const key = `${a.group}/${s.serial}`;
+      if (originals.has(key))
+        throw new Error(`group ${a.group} holds two white originals of slip ${s.serial}`);
+      originals.set(key, `${a.id}#${slot}`);
+    }
+  }
+  return (assetId, slip) => {
+    if (slip.copy === "WHITE_ORIGINAL") return null;
+    const asset = assets.find((x) => x.id === assetId);
+    if (!asset) throw new Error(`unknown asset ${assetId}`);
+    return originals.get(`${asset.group}/${slip.serial}`) ?? null;
+  };
+}
+
+/** Finds a margin note's ink on the rectified slip (0449's note is in green felt-tip, S4.7), padded. */
+export function marginNoteRect(rect: RectifiedSlip): Box | null {
+  const note = findInk(
+    rect.rgb,
+    { x1: 0, y1: 0, x2: rect.rgb.width, y2: rect.rgb.height },
+    isGreenInk,
+    () => true,
+    60,
+  );
+  if (!note) return null;
+  const pad = 8;
+  return {
+    x1: Math.max(0, note.x1 - pad),
+    y1: Math.max(0, note.y1 - pad),
+    x2: Math.min(rect.rgb.width, note.x2 + pad),
+    y2: Math.min(rect.rgb.height, note.y2 + pad),
+  };
 }
 
 function buildSlip(
   rgbW: number,
   rgbH: number,
   slip: SlipSpec,
-  position: PhotoPosition | "FULL",
+  slot: Slot,
   quad: Quad,
   rect: RectifiedSlip,
   grid: SlipGrid,
   duplicateOf: string | null,
 ): SlipFixture {
   const corners = gridFieldCorners(grid);
-  const fields: Partial<Record<SlipField, FieldFixture>> = {};
+  const rects = {} as Record<SlipField, Box>;
   for (const f of SLIP_FIELDS) {
     const c = corners[f];
     if (!c) throw new Error(`slip ${slip.serial}: no rectangle detected for ${f}`);
-    fields[f] = fieldFixture(slip, f, roundBox(normaliseBox(pointsToImage(rect, c), rgbW, rgbH)));
+    rects[f] = roundBox(normaliseBox(pointsToImage(rect, c), rgbW, rgbH));
   }
-  const complete = fields as Record<SlipField, FieldFixture>;
-  const problems = checkSlipLayout(
-    Object.fromEntries(SLIP_FIELDS.map((f) => [f, complete[f].rect])) as Record<SlipField, Box>,
-  );
+  const problems = checkSlipLayout(rects);
   if (problems.length)
-    throw new Error(
-      `slip ${slip.serial} (${position}): layout check failed: ${problems.slice(0, 4).join("; ")}`,
-    );
+    throw new Error(`slip ${slip.serial} (${slot}): layout check failed: ${problems.slice(0, 4).join("; ")}`);
+
+  const requested = expectedVisible(slip);
+  const truthOf = (f: SlipField): string =>
+    f === "serial" ? slip.serial : f === "signature" ? slip.signature.mark : slip.values[f];
+  const field = (f: SlipField) => draftField(rects[f], truthOf(f), requested[f]);
+
+  const anomalies: AnomalyFixture[] = [];
+  for (const a of slip.artifacts) {
+    if (a.kind !== "MARGIN_NOTE") continue;
+    const r = marginNoteRect(rect);
+    if (!r) throw new Error(`slip ${slip.serial} (${slot}): no margin-note ink found (expected ${a.pen})`);
+    const box = roundBox(normaliseBox(rectToImage(rect, r), rgbW, rgbH));
+    anomalies.push({ kind: "INSTRUCTION_LIKE_TEXT", ...draftField(box, a.text, a.text), expect: "HUMAN" });
+  }
+
+  const traps = slipTraps(slip);
+  const xs = quad.map((p) => p[0]);
+  const ys = quad.map((p) => p[1]);
   return {
-    position,
+    slot,
     serial: slip.serial,
     copy: slip.copy,
     quad: quad.map(([x, y]) => [round4(x / rgbW), round4(y / rgbH)]) as unknown as SlipFixture["quad"],
-    fields: fields as Record<SlipField, FieldFixture>,
-    traps: slipTraps(slip),
+    rect: roundBox(
+      normaliseBox(
+        { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) },
+        rgbW,
+        rgbH,
+      ),
+    ),
+    fields: Object.fromEntries(SLIP_ROW_FIELDS.map((f) => [f, field(f)])) as Record<
+      SlipRowField,
+      FieldFixture
+    >,
+    deductions: [field("deduction_1"), field("deduction_2")],
+    signature: field("signature"),
+    anomalies,
+    traps,
+    trapChecks: trapChecksFor(traps),
     duplicateOf,
   };
 }
@@ -182,8 +304,8 @@ function round4(n: number): number {
 
 export interface BuildOptions {
   mediaRoot: string;
-  /** For carbon copies: the id of the other copy of the same slip, e.g. "spike-0457-white". */
-  duplicateOf?: (serial: string, assetId: string) => string | null;
+  /** `duplicateOf` for each slip (see {@link duplicateResolver}); by default no slip is a duplicate. */
+  duplicateOf?: DuplicateResolver;
 }
 
 /** Draft fixture for a one-slip page or a four-slip photo. */
@@ -205,11 +327,11 @@ export async function buildSlipFixture(
         rgb.width,
         rgb.height,
         asset.slip,
-        "FULL",
+        "ONLY",
         q.quad,
         r,
         detectSlipGrid(r),
-        dup(asset.slip.serial, asset.id),
+        dup(asset.id, asset.slip),
       ),
     );
   } else {
@@ -219,13 +341,14 @@ export async function buildSlipFixture(
       const r = rectify(rgb, q.quad);
       const spec = asset.slips[pos];
       slips.push(
-        buildSlip(rgb.width, rgb.height, spec, pos, q.quad, r, detectSlipGrid(r), dup(spec.serial, asset.id)),
+        buildSlip(rgb.width, rgb.height, spec, pos, q.quad, r, detectSlipGrid(r), dup(asset.id, spec)),
       );
     }
   }
   return {
-    v: 1,
+    v: FIXTURE_VERSION,
     id: asset.id,
+    group: asset.group,
     kind: asset.kind,
     template: "slip-v1",
     synthetic: true,
@@ -270,8 +393,9 @@ export async function buildRateCardFixture(
     rect: roundBox(normaliseBox(pad(leftAligned[i]?.box as Box, 6), rgb.width, rgb.height)),
   }));
   return {
-    v: 1,
+    v: FIXTURE_VERSION,
     id: asset.id,
+    group: asset.group,
     kind: "rate_card_page",
     synthetic: true,
     image,
@@ -286,18 +410,7 @@ function pad(b: Box, p: number): Box {
   return { x1: b.x1 - p, y1: b.y1 - p, x2: b.x2 + p, y2: b.y2 + p };
 }
 
-const LOGBOOK_COLUMNS = [
-  "line",
-  "date",
-  "serial",
-  "member_no",
-  "member_name",
-  "net_kg",
-  "grade",
-  "remarks",
-] as const;
-
-/** Draft fixture for a logbook page: one rectangle per line and per cell. */
+/** Draft fixture for a logbook page: one rectangle per line and per cell, every cell UNVERIFIED. */
 export async function buildLogbookFixture(
   asset: LogbookPageAsset,
   entry: AssetEntry,
@@ -329,7 +442,7 @@ export async function buildLogbookFixture(
   const lines = asset.lines.map((l) => {
     const top = grid.rows[l.line - 1] as Line;
     const bottom = grid.rows[l.line] as Line;
-    const cells: Record<string, { rect: Box; value: string; visible: string }> = {};
+    const cells = {} as Record<(typeof LOGBOOK_COLUMNS)[number], FieldFixture>;
     LOGBOOK_COLUMNS.forEach((c, i) => {
       const value = c === "line" ? String(l.line) : l[c];
       const corners = cellCorners({
@@ -338,7 +451,7 @@ export async function buildLogbookFixture(
         left: grid.cols[i] as Line,
         right: grid.cols[i + 1] as Line,
       });
-      cells[c] = { rect: toImg(corners), value, visible: value };
+      cells[c] = draftField(toImg(corners), value, value);
     });
     const whole = cellCorners(
       { top, bottom, left: grid.cols[0] as Line, right: grid.cols[grid.cols.length - 1] as Line },
@@ -347,8 +460,9 @@ export async function buildLogbookFixture(
     return { line: l.line, serial: l.serial, rect: toImg(whole), cells };
   });
   return {
-    v: 1,
+    v: FIXTURE_VERSION,
     id: asset.id,
+    group: asset.group,
     kind: "logbook_page",
     synthetic: true,
     image,
@@ -357,4 +471,59 @@ export async function buildLogbookFixture(
     lines,
     review: draftReview("ledger grid-detect v1 (page quad, rectified, snapped to ruled lines)"),
   };
+}
+
+type Observed = Pick<FieldFixture, "requested" | "visible" | "legibility" | "expect" | "checkedBy">;
+
+function observed(f: Observed): Observed {
+  return {
+    requested: f.requested,
+    visible: f.visible,
+    legibility: f.legibility,
+    expect: f.expect,
+    checkedBy: f.checkedBy,
+  };
+}
+
+/**
+ * Carries recorded observations from an earlier fixture of the same image into a redraft, field by field
+ * where the requested value is unchanged and the crop was not marked wrong (a reading of a wrong crop is
+ * not a reading of the field). Rectangles are new, so the redraft stays a draft until its crops are
+ * checked again. An earlier fixture of another image, kind or schema version carries nothing.
+ */
+export function carryOver<F extends Fixture>(prev: unknown, next: F): F {
+  const parsed = FixtureSchema.safeParse(prev);
+  if (!parsed.success) return next;
+  const p: Fixture = parsed.data;
+  if (p.kind !== next.kind || p.image.sha256 !== next.image.sha256) return next;
+  const wrongCrops = new Set(p.review.cropIssues);
+  let carried = 0;
+  const copy = (path: string, from: Observed | undefined, to: FieldFixture) => {
+    if (!from || from.checkedBy === null || from.requested !== to.requested || wrongCrops.has(path)) return;
+    Object.assign(to, observed(from));
+    carried++;
+  };
+  if (next.kind === "logbook_page" && p.kind === "logbook_page") {
+    const lb = next as LogbookPageFixture;
+    for (const l of lb.lines) {
+      const old = (p as LogbookPageFixture).lines.find((x) => x.line === l.line);
+      for (const c of LOGBOOK_COLUMNS) copy(`line ${l.line}.${c}`, old?.cells[c], l.cells[c]);
+    }
+  } else if ((next.kind === "slip_page" || next.kind === "slip_photo") && p.kind === next.kind) {
+    const sf = next as SlipImageFixture;
+    for (const s of sf.slips) {
+      const old = (p as SlipImageFixture).slips.find((x) => x.slot === s.slot && x.serial === s.serial);
+      if (!old) continue;
+      const prefix = sf.kind === "slip_page" ? "" : `${s.slot}.`;
+      const before = new Map(slipFieldEntries(old).map((e) => [e.path, e.field]));
+      for (const e of slipFieldEntries(s)) copy(`${prefix}${e.path}`, before.get(e.path), e.field);
+      for (const t of s.trapChecks) {
+        const was = old.trapChecks.find((x) => x.trap === t.trap);
+        if (was) Object.assign(t, was);
+      }
+    }
+  }
+  if (carried)
+    next.review.notes.push(`${carried} recorded observation(s) carried over; rectangles redrafted`);
+  return next;
 }

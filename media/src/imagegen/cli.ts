@@ -1,10 +1,17 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { textLayerDocument } from "../content/br-2026-04.js";
-import { findAsset, SPIKE_ASSETS } from "../content/spike.js";
+import { EVAL_DEV_GROUPS, findAsset, SPIKE_ASSETS } from "../content/spike.js";
 import type { AssetSpec } from "../content/types.js";
-import { buildLogbookFixture, buildRateCardFixture, buildSlipFixture } from "../fixtures/build.js";
+import {
+  buildLogbookFixture,
+  buildRateCardFixture,
+  buildSlipFixture,
+  carryOver,
+  duplicateResolver,
+} from "../fixtures/build.js";
 import {
   type LabelledRect,
   renderCropSheet,
@@ -12,20 +19,38 @@ import {
   type SheetItem,
 } from "../fixtures/review-sheet.js";
 import {
+  BEHAVIOURAL_TRAPS,
   type Fixture,
   Fixture as FixtureSchema,
   fixtureJsonSchema,
   type LogbookPageFixture,
   type RateCardPageFixture,
+  SLOTS,
   type SlipImageFixture,
+  type Slot,
+  type TrapCheck,
 } from "../fixtures/schema.js";
+import { syncLabels, writeLabelSchema } from "../labels/sync.js";
 import { renderPrompt } from "../prompts/render.js";
+import {
+  ConfirmationError,
+  confirmHumanReview,
+  processTerminal,
+  requireInteractive,
+  type TerminalIo,
+} from "../review/confirm.js";
+import { startReviewServer } from "../review/server.js";
+import { humanReviewBlockers, replayBlockers } from "../review/session.js";
+import { recordReadVerdict } from "../review/verdict.js";
 import { templateDocument } from "../template/slip-template.js";
-import { MEDIA_ROOT } from "../util/env.js";
-import { readJson, readJsonOr, writeJson } from "../util/json.js";
+import { MEDIA_ROOT, REPO_ROOT } from "../util/env.js";
+import { sha256 } from "../util/hash.js";
+import { readJsonOr, writeJson } from "../util/json.js";
 import { codexVersion, findGeneratedImages, runCodexExec } from "./codex.js";
 import { execPrompt, parseExpectation } from "./exec.js";
+import { CodexBudgetError, CodexLedger, execTimesFromAttemptsLog } from "./ledger.js";
 import { ManifestStore } from "./manifest.js";
+import { applyMigration, planMigration } from "./migrate.js";
 import {
   adoptAttempt,
   generateAsset,
@@ -34,27 +59,42 @@ import {
   type PipelineDeps,
   promoteAttempt,
 } from "./pipeline.js";
-import { applyReview, type ReviewFile } from "./review.js";
+import { type FixtureStatus, planGeneration } from "./plan.js";
+import { applyReview, fixtureFields, type ReviewFile } from "./review.js";
 
 const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All output is synthetic.
 
-  imagegen list                         status of every asset in media/manifest.json
-  imagegen template                     write media/template/slip-v1.json
-  imagegen textlayer                    write media/docs/BR-2026-04.text.json
-  imagegen schema                       write media/fixtures/fixture.schema.json
+  imagegen list                         status of every asset (manifest, fixture, review)
+  imagegen budget                       Codex execs in the last 5 hours (at most 12; media/.codex-ledger.json)
+  imagegen template | textlayer | schema   write template/slip-v1.json | docs/BR-2026-04.text.json |
+                                        fixtures/fixture.schema.json and eval/label.schema.json
   imagegen prompt <id...>               render prompts to media/prompts/ without generating
-  imagegen gen <id...|all> [--max-attempts 2] [--concurrency 3] [--effort low]
+  imagegen gen <id...|all> [--force] [--replace-reviewed] [--max-attempts 2] [--concurrency 3] [--effort low]
+                                        an asset that has a master is skipped unless --force names it;
+                                        a person-reviewed master also needs --replace-reviewed
   imagegen exec <prompt-file> [--name <slug>] [--orientation portrait|landscape|any] [--size WxH]
                 [--min-long-edge 1024] [--aspect 1.0-2.0|any] [--image <in.png> ...] [--out <file in media/raw/>]
                 [--max-attempts 2] [--effort low]   prompt file in, verified image out (media/raw/exec/)
   imagegen trial <id...> [--n 2] [--concurrency 2]   extra generations to measure value fidelity
   imagegen adopt <id> <attempt> [--as accept|trial]  re-verify an earlier attempt without a new exec
   imagegen promote <id> <attempt> --why "<reason>"   make a successful trial the master
-  imagegen fixture <id...|all> [--force]             draft crop fixtures + review overlay and crop sheet
-  imagegen mark <id> --status agent-checked|human-reviewed --reviewer "<name>" [--note "<text>"]
-  imagegen apply-review <review.json>                record a visual value check in the manifest
+  imagegen migrate                      move displays to their IC-11 paths; point prompts at history copies
+  imagegen fixture <id...|all> [--force] [--replace-reviewed]   draft crop fixtures + overlay and crop sheet
+  imagegen apply-review <review.json>   record an agent's visual check (manifest counts, fixture values)
+  imagegen review <id> --reviewer "<name>" [--port N]  a person checks every crop on 127.0.0.1, then confirms
+  imagegen mark <id> --status human-reviewed --reviewer "<name>"   confirm at your own terminal
+  imagegen trap-verdict <id> <slot> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence <recorded read>
+  imagegen replay-check <id...>         what still stops an image from joining a replay set
+  imagegen labels                       write media/eval/labels/{case}.json from checked fixtures
 
-Assets: ${SPIKE_ASSETS.map((a) => a.id).join(", ")}`;
+Every exec reserves a slot in the Codex ledger first (12 per 5 hours); gen, trial and exec retry once by
+default (--max-attempts 2, at most 3). Assets: ${SPIKE_ASSETS.map((a) => a.id).join(", ")}`;
+
+function codexLedger(mediaRoot: string): CodexLedger {
+  return new CodexLedger(join(mediaRoot, ".codex-ledger.json"), {
+    seed: () => execTimesFromAttemptsLog(join(mediaRoot, "prompts", "attempts.jsonl")),
+  });
+}
 
 function pipelineDeps(mediaRoot: string, store: ManifestStore, stamp = false): PipelineDeps {
   return {
@@ -63,56 +103,76 @@ function pipelineDeps(mediaRoot: string, store: ManifestStore, stamp = false): P
     codexCli: codexVersion(),
     run: runCodexExec,
     find: findGeneratedImages,
+    budget: codexLedger(mediaRoot),
     log: (l) => console.log(stamp ? `${new Date().toISOString().slice(11, 19)} ${l}` : l),
   };
 }
 
 const isEdit = (a: AssetSpec) => a.kind === "slip_page" && !!a.editOf;
 
-/** The other copy of a carbon-copied slip, for `duplicateOf` in fixtures. */
-function duplicateOf(serial: string, assetId: string): string | null {
-  const copies = SPIKE_ASSETS.filter(
-    (a) => a.kind === "slip_page" && a.slip.serial === serial && a.id !== assetId,
-  );
-  return copies[0]?.id ?? null;
+const fixturePath = (mediaRoot: string, id: string) => join(mediaRoot, "fixtures", `${id}.json`);
+
+async function readFixture(mediaRoot: string, id: string): Promise<Fixture | null> {
+  const raw = await readJsonOr<unknown>(fixturePath(mediaRoot, id), null);
+  return raw === null ? null : FixtureSchema.parse(raw);
 }
 
-function reviewItems(f: Fixture): { overlay: LabelledRect[]; sheet: SheetItem[] } {
-  switch (f.kind) {
-    case "slip_photo":
-    case "slip_page": {
-      const sheet = (f as SlipImageFixture).slips.flatMap((s) =>
-        Object.entries(s.fields).map(([name, ff]) => ({
-          rect: ff.rect,
-          title: `${s.position} ${s.serial} ${name}`,
-          expected: ff.visible,
-        })),
-      );
-      return { overlay: sheet.map((x) => ({ rect: x.rect, label: x.title.split(" ").pop() ?? "" })), sheet };
-    }
-    case "rate_card_page": {
-      const sheet = (f as RateCardPageFixture).blocks.map((b) => ({
-        rect: b.rect,
-        title: b.id,
-        expected: b.text.split("\n")[0] ?? "",
-      }));
-      return { overlay: sheet.map((x) => ({ rect: x.rect, label: x.title })), sheet };
-    }
-    case "logbook_page": {
-      const lb = f as LogbookPageFixture;
-      const sheet = lb.lines.flatMap((l) =>
-        Object.entries(l.cells).map(([c, cell]) => ({
-          rect: cell.rect,
-          title: `line ${l.line} ${c}`,
-          expected: cell.visible,
-        })),
-      );
-      return { overlay: lb.lines.map((l) => ({ rect: l.rect, label: `line ${l.line}` })), sheet };
-    }
+async function writeFixture(mediaRoot: string, f: Fixture): Promise<void> {
+  await writeJson(fixturePath(mediaRoot, f.id), FixtureSchema.parse(f));
+}
+
+/** A fixture's review status without parsing the whole file (null when there is none or it is unreadable). */
+function fixtureStatusOf(mediaRoot: string, id: string): FixtureStatus {
+  const path = fixturePath(mediaRoot, id);
+  if (!existsSync(path)) return null;
+  try {
+    const status = (JSON.parse(readFileSync(path, "utf8")) as { review?: { status?: unknown } }).review
+      ?.status;
+    return status === "draft" || status === "agent-checked" || status === "human-reviewed" ? status : null;
+  } catch {
+    return null;
   }
 }
 
-export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Promise<number> {
+async function refreshLabels(mediaRoot: string): Promise<void> {
+  const r = await syncLabels(mediaRoot, SPIKE_ASSETS, EVAL_DEV_GROUPS, (id) => readFixture(mediaRoot, id));
+  if (r.written.length) console.log(`labels: wrote ${r.written.length} (${r.written.join(", ")})`);
+  if (r.removed.length) console.log(`labels: removed ${r.removed.join(", ")} (fixture back to draft)`);
+}
+
+/** The overlay and crop sheet for checking a fixture: every crop beside what the prompt asked for. */
+function sheetItems(f: Fixture): { overlay: LabelledRect[]; sheet: SheetItem[] } {
+  if (f.kind === "rate_card_page") {
+    const sheet = (f as RateCardPageFixture).blocks.map((b) => ({
+      rect: b.rect,
+      title: b.id,
+      expected: b.text.split("\n")[0] ?? "",
+    }));
+    return { overlay: sheet.map((x) => ({ rect: x.rect, label: x.title })), sheet };
+  }
+  const sheet = [...fixtureFields(f)].map(([where, ff]) => ({
+    rect: { x1: ff.x1, y1: ff.y1, x2: ff.x2, y2: ff.y2 },
+    title: where,
+    expected: ff.requested,
+  }));
+  if (f.kind === "logbook_page") {
+    const lines = (f as LogbookPageFixture).lines;
+    return { overlay: lines.map((l) => ({ rect: l.rect, label: `line ${l.line}` })), sheet };
+  }
+  return { overlay: sheet.map((x) => ({ rect: x.rect, label: x.title.split(".").pop() ?? "" })), sheet };
+}
+
+function printPlanMessages(plan: ReturnType<typeof planGeneration>): void {
+  for (const s of plan.skipped) console.log(`${s.id}: skipped, ${s.reason}`);
+  for (const w of plan.warnings) console.log(`warning: ${w}`);
+  for (const r of plan.refused) console.error(`${r.id}: refused, ${r.reason}`);
+}
+
+export async function main(
+  argv: readonly string[],
+  mediaRoot = MEDIA_ROOT,
+  io: TerminalIo = processTerminal(),
+): Promise<number> {
   const { positionals, values } = parseArgs({
     args: [...argv],
     allowPositionals: true,
@@ -125,8 +185,11 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       why: { type: "string" },
       status: { type: "string" },
       reviewer: { type: "string" },
-      note: { type: "string", multiple: true },
+      note: { type: "string" },
+      evidence: { type: "string" },
+      port: { type: "string" },
       force: { type: "boolean" },
+      "replace-reviewed": { type: "boolean" },
       name: { type: "string" },
       orientation: { type: "string" },
       "min-long-edge": { type: "string" },
@@ -154,9 +217,16 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
             ? `no master (${e.attempts.length} exec)`
             : "not generated";
         console.log(
-          `${a.id.padEnd(18)} ${status.padEnd(26)} review=${e?.review.status ?? "-"} fixture=${e?.fixture ?? "-"}`,
+          `${a.id.padEnd(18)} ${a.group.padEnd(10)} ${status.padEnd(22)} image=${e?.review.status ?? "-"} fixture=${fixtureStatusOf(mediaRoot, a.id) ?? "-"}`,
         );
       }
+      return 0;
+    }
+    case "budget": {
+      const s = await codexLedger(mediaRoot).status();
+      console.log(
+        `Codex: ${s.used} of ${s.cap} execs in the last ${s.windowMs / 3_600_000} h${s.nextFreeAt ? `; next slot at ${s.nextFreeAt.toISOString()}` : ""}`,
+      );
       return 0;
     }
     case "template":
@@ -165,7 +235,8 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       return 0;
     case "schema":
       await writeJson(join(mediaRoot, "fixtures", "fixture.schema.json"), fixtureJsonSchema());
-      console.log("wrote media/fixtures/fixture.schema.json");
+      await writeLabelSchema(mediaRoot);
+      console.log("wrote media/fixtures/fixture.schema.json and media/eval/label.schema.json");
       return 0;
     case "textlayer": {
       const path = join(mediaRoot, "docs", "BR-2026-04.text.json");
@@ -188,6 +259,12 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       const [id, n] = ids;
       if (!id || !n || !values.why) {
         console.error('usage: imagegen promote <id> <attempt> --why "<reason>"');
+        return 1;
+      }
+      if (fixtureStatusOf(mediaRoot, id) === "human-reviewed" && !values["replace-reviewed"]) {
+        console.error(
+          `${id}: its fixture is human-reviewed; a new master throws that review away (add --replace-reviewed)`,
+        );
         return 1;
       }
       await promoteAttempt(findAsset(id), pipelineDeps(mediaRoot, store), Number(n), values.why);
@@ -239,11 +316,12 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
             mediaRoot,
             run: runCodexExec,
             find: findGeneratedImages,
+            budget: codexLedger(mediaRoot),
             log: (l) => console.log(`${new Date().toISOString().slice(11, 19)} ${l}`),
           },
         );
       } catch (e) {
-        // Argument and file problems are refused before any exec is spent.
+        // Argument, file and budget problems are refused before an exec is spent.
         console.error(`exec: ${(e as Error).message}`);
         return 1;
       }
@@ -256,10 +334,26 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
     }
     case "gen":
     case "trial": {
-      const assets = ids[0] === "all" ? [...SPIKE_ASSETS] : ids.map((id) => findAsset(id));
-      if (!assets.length) {
+      const all = ids[0] === "all";
+      const named = all ? [...SPIKE_ASSETS] : ids.map((id) => findAsset(id));
+      if (!named.length) {
         console.error("name at least one asset id");
         return 1;
+      }
+      let assets = named;
+      if (cmd === "gen") {
+        const plan = planGeneration(named, await store.read(), (id) => fixtureStatusOf(mediaRoot, id), {
+          all,
+          force: values.force === true,
+          replaceReviewed: values["replace-reviewed"] === true,
+        });
+        printPlanMessages(plan);
+        if (plan.refused.length) return 1;
+        if (!plan.run.length) {
+          console.log("nothing to generate");
+          return 0;
+        }
+        assets = plan.run;
       }
       const deps = pipelineDeps(mediaRoot, store, true);
       const effort = (values.effort ?? "low") as "minimal" | "low" | "medium" | "high";
@@ -278,7 +372,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
           reasoningEffort: effort,
           ...(values["max-attempts"] ? { maxAttempts: Number(values["max-attempts"]) } : {}),
         }).catch((e: Error) => {
-          console.error(`[${a.id}] failed: ${e.message}`);
+          console.error(`[${a.id}] ${e instanceof CodexBudgetError ? "stopped" : "failed"}: ${e.message}`);
           return { id: a.id, ok: false, attempts: [] };
         });
       const results = [
@@ -293,12 +387,23 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         console.log(`${r.id}: ${r.ok ? "ok" : "FAILED"} after ${r.attempts.length} exec`);
       return results.every((r) => r.ok) ? 0 : 2;
     }
+    case "migrate": {
+      const steps = planMigration(await store.read(), SPIKE_ASSETS);
+      await applyMigration(mediaRoot, store, steps);
+      for (const s of steps) {
+        if (s.display) console.log(`${s.id}: display ${s.display.from} -> ${s.display.to}`);
+        if (s.prompt) console.log(`${s.id}: prompt ${s.prompt.from} -> ${s.prompt.to}`);
+      }
+      console.log(steps.length ? `migrated ${steps.length} asset(s)` : "nothing to migrate");
+      return 0;
+    }
     case "fixture": {
       const m = await store.read();
       const assets =
         ids[0] === "all"
           ? SPIKE_ASSETS.filter((a) => m.assets[a.id]?.master)
           : ids.map((id) => findAsset(id));
+      const opts = { mediaRoot, duplicateOf: duplicateResolver(SPIKE_ASSETS) };
       let failed = 0;
       for (const a of assets) {
         const entry = m.assets[a.id];
@@ -307,60 +412,44 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
           failed++;
           continue;
         }
-        const path = join(mediaRoot, "fixtures", `${a.id}.json`);
-        if (existsSync(path) && !values.force) {
-          const prev = await readJson<Fixture>(path);
-          if (prev.review.status !== "draft") {
-            console.log(`${a.id}: fixture is ${prev.review.status}; use --force to redraft`);
-            continue;
-          }
+        const path = fixturePath(mediaRoot, a.id);
+        const prev = await readJsonOr<unknown>(path, null);
+        const prevStatus = fixtureStatusOf(mediaRoot, a.id);
+        if (prevStatus && prevStatus !== "draft" && !values.force) {
+          console.log(`${a.id}: fixture is ${prevStatus}; use --force to redraft`);
+          continue;
+        }
+        if (prevStatus === "human-reviewed" && !values["replace-reviewed"]) {
+          // A redraft sends a person's review back to draft; their readings carry over, the crops need a new look.
+          console.error(`${a.id}: fixture is human-reviewed; redrafting it also needs --replace-reviewed`);
+          failed++;
+          continue;
         }
         try {
-          const opts = { mediaRoot, duplicateOf };
-          const f: Fixture =
+          const drafted: Fixture =
             a.kind === "rate_card_page"
               ? await buildRateCardFixture(a, entry, opts)
               : a.kind === "logbook_page"
                 ? await buildLogbookFixture(a, entry, opts)
                 : await buildSlipFixture(a, entry, opts);
-          await writeJson(path, FixtureSchema.parse(f));
+          const f = carryOver(prev, drafted);
+          await writeFixture(mediaRoot, f);
           const master = join(mediaRoot, entry.master.file);
-          const { overlay, sheet } = reviewItems(f);
+          const { overlay, sheet } = sheetItems(f);
           await renderOverlay(master, overlay, join(mediaRoot, "raw", "review", `${a.id}.overlay.png`));
           await renderCropSheet(master, sheet, join(mediaRoot, "raw", "review", `${a.id}.sheet.png`));
           await store.update((mm) => {
             const e = mm.assets[a.id];
             if (e) e.fixture = `fixtures/${a.id}.json`;
           });
-          console.log(`${a.id}: wrote fixtures/${a.id}.json (+ raw/review overlay and crop sheet)`);
+          console.log(`${a.id}: wrote fixtures/${a.id}.json (draft; overlay and crop sheet in raw/review/)`);
         } catch (e) {
           failed++;
           console.error(`${a.id}: ${(e as Error).message}`);
         }
       }
+      await refreshLabels(mediaRoot);
       return failed ? 2 : 0;
-    }
-    case "mark": {
-      const [id] = ids;
-      const status = values.status;
-      if (!id || (status !== "agent-checked" && status !== "human-reviewed") || !values.reviewer) {
-        console.error(
-          'usage: imagegen mark <id> --status agent-checked|human-reviewed --reviewer "<name>" [--note "<text>"]',
-        );
-        return 1;
-      }
-      const path = join(mediaRoot, "fixtures", `${id}.json`);
-      const f = await readJson<Fixture>(path);
-      f.review = {
-        ...f.review,
-        status,
-        reviewer: values.reviewer,
-        reviewedAt: new Date().toISOString(),
-        notes: [...f.review.notes, ...(values.note ?? [])],
-      };
-      await writeJson(path, FixtureSchema.parse(f));
-      console.log(`${id}: fixture marked ${status} by ${values.reviewer}`);
-      return 0;
     }
     case "apply-review": {
       const [file] = ids;
@@ -368,9 +457,152 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         console.error("usage: imagegen apply-review <review.json>");
         return 1;
       }
-      const review = await readJson<ReviewFile>(file);
-      const n = await applyReview(store, review);
-      console.log(`recorded ${n} image check(s) from ${file}`);
+      const review = JSON.parse(await readFile(file, "utf8")) as ReviewFile;
+      const r = await applyReview(store, review, {
+        readFixture: (id) => readFixture(mediaRoot, id),
+        writeFixture: (f) => writeFixture(mediaRoot, f),
+      });
+      console.log(
+        `recorded ${r.images} image check(s) from ${file}; fixtures updated: ${r.fixtures.join(", ") || "none"}`,
+      );
+      if (r.agentChecked.length) console.log(`agent-checked now: ${r.agentChecked.join(", ")}`);
+      for (const [id, paths] of Object.entries(r.unplaced))
+        console.error(`${id}: no such field: ${paths.join(", ")}`);
+      for (const [id, paths] of Object.entries(r.keptHuman))
+        console.log(`${id}: kept a person's reading of ${paths.join(", ")}`);
+      for (const id of r.skippedFixtures)
+        console.log(`${id}: no fixture of this master yet (run imagegen fixture ${id})`);
+      await refreshLabels(mediaRoot);
+      return Object.keys(r.unplaced).length ? 2 : 0;
+    }
+    case "review": {
+      const [id] = ids;
+      if (!id || !values.reviewer) {
+        console.error('usage: imagegen review <id> --reviewer "<your name>" [--port N]');
+        return 1;
+      }
+      try {
+        requireInteractive(io);
+      } catch (e) {
+        console.error(`review: ${(e as Error).message}`);
+        return 1;
+      }
+      const reviewer = values.reviewer;
+      const server = await startReviewServer({
+        mediaRoot,
+        fixtureId: id,
+        reviewer,
+        title: findAsset(id).title,
+        ...(values.port ? { port: Number(values.port) } : {}),
+      });
+      io.say(`Open ${server.url} in your browser (this machine only). Waiting for you to save the review...`);
+      try {
+        const { fixture, sessionFile } = await server.submitted;
+        io.say(`Saved your readings to fixtures/${id}.json and ${relative(mediaRoot, sessionFile)}.`);
+        const blockers = humanReviewBlockers(fixture);
+        if (blockers.length) {
+          io.say(`Not marked human-reviewed yet: ${blockers.join("; ")}`);
+        } else {
+          const done = await confirmHumanReview(fixture, reviewer, io);
+          await writeFixture(mediaRoot, done);
+          io.say(`${id}: human-reviewed by ${reviewer}.`);
+        }
+      } catch (e) {
+        if (!(e instanceof ConfirmationError)) throw e;
+        io.say(`${id}: ${e.message}`);
+      } finally {
+        await server.close();
+        await refreshLabels(mediaRoot);
+      }
+      return 0;
+    }
+    case "mark": {
+      const [id] = ids;
+      if (!id || values.status !== "human-reviewed" || !values.reviewer) {
+        console.error(
+          'usage: imagegen mark <id> --status human-reviewed --reviewer "<name>"  (agent-checked comes only from imagegen apply-review)',
+        );
+        return 1;
+      }
+      const f = await readFixture(mediaRoot, id);
+      if (!f) {
+        console.error(`${id}: no fixture`);
+        return 1;
+      }
+      try {
+        await writeFixture(mediaRoot, await confirmHumanReview(f, values.reviewer, io));
+      } catch (e) {
+        if (!(e instanceof ConfirmationError)) throw e;
+        console.error(`mark: ${e.message}`);
+        return 1;
+      }
+      console.log(`${id}: fixture marked human-reviewed by ${values.reviewer}`);
+      await refreshLabels(mediaRoot);
+      return 0;
+    }
+    case "trap-verdict": {
+      const [id, slot, trap] = ids;
+      const status = values.status;
+      if (
+        !id ||
+        !SLOTS.includes(slot as Slot) ||
+        !BEHAVIOURAL_TRAPS.includes(trap as TrapCheck["trap"]) ||
+        (status !== "HOLDS" && status !== "FAILED") ||
+        !values.evidence
+      ) {
+        console.error(
+          "usage: imagegen trap-verdict <id> <TL|TR|BL|BR|ONLY> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence <recorded read> [--note <text>]",
+        );
+        return 1;
+      }
+      const evidence = resolve(values.evidence);
+      const fromRoot = relative(REPO_ROOT, evidence);
+      const rel = fromRoot.split("\\").join("/");
+      // On Windows a path on another drive comes back absolute, not as "../…".
+      if (!fromRoot || fromRoot.startsWith("..") || isAbsolute(fromRoot) || !existsSync(evidence)) {
+        console.error(
+          `trap-verdict: the evidence must be a recorded read inside the repo: ${values.evidence}`,
+        );
+        return 1;
+      }
+      const bytes = await readFile(evidence);
+      if (!bytes.length) {
+        console.error("trap-verdict: the evidence file is empty");
+        return 1;
+      }
+      const f = await readFixture(mediaRoot, id);
+      if (!f || (f.kind !== "slip_page" && f.kind !== "slip_photo")) {
+        console.error(`${id}: no slip fixture`);
+        return 1;
+      }
+      recordReadVerdict(f as SlipImageFixture, {
+        slot: slot as Slot,
+        trap: trap as TrapCheck["trap"],
+        status,
+        evidenceFile: rel,
+        evidenceSha256: sha256(bytes),
+        ...(values.note ? { note: values.note } : {}),
+        at: new Date().toISOString(),
+      });
+      await writeFixture(mediaRoot, f);
+      console.log(`${id} ${slot} ${trap}: ${status} by a recorded read (${rel})`);
+      return 0;
+    }
+    case "replay-check": {
+      let blocked = 0;
+      for (const id of ids) {
+        const f = await readFixture(mediaRoot, id);
+        const why = f ? replayBlockers(f) : ["no fixture"];
+        if (why.length) blocked++;
+        console.log(
+          why.length ? `${id}: not ready\n  - ${why.join("\n  - ")}` : `${id}: ready for a replay set`,
+        );
+      }
+      return blocked ? 2 : 0;
+    }
+    case "labels": {
+      await writeLabelSchema(mediaRoot);
+      await refreshLabels(mediaRoot);
       return 0;
     }
     default:

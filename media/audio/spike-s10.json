@@ -438,6 +438,185 @@
         "transcript": "Maayong adlaw Nang Celing salamat sa inyong paghago. Ang inyong bayad karong season sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos pinaagi sa PayPal.",
         "latencyMs": 32537
       }
-    ]
+    ],
+    "proxyOnly": true,
+    "limits": "A proxy only: Gemini transcribing Gemini shows the words came out in order, nothing about Cebuano pronunciation or naturalness. The S10 verdict waits on a person's listening test (OD-2)."
+  },
+  "requestPlan": {
+    "computedAt": "2026-10-22T12:29:37.328Z",
+    "byModel": {
+      "gemini-3.8-flash-tts": {
+        "requests": {
+          "approvedPlanStatements": 11,
+          "approvedPlanList": [
+            {
+              "member_no": "M-014",
+              "lang": "ceb",
+              "why": "hero member, three languages"
+            },
+            {
+              "member_no": "M-014",
+              "lang": "fil",
+              "why": "hero member, three languages"
+            },
+            {
+              "member_no": "M-014",
+              "lang": "en",
+              "why": "hero member, three languages"
+            },
+            {
+              "member_no": "M-007",
+              "lang": "ceb",
+              "why": "PayPal member (H1)"
+            },
+            {
+              "member_no": "M-060",
+              "lang": "fil",
+              "why": "PayPal member (0462 by hand)"
+            },
+            {
+              "member_no": "M-018",
+              "lang": "ceb",
+              "why": "PayPal member (H3)"
+            },
+            {
+              "member_no": "M-039",
+              "lang": "en",
+              "why": "PayPal member"
+            },
+            {
+              "member_no": "M-022",
+              "lang": "ceb",
+              "why": "PayPal member (loan cap)"
+            },
+            {
+              "member_no": "M-002",
+              "lang": "ceb",
+              "why": "PayPal member, audio first"
+            },
+            {
+              "member_no": "M-031",
+              "lang": "en",
+              "why": "Rhea: one request carries both PAY variants"
+            },
+            {
+              "member_no": "M-053",
+              "lang": "ceb",
+              "why": "Merlyn, cash (H2)"
+            }
+          ],
+          "registerFullPlanStatements": 66,
+          "narrationBeats": 10
+        },
+        "schedule": "Statements 3–4 Nov, retakes 5 Nov (plan); narration finals 6–8 Nov, at most 3 a day (S4.6)",
+        "minimumDailyLimitForSchedule": 6,
+        "dailyLimit": {
+          "value": null,
+          "source": "not read yet: a person reads it at https://aistudio.google.com/rate-limit (tts set-limit)"
+        },
+        "days": {
+          "approvedPlanStatements": null,
+          "registerFullPlanStatements": null,
+          "narrationAtFinalsCap": 4
+        },
+        "daysAtSelfImposedCap": {
+          "cap": 10,
+          "approvedPlanStatements": 2,
+          "registerFullPlanStatements": 7
+        },
+        "verdict": "UNKNOWN: the daily limit has not been read. The approved plan needs 11 statement requests, so it fits 3–4 Nov only if the free tier allows at least 6 a day; otherwise fall back to labelled Filipino audio or device speech."
+      },
+      "gemini-3.8-flash-lite-tts": {
+        "requests": {
+          "approvedPlanStatements": 11,
+          "approvedPlanList": [
+            {
+              "member_no": "M-014",
+              "lang": "ceb",
+              "why": "hero member, three languages"
+            },
+            {
+              "member_no": "M-014",
+              "lang": "fil",
+              "why": "hero member, three languages"
+            },
+            {
+              "member_no": "M-014",
+              "lang": "en",
+              "why": "hero member, three languages"
+            },
+            {
+              "member_no": "M-007",
+              "lang": "ceb",
+              "why": "PayPal member (H1)"
+            },
+            {
+              "member_no": "M-060",
+              "lang": "fil",
+              "why": "PayPal member (0462 by hand)"
+            },
+            {
+              "member_no": "M-018",
+              "lang": "ceb",
+              "why": "PayPal member (H3)"
+            },
+            {
+              "member_no": "M-039",
+              "lang": "en",
+              "why": "PayPal member"
+            },
+            {
+              "member_no": "M-022",
+              "lang": "ceb",
+              "why": "PayPal member (loan cap)"
+            },
+            {
+              "member_no": "M-002",
+              "lang": "ceb",
+              "why": "PayPal member, audio first"
+            },
+            {
+              "member_no": "M-031",
+              "lang": "en",
+              "why": "Rhea: one request carries both PAY variants"
+            },
+            {
+              "member_no": "M-053",
+              "lang": "ceb",
+              "why": "Merlyn, cash (H2)"
+            }
+          ],
+          "registerFullPlanStatements": 66,
+          "narrationBeats": 10
+        },
+        "schedule": "Statements 3–4 Nov, retakes 5 Nov (plan); narration finals 6–8 Nov, at most 3 a day (S4.6)",
+        "minimumDailyLimitForSchedule": 6,
+        "dailyLimit": {
+          "value": null,
+          "source": "not read yet: a person reads it at https://aistudio.google.com/rate-limit (tts set-limit)"
+        },
+        "days": {
+          "approvedPlanStatements": null,
+          "registerFullPlanStatements": null,
+          "narrationAtFinalsCap": 4
+        },
+        "daysAtSelfImposedCap": {
+          "cap": 10,
+          "approvedPlanStatements": 2,
+          "registerFullPlanStatements": 7
+        },
+        "verdict": "UNKNOWN: the daily limit has not been read. The approved plan needs 11 statement requests, so it fits 3–4 Nov only if the free tier allows at least 6 a day; otherwise fall back to labelled Filipino audio or device speech."
+      }
+    }
+  },
+  "verdict": {
+    "status": "PENDING",
+    "shown": "gemini-3.8-flash-tts returned Cebuano, Filipino and English audio on the free tier (22 Oct); 3 requests a minute (from a 429)",
+    "waitsOn": [
+      "the user's listening test of voice Sulafat in Cebuano, Filipino and English (OD-2)",
+      "the free-tier daily limit, read at https://aistudio.google.com/rate-limit and recorded with tts set-limit"
+    ],
+    "asrCheck": "a proxy only; it does not decide S10",
+    "fallback": "Filipino audio with Cebuano text, labelled (S10 fallback)"
   }
 }

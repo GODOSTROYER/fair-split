@@ -28,6 +28,8 @@ export const Attempt = z.object({
   purpose: z.enum(["accept", "trial"]),
   promptFile: z.string(),
   promptSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  /** The prompt skeleton version the attempt used (recorded from 23 Oct; older attempts lack it). */
+  promptVersion: z.string().optional(),
   inputImages: z.array(z.string()),
   threadId: z.string().nullable(),
   startedAt: z.string(),

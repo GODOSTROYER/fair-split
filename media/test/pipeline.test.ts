@@ -5,9 +5,11 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { findAsset } from "../src/content/spike.js";
 import type { CodexRunOptions, CodexRunResult, FoundImage } from "../src/imagegen/codex.js";
+import { CodexBudgetError } from "../src/imagegen/ledger.js";
 import { loadManifest, ManifestStore } from "../src/imagegen/manifest.js";
 import {
   adoptAttempt,
+  displayPath,
   generateAsset,
   mapLimit,
   type PipelineDeps,
@@ -217,6 +219,68 @@ describe("generateAsset (one image per codex exec)", () => {
     const e = (await loadManifest(join(media, "manifest.json"))).assets["spike-0457-pink"];
     expect(e?.pipeline).toBe("edit");
     expect(e?.editOf).toBe("spike-0457-white");
+  });
+
+  it("keeps the asset's prompt on the master's immutable history copy when a trial uses a new prompt", async () => {
+    const media = tempMedia();
+    const home = tempMedia();
+    const { d } = deps(media, home, [
+      { w: 1199, h: 1312 },
+      { w: 1199, h: 1312 },
+    ]);
+    const asset = findAsset("spike-0403");
+    await generateAsset(asset, d);
+    const first = (await loadManifest(join(media, "manifest.json"))).assets["spike-0403"];
+    expect(first?.prompt.file).toMatch(/^prompts\/history\/spike-0403\.[0-9a-f]{8}\.md$/);
+    expect(readFileSync(join(media, first?.prompt.file ?? ""), "utf8")).toBe(renderPrompt(asset));
+    expect(first?.attempts[0]?.promptVersion).toBe("p2");
+    // A trial with a changed content spec renders a different prompt; the master and its provenance stay.
+    const changed = {
+      ...asset,
+      source: { kind: "provisional" as const, note: "changed" },
+      ...(asset.kind === "slip_page"
+        ? { slip: { ...asset.slip, values: { ...asset.slip.values, mc_pct: "6.5" } } }
+        : {}),
+    };
+    await generateAsset(changed, d, { purpose: "trial" });
+    const after = (await loadManifest(join(media, "manifest.json"))).assets["spike-0403"];
+    expect(after?.master?.sha256).toBe(first?.master?.sha256);
+    expect(after?.prompt).toEqual(first?.prompt);
+    expect(after?.source).toEqual(first?.source);
+    expect(after?.attempts[1]?.promptSha256).not.toBe(first?.prompt.sha256);
+    // prompts/{id}.md is only the latest rendered prompt.
+    expect(readFileSync(join(media, "prompts", "spike-0403.md"), "utf8")).toBe(renderPrompt(changed));
+  });
+
+  it("asks the Codex budget before every exec and records what was spent when it runs out", async () => {
+    const media = tempMedia();
+    const home = tempMedia();
+    const { d, codex } = deps(media, home, [null, { w: 1199, h: 1312 }]);
+    let slots = 1;
+    const labels: string[] = [];
+    const budgeted: PipelineDeps = {
+      ...d,
+      budget: {
+        reserve: async (label) => {
+          labels.push(label);
+          if (slots-- <= 0) throw new CodexBudgetError({ used: 1, cap: 1, windowMs: 1, nextFreeAt: null });
+        },
+      },
+    };
+    await expect(generateAsset(findAsset("spike-0403"), budgeted)).rejects.toBeInstanceOf(CodexBudgetError);
+    expect(codex.seen).toHaveLength(1);
+    expect(labels).toEqual(["spike-0403#1 accept", "spike-0403#2 accept"]);
+    const e = (await loadManifest(join(media, "manifest.json"))).assets["spike-0403"];
+    expect(e?.attempts.map((a) => a.outcome)).toEqual(["no_output"]);
+    expect(e?.master).toBeNull();
+  });
+
+  it("puts spike photos under photos/spike/, so photos/*.webp holds only IC-11's A–L and P01–P54", () => {
+    expect(displayPath({ id: "spike-4up", kind: "slip_photo" })).toBe("photos/spike/spike-4up.webp");
+    expect(displayPath({ id: "B", kind: "slip_photo" })).toBe("photos/B.webp");
+    expect(displayPath({ id: "P07", kind: "slip_photo" })).toBe("photos/P07.webp");
+    expect(displayPath({ id: "spike-0403", kind: "slip_page" })).toBe("slips/spike-0403.webp");
+    expect(displayPath({ id: "logbook-p14", kind: "logbook_page" })).toBe("docs/logbook-p14.webp");
   });
 
   it("keeps every manifest update when generations run in parallel", async () => {
