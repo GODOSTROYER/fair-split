@@ -287,3 +287,167 @@ export const resolvedHolds: readonly HoldSummaryFixture[] = [
 
 /** Cash day for off-rail members (showcase 30 Oct 2026; judge clones shift it). */
 export const cashDayIso = "2026-10-30T08:00:00+08:00";
+
+/* ------------------------------------------------------------------ canonical figures (register §2) */
+
+/**
+ * The season's money and kilos, in integer US cents and grams, exactly as register §2 states them. The seed's
+ * `canonical.test.ts` checks these to the cent; the app's own test checks that they reconcile (money is conserved,
+ * I3). Screens read them from here, never from a literal.
+ */
+export const canonical = {
+  invoice: { totalCents: 433350, premiumCents: 288750, bonusCents: 138600, disbursementCents: 6000 },
+  lot: {
+    id: season.lot,
+    sacks: 154,
+    shippedGrams: 9_625_000,
+    shippedGrade1Grams: 9_240_000,
+    shippedOn: "2026-09-18",
+  },
+  kilos: {
+    verifiedGrams: 9_780_600,
+    verifiedGrade1Grams: 9_388_000,
+    /** Shrink against the shipped lot, in basis points: 1.62%, or 2.05% if slip 0457 counted twice. */
+    shrinkBp: 162,
+    shrinkDoubleCountedBp: 205,
+    massBalanceToleranceBp: 200,
+  },
+  lines: {
+    count: 64,
+    grossCents: 427350,
+    deductionsCents: 5853,
+    creditsCents: 320,
+    netCents: 421817,
+    paypal: { members: 8, cents: 36839 },
+    cash: { members: 56, cents: 384978 },
+  },
+  redirected: { totalCents: 2114, duplicateSlipCents: 1794, multaReturnedCents: 320 },
+  /** After Rhea's item parks UNCLAIMED and moves to cash. */
+  endState: { paypal: { members: 7, cents: 34174 }, cash: { members: 57, cents: 387643 } },
+  fees: {
+    publishedUsPerItemCents: 25,
+    publishedUsTotalCents: 200,
+    productionPhBp: 200,
+    productionPhCents: 737,
+  },
+} as const;
+
+export type MemberRail = "PAYPAL" | "CASH" | "PAYPAL_THEN_CASH";
+
+export interface NamedMember {
+  memberNo: string;
+  name: string;
+  /** What the statement calls the member, by language (honorifics Nang, Nong; po in Filipino). */
+  nameByLang: Readonly<Record<Lang, string>>;
+  lang: Lang;
+  rail: MemberRail;
+  grams: number;
+  /** Grade 1 kilos where the register states them. */
+  grade1Grams: number | null;
+  netCents: number;
+  /** The member's part in the demo, in the register's words. */
+  role: string;
+}
+
+/** The nine named members of register §2; the seed's 55 background members are not in the app's fixture. */
+export const namedMembers: readonly NamedMember[] = [
+  {
+    memberNo: "M-014",
+    name: "Consolacion Bacus",
+    nameByLang: { ceb: "Nang Celing", fil: "Gng. Bacus", en: "Mrs. Bacus" },
+    lang: "ceb",
+    rail: "PAYPAL",
+    grams: 148_000,
+    grade1Grams: 148_000,
+    netCents: 6445,
+    role: "Hero line: 43.69 + 21.85 − CBU 1.09. Slips 0403, 0419, 0436, 0467",
+  },
+  {
+    memberNo: "M-007",
+    name: "Dionisio Lapinig",
+    nameByLang: { ceb: "Nong Dioning", fil: "G. Lapinig", en: "Mr. Lapinig" },
+    lang: "ceb",
+    rail: "PAYPAL",
+    grams: 144_000,
+    grade1Grams: null,
+    netCents: 6271,
+    role: "H1: 80.65 with the duplicate slip 0457, 62.71 counted once",
+  },
+  {
+    memberNo: "M-060",
+    name: "Arnel Sumampao",
+    nameByLang: { ceb: "Arnel", fil: "G. Sumampao", en: "Mr. Sumampao" },
+    lang: "fil",
+    rail: "PAYPAL",
+    grams: 128_500,
+    grade1Grams: null,
+    netCents: 5596,
+    role: "Field 0462 entered by hand; logbook page 14, line 7 reads 64.50",
+  },
+  {
+    memberNo: "M-018",
+    name: "Teodoro Pacaña",
+    nameByLang: { ceb: "Nong Tidoy", fil: "G. Pacaña", en: "Mr. Pacaña" },
+    lang: "ceb",
+    rail: "PAYPAL",
+    grams: 120_400,
+    grade1Grams: null,
+    netCents: 5563,
+    role: "H3: the ₱200 multa returned as +3.20; hauling ₱91.20 stays",
+  },
+  {
+    memberNo: "M-039",
+    name: "Jonathan Ripalda",
+    nameByLang: { ceb: "Jonathan", fil: "G. Ripalda", en: "Mr. Ripalda" },
+    lang: "en",
+    rail: "PAYPAL",
+    grams: 88_000,
+    grade1Grams: null,
+    netCents: 3832,
+    role: "—",
+  },
+  {
+    memberNo: "M-022",
+    name: "Pedro Ompad",
+    nameByLang: { ceb: "Nong Pedring", fil: "G. Ompad", en: "Mr. Ompad" },
+    lang: "ceb",
+    rail: "PAYPAL",
+    grams: 96_500,
+    grade1Grams: 80_000,
+    netCents: 3440,
+    role: "Loan −5.90 at the 50% cap; ₱31.25 carried to next season",
+  },
+  {
+    memberNo: "M-002",
+    name: "Florencia Ybañez",
+    nameByLang: { ceb: "Nang Ciay", fil: "Gng. Ybañez", en: "Mrs. Ybañez" },
+    lang: "ceb",
+    rail: "PAYPAL",
+    grams: 74_000,
+    grade1Grams: 60_000,
+    netCents: 3027,
+    role: "Signs with a thumbmark; audio first",
+  },
+  {
+    memberNo: "M-031",
+    name: "Rhea Jumawan",
+    nameByLang: { ceb: "Rhea", fil: "Bb. Jumawan", en: "Ms. Jumawan" },
+    lang: "en",
+    rail: "PAYPAL_THEN_CASH",
+    grams: 61_200,
+    grade1Grams: null,
+    netCents: 2665,
+    role: "The unclaimed case (C-07): parked, then paid in cash at the bodega",
+  },
+  {
+    memberNo: "M-053",
+    name: "Merlyn Ponce",
+    nameByLang: { ceb: "Nang Merlyn", fil: "Gng. Ponce", en: "Mrs. Ponce" },
+    lang: "ceb",
+    rail: "CASH",
+    grams: 300_000,
+    grade1Grams: 280_000,
+    netCents: 12784,
+    role: "H2: 140 trees, so she registers plot P-053-B (0.60 ha, 330 trees); collects exactly ₱7,990.00",
+  },
+];

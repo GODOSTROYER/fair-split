@@ -32,6 +32,7 @@ describe("motion presets (design §3, S2.8)", () => {
   it("runs exits at least 20% faster than entrances (rule 5)", () => {
     expect(TWEENS.digitOut.ms).toBeLessThanOrEqual(TWEENS.digitIn.ms * 0.8);
     expect(TWEENS.drawerOut.ms).toBeLessThanOrEqual(TWEENS.drawerIn.ms * 0.8);
+    expect(TWEENS.microOut.ms).toBeLessThanOrEqual(TWEENS.micro.ms * 0.8);
     expect(TWEENS.reduced.ms).toBe(150);
   });
 

@@ -65,7 +65,9 @@ function LargeAmount({
 
   const hollowLook = state === "hollow";
   const solidColour = state === "pencil" || state === "you" ? t.color.pencil : t.color.ink;
+  // MM-1 cross-fades the two looks: the outline fades out exactly as the landed ink fades in.
   const solidOpacity = useAnimatedStyle(() => ({ opacity: fill ? fill.get() : hollowLook ? 0 : 1 }));
+  const hollowOpacity = useAnimatedStyle(() => ({ opacity: fill ? 1 - fill.get() : hollowLook ? 1 : 0 }));
   // Digits sit on the baseline: half the line plus ~0.36 em (Mona Sans cap height ≈ 0.72 em).
   const common = {
     x: 2,
@@ -97,17 +99,22 @@ function LargeAmount({
       {box.w > 0 ? (
         <>
           {hollowLook || fill ? (
-            <View
+            <Animated.View
               pointerEvents="none"
-              style={StyleSheet.absoluteFill}
+              style={[StyleSheet.absoluteFill, hollowOpacity]}
               importantForAccessibility="no-hide-descendants"
             >
+              {/* Stroke under fill (paint-order: stroke): a 4 px stroke shows 2 px outside each glyph, and the
+                  fill covers the strokes of overlapping contours, so "$", "4" and "8" draw no inner lines. */}
               <Svg width={box.w} height={box.h}>
-                <SvgText {...common} fill={t.color.hollowFill} stroke={t.color.ink} strokeWidth={2}>
+                <SvgText {...common} fill="none" stroke={t.color.ink} strokeWidth={4} strokeLinejoin="round">
+                  {text}
+                </SvgText>
+                <SvgText {...common} fill={t.color.hollowFill}>
                   {text}
                 </SvgText>
               </Svg>
-            </View>
+            </Animated.View>
           ) : null}
           <Animated.View
             pointerEvents="none"

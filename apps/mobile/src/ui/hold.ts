@@ -118,19 +118,34 @@ export interface Rect {
   bottom: number;
 }
 
-/** Where a web release happened: a pointer or mouse event's client point, or a touch's changed touch. */
+/**
+ * Where a web release happened, in page coordinates: the changed touch, else the event's own point. Both raw DOM
+ * events and react-native-web's responder events (which normalise mouse events into touches) carry `pageX/pageY`;
+ * compare it with the slab's client rect shifted by the window's scroll.
+ */
 export function releasePoint(e: unknown): Point | null {
   if (!e || typeof e !== "object") return null;
   const ev = e as {
-    clientX?: unknown;
-    clientY?: unknown;
-    changedTouches?: ArrayLike<{ clientX: number; clientY: number }>;
+    pageX?: unknown;
+    pageY?: unknown;
+    changedTouches?: ArrayLike<{ pageX?: unknown; pageY?: unknown }>;
   };
   const touch = ev.changedTouches && ev.changedTouches.length > 0 ? ev.changedTouches[0] : undefined;
-  if (touch) return { x: touch.clientX, y: touch.clientY };
-  if (typeof ev.clientX === "number" && typeof ev.clientY === "number")
-    return { x: ev.clientX, y: ev.clientY };
+  if (touch && typeof touch.pageX === "number" && typeof touch.pageY === "number") {
+    return { x: touch.pageX, y: touch.pageY };
+  }
+  if (typeof ev.pageX === "number" && typeof ev.pageY === "number") return { x: ev.pageX, y: ev.pageY };
   return null;
+}
+
+/** A client rect (getBoundingClientRect) moved into page coordinates. */
+export function pageRect(r: Rect, scroll: { x: number; y: number }): Rect {
+  return {
+    left: r.left + scroll.x,
+    right: r.right + scroll.x,
+    top: r.top + scroll.y,
+    bottom: r.bottom + scroll.y,
+  };
 }
 
 /** Inside the slab's box, with the edge itself counting as inside (WCAG 2.5.2: up-event inside the target). */

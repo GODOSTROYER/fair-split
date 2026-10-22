@@ -7,6 +7,7 @@ import {
   isCancelEvent,
   isInside,
   mm5Phase,
+  pageRect,
   quarterAt,
   releasePoint,
   routeFor,
@@ -120,14 +121,18 @@ describe("MM-5 phases on the phone (S2.9)", () => {
 describe("web release geometry", () => {
   const rect = { left: 10, top: 20, right: 210, bottom: 84 };
 
-  it("reads the release point from pointer, mouse and touch events", () => {
-    expect(releasePoint({ type: "pointerup", clientX: 50, clientY: 40 })).toEqual({ x: 50, y: 40 });
-    expect(releasePoint({ type: "touchend", changedTouches: [{ clientX: 12, clientY: 83 }] })).toEqual({
+  it("reads the release point in page coordinates from DOM and react-native-web responder events", () => {
+    expect(releasePoint({ type: "mouseup", pageX: 50, pageY: 40, clientX: 50, clientY: 30 })).toEqual({
+      x: 50,
+      y: 40,
+    });
+    expect(releasePoint({ type: "touchend", changedTouches: [{ pageX: 12, pageY: 83 }] })).toEqual({
       x: 12,
       y: 83,
     });
     expect(releasePoint({ type: "keyup", key: " " })).toBeNull();
     expect(releasePoint(null)).toBeNull();
+    expect(pageRect(rect, { x: 0, y: 300 })).toEqual({ left: 10, right: 210, top: 320, bottom: 384 });
   });
 
   it("inv.i6.release-inside: only a release inside the slab acts, the edge included", () => {

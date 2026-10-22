@@ -45,6 +45,7 @@ import {
   holdReducer,
   isCancelEvent,
   isInside,
+  pageRect,
   releasePoint,
   routeFor,
   slabStateFor,
@@ -452,7 +453,9 @@ function HoldSlab(p: SlabProps & { hold: number }) {
       return;
     }
     const el = node.current as unknown as { getBoundingClientRect?: () => DOMRect } | null;
-    const inside = isInside(releasePoint(ev), el?.getBoundingClientRect?.() ?? null);
+    const rect = el?.getBoundingClientRect?.();
+    const scroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
+    const inside = isInside(releasePoint(ev), rect ? pageRect(rect, scroll) : null);
     handledAt.current = Date.now();
     dispatch({ type: "release", inside });
   };

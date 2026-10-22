@@ -24,6 +24,7 @@
     "eventsource-parser": "catalog:",
     "expo": "catalog:",
     "expo-audio": "catalog:",
+    "expo-background-task": "catalog:",
     "expo-build-properties": "catalog:",
     "expo-camera": "catalog:",
     "expo-constants": "catalog:",
@@ -35,6 +36,7 @@
     "expo-haptics": "catalog:",
     "expo-image": "catalog:",
     "expo-image-manipulator": "catalog:",
+    "expo-image-picker": "catalog:",
     "expo-linking": "catalog:",
     "expo-local-authentication": "catalog:",
     "expo-notifications": "catalog:",
@@ -45,6 +47,7 @@
     "expo-sqlite": "catalog:",
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
+    "expo-task-manager": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
@@ -59,6 +62,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "fast-check": "catalog:",
     "msw": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

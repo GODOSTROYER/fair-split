@@ -8,7 +8,7 @@
  * on the scrim, the snackbar never takes focus but is announced.
  */
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { layer, radius, space, target } from "../_shims/tokens.native";
@@ -17,6 +17,14 @@ import { ms } from "./motion";
 import { Button } from "./primitives";
 import { SealView } from "./seal-view";
 import { Txt, useT } from "./text";
+
+/**
+ * react-native-web unmounts an animated Modal only on the CSS `animationend` event, which never fires in a hidden or
+ * throttled tab (a judge frame scrolled off the stage), leaving a closed dialog on screen. On the web, overlays
+ * therefore open and close without animation; native keeps the platform's fade and slide.
+ */
+const WEB = Platform.OS === "web";
+const MODAL_FADE = WEB ? "none" : "fade";
 
 /* ------------------------------------------------------------------ Sheet */
 
@@ -40,7 +48,7 @@ export function Sheet({
     <Modal
       transparent
       visible={visible}
-      animationType={motion.reduced ? "fade" : "slide"}
+      animationType={WEB || motion.reduced ? MODAL_FADE : "slide"}
       onRequestClose={onClose}
       statusBarTranslucent
       navigationBarTranslucent
@@ -111,7 +119,13 @@ export function ConfirmDialog({
   const { t } = useFs();
   const tr = useT();
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel} statusBarTranslucent>
+    <Modal
+      transparent
+      visible={visible}
+      animationType={MODAL_FADE}
+      onRequestClose={onCancel}
+      statusBarTranslucent
+    >
       <View style={[styles.scrim, { backgroundColor: t.color.scrim }]}>
         <View
           testID={testID}
@@ -205,8 +219,8 @@ export function Snackbar({ msg, bottom = space.s16 }: { msg: SnackMessage | null
   return (
     <Animated.View
       key={msg.id}
-      entering={motion.reduced ? undefined : FadeInDown.duration(ms("micro"))}
-      exiting={motion.reduced ? undefined : FadeOutDown.duration(ms("micro") * 0.8)}
+      entering={WEB || motion.reduced ? undefined : FadeInDown.duration(ms("micro"))}
+      exiting={WEB || motion.reduced ? undefined : FadeOutDown.duration(ms("microOut"))}
       accessibilityLiveRegion="polite"
       accessibilityRole="alert"
       testID="snackbar"

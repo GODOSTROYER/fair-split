@@ -82,6 +82,7 @@ export const TWEENS = {
   drawerOut: { ms: 320, bezier: [0.32, 0.72, 0, 1] },
   /** Press feedback 100–120 ms; tooltips 150; popovers 200. */
   micro: { ms: 120, bezier: PRESS },
+  microOut: { ms: 96, bezier: PRESS },
   crossfade: { ms: 200, bezier: null },
   retract: { ms: 200, bezier: PRESS },
   reduced: { ms: 150, bezier: null },

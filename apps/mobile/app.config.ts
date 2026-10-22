@@ -29,8 +29,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   scheme: "fairsplit",
   icon: "./assets/images/icon.png",
-  // Adlaw (light) is the app default; members may pick Tablea at first run. The app owns its theme.
-  userInterfaceStyle: "automatic",
+  // One theme per surface (approved plan): the app is Adlaw, light. The app draws its own chrome, so the system UI
+  // stays light too (a dark system theme must not put light navigation icons over the Adlaw ground).
+  userInterfaceStyle: "light",
   backgroundColor: "#EEEEEA",
   primaryColor: "#1C1511",
   ios: {
@@ -47,7 +48,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     // Design §6: Predictive Back works everywhere (unverified on SDK 58 until spike S7 runs on hardware).
     predictiveBackGestureEnabled: true,
-    blockedPermissions: ["android.permission.RECORD_AUDIO"],
+    // Least privilege: no microphone anywhere, and nothing writes to shared storage (captures stay app-private).
+    blockedPermissions: ["android.permission.RECORD_AUDIO", "android.permission.WRITE_EXTERNAL_STORAGE"],
   },
   web: {
     output: "single",
@@ -67,7 +69,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         backgroundColor: "#EEEEEA",
         image: "./assets/images/splash-icon.png",
         imageWidth: 96,
-        dark: { backgroundColor: "#201712", image: "./assets/images/splash-icon.png" },
       },
     ],
     ["expo-font", { fonts: fontFiles }],
@@ -90,6 +91,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       { faceIDPermission: "Fair Split asks for Face ID before you co-sign a pay run." },
     ],
     ["expo-notifications", { color: "#1C1511", defaultChannel: "cosign" }],
+    [
+      // The clerk's fallback when no document scanner exists (and the web frames' file picker). The camera
+      // permission is shared with expo-camera, so it is never blocked here; the microphone always is.
+      "expo-image-picker",
+      {
+        photosPermission: "Fair Split opens a photo of a resibo when the scanner is not available.",
+        cameraPermission: "Fair Split uses the camera to scan resibo and the pairing QR.",
+        microphonePermission: false,
+      },
+    ],
+    // The clerk's outbox may sync in the background (cut order item 4); harmless until a task is registered.
+    "expo-background-task",
     "expo-sqlite",
     [
       "expo-build-properties",
