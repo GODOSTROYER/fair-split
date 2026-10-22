@@ -1,7 +1,9 @@
 // Spike S6 (register §12): "Blueprint deploys; startTask p50 is 10 s or less. If it fails: executor=worker."
 // S3.14 also hands it two database questions: can a workflow reach fs-db over the private network,
-// and can Render's database user CREATE ROLE (the fs_owner/fs_app split, S3.4)? The live run answers
-// both through the `opsDbPing` task.
+// and can Render's database user CREATE ROLE (the owner/fs_app split, S3.4)? The live run answers
+// both through the `opsDbPing` task. fs-tasks connects only as fs_app, which exists with LOGIN only if
+// fs-api's migrate could create it, so a successful connection answers the second question too; the
+// probe then checks that fs_app can neither create roles nor UPDATE ledger_entries (register §7).
 //
 //   corepack pnpm exec tsx tools/spike-s6.ts                 offline: Blueprint schema + policy, and the
 //                                                            fs-tasks entry's cold start under a fake host
@@ -64,19 +66,61 @@ export function deployReadiness(root: string = REPO_ROOT): DeployReadiness {
   return { full: missing.length === 0, missing };
 }
 
-/** One-line verdicts for the two S3.14 database questions. */
+/** What a failed connection as fs_app most likely means, by driver or SQLSTATE code. */
+export function reachHint(code: string | undefined): string {
+  switch (code) {
+    case "28P01":
+      return "fs_app's password differs from fs-api's FS_APP_DB_PASSWORD: copy it to fs-tasks, then redeploy fs-api";
+    case "28000":
+      return "fs_app cannot log in: migrate ran without FS_APP_DB_PASSWORD, or the owner cannot CREATE ROLE (S3.4 fallback)";
+    case "3D000":
+      return "FS_DB_NAME names no database";
+    case "ENOTFOUND":
+    case "ECONNREFUSED":
+    case "ETIMEDOUT":
+    case "CONNECT_TIMEOUT":
+      return "no private-network route: use fs-db's external host with FS_DB_SSLMODE=require";
+    default:
+      return "see the fs-tasks run log";
+  }
+}
+
+/** One-line verdicts for the S3.14 database questions, from inside the workflow (as fs_app). */
 export function dbVerdicts(r: DbProbeResult): string[] {
-  if (!r.configured) return ["fs-db reach: SKIP (DATABASE_URL not set on fs-tasks)", "CREATE ROLE: SKIP"];
-  const reach = r.reachable
-    ? `PASS (connect ${r.connectMs ?? "?"} ms, query ${r.queryMs ?? "?"} ms)`
-    : `FAIL (${r.errorCode ?? "error"}) → use the external URL`;
-  const role =
-    r.canCreateRole === null
-      ? "UNKNOWN (not connected)"
-      : r.canCreateRole
-        ? "YES → fs_owner/fs_app roles (S3.4)"
-        : "NO → BEFORE UPDATE/DELETE triggers enforce append-only (S3.4 fallback)";
-  return [`fs-db reach from workflow: ${reach}`, `CREATE ROLE for current user: ${role}`];
+  if (!r.configured)
+    return [
+      "fs-db reach: SKIP (fs-tasks has no FS_DB_HOST, FS_DB_NAME and FS_APP_DB_PASSWORD)",
+      "CREATE ROLE: SKIP",
+    ];
+  if (!r.reachable)
+    return [
+      `fs-db reach from workflow as fs_app: FAIL (${r.errorCode ?? "error"}) → ${reachHint(r.errorCode)}`,
+      "CREATE ROLE: UNKNOWN (not connected)",
+    ];
+  const timing = `connect ${r.connectMs ?? "?"} ms, query ${r.queryMs ?? "?"} ms`;
+  const createRole =
+    r.canCreateRole === false
+      ? "PASS (fs_app cannot create roles)"
+      : r.canCreateRole === true
+        ? "FAIL (fs-tasks runs as a role that can create roles: is it the owner?)"
+        : "UNKNOWN (role query failed)";
+  const ledger =
+    r.ledgerWritable === false
+      ? "PASS (fs_app cannot UPDATE ledger_entries)"
+      : r.ledgerWritable === true
+        ? "FAIL (fs-tasks' role can UPDATE ledger_entries; register §7)"
+        : "UNKNOWN (no ledger_entries yet: have the migrations run?)";
+  return [
+    `fs-db reach from workflow as fs_app: PASS (${timing})`,
+    "CREATE ROLE for the owner: YES (migrate created fs_app with LOGIN, S3.4)",
+    `fs_app privileges: ${createRole}`,
+    `append-only for the app role: ${ledger}`,
+  ];
+}
+
+/** The S6 database verdict: reachable as a role that can neither create roles nor rewrite the ledger. */
+export function dbOk(r: DbProbeResult | undefined): boolean {
+  return r?.reachable === true && r.canCreateRole === false && r.ledgerWritable === false;
 }
 
 async function offline(n: number): Promise<boolean> {
@@ -176,7 +220,7 @@ async function live(n: number): Promise<boolean> {
   console.log(
     `S6 verdict scope: ${ready.full ? "full Blueprint" : `fs-tasks only (missing ${ready.missing.join(", ")})`}`,
   );
-  return pass && probe?.reachable === true;
+  return pass && dbOk(probe);
 }
 
 async function refreshSchema(): Promise<boolean> {

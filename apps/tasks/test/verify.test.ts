@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   childEnv,
+  describeSkipped,
+  isDroppedEnv,
   parseArgs,
   planVerify,
   resolveCommand,
   runVerify,
   type StepRunner,
+  skippedTests,
   type VerifyStep,
 } from "../../../tools/verify.js";
 
@@ -74,6 +77,94 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
     });
   });
 
+  it("drops the owner's DSN, the kill flags and every other app or database setting, keeping the OS's", () => {
+    const dropped = [
+      "DATABASE_OWNER_URL",
+      "LIMITER_DATABASE_URL",
+      "FS_TEST_DATABASE_URL",
+      "FS_KILL",
+      "FS_APP_DB_PASSWORD",
+      "FS_DB_HOST",
+      "FS_TASKS_SLUG",
+      "PP_MODE",
+      "PAYPAL_CLIENT_SECRET",
+      "KILL_PAYOUTS",
+      "CRON_SECRET",
+      "COOKIE_KEY",
+      "OPS_PASSWORD_SCRYPT",
+      "JUDGE_CODE_SHA256",
+      "EXPO_PUSH_TOKEN",
+      "PGPASSWORD",
+      "PGHOST",
+      "OPENAI_API_KEY",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "BETTER_AUTH_SECRET",
+      "NODE_ENV",
+    ];
+    const kept = [
+      "PATH",
+      "Path",
+      "HOME",
+      "USERPROFILE",
+      "SystemRoot",
+      "TEMP",
+      "APPDATA",
+      "PATHEXT",
+      "LOG_LEVEL",
+    ];
+    for (const name of dropped) expect(isDroppedEnv(name), name).toBe(true);
+    for (const name of kept) expect(isDroppedEnv(name), name).toBe(false);
+    const env = childEnv(Object.fromEntries([...dropped, ...kept].map((k) => [k, "v"])));
+    expect(Object.keys(env).sort()).toEqual(
+      [...kept, "CI", "COREPACK_ENABLE_DOWNLOAD_PROMPT", "EXECUTOR", "FORCE_COLOR"].sort(),
+    );
+  });
+
+  it("--db reaches only the test step, as FS_TEST_DATABASE_URL, and never appears in what it reports", () => {
+    const db = ["postgres://verify", "not-a-real-password@localhost:5432/fs"].join(":");
+    const seen: Record<string, string | undefined> = {};
+    const rs = runVerify(
+      { ...opts, db },
+      {
+        runner: (step, _cwd, env) => {
+          seen[step.id] = env.FS_TEST_DATABASE_URL;
+          return step.id === "test"
+            ? { exitCode: 1, output: `connect ${db} refused: password not-a-real-password rejected` }
+            : { exitCode: 0, output: "" };
+        },
+        env: { FS_TEST_DATABASE_URL: "postgres://developer-own/db" },
+      },
+    );
+    expect(seen).toEqual({ clone: undefined, install: undefined, typecheck: undefined, test: db });
+    expect(JSON.stringify(rs)).not.toContain("not-a-real-password");
+    expect(rs.at(-1)?.tail).toBe("connect <--db> refused: password <--db> rejected");
+  });
+
+  it("reports skipped tests per package from vitest's summaries, through turbo's prefixes and colours", () => {
+    const output = [
+      "@fairsplit/tasks:test:       Tests  240 passed (240)",
+      "@fairsplit/db:test:       Tests  \u001b[1m\u001b[32m40 passed\u001b[39m\u001b[22m | \u001b[33m25 skipped\u001b[39m (65)",
+      "@fairsplit/ai:test:       Tests  1 failed | 30 passed | 2 skipped | 1 todo (34)",
+      "@fairsplit/ai:test:  Test Files  3 passed (3)",
+      "      Tests  4 skipped (4)",
+    ].join("\n");
+    expect(skippedTests(output)).toEqual({ "@fairsplit/db": 25, "@fairsplit/ai": 3, "(root)": 4 });
+    expect(describeSkipped(skippedTests(output))).toBe(
+      "(root) 4, @fairsplit/ai 3, @fairsplit/db 25 (32 in all)",
+    );
+    expect(describeSkipped({})).toBe("none");
+    const rs = runVerify(opts, {
+      runner: (s) => ({ exitCode: 0, output: s.id === "test" ? output : "" }),
+      env: {},
+    });
+    expect(rs.find((r) => r.id === "test")?.skipped).toEqual({
+      "@fairsplit/db": 25,
+      "@fairsplit/ai": 3,
+      "(root)": 4,
+    });
+    expect(rs.find((r) => r.id === "build")?.skipped).toBeUndefined();
+  });
+
   it("passes the scrubbed env to every step", () => {
     const envs: NodeJS.ProcessEnv[] = [];
     runVerify(opts, {
@@ -95,6 +186,8 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
       lint: true,
       json: true,
     });
+    expect(parseArgs(["--db=postgresql://localhost:5432/fs"]).db).toBe("postgresql://localhost:5432/fs");
+    expect(() => parseArgs(["--db=mysql://localhost/fs"])).toThrow(/postgres/);
     expect(() => parseArgs(["--nope"])).toThrow();
   });
 });

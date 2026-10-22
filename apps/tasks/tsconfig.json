@@ -12,6 +12,8 @@
     "../../tools/verify.ts",
     "../../tools/health-check.ts",
     "../../tools/spike-s6.ts",
+    "../../tools/scan-dist.ts",
+    "../../tools/lint-render.ts",
     "../../tools/lib/**/*.ts"
   ]
 }

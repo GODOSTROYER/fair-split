@@ -9,12 +9,14 @@ import {
   missingScopes,
   PAYPAL_SANDBOX_BASE,
   parseArgs,
+  paypalMode,
   REQUIRED_WEBHOOK_EVENTS,
   renderResults,
   runHealthChecks,
   scrub,
   toCents,
 } from "../../../tools/health-check.js";
+import { assertSandbox } from "../src/kill.js";
 
 const ORIGIN = "https://fs-api.example.test";
 const CLIENT_ID = "test-client-id-0001";
@@ -22,6 +24,7 @@ const CLIENT_SECRET = "test-client-secret-0001";
 const ACCESS = "A21AA-fake-access-token-for-tests";
 const env = {
   PP_ENV: "sandbox",
+  PP_MODE: "sandbox",
   PP_CLIENT_ID: CLIENT_ID,
   PP_CLIENT_SECRET: CLIENT_SECRET,
   PP_WEBHOOK_ID: "WH-TEST-1",
@@ -92,6 +95,7 @@ describe("health-check", () => {
       ["api.healthz", "ok"],
       ["api.readyz", "ok"],
       ["paypal.env", "ok"],
+      ["paypal.mode", "ok"],
       ["paypal.token", "ok"],
       ["paypal.webhook", "ok"],
       ["paypal.balance", "ok"],
@@ -112,12 +116,16 @@ describe("health-check", () => {
   });
 
   it("skips PayPal checks, without calling PayPal, until credentials exist", async () => {
-    const rs = await runHealthChecks({ env: { PP_ENV: "sandbox" }, fetch, origin: ORIGIN });
-    expect(
-      rs
-        .filter((r) => r.name.startsWith("paypal.") && r.name !== "paypal.env")
-        .every((r) => r.status === "skip"),
-    ).toBe(true);
+    const rs = await runHealthChecks({
+      env: { PP_ENV: "sandbox", PP_MODE: "sandbox" },
+      fetch,
+      origin: ORIGIN,
+    });
+    expect(byName(rs)["paypal.mode"]).toMatchObject({ status: "ok", detail: "sandbox: PayPal's sandbox" });
+    const calls = rs.filter((r) => ["paypal.token", "paypal.webhook", "paypal.balance"].includes(r.name));
+    expect(calls.map((r) => [r.status, r.detail])).toEqual(
+      Array(3).fill(["skip", "PP_CLIENT_ID / PP_CLIENT_SECRET not set"]),
+    );
     expect(paypalCalls).toBe(0);
     expect(exitCodeFor(rs)).toBe(0);
   });
@@ -127,6 +135,50 @@ describe("health-check", () => {
     expect(byName(rs)["paypal.env"]?.status).toBe("fail");
     expect(paypalCalls).toBe(0);
     expect(exitCodeFor(rs)).toBe(1);
+  });
+
+  it("treats PP_ENV unset as not sandbox, exactly like the boot check (assertSandbox)", async () => {
+    const { PP_ENV: _unset, ...rest } = env;
+    const rs = await runHealthChecks({ env: rest, fetch, origin: ORIGIN });
+    expect(byName(rs)["paypal.env"]).toEqual({
+      name: "paypal.env",
+      status: "fail",
+      detail: "PP_ENV is unset; the boot check refuses anything but sandbox",
+    });
+    expect(() => assertSandbox(rest)).toThrow();
+    expect(paypalCalls).toBe(0);
+    expect(exitCodeFor(rs)).toBe(1);
+  });
+
+  it.each([
+    ["unset (the ADR-0002 default)", undefined],
+    ["simulator", "simulator"],
+  ])(
+    "inv.i8.simulated-rail-labelled: PP_MODE %s skips the sandbox checks, labelled, with no PayPal call",
+    async (_label, mode) => {
+      const rs = await runHealthChecks({ env: { ...env, PP_MODE: mode }, fetch, origin: ORIGIN });
+      expect(byName(rs)["paypal.mode"]).toMatchObject({
+        status: "ok",
+        detail: expect.stringMatching(/simulated rail/),
+      });
+      for (const name of ["paypal.token", "paypal.webhook", "paypal.balance"])
+        expect(byName(rs)[name]).toMatchObject({
+          status: "skip",
+          detail: expect.stringMatching(/PP_MODE=simulator/),
+        });
+      expect(paypalCalls).toBe(0);
+      expect(exitCodeFor(rs)).toBe(0);
+    },
+  );
+
+  it("fails an unknown PP_MODE without calling PayPal", async () => {
+    const rs = await runHealthChecks({ env: { ...env, PP_MODE: "live" }, fetch, origin: ORIGIN });
+    expect(byName(rs)["paypal.mode"]?.status).toBe("fail");
+    expect(byName(rs)["paypal.token"]).toBeUndefined();
+    expect(paypalCalls).toBe(0);
+    expect(paypalMode({ PP_MODE: " sandbox " })).toBe("sandbox");
+    expect(paypalMode({})).toBe("simulator");
+    expect(paypalMode({ PP_MODE: "Sandbox" })).toBeUndefined();
   });
 
   it("uses FS_API_ORIGIN when no --origin is given, and skips the API checks with neither", async () => {

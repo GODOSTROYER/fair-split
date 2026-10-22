@@ -8,7 +8,7 @@ import { build } from "tsdown";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { REPO_ROOT } from "../../../tools/lib/blueprint.js";
 import { runUnderFakeHost } from "../../../tools/lib/fake-workflow-host.js";
-import { TASK_NAMES } from "../src/_shims/contracts.js";
+import { WORKFLOW_TASK_NAMES } from "../src/policy.js";
 import { DB_PING_TASK, PING_TASK } from "../src/workflow.js";
 import { bundleConfig, ENTRIES } from "../tsdown.config.js";
 import { OUTBOX_ID } from "./helpers.js";
@@ -45,7 +45,7 @@ describe("tsdown bundle of the fs-tasks entries", () => {
     for (const file of jsFiles(DIST)) expect(readFileSync(file, "utf8"), file).not.toMatch(WORKSPACE_IMPORT);
   });
 
-  it("dist/index.js registers every task under the fake workflow host", async () => {
+  it("dist/index.js registers the Workflows tasks under the fake workflow host", async () => {
     const r = await runUnderFakeHost({
       entry: "apps/tasks/dist/index.js",
       cwd: REPO_ROOT,
@@ -53,7 +53,7 @@ describe("tsdown bundle of the fs-tasks entries", () => {
       mode: "register",
     });
     expect(r.exitCode).toBe(0);
-    expect(r.registered?.map((t) => t.name)).toEqual([...TASK_NAMES, PING_TASK, DB_PING_TASK]);
+    expect(r.registered?.map((t) => t.name)).toEqual([...WORKFLOW_TASK_NAMES, PING_TASK, DB_PING_TASK]);
   });
 
   it("dist/index.js runs a task through the shared chunks (invoke, wiring)", async () => {
@@ -62,7 +62,7 @@ describe("tsdown bundle of the fs-tasks entries", () => {
       cwd: REPO_ROOT,
       env: { PP_ENV: "sandbox" },
       mode: "run",
-      taskName: "reconcile",
+      taskName: "extract",
       input: [OUTBOX_ID],
     });
     expect(r.result).toMatchObject({ status: "failed", code: "NOT_WIRED" });

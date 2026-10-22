@@ -57,27 +57,24 @@ async function simulate(startIso: string, hours: number, missed: ReadonlySet<num
 const gaps = (hours: number[]) => hours.slice(1).map((h, i) => h - (hours[i] as number));
 
 describe("cron schedule", () => {
-  it("runs hourly at minute 7, and render.yaml agrees", () => {
+  it("runs hourly at minute 7 as a thin trigger, and render.yaml agrees (S3.14)", () => {
     expect(CRON_SCHEDULE).toBe("7 * * * *");
     const cron = readBlueprint().services?.find((s) => s.name === "fs-cron");
     expect(cron?.schedule).toBe(CRON_SCHEDULE);
-    expect(cron?.startCommand).toBe("node apps/tasks/dist/cron.js");
+    expect(cron?.startCommand).toBe("node tools/cron-tick.mjs");
   });
 
-  it("every pass enqueues judgeReset then reconcile{catchup}", () => {
-    const jobs = planCronRun(at("2026-10-23T05:07:00Z"));
-    expect(jobs.slice(0, 2)).toEqual([
-      {
-        name: "judgeReset",
-        args: { trigger: "cron", slot: "2026-10-23T05" },
-        dedupeKey: "judgeReset:cron:2026-10-23T05",
-      },
-      {
-        name: "reconcile",
-        args: { mode: "catchup", slot: "2026-10-23T05" },
-        dedupeKey: "reconcile:catchup:2026-10-23T05",
-      },
-    ]);
+  it("every pass enqueues judgeReset first; webhook catch-up is not hourly (boot only, S3.6.5)", () => {
+    for (const iso of ["2026-10-23T05:07:00Z", "2026-10-24T02:07:00Z"]) {
+      const jobs = planCronRun(at(iso));
+      expect(jobs[0]?.name).toBe("judgeReset");
+      expect(jobs.some((j) => j.args.mode === "catchup")).toBe(false);
+    }
+    expect(planCronRun(at("2026-10-23T05:07:00Z"))[0]).toEqual({
+      name: "judgeReset",
+      args: { trigger: "cron", slot: "2026-10-23T05" },
+      dedupeKey: "judgeReset:cron:2026-10-23T05",
+    });
   });
 
   it("offers reconcile{nightly} on every pass from 02:00 to 05:59 UTC, keyed by date", () => {
@@ -192,7 +189,11 @@ describe("runCron", () => {
     };
     const { logger, lines } = captureLogger();
     const results = await runCron(at("2026-10-23T05:07:00Z"), sink, logger);
-    expect(results.map((r) => r.ok)).toEqual([false, true, true, true]);
+    expect(results.map((r) => [r.job.name, r.ok])).toEqual([
+      ["judgeReset", false],
+      ["reconcile", true], // 05:07 UTC is still inside the nightly make-up window
+      ["warmCaches", true],
+    ]);
     expect(results[0]?.error).toBe("lock timeout");
     expect(lines.some((l) => l.msg === "cron.enqueue failed" && l.task === "judgeReset")).toBe(true);
   });
@@ -204,7 +205,6 @@ describe("cron main", () => {
     await expect(main(["--plan", "--at=2026-10-24T02:07:00Z"], { logger, sink: undefined })).resolves.toBe(0);
     expect(lines.filter((l) => l.msg === "cron.plan").map((l) => l.task)).toEqual([
       "judgeReset",
-      "reconcile",
       "reconcile",
       "warmCaches",
     ]);

@@ -2,7 +2,7 @@
 //  1. structural validation against Render's published Blueprint JSON Schema
 //     (vendored from https://render.com/schema/render.yaml.json, retrieved 2026-10-22,
 //     Last-Modified Thu, 22 Oct 2026 00:45:41 GMT; refresh with `tsx tools/spike-s6.ts --refresh-schema`);
-//  2. Fair Split's own deployment rules (register §6, S3.3, S3.13).
+//  2. Fair Split's own deployment rules: register §6, approved S3.3, S3.4, S3.11, S3.13 and S3.14.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,7 @@ export interface ServiceEntry {
   name: string;
   runtime?: string;
   region?: string;
+  branch?: string;
   plan?: string;
   schedule?: string;
   buildCommand?: string;
@@ -70,25 +71,6 @@ export function validateAgainstSchema(doc: unknown, schema: object = loadSchema(
   return (validate.errors ?? []).map((e) => `${e.instancePath || "/"}: ${e.message ?? "invalid"}`);
 }
 
-/** Names that must never carry a literal value in the Blueprint. */
-export const SECRET_KEYS: ReadonlySet<string> = new Set([
-  "PP_CLIENT_ID",
-  "PP_CLIENT_SECRET",
-  "PP_WEBHOOK_ID",
-  "PP_BUSINESS_EMAIL",
-  "PP_PAYER_EMAIL",
-  "PP_RECEIVERS",
-  "ANTHROPIC_API_KEY",
-  "RENDER_API_KEY",
-  "BETTER_AUTH_SECRET",
-  "STATEMENT_SIGNING_KEY",
-  "EXPO_ACCESS_TOKEN",
-  "FS_KILL",
-  "GEMINI_API_KEY",
-  "DATABASE_URL",
-  "DATABASE_OWNER_URL",
-]);
-
 /** The Node pin (S3 §1 `.node-version`, architecture's pinned stack, eas.json). */
 export const PINNED_NODE_VERSION = "24.22.1";
 
@@ -98,14 +80,76 @@ export function pinnedNodeVersion(root: string = REPO_ROOT): string {
   return existsSync(file) ? readFileSync(file, "utf8").trim().replace(/^v/, "") : PINNED_NODE_VERSION;
 }
 
-/** The env var the migration (preDeployCommand) reads; the only owner-role connection allowed. */
-export const OWNER_URL_KEY = "DATABASE_OWNER_URL";
+/** S3.14: "The Blueprint is created from the deploy branch, which every service follows." */
+export const DEPLOY_BRANCH = "deploy";
+
+/** fs-db properties that carry the owner's credentials; only the migrating service may reference them. */
+export const OWNER_DB_PROPERTIES: ReadonlySet<string> = new Set([
+  "connectionString",
+  "connectionPoolString",
+  "user",
+  "password",
+]);
+
+/** The services that execute tasks, so they read the kill flags (S3.11) and must both carry FS_KILL. */
+export const EXECUTOR_SERVICES: readonly string[] = ["fs-api", "fs-tasks"];
+
+/**
+ * S3.13's per-service secrets, split by need. `syncFalse`: prompted once at Blueprint creation.
+ * `generated`: `generateValue` on this service. `shared`: `fromService … envVarKey` from fs-api.
+ * FS_KILL (an operator flag, not a secret) is checked separately.
+ */
+export const SECRETS_BY_SERVICE: Readonly<
+  Record<string, { syncFalse: readonly string[]; generated: readonly string[]; shared: readonly string[] }>
+> = {
+  "fs-api": {
+    syncFalse: [
+      "PP_CLIENT_ID",
+      "PP_CLIENT_SECRET",
+      "PP_WEBHOOK_ID",
+      "PP_BUSINESS_EMAIL",
+      "PP_PAYER_EMAIL",
+      "PP_RECEIVERS",
+      "PP_UNCLAIMED_RECEIVER",
+      "ANTHROPIC_API_KEY",
+      "RENDER_API_KEY",
+      "EXPO_PUSH_TOKEN",
+      "OPS_PASSWORD_SCRYPT",
+      "JUDGE_CODE_SHA256",
+    ],
+    generated: ["FS_APP_DB_PASSWORD", "STATEMENT_SIGNING_KEY", "COOKIE_KEY", "CRON_SECRET"],
+    shared: [],
+  },
+  "fs-tasks": { syncFalse: ["ANTHROPIC_API_KEY"], generated: [], shared: ["FS_APP_DB_PASSWORD"] },
+  "fs-cron": { syncFalse: [], generated: [], shared: ["CRON_SECRET"] },
+};
+
+/**
+ * `PP_` names that are switches, not secrets: S3.13's PP_ENV, and ADR-0002's PP_MODE (the PayPal rail:
+ * the contract-faithful simulator or the real sandbox).
+ */
+export const PP_SWITCHES: ReadonlySet<string> = new Set(["PP_ENV", "PP_MODE"]);
+
+/** ADR-0002: `PP_MODE=simulator` (the default until sandbox credentials exist) or `PP_MODE=sandbox`. */
+export const PP_MODES: readonly string[] = ["simulator", "sandbox"];
+
+/** S3.13's YAML lint: these names never carry a literal `value:` (the PP_SWITCHES excepted). */
+export function isSecretName(key: string): boolean {
+  return (
+    /KEY|SECRET|TOKEN|PASSWORD|SCRYPT|SHA256/.test(key) || (key.startsWith("PP_") && !PP_SWITCHES.has(key))
+  );
+}
 
 const glob = (dir: string) => `${dir}/**`;
 
 /** True when a buildFilter path list covers everything under `dir` (e.g. `packages/**` covers `packages/db`). */
 export function pathsCover(paths: readonly string[], dir: string): boolean {
   return paths.some((p) => p.endsWith("/**") && (dir === p.slice(0, -3) || dir.startsWith(p.slice(0, -2))));
+}
+
+/** True when a buildFilter path list covers one file, exactly or through a `dir/**` glob. */
+export function pathsCoverFile(paths: readonly string[], file: string): boolean {
+  return paths.includes(file) || pathsCover(paths, dirname(file).replaceAll("\\", "/"));
 }
 
 interface WorkspacePackage {
@@ -164,14 +208,16 @@ export function serviceRoots(service: ServiceEntry): string[] {
   return [...cmd.matchAll(/--filter=(@fairsplit\/[a-z0-9-]+)/g)].map((m) => m[1] as string);
 }
 
-const FREE_PLANS = new Set(["free"]);
-const SECRETISH = /KEY|SECRET|TOKEN|PASSWORD/;
+/** Repo files a service's commands run directly, e.g. `tools/scan-dist.ts`. */
+export function commandFiles(service: ServiceEntry): string[] {
+  const cmds = [service.buildCommand, service.preDeployCommand, service.startCommand].join(" ");
+  return [...new Set([...cmds.matchAll(/\btools\/[\w./-]+\.(?:ts|mts|mjs|js)\b/g)].map((m) => m[0]))];
+}
 
-/** Fair Split's deployment rules. Returns human-readable violations; empty when compliant. */
 /**
- * Build filters must cover each service's workspace dependency closure (a change anywhere in it must
- * redeploy the service), fs-cron must rebuild whenever fs-tasks does (same bundle), and fs-api must
- * rebuild on apps/tasks (shared task policy).
+ * Build filters must cover each service's workspace dependency closure and every repo file its
+ * commands run (a change anywhere in either must redeploy the service), and fs-api must rebuild on
+ * apps/tasks (the executor lanes must match fs-api's dispatcher).
  */
 export function checkBuildFilters(
   bp: Blueprint,
@@ -184,18 +230,22 @@ export function checkBuildFilters(
     for (const dir of dependencyClosure(serviceRoots(s), workspace))
       if (!pathsCover(paths, dir))
         out.push(`${s.name}: buildFilter misses ${glob(dir)} (dependency closure)`);
+    for (const file of commandFiles(s))
+      if (!pathsCoverFile(paths, file))
+        out.push(`${s.name}: buildFilter misses ${file} (run by its commands)`);
   }
-  const byName = new Map(services.map((s) => [s.name, s]));
-  const tasksPaths = byName.get("fs-tasks")?.buildFilter?.paths ?? [];
-  const cronPaths = byName.get("fs-cron")?.buildFilter?.paths ?? [];
-  for (const p of tasksPaths)
-    if (!cronPaths.includes(p)) out.push(`fs-cron: buildFilter misses ${p} (fs-tasks has it)`);
-  const apiPaths = byName.get("fs-api")?.buildFilter?.paths ?? [];
-  if (byName.has("fs-api") && !pathsCover(apiPaths, "apps/tasks"))
-    out.push("fs-api: buildFilter must include apps/tasks/** (shared task policy)");
+  const api = services.find((s) => s.name === "fs-api");
+  if (api && !pathsCover(api.buildFilter?.paths ?? [], "apps/tasks"))
+    out.push("fs-api: buildFilter must include apps/tasks/** (executor lanes)");
   return out;
 }
 
+const FREE_PLANS = new Set(["free"]);
+
+const envOf = (s: ServiceEntry | undefined, key: string): EnvVarEntry | undefined =>
+  s?.envVars?.find((v) => v.key === key);
+
+/** Fair Split's deployment rules. Returns human-readable violations; empty when compliant. */
 export function checkPolicy(bp: Blueprint, opts: { nodeVersion?: string } = {}): string[] {
   const out: string[] = [];
   const services = bp.services ?? [];
@@ -209,68 +259,155 @@ export function checkPolicy(bp: Blueprint, opts: { nodeVersion?: string } = {}):
   if (tasks?.type !== "workflow") out.push("fs-tasks must be a workflow");
   if (cron?.type !== "cron") out.push("fs-cron must be a cron job");
   if (!db) out.push("fs-db must be declared");
+  for (const s of services)
+    if (!["fs-api", "fs-tasks", "fs-cron"].includes(s.name)) out.push(`unexpected service ${s.name}`);
 
   const regions = new Set([...services.map((s) => s.region), ...(bp.databases ?? []).map((d) => d.region)]);
   if (regions.size !== 1 || regions.has(undefined))
     out.push(`all resources must share one explicit region (got ${[...regions].join(", ")})`);
+
+  // S3.13: no environment group, and so no `fromGroup`.
+  if ((bp.envVarGroups ?? []).length > 0)
+    out.push("no envVarGroups: Render ignores sync: false keys in groups (S3.13)");
 
   if (api) {
     if (!api.plan || FREE_PLANS.has(api.plan)) out.push("fs-api must be on a paid, always-on plan");
     if (api.healthCheckPath !== "/healthz") out.push("fs-api healthCheckPath must be /healthz");
     if (!api.preDeployCommand?.includes("migrate"))
       out.push("fs-api must run migrations in preDeployCommand");
+    if (!/tools\/scan-dist\.ts\s*$/.test(api.buildCommand ?? ""))
+      out.push("fs-api's build must end with tools/scan-dist.ts (S3.13)");
+    if (envOf(api, "EXECUTOR")?.value !== "workflow") out.push("fs-api must set EXECUTOR=workflow");
+    // ADR-0002: the rail is stated in the Blueprint, so what a deploy runs against is in the repo.
+    const mode = envOf(api, "PP_MODE");
+    if (mode?.value === undefined || !PP_MODES.includes(String(mode.value)))
+      out.push(`fs-api must set PP_MODE to ${PP_MODES.join(" or ")} (ADR-0002)`);
   }
-  if (cron && cron.schedule !== "7 * * * *") out.push("fs-cron must run hourly at :07");
-  if (cron?.plan && FREE_PLANS.has(cron.plan)) out.push("fs-cron must not be on a free plan");
+  for (const s of services)
+    if (s.name !== "fs-api" && envOf(s, "PP_MODE"))
+      out.push(`${s.name}: makes no PayPal calls, so has no PP_MODE`);
+  if (cron) {
+    if (cron.schedule !== "7 * * * *") out.push("fs-cron must run hourly at :07");
+    if (cron.plan && FREE_PLANS.has(cron.plan)) out.push("fs-cron must not be on a free plan");
+    if (cron.buildCommand !== "true" || cron.startCommand !== "node tools/cron-tick.mjs")
+      out.push("fs-cron must be the thin trigger: buildCommand true, startCommand node tools/cron-tick.mjs");
+    const hostport = envOf(cron, "FS_API_HOSTPORT")?.fromService;
+    if (hostport?.name !== "fs-api" || hostport.property !== "hostport")
+      out.push("fs-cron: FS_API_HOSTPORT must come from fs-api's hostport");
+  }
   if (db && (!db.plan || FREE_PLANS.has(db.plan))) out.push("fs-db must be on a paid plan");
   if (db && db.postgresMajorVersion !== "18") out.push("fs-db must be Postgres 18");
 
   const nodePin = opts.nodeVersion ?? pinnedNodeVersion();
-  const nodeVersions = [
-    ...(bp.envVarGroups ?? []).flatMap((g) => g.envVars),
-    ...services.flatMap((s) => s.envVars ?? []),
-  ].filter((v) => v.key === "NODE_VERSION");
-  if (nodeVersions.length === 0) out.push(`NODE_VERSION must be set to the ${nodePin} pin`);
-  for (const v of nodeVersions)
-    if (String(v.value) !== nodePin) out.push(`NODE_VERSION must equal the ${nodePin} pin (got ${v.value})`);
-
   for (const s of services) {
-    const env = s.envVars ?? [];
-    const dbUrl = env.find((v) => v.key === "DATABASE_URL");
-    const ownerUrl = env.find((v) => v.key === OWNER_URL_KEY);
-    if (dbUrl?.fromDatabase)
-      out.push(`${s.name}: DATABASE_URL must be the fs_app role (sync: false), not the owner connection`);
-    if (dbUrl && dbUrl.sync !== false) out.push(`${s.name}: DATABASE_URL must be declared with sync: false`);
-    if (s.preDeployCommand && !ownerUrl?.fromDatabase)
-      out.push(`${s.name}: migrations need ${OWNER_URL_KEY} from fromDatabase`);
-    if (!s.preDeployCommand && ownerUrl)
-      out.push(`${s.name}: only a service that migrates may hold ${OWNER_URL_KEY}`);
-    for (const v of env)
-      if (v.fromDatabase && v.key !== OWNER_URL_KEY)
-        out.push(`${s.name}: ${v.key} must not carry the owner connection string`);
-
-    if (!s.buildFilter?.paths?.length) out.push(`${s.name} needs a buildFilter with paths`);
+    const node = envOf(s, "NODE_VERSION");
+    if (String(node?.value) !== nodePin)
+      out.push(`${s.name}: NODE_VERSION must equal the ${nodePin} pin (got ${node?.value})`);
     if (s.runtime !== "node") out.push(`${s.name} must use the node runtime`);
-    for (const v of s.envVars ?? []) {
+    if (s.branch !== DEPLOY_BRANCH) out.push(`${s.name} must follow the ${DEPLOY_BRANCH} branch (S3.14)`);
+    if (s.autoDeployTrigger !== "checksPass") out.push(`${s.name} must deploy on checksPass`);
+    if (!s.buildFilter?.paths?.length) out.push(`${s.name} needs a buildFilter with paths`);
+  }
+  for (const name of EXECUTOR_SERVICES)
+    if (envOf(byName.get(name), "PP_ENV")?.value !== "sandbox")
+      out.push(`${name}: PP_ENV must be sandbox (boot check)`);
+
+  out.push(...checkSecrets(bp), ...checkDatabaseRoles(bp), ...checkBuildFilters(bp));
+  return out;
+}
+
+/** S3.13 secrets: split by need, never literal, the kill flag on every executor. */
+export function checkSecrets(bp: Blueprint): string[] {
+  const out: string[] = [];
+  for (const s of bp.services ?? []) {
+    const env = s.envVars ?? [];
+    for (const v of env) {
+      if (v.fromGroup) out.push(`${s.name}: fromGroup ${v.fromGroup} (no environment groups, S3.13)`);
       if (!v.key) continue;
-      const secret = SECRET_KEYS.has(v.key) || SECRETISH.test(v.key);
-      if (secret && v.value !== undefined) out.push(`${s.name}: ${v.key} must not have a literal value`);
-      if (secret && v.sync !== false && !v.generateValue && !v.fromDatabase && !v.fromService) {
-        out.push(`${s.name}: ${v.key} must be declared with sync: false`);
-      }
-      if (/^(VITE|EXPO)_PUBLIC_/.test(v.key) && SECRETISH.test(v.key))
+      if (isSecretName(v.key) && v.value !== undefined)
+        out.push(`${s.name}: ${v.key} must not have a literal value`);
+      if (/^(VITE|EXPO)_PUBLIC_/.test(v.key) && /KEY|SECRET|TOKEN/.test(v.key))
         out.push(`${s.name}: ${v.key} is a public secret name`);
     }
-    for (const g of (s.envVars ?? []).filter((v) => v.fromGroup)) {
-      if (!(bp.envVarGroups ?? []).some((eg) => eg.name === g.fromGroup))
-        out.push(`${s.name}: unknown group ${g.fromGroup}`);
+    const spec = SECRETS_BY_SERVICE[s.name];
+    if (!spec) continue;
+    const syncFalse = env.filter((v) => v.sync === false && v.key !== "FS_KILL").map((v) => v.key ?? "");
+    const generated = env.filter((v) => v.generateValue).map((v) => v.key ?? "");
+    const shared = env.filter((v) => v.fromService?.envVarKey).map((v) => v.key ?? "");
+    const same = (a: readonly string[], b: readonly string[]) =>
+      a.length === b.length && [...a].sort().every((k, i) => k === [...b].sort()[i]);
+    if (!same(syncFalse, spec.syncFalse))
+      out.push(
+        `${s.name}: sync: false secrets must be exactly ${spec.syncFalse.join(", ") || "none"} (S3.13)`,
+      );
+    if (!same(generated, spec.generated))
+      out.push(`${s.name}: generated secrets must be exactly ${spec.generated.join(", ") || "none"} (S3.13)`);
+    if (!same(shared, spec.shared))
+      out.push(
+        `${s.name}: secrets shared from fs-api must be exactly ${spec.shared.join(", ") || "none"} (S3.13)`,
+      );
+    for (const v of env.filter((e) => e.fromService?.envVarKey)) {
+      const from = v.fromService;
+      if (from?.name !== "fs-api" || from.envVarKey !== v.key)
+        out.push(`${s.name}: ${v.key} must be shared from fs-api's ${v.key}`);
     }
+    const kill = env.find((v) => v.key === "FS_KILL");
+    if (EXECUTOR_SERVICES.includes(s.name) && kill?.sync !== false)
+      out.push(`${s.name}: FS_KILL must be declared with sync: false on every executor (S3.11)`);
+    if (!EXECUTOR_SERVICES.includes(s.name) && kill)
+      out.push(`${s.name}: runs no tasks, so holds no FS_KILL`);
   }
-  out.push(...checkBuildFilters(bp));
-  for (const g of bp.envVarGroups ?? []) {
-    for (const v of g.envVars) {
-      if (v.key && (SECRET_KEYS.has(v.key) || SECRETISH.test(v.key)))
-        out.push(`group ${g.name}: secret ${v.key} cannot live in a group`);
+  return out;
+}
+
+/**
+ * The variable that carries the owner's URL to `@fairsplit/db migrate`. packages/db's env contract:
+ * on Render, migrate reads only DATABASE_OWNER_URL and never DATABASE_URL, which is fs_app's there.
+ */
+export const OWNER_URL_KEY = "DATABASE_OWNER_URL";
+
+/**
+ * S3.4 and register §7: only the migrating service may see the owner's credentials, and only as
+ * DATABASE_OWNER_URL, which its boot deletes after building fs_app's DATABASE_URL from it
+ * (apps/tasks/src/db-env.ts). No service declares DATABASE_URL: Render cannot compose fs_app's URL,
+ * so every process builds it at boot. Every other service connects as fs_app from fs-db's host,
+ * port and name plus the password fs-api generates.
+ */
+export function checkDatabaseRoles(bp: Blueprint): string[] {
+  const out: string[] = [];
+  const services = bp.services ?? [];
+  const migrating = services.filter((s) => s.preDeployCommand?.includes("migrate"));
+  if (migrating.length !== 1 || migrating[0]?.name !== "fs-api") out.push("only fs-api runs migrations");
+  for (const s of services) {
+    const env = s.envVars ?? [];
+    const owner = env.filter((v) => v.fromDatabase && OWNER_DB_PROPERTIES.has(v.fromDatabase.property));
+    if (env.some((v) => v.key === "DATABASE_URL"))
+      out.push(`${s.name}: no DATABASE_URL in the Blueprint; the boot builds fs_app's (db-env.ts)`);
+    if (s.preDeployCommand?.includes("migrate")) {
+      if (envOf(s, OWNER_URL_KEY)?.fromDatabase?.property !== "connectionString")
+        out.push(`${s.name}: migrations read the owner's ${OWNER_URL_KEY} (fromDatabase connectionString)`);
+      if (!env.some((v) => v.key === "FS_APP_DB_PASSWORD" && v.generateValue))
+        out.push(`${s.name}: FS_APP_DB_PASSWORD must be generated here, for CREATE/ALTER ROLE fs_app`);
+      if (owner.some((v) => v.key !== OWNER_URL_KEY))
+        out.push(`${s.name}: the owner's credentials only as ${OWNER_URL_KEY}`);
+      continue;
+    }
+    for (const v of owner)
+      out.push(`${s.name}: ${v.key} carries the owner's ${v.fromDatabase?.property}; only fs-api may`);
+    if (env.some((v) => v.key === OWNER_URL_KEY))
+      out.push(`${s.name}: no ${OWNER_URL_KEY}; only the migrating service holds the owner's URL`);
+    const usesDb = env.some((v) => v.fromDatabase);
+    if (usesDb) {
+      for (const [key, property] of [
+        ["FS_DB_HOST", "host"],
+        ["FS_DB_PORT", "port"],
+        ["FS_DB_NAME", "database"],
+      ] as const) {
+        if (envOf(s, key)?.fromDatabase?.property !== property)
+          out.push(`${s.name}: ${key} must come from fs-db's ${property}`);
+      }
+      if (envOf(s, "FS_APP_DB_PASSWORD")?.fromService?.envVarKey !== "FS_APP_DB_PASSWORD")
+        out.push(`${s.name}: FS_APP_DB_PASSWORD must be shared from fs-api`);
     }
   }
   return out;

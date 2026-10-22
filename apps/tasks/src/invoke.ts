@@ -1,10 +1,11 @@
-// The one wrapper every executor goes through: validate ids, check the kill flags, call the injected
-// handler, time it, log it, and classify failures. A permanent failure is written to `task_outbox`
-// through the OutboxPort and returned as a `failed` outcome; a transient one is rethrown, leaving the
-// row `running` for the outbox sweeper to re-queue (Render retries are off; see policy.ts).
+// The one wrapper every executor goes through: validate ids, read the kill flags fresh, refuse what
+// they refuse at entry, call the injected handler with the flag set, time it, log it, and classify
+// failures. A permanent failure is written to `task_outbox` through the OutboxPort and returned as a
+// `failed` outcome; a transient one is rethrown, so Render retries it within the same run (Workflows
+// lanes, policy.ts) and, once those are spent, the outbox re-queues the row as a new attempt.
 import type { ExecutorKind, TaskName } from "./_shims/contracts.js";
 import { KillSwitchError, PermanentTaskError, type TaskHandlers, type TaskOutcome } from "./handlers.js";
-import type { FlagCheck } from "./kill.js";
+import { type FlagSource, refusingFlag } from "./kill.js";
 import type { Logger } from "./log.js";
 
 /** UUIDv7 outbox ids are 36 chars; 128 leaves room for prefixed ids without allowing payloads. */
@@ -44,7 +45,8 @@ export interface OutboxPort {
 export interface TaskRuntime {
   readonly handlers: TaskHandlers;
   readonly outbox: OutboxPort;
-  readonly checkFlags: FlagCheck;
+  /** Fresh kill flags for a run; see kill.ts. */
+  readonly readFlags: FlagSource;
 }
 
 export interface InvokeContext {
@@ -66,14 +68,16 @@ export async function invokeTask(
   const log = ctx.logger.child({ task: name, executor: ctx.executor, taskRunId: ctx.taskRunId });
   try {
     const ids = validateIds(rawIds);
-    const flag = await runtime.checkFlags(name);
-    if (flag) throw new KillSwitchError(name, flag);
+    const flags = await runtime.readFlags(name, ids);
+    const refused = refusingFlag(name, flags);
+    if (refused) throw new KillSwitchError(name, `kill_${refused}`);
     const outcome = await runtime.handlers[name]({
       name,
       ids,
       executor: ctx.executor,
       taskRunId: ctx.taskRunId,
       signal: ctx.signal,
+      flags,
     });
     log.info({ ids, status: outcome.status, ms: now() - started }, "task.run");
     return outcome;
