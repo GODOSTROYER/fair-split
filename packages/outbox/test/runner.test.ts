@@ -133,6 +133,30 @@ describe("idempotent execution contract", () => {
     expect(events.filter((e) => e.type === "run.state")).toHaveLength(1);
   });
 
+  it("a run that lost its claim cannot finish a newer run of the same task, even from the same process", async () => {
+    const gates: Array<() => void> = [];
+    const handlers: TaskHandlers = {
+      explain: () => new Promise<void>((resolve) => gates.push(resolve)),
+    };
+    const id = await enqueued(t.app.db, "explain", { lineId: "l" });
+    const d = deps(handlers, { heartbeatMs: 60_000 });
+    const runA = runTask(d, id, "inline");
+    await until(() => gates.length === 1);
+    // the sweeper decides A is stuck and re-queues the row; B (same worker id) claims it
+    await t.owner.db
+      .update(s.taskOutbox)
+      .set({ state: "queued", claimedBy: null, runAfter: sql`now()` })
+      .where(eq(s.taskOutbox.id, id));
+    const runB = runTask(d, id, "inline");
+    await until(() => gates.length === 2);
+    gates[0]?.(); // A finishes first…
+    expect(await runA).toEqual({ outcome: "skipped", id, state: "running" });
+    expect((await rowOf(t.app.db, id)).state).toBe("running"); // …and leaves B's run alone
+    gates[1]?.();
+    expect((await runB).outcome).toBe("done");
+    expect((await rowOf(t.app.db, id)).attempts).toBe(2);
+  });
+
   it("a run that loses its claim (swept as stuck) is told through its AbortSignal", async () => {
     let aborted = false;
     const handlers: TaskHandlers = {

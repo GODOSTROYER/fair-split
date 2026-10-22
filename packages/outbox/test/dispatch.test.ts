@@ -50,7 +50,8 @@ describe("dispatcher with the inline executor (CI and local)", () => {
     await until(async () => (await rowOf(t.app.db, id)).state === "done");
     expect(calls.get(id)).toBe(1);
     const row = await rowOf(t.app.db, id);
-    expect(row).toMatchObject({ attempts: 1, executor: "inline", claimedBy: "api-1" });
+    expect(row).toMatchObject({ attempts: 1, executor: "inline" });
+    expect(row.claimedBy?.startsWith("api-1/")).toBe(true);
   });
 
   it("wakes on NOTIFY fs_outbox instead of waiting for the poll", async () => {

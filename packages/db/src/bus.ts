@@ -124,8 +124,11 @@ export function createBus(opts: BusOptions): Bus {
       } while (st.again);
     } catch (err) {
       onError(err);
+      // a failed read (pool hiccup) is retried from the same cursors, so nothing is skipped
+      if (!closed) setTimeout(() => void pump(ws), 1000).unref?.();
     } finally {
       st.pumping = false;
+      if (st.subs.size === 0) workspaces.delete(ws);
     }
   }
 

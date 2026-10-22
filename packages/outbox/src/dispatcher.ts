@@ -154,7 +154,8 @@ export function createDispatcher(o: DispatcherOptions): Dispatcher {
     const limit = Math.min(batchSize, o.executor.capacity?.() ?? batchSize);
     if (limit <= 0) return 0;
     const tasks = await claim(limit);
-    for (const task of tasks) await dispatchOne(task);
+    // hand-offs run side by side: one slow startTask must not hold up the rest of the batch
+    await Promise.all(tasks.map((task) => dispatchOne(task)));
     lastTickAt = new Date();
     return tasks.length;
   }

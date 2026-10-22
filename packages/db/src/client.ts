@@ -37,6 +37,23 @@ export interface Database {
   close(): Promise<void>;
 }
 
+/**
+ * "fs_app" when the role exists and this login may assume it; undefined when the database user could not create
+ * it (Render, UNVERIFIED in S6) — the append-only triggers then still guard history. Use at boot:
+ *   createDb(url, { role: await detectAppRole(url) })
+ */
+export async function detectAppRole(url: string): Promise<typeof APP_ROLE | undefined> {
+  const sql = postgres(url, { max: 1, onnotice: () => {}, connect_timeout: 10 });
+  try {
+    const [row] = await sql<{ ok: boolean }[]>`
+      select case when exists (select 1 from pg_roles where rolname = ${APP_ROLE})
+                  then pg_has_role(current_user, ${APP_ROLE}, 'MEMBER') else false end as ok`;
+    return row?.ok ? APP_ROLE : undefined;
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 export function createDb(url: string, opts: CreateDbOptions = {}): Database {
   const connection: Record<string, string> = { application_name: opts.applicationName ?? "fairsplit" };
   if (opts.role) connection.role = opts.role;

@@ -15,6 +15,7 @@
  *    max_attempts. A heartbeat keeps `heartbeat_at` fresh; if the row is taken away (swept), the handler's
  *    AbortSignal fires.
  */
+import { randomUUID } from "node:crypto";
 import { type Db, schema as s, type Tx } from "@fairsplit/db";
 import { and, eq, sql } from "drizzle-orm";
 import type { TaskName } from "./_shims/contracts.js";
@@ -73,14 +74,16 @@ export async function runTask(
   outboxId: string,
   executor: ExecutorKind,
 ): Promise<RunOutcome> {
-  const { db, workerId } = deps;
+  const { db } = deps;
   const emit = deps.onEvent ?? (() => {});
   const t = s.taskOutbox;
+  // a token per run, not per process: a late write from a run that lost its claim can never touch a newer run
+  const claimToken = `${deps.workerId}/${randomUUID()}`;
   const [row] = await db
     .update(t)
     .set({
       state: "running",
-      claimedBy: workerId,
+      claimedBy: claimToken,
       startedAt: sql`now()`,
       heartbeatAt: sql`now()`,
       attempts: sql`${t.attempts} + 1`,
@@ -101,7 +104,7 @@ export async function runTask(
   const name = row.name as TaskName;
   emit({ type: "claimed", id: row.id, name, attempt: row.attempts, executor });
 
-  const mine = and(eq(t.id, row.id), eq(t.state, "running"), eq(t.claimedBy, workerId));
+  const mine = and(eq(t.id, row.id), eq(t.state, "running"), eq(t.claimedBy, claimToken));
   const abort = new AbortController();
   const beat = setInterval(() => {
     void db
