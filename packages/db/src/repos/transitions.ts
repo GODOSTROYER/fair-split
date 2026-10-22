@@ -17,6 +17,7 @@ import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
 import {
   type HoldState,
   ITEM_STATUS_RANK,
+  ITEM_STATUS_TO_LINE_STATE,
   type ItemStatus,
   type LineState,
   type Provenance,
@@ -340,6 +341,132 @@ async function requestItemCancelLocked(
     .from(payoutItems)
     .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.id, r.id)));
   return { ok: false, current: cur?.status ?? null };
+}
+
+export interface LineFollow {
+  /** our payout item row id; its current status is what the line follows */
+  itemId: string;
+  provenance: Provenance;
+  /** what caused it, e.g. {webhookEventId} or {get: "payouts-item"}; recorded on every line.state event */
+  cause?: Record<string, unknown>;
+}
+
+export type FollowResult =
+  | { ok: true; from: LineState; to: LineState; row: MemberLine; events: StoredRunEvent[] }
+  | { ok: false; reason: "ILLEGAL" | "NOT_FOUND" | "SUPERSEDED"; current: string | null };
+
+/**
+ * The item rank each line state mirrors (S3.5 "item status → line state"). The cash and re-route successors of
+ * RETURNED have left their item behind: a notice up to RETURNED's rank is stale for them, and nothing higher applies.
+ */
+const FOLLOW_RANK: Partial<Record<LineState, number>> = {
+  SUBMITTED: 0,
+  PAYPAL_PENDING: ITEM_STATUS_RANK.PENDING,
+  PAYPAL_HELD: ITEM_STATUS_RANK.ONHOLD,
+  UNCLAIMED: ITEM_STATUS_RANK.UNCLAIMED,
+  RETURNED: ITEM_STATUS_RANK.RETURNED,
+  REROUTED: ITEM_STATUS_RANK.RETURNED,
+  OFF_RAIL_DUE: ITEM_STATUS_RANK.RETURNED,
+  OFF_RAIL_PAID: ITEM_STATUS_RANK.RETURNED,
+  NEEDS_ACTION: ITEM_STATUS_RANK.FAILED,
+  PAID: ITEM_STATUS_RANK.SUCCESS,
+  REVERSED: ITEM_STATUS_RANK.REVERSED,
+};
+
+/**
+ * States an item status implies without a notice of their own: any status after PENDING means PayPal accepted the
+ * item (PAYPAL_PENDING), and RETURNED follows only our cancel of an UNCLAIMED item (UNCLAIMED).
+ */
+const IMPLIED: readonly LineState[] = ["PAYPAL_PENDING", "UNCLAIMED"];
+
+/** The shortest walk from → to along the policy's edges, through implied states only (null when there is none). */
+function followPath(from: LineState, to: LineState, policy: TransitionPolicy): LineState[] | null {
+  const limit = FOLLOW_RANK[to];
+  if (limit === undefined) return null;
+  const parent = new Map<LineState, LineState>();
+  const queue: LineState[] = [from];
+  while (queue.length > 0) {
+    const cur = queue.shift() as LineState;
+    const rank = FOLLOW_RANK[cur] ?? Number.POSITIVE_INFINITY;
+    for (const next of [to, ...IMPLIED]) {
+      const r = FOLLOW_RANK[next] ?? Number.NEGATIVE_INFINITY;
+      if (next === from || parent.has(next) || r <= rank || r > limit || !policy.line(cur, next)) continue;
+      parent.set(next, cur);
+      if (next === to) {
+        const path: LineState[] = [to];
+        for (let s = parent.get(to); s !== undefined && s !== from; s = parent.get(s)) path.unshift(s);
+        return path;
+      }
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+/**
+ * Moves a member line to the state its payout item's status maps to (S3.5), in the caller's transaction. Item
+ * notices arrive in any order, and one can beat our own 201: an item that is already SUCCESS while its line is still
+ * SUBMITTED walks the line SUBMITTED → PAYPAL_PENDING → PAID here, in one transaction, instead of being stuck behind
+ * an edge the machine does not have. Each step is an optimistic transition with its own line.state event (implied
+ * steps say so in their cause). A notice the line is already at or past is a no-op; so the late 201, whose own
+ * SUBMITTED → PAYPAL_PENDING then finds the line STALE, changes nothing. An item a re-route superseded no longer
+ * moves its line (SUPERSEDED), and a line that never reached PayPal cannot follow one (ILLEGAL).
+ */
+export async function followItem(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  f: LineFollow,
+  policy: TransitionPolicy = DEFAULT_POLICY,
+): Promise<FollowResult> {
+  return withWorkspaceTx(db, scope, async (tx) => {
+    const [item] = await tx
+      .select({ id: payoutItems.id, status: payoutItems.status, lineId: payoutItems.lineId })
+      .from(payoutItems)
+      .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.id, f.itemId)));
+    if (!item) return { ok: false, reason: "NOT_FOUND", current: null };
+    const [line] = await tx
+      .select()
+      .from(memberLines)
+      .where(and(eq(memberLines.workspaceId, scope.workspaceId), eq(memberLines.id, item.lineId)))
+      .for("update");
+    if (!line) return { ok: false, reason: "NOT_FOUND", current: null };
+    const [successor] = await tx
+      .select({ id: payoutItems.id })
+      .from(payoutItems)
+      .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.supersedesItemId, item.id)))
+      .limit(1);
+    if (successor) return { ok: false, reason: "SUPERSEDED", current: line.state };
+    const from = line.state as LineState;
+    const target = ITEM_STATUS_TO_LINE_STATE[item.status as ItemStatus | "SUBMITTED"];
+    const fromRank = FOLLOW_RANK[from];
+    if (fromRank === undefined) return { ok: false, reason: "ILLEGAL", current: from };
+    if (fromRank >= (FOLLOW_RANK[target] ?? 0)) return { ok: true, from, to: from, row: line, events: [] };
+    const path = followPath(from, target, policy);
+    if (!path) return { ok: false, reason: "ILLEGAL", current: from };
+    let cur = from;
+    let row = line;
+    const events: StoredRunEvent[] = [];
+    for (const next of path) {
+      const cause = {
+        ...(f.cause ?? {}),
+        itemId: item.id,
+        itemStatus: item.status,
+        ...(next !== target ? { implied: true } : {}),
+      };
+      const res = await transitionLine(
+        tx,
+        scope,
+        { id: line.id, from: cur, to: next, cause, provenance: f.provenance },
+        policy,
+      );
+      // the workspace lock is held, so nothing can move the line between steps
+      if (!res.ok) throw new Error(`followItem: ${cur} → ${next} failed (${res.reason})`);
+      if (res.event) events.push(res.event);
+      row = res.row;
+      cur = next;
+    }
+    return { ok: true, from, to: cur, row, events };
+  });
 }
 
 export interface ApprovalVoid {

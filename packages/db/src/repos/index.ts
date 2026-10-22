@@ -23,8 +23,10 @@ import {
   type ApprovalVoid,
   applyItemStatus,
   DEFAULT_POLICY,
+  followItem,
   type HoldTransition,
   type ItemStatusUpdate,
+  type LineFollow,
   type LineTransition,
   type RunTransition,
   requestItemCancel,
@@ -127,6 +129,8 @@ export function repos(scope: WorkspaceScope, policy: TransitionPolicy = DEFAULT_
     lines: {
       ...bound.memberLines,
       transition: (db: DbOrTx, t: LineTransition) => transitionLine(db, scope, t, policy),
+      /** walk the line to the state its payout item's status maps to (early webhooks, S3.5) */
+      followItem: (db: DbOrTx, f: LineFollow) => followItem(db, scope, f, policy),
     },
     holdStates: {
       transition: (db: DbOrTx, t: HoldTransition) => transitionHold(db, scope, t, policy),

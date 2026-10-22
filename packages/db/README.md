@@ -48,6 +48,11 @@ await db.transaction(async (tx) => {
 | `claimIdempotencyKey` & co.                                                    | `new` / `replay` / `in_flight` / `mismatch` (422 `IDEMPOTENCY_KEY_REUSED`), 24 h.                                                                                                                                                                                               |
 | `asDbError(e)`                                                                 | Maps trigger errors to `FairSplitDbError {code, subject, httpStatus}` — e.g. `RATE_CARD_RATIFIED` with the card sha256 for MM-4's 409.                                                                                                                                          |
 
+`lines.followItem({itemId})` moves a line to the state its payout item's status maps to, in the caller's transaction:
+an item notice that beats our 201 (SUCCESS while the line is still SUBMITTED) walks it SUBMITTED → PAYPAL_PENDING →
+PAID at once, and the late 201's own edge then finds the line STALE. Stale notices are no-ops; a superseded item
+(re-route) no longer moves its line.
+
 Lifecycle columns are guarded (I5): `repos(scope).*.update` cannot write a run's or line's `state`/`version`, a hold's
 state or resolution, an item's `status`, rank or cancel stamp, or any column of an approval — a compile error, and
 `GuardedColumnError` at runtime. The database refuses the same writes for every role (below).
