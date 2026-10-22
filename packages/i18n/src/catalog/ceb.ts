@@ -1,0 +1,56 @@
+// Cebuano: every member's default language. Machine-translated, pending native review (OD-2) until a native
+// speaker signs each key off in REVIEW.md. The register §7 status words are fixed and may not be reworded.
+// Honorifics (Nang, Nong) come from the member registry as part of {name}; they are never guessed here.
+
+import type { Catalog } from "./en.js";
+
+export const ceb = {
+  "status.COMPUTED": "Gisusi pa",
+  "status.READY": "Gisusi pa",
+  "status.HELD": "Gisusi pa",
+  "status.EXCLUDED": "Ibalhin sa sunod nga bayad",
+  "status.LOCKED": "Gipadala na, naghulat sa PayPal",
+  "status.SUBMITTED": "Gipadala na, naghulat sa PayPal",
+  "status.PAYPAL_PENDING": "Gipadala na, naghulat sa PayPal",
+  "status.PAID": "Bayad na",
+  "status.OFF_RAIL_DUE": "Andam sa bodega",
+  "status.OFF_RAIL_PAID": "Nadawat",
+  "status.UNCLAIMED": "Wala madawat sa PayPal",
+  "status.RETURNED": "Gibalik sa co-op",
+  "status.REROUTED": "Gipadala pag-usab",
+  "status.PAYPAL_HELD": "Gipugngan sa PayPal",
+  "status.NEEDS_ACTION": "Wala molampos sa PayPal",
+  "status.REVERSED": "Gibawi",
+
+  "money.estimate": "mga {php} (gibanabana)",
+
+  "app.tab.bayad": "Bayad",
+  "app.tab.resibo": "Resibo",
+  "app.tab.pangutana": "Pangutana",
+
+  "M-MB-01.season": "Season {season}",
+  "M-MB-01.greeting": "Maayong adlaw, {name}. Salamat sa inyong paghago.",
+  "M-MB-01.checking": "Gisusi pa",
+  "M-MB-01.sent": "Gipadala na, naghulat sa PayPal {elapsed}",
+  "M-MB-01.paid": "Bayad na, {date}",
+  "M-MB-01.cashDue": "Andam sa bodega, {date}",
+  "M-MB-01.received": "Nadawat",
+  "M-MB-01.unclaimed": "Wala madawat sa PayPal. Si Treasurer Analyn ang mohukom kung ibalhin sa cash.",
+  "M-MB-01.heldLine": "Gisusi pa ang usa ka linya. Si Treasurer Analyn ang mohukom.",
+  "M-MB-01.offline": "Katapusang kopya, {time}",
+  "M-MB-01.listen": "Paminawa",
+  "M-MB-01.premium": "Premium",
+  "M-MB-01.noDeductions": "walay kaltas",
+  "M-MB-01.bonus": "Bonus",
+  "M-MB-01.rule": "{rule}, {card}",
+  "M-MB-01.kgRate": "{kg} × {rate} a kg ({rule}). Walay kaltas.",
+  "M-MB-01.slips": "Mga resibo",
+  "M-MB-01.history": "Kasaysayan",
+  "M-MB-01.history.approved": "Giaprobahan ni {a} ug {b}",
+  "M-MB-01.history.sent": "Gipadala",
+  "M-MB-01.history.paid": "Bayad na",
+  "M-MB-01.footer": "Rate card {hash}, giaprobahan sa Board",
+  "M-MB-01.questions": "Naa moy pangutana? Adto kang Treasurer {treasurer} sa bodega.",
+  "M-MB-01.recheck": "Ipasusi pag-usab",
+  "M-MB-01.amountSpoken": "{amount}, {estimate}",
+} as const satisfies Partial<Catalog>;
