@@ -42,10 +42,13 @@ so the bearer token cannot be sent anywhere else.
    - a certificate that signed a verified delivery, was pre-warmed or is pinned (`PP_CERT_ALLOW`, or
      `knownCertIds`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
      fetched again (validity is still checked on every use);
-   - **per client IP** first (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
+   - known ids not loaded yet (pinned, pre-warmed, or seen before a restart) have 2 an hour **reserved**
+     that nothing else can spend, taken first and **without** the per-IP budget, so a flood that shares
+     PayPal's client key (no `X-Forwarded-For`, a miscounted proxy hop) cannot keep them out; once it is
+     empty they continue as below;
+   - **per client IP** next (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
    - then **global**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
-     hour, every other well-formed id 1 an hour (S3.6.7: at most 3 an hour), and 2 an hour **reserved**
-     for known ids not loaded yet (after a restart) that nothing else can spend;
+     hour, every other well-formed id 1 an hour (S3.6.7: at most 3 an hour);
    - a delivery refused by a budget is `CERT_FETCH_THROTTLED` with `retryable: true`: the route answers
      **503** with `Retry-After` (PayPal retries 25 times over 3 days) and stores nothing. So are a limiter
      refusal, a timeout, a network error and a PayPal 5xx/429 on the fetch; a 404 or junk PEM stays a 400;

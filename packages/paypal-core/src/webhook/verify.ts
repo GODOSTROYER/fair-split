@@ -17,12 +17,15 @@
 //   1. Known certificates never need a fetch: a certificate that signed a verified delivery (or was
 //      pre-warmed, or is pinned with `knownCertIds`) is kept as last-known-good, outside the cache's
 //      TTL and LRU, for as long as the process lives. Its validity is still checked on every use.
-//   2. Per client IP (IPv6 by /64, ./client-ip.ts), 2 fetches an hour. One address cannot drain the
+//   2. Known ids that are not loaded yet (pinned with `knownCertIds` / PP_CERT_ALLOW, pre-warmed, or
+//      seen before a restart) have 2 an hour reserved that nothing else can spend. They take it first,
+//      without the per-IP budget, so a flood that shares PayPal's client key (no X-Forwarded-For, a
+//      miscounted proxy hop) cannot keep them out; once it is empty they go on as below.
+//   3. Per client IP (IPv6 by /64, ./client-ip.ts), 2 fetches an hour. One address cannot drain the
 //      global budget; requests with no address share one budget.
-//   3. Global, by cert id: ids with PayPal's shape (`CERT-360caa42-…`, every PayPal cert id since
-//      2015) have their own 2 an hour; any other well-formed id shares 1 an hour (PayPal-shaped ids may
-//      use it too). Known ids that are not loaded yet (pinned with `knownCertIds` / PP_CERT_ALLOW,
-//      pre-warmed, or seen before a restart) have 2 an hour reserved that nothing else can spend.
+//   4. Global, by cert id: ids with PayPal's shape (`CERT-360caa42-…`, every PayPal cert id since
+//      2015) have their own 2 an hour; any other well-formed id shares 1 an hour (PayPal-shaped and
+//      known ids may use it too).
 //      A local token is given back when the limiter refuses the fetch (nothing was sent).
 // A delivery refused by any budget is CERT_FETCH_THROTTLED and retryable: the route answers 503 and
 // PayPal retries (25 times over 3 days), so a flood delays a genuine delivery but cannot make us
@@ -685,13 +688,13 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     return bucket;
   }
 
-  /** Take a global token for this cert id; returns the bucket to refund, or null when none is left. */
-  function takeGlobal(certId: string): Bucket | null {
-    const order = knownGood.has(certId)
-      ? [knownBucket, expectedBucket, otherBucket]
-      : expectedIds.test(certId)
-        ? [expectedBucket, otherBucket]
-        : [otherBucket];
+  /**
+   * Take a shared global token for this cert id (known ids try their reserved bucket before this, in
+   * loadCert); returns the bucket to refund, or null when none is left.
+   */
+  function takeShared(certId: string): Bucket | null {
+    const order =
+      knownGood.has(certId) || expectedIds.test(certId) ? [expectedBucket, otherBucket] : [otherBucket];
     return order.find((bucket) => bucket.take()) ?? null;
   }
 
@@ -721,14 +724,23 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         retryable: blocked.retryable,
       });
     }
-    // Local budgets come first, per IP before global, so forged requests never reach the shared limiter.
-    const perIp = clientIp === undefined ? null : ipBucket(clientIp);
-    if (perIp && !perIp.take()) return throttled("per-ip budget");
-    const global = takeGlobal(certId);
-    if (!global) {
-      perIp?.refund();
-      return throttled("global budget");
+    // Local budgets come first, so forged requests never reach the shared limiter. A known id (pinned,
+    // pre-warmed, seen) takes its reserved bucket before, and without, the per-IP budget: a flood that
+    // shares PayPal's client key (no X-Forwarded-For, a miscounted proxy hop) cannot keep it out, and the
+    // reserved bucket (knownPerHour) plus failedUntil bound it on their own. Every other fetch, and a
+    // known id once that bucket is empty, takes a per-IP token, then a shared global one.
+    let perIp: Bucket | null = null;
+    let global: Bucket | null = knownGood.has(certId) && knownBucket.take() ? knownBucket : null;
+    if (global === null) {
+      perIp = clientIp === undefined ? null : ipBucket(clientIp);
+      if (perIp && !perIp.take()) return throttled("per-ip budget");
+      global = takeShared(certId);
+      if (global === null) {
+        perIp?.refund();
+        return throttled("global budget");
+      }
     }
+    const charged = { perIp, global };
     const run = fetchCert(url)
       .then((result) => {
         if (result.ok) {
@@ -737,8 +749,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
           if (knownGood.has(certId)) rememberKnown(certId, result.cert);
         } else if (result.reason === "CERT_FETCH_THROTTLED") {
           // The limiter refused: nothing was fetched, so the local tokens are given back.
-          perIp?.refund();
-          global.refund();
+          charged.perIp?.refund();
+          charged.global.refund();
         } else {
           touch(
             failedUntil,

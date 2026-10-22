@@ -351,6 +351,42 @@ describe("a genuine certificate PayPal has not used yet (rotation, fresh deploy)
     });
   });
 
+  // Verifier follow-up (trust, minor): known ids used to pass the per-IP bucket first. When PayPal's
+  // deliveries share a client key with the flood (no or unparsable X-Forwarded-For maps to one shared
+  // key; a miscounted proxy hop), 2 forged requests an hour kept a pinned certificate out.
+  it.each([
+    ["no client address (all such requests share one key)", null],
+    ["the same address as the flood (a miscounted proxy hop)", "10.0.0.7"],
+  ])(
+    "pinned, it lands even when PayPal's delivery shares a client key with the flood: %s",
+    async (_label, clientIp) => {
+      const pems: Record<string, string> = { [GENUINE]: leaf.pem, [NEXT]: leaf.pem };
+      const { v, verify, now, host } = setup({ knownCertIds: [nextId] }, pems);
+      for (let i = 0; i < 50; i++) await verify(forged(paypalShaped(i), now()), clientIp);
+      // The flood spent that key's per-IP budget (2 an hour) and nothing else.
+      expect(host.calls).toHaveLength(DEFAULT_CERT_FETCH_BUDGET.perIpPerHour);
+      expect(await verify(signedWith(NEXT, now()), clientIp)).toMatchObject({
+        mode: "self",
+        certSource: "network",
+      });
+      expect(v.health().lastKnownGoodCerts).toBe(1);
+    },
+  );
+
+  it("a known id still spends only its reserved bucket when it skips the per-IP budget: one address cannot fetch more than knownPerHour of them", async () => {
+    // Pinned ids PayPal does not serve (404): the worst case for the reserved bucket.
+    const pinned = Array.from({ length: 6 }, (_, n) => `CERT-360caa42-0badc0de-${hex8(n)}`);
+    const { verify, now, host, advance } = setup({
+      knownCertIds: pinned,
+      certFetchBudget: { perIpPerHour: 0, expectedPerHour: 0, otherPerHour: 0 },
+    });
+    for (let round = 0; round < 3; round++) {
+      for (const id of pinned) await verify(forged(certUrl(id), now()), "203.0.113.9");
+      advance(61_000); // past failedCertRetryMs
+    }
+    expect(host.calls).toHaveLength(DEFAULT_CERT_FETCH_BUDGET.knownPerHour);
+  });
+
   it("pinned, it still lands after forged deliveries spent the reserved budget on it while it was not served yet", async () => {
     const pems: Record<string, string> = { [GENUINE]: leaf.pem };
     const { verify, now, advance, host } = setup({ knownCertIds: [nextId] }, pems);
