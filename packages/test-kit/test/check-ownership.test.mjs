@@ -1,12 +1,13 @@
 // Unit tests for tools/check-ownership.mjs (WS-QA owns both). They run against the real docs/ownership.md.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   checkChanges,
+  GATE_FILES,
   globToRegExp,
   loadOwnership,
   main,
@@ -140,6 +141,31 @@ describe("checkChanges", () => {
     }
     const depsFiles = edit("pnpm-lock.yaml", "pnpm-workspace.yaml", "docs/versions.md");
     expect(checkChanges(ownership, "deps", depsFiles).ok).toBe(true);
+  });
+
+  it("refuses a deletion, rename or type change of the gate's files for every lane, WS-QA and bootstrap included", () => {
+    expect(GATE_FILES).toEqual(["docs/ownership.md", "tools/check-ownership.mjs"]);
+    const lanes = [...Object.keys(ownership.workstreams), "deps"];
+    for (const file of GATE_FILES) {
+      const removals = {
+        delete: [{ status: "D", path: file }],
+        rename: parseNameStatus(`R100\t${file}\t${file}.old`),
+        retype: [{ status: "T", path: file }],
+      };
+      for (const ws of lanes) {
+        for (const [how, changes] of Object.entries(removals)) {
+          for (const bootstrap of [false, true]) {
+            const r = checkChanges(ownership, ws, changes, { bootstrap });
+            const gate = r.violations.find((v) => v.path === file);
+            expect(r.ok, `${ws} ${how} ${file}`).toBe(false);
+            expect(gate?.reason, `${ws} ${how} ${file}`).toMatch(/may not be deleted, renamed or retyped/);
+          }
+        }
+      }
+      // Editing them stays WS-QA's job, judged like any other path.
+      expect(checkChanges(ownership, "WS-QA", edit(file)).ok).toBe(true);
+      expect(checkChanges(ownership, "WS-OPS", edit(file)).ok).toBe(false);
+    }
   });
 
   it("lets only WS-QA's bootstrap PR touch the deps-lane files", () => {
@@ -326,7 +352,7 @@ describe("CI mode: a PR is judged by its base's rules", { timeout: 30_000 }, () 
     expect(quietMain(["--base", r.mainSha, "--repo", r.dir, "--strict"]).code).toBe(1);
   });
 
-  it("bootstrap only when the base has no docs/ownership.md: WS-QA's PR installs the rules and the stack", () => {
+  it("bootstrap only when the base has neither gate file: WS-QA's PR installs the rules and the stack", () => {
     const r = makeRepo({});
     r.git("checkout", "-q", "-b", "ws/qa");
     r.write("docs/ownership.md", realRules);
@@ -344,6 +370,45 @@ describe("CI mode: a PR is judged by its base's rules", { timeout: 30_000 }, () 
     r.write("packages/db/src/schema.ts", "export {};\n");
     r.commit("not mine");
     expect(quietMain(ci(r, "ws/data")).code).toBe(1);
+  });
+
+  it("no bootstrap when the base has the checker but lost its rules: fails closed, WS-QA included", () => {
+    const r = makeRepo({ "tools/check-ownership.mjs": "// the checker\n" });
+    r.git("checkout", "-q", "-b", "ws/qa");
+    r.write("docs/ownership.md", realRules);
+    r.write("docs/versions.md", "# Pinned versions\n");
+    r.commit("re-add rules and take the deps lane");
+    expect(() => loadOwnership({ repo: r.dir, ref: r.mainSha })).toThrow(
+      /tools\/check-ownership\.mjs is there.*failing closed/,
+    );
+    const judged = quietMain(ci(r, "ws/qa"));
+    expect(judged.code).toBe(1);
+    expect(judged.out).toMatch(/failing closed/);
+    expect(judged.out).not.toMatch(/bootstrap|all within/);
+  });
+
+  it("a PR that deletes the rules or renames the checker fails, WS-QA's too, so bootstrap cannot reopen", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules, "tools/check-ownership.mjs": "// the checker\n" });
+    r.git("checkout", "-q", "-b", "ws/qa");
+    rmSync(join(r.dir, "docs/ownership.md"));
+    r.commit("drop the rules");
+    const dropped = quietMain(ci(r, "ws/qa"));
+    expect(dropped.code).toBe(1);
+    expect(dropped.out).toContain("D docs/ownership.md: the ownership gate's files may not be deleted");
+
+    r.git("checkout", "-q", "-B", "ws/qa", r.mainSha);
+    r.git("mv", "tools/check-ownership.mjs", "tools/check-ownership.old.mjs");
+    r.commit("rename the checker");
+    const renamed = quietMain(ci(r, "ws/qa"));
+    expect(renamed.code).toBe(1);
+    expect(renamed.out).toContain(
+      "D tools/check-ownership.mjs: the ownership gate's files may not be deleted",
+    );
+
+    r.git("checkout", "-q", "-B", "ws/qa", r.mainSha);
+    r.write("docs/ownership.md", `${realRules}\n<!-- a reviewed edit -->\n`);
+    r.commit("edit the rules");
+    expect(quietMain(ci(r, "ws/qa")).code).toBe(0); // control: WS-QA may still edit them
   });
 
   it("bootstrap is WS-QA's alone: on a base without rules another workstream cannot grant itself paths", () => {
@@ -442,4 +507,133 @@ describe("CI mode: a PR is judged by its base's rules", { timeout: 30_000 }, () 
     r.git("checkout", "-q", "-b", "deps/left-pad");
     expect(quietMain(ci(r, "deps/left-pad")).code).toBe(0);
   });
+
+  // The ownership step of .github/workflows/ci.yml itself, run the way GitHub runs a step with no `shell:`
+  // (`bash -e {0}`). Stub checkers print which copy ran, so the test sees the step's choice directly.
+  const bash = findBash();
+  const stub = (who) => `console.log(${JSON.stringify(who)}, process.argv.slice(2).join(" "));\n`;
+  function runStep(r, baseSha) {
+    const runnerTemp = mkdtempSync(join(base, "runner-"));
+    const script = join(runnerTemp, "ownership-step.sh");
+    writeFileSync(script, ownershipStepScript());
+    const env = { ...process.env };
+    const pathKey = Object.keys(env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
+    env[pathKey] = `${dirname(process.execPath)}${delimiter}${env[pathKey] ?? ""}`;
+    Object.assign(env, {
+      BASE_SHA: baseSha,
+      EVENT_NAME: "pull_request",
+      GITHUB_REF_NAME: "1/merge",
+      GITHUB_HEAD_REF: "ws/qa",
+      GITHUB_WORKSPACE: posix(r.dir),
+      RUNNER_TEMP: posix(runnerTemp),
+    });
+    const res = spawnSync(bash, ["--noprofile", "--norc", "-e", posix(script)], {
+      cwd: r.dir,
+      env,
+      encoding: "utf8",
+    });
+    return { code: res.status, out: `${res.stdout ?? ""}${res.stderr ?? ""}${res.error?.message ?? ""}` };
+  }
+
+  it("the CI step finds its run script in ci.yml", () => {
+    const step = ownershipStepScript();
+    expect(step).toMatch(/git ls-tree --full-tree "\$BASE_SHA" -- tools\/check-ownership\.mjs/);
+    expect(step).not.toMatch(/cat-file -e/);
+    expect(step).toMatch(/--ownership-ref "\$BASE_SHA" --strict/);
+  });
+
+  it.skipIf(!bash)("the CI step runs the base's checker whenever the base has one", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules, "tools/check-ownership.mjs": stub("BASE-CHECKER") });
+    r.git("checkout", "-q", "-b", "ws/qa");
+    r.write("tools/check-ownership.mjs", stub("HEAD-CHECKER"));
+    r.commit("swap in a checker that passes everything");
+    const run = runStep(r, r.mainSha);
+    expect(run.code, run.out).toBe(0);
+    expect(run.out).toContain(`BASE-CHECKER --repo ${posix(r.dir)} --base ${r.mainSha}`);
+    expect(run.out).toContain(`--ownership-ref ${r.mainSha} --strict`);
+    expect(run.out).not.toContain("HEAD-CHECKER");
+  });
+
+  it.skipIf(!bash)(
+    "the CI step runs the head copy only when ls-tree confirms the base has no checker",
+    () => {
+      const r = makeRepo({ "docs/ownership.md": realRules });
+      r.git("checkout", "-q", "-b", "ws/qa");
+      r.write("tools/check-ownership.mjs", stub("HEAD-CHECKER"));
+      r.commit("add the checker");
+      const run = runStep(r, r.mainSha);
+      expect(run.code, run.out).toBe(0);
+      expect(run.out).toContain("HEAD-CHECKER");
+      expect(run.out).toMatch(/::warning::Base \w+ has no tools\/check-ownership\.mjs/);
+    },
+  );
+
+  it.skipIf(!bash)("the CI step fails closed on any other git outcome instead of using the head copy", () => {
+    // A missing tree object (corrupt or partial clone): ls-tree cannot tell whether the checker is there.
+    const corrupt = makeRepo({ "tools/check-ownership.mjs": stub("BASE-CHECKER") });
+    const toolsTree = corrupt.git("rev-parse", `${corrupt.mainSha}:tools`);
+    corrupt.git("checkout", "-q", "-b", "ws/qa");
+    corrupt.write("tools/check-ownership.mjs", stub("HEAD-CHECKER"));
+    corrupt.commit("swap the checker");
+    const object = join(corrupt.dir, ".git", "objects", toolsTree.slice(0, 2), toolsTree.slice(2));
+    chmodSync(object, 0o644);
+    rmSync(object);
+    // A checker path that is a directory in the base, not a regular file.
+    const dir = makeRepo({ "tools/check-ownership.mjs/index.mjs": stub("BASE-CHECKER") });
+    dir.git("checkout", "-q", "-b", "ws/qa");
+    rmSync(join(dir.dir, "tools/check-ownership.mjs"), { recursive: true, force: true });
+    dir.write("tools/check-ownership.mjs", stub("HEAD-CHECKER"));
+    dir.commit("replace the directory");
+
+    for (const [name, r, sha] of [
+      ["missing tree object", corrupt, corrupt.mainSha],
+      ["directory in the base", dir, dir.mainSha],
+      ["unknown commit", dir, "0123456789abcdef0123456789abcdef01234567"],
+      ["empty base", dir, ""],
+    ]) {
+      const run = runStep(r, sha);
+      expect(run.code, `${name}: ${run.out}`).not.toBe(0);
+      expect(run.out, name).not.toMatch(/HEAD-CHECKER|BASE-CHECKER|::warning::/);
+    }
+  });
 });
+
+/** Forward slashes for bash and node on Windows (C:\x\y -> C:/x/y); unchanged elsewhere. */
+const posix = (p) => p.replace(/\\/g, "/");
+
+/**
+ * bash to run the workflow step with, or null. On Windows the bash on PATH may be WSL's launcher, so use the
+ * bash that ships with Git for Windows (<git>/mingw64/libexec/git-core -> <git>/bin/bash.exe).
+ */
+function findBash() {
+  if (process.platform !== "win32") return "bash";
+  try {
+    const gitCore = execFileSync("git", ["--exec-path"], { encoding: "utf8" }).trim();
+    const gitRoot = resolve(gitCore, "../../..");
+    return (
+      [join(gitRoot, "bin", "bash.exe"), join(gitRoot, "usr", "bin", "bash.exe")].find(existsSync) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** The `run: |` body of ci.yml's "Ownership path check" step, de-indented. */
+function ownershipStepScript() {
+  const lines = readFileSync(resolve(repoRoot, ".github/workflows/ci.yml"), "utf8")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
+  const start = lines.findIndex((l) => /^\s+- name: Ownership path check/.test(l));
+  const next = lines.findIndex((l, i) => i > start && /^\s+- name: /.test(l));
+  const runAt = lines.findIndex((l, i) => i > start && /^\s+run: \|$/.test(l));
+  if (start === -1 || runAt === -1 || (next !== -1 && runAt > next)) {
+    throw new Error("ci.yml: no run block in the Ownership path check step");
+  }
+  const indent = lines[runAt].search(/\S/) + 2;
+  const body = [];
+  for (let i = runAt + 1; i < lines.length; i++) {
+    if (lines[i].trim() !== "" && lines[i].search(/\S/) < indent) break;
+    body.push(lines[i].slice(indent));
+  }
+  return `${body.join("\n").trimEnd()}\n`;
+}

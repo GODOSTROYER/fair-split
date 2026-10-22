@@ -44,8 +44,11 @@ Notes:
 - **deps-lane exclusivity (S5.2.3 rule 4):** `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `docs/versions.md` belong to
   no workstream, so only a `deps/*` branch may touch them. A workstream that needs a new or bumped dependency asks for
   a deps PR; that PR adds the pin (at least 14 days old), records it in `docs/versions.md`, edits the consuming
-  `package.json` and commits the lockfile. Bootstrap exception: the one PR that introduces this file (its base has
-  no `docs/ownership.md` at all) is WS-QA's bootstrap PR, which S5.2.3 rule 4 lets install the pinned stack.
+  `package.json` and commits the lockfile. WS-QA is no exception: `main` already has these rules, so no PR to it is
+  a bootstrap PR (see Branches).
+- **gate files:** no branch, WS-QA's and the deps lane's included, may delete, rename or change the file type of
+  `docs/ownership.md` or `tools/check-ownership.mjs`. Without them every later PR would fail closed, or, with both
+  gone, the next WS-QA PR would be judged by its own rules. WS-QA edits them like any other file it owns.
 
 ## Branches
 
@@ -58,3 +61,10 @@ commit's `docs/ownership.md`. Editing your own row, or the checker, in a PR ther
 change applies to later PRs once the user merges it. The check fails closed: if the base has the file but it cannot
 be read or parsed, or git reports any error other than "the file is not in that commit", the PR fails. It never
 falls back to the PR's own copy.
+
+CI runs the PR's own copy of the checker only when `git ls-tree` exits 0 with no output for
+`tools/check-ownership.mjs` on the base (the PR that adds the checker, still judged by the base's rules); any other
+git error fails the step. Bootstrap, where WS-QA's PR is judged by its own `docs/ownership.md` and may also touch the
+deps-lane files (S5.2.3 rule 4), applies only when the base has neither `docs/ownership.md` nor
+`tools/check-ownership.mjs`, which means a new repository. It cannot happen here: `main` has had the rules since
+the table landed, and a base that has the checker but not the rules fails closed.

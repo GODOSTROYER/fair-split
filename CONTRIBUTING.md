@@ -38,7 +38,8 @@ On Windows, use a local NTFS drive (never a mapped drive), enable long paths and
   ```
 
 - CI runs the check on every PR with the **base** commit's checker and rules, and fails a branch that is not
-  `ws/<id>` or `deps/<topic>`.
+  `ws/<id>` or `deps/<topic>`. No branch, WS-QA's included, may delete or rename `docs/ownership.md` or
+  `tools/check-ownership.mjs`.
 - `docs/spikes/`, `docs/gates/` and `docs/adr/` accept new files from anyone; existing files there are never edited.
 - Frozen contracts (IC-01 to IC-11) change only through an ADR (`docs/adr/0000-template.md`) that the user accepts.
   The user accepts an ADR by merging its PR, so an ADR is committed with status `Accepted (user, on merge)`;

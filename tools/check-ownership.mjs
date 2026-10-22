@@ -9,18 +9,20 @@
 //   --repo <dir>            repository to diff and read rules from (default: the script's parent directory)
 //   --ownership-ref <ref>   read docs/ownership.md from this commit. With --base it defaults to the base, so
 //                           a PR is judged by the base's rules and cannot widen its own row. It fails closed
-//                           (exit 1) unless the base copy is read and parsed, with one exception: when
-//                           `git cat-file -e <ref>:docs/ownership.md` reports the file absent from that commit
-//                           (and `git ls-tree` confirms the tree is readable and has no such entry), only
-//                           WS-QA's PR that introduces the file is judged by the working-tree copy and may also
-//                           touch the deps-lane files (S5.2.3 rule 4: WS-QA's bootstrap PR). Any other git
-//                           error, an unknown ref, or a copy that exists but cannot be read or parsed: exit 1.
+//                           (exit 1) unless the base copy is read and parsed. The one exception is bootstrap:
+//                           git confirms (`cat-file -e`, then `ls-tree`) that the commit has neither
+//                           docs/ownership.md nor tools/check-ownership.mjs, i.e. a new repository. Only WS-QA
+//                           is then judged by the working-tree copy and may also touch the deps-lane files
+//                           (S5.2.3 rule 4). A commit with the checker but not the rules, any other git error,
+//                           an unknown ref, or a copy that exists but cannot be read or parsed: exit 1.
 //   --ownership <file>      read the rules from a file instead (tests, local use)
 //   --strict                fail on a branch that is neither ws/<id> nor deps/* (CI sets it on every PR);
 //                           without it such a branch is skipped (exit 0)
 // Option values must be present, non-empty and not start with "-" (they reach git as revisions).
 // Without --ws, the branch comes from --branch, then GITHUB_HEAD_REF, then GITHUB_REF_NAME.
-// CI runs the BASE commit's copy of this script, so a PR cannot weaken the checker that judges it.
+// CI runs the BASE commit's copy of this script, so a PR cannot weaken the checker that judges it; the PR's
+// copy runs only when `git ls-tree` confirms the base has none. No workstream may delete, rename or retype
+// docs/ownership.md or this script (GATE_FILES), so a merged PR cannot switch the gate off for later PRs.
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -28,6 +30,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const DEPS_LANE = "deps";
 const ELSEWHERE = "*elsewhere*";
+export const OWNERSHIP_FILE = "docs/ownership.md";
+export const CHECKER_FILE = "tools/check-ownership.mjs";
+/** The gate's own files: deleting, renaming or retyping one is a violation for every workstream and deps. */
+export const GATE_FILES = [OWNERSHIP_FILE, CHECKER_FILE];
 
 /** Converts one glob (`*`, `**`, `?`, `{a,b}`) to an anchored RegExp over POSIX paths. */
 export function globToRegExp(glob) {
@@ -168,13 +174,14 @@ export function parseNameStatus(text) {
   return out;
 }
 
-/** The workstream whose bootstrap PR installs the pinned stack (S5.2.3 rule 4). */
+/** The workstream whose bootstrap PR installs the pinned stack in a new repository (S5.2.3 rule 4). */
 export const BOOTSTRAP_WS = "WS-QA";
 
 /**
- * Checks changes [{status: A|M|D|R|..., path}] for workstream `ws` (`WS-*` or `deps`).
- * `bootstrap: true` (the base has no machine-readable rules yet) also lets WS-QA touch the deps-lane files.
- * Returns { ok, violations: [{path, status, reason}] }.
+ * Checks changes [{status: A|M|D|R|T..., path}] for workstream `ws` (`WS-*` or `deps`).
+ * A deletion (`D`, which includes the old path of a rename) or type change (`T`) of a GATE_FILES entry is a
+ * violation for everyone. `bootstrap: true` (the base has neither gate file: a new repository) also lets WS-QA
+ * touch the deps-lane files. Returns { ok, violations: [{path, status, reason}] }.
  */
 export function checkChanges(ownership, ws, changes, { bootstrap = false } = {}) {
   if (ws !== DEPS_LANE && !ownership.workstreams[ws]) {
@@ -183,6 +190,14 @@ export function checkChanges(ownership, ws, changes, { bootstrap = false } = {})
   const violations = [];
   for (const { status = "M", path } of changes) {
     const file = normalize(path);
+    if (GATE_FILES.includes(file) && (status === "D" || status === "T")) {
+      violations.push({
+        path: file,
+        status,
+        reason: "the ownership gate's files may not be deleted, renamed or retyped by any workstream",
+      });
+      continue;
+    }
     if (anyMatch(ownership.appendOnly, file)) {
       if (status !== "A") {
         violations.push({
@@ -260,30 +275,38 @@ function gitTry(repo, args) {
   };
 }
 
-export const OWNERSHIP_FILE = "docs/ownership.md";
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * True only when commit `sha` has no docs/ownership.md: `git cat-file -e` failed with git's own
+ * True only when commit `sha` has no entry at `path`: `git cat-file -e` failed with git's own
  * "path ... does not exist in" / "exists on disk, but not in" message for exactly this path and commit,
  * AND `git ls-tree` reads every tree on the way and finds no such entry. git prints the same messages
  * when a tree object is missing (corrupt or partial clone); ls-tree fails there, so that is not "absent".
  */
-function absentFromCommit(repo, sha, catFileStderr) {
+function absentFromCommit(repo, sha, path, catFileStderr) {
   const said = new RegExp(
-    `^fatal: [Pp]ath '${escapeRe(OWNERSHIP_FILE)}' (?:does not exist in|exists on disk, but not in) '${sha}'$`,
+    `^fatal: [Pp]ath '${escapeRe(path)}' (?:does not exist in|exists on disk, but not in) '${sha}'$`,
   );
   if (!said.test(catFileStderr)) return false;
-  const tree = gitTry(repo, ["ls-tree", "-z", "--full-tree", sha, "--", OWNERSHIP_FILE]);
+  const tree = gitTry(repo, ["ls-tree", "-z", "--full-tree", sha, "--", path]);
   return tree.status === 0 && tree.stderr === "" && tree.stdout === "";
+}
+
+/** "present" or "absent" for `path` in commit `sha`; any other git outcome throws `closed(...)`. */
+function presence(repo, sha, path, closed) {
+  const exists = gitTry(repo, ["cat-file", "-e", `${sha}:${path}`]);
+  if (exists.status === 0) return "present";
+  if (absentFromCommit(repo, sha, path, exists.stderr)) return "absent";
+  throw closed(`git cat-file -e ${path} failed (${exists.stderr.split("\n")[0] || `exit ${exists.status}`})`);
 }
 
 /**
  * Loads the rules. `file` wins; without `ref`, reads the working tree (local use). With `ref`, reads
  * docs/ownership.md from that commit and fails closed: it throws unless the copy there is read and parsed,
- * except when git reports the file absent from that commit (WS-QA's bootstrap PR, the one that introduces
- * it). Only then does it read the working tree, flagged `bootstrap: true`. Head rules are never used once
- * the base has the file, so a PR that edits docs/ownership.md is still judged by the base's copy.
+ * except when git confirms that commit has neither docs/ownership.md nor tools/check-ownership.mjs (a new
+ * repository). Only then does it read the working tree, flagged `bootstrap: true`. A commit that has the
+ * checker but not the rules lost them, so it throws too. Head rules are never used once the base has the
+ * file, so a PR that edits docs/ownership.md is still judged by the base's copy.
  */
 export function loadOwnership({ repo, ref, file }) {
   if (file) return { ownership: parseOwnership(readFileSync(file, "utf8")), source: file, bootstrap: false };
@@ -300,10 +323,8 @@ export function loadOwnership({ repo, ref, file }) {
   if (commit.status !== 0 || !/^[0-9a-f]{40,64}$/.test(sha)) {
     throw closed(`no such commit${commit.stderr ? ` (${commit.stderr.split("\n")[0]})` : ""}`);
   }
-  const spec = `${sha}:${OWNERSHIP_FILE}`;
-  const exists = gitTry(repo, ["cat-file", "-e", spec]);
-  if (exists.status === 0) {
-    const blob = gitTry(repo, ["cat-file", "blob", spec]);
+  if (presence(repo, sha, OWNERSHIP_FILE, closed) === "present") {
+    const blob = gitTry(repo, ["cat-file", "blob", `${sha}:${OWNERSHIP_FILE}`]);
     if (blob.status !== 0) throw closed(`it exists but cannot be read (${blob.stderr.split("\n")[0]})`);
     try {
       return { ownership: parseOwnership(blob.stdout), source: `${ref}:${OWNERSHIP_FILE}`, bootstrap: false };
@@ -311,12 +332,12 @@ export function loadOwnership({ repo, ref, file }) {
       throw closed(`it exists but is malformed (${e.message})`);
     }
   }
-  if (!absentFromCommit(repo, sha, exists.stderr)) {
-    throw closed(`git cat-file -e failed (${exists.stderr.split("\n")[0] || `exit ${exists.status}`})`);
+  if (presence(repo, sha, CHECKER_FILE, closed) === "present") {
+    throw closed(`it is absent but ${CHECKER_FILE} is there, so the rules were removed; restore them first`);
   }
   return {
     ownership: parseOwnership(readFileSync(head, "utf8")),
-    source: `${head} (bootstrap: ${ref} has no ${OWNERSHIP_FILE})`,
+    source: `${head} (bootstrap: ${ref} has neither ${OWNERSHIP_FILE} nor ${CHECKER_FILE})`,
     bootstrap: true,
   };
 }
@@ -360,8 +381,9 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   const { ownership, source, bootstrap } = loaded;
   if (bootstrap && ws !== BOOTSTRAP_WS) {
     console.error(
-      `check-ownership: ${ref} has no ${OWNERSHIP_FILE}, and only ${BOOTSTRAP_WS}'s PR may introduce it ` +
-        `(S5.2.3 rule 4); ${ws} is never judged by its own copy. Land the rules on the base first.`,
+      `check-ownership: ${ref} has neither ${OWNERSHIP_FILE} nor ${CHECKER_FILE}, and only ` +
+        `${BOOTSTRAP_WS}'s PR may introduce them (S5.2.3 rule 4); ${ws} is never judged by its own copy. ` +
+        "Land the rules on the base first.",
     );
     return 1;
   }

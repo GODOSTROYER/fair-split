@@ -100,8 +100,10 @@ jobs:
       - name: Ownership path check (docs/ownership.md, judged by the base's rules)
         # Branch comes from GITHUB_HEAD_REF on PRs and GITHUB_REF_NAME on pushes. Every PR is checked
         # (--strict fails a branch that is not ws/<id> or deps/*); only main itself (push, manual run) is skipped.
-        # The base commit's checker and rules are used, so a PR cannot widen its own row or weaken the
-        # checker. Only the bootstrap PR (base without the checker) runs the head copy.
+        # Once the base has tools/check-ownership.mjs, the base's checker always runs (with the base's rules),
+        # so a PR cannot widen its own row or weaken the checker. The head copy runs only when git confirms
+        # the base has no checker at all: `git ls-tree` exits 0 and prints nothing. Any other git error, or a
+        # checker that is not a regular file, fails the step instead of falling back to the PR's copy.
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
           EVENT_NAME: ${{ github.event_name }}
@@ -110,13 +112,24 @@ jobs:
             echo "main itself (push or manual run): already checked as a PR; skipped."
             exit 0
           fi
-          checker="tools/check-ownership.mjs"
-          if git cat-file -e "$BASE_SHA:tools/check-ownership.mjs" 2>/dev/null; then
-            checker="$RUNNER_TEMP/check-ownership.base.mjs"
-            git show "$BASE_SHA:tools/check-ownership.mjs" > "$checker"
-          else
-            echo "::warning::Base $BASE_SHA has no tools/check-ownership.mjs (bootstrap PR); using the head copy."
+          if ! entry="$(git ls-tree --full-tree "$BASE_SHA" -- tools/check-ownership.mjs)"; then
+            echo "::error::Cannot list tools/check-ownership.mjs in base $BASE_SHA; failing closed."
+            exit 1
           fi
+          case "$entry" in
+            "")
+              echo "::warning::Base $BASE_SHA has no tools/check-ownership.mjs (the PR that adds it); using the head copy."
+              checker="tools/check-ownership.mjs"
+              ;;
+            "100644 blob "* | "100755 blob "*)
+              checker="$RUNNER_TEMP/check-ownership.base.mjs"
+              git cat-file blob "$BASE_SHA:tools/check-ownership.mjs" > "$checker"
+              ;;
+            *)
+              echo "::error::Base $BASE_SHA has tools/check-ownership.mjs, but not as a regular file; failing closed."
+              exit 1
+              ;;
+          esac
           node "$checker" --repo "$GITHUB_WORKSPACE" --base "$BASE_SHA" --ownership-ref "$BASE_SHA" --strict
 
       - name: secretlint (whole tree)

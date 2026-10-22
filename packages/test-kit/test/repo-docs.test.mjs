@@ -57,7 +57,9 @@ describe("repo docs", () => {
 
   it("CI checks ownership on every PR with the base's checker and rules", () => {
     const ci = read(".github/workflows/ci.yml");
-    expect(ci).toMatch(/git show "\$BASE_SHA:tools\/check-ownership\.mjs"/);
+    expect(ci).toMatch(/git ls-tree --full-tree "\$BASE_SHA" -- tools\/check-ownership\.mjs/);
+    expect(ci).toMatch(/git cat-file blob "\$BASE_SHA:tools\/check-ownership\.mjs" > "\$checker"/);
+    expect(ci).not.toMatch(/cat-file -e "\$BASE_SHA:tools/);
     expect(ci).toMatch(/--ownership-ref "\$BASE_SHA" --strict/);
   });
 
