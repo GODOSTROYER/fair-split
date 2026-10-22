@@ -13,7 +13,15 @@ const payouts = new PayoutsService({
   batchDigest, // IC-02
   verifyApprovalSignature, // Ed25519 against the registered device_keys row
   killSwitch, // required: read fresh before every POST, retries included
-  limits: { maxBatchTotalCents, maxItems, receiverAllowed }, // required: C-21 cap, 8 items, PP_RECEIVERS
+  limits: {
+    maxBatchTotalCents, // C-21: US$400
+    maxItems, // 8 in Judge Mode
+    receiverAllowed, // PP_RECEIVERS (or PP_UNCLAIMED_RECEIVER)
+    maxPostsPer24h, // C-21: 40 live batches a day
+    postsInLast24h, // (now) => batches written as SUBMITTED in the 24 h before now
+    balanceCents, // () => estimated sandbox balance, or null
+    minBalanceCents, // the floor the balance keeps after the batch (plan: US$10,000)
+  }, // every one required: a missing guard is a boot error
 });
 await payouts.executeApproved(runId); // created | adopted | refused | rejected | unresolved
 await payouts.cancelUnclaimed(itemId, actor, "cash"); // or "reroute"; actor and intent required
@@ -26,9 +34,10 @@ await runAgentPayoutTool(http, name, input);
 `repo.loadPosting(runId)` re-reads the LOCKED lines and the approvals → re-hash with the injected IC-02
 `batchDigest` (I4) → every approval must sign exactly that batch (run, season, card, digest, item count,
 total), be unexpired, carry its own nonce and verify against a registered key; the treasurer always
-signs, the Chair too when R5 says so, and they are two people (I6) → guards → batch and item rows written
-as SUBMITTED → `POST /v1/payments/payouts` with `sender_batch_id` `{season}-{rc8}-r{runSeq}`, items
-`r{runSeq}-{memberNo}`, note "Fair Split 2026-A, batch {digest8}", `recipient_type: EMAIL`, USD, and
+signs, the Chair too when R5 says so, and they are two people (I6) → guards: receivers, total, items,
+and for a new batch the daily cap and the balance → batch and item rows written as SUBMITTED →
+`POST /v1/payments/payouts` with `sender_batch_id` `{season}-{rc8}-r{runSeq}`, items `r{runSeq}-{memberNo}`,
+note "Fair Split 2026-A, batch {digest8}", `recipient_type: EMAIL`, USD, and
 `PayPal-Request-Id: sha256(sender_batch_id)` → on 5xx or timeout, the same request again at 1 s, 3 s,
 9 s, re-reading the kill switch first → on 400 "already exists", GET the batch from the HATEOAS link and
 adopt it only if every item it lists re-hashes to the approved digest. Never on the header total: dev, CI
@@ -38,6 +47,15 @@ ADOPT_PENDING` with the batch's id, nothing is marked POSTED, and the rows stay 
 items differ, or under another sender_batch_id, is `refused ADOPT_FAILED` (HALT). A post left
 `unresolved` resumes later with the same ids, its approvals judged as of the moment its rows were
 written.
+
+**Daily cap and balance** (S3 §S3.6.4 step 4). A new batch, primary or re-route, goes out only while
+`postsInLast24h(now)` is under `maxPostsPer24h` (else `refused DAILY_CAP`) and the estimated balance less
+the batch stays at or above `minBalanceCents` (else `refused SANDBOX_GUARD`; an unknown balance refuses
+too). Both are read in the same turn of the service's queue as the rows' write, so two posts racing for
+the day's last slot cannot pass on one count; across processes, live posts share the one lane (S3.9). A
+resumed post was counted and funded when its rows were written and is not checked again. The judge
+lane's own quotas (S3.9, the plan's balance formula) sit above this ceiling and turn a post into a
+labelled replay before `executeApproved` is called.
 
 **On WS-PPCORE's PayPalHttp** (IC-05, on `main` since 23 Oct). That client retries idempotent calls
 itself, so the create and cancel POSTs go out with `idempotent: false`: their retries are the service's,

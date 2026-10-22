@@ -2,10 +2,12 @@
 // (register §8 rules, S3 §S3.6.4). A post: kill switch (read fresh) → the batch re-read from the
 // database (I4) → every approval checked against that batch: run, season, card, digest, count, total,
 // exp, nonce, two people where R5 needs the Chair, and an Ed25519 signature by a registered key (I6)
-// → sandbox guards → batch and item rows written as SUBMITTED → POST with PayPal-Request-Id =
-// sha256(sender_batch_id) → 5xx/timeouts retried with the same ids, the kill switch re-read before
-// each retry → "already exists" adopted through the HATEOAS link only if it re-hashes to the
-// approved digest. Nothing here trusts a line, an amount or an approval the caller hands in.
+// → sandbox guards (receivers, US$400, 8 items; for a new batch the daily cap and the balance, read
+// in one turn with the write) → batch and item rows written as SUBMITTED → POST with
+// PayPal-Request-Id = sha256(sender_batch_id) → 5xx/timeouts retried with the same ids, the kill
+// switch re-read before each retry → "already exists" adopted through the HATEOAS link only if every
+// listed item re-hashes to the approved digest. Nothing here trusts a line, an amount or an approval
+// the caller hands in.
 
 import type {
   CallPriority,
@@ -125,6 +127,7 @@ export type RefusalCode =
   | "DIGEST_MISMATCH"
   | "INVALID_BATCH"
   | "SANDBOX_GUARD"
+  | "DAILY_CAP"
   | "QUEUED"
   | "CIRCUIT_OPEN"
   | "ADOPT_FAILED"
@@ -305,14 +308,38 @@ export interface PayoutsRepository {
   }): Promise<void>;
 }
 
-/** The sandbox money guards (S3 §S3.6.4 step 4). Every one is required: a missing guard is a boot error. */
+/**
+ * The sandbox money guards (S3 §S3.6.4 step 4; plan: "receiver, US$400 (C-21), 8-item, daily-cap and
+ * balance guards"). Every one is required: a missing guard is a boot error. Numbers are passed in,
+ * never hard-coded here. The daily cap and the balance are checked only before a NEW batch's rows are
+ * written; a resumed post was counted and funded when its rows were written.
+ */
 export interface PayoutLimits {
-  /** C-21: the batch cap (US$400 in the register); passed in, never hard-coded here. */
+  /** C-21: the batch cap (US$400 in the register). */
   maxBatchTotalCents: bigint;
   /** Judge Mode posts at most 8 items; real mode passes PayPal's 15,000. */
   maxItems: number;
   /** Every receiver must be a known sandbox account (PP_RECEIVERS). */
   receiverAllowed: (receiver: string) => boolean;
+  /**
+   * C-21: at most this many live batches in any rolling 24 h (40 in the register). The judge lane's
+   * own, lower quotas (S3.9, the plan's balance formula) are decided before executeApproved is called;
+   * this is the hard ceiling under them.
+   */
+  maxPostsPer24h: number;
+  /**
+   * Batches this database wrote as SUBMITTED in the 24 h before `now` (primary and re-route, whatever
+   * became of them since). A new batch goes out only while this is under `maxPostsPer24h`.
+   */
+  postsInLast24h: (now: Date) => Promise<number>;
+  /**
+   * The estimated sandbox balance in cents: the latest `searchBalances` reading minus every batch
+   * written since it, SUBMITTED included (S1's observed balance until the first reading). Null when
+   * there is no estimate, which refuses the post.
+   */
+  balanceCents: () => Promise<bigint | null>;
+  /** A batch goes out only if the estimated balance stays at or above this floor after it. */
+  minBalanceCents: bigint;
 }
 
 export interface PayoutsServiceDeps {
@@ -457,13 +484,36 @@ function validateLines(lines: readonly ApprovedLine[]): string | null {
 function assertLimits(limits: PayoutLimits | undefined): PayoutLimits {
   if (!limits) throw new TypeError("PayoutsService needs its sandbox limits");
   const { maxBatchTotalCents, maxItems, receiverAllowed } = limits;
+  const { maxPostsPer24h, postsInLast24h, balanceCents, minBalanceCents } = limits;
   if (typeof maxBatchTotalCents !== "bigint" || maxBatchTotalCents <= 0n)
     throw new TypeError("limits.maxBatchTotalCents must be positive bigint cents (C-21)");
   if (!Number.isSafeInteger(maxItems) || maxItems < 1 || maxItems > PAYPAL_MAX_BATCH_ITEMS)
     throw new TypeError("limits.maxItems must be an integer from 1 to 15,000");
   if (typeof receiverAllowed !== "function")
     throw new TypeError("limits.receiverAllowed must check PP_RECEIVERS");
-  return { maxBatchTotalCents, maxItems, receiverAllowed };
+  if (!Number.isSafeInteger(maxPostsPer24h) || maxPostsPer24h < 1)
+    throw new TypeError("limits.maxPostsPer24h must be a positive integer (C-21: live batches a day)");
+  if (typeof postsInLast24h !== "function")
+    throw new TypeError("limits.postsInLast24h must count the batches written in the last 24 h");
+  if (typeof balanceCents !== "function")
+    throw new TypeError("limits.balanceCents must read the estimated sandbox balance");
+  if (typeof minBalanceCents !== "bigint" || minBalanceCents < 0n)
+    throw new TypeError("limits.minBalanceCents must be bigint cents, zero or more");
+  return {
+    maxBatchTotalCents,
+    maxItems,
+    receiverAllowed,
+    maxPostsPer24h,
+    postsInLast24h,
+    balanceCents,
+    minBalanceCents,
+  };
+}
+
+/** A dollar figure for a refusal's words (any sign); amounts on the wire use centsToValue. */
+function usd(cents: bigint): string {
+  const abs = cents < 0n ? -cents : cents;
+  return `${cents < 0n ? "-" : ""}US$${abs / 100n}.${(abs % 100n).toString().padStart(2, "0")}`;
 }
 
 function requireFunction<T>(value: T, what: string): T {
@@ -482,6 +532,8 @@ export class PayoutsService {
   readonly #sleep: (ms: number) => Promise<void>;
   readonly #now: () => Date;
   readonly #priority: CallPriority;
+  /** The tail of the queue that serializes "check the daily cap and the balance, then write the rows". */
+  #writes: Promise<void> = Promise.resolve();
 
   constructor(deps: PayoutsServiceDeps) {
     this.#http = deps.http;
@@ -667,20 +719,72 @@ export class PayoutsService {
 
     const requestId = payPalRequestId(senderBatchId);
     if (!spec.submitted) {
-      await this.#repo.writeSubmitted({
-        runId: facts.runId,
-        kind: spec.kind,
-        senderBatchId,
-        requestId,
-        batchSha256: digest,
-        note,
-        totalCents,
-        currency: "USD",
-        items,
-        at: at.toISOString(),
+      // A new batch: the daily cap and the balance are read, and its rows written, in one turn of
+      // the queue, so two posts racing for the last slot cannot both pass on the same count.
+      const spend = await this.#exclusive(async () => {
+        const over = await this.#spendGuard(totalCents, at);
+        if (over) return over;
+        await this.#repo.writeSubmitted({
+          runId: facts.runId,
+          kind: spec.kind,
+          senderBatchId,
+          requestId,
+          batchSha256: digest,
+          note,
+          totalCents,
+          currency: "USD",
+          items,
+          at: at.toISOString(),
+        });
+        return null;
       });
+      if (spend) return refused(spend.code, spend.reason, senderBatchId);
     }
     return this.#send(body, { run, senderBatchId, requestId, digest });
+  }
+
+  /**
+   * Runs `task` once every earlier one has settled. Within this service the count a guard reads
+   * always includes the rows the previous post wrote; across processes live posts share one lane
+   * (S3.9), and `postsInLast24h` counts committed rows.
+   */
+  #exclusive<T>(task: () => Promise<T>): Promise<T> {
+    const turn = this.#writes.then(task);
+    this.#writes = turn.then(
+      () => undefined,
+      () => undefined,
+    );
+    return turn;
+  }
+
+  /**
+   * S3 §S3.6.4 step 4, the two guards that change by the hour: register C-21's live batches per
+   * rolling 24 h, and the estimated sandbox balance, which must stay at or above the floor after this
+   * batch (so it also refuses a batch the balance cannot cover). Unreadable inputs refuse.
+   */
+  async #spendGuard(totalCents: bigint, now: Date): Promise<Refusal | null> {
+    const { maxPostsPer24h, postsInLast24h, balanceCents, minBalanceCents } = this.#limits;
+    const posted = await postsInLast24h(now);
+    if (!Number.isSafeInteger(posted) || posted < 0) {
+      return { code: "DAILY_CAP", reason: "The live batches of the last 24 h could not be counted" };
+    }
+    if (posted >= maxPostsPer24h) {
+      return {
+        code: "DAILY_CAP",
+        reason: `${posted} live batches in the last 24 h: the cap is ${maxPostsPer24h}`,
+      };
+    }
+    const balance = await balanceCents();
+    if (typeof balance !== "bigint") {
+      return { code: "SANDBOX_GUARD", reason: "The sandbox balance is not known yet" };
+    }
+    if (balance - totalCents < minBalanceCents) {
+      return {
+        code: "SANDBOX_GUARD",
+        reason: `The estimated sandbox balance (${usd(balance)}) less this ${usd(totalCents)} batch is under the ${usd(minBalanceCents)} floor`,
+      };
+    }
+    return null;
   }
 
   /**
@@ -788,8 +892,9 @@ export class PayoutsService {
       reason,
     });
     for (;;) {
-      // The first attempt follows the caller's fresh read; every later one reads the switch again.
-      if (attempts > 0 && (await this.#killSwitch())) return unresolved("KILL_SWITCH_ON");
+      // Read fresh just before every POST, the first included (S3.11): a new post may have waited its
+      // turn in the queue and written its rows since the caller's read.
+      if (await this.#killSwitch()) return unresolved("KILL_SWITCH_ON");
       attempts += 1;
       let result: PayPalResult<CreatePayoutBatchResponse> | null = null;
       try {

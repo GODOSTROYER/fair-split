@@ -180,7 +180,31 @@ describe("PayoutsService.executeApproved(runId): the approved digest is the payo
     });
     expect(posts()).toHaveLength(1);
     expect(sleeps).toEqual([1_000]);
-    expect(killSwitch).toHaveBeenCalledTimes(2);
+    // On entry, just before the first POST, and just before the retry it then stopped.
+    expect(killSwitch).toHaveBeenCalledTimes(3);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+  });
+
+  it("reads the kill switch again just before the first POST: flipped while the rows were written, nothing is sent", async () => {
+    let on = false;
+    const { service, repo } = await setup(undefined, { killSwitch: async () => on });
+    const write = repo.writeSubmitted.bind(repo);
+    repo.writeSubmitted = async (batch) => {
+      on = true; // the treasurer flips kill_payouts while this post waits its turn and writes its rows
+      return write(batch);
+    };
+    onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+      kind: "unresolved",
+      senderBatchId: HERO_SENDER_BATCH_ID,
+      attempts: 0,
+      lastStatus: null,
+      debugId: null,
+      reason: "KILL_SWITCH_ON",
+    });
+    expect(posts()).toHaveLength(0);
+    // The rows stay SUBMITTED: a later call, once the switch is off, resumes the same ids.
     expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
   });
 
@@ -724,6 +748,14 @@ describe("PayoutsService wiring: the money guards are required", () => {
     ["no item cap", { limits: { ...JUDGE_LIMITS, maxItems: undefined } }],
     ["no receiver allowlist", { limits: { ...JUDGE_LIMITS, receiverAllowed: undefined } }],
     ["a batch cap of zero", { limits: { ...JUDGE_LIMITS, maxBatchTotalCents: 0n } }],
+    ["no daily cap", { limits: { ...JUDGE_LIMITS, maxPostsPer24h: undefined } }],
+    ["a daily cap of zero", { limits: { ...JUDGE_LIMITS, maxPostsPer24h: 0 } }],
+    ["a fractional daily cap", { limits: { ...JUDGE_LIMITS, maxPostsPer24h: 40.5 } }],
+    ["no count of the day's batches", { limits: { ...JUDGE_LIMITS, postsInLast24h: undefined } }],
+    ["no balance estimate", { limits: { ...JUDGE_LIMITS, balanceCents: undefined } }],
+    ["no balance floor", { limits: { ...JUDGE_LIMITS, minBalanceCents: undefined } }],
+    ["a negative balance floor", { limits: { ...JUDGE_LIMITS, minBalanceCents: -1n } }],
+    ["a balance floor in dollars", { limits: { ...JUDGE_LIMITS, minBalanceCents: 10_000 } }],
   ])("refuses to start with %s", (_label, patch) => {
     expect(() => new PayoutsService({ ...base(), ...(patch as object) } as PayoutsServiceDeps)).toThrow(
       TypeError,

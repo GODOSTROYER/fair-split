@@ -63,17 +63,27 @@ export const RUN_FACTS: PayoutRunFacts = {
 
 export const HERO_SENDER_BATCH_ID = senderBatchId(RUN_BASE);
 
+/** A run's own ids (the hero run, r37, unless a test posts another run of the season). */
+export interface RunIds {
+  runId: string;
+  runSeq: number;
+}
+
 /** The digest the treasurer and the Chair sign for a set of lines (reference IC-02). */
-export async function digestFor(lines: readonly ApprovedLine[], rerouteNo?: number): Promise<string> {
-  const sbid = senderBatchId({ ...RUN_BASE, rerouteNo });
+export async function digestFor(
+  lines: readonly ApprovedLine[],
+  rerouteNo?: number,
+  run: RunIds = RUN_BASE,
+): Promise<string> {
+  const sbid = senderBatchId({ ...RUN_BASE, ...run, rerouteNo });
   const items = lines.map((l) => ({
-    senderItemId: senderItemId({ runSeq: RUN_BASE.runSeq, memberNo: l.memberNo, rerouteNo }),
+    senderItemId: senderItemId({ runSeq: run.runSeq, memberNo: l.memberNo, rerouteNo }),
     receiver: l.receiver,
     amountCents: l.amountCents,
     currency: l.currency,
   }));
   return referenceBatchDigest(
-    { runId: RUN_BASE.runId, senderBatchId: sbid, rateCardSha256: RATE_CARD_SHA256 },
+    { runId: run.runId, senderBatchId: sbid, rateCardSha256: RATE_CARD_SHA256 },
     items,
   );
 }
@@ -81,13 +91,13 @@ export async function digestFor(lines: readonly ApprovedLine[], rerouteNo?: numb
 /** Signed approvals of exactly these lines (the treasurer and, by default, the Chair). */
 export async function approvalsFor(
   lines: readonly ApprovedLine[] = HERO_LINES,
-  options: { signers?: readonly TestSigner[]; rerouteNo?: number; exp?: string } = {},
+  options: { signers?: readonly TestSigner[]; rerouteNo?: number; exp?: string; run?: RunIds } = {},
 ): Promise<SignedApproval[]> {
   const batch = {
-    runId: RUN_FACTS.runId,
+    runId: options.run?.runId ?? RUN_FACTS.runId,
     seasonId: RUN_FACTS.seasonId,
     rateCardSha256: RUN_FACTS.rateCardSha256,
-    batchSha256: await digestFor(lines, options.rerouteNo),
+    batchSha256: await digestFor(lines, options.rerouteNo, options.run),
     itemCount: lines.length,
     totalCents: Number(lines.reduce((s, l) => s + l.amountCents, 0n)),
   };

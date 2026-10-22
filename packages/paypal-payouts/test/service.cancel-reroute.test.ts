@@ -26,7 +26,7 @@ import {
 } from "./support/fixtures.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
-import { makeService } from "./support/service.js";
+import { JUDGE_LIMITS, makeService } from "./support/service.js";
 
 useMsw();
 
@@ -287,6 +287,23 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
       items: [{ supersedesItemId: RHEA_ITEM_ID, senderItemId: "r37x1-M-031", amountCents: 2_665n }],
     });
   });
+
+  it.each([
+    ["at the daily cap", { postsInLast24h: async () => JUDGE_LIMITS.maxPostsPer24h }, "DAILY_CAP"],
+    [
+      "a cent under the balance floor",
+      { balanceCents: async () => JUDGE_LIMITS.minBalanceCents + 2_665n - 1n },
+      "SANDBOX_GUARD",
+    ],
+  ] as const)(
+    "a re-route is a new live batch: refused %s, nothing written or sent",
+    async (_label, patch, code) => {
+      const { service, repo } = setup([returnedForReroute()], { limits: { ...JUDGE_LIMITS, ...patch } });
+      await expect(service.reroute(await request())).resolves.toMatchObject({ kind: "refused", code });
+      expect(repo.events).toHaveLength(0);
+      expect(requests).toHaveLength(0);
+    },
+  );
 
   it("only re-routes a RETURNED item", async () => {
     const { service } = setup([rheaRow("UNCLAIMED")]);

@@ -32,6 +32,8 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
   readonly items = new Map<string, PayoutItemRow>();
   readonly postings = new Map<string, PostingSnapshot>();
   readonly runs = new Map<string, PayoutRunFacts>();
+  /** When earlier batches (other runs, other days) were written, for the daily cap. */
+  readonly earlierPosts: string[] = [];
 
   constructor(seed: { items?: PayoutItemRow[]; postings?: PostingSnapshot[]; runs?: PayoutRunFacts[] } = {}) {
     for (const row of seed.items ?? []) this.items.set(row.payoutItemId, { ...row });
@@ -136,5 +138,16 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
 
   types(): string[] {
     return this.events.map((e) => e.type);
+  }
+
+  /** What WS-DATA's count returns: batches written as SUBMITTED in the 24 h before `now`. */
+  async postsInLast24h(now: Date): Promise<number> {
+    const end = now.getTime();
+    const start = end - 24 * 60 * 60 * 1000;
+    const written = [...this.batches.values()].map((b) => b.batch.at);
+    return [...this.earlierPosts, ...written].filter((at) => {
+      const t = Date.parse(at);
+      return t > start && t <= end;
+    }).length;
   }
 }
