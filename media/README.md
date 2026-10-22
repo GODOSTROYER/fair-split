@@ -4,105 +4,174 @@ Everything here is **synthetic**: slips, the BR 2026-04 pages and the logbook pa
 OpenAI's image model through the user's Codex CLI (C-24, AI-11); every clip is a Gemini TTS voice (AI-10).
 Each image carries a printed specimen line and is shown with the "Synthetic sample" tag; each clip carries the
 label in its own language ("Sintetikong tingog", "Sintetikong boses" or "Synthetic voice", each with "(Gemini
-TTS)"; `VOICE_LABELS`); each manifest says `synthetic: true` (I8, tested by `test/inv.i8.labels.test.ts`).
-The co-op, people and figures are fictional.
+TTS)"; `VOICE_LABELS`); each manifest, fixture and label says `synthetic: true` (I8, tested by
+`test/inv.i8.labels.test.ts` and `test/labels.test.ts`). The co-op, people and figures are fictional.
+
+`@fairsplit/media` is offline dev tooling. **No UI or runtime package may import it** (dependency rule):
+consumers read the files below, or the JSON Schemas, never this package's code.
 
 ## Layout (IC-11 plus additions)
 
-| Path                                                                              | What                                                                                 |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `photos/{id}.webp`                                                                | Four-slip photos (A–L, P01–P54 later), display WebP ≤ 1,600 px, ≤ 250 KB             |
-| `slips/{id}.webp`                                                                 | One-slip photos (S3 hero slips, by-hand crops) — addition                            |
-| `docs/{id}.webp`, `docs/BR-2026-04.text.json`                                     | BR 2026-04 pages and logbook pages; the rate card's text layer (S4.3)                |
-| `masters/{id}.jpg`                                                                | Native-size JPEG q92 masters (what Claude reads)                                     |
-| `fixtures/{id}.json`, `fixtures/fixture.schema.json`                              | Reviewed crop fixtures (IC-11) and their JSON Schema                                 |
-| `template/slip-v1.json`                                                           | Printed slip template v1 (generated from `src/template/slip-template.ts`)            |
-| `prompts/{id}.md`, `prompts/history/`, `prompts/attempts.jsonl`                   | Every prompt sent to Codex, byte for byte, and every exec                            |
-| `review/*.json`                                                                   | Recorded visual value checks (the evidence behind the fidelity numbers)              |
-| `audio/{member}/{lang}/{slot}.m4a`, `audio/manifest.json`, `audio/spike-s10.json` | Statement clips (AAC 32 kbps mono) and S10 measurements                              |
-| `manifest.json`                                                                   | Every image: prompt and hash, Codex version, attempts, master/display hashes, review |
-| `raw/`, `.cache/`, `audio/.quota.json`                                            | Git-ignored: raw Codex PNGs, TTS response cache, the per-machine TTS ledger          |
+| Path                                                                              | What                                                                                            |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `photos/{id}.webp`                                                                | IC-11's four-slip photos only (A–L; P01–P54 stay archived tiles), display WebP ≤ 250 KB         |
+| `photos/spike/{id}.webp`                                                          | Spike photos (the 22 Oct four-slip test); never globbed with `photos/*.webp`                    |
+| `slips/{id}.webp`                                                                 | One-slip flats (the ten S3 hero flats) — addition                                               |
+| `docs/{id}.webp`, `docs/BR-2026-04.text.json`                                     | BR 2026-04 pages and logbook pages; the rate card's text layer (S4.3)                           |
+| `masters/{id}.jpg`                                                                | Native-size JPEG q92 masters (what Claude reads)                                                |
+| `fixtures/{id}.json`, `fixtures/fixture.schema.json`                              | Crop fixtures (IC-11, schema v2) and their JSON Schema                                          |
+| `eval/labels/{case}.json`, `eval/label.schema.json`                               | Eval labels (S4.8 `dev` cases) derived from checked fixtures; the schema sits beside them       |
+| `template/slip-v1.json`                                                           | Printed slip template v1 (generated from `src/template/slip-template.ts`)                       |
+| `prompts/{id}.md`, `prompts/history/`, `prompts/attempts.jsonl`                   | Latest rendered prompt; every prompt sent to Codex, byte for byte; every exec                   |
+| `review/*.json`, `review/sessions/`                                               | Recorded value checks (agents) and review sessions (people)                                     |
+| `audio/{member}/{lang}/{slot}.m4a`, `audio/manifest.json`, `audio/spike-s10.json` | Statement clips (AAC 32 kbps mono) and the S10 report                                           |
+| `manifest.json`                                                                   | Every image: prompt and hash, Codex version, attempts, master/display hashes, review            |
+| `raw/`, `.cache/`, `.codex-ledger.json`, `audio/.quota.json`                      | Git-ignored: raw Codex PNGs and review sheets, TTS cache, the per-machine Codex and TTS ledgers |
+
+## Fixtures and labels (IC-11)
+
+A fixture holds, per slip, its serial, copy colour, corner quad and bounding rectangle, and one field per S4.2
+`Row` field: the rectangle (`x1 y1 x2 y2`, 0–1 of the master, origin top-left) plus `value` (the seed's truth),
+`requested` (what the prompt asked to be visible), `visible` (what is visibly written, `?` per unreadable
+character), `legibility`, `expect` (`AUTO | HUMAN | EITHER`) and `checkedBy`. Box 13's two Kaltas lines are
+`deductions[0]` and `deductions[1]` (the template's `deduction_1`, `deduction_2`); the signature box is
+`signature`; text outside the boxes (0449's note) is an `anomalies[]` entry; logbook cells use the same field
+shape, and `line_no` is the logbook's `line` column.
+- **Labels are what is visible (C-24).** A drafted field is `UNVERIFIED` with `visible` = `requested`; only a
+  recorded check sets what is visible: an agent's check file through `imagegen apply-review`
+  (`checkedBy: "agent"`), or a person in `imagegen review` (`checkedBy: "human"`). An agent's check never
+  overwrites a person's reading.
+- **Review states.** `draft` → `agent-checked` (every field and crop checked, from a committed check file) →
+  `human-reviewed` (every field read by a person in the review page, then confirmed at an interactive
+  terminal; an agent's shell cannot do this step). A crop marked wrong sends the fixture back to draft.
+- **Duplicates.** `duplicateOf` (labels: `duplicate_of`) is set only on the non-original copy, pointing at the
+  white original with the same serial in the same image group, `{fixture}#{slot}`; a `WHITE_ORIGINAL` never
+  carries it (schema-enforced). Two renders of one slip in different groups are never marked.
+- **Traps.** `WATER_STAIN` and `MARGIN_NOTE` carry a `trapChecks` entry. A look (agent or person) can record
+  that a trap renders or that it **failed**; only `imagegen trap-verdict … --evidence <recorded read>` (a
+  WS-READ recording or eval report, pinned by sha256) can say it **holds**. `imagegen replay-check` refuses any
+  image for a replay set until it is human-reviewed and every trap holds by a recorded read.
+- **Labels.** `imagegen labels` writes `eval/labels/{case}.json` for every checked fixture of an eval group (the
+  S3 hero flats and the logbook page; S4.8 `dev`) and removes a label whose fixture is a draft again. A label
+  adds `v`, `synthetic` and `status` (`agent-checked` labels are provisional) to the fields WS-READ's
+  `packages/eval` shim reads; its strict parser must accept those three keys.
 
 ## Tools
 
 ```sh
-corepack pnpm --filter @fairsplit/media imagegen gen <id...> --concurrency 4   # one codex exec per image
-corepack pnpm --filter @fairsplit/media imagegen trial <id> --n 2               # fidelity trials, master kept
+corepack pnpm --filter @fairsplit/media imagegen gen <id...> --concurrency 4   # skips assets that have a master
+corepack pnpm --filter @fairsplit/media imagegen gen <id> --force [--replace-reviewed]  # replace a named master
+corepack pnpm --filter @fairsplit/media imagegen budget                         # Codex execs in the last 5 h
+corepack pnpm --filter @fairsplit/media imagegen fixture <id...|all> [--force]  # draft fixtures + crop sheets
+corepack pnpm --filter @fairsplit/media imagegen apply-review review/<file>.json # an agent's recorded check
+corepack pnpm --filter @fairsplit/media imagegen review <id> --reviewer "<you>" # a person, at the terminal
+corepack pnpm --filter @fairsplit/media imagegen trap-verdict spike-0462 ONLY WATER_STAIN --status HOLDS --evidence <read>
+corepack pnpm --filter @fairsplit/media imagegen replay-check <id...>
+corepack pnpm --filter @fairsplit/media imagegen labels | schema | migrate | list
 corepack pnpm --filter @fairsplit/media imagegen exec <prompt.md> --orientation landscape  # prompt file in, image out
-corepack pnpm --filter @fairsplit/media imagegen fixture all                    # draft fixtures + review sheets
-corepack pnpm --filter @fairsplit/media imagegen mark <id> --status human-reviewed --reviewer "<name>"
-corepack pnpm --filter @fairsplit/media tts spike | tts asr | tts quota
+corepack pnpm --filter @fairsplit/media tts plan | quota | set-limit <model> <n> --source "<where read>" | spike | asr
 ```
 
 `tools/imagegen.ts` runs `codex exec --enable image_generation --skip-git-repo-check -s workspace-write
--C media/raw/codex-work -c model_reasoning_effort=low --json -` with the prompt on stdin, finds the image in
-`$CODEX_HOME/generated_images/{thread_id}/`, checks it decodes, has the asked orientation, a long edge
-≥ 1,024 px and a new sha256, retries once (`--max-attempts` up to 3), then writes master + display and the
-manifest. `exec` is the same wrapper for a bare prompt file (experiments, mats, eval drafts with no content spec
-yet): the prompt is logged under `prompts/exec/`, `--size WxH` adds an exact-size check, and the image stays in
-the git-ignored `raw/exec/{name}/`; a committed image always goes through an asset spec and `gen`, so the
-manifest labels it (I8, `inv.i8.media-files`). After generating, run `corepack pnpm exec biome check --write
-media` (generated JSON and prompts are excluded by `media/biome.json`, because prompts must stay byte-identical
-to what was sent).
+-C media/raw/codex-work -c model_reasoning_effort=low --json -` with the prompt on stdin (on Windows through
+the npm shim's `codex.js` with this Node, never through cmd.exe; it fails with instructions if `codex.js` is
+missing), finds the image in `$CODEX_HOME/generated_images/{thread_id}/`, checks it decodes, has the asked
+orientation, a long edge ≥ 1,024 px and a new sha256, and writes master + display and the manifest.
+**Attempts:** one exec plus one retry by default (`--max-attempts 2`; S4.10 allows up to 3). **Budget:** every
+exec — `gen`, `trial`, `exec` — first reserves a slot in `media/.codex-ledger.json` (at most 12 per 5 hours,
+plan "Synthetic assets"; seeded from `prompts/attempts.jsonl`, never handed back). `gen` never replaces an
+accepted master unless `--force` names it (`--force` never applies to `all`), and a master whose fixture a
+person reviewed also needs `--replace-reviewed`. The manifest's `prompt` always points at the immutable
+`prompts/history/{id}.{sha8}.md` that made the current master; trials leave it alone. After generating, run
+`corepack pnpm exec biome check --write media` (generated JSON and prompts are excluded by `media/biome.json`).
 
-## Findings from the 22 Oct spike
+## Findings (22 Oct)
 
-**Codex (codex-cli 0.159.3, gpt-image-2 via built-in image_gen).** 19 execs, 19 images, 0 empty runs,
-0 quota or rate-limit errors. 53–150 s per exec (median 127 s) with 4 in parallel; ~89 k input tokens
-(70 k cached) and ~1.2 k output tokens per exec. Output sizes vary: 1199×1312 (10), 1055×1491, 1024×1536,
-1448×1086 (4-up), 1151×1367, 1191×1320. The JSONL has `thread.started` but no image item or `saved_path`, and
+**Codex (codex-cli 0.159.3, gpt-image-2 via built-in image_gen).** 24 execs, 24 images, 0 empty runs, 0 quota
+or rate-limit errors. 53–150 s per exec (median 127 s) with 4 in parallel; ~82–89 k input tokens (63–70 k
+cached) and ~0.9–1.2 k output tokens per exec. Output sizes vary (1199×1312, 1086×1448, 1141×1379, 1214×1295,
+1024×1536, 1448×1086 for the 4-up …). The JSONL has `thread.started` but no image item or `saved_path`, and
 files are `exec-*.png`, not `ig_*.png` (S4.10's guesses). The exit code is always 0.
 
-**Value fidelity (visual check of every written value, `review/2026-10-22-agent-check.json`).**
+**Value fidelity** (visual check of every written value; `review/2026-10-22-agent-check.json` for the first
+19 images, corrected and extended by `review/2026-10-22-fixture-check.json` and
+`review/2026-10-22-s3-flats-check.json`).
 
-| Images                                                                              | Prompt                                                  | Values checked | Wrong        | Exact images |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------- | ------------ | ------------ |
-| One-slip photos without artifacts (0403 ×3, 0457 white ×2, 0457 pink edit, 0458 ×2) | p0/p1                                                   | 136            | 0            | 8/8          |
-| 0462 with the water stain                                                           | p1 (`"64.80" reads "6?.80"`)                            | 34             | 4            | 0/2          |
-| 0462 with the water stain                                                           | p2 (character named by position, substitutes forbidden) | 34             | 0            | 2/2          |
-| Four-slip photo (0403, 0457, 0458, 0462)                                            | p0 / p1 / p2                                            | 204            | 2 (p1 stain) | 2/3          |
-| Logbook page 14 (10 lines + month)                                                  | p1                                                      | 142            | 0            | 2/2          |
-| BR 2026-04 pages 1–2 (every line, verbatim, incl. ₱ % ± US$)                        | p1                                                      | 43             | 0            | 2/2          |
+| Images                                                                          | Prompt                                                  | Values | Wrong | Exact images                |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------- | ------ | ----- | --------------------------- |
+| One-slip flats, no artifact (0403 ×3, 0457 white ×2, 0457 pink edit, 0458 ×2)   | p0/p1                                                   | 136    | 0     | 8/8                         |
+| The five S3 flats added 22 Oct (0419, 0436, 0467, 0471, and 0449 with its note) | p2                                                      | 86     | 0     | 5/5, each on its first exec |
+| 0462 with the water stain                                                       | p1 (`"64.80" reads "6?.80"`)                            | 34     | 4     | 0/2                         |
+| 0462 with the water stain                                                       | p2 (character named by position, substitutes forbidden) | 34     | 0     | 2/2                         |
+| Four-slip photo (0403, 0457, 0458, 0462)                                        | p0 / p1 / p2                                            | 204    | 4     | 1/3                         |
+| Logbook page 14 (10 lines)                                                      | p1                                                      | 142    | 0     | 2/2                         |
+| BR 2026-04 pages 1–2 (every line, verbatim, incl. ₱ % ± US$)                    | p1                                                      | 43     | 0     | 2/2                         |
 
-593 values in total, 6 wrong; outside the 14 stained fields, 0 errors in 579. All 6 errors came from one prompt design: quoting a "?" pattern for the
-stain made Codex draw a literal "?" or a digit. Prompt p2 fixed it (3/3).
+679 values, 8 wrong, every one inside a stained field; outside the 14 stained fields, 0 errors in 665. The p1
+stain prompt made Codex draw a literal "?" or a digit (4 renders). Prompt p2 fixed it on **2 of 3** renders:
+in the p2 four-slip photo a faint ghost of the 4 stays readable (gross reads 64.80, net 64.50), so that image's
+`WATER_STAIN` trap is recorded as failed and its fixture says what is visible. On both p2 flats of 0462 the 4
+is a formless blur, but box 11 (Bayranan) reads a clear 64.50, so gross can still be worked out from boxes 11,
+10 and 7 (see the open questions below).
 
-**Failure modes seen:** literal placeholder leakage (above); a too-strict aspect check rejected 9 valid
-images (`imagegen adopt` re-verified them from their thread folders without new execs); layout drift
-between renders (serial above or below the title, row 13 with one or two inner rules, slips wider than
-A6 in the 4-up) — so fixtures are always per image; in the p2 4-up the stain leaves a faint ghost of the 4.
+**Failure modes seen:** placeholder leakage (above); a ghost of a washed-out digit in a small render; a
+too-strict aspect check that rejected 9 valid images (`imagegen adopt` re-verified them without new execs);
+layout drift between renders (serial above or below the title, row 13 with one or two inner rules, slips wider
+than A6 in the 4-up), so fixtures are always per image.
 
-**Fixtures.** `fixture` finds each paper quad, rectifies the slip, fits every ruled line on its own from
-two strips (rows) or two bands (columns), and maps cell corners back to the photo; a layout check refuses
-drafts with rows out of order. All 9 images got fixtures; every crop was checked on the overlay and the
-crop sheet (`raw/review/`) and marked `agent-checked`. The user's review is still required.
+**Fixtures.** `fixture` finds each paper quad, rectifies the slip, fits every ruled line on its own from two
+strips (rows) or two bands (columns), maps cell corners back to the photo, finds 0449's green-ink note, and a
+layout check refuses drafts with rows out of order. All 14 images have schema-v2 fixtures, every field and crop
+checked by an agent (`agent-checked`); 11 eval labels exist (the ten S3 flats and the logbook page), all
+provisional until the user's review. The S3 group is complete: 0403, 0419, 0436, 0467 (M-014), 0457 white and
+pink, 0458, 0462, 0449 and Merlyn's 0471 (P-053-B). The flats added on 22 Oct take their box text from WS-CORE's
+draft seed (unchanged through ws/core 4d40c0d); every S3 flat is regenerated from the frozen seed if a value
+moves before the 24 Oct lock.
 
-**S10 voice.** `gemini-3.8-flash-tts` speaks Cebuano on the free tier. 6 TTS requests: 7.3–11.1 s each
-(about 1.7–2.2× real time). The free tier allows 3 requests a minute (from the 429 body); the daily limit is
-not published and was not reached. `<long pause>` gave 0.68–4.07 s of silence while one English sentence held
-a natural 0.61 s pause, so the splitter takes the longest pauses when they stand clearly apart. Listening
-proxy (`tts asr`, gemini-3.8-flash transcription vs text sent): CER 0.000 ceb, 0.000 fil, 0.012 en, 0.006
-ceb draft — only "Celing" heard as "Seling". Voice Sulafat is a default until a person listens (OD-2).
+**Logbook page 14 is a spike.** Only lines 2, 3 and 7 come from the register; the other lines were invented and
+differ from WS-CORE's draft seed (which has 12 lines, 0456–0467). Regenerate it from the seed snapshot and
+cross-check every line against the slips in photos A–L before 27 Oct.
 
-## Plan for photos A–L and P01–P54 (once the seed lands)
+**S10 voice.** `gemini-3.8-flash-tts` returned Cebuano, Filipino and English audio on the free tier: 6 requests,
+7.3–11.1 s each (about 1.7–2.2× real time); 3 requests a minute (from a 429 body). **The daily limit is not
+known**: Google does not publish it and the spike did not reach it, so the ledger holds every model to a
+self-imposed 10 a day, labelled as a guess. `tts plan` records in `audio/spike-s10.json` what the audio needs:
+11 statement requests for the approved plan (M-014 ×3, the seven other PayPal members incl. Rhea's two PAY
+variants in one request, Merlyn), 66 for the register's full plan, 10 narration beats; the approved plan fits
+3–4 Nov only if the free tier allows ≥ 6 a day. The ASR self-check (`tts asr`: CER 0.000 ceb, 0.000 fil, 0.012
+en) is a proxy only — Gemini transcribing Gemini says nothing about Cebuano pronunciation. **S10 stays PENDING**
+until the user listens to voice Sulafat (OD-2) and records the daily limit.
 
-1. Add a seed adapter that turns `packages/seed/snapshot/season-2026A.json` slips into `SlipSpec`s and photo
-   groups (A–L: 48 slips with every hero case; P01–P54: earlier reads), replacing `content/spike.ts`.
-2. Generate A–L direct (one exec per photo, prompt p2), 4 in parallel: about 12 execs, ~8 minutes.
-   Photo D's pink 0457 goes in as an edit of photo B's slip (`-i`) so the carbon strokes match for M3.
-   If the twin overlap is not black enough, ask the user for OD-3 approval of a code-tinted crop.
-3. `fixture all`, agent check on the crop sheets, then the user's review (`mark … human-reviewed`).
-4. Before acceptance, run one real read on the photo with 0462 (WS-READ): the stain must give a by-hand
-   field; if Claude still reads 64.80, regenerate with a stronger stain line.
-5. Priority P photos (holding 0403, 0419, 0436) next, then the rest in batches of 12 (~100 execs total
-   with the S3 slips and the eval set, ~1 hour wall time). If Codex quota runs short, OD-4's archived tile.
-6. Statements: one request per member and language, paced ≤ 3 a minute, in the register's order; read the
-   daily limit at https://aistudio.google.com/rate-limit and set `caps` in `audio/.quota.json`.
+## Decisions waiting on the user
 
-If the plan adopted on main (`docs/spec/00-plan.md`, 22 Oct) holds, three things change. Codex is budgeted at
-≤ 12 execs per 5 hours, so the five missing S3 hero flats (0419, 0436, 0467, 0449 and one of Merlyn's, all
-seed-dependent) go first and step 5 spreads over days. A–L are composed by code from checked Codex flats on
-Codex mats once the user confirms that reading of C-24 and OD-3 (geometry, shadow and light only; fixtures then
-come from the placement transforms); `imagegen exec` already makes the mats. P01–P54 are not generated and
-show OD-4's archived tile. The plan also asks for slip tiles `media/tiles/{photo}/{slip}.webp` ≤ 60 KB, cut
-from the largest master for MM-7's zoom.
+1. **Hero labels (C-24, register §12 "the user checks the 10 slip labels").** For each S3 flat:
+   `imagegen review <id> --reviewer "<name>"` in your own terminal, type what you see, then confirm.
+2. **Slip 0462's stain.** Box 11 Bayranan (64.50) is legible on both checked 0462 renders, so the stain hides
+   the digit but not the value. Should the stain also cover box 11 (or boxes 10 and 11)? The C4 copy names only gross and
+   net. Until a real Claude A/B read scores 0462's gross and net below 0.85, no A–L photo with 0462 is accepted.
+3. **S10.** Read the free-tier daily limit for `gemini-3.8-flash-tts` and `gemini-3.8-flash-lite-tts` at
+   https://aistudio.google.com/rate-limit and run `tts set-limit <model> <n> --source "AI Studio, <date>"`; then
+   listen to `audio/M-014/{ceb,fil,en}` and choose the voice (OD-2).
+4. **Root workspace files (deps lane).** `media` must be a pnpm workspace package. This branch carries the
+   change in `pnpm-workspace.yaml` (`packages: [..., media]`, `allowBuilds: {"@google/genai": false, protobufjs:
+   false}`) and the lockfile entries for the `media` importer (all versions already in the catalog). Under
+   `docs/ownership.md` only a `deps/*` branch may touch those files, so they need a deps PR (or your recorded
+   approval). The lockfile also re-keys `openai@4.86.1`, `@langchain/core` and `@paypal/agent-toolkit` with
+   `ws@8.22.0`, because `@google/genai` brings `ws` into the graph and `openai@4` has `ws` as an optional peer.
+5. **C-24 composites (OD-3, plan "Synthetic assets").** A–L composed by code from checked Codex flats on Codex
+   mats (geometry, shadow and light only), with fixtures from the placement transforms.
+
+## Plan for photos A–L (once the seed is frozen)
+
+1. A seed adapter turns `packages/seed/snapshot/season-2026A.json` slips into `SlipSpec`s and photo groups (A–L,
+   48 slips with every hero case), replacing `content/spike.ts`; P01–P54 are never generated (OD-4's archived
+   tile).
+2. Flats one exec each (prompt p2). The seed puts eight S3 flats in A–L (0457 white and 0458 in B, the pink
+   0457 in D, 0436 in E, 0449 in I, 0462 in J, 0467 in K, 0471 in L), so about 40 more flats plus 2–3 mats:
+   four ledger windows of 12 execs per 5 hours, so start on 24 Oct to finish by 26 Oct. The pink 0457 stays a
+   Codex edit of the white (`-i`).
+3. With OD-3: code composes A–L from checked flats on Codex mats; fixtures come from the placement transforms.
+   Without it: one exec per photo, `fixture`, an agent check, then the user's `review`.
+4. Before acceptance: a recorded Claude read must show 0462's stain holds (`trap-verdict`), and 0449's note is
+   quarantined; `replay-check` lists anything still missing.
+5. Statements: 11 requests in the plan's order, paced ≤ 3 a minute, inside the recorded daily limit.
