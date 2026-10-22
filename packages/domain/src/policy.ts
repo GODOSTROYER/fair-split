@@ -215,6 +215,10 @@ const RULE_SHAPE: Shape = {
   ],
 };
 
+/** send_invoice: this run's invoice, never e-mailed by PayPal (register §8, send_to_recipient false). */
+const SEND_SHAPE: Shape = { invoice_id: "leaf", send_to_recipient: "leaf" };
+export const canonicalSend = (invoiceId: string) => ({ invoice_id: invoiceId, send_to_recipient: false });
+
 /** Every key the shape does not allow, by path, sorted. */
 function unknownKeys(value: unknown, shape: Shape, path = "", out: string[] = []): string[] {
   if (shape === "leaf") return out;
@@ -357,7 +361,8 @@ function invoiceDates(
 /**
  * I1: each invoice call deep-equals its canonical form, built by code. For create_invoice that is
  * `canonicalInvoice(quote, labels)`, where only the three item labels are the agent's; for the
- * AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`. Every key the canonical
+ * AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`; for send_invoice it is
+ * `{invoice_id: this run's invoice, send_to_recipient: false}`. Every key the canonical
  * form does not carry (tax, discount, shipping, tip, partial payment, pay by bank, theme, extra
  * recipients, dates…) is named in the verdict; then the whole body is compared after normalising.
  */
@@ -396,6 +401,14 @@ export const invoiceEqualsQuote: Policy = (call, ctx) => {
     const want = autoCancelRuleArgs(ctx.expected.invoiceId, autoCancelDate(dates.invoiceDate));
     const diff = differences(call.args, want);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "rule"));
+  }
+  if (call.name === "send_invoice") {
+    if (!isRecord(call.args)) return deny("The send arguments are not an object");
+    const extra = unknownKeys(call.args, SEND_SHAPE);
+    if (extra.length > 0) return deny(`Not in the canonical send: ${extra.join(", ")}`);
+    if (ctx.expected.invoiceId === null) return deny("There is no invoice to send");
+    const diff = differences(call.args, canonicalSend(ctx.expected.invoiceId));
+    return diff.length === 0 ? ALLOW : deny(differReason(diff, "send"));
   }
   return ALLOW;
 };

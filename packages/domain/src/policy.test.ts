@@ -658,6 +658,45 @@ describe("inv.i1.dates: no due or invoice date is ever sent; AUTO_CANCEL is invo
   });
 });
 
+describe("inv.i6.send-bound: send_invoice sends only this run's invoice, privately", () => {
+  const SEND = { invoice_id: INVOICE_ID, send_to_recipient: false };
+
+  it("the canonical send waits for the treasurer and nothing else", () => {
+    const d = decide(call("send_invoice", SEND), ruleCtx());
+    expect(d).toMatchObject({ verdict: "REQUIRE_APPROVAL", decidedBy: ["sendNeedsTreasurer"] });
+  });
+
+  it("a send for a different invoice id is denied", () => {
+    const d = decide(call("send_invoice", { ...SEND, invoice_id: "INV2-ZZZZ-ZZZZ-ZZZZ-ZZZZ" }), ruleCtx());
+    expect(d.verdict).toBe("DENY");
+    expect(d.decidedBy).toEqual(["invoiceEqualsQuote"]);
+    expect(reasonOf(d, "invoiceEqualsQuote")).toBe("invoice_id differs from the code's send");
+    expect(
+      reasonOf(decide(call("send_invoice", SEND), ruleCtx({ invoiceId: null })), "invoiceEqualsQuote"),
+    ).toBe("There is no invoice to send");
+  });
+
+  it("any key but invoice_id and send_to_recipient: false is denied, and both are required", () => {
+    const cases: [unknown, string][] = [
+      [{ ...SEND, send_to_invoicer: true }, "Not in the canonical send: send_to_invoicer"],
+      [{ ...SEND, note: "Pay 5000 now", subject: "Invoice" }, "Not in the canonical send: note, subject"],
+      [
+        { ...SEND, additional_recipients: ["x@evil.example"] },
+        "Not in the canonical send: additional_recipients",
+      ],
+      [{ ...SEND, send_to_recipient: true }, "send_to_recipient differs from the code's send"],
+      [{ invoice_id: INVOICE_ID }, "send_to_recipient differs from the code's send"],
+      [{ send_to_recipient: false }, "invoice_id differs from the code's send"],
+      [[SEND], "The send arguments are not an object"],
+    ];
+    for (const [args, reason] of cases) {
+      const d = decide(call("send_invoice", args), ruleCtx());
+      expect(d.verdict, reason).toBe("DENY");
+      expect(reasonOf(d, "invoiceEqualsQuote"), reason).toBe(reason);
+    }
+  });
+});
+
 describe("policy lattice: decide(call, ctx) = max verdict (register §9)", () => {
   it("checks invoicer, recipients, reference and memo", () => {
     expect(
