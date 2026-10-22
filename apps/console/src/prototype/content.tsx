@@ -158,8 +158,10 @@ export function splitRows(stage: "h1-open" | "resolved"): GridRow[] {
   return MEMBERS.map((m) => {
     const line = stage === "h1-open" ? lineWithDuplicate(m) : lineAfter(m);
     const kaltas: { name: string; amount: string; rule: string }[] = [];
-    if (line.cbuCents) kaltas.push({ name: "CBU", amount: plain(-line.cbuCents), rule: "R1" });
-    if (line.loanCents) kaltas.push({ name: "Loan", amount: plain(-line.loanCents), rule: "R3" });
+    if (line.cbuCents)
+      kaltas.push({ name: en("W-TR-05.kaltas.cbu"), amount: plain(-line.cbuCents), rule: "R1" });
+    if (line.loanCents)
+      kaltas.push({ name: en("W-TR-05.kaltas.loan"), amount: plain(-line.loanCents), rule: "R3" });
     const status: GridRow["status"] =
       stage === "resolved"
         ? "ready"

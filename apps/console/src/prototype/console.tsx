@@ -2,19 +2,20 @@
 // plate and the invoice plate. Prototype-only compositions of ui-web primitives; WS-CONSOLE builds the real
 // screens on the same primitives.
 
+import type { MessageKey } from "@fairsplit/i18n";
 import { AmountDisplay, Glyph, type GlyphName } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
 import { en, RC_SHORT } from "./content.js";
 import { INVOICE, PEOPLE, RATE_CARD_SHA256, SEASON } from "./fixture.js";
 import { hashPrefix, money, usd } from "./format.js";
 
-const RAIL: readonly { readonly id: string; readonly label: string; readonly glyph: GlyphName }[] = [
-  { id: "season", label: "Season", glyph: "sack" },
-  { id: "rate-card", label: "Rate card", glyph: "bolt" },
-  { id: "reading", label: "Reading room", glyph: "triplicate-slip" },
-  { id: "split", label: "Split review", glyph: "hanging-scale" },
-  { id: "approve", label: "Approve", glyph: "seal" },
-  { id: "run", label: "Run", glyph: "rail" },
+const RAIL: readonly { readonly id: string; readonly label: MessageKey; readonly glyph: GlyphName }[] = [
+  { id: "season", label: "console.nav.season", glyph: "sack" },
+  { id: "rate-card", label: "console.nav.rateCard", glyph: "bolt" },
+  { id: "reading", label: "console.nav.reading", glyph: "triplicate-slip" },
+  { id: "split", label: "console.nav.split", glyph: "hanging-scale" },
+  { id: "approve", label: "console.nav.approve", glyph: "seal" },
+  { id: "run", label: "console.nav.run", glyph: "rail" },
 ];
 
 export type RailItem = (typeof RAIL)[number]["id"];
@@ -36,7 +37,7 @@ export function ConsoleRail({
           <li key={item.id}>
             <span className="con-rail__item" aria-current={item.id === active ? "page" : undefined}>
               <Glyph name={item.id === active ? (`${item.glyph}-fill` as GlyphName) : item.glyph} size={18} />
-              {item.label}
+              {en(item.label)}
             </span>
           </li>
         ))}
