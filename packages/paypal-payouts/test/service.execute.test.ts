@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import {
-  type ApprovedRun,
+  type ApprovedLine,
   batchNote,
   DEFAULT_RETRY_DELAYS_MS,
   PayoutsService,
@@ -10,52 +10,62 @@ import {
   type PayPalHttp,
   payPalRequestId,
 } from "../src/index.js";
+import {
+  approve,
+  CHAIR,
+  makeSigner,
+  registeredKeyVerifier,
+  STRANGER,
+  TREASURER,
+} from "./support/approvals.js";
 import { referenceBatchDigest } from "./support/digest.js";
 import {
-  approvedRun,
+  approvalsFor,
   batchBody,
   created,
   digestFor,
   duplicateBatch,
+  EXP,
   HERO_LINES,
   HERO_SENDER_BATCH_ID,
+  NOW,
   PAYOUT_BATCH_ID,
   paypalError,
+  postingSnapshot,
   RATE_CARD_SHA256,
+  RUN_FACTS,
 } from "./support/fixtures.js";
 import { FetchPayPalHttp } from "./support/http.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
+import { JUDGE_LIMITS, makeService } from "./support/service.js";
 
 useMsw();
 
-function setup(extra: Partial<PayoutsServiceDeps> = {}) {
-  const repo = new MemoryPayoutsRepo();
-  const sleeps: number[] = [];
-  const service = new PayoutsService({
-    http: new FetchPayPalHttp(),
-    repo,
-    batchDigest: referenceBatchDigest,
-    sleep: async (ms) => void sleeps.push(ms),
-    ...extra,
-  });
-  return { service, repo, sleeps };
+const RUN_ID = RUN_FACTS.runId;
+
+async function setup(
+  snapshot?: Parameters<typeof postingSnapshot>[1] & { lines?: readonly ApprovedLine[] },
+  extra: Partial<PayoutsServiceDeps> = {},
+) {
+  const { lines, ...rest } = snapshot ?? {};
+  const repo = new MemoryPayoutsRepo({ postings: [await postingSnapshot(lines ?? HERO_LINES, rest)] });
+  return { repo, ...makeService(repo, extra) };
 }
 
 const posts = () => requests.filter((r) => r.method === "POST" && r.url.pathname === "/v1/payments/payouts");
 
-describe("PayoutsService.executeApproved: the approved digest is the payout", () => {
-  it("writes the rows as SUBMITTED, then POSTs exactly the register §8 batch", async () => {
-    const run = await approvedRun();
+describe("PayoutsService.executeApproved(runId): the approved digest is the payout", () => {
+  it("re-reads the run, writes the rows as SUBMITTED, then POSTs exactly the register §8 batch", async () => {
     const digest = await digestFor(HERO_LINES);
-    const { service, repo } = setup();
+    const { service, repo } = await setup();
     const rowsAtPost: boolean[] = [];
     onPost("/v1/payments/payouts", () => {
       rowsAtPost.push(repo.batches.get(HERO_SENDER_BATCH_ID)?.status === "SUBMITTED");
       return paypalJson(created(), 201, "dbg-201");
     });
 
-    const out = await service.executeApproved(run);
+    const out = await service.executeApproved(RUN_ID);
 
     expect(out).toEqual({
       kind: "created",
@@ -83,64 +93,29 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
         note: `Fair Split 2026-A, batch ${digest.slice(0, 8)}`,
       },
       items: [
-        {
-          receiver: "m002@example.test",
-          amount: { currency: "USD", value: "30.27" },
-          sender_item_id: "r37-M-002",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "m007@example.test",
-          amount: { currency: "USD", value: "62.71" },
-          sender_item_id: "r37-M-007",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "m014@example.test",
-          amount: { currency: "USD", value: "64.45" },
-          sender_item_id: "r37-M-014",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "m018@example.test",
-          amount: { currency: "USD", value: "55.63" },
-          sender_item_id: "r37-M-018",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "m022@example.test",
-          amount: { currency: "USD", value: "34.40" },
-          sender_item_id: "r37-M-022",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "rhea.no-account@example.test",
-          amount: { currency: "USD", value: "26.65" },
-          sender_item_id: "r37-M-031",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "m039@example.test",
-          amount: { currency: "USD", value: "38.32" },
-          sender_item_id: "r37-M-039",
-          purpose: "GOODS",
-        },
-        {
-          receiver: "m060@example.test",
-          amount: { currency: "USD", value: "55.96" },
-          sender_item_id: "r37-M-060",
-          purpose: "GOODS",
-        },
-      ],
+        ["m002@example.test", "30.27", "r37-M-002"],
+        ["m007@example.test", "62.71", "r37-M-007"],
+        ["m014@example.test", "64.45", "r37-M-014"],
+        ["m018@example.test", "55.63", "r37-M-018"],
+        ["m022@example.test", "34.40", "r37-M-022"],
+        ["rhea.no-account@example.test", "26.65", "r37-M-031"],
+        ["m039@example.test", "38.32", "r37-M-039"],
+        ["m060@example.test", "55.96", "r37-M-060"],
+      ].map(([receiver, value, id]) => ({
+        receiver,
+        amount: { currency: "USD", value },
+        sender_item_id: id,
+        purpose: "GOODS",
+      })),
     });
     const submitted = repo.batches.get(HERO_SENDER_BATCH_ID)?.batch;
     expect(submitted).toMatchObject({ kind: "primary", totalCents: 36_839n, batchSha256: digest });
     expect(submitted?.note).toBe(batchNote("2026-A", digest));
+    expect(submitted?.at).toBe(NOW.toISOString());
   });
 
   it("retries a 5xx three times with the same ids, at 1 s, 3 s and 9 s", async () => {
-    const run = await approvedRun();
-    const { service, sleeps } = setup();
+    const { service, sleeps } = await setup();
     onPost(
       "/v1/payments/payouts",
       sequence(
@@ -151,7 +126,7 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
       ),
     );
 
-    const out = await service.executeApproved(run);
+    const out = await service.executeApproved(RUN_ID);
 
     expect(out).toMatchObject({ kind: "created", attempts: 4 });
     expect(sleeps).toEqual([...DEFAULT_RETRY_DELAYS_MS]);
@@ -164,13 +139,12 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
   });
 
   it("leaves the rows SUBMITTED and reports unresolved when every retry fails", async () => {
-    const run = await approvedRun();
-    const { service, repo } = setup();
+    const { service, repo } = await setup();
     onPost("/v1/payments/payouts", () =>
       paypalJson(paypalError("INTERNAL_SERVER_ERROR", "boom"), 500, "dbg-500"),
     );
 
-    const out = await service.executeApproved(run);
+    const out = await service.executeApproved(RUN_ID);
 
     expect(out).toEqual({
       kind: "unresolved",
@@ -178,15 +152,60 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
       attempts: 4,
       lastStatus: 500,
       debugId: "dbg-500",
+      reason: "RETRIES_EXHAUSTED",
     });
     expect(repo.types()).toEqual(["writeSubmitted"]);
     expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
   });
 
-  it("after a timeout retries with the same id and adopts the batch the first attempt created", async () => {
-    const run = await approvedRun();
+  it("re-reads the kill switch before every retry and stops, rows SUBMITTED, when it turns on", async () => {
+    let on = false;
+    const killSwitch = vi.fn(async () => on);
+    const { service, repo, sleeps } = await setup(undefined, { killSwitch });
+    onPost("/v1/payments/payouts", () => {
+      on = true; // the treasurer flips kill_payouts while PayPal is failing
+      return paypalJson(paypalError("INTERNAL_SERVER_ERROR", "boom"), 500, "dbg-500");
+    });
+
+    const out = await service.executeApproved(RUN_ID);
+
+    expect(out).toEqual({
+      kind: "unresolved",
+      senderBatchId: HERO_SENDER_BATCH_ID,
+      attempts: 1,
+      lastStatus: 500,
+      debugId: "dbg-500",
+      reason: "KILL_SWITCH_ON",
+    });
+    expect(posts()).toHaveLength(1);
+    expect(sleeps).toEqual([1_000]);
+    expect(killSwitch).toHaveBeenCalledTimes(2);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+  });
+
+  it("resumes an unresolved post with the same ids, checking the approvals as of the write", async () => {
     const digest = await digestFor(HERO_LINES);
-    const { service, repo } = setup();
+    const { service, repo } = await setup();
+    onPost("/v1/payments/payouts", () => paypalJson(paypalError("INTERNAL_SERVER_ERROR", "boom"), 500));
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "unresolved" });
+
+    // An hour later the approvals have expired, but the rows were written while they were valid.
+    const later = makeService(repo, { now: () => new Date(NOW.getTime() + 3_600_000) }).service;
+    onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
+    onGet("/v1/payments/payouts/:id", () => paypalJson(batchBody(HERO_LINES, { digest })));
+
+    await expect(later.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "adopted",
+      senderBatchId: HERO_SENDER_BATCH_ID,
+      verifiedBy: "items",
+    });
+    expect(new Set(posts().map((r) => r.headers.get("paypal-request-id"))).size).toBe(1);
+    expect(repo.types().filter((t) => t === "writeSubmitted")).toHaveLength(1);
+  });
+
+  it("after a timeout retries with the same id and adopts the batch the first attempt created", async () => {
+    const digest = await digestFor(HERO_LINES);
+    const { service, repo } = await setup();
     onPost(
       "/v1/payments/payouts",
       sequence(
@@ -196,7 +215,7 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
     );
     onGet("/v1/payments/payouts/:id", () => paypalJson(batchBody(HERO_LINES, { digest }), 200, "dbg-get"));
 
-    const out = await service.executeApproved(run);
+    const out = await service.executeApproved(RUN_ID);
 
     expect(out).toMatchObject({
       kind: "adopted",
@@ -217,52 +236,50 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
   });
 
   it("adopts on 'already exists' by the header total while PayPal lists no items yet", async () => {
-    const run = await approvedRun();
-    const { service } = setup();
+    const { service } = await setup();
     onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
     onGet("/v1/payments/payouts/:id", () => paypalJson(batchBody(HERO_LINES, { listItems: false })));
-    await expect(service.executeApproved(run)).resolves.toMatchObject({
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
       kind: "adopted",
       verifiedBy: "header",
     });
   });
 
   it("refuses to adopt a batch whose items differ from the approved digest (HALT)", async () => {
-    const run = await approvedRun();
-    const { service, repo } = setup();
+    const { service, repo } = await setup();
     const tampered = HERO_LINES.map((l, i) => (i === 0 ? { ...l, receiver: "attacker@example.test" } : l));
     onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
     onGet("/v1/payments/payouts/:id", () => paypalJson(batchBody(tampered)));
 
-    const out = await service.executeApproved(run);
+    const out = await service.executeApproved(RUN_ID);
 
     expect(out).toMatchObject({ kind: "refused", code: "ADOPT_FAILED" });
     expect(repo.types()).toEqual(["writeSubmitted"]);
   });
 
   it("refuses to adopt a batch filed under another sender_batch_id, or with no link to follow", async () => {
-    const run = await approvedRun();
     onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(), 400));
     onGet("/v1/payments/payouts/:id", () =>
       paypalJson(batchBody(HERO_LINES, { sbid: "2026A-00000000-r37" })),
     );
-    await expect(setup().service.executeApproved(run)).resolves.toMatchObject({ code: "ADOPT_FAILED" });
+    await expect((await setup()).service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      code: "ADOPT_FAILED",
+    });
 
     onPost("/v1/payments/payouts", () => paypalJson(duplicateBatch(PAYOUT_BATCH_ID, false), 400));
-    await expect(setup().service.executeApproved(run)).resolves.toMatchObject({
+    await expect((await setup()).service.executeApproved(RUN_ID)).resolves.toMatchObject({
       code: "ADOPT_FAILED",
       reason: "PayPal says the batch exists but gave no link to it",
     });
   });
 
   it("treats a synchronous 4xx as a rejection, without retrying (ERRPYO005 INSUFFICIENT_FUNDS)", async () => {
-    const run = await approvedRun();
-    const { service, repo, sleeps } = setup();
+    const { service, repo, sleeps } = await setup();
     onPost("/v1/payments/payouts", () =>
       paypalJson(paypalError("INSUFFICIENT_FUNDS", "Sender does not have sufficient funds."), 422, "dbg-422"),
     );
 
-    const out = await service.executeApproved(run);
+    const out = await service.executeApproved(RUN_ID);
 
     expect(out).toEqual({
       kind: "rejected",
@@ -278,12 +295,11 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
   });
 
   it("a 429 opens the circuit: no retry, nothing created", async () => {
-    const run = await approvedRun();
-    const { service } = setup();
+    const { service } = await setup();
     onPost("/v1/payments/payouts", () =>
       paypalJson(paypalError("RATE_LIMIT_REACHED", "Too many requests."), 429),
     );
-    await expect(service.executeApproved(run)).resolves.toMatchObject({
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
       kind: "refused",
       code: "CIRCUIT_OPEN",
     });
@@ -291,9 +307,8 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
   });
 
   it("on a 401 invalidates the shared token and retries once", async () => {
-    const run = await approvedRun();
     const invalidate = vi.fn();
-    const { service } = setup({ auth: { invalidate } });
+    const { service } = await setup(undefined, { auth: { invalidate } });
     onPost(
       "/v1/payments/payouts",
       sequence(
@@ -301,12 +316,11 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
         () => paypalJson(created(), 201),
       ),
     );
-    await expect(service.executeApproved(run)).resolves.toMatchObject({ kind: "created", attempts: 2 });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "created", attempts: 2 });
     expect(invalidate).toHaveBeenCalledTimes(1);
   });
 
   it("also retries when PayPalHttp reports a timeout as a retryable result instead of throwing", async () => {
-    const run = await approvedRun();
     const results = [
       {
         ok: false as const,
@@ -322,8 +336,8 @@ describe("PayoutsService.executeApproved: the approved digest is the payout", ()
       { ok: true as const, status: 201, body: created(), debugId: "dbg-ok", ms: 120 },
     ];
     const request = vi.fn(async () => results.shift());
-    const { service, sleeps } = setup({ http: { request } as unknown as PayPalHttp });
-    await expect(service.executeApproved(run)).resolves.toMatchObject({
+    const { service, sleeps } = await setup(undefined, { http: { request } as unknown as PayPalHttp });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
       kind: "created",
       debugId: "dbg-ok",
       attempts: 2,
@@ -339,14 +353,13 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
     expect(repo.events).toHaveLength(0);
   };
 
-  it("inv.i4.digest-is-payout: a line edited after signing is refused", async () => {
-    const run = await approvedRun();
-    const edited: ApprovedRun = {
-      ...run,
-      lines: run.lines.map((l) => (l.memberNo === "M-014" ? { ...l, amountCents: l.amountCents + 1n } : l)),
-    };
-    const { service, repo } = setup();
-    await expect(service.executeApproved(edited)).resolves.toEqual({
+  it("inv.i4.digest-is-payout: lines the database changed after signing are refused", async () => {
+    const signed = await approvalsFor(HERO_LINES);
+    const edited = HERO_LINES.map((l) =>
+      l.memberNo === "M-014" ? { ...l, amountCents: l.amountCents + 1n } : l,
+    );
+    const { service, repo } = await setup({ lines: edited, approvals: signed });
+    await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
       kind: "refused",
       code: "DIGEST_MISMATCH",
       reason: "The batch changed after it was signed. Nothing was sent.",
@@ -355,34 +368,145 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
     expectNothingSent(repo);
   });
 
-  it("inv.i4.digest-is-payout: the Chair and the treasurer must have signed the same digest", async () => {
-    const digest = await digestFor(HERO_LINES);
-    const other = await digestFor(HERO_LINES.slice(1));
-    const run = await approvedRun(HERO_LINES, [
-      { role: "TREASURER", batchSha256: digest },
-      { role: "CHAIR", batchSha256: other },
-    ]);
-    const { service, repo } = setup();
-    await expect(service.executeApproved(run)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
+  it("inv.i4.digest-is-payout: the Chair and the treasurer must have signed the same batch", async () => {
+    const [treasurer] = await approvalsFor(HERO_LINES, { signers: [TREASURER] });
+    const [chair] = await approvalsFor(HERO_LINES.slice(1), { signers: [CHAIR] });
+    const { service, repo } = await setup({ approvals: [treasurer, chair].filter((a) => a !== undefined) });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
     expectNothingSent(repo);
   });
 
-  it("refuses when the kill switch is on (read fresh)", async () => {
-    const killSwitch = vi.fn(async () => true);
-    const { service, repo } = setup({ killSwitch });
-    await expect(service.executeApproved(await approvedRun())).resolves.toMatchObject({
-      code: "KILL_SWITCH_ON",
+  it("inv.i4.digest-is-payout: a resumed post whose stored digest no longer matches its lines is refused", async () => {
+    const { service, repo } = await setup({
+      submitted: { at: NOW.toISOString(), batchSha256: await digestFor(HERO_LINES.slice(1)) },
     });
-    expect(killSwitch).toHaveBeenCalledTimes(1);
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
     expectNothingSent(repo);
   });
 
-  it("refuses without the treasurer's approval", async () => {
-    const digest = await digestFor(HERO_LINES);
-    const run = await approvedRun(HERO_LINES, [{ role: "CHAIR", batchSha256: digest }]);
-    const { service, repo } = setup();
-    await expect(service.executeApproved(run)).resolves.toMatchObject({ code: "APPROVALS_MISSING" });
+  it("refuses when the kill switch is on (read fresh), before reading the run", async () => {
+    const killSwitch = vi.fn(async () => true);
+    const { service, repo } = await setup(undefined, { killSwitch });
+    const loadPosting = vi.spyOn(repo, "loadPosting");
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "KILL_SWITCH_ON" });
+    expect(killSwitch).toHaveBeenCalledTimes(1);
+    expect(loadPosting).not.toHaveBeenCalled();
     expectNothingSent(repo);
+  });
+
+  it("refuses a run the database holds no approved batch for", async () => {
+    const { service, repo } = await setup();
+    await expect(service.executeApproved("0199f6a0-0000-7000-8000-000000000099")).resolves.toMatchObject({
+      code: "INVALID_BATCH",
+    });
+    expectNothingSent(repo);
+  });
+
+  describe("inv.i6.human-gate: who signed is checked against the database's batch", () => {
+    it("refuses without the treasurer's approval", async () => {
+      const { service, repo } = await setup({
+        approvals: await approvalsFor(HERO_LINES, { signers: [CHAIR] }),
+      });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "APPROVALS_MISSING",
+        reason: "The treasurer's approval is missing",
+      });
+      expectNothingSent(repo);
+    });
+
+    it("refuses a batch over the R5 threshold without the Chair's co-signature", async () => {
+      const alone = await approvalsFor(HERO_LINES, { signers: [TREASURER] });
+      const { service, repo } = await setup({ approvals: alone });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "APPROVALS_MISSING",
+        reason: "The Chair's co-signature is missing (R5: BATCH_OVER_THRESHOLD)",
+      });
+      expectNothingSent(repo);
+    });
+
+    it("posts a batch under every threshold on the treasurer's key alone, but not with an override", async () => {
+      const small = HERO_LINES.slice(0, 3); // US$183.12, every line under US$150
+      onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
+      const alone = await approvalsFor(small, { signers: [TREASURER] });
+      await expect(
+        (await setup({ lines: small, approvals: alone })).service.executeApproved(RUN_ID),
+      ).resolves.toMatchObject({ kind: "created" });
+
+      const overridden = await setup({ lines: small, approvals: alone, overrides: 1 });
+      await expect(overridden.service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "APPROVALS_MISSING",
+        reason: "The Chair's co-signature is missing (R5: OVERRIDE)",
+      });
+    });
+
+    it("refuses one person signing as both treasurer and Chair", async () => {
+      const sameKey = makeSigner("chair", TREASURER.approverId, "fs-analyn-w2");
+      const approvals = await approvalsFor(HERO_LINES, { signers: [TREASURER, sameKey] });
+      const verify = registeredKeyVerifier([TREASURER, CHAIR, sameKey]);
+      const { service, repo } = await setup({ approvals }, { verifyApprovalSignature: verify });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "APPROVALS_MISSING",
+        reason: "The treasurer and the Chair must be two people with two keys",
+      });
+      expectNothingSent(repo);
+    });
+
+    it.each([
+      ["already expired", new Date(NOW.getTime() - 1).toISOString()],
+      ["expiring more than 30 minutes out", new Date(NOW.getTime() + 31 * 60_000).toISOString()],
+    ])("refuses an approval %s", async (_label, exp) => {
+      const { service, repo } = await setup({ approvals: await approvalsFor(HERO_LINES, { exp }) });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "DIGEST_MISMATCH",
+        reason: "An approval expired before the batch was sent. Nothing was sent.",
+      });
+      expectNothingSent(repo);
+    });
+
+    it("refuses a signature that does not verify against the registered key", async () => {
+      const [treasurer, chair] = await approvalsFor(HERO_LINES);
+      const forged = { ...(treasurer as NonNullable<typeof treasurer>), signatureHex: "00".repeat(64) };
+      const unregistered = (await approvalsFor(HERO_LINES, { signers: [STRANGER] }))[0];
+      for (const bad of [forged, unregistered]) {
+        const { service, repo } = await setup({ approvals: [bad, chair].filter((a) => a !== undefined) });
+        await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+          code: "DIGEST_MISMATCH",
+          reason: "An approval's signature does not verify against a registered key. Nothing was sent.",
+        });
+        expectNothingSent(repo);
+      }
+    });
+
+    it("refuses two approvals that share a nonce", async () => {
+      const digest = await digestFor(HERO_LINES);
+      const batch = { ...RUN_FACTS, batchSha256: digest, itemCount: 8, totalCents: 36_839 };
+      const approvals = [TREASURER, CHAIR].map((s) =>
+        approve(s, batch, { exp: EXP, nonce: "n-0457-reused" }),
+      );
+      const { service, repo } = await setup({ approvals });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "DIGEST_MISMATCH",
+        reason: "An approval's nonce was already used. Nothing was sent.",
+      });
+      expectNothingSent(repo);
+    });
+
+    it.each([
+      ["another run", { runId: "0199f6a0-0000-7000-8000-000000000036" }],
+      ["another season", { seasonId: "0199f6a0-0000-7000-8000-00000002025b" }],
+      ["another item count", { itemCount: 7 }],
+      ["another total", { totalCents: 36_840 }],
+    ])("refuses an approval signed for %s", async (_label, payload) => {
+      const digest = await digestFor(HERO_LINES);
+      const batch = { ...RUN_FACTS, batchSha256: digest, itemCount: 8, totalCents: 36_839 };
+      const approvals = [
+        approve(TREASURER, batch, { exp: EXP, payload }),
+        approve(CHAIR, batch, { exp: EXP }),
+      ];
+      const { service, repo } = await setup({ approvals });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
+      expectNothingSent(repo);
+    });
   });
 
   it.each([
@@ -392,32 +516,30 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
     ["a negative amount", { amountCents: -5n }],
   ])("refuses %s", async (_label, patch) => {
     const lines = HERO_LINES.map((l, i) => (i === 0 ? ({ ...l, ...patch } as typeof l) : l));
-    const { service, repo } = setup();
-    await expect(service.executeApproved(await approvedRun(lines))).resolves.toMatchObject({
-      code: "INVALID_BATCH",
-    });
+    const { service, repo } = await setup({ lines });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
     expectNothingSent(repo);
   });
 
   it("refuses a member listed twice and an empty batch", async () => {
-    const { service, repo } = setup();
-    const twice = [...HERO_LINES, { ...(HERO_LINES[0] as (typeof HERO_LINES)[number]), lineId: "dup" }];
-    await expect(service.executeApproved(await approvedRun(twice))).resolves.toMatchObject({
-      code: "INVALID_BATCH",
-    });
-    const empty = { ...(await approvedRun()), lines: [] };
-    await expect(service.executeApproved(empty)).resolves.toMatchObject({ code: "INVALID_BATCH" });
-    expectNothingSent(repo);
+    const twice = [...HERO_LINES, { ...(HERO_LINES[0] as ApprovedLine), lineId: "dup" }];
+    const a = await setup({ lines: twice });
+    await expect(a.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
+    const b = await setup({ lines: [], approvals: [] });
+    await expect(b.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
+    expectNothingSent(a.repo);
+    expectNothingSent(b.repo);
   });
 
   it("applies the sandbox guards: batch cap, item cap and known receivers", async () => {
-    const run = await approvedRun();
-    const capped = setup({ limits: { maxBatchTotalCents: 36_838n } });
-    await expect(capped.service.executeApproved(run)).resolves.toMatchObject({ code: "SANDBOX_GUARD" });
-    const few = setup({ limits: { maxItems: 7 } });
-    await expect(few.service.executeApproved(run)).resolves.toMatchObject({ code: "SANDBOX_GUARD" });
-    const known = setup({ limits: { receiverAllowed: (r) => r !== "rhea.no-account@example.test" } });
-    await expect(known.service.executeApproved(run)).resolves.toMatchObject({
+    const capped = await setup(undefined, { limits: { ...JUDGE_LIMITS, maxBatchTotalCents: 36_838n } });
+    await expect(capped.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "SANDBOX_GUARD" });
+    const few = await setup(undefined, { limits: { ...JUDGE_LIMITS, maxItems: 7 } });
+    await expect(few.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "SANDBOX_GUARD" });
+    const known = await setup(undefined, {
+      limits: { ...JUDGE_LIMITS, receiverAllowed: (r) => r !== "rhea.no-account@example.test" },
+    });
+    await expect(known.service.executeApproved(RUN_ID)).resolves.toMatchObject({
       code: "SANDBOX_GUARD",
       reason: "r37-M-031: the receiver is not a known sandbox account",
     });
@@ -426,19 +548,43 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
 
   it("passes the guards at exactly the cap", async () => {
     onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
-    const { service } = setup({ limits: { maxBatchTotalCents: 36_839n, maxItems: 8 } });
-    await expect(service.executeApproved(await approvedRun())).resolves.toMatchObject({ kind: "created" });
+    const { service } = await setup(undefined, {
+      limits: { ...JUDGE_LIMITS, maxBatchTotalCents: 36_839n, maxItems: 8 },
+    });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "created" });
   });
 
-  it("refuses a malformed rate-card hash or run number", async () => {
-    const run = await approvedRun();
-    const { service, repo } = setup();
-    await expect(service.executeApproved({ ...run, rateCardSha256: "7f3a91c2" })).resolves.toMatchObject({
-      code: "INVALID_BATCH",
-    });
-    await expect(service.executeApproved({ ...run, runSeq: 0 })).resolves.toMatchObject({
-      code: "INVALID_BATCH",
-    });
-    expectNothingSent(repo);
+  it("refuses a malformed rate-card hash or run number from the database", async () => {
+    const a = await setup({ rateCardSha256: "7f3a91c2" });
+    await expect(a.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
+    const b = await setup({ runSeq: 0 });
+    await expect(b.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
+    expectNothingSent(a.repo);
+    expectNothingSent(b.repo);
+  });
+});
+
+describe("PayoutsService wiring: the money guards are required", () => {
+  const base = (): PayoutsServiceDeps => ({
+    http: new FetchPayPalHttp(),
+    repo: new MemoryPayoutsRepo(),
+    batchDigest: referenceBatchDigest,
+    verifyApprovalSignature: registeredKeyVerifier(),
+    killSwitch: async () => false,
+    limits: JUDGE_LIMITS,
+  });
+
+  it.each([
+    ["no kill switch", { killSwitch: undefined }],
+    ["no signature check", { verifyApprovalSignature: undefined }],
+    ["no limits", { limits: undefined }],
+    ["no batch cap", { limits: { ...JUDGE_LIMITS, maxBatchTotalCents: undefined } }],
+    ["no item cap", { limits: { ...JUDGE_LIMITS, maxItems: undefined } }],
+    ["no receiver allowlist", { limits: { ...JUDGE_LIMITS, receiverAllowed: undefined } }],
+    ["a batch cap of zero", { limits: { ...JUDGE_LIMITS, maxBatchTotalCents: 0n } }],
+  ])("refuses to start with %s", (_label, patch) => {
+    expect(() => new PayoutsService({ ...base(), ...(patch as object) } as PayoutsServiceDeps)).toThrow(
+      TypeError,
+    );
   });
 });

@@ -75,6 +75,25 @@ export function senderItemId(spec: { runSeq: number; memberNo: string; rerouteNo
   return id;
 }
 
+const SENDER_ITEM_ID = /^r(\d+)(?:x(\d+))?-([A-Za-z0-9-]{1,40})$/;
+
+/**
+ * The parts of a sender_item_id we wrote, or null. A primary item has `rerouteNo` null; the item a
+ * re-route x{n} posted has n. The next re-route of an item is always its own n + 1, so a retry can
+ * never mint a second, different batch for the same returned item.
+ */
+export function parseSenderItemId(
+  id: string,
+): { runSeq: number; rerouteNo: number | null; memberNo: string } | null {
+  const m = SENDER_ITEM_ID.exec(id);
+  if (!m) return null;
+  const runSeq = Number(m[1]);
+  const rerouteNo = m[2] === undefined ? null : Number(m[2]);
+  if (!Number.isSafeInteger(runSeq) || runSeq < 1) return null;
+  if (rerouteNo !== null && (!Number.isSafeInteger(rerouteNo) || rerouteNo < 1)) return null;
+  return { runSeq, rerouteNo, memberNo: m[3] as string };
+}
+
 /** PayPal-Request-Id = sha256(sender_batch_id), lowercase hex. */
 export function payPalRequestId(senderBatchIdValue: string): string {
   return createHash("sha256").update(senderBatchIdValue, "utf8").digest("hex");

@@ -7,16 +7,22 @@
 
 import { createHash } from "node:crypto";
 import {
-  type ApprovalDigest,
   type ApprovedLine,
-  type ApprovedRun,
   batchNote,
   type PayoutItemRow,
+  type PayoutRunFacts,
+  type PostingSnapshot,
+  type SignedApproval,
   senderBatchId,
   senderItemId,
 } from "../../src/index.js";
+import { approve, CHAIR, type TestSigner, TREASURER } from "./approvals.js";
 import { referenceBatchDigest } from "./digest.js";
 import { SANDBOX } from "./msw.js";
+
+/** The service's clock in every test: approvals below expire 10 minutes after it. */
+export const NOW = new Date("2026-11-05T02:10:00.000Z");
+export const EXP = new Date(NOW.getTime() + 10 * 60_000).toISOString();
 
 /** Computed, never typed (register §2). */
 export const RATE_CARD_SHA256 = createHash("sha256").update("BR 2026-04 fixture card").digest("hex");
@@ -48,6 +54,13 @@ export const RUN_BASE = {
   rateCardSha256: RATE_CARD_SHA256,
 } as const;
 
+/** Run facts as the database holds them; R5 thresholds from BR 2026-04 (register §2). */
+export const RUN_FACTS: PayoutRunFacts = {
+  ...RUN_BASE,
+  seasonId: "0199f6a0-0000-7000-8000-00000002026a",
+  cosign: { ruleId: "R5", batchOverCents: 30_000, lineOverCents: 15_000, anyOverride: true },
+};
+
 export const HERO_SENDER_BATCH_ID = senderBatchId(RUN_BASE);
 
 /** The digest the treasurer and the Chair sign for a set of lines (reference IC-02). */
@@ -65,18 +78,36 @@ export async function digestFor(lines: readonly ApprovedLine[], rerouteNo?: numb
   );
 }
 
-export async function approvedRun(
+/** Signed approvals of exactly these lines (the treasurer and, by default, the Chair). */
+export async function approvalsFor(
   lines: readonly ApprovedLine[] = HERO_LINES,
-  approvals?: ApprovalDigest[],
-): Promise<ApprovedRun> {
-  const digest = await digestFor(lines);
+  options: { signers?: readonly TestSigner[]; rerouteNo?: number; exp?: string } = {},
+): Promise<SignedApproval[]> {
+  const batch = {
+    runId: RUN_FACTS.runId,
+    seasonId: RUN_FACTS.seasonId,
+    rateCardSha256: RUN_FACTS.rateCardSha256,
+    batchSha256: await digestFor(lines, options.rerouteNo),
+    itemCount: lines.length,
+    totalCents: Number(lines.reduce((s, l) => s + l.amountCents, 0n)),
+  };
+  return (options.signers ?? [TREASURER, CHAIR]).map((signer) =>
+    approve(signer, batch, { exp: options.exp ?? EXP }),
+  );
+}
+
+/** The database's view of an APPROVED run: what executeApproved re-reads before the POST. */
+export async function postingSnapshot(
+  lines: readonly ApprovedLine[] = HERO_LINES,
+  extra: Partial<PostingSnapshot> = {},
+): Promise<PostingSnapshot> {
   return {
-    ...RUN_BASE,
+    ...RUN_FACTS,
     lines,
-    approvals: approvals ?? [
-      { role: "TREASURER", batchSha256: digest },
-      { role: "CHAIR", batchSha256: digest },
-    ],
+    approvals: extra.approvals ?? (await approvalsFor(lines)),
+    overrides: 0,
+    submitted: null,
+    ...extra,
   };
 }
 
@@ -138,7 +169,14 @@ const itemId = (memberNo: string) => `ITEM${memberNo.replace("-", "")}AB12CD`;
 /** 200 GET (`payout_batch`) for a batch whose items are the given lines. */
 export function batchBody(
   lines: readonly ApprovedLine[],
-  opts: { sbid?: string; status?: string; listItems?: boolean; runSeq?: number; digest?: string } = {},
+  opts: {
+    sbid?: string;
+    status?: string;
+    listItems?: boolean;
+    runSeq?: number;
+    rerouteNo?: number;
+    digest?: string;
+  } = {},
 ) {
   const total = lines.reduce((s, l) => s + l.amountCents, 0n);
   const value = (c: bigint) => `${c / 100n}.${(c % 100n).toString().padStart(2, "0")}`;
@@ -169,7 +207,11 @@ export function batchBody(
               recipient_type: "EMAIL",
               amount: { currency: "USD", value: value(l.amountCents) },
               receiver: l.receiver,
-              sender_item_id: senderItemId({ runSeq: opts.runSeq ?? RUN_BASE.runSeq, memberNo: l.memberNo }),
+              sender_item_id: senderItemId({
+                runSeq: opts.runSeq ?? RUN_BASE.runSeq,
+                memberNo: l.memberNo,
+                rerouteNo: opts.rerouteNo,
+              }),
               purpose: "GOODS",
             },
             links: [

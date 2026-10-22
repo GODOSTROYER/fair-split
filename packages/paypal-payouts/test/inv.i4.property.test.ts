@@ -1,14 +1,13 @@
-// inv.i4.digest-is-payout (architecture §0): whatever changes between the signature and the POST,
-// the re-hash refuses it and nothing reaches the repository or PayPal.
+// inv.i4.digest-is-payout (architecture §0): whatever the database's lines become between the
+// signatures and the POST, the re-hash refuses it and nothing reaches the repository or PayPal.
 
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { type ApprovedLine, PayoutsService } from "../src/index.js";
-import { referenceBatchDigest } from "./support/digest.js";
-import { approvedRun, HERO_LINES } from "./support/fixtures.js";
-import { FetchPayPalHttp } from "./support/http.js";
+import type { ApprovedLine } from "../src/index.js";
+import { approvalsFor, HERO_LINES, postingSnapshot, RUN_FACTS } from "./support/fixtures.js";
 import { requests, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
+import { makeService } from "./support/service.js";
 
 useMsw();
 
@@ -80,20 +79,17 @@ function apply(lines: readonly ApprovedLine[], m: Mutation): ApprovedLine[] | nu
 }
 
 describe("inv.i4.digest-is-payout", () => {
-  it("refuses every post-signature change to the batch, and sends nothing", async () => {
-    const signed = await approvedRun();
+  it("refuses every change the database's lines undergo after signing, and sends nothing", async () => {
+    const approvals = await approvalsFor(HERO_LINES);
     await fc.assert(
       fc.asyncProperty(mutation, async (m) => {
-        const lines = apply(signed.lines, m);
+        const lines = apply(HERO_LINES, m);
         fc.pre(lines !== null);
-        const repo = new MemoryPayoutsRepo();
-        const service = new PayoutsService({
-          http: new FetchPayPalHttp(),
-          repo,
-          batchDigest: referenceBatchDigest,
-          sleep: async () => {},
+        const repo = new MemoryPayoutsRepo({
+          postings: [await postingSnapshot(lines as ApprovedLine[], { approvals })],
         });
-        const out = await service.executeApproved({ ...signed, lines: lines as ApprovedLine[] });
+        const { service } = makeService(repo);
+        const out = await service.executeApproved(RUN_FACTS.runId);
         expect(out.kind).toBe("refused");
         if (out.kind === "refused") expect(["DIGEST_MISMATCH", "INVALID_BATCH"]).toContain(out.code);
         expect(repo.events).toHaveLength(0);

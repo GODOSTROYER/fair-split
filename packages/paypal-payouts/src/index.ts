@@ -3,7 +3,15 @@
 // The money-moving functions (create, cancel) are deliberately not exported: they are reachable
 // only through PayoutsService, behind the kill switch, the approvals and the I4 digest check.
 
-export type { BatchDigestFn, BatchDigestRun, PayoutItemSpec } from "./_shims/domain.js";
+export type { Actor, ActorKind, ApprovalPayload, ApprovalRole, SignedApproval } from "./_shims/contracts.js";
+export type {
+  BatchDigestFn,
+  BatchDigestRun,
+  CosignInput,
+  CosignReason,
+  CosignRule,
+  PayoutItemSpec,
+} from "./_shims/domain.js";
 export type {
   CallPriority,
   CallPurpose,
@@ -27,6 +35,7 @@ export {
 export {
   batchNote,
   PayoutIdError,
+  parseSenderItemId,
   payPalRequestId,
   rc8,
   SENDER_BATCH_ID_MAX,
@@ -55,25 +64,29 @@ export {
 } from "./prompts.js";
 export { PAYOUT_BATCH_ID_REGEX, PAYOUT_ITEM_ID_REGEX, POSITIVE_DECIMAL_STRING_REGEX } from "./regex.js";
 export {
-  type ApprovalDigest,
-  type ApprovalRole,
+  APPROVAL_MAX_TTL_MS,
   type ApprovedLine,
-  type ApprovedRun,
   type BatchOutcome,
   type CancelIntent,
   type CancelOutcome,
   DEFAULT_RETRY_DELAYS_MS,
   isDuplicateBatchError,
   linkedBatchId,
+  PAYPAL_MAX_BATCH_ITEMS,
   type PayoutItemRow,
   type PayoutLimits,
+  type PayoutRunFacts,
   type PayoutsRepository,
   PayoutsService,
   type PayoutsServiceDeps,
+  type PostingSnapshot,
   type RefusalCode,
   type RerouteRequest,
   type SubmittedBatch,
   type SubmittedItem,
+  type SubmittedMark,
+  type SupersedingItem,
+  type UnresolvedReason,
 } from "./service.js";
 export {
   AGENT_PAYOUT_ACTIONS,
