@@ -6,10 +6,10 @@
 // through tk(), i.e. the toolkit's PayPalAPI on our token (graft G1); the agent's create, send, rule
 // and read run through these same steps (agent.ts), never through raw tk().
 
+import type { CallPriority } from "@fairsplit/paypal-core";
 import type { Provenance } from "./_shims/contracts.js";
-import { type CallPriority, ppDate } from "./_shims/paypal-core.js";
 import type { ToolkitMethod } from "./actions.js";
-import { parseIsoDate } from "./dates.js";
+import { parseIsoDate, ppDate } from "./dates.js";
 import {
   approvalCovers,
   autoCancelDate,

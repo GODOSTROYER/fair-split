@@ -1,6 +1,12 @@
+import type {
+  CallPriority,
+  CallPurpose,
+  LimiterDecision,
+  PayPalAuth,
+  PayPalLimiter,
+} from "@fairsplit/paypal-core";
 import { PayPalAPI } from "@paypal/agent-toolkit/mcp";
 import type { z } from "zod";
-import type { CallPriority, LimiterDecision, PayPalAuth, PayPalLimiter } from "./_shims/paypal-core.js";
 import { isToolkitMethod, type ToolkitMethod } from "./actions.js";
 import { type CallCapture, installCapture, withCapture } from "./capture.js";
 import { toolkitZodSchemas } from "./schemas.js";
@@ -18,7 +24,7 @@ export type ToolkitLimiter = PayPalLimiter;
 
 /** One row for `paypal_calls` (purpose, status, debug_id, request_id, ms). */
 export interface ToolkitCallRecord {
-  purpose: string;
+  purpose: CallPurpose;
   method: ToolkitMethod;
   attempt: number;
   ok: boolean;
@@ -31,7 +37,7 @@ export interface ToolkitCallRecord {
 
 export interface ToolkitDeps {
   /** IC-05 PayPalAuth: the one shared token cache. The toolkit never fetches its own token. */
-  auth: PayPalAuth;
+  auth: Pick<PayPalAuth, "token" | "invalidate">;
   /** Required: the sandbox blocks an IP above 50 calls a minute, so no call skips the limiter. */
   limiter: ToolkitLimiter;
   /** Best effort: a failing recorder never fails the PayPal call. */
@@ -183,7 +189,7 @@ export class PayPalToolkit {
     if (!parsed.success) throw new ToolkitArgsError(method, parsed.error.issues);
 
     const priority = options?.priority ?? this.#deps.priority ?? "live";
-    const purpose = `toolkit:${method}`;
+    const purpose: CallPurpose = `toolkit:${method}`;
     for (let attempt = 1; ; attempt++) {
       const refused = denial(await this.#deps.limiter.take({ purpose, priority }));
       if (refused) throw new ToolkitLimitedError(method, refused.reason, refused.retryAfterMs);

@@ -53,8 +53,9 @@ await runAgentToolkitTool({ run, invoices }, name, input, { treasurerApproval })
   agent never deletes an invoice: a SCHEDULED one is left for the server chain.
 - **Labels (I8, ADR-0002).** `ppMode` is required: on the simulator every result and funding check is
   `simulated_rail`; on the sandbox a recorded payment (MARKED_AS_PAID) still is, and the rest is `live`.
-- **Shims** in `src/_shims/` stand in for `@fairsplit/paypal-core` (WS-PPCORE's `PayPalAuth` and
-  `PayPalLimiter`, S3's `ppDate`), `domain` (WS-CORE's `InvoiceQuote`) and `contracts` until those merge;
-  each says what replaces it.
+- **IC-05** comes from `@fairsplit/paypal-core` (WS-PPCORE's `PayPalAuth`, of which `tk()` needs only
+  `token` and `invalidate`, and its `PayPalLimiter`; purposes are `toolkit:{method}`). S3's `ppDate` lives
+  in `src/dates.ts`, since paypal-core does not export it. Shims in `src/_shims/` still stand in for
+  `domain` (WS-CORE's `InvoiceQuote`) and `contracts` until those merge; each says what replaces it.
 
 Spike S2 results: `spikes/README.md`.

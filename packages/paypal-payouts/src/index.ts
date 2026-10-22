@@ -3,6 +3,18 @@
 // The money-moving functions (create, cancel) are deliberately not exported: they are reachable
 // only through PayoutsService, behind the kill switch, the approvals and the I4 digest check.
 
+// IC-05 as WS-PPCORE built it, re-exported so callers wire the service from one import.
+export type {
+  CallPriority,
+  CallPurpose,
+  PayPalFailure,
+  PayPalFailureKind,
+  PayPalHttp,
+  PayPalLink,
+  PayPalRequest,
+  PayPalResult,
+  PayPalSuccess,
+} from "@fairsplit/paypal-core";
 export type { Actor, ActorKind, ApprovalPayload, ApprovalRole, SignedApproval } from "./_shims/contracts.js";
 export type {
   BatchDigestFn,
@@ -12,16 +24,6 @@ export type {
   CosignRule,
   PayoutItemSpec,
 } from "./_shims/domain.js";
-export type {
-  CallPriority,
-  CallPurpose,
-  PayPalAuth,
-  PayPalFailureKind,
-  PayPalHttp,
-  PayPalLink,
-  PayPalRequest,
-  PayPalResult,
-} from "./_shims/paypal-core.js";
 export { type FairSplitPayoutBatch, fairSplitPayoutBatch, fairSplitPayoutItem } from "./fair-split-schema.js";
 export {
   type CreatePayoutBatchResponse,

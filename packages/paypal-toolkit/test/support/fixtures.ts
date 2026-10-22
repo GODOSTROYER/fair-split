@@ -211,6 +211,7 @@ export function fakeAuth(tokens: string[] = ["test-token-1", "test-token-2"]) {
       v: tokens[Math.min(i, tokens.length - 1)] as string,
       exp: Date.now() + 3_600_000,
       scopes: [],
+      appId: null,
     })),
     invalidate: vi.fn((_stale?: string) => {
       i += 1;

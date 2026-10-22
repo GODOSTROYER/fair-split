@@ -11,7 +11,7 @@ import {
   getPayoutItemParameters,
   PayoutParamsError,
 } from "../src/index.js";
-import { FetchPayPalHttp } from "./support/http.js";
+import { RealPayPalHttp } from "./support/http.js";
 import { useMsw } from "./support/msw.js";
 
 useMsw();
@@ -72,7 +72,7 @@ describe("createPayoutBatchParameters (vendored from PR #107)", () => {
   });
 
   it("throws before any request when the PR's validation fails", async () => {
-    const http = new FetchPayPalHttp();
+    const http = new RealPayPalHttp();
     await expect(getPayoutBatch(http, {}, { payout_batch_id: "a/b" })).rejects.toBeInstanceOf(
       PayoutParamsError,
     );

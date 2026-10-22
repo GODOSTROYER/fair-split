@@ -3,8 +3,8 @@
 // only the two reads; create and cancel are server-only and reachable solely through
 // PayoutsService (register §8).
 
+import type { CallPriority, PayPalHttp } from "@fairsplit/paypal-core";
 import type { z } from "zod";
-import type { CallPriority, PayPalHttp } from "./_shims/paypal-core.js";
 import { AGENT_READ_TOOL_JSON_SCHEMAS } from "./agent-read-schemas.js";
 import { getPayoutBatch, getPayoutItem } from "./functions.js";
 import {

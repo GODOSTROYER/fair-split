@@ -2,16 +2,17 @@
 // Graft G1: tool JSON Schemas come from the toolkit's /openai export; every execution, agent or
 // deterministic, goes through the toolkit's PayPalAPI (from /mcp) on our injected token.
 
+// IC-05 as WS-PPCORE built it, re-exported so callers wire tk() from one import.
+export type {
+  CallPriority,
+  CallPurpose,
+  LimiterDecision,
+  PayPalAuth,
+  PayPalLimiter,
+  PayPalToken,
+} from "@fairsplit/paypal-core";
 export type { Provenance } from "./_shims/contracts.js";
 export type { InvoiceQuote, InvoiceQuoteItem, QuoteItemKey } from "./_shims/domain.js";
-export {
-  type CallPriority,
-  type LimiterDecision,
-  type PayPalAuth,
-  type PayPalLimiter,
-  type PayPalToken,
-  ppDate,
-} from "./_shims/paypal-core.js";
 export {
   AGENT_ACTIONS,
   AGENT_TOOL_METHODS,
@@ -34,6 +35,7 @@ export {
   AgentToolRefusedError,
   runAgentToolkitTool,
 } from "./agent.js";
+export { ppDate } from "./dates.js";
 export {
   AUTO_CANCEL_AFTER_DAYS,
   AUTO_CANCEL_MAX_DAYS_AHEAD,

@@ -8,6 +8,7 @@ import {
   PayoutsService,
   type PayoutsServiceDeps,
   type PayPalHttp,
+  type PayPalResult,
   payPalRequestId,
 } from "../src/index.js";
 import {
@@ -35,7 +36,7 @@ import {
   RATE_CARD_SHA256,
   RUN_FACTS,
 } from "./support/fixtures.js";
-import { FetchPayPalHttp } from "./support/http.js";
+import { fixedAuth, RealPayPalHttp, TEST_TOKEN } from "./support/http.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
 import { JUDGE_LIMITS, makeService } from "./support/service.js";
@@ -306,9 +307,9 @@ describe("PayoutsService.executeApproved(runId): the approved digest is the payo
     expect(posts()).toHaveLength(1);
   });
 
-  it("on a 401 invalidates the shared token and retries once", async () => {
-    const invalidate = vi.fn();
-    const { service } = await setup(undefined, { auth: { invalidate } });
+  it("a 401 is PayPalHttp's: it drops the stale shared token and resends once, one service attempt", async () => {
+    const auth = fixedAuth();
+    const { service, sleeps } = await setup(undefined, { http: new RealPayPalHttp({ auth }) });
     onPost(
       "/v1/payments/payouts",
       sequence(
@@ -316,24 +317,58 @@ describe("PayoutsService.executeApproved(runId): the approved digest is the payo
         () => paypalJson(created(), 201),
       ),
     );
-    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "created", attempts: 2 });
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "created", attempts: 1 });
+    expect(auth.invalidated).toEqual([TEST_TOKEN]);
+    expect(posts()).toHaveLength(2);
+    expect(sleeps).toEqual([]);
+  });
+
+  it("a 401 the client could not clear is final: unresolved AUTH_FAILED, rows SUBMITTED, no more POSTs", async () => {
+    const auth = fixedAuth();
+    const { service, repo } = await setup(undefined, { http: new RealPayPalHttp({ auth }) });
+    onPost("/v1/payments/payouts", () =>
+      paypalJson({ name: "AUTHENTICATION_FAILURE", message: "Authentication failed" }, 401, "dbg-401"),
+    );
+    await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+      kind: "unresolved",
+      senderBatchId: HERO_SENDER_BATCH_ID,
+      attempts: 1,
+      lastStatus: 401,
+      debugId: "dbg-401",
+      reason: "AUTH_FAILED",
+    });
+    expect(posts()).toHaveLength(2); // the client's own resend after dropping the token, nothing more
+    expect(auth.invalidated).toEqual([TEST_TOKEN]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
   });
 
   it("also retries when PayPalHttp reports a timeout as a retryable result instead of throwing", async () => {
-    const results = [
+    const results: PayPalResult<unknown>[] = [
       {
-        ok: false as const,
+        ok: false,
+        kind: "timeout",
         status: 0,
-        name: "TIMEOUT",
-        message: "timed out",
+        name: "FS_TIMEOUT",
+        message: "no response within 15000 ms",
         details: [],
         links: [],
         debugId: null,
-        retryable: true,
+        retryable: false,
+        retryAfterMs: null,
+        delivery: "unknown",
         ms: 15_000,
+        attempts: 1,
+        requestId: payPalRequestId(HERO_SENDER_BATCH_ID),
       },
-      { ok: true as const, status: 201, body: created(), debugId: "dbg-ok", ms: 120 },
+      {
+        ok: true,
+        status: 201,
+        body: created(),
+        debugId: "dbg-ok",
+        ms: 120,
+        attempts: 1,
+        requestId: payPalRequestId(HERO_SENDER_BATCH_ID),
+      },
     ];
     const request = vi.fn(async () => results.shift());
     const { service, sleeps } = await setup(undefined, { http: { request } as unknown as PayPalHttp });
@@ -566,7 +601,7 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
 
 describe("PayoutsService wiring: the money guards are required", () => {
   const base = (): PayoutsServiceDeps => ({
-    http: new FetchPayPalHttp(),
+    http: new RealPayPalHttp(),
     repo: new MemoryPayoutsRepo(),
     batchDigest: referenceBatchDigest,
     verifyApprovalSignature: registeredKeyVerifier(),

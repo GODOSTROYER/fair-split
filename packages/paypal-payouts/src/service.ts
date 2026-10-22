@@ -7,6 +7,13 @@
 // each retry → "already exists" adopted through the HATEOAS link only if it re-hashes to the
 // approved digest. Nothing here trusts a line, an amount or an approval the caller hands in.
 
+import type {
+  CallPriority,
+  PayPalFailure,
+  PayPalFailureKind,
+  PayPalHttp,
+  PayPalResult,
+} from "@fairsplit/paypal-core";
 import type { Actor, ApprovalRole, SignedApproval } from "./_shims/contracts.js";
 import {
   type BatchDigestFn,
@@ -15,7 +22,6 @@ import {
   type PayoutItemSpec,
   requiresChair,
 } from "./_shims/domain.js";
-import type { CallPriority, PayPalAuth, PayPalHttp, PayPalResult } from "./_shims/paypal-core.js";
 import { type FairSplitPayoutBatch, fairSplitPayoutBatch } from "./fair-split-schema.js";
 import {
   type CreatePayoutBatchResponse,
@@ -302,10 +308,12 @@ export interface PayoutLimits {
 }
 
 export interface PayoutsServiceDeps {
-  /** IC-05 PayPalHttp: limiter, PayPal-Request-Id, call log, debug ids, links merged from details. */
+  /**
+   * IC-05 PayPalHttp: limiter, shared token, PayPal-Request-Id, call log, debug ids, links merged from
+   * details. It owns the 401 (drops the stale token, resends once), so a 401 that reaches the service
+   * is final.
+   */
   http: PayPalHttp;
-  /** IC-05 PayPalAuth: on a 401 we invalidate the shared token and retry once. */
-  auth?: Pick<PayPalAuth, "invalidate">;
   repo: PayoutsRepository;
   /** IC-02 `batchDigest(run, items)`; the service only compares. */
   batchDigest: BatchDigestFn;
@@ -358,15 +366,15 @@ const refused = (code: RefusalCode, reason: string, senderBatchId: string | null
 
 const CHANGED = "The batch changed after it was signed. Nothing was sent.";
 
-type Failure = Extract<PayPalResult<unknown>, { ok: false }>;
+type Failure = PayPalFailure;
 
 function isRetryable(result: Failure): boolean {
   if (result.status === 429 || result.status === 401) return false;
   return result.status === 0 || result.status === 408 || result.status >= 500 || result.retryable;
 }
 
-type LocalRefusal = "limited" | "circuit_open" | "auth" | "invalid_request";
-const LOCAL_REFUSALS: ReadonlySet<string> = new Set<LocalRefusal>([
+type LocalRefusal = Extract<PayPalFailureKind, "limited" | "circuit_open" | "auth" | "invalid_request">;
+const LOCAL_REFUSALS: ReadonlySet<PayPalFailureKind> = new Set<LocalRefusal>([
   "limited",
   "circuit_open",
   "auth",
@@ -375,11 +383,11 @@ const LOCAL_REFUSALS: ReadonlySet<string> = new Set<LocalRefusal>([
 
 /**
  * WS-PPCORE's PayPalHttp refused the call itself (limiter window, 429 circuit, no OAuth token, a request
- * it would not send): nothing reached PayPal, so retrying at once would only be refused again. Its
- * status is 0, which a double without `kind` uses for "no answer", so the kind is checked first.
+ * it would not send): `delivery: "not_sent"`, so retrying at once would only be refused again. Such a
+ * failure has status 0 like a lost response, so its `kind` decides, never its status.
  */
 function localRefusal(result: Failure): LocalRefusal | null {
-  return result.kind !== undefined && LOCAL_REFUSALS.has(result.kind) ? (result.kind as LocalRefusal) : null;
+  return LOCAL_REFUSALS.has(result.kind) ? (result.kind as LocalRefusal) : null;
 }
 
 function detailText(details: unknown[]): string {
@@ -458,7 +466,6 @@ function requireFunction<T>(value: T, what: string): T {
 
 export class PayoutsService {
   readonly #http: PayPalHttp;
-  readonly #auth: Pick<PayPalAuth, "invalidate"> | undefined;
   readonly #repo: PayoutsRepository;
   readonly #digest: BatchDigestFn;
   readonly #verifySignature: (approval: SignedApproval) => Promise<boolean>;
@@ -471,7 +478,6 @@ export class PayoutsService {
 
   constructor(deps: PayoutsServiceDeps) {
     this.#http = deps.http;
-    this.#auth = deps.auth;
     this.#repo = deps.repo;
     this.#digest = requireFunction(deps.batchDigest, "the IC-02 batch digest");
     this.#verifySignature = requireFunction(deps.verifyApprovalSignature, "an approval signature check");
@@ -764,7 +770,6 @@ export class PayoutsService {
   async #send(body: FairSplitPayoutBatch, ctx: PostContext): Promise<BatchOutcome> {
     let attempts = 0;
     let retry = 0;
-    let authRetried = false;
     let lastStatus: number | null = null;
     let lastDebugId: string | null = null;
     const unresolved = (reason: UnresolvedReason): BatchOutcome => ({
@@ -846,11 +851,6 @@ export class PayoutsService {
           case null:
             break;
         }
-        if (result.status === 401 && this.#auth && !authRetried) {
-          this.#auth.invalidate();
-          authRetried = true;
-          continue;
-        }
         if (isDuplicateBatchError(result)) return this.#adopt(result, ctx, attempts);
         if (result.status === 429) {
           return refused(
@@ -859,6 +859,7 @@ export class PayoutsService {
             ctx.senderBatchId,
           );
         }
+        // PayPalHttp already dropped the stale token and resent once: the credentials are refused.
         if (result.status === 401) return unresolved("AUTH_FAILED");
         if (!isRetryable(result)) {
           await this.#repo.markRejected({
@@ -1001,7 +1002,6 @@ export class PayoutsService {
 
     let attempts = 0;
     let retry = 0;
-    let authRetried = false;
     let lastStatus: number | null = null;
     for (;;) {
       if (attempts > 0 && (await this.#killSwitch())) {
@@ -1045,11 +1045,6 @@ export class PayoutsService {
             result.debugId,
             result.message,
           );
-        }
-        if (result.status === 401 && this.#auth && !authRetried) {
-          this.#auth.invalidate();
-          authRetried = true;
-          continue;
         }
         if (result.status === 401) {
           return { kind: "UNRESOLVED", payoutItemId, attempts, lastStatus, reason: "AUTH_FAILED" };

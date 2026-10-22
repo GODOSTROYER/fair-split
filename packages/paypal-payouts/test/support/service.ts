@@ -2,7 +2,7 @@ import { type PayoutLimits, PayoutsService, type PayoutsServiceDeps } from "../.
 import { registeredKeyVerifier } from "./approvals.js";
 import { referenceBatchDigest } from "./digest.js";
 import { NOW } from "./fixtures.js";
-import { FetchPayPalHttp } from "./http.js";
+import { RealPayPalHttp } from "./http.js";
 import type { MemoryPayoutsRepo } from "./repo.js";
 
 /** Register C-21 (US$400 cap), Judge Mode's 8 items, and PP_RECEIVERS as the sandbox aliases. */
@@ -16,7 +16,7 @@ export const JUDGE_LIMITS: PayoutLimits = {
 export function makeService(repo: MemoryPayoutsRepo, extra: Partial<PayoutsServiceDeps> = {}) {
   const sleeps: number[] = [];
   const service = new PayoutsService({
-    http: new FetchPayPalHttp(),
+    http: new RealPayPalHttp(),
     repo,
     batchDigest: referenceBatchDigest,
     verifyApprovalSignature: registeredKeyVerifier(),

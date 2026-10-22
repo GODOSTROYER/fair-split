@@ -17,7 +17,7 @@ import {
   SERVER_ONLY_PAYOUT_METHODS,
 } from "../src/index.js";
 import { PAYOUT_BATCH_ID, paypalError } from "./support/fixtures.js";
-import { FetchPayPalHttp } from "./support/http.js";
+import { RealPayPalHttp } from "./support/http.js";
 import { onGet, paypalJson, requests, useMsw } from "./support/msw.js";
 
 useMsw();
@@ -90,7 +90,7 @@ describe("allowlist contract: the agent cannot reach money-moving payout calls",
   it.each([...SERVER_ONLY_PAYOUT_METHODS, "record_payment_for_invoice", "create_invoice", "anything"])(
     "refuses %s through the agent path, sending nothing",
     async (tool) => {
-      const http = new FetchPayPalHttp();
+      const http = new RealPayPalHttp();
       await expect(
         runAgentPayoutTool(http, tool, { payout_item_id: "8AELMXH8UB2P8" }),
       ).rejects.toBeInstanceOf(PayoutToolNotAllowedError);
@@ -111,7 +111,7 @@ describe("the agent's reads", () => {
     onGet("/v1/payments/payouts/:id", () =>
       paypalJson({ batch_header: { payout_batch_id: PAYOUT_BATCH_ID } }),
     );
-    const out = await runAgentPayoutTool(new FetchPayPalHttp(), "get_payout_batch", {
+    const out = await runAgentPayoutTool(new RealPayPalHttp(), "get_payout_batch", {
       payout_batch_id: PAYOUT_BATCH_ID,
     });
     expect(out).toEqual({ batch_header: { payout_batch_id: PAYOUT_BATCH_ID } });
@@ -125,7 +125,7 @@ describe("the agent's reads", () => {
     onGet("/v1/payments/payouts-item/:id", () =>
       paypalJson(paypalError("INVALID_RESOURCE_ID", "Requested resource ID was not found."), 404, "dbg-404"),
     );
-    const error = await runAgentPayoutTool(new FetchPayPalHttp(), "get_payout_item", {
+    const error = await runAgentPayoutTool(new RealPayPalHttp(), "get_payout_item", {
       payout_item_id: "8AELMXH8UB2P8",
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(PayoutsApiError);

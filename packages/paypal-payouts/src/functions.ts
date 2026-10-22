@@ -8,7 +8,7 @@
 // cancel pass `idempotent: false`, so PayPalHttp never repeats a money-moving POST on its own: its
 // caller (PayoutsService) retries, re-reading the kill switch first. Purposes are paypal_calls'.
 
-import type { CallPriority, PayPalHttp, PayPalResult } from "./_shims/paypal-core.js";
+import type { CallPriority, PayPalHttp, PayPalResult } from "@fairsplit/paypal-core";
 import {
   type CancelUnclaimedPayoutItemParams,
   type Context,

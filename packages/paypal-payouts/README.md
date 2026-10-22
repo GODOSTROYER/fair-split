@@ -8,8 +8,7 @@ IC-05 `PayPalHttp`.
 
 ```ts
 const payouts = new PayoutsService({
-  http, // IC-05 PayPalHttp (WS-PPCORE's createPayPalHttp fits the port as is)
-  auth, // IC-05 PayPalAuth: invalidate() on a 401
+  http, // IC-05 PayPalHttp: WS-PPCORE's createPayPalHttp (it owns the 401 token refresh)
   repo, // IC-04 port
   batchDigest, // IC-02
   verifyApprovalSignature, // Ed25519 against the registered device_keys row
@@ -42,14 +41,17 @@ once, rows left SUBMITTED for a resume with the same ids: the limiter window is 
 circuit (or a 429) `refused CIRCUIT_OPEN`, no OAuth token `unresolved AUTH_FAILED`, a request it would
 not send `refused INVALID_BATCH`. A timeout may have reached PayPal and is retried. Call purposes are
 `paypal_calls`' own (`payouts.create`, `payouts.get`, `payouts.item.get`, `payouts.item.cancel`).
-`test/service.ic05.test.ts` restates the real result types and assigns the client to this port.
+The client also owns the 401: it drops the stale shared token and resends once, so a 401 that still
+reaches the service is final (`unresolved AUTH_FAILED`). The tests run the service on the real client
+over msw (`test/support/http.ts`); `test/service.ic05.test.ts` also drives it into each local refusal.
 
 `reroute` pays a RETURNED item's line again as `{sender_batch_id}-x{n}` / `r{runSeq}x{n}-{memberNo}`,
 only after our own cancel with intent `reroute`, for the amount the database holds, at most once per
 returned item (`n` is the returned item's own n + 1; a retry resumes the same ids).
 
 `createPayoutBatch` and `cancelUnclaimedPayoutItem` are not exported: money moves only through the
-service. Shims in `src/_shims/` stand in for `@fairsplit/paypal-core`, `domain` and `contracts`.
+service. IC-05 types come from `@fairsplit/paypal-core`; shims in `src/_shims/` still stand in for
+`domain` and `contracts` until WS-CORE merges.
 The agent's two read-tool schemas are checked in (`src/agent-read-schemas.ts`); `scripts/gen-read-schemas.ts`
 regenerates them with `scripts/zod-json-schema.ts`, a dev-only converter for exactly the zod those two
 schemas use, and a test fails on drift. `zod-to-json-schema` (pinned for the S2 fallback only) is not a

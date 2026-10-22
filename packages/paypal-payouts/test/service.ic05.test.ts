@@ -1,16 +1,21 @@
-// PayoutsService against WS-PPCORE's real IC-05 PayPalHttp (packages/paypal-core/src/http.ts, merged
-// into main 23 Oct). That client retries idempotent calls (GETs, and anything carrying a
-// PayPal-Request-Id) on its own at 1, 3 and 9 s, reports limiter and circuit refusals as failures
-// with status 0 and `delivery: "not_sent"`, and puts links without a `method`. The service owns the
-// retries of the money-moving POSTs, re-reading the kill switch before each, so it must ask the
-// client never to repeat them, and it must not mistake "nothing was sent" for a lost response.
+// PayoutsService against WS-PPCORE's real IC-05 PayPalHttp (@fairsplit/paypal-core, on main since
+// 23 Oct). That client retries idempotent calls (GETs, and anything carrying a PayPal-Request-Id) on its
+// own at 1, 3 and 9 s, reports limiter, circuit, OAuth and local refusals as failures with status 0 and
+// `delivery: "not_sent"`, and puts links without a `method`. The service owns the retries of the
+// money-moving POSTs, re-reading the kill switch before each, so it must ask the client never to repeat
+// them, and it must not mistake "nothing was sent" for a lost response. The scripted results below carry
+// the real types; the last block drives the real client itself into each refusal.
 
+import type { LimiterDecision, PayPalLimiter } from "@fairsplit/paypal-core";
 import { describe, expect, it } from "vitest";
 import {
   type Actor,
+  type PayPalFailure,
   type PayPalFailureKind,
   type PayPalHttp,
   type PayPalRequest,
+  type PayPalResult,
+  type PayPalSuccess,
   payPalRequestId,
 } from "../src/index.js";
 import {
@@ -23,49 +28,20 @@ import {
   RUN_FACTS,
   rheaRow,
 } from "./support/fixtures.js";
+import { fixedAuth, RealPayPalHttp, TEST_TOKEN } from "./support/http.js";
+import { onPost, paypalJson, requests, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
 import { makeService } from "./support/service.js";
 
-const ANALYN: Actor = { kind: "human", id: "treasurer:analyn", impersonatedBy: null };
+useMsw();
 
-// WS-PPCORE's result types (packages/paypal-core/src/http.ts on main), restated here: this package
-// must compile without paypal-core, and the assignment in `scripted` proves the real client fits it.
-type RealDelivery = "not_sent" | "unknown" | "received";
-interface RealFailure {
-  ok: false;
-  kind: PayPalFailureKind;
-  status: number;
-  name: string;
-  message: string;
-  details: { field?: string; issue?: string; description?: string; [key: string]: unknown }[];
-  links: { href: string; rel: string; method?: string }[];
-  debugId: string | null;
-  retryable: boolean;
-  retryAfterMs: number | null;
-  delivery: RealDelivery;
-  ms: number;
-  attempts: number;
-  requestId: string | null;
-}
-interface RealSuccess<T> {
-  ok: true;
-  status: number;
-  body: T;
-  debugId: string | null;
-  ms: number;
-  attempts: number;
-  requestId: string | null;
-}
-type RealResult<T> = RealSuccess<T> | RealFailure;
-interface RealPayPalHttp {
-  request<T = unknown>(req: PayPalRequest): Promise<RealResult<T>>;
-}
+const ANALYN: Actor = { kind: "human", id: "treasurer:analyn", impersonatedBy: null };
 
 /** A failure exactly as WS-PPCORE's createPayPalHttp returns it (every field, links without method). */
 function ic05Failure(
   kind: PayPalFailureKind,
-  over: { status?: number; name?: string; delivery?: RealDelivery } = {},
-): RealFailure {
+  over: { status?: number; name?: string; delivery?: PayPalFailure["delivery"] } = {},
+): PayPalFailure {
   const local =
     kind === "limited" || kind === "circuit_open" || kind === "auth" || kind === "invalid_request";
   return {
@@ -98,7 +74,7 @@ function ic05Failure(
   };
 }
 
-const ok = <T>(body: T, status = 201): RealSuccess<T> => ({
+const ok = <T>(body: T, status = 201): PayPalSuccess<T> => ({
   ok: true,
   status,
   body,
@@ -109,18 +85,16 @@ const ok = <T>(body: T, status = 201): RealSuccess<T> => ({
 });
 
 /** Plays scripted IC-05 results in order and records every request it was given. */
-function scripted(...results: RealResult<unknown>[]) {
+function scripted(...results: PayPalResult<unknown>[]) {
   const calls: PayPalRequest[] = [];
-  const real: RealPayPalHttp = {
-    async request<T>(r: PayPalRequest): Promise<RealResult<T>> {
+  const http: PayPalHttp = {
+    async request<T>(r: PayPalRequest): Promise<PayPalResult<T>> {
       calls.push(r);
       const next = results.shift();
       if (!next) throw new Error(`unscripted ${r.method} ${r.path}`);
-      return next as RealResult<T>;
+      return next as PayPalResult<T>;
     },
   };
-  // Compile-time IC-05 check: the real client's shape is assignable to the port this package declares.
-  const http: PayPalHttp = real;
   return { http, calls };
 }
 
@@ -258,4 +232,69 @@ describe("PayoutsService on the real IC-05 PayPalHttp: cancel_unclaimed_payout_i
       expect(repo.items.get(RHEA_ITEM_ID)).toMatchObject({ cancelIntent: "cash", status: "UNCLAIMED" });
     },
   );
+});
+
+describe("PayoutsService on the real client itself: each refusal arrives as what it is", () => {
+  const refusing = (reason: Extract<LimiterDecision, { ok: false }>["reason"]): PayPalLimiter => ({
+    take: async () => ({ ok: false, reason, retryAfterMs: 40_000 }),
+  });
+
+  it.each([
+    ["a full limiter window", "WINDOW_FULL", "QUEUED"],
+    ["the background share", "BACKGROUND_SHARE_FULL", "QUEUED"],
+    ["an open 429 circuit", "CIRCUIT_OPEN", "CIRCUIT_OPEN"],
+  ] as const)("%s sends nothing: refused %s, rows SUBMITTED for a resume", async (_label, reason, code) => {
+    const { service, repo, sleeps } = await postingService(new RealPayPalHttp({ limiter: refusing(reason) }));
+    await expect(service.executeApproved(RUN_FACTS.runId)).resolves.toMatchObject({
+      kind: "refused",
+      code,
+      senderBatchId: HERO_SENDER_BATCH_ID,
+    });
+    expect(requests).toHaveLength(0);
+    expect(sleeps).toEqual([]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+  });
+
+  it("a token cache that cannot produce a token sends nothing: unresolved AUTH_FAILED", async () => {
+    const auth = {
+      ...fixedAuth(),
+      token: async () => Promise.reject(new Error("PayPal OAuth unreachable")),
+    };
+    const { service, sleeps } = await postingService(new RealPayPalHttp({ auth }));
+    await expect(service.executeApproved(RUN_FACTS.runId)).resolves.toMatchObject({
+      kind: "unresolved",
+      reason: "AUTH_FAILED",
+      attempts: 1,
+      lastStatus: 0,
+    });
+    expect(requests).toHaveLength(0);
+    expect(sleeps).toEqual([]);
+  });
+
+  it("a cancel the limiter refuses keeps the intent and sends nothing", async () => {
+    const repo = new MemoryPayoutsRepo({ items: [rheaRow("UNCLAIMED")], runs: [RUN_FACTS] });
+    const { service } = makeService(repo, { http: new RealPayPalHttp({ limiter: refusing("WINDOW_FULL") }) });
+    await expect(service.cancelUnclaimed(RHEA_ITEM_ID, ANALYN, "cash")).resolves.toEqual({
+      kind: "REFUSED",
+      payoutItemId: RHEA_ITEM_ID,
+      code: "QUEUED",
+    });
+    expect(requests).toHaveLength(0);
+    expect(repo.items.get(RHEA_ITEM_ID)).toMatchObject({ cancelIntent: "cash", status: "UNCLAIMED" });
+  });
+
+  it("a 201 through the real client is posted once with the batch's own request id", async () => {
+    onPost("/v1/payments/payouts", () => paypalJson(created(), 201, "dbg-201"));
+    const http = new RealPayPalHttp();
+    const { service } = await postingService(http);
+    await expect(service.executeApproved(RUN_FACTS.runId)).resolves.toMatchObject({
+      kind: "created",
+      debugId: "dbg-201",
+    });
+    expect(requests.map((r) => [r.method, r.url.pathname, r.headers.get("paypal-request-id")])).toEqual([
+      ["POST", "/v1/payments/payouts", payPalRequestId(HERO_SENDER_BATCH_ID)],
+    ]);
+    expect(requests[0]?.headers.get("authorization")).toBe(`Bearer ${TEST_TOKEN}`);
+    expect(http.calls.map((c) => c.idempotent)).toEqual([false]);
+  });
 });

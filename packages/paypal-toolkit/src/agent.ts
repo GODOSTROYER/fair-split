@@ -14,7 +14,7 @@
 //   - get_invoice reads this run's invoice only.
 // Nothing refused is sent, and nothing here moves money or deletes anything.
 
-import type { CallPriority } from "./_shims/paypal-core.js";
+import type { CallPriority } from "@fairsplit/paypal-core";
 import { type AgentToolMethod, isAgentToolMethod } from "./actions.js";
 import {
   approvalCovers,
