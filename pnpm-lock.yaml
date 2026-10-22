@@ -333,9 +333,24 @@ importers:
         specifier: catalog:zod3
         version: 3.25.76
     devDependencies:
+      "@anthropic-ai/sdk":
+        specifier: "catalog:"
+        version: 0.137.0(zod@3.25.76)
       "@types/node":
         specifier: "catalog:"
         version: 24.10.1
+      canonicalize:
+        specifier: "catalog:"
+        version: 5.1.0
+      fast-check:
+        specifier: "catalog:"
+        version: 4.10.2
+      msw:
+        specifier: "catalog:"
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.10.1)(esbuild@0.28.2)(tsx@4.23.15))
+      tsx:
+        specifier: "catalog:"
+        version: 4.23.15
       typescript:
         specifier: "catalog:"
         version: 6.0.3
@@ -355,9 +370,18 @@ importers:
         specifier: catalog:zod3
         version: 3.25.76
     devDependencies:
+      "@anthropic-ai/sdk":
+        specifier: "catalog:"
+        version: 0.137.0(zod@3.25.76)
       "@types/node":
         specifier: "catalog:"
         version: 24.10.1
+      msw:
+        specifier: "catalog:"
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.10.1)(esbuild@0.28.2)(tsx@4.23.15))
+      tsx:
+        specifier: "catalog:"
+        version: 4.23.15
       typescript:
         specifier: "catalog:"
         version: 6.0.3
@@ -4753,6 +4777,14 @@ snapshots:
       "@ai-sdk/provider-utils": 2.2.8(zod@3.25.76)
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
+
+  "@anthropic-ai/sdk@0.137.0(zod@3.25.76)":
+    dependencies:
+      "@opentelemetry/api": 1.10.0
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.1.1
+    optionalDependencies:
+      zod: 3.25.76
 
   "@anthropic-ai/sdk@0.137.0(zod@4.6.7)":
     dependencies:

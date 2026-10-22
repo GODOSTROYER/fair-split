@@ -19,8 +19,13 @@
     "@fairsplit/paypal-core": "workspace:*"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@types/node": "catalog:",
+    "canonicalize": "catalog:",
+    "fast-check": "catalog:",
+    "msw": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@types/node": "catalog:"
+    "vitest": "catalog:"
   }
 }
