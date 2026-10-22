@@ -9,12 +9,16 @@ import {
   type RegistryMember,
   type ValidationContext,
 } from "@fairsplit/ai/read";
+import { z } from "zod";
 import type { CaseLabel } from "./labels.js";
 import type { CaseRun } from "./score.js";
 
 /**
- * The member registry the validators check against. Until WS-CORE's seed snapshot lands, it is built
- * from the labelled slips themselves (member number → visible name).
+ * A member registry built from the labelled slips themselves (member number → visible name). It only
+ * stands in until WS-CORE's seed snapshot lands: a registry limited to the test set's members makes
+ * "not in the registry" stricter than production (a misread number that names another of the 64
+ * members would be auto-accepted there), which flatters the unsafe-auto-accept metric, so a report
+ * built on it is marked provisional.
  */
 export function registryFromLabels(cases: readonly CaseLabel[]): Map<string, RegistryMember> {
   const reg = new Map<string, RegistryMember>();
@@ -24,6 +28,42 @@ export function registryFromLabels(cases: readonly CaseLabel[]): Map<string, Reg
       const name = s.fields.member_name?.visible;
       if (no && name && !reg.has(no)) reg.set(no, { memberNo: no, name });
     }
+  }
+  return reg;
+}
+
+const RegistryEntry = z
+  .object({
+    memberNo: z.string().optional(),
+    member_no: z.string().optional(),
+    name: z.string().trim().min(1),
+  })
+  .transform((m, ctx) => {
+    const memberNo = m.memberNo ?? m.member_no ?? "";
+    if (!/^M-\d{3}$/.test(memberNo)) {
+      ctx.addIssue({ code: "custom", message: `member number "${memberNo}" is not M-###` });
+      return z.NEVER;
+    }
+    return { memberNo, name: m.name };
+  });
+const RegistryFile = z.union([
+  z.array(RegistryEntry),
+  z.object({ members: z.array(RegistryEntry) }).transform((f) => f.members),
+]);
+
+/**
+ * The production member registry from a file (`--registry`): the seed snapshot's members, as an array
+ * of `{memberNo | member_no, name}` or an object with a `members` array. Empty, malformed or
+ * duplicated entries fail the run rather than weaken validation.
+ */
+export function loadRegistry(path: string): Map<string, RegistryMember> {
+  const parsed = RegistryFile.safeParse(JSON.parse(readFileSync(path, "utf8")));
+  if (!parsed.success) throw new Error(`registry ${path}: ${parsed.error.message}`);
+  if (parsed.data.length === 0) throw new Error(`registry ${path} lists no members`);
+  const reg = new Map<string, RegistryMember>();
+  for (const m of parsed.data) {
+    if (reg.has(m.memberNo)) throw new Error(`registry ${path} lists ${m.memberNo} twice`);
+    reg.set(m.memberNo, m);
   }
   return reg;
 }

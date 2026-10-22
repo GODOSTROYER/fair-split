@@ -1,7 +1,7 @@
 // run.ts: `--mode replay|live|batch --set test|dev` (S4.8). Replay is the default: deterministic,
 // no secrets, and any missing recording fails the run. Live is opt-in, capped (US$3 by default) and
 // writes the recordings replay runs need.
-import { join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ClaudeGateway,
@@ -14,7 +14,7 @@ import {
 } from "@fairsplit/ai/gateway";
 import type { ReadDeps } from "@fairsplit/ai/read";
 import { loadCases, repoRoot } from "./cases.js";
-import { registryFromLabels, runCases } from "./pipeline.js";
+import { loadRegistry, registryFromLabels, runCases } from "./pipeline.js";
 import { type EvalReport, versions, writeReport } from "./report.js";
 import { BARS, barsMet, score } from "./score.js";
 
@@ -32,6 +32,11 @@ export interface EvalOptions {
   zoom: boolean;
   screen: boolean;
   history: boolean;
+  /**
+   * The member registry the validators check against: the seed snapshot's members (`--registry`).
+   * Without it the registry is built from the labels and the report is marked provisional.
+   */
+  registryPath?: string;
   /** Injected for tests; defaults per mode. */
   gateway?: ClaudeGateway;
   now?: () => Date;
@@ -84,6 +89,7 @@ export function parseArgs(argv: readonly string[]): Partial<EvalOptions> {
     else if (a === "--no-zoom") out.zoom = false;
     else if (a === "--no-screen") out.screen = false;
     else if (a === "--history") out.history = true;
+    else if (a === "--registry") out.registryPath = val();
     else throw new Error(`unknown argument ${a}`);
   }
   return out;
@@ -118,6 +124,19 @@ function gatewayFor(o: EvalOptions): { gateway: ClaudeGateway; deps: Omit<ReadDe
   };
 }
 
+/** A path as the report prints it: relative to the repo with forward slashes, never a local absolute path. */
+function displayPath(p: string): string {
+  let root: string | null;
+  try {
+    root = repoRoot(PKG);
+  } catch {
+    root = null;
+  }
+  const rel = root ? relative(root, resolve(p)) : "";
+  const inside = rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  return inside ? rel.split(sep).join("/") : basename(p);
+}
+
 export interface EvalOutcome {
   report: EvalReport;
   exitCode: number;
@@ -128,10 +147,11 @@ export async function runEval(o: EvalOptions): Promise<EvalOutcome> {
   if (o.mode === "batch") throw new Error("--mode batch (Message Batches) is not built yet; use --mode live");
   const loaded = loadCases({ mediaRoot: o.mediaRoot, labelsDir: o.labelsDir, set: o.set });
   const { gateway, deps } = gatewayFor(o);
+  const registry = o.registryPath ? loadRegistry(o.registryPath) : registryFromLabels(loaded.cases);
   const runs = await runCases(loaded.cases, {
     mediaRoot: o.mediaRoot,
     deps: { gateway, ...deps },
-    validation: { registry: registryFromLabels(loaded.cases) },
+    validation: { registry },
     zoom: o.zoom,
     screen: o.screen,
   });
@@ -157,6 +177,14 @@ export async function runEval(o: EvalOptions): Promise<EvalOutcome> {
     failures,
     versions: versions(),
     invalid_labels: loaded.invalid,
+    registry: {
+      source: o.registryPath ? "file" : "labels",
+      members: registry.size,
+      path: o.registryPath ? displayPath(o.registryPath) : null,
+    },
+    provisional: o.registryPath
+      ? null
+      : `Member registry built from the labelled slips (${registry.size} members), not the seed's: "not in the registry" is stricter than production, so unsafe auto-accepts may be under-counted. Pass --registry with the seed snapshot's members.`,
   };
   const empty = loaded.cases.length === 0;
   const paths = writeReport(o.outDir, report, o.history || o.mode === "live");
@@ -176,6 +204,7 @@ async function main(): Promise<void> {
     `eval ${out.report.mode}/${out.report.set}: ${out.report.case_note}; exact-row ${m.exactRowRate ?? "n/a"}, unsafe ${m.unsafeAutoAccepts}, injection ${m.injectionCatchRate ?? "n/a"}, dup F1 ${m.duplicateF1 ?? "n/a"}, recorded cost US$${m.reported.recordedCostUsd.toFixed(4)}`,
   );
   console.log(out.report.green ? "GREEN" : `NOT GREEN: ${out.report.failures.join("; ")}`);
+  if (out.report.provisional) console.log(`PROVISIONAL: ${out.report.provisional}`);
   if (out.paths)
     console.log(`wrote ${out.paths.latest}${out.paths.history ? ` and ${out.paths.history}` : ""}`);
   process.exitCode = out.exitCode;

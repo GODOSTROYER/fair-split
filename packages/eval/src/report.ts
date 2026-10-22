@@ -28,6 +28,10 @@ export interface EvalReport {
     prep: string;
   };
   invalid_labels: Array<{ file: string; error: string }>;
+  /** Where the validators' member registry came from: the seed snapshot (a file) or the labels. */
+  registry: { source: "file" | "labels"; members: number; path: string | null };
+  /** Why the numbers are not yet the production measure (null when they are). */
+  provisional: string | null;
 }
 
 export function versions(): EvalReport["versions"] {
