@@ -1,2 +1,92 @@
-// @fairsplit/paypal-toolkit: The only importer of @paypal/agent-toolkit: allowlist, schemas, tk() runner (zod 3).
-export {};
+// @fairsplit/paypal-toolkit: the only importer of @paypal/agent-toolkit (1.11.0, zod 3).
+// Graft G1: tool JSON Schemas come from the toolkit's /openai export; every execution, agent or
+// deterministic, goes through the toolkit's PayPalAPI (from /mcp) on our injected token.
+
+export type { Provenance } from "./_shims/contracts.js";
+export type { InvoiceQuote } from "./_shims/domain.js";
+export type { CallPriority, PayPalAuth, PayPalToken } from "./_shims/paypal-core.js";
+export {
+  AGENT_ACTIONS,
+  AGENT_TOOL_METHODS,
+  type AgentToolMethod,
+  isAgentToolMethod,
+  isToolkitMethod,
+  MONEY_MOVING_TOOLKIT_METHODS,
+  SERVER_ACTIONS,
+  SERVER_ONLY_METHODS,
+  type ServerOnlyMethod,
+  TOOLKIT_METHODS,
+  type ToolkitMethod,
+  TREASURER_APPROVAL_METHODS,
+} from "./actions.js";
+export {
+  type AgentToolkitCallOptions,
+  type AgentToolkitResult,
+  AgentToolNotAllowedError,
+  AgentToolRefusedError,
+  conditionalRuleRequestId,
+  runAgentToolkitTool,
+  type TreasurerApproval,
+} from "./agent.js";
+export {
+  AUTO_CANCEL_AFTER_DAYS,
+  autoCancelDate,
+  autoCancelRuleArgs,
+  buildInvoicePlan,
+  type CreateInvoiceArgs,
+  type CreateInvoiceItem,
+  type DraftReconciliation,
+  INVOICE_ITEM_NAMES,
+  type InvoicePayer,
+  type InvoicePlan,
+  InvoicePlanError,
+  type InvoiceRun,
+  invoiceMemo,
+  invoiceNumberFor,
+  rateCardReference,
+  reconcileAgentDraft,
+  runSlug,
+  seasonIdCode,
+} from "./invoice-plan.js";
+export {
+  EMPTY_INVOICE_CHECKPOINT,
+  type EnsureInvoiceOptions,
+  type EnsureInvoiceResult,
+  type FundingCheck,
+  InvoiceAdoptError,
+  type InvoiceCheckpoint,
+  InvoiceDraftRejectedError,
+  type InvoiceRepository,
+  InvoiceStateError,
+  Invoices,
+  type InvoicesDeps,
+  invoiceIdFromCreate,
+  payerViewUrlFromSend,
+  RECORD_PAYMENT_NOTE,
+  type RecordPaymentResult,
+} from "./invoices.js";
+export { centsToValue, readValueCents, valueToCents } from "./money.js";
+export {
+  type AgentToolSchema,
+  agentToolSchemas,
+  assertToolkitAllowlists,
+  PINNED_TOOLKIT_VERSION,
+  ToolkitAllowlistError,
+  toolkitActionKeys,
+  toolkitVersion,
+  toolkitZodSchemas,
+} from "./schemas.js";
+export {
+  createTk,
+  DEFAULT_TIMEOUT_MS,
+  PayPalToolkit,
+  type Tk,
+  type TkOptions,
+  TOOLKIT_SOURCE,
+  ToolkitArgsError,
+  type ToolkitCallRecord,
+  type ToolkitDeps,
+  ToolkitError,
+  type ToolkitLimiter,
+  ToolkitMethodError,
+} from "./tk.js";

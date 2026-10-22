@@ -1,0 +1,131 @@
+// Fixtures shaped after PayPal's Invoicing v2 API reference (paypal-rest-api-specifications,
+// openapi/invoicing_v2.json): link_description, invoice, invoices (search), payment_reference
+// and the common error body. E-mails are sandbox aliases; no token or secret appears here.
+//
+// TEMPORARY: the hero figures below mirror register §2 until the IC-03 seed snapshot
+// (packages/seed/snapshot/season-2026A.json) lands; then read them from there.
+
+import { createHash } from "node:crypto";
+import { vi } from "vitest";
+import type { InvoiceQuote, InvoiceRun } from "../../src/index.js";
+import { TOOLKIT_BASE } from "./msw.js";
+
+/** Hashes are computed, never typed (register §2). */
+export const RATE_CARD_SHA256 = createHash("sha256").update("BR 2026-04 fixture card").digest("hex");
+
+export const HERO_QUOTE: InvoiceQuote = {
+  currency: "USD",
+  premiumCents: 288_750n,
+  bonusCents: 138_600n,
+  disbursementCents: 6_000n,
+  totalCents: 433_350n,
+};
+
+export const BUSINESS_EMAIL = "coop-business@example.test";
+export const PAYER = { businessName: "Lantern Bay Chocolate Co.", email: "lantern-bay@example.test" };
+
+export function heroRun(overrides: Partial<InvoiceRun> = {}): InvoiceRun {
+  return {
+    runId: "0199f6a0-0000-7000-8000-000000000037",
+    runSeq: 37,
+    seasonCode: "2026-A",
+    rateCardSha256: RATE_CARD_SHA256,
+    lotCode: "LB-PH-2026-03",
+    quote: HERO_QUOTE,
+    payer: PAYER,
+    sendApproval: { approverId: "persona:analyn", approvedAt: "2026-11-05T02:00:00.000Z" },
+    ...overrides,
+  };
+}
+
+export const INVOICE_ID = "INV2-Z56S-5LLA-Q52L-CPZ5";
+
+/** 201 with the default Prefer: return=minimal. */
+export const createdLink = (id = INVOICE_ID) => ({
+  rel: "self",
+  href: `${TOOLKIT_BASE}/v2/invoicing/invoices/${id}`,
+  method: "GET",
+});
+
+/** 200 from send: a link_description to the payer view. */
+export const payerViewLink = (id = INVOICE_ID) => ({
+  rel: "payer-view",
+  href: `https://www.sandbox.paypal.com/invoice/p/#${id.replaceAll("-", "").slice(4)}`,
+  method: "GET",
+});
+
+export function invoiceBody(
+  overrides: {
+    id?: string;
+    status?: string;
+    reference?: string;
+    total?: string;
+    due?: string;
+    number?: string;
+  } = {},
+) {
+  const id = overrides.id ?? INVOICE_ID;
+  return {
+    id,
+    status: overrides.status ?? "SENT",
+    detail: {
+      reference: overrides.reference ?? `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
+      currency_code: "USD",
+      invoice_number: overrides.number ?? "FS-2026A-r37",
+      invoice_date: "2026-11-05",
+      note: "Season 2026-A, RC …",
+      payment_term: { term_type: "DUE_ON_RECEIPT", due_date: "2026-11-05" },
+      metadata: {
+        create_time: "2026-11-05T02:00:01Z",
+        recipient_view_url: `https://www.sandbox.paypal.com/invoice/p/#${id}`,
+        invoicer_view_url: `https://www.sandbox.paypal.com/invoice/details/${id}`,
+      },
+    },
+    invoicer: { email_address: BUSINESS_EMAIL },
+    primary_recipients: [{ billing_info: { business_name: PAYER.businessName, email_address: PAYER.email } }],
+    amount: { currency_code: "USD", value: overrides.total ?? "4333.50" },
+    due_amount: { currency_code: "USD", value: overrides.due ?? "4333.50" },
+    links: [{ href: `${TOOLKIT_BASE}/v2/invoicing/invoices/${id}`, rel: "self", method: "GET" }],
+  };
+}
+
+export const searchResult = (...items: ReturnType<typeof invoiceBody>[]) => ({
+  total_items: items.length,
+  total_pages: 1,
+  items,
+  links: [],
+});
+
+/** The common PayPal error body (name, message, debug_id, details[], links[]). */
+export const paypalError = (
+  name: string,
+  message: string,
+  debugId = "b56535a4ac3a2",
+  issue = "INVALID_PARAMETER",
+) => ({
+  name,
+  message,
+  debug_id: debugId,
+  details: [{ issue, description: message }],
+  links: [
+    {
+      href: "https://developer.paypal.com/docs/api/invoicing/v2/#error-INVALID_PARAMETER",
+      rel: "information_link",
+    },
+  ],
+});
+
+/** IC-05 PayPalAuth double: hands out test tokens, rotating on invalidate(). */
+export function fakeAuth(tokens: string[] = ["test-token-1", "test-token-2"]) {
+  let i = 0;
+  return {
+    token: vi.fn(async () => ({
+      v: tokens[Math.min(i, tokens.length - 1)] as string,
+      exp: Date.now() + 3_600_000,
+      scopes: [],
+    })),
+    invalidate: vi.fn(() => {
+      i += 1;
+    }),
+  };
+}
