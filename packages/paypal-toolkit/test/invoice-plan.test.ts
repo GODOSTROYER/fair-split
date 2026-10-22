@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTO_CANCEL_AFTER_DAYS,
+  AUTO_CANCEL_MAX_DAYS_AHEAD,
+  allowedInvoiceNotes,
+  approvalCovers,
   autoCancelDate,
+  autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
+  INVOICE_NOTE_CLOSINGS,
   InvoicePlanError,
   invoiceMemo,
   invoiceNumberFor,
@@ -91,7 +96,6 @@ describe("register §8 invoice fields", () => {
     });
     expect(p.totalCents).toBe(HERO_QUOTE.totalCents);
     expect(p.autoCancelOn).toBe("2026-11-30");
-    expect(p.dueDate).toBe(p.autoCancelOn);
   });
 
   it("refuses a quote whose total is not the sum of its parts, a non-USD quote, or a negative part", () => {
@@ -107,14 +111,29 @@ describe("register §8 invoice fields", () => {
     );
   });
 
-  it("leaves a zero component off the invoice", () => {
+  it("keeps a zero component as a 0.00 line, so the invoice always has the quote's three lines", () => {
     const p = buildInvoicePlan(
       heroRun({
         quote: { ...HERO_QUOTE, disbursementCents: 0n, totalCents: HERO_QUOTE.totalCents - 6_000n },
       }),
       { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL },
     );
-    expect(p.createArgs.items.map((i) => i.name)).toEqual(["Premium", "Quality bonus"]);
+    expect(p.createArgs.items.map((i) => [i.name, i.unit_amount.value])).toEqual([
+      ["Premium", "2887.50"],
+      ["Quality bonus", "1386.00"],
+      ["Disbursement costs", "0.00"],
+    ]);
+  });
+
+  it("refuses a quote that asks for nothing", () => {
+    expect(() =>
+      buildInvoicePlan(
+        heroRun({
+          quote: { currency: "USD", premiumCents: 0n, bonusCents: 0n, disbursementCents: 0n, totalCents: 0n },
+        }),
+        { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL },
+      ),
+    ).toThrow(/more than zero/);
   });
 
   it("requires a real invoicer and payer e-mail", () => {
@@ -130,35 +149,74 @@ describe("register §8 invoice fields", () => {
   });
 });
 
-describe("inv.i1.no-model-numbers: the agent's draft may carry words, never numbers", () => {
-  const agentDraft = () => {
+describe("the AUTO_CANCEL window (dueWithin30Days), and no due date", () => {
+  it("inv.i8.labels: carries no due date, because PayPal never receives one (no payment_term)", () => {
     const p = plan();
-    return {
-      ...structuredClone(p.createArgs),
-      note: `${p.note}. Thank you for funding the season premium.`,
-      items: p.createArgs.items.map((item, i) => ({
-        ...item,
-        name: ["Season premium", "Quality bonus, grade one", "Disbursement"][i] as string,
-        description: "Paid to members as ratified",
-      })),
-    };
+    expect(p).not.toHaveProperty("dueDate");
+    expect(JSON.stringify(p.createArgs)).not.toMatch(/due|payment_term/);
+  });
+
+  it("accepts a date after today and at most 30 days out", () => {
+    expect(AUTO_CANCEL_MAX_DAYS_AHEAD).toBe(30);
+    expect(autoCancelWindowError("2026-11-30", "2026-11-05")).toBeNull();
+    expect(autoCancelWindowError("2026-11-06", "2026-11-05")).toBeNull();
+    expect(autoCancelWindowError("2026-12-05", "2026-11-05")).toBeNull();
+  });
+
+  it("refuses today, the past and anything over 30 days out", () => {
+    expect(autoCancelWindowError("2026-11-05", "2026-11-05")).toMatch(/not after today/);
+    expect(autoCancelWindowError("2026-10-26", "2026-11-05")).toMatch(/not after today/);
+    expect(autoCancelWindowError("2026-12-06", "2026-11-05")).toMatch(/more than 30 days/);
+    expect(() => autoCancelWindowError("2026-11-31", "2026-11-05")).toThrow(RangeError);
+  });
+});
+
+describe("sendNeedsTreasurer: an approval sends exactly one invoice", () => {
+  const approval = { approverId: "persona:analyn", approvedAt: "2026-11-05T02:00:00.000Z" };
+  const invoice = { invoiceNumber: "FS-2026A-r37", invoiceId: "INV2-Z56S-5LLA-Q52L-CPZ5" };
+
+  it("covers the invoice it names, by number and, when given, by PayPal id", () => {
+    expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37" }, invoice)).toBe(true);
+    expect(
+      approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37", invoiceId: invoice.invoiceId }, invoice),
+    ).toBe(true);
+  });
+
+  it("covers nothing else", () => {
+    expect(approvalCovers(null, invoice)).toBe(false);
+    expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r36" }, invoice)).toBe(false);
+    expect(
+      approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37", invoiceId: "INV2-OTHER" }, invoice),
+    ).toBe(false);
+    expect(approvalCovers({ ...approval, approverId: "", invoiceNumber: "FS-2026A-r37" }, invoice)).toBe(
+      false,
+    );
+  });
+});
+
+describe("inv.i1.no-model-numbers: the agent's draft may choose words from a closed list, never numbers", () => {
+  const agentDraft = (closing: string = INVOICE_NOTE_CLOSINGS[0]) => {
+    const p = plan();
+    return { ...structuredClone(p.createArgs), note: `${p.note}. ${closing}` };
   };
 
-  it("accepts wording and keeps every code-owned field", () => {
+  it("offers the memo alone or the memo with one listed closing, none with a digit", () => {
+    const memo = plan().note;
+    expect(allowedInvoiceNotes(memo)).toEqual([memo, ...INVOICE_NOTE_CLOSINGS.map((c) => `${memo}. ${c}`)]);
+    for (const closing of INVOICE_NOTE_CLOSINGS) expect(closing).not.toMatch(/\p{Nd}/u);
+  });
+
+  it.each(INVOICE_NOTE_CLOSINGS)("accepts the closing %j and keeps every code-owned field", (closing) => {
     const p = plan();
-    const result = reconcileAgentDraft(agentDraft(), p);
+    const result = reconcileAgentDraft(agentDraft(closing), p);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.args.items.map((i) => i.name)).toEqual([
-      "Season premium",
-      "Quality bonus, grade one",
-      "Disbursement",
-    ]);
-    expect(result.args.items.map((i) => i.unit_amount)).toEqual(p.createArgs.items.map((i) => i.unit_amount));
-    expect(result.args.note.startsWith(p.note)).toBe(true);
-    const { note: _n, items: _i, ...codeOwned } = result.args;
-    const { note: _pn, items: _pi, ...planOwned } = p.createArgs;
-    expect(codeOwned).toEqual(planOwned);
+    expect(result.args).toEqual({ ...p.createArgs, note: `${p.note}. ${closing}` });
+  });
+
+  it("accepts the bare memo", () => {
+    const p = plan();
+    expect(reconcileAgentDraft(structuredClone(p.createArgs), p)).toEqual({ ok: true, args: p.createArgs });
   });
 
   const cases: [string, (d: ReturnType<typeof agentDraft>) => unknown][] = [
@@ -211,6 +269,27 @@ describe("inv.i1.no-model-numbers: the agent's draft may carry words, never numb
     ],
     ["a missing currency", (d) => ({ ...d, currency_code: undefined })],
     ["not an invoice at all", () => ({ hello: "world" })],
+    // No free text either: words can carry an amount ("five thousand") or an injected instruction.
+    [
+      "a renamed item, even without digits",
+      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Season premium" } : i)) }),
+    ],
+    [
+      "an item description, even without digits",
+      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, description: "Paid to members as ratified" })) }),
+    ],
+    ["a free-text closing", (d) => ({ ...d, note: `${plan().note}. Thank you, Lantern Bay.` })],
+    ["an amount in words", (d) => ({ ...d, note: `${plan().note}. Please pay five thousand dollars.` })],
+    ["a link in the note", (d) => ({ ...d, note: `${plan().note}. Pay at https://pay.example.test` })],
+    [
+      "two listed closings",
+      (d) => ({ ...d, note: `${plan().note}. ${INVOICE_NOTE_CLOSINGS[0]} ${INVOICE_NOTE_CLOSINGS[1]}` }),
+    ],
+    ["a closing before the memo", (d) => ({ ...d, note: `${INVOICE_NOTE_CLOSINGS[0]} ${plan().note}` })],
+    ["a missing note", (d) => ({ ...d, note: undefined })],
+    ["pay-by-bank", (d) => ({ ...d, enable_pay_by_bank: true })],
+    ["a theme colour", (d) => ({ ...d, theme_color: "#000000" })],
+    ["an invoicer business name", (d) => ({ ...d, invoicer_business_name: "Another Co-op" })],
   ];
 
   it.each(cases)("refuses %s", (_label, mutate) => {

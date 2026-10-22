@@ -20,23 +20,28 @@ export {
   TREASURER_APPROVAL_METHODS,
 } from "./actions.js";
 export {
+  type AgentInvoiceSession,
   type AgentToolkitCallOptions,
   type AgentToolkitResult,
   AgentToolNotAllowedError,
   AgentToolRefusedError,
-  conditionalRuleRequestId,
   runAgentToolkitTool,
-  type TreasurerApproval,
 } from "./agent.js";
 export {
   AUTO_CANCEL_AFTER_DAYS,
+  AUTO_CANCEL_MAX_DAYS_AHEAD,
+  allowedInvoiceNotes,
+  approvalCovers,
   autoCancelDate,
   autoCancelRuleArgs,
+  autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
   type CreateInvoiceItem,
+  conditionalRuleRequestId,
   type DraftReconciliation,
   INVOICE_ITEM_NAMES,
+  INVOICE_NOTE_CLOSINGS,
   type InvoicePayer,
   type InvoicePlan,
   InvoicePlanError,
@@ -47,13 +52,16 @@ export {
   reconcileAgentDraft,
   runSlug,
   seasonIdCode,
+  type TreasurerApproval,
 } from "./invoice-plan.js";
 export {
+  type CreateStepResult,
   EMPTY_INVOICE_CHECKPOINT,
   type EnsureInvoiceOptions,
   type EnsureInvoiceResult,
   type FundingCheck,
   InvoiceAdoptError,
+  InvoiceApprovalError,
   type InvoiceCheckpoint,
   InvoiceDraftRejectedError,
   type InvoiceRepository,
@@ -64,6 +72,8 @@ export {
   payerViewUrlFromSend,
   RECORD_PAYMENT_NOTE,
   type RecordPaymentResult,
+  type RuleStepResult,
+  type SendStepResult,
 } from "./invoices.js";
 export { centsToValue, readValueCents, valueToCents } from "./money.js";
 export {

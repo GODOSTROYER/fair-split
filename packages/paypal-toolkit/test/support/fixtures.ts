@@ -33,7 +33,11 @@ export function heroRun(overrides: Partial<InvoiceRun> = {}): InvoiceRun {
     lotCode: "LB-PH-2026-03",
     quote: HERO_QUOTE,
     payer: PAYER,
-    sendApproval: { approverId: "persona:analyn", approvedAt: "2026-11-05T02:00:00.000Z" },
+    sendApproval: {
+      approverId: "persona:analyn",
+      approvedAt: "2026-11-05T02:00:00.000Z",
+      invoiceNumber: "FS-2026A-r37",
+    },
     ...overrides,
   };
 }
@@ -54,25 +58,41 @@ export const payerViewLink = (id = INVOICE_ID) => ({
   method: "GET",
 });
 
+const HERO_ITEMS = [
+  ["Premium", "2887.50"],
+  ["Quality bonus", "1386.00"],
+  ["Disbursement costs", "60.00"],
+] as const;
+
+/** 200 GET (`invoice`), as PayPal returns it for the hero invoice. A field set to null is left out. */
 export function invoiceBody(
   overrides: {
     id?: string;
     status?: string;
-    reference?: string;
-    total?: string;
+    reference?: string | null;
+    total?: string | null;
     due?: string;
     number?: string;
+    /** null leaves the date out. */
+    invoiceDate?: string | null;
+    invoicer?: string;
+    recipient?: string;
+    items?: { name: string; quantity: string; unit_amount: { currency_code: string; value: string } }[];
   } = {},
 ) {
   const id = overrides.id ?? INVOICE_ID;
+  const reference =
+    overrides.reference === undefined ? `rc:${RATE_CARD_SHA256.slice(0, 16)}` : overrides.reference;
+  const total = overrides.total === undefined ? "4333.50" : overrides.total;
+  const invoiceDate = overrides.invoiceDate === undefined ? "2026-11-05" : overrides.invoiceDate;
   return {
     id,
     status: overrides.status ?? "SENT",
     detail: {
-      reference: overrides.reference ?? `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
+      ...(reference === null ? {} : { reference }),
       currency_code: "USD",
       invoice_number: overrides.number ?? "FS-2026A-r37",
-      invoice_date: "2026-11-05",
+      ...(invoiceDate === null ? {} : { invoice_date: invoiceDate }),
       note: "Season 2026-A, RC …",
       payment_term: { term_type: "DUE_ON_RECEIPT", due_date: "2026-11-05" },
       metadata: {
@@ -81,9 +101,24 @@ export function invoiceBody(
         invoicer_view_url: `https://www.sandbox.paypal.com/invoice/details/${id}`,
       },
     },
-    invoicer: { email_address: BUSINESS_EMAIL },
-    primary_recipients: [{ billing_info: { business_name: PAYER.businessName, email_address: PAYER.email } }],
-    amount: { currency_code: "USD", value: overrides.total ?? "4333.50" },
+    invoicer: { email_address: overrides.invoicer ?? BUSINESS_EMAIL },
+    primary_recipients: [
+      {
+        billing_info: {
+          business_name: PAYER.businessName,
+          email_address: overrides.recipient ?? PAYER.email,
+        },
+      },
+    ],
+    items:
+      overrides.items ??
+      HERO_ITEMS.map(([name, value]) => ({
+        name,
+        quantity: "1",
+        unit_amount: { currency_code: "USD", value },
+        unit_of_measure: "AMOUNT",
+      })),
+    amount: total === null ? { currency_code: "USD" } : { currency_code: "USD", value: total },
     due_amount: { currency_code: "USD", value: overrides.due ?? "4333.50" },
     links: [{ href: `${TOOLKIT_BASE}/v2/invoicing/invoices/${id}`, rel: "self", method: "GET" }],
   };

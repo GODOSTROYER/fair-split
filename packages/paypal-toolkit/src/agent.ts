@@ -1,26 +1,75 @@
 // The agent's door to PayPal. WS-AGENT's tool runner calls this after the policy lattice
-// (`decide`) and the ledger; it enforces the register §8 contract again at the execution edge:
-// only the four Invoicing tools, `send_invoice` only with the treasurer's approval and never
-// e-mailed (send_to_recipient false), and conditional rules only as AUTO_CANCEL on a SPECIFIC_DATE
-// under request id `cr-{invoiceId}`. Nothing here moves money; nothing refused is sent.
+// (`decide`) and the ledger; it enforces the register §8 contract again at the execution edge.
+// Every call is bound to ONE run and goes through that run's checkpointed invoice chain
+// (Invoices), never through raw tk(), so the agent and the deterministic path share one
+// idempotency key (FS-{runSlug}), one adoption rule and one checkpoint:
+//   - create_invoice creates (or adopts) the run's invoice only if the draft equals the code-built
+//     invoice (I1); a run that already holds its invoice is not created again.
+//   - send_invoice sends only this run's invoice, never e-mailed, and only with the treasurer's
+//     approval of that very invoice; without one it parks as PENDING_APPROVAL.
+//   - create_conditional_rules_for_invoice is AUTO_CANCEL on a SPECIFIC_DATE equal to the invoice
+//     date + 25 days (C-27), after today and within 30 days, under request id cr-{invoiceId}.
+//   - get_invoice reads this run's invoice only.
+// Nothing refused is sent, and nothing here moves money.
 
-import { type AgentToolMethod, isAgentToolMethod, TREASURER_APPROVAL_METHODS } from "./actions.js";
+import type { CallPriority } from "./_shims/paypal-core.js";
+import { type AgentToolMethod, isAgentToolMethod } from "./actions.js";
+import {
+  approvalCovers,
+  autoCancelDate,
+  type InvoiceRun,
+  reconcileAgentDraft,
+  type TreasurerApproval,
+} from "./invoice-plan.js";
+import {
+  InvoiceApprovalError,
+  type InvoiceCheckpoint,
+  InvoiceDraftRejectedError,
+  InvoiceStateError,
+  type Invoices,
+} from "./invoices.js";
 import { toolkitZodSchemas } from "./schemas.js";
-import type { Tk } from "./tk.js";
 
-export interface TreasurerApproval {
-  approverId: string;
-  approvedAt: string;
+export { conditionalRuleRequestId } from "./invoice-plan.js";
+
+/** One agent session works on one run. */
+export interface AgentInvoiceSession {
+  run: InvoiceRun;
+  /** The checkpointed chain: the agent's send, rule and read go through it, never through raw tk(). */
+  invoices: Invoices;
 }
 
 export interface AgentToolkitCallOptions {
-  /** Present only once Analyn (or Judge-as-Treasurer, labelled) approved this send. */
-  treasurerApproval?: TreasurerApproval;
+  /** Present only once Analyn (or Judge-as-Treasurer, labelled) approved sending this invoice. */
+  treasurerApproval?: TreasurerApproval | null;
+  priority?: CallPriority;
 }
 
 export type AgentToolkitResult =
-  | { status: "PENDING_APPROVAL"; method: "send_invoice"; args: Record<string, unknown> }
-  | { status: "DONE"; method: AgentToolMethod; result: unknown };
+  | {
+      status: "DONE";
+      method: "create_invoice";
+      invoiceId: string;
+      invoiceNumber: string;
+      adopted: boolean;
+      alreadyDone: boolean;
+    }
+  | { status: "PENDING_APPROVAL"; method: "send_invoice"; invoiceId: string }
+  | {
+      status: "DONE";
+      method: "send_invoice";
+      invoiceId: string;
+      payerViewUrl: string | null;
+      alreadyDone: boolean;
+    }
+  | {
+      status: "DONE";
+      method: "create_conditional_rules_for_invoice";
+      invoiceId: string;
+      autoCancelOn: string;
+      alreadyDone: boolean;
+    }
+  | { status: "DONE"; method: "get_invoice"; invoiceId: string; result: unknown };
 
 /** The model asked for a tool outside the agent allowlist. Nothing was sent. */
 export class AgentToolNotAllowedError extends Error {
@@ -35,14 +84,12 @@ export class AgentToolRefusedError extends Error {
   constructor(
     readonly tool: AgentToolMethod,
     readonly reason: string,
+    readonly mismatches: readonly string[] = [],
   ) {
     super(`${tool}: ${reason}`);
     this.name = "AgentToolRefusedError";
   }
 }
-
-/** Builds the PayPal-Request-Id for a conditional rule (register §8). */
-export const conditionalRuleRequestId = (invoiceId: string): string => `cr-${invoiceId}`;
 
 function parseAgentArgs(tool: AgentToolMethod, args: unknown): Record<string, unknown> {
   const parsed = toolkitZodSchemas().get(tool)?.safeParse(args);
@@ -50,66 +97,133 @@ function parseAgentArgs(tool: AgentToolMethod, args: unknown): Record<string, un
   return parsed.data as Record<string, unknown>;
 }
 
-function normalizeSend(args: Record<string, unknown>): Record<string, unknown> {
-  const extra = args.additional_recipients;
-  if (Array.isArray(extra) && extra.length > 0) {
-    throw new AgentToolRefusedError("send_invoice", "additional recipients are not allowed");
-  }
-  // Register §8: always send_to_recipient false, whatever the model asked for.
-  const out: Record<string, unknown> = { invoice_id: args.invoice_id, send_to_recipient: false };
-  if (typeof args.note === "string") out.note = args.note;
-  return out;
+/** The run's invoice id, refusing a call about any other invoice (or before one exists). */
+function boundInvoiceId(tool: AgentToolMethod, cp: InvoiceCheckpoint, requested: unknown): string {
+  if (!cp.invoiceId) throw new AgentToolRefusedError(tool, "this run has no invoice yet");
+  if (requested !== cp.invoiceId)
+    throw new AgentToolRefusedError(tool, "invoice_id is not this run's invoice");
+  return cp.invoiceId;
 }
 
-function assertAutoCancelOnly(args: Record<string, unknown>): string {
+/** Exactly one AUTO_CANCEL on a SPECIFIC_DATE, with no discount value; returns its end date. */
+function autoCancelEndDate(args: Record<string, unknown>): string {
+  const tool = "create_conditional_rules_for_invoice";
   const rules = args.rules;
-  if (!Array.isArray(rules) || rules.length !== 1) {
-    throw new AgentToolRefusedError("create_conditional_rules_for_invoice", "exactly one AUTO_CANCEL rule");
-  }
+  if (!Array.isArray(rules) || rules.length !== 1)
+    throw new AgentToolRefusedError(tool, "exactly one AUTO_CANCEL rule");
   const rule = rules[0] as Record<string, unknown>;
   const terms = rule.rule_expiry_terms as Record<string, unknown> | undefined;
   if (
     rule.conditional_rule_type !== "AUTO_CANCEL" ||
     rule.conditional_rule_value !== undefined ||
     rule.conditional_rule_value_type !== undefined ||
-    terms?.rule_expiry_condition !== "SPECIFIC_DATE"
+    terms?.rule_expiry_condition !== "SPECIFIC_DATE" ||
+    typeof terms.condition_rule_end_date !== "string"
   ) {
-    throw new AgentToolRefusedError(
-      "create_conditional_rules_for_invoice",
-      "only AUTO_CANCEL on a SPECIFIC_DATE, with no discount value",
-    );
+    throw new AgentToolRefusedError(tool, "only AUTO_CANCEL on a SPECIFIC_DATE, with no discount value");
   }
-  return String(args.invoice_id);
+  return terms.condition_rule_end_date;
 }
 
-/** Runs one agent tool call through `tk()`, or refuses it before anything is sent. */
+/** The chain refused a step before calling PayPal: report it to the model as a refusal. */
+function asRefusal(tool: AgentToolMethod) {
+  return (error: unknown): never => {
+    if (error instanceof InvoiceDraftRejectedError) {
+      throw new AgentToolRefusedError(
+        tool,
+        "the draft differs from the code-built invoice",
+        error.mismatches,
+      );
+    }
+    if (error instanceof InvoiceApprovalError || error instanceof InvoiceStateError) {
+      throw new AgentToolRefusedError(tool, error.message);
+    }
+    throw error;
+  };
+}
+
+/** Runs one agent tool call for the session's run through the checkpointed chain, or refuses it. */
 export async function runAgentToolkitTool(
-  tk: Tk,
+  session: AgentInvoiceSession,
   tool: string,
   args: unknown,
   options: AgentToolkitCallOptions = {},
 ): Promise<AgentToolkitResult> {
   if (!isAgentToolMethod(tool)) throw new AgentToolNotAllowedError(tool);
   const data = parseAgentArgs(tool, args);
+  const { run, invoices } = session;
+  const cp = await invoices.checkpoint(run.runId);
+  const callOptions = { priority: options.priority };
 
   switch (tool) {
-    case "send_invoice": {
-      const send = normalizeSend(data);
-      if (TREASURER_APPROVAL_METHODS.has(tool) && !options.treasurerApproval) {
-        return { status: "PENDING_APPROVAL", method: "send_invoice", args: send };
+    case "create_invoice": {
+      // Checked here too, so a refused draft never reaches the chain (I1).
+      const reconciled = reconcileAgentDraft(data, await invoices.plan(run));
+      if (!reconciled.ok) {
+        throw new AgentToolRefusedError(
+          tool,
+          "the draft differs from the code-built invoice",
+          reconciled.mismatches,
+        );
       }
-      return { status: "DONE", method: tool, result: await tk(tool, send) };
-    }
-    case "create_conditional_rules_for_invoice": {
-      const invoiceId = assertAutoCancelOnly(data);
+      const created = await invoices.create(run, { draft: data, ...callOptions }).catch(asRefusal(tool));
       return {
         status: "DONE",
         method: tool,
-        result: await tk(tool, data, conditionalRuleRequestId(invoiceId)),
+        invoiceId: created.invoiceId,
+        invoiceNumber: created.invoiceNumber,
+        adopted: created.adopted,
+        alreadyDone: created.alreadyDone,
       };
     }
-    case "create_invoice":
-    case "get_invoice":
-      return { status: "DONE", method: tool, result: await tk(tool, data) };
+    case "send_invoice": {
+      const invoiceId = boundInvoiceId(tool, cp, data.invoice_id);
+      const extra = data.additional_recipients;
+      if (Array.isArray(extra) && extra.length > 0) {
+        throw new AgentToolRefusedError(tool, "additional recipients are not allowed");
+      }
+      // Register §8: always send_to_recipient false; the code sends no note (no agent text reaches PayPal).
+      if (cp.sentAt) {
+        return { status: "DONE", method: tool, invoiceId, payerViewUrl: cp.payerViewUrl, alreadyDone: true };
+      }
+      if (!options.treasurerApproval) return { status: "PENDING_APPROVAL", method: tool, invoiceId };
+      const invoiceNumber = cp.invoiceNumber ?? (await invoices.plan(run)).invoiceNumber;
+      if (!approvalCovers(options.treasurerApproval, { invoiceNumber, invoiceId })) {
+        throw new AgentToolRefusedError(tool, "the treasurer's approval names another invoice");
+      }
+      const sent = await invoices.send(run, options.treasurerApproval, callOptions).catch(asRefusal(tool));
+      return {
+        status: "DONE",
+        method: tool,
+        invoiceId,
+        payerViewUrl: sent.payerViewUrl,
+        alreadyDone: sent.alreadyDone,
+      };
+    }
+    case "create_conditional_rules_for_invoice": {
+      const invoiceId = boundInvoiceId(tool, cp, data.invoice_id);
+      const endDate = autoCancelEndDate(data);
+      const want = autoCancelDate(cp.invoiceDate ?? (await invoices.plan(run)).invoiceDate);
+      if (endDate !== want) {
+        throw new AgentToolRefusedError(
+          tool,
+          `the AUTO_CANCEL date must be ${want} (invoice date + 25 days)`,
+        );
+      }
+      // Invoices refuses, before any call, a date that is not after today or is over 30 days out.
+      const rule = await invoices.ensureRule(run, callOptions).catch(asRefusal(tool));
+      return {
+        status: "DONE",
+        method: tool,
+        invoiceId,
+        autoCancelOn: rule.autoCancelOn,
+        alreadyDone: rule.alreadyDone,
+      };
+    }
+    case "get_invoice": {
+      const invoiceId = boundInvoiceId(tool, cp, data.invoice_id);
+      const result = await invoices.fetch(run, callOptions).catch(asRefusal(tool));
+      return { status: "DONE", method: tool, invoiceId, result };
+    }
   }
 }
