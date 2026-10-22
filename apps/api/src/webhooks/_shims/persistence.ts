@@ -17,9 +17,10 @@ export type RunInTransaction<Tx> = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>
 
 /**
  * PROPOSED for WS-DATA: the replay record behind paypal-core's `TransmissionStore`, a table
- * `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at timestamptz NOT NULL)`; the
- * claim/release SQL is in packages/paypal-core/src/webhook/transmission.ts. Separate from
- * `webhook_events` on purpose: an id is recorded before the event row and released if storing fails.
+ * `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at timestamptz NOT NULL,
+ * claim_token uuid)`; the claim/release SQL is in packages/paypal-core/src/webhook/transmission.ts
+ * (expiry judged by the app's `now`, release by claim token). Separate from `webhook_events` on
+ * purpose: an id is recorded before the event row and released if storing fails.
  */
 
 /**

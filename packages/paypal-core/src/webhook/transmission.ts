@@ -15,9 +15,12 @@
 // UNVERIFIED (spike S5 records it): PayPal does not document whether a retry after a non-2xx is a new
 // transmission (new id, time and signature) or the first attempt's headers again (checked 22 Oct 2026
 // against developer.paypal.com/api/rest/webhooks/rest). If retries reuse the first headers, a retry
-// more than 5 minutes later is refused here, and the event is recovered by catch-up
-// (`verified = 'fetched'`, apps/api/src/webhooks/catchup.ts): refused, never lost. The route frees an
-// id it recorded when it could not store the event (releaseTransmission), so an immediate retry passes.
+// more than 5 minutes later is refused here, and the event is recovered by the next catch-up pass
+// (`verified = 'fetched'`, apps/api/src/webhooks/catchup.ts), which starts from the previous pass's
+// `completedThrough`, not from the newest applied event, so an older refused event is still listed.
+// That holds while WS-OPS persists `completedThrough` and runs the passes. The route frees an id it
+// recorded when it could not store the event (releaseTransmission), and the verifier frees one whose
+// claim reported an error, so an immediate retry passes.
 
 /** `paypal-transmission-time` must be within this of our clock, in either direction. */
 export const MAX_TRANSMISSION_SKEW_MS = 5 * 60_000;
@@ -65,10 +68,13 @@ export function parseTransmissionTime(value: string): number | null {
 
 /**
  * Where accepted transmission ids are recorded. Production (PROPOSED to WS-DATA): a table
- * `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at timestamptz NOT NULL)` and
- *   claim:   INSERT … VALUES ($1, $2) ON CONFLICT (transmission_id) DO UPDATE SET expires_at = EXCLUDED.expires_at
+ * `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at timestamptz NOT NULL,
+ * claim_token uuid)` and
+ *   claim:   INSERT … VALUES ($1, $2, $4) ON CONFLICT (transmission_id) DO UPDATE
+ *              SET expires_at = EXCLUDED.expires_at, claim_token = EXCLUDED.claim_token
  *            WHERE webhook_transmissions.expires_at <= $3 RETURNING 1   -- a row back means "first time"
- *   release: DELETE FROM webhook_transmissions WHERE transmission_id = $1
+ *   release: DELETE FROM webhook_transmissions
+ *            WHERE transmission_id = $1 AND ($2::uuid IS NULL OR claim_token = $2)
  * plus an hourly `DELETE … WHERE expires_at < $1` with an app-supplied time. $3 is `now`, the app's
  * clock, never the database's now(): freshness is judged by the app clock, and a database clock
  * running ahead would expire ids early and let a replay through. The primary key is the uniqueness
@@ -76,14 +82,23 @@ export function parseTransmissionTime(value: string): number | null {
  */
 export interface TransmissionStore {
   /**
-   * Record `transmissionId` until `expiresAt` (epoch ms). Resolves true when it was not recorded (or
-   * its record had expired), false when it is a repeat. Must be atomic. Throwing fails the delivery
-   * closed and retryable (503). `now` (epoch ms) is the app clock the verifier judged freshness by:
+   * Record `transmissionId` until `expiresAt` (epoch ms) under `claimToken` (the verifier passes a fresh
+   * UUID per claim). Resolves true when it was not recorded (or its record had expired), false when it
+   * is a repeat. Must be atomic. `now` (epoch ms) is the app clock the verifier judged freshness by:
    * compare `expiresAt` of an existing record with it, never with the store's own clock.
+   * Throwing fails the delivery closed and retryable (503). A claim that throws may still have
+   * committed (a lost reply, a client timeout), so the verifier then calls `release(id, claimToken)`:
+   * otherwise PayPal's retry of that transmission would be refused as a replay with nothing stored.
    */
-  claim(transmissionId: string, expiresAt: number, now?: number): Promise<boolean>;
-  /** Forget an id: the delivery was accepted but not stored, so PayPal's retry must not look like a replay. */
-  release(transmissionId: string): Promise<void>;
+  claim(transmissionId: string, expiresAt: number, now?: number, claimToken?: string): Promise<boolean>;
+  /**
+   * Forget an id: the delivery was accepted but not stored (or its claim failed), so PayPal's retry
+   * must not look like a replay. With `claimToken`, forget it only if that claim recorded it, never a
+   * concurrent copy's record (a release after a failed claim does not know whether its own claim landed);
+   * without one, whoever recorded it. An id that is not recorded is a no-op. Throwing is retried once,
+   * then raised as TRANSMISSION_RELEASE_FAILED in the verifier's health().
+   */
+  release(transmissionId: string, claimToken?: string): Promise<void>;
 }
 
 /**
@@ -97,24 +112,25 @@ export function createMemoryTransmissionStore(
 ): TransmissionStore {
   const now = options.now ?? Date.now;
   const maxEntries = options.maxEntries ?? 10_000;
-  const seen = new Map<string, number>();
+  const seen = new Map<string, { expiresAt: number; claimToken: string | undefined }>();
   const sweep = (t: number) => {
-    for (const [id, expiresAt] of seen) if (expiresAt <= t) seen.delete(id);
+    for (const [id, record] of seen) if (record.expiresAt <= t) seen.delete(id);
   };
   return {
     // No await before the check-and-set: concurrent claims of one id cannot both see it as new.
-    async claim(transmissionId, expiresAt, at) {
+    async claim(transmissionId, expiresAt, at, claimToken) {
       const t = at ?? now();
       const existing = seen.get(transmissionId);
-      if (existing !== undefined && existing > t) return false;
+      if (existing !== undefined && existing.expiresAt > t) return false;
       if (existing === undefined && seen.size >= maxEntries) {
         sweep(t);
         if (seen.size >= maxEntries) throw new Error("transmission store full");
       }
-      seen.set(transmissionId, expiresAt);
+      seen.set(transmissionId, { expiresAt, claimToken });
       return true;
     },
-    async release(transmissionId) {
+    async release(transmissionId, claimToken) {
+      if (claimToken !== undefined && seen.get(transmissionId)?.claimToken !== claimToken) return;
       seen.delete(transmissionId);
     },
   };

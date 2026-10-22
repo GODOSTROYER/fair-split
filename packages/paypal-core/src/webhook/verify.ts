@@ -65,12 +65,15 @@
 // Freshness and replay (./transmission.ts): bodies over 64 KB, malformed transmission ids and
 // transmission times more than 5 minutes from our (injectable) clock are refused before any other
 // work; after the signature verifies, the transmission id is recorded in the injected store and a
-// repeat is refused (TRANSMISSION_REPLAYED). Event-id dedupe is the route's, and separate.
+// repeat is refused (TRANSMISSION_REPLAYED). Event-id dedupe is the route's, and separate. A claim
+// that reports an error may still have committed, so the delivery is answered 503 and that claim's own
+// record is released (by its claim token, never a concurrent copy's); a release that fails is retried
+// once, then raised in health() as TRANSMISSION_RELEASE_FAILED.
 //
 // `retryable` on a refusal means "could not be checked now" (fetch budget, limiter, PayPal's cert host
 // down, replay store down): the route answers 503 so PayPal retries, instead of a 4xx verdict.
 
-import { verify as rsaVerify, type X509Certificate } from "node:crypto";
+import { randomUUID, verify as rsaVerify, type X509Certificate } from "node:crypto";
 import { crc32 } from "node:zlib";
 import { isPayPalHost, PAYPAL_API_HOSTS, PAYPAL_CERT_SUBJECTS, type PayPalEnv } from "../env.js";
 import { PayPalConfigError } from "../errors.js";
@@ -324,7 +327,12 @@ export type WebhookVerifierAlert =
   | "SIGNED_WITH_EXPIRED_CERT"
   | "KNOWN_CERT_FETCH_FAILED"
   | "SIGNING_CERT_EXPIRED"
-  | "SIGNING_CERT_EXPIRING";
+  | "SIGNING_CERT_EXPIRING"
+  /**
+   * A transmission id could not be released (twice): PayPal's retry of that delivery is refused as a
+   * replay until its 5-minute window closes, and only catch-up recovers the event.
+   */
+  | "TRANSMISSION_RELEASE_FAILED";
 
 /** Verification health for `/readyz` (report it in the body; never fail readiness on it) and `/ops`. */
 export interface WebhookVerifierHealth {
@@ -397,7 +405,7 @@ type LoadResult =
     };
 
 type Mark =
-  | { at: number; kind: "verified" | "signed_expired" | "accepted_expired" }
+  | { at: number; kind: "verified" | "signed_expired" | "accepted_expired" | "release_failed" }
   | { at: number; kind: "rejected"; reason: VerifyFailureReason }
   | { at: number; kind: "known_fetch_failed"; certUrl: string; why: string };
 
@@ -539,16 +547,26 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (marks.length > MAX_MARKS) marks.splice(0, marks.length - MAX_MARKS);
   };
 
-  /** Forget a recorded transmission id; never throws. */
-  async function releaseQuietly(transmissionId: string): Promise<void> {
-    try {
-      await transmissions.release(transmissionId);
-    } catch (err) {
-      logger?.error?.(
-        { error: err instanceof Error ? err.message : String(err), transmissionId },
-        "releasing a webhook transmission id failed",
-      );
+  /**
+   * Forget a recorded transmission id (with `claimToken`, only the record that claim wrote). A failed
+   * release is retried once; if that fails too, it is logged and raised in health(), because PayPal's
+   * retry of that delivery will then be refused as a replay until its window closes. Never throws.
+   */
+  async function releaseQuietly(transmissionId: string, claimToken?: string): Promise<void> {
+    let failure: unknown;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await transmissions.release(transmissionId, claimToken);
+        return;
+      } catch (err) {
+        failure = err;
+      }
     }
+    mark({ at: now(), kind: "release_failed" });
+    logger?.error?.(
+      { error: failure instanceof Error ? failure.message : String(failure), transmissionId, attempts: 2 },
+      "releasing a webhook transmission id failed; PayPal's retry of it is refused as a replay until its window closes",
+    );
   }
 
   async function fetchCert(url: URL): Promise<LoadResult> {
@@ -894,18 +912,24 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
 
     // Signed by PayPal and fresh: record the transmission id, once. A repeat is a replayed copy. For an
     // expired certificate this comes before the postback, so a replayed copy costs no PayPal call.
+    const claimToken = randomUUID();
     let firstTime: boolean;
     try {
       firstTime = await transmissions.claim(
         transmissionId,
         sentAt + MAX_TRANSMISSION_SKEW_MS + TRANSMISSION_RETENTION_MARGIN_MS,
         now(),
+        claimToken,
       );
     } catch (err) {
       logger?.error?.(
         { error: err instanceof Error ? err.message : String(err), transmissionId },
         "recording a webhook transmission id failed",
       );
+      // The claim may have committed anyway (a lost reply, a client timeout). Free it, or PayPal's retry
+      // of this transmission would be refused as a replay with nothing stored; the token frees only
+      // this claim's own record, never one a concurrent copy holds.
+      await releaseQuietly(transmissionId, claimToken);
       return fail("REPLAY_CHECK_FAILED", "transmission store error", { retryable: true });
     }
     if (!firstTime) {
@@ -920,7 +944,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       // Never 'self' under an expired certificate: PayPal must confirm this very transmission. Nothing
       // is cached per certificate and nothing is shared, so no other delivery can lend it trust.
       if (!expiredPostbacks.take()) {
-        await releaseQuietly(transmissionId);
+        await releaseQuietly(transmissionId, claimToken);
         return fail("CERT_EXPIRED", "signature valid; expired-certificate postback budget used up", {
           retryable: true,
         });
@@ -930,7 +954,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         // FAILURE is PayPal's verdict on this transmission (keep its id: a copy is a replay). ERROR and
         // TIMEOUT only mean "not checked": free the id and answer 503 so PayPal's retry is judged afresh.
         const retryable = answer !== "FAILURE";
-        if (retryable) await releaseQuietly(transmissionId);
+        if (retryable) await releaseQuietly(transmissionId, claimToken);
         return fail("CERT_EXPIRED", `signature valid; postback ${answer}`, { postback: answer, retryable });
       }
       postback = "SUCCESS";
@@ -1017,10 +1041,12 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     let verified = 0;
     let signedExpired = 0;
     let acceptedExpired = 0;
+    let releaseFailed = 0;
     for (const m of marks) {
       if (m.kind === "verified") verified += 1;
       else if (m.kind === "signed_expired") signedExpired += 1;
       else if (m.kind === "accepted_expired") acceptedExpired += 1;
+      else if (m.kind === "release_failed") releaseFailed += 1;
       else if (m.kind === "rejected") rejected[m.reason] = (rejected[m.reason] ?? 0) + 1;
       else if (m.kind === "known_fetch_failed") fetchProblems.set(m.certUrl, m.why);
     }
@@ -1056,6 +1082,15 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       problem(
         "KNOWN_CERT_FETCH_FAILED",
         `could not fetch ${url}, a known PayPal signing certificate: ${why}`,
+      );
+    }
+    if (releaseFailed > 0) {
+      problem(
+        "TRANSMISSION_RELEASE_FAILED",
+        `${releaseFailed} webhook transmission ${releaseFailed === 1 ? "id" : "ids"} could not be released in the ` +
+          `last ${minutes} min (the transmission store failed twice): PayPal's retry of ` +
+          `${releaseFailed === 1 ? "that delivery" : "those deliveries"} is refused as a replay until its ` +
+          "5-minute window closes; the next webhook catch-up pass recovers the event",
       );
     }
     let signingCert: WebhookVerifierHealth["signingCert"] = null;

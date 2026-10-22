@@ -86,6 +86,10 @@ so the bearer token cannot be sent anywhere else.
    `TRANSMISSION_REPLAYED` (400). A store failure is `REPLAY_CHECK_FAILED`, retryable (503). This is
    separate from event-id dedupe: PayPal's resend has a new transmission id and lands as a duplicate.
    The route releases the id when it could not store the event, so PayPal's retry is not a "replay".
+   A claim that reports an error may still have committed (a lost reply), so the verifier releases it
+   too, by the claim's own token (`claim(id, expiresAt, now, claimToken)`, `release(id, claimToken)`):
+   never a record a concurrent copy holds. A release that fails is retried once, then raised as
+   `TRANSMISSION_RELEASE_FAILED` in `health()`.
    UNVERIFIED until spike S5: whether PayPal's retries after a non-2xx carry new transmission headers;
    if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event.
 6. The webhook route never asks for a postback: processWebhook calls `confirmWebhookByPostback`
@@ -180,9 +184,11 @@ check would restart a healthy process); show them on `/ops`.
   and catch-up events keep their label (I8). Until then `webhookRunEvent()` returns null for them rather
   than relabelling.
 - **Proposed to WS-DATA:** table `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at
-  timestamptz NOT NULL)` behind `TransmissionStore` (SQL in `src/webhook/transmission.ts`), injected as
-  `createPayPalCore({ webhookTransmissionStore })`. Until then the in-memory store (one fs-api instance)
-  applies; a restart forgets ids, and event-id dedupe still stops a second apply.
+  timestamptz NOT NULL, claim_token uuid)` behind `TransmissionStore` (SQL in
+  `src/webhook/transmission.ts`), injected as `createPayPalCore({ webhookTransmissionStore })`. `claim`
+  stores the claim token it is handed; `release(id, token)` deletes only the row with that token (any row
+  when no token is given). Until then the in-memory store (one fs-api instance) applies; a restart
+  forgets ids, and event-id dedupe still stops a second apply.
 - **For WS-DATA (record only; theirs to build):** the production `TransmissionStore` must compare
   `expires_at` against the app-supplied timestamp, the `now` argument of `claim(id, expiresAt, now)`
   (`… WHERE webhook_transmissions.expires_at <= $3`), never the database's `now()`: freshness (the

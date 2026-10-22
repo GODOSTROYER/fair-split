@@ -276,6 +276,134 @@ describe("verifyPayPal: each transmission id is accepted once (replay tracking)"
   });
 });
 
+// Verifier follow-up (trust, minor): a Postgres claim can commit and still report an error (a lost
+// reply, a client timeout). The verifier answered 503 but left the id recorded, so PayPal's retry of
+// that transmission was refused as TRANSMISSION_REPLAYED until the window closed and nothing was stored.
+describe("verifyPayPal: a claim or release that fails never leaves a delivery locked out", () => {
+  /** The memory store, with failures injected around it. */
+  function flakyStore(failures: {
+    /** Claim number n (1-based) records the id, then throws (a commit whose reply was lost). */
+    claimCommitsThenThrows?: number;
+    /** Claim number n throws before recording anything. */
+    claimThrowsFirst?: number;
+    /** How many release calls throw before they start to work. */
+    releaseThrows?: number;
+  }) {
+    const inner = createMemoryTransmissionStore({ now: () => T0 });
+    let claims = 0;
+    let releaseFailuresLeft = failures.releaseThrows ?? 0;
+    const releases: [string, string | undefined][] = [];
+    const store: TransmissionStore = {
+      async claim(id, expiresAt, at, claimToken) {
+        claims += 1;
+        if (claims === failures.claimThrowsFirst) throw new Error("connection reset before the INSERT");
+        const first = await inner.claim(id, expiresAt, at, claimToken);
+        if (claims === failures.claimCommitsThenThrows) throw new Error("connection lost after COMMIT");
+        return first;
+      },
+      async release(id, claimToken) {
+        releases.push([id, claimToken]);
+        if (releaseFailuresLeft > 0) {
+          releaseFailuresLeft -= 1;
+          throw new Error("connection refused");
+        }
+        await inner.release(id, claimToken);
+      },
+    };
+    return { store, releases };
+  }
+
+  it("a claim that committed but reported an error is released: 503 now, and PayPal's retry of the same transmission passes", async () => {
+    const { store } = flakyStore({ claimCommitsThenThrows: 1 });
+    let t = T0;
+    const v = verifierAt(() => t, { transmissionStore: store });
+    const s = signedAt(T0);
+    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: false,
+      reason: "REPLAY_CHECK_FAILED",
+      retryable: true,
+    });
+    // PayPal retries a 503, possibly with the first attempt's headers (UNVERIFIED until spike S5).
+    t += MINUTE;
+    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: "self",
+      reason: null,
+    });
+    // The id is held again by the delivery that passed: a copy is still a replay.
+    expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).reason).toBe("TRANSMISSION_REPLAYED");
+  });
+
+  it("after a claim error, only that claim's own record is released, never a concurrent copy's", async () => {
+    // Copy A claims the id; copy B's claim fails before it records anything. Releasing the id outright
+    // would delete A's record and let a third copy through as a first delivery.
+    const { store, releases } = flakyStore({ claimThrowsFirst: 2 });
+    const v = verifierAt(() => T0, { transmissionStore: store });
+    const s = signedAt(T0);
+    expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      reason: "REPLAY_CHECK_FAILED",
+      retryable: true,
+    });
+    expect(releases).toHaveLength(1);
+    expect(releases[0]?.[1]).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).reason).toBe("TRANSMISSION_REPLAYED");
+  });
+
+  it("each claim carries its own token, and the token is what a release after a claim error names", async () => {
+    const tokens: (string | undefined)[] = [];
+    const inner = createMemoryTransmissionStore({ now: () => T0 });
+    const store: TransmissionStore = {
+      claim: async (id, expiresAt, at, claimToken) => {
+        tokens.push(claimToken);
+        return inner.claim(id, expiresAt, at, claimToken);
+      },
+      release: (id, claimToken) => inner.release(id, claimToken),
+    };
+    const v = verifierAt(() => T0, { transmissionStore: store });
+    for (let i = 0; i < 3; i++) {
+      const s = signedAt(T0 - i * 1_000);
+      expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    }
+    expect(new Set(tokens).size).toBe(3);
+    for (const token of tokens)
+      expect(token).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it("a release that fails is retried once", async () => {
+    const { store, releases } = flakyStore({ releaseThrows: 1 });
+    const v = verifierAt(() => T0, { transmissionStore: store });
+    const s = signedAt(T0);
+    expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    await v.releaseTransmission(s.headers["paypal-transmission-id"] ?? "");
+    expect(releases).toHaveLength(2);
+    expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    expect(v.health().alerts).not.toContain("TRANSMISSION_RELEASE_FAILED");
+  });
+
+  it("a release that fails twice raises TRANSMISSION_RELEASE_FAILED on /ops, since PayPal's retry will be refused as a replay", async () => {
+    let t = T0;
+    const error = vi.fn();
+    const { store, releases } = flakyStore({ claimCommitsThenThrows: 1, releaseThrows: 2 });
+    const v = verifierAt(() => t, { transmissionStore: store, logger: { error } });
+    const s = signedAt(T0);
+    expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).reason).toBe("REPLAY_CHECK_FAILED");
+    expect(releases).toHaveLength(2);
+    const health = v.health();
+    expect(health.status).toBe("degraded");
+    expect(health.alerts).toEqual(["TRANSMISSION_RELEASE_FAILED"]);
+    expect(health.problems).toEqual([
+      expect.stringMatching(/^1 webhook transmission id could not be released in the last 15 min/),
+    ]);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ transmissionId: s.headers["paypal-transmission-id"], attempts: 2 }),
+      expect.stringContaining("refused as a replay"),
+    );
+    // It clears with the health window.
+    t += 16 * MINUTE;
+    expect(v.health().alerts).toEqual([]);
+  });
+});
+
 describe("createMemoryTransmissionStore", () => {
   it("answers true once per id until it expires, then forgets it", async () => {
     let t = T0;
@@ -313,6 +441,18 @@ describe("createMemoryTransmissionStore", () => {
       ),
     ).toBe("self");
     expect(claims).toEqual([[s.headers["paypal-transmission-id"], T0 - 2 * MINUTE + 6 * MINUTE, T0]]);
+  });
+
+  it("release with a claim token forgets only the record that claim wrote; without one, any record", async () => {
+    const store = createMemoryTransmissionStore({ now: () => T0 });
+    expect(await store.claim("a", T0 + MINUTE, T0, "token-a")).toBe(true);
+    await store.release("a", "token-b"); // another claim's token: not its record
+    expect(await store.claim("a", T0 + MINUTE, T0, "token-c")).toBe(false);
+    await store.release("missing", "token-a"); // nothing recorded: a no-op
+    await store.release("a", "token-a");
+    expect(await store.claim("a", T0 + MINUTE, T0, "token-d")).toBe(true);
+    await store.release("a");
+    expect(await store.claim("a", T0 + MINUTE, T0, "token-e")).toBe(true);
   });
 
   it("fails closed when full of live ids, and makes room once they expire", async () => {
