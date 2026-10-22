@@ -122,6 +122,21 @@ describe("ClaudeGateway: live then replay", () => {
     expect(captured).toHaveLength(1);
   });
 
+  it("inv.i8.labels: a replay is labelled replay with its recording date, never as a live call", async () => {
+    respondJson();
+    const recordedOn = new Date("2026-10-29T09:00:00Z");
+    const live = await gateway({ clock: () => recordedOn }).call(baseCall());
+    expect(live).toMatchObject({ provenance: "live", recordedAt: recordedOn.toISOString() });
+    const judgeDay = gateway({ clock: () => new Date("2026-12-01T00:00:00Z") });
+    const replay = await judgeDay.call(baseCall());
+    expect(replay).toMatchObject({
+      provenance: "replay",
+      recordedAt: recordedOn.toISOString(),
+      costMicros: 0,
+    });
+    expect(replay.modelServed).toBe(live.modelServed);
+  });
+
   it("flags prompt drift when a frozen prompt was edited in place", async () => {
     respondJson();
     const gw = gateway();

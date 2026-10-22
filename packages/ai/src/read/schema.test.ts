@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { CLASSIFY_PROMPT_V, classifySchema } from "../classify/classify.js";
 import { jsonSchemaOf, sha256Hex } from "../gateway/index.js";
-import { prompt } from "./prompts.js";
+import { ratecardPrompt } from "../ratecard/read.js";
+import { RateCardRead } from "../ratecard/schema.js";
+import { ScreenVerdict } from "./calls.js";
+import { loadPromptFile, prompt } from "./prompts.js";
 import {
   EXTRACTION_SCHEMA_V,
   Extraction,
@@ -24,10 +28,16 @@ function walk(node: unknown, visit: (n: Json, path: string) => void, path = "$")
   }
 }
 
-describe("inv.i1.no-model-numbers: the read schemas carry no amount or instruction field", () => {
-  for (const [name, schema] of [
-    ["Extraction", Extraction],
-    ["ZoomRead", ZoomRead],
+describe("inv.i1.no-model-numbers: no AI-1..AI-6 schema carries an amount or instruction field", () => {
+  // S4.7 layer 1. Rate-card values are verbatim strings that code re-parses; the classifier answers
+  // an enum of rule ids; the screen answers a boolean.
+  const COORDS = ["x1", "y1", "x2", "y2"];
+  for (const [name, schema, numbers] of [
+    ["Extraction (AI-1, AI-2)", Extraction, COORDS],
+    ["ZoomRead (AI-3)", ZoomRead, COORDS],
+    ["ScreenVerdict (AI-4)", ScreenVerdict, []],
+    ["RateCardRead (AI-5)", RateCardRead, [...COORDS, "page"]],
+    ["classifier answer (AI-6)", classifySchema(["R1", "R2", "R3", "R4"]), []],
   ] as const) {
     it(`${name} has no money or instruction property`, () => {
       walk(jsonSchemaOf(schema), (n) => {
@@ -37,11 +47,10 @@ describe("inv.i1.no-model-numbers: the read schemas carry no amount or instructi
       });
     });
 
-    it(`${name}: the only numbers the model writes are pixel coordinates`, () => {
+    it(`${name}: the only numbers the model writes are coordinates (and page numbers)`, () => {
       walk(jsonSchemaOf(schema), (n) => {
         for (const [prop, sub] of Object.entries((n.properties as Record<string, Json> | undefined) ?? {})) {
-          if (sub.type === "integer" || sub.type === "number")
-            expect(["x1", "y1", "x2", "y2"]).toContain(prop);
+          if (sub.type === "integer" || sub.type === "number") expect(numbers).toContain(prop);
         }
       });
     });
@@ -99,9 +108,13 @@ describe("frozen prompts (S4.2, S4.7)", () => {
   });
 
   it("inv.prompt-injection.layer2: every system prompt states the untrusted-content rule", () => {
-    for (const name of ["a.v1", "b.v1", "zoom.v1", "screen.v1"] as const) {
-      expect(prompt(name).text.toLowerCase()).toContain("untrusted");
-    }
+    const texts = [
+      ...(["a.v1", "b.v1", "zoom.v1", "screen.v1"] as const).map((name) => prompt(name).text),
+      ratecardPrompt().text,
+      loadPromptFile(new URL("../classify/prompts/", import.meta.url), CLASSIFY_PROMPT_V),
+    ];
+    expect(texts).toHaveLength(6);
+    for (const text of texts) expect(text.toLowerCase()).toContain("untrusted");
   });
 
   it("the read prompts clear the 512-token cache minimum (glossary of boxes 1-13)", () => {
