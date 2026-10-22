@@ -1,0 +1,25 @@
+{
+  "name": "@fairsplit/paypal-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OAuth single-flight, PayPalHttp, webhook self-verification, event to status map (zod 3)",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "catalog:zod3"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

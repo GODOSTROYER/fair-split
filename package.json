@@ -1,0 +1,34 @@
+{
+  "name": "fair-split",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "description": "Fair Split \u00b7 co-op payroll. Every peso, traced to the pencil mark.",
+  "packageManager": "pnpm@11.28.6",
+  "engines": {
+    "node": ">=24.19"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "deps:check": "depcruise apps packages --config .dependency-cruiser.cjs",
+    "secrets:scan": "secretlint \"**/*\"",
+    "prepare": "lefthook install || true"
+  },
+  "devDependencies": {
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "@biomejs/biome": "catalog:",
+    "tsx": "catalog:",
+    "vitest": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "lefthook": "catalog:",
+    "secretlint": "catalog:",
+    "@secretlint/secretlint-rule-preset-recommend": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

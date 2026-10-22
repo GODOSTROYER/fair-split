@@ -1,0 +1,23 @@
+{
+  "name": "@fairsplit/motion",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spring presets and magic-moment phase definitions shared by web and native",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

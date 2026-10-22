@@ -1,0 +1,30 @@
+{
+  "name": "@fairsplit/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ClaudeGateway, slip extraction, rate-card reader, deduction classifier, audit agent, explainer",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/domain": "workspace:*",
+    "@anthropic-ai/sdk": "catalog:",
+    "partial-json": "catalog:",
+    "sharp": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

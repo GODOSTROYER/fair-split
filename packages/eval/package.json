@@ -1,0 +1,26 @@
+{
+  "name": "@fairsplit/eval",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Labelled extraction eval with OCR baseline; writes eval/report/latest.json",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@fairsplit/ai": "workspace:*",
+    "@fairsplit/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

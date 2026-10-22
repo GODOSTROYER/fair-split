@@ -1,0 +1,27 @@
+{
+  "name": "@fairsplit/paypal-toolkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The only importer of @paypal/agent-toolkit: allowlist, schemas, tk() runner (zod 3)",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "catalog:zod3",
+    "@paypal/agent-toolkit": "catalog:",
+    "@fairsplit/paypal-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

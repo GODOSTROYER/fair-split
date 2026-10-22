@@ -1,0 +1,26 @@
+{
+  "name": "@fairsplit/outbox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Transactional outbox: enqueue, dispatcher, executors (workflow | inline | worker)",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/db": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

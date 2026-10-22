@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.expo/
+.expo-shared/
+*.tsbuildinfo
+# secrets: never commit
+.env
+.env.*
+!.env.example
+google-services.json
+GoogleService-Info.plist
+*.keystore
+*.jks
+*-credentials*.json
+credentials.json
+# local artefacts
+media/raw/
+video/render/
+playwright-report/
+test-results/
+apps/mobile/android/
+apps/mobile/ios/
+.DS_Store

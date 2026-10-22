@@ -1,0 +1,25 @@
+{
+  "name": "@fairsplit/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "en / fil / ceb message catalogs and status-word maps",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "i18next": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

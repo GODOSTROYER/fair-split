@@ -1,0 +1,26 @@
+{
+  "name": "@fairsplit/seed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Season 2026-A showcase snapshot (single source of every demo figure)",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}
