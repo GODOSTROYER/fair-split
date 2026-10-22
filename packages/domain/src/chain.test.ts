@@ -83,7 +83,14 @@ describe("ledger hash chain (architecture §12)", () => {
     };
     visit("./verify-core.ts");
     expect([...seen].sort()).toEqual(
-      ["./digest-input.ts", "./fsm.ts", "./ids.ts", "./jcs.ts", "./verify-core.ts"].sort(),
+      [
+        "./digest-input.ts",
+        "./fsm.ts",
+        "./ids.ts",
+        "./jcs.ts",
+        "./sample-keys.ts",
+        "./verify-core.ts",
+      ].sort(),
     );
   });
 
@@ -779,6 +786,58 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
     const registeredSeeded = withCheckpoint({ ...p, ledger });
     expect(verify(registeredSeeded).status).toBe("failed");
     expect(verify(registeredSeeded, PROOF_TRUST, { demoMode: true }).status).toBe("sample");
+  });
+
+  it("the treasurer's real browser key fs-analyn-w1 verifies; the same w ID published as web_demo is a sample", () => {
+    const w1 = { keyId: "fs-analyn-w1", pair: ed25519FromSeed(sha256Hex("treasurer browser key")) };
+    const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
+    const real = rekey(honestProof(), { treasurer: { ...w1, kind: "app" }, chair });
+    expect(verify(real.proof, real.trust)).toMatchObject({ ok: true, status: "verified", sampleKeys: [] });
+    // The trust registry's kind decides: published as web_demo, the same key is a sample even
+    // though the bundle's own ledger registers it as app.
+    const demoTrust: ProofTrust = {
+      ...real.trust,
+      officers: real.trust.officers.map((k) => (k.keyId === w1.keyId ? { ...k, kind: "web_demo" } : k)),
+    };
+    expect(verify(real.proof, demoTrust).status).toBe("failed");
+    expect(verify(real.proof, demoTrust, { demoMode: true })).toMatchObject({
+      status: "sample",
+      sampleKeys: ["fs-analyn-w1"],
+    });
+  });
+
+  it("a labelled demo ID (fs-{persona}-demo-{6}) never verifies, whatever kind it is published as", () => {
+    const demo = {
+      keyId: "fs-analyn-demo-a1b2c3",
+      pair: ed25519FromSeed(sha256Hex("judge demo key")),
+      kind: "app" as const,
+    };
+    const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
+    const { proof, trust } = rekey(honestProof(), { treasurer: demo, chair });
+    expect(verify(proof, trust).ok).toBe(false);
+    expect(verify(proof, trust).status).not.toBe("verified");
+    expect(verify(proof, trust, { demoMode: true }).status).not.toBe("verified");
+  });
+
+  it("a seeded ledger key ID pinned with kind server still makes the checkpoint a sample", () => {
+    const seededLedger = { keyId: "fs-ledger-s2", ...seededPair("fs-ledger-s2") };
+    const proof = withCheckpoint(honestProof(), seededLedger);
+    const trust: ProofTrust = {
+      ...PROOF_TRUST,
+      ledger: [
+        {
+          keyId: seededLedger.keyId,
+          publicKeyHex: seededLedger.publicKeyHex,
+          kind: "server",
+          revokedAt: null,
+        },
+      ],
+    };
+    expect(verify(proof, trust).status).toBe("failed");
+    expect(verify(proof, trust, { demoMode: true })).toMatchObject({
+      status: "sample",
+      sampleKeys: ["fs-ledger-s2"],
+    });
   });
 
   it("a checkpoint signed by a seeded ledger key is a sample too", () => {

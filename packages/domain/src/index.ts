@@ -22,6 +22,7 @@ export * from "./uuid.js";
 export {
   type Attested,
   attestedEntries,
+  keyIdIsSample,
   ledgerPreimage,
   verifyChainWith,
   verifyLedgerWith,
