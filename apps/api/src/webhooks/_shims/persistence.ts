@@ -28,9 +28,17 @@ export type RunInTransaction<Tx> = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>
  * extra columns an earlier draft used (resource_type, transmission_id, reject_reason, received_at):
  * resource type is in `raw`, and the arrival time is the row's own created-at default.
  *
- * What depends on it: processWebhook's postback step (it replays these headers to
- * verify-webhook-signature after the 200), the boot-time certificate pre-warm (newest `certUrl`), and
- * /ops reject reasons. A repository that drops it degrades those three; ingestion is unaffected.
+ * REQUIRED for MM-1, not optional. Store it exactly as the route passes it, every key kept, null-valued
+ * ones included (jsonb keeps them; no jsonb_strip_nulls, no mapper that drops null or undefined), and
+ * hand the stored value back to webhookApplyRule. Only an explicit `certWarning: null` says the
+ * certificate was in date: a null or missing `delivery`, or one without the `certWarning` key, is
+ * DELIVERY_NOT_RECORDED, so every PAYOUTS-ITEM.SUCCEEDED waits for the settle GET at +25 s / +90 s and
+ * console and Proof never follow within 100 ms. That fails closed (no money risk), but MM-1 is off.
+ *
+ * Also read from it: processWebhook's postback step (replays these headers to verify-webhook-signature
+ * after the 200), the boot-time certificate pre-warm (newest `certUrl`) and /ops reject reasons. A
+ * dedicated `cert_warning` column cannot replace it on its own: it restores none of those three, and a
+ * NULL there would mean both "in date" and "never written", of which only the first may apply at once.
  * Values are PayPal's public header values, clipped; never secrets.
  */
 export interface WebhookDelivery {
@@ -43,7 +51,9 @@ export interface WebhookDelivery {
   rejectReason: string | null;
   /**
    * CERT_EXPIRED: accepted although PayPal's certificate had expired (PayPal's postback confirmed this
-   * delivery). webhookApplyRule then requires a fresh GET before any state change; null otherwise.
+   * delivery); webhookApplyRule then requires a fresh GET before any state change. null: in date, and
+   * written as an explicit null, which is what lets an in-date SUCCEEDED apply at once (MM-1). A
+   * missing key means "not recorded" and fails closed.
    */
   certWarning: string | null;
 }

@@ -11,7 +11,9 @@
 //      signature vouches for ('dev_mock', 'fetched'), one signed under an expired certificate
 //      (`delivery.certWarning` set, even when PayPal's postback confirmed that delivery: the state
 //      must come from PayPal's GET, never from an expired-certificate body), and one whose `delivery`
-//      record is missing (nothing says its certificate was in date).
+//      record is missing or lost its `certWarning` key (nothing says its certificate was in date). Only
+//      an explicit `certWarning: null`, as the route writes it, says so: MM-1 therefore needs the
+//      repository to store `delivery` as written, null-valued keys included (persistence shim).
 //   4. The settle GETs at +25 s (Judge Mode) or +90 s, again at +90 s and +10 min, corroborate a
 //      webhook-applied SUCCESS. An item applied from a webhook counts as open until a GET has agreed,
 //      so those follow-up GETs keep running for it.
@@ -40,28 +42,40 @@ export type WebhookApplyRule =
         | "NOT_SIGNATURE_VERIFIED"
         /** Signed under an expired PayPal certificate (verify.ts certWarning CERT_EXPIRED, or any other warning). */
         | "CERT_EXPIRED"
-        /** A verified row without its `delivery` record: nothing says its certificate was in date. */
+        /**
+         * A verified row whose `delivery` is null, absent, or has no `certWarning` key: nothing says its
+         * certificate was in date. On a row the route stored, it means the repository dropped `delivery`
+         * or its null-valued keys, and MM-1 is off until it keeps them.
+         */
         | "DELIVERY_NOT_RECORDED";
     };
 
+/** The stored `certWarning`: undefined when it was not recorded (no `delivery`, or no such key). */
+function recordedCertWarning(delivery: unknown): unknown {
+  if (typeof delivery !== "object" || delivery === null) return undefined;
+  return (delivery as { certWarning?: unknown }).certWarning;
+}
+
 /**
- * What processWebhook may do with a stored event before asking PayPal. Pass the stored row: its
- * `delivery` carries the certificate warning, and a missing one fails closed (a GET first).
+ * What processWebhook may do with a stored event before asking PayPal. Pass the stored row with its
+ * `delivery` as read back: an explicit `certWarning: null` is in date, any other value is a certificate
+ * warning, and a missing record or key fails closed (a GET first).
  */
 export function webhookApplyRule(event: {
   eventType: string | null;
   verified: WebhookVerifiedLabel | null;
-  delivery: Pick<WebhookDelivery, "certWarning"> | null;
+  delivery: Partial<WebhookDelivery> | null;
 }): WebhookApplyRule {
+  const certWarning = recordedCertWarning(event.delivery);
   // Any certificate warning, known or not, means the body is not to be believed.
-  if (event.delivery !== null && event.delivery.certWarning !== null)
+  if (certWarning !== undefined && certWarning !== null)
     return { action: "fresh_get_first", reason: "CERT_EXPIRED" };
   if (event.eventType !== ITEM_SUCCEEDED)
     return { action: "fresh_get_first", reason: "NOT_A_PAYOUT_ITEM_SUCCESS" };
   if (event.verified !== "self" && event.verified !== "postback") {
     return { action: "fresh_get_first", reason: "NOT_SIGNATURE_VERIFIED" };
   }
-  if (event.delivery === null) return { action: "fresh_get_first", reason: "DELIVERY_NOT_RECORDED" };
+  if (certWarning === undefined) return { action: "fresh_get_first", reason: "DELIVERY_NOT_RECORDED" };
   return { action: "apply_now", status: "SUCCESS", corroboration: "settle_get" };
 }
 

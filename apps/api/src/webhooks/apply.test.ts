@@ -20,6 +20,8 @@ const LABELS: readonly WebhookVerifiedLabel[] = ["self", "postback", "dev_mock",
 const IN_DATE = { certWarning: null } as const;
 /** A delivery signed under an expired PayPal certificate (verify.ts labels it CERT_EXPIRED). */
 const EXPIRED = { certWarning: "CERT_EXPIRED" } as const;
+/** `delivery` stored with its null-valued keys stripped (jsonb_strip_nulls, an undefined-dropping mapper). */
+const STRIPPED = { transmissionId: "8f3c1a40-91d2-11ef-b4c7-1b2c3d4e5f60", rejectReason: undefined } as const;
 
 describe("webhookApplyRule: what processWebhook may do before asking PayPal", () => {
   it("a signature-verified PAYMENT.PAYOUTS-ITEM.SUCCEEDED under an in-date certificate applies at once (MM-1), pending the settle GETs at +25 s (Judge) or +90 s", () => {
@@ -45,16 +47,20 @@ describe("webhookApplyRule: what processWebhook may do before asking PayPal", ()
     ];
     for (const eventType of eventTypes) {
       for (const verified of [...LABELS, null]) {
-        for (const delivery of [IN_DATE, EXPIRED, null]) {
+        for (const delivery of [IN_DATE, EXPIRED, STRIPPED, {}, null]) {
           const rule = webhookApplyRule({ eventType, verified, delivery });
-          if (rule.action === "apply_now") applyNow.push(`${eventType} ${verified} ${delivery?.certWarning}`);
-          else expect(rule.action).toBe("fresh_get_first");
+          if (rule.action === "apply_now") {
+            applyNow.push(`${eventType} ${verified} ${JSON.stringify(delivery)}`);
+          } else expect(rule.action).toBe("fresh_get_first");
         }
+        // A row read back without its `delivery` field at all.
+        const bare = JSON.parse(JSON.stringify({ eventType, verified }));
+        expect(webhookApplyRule(bare).action).toBe("fresh_get_first");
       }
     }
     expect(applyNow).toEqual([
-      "PAYMENT.PAYOUTS-ITEM.SUCCEEDED self null",
-      "PAYMENT.PAYOUTS-ITEM.SUCCEEDED postback null",
+      'PAYMENT.PAYOUTS-ITEM.SUCCEEDED self {"certWarning":null}',
+      'PAYMENT.PAYOUTS-ITEM.SUCCEEDED postback {"certWarning":null}',
     ]);
   });
 
@@ -93,11 +99,16 @@ describe("webhookApplyRule: what processWebhook may do before asking PayPal", ()
   it("fails closed on any certificate warning, including ones it does not know yet", () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 0, maxLength: 40 }),
+        fc.oneof(
+          fc.string({ minLength: 0, maxLength: 40 }),
+          fc.jsonValue().filter((v) => v !== null),
+        ),
         fc.constantFrom(...LABELS),
         fc.constantFrom(...WEBHOOK_EVENT_TYPES),
         (certWarning, verified, eventType) => {
-          const rule = webhookApplyRule({ eventType, verified, delivery: { certWarning } });
+          // As read back from jsonb, where the value can be anything JSON can hold.
+          const delivery = { certWarning } as { certWarning: string };
+          const rule = webhookApplyRule({ eventType, verified, delivery });
           return rule.action === "fresh_get_first" && rule.reason === "CERT_EXPIRED";
         },
       ),
@@ -109,6 +120,25 @@ describe("webhookApplyRule: what processWebhook may do before asking PayPal", ()
       expect(
         webhookApplyRule({ eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", verified, delivery: null }),
       ).toEqual({ action: "fresh_get_first", reason: "DELIVERY_NOT_RECORDED" });
+    }
+  });
+
+  it("only an explicit null certWarning is in date: a record that lost the key (null keys stripped) or a row read without the column is DELIVERY_NOT_RECORDED", () => {
+    for (const verified of ["self", "postback"] as const) {
+      const eventType = "PAYMENT.PAYOUTS-ITEM.SUCCEEDED";
+      for (const delivery of [STRIPPED, {}, { certWarning: undefined }]) {
+        expect(webhookApplyRule({ eventType, verified, delivery }), JSON.stringify(delivery)).toEqual({
+          action: "fresh_get_first",
+          reason: "DELIVERY_NOT_RECORDED",
+        });
+      }
+      for (const delivery of [undefined, "{}", 0, false]) {
+        const row = { eventType, verified, delivery } as unknown as Parameters<typeof webhookApplyRule>[0];
+        expect(webhookApplyRule(row), String(delivery)).toEqual({
+          action: "fresh_get_first",
+          reason: "DELIVERY_NOT_RECORDED",
+        });
+      }
     }
   });
 });

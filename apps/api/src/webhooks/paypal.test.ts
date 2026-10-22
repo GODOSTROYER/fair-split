@@ -470,6 +470,31 @@ describe("POST /webhooks/paypal handler", () => {
     });
   });
 
+  it("MM-1 needs `delivery` back exactly as the route wrote it, null keys included; without it every SUCCEEDED waits for the settle GET", async () => {
+    const { handler, committed } = setup();
+    expect((await handler(request(sign()))).status).toBe(200);
+    const row = committed.get((itemEvent as { id: string }).id);
+    if (!row) throw new Error("the event was not stored");
+    // A jsonb column keeps null-valued keys, so the round trip changes nothing and MM-1 fires.
+    const readBack = JSON.parse(JSON.stringify(row.delivery));
+    expect(readBack).toEqual(row.delivery);
+    expect(readBack).toHaveProperty("certWarning", null);
+    expect(webhookApplyRule({ ...row, delivery: readBack })).toEqual({
+      action: "apply_now",
+      status: "SUCCESS",
+      corroboration: "settle_get",
+    });
+    // A repository that drops the column, or strips null keys on the way in: fails closed, MM-1 is off.
+    const stripped = Object.fromEntries(Object.entries(readBack).filter(([, value]) => value !== null));
+    const { delivery: _dropped, ...withoutColumn } = row;
+    for (const stored of [{ ...row, delivery: null }, { ...row, delivery: stripped }, withoutColumn]) {
+      expect(webhookApplyRule(stored as typeof row)).toEqual({
+        action: "fresh_get_first",
+        reason: "DELIVERY_NOT_RECORDED",
+      });
+    }
+  });
+
   it("inv.i7.outbox: if enqueue fails, nothing is committed and a retry stores the event once", async () => {
     const db = fakeDb();
     let failEnqueue = true;

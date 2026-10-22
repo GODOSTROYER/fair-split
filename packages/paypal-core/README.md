@@ -97,20 +97,27 @@ so the bearer token cannot be sent anywhere else.
    sanctioned exception to forward-only); every other status, a SUCCEEDED labelled `dev_mock` or
    `fetched`, any row whose `delivery.certWarning` is set (`CERT_EXPIRED`, even when PayPal's postback
    confirmed it: state comes from PayPal's GET, never from an expired-certificate body) and a verified
-   row with no `delivery` record change state only after a fresh GET.
+   row whose `delivery` is missing or lacks the `certWarning` key (`DELIVERY_NOT_RECORDED`) change state
+   only after a fresh GET. Only an explicit `certWarning: null` lets a SUCCEEDED apply at once, so
+   **MM-1 needs `delivery` stored as written, null keys included** (shim-swap notes below).
 8. Rejections (forged, stale, replayed, malformed): 400 and a `rejected` `webhook_events` row (body
-   truncated to 8 KB), **rate-limited**: the first 10 per client address (IPv6 by /64; no address = one
-   shared count) and the first 100 overall per hour (`DEFAULT_REJECTED_ROW_LIMITS`; S3 "≤ 100 rows an
-   hour", E-18 "at most 100 stored rejects"). The rest are only counted in `handler.health()` (counters,
-   never a body or an address) and logged once per window. A rejection that writes no row (identical
-   junk, failed insert) gives its slot back. Tested: 1,000 forged deliveries store at most 100 rows (10
-   from one address) and make no PayPal call.
+   truncated to 8 KB), **rate-limited over a sliding hour**: at most 10 rows per client address (IPv6 by
+   /64; no address = one shared count) and 100 overall in any 60 minutes (`DEFAULT_REJECTED_ROW_LIMITS`;
+   S3 "≤ 100 rows an hour", E-18 "at most 100 stored rejects"). A row counts for an hour after it was
+   stored, whatever the clock hour, so a burst across the top of the hour cannot store twice the cap.
+   The rest are only counted in `handler.health()` (counters for the last hour, never a body or an
+   address) and logged at most once an hour. A rejection that writes no row (identical junk, failed
+   insert) gives its slot back. Memory stays flat: at most 100 rows' times and address keys, and 60
+   refusal counters. Tested: 1,000 forged deliveries store at most 100 rows (10 from one address), also
+   in 1.5 s across the top of the hour, and make no PayPal call; a property test checks the sliding hour
+   against a model for random arrivals.
 
 `verifier.health()` reports `ok | degraded` with plain-language `problems` and their codes in `alerts`:
 `CERT_FETCH_THROTTLED` (persistent throttling, above), `SIGNED_WITH_EXPIRED_CERT`, `KNOWN_CERT_FETCH_FAILED`
 (a known certificate URL that can no longer be fetched), `SIGNING_CERT_EXPIRED` and `SIGNING_CERT_EXPIRING`
 (fewer than 14 days left). `certFetchThrottled` and `rejected` count throttled deliveries below the
-threshold. The route's `handler.health()` reports rejected rows stored and not stored. WS-API: put both
+threshold. The route's `handler.health()` reports rejected rows stored and not stored in the last hour
+(degraded while any were not stored). WS-API: put both
 in the `/readyz` body (`webhooks`, `webhookRoute`), but never fail readiness on them (Render's health
 check would restart a healthy process); show them on `/ops`.
 
@@ -158,10 +165,16 @@ check would restart a healthy process); show them on `/ops`.
 - `apps/api/src/webhooks/_shims/contracts.ts` → `@fairsplit/contracts` (TaskName `processWebhook`, the
   webhook_events vocabulary, `webhook.received`).
 - `apps/api/src/webhooks/_shims/persistence.ts` → `@fairsplit/outbox` / `@fairsplit/db`.
-- **Proposed to WS-DATA:** one nullable column `webhook_events.delivery jsonb` (transmission headers,
-  reject reason, certificate warning; type `WebhookDelivery`) instead of four new columns. Arrival time is
-  the row's created-at default; resource type is in `raw`. Without it the route still works, but the
-  deferred postback, the boot pre-warm and `/ops` reject reasons do not.
+- **Required from WS-DATA (for MM-1):** one nullable column `webhook_events.delivery jsonb` (transmission
+  headers, reject reason, certificate warning; type `WebhookDelivery`) instead of four new columns.
+  Arrival time is the row's created-at default; resource type is in `raw`. It must keep null-valued keys
+  (jsonb does; never `jsonb_strip_nulls`): `webhookApplyRule` applies an in-date signed SUCCEEDED at once
+  only when the stored `delivery.certWarning` is an explicit `null`. Without the column (or with null keys
+  stripped) the route still stores events, but every SUCCEEDED is `DELIVERY_NOT_RECORDED` and waits for
+  the settle GET at +25 s / +90 s, so **MM-1 never fires** (fails closed: no money risk); the deferred
+  postback, the boot pre-warm and `/ops` reject reasons stop working too. A dedicated `cert_warning`
+  column is no substitute on its own: it restores none of those three, and its NULL would mean both "in
+  date" and "never written".
 - **Proposed to WS-CORE before the 24 Oct freeze:** widen the `webhook.received` run event's `verified`
   from `"self" | "postback"` (architecture §5) to also allow `"dev_mock"` and `"fetched"`, so simulator
   and catch-up events keep their label (I8). Until then `webhookRunEvent()` returns null for them rather
@@ -178,7 +191,9 @@ check would restart a healthy process); show them on `/ops`.
 - **For WS-API:** mount `honoPayPalWebhook(handler)`; it takes the client address from the rightmost
   `X-Forwarded-For` entry (Render appends the connecting address; UNVERIFIED, confirm at S5 and pass
   `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`
-  and `now` (the app clock), and report `handler.health()`.
+  and `now` (the app clock), and report `handler.health()`. In `insertWebhookEvent`, persist
+  `row.delivery` as it is, into `webhook_events.delivery` (not only its `rejectReason` into `error`), and
+  hand the stored `delivery` back to `webhookApplyRule` in processWebhook: that is what MM-1 runs on.
 - Until WS-API scaffolds `apps/api`, the webhook route is typechecked by `tsconfig.consumers.json` and
   tested by the `api-webhooks` vitest project here.
 
