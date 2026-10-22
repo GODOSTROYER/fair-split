@@ -58,6 +58,7 @@ catalog:
   "i18next": 26.5.4
   "react-i18next": 17.1.0
   "@noble/curves": 2.4.0
+  "embedded-postgres": 17.10.0-beta.17
 
 catalogs:
   zod3:
@@ -67,6 +68,11 @@ allowBuilds:
   esbuild: true
   sharp: true
   lefthook: true
+  # embedded-postgres platform binaries (test-only real Postgres); the script only re-creates lib symlinks
+  "@embedded-postgres/windows-x64": true
+  "@embedded-postgres/linux-x64": true
+  "@embedded-postgres/darwin-arm64": true
+  "@embedded-postgres/darwin-x64": true
 
 minimumReleaseAgeExclude:
   - "@biomejs/biome@2.6.2"
