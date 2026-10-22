@@ -73,6 +73,7 @@ const COPY_PINK = ok("#F4C9D4", 0.8761, 0.0506, 1.07);
 const COPY_YELLOW = ok("#F5E27A", 0.9071, 0.1267, 99.17);
 const SLAB_JADE_RIGHT = ok("#1F9E78", 0.6242, 0.1202, 167.06);
 const SLAB_JADE_BOTTOM = ok("#12704F", 0.485, 0.0985, 163.33);
+const BEZEL = ok("#0E0A08", 0.1492, 0.0084, 49.76);
 
 export const COLOUR_NAMES = [
   "ground",
@@ -117,6 +118,8 @@ export const COLOUR_NAMES = [
   "slab-jade-right",
   "slab-jade-bottom",
   "slab-jade-label",
+  "paper-ink",
+  "bezel",
 ] as const;
 
 export type ColourName = (typeof COLOUR_NAMES)[number];
@@ -165,6 +168,8 @@ export const COLOUR_ROLES: Readonly<Record<ColourName, string>> = {
   "slab-jade-right": "Jade slab right edge",
   "slab-jade-bottom": "Jade slab bottom edge",
   "slab-jade-label": "Jade slab label",
+  "paper-ink": "Words printed on evidence paper (the Synthetic sample tag); paper is light in both themes",
+  bezel: "Phone frames on the Judge stage (chrome, not the app)",
 };
 
 export const COLOURS: Readonly<Record<ThemeName, Readonly<Record<ColourName, ColourSpec>>>> = {
@@ -212,6 +217,8 @@ export const COLOURS: Readonly<Record<ThemeName, Readonly<Record<ColourName, Col
     "slab-jade-right": SLAB_JADE_RIGHT,
     "slab-jade-bottom": SLAB_JADE_BOTTOM,
     "slab-jade-label": TABLEA_GROUND,
+    "paper-ink": ADLAW_INK,
+    bezel: BEZEL,
   },
   adlaw: {
     ground: ok("#EEEEEA", 0.948, 0.0053, 106.5),
@@ -256,6 +263,8 @@ export const COLOURS: Readonly<Record<ThemeName, Readonly<Record<ColourName, Col
     "slab-jade-right": SLAB_JADE_RIGHT,
     "slab-jade-bottom": SLAB_JADE_BOTTOM,
     "slab-jade-label": ADLAW_INK,
+    "paper-ink": ADLAW_INK,
+    bezel: BEZEL,
   },
 };
 
@@ -292,6 +301,7 @@ export const CONTRAST_RULES: readonly ContrastRule[] = [
     why: "Text stays legible while a grid cell flashes or a row is held",
   },
   { group: "wash", min: 4.5, fg: ["red"], bg: ["red-wash"], why: "Red copy on its wash" },
+  { group: "face", min: 4.5, fg: ["paper-ink"], bg: ["copy-white"], why: "Tags printed on evidence paper" },
   { group: "non-text", min: 3, fg: ["pod"], bg: SURFACES, why: "Focus ring and needle on every surface" },
   {
     group: "non-text",

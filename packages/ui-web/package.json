@@ -8,21 +8,39 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./contract": {
+      "types": "./src/contract.ts",
+      "default": "./src/contract.ts"
+    },
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@fairsplit/tokens": "workspace:*",
+    "@base-ui/react": "catalog:",
+    "@fairsplit/i18n": "workspace:*",
     "@fairsplit/motion": "workspace:*",
     "@fairsplit/seal": "workspace:*",
-    "react": "catalog:"
+    "@fairsplit/tokens": "workspace:*",
+    "motion": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@types/node": "catalog:"
+    "vitest": "catalog:"
   }
 }

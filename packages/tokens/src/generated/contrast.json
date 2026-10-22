@@ -1,5 +1,5 @@
 {
-  "pairs": 98,
+  "pairs": 100,
   "failing": 0,
   "results": [
     {
@@ -439,6 +439,17 @@
       "fgHex": "#FF5A47",
       "bgHex": "#3F251D",
       "ratio": 4.55,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
+      "group": "face",
+      "fg": "paper-ink",
+      "bg": "copy-white",
+      "fgHex": "#1C1511",
+      "bgHex": "#FFFFFF",
+      "ratio": 18.02,
       "min": 4.5,
       "pass": true
     },
@@ -978,6 +989,17 @@
       "fgHex": "#BF2A1C",
       "bgHex": "#FCE6E3",
       "ratio": 4.93,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
+      "group": "face",
+      "fg": "paper-ink",
+      "bg": "copy-white",
+      "fgHex": "#1C1511",
+      "bgHex": "#FFFFFF",
+      "ratio": 18.02,
       "min": 4.5,
       "pass": true
     },
