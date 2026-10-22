@@ -3,6 +3,7 @@
 // `payment_term` are never sent: PayPal dates the invoice itself, and the only date we send is the
 // AUTO_CANCEL rule's, at PayPal's invoice date + 25 days (C-27). Pure: no clock, no IO.
 import type { PolicyCtx } from "@fairsplit/contracts";
+import { foldAsciiCase } from "./ascii.js";
 import { addDays } from "./format.js";
 import { minorToDecimal } from "./money.js";
 
@@ -49,7 +50,7 @@ export function itemLabelProblem(labels: readonly unknown[]): string | null {
       return `Item ${i + 1}'s label must be 1-${ITEM_LABEL_MAX} letters, spaces and ,'()- with no digits`;
     }
   }
-  const folded = labels.map((l) => (l as string).toLowerCase());
+  const folded = labels.map((l) => foldAsciiCase(l as string));
   return new Set(folded).size === folded.length ? null : "The item labels must be distinct";
 }
 
@@ -101,7 +102,7 @@ export function autoCancelDate(invoiceDate: string): string {
 }
 
 /** The canonical `create_conditional_rules_for_invoice` arguments: one AUTO_CANCEL on SPECIFIC_DATE. */
-export function autoCancelRuleArgs(invoiceId: string, autoCancelOn: string) {
+export function autoCancelRuleArgs(invoiceId: string, autoCancelOn: string): AutoCancelRuleArgs {
   if (parseStrictIsoDate(autoCancelOn) === null)
     throw new RangeError(`not a YYYY-MM-DD date: ${autoCancelOn}`);
   return {
@@ -116,4 +117,63 @@ export function autoCancelRuleArgs(invoiceId: string, autoCancelOn: string) {
       },
     ],
   };
+}
+
+export interface AutoCancelRuleArgs {
+  invoice_id: string;
+  rules: [
+    {
+      conditional_rule_type: "AUTO_CANCEL";
+      rule_expiry_terms: { rule_expiry_condition: "SPECIFIC_DATE"; condition_rule_end_date: string };
+    },
+  ];
+}
+
+/** The canonical `send_invoice` arguments: this run's invoice, never e-mailed by PayPal (register §8). */
+export interface CanonicalSend {
+  invoice_id: string;
+  send_to_recipient: false;
+}
+export const canonicalSend = (invoiceId: string): CanonicalSend => ({
+  invoice_id: invoiceId,
+  send_to_recipient: false,
+});
+
+/** What code needs to build every invoice call: the quote and run, and PayPal's invoice ID and date once known. */
+export type InvoiceCallExpectation = InvoiceExpectation &
+  Pick<PolicyCtx["expected"], "invoiceId" | "invoiceDate">;
+
+export type CanonicalInvoiceCall =
+  | { ok: true; method: "create_invoice"; args: CanonicalInvoice }
+  | { ok: true; method: "create_conditional_rules_for_invoice"; args: AutoCancelRuleArgs }
+  | { ok: true; method: "send_invoice"; args: CanonicalSend }
+  | { ok: false; reason: string };
+
+/**
+ * The body the money executor sends for an invoice call (I1). Code builds it from the run alone;
+ * the only thing the agent contributes is `labels`, its three item labels for create_invoice, which
+ * are checked here. The executor sends `args` from this function, never the model's arguments, and
+ * the policy lattice (`invoiceEqualsQuote`) is the second layer: it allows a call only when its
+ * arguments equal this body exactly. Refuses, never guesses, when the run cannot yet build the body.
+ */
+export function canonicalInvoiceCall(
+  method: string,
+  e: InvoiceCallExpectation,
+  labels?: readonly string[],
+): CanonicalInvoiceCall {
+  try {
+    if (method === "create_invoice") return { ok: true, method, args: canonicalInvoice(e, labels) };
+    if (method === "create_conditional_rules_for_invoice") {
+      if (e.invoiceId === null) return { ok: false, reason: "There is no invoice to attach the rule to" };
+      if (e.invoiceDate === null) return { ok: false, reason: "The invoice's date is not known yet" };
+      return { ok: true, method, args: autoCancelRuleArgs(e.invoiceId, autoCancelDate(e.invoiceDate)) };
+    }
+    if (method === "send_invoice") {
+      if (e.invoiceId === null) return { ok: false, reason: "There is no invoice to send" };
+      return { ok: true, method, args: canonicalSend(e.invoiceId) };
+    }
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : "The run cannot build this call" };
+  }
+  return { ok: false, reason: `${method} is not an invoice call` };
 }

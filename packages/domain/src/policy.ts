@@ -16,16 +16,15 @@ import {
   type Verdict,
 } from "@fairsplit/contracts";
 import { match, P } from "ts-pattern";
+import { asciiEmailKey, isAsciiEmail } from "./ascii.js";
 import { addDays } from "./format.js";
 import {
   AUTO_CANCEL_MAX_DAYS_AHEAD,
   autoCancelDate,
-  autoCancelRuleArgs,
-  canonicalInvoice,
+  canonicalInvoiceCall,
   itemLabelProblem,
   parseStrictIsoDate,
 } from "./invoice.js";
-import { minorToDecimal, parseDecimalMinor } from "./money.js";
 
 export type Rank = 0 | 1 | 2;
 export type Policy = (call: ToolCall, ctx: PolicyCtx) => { verdict: Rank; reason: string | null };
@@ -73,7 +72,7 @@ export interface InvoiceFields {
   values: Readonly<Record<FlatField, string | null>>;
   /** Flat fields that are absent while their nested spelling is present: flat field → nested path. */
   nestedOnly: Readonly<Partial<Record<string, string>>>;
-  /** Readable `primary_recipients[].billing_info.email_address` values. */
+  /** `primary_recipients[].billing_info.email_address` values that are strict printable-ASCII e-mails. */
   recipientEmails: string[];
 }
 
@@ -108,12 +107,10 @@ export function readInvoiceFields(args: unknown): InvoiceFieldsRead {
       nestedOnly,
       recipientEmails: recipients
         .map((r) => (isRecord(r) && isRecord(r.billing_info) ? r.billing_info.email_address : null))
-        .filter((e): e is string => typeof e === "string" && EMAIL.test(e)),
+        .filter(isAsciiEmail),
     },
   };
 }
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** One flat field's value, or why it cannot be read (ambiguous or only in the nested form). */
 function field(
@@ -217,7 +214,6 @@ const RULE_SHAPE: Shape = {
 
 /** send_invoice: this run's invoice, never e-mailed by PayPal (register §8, send_to_recipient false). */
 const SEND_SHAPE: Shape = { invoice_id: "leaf", send_to_recipient: "leaf" };
-export const canonicalSend = (invoiceId: string) => ({ invoice_id: invoiceId, send_to_recipient: false });
 
 /** Every key the shape does not allow, by path, sorted. */
 function unknownKeys(value: unknown, shape: Shape, path = "", out: string[] = []): string[] {
@@ -238,7 +234,10 @@ function unknownKeys(value: unknown, shape: Shape, path = "", out: string[] = []
   return out.sort();
 }
 
-/** Paths where two JSON values differ (missing keys, lengths, types and values). */
+/**
+ * Paths where two JSON values differ (missing keys, lengths, types and values). Strings compare
+ * code unit by code unit: no trim, no case folding, no Unicode normalisation, no re-decimalising.
+ */
 function differences(a: unknown, b: unknown, path = "", out: string[] = []): string[] {
   if (isRecord(a) && isRecord(b)) {
     for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
@@ -252,26 +251,6 @@ function differences(a: unknown, b: unknown, path = "", out: string[] = []): str
     out.push(path || "(body)");
   }
   return out;
-}
-
-/** Normalisation before comparing: amounts as two-decimal cents, e-mail addresses in lower case. */
-function normalised(body: unknown): unknown {
-  const copy = JSON.parse(JSON.stringify(body ?? null)) as unknown;
-  if (!isRecord(copy)) return copy;
-  const lower = (o: Record<string, unknown>, k: string) => {
-    if (typeof o[k] === "string") o[k] = (o[k] as string).toLowerCase();
-  };
-  lower(copy, "invoicer_email_address");
-  for (const r of Array.isArray(copy.primary_recipients) ? copy.primary_recipients : []) {
-    if (isRecord(r) && isRecord(r.billing_info)) lower(r.billing_info, "email_address");
-  }
-  for (const it of Array.isArray(copy.items) ? copy.items : []) {
-    if (isRecord(it) && isRecord(it.unit_amount) && typeof it.unit_amount.value === "string") {
-      const cents = parseDecimalMinor(it.unit_amount.value);
-      if (cents !== null) it.unit_amount.value = minorToDecimal(cents);
-    }
-  }
-  return copy;
 }
 
 const differReason = (paths: readonly string[], what: string) =>
@@ -359,12 +338,18 @@ function invoiceDates(
 }
 
 /**
- * I1: each invoice call deep-equals its canonical form, built by code. For create_invoice that is
- * `canonicalInvoice(quote, labels)`, where only the three item labels are the agent's; for the
- * AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`; for send_invoice it is
- * `{invoice_id: this run's invoice, send_to_recipient: false}`. Every key the canonical
- * form does not carry (tax, discount, shipping, tip, partial payment, pay by bank, theme, extra
- * recipients, dates…) is named in the verdict; then the whole body is compared after normalising.
+ * I1: each invoice call equals, exactly, the body code built for it (`canonicalInvoiceCall`). For
+ * create_invoice that is `canonicalInvoice(quote, labels)`, where only the three item labels are
+ * the agent's; for the AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`;
+ * for send_invoice it is `{invoice_id: this run's invoice, send_to_recipient: false}`. Every key the
+ * canonical form does not carry (tax, discount, shipping, tip, partial payment, pay by bank, theme,
+ * extra recipients, dates…) is named in the verdict; then the whole body is compared with no
+ * normalisation at all: strings code unit for code unit (no trim, case folding or Unicode
+ * normalisation) and amounts as code's own two-decimal string, so PayPal receives exactly the
+ * bytes approved here.
+ *
+ * This is the second layer. The money executor sends the body `canonicalInvoiceCall` builds, never
+ * the model's arguments; this check makes sure a draft that is not that body is refused and named.
  */
 export const invoiceEqualsQuote: Policy = (call, ctx) => {
   if (call.name === "create_invoice") {
@@ -382,13 +367,9 @@ export const invoiceEqualsQuote: Policy = (call, ctx) => {
       if (problem) return deny(problem);
       labels = names as string[];
     }
-    let want: unknown;
-    try {
-      want = canonicalInvoice(ctx.expected, labels);
-    } catch {
-      return deny("The code's quote cannot be invoiced");
-    }
-    const diff = differences(normalised(call.args), normalised(want));
+    const want = canonicalInvoiceCall("create_invoice", ctx.expected, labels);
+    if (!want.ok) return deny("The code's quote cannot be invoiced");
+    const diff = differences(call.args, want.args);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "invoice"));
   }
   if (call.name === "create_conditional_rules_for_invoice") {
@@ -398,34 +379,47 @@ export const invoiceEqualsQuote: Policy = (call, ctx) => {
     if (ctx.expected.invoiceId === null) return deny("There is no invoice to attach the rule to");
     const dates = invoiceDates(ctx);
     if (!dates.ok) return deny(dates.reason);
-    const want = autoCancelRuleArgs(ctx.expected.invoiceId, autoCancelDate(dates.invoiceDate));
-    const diff = differences(call.args, want);
+    const want = canonicalInvoiceCall(call.name, ctx.expected);
+    if (!want.ok) return deny(want.reason);
+    const diff = differences(call.args, want.args);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "rule"));
   }
   if (call.name === "send_invoice") {
     if (!isRecord(call.args)) return deny("The send arguments are not an object");
     const extra = unknownKeys(call.args, SEND_SHAPE);
     if (extra.length > 0) return deny(`Not in the canonical send: ${extra.join(", ")}`);
-    if (ctx.expected.invoiceId === null) return deny("There is no invoice to send");
-    const diff = differences(call.args, canonicalSend(ctx.expected.invoiceId));
+    const want = canonicalInvoiceCall(call.name, ctx.expected);
+    if (!want.ok) return deny(want.reason);
+    const diff = differences(call.args, want.args);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "send"));
   }
   return ALLOW;
 };
 
+const NOT_ASCII_EMAIL = "is not a plain ASCII e-mail address";
+
+/**
+ * The invoicer is the co-op's business account. Both addresses must be strict printable-ASCII
+ * e-mails; only ASCII A-Z case is folded (never `toLowerCase`, which maps U+212A to "k").
+ */
 export const invoicerIsBusinessEmail: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
   const f = field(readInvoiceFields(call.args), "invoicer_email_address");
   if (!f.ok) return deny(f.reason);
-  return f.value !== null && f.value.toLowerCase() === ctx.expected.businessEmail.toLowerCase()
-    ? ALLOW
-    : deny("The invoicer is not the co-op's business account");
+  if (f.value === null) return deny("The invoicer is not the co-op's business account");
+  const invoicer = asciiEmailKey(f.value);
+  if (invoicer === null) return deny(`invoicer_email_address ${NOT_ASCII_EMAIL}`);
+  const business = asciiEmailKey(ctx.expected.businessEmail);
+  if (business === null) return deny(`The co-op's business e-mail ${NOT_ASCII_EMAIL}`);
+  return invoicer === business ? ALLOW : deny("The invoicer is not the co-op's business account");
 };
 
 /**
  * Exactly one recipient, read only from `primary_recipients[0].billing_info.email_address`, which
- * must be a readable e-mail on the brand allowlist. Any other recipient-bearing field (extra
- * recipients, cc, shipping info, phones, a flattened e-mail…) is named and denied.
+ * must be a strict printable-ASCII e-mail on the brand allowlist, compared with ASCII A-Z folded and
+ * nothing else (an allowlist entry that is not plain ASCII matches nothing). Any other
+ * recipient-bearing field (extra recipients, cc, shipping info, phones, a flattened e-mail…) is
+ * named and denied.
  */
 export const recipientInBrandAllowlist: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
@@ -439,11 +433,13 @@ export const recipientInBrandAllowlist: Policy = (call, ctx) => {
   if (recipients.length !== 1) return deny("Exactly one recipient is allowed");
   const r = recipients[0];
   const email = isRecord(r) && isRecord(r.billing_info) ? r.billing_info.email_address : undefined;
-  if (typeof email !== "string" || !EMAIL.test(email)) {
+  if (typeof email !== "string") {
     return deny("The recipient has no readable e-mail at billing_info.email_address");
   }
-  const allowed = new Set(ctx.expected.brandAllowlist.map((e) => e.toLowerCase()));
-  return allowed.has(email.toLowerCase()) ? ALLOW : deny("A recipient is not on the brand allowlist");
+  const key = asciiEmailKey(email);
+  if (key === null) return deny(`primary_recipients[0].billing_info.email_address ${NOT_ASCII_EMAIL}`);
+  const allowed = new Set(ctx.expected.brandAllowlist.map(asciiEmailKey).filter((e) => e !== null));
+  return allowed.has(key) ? ALLOW : deny("A recipient is not on the brand allowlist");
 };
 
 export const referenceCarriesHash: Policy = (call, ctx) => {
