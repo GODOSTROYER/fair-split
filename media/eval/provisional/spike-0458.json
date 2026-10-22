@@ -1,41 +1,38 @@
 {
-  "v": 1,
-  "synthetic": true,
-  "case": "spike-0403",
+  "case": "spike-0458",
   "set": "dev",
-  "status": "agent-checked",
   "kind": "slip_page",
-  "image": "masters/spike-0403.jpg",
-  "fixture": "fixtures/spike-0403.json",
+  "image": "masters/spike-0458.jpg",
+  "fixture": "fixtures/spike-0458.json",
   "slips": [
     {
       "slot": "ONLY",
-      "serial": "0403",
+      "serial": "0458",
       "copy": "WHITE_ORIGINAL",
       "fields": {
         "serial": {
-          "value": "0403",
-          "visible": "0403",
+          "value": "0458",
+          "visible": "0458",
           "expect": "AUTO"
         },
         "date": {
-          "value": "05/21/2026",
-          "visible": "05/21/2026",
+          "value": "07/14/2026",
+          "visible": "07/14/2026",
           "expect": "AUTO"
         },
         "member_no": {
-          "value": "M-014",
-          "visible": "M-014",
+          "value": "M-018",
+          "visible": "M-018",
           "expect": "AUTO"
         },
         "member_name": {
-          "value": "CONSOLACION BACUS",
-          "visible": "CONSOLACION BACUS",
+          "value": "TEODORO PACAÑA",
+          "visible": "TEODORO PACAÑA",
           "expect": "AUTO"
         },
         "plot_no": {
-          "value": "P-014-A",
-          "visible": "P-014-A",
+          "value": "P-018-A",
+          "visible": "P-018-A",
           "expect": "AUTO"
         },
         "sacks": {
@@ -44,8 +41,8 @@
           "expect": "AUTO"
         },
         "gross_kg": {
-          "value": "38.75",
-          "visible": "38.75",
+          "value": "61.10",
+          "visible": "61.10",
           "expect": "AUTO"
         },
         "tare_kg": {
@@ -54,13 +51,13 @@
           "expect": "AUTO"
         },
         "net_kg": {
-          "value": "38.45",
-          "visible": "38.45",
+          "value": "60.80",
+          "visible": "60.80",
           "expect": "AUTO"
         },
         "mc_pct": {
-          "value": "6.8",
-          "visible": "6.8",
+          "value": "6.9",
+          "visible": "6.9",
           "expect": "AUTO"
         },
         "mc_less_kg": {
@@ -69,8 +66,8 @@
           "expect": "AUTO"
         },
         "payable_kg": {
-          "value": "38.45",
-          "visible": "38.45",
+          "value": "60.80",
+          "visible": "60.80",
           "expect": "AUTO"
         },
         "grade": {
@@ -84,8 +81,22 @@
           "expect": "AUTO"
         }
       },
-      "deductions": [],
-      "traps": [],
+      "deductions": [
+        {
+          "visible": "HAULING ₱91.20",
+          "rule": "R2",
+          "expect": "AUTO"
+        },
+        {
+          "visible": "MULTA (ABSENT GA) ₱200",
+          "rule": "NO_MATCH",
+          "expect": "AUTO"
+        }
+      ],
+      "traps": [
+        "NO_RULE",
+        "RULED_DEDUCTION"
+      ],
       "duplicate_of": null,
       "injection": null
     }

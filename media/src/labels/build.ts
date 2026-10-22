@@ -7,13 +7,19 @@ import type {
   SlipImageFixture,
 } from "../fixtures/schema.js";
 import { SLIP_ROW_FIELDS } from "../fixtures/schema.js";
-import { type CaseLabel, LABEL_VERSION, type SlipLabel, type Trap } from "./schema.js";
+import type { CaseLabel, LabelStatus, SlipLabel, Trap } from "./schema.js";
 
 /**
  * Builds the eval label for one checked fixture (S4.10 "Labels"). Drafts (any value still UNVERIFIED)
  * produce no label. Hero flats, photos and documents are `dev` cases (S4.8); the 24 test cases come later
- * from the eval images.
+ * from the eval images. The label's review status is the fixture's ({@link labelStatus}); it decides the
+ * folder the label is written to, never a key inside it.
  */
+
+/** The review state a fixture's label was checked to, or null while the fixture is a draft. */
+export function labelStatus(fixture: Fixture): LabelStatus | null {
+  return fixture.review.status === "draft" ? null : fixture.review.status;
+}
 
 /** A logbook remark's rule, by its wording (the logbook is a witness; only the multa appears on page 14). */
 export function ruleForRemark(text: string): DeductionRule {
@@ -104,11 +110,8 @@ export function buildLabel(fixture: Fixture, asset: AssetSpec): CaseLabel | null
           return slipLabel(s, spec);
         });
   return {
-    v: LABEL_VERSION,
-    synthetic: true,
     case: fixture.id,
     set: "dev",
-    status: fixture.review.status,
     kind: fixture.kind,
     image: fixture.image.master,
     fixture: `fixtures/${fixture.id}.json`,

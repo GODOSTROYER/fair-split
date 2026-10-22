@@ -1,41 +1,38 @@
 {
-  "v": 1,
-  "synthetic": true,
-  "case": "spike-0457-pink",
+  "case": "spike-0467",
   "set": "dev",
-  "status": "agent-checked",
   "kind": "slip_page",
-  "image": "masters/spike-0457-pink.jpg",
-  "fixture": "fixtures/spike-0457-pink.json",
+  "image": "masters/spike-0467.jpg",
+  "fixture": "fixtures/spike-0467.json",
   "slips": [
     {
       "slot": "ONLY",
-      "serial": "0457",
-      "copy": "PINK_DUPLICATE",
+      "serial": "0467",
+      "copy": "WHITE_ORIGINAL",
       "fields": {
         "serial": {
-          "value": "0457",
-          "visible": "0457",
+          "value": "0467",
+          "visible": "0467",
           "expect": "AUTO"
         },
         "date": {
-          "value": "07/14/2026",
-          "visible": "07/14/2026",
+          "value": "7/7/26",
+          "visible": "7/7/26",
           "expect": "AUTO"
         },
         "member_no": {
-          "value": "M-007",
-          "visible": "M-007",
+          "value": "M-014",
+          "visible": "M-014",
           "expect": "AUTO"
         },
         "member_name": {
-          "value": "DIONISIO LAPINIG",
-          "visible": "DIONISIO LAPINIG",
+          "value": "CONSOLACION BACUS",
+          "visible": "CONSOLACION BACUS",
           "expect": "AUTO"
         },
         "plot_no": {
-          "value": "P-007-A",
-          "visible": "P-007-A",
+          "value": "P-014-A",
+          "visible": "P-014-A",
           "expect": "AUTO"
         },
         "sacks": {
@@ -44,8 +41,8 @@
           "expect": "AUTO"
         },
         "gross_kg": {
-          "value": "42.30",
-          "visible": "42.30",
+          "value": "37.80",
+          "visible": "37.80",
           "expect": "AUTO"
         },
         "tare_kg": {
@@ -54,8 +51,8 @@
           "expect": "AUTO"
         },
         "net_kg": {
-          "value": "42.00",
-          "visible": "42.00",
+          "value": "37.50",
+          "visible": "37.50",
           "expect": "AUTO"
         },
         "mc_pct": {
@@ -69,8 +66,8 @@
           "expect": "AUTO"
         },
         "payable_kg": {
-          "value": "42.00",
-          "visible": "42.00",
+          "value": "37.50",
+          "visible": "37.50",
           "expect": "AUTO"
         },
         "grade": {
@@ -85,12 +82,12 @@
         }
       },
       "deductions": [],
-      "traps": ["DUPLICATE"],
-      "duplicate_of": "spike-0457-white#ONLY",
+      "traps": [],
+      "duplicate_of": null,
       "injection": null
     }
   ],
   "rate_card": null,
   "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-  "reviewed_at": "2026-10-22T12:20:00.000Z"
+  "reviewed_at": "2026-10-22T12:40:00.000Z"
 }

@@ -4,29 +4,38 @@ Everything here is **synthetic**: slips, the BR 2026-04 pages and the logbook pa
 OpenAI's image model through the user's Codex CLI (C-24, AI-11); every clip is a Gemini TTS voice (AI-10).
 Each image carries a printed specimen line and is shown with the "Synthetic sample" tag; each clip carries the
 label in its own language ("Sintetikong tingog", "Sintetikong boses" or "Synthetic voice", each with "(Gemini
-TTS)"; `VOICE_LABELS`); each manifest, fixture and label says `synthetic: true` (I8, tested by
-`test/inv.i8.labels.test.ts` and `test/labels.test.ts`). The co-op, people and figures are fictional.
+TTS)"; `VOICE_LABELS`); each manifest and fixture says `synthetic: true`, and each eval label names its
+fixture (I8, tested by `test/inv.i8.labels.test.ts` and `test/labels.test.ts`). The co-op, people and figures
+are fictional.
 
 `@fairsplit/media` is offline dev tooling. **No UI or runtime package may import it** (dependency rule):
 consumers read the files below, or the JSON Schemas, never this package's code.
 
+**Root files come from the deps lane.** The `media` workspace entry, the `allowBuilds` denials for
+`@google/genai` and `protobufjs`, the lockfile's `media` importer and this package's dependencies land through
+`deps/media` (S5.2.3 rule 4); WS-MEDIA's branch touches only `media/**` and `tools/{imagegen,tts}.ts`. Merge
+`deps/media` first, then `ws/media`.
+
 ## Layout (IC-11 plus additions)
 
-| Path                                                                              | What                                                                                            |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `photos/{id}.webp`                                                                | IC-11's four-slip photos only (A–L; P01–P54 stay archived tiles), display WebP ≤ 250 KB         |
-| `photos/spike/{id}.webp`                                                          | Spike photos (the 22 Oct four-slip test); never globbed with `photos/*.webp`                    |
-| `slips/{id}.webp`                                                                 | One-slip flats (the ten S3 hero flats) — addition                                               |
-| `docs/{id}.webp`, `docs/BR-2026-04.text.json`                                     | BR 2026-04 pages and logbook pages; the rate card's text layer (S4.3)                           |
-| `masters/{id}.jpg`                                                                | Native-size JPEG q92 masters (what Claude reads)                                                |
-| `fixtures/{id}.json`, `fixtures/fixture.schema.json`                              | Crop fixtures (IC-11, schema v2) and their JSON Schema                                          |
-| `eval/labels/{case}.json`, `eval/label.schema.json`                               | Eval labels (S4.8 `dev` cases) derived from checked fixtures; the schema sits beside them       |
-| `template/slip-v1.json`                                                           | Printed slip template v1 (generated from `src/template/slip-template.ts`)                       |
-| `prompts/{id}.md`, `prompts/history/`, `prompts/attempts.jsonl`                   | Latest rendered prompt; every prompt sent to Codex, byte for byte; every exec                   |
-| `review/*.json`, `review/sessions/`                                               | Recorded value checks (agents) and review sessions (people)                                     |
-| `audio/{member}/{lang}/{slot}.m4a`, `audio/manifest.json`, `audio/spike-s10.json` | Statement clips (AAC 32 kbps mono) and the S10 report                                           |
-| `manifest.json`                                                                   | Every image: prompt and hash, Codex version, attempts, master/display hashes, review            |
-| `raw/`, `.cache/`, `.codex-ledger.json`, `audio/.quota.json`                      | Git-ignored: raw Codex PNGs and review sheets, TTS cache, the per-machine Codex and TTS ledgers |
+| Path                                                                              | What                                                                                          |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `photos/{id}.webp`                                                                | IC-11's four-slip photos only (A–L; P01–P54 stay archived tiles), display WebP ≤ 250 KB       |
+| `photos/spike/{id}.webp`                                                          | Spike photos (the 22 Oct four-slip test); never globbed with `photos/*.webp`                  |
+| `slips/{id}.webp`                                                                 | One-slip flats (the ten S3 hero flats) — addition                                             |
+| `docs/{id}.webp`, `docs/BR-2026-04.text.json`                                     | BR 2026-04 pages and logbook pages; the rate card's text layer (S4.3)                         |
+| `masters/{id}.jpg`                                                                | Native-size JPEG q92 masters (what Claude reads)                                              |
+| `fixtures/{id}.json`, `fixtures/fixture.schema.json`                              | Crop fixtures (IC-11, schema v2) and their JSON Schema                                        |
+| `eval/labels/{case}.json`, `eval/label.schema.json`                               | Person-checked eval labels (S4.8 `dev` cases, C-24), the scored truth; the schema sits beside |
+| `eval/provisional/{case}.json`                                                    | Agent-checked labels, same shape: provisional until a person reviews them (`eval/README.md`)  |
+| `template/slip-v1.json`                                                           | Printed slip template v1 (generated from `src/template/slip-template.ts`)                     |
+| `prompts/{id}.md`, `prompts/history/`, `prompts/attempts.jsonl`                   | Latest rendered prompt; every prompt sent to Codex, byte for byte; every exec                 |
+| `review/*.json`, `review/sessions/`                                               | Recorded value checks (agents) and review sessions (people)                                   |
+| `audio/{member}/{lang}/{slot}.m4a`, `audio/manifest.json`, `audio/spike-s10.json` | Statement clips (AAC 32 kbps mono) and the S10 report                                         |
+| `manifest.json`                                                                   | Every image: prompt and hash, Codex version, attempts, master/display hashes, review          |
+| `raw/`, `.cache/`, `audio/.quota.json`                                            | Git-ignored: raw Codex PNGs and review sheets, TTS cache, the TTS ledger                      |
+| `.codex-ledger.json`                                                              | Git-ignored, retired: the old per-checkout Codex ledger, still counted, never written         |
+| `$CODEX_HOME/fairsplit-codex-ledger.json` (outside the repo)                      | The Codex ledger, one per machine for every worktree; `$FAIRSPLIT_CODEX_LEDGER` overrides it  |
 
 ## Fixtures and labels (IC-11)
 
@@ -51,10 +60,14 @@ shape, and `line_no` is the logbook's `line` column.
   that a trap renders or that it **failed**; only `imagegen trap-verdict … --evidence <recorded read>` (a
   WS-READ recording or eval report, pinned by sha256) can say it **holds**. `imagegen replay-check` refuses any
   image for a replay set until it is human-reviewed and every trap holds by a recorded read.
-- **Labels.** `imagegen labels` writes `eval/labels/{case}.json` for every checked fixture of an eval group (the
-  S3 hero flats and the logbook page; S4.8 `dev`) and removes a label whose fixture is a draft again. A label
-  adds `v`, `synthetic` and `status` (`agent-checked` labels are provisional) to the fields WS-READ's
-  `packages/eval` shim reads; its strict parser must accept those three keys.
+- **Labels.** `imagegen labels` writes one label per checked fixture of an eval group (the S3 hero flats and
+  the logbook page; S4.8 `dev`), and removes it when the fixture is a draft again. The label's shape is exactly
+  what WS-READ's strict loader (`packages/eval/src/labels.ts`) parses, no key more; `test/contract.ic11-labels
+  .test.ts` loads every label the way READ does. Review status is not a key but the **folder**: a fixture a
+  person reviewed puts its label in `eval/labels/`, the folder the eval scores by default (C-24); an
+  agent-checked one puts it in `eval/provisional/`, so it counts only in a run that names that folder, and
+  that run is provisional. A case's label is in exactly one of the two. The fixture keeps `review.status` and
+  `synthetic: true`; the version is the schema's `$id` (`urn:fairsplit:ic-11:eval-label:v1`).
 
 ## Tools
 
@@ -78,8 +91,13 @@ the npm shim's `codex.js` with this Node, never through cmd.exe; it fails with i
 missing), finds the image in `$CODEX_HOME/generated_images/{thread_id}/`, checks it decodes, has the asked
 orientation, a long edge ≥ 1,024 px and a new sha256, and writes master + display and the manifest.
 **Attempts:** one exec plus one retry by default (`--max-attempts 2`; S4.10 allows up to 3). **Budget:** every
-exec — `gen`, `trial`, `exec` — first reserves a slot in `media/.codex-ledger.json` (at most 12 per 5 hours,
-plan "Synthetic assets"; seeded from `prompts/attempts.jsonl`, never handed back). `gen` never replaces an
+exec — `gen`, `trial`, `exec` — first reserves a slot in the Codex ledger (at most 12 per 5 hours, plan
+"Synthetic assets"; never handed back). The quota is the user's one Codex login, so the ledger is **one file
+per machine**, `$CODEX_HOME/fairsplit-codex-ledger.json` (`~/.codex` by default; an absolute
+`$FAIRSPLIT_CODEX_LEDGER` overrides it), shared under one lock by every worktree and clone that runs imagegen:
+parallel checkouts never get 12 each. Every read also counts the checkout's own records (its old
+`media/.codex-ledger.json` and `prompts/attempts.jsonl`), an exec found in two records once, so execs spent
+before the shared file existed still count; `imagegen budget` prints the path. `gen` never replaces an
 accepted master unless `--force` names it (`--force` never applies to `all`), and a master whose fixture a
 person reviewed also needs `--replace-reviewed`. The manifest's `prompt` always points at the immutable
 `prompts/history/{id}.{sha8}.md` that made the current master; trials leave it alone. After generating, run
@@ -122,8 +140,8 @@ than A6 in the 4-up), so fixtures are always per image.
 **Fixtures.** `fixture` finds each paper quad, rectifies the slip, fits every ruled line on its own from two
 strips (rows) or two bands (columns), maps cell corners back to the photo, finds 0449's green-ink note, and a
 layout check refuses drafts with rows out of order. All 14 images have schema-v2 fixtures, every field and crop
-checked by an agent (`agent-checked`); 11 eval labels exist (the ten S3 flats and the logbook page), all
-provisional until the user's review. The S3 group is complete: 0403, 0419, 0436, 0467 (M-014), 0457 white and
+checked by an agent (`agent-checked`); 11 eval labels exist (the ten S3 flats and the logbook page), all in
+`eval/provisional/` until the user's review. The S3 group is complete: 0403, 0419, 0436, 0467 (M-014), 0457 white and
 pink, 0458, 0462, 0449 and Merlyn's 0471 (P-053-B). The flats added on 22 Oct take their box text from WS-CORE's
 draft seed (unchanged through ws/core 4d40c0d); every S3 flat is regenerated from the frozen seed if a value
 moves before the 24 Oct lock.
@@ -145,20 +163,17 @@ until the user listens to voice Sulafat (OD-2) and records the daily limit.
 ## Decisions waiting on the user
 
 1. **Hero labels (C-24, register §12 "the user checks the 10 slip labels").** For each S3 flat:
-   `imagegen review <id> --reviewer "<name>"` in your own terminal, type what you see, then confirm.
+   `imagegen review <id> --reviewer "<name>"` in your own terminal, type what you see, then confirm; the label
+   then moves from `eval/provisional/` to `eval/labels/`. Until then S3 can run only on the provisional set
+   (`--labels <repo>/media/eval/provisional`), and its result is provisional (plan amendment 3: label checks
+   never block a gate).
 2. **Slip 0462's stain.** Box 11 Bayranan (64.50) is legible on both checked 0462 renders, so the stain hides
    the digit but not the value. Should the stain also cover box 11 (or boxes 10 and 11)? The C4 copy names only gross and
    net. Until a real Claude A/B read scores 0462's gross and net below 0.85, no A–L photo with 0462 is accepted.
 3. **S10.** Read the free-tier daily limit for `gemini-3.8-flash-tts` and `gemini-3.8-flash-lite-tts` at
    https://aistudio.google.com/rate-limit and run `tts set-limit <model> <n> --source "AI Studio, <date>"`; then
    listen to `audio/M-014/{ceb,fil,en}` and choose the voice (OD-2).
-4. **Root workspace files (deps lane).** `media` must be a pnpm workspace package. This branch carries the
-   change in `pnpm-workspace.yaml` (`packages: [..., media]`, `allowBuilds: {"@google/genai": false, protobufjs:
-   false}`) and the lockfile entries for the `media` importer (all versions already in the catalog). Under
-   `docs/ownership.md` only a `deps/*` branch may touch those files, so they need a deps PR (or your recorded
-   approval). The lockfile also re-keys `openai@4.86.1`, `@langchain/core` and `@paypal/agent-toolkit` with
-   `ws@8.22.0`, because `@google/genai` brings `ws` into the graph and `openai@4` has `ws` as an optional peer.
-5. **C-24 composites (OD-3, plan "Synthetic assets").** A–L composed by code from checked Codex flats on Codex
+4. **C-24 composites (OD-3, plan "Synthetic assets").** A–L composed by code from checked Codex flats on Codex
    mats (geometry, shadow and light only), with fixtures from the placement transforms.
 
 ## Plan for photos A–L (once the seed is frozen)

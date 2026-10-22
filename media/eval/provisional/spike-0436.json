@@ -1,41 +1,38 @@
 {
-  "v": 1,
-  "synthetic": true,
-  "case": "spike-0457-white",
+  "case": "spike-0436",
   "set": "dev",
-  "status": "agent-checked",
   "kind": "slip_page",
-  "image": "masters/spike-0457-white.jpg",
-  "fixture": "fixtures/spike-0457-white.json",
+  "image": "masters/spike-0436.jpg",
+  "fixture": "fixtures/spike-0436.json",
   "slips": [
     {
       "slot": "ONLY",
-      "serial": "0457",
+      "serial": "0436",
       "copy": "WHITE_ORIGINAL",
       "fields": {
         "serial": {
-          "value": "0457",
-          "visible": "0457",
+          "value": "0436",
+          "visible": "0436",
           "expect": "AUTO"
         },
         "date": {
-          "value": "07/14/2026",
-          "visible": "07/14/2026",
+          "value": "6/20/26",
+          "visible": "6/20/26",
           "expect": "AUTO"
         },
         "member_no": {
-          "value": "M-007",
-          "visible": "M-007",
+          "value": "M-014",
+          "visible": "M-014",
           "expect": "AUTO"
         },
         "member_name": {
-          "value": "DIONISIO LAPINIG",
-          "visible": "DIONISIO LAPINIG",
+          "value": "CONSOLACION BACUS",
+          "visible": "CONSOLACION BACUS",
           "expect": "AUTO"
         },
         "plot_no": {
-          "value": "P-007-A",
-          "visible": "P-007-A",
+          "value": "P-014-A",
+          "visible": "P-014-A",
           "expect": "AUTO"
         },
         "sacks": {
@@ -44,8 +41,8 @@
           "expect": "AUTO"
         },
         "gross_kg": {
-          "value": "42.30",
-          "visible": "42.30",
+          "value": "35.55",
+          "visible": "35.55",
           "expect": "AUTO"
         },
         "tare_kg": {
@@ -54,13 +51,13 @@
           "expect": "AUTO"
         },
         "net_kg": {
-          "value": "42.00",
-          "visible": "42.00",
+          "value": "35.25",
+          "visible": "35.25",
           "expect": "AUTO"
         },
         "mc_pct": {
-          "value": "7.0",
-          "visible": "7.0",
+          "value": "6.6",
+          "visible": "6.6",
           "expect": "AUTO"
         },
         "mc_less_kg": {
@@ -69,8 +66,8 @@
           "expect": "AUTO"
         },
         "payable_kg": {
-          "value": "42.00",
-          "visible": "42.00",
+          "value": "35.25",
+          "visible": "35.25",
           "expect": "AUTO"
         },
         "grade": {
@@ -92,5 +89,5 @@
   ],
   "rate_card": null,
   "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-  "reviewed_at": "2026-10-22T12:20:00.000Z"
+  "reviewed_at": "2026-10-22T12:40:00.000Z"
 }

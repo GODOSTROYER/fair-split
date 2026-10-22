@@ -1,9 +1,6 @@
 {
-  "v": 1,
-  "synthetic": true,
   "case": "spike-0419",
   "set": "dev",
-  "status": "agent-checked",
   "kind": "slip_page",
   "image": "masters/spike-0419.jpg",
   "fixture": "fixtures/spike-0419.json",

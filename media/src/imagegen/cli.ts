@@ -48,7 +48,7 @@ import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
 import { codexVersion, findGeneratedImages, runCodexExec } from "./codex.js";
 import { execPrompt, parseExpectation } from "./exec.js";
-import { CodexBudgetError, CodexLedger, execTimesFromAttemptsLog } from "./ledger.js";
+import { CODEX_LEDGER_ENV, CODEX_LEDGER_FILE, CodexBudgetError, codexLedgerFor } from "./ledger.js";
 import { ManifestStore } from "./manifest.js";
 import { applyMigration, planMigration } from "./migrate.js";
 import {
@@ -65,7 +65,7 @@ import { applyReview, fixtureFields, type ReviewFile } from "./review.js";
 const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All output is synthetic.
 
   imagegen list                         status of every asset (manifest, fixture, review)
-  imagegen budget                       Codex execs in the last 5 hours (at most 12; media/.codex-ledger.json)
+  imagegen budget                       Codex execs in the last 5 hours (at most 12) and the ledger's path
   imagegen template | textlayer | schema   write template/slip-v1.json | docs/BR-2026-04.text.json |
                                         fixtures/fixture.schema.json and eval/label.schema.json
   imagegen prompt <id...>               render prompts to media/prompts/ without generating
@@ -85,16 +85,12 @@ const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All outpu
   imagegen mark <id> --status human-reviewed --reviewer "<name>"   confirm at your own terminal
   imagegen trap-verdict <id> <slot> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence <recorded read>
   imagegen replay-check <id...>         what still stops an image from joining a replay set
-  imagegen labels                       write media/eval/labels/{case}.json from checked fixtures
+  imagegen labels                       write eval/labels/{case}.json (person-checked fixtures) and
+                                        eval/provisional/{case}.json (agent-checked) from checked fixtures
 
-Every exec reserves a slot in the Codex ledger first (12 per 5 hours); gen, trial and exec retry once by
-default (--max-attempts 2, at most 3). Assets: ${SPIKE_ASSETS.map((a) => a.id).join(", ")}`;
-
-function codexLedger(mediaRoot: string): CodexLedger {
-  return new CodexLedger(join(mediaRoot, ".codex-ledger.json"), {
-    seed: () => execTimesFromAttemptsLog(join(mediaRoot, "prompts", "attempts.jsonl")),
-  });
-}
+Every exec reserves a slot in the Codex ledger first (12 per 5 hours). The ledger is one file per machine,
+shared by every checkout: $${CODEX_LEDGER_ENV} if set, else $CODEX_HOME/${CODEX_LEDGER_FILE}. gen, trial
+and exec retry once by default (--max-attempts 2, at most 3). Assets: ${SPIKE_ASSETS.map((a) => a.id).join(", ")}`;
 
 function pipelineDeps(mediaRoot: string, store: ManifestStore, stamp = false): PipelineDeps {
   return {
@@ -103,7 +99,7 @@ function pipelineDeps(mediaRoot: string, store: ManifestStore, stamp = false): P
     codexCli: codexVersion(),
     run: runCodexExec,
     find: findGeneratedImages,
-    budget: codexLedger(mediaRoot),
+    budget: codexLedgerFor(mediaRoot),
     log: (l) => console.log(stamp ? `${new Date().toISOString().slice(11, 19)} ${l}` : l),
   };
 }
@@ -136,7 +132,15 @@ function fixtureStatusOf(mediaRoot: string, id: string): FixtureStatus {
 
 async function refreshLabels(mediaRoot: string): Promise<void> {
   const r = await syncLabels(mediaRoot, SPIKE_ASSETS, EVAL_DEV_GROUPS, (id) => readFixture(mediaRoot, id));
-  if (r.written.length) console.log(`labels: wrote ${r.written.length} (${r.written.join(", ")})`);
+  if (r.written.length) {
+    console.log(`labels: wrote ${r.written.length} person-checked to eval/labels/ (${r.written.join(", ")})`);
+  }
+  if (r.provisional.length) {
+    console.log(
+      `labels: wrote ${r.provisional.length} agent-checked to eval/provisional/ (${r.provisional.join(", ")}); ` +
+        "provisional until a person reviews them, and never in eval/labels/",
+    );
+  }
   if (r.removed.length) console.log(`labels: removed ${r.removed.join(", ")} (fixture back to draft)`);
 }
 
@@ -223,10 +227,12 @@ export async function main(
       return 0;
     }
     case "budget": {
-      const s = await codexLedger(mediaRoot).status();
+      const ledger = codexLedgerFor(mediaRoot);
+      const s = await ledger.status();
       console.log(
         `Codex: ${s.used} of ${s.cap} execs in the last ${s.windowMs / 3_600_000} h${s.nextFreeAt ? `; next slot at ${s.nextFreeAt.toISOString()}` : ""}`,
       );
+      console.log(`ledger (one per machine, every checkout): ${ledger.path}`);
       return 0;
     }
     case "template":
@@ -316,7 +322,7 @@ export async function main(
             mediaRoot,
             run: runCodexExec,
             find: findGeneratedImages,
-            budget: codexLedger(mediaRoot),
+            budget: codexLedgerFor(mediaRoot),
             log: (l) => console.log(`${new Date().toISOString().slice(11, 19)} ${l}`),
           },
         );

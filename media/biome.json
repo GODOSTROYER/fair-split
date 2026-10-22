@@ -14,7 +14,8 @@
       "!audio/*.json",
       "!review/*.json",
       "!eval/*.json",
-      "!eval/labels/*.json"
+      "!eval/labels/*.json",
+      "!eval/provisional/*.json"
     ]
   }
 }

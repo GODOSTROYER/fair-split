@@ -1,9 +1,6 @@
 {
-  "v": 1,
-  "synthetic": true,
   "case": "logbook-p14",
   "set": "dev",
-  "status": "agent-checked",
   "kind": "logbook_page",
   "image": "masters/logbook-p14.jpg",
   "fixture": "fixtures/logbook-p14.json",

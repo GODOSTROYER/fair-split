@@ -1,15 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fairsplit:ic-11:eval-label:v1",
+  "title": "Fair Split eval label (IC-11), v1",
+  "description": "One eval case: what is visibly written on a synthetic Codex image (C-24). eval/labels/{case}.json holds person-checked labels (the scored truth); eval/provisional/{case}.json holds agent-checked ones, provisional until a person reviews them. Review status and the synthetic flag live in the fixture.",
   "type": "object",
   "properties": {
-    "v": {
-      "type": "number",
-      "const": 1
-    },
-    "synthetic": {
-      "type": "boolean",
-      "const": true
-    },
     "case": {
       "type": "string",
       "minLength": 1
@@ -19,13 +14,6 @@
       "enum": [
         "test",
         "dev"
-      ]
-    },
-    "status": {
-      "type": "string",
-      "enum": [
-        "agent-checked",
-        "human-reviewed"
       ]
     },
     "kind": {
@@ -221,11 +209,8 @@
     }
   },
   "required": [
-    "v",
-    "synthetic",
     "case",
     "set",
-    "status",
     "kind",
     "image",
     "fixture",

@@ -1,41 +1,38 @@
 {
-  "v": 1,
-  "synthetic": true,
-  "case": "spike-0471",
+  "case": "spike-0457-white",
   "set": "dev",
-  "status": "agent-checked",
   "kind": "slip_page",
-  "image": "masters/spike-0471.jpg",
-  "fixture": "fixtures/spike-0471.json",
+  "image": "masters/spike-0457-white.jpg",
+  "fixture": "fixtures/spike-0457-white.json",
   "slips": [
     {
       "slot": "ONLY",
-      "serial": "0471",
+      "serial": "0457",
       "copy": "WHITE_ORIGINAL",
       "fields": {
         "serial": {
-          "value": "0471",
-          "visible": "0471",
+          "value": "0457",
+          "visible": "0457",
           "expect": "AUTO"
         },
         "date": {
-          "value": "7/9/26",
-          "visible": "7/9/26",
+          "value": "07/14/2026",
+          "visible": "07/14/2026",
           "expect": "AUTO"
         },
         "member_no": {
-          "value": "M-053",
-          "visible": "M-053",
+          "value": "M-007",
+          "visible": "M-007",
           "expect": "AUTO"
         },
         "member_name": {
-          "value": "MERLYN PONCE",
-          "visible": "MERLYN PONCE",
+          "value": "DIONISIO LAPINIG",
+          "visible": "DIONISIO LAPINIG",
           "expect": "AUTO"
         },
         "plot_no": {
-          "value": "P-053-B",
-          "visible": "P-053-B",
+          "value": "P-007-A",
+          "visible": "P-007-A",
           "expect": "AUTO"
         },
         "sacks": {
@@ -44,8 +41,8 @@
           "expect": "AUTO"
         },
         "gross_kg": {
-          "value": "41.50",
-          "visible": "41.50",
+          "value": "42.30",
+          "visible": "42.30",
           "expect": "AUTO"
         },
         "tare_kg": {
@@ -54,13 +51,13 @@
           "expect": "AUTO"
         },
         "net_kg": {
-          "value": "41.20",
-          "visible": "41.20",
+          "value": "42.00",
+          "visible": "42.00",
           "expect": "AUTO"
         },
         "mc_pct": {
-          "value": "6.2",
-          "visible": "6.2",
+          "value": "7.0",
+          "visible": "7.0",
           "expect": "AUTO"
         },
         "mc_less_kg": {
@@ -69,8 +66,8 @@
           "expect": "AUTO"
         },
         "payable_kg": {
-          "value": "41.20",
-          "visible": "41.20",
+          "value": "42.00",
+          "visible": "42.00",
           "expect": "AUTO"
         },
         "grade": {
@@ -85,12 +82,12 @@
         }
       },
       "deductions": [],
-      "traps": ["IMPLAUSIBLE_YIELD"],
+      "traps": [],
       "duplicate_of": null,
       "injection": null
     }
   ],
   "rate_card": null,
   "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
-  "reviewed_at": "2026-10-22T12:40:00.000Z"
+  "reviewed_at": "2026-10-22T12:20:00.000Z"
 }

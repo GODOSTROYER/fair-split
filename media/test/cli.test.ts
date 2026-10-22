@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SLIP_0403, SLIP_0462 } from "../src/content/spike.js";
 import { Fixture, type SlipImageFixture } from "../src/fixtures/schema.js";
 import { main } from "../src/imagegen/cli.js";
+import { CODEX_LEDGER_ENV, codexLedgerFor } from "../src/imagegen/ledger.js";
 import { emptyManifest } from "../src/imagegen/manifest.js";
 import { applyObservations } from "../src/imagegen/review.js";
 import type { TerminalIo } from "../src/review/confirm.js";
@@ -167,5 +168,23 @@ describe("imagegen CLI guards", () => {
     const root = media([slipPageFixture("spike-0462", SLIP_0462)]);
     expect(await main(["replay-check", "spike-0462"], root, agentShell)).toBe(2);
     expect(logs.join("\n")).toMatch(/not human-reviewed[\s\S]*WATER_STAIN must be shown to hold/);
+  });
+
+  it("budget reads the one machine-wide Codex ledger, whichever checkout runs it", async () => {
+    const shared = join(mkdtempSync(join(tmpdir(), "fs-codex-home-")), "ledger.json");
+    vi.stubEnv(CODEX_LEDGER_ENV, shared);
+    try {
+      // An exec reserved from one checkout counts in another's budget, and nothing is written in either.
+      const first = media();
+      const second = media();
+      await codexLedgerFor(first).reserve("exec:mat-1#1");
+      expect(await main(["budget"], second, agentShell)).toBe(0);
+      expect(logs.join("\n")).toMatch(/Codex: 1 of 12 execs in the last 5 h/);
+      expect(logs.join("\n")).toContain(shared);
+      expect(existsSync(join(first, ".codex-ledger.json"))).toBe(false);
+      expect(existsSync(join(second, ".codex-ledger.json"))).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
