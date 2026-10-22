@@ -19,9 +19,10 @@
 //   If the event could not be stored (500), the transmission id is released so PayPal's retry passes.
 //
 // The route changes no state. processWebhook applies events under the contract in ./apply.ts
-// (re-exported here): only a signature-verified PAYOUTS-ITEM.SUCCEEDED applies at once, corroborated
-// by the settle GETs at +25 s / +90 s (a GET that disagrees wins, with an /ops alert); every other
-// status changes state only after a fresh GET.
+// (re-exported here): only a signature-verified PAYOUTS-ITEM.SUCCEEDED under an in-date certificate
+// applies at once, corroborated by the settle GETs at +25 s / +90 s (a GET that disagrees wins, with an
+// /ops alert); every other status, and anything stored with `delivery.certWarning` (an expired
+// certificate), changes state only after a fresh GET.
 //
 // Persistence, the outbox and the verifier are injected, so this file needs no database or HTTP
 // framework to compile or test.

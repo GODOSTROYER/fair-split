@@ -41,6 +41,9 @@ export interface WebhookDelivery {
   authAlgo: string | null;
   /** Rejected rows: the verifier's reason (and detail), or MALFORMED_EVENT. */
   rejectReason: string | null;
-  /** Accepted although PayPal's certificate had expired (CERT_EXPIRED_CONFIRMED | CERT_EXPIRED_ACCEPTED). */
+  /**
+   * CERT_EXPIRED: accepted although PayPal's certificate had expired (PayPal's postback confirmed this
+   * delivery). webhookApplyRule then requires a fresh GET before any state change; null otherwise.
+   */
   certWarning: string | null;
 }

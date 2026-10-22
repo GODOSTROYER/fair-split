@@ -9,7 +9,8 @@
 //   - each attempt times out after 5 s, and `postbackWithDeadline` puts an overall deadline (6 s by
 //     default) on the whole thing, limiter wait and OAuth included, aborting the attempt in flight.
 // The webhook route never calls it: processWebhook does, after the 200 (apps/api/src/webhooks/postback.ts).
-// The only in-request use is the verifier's expired-certificate fallback, once per certificate.
+// The only in-request use is the verifier's expired-certificate fallback: one call per such delivery,
+// at most `expiredCertPostbacksPerHour` (20) an hour.
 
 import { z } from "zod";
 import type { PayPalHttp } from "../http.js";

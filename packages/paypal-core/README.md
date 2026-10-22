@@ -57,10 +57,13 @@ so the bearer token cannot be sent anywhere else.
    RSA key of 2048 bits or more, not be a CA, and (with optional `trustAnchors`) chain to a pinned
    certificate. Its validity window is checked separately, after the signature:
    - in date: accepted;
-   - expired, signature valid (`expiredCertPolicy`): `postback` (default) asks PayPal once per
-     certificate (bounded, one call) and on SUCCESS accepts, remembering the certificate for 24 h with
-     `certWarning: CERT_EXPIRED_CONFIRMED`; `accept` accepts with `CERT_EXPIRED_ACCEPTED`; `reject` 400s.
-     Every such delivery is logged and turns `health()` degraded;
+   - expired, signature valid (`expiredCertPolicy`): never `self`, and one delivery never vouches for
+     another (nothing is cached per certificate or shared between concurrent deliveries). `postback`
+     (default) claims the transmission id, then asks PayPal about **this** transmission (one call, 6 s,
+     at most `expiredCertPostbacksPerHour` = 20 an hour): SUCCESS is accepted as `postback` with
+     `certWarning: CERT_EXPIRED`; FAILURE is a 400 (the id stays claimed, so a copy is a replay);
+     ERROR, TIMEOUT or no budget left is retryable (503, the id is released). `reject` 400s. There is
+     no `accept`. Every such delivery is logged and turns `health()` degraded;
    - expired, signature invalid: `SIGNATURE_MISMATCH` (junk pointing at an old PayPal cert URL).
 4. Signature: RSA-SHA256 over `transmissionId|transmissionTime|webhookId|crc32(raw)`, CRC as unsigned
    decimal. Simulator events (signed with the literal `WEBHOOK_ID`) are accepted only with dev mocks on
@@ -74,11 +77,14 @@ so the bearer token cannot be sent anywhere else.
    if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event.
 6. The webhook route never asks for a postback: processWebhook calls `confirmWebhookByPostback`
    (`apps/api/src/webhooks/postback.ts`) after the 200, from the transmission headers kept in the row.
-7. Applying events (`apps/api/src/webhooks/apply.ts`, re-exported by the route): only a signature-verified
-   (`self`/`postback`) PAYOUTS-ITEM.SUCCEEDED applies at once (MM-1), corroborated by the settle GETs at
-   +25 s (Judge) / +90 s; a GET that disagrees wins and raises `WEBHOOK_GET_MISMATCH` on `/ops` (a lower
-   rank is written as a correction, the one sanctioned exception to forward-only); every other status,
-   and a SUCCEEDED labelled `dev_mock` or `fetched`, changes state only after a fresh GET.
+7. Applying events (`apps/api/src/webhooks/apply.ts`, re-exported by the route; pass it the stored row):
+   only a signature-verified (`self`/`postback`) PAYOUTS-ITEM.SUCCEEDED under an in-date certificate
+   applies at once (MM-1), corroborated by the settle GETs at +25 s (Judge) / +90 s; a GET that disagrees
+   wins and raises `WEBHOOK_GET_MISMATCH` on `/ops` (a lower rank is written as a correction, the one
+   sanctioned exception to forward-only); every other status, a SUCCEEDED labelled `dev_mock` or
+   `fetched`, any row whose `delivery.certWarning` is set (`CERT_EXPIRED`, even when PayPal's postback
+   confirmed it: state comes from PayPal's GET, never from an expired-certificate body) and a verified
+   row with no `delivery` record change state only after a fresh GET.
 
 `verifier.health()` reports `ok | degraded` with plain-language problems: deliveries signed with an
 expired certificate, a known certificate URL that can no longer be fetched, deliveries answered 503

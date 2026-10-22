@@ -91,7 +91,6 @@ function realVerifier(
     ...(options.devMocks ? { devMocks: true } : {}),
     ...(options.postback ? { postback: options.postback } : {}),
     ...(options.now ? { now: options.now } : {}),
-    expiredCertPolicy: "accept",
     fetch: pemServer({ [TEST_CERT_URL]: leaf.pem, ...options.pems }),
   });
   return {
@@ -298,9 +297,13 @@ describe("POST /webhooks/paypal handler", () => {
     expect(webhookApplyRule).toBe(applyModule.webhookApplyRule);
     expect(corroborateWithSettleGet).toBe(applyModule.corroborateWithSettleGet);
     expect(SETTLE_GET_DELAYS_MS).toBe(applyModule.SETTLE_GET_DELAYS_MS);
-    expect(webhookApplyRule({ eventType: "PAYMENT.PAYOUTS-ITEM.UNCLAIMED", verified: "self" }).action).toBe(
-      "fresh_get_first",
-    );
+    expect(
+      webhookApplyRule({
+        eventType: "PAYMENT.PAYOUTS-ITEM.UNCLAIMED",
+        verified: "self",
+        delivery: { certWarning: null },
+      }).action,
+    ).toBe("fresh_get_first");
   });
 
   it("rejects a tampered body with 400, stores a 'rejected' row with its reason and enqueues nothing", async () => {
@@ -402,34 +405,69 @@ describe("POST /webhooks/paypal handler", () => {
     expect(outbox).toHaveLength(1);
   });
 
-  it("stores the certificate warning when a delivery was accepted under an expired certificate", async () => {
+  it("an expired-certificate SUCCEEDED is stored labelled CERT_EXPIRED and changes no state before a GET; an in-date one still applies at once (MM-1)", async () => {
     const expired = pki.issueLeaf({
       notBefore: new Date(Date.now() - 400 * DAY),
       notAfter: new Date(Date.now() - DAY),
     });
     const url = testCertUrl("route-expired");
+    const answers = new Map<string, "SUCCESS" | "FAILURE">();
+    const postback = vi.fn<PostbackFn>(async (input) => answers.get(input.transmissionId) ?? "FAILURE");
     const warn = vi.fn();
     const db = fakeDb();
     const handler = createPayPalWebhookHandler({
       ...db.deps,
-      ...realVerifier({ pems: { [url]: expired.pem } }),
+      ...realVerifier({ postback, pems: { [url]: expired.pem } }),
       logger: { warn },
     });
-    const s = signWebhook({
-      body: itemEvent,
-      webhookId: TEST_WEBHOOK_ID,
-      privateKey: expired.privateKey,
-      certUrl: url,
+    const signedExpired = (body: object) =>
+      signWebhook({ body, webhookId: TEST_WEBHOOK_ID, privateKey: expired.privateKey, certUrl: url });
+
+    // PayPal confirms this very transmission: stored, but labelled, so processWebhook GETs first.
+    const confirmed = signedExpired(itemEvent);
+    answers.set(confirmed.headers["paypal-transmission-id"] ?? "", "SUCCESS");
+    expect(await handler(request(confirmed))).toMatchObject({ status: 200, outcome: "accepted" });
+    const row = db.committed.get((itemEvent as { id: string }).id);
+    expect(row).toMatchObject({
+      verified: "postback",
+      delivery: { certUrl: url, certWarning: "CERT_EXPIRED" },
     });
-    expect(await handler(request(s))).toMatchObject({ status: 200, outcome: "accepted" });
-    expect([...db.committed.values()][0]?.delivery).toMatchObject({
-      certUrl: url,
-      certWarning: "CERT_EXPIRED_ACCEPTED",
-    });
+    expect(row && webhookApplyRule(row)).toEqual({ action: "fresh_get_first", reason: "CERT_EXPIRED" });
     expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({ certWarning: "CERT_EXPIRED_ACCEPTED" }),
+      expect.objectContaining({ certWarning: "CERT_EXPIRED" }),
       "paypal webhook accepted with an expired certificate",
     );
+
+    // The next delivery under the same certificate gets no credit from the first: PayPal says FAILURE, 400.
+    const other = syntheticEvent(
+      "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+      payoutItemResource({
+        senderItemId: "r37-M-015",
+        payoutItemId: "5KY0",
+        payoutBatchId: "CR9VS",
+        transactionStatus: "SUCCESS",
+      }),
+      "expired-second",
+    );
+    expect(await handler(request(signedExpired(other)))).toMatchObject({
+      status: 400,
+      outcome: "rejected",
+      reason: "CERT_EXPIRED",
+    });
+    expect(postback).toHaveBeenCalledTimes(2);
+    expect(db.outbox).toHaveLength(1);
+
+    // An in-date certificate: verified 'self', no warning, applies at once as before.
+    const fresh = fakeDb();
+    const freshHandler = createPayPalWebhookHandler({ ...fresh.deps, ...realVerifier() });
+    expect((await freshHandler(request(sign()))).status).toBe(200);
+    const freshRow = fresh.committed.get((itemEvent as { id: string }).id);
+    expect(freshRow).toMatchObject({ verified: "self", delivery: { certWarning: null } });
+    expect(freshRow && webhookApplyRule(freshRow)).toEqual({
+      action: "apply_now",
+      status: "SUCCESS",
+      corroboration: "settle_get",
+    });
   });
 
   it("inv.i7.outbox: if enqueue fails, nothing is committed and a retry stores the event once", async () => {

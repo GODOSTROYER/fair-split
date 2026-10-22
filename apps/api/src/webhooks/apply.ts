@@ -3,11 +3,15 @@
 // with a fresh GET before it changes state").
 //
 //   1. The route never changes state: it verifies, stores the event and enqueues processWebhook.
-//   2. A signature-verified ('self' or 'postback') PAYMENT.PAYOUTS-ITEM.SUCCEEDED may apply at once
-//      (it drives MM-1), as SUCCESS with source "webhook", pending corroboration.
-//   3. Every other event, and a SUCCEEDED no signature vouches for ('dev_mock', 'fetched'), changes no
-//      state until a fresh GET says what to change (the settleBatch GET if one is due within 10 s,
-//      otherwise the item, batch or invoice GET).
+//   2. A signature-verified ('self' or 'postback') PAYMENT.PAYOUTS-ITEM.SUCCEEDED delivered under an
+//      in-date PayPal certificate may apply at once (it drives MM-1), as SUCCESS with source "webhook",
+//      pending corroboration.
+//   3. Every other event changes no state until a fresh GET says what to change (the settleBatch GET if
+//      one is due within 10 s, otherwise the item, batch or invoice GET). That includes a SUCCEEDED no
+//      signature vouches for ('dev_mock', 'fetched'), one signed under an expired certificate
+//      (`delivery.certWarning` set, even when PayPal's postback confirmed that delivery: the state
+//      must come from PayPal's GET, never from an expired-certificate body), and one whose `delivery`
+//      record is missing (nothing says its certificate was in date).
 //   4. The settle GETs at +25 s (Judge Mode) or +90 s, again at +90 s and +10 min, corroborate a
 //      webhook-applied SUCCESS. An item applied from a webhook counts as open until a GET has agreed,
 //      so those follow-up GETs keep running for it.
@@ -20,6 +24,7 @@
 
 import { type ItemStatus, itemStatusRank, parseItemStatus } from "@fairsplit/paypal-core";
 import type { WebhookVerifiedLabel } from "./_shims/contracts.js";
+import type { WebhookDelivery } from "./_shims/persistence.js";
 
 /** First settle GET after the POST: +25 s in Judge Mode, +90 s otherwise (S3.6.6). */
 export const SETTLE_GET_DELAYS_MS = Object.freeze({ judge: 25_000, standard: 90_000 });
@@ -28,18 +33,35 @@ const ITEM_SUCCEEDED = "PAYMENT.PAYOUTS-ITEM.SUCCEEDED";
 
 export type WebhookApplyRule =
   | { action: "apply_now"; status: "SUCCESS"; corroboration: "settle_get" }
-  | { action: "fresh_get_first"; reason: "NOT_A_PAYOUT_ITEM_SUCCESS" | "NOT_SIGNATURE_VERIFIED" };
+  | {
+      action: "fresh_get_first";
+      reason:
+        | "NOT_A_PAYOUT_ITEM_SUCCESS"
+        | "NOT_SIGNATURE_VERIFIED"
+        /** Signed under an expired PayPal certificate (verify.ts certWarning CERT_EXPIRED, or any other warning). */
+        | "CERT_EXPIRED"
+        /** A verified row without its `delivery` record: nothing says its certificate was in date. */
+        | "DELIVERY_NOT_RECORDED";
+    };
 
-/** What processWebhook may do with a stored event before asking PayPal. */
+/**
+ * What processWebhook may do with a stored event before asking PayPal. Pass the stored row: its
+ * `delivery` carries the certificate warning, and a missing one fails closed (a GET first).
+ */
 export function webhookApplyRule(event: {
-  eventType: string;
-  verified: WebhookVerifiedLabel;
+  eventType: string | null;
+  verified: WebhookVerifiedLabel | null;
+  delivery: Pick<WebhookDelivery, "certWarning"> | null;
 }): WebhookApplyRule {
+  // Any certificate warning, known or not, means the body is not to be believed.
+  if (event.delivery !== null && event.delivery.certWarning !== null)
+    return { action: "fresh_get_first", reason: "CERT_EXPIRED" };
   if (event.eventType !== ITEM_SUCCEEDED)
     return { action: "fresh_get_first", reason: "NOT_A_PAYOUT_ITEM_SUCCESS" };
   if (event.verified !== "self" && event.verified !== "postback") {
     return { action: "fresh_get_first", reason: "NOT_SIGNATURE_VERIFIED" };
   }
+  if (event.delivery === null) return { action: "fresh_get_first", reason: "DELIVERY_NOT_RECORDED" };
   return { action: "apply_now", status: "SUCCESS", corroboration: "settle_get" };
 }
 

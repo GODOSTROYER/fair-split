@@ -30,12 +30,21 @@
 // Expired certificates. PayPal rotates its signing certificate yearly with a few weeks of overlap
 // (sandbox: …ab66f33d to 7 Mar 2025, …90621ecd to 1 Mar 2026, …bf9ab596 from 27 Jan 2026 to 26 Jan
 // 2027, which signed real sandbox deliveries on 19 Oct 2026). If PayPal ever signs with an expired
-// certificate, a hard reject would 400 every real delivery, so `expiredCertPolicy` decides, and only
+// certificate, a hard reject would 400 every real delivery. But the key behind an expired certificate
+// is the one we should trust least, so such a delivery is never 'self', and one delivery PayPal
+// confirmed never vouches for another (security review, MEDIUM). `expiredCertPolicy` decides, and only
 // for deliveries whose signature verifies under that (allowlisted, PayPal-served) certificate:
-//   - 'postback' (default): ask PayPal once per certificate (bounded, one call); on SUCCESS accept
-//     ('postback'), remember the certificate for 24 h and accept later deliveries as 'self' with
-//     certWarning CERT_EXPIRED_CONFIRMED. Otherwise reject (400, PayPal retries).
-//   - 'accept': accept with certWarning CERT_EXPIRED_ACCEPTED. 'reject': the strict behaviour.
+//   - 'postback' (default): each delivery is confirmed on its own. Its transmission id is claimed
+//     first (a replayed copy costs nothing), then PayPal is asked about this transmission (one call,
+//     6 s deadline, at most `expiredCertPostbacksPerHour` such calls). SUCCESS: accepted as 'postback'.
+//     FAILURE: rejected (400), the id stays claimed. ERROR, TIMEOUT or no budget left: retryable
+//     (503), the id is released so PayPal's retry is judged afresh. Nothing is cached per certificate
+//     and nothing is shared between concurrent deliveries.
+//   - 'reject': the strict behaviour (400).
+// Every accepted one carries certWarning CERT_EXPIRED, which webhookApplyRule
+// (apps/api/src/webhooks/apply.ts) turns into "fresh GET from PayPal before any state change", for a
+// PAYOUTS-ITEM.SUCCEEDED too: state comes from PayPal's GET, never from an expired-certificate body.
+// Simulator events stay 'dev_mock' (labelled CERT_EXPIRED, no postback: PayPal answers FAILURE for them).
 // Every such delivery is logged and counted; health() turns degraded, for /readyz and /ops.
 //
 // Postback (`POST /v1/notifications/verify-webhook-signature`) otherwise runs only when asked and only
@@ -176,11 +185,22 @@ export type PostbackFn = (
   options?: { signal?: AbortSignal },
 ) => Promise<PostbackResult>;
 
-/** What to do with a delivery whose signature verifies under an expired PayPal certificate. */
-export type ExpiredCertPolicy = "reject" | "postback" | "accept";
+/**
+ * What to do with a delivery whose signature verifies under an expired PayPal certificate. There is no
+ * 'accept': an expired certificate is never trusted on our own signature check alone.
+ */
+export type ExpiredCertPolicy = "reject" | "postback";
 
-/** Why a delivery was accepted although its certificate had expired. */
-export type CertWarning = "CERT_EXPIRED_CONFIRMED" | "CERT_EXPIRED_ACCEPTED";
+const EXPIRED_CERT_POLICIES: readonly ExpiredCertPolicy[] = ["reject", "postback"];
+
+/**
+ * Set on a delivery accepted although its certificate had expired: processWebhook must take state from
+ * a fresh GET, never from the body (webhookApplyRule). Stored in `webhook_events.delivery`.
+ */
+export type CertWarning = "CERT_EXPIRED";
+
+/** Default for `expiredCertPostbacksPerHour`. */
+export const DEFAULT_EXPIRED_CERT_POSTBACKS_PER_HOUR = 20;
 
 export interface VerifyOutcome {
   mode: VerifyMode | false;
@@ -231,8 +251,12 @@ export interface WebhookVerifierConfig {
   postbackDeadlineMs?: number;
   /** See the header comment. Default 'postback' (which rejects when no postback is configured). */
   expiredCertPolicy?: ExpiredCertPolicy;
-  /** Under 'postback': wait before asking PayPal about the same expired certificate again (default 10 min). */
-  expiredCertRetryMs?: number;
+  /**
+   * Under 'postback': PayPal calls allowed per hour to confirm expired-certificate deliveries, one per
+   * delivery (default 20). Beyond it such a delivery is retryable (503), so a leaked expired key cannot
+   * spend our PayPal budget.
+   */
+  expiredCertPostbacksPerHour?: number;
   /** The shared limiter: certificate fetches count toward the 40/min budget and open the circuit on a 429. */
   limiter?: PayPalLimiter;
   /** Writes each certificate fetch to `paypal_calls`, like every other PayPal call. */
@@ -288,7 +312,7 @@ export interface WebhookVerifierHealth {
   rejected: Partial<Record<VerifyFailureReason, number>>;
   /** Deliveries whose signature verified under an expired PayPal certificate, accepted or not. */
   signedWithExpiredCert: number;
-  /** Of those, accepted under expiredCertPolicy. */
+  /** Of those, accepted under expiredCertPolicy (each confirmed by its own postback). */
   acceptedWithExpiredCert: number;
   expiredCertPolicy: ExpiredCertPolicy;
   lastVerifiedAt: string | null;
@@ -354,8 +378,6 @@ const MAX_LAST_GOOD = 8;
 const MAX_IP_BUDGETS = 4_096;
 const HOUR_MS = 3_600_000;
 const MAX_MARKS = 2_000;
-/** How long a PayPal-confirmed expired certificate keeps being accepted without asking again. */
-const EXPIRED_CONFIRMATION_TTL_MS = DAY_MS;
 /** Prewarm fetches at most this many URLs per call. */
 const MAX_PREWARM = 4;
 
@@ -426,7 +448,10 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const failedRetryMs = config.failedCertRetryMs ?? 60_000;
   const devMocks = config.devMocks === true;
   const expiredPolicy = config.expiredCertPolicy ?? "postback";
-  const expiredRetryMs = config.expiredCertRetryMs ?? 10 * 60_000;
+  if (!EXPIRED_CERT_POLICIES.includes(expiredPolicy)) {
+    throw new PayPalConfigError("INVALID_VALUE", "expiredCertPolicy must be 'reject' or 'postback'");
+  }
+  const expiredPostback = expiredPolicy === "postback" ? config.postback : undefined;
   const postbackDeadlineMs = config.postbackDeadlineMs ?? POSTBACK_DEADLINE_MS;
   const certPriority = config.certFetchPriority ?? "background";
   const healthWindowMs = config.healthWindowMs ?? 15 * 60_000;
@@ -453,12 +478,15 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   }
   /** Certificates of known ids, kept outside the cache's TTL and LRU: never fetched twice. */
   const lastGood = new Map<string, LoadedCert>();
-  /** Expired certificates PayPal confirmed by postback: fingerprint → when. */
-  const confirmedExpired = new Map<string, number>();
-  /** Last postback about an expired certificate: fingerprint → when. */
-  const expiredAskedAt = new Map<string, number>();
-  /** The confirmation in flight per expired certificate, shared by concurrent deliveries. */
-  const confirming = new Map<string, Promise<PostbackResult | "TIMEOUT">>();
+  /**
+   * PayPal calls left for confirming expired-certificate deliveries, one per delivery. Deliberately
+   * nothing else about expired certificates is remembered: no per-certificate confirmation, no shared
+   * answer in flight. Each delivery is judged on its own.
+   */
+  const expiredPostbacks = tokenBucket(
+    config.expiredCertPostbacksPerHour ?? DEFAULT_EXPIRED_CERT_POSTBACKS_PER_HOUR,
+    now,
+  );
   const marks: Mark[] = [];
   let lastVerified: { at: number; certUrl: string; validTo: number } | null = null;
 
@@ -466,6 +494,18 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     marks.push(m);
     if (marks.length > MAX_MARKS) marks.splice(0, marks.length - MAX_MARKS);
   };
+
+  /** Forget a recorded transmission id; never throws. */
+  async function releaseQuietly(transmissionId: string): Promise<void> {
+    try {
+      await transmissions.release(transmissionId);
+    } catch (err) {
+      logger?.error?.(
+        { error: err instanceof Error ? err.message : String(err), transmissionId },
+        "releasing a webhook transmission id failed",
+      );
+    }
+  }
 
   async function fetchCert(url: URL): Promise<LoadResult> {
     let ticket: string | null = null;
@@ -786,11 +826,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         ...(logger ? { logger } : {}),
       });
 
-    let mode: VerifyMode = signed;
-    let certWarning: CertWarning | null = null;
-    let postback: VerifyOutcome["postback"] = null;
-
-    if (validity === "CERT_EXPIRED") {
+    const expired = validity === "CERT_EXPIRED";
+    if (expired) {
       const validTo = leaf.validToDate.toISOString();
       mark({ at: now(), kind: "signed_expired" });
       logger?.warn?.(
@@ -800,47 +837,13 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       if (expiredPolicy === "reject") {
         return fail("CERT_EXPIRED", `signature valid; certificate expired ${validTo}; policy reject`);
       }
-      if (expiredPolicy === "accept" || signed === "dev_mock") {
-        certWarning = "CERT_EXPIRED_ACCEPTED";
-      } else {
-        // 'postback': PayPal confirms once per certificate; later deliveries signed with it pass as 'self'.
-        const fingerprint = leaf.fingerprint256;
-        const confirmedAt = confirmedExpired.get(fingerprint);
-        if (confirmedAt !== undefined && now() - confirmedAt < EXPIRED_CONFIRMATION_TTL_MS) {
-          certWarning = "CERT_EXPIRED_CONFIRMED";
-        } else {
-          const fn = config.postback;
-          if (!fn) return fail("CERT_EXPIRED", "signature valid; no postback configured to confirm it");
-          const pending = confirming.get(fingerprint);
-          if (pending) {
-            // A burst signed with the same certificate waits for the one confirmation in flight.
-            const answer = await pending;
-            if (answer !== "SUCCESS") {
-              return fail("CERT_EXPIRED", `signature valid; postback ${answer} for this certificate`);
-            }
-            certWarning = "CERT_EXPIRED_CONFIRMED";
-          } else {
-            const askedAt = expiredAskedAt.get(fingerprint);
-            if (askedAt !== undefined && now() - askedAt < expiredRetryMs) {
-              return fail("CERT_EXPIRED", "signature valid; PayPal was asked recently and did not confirm");
-            }
-            touch(expiredAskedAt, fingerprint, now(), MAX_TRACKED);
-            const asking = askPayPal(fn);
-            confirming.set(fingerprint, asking);
-            const answer = await asking.finally(() => confirming.delete(fingerprint));
-            if (answer !== "SUCCESS") {
-              return fail("CERT_EXPIRED", `signature valid; postback ${answer}`, { postback: answer });
-            }
-            touch(confirmedExpired, fingerprint, now(), MAX_TRACKED);
-            certWarning = "CERT_EXPIRED_CONFIRMED";
-            postback = "SUCCESS";
-            mode = "postback";
-          }
-        }
+      if (signed === "self" && !expiredPostback) {
+        return fail("CERT_EXPIRED", "signature valid; no postback configured to confirm it");
       }
     }
 
-    // Signed by PayPal and fresh: record the transmission id, once. A repeat is a replayed copy.
+    // Signed by PayPal and fresh: record the transmission id, once. A repeat is a replayed copy. For an
+    // expired certificate this comes before the postback, so a replayed copy costs no PayPal call.
     let firstTime: boolean;
     try {
       firstTime = await transmissions.claim(
@@ -858,7 +861,31 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       logger?.warn?.({ transmissionId, certUrl: certKey }, "paypal webhook transmission replayed");
       return fail("TRANSMISSION_REPLAYED");
     }
-    if (validity === "CERT_EXPIRED") mark({ at: now(), kind: "accepted_expired" });
+
+    let mode: VerifyMode = signed;
+    let postback: VerifyOutcome["postback"] = null;
+    const certWarning: CertWarning | null = expired ? "CERT_EXPIRED" : null;
+    if (expired && signed === "self" && expiredPostback) {
+      // Never 'self' under an expired certificate: PayPal must confirm this very transmission. Nothing
+      // is cached per certificate and nothing is shared, so no other delivery can lend it trust.
+      if (!expiredPostbacks.take()) {
+        await releaseQuietly(transmissionId);
+        return fail("CERT_EXPIRED", "signature valid; expired-certificate postback budget used up", {
+          retryable: true,
+        });
+      }
+      const answer = await askPayPal(expiredPostback);
+      if (answer !== "SUCCESS") {
+        // FAILURE is PayPal's verdict on this transmission (keep its id: a copy is a replay). ERROR and
+        // TIMEOUT only mean "not checked": free the id and answer 503 so PayPal's retry is judged afresh.
+        const retryable = answer !== "FAILURE";
+        if (retryable) await releaseQuietly(transmissionId);
+        return fail("CERT_EXPIRED", `signature valid; postback ${answer}`, { postback: answer, retryable });
+      }
+      postback = "SUCCESS";
+      mode = "postback";
+    }
+    if (expired) mark({ at: now(), kind: "accepted_expired" });
 
     // Accepted. This certificate is one PayPal really signs with: keep it as last-known-good.
     rememberKnown(certId, loaded.cert);
@@ -1004,16 +1031,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       return (await verifyDetailed(raw, headers, webhookId, opts)).mode;
     },
     prewarm,
-    async releaseTransmission(transmissionId) {
-      try {
-        await transmissions.release(transmissionId);
-      } catch (err) {
-        logger?.error?.(
-          { error: err instanceof Error ? err.message : String(err), transmissionId },
-          "releasing a webhook transmission id failed",
-        );
-      }
-    },
+    releaseTransmission: releaseQuietly,
     health,
     cachedCerts: () => cache.size,
   };

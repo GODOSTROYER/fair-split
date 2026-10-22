@@ -32,7 +32,7 @@ export interface PayPalCoreOptions {
   retry?: Partial<RetryPolicy>;
   /** Extra PEM trust anchors for webhook certificates (tests, pinning). */
   webhookTrustAnchors?: readonly string[];
-  /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms once). */
+  /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms each one). */
   webhookExpiredCertPolicy?: ExpiredCertPolicy;
   /** Replay tracking of webhook transmission ids (production: WS-DATA's Postgres store; default in memory). */
   webhookTransmissionStore?: TransmissionStore;
