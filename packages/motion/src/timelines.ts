@@ -443,7 +443,7 @@ const mm5: Timeline<"MM-5"> = {
       id: "signed-2",
       trigger: "approval.signed (CHAIR)",
       full: [
-        { at: 0, phase: "signed-2" },
+        { at: 0, phase: "signed-2", target: "presence", to: 0, motion: { tween: "crossfade" } },
         ...ring(3, 0),
         ...ring(4, TIMING.engraveStagger),
         { at: 720, phase: "sealed", target: "seal.scale", from: 1.03, to: 1, motion: { spring: "land" } },
@@ -457,7 +457,7 @@ const mm5: Timeline<"MM-5"> = {
         { at: 960, phase: "inked", target: "inked", to: 1, motion: { tween: "ink" } },
       ],
       reduced: [
-        { at: 0, phase: "signed-2" },
+        { at: 0, phase: "signed-2", target: "presence", to: 0, motion: reducedFade },
         ...ringFade(3, 0, reducedFade),
         ...ringFade(4, 0, reducedFade),
         {
@@ -471,7 +471,7 @@ const mm5: Timeline<"MM-5"> = {
         { at: 960, phase: "inked", target: "inked", to: 1, motion: reducedFade },
       ],
       low: [
-        { at: 0, phase: "signed-2" },
+        { at: 0, phase: "signed-2", target: "presence", to: 0, motion: { tween: "crossfade" } },
         ...ringFade(3, 0, { tween: "lowFade" }),
         ...ringFade(4, 0, { tween: "lowFade" }),
         { at: 720, phase: "sealed", target: "seal.scale", from: 1.03, to: 1, motion: { spring: "land" } },

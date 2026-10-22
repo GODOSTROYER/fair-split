@@ -92,8 +92,10 @@ function place<M extends MomentId>(moment: M, cues: readonly Cue[], mode: Motion
 }
 
 export function progressOf(motion: MotionRef | undefined, dt: number): number {
-  if (dt <= 0) return 0;
+  if (dt < 0) return 0;
+  // An instant change has happened by the time its step starts; anything else has not moved yet.
   if (!motion || "instant" in motion) return 1;
+  if (dt === 0) return 0;
   if ("spring" in motion) return springResponse(motion.spring, dt);
   const ms = "tween" in motion ? TWEENS[motion.tween].ms : motion.ms;
   const easeName = "tween" in motion ? TWEENS[motion.tween].ease : motion.ease;
