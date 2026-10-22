@@ -182,6 +182,7 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    white-space: nowrap;
   }
 
   .fs-slab__fill {
@@ -467,6 +468,13 @@
 
     .fs-receipt__note {
       grid-column: 1 / -1;
+    }
+
+    .fs-receipt__item[data-kind="net"] .fs-receipt__value {
+      font-stretch: 87.5%;
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.25rem;
     }
   }
 
