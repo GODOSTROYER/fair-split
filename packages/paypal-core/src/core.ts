@@ -22,7 +22,9 @@ import {
 } from "./webhook/verify.js";
 
 export interface PayPalCoreOptions {
-  config: Pick<PayPalRuntimeConfig, "clientId" | "clientSecret" | "devMocks">;
+  /** `knownCertIds` (PP_CERT_ALLOW) is pinned in the verifier together with `webhookKnownCertIds`. */
+  config: Pick<PayPalRuntimeConfig, "clientId" | "clientSecret" | "devMocks"> &
+    Partial<Pick<PayPalRuntimeConfig, "knownCertIds">>;
   limiter: PayPalLimiter;
   recorder?: PayPalCallRecorder;
   logger?: LoggerLike;
@@ -36,7 +38,7 @@ export interface PayPalCoreOptions {
   webhookExpiredCertPolicy?: ExpiredCertPolicy;
   /** Replay tracking of webhook transmission ids (production: WS-DATA's Postgres store; default in memory). */
   webhookTransmissionStore?: TransmissionStore;
-  /** PayPal cert ids trusted before any delivery (`PP_CERT_ALLOW`): reserved fetch budget, kept once loaded. */
+  /** More PayPal cert ids trusted before any delivery: reserved fetch budget, kept once loaded. */
   webhookKnownCertIds?: readonly string[];
 }
 
@@ -78,6 +80,9 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...shared,
   });
   const postback = createPostbackVerifier(http);
+  const knownCertIds = [
+    ...new Set([...(options.config.knownCertIds ?? []), ...(options.webhookKnownCertIds ?? [])]),
+  ];
   const verifier = createPayPalWebhookVerifier({
     devMocks: options.config.devMocks,
     postback,
@@ -86,7 +91,7 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...(options.webhookTrustAnchors ? { trustAnchors: options.webhookTrustAnchors } : {}),
     ...(options.webhookExpiredCertPolicy ? { expiredCertPolicy: options.webhookExpiredCertPolicy } : {}),
     ...(options.webhookTransmissionStore ? { transmissionStore: options.webhookTransmissionStore } : {}),
-    ...(options.webhookKnownCertIds ? { knownCertIds: options.webhookKnownCertIds } : {}),
+    ...(knownCertIds.length > 0 ? { knownCertIds } : {}),
     ...shared,
   });
   return {

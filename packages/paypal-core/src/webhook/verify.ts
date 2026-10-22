@@ -21,11 +21,22 @@
 //      global budget; requests with no address share one budget.
 //   3. Global, by cert id: ids with PayPal's shape (`CERT-360caa42-…`, every PayPal cert id since
 //      2015) have their own 2 an hour; any other well-formed id shares 1 an hour (PayPal-shaped ids may
-//      use it too). Known ids that are not loaded yet (after a restart) have 2 an hour reserved that
-//      nothing else can spend. A local token is given back when the limiter refuses the fetch.
+//      use it too). Known ids that are not loaded yet (pinned with `knownCertIds` / PP_CERT_ALLOW,
+//      pre-warmed, or seen before a restart) have 2 an hour reserved that nothing else can spend.
+//      A local token is given back when the limiter refuses the fetch (nothing was sent).
 // A delivery refused by any budget is CERT_FETCH_THROTTLED and retryable: the route answers 503 and
 // PayPal retries (25 times over 3 days), so a flood delays a genuine delivery but cannot make us
-// call it forged. 1,000 forged deliveries cost at most 3 certificate fetches and no other PayPal call.
+// call it forged. The bound, for a burst of forged deliveries of any size: at most 3 certificate
+// fetches for unknown ids, plus one per known id not loaded yet, and at most `knownPerHour` (2) of
+// those, so 3 + min(unloaded known ids, 2); no other PayPal call. Sustained, the buckets refill at
+// those rates per hour.
+// Starvation: a sustained flood can keep spending the shared buckets, so a genuine certificate nobody
+// has verified yet (fresh deploy, PayPal's yearly rotation) may wait while the flood lasts. Pin the
+// current and the next cert id in PP_CERT_ALLOW: pinned ids draw on the reserved bucket. health()
+// raises CERT_FETCH_THROTTLED once throttling persists (more than 5 in 15 minutes by default). A fetch
+// is charged before its status is known, 404s included: charging only 200s would let a flood of random
+// PayPal-shaped ids (all 404) fetch without bound, since any budget that admits a fetch must be one a
+// 404 can spend.
 //
 // Expired certificates. PayPal rotates its signing certificate yearly with a few weeks of overlap
 // (sandbox: …ab66f33d to 7 Mar 2025, …90621ecd to 1 Mar 2026, …bf9ab596 from 27 Jan 2026 to 26 Jan
@@ -286,6 +297,12 @@ export interface WebhookVerifierConfig {
   failedCertRetryMs?: number;
   /** Window of the health() counters (default 15 min). */
   healthWindowMs?: number;
+  /**
+   * health() raises CERT_FETCH_THROTTLED when more than `threshold` deliveries were throttled within
+   * `windowMs` (default more than 5 in 15 min; the window is capped at healthWindowMs). Fewer are
+   * counted but not a problem: PayPal retries a 503.
+   */
+  certFetchThrottleAlert?: { threshold?: number; windowMs?: number };
   /** health() turns degraded when the signing certificate has fewer days left than this (default 14). */
   certExpiryWarningDays?: number;
   logger?: LoggerLike;
@@ -300,16 +317,32 @@ export interface PrewarmResult {
   validTo: string | null;
 }
 
+/** Machine-readable codes for health() problems (one per kind of problem). */
+export type WebhookVerifierAlert =
+  /** Throttled certificate fetches persist: a flood may be delaying a certificate PayPal has not used before. */
+  | "CERT_FETCH_THROTTLED"
+  | "SIGNED_WITH_EXPIRED_CERT"
+  | "KNOWN_CERT_FETCH_FAILED"
+  | "SIGNING_CERT_EXPIRED"
+  | "SIGNING_CERT_EXPIRING";
+
 /** Verification health for `/readyz` (report it in the body; never fail readiness on it) and `/ops`. */
 export interface WebhookVerifierHealth {
   status: "ok" | "degraded";
   /** Plain-language problems, empty when ok. */
   problems: string[];
+  /** The codes of those problems, in the same order of kinds, empty when ok. */
+  alerts: WebhookVerifierAlert[];
   windowMs: number;
   /** Deliveries accepted in the window. */
   verified: number;
   /** Rejections in the window, by reason (forged junk lands here too). */
   rejected: Partial<Record<VerifyFailureReason, number>>;
+  /**
+   * Deliveries answered 503 because a certificate fetch was throttled, within `windowMs` of the
+   * alert (at most the health window); CERT_FETCH_THROTTLED is raised when `count` exceeds `threshold`.
+   */
+  certFetchThrottled: { count: number; threshold: number; windowMs: number };
   /** Deliveries whose signature verified under an expired PayPal certificate, accepted or not. */
   signedWithExpiredCert: number;
   /** Of those, accepted under expiredCertPolicy (each confirmed by its own postback). */
@@ -378,6 +411,11 @@ const MAX_LAST_GOOD = 8;
 const MAX_IP_BUDGETS = 4_096;
 const HOUR_MS = 3_600_000;
 const MAX_MARKS = 2_000;
+/**
+ * Throttle times kept for the CERT_FETCH_THROTTLED alert, apart from the marks, so a flood of other
+ * junk cannot push them out of the window.
+ */
+const MAX_THROTTLE_TIMES = 4_096;
 /** Prewarm fetches at most this many URLs per call. */
 const MAX_PREWARM = 4;
 
@@ -455,6 +493,11 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const postbackDeadlineMs = config.postbackDeadlineMs ?? POSTBACK_DEADLINE_MS;
   const certPriority = config.certFetchPriority ?? "background";
   const healthWindowMs = config.healthWindowMs ?? 15 * 60_000;
+  const throttleThreshold = config.certFetchThrottleAlert?.threshold ?? 5;
+  const throttleWindowMs = Math.min(
+    config.certFetchThrottleAlert?.windowMs ?? healthWindowMs,
+    healthWindowMs,
+  );
   const warnDays = config.certExpiryWarningDays ?? 14;
   const { limiter, recorder, logger } = config;
   const leafOptions = (at: number) => ({ at, subjects, ...(anchors ? { trustAnchors: anchors } : {}) });
@@ -488,6 +531,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     now,
   );
   const marks: Mark[] = [];
+  const throttleTimes: number[] = [];
   let lastVerified: { at: number; certUrl: string; validTo: number } | null = null;
 
   const mark = (m: Mark) => {
@@ -728,7 +772,13 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       detail: string | null = null,
       extra: { postback?: VerifyOutcome["postback"]; retryable?: boolean } = {},
     ): VerifyOutcome => {
-      mark({ at: now(), kind: "rejected", reason });
+      const at = now();
+      mark({ at, kind: "rejected", reason });
+      if (reason === "CERT_FETCH_THROTTLED") {
+        throttleTimes.push(at);
+        if (throttleTimes.length > MAX_THROTTLE_TIMES)
+          throttleTimes.splice(0, throttleTimes.length - MAX_THROTTLE_TIMES);
+      }
       return outcome({
         mode: false,
         reason,
@@ -976,21 +1026,36 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
 
     const minutes = Math.round(healthWindowMs / 60_000);
     const problems: string[] = [];
-    const throttledCount = rejected.CERT_FETCH_THROTTLED ?? 0;
-    if (throttledCount > 0) {
-      problems.push(
-        `${throttledCount} ${throttledCount === 1 ? "delivery" : "deliveries"} in the last ${minutes} min ` +
-          "could not be checked: certificate fetch budget used up (answered 503; PayPal retries)",
+    const alerts: WebhookVerifierAlert[] = [];
+    const problem = (alert: WebhookVerifierAlert, text: string) => {
+      problems.push(text);
+      if (!alerts.includes(alert)) alerts.push(alert);
+    };
+    let fresh = 0;
+    while (fresh < throttleTimes.length && (throttleTimes[fresh] ?? t) <= t - throttleWindowMs) fresh += 1;
+    if (fresh > 0) throttleTimes.splice(0, fresh);
+    const throttledCount = throttleTimes.length;
+    if (throttledCount > throttleThreshold) {
+      problem(
+        "CERT_FETCH_THROTTLED",
+        `CERT_FETCH_THROTTLED: ${throttledCount} deliveries in the last ${Math.round(throttleWindowMs / 60_000)} min ` +
+          "could not be checked because the certificate fetch budget was used up (answered 503; PayPal " +
+          "retries). A flood of forged deliveries can delay a certificate PayPal has not used before: pin " +
+          "PayPal's current and next cert ids in PP_CERT_ALLOW.",
       );
     }
     if (signedExpired > 0) {
-      problems.push(
+      problem(
+        "SIGNED_WITH_EXPIRED_CERT",
         `${signedExpired} PayPal ${signedExpired === 1 ? "delivery" : "deliveries"} in the last ${minutes} min ` +
           `signed with an expired certificate (expiredCertPolicy ${expiredPolicy}, ${acceptedExpired} accepted)`,
       );
     }
     for (const [url, why] of fetchProblems) {
-      problems.push(`could not fetch ${url}, a known PayPal signing certificate: ${why}`);
+      problem(
+        "KNOWN_CERT_FETCH_FAILED",
+        `could not fetch ${url}, a known PayPal signing certificate: ${why}`,
+      );
     }
     let signingCert: WebhookVerifierHealth["signingCert"] = null;
     if (lastVerified) {
@@ -1001,9 +1066,13 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         daysLeft,
       };
       if (lastVerified.validTo < t) {
-        problems.push(`PayPal's signing certificate expired on ${isoDay(lastVerified.validTo)}`);
+        problem(
+          "SIGNING_CERT_EXPIRED",
+          `PayPal's signing certificate expired on ${isoDay(lastVerified.validTo)}`,
+        );
       } else if (daysLeft < warnDays) {
-        problems.push(
+        problem(
+          "SIGNING_CERT_EXPIRING",
           `PayPal's signing certificate expires in ${daysLeft} days (${isoDay(lastVerified.validTo)})`,
         );
       }
@@ -1011,9 +1080,11 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     return {
       status: problems.length > 0 ? "degraded" : "ok",
       problems,
+      alerts,
       windowMs: healthWindowMs,
       verified,
       rejected,
+      certFetchThrottled: { count: throttledCount, threshold: throttleThreshold, windowMs: throttleWindowMs },
       signedWithExpiredCert: signedExpired,
       acceptedWithExpiredCert: acceptedExpired,
       expiredCertPolicy: expiredPolicy,

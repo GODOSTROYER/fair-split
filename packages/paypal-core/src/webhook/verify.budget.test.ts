@@ -121,33 +121,36 @@ describe("1,000 forged deliveries", () => {
     ["from 1,000 addresses", (i: number) => `198.51.${(i >> 8) & 255}.${i & 255}`],
     ["from one address", () => "203.0.113.66"],
     ["with no address at all", () => null],
-  ])("%s: at most 3 certificate fetches, no other PayPal call, every one refused", async (_label, ipOf) => {
-    const { verify, host, takes, postback, now } = setup();
-    const outcomes: VerifyOutcome[] = [];
-    for (let i = 0; i < 1_000; i++) {
-      // A third point at random PayPal-shaped ids, a third at other well-formed ids, a third at the
-      // genuine certificate URL (with a signature PayPal never made).
-      const url = i % 3 === 0 ? paypalShaped(i) : i % 3 === 1 ? otherShaped(i) : GENUINE;
-      outcomes.push(await verify(forged(url, now()), ipOf(i)));
-    }
-    expect(host.calls.length).toBeLessThanOrEqual(3);
-    expect(
-      host.calls.every((u) => u.startsWith("https://api.sandbox.paypal.com/v1/notifications/certs/")),
-    ).toBe(true);
-    expect(takes).toHaveLength(host.calls.length);
-    expect(postback).not.toHaveBeenCalled();
-    expect(outcomes.every((o) => o.mode === false)).toBe(true);
-    const reasons = new Set(outcomes.map((o) => o.reason));
-    expect(
-      [...reasons].every((r) =>
-        ["SIGNATURE_MISMATCH", "CERT_FETCH_FAILED", "CERT_FETCH_THROTTLED"].includes(r ?? ""),
-      ),
-    ).toBe(true);
-    const throttled = outcomes.filter((o) => o.reason === "CERT_FETCH_THROTTLED");
-    expect(throttled.length).toBeGreaterThan(0);
-    // Throttled means "could not check it now": PayPal is asked to retry (503), never told it was forged.
-    expect(throttled.every((o) => o.retryable)).toBe(true);
-  });
+  ])(
+    "%s, no known id left to load: at most 3 certificate fetches, no other PayPal call, every one refused",
+    async (_label, ipOf) => {
+      const { verify, host, takes, postback, now } = setup();
+      const outcomes: VerifyOutcome[] = [];
+      for (let i = 0; i < 1_000; i++) {
+        // A third point at random PayPal-shaped ids, a third at other well-formed ids, a third at the
+        // genuine certificate URL (with a signature PayPal never made).
+        const url = i % 3 === 0 ? paypalShaped(i) : i % 3 === 1 ? otherShaped(i) : GENUINE;
+        outcomes.push(await verify(forged(url, now()), ipOf(i)));
+      }
+      expect(host.calls.length).toBeLessThanOrEqual(3);
+      expect(
+        host.calls.every((u) => u.startsWith("https://api.sandbox.paypal.com/v1/notifications/certs/")),
+      ).toBe(true);
+      expect(takes).toHaveLength(host.calls.length);
+      expect(postback).not.toHaveBeenCalled();
+      expect(outcomes.every((o) => o.mode === false)).toBe(true);
+      const reasons = new Set(outcomes.map((o) => o.reason));
+      expect(
+        [...reasons].every((r) =>
+          ["SIGNATURE_MISMATCH", "CERT_FETCH_FAILED", "CERT_FETCH_THROTTLED"].includes(r ?? ""),
+        ),
+      ).toBe(true);
+      const throttled = outcomes.filter((o) => o.reason === "CERT_FETCH_THROTTLED");
+      expect(throttled.length).toBeGreaterThan(0);
+      // Throttled means "could not check it now": PayPal is asked to retry (503), never told it was forged.
+      expect(throttled.every((o) => o.retryable)).toBe(true);
+    },
+  );
 
   it("after the flood, a certificate that signed a verified delivery before it still verifies without a fetch", async () => {
     const { verify, host, now } = setup();
@@ -256,6 +259,111 @@ describe("certificate fetch budget: global, with room reserved for PayPal's ids 
     expect(warm).toMatchObject({ ok: true, source: "network" });
     expect(host.calls).toHaveLength(4);
     expect(await verify(genuine(now()), "173.0.82.126")).toMatchObject({ mode: "self", certSource: "cache" });
+  });
+});
+
+describe("the fetch bound with known ids that are not loaded yet (pinned or pre-warmed)", () => {
+  // The bound for a burst: 3 fetches for unknown ids (expected + other), plus one per known id that is
+  // not loaded yet, and never more than knownPerHour of those. A known id is fetched once: a 200 keeps
+  // it as last-known-good, a failure is not retried for a minute (failedCertRetryMs).
+  const pinnedId = (n: number) => `CERT-360caa42-0badc0de-${hex8(n)}`;
+  const pinnedUrl = (n: number) => certUrl(pinnedId(n));
+
+  it.each([
+    { unloaded: 0, knownPerHour: 2, bound: 3 },
+    { unloaded: 1, knownPerHour: 2, bound: 4 },
+    { unloaded: 2, knownPerHour: 2, bound: 5 },
+    { unloaded: 5, knownPerHour: 2, bound: 5 },
+    { unloaded: 5, knownPerHour: 4, bound: 7 },
+  ])(
+    "$unloaded unloaded known ids, knownPerHour $knownPerHour: 1,000 forged deliveries cost exactly $bound certificate fetches",
+    async ({ unloaded, knownPerHour, bound }) => {
+      // One pinned id is genuine and served (it loads and is kept); the others are not served (404).
+      const pinned = Array.from({ length: unloaded }, (_, n) => pinnedId(n));
+      const pems = { [GENUINE]: leaf.pem, ...(unloaded > 0 ? { [pinnedUrl(0)]: leaf.pem } : {}) };
+      const { verify, host, takes, postback, now } = setup(
+        { knownCertIds: pinned, certFetchBudget: { knownPerHour } },
+        pems,
+      );
+      for (let i = 0; i < 1_000; i++) {
+        const target =
+          i % 4 === 0
+            ? paypalShaped(i)
+            : i % 4 === 1
+              ? otherShaped(i)
+              : i % 4 === 2 && unloaded > 0
+                ? pinnedUrl(Math.floor(i / 4) % unloaded)
+                : GENUINE;
+        await verify(forged(target, now()), `198.51.${(i >> 8) & 255}.${i & 255}`);
+      }
+      expect(bound).toBe(3 + Math.min(unloaded, knownPerHour));
+      expect(host.calls).toHaveLength(bound);
+      const pinnedFetches = host.calls.filter((u) => pinned.some((id) => u.endsWith(id)));
+      expect(pinnedFetches).toHaveLength(Math.min(unloaded, knownPerHour));
+      expect(new Set(pinnedFetches).size).toBe(pinnedFetches.length);
+      expect(takes).toHaveLength(bound);
+      expect(postback).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("a genuine certificate PayPal has not used yet (rotation, fresh deploy)", () => {
+  const NEXT = paypalShaped(0x0e1c0de5);
+  const nextId = NEXT.slice(NEXT.lastIndexOf("/") + 1);
+  const genuineId = GENUINE.slice(GENUINE.lastIndexOf("/") + 1);
+  const signedWith = (url: string, at: number) =>
+    signWebhook({
+      body: event,
+      webhookId: TEST_WEBHOOK_ID,
+      privateKey: leaf.privateKey,
+      certUrl: url,
+      transmissionTime: new Date(at).toISOString(),
+    });
+  const flood = async (verify: ReturnType<typeof setup>["verify"], at: number, from: number, extra = "") => {
+    for (let i = from; i < from + 500; i++) {
+      const url = i % 3 === 0 ? paypalShaped(i) : i % 3 === 1 ? otherShaped(i) : extra || paypalShaped(i + 1);
+      await verify(forged(url, at), `198.51.${(i >> 8) & 255}.${i & 255}`);
+    }
+  };
+
+  it("unpinned, a flood keeps it out (503, retryable) for as long as the flood lasts", async () => {
+    const { verify, now } = setup({}, { [GENUINE]: leaf.pem, [NEXT]: leaf.pem });
+    await flood(verify, now(), 0);
+    expect(await verify(signedWith(NEXT, now()), "173.0.82.126")).toMatchObject({
+      reason: "CERT_FETCH_THROTTLED",
+      retryable: true,
+    });
+  });
+
+  it("pinned ahead of time (PP_CERT_ALLOW lists the current and the next id), it lands through the reserved budget", async () => {
+    const pems: Record<string, string> = { [GENUINE]: leaf.pem };
+    const { v, verify, now, advance } = setup({ knownCertIds: [genuineId, nextId] }, pems);
+    expect(v.health().knownCertIds).toBe(2);
+    // While PayPal does not serve it yet, forged deliveries point at it too (404).
+    await flood(verify, now(), 0, NEXT);
+    // PayPal starts signing with it while the flood goes on.
+    pems[NEXT] = leaf.pem;
+    advance(61_000);
+    await flood(verify, now(), 500);
+    expect(await verify(signedWith(NEXT, now()), "173.0.82.126")).toMatchObject({
+      mode: "self",
+      certSource: "network",
+    });
+  });
+
+  it("pinned, it still lands after forged deliveries spent the reserved budget on it while it was not served yet", async () => {
+    const pems: Record<string, string> = { [GENUINE]: leaf.pem };
+    const { verify, now, advance, host } = setup({ knownCertIds: [nextId] }, pems);
+    // Forged deliveries point at the pinned id before PayPal serves it: each 404 spends a reserved fetch.
+    for (let round = 0; round < 3; round++) {
+      await flood(verify, now(), round * 500, NEXT);
+      advance(61_000);
+    }
+    expect(host.calls.filter((u) => u === NEXT).length).toBeGreaterThan(0);
+    pems[NEXT] = leaf.pem; // PayPal now serves and signs with it
+    advance(30 * MINUTE); // one reserved fetch refilled; the flood goes on
+    await flood(verify, now(), 5_000);
+    expect(await verify(signedWith(NEXT, now()), "173.0.82.126")).toMatchObject({ mode: "self" });
   });
 });
 

@@ -984,13 +984,49 @@ describe("verifier.health (for /readyz and /ops)", () => {
     expect(() => verifier({ knownCertIds: ["CERT-nope"] })).toThrow(/cert ids/);
   });
 
-  it("reports deliveries answered 503 because the certificate fetch budget was used up", async () => {
-    const v = verifier({ certFetchBudget: { expectedPerHour: 0, otherPerHour: 0 } });
-    const s = signed();
-    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
-      reason: "CERT_FETCH_THROTTLED",
-      retryable: true,
+  it("counts deliveries answered 503 because the certificate fetch budget was used up, and raises CERT_FETCH_THROTTLED only once it persists", async () => {
+    let t = Date.now();
+    const v = verifier({
+      now: () => t,
+      certFetchBudget: { expectedPerHour: 0, otherPerHour: 0 },
+      certFetchThrottleAlert: { threshold: 3, windowMs: 10 * 60_000 },
     });
-    expect(v.health().problems.join(" ")).toMatch(/1 delivery .* certificate fetch budget used up/);
+    const throttle = async () => {
+      const s = signed({ transmissionTime: new Date(t).toISOString() });
+      expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+        reason: "CERT_FETCH_THROTTLED",
+        retryable: true,
+      });
+    };
+    // A blip (PayPal retries a 503) is counted, not alarming.
+    for (let i = 0; i < 3; i++) await throttle();
+    expect(v.health()).toMatchObject({
+      status: "ok",
+      alerts: [],
+      certFetchThrottled: { count: 3, threshold: 3, windowMs: 10 * 60_000 },
+      rejected: { CERT_FETCH_THROTTLED: 3 },
+    });
+    // More than 3 within 10 minutes: it persists.
+    t += 60_000;
+    await throttle();
+    const health = v.health();
+    expect(health).toMatchObject({ status: "degraded", alerts: ["CERT_FETCH_THROTTLED"] });
+    expect(health.problems.join(" ")).toMatch(/CERT_FETCH_THROTTLED: 4 deliveries in the last 10 min/);
+    expect(health.problems.join(" ")).toMatch(/PP_CERT_ALLOW/);
+    // Ten quiet minutes later it clears.
+    t += 10 * 60_000 + 1_000;
+    expect(v.health()).toMatchObject({ status: "ok", alerts: [], certFetchThrottled: { count: 0 } });
+  });
+
+  it("gives every problem a machine-readable alert code for /ops", async () => {
+    const soon = pki.issueLeaf({
+      notBefore: new Date(Date.now() - DAY),
+      notAfter: new Date(Date.now() + 10 * DAY),
+    });
+    const s = signed({ privateKey: soon.privateKey, certUrl: serve("expiring-soon-codes", soon.pem) });
+    const v = verifier();
+    expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    expect(v.health()).toMatchObject({ status: "degraded", alerts: ["SIGNING_CERT_EXPIRING"] });
+    expect(verifier().health()).toMatchObject({ status: "ok", alerts: [], problems: [] });
   });
 });

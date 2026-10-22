@@ -31,7 +31,46 @@ describe("loadPayPalConfig", () => {
       clientSecret: secret,
       webhookId: "8PT597110X687430LKGECATA",
       devMocks: false,
+      knownCertIds: [],
     });
+  });
+
+  it("reads PP_CERT_ALLOW: PayPal cert ids (or their sandbox cert URLs) to pin, e.g. the current and the next one", () => {
+    const base = { PP_ENV: "sandbox", PP_CLIENT_ID: id, PP_CLIENT_SECRET: secret, PP_WEBHOOK_ID: "WH1" };
+    const current = "CERT-360caa42-fca2a594-bf9ab596";
+    const next = "CERT-360caa42-fca2a594-0e1c0de5";
+    expect(
+      loadPayPalConfig({
+        ...base,
+        PP_CERT_ALLOW: ` ${current},https://api-m.sandbox.paypal.com/v1/notifications/certs/${next}  ${current}`,
+      }).knownCertIds,
+    ).toEqual([current, next]);
+    expect(loadPayPalConfig({ ...base, PAYPAL_CERT_ALLOW: current }).knownCertIds).toEqual([current]);
+    expect(loadPayPalConfig({ ...base, PP_CERT_ALLOW: " " }).knownCertIds).toEqual([]);
+  });
+
+  it.each([
+    ["not a cert id", "CERT-nope"],
+    ["an upper-case id", "CERT-360CAA42-FCA2A594-BF9AB596"],
+    ["a live-PayPal URL", "https://api-m.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-bf9ab596"],
+    [
+      "a URL with a query",
+      "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42-fca2a594-bf9ab596?x=1",
+    ],
+    ["more than 8 ids", Array.from({ length: 9 }, (_, n) => `CERT-360caa42-fca2a594-0000000${n}`).join(",")],
+  ])("refuses PP_CERT_ALLOW with %s, naming the variable but not the value", (_label, value) => {
+    const err = catchConfig(() =>
+      loadPayPalConfig({
+        PP_ENV: "sandbox",
+        PP_CLIENT_ID: id,
+        PP_CLIENT_SECRET: secret,
+        PP_WEBHOOK_ID: "WH1",
+        PP_CERT_ALLOW: value,
+      }),
+    );
+    expect(err.code).toBe("INVALID_VALUE");
+    expect(err.variables).toEqual(["PP_CERT_ALLOW"]);
+    expect(err.message).not.toContain(value);
   });
 
   it("falls back to the PAYPAL_* names in .env.example", () => {

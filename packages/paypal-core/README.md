@@ -39,8 +39,8 @@ so the bearer token cannot be sent anywhere else.
    counts toward the 40/min budget), is written to `paypal_calls` (`webhooks.cert`), and a 429 opens the
    6-minute circuit. Before that, local budgets (`DEFAULT_CERT_FETCH_BUDGET`, per hour, by cert id so
    `api` and `api-m` count once) decide whether an unauthenticated request may cause a fetch at all:
-   - a certificate that signed a verified delivery, was pre-warmed or is pinned (`knownCertIds`, e.g.
-     from `PP_CERT_ALLOW`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
+   - a certificate that signed a verified delivery, was pre-warmed or is pinned (`PP_CERT_ALLOW`, or
+     `knownCertIds`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
      fetched again (validity is still checked on every use);
    - **per client IP** first (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
    - then **global**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
@@ -49,7 +49,20 @@ so the bearer token cannot be sent anywhere else.
    - a delivery refused by a budget is `CERT_FETCH_THROTTLED` with `retryable: true`: the route answers
      **503** with `Retry-After` (PayPal retries 25 times over 3 days) and stores nothing. So are a limiter
      refusal, a timeout, a network error and a PayPal 5xx/429 on the fetch; a 404 or junk PEM stays a 400;
-   - 1,000 forged deliveries cost at most 3 certificate fetches and no other PayPal call (tested);
+   - the bound for a burst of forged deliveries of any size: at most 3 certificate fetches for unknown
+     ids, plus one per known id not loaded yet (pinned or pre-warmed), and at most `knownPerHour` (2) of
+     those, so **3 + min(unloaded known ids, 2)**, and no other PayPal call (tested as an exact count).
+     With every known id loaded, 1,000 forged deliveries cost at most 3. Sustained, the buckets refill
+     at those rates per hour;
+   - starvation: a sustained flood keeps the shared buckets empty, so a genuine certificate nobody has
+     verified yet (fresh deploy, PayPal's yearly rotation) waits (503s, PayPal retries) while it lasts.
+     `PP_CERT_ALLOW` (comma or space separated ids or sandbox cert URLs, at most 8) pins ids so they draw
+     on the reserved bucket instead: list the current signing certificate and, once PayPal publishes it,
+     the next one. It pins; it does not narrow (S3.6.5 says "narrows": that would turn an unannounced
+     rotation into 400s). `health()` raises `CERT_FETCH_THROTTLED` once throttling persists (more than 5
+     throttled deliveries in 15 min; `certFetchThrottleAlert`). A fetch is charged before its status is
+     known, 404s included: a budget only 200s spend would let a flood of random PayPal-shaped ids (all 404)
+     fetch without bound;
    - PEMs are fetched over TLS with redirects refused, at most 64 KB, cached (24 h, LRU) and
      single-flighted; failed ids are not retried for a minute. `prewarm(urls)` loads the certificate of
      the newest stored verified event at boot (`prewarmWebhookCertificates` in `apps/api/src/webhooks`).
@@ -86,9 +99,10 @@ so the bearer token cannot be sent anywhere else.
    confirmed it: state comes from PayPal's GET, never from an expired-certificate body) and a verified
    row with no `delivery` record change state only after a fresh GET.
 
-`verifier.health()` reports `ok | degraded` with plain-language problems: deliveries signed with an
-expired certificate, a known certificate URL that can no longer be fetched, deliveries answered 503
-because the fetch budget was used up, or a signing certificate with fewer than 14 days left. WS-API: put it in the `/readyz` body as `webhooks`, but never fail
+`verifier.health()` reports `ok | degraded` with plain-language `problems` and their codes in `alerts`:
+`CERT_FETCH_THROTTLED` (persistent throttling, above), `SIGNED_WITH_EXPIRED_CERT`, `KNOWN_CERT_FETCH_FAILED`
+(a known certificate URL that can no longer be fetched), `SIGNING_CERT_EXPIRED` and `SIGNING_CERT_EXPIRING`
+(fewer than 14 days left). `certFetchThrottled` and `rejected` count throttled deliveries below the threshold. WS-API: put it in the `/readyz` body as `webhooks`, but never fail
 readiness on it (Render's health check would restart a healthy process); show it on `/ops`.
 
 ## Spike results

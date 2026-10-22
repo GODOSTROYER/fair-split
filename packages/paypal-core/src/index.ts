@@ -174,6 +174,7 @@ export {
   type VerifyOptions,
   type VerifyOutcome,
   verifyPayPal,
+  type WebhookVerifierAlert,
   type WebhookVerifierConfig,
   type WebhookVerifierHealth,
 } from "./webhook/verify.js";

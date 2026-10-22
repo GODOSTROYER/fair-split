@@ -112,6 +112,21 @@ describe("createPayPalCore", () => {
     expect(c.verifier.health()).toMatchObject({ status: "ok", verified: 1, expiredCertPolicy: "postback" });
   });
 
+  it("pins the cert ids from PP_CERT_ALLOW (config.knownCertIds) together with webhookKnownCertIds", () => {
+    const c = createPayPalCore({
+      config: {
+        clientId: TEST_CLIENT_ID,
+        clientSecret: TEST_CLIENT_SECRET,
+        devMocks: false,
+        knownCertIds: ["CERT-360caa42-fca2a594-bf9ab596", "CERT-360caa42-fca2a594-0e1c0de5"],
+      },
+      limiter: createMemoryLimiter(),
+      webhookKnownCertIds: ["CERT-360caa42-fca2a594-0e1c0de5", "CERT-360caa42-fca2a594-00000001"],
+    });
+    expect(c.verifier.health().knownCertIds).toBe(3);
+    expect(core().verifier.health().knownCertIds).toBe(0);
+  });
+
   it("passes the dev-mocks switch through to the verifier", async () => {
     const s = signWebhook({
       body: syntheticEvent("PAYMENT.PAYOUTS-ITEM.SUCCEEDED", {}),

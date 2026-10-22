@@ -5,8 +5,9 @@
 // Errors name the variables, never their values.
 
 import { z } from "zod";
-import { PAYPAL_API_BASE_URL } from "./env.js";
+import { PAYPAL_API_BASE_URL, PAYPAL_API_HOSTS } from "./env.js";
 import { PayPalConfigError } from "./errors.js";
+import { CERT_ID_PATTERN, checkCertUrl } from "./webhook/cert-url.js";
 import { MOCK_WEBHOOK_ID } from "./webhook/verify.js";
 
 export interface PayPalRuntimeConfig {
@@ -18,6 +19,14 @@ export interface PayPalRuntimeConfig {
   webhookId: string | null;
   /** PP_DEV_MOCKS=1: accept simulator events as 'dev_mock'. Refused when NODE_ENV=production. */
   devMocks: boolean;
+  /**
+   * PP_CERT_ALLOW: PayPal cert ids to pin (comma or space separated ids, or their sandbox cert URLs),
+   * e.g. the current signing certificate and the next one once PayPal publishes it. Pinned ids get the
+   * certificate-fetch budget reserved for known ids, so a flood of forged deliveries cannot keep them
+   * out, and once loaded they are kept. It pins; it does not narrow: an unpinned PayPal-shaped id is
+   * still fetched under the shared budget, so an unannounced rotation is delayed, not refused.
+   */
+  knownCertIds: readonly string[];
 }
 
 type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -28,7 +37,28 @@ const NAMES = {
   clientSecret: ["PP_CLIENT_SECRET", "PAYPAL_CLIENT_SECRET"],
   webhookId: ["PP_WEBHOOK_ID", "PAYPAL_WEBHOOK_ID"],
   devMocks: ["PP_DEV_MOCKS", "PAYPAL_DEV_MOCKS"],
+  certAllow: ["PP_CERT_ALLOW", "PAYPAL_CERT_ALLOW"],
 } as const;
+
+/** PayPal overlaps at most two signing certificates; a few more leaves room, not a list of every id. */
+const MAX_PINNED_CERT_IDS = 8;
+
+/** Parse PP_CERT_ALLOW into cert ids (deduplicated, in order), or null when an entry is not one. */
+function parseCertAllow(value: string | undefined): string[] | null {
+  const ids: string[] = [];
+  for (const entry of (value ?? "").split(/[\s,]+/)) {
+    if (entry === "") continue;
+    let id: string | null = null;
+    if (CERT_ID_PATTERN.test(entry)) id = entry;
+    else {
+      const check = checkCertUrl(entry, PAYPAL_API_HOSTS.sandbox);
+      if (check.ok) id = check.certId;
+    }
+    if (id === null) return null;
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids.length > MAX_PINNED_CERT_IDS ? null : ids;
+}
 
 function pick(source: EnvSource, names: readonly string[]): string | undefined {
   for (const name of names) {
@@ -84,6 +114,14 @@ export function loadPayPalConfig(
       [NAMES.devMocks[0], "NODE_ENV"],
     );
   }
+  const knownCertIds = parseCertAllow(pick(source, NAMES.certAllow));
+  if (knownCertIds === null) {
+    throw new PayPalConfigError(
+      "INVALID_VALUE",
+      `PP_CERT_ALLOW must list at most ${MAX_PINNED_CERT_IDS} PayPal cert ids (CERT-xxxxxxxx-xxxxxxxx-xxxxxxxx) or their sandbox cert URLs`,
+      [NAMES.certAllow[0]],
+    );
+  }
   return {
     env: "sandbox",
     baseUrl: PAYPAL_API_BASE_URL.sandbox,
@@ -91,5 +129,6 @@ export function loadPayPalConfig(
     clientSecret,
     webhookId,
     devMocks,
+    knownCertIds,
   };
 }
