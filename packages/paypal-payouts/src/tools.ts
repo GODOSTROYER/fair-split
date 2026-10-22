@@ -4,8 +4,8 @@
 // PayoutsService (register §8).
 
 import type { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import type { CallPriority, PayPalHttp } from "./_shims/paypal-core.js";
+import { AGENT_READ_TOOL_JSON_SCHEMAS } from "./agent-read-schemas.js";
 import { getPayoutBatch, getPayoutItem } from "./functions.js";
 import {
   type Context,
@@ -141,15 +141,21 @@ export interface AgentPayoutToolSchema {
 }
 
 /**
- * The two read tools as JSON Schema for the Messages API, converted the same way the toolkit's
- * `/openai` export converts its own tools (zod-to-json-schema, draft-07, inlined).
+ * The two read tools as JSON Schema for the Messages API: converted from the zod parameters the same
+ * way the toolkit's `/openai` export converts its own tools (zod-to-json-schema, draft-07, inlined),
+ * once, at dev time (scripts/gen-read-schemas.ts), and checked in. Each call returns a fresh copy.
  */
 export function agentPayoutToolSchemas(): AgentPayoutToolSchema[] {
-  return agentPayoutTools().map((tool) => ({
-    name: tool.method as AgentPayoutMethod,
-    description: tool.description,
-    input_schema: zodToJsonSchema(tool.parameters) as AgentPayoutToolSchema["input_schema"],
-  }));
+  return agentPayoutTools().map((tool) => {
+    const name = tool.method as AgentPayoutMethod;
+    return {
+      name,
+      description: tool.description,
+      input_schema: structuredClone(
+        AGENT_READ_TOOL_JSON_SCHEMAS[name],
+      ) as AgentPayoutToolSchema["input_schema"],
+    };
+  });
 }
 
 /** The model asked for a payout tool it may not use. Nothing was sent. */
