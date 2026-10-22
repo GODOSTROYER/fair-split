@@ -24,11 +24,13 @@ describe("inv.i8.sample-key-ids: one rule decides which keys are samples (office
     expect(keyIdIsSample("fs-ledger-k1", "web")).toBe(true);
     expect(keyIdIsSample("fs-ernesto-a1", "server")).toBe(true);
     expect(keyIdIsSample("fs-analyn-w1", "server")).toBe(true);
+    // app keys are a{n} and web keys w{n}: a key registered with the other kind is a sample.
+    expect(keyIdIsSample("fs-analyn-w1", "app")).toBe(true);
+    expect(keyIdIsSample("fs-ernesto-a1", "web")).toBe(true);
   });
 
-  it("fs-analyn-w1, the treasurer's real browser key (S3.8), is not a sample unless its kind says demo", () => {
+  it("fs-analyn-w1, the treasurer's real browser key (S3.8), is real as kind web and a sample as web_demo", () => {
     expect(keyIdIsSample("fs-analyn-w1", "web")).toBe(false);
-    expect(keyIdIsSample("fs-analyn-w1", "app")).toBe(false);
     expect(keyIdIsSample("fs-analyn-w1", "web_demo")).toBe(true);
     // Judge-session w keys are told apart by their registered kind, never by their ID.
     expect(keyIdIsSample("fs-ernesto-w7", "web_demo")).toBe(true);
@@ -88,7 +90,8 @@ describe("inv.i8.sample-key-ids: one rule decides which keys are samples (office
           const real = !keyIdIsSample(id, kind);
           if (real) {
             expect(["app", "web", "server"]).toContain(kind);
-            expect(id).toMatch(kind === "server" ? /^fs-ledger-k\d+$/ : /^fs-[a-z]+-[aw]\d+$/);
+            const shape = { app: /^fs-[a-z]+-a\d+$/, web: /^fs-[a-z]+-w\d+$/, server: /^fs-ledger-k\d+$/ };
+            expect(id).toMatch(shape[kind as keyof typeof shape]);
             expect(id).not.toMatch(/(?:^|-)demo(?:-|$)/);
           }
         },

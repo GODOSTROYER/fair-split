@@ -5,15 +5,18 @@ import {
   API_COMMANDS,
   DeviceKey,
   DeviceKeyId,
+  DeviceKeyKind,
   ERROR_HTTP_STATUS,
   HOLD_GATE_LABELS,
   HOLD_KIND_LABELS,
   HOLD_STATE_LABELS,
   INVOICE_STATUS_LABELS,
   isSeededKeyId,
+  KEY_ID_PATTERNS,
   KeyId,
   LANGS,
   type LabelVars,
+  LedgerKeyId,
   LedgerPayloads,
   MEMBER_LINE_LABELS,
   OfficerKey,
@@ -52,10 +55,19 @@ const payload = {
 } as const;
 
 describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
-  it("separates device keys (a, w) from seeded keys (s)", () => {
-    for (const id of ["fs-ernesto-a1", "fs-analyn-a2", "fs-ernesto-w3"]) {
+  it("separates device keys (a, w, C-13 demo) from seeded keys (s) and ledger keys", () => {
+    for (const id of [
+      "fs-ernesto-a1",
+      "fs-analyn-a2",
+      "fs-analyn-w1",
+      "fs-ernesto-w3",
+      "fs-ernesto-a9999",
+      "fs-ernesto-demo-abc123",
+      "fs-analyn-demo-000000",
+    ]) {
       expect(DeviceKeyId.safeParse(id).success, id).toBe(true);
       expect(KeyId.safeParse(id).success, id).toBe(true);
+      expect(LedgerKeyId.safeParse(id).success, id).toBe(false);
       expect(isSeededKeyId(id), id).toBe(false);
     }
     for (const id of ["fs-ernesto-s1", "fs-analyn-s1"]) {
@@ -64,8 +76,53 @@ describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
       expect(DeviceKeyId.safeParse(id).success, id).toBe(false);
       expect(isSeededKeyId(id), id).toBe(true);
     }
-    for (const id of ["fs-ernesto-x1", "fs-Ernesto-a1", "ernesto-a1", "fs-ernesto-demo-abc123"]) {
+    for (const id of ["fs-ledger-k1", "fs-ledger-k12", "fs-ledger-s1"]) {
+      expect(LedgerKeyId.safeParse(id).success, id).toBe(true);
+      // A ledger key ID is never an officer's: no approval can carry one.
       expect(KeyId.safeParse(id).success, id).toBe(false);
+      expect(DeviceKeyId.safeParse(id).success, id).toBe(false);
+    }
+    expect(isSeededKeyId("fs-ledger-s1")).toBe(true);
+    expect(isSeededKeyId("fs-ledger-k1")).toBe(false);
+  });
+
+  it("every key ID shape is anchored lowercase ASCII with bounded parts", () => {
+    const P = KEY_ID_PATTERNS;
+    expect(P.app.test("fs-ernesto-a1")).toBe(true);
+    expect(P.web.test("fs-analyn-w1")).toBe(true);
+    expect(P.demo.test("fs-ernesto-demo-a1b2c3")).toBe(true);
+    expect(P.seeded.test("fs-analyn-s1")).toBe(true);
+    expect(P.ledger.test("fs-ledger-k1")).toBe(true);
+    expect(P.seededLedger.test("fs-ledger-s1")).toBe(true);
+    for (const id of [
+      "fs-ernesto-x1",
+      "fs-Ernesto-a1",
+      "ernesto-a1",
+      "fs-ernesto-a",
+      "fs-ernesto-a0",
+      "fs-ernesto-a01",
+      "fs-ernesto-a10000",
+      `fs-${"a".repeat(25)}-a1`,
+      "fs-ernesto-a1\n",
+      " fs-ernesto-a1",
+      "fs-ernesto-a1 ",
+      "fs-\u0435rnesto-a1",
+      "fs-ernesto-\uFF411",
+      "fs-ernesto-demo-abc12",
+      "fs-ernesto-demo-abc1234",
+      "fs-ernesto-demo-ABC123",
+      "fs-ernesto-demo-",
+      "fs-ledger-a1",
+      "fs-ledger-demo-abc123",
+      "fs-demo-a1",
+      "fs-demo-demo-abc123",
+      "fs-ledger-k0",
+      "fs-ledger-x1",
+    ]) {
+      expect(KeyId.safeParse(id).success, JSON.stringify(id)).toBe(false);
+      expect(DeviceKeyId.safeParse(id).success, JSON.stringify(id)).toBe(false);
+      expect(SeededKeyId.safeParse(id).success, JSON.stringify(id)).toBe(false);
+      expect(LedgerKeyId.safeParse(id).success, JSON.stringify(id)).toBe(false);
     }
   });
 
@@ -133,7 +190,12 @@ describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
     expect(OfficerKey.safeParse({ ...key, role: "secretary" }).success).toBe(false);
     expect(OfficerKey.safeParse({ ...key, extra: 1 }).success).toBe(false);
     expect([...SAMPLE_KEY_KINDS].sort()).toEqual(["seeded", "web_demo"]);
-    expect(SigningKeyKind.options).toEqual(["app", "web_demo", "seeded"]);
+    expect(SigningKeyKind.options).toEqual(["app", "web", "web_demo", "seeded"]);
+    expect(DeviceKeyKind.options).toEqual(["app", "web", "web_demo"]);
+    expect(OfficerKey.safeParse({ ...key, keyId: "fs-analyn-w1", kind: "web" }).success).toBe(true);
+    expect(OfficerKey.safeParse({ ...key, keyId: "fs-ernesto-demo-a1b2c3", kind: "web_demo" }).success).toBe(
+      true,
+    );
   });
 });
 

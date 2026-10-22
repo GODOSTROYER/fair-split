@@ -118,7 +118,7 @@ export const ApprovalPayloadResponse = z.strictObject({ payload: ApprovalPayload
 
 export const SubmitApprovalRequest = z.strictObject({
   role: ApprovalRole,
-  /** Only a device key (`a` or `w`) can sign; a seeded key (`s`) is refused by the schema. */
+  /** Only a device key (`a`, `w` or a C-13 `demo` key) can sign; a seeded key (`s`) is refused by the schema. */
   keyId: DeviceKeyId,
   /** Ed25519 signature over the JCS bytes of `payload`, hex. */
   signature: z.string().regex(/^[0-9a-f]{128}$/),

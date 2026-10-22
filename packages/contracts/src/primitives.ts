@@ -56,26 +56,59 @@ export type PhotoId = z.infer<typeof PhotoId>;
 export const PlotNo = z.string().regex(/^P-\d{3}-[A-Z]$/);
 export type PlotNo = z.infer<typeof PlotNo>;
 
+// ---------------------------------------------------------------- key IDs (S3.8, register C-13)
+// Every key ID is anchored lowercase ASCII with bounded parts. `{persona}` is 1-24 letters and is
+// never `ledger` or `demo` (those words mark the server's ledger keys and demo keys); `{n}` is
+// 1-9999 with no leading zero; a demo key's suffix is exactly 6 of [a-z0-9].
+
+/** Each key ID shape, the one source for the schemas below and for the domain's sample rule. */
+export const KEY_ID_PATTERNS = {
+  /** A person's app key in SecureStore behind biometrics: `fs-{persona}-a{n}` (`fs-ernesto-a1`). */
+  app: /^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-a[1-9][0-9]{0,3}$/,
+  /** A persisted non-extractable WebCrypto key: `fs-{persona}-w{n}` (the treasurer's `fs-analyn-w1`). */
+  web: /^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-w[1-9][0-9]{0,3}$/,
+  /** A labelled browser key made for one judge session (C-13): `fs-{persona}-demo-{6}`. */
+  demo: /^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-demo-[a-z0-9]{6}$/,
+  /** A seed-only officer key: `fs-{persona}-s{n}`. */
+  seeded: /^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-s[1-9][0-9]{0,3}$/,
+  /** The server's ledger signing key: `fs-ledger-k{n}`. */
+  ledger: /^fs-ledger-k[1-9][0-9]{0,3}$/,
+  /** A seed-only ledger key: `fs-ledger-s{n}`. */
+  seededLedger: /^fs-ledger-s[1-9][0-9]{0,3}$/,
+} as const;
+
 /**
- * A key a person holds: `fs-{persona}-{a|w}{n}`. `a` keys live in the app's SecureStore, `w` keys in
- * one browser session (S3.8). Only these are registered in `device_keys` or accepted by the API.
+ * A key a person holds: an app key (`a`), a persisted browser key (`w`) or a judge-session demo key
+ * (`demo`). Only these are registered in `device_keys` or accepted by the API.
  */
-export const DeviceKeyId = z.string().regex(/^fs-[a-z]+-[aw]\d+$/);
+export const DeviceKeyId = z
+  .string()
+  .regex(/^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-(?:[aw][1-9][0-9]{0,3}|demo-[a-z0-9]{6})$/);
 export type DeviceKeyId = z.infer<typeof DeviceKeyId>;
 
 /**
  * A seed-only key: `fs-{persona}-s{n}`. Its private half derives from public text so the seeded
  * Proof verifies; it is labelled seeded, never registered in `device_keys` and never trusted.
  */
-export const SeededKeyId = z.string().regex(/^fs-[a-z]+-s\d+$/);
+export const SeededKeyId = z.string().regex(KEY_ID_PATTERNS.seeded);
 export type SeededKeyId = z.infer<typeof SeededKeyId>;
 
-/** Any key ID a signed approval may carry: a device key, or a seeded key in seeded data. */
-export const KeyId = z.string().regex(/^fs-[a-z]+-[aws]\d+$/);
+/**
+ * Any key ID a signed approval may carry: a device key, or a seeded key in seeded data. Never a
+ * ledger key ID: those are `LedgerKeyId` only.
+ */
+export const KeyId = z
+  .string()
+  .regex(/^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-(?:[aws][1-9][0-9]{0,3}|demo-[a-z0-9]{6})$/);
 export type KeyId = z.infer<typeof KeyId>;
 
+/** The server's ledger signing key: `fs-ledger-k{n}`; a seed-only key is `fs-ledger-s{n}`. */
+export const LedgerKeyId = z.string().regex(/^fs-ledger-[ks][1-9][0-9]{0,3}$/);
+export type LedgerKeyId = z.infer<typeof LedgerKeyId>;
+
+/** A seed-only key, officer (`fs-{persona}-s{n}`) or ledger (`fs-ledger-s{n}`). */
 export function isSeededKeyId(keyId: string): boolean {
-  return SeededKeyId.safeParse(keyId).success;
+  return KEY_ID_PATTERNS.seeded.test(keyId) || KEY_ID_PATTERNS.seededLedger.test(keyId);
 }
 
 /** Raw 32-byte Ed25519 public key, lowercase hex. */

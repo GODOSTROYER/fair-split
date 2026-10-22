@@ -788,35 +788,48 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
     expect(verify(registeredSeeded, PROOF_TRUST, { demoMode: true }).status).toBe("sample");
   });
 
-  it("the treasurer's real browser key fs-analyn-w1 verifies; the same w ID published as web_demo is a sample", () => {
+  it("the treasurer's real browser key fs-analyn-w1 (kind web) verifies; published as web_demo or app it is a sample", () => {
     const w1 = { keyId: "fs-analyn-w1", pair: ed25519FromSeed(sha256Hex("treasurer browser key")) };
     const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
-    const real = rekey(honestProof(), { treasurer: { ...w1, kind: "app" }, chair });
+    const real = rekey(honestProof(), { treasurer: { ...w1, kind: "web" }, chair });
     expect(verify(real.proof, real.trust)).toMatchObject({ ok: true, status: "verified", sampleKeys: [] });
     // The trust registry's kind decides: published as web_demo, the same key is a sample even
-    // though the bundle's own ledger registers it as app.
-    const demoTrust: ProofTrust = {
-      ...real.trust,
-      officers: real.trust.officers.map((k) => (k.keyId === w1.keyId ? { ...k, kind: "web_demo" } : k)),
-    };
-    expect(verify(real.proof, demoTrust).status).toBe("failed");
-    expect(verify(real.proof, demoTrust, { demoMode: true })).toMatchObject({
-      status: "sample",
-      sampleKeys: ["fs-analyn-w1"],
-    });
+    // though the bundle's own ledger registers it as web. Published as app, its w ID does not fit
+    // the kind, so it is a sample too.
+    for (const kind of ["web_demo", "app"] as const) {
+      const trust: ProofTrust = {
+        ...real.trust,
+        officers: real.trust.officers.map((k) => (k.keyId === w1.keyId ? { ...k, kind } : k)),
+      };
+      expect(verify(real.proof, trust).status, kind).toBe("failed");
+      expect(verify(real.proof, trust, { demoMode: true }), kind).toMatchObject({
+        status: "sample",
+        sampleKeys: ["fs-analyn-w1"],
+      });
+    }
   });
 
-  it("a labelled demo ID (fs-{persona}-demo-{6}) never verifies, whatever kind it is published as", () => {
-    const demo = {
-      keyId: "fs-analyn-demo-a1b2c3",
-      pair: ed25519FromSeed(sha256Hex("judge demo key")),
-      kind: "app" as const,
-    };
+  it("a published key list with a C-13 demo key (fs-{persona}-demo-{6}) parses and reads sample in demo mode", () => {
+    const pair = ed25519FromSeed(sha256Hex("judge demo key"));
     const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
-    const { proof, trust } = rekey(honestProof(), { treasurer: demo, chair });
-    expect(verify(proof, trust).ok).toBe(false);
-    expect(verify(proof, trust).status).not.toBe("verified");
-    expect(verify(proof, trust, { demoMode: true }).status).not.toBe("verified");
+    // Published as web_demo (the honest label), and as web or app (a mislabelled demo ID).
+    for (const kind of ["web_demo", "web", "app"] as const) {
+      const demo = { keyId: "fs-analyn-demo-a1b2c3", pair, kind };
+      const { proof, trust } = rekey(honestProof(), { treasurer: demo, chair });
+      const published: PublishedKeys = { v: 1, ...trust };
+      const strict = verify(proof, published);
+      expect(strict, kind).toMatchObject({ ok: false, status: "failed" });
+      expect(strict.plates.twoKeys.reason, kind).toBe(
+        "A signature uses a sample key, so this Proof can only read as a Sample.",
+      );
+      const demoMode = verify(proof, published, { demoMode: true });
+      expect(demoMode.plates, kind).toEqual(ALL_OK);
+      expect(demoMode, kind).toMatchObject({
+        ok: false,
+        status: "sample",
+        sampleKeys: ["fs-analyn-demo-a1b2c3"],
+      });
+    }
   });
 
   it("a seeded ledger key ID pinned with kind server still makes the checkpoint a sample", () => {

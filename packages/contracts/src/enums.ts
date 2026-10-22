@@ -13,7 +13,8 @@ export type Role = z.infer<typeof Role>;
 export const ActorKind = z.enum(["human", "agent", "engine", "paypal", "system"]);
 export type ActorKind = z.infer<typeof ActorKind>;
 
-export const DeviceKeyKind = z.enum(["app", "web_demo"]);
+/** S3 `device_keys.kind`: an app key, a persisted browser key, or a judge-session demo key (C-13). */
+export const DeviceKeyKind = z.enum(["app", "web", "web_demo"]);
 export type DeviceKeyKind = z.infer<typeof DeviceKeyKind>;
 
 // ---------------------------------------------------------------- pay run

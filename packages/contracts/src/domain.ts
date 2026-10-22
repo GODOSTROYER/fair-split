@@ -32,6 +32,7 @@ import {
   IsoDateTime,
   Json,
   KeyId,
+  LedgerKeyId,
   MemberNo,
   NonNegCents,
   PlotNo,
@@ -542,11 +543,13 @@ export const SignedApproval = z.strictObject({
 export type SignedApproval = z.infer<typeof SignedApproval>;
 
 /**
- * How a signing key came to exist. `app` is a person's own device key. `web_demo` is a labelled
- * browser key made for one judge session (C-13) and `seeded` derives from public text: both are
- * sample keys, so a Proof they sign reads "Sample", never "Verified".
+ * How a signing key came to exist (S3 `device_keys.kind`, plus `seeded`). `app` is a person's app
+ * key (`fs-{persona}-a{n}`) and `web` a persisted browser key (`fs-{persona}-w{n}`, the treasurer's
+ * `fs-analyn-w1`). `web_demo` is a labelled browser key made for one judge session (C-13) and
+ * `seeded` derives from public text: both are sample keys, so a Proof they sign reads "Sample",
+ * never "Verified". Ledger keys have their own kinds (`LedgerKey.kind`: `server` or `seeded`).
  */
-export const SigningKeyKind = z.enum(["app", "web_demo", "seeded"]);
+export const SigningKeyKind = z.enum(["app", "web", "web_demo", "seeded"]);
 export type SigningKeyKind = z.infer<typeof SigningKeyKind>;
 export const SAMPLE_KEY_KINDS: readonly SigningKeyKind[] = ["web_demo", "seeded"];
 
@@ -564,10 +567,6 @@ export const OfficerKey = z.strictObject({
   revokedAt: IsoDateTime.nullable(),
 });
 export type OfficerKey = z.infer<typeof OfficerKey>;
-
-/** The server's ledger signing key: `fs-ledger-k{n}`; a seed-only key is `fs-ledger-s{n}`. */
-export const LedgerKeyId = z.string().regex(/^fs-ledger-[ks]\d+$/);
-export type LedgerKeyId = z.infer<typeof LedgerKeyId>;
 
 /**
  * A pinned ledger key. `seeded` derives from public text: a checkpoint it signs reads "Sample". Once
