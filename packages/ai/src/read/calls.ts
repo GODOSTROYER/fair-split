@@ -7,6 +7,7 @@ import {
   type GatewayResult,
   inputShaOf,
   isGatewayError,
+  jsonForPrompt,
   jsonOutputFormat,
   type Lane,
   type OutputFormat,
@@ -245,14 +246,15 @@ async function screenCall(content: unknown[], inputSha: string, deps: ReadDeps):
 
 /**
  * AI-4: claude-haiku-5-5 (effort low — the gateway always sets effort; register deviation 1), the
- * variant-A image plus every transcribed string JSON-encoded inside <transcription>.
+ * variant-A image plus every transcribed string inside <transcription>, JSON-encoded by
+ * `jsonForPrompt` so no transcribed text can close the block (S4.7 layer 5).
  */
 export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promise<ScreenOutcome> {
   return screenCall(
     [
       { type: "text", text: "Image 0:" },
       imageBlock(input.jpegA, { boxes: false }),
-      { type: "text", text: `<transcription>${JSON.stringify(input.transcription)}</transcription>` },
+      { type: "text", text: `<transcription>${jsonForPrompt(input.transcription)}</transcription>` },
     ],
     imageIdentity(input.documentSha256, {
       screen: "A",
@@ -282,7 +284,7 @@ export async function rescreenStrings(input: RescreenInput, deps: ReadDeps): Pro
         type: "text",
         text: "Transcription only (no image): every remaining string two readers copied from the document.",
       },
-      { type: "text", text: `<transcription>${JSON.stringify(input.strings)}</transcription>` },
+      { type: "text", text: `<transcription>${jsonForPrompt(input.strings)}</transcription>` },
     ],
     imageIdentity(input.documentSha256, {
       screen: "remaining",
