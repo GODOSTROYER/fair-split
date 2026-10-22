@@ -1,0 +1,423 @@
+/**
+ * TEMPORARY SHIM: replace with @fairsplit/api-client after WS-API merges.
+ *
+ * IC-08 as the app needs it: typed DTOs, an HTTP client for the register §4 commands, and
+ * `subscribe(scope, onEvent)` over SSE with Last-Event-ID replay. Routes the register does not list
+ * (statement, co-sign summary, approval payload, device keys, push tokens) follow S3 where it names them and are
+ * marked `shim-defined` otherwise, for WS-API to confirm.
+ */
+import { createParser, type EventSourceMessage } from "eventsource-parser";
+import type {
+  ApiErrorCode,
+  AppRole,
+  ApprovalPayload,
+  ApprovalRole,
+  BatchItem,
+  HoldKind,
+  ItemStatus,
+  Lang,
+  LineState,
+  Provenance,
+  RunEvent,
+} from "./contracts";
+
+/* ------------------------------------------------------------------ DTOs */
+
+export type ApiResult<T> = { ok: true; value: T } | { ok: false; code: ApiErrorCode; status?: number };
+
+export interface PairClaimRequest {
+  token?: string;
+  code6?: string;
+  device: { platform: "android" | "ios" | "web"; appVersion: string };
+}
+
+export interface PairClaimResponse {
+  /** A device bearer token (APK) or a 2-hour frame token (web). */
+  kind: "device" | "frame";
+  bearer: string;
+  expiresAt: string;
+  workspaceId: string;
+  persona: string;
+  role: AppRole;
+  memberNo?: string;
+  displayName: string;
+  lang?: Lang;
+}
+
+export interface StatementSlip {
+  serial: string;
+  netGrams: number;
+  deliveredOn: string;
+  /** 720 px WebP crop from the reviewed fixture (IC-11); null until WS-MEDIA lands. */
+  cropUrl: string | null;
+  provisional?: boolean;
+}
+
+export interface StatementHistoryEntry {
+  kind: "approved" | "sent" | "paid" | "cash-due" | "received" | "held";
+  at: string;
+  by?: readonly string[];
+}
+
+export interface StatementAudioClip {
+  id: string;
+  url: string;
+  mentions?: readonly string[];
+}
+
+export interface StatementDTO {
+  lineId: string;
+  runId: string;
+  runSlug: string;
+  provenance: Provenance;
+  coop: { name: string; place: string };
+  season: { code: string; id: string };
+  payer: { short: string };
+  member: {
+    memberNo: string;
+    displayName: string;
+    nameByLang: Readonly<Record<Lang, string>>;
+    lang: Lang;
+    audioFirst: boolean;
+  };
+  treasurer: { first: string; name: string; initials: string };
+  rail: "PAYPAL" | "CASH";
+  lineState: LineState;
+  item: { senderItemId: string; status: ItemStatus | null; updatedAt: string | null } | null;
+  kilos: { netGrams: number; grade1Grams: number };
+  amounts: {
+    premiumCents: number;
+    bonusCents: number;
+    deductions: readonly { ruleId: string; label: string; cents: number }[];
+    creditsCents: number;
+    netCents: number;
+  };
+  premiumRatePerKg: string;
+  fx: { phpPerUsd: string };
+  slips: readonly StatementSlip[];
+  history: readonly StatementHistoryEntry[];
+  rateCard: { id: string; sha256: string; ratifiedAt: string };
+  batchSha256: string | null;
+  cashDay: string | null;
+  expectedDate: string | null;
+  sentences: Readonly<Record<Lang, readonly { id: string; text: string }[]>>;
+  /** `media/audio/manifest.json` clips (IC-11); null until WS-MEDIA renders them. */
+  audio: Readonly<Partial<Record<Lang, readonly StatementAudioClip[]>>> | null;
+}
+
+export interface CosignHold {
+  id: string;
+  kind: HoldKind;
+  summary: string;
+  resolvedBy: string;
+  resolvedAt: string;
+}
+
+export interface CosignRequestDTO {
+  runId: string;
+  runSlug: string;
+  seasonId: string;
+  seasonCode: string;
+  state: "request" | "override" | "expired" | "signed" | "declined";
+  provenance: Provenance;
+  totalCents: number;
+  itemCount: number;
+  currency: "USD";
+  thresholdCents: number;
+  reason: "batch-over-threshold" | "line-over-threshold" | "override";
+  rateCardSha256: string;
+  senderBatchId: string;
+  batchSha256: string;
+  items: readonly (BatchItem & { memberNo: string })[];
+  holds: readonly CosignHold[];
+  treasurerSigned: { keyId: string; at: string } | null;
+  presence: { persona: string; view: string; at: string } | null;
+  expiresAt: string;
+}
+
+export interface ApprovalSubmission {
+  role: ApprovalRole;
+  keyId: string;
+  payload: ApprovalPayload;
+  /** Ed25519 signature over the JCS bytes of `payload`, lowercase hex. */
+  signature: string;
+}
+
+export interface DeviceKeyRegistration {
+  keyId: string;
+  publicKey: string;
+  kind: "app" | "web_demo";
+  biometricClass: "biometric-bound" | "pin-gated" | "none";
+}
+
+export interface CaptureMeta {
+  /** UUIDv7, sent as the Idempotency-Key. */
+  id: string;
+  sha256Hex: string;
+  bytes: number;
+  mime: string;
+  capturedAt: string;
+  station: string;
+  memberHint?: string | null;
+}
+
+export interface CaptureUploadResult {
+  documentId: string;
+  exactDuplicateOf: string | null;
+  rowsRead: number | null;
+  serial: string | null;
+}
+
+export type RunEventListener = (e: RunEvent) => void;
+
+export interface FairSplitApi {
+  readonly mode: "live" | "demo";
+  claimPairing(req: PairClaimRequest): Promise<ApiResult<PairClaimResponse>>;
+  getStatement(): Promise<ApiResult<StatementDTO>>;
+  getStatementByLink(token: string): Promise<ApiResult<StatementDTO>>;
+  getCosignRequest(runSlug: string): Promise<ApiResult<CosignRequestDTO>>;
+  getApprovalPayload(runSlug: string, role: ApprovalRole): Promise<ApiResult<ApprovalPayload>>;
+  postApproval(runSlug: string, body: ApprovalSubmission): Promise<ApiResult<{ accepted: true }>>;
+  declineApproval(
+    runSlug: string,
+    body: { role: ApprovalRole; reason: string },
+  ): Promise<ApiResult<{ ok: true }>>;
+  registerDeviceKey(body: DeviceKeyRegistration): Promise<ApiResult<{ ok: true }>>;
+  postReviewRequest(body: {
+    lineId: string;
+    slip?: string;
+    note?: string;
+  }): Promise<ApiResult<{ id: string }>>;
+  postPresence(body: { view: string }): Promise<ApiResult<{ ok: true }>>;
+  registerPushToken(body: { token: string; platform: string }): Promise<ApiResult<{ ok: true }>>;
+  /** Absolute URL for native background uploads (expo-file-system `File.upload`). */
+  captureUrl(): string;
+  uploadCapture(meta: CaptureMeta, body: Uint8Array | Blob): Promise<ApiResult<CaptureUploadResult>>;
+  subscribe(scope: string, onEvent: (e: RunEvent) => void, opts?: SubscribeOptions): () => void;
+}
+
+/* ------------------------------------------------------------------ HTTP */
+
+export interface HttpApiOptions {
+  origin: string;
+  getBearer: () => string | null;
+  fetch?: typeof fetch;
+  /** Streaming fetch for SSE (`expo/fetch` on native). Defaults to `fetch`. */
+  streamingFetch?: typeof fetch;
+}
+
+const STATUS_CODES: Readonly<Record<number, ApiErrorCode>> = {
+  401: "UNAUTHENTICATED",
+  429: "RATE_LIMITED",
+};
+
+async function errorCode(res: Response): Promise<ApiErrorCode> {
+  try {
+    const body = (await res.json()) as { error?: { code?: string } };
+    const code = body?.error?.code;
+    if (code) return code as ApiErrorCode;
+  } catch {
+    // Non-JSON error bodies fall through to the status mapping.
+  }
+  return STATUS_CODES[res.status] ?? "NETWORK";
+}
+
+export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
+  const origin = opts.origin.replace(/\/+$/, "");
+  // Resolved per call, so polyfills and test interceptors installed later are honoured.
+  const doFetch: typeof fetch = (input, init) => (opts.fetch ?? globalThis.fetch)(input, init);
+
+  function headers(extra?: Record<string, string>): Record<string, string> {
+    const h: Record<string, string> = { Accept: "application/json", ...extra };
+    const bearer = opts.getBearer();
+    if (bearer) h.Authorization = `Bearer ${bearer}`;
+    return h;
+  }
+
+  async function call<T>(method: string, path: string, body?: unknown, extra?: Record<string, string>) {
+    let res: Response;
+    try {
+      res = await doFetch(`${origin}${path}`, {
+        method,
+        headers: headers(body === undefined ? extra : { "Content-Type": "application/json", ...extra }),
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      return { ok: false, code: "NETWORK" } as const;
+    }
+    if (!res.ok) return { ok: false, code: await errorCode(res), status: res.status } as const;
+    return { ok: true, value: (await res.json()) as T } as const;
+  }
+
+  return {
+    mode: "live",
+    async claimPairing(req) {
+      const r = await call<PairClaimResponse>("POST", "/v1/pairing/claim", req);
+      if (r.ok || r.code !== "NETWORK" || r.status === undefined) return r;
+      // Map bare statuses when the server sends no error code.
+      if (r.status === 410) return { ok: false, code: "PAIRING_EXPIRED", status: 410 };
+      if (r.status === 409) return { ok: false, code: "PAIRING_USED", status: 409 };
+      if (r.status === 404 || r.status === 400)
+        return { ok: false, code: "PAIRING_INVALID", status: r.status };
+      return r;
+    },
+    getStatement: () => call<StatementDTO>("GET", "/v1/members/me/statement"), // shim-defined
+    getStatementByLink: (token) =>
+      call<StatementDTO>("GET", `/v1/statements/link/${encodeURIComponent(token)}`), // shim-defined
+    getCosignRequest: (slug) => call<CosignRequestDTO>("GET", `/v1/runs/${encodeURIComponent(slug)}/cosign`), // shim-defined
+    getApprovalPayload: (slug, role) =>
+      call<ApprovalPayload>("GET", `/v1/runs/${encodeURIComponent(slug)}/approval-payload?role=${role}`),
+    postApproval: (slug, body) =>
+      call<{ accepted: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals`, body),
+    declineApproval: (slug, body) =>
+      call<{ ok: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals/decline`, body),
+    registerDeviceKey: (body) => call<{ ok: true }>("POST", "/v1/device-keys", body), // shim-defined
+    postReviewRequest: (body) => call<{ id: string }>("POST", "/v1/review-requests", body),
+    postPresence: (body) => call<{ ok: true }>("POST", "/v1/presence", body),
+    registerPushToken: (body) => call<{ ok: true }>("POST", "/v1/push-tokens", body), // shim-defined
+    captureUrl: () => `${origin}/v1/captures`,
+    async uploadCapture(meta, body) {
+      let res: Response;
+      try {
+        res = await doFetch(`${origin}/v1/captures`, {
+          method: "POST",
+          headers: headers({
+            "Content-Type": meta.mime,
+            "Idempotency-Key": meta.id,
+            "Content-Digest": contentDigestHeader(meta.sha256Hex),
+            "X-Capture-Meta": JSON.stringify({
+              capturedAt: meta.capturedAt,
+              station: meta.station,
+              memberHint: meta.memberHint ?? null,
+              bytes: meta.bytes,
+            }),
+          }),
+          body: body as BodyInit,
+        });
+      } catch {
+        return { ok: false, code: "NETWORK" };
+      }
+      if (!res.ok) return { ok: false, code: await errorCode(res), status: res.status };
+      return { ok: true, value: (await res.json()) as CaptureUploadResult };
+    },
+    subscribe(scope, onEvent, sopts) {
+      return subscribeSse({
+        url: `${origin}${scopePath(scope)}`,
+        fetch: opts.streamingFetch ?? doFetch,
+        getBearer: opts.getBearer,
+        onEvent,
+        ...sopts,
+      });
+    },
+  };
+}
+
+function scopePath(scope: string): string {
+  const [kind, id] = scope.split(":");
+  if (kind === "run" && id) return `/v1/runs/${encodeURIComponent(id)}/events`;
+  if (kind === "ws" && id) return `/v1/workspaces/${encodeURIComponent(id)}/events`;
+  throw new RangeError(`Unknown subscription scope: ${scope}`);
+}
+
+/* ------------------------------------------------------------------ Content-Digest (RFC 9530) */
+
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+export function base64(bytes: Uint8Array): string {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i] ?? 0;
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+    const n = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    out += B64[(n >> 18) & 63];
+    out += B64[(n >> 12) & 63];
+    out += b === undefined ? "=" : B64[(n >> 6) & 63];
+    out += c === undefined ? "=" : B64[n & 63];
+  }
+  return out;
+}
+
+/** `sha-256=:<base64>:` for a lowercase hex sha256. */
+export function contentDigestHeader(sha256Hex: string): string {
+  if (!/^[0-9a-f]{64}$/.test(sha256Hex)) throw new RangeError("sha256 must be 64 lowercase hex characters");
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) bytes[i] = Number.parseInt(sha256Hex.slice(i * 2, i * 2 + 2), 16);
+  return `sha-256=:${base64(bytes)}:`;
+}
+
+/* ------------------------------------------------------------------ SSE */
+
+export interface SubscribeOptions {
+  lastEventId?: string | null;
+  /** Called with `true` when the stream is up and `false` while reconnecting. */
+  onStatus?: (connected: boolean) => void;
+  /** Backoff from 0.5 s to 8 s (S3.7). Injectable for tests. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+interface SseInternal extends SubscribeOptions {
+  url: string;
+  fetch: typeof fetch;
+  getBearer: () => string | null;
+  onEvent: (e: RunEvent) => void;
+}
+
+export const SSE_BACKOFF_MS = [500, 1000, 2000, 4000, 8000] as const;
+
+/**
+ * fetch + eventsource-parser, so the bearer token rides in a header (EventSource cannot set one) and native can use
+ * `expo/fetch` streaming. Reconnects with backoff and replays from Last-Event-ID.
+ */
+export function subscribeSse(o: SseInternal): () => void {
+  let stopped = false;
+  let lastId = o.lastEventId ?? null;
+  let controller: AbortController | null = null;
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  (async () => {
+    let attempt = 0;
+    while (!stopped) {
+      controller = new AbortController();
+      try {
+        const h: Record<string, string> = { Accept: "text/event-stream" };
+        const bearer = o.getBearer();
+        if (bearer) h.Authorization = `Bearer ${bearer}`;
+        if (lastId) h["Last-Event-ID"] = lastId;
+        const res = await o.fetch(o.url, { headers: h, signal: controller.signal });
+        if (!res.ok || !res.body) throw new Error(`SSE ${res.status}`);
+        attempt = 0;
+        o.onStatus?.(true);
+        const parser = createParser({
+          onEvent(msg: EventSourceMessage) {
+            if (msg.id) lastId = msg.id;
+            if (!msg.data) return;
+            try {
+              o.onEvent(JSON.parse(msg.data) as RunEvent);
+            } catch {
+              // A malformed frame is skipped; the next one carries on.
+            }
+          },
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done || stopped) break;
+          parser.feed(decoder.decode(value, { stream: true }));
+        }
+      } catch {
+        // Dropped streams are normal (deploys, Render's request cap); replay hides them.
+      }
+      if (stopped) break;
+      o.onStatus?.(false);
+      await sleep(SSE_BACKOFF_MS[Math.min(attempt, SSE_BACKOFF_MS.length - 1)] ?? 8000);
+      attempt++;
+    }
+  })();
+
+  return () => {
+    stopped = true;
+    controller?.abort();
+  };
+}
