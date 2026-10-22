@@ -1,6 +1,6 @@
 // SMOKE ONLY. Draws slip-template-v1 look-alikes for the gateway/reader smoke test (spike S3
 // prerequisite). C-24: eval images come from Codex image_gen only; these images live under
-// packages/ai/test/fixtures-smoke and are never part of the eval set.
+// packages/ai/src/read/smoke/fixtures and are never part of the eval set.
 import type { Box, RowField } from "../schema.js";
 
 export const SLIP_W = 1000;

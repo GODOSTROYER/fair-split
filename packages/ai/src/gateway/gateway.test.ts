@@ -368,6 +368,22 @@ describe("ClaudeGateway: streaming", () => {
     expect(replayed).toEqual(live);
   });
 
+  it("records the timeline of a streamed call nobody watched live, so a later replay can drive a view", async () => {
+    // Found by the live smoke run: the rate card streams with no snapshot consumer, and its
+    // recording came back with an empty replay_timeline and no first_delta_ms.
+    respondSse(json);
+    const gw = gateway();
+    const r = await gw.call(baseCall({ stream: true }));
+    const rec = await store.get(r.cacheKey);
+    expect(rec?.replay_timeline.length).toBeGreaterThan(3);
+    expect(rec?.replay_timeline.map((e) => e.d).join("")).toBe(json);
+    expect(rec?.first_delta_ms).not.toBeNull();
+    const replayed: string[] = [];
+    await gw.call(baseCall({ stream: true, onSnapshot: (s) => replayed.push(s) }));
+    expect(replayed.length).toBe(rec?.replay_timeline.length);
+    expect(replayed.at(-1)).toBe(json);
+  });
+
   it("paces a replay at the recorded offsets divided by the speed factor", async () => {
     respondSse(json);
     const waits: number[] = [];
@@ -375,6 +391,7 @@ describe("ClaudeGateway: streaming", () => {
     await gw.call(baseCall({ stream: true }));
     const rec = [...store.records.values()][0];
     if (!rec) throw new Error("no recording");
+    expect(rec.replay_timeline.length).toBeGreaterThan(3);
     rec.replay_timeline = rec.replay_timeline.map((e, i) => ({ ...e, ms: (i + 1) * 100 }));
     await gw.call(baseCall({ stream: true, replaySpeed: 4 }));
     expect(waits.reduce((a, b) => a + b, 0)).toBeCloseTo(rec.replay_timeline.length * 25, 5);
