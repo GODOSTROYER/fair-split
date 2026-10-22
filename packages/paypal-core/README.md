@@ -98,12 +98,21 @@ so the bearer token cannot be sent anywhere else.
    `fetched`, any row whose `delivery.certWarning` is set (`CERT_EXPIRED`, even when PayPal's postback
    confirmed it: state comes from PayPal's GET, never from an expired-certificate body) and a verified
    row with no `delivery` record change state only after a fresh GET.
+8. Rejections (forged, stale, replayed, malformed): 400 and a `rejected` `webhook_events` row (body
+   truncated to 8 KB), **rate-limited**: the first 10 per client address (IPv6 by /64; no address = one
+   shared count) and the first 100 overall per hour (`DEFAULT_REJECTED_ROW_LIMITS`; S3 "≤ 100 rows an
+   hour", E-18 "at most 100 stored rejects"). The rest are only counted in `handler.health()` (counters,
+   never a body or an address) and logged once per window. A rejection that writes no row (identical
+   junk, failed insert) gives its slot back. Tested: 1,000 forged deliveries store at most 100 rows (10
+   from one address) and make no PayPal call.
 
 `verifier.health()` reports `ok | degraded` with plain-language `problems` and their codes in `alerts`:
 `CERT_FETCH_THROTTLED` (persistent throttling, above), `SIGNED_WITH_EXPIRED_CERT`, `KNOWN_CERT_FETCH_FAILED`
 (a known certificate URL that can no longer be fetched), `SIGNING_CERT_EXPIRED` and `SIGNING_CERT_EXPIRING`
-(fewer than 14 days left). `certFetchThrottled` and `rejected` count throttled deliveries below the threshold. WS-API: put it in the `/readyz` body as `webhooks`, but never fail
-readiness on it (Render's health check would restart a healthy process); show it on `/ops`.
+(fewer than 14 days left). `certFetchThrottled` and `rejected` count throttled deliveries below the
+threshold. The route's `handler.health()` reports rejected rows stored and not stored. WS-API: put both
+in the `/readyz` body (`webhooks`, `webhookRoute`), but never fail readiness on them (Render's health
+check would restart a healthy process); show them on `/ops`.
 
 ## Spike results
 
@@ -163,7 +172,8 @@ readiness on it (Render's health check would restart a healthy process); show it
   applies; a restart forgets ids, and event-id dedupe still stops a second apply.
 - **For WS-API:** mount `honoPayPalWebhook(handler)`; it takes the client address from the rightmost
   `X-Forwarded-For` entry (Render appends the connecting address; UNVERIFIED, confirm at S5 and pass
-  `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`.
+  `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`
+  and `now` (the app clock), and report `handler.health()`.
 - Until WS-API scaffolds `apps/api`, the webhook route is typechecked by `tsconfig.consumers.json` and
   tested by the `api-webhooks` vitest project here.
 
