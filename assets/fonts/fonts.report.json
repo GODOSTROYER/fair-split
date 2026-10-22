@@ -1,0 +1,150 @@
+{
+  "sizes": {
+    "web/FSSans-VF.woff2": 120260,
+    "web/FSSans-Proof.woff2": 67892,
+    "web/FSSansPeso.woff2": 2076,
+    "web/FSNumeralsHollow.woff2": 2348,
+    "web/FSStencil.woff2": 3728,
+    "web/AtkinsonNext-VF.woff2": 22388,
+    "native/FSSans-CondXBold.ttf": 49384,
+    "native/FSSans-SemiCondMedium.ttf": 49616,
+    "native/FSSans-Regular.ttf": 49712,
+    "native/FSSans-SemiExpBold.ttf": 49676,
+    "native/AtkinsonNext-Regular.ttf": 36656,
+    "native/AtkinsonNext-Bold.ttf": 36624
+  },
+  "checks": {
+    "web/AtkinsonNext-VF.woff2": {
+      "peso": false,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "Atkinson Hyperlegible Next",
+        "4": "Atkinson Hyperlegible Next Regular",
+        "6": "AtkinsonHyperlegibleNext-Regular"
+      },
+      "glyphs": 340
+    },
+    "web/FSNumeralsHollow.woff2": {
+      "peso": true,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FS Numerals Hollow",
+        "4": "FS Numerals Hollow",
+        "6": "FSNumeralsHollow-Regular"
+      },
+      "glyphs": 20
+    },
+    "web/FSSans-Proof.woff2": {
+      "peso": false,
+      "zeroContours": 2,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FS Sans",
+        "4": "FS Sans",
+        "6": "FSSans-Regular"
+      },
+      "glyphs": 240
+    },
+    "web/FSSans-VF.woff2": {
+      "peso": false,
+      "zeroContours": 2,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FS Sans",
+        "4": "FS Sans",
+        "6": "FSSans-Regular"
+      },
+      "glyphs": 392
+    },
+    "web/FSSansPeso.woff2": {
+      "peso": true,
+      "zeroContours": null,
+      "tnumZeroContours": null,
+      "names": {
+        "1": "FS Sans Peso",
+        "4": "FS Sans Peso Regular",
+        "6": "FSSansPeso-Regular"
+      },
+      "glyphs": 2
+    },
+    "web/FSStencil.woff2": {
+      "peso": false,
+      "zeroContours": 2,
+      "tnumZeroContours": 2,
+      "names": {
+        "1": "FS Stencil",
+        "4": "FS Stencil",
+        "6": "FSStencil-Regular"
+      },
+      "glyphs": 39
+    },
+    "native/AtkinsonNext-Bold.ttf": {
+      "peso": false,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "AtkinsonNext-Bold",
+        "4": "AtkinsonNext-Bold",
+        "6": "AtkinsonNext-Bold"
+      },
+      "glyphs": 330
+    },
+    "native/AtkinsonNext-Regular.ttf": {
+      "peso": false,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "AtkinsonNext-Regular",
+        "4": "AtkinsonNext-Regular",
+        "6": "AtkinsonNext-Regular"
+      },
+      "glyphs": 330
+    },
+    "native/FSSans-CondXBold.ttf": {
+      "peso": true,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FSSans-CondXBold",
+        "4": "FSSans-CondXBold",
+        "6": "FSSans-CondXBold"
+      },
+      "glyphs": 373
+    },
+    "native/FSSans-Regular.ttf": {
+      "peso": true,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FSSans-Regular",
+        "4": "FSSans-Regular",
+        "6": "FSSans-Regular"
+      },
+      "glyphs": 373
+    },
+    "native/FSSans-SemiCondMedium.ttf": {
+      "peso": true,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FSSans-SemiCondMedium",
+        "4": "FSSans-SemiCondMedium",
+        "6": "FSSans-SemiCondMedium"
+      },
+      "glyphs": 373
+    },
+    "native/FSSans-SemiExpBold.ttf": {
+      "peso": true,
+      "zeroContours": 3,
+      "tnumZeroContours": 3,
+      "names": {
+        "1": "FSSans-SemiExpBold",
+        "4": "FSSans-SemiExpBold",
+        "6": "FSSans-SemiExpBold"
+      },
+      "glyphs": 373
+    }
+  }
+}

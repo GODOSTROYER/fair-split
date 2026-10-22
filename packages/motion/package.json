@@ -8,11 +8,31 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./presets": {
+      "types": "./src/presets.ts",
+      "default": "./src/presets.ts"
+    },
+    "./moments": {
+      "types": "./src/moments.ts",
+      "default": "./src/moments.ts"
+    },
+    "./web": {
+      "types": "./src/web.ts",
+      "default": "./src/web.ts"
+    },
+    "./native": {
+      "types": "./src/native.ts",
+      "default": "./src/native.ts"
+    },
+    "./sound": {
+      "types": "./src/sound/recipes.ts",
+      "default": "./src/sound/recipes.ts"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {},
   "devDependencies": {

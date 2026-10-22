@@ -1,0 +1,41 @@
+{
+  "name": "@fairsplit/console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vite SPA: Judge stage, Console, Proof, /ops and the G1 design prototype at /prototype",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@fairsplit/i18n": "workspace:*",
+    "@fairsplit/motion": "workspace:*",
+    "@fairsplit/seal": "workspace:*",
+    "@fairsplit/tokens": "workspace:*",
+    "@fairsplit/ui-web": "workspace:*",
+    "@tanstack/react-router": "catalog:",
+    "motion": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

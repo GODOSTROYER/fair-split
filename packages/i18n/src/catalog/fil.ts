@@ -1,0 +1,65 @@
+// Filipino (Tagalog): one tap away on every member surface. Machine-translated, pending native review (OD-2)
+// until a native speaker signs each key off in REVIEW.md. "po" marks respect; the honorific (Gng., G.) comes
+// from the member registry inside {name}.
+
+import type { Catalog } from "./en.js";
+
+export const fil = {
+  "status.COMPUTED": "Sinusuri pa po",
+  "status.READY": "Sinusuri pa po",
+  "status.HELD": "Sinusuri pa po",
+  "status.EXCLUDED": "Ililipat po sa susunod na bayad",
+  "status.LOCKED": "Naipadala na po, hinihintay ang PayPal",
+  "status.SUBMITTED": "Naipadala na po, hinihintay ang PayPal",
+  "status.PAYPAL_PENDING": "Naipadala na po, hinihintay ang PayPal",
+  "status.PAID": "Bayad na po",
+  "status.OFF_RAIL_DUE": "Handa na po sa bodega",
+  "status.OFF_RAIL_PAID": "Natanggap na po",
+  "status.UNCLAIMED": "Hindi po natanggap sa PayPal",
+  "status.RETURNED": "Ibinalik po sa co-op",
+  "status.REROUTED": "Ipinadala pong muli",
+  "status.PAYPAL_HELD": "Hinahawakan po ng PayPal",
+  "status.NEEDS_ACTION": "Hindi po natuloy sa PayPal",
+  "status.REVERSED": "Binawi po",
+
+  "money.estimate": "humigit-kumulang {php} (tantiya)",
+
+  "app.tab.bayad": "Bayad",
+  "app.tab.resibo": "Resibo",
+  "app.tab.pangutana": "Tanong",
+
+  "M-MB-01.season": "Season {season}",
+  "M-MB-01.greeting": "Magandang araw po, {name}. Salamat po sa inyong pagsisikap.",
+  "M-MB-01.checking": "Sinusuri pa po",
+  "M-MB-01.checkingDetail": "{kg} mula sa {count} na resibo. Inaasahan po ang bayad sa {date}.",
+  "M-MB-01.sent": "Naipadala na po, hinihintay ang PayPal {elapsed}",
+  "M-MB-01.paid": "Bayad na po, {date}",
+  "M-MB-01.cashDue": "Handa na po sa bodega, {date}",
+  "M-MB-01.received": "Natanggap na po",
+  "M-MB-01.unclaimed":
+    "Hindi po natanggap sa PayPal. Si Treasurer Analyn ang magpapasya kung ililipat ito sa cash.",
+  "M-MB-01.heldLine": "Sinusuri pa po ang isang linya. Si Treasurer Analyn ang magpapasya.",
+  "M-MB-01.offline": "Huling kopya, {time}",
+  "M-MB-01.listen": "Pakinggan",
+  "M-MB-01.premium": "Premium",
+  "M-MB-01.noDeductions": "walang kaltas",
+  "M-MB-01.bonus": "Bonus",
+  "M-MB-01.rule": "{rule}, {card}",
+  "M-MB-01.kgRate": "{kg} × {rate} bawat kg ({rule}). Walang kaltas.",
+  "M-MB-01.slips": "Mga resibo",
+  "M-MB-01.history": "Kasaysayan",
+  "M-MB-01.history.approved": "Inaprubahan nina {a} at {b}",
+  "M-MB-01.history.sent": "Naipadala",
+  "M-MB-01.history.paid": "Bayad na po",
+  "M-MB-01.footer": "Rate card {hash}, inaprubahan ng Board",
+  "M-MB-01.questions": "May tanong po kayo? Lumapit po kay Treasurer {treasurer} sa bodega.",
+  "M-MB-01.recheck": "Ipasuri muli",
+  "M-MB-01.amountSpoken": "{amount}, {estimate}",
+  "M-BD-01.push": "Pumirma po sa Season {season}: {count} na bayad, {amount}",
+  "M-BD-01.why": "Lumampas po ang batch sa {threshold}.",
+  "M-BD-01.analyn": "Nasa approval screen po si Analyn",
+  "M-BD-02.sign": "Pumirma",
+  "M-BD-02.hint": "Pindutin nang matagal, saka gamitin ang inyong fingerprint.",
+  "M-BD-02.signed": "Napirmahan na po. Key {key}. Tugma ang batch hash sa console.",
+  "M-BD-02.demo": "Demo key (ang browser na ito)",
+} as const satisfies Partial<Catalog>;
