@@ -50,5 +50,7 @@ returned item (`n` is the returned item's own n + 1; a retry resumes the same id
 
 `createPayoutBatch` and `cancelUnclaimedPayoutItem` are not exported: money moves only through the
 service. Shims in `src/_shims/` stand in for `@fairsplit/paypal-core`, `domain` and `contracts`.
-`zod-to-json-schema` is a dev dependency only: `scripts/gen-read-schemas.ts` regenerates
-`src/agent-read-schemas.ts`, and a test fails if the checked-in schemas drift.
+The agent's two read-tool schemas are checked in (`src/agent-read-schemas.ts`); `scripts/gen-read-schemas.ts`
+regenerates them with `scripts/zod-json-schema.ts`, a dev-only converter for exactly the zod those two
+schemas use, and a test fails on drift. `zod-to-json-schema` (pinned for the S2 fallback only) is not a
+dependency.

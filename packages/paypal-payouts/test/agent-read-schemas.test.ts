@@ -1,12 +1,15 @@
-// The agent's two payout read tools are declared from a checked-in JSON Schema, so the runtime needs
-// no zod-to-json-schema (the architecture pins it for the S2 fallback only). This test keeps the file
-// honest: it must equal what the converter makes from the vendored PR #107 zod schemas today.
+// The agent's two payout read tools are declared from a checked-in JSON Schema, so nothing converts
+// zod at runtime and zod-to-json-schema (pinned for the S2 fallback only) is not a runtime dependency.
+// This test keeps the file honest: it must equal what scripts/zod-json-schema.ts makes from the
+// vendored PR #107 zod schemas today.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { readToolJsonSchemas } from "../scripts/gen-read-schemas.js";
+import { UnsupportedZodError, zodObjectToJsonSchema } from "../scripts/zod-json-schema.js";
 import { AGENT_READ_TOOL_JSON_SCHEMAS } from "../src/agent-read-schemas.js";
 import { agentPayoutToolSchemas } from "../src/index.js";
 
@@ -23,6 +26,13 @@ describe("checked-in agent read-tool schemas", () => {
     const declared = first[0]?.input_schema as { required: string[] } | undefined;
     declared?.required.push("tampered");
     expect(agentPayoutToolSchemas()[0]?.input_schema).toMatchObject({ required: ["payout_batch_id"] });
+  });
+
+  it("the converter refuses zod it does not know, so the drift check cannot pass vacuously", () => {
+    expect(() => zodObjectToJsonSchema(z.object({ ids: z.array(z.string()) }))).toThrow(UnsupportedZodError);
+    expect(() => zodObjectToJsonSchema(z.object({ id: z.string().email() }))).toThrow(UnsupportedZodError);
+    expect(() => zodObjectToJsonSchema(z.object({ n: z.number().positive() }))).toThrow(UnsupportedZodError);
+    expect(() => zodObjectToJsonSchema(z.object({ id: z.string() }).strict())).toThrow(UnsupportedZodError);
   });
 
   it("leave zod-to-json-schema out of the runtime: not a dependency, never imported by src", () => {

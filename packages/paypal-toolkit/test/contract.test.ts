@@ -1,9 +1,8 @@
 // Contract tests against the real, installed @paypal/agent-toolkit 1.11.0 (S3.16 "Allowlists
 // against the real 1.11.0"). No network: building tool lists never calls PayPal.
 
-import { PayPalMCPToolkit } from "@paypal/agent-toolkit/mcp";
 import { describe, expect, it } from "vitest";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import type { z } from "zod";
 import {
   AGENT_ACTIONS,
   AGENT_TOOL_METHODS,
@@ -78,12 +77,19 @@ describe("allowlist contract: @paypal/agent-toolkit 1.11.0", () => {
     expect(() => assertToolkitAllowlists()).not.toThrow();
   });
 
-  it("documents the S2 fallback: converting the /mcp zod schemas gives the same JSON Schema", () => {
-    const mcp = new PayPalMCPToolkit({
-      accessToken: "-",
-      configuration: { actions: AGENT_ACTIONS, context: { sandbox: true } },
-    });
-    const converted = new Map(mcp.getTools().map((t) => [t.method, zodToJsonSchema(t.parameters)]));
-    for (const tool of agentToolSchemas()) expect(converted.get(tool.name)).toEqual(tool.input_schema);
+  it("declares to Claude exactly the arguments the /mcp zod validates, so the S2 fallback stays one step", () => {
+    // S2 passed (spikes/README.md): the /openai schemas are used and zod-to-json-schema is not a
+    // dependency. Should Claude ever refuse them, the fallback converts these same zod objects.
+    const zod = toolkitZodSchemas();
+    for (const tool of agentToolSchemas()) {
+      const shape = zod.get(tool.name)?.shape as Record<string, z.ZodTypeAny> | undefined;
+      expect(shape, tool.name).toBeDefined();
+      const properties = tool.input_schema.properties as Record<string, unknown>;
+      expect(Object.keys(properties), tool.name).toEqual(Object.keys(shape ?? {}));
+      const required = Object.entries(shape ?? {})
+        .filter(([, field]) => !field.isOptional())
+        .map(([key]) => key);
+      expect(tool.input_schema.required ?? [], tool.name).toEqual(required);
+    }
   });
 });

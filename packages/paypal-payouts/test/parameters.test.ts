@@ -2,7 +2,6 @@
 // adds EMAIL-only, USD-only, two decimals on top.
 
 import { describe, expect, it } from "vitest";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   cancelUnclaimedPayoutItemParameters,
   createPayoutBatchParameters,
@@ -46,10 +45,6 @@ describe("createPayoutBatchParameters (vendored from PR #107)", () => {
     expect(createPayoutBatchParameters({}).safeParse({ ...batch(), items: [] }).success).toBe(false);
     const parsed = createPayoutBatchParameters({}).parse({ ...batch(), paypal_request_id: "other-key" });
     expect(parsed).not.toHaveProperty("paypal_request_id");
-  });
-
-  it("converts to a fully inlined JSON Schema", () => {
-    expect(JSON.stringify(zodToJsonSchema(createPayoutBatchParameters({})))).not.toContain("$ref");
   });
 
   it.each([
