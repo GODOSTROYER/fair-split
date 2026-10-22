@@ -1,0 +1,2 @@
+# Downloaded upstream sources (untrusted, pinned by sha256 in fonts.lock.json). Never commit them.
+.cache/
