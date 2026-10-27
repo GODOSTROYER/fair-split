@@ -1667,6 +1667,45 @@ describe("extract: rows, rotation and coverage", () => {
     expect(n).toBe(4);
     expect(r.rotation).toBe(90);
     expect([r.width, r.height]).toEqual([1400, 1000]);
+    // The first pass's reads cost money too: every call is on the result, and in its cost.
+    expect(r.calls.map((c) => c.requestedModel)).toEqual([
+      "claude-opus-5-5",
+      "claude-opus-5-5",
+      "claude-opus-5-5",
+      "claude-opus-5-5",
+      "claude-haiku-5-5",
+    ]);
+    expect(r.costMicros).toBe(r.calls.reduce((s, c) => s + c.costMicros, 0));
+    expect(r.calls.every((c) => c.costMicros > 0)).toBe(true);
+  });
+
+  it("a read that fails fails the document with its own code, and carries every call that ran", async () => {
+    server.use(
+      http.post(MESSAGES_URL, async ({ request }) => {
+        const body = (await request.json()) as { system: Array<{ text: string }> };
+        const b = body.system[0]?.text.includes("high-contrast greyscale");
+        // Read A runs out of tokens on a dense page; read B answers.
+        return new HttpResponse(
+          sseBody(json(extraction([row()])), { stopReason: b ? "end_turn" : "max_tokens" }),
+          {
+            headers: SSE_HEADERS,
+          },
+        );
+      }),
+    );
+    const failure = await extract(
+      { docId: "doc-12", kind: "slip_page", bytes: await plainPage(), validation: ctx },
+      deps(),
+    ).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(failure).toBeInstanceOf(GatewayError);
+    const err = failure as GatewayError;
+    expect(err.code).toBe("AI_STOP_REASON");
+    expect(err.details.stopReason).toBe("max_tokens");
+    expect(err.details.calls?.map((c) => c.stopReason).sort()).toEqual(["end_turn", "max_tokens"]);
+    expect(err.details.calls?.every((c) => c.costMicros > 0)).toBe(true);
   });
 });
 

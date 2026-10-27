@@ -140,7 +140,8 @@ export async function readVariant(
     format: EXTRACTION_FORMAT,
     onSnapshot: input.onSnapshot,
   });
-  return { extraction: parseStructured(result.message, Extraction, EXTRACTION_FORMAT), result };
+  // A schema failure keeps the call's result on the error: the call ran, and its cost counts.
+  return { extraction: parseWithResult(result, Extraction, EXTRACTION_FORMAT), result };
 }
 
 export interface ZoomInput {

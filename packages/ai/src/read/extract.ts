@@ -1,4 +1,4 @@
-import { type GatewayResult, isGatewayError } from "../gateway/index.js";
+import { GatewayError, type GatewayResult, isGatewayError } from "../gateway/index.js";
 import type {
   ExtractQuarantinedEvent,
   HoldDraft,
@@ -319,13 +319,31 @@ interface Completed {
  */
 export async function extract(input: ExtractInput, deps: ReadDeps): Promise<ExtractResult> {
   let rotation: Rotation = 0;
+  // Every call of the document, a first pass before a rotation included: all of them cost money.
+  const calls: GatewayResult[] = [];
   for (let pass = 0; pass < 2; pass++) {
     const prep = await prepareImage(input.bytes, { rotation });
-    const outcome = await runPass(input, deps, prep, pass === 0);
+    const outcome = await runPass(input, deps, prep, pass === 0, calls);
     if (outcome.result) return outcome.result;
     rotation = outcome.rotate ?? 0;
   }
   throw new Error("unreachable: the second pass never asks to rotate");
+}
+
+/**
+ * A read failed, so the document does: the error keeps the code callers act on (a replay miss stays
+ * AI_LIVE_DISABLED, a stop reason AI_STOP_REASON) and carries in `details.calls` every call that ran
+ * (an earlier pass, the sibling read, the failed call itself when it ran), so their cost counts.
+ */
+function withCalls(err: unknown, calls: readonly GatewayResult[]): unknown {
+  if (!isGatewayError(err)) return err;
+  const ran = err.details.result ? [...calls, err.details.result] : [...calls];
+  return new GatewayError(
+    err.code,
+    err.message.replace(/^[A-Z_]+: /, ""),
+    { ...err.details, calls: ran },
+    err,
+  );
 }
 
 async function runPass(
@@ -333,6 +351,7 @@ async function runPass(
   deps: ReadDeps,
   prep: PreparedImage,
   mayRotate: boolean,
+  calls: GatewayResult[],
 ): Promise<PassOutcome> {
   const events: ReadingEvent[] = [];
   const emit = (e: ReadingEvent) => {
@@ -343,7 +362,6 @@ async function runPass(
   const W = prep.width;
   const H = prep.height;
   const slots = reviewedSlots(input.fixture, W, H);
-  const calls: GatewayResult[] = [];
 
   const slotKey = (slipBox: Box | null, idx: number): string => {
     if (slots.length > 0 && slipBox && !isZeroBox(slipBox)) {
@@ -632,7 +650,8 @@ async function runPass(
   const trackB = tracker("B");
   const seasonLabel = input.seasonLabel ?? "Season 2026-A";
   const kind = input.kind === "slip_photo" ? "photo" : "page";
-  const [ra, rb] = await Promise.all(
+  // Both reads settle before either failure is thrown, so the sibling's call is accounted for.
+  const settled = await Promise.allSettled(
     (["A", "B"] as const).map((variant) =>
       readVariant(
         {
@@ -648,8 +667,11 @@ async function runPass(
       ),
     ),
   );
+  for (const s of settled) if (s.status === "fulfilled") calls.push(s.value.result);
+  const failed = settled.find((s): s is PromiseRejectedResult => s.status === "rejected");
+  if (failed) throw withCalls(failed.reason, calls);
+  const [ra, rb] = settled.map((s) => (s.status === "fulfilled" ? s.value : null));
   if (!ra || !rb) throw new Error("unreachable: two reads were started");
-  calls.push(ra.result, rb.result);
 
   // A page reported as rotated is rotated by code and read once more.
   if (mayRotate && ra.extraction.page.rotation !== "0") {
