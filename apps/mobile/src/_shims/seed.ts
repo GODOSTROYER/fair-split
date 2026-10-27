@@ -1,14 +1,33 @@
 /**
- * TEMPORARY SHIM: replace with the @fairsplit/seed snapshot (`packages/seed/snapshot/season-2026A.json`, IC-03)
- * after WS-CORE merges.
+ * The demo fixture (IC-03): the seed's run r37 for everything a signature binds, and a local fixture for the rest.
  *
- * A local fixture for the hero line (register §2, M-014) and the co-sign batch, so the app renders realistic data
- * before the seed lands. Figures copy register §2 to the cent; hashes are computed here, never typed. Slips 0419,
- * 0436 and 0467 are `provisional`: the register fixes only slip 0403 (38.45 kg) and the 148.0 kg total, so their
- * kilos and dates mirror WS-CORE's draft snapshot (not on main yet) and are labelled as samples in the UI.
+ * - The co-sign run is the seed snapshot's (`packages/seed/snapshot/season-2026A.json`, WS-CORE), copied into
+ *   `seed-run.json` by `scripts/seed-run.mjs` because the app may not import @fairsplit/seed (register §6): run and
+ *   season IDs, the rate card hash, the eight PayPal items and all 64 member lines with the content each line hash
+ *   covers. `scripts/seed-run.test.mjs` fails when the copy and the snapshot differ. The batch hash and the lines
+ *   digest are computed here with WS-CORE's functions (`domain-core.ts`), never typed, and equal the seed's, so the
+ *   phone's seal is the console's.
+ * - The rest is a local fixture until the screens read the seed through fs-api: the hero line (register §2, M-014),
+ *   the statement templates, the resolved holds and the canonical figures, copied from register §2 to the cent. Slips
+ *   0419, 0436 and 0467 are `provisional` (the register fixes only slip 0403, 38.45 kg, and the 148.0 kg total) and
+ *   are labelled as samples in the UI.
  */
-import type { BatchItem, DigestLine, HoldKind, Lang, StatementTemplate } from "./contracts";
-import { batchDigest, linesDigest as digestLines, jcs, sha256Hex } from "./domain";
+import type { CosignLine } from "./api-client";
+import type { BatchItem, HoldKind, Lang, StatementTemplate } from "./contracts";
+import { batchDigest, linesDigest as digestLines } from "./domain";
+import seedRunJson from "./seed-run.json";
+
+/** `seed-run.json`'s shape: what `scripts/seed-run.mjs` copies from the snapshot (checked by its test). */
+interface SeedRun {
+  runId: string;
+  runSlug: string;
+  seasonId: string;
+  rateCardSha256: string;
+  senderBatchId: string;
+  items: readonly (BatchItem & { memberNo: string })[];
+  lines: readonly CosignLine[];
+}
+const seedRun = seedRunJson as unknown as SeedRun;
 
 export const coop = {
   name: "Bulawanon Kakaw Growers MPC",
@@ -21,7 +40,9 @@ export const payer = { name: "Lantern Bay Chocolate Co.", short: "Lantern Bay" }
 export const fx = { phpPerUsd: "62.50" } as const;
 export const runSeq = 37;
 export const runSlug = `${season.id}-r${runSeq}`;
-export const runId = "run_2026A_r37_fixture";
+/** The seed's run and season IDs (UUIDv7): the approval payload's `runId` and `seasonId`. */
+export const runId = seedRun.runId;
+export const seasonId = seedRun.seasonId;
 
 export const people = {
   /** `fs-analyn-w1`: the treasurer's non-extractable WebCrypto key, registered from /ops (approved plan). */
@@ -30,19 +51,22 @@ export const people = {
     first: "Analyn",
     initials: "AS",
     keyId: "fs-analyn-w1",
+    keyKind: "web",
     approverId: "treasurer:analyn",
   },
+  /** `fs-ernesto-a1`: the Chair's app key, in SecureStore behind his fingerprint (register §8, C-13). */
   chair: {
     name: "Ernesto P. Cabahug",
     first: "Ernesto",
     initials: "EC",
     keyId: "fs-ernesto-a1",
+    keyKind: "app",
     approverId: "board:ernesto",
   },
   clerk: { name: "Jessie D. Dumaguing", first: "Jessie", initials: "JD" },
 } as const;
 
-/** BR 2026-04, Schedule A (design §0). Hashed for the fixture; the seed's canonical card replaces it. */
+/** BR 2026-04, Schedule A (design §0), as the screens describe it. Its hash is the seed's card hash, below. */
 export const rateCard = {
   id: "BR 2026-04",
   seasonId: season.id,
@@ -60,40 +84,33 @@ export const rateCard = {
   massBalanceTolerancePct: "2.0",
 } as const;
 
-export const rateCardSha256 = sha256Hex(jcs(rateCard));
-export const senderBatchId = `${season.id}-${rateCardSha256.slice(0, 8)}-r${runSeq}`;
+/** The ratified card's hash (`rc:{sha16}` on the invoice): every line hash and the batch hash cover it. */
+export const rateCardSha256 = seedRun.rateCardSha256;
+/** `{season}-{rc8}-r{runSeq}` (register §8). */
+export const senderBatchId = seedRun.senderBatchId;
 
-/** The eight PayPal lines (register §2), net cents. Receivers are fixture aliases, not sandbox accounts. */
-const paypalLines: readonly [memberNo: string, cents: number][] = [
-  ["M-014", 6445],
-  ["M-007", 6271],
-  ["M-060", 5596],
-  ["M-018", 5563],
-  ["M-039", 3832],
-  ["M-022", 3440],
-  ["M-002", 3027],
-  ["M-031", 2665],
-];
+/** Run r37's eight PayPal items (register §2): the batch the Chair co-signs. Receivers are the seed's aliases. */
+export const batchItems: readonly BatchItem[] = seedRun.items.map(
+  ({ senderItemId, receiver, amountCents, currency }) => ({
+    senderItemId,
+    receiver,
+    amountCents,
+    currency,
+  }),
+);
 
-export const batchItems: readonly BatchItem[] = paypalLines.map(([memberNo, amountCents]) => ({
-  senderItemId: `r${runSeq}-${memberNo}`,
-  receiver: `${memberNo.toLowerCase().replace("-", "")}@sandbox.fairsplit.invalid`,
-  amountCents,
-  currency: "USD",
-}));
-
-export const batchSha256 = batchDigest({ runId, senderBatchId, rateCardSha256 }, batchItems);
+/** batchSha256 (register §8), computed here with WS-CORE's `batchDigest`: the seed's, so the console's too. */
+export const batchSha256 = batchDigest({ runId, senderBatchId, rateCardSha256 }, batchItems).batchSha256;
 export const batchTotalCents = batchItems.reduce((s, i) => s + i.amountCents, 0);
 
 /**
- * The named lines of register §2 (eight on PayPal, Merlyn in cash). The seed's 64 lines replace this list, so the
- * fixture's `linesDigest` covers only these nine.
+ * Every member line of the run, PayPal and cash (8 + 56), with the content its hash covers: what both keys bind
+ * through `linesDigest` (approved plan), and what the co-sign request and the approval payload carry.
  */
-export const namedLines: readonly DigestLine[] = [
-  ...paypalLines.map(([memberNo, netCents]) => ({ memberNo, rail: "PAYPAL" as const, netCents })),
-  { memberNo: "M-053", rail: "CASH", netCents: 12784 },
-];
-export const linesDigest = digestLines(runId, namedLines);
+export const runLines: readonly CosignLine[] = seedRun.lines;
+
+/** The approved plan's `linesDigest` over all 64 lines, computed with WS-CORE's function: the seed's. */
+export const linesDigest = digestLines(runLines);
 
 export interface SlipFixture {
   serial: string;

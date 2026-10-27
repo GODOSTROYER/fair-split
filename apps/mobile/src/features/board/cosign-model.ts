@@ -5,18 +5,21 @@
  *
  *   loading → request | override → signed, or changed | expired | offline | sent-back | none | error
  *
- * "Changed" covers three refusals with one promise, "Nothing was signed": the server's hash is not the hash of the
- * items it sent, the batch changed after he opened it, or the approval payload is not this batch.
+ * "Changed" covers four refusals with one promise, "Nothing was signed": the server's hash is not the hash of the
+ * items it sent; its member lines are not what their hashes cover, its lines digest is not theirs, or a payout is not
+ * a PayPal line's net; the batch changed after he opened it; or the approval payload is not this batch (its own items
+ * and lines do not give its digests, or it is not the batch he opened). Every digest is computed on the phone with
+ * WS-CORE's functions (`lib/signing.ts`); the server's word is never taken for one.
  *
  * The same promise holds at the instant of signing (I4): `commitRefusal` is asked when the slab is released (or the
  * dialog confirmed), again after the payload arrives and again after the fingerprint step, and `payloadPlan` builds
  * the expected batch only while the request on screen is still the batch he opened. A batch that changes during the
  * hold, with the dialog open or while a stale payload is replaced is therefore never signed.
  */
-import type { CosignRequestDTO } from "../../_shims/api-client";
-import type { ApprovalPayload, Lang, ScreenStateOf } from "../../_shims/contracts";
+import type { ApprovalPayloadDTO, CosignRequestDTO } from "../../_shims/api-client";
+import type { Lang, ScreenStateOf } from "../../_shims/contracts";
+import type { FeedbackEvent } from "../../_shims/motion";
 import {
-  type CosignRequestInput,
   checkApprovalPayload,
   checkCosignRequest,
   type ExpectedBatch,
@@ -27,7 +30,7 @@ import {
 
 export type RequestStatus = ScreenStateOf<"M-BD-01">;
 
-/** The batch the Chair opened: the hash his seal was drawn from, and the member lines the request carried with it. */
+/** The batch the Chair opened: the hash his seal was drawn from, and the lines digest his phone computed with it. */
 export interface OpenedBatch {
   batchSha256: string;
   linesDigest: string;
@@ -73,10 +76,12 @@ export interface CosignSnapshot {
   chairSigned: boolean;
 }
 
-export type ChangeReason = "hash" | "changed" | "payload";
+export type ChangeReason = "hash" | "lines" | "changed" | "payload";
 
 export function changeReason(s: CosignSnapshot): ChangeReason | null {
-  if (s.check && !s.check.ok) return "hash";
+  if (s.check && !s.check.ok) {
+    return s.check.problem === "lines" || s.check.problem === "unbalanced" ? "lines" : "hash";
+  }
   if (s.check?.ok && s.opened && !sameAsOpened(s.check, s.opened)) return "changed";
   if (s.payloadOk === false) return "payload";
   return null;
@@ -133,8 +138,8 @@ export interface RequestMemory {
   check: RequestCheck | null;
   /** Set by the first good fetch, and again only when the Chair reviews a changed batch ("Review again"). */
   opened: OpenedBatch | null;
-  /** The approval payload in hand, always for the opened batch. */
-  payload: ApprovalPayload | null;
+  /** The approval payload in hand, with the items and lines it came with: always for the opened batch. */
+  payload: ApprovalPayloadDTO | null;
   /** The last payload checked was this batch (true), was not (false), or none was checked (null). */
   payloadOk: boolean | null;
 }
@@ -152,7 +157,7 @@ export const EMPTY_MEMORY: RequestMemory = {
  * opened. Any batch other than the opened one drops the payload in hand, so no payload outlives the batch it was
  * checked against.
  */
-export function rememberRequest(m: RequestMemory, dto: CosignRequestInput, adopt: boolean): RequestMemory {
+export function rememberRequest(m: RequestMemory, dto: CosignRequestDTO, adopt: boolean): RequestMemory {
   const check = checkCosignRequest(dto);
   const opened = check.ok && (adopt || m.opened === null) ? openedFrom(check) : m.opened;
   const keep = !adopt && sameAsOpened(check, opened);
@@ -182,7 +187,7 @@ export function rememberPayload(
   result: PayloadCheck,
 ): RequestMemory {
   if (!matchesOpened(expected, m.opened) || !sameAsOpened(m.check, m.opened)) return m;
-  if (result.ok) return { ...m, payload: result.payload, payloadOk: true };
+  if (result.ok) return { ...m, payload: result.dto, payloadOk: true };
   // An expired payload is simply replaced next time; any other difference means it is not this batch.
   return result.problem === "expired" ? { ...m, payload: null } : { ...m, payload: null, payloadOk: false };
 }
@@ -194,7 +199,7 @@ export function forgetPayload(m: RequestMemory): RequestMemory {
 
 export type PayloadPlan =
   | { kind: "refuse" }
-  | { kind: "cached"; payload: ApprovalPayload; expected: ExpectedBatch }
+  | { kind: "cached"; approval: ApprovalPayloadDTO; expected: ExpectedBatch }
   | { kind: "fetch"; expected: ExpectedBatch };
 
 /**
@@ -208,18 +213,26 @@ export function payloadPlan(m: RequestMemory, now: Date): PayloadPlan {
   if (
     m.payload &&
     m.payloadOk &&
-    !payloadStale(m.payload, now) &&
+    !payloadStale(m.payload.payload, now) &&
     checkApprovalPayload(m.payload, expected, now).ok
   ) {
-    return { kind: "cached", payload: m.payload, expected };
+    return { kind: "cached", approval: m.payload, expected };
   }
   return { kind: "fetch", expected };
 }
 
-/** A payload ready for the fingerprint step, or why there is none. */
+/** A payload ready for the fingerprint step, with the items and lines it was checked against, or why there is none. */
 export type FreshPayload =
-  | { ok: true; payload: ApprovalPayload; expected: ExpectedBatch }
+  | { ok: true; approval: ApprovalPayloadDTO; expected: ExpectedBatch }
   | { ok: false; reason: "offline" | "mismatch" | "error" };
+
+/**
+ * MM-5's mismatch on M-BD-01 (S2.9: "a clack, the Error haptic, and the canary message"): once, when the request
+ * turns unsignable because its batch, its lines or its payload is not the batch the Chair opened.
+ */
+export function changedCue(before: RequestStatus | null, now: RequestStatus): FeedbackEvent | null {
+  return now === "changed" && before !== "changed" ? "seal.mismatch" : null;
+}
 
 /* ------------------------------------------------------------------ resolved holds in his language */
 

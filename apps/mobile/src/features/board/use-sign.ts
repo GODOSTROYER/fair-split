@@ -12,6 +12,7 @@ import {
   type CosignFailure,
   type CosignResult,
   cosign,
+  deviceKeyKindOf,
   type KeyMeta,
 } from "../../lib/signing";
 import { feedback } from "../../platform/feedback";
@@ -25,6 +26,7 @@ import { useCosign } from "./cosign-context";
 import type { BoardKey } from "./messages";
 import {
   commitSignature,
+  failureCue,
   flowReducer,
   refusalFailure,
   SIGN_MOMENT_PHASE,
@@ -118,10 +120,10 @@ export function useSign() {
 
   const fail = useCallback(
     (state: CosignFailure) => {
-      if (state === "mismatch") {
-        feedback.play("seal.mismatch");
-        void c.reload();
-      }
+      // A refused hash clacks (MM-5 mismatch) and the request is fetched again; nothing was signed.
+      const cue = failureCue(state);
+      if (cue) feedback.play(cue);
+      if (state === "mismatch") void c.reload();
       if (state === "stale") c.dropPayload();
       dispatch({ type: "result", ok: false, state });
       setAttempt((a) => a + 1);
@@ -141,8 +143,8 @@ export function useSign() {
         // I4 at the instant of the release: the gate reads the latest batch, not the one this slab was drawn with.
         refusal: () => refusalFailure(c.commitRefusal()),
         payload: c.freshPayload,
-        sign: (payload, expected, recheck) =>
-          cosign(payload, expected, {
+        sign: (approval, expected, recheck) =>
+          cosign(approval, expected, {
             now: () => new Date(),
             online: () => online,
             recheck,
@@ -160,7 +162,7 @@ export function useSign() {
               const res = await api.registerDeviceKey({
                 keyId: k.keyId,
                 publicKey: k.publicKeyHex,
-                kind: keyVault.kind === "demo" ? "web_demo" : "app",
+                kind: deviceKeyKindOf(keyVault.kind),
                 biometricClass: k.biometricClass,
               });
               if (res.ok) registered.add(k.keyId);

@@ -10,6 +10,7 @@ import {
   BUSY,
   type FlowEvent,
   type FlowPhase,
+  failureCue,
   flowReducer,
   SIGN_MOMENT_PHASE,
   SIGN_SCREEN_STATE,
@@ -198,6 +199,23 @@ describe("contracts", () => {
     for (const state of failures) {
       const p = flowReducer("biometric", { type: "result", ok: false, state });
       expect(SCREEN_STATES["M-BD-02"]).toContain(SIGN_SCREEN_STATE[signPhase("request", true, p)]);
+    }
+  });
+});
+
+describe("the sound of a refusal (S2.9 MM-5)", () => {
+  it("clacks only for a hash or lines digest the phone refused, never for a cancel or a lost connection", () => {
+    expect(failureCue("mismatch")).toBe("seal.mismatch");
+    for (const quiet of [
+      "offline",
+      "stale",
+      "cancelled",
+      "no-lock",
+      "invalidated",
+      "locked-out",
+      "error",
+    ] as const) {
+      expect(failureCue(quiet), quiet).toBeNull();
     }
   });
 });

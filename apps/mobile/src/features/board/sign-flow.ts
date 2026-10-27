@@ -9,8 +9,10 @@
  * `signPhase` joins it with the request's own status from M-BD-01, and the two maps turn a phase into the screen's
  * `data-state` and the MM-5 `data-moment-phase`, so tests can drive the whole flow without a device.
  */
-import type { ApprovalPayload, ScreenStateOf } from "../../_shims/contracts";
+import type { ApprovalPayloadDTO } from "../../_shims/api-client";
+import type { ScreenStateOf } from "../../_shims/contracts";
 import type { MomentPhase } from "../../_shims/moments";
+import type { FeedbackEvent } from "../../_shims/motion";
 import type { CosignFailure, CosignResult, ExpectedBatch } from "../../lib/signing";
 import type { HoldState } from "../../ui/hold";
 import type { CommitRefusal, FreshPayload, RequestStatus } from "./cosign-model";
@@ -204,14 +206,25 @@ export function refusalFailure(r: CommitRefusal | null): CosignFailure | null {
   return r === "closed" ? "error" : null;
 }
 
+/**
+ * The sound and haptic a failed signature makes (S2.9 MM-5 "Mismatch: a clack, the Error haptic"): only a batch hash
+ * or lines digest the phone refused clacks; a cancelled fingerprint or a dropped connection is quiet.
+ */
+export function failureCue(state: CosignFailure): FeedbackEvent | null {
+  return state === "mismatch" ? "seal.mismatch" : null;
+}
+
 export interface CommitSteps {
   /** Why the key may not be asked for at this instant, read from the latest state (not the last render), or null. */
   refusal(): CosignFailure | null;
   /** A payload for the batch the Chair opened (the provider's `freshPayload`). */
   payload(): Promise<FreshPayload>;
-  /** `cosign()` with the phone's deps bound; `recheck` runs before the presence step and before anything is sent. */
+  /**
+   * `cosign()` with the phone's deps bound, given the approval-payload answer (items and lines included, so it
+   * recomputes both digests once more); `recheck` runs before the presence step and before anything is sent.
+   */
   sign(
-    payload: ApprovalPayload,
+    approval: ApprovalPayloadDTO,
     expected: ExpectedBatch,
     recheck: () => CosignFailure | null,
   ): Promise<CosignResult>;
@@ -230,5 +243,5 @@ export async function commitSignature(steps: CommitSteps): Promise<CosignResult>
   if (!fresh.ok) return { ok: false, state: fresh.reason, detail: "payload" };
   const during = steps.refusal();
   if (during) return { ok: false, state: during, detail: "changed" };
-  return steps.sign(fresh.payload, fresh.expected, steps.refusal);
+  return steps.sign(fresh.approval, fresh.expected, steps.refusal);
 }

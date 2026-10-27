@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { relined } from "../test/cosign-batches";
 import {
   AMOUNT_STATE,
   AMOUNT_STATES,
@@ -11,15 +12,7 @@ import {
 } from "./contracts";
 import { batchDigest, linesDigest as digestLines, FEE_TABLE, format, fsm, jcs, sha256Hex } from "./domain";
 import { SMALL_SEAL_MAX, seal, sealStroke } from "./seal";
-import {
-  batchItems,
-  batchSha256,
-  linesDigest,
-  namedLines,
-  rateCardSha256,
-  runId,
-  senderBatchId,
-} from "./seed";
+import { batchItems, batchSha256, linesDigest, rateCardSha256, runId, runLines, senderBatchId } from "./seed";
 
 describe("format (C-22 deterministic formatter shim)", () => {
   it("formats the register's money figures", () => {
@@ -80,13 +73,16 @@ describe("batchDigest (register §8)", () => {
   it("is computed, not typed, and independent of item order", () => {
     expect(batchSha256).toMatch(/^[0-9a-f]{64}$/);
     const reversed = batchDigest({ runId, senderBatchId, rateCardSha256 }, [...batchItems].reverse());
-    expect(reversed).toBe(batchSha256);
+    expect(reversed.batchSha256).toBe(batchSha256);
+    expect(reversed).toMatchObject({ itemCount: 8, totalCents: 36839 });
   });
 
   it("hashes exactly JCS{runId, senderBatchId, rateCardSha256, items sorted by senderItemId}", () => {
     const sorted = [...batchItems].sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : 1));
     expect(batchSha256).toBe(sha256Hex(jcs({ runId, senderBatchId, rateCardSha256, items: sorted })));
     expect(senderBatchId).toBe(`2026A-${rateCardSha256.slice(0, 8)}-r37`);
+    // The seed's run r37, so the phone's seal and hash are the console's and the Proof's.
+    expect(batchSha256).toBe("0f839be7c2c7751364a49064f305f96bb1a190dfe44711358426366a2d7ae6f3");
   });
 });
 
@@ -125,9 +121,19 @@ describe("member status words (register §7)", () => {
 describe("linesDigest (approved plan, register §8 amendment)", () => {
   it("inv.i4.lines-bound: binds every member line, PayPal and cash, independent of order", () => {
     expect(linesDigest).toMatch(/^[0-9a-f]{64}$/);
-    expect(digestLines(runId, [...namedLines].reverse())).toBe(linesDigest);
-    const moved = namedLines.map((l) => (l.memberNo === "M-053" ? { ...l, netCents: l.netCents - 1 } : l));
-    expect(digestLines(runId, moved)).not.toBe(linesDigest);
+    expect(runLines).toHaveLength(64);
+    expect(new Set(runLines.map((l) => l.rail))).toEqual(new Set(["PAYPAL", "CASH"]));
+    expect(digestLines([...runLines].reverse())).toBe(linesDigest);
+    // One cent on Merlyn's cash line, re-hashed honestly, is another digest.
+    const moved = runLines.map((l) => (l.memberNo === "M-053" ? relined(l, -1) : l));
+    expect(digestLines(moved)).not.toBe(linesDigest);
+  });
+
+  it("hashes WS-CORE's lines root: sha256(JCS([{memberNo, lineSha256}] sorted by memberNo)), nothing else", () => {
+    const root = [...runLines]
+      .map(({ memberNo, lineSha256 }) => ({ memberNo, lineSha256 }))
+      .sort((x, y) => (x.memberNo < y.memberNo ? -1 : 1));
+    expect(linesDigest).toBe(sha256Hex(jcs(root)));
   });
 });
 

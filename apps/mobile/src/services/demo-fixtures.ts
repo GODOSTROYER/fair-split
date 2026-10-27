@@ -2,8 +2,14 @@
  * Demo DTOs built from the seed fixture (src/_shims/seed.ts). Used when the app runs without fs-api
  * (`EXPO_PUBLIC_API_ORIGIN` unset) and by unit tests. Everything here is labelled "Demo data" in the UI (I8).
  */
-import type { CosignRequestDTO, StatementDTO, StatementHistoryEntry } from "../_shims/api-client";
-import type { ItemStatus, LineState } from "../_shims/contracts";
+import type {
+  ApprovalPayloadDTO,
+  CosignRequestDTO,
+  StatementDTO,
+  StatementHistoryEntry,
+} from "../_shims/api-client";
+import type { ApprovalPayload, ApprovalRole, ItemStatus, LineState } from "../_shims/contracts";
+import { jcs } from "../_shims/domain";
 import {
   batchItems,
   batchSha256,
@@ -20,8 +26,10 @@ import {
   rateCardSha256,
   resolvedHolds,
   runId,
+  runLines,
   runSlug,
   season,
+  seasonId,
   senderBatchId,
   statementTemplates,
 } from "../_shims/seed";
@@ -140,11 +148,12 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
   };
 }
 
+/** The co-sign request for the seed's run r37: its eight payouts and all 64 member lines (`seed-run.json`). */
 export function buildDemoCosign(opts: { now: Date; treasurerSigned: boolean }): CosignRequestDTO {
   return {
     runId,
     runSlug,
-    seasonId: season.id,
+    seasonId,
     seasonCode: season.code,
     state: "request",
     provenance: "seeded",
@@ -158,11 +167,50 @@ export function buildDemoCosign(opts: { now: Date; treasurerSigned: boolean }): 
     batchSha256,
     linesDigest,
     items: batchItems.map((i) => ({ ...i, memberNo: i.senderItemId.replace(/^r\d+-/, "") })),
+    lines: runLines,
     holds: resolvedHolds,
     treasurerSigned: opts.treasurerSigned
       ? { keyId: people.treasurer.keyId, at: minutesBefore(opts.now.toISOString(), 3) }
       : null,
     presence: { persona: "treasurer:analyn", view: "approve", at: opts.now.toISOString() },
     expiresAt: new Date(opts.now.getTime() + 30 * 60_000).toISOString(),
+  };
+}
+
+/**
+ * The approval-payload answer fs-api gives for a co-sign request (shim-defined `ApprovalPayloadDTO`): the payload
+ * signed for `role`, its JCS, and the items and lines it binds, all taken from `request` as it stands. The demo server
+ * issues it; tests build one for any batch the console may be offering.
+ */
+export function buildDemoApproval(
+  request: CosignRequestDTO,
+  opts: { role: ApprovalRole; nonce: string; exp: string },
+): ApprovalPayloadDTO {
+  const payload: ApprovalPayload = {
+    v: 1,
+    runId: request.runId,
+    seasonId: request.seasonId,
+    rateCardSha256: request.rateCardSha256,
+    batchSha256: request.batchSha256,
+    linesDigest: request.linesDigest,
+    itemCount: request.itemCount,
+    totalCents: request.totalCents,
+    currency: "USD",
+    role: opts.role,
+    approverId: opts.role === "chair" ? people.chair.approverId : people.treasurer.approverId,
+    nonce: opts.nonce,
+    exp: opts.exp,
+  };
+  return {
+    payload,
+    jcs: jcs(payload),
+    senderBatchId: request.senderBatchId,
+    items: request.items.map(({ senderItemId, receiver, amountCents, currency }) => ({
+      senderItemId,
+      receiver,
+      amountCents,
+      currency,
+    })),
+    lines: request.lines,
   };
 }

@@ -1,8 +1,9 @@
 /**
  * One co-sign request, shared by M-BD-01 (the request) and M-BD-02 (the sign sheet) so they agree on what was opened:
- * one fetch, one SSE stream, one recomputed hash (I4). The phone recomputes `batchSha256` from the items the moment
- * they arrive, remembers the batch the Chair first saw, and checks the server's approval payload against it before
- * any key is touched. Key 1's signature, the treasurer's presence and any change to the batch arrive over SSE
+ * one fetch, one SSE stream, one recomputed hash (I4). With WS-CORE's functions the phone recomputes `batchSha256` from
+ * the items and `linesDigest` from every member line the moment they arrive, and remembers the batch the Chair first
+ * saw. Before any key is touched, the approval payload is recomputed from its own items and lines and checked against
+ * that batch. Key 1's signature, the treasurer's presence and any change to the batch arrive over SSE
  * (`run:<runSlug>`); a declined, changed or expired request is never signable.
  *
  * What the gate in front of the key reads (the request, the opened batch, the payload) is also kept in refs that are
@@ -140,13 +141,14 @@ export function CosignProvider({ runSlug, children }: { runSlug: string; childre
 
   const fetchPayload = useCallback(
     async (expected: ExpectedBatch): Promise<FreshPayload> => {
-      const p = await api.getApprovalPayload(runSlug, "CHAIR");
+      const p = await api.getApprovalPayload(runSlug, "chair");
       if (!alive.current) return { ok: false, reason: "error" };
       if (!p.ok) return { ok: false, reason: loadErrorFor(p) === "offline" ? "offline" : "error" };
+      // I4: the payload's own items and lines must give its digests, and they must be the batch he opened.
       const checked = checkApprovalPayload(p.value, expected, new Date());
       update((m) => rememberPayload(m, expected, checked));
       if (!checked.ok) return { ok: false, reason: checked.problem === "expired" ? "error" : "mismatch" };
-      return { ok: true, payload: checked.payload, expected };
+      return { ok: true, approval: checked.dto, expected };
     },
     [api, runSlug, update],
   );
@@ -198,10 +200,10 @@ export function CosignProvider({ runSlug, children }: { runSlug: string; childre
         if (e.type === "approval.signed") {
           const p = e.payload as ApprovalSignedPayload;
           setEngrave(true);
-          if (p.role === "TREASURER") {
+          if (p.role === "treasurer") {
             setKey1Live(true);
             void load();
-          } else if (p.role === "CHAIR") {
+          } else if (p.role === "chair") {
             setChairSigned(true);
           }
         } else if (e.type === "presence") {
@@ -239,7 +241,7 @@ export function CosignProvider({ runSlug, children }: { runSlug: string; childre
   const freshPayload = useCallback(async (): Promise<FreshPayload> => {
     const plan = payloadPlan(memoryRef.current, new Date());
     if (plan.kind === "refuse") return { ok: false, reason: "mismatch" };
-    if (plan.kind === "cached") return { ok: true, payload: plan.payload, expected: plan.expected };
+    if (plan.kind === "cached") return { ok: true, approval: plan.approval, expected: plan.expected };
     return fetchPayload(plan.expected);
   }, [memoryRef, fetchPayload]);
 
@@ -252,7 +254,7 @@ export function CosignProvider({ runSlug, children }: { runSlug: string; childre
 
   const sendBack = useCallback(
     async (reason: string) => {
-      const r = await api.declineApproval(runSlug, { role: "CHAIR", reason });
+      const r = await api.declineApproval(runSlug, { role: "chair", reason });
       if (r.ok && alive.current) setSentBack(true);
       return r.ok;
     },

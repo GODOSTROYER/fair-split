@@ -29,15 +29,20 @@ owns.
 - `src/services/`: session, connectivity, the IC-12 frame bridge, device voice, the demo server.
 - `src/lib/`: pure logic with Vitest tests (no React Native imports).
 - `src/platform/`: native/web adapters (`*.web.ts` for the judge frames).
-- `src/_shims/`: temporary stand-ins for sibling packages (`contracts`, `domain`, `seed`, `seal`, `api-client`,
-  `tokens`, `motion`, `moments`, `i18n`); their names match the register so the swap is an import change.
+- `src/_shims/`: sibling packages as the app reads them. `contracts.ts` re-exports @fairsplit/contracts' types and
+  `domain-core.ts` is @fairsplit/domain's digest code byte for byte, each guarded by a `*.parity.test.ts`; never edit
+  `domain-core.ts` by hand (copy the package's text). The rest are temporary stand-ins (`domain` `format.*`, `seed`,
+  `seal`, `api-client`, `tokens`, `motion`, `moments`, `i18n`) whose names match the register.
+- Import @fairsplit/contracts with `import type` only: a runtime import bundles zod and every schema into each phone
+  frame, and Metro cannot resolve the package's `./x.js` specifiers without a resolver rule.
 
 ## Rules that bite here
 
 - UI code holds no user-facing literals: copy lives in the slice's `messages.ts` (or `_shims/i18n.ts` for the shell),
   keyed `<screenId>.<key>`, in ceb, fil and en.
 - Money comes from engine values through `format.*`; a model-written sentence with a digit is never rendered (I1).
-- Item statuses only move forward (I5); the co-sign refuses a payload that is not the batch on screen (I4).
+- Item statuses only move forward (I5); the co-sign recomputes `batchSha256` and `linesDigest` with WS-CORE's
+  functions and refuses a payload that is not the batch on screen (I4).
 - Every simulated thing is labelled (I8): demo mode, the web demo key, sample slips, the phone's own voice.
 - Timings come from `_shims/motion.ts` through `ui/motion.ts`; phases from `_shims/moments.ts` through `useMoment`.
 - Run `typecheck`, `test`, Biome and `check:expo` before committing.

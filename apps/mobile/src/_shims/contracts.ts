@@ -1,24 +1,58 @@
 /**
- * TEMPORARY SHIM: replace with @fairsplit/contracts after WS-CORE merges.
+ * IC-01 as the app reads it: WS-CORE's @fairsplit/contracts, plus the app-only names it does not define.
  *
- * Mirrors the decision register's names and shapes exactly, and only the parts apps/mobile reads:
- * §4 screen IDs and routes, §7 states and member status words, §8 the signed approval payload,
- * §11 IC-01 RunEvent names. Keep it minimal so the swap is a mechanical import change.
+ * - Every type the package defines is the package's own (`export type … from "@fairsplit/contracts"`). The imports
+ *   are type-only, so nothing of the package is bundled: Metro does not tree-shake, and a runtime import would carry
+ *   zod and every schema into each phone frame (+117 KB gzipped on the web export, measured 28 Oct).
+ * - The few runtime values the app needs (state lists, item ranks, the key ID shapes, the payload's field set) are
+ *   written here with `satisfies` the package's types, and `contracts.parity.test.ts` checks each one against the
+ *   package's runtime value, so they cannot drift.
+ * - Still shim-defined until WS-CORE or WS-API publish them: the app's screen states and amount grammar (register §4,
+ *   S2.2.1), member status words, statement templates, the IC-12 frame messages, the app's SSE envelope (`RunEvent`,
+ *   whose payloads predate the package's) and the app's own error codes beside the package's (`ApiErrorCode`).
  */
+import type {
+  ApprovalPayload,
+  ApprovalRole,
+  DeviceKeyKind,
+  ErrorCode,
+  HoldKind,
+  Lang,
+  MemberLineState,
+  PayoutItemStatus,
+  PayRunState,
+  Provenance,
+  Role,
+} from "@fairsplit/contracts";
 
-/* ------------------------------------------------------------------ languages, roles, provenance */
+export type {
+  ApprovalPayload,
+  ApprovalRole,
+  BatchDigest,
+  BatchItem,
+  DeviceKeyKind,
+  HoldGate,
+  HoldKind,
+  HoldState,
+  Lang,
+  LineCanonical,
+  ProofLine,
+  Provenance,
+  Rail,
+  Role,
+} from "@fairsplit/contracts";
 
-export const LANGS = ["ceb", "fil", "en"] as const;
-export type Lang = (typeof LANGS)[number];
+/* ------------------------------------------------------------------ languages, roles */
 
-export type Role = "brand" | "treasurer" | "board" | "clerk" | "member" | "judge" | "operator";
+export const LANGS = ["ceb", "fil", "en"] as const satisfies readonly Lang[];
+
 /** The three roles the Fair Split app binds a phone to (register §4, app navigation). */
 export type AppRole = Extract<Role, "member" | "clerk" | "board">;
 
-/** Invariant I8: every row says where it came from, and the UI labels anything that is not live. */
-export type Provenance = "live" | "replay" | "simulated_rail" | "seeded";
-
 /* ------------------------------------------------------------------ §7 states */
+
+export type RunState = PayRunState;
+export type LineState = MemberLineState;
 
 export const RUN_STATES = [
   "DRAFT",
@@ -40,8 +74,7 @@ export const RUN_STATES = [
   "CANCELLED",
   "DENIED",
   "HALTED",
-] as const;
-export type RunState = (typeof RUN_STATES)[number];
+] as const satisfies readonly RunState[];
 
 export const LINE_STATES = [
   "COMPUTED",
@@ -60,19 +93,24 @@ export const LINE_STATES = [
   "REVERSED",
   "RETURNED",
   "REROUTED",
-] as const;
-export type LineState = (typeof LINE_STATES)[number];
+] as const satisfies readonly LineState[];
 
-export type HoldKind =
-  | "DUPLICATE_SLIP"
-  | "IMPLAUSIBLE_YIELD"
-  | "NO_RULE"
-  | "RATE_MISMATCH"
-  | "SUSPECTED_INJECTION"
-  | "LOW_CONFIDENCE"
-  | "MASS_BALANCE";
-export type HoldGate = "BLOCKS_APPROVAL" | "RESERVES_LINE";
-export type HoldState = "OPEN" | "ASKED_CHAIR" | "RESOLVED" | "EXCLUDED";
+/** The hold kinds, in the package's order (`HOLD_KINDS`). */
+export const HOLD_KINDS = [
+  "DUPLICATE_SLIP",
+  "IMPLAUSIBLE_YIELD",
+  "NO_RULE",
+  "RATE_MISMATCH",
+  "SUSPECTED_INJECTION",
+  "LOW_CONFIDENCE",
+  "MASS_BALANCE",
+] as const satisfies readonly HoldKind[];
+
+/**
+ * A payout item status as a phone sees it: every status but SUBMITTED, the row fs-api writes before its POST (no
+ * PayPal event ever carries it).
+ */
+export type ItemStatus = Exclude<PayoutItemStatus, "SUBMITTED">;
 
 /** Payout item ranks (register §7). A status applies only if its rank is higher than the current one. */
 export const ITEM_STATUS_RANK = {
@@ -85,8 +123,7 @@ export const ITEM_STATUS_RANK = {
   SUCCESS: 60,
   REFUNDED: 70,
   REVERSED: 70,
-} as const;
-export type ItemStatus = keyof typeof ITEM_STATUS_RANK;
+} as const satisfies Readonly<Record<ItemStatus, number>>;
 
 /** Webhook event names map to statuses before ranking: SUCCEEDED→SUCCESS, HELD→ONHOLD, CANCELED→RETURNED. */
 export const ITEM_EVENT_TO_STATUS: Readonly<Record<string, ItemStatus>> = {
@@ -170,30 +207,14 @@ export interface CaptureSyncedPayload {
 
 /* ------------------------------------------------------------------ §8 signed approval payload */
 
-export type ApprovalRole = "TREASURER" | "CHAIR";
-
 /**
- * Signed payload (register §8 as amended by the approved plan, ADR-0001): JCS{v, runId, seasonId, rateCardSha256,
- * batchSha256, linesDigest, itemCount, totalCents, currency, role, approverId, nonce, exp}. `linesDigest` hashes
- * every member line, so both keys bind the cash lines too. The server issues the payload; the phone checks it against
- * what it shows and signs the RFC 8785 bytes with Ed25519.
+ * The approval roles, lowercase as the package names them. The signed payload (register §8 as amended by the approved
+ * plan, ADR-0001) is the package's `ApprovalPayload`: JCS{v, runId, seasonId, rateCardSha256, batchSha256,
+ * linesDigest, itemCount, totalCents, currency, role, approverId, nonce, exp}. `linesDigest` hashes every member line,
+ * so both keys bind the cash lines too. The server issues the payload; the phone recomputes both digests itself and
+ * signs the RFC 8785 bytes with Ed25519.
  */
-export interface ApprovalPayload {
-  v: 1;
-  runId: string;
-  seasonId: string;
-  rateCardSha256: string;
-  batchSha256: string;
-  linesDigest: string;
-  itemCount: number;
-  totalCents: number;
-  currency: "USD";
-  role: ApprovalRole;
-  approverId: string;
-  nonce: string;
-  /** RFC 3339 UTC. The server refuses anything more than 30 minutes ahead. */
-  exp: string;
-}
+export const APPROVAL_ROLES = ["treasurer", "chair"] as const satisfies readonly ApprovalRole[];
 
 /** The payload's exact field set, in JCS order. The phone refuses a payload with any other shape. */
 export const APPROVAL_PAYLOAD_KEYS = [
@@ -212,19 +233,38 @@ export const APPROVAL_PAYLOAD_KEYS = [
   "v",
 ] as const satisfies readonly (keyof ApprovalPayload)[];
 
-/** One member line as `linesDigest` hashes it (shim-defined until WS-CORE publishes the digest input). */
-export interface DigestLine {
-  memberNo: string;
-  rail: "PAYPAL" | "CASH";
-  netCents: number;
-}
+/* ------------------------------------------------------------------ signing keys (S3.8, C-13) */
 
-/** One batch item as hashed into batchSha256 (register §8). */
-export interface BatchItem {
-  senderItemId: string;
-  receiver: string;
-  amountCents: number;
-  currency: "USD";
+/** S3 `device_keys.kind`: the Chair's app key, a persisted browser key (the treasurer's), a judge's demo key. */
+export const DEVICE_KEY_KINDS = ["app", "web", "web_demo"] as const satisfies readonly DeviceKeyKind[];
+
+/** `fs-{persona}`, where the persona is 1-24 letters and never `ledger` or `demo` (the package's `PERSONA`). */
+const PERSONA = "fs-(?!(?:ledger|demo)-)[a-z]{1,24}";
+/** `{n}`: 1-9999, no leading zero. */
+const SEQ = "[1-9][0-9]{0,3}";
+
+/**
+ * The one ID shape of each device-key kind (the package's `KEY_ID_PATTERNS`): `fs-ernesto-a1` is an app key,
+ * `fs-analyn-w1` a persisted browser key and `fs-ernesto-demo-k3x9pq` a judge's browser key, so a key's ID alone
+ * tells its kind and a demo key can never take a real key's ID.
+ */
+export const KEY_ID_PATTERNS = {
+  app: new RegExp(`^${PERSONA}-a${SEQ}$`),
+  web: new RegExp(`^${PERSONA}-w${SEQ}$`),
+  demo: new RegExp(`^${PERSONA}-demo-[a-z0-9]{6}$`),
+} as const;
+
+const KIND_PATTERN: Readonly<Record<DeviceKeyKind, RegExp>> = {
+  app: KEY_ID_PATTERNS.app,
+  web: KEY_ID_PATTERNS.web,
+  web_demo: KEY_ID_PATTERNS.demo,
+};
+
+/** True when `keyId` has the ID shape of the device-key `kind` (the package's `deviceKeyIdFitsKind`). */
+export function deviceKeyIdFitsKind(kind: unknown, keyId: unknown): boolean {
+  if (typeof kind !== "string" || typeof keyId !== "string" || !Object.hasOwn(KIND_PATTERN, kind))
+    return false;
+  return KIND_PATTERN[kind as DeviceKeyKind].test(keyId);
 }
 
 /* ------------------------------------------------------------------ §4 screens and routes */
@@ -528,14 +568,9 @@ export const MEMBER_STATUS_WORDS: Readonly<Record<MemberStatus, Readonly<Record<
 
 /* ------------------------------------------------------------------ error codes the app reacts to */
 
-export type ApiErrorCode =
-  | "PAIRING_EXPIRED"
-  | "PAIRING_USED"
-  | "PAIRING_INVALID"
-  | "DIGEST_MISMATCH"
-  | "APPROVAL_EXPIRED"
-  | "NONCE_REUSED"
-  | "IDEMPOTENCY_KEY_REUSED"
-  | "UNAUTHENTICATED"
-  | "RATE_LIMITED"
-  | "NETWORK";
+/**
+ * Every code of the package's `ErrorCode` (what fs-api sends: `DIGEST_MISMATCH`, `KEY_NOT_REGISTERED`, …) plus the
+ * app's own: `NETWORK` (no answer at all) and the three pairing outcomes the pairing screen names, which fs-api's
+ * `PAIRING_TOKEN_INVALID` does not yet tell apart (shim-defined until WS-API says which it sends).
+ */
+export type ApiErrorCode = ErrorCode | "PAIRING_EXPIRED" | "PAIRING_USED" | "PAIRING_INVALID" | "NETWORK";

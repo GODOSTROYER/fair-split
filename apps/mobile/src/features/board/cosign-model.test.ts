@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { CosignRequestDTO } from "../../_shims/api-client";
+import type { ApprovalPayloadDTO, CosignRequestDTO } from "../../_shims/api-client";
 import { type ApprovalPayload, SCREEN_STATES } from "../../_shims/contracts";
-import { batchDigest } from "../../_shims/domain";
-import { batchSha256, linesDigest, people, season } from "../../_shims/seed";
+import { jcs } from "../../_shims/domain";
+import { batchSha256, linesDigest } from "../../_shims/seed";
 import { checkApprovalPayload, checkCosignRequest } from "../../lib/signing";
-import { buildDemoCosign } from "../../services/demo-fixtures";
+import { buildDemoApproval, buildDemoCosign } from "../../services/demo-fixtures";
+import { forgedCashLine, movedCent } from "../../test/cosign-batches";
 import {
   type CosignSnapshot,
   canCommit,
+  changedCue,
   changeReason,
   commitRefusal,
   compactLayout,
@@ -92,6 +94,29 @@ describe("M-BD-01 status", () => {
     expect(requestStatus(s)).toBe("changed");
   });
 
+  it("inv.i4.server-lines: member lines that are not what their hashes cover, or not the claimed digest, too", () => {
+    const d = buildDemoCosign({ now: NOW, treasurerSigned: true });
+    for (const s of [
+      snap({}, { linesDigest: "e".repeat(64) }),
+      snap({}, { lines: forgedCashLine(d.lines) }),
+      snap({}, { lines: d.lines.slice(1) }),
+    ]) {
+      expect(changeReason(s)).toBe("lines");
+      expect(requestStatus(s)).toBe("changed");
+      expect(commitRefusal(s)).toBe("mismatch");
+    }
+  });
+
+  it("clacks once as the request turns changed (MM-5 mismatch), never while it stays changed", () => {
+    expect(changedCue("request", "changed")).toBe("seal.mismatch");
+    expect(changedCue("loading", "changed")).toBe("seal.mismatch");
+    expect(changedCue(null, "changed")).toBe("seal.mismatch");
+    expect(changedCue("changed", "changed")).toBeNull();
+    expect(changedCue("changed", "request")).toBeNull();
+    expect(changedCue("request", "expired")).toBeNull();
+    expect(changedCue("loading", "request")).toBeNull();
+  });
+
   it("refuses a payload that is not this batch", () => {
     expect(changeReason(snap({ payloadOk: false }))).toBe("payload");
     expect(requestStatus(snap({ payloadOk: false }))).toBe("changed");
@@ -167,35 +192,18 @@ describe("large text", () => {
 
 /* ------------------------------------------------------------------ signing only what was opened (I4) */
 
-/** The same eight payouts with one cent moved between two of them: a valid batch, but not the one opened. */
-function otherBatch(dto: CosignRequestDTO): CosignRequestDTO {
-  const items = dto.items.map((it, i) =>
-    i === 0
-      ? { ...it, amountCents: it.amountCents - 1 }
-      : i === 1
-        ? { ...it, amountCents: it.amountCents + 1 }
-        : it,
-  );
-  return { ...dto, items, batchSha256: batchDigest(dto, items) };
-}
+/** One cent moved between two payouts and their PayPal lines: a valid batch, but not the one opened. */
+const otherBatch = movedCent;
 
-function payloadFor(dto: CosignRequestDTO, over: Partial<ApprovalPayload> = {}): ApprovalPayload {
-  return {
-    v: 1,
-    runId: dto.runId,
-    seasonId: season.id,
-    rateCardSha256: dto.rateCardSha256,
-    batchSha256: dto.batchSha256,
-    linesDigest: dto.linesDigest,
-    itemCount: dto.itemCount,
-    totalCents: dto.totalCents,
-    currency: "USD",
-    role: "CHAIR",
-    approverId: people.chair.approverId,
+/** The approval-payload answer for `dto`, with `over` in its payload (and the JCS of that payload). */
+function payloadFor(dto: CosignRequestDTO, over: Partial<ApprovalPayload> = {}): ApprovalPayloadDTO {
+  const base = buildDemoApproval(dto, {
+    role: "chair",
     nonce: "n_01JB7Q3X9M2",
     exp: new Date(NOW.getTime() + 10 * 60_000).toISOString(),
-    ...over,
-  };
+  });
+  const payload = { ...base.payload, ...over };
+  return { ...base, payload, jcs: jcs(payload) };
 }
 
 describe("the gate in front of the key", () => {

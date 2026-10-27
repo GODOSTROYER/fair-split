@@ -13,10 +13,12 @@ import type {
   ApprovalPayload,
   ApprovalRole,
   BatchItem,
+  DeviceKeyKind,
   HoldKind,
   ItemStatus,
   Lang,
   LineState,
+  ProofLine,
   Provenance,
   RunEvent,
   StatementTemplate,
@@ -134,6 +136,14 @@ export interface CosignHold {
   resolvedAt: string;
 }
 
+/**
+ * One member line as a signature binds it (approved plan: `linesDigest` covers every member line, on and off rail):
+ * contracts `ProofLine` narrowed to what the phone checks, so fs-api may send the Proof's own lines. `lineSha256`
+ * is sha256(JCS(canonical)) and `canonical` is the content it covers (engine v1, the card hash, the net), so the phone
+ * recomputes every line hash and the lines digest itself instead of taking either on trust. shim-defined.
+ */
+export type CosignLine = Pick<ProofLine, "memberNo" | "rail" | "netCents" | "canonical" | "lineSha256">;
+
 export interface CosignRequestDTO {
   runId: string;
   runSlug: string;
@@ -149,13 +159,30 @@ export interface CosignRequestDTO {
   rateCardSha256: string;
   senderBatchId: string;
   batchSha256: string;
-  /** Hash of every member line, PayPal and cash; the signed payload must carry the same value. */
+  /** Hash of every member line, PayPal and cash; the phone recomputes it from `lines`, and the payload repeats it. */
   linesDigest: string;
   items: readonly (BatchItem & { memberNo: string })[];
+  /** Every member line of the run, PayPal and cash, so the phone recomputes `linesDigest` (shim-defined). */
+  lines: readonly CosignLine[];
   holds: readonly CosignHold[];
   treasurerSigned: { keyId: string; at: string } | null;
   presence: { persona: string; view: string; at: string } | null;
   expiresAt: string;
+}
+
+/**
+ * `GET /v1/runs/:runSlug/approval-payload?role=`: IC-08's `ApprovalPayloadResponse` ({payload, jcs}) plus what the
+ * approved plan says the endpoint also returns, so the phone recomputes both digests from what it is asked to sign
+ * (register §8, I4): the batch items with their `senderBatchId` (batchSha256) and every member line (linesDigest).
+ * The extra fields are shim-defined until WS-API confirms them.
+ */
+export interface ApprovalPayloadDTO {
+  payload: ApprovalPayload;
+  /** The payload's JCS as the server will verify it; the phone signs only when it is exactly `jcs(payload)`. */
+  jcs: string;
+  senderBatchId: string;
+  items: readonly BatchItem[];
+  lines: readonly CosignLine[];
 }
 
 export interface ApprovalSubmission {
@@ -169,7 +196,8 @@ export interface ApprovalSubmission {
 export interface DeviceKeyRegistration {
   keyId: string;
   publicKey: string;
-  kind: "app" | "web_demo";
+  /** `app` for the Chair's phone key (`fs-ernesto-a1`), `web_demo` for a judge's browser key; never `web`. */
+  kind: DeviceKeyKind;
   biometricClass: "biometric-bound" | "pin-gated" | "none";
 }
 
@@ -199,7 +227,7 @@ export interface FairSplitApi {
   getStatement(): Promise<ApiResult<StatementDTO>>;
   getStatementByLink(token: string): Promise<ApiResult<StatementDTO>>;
   getCosignRequest(runSlug: string): Promise<ApiResult<CosignRequestDTO>>;
-  getApprovalPayload(runSlug: string, role: ApprovalRole): Promise<ApiResult<ApprovalPayload>>;
+  getApprovalPayload(runSlug: string, role: ApprovalRole): Promise<ApiResult<ApprovalPayloadDTO>>;
   postApproval(runSlug: string, body: ApprovalSubmission): Promise<ApiResult<{ accepted: true }>>;
   declineApproval(
     runSlug: string,
@@ -296,7 +324,7 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
       call<StatementDTO>("GET", `/v1/statements/link/${encodeURIComponent(token)}`), // shim-defined
     getCosignRequest: (slug) => call<CosignRequestDTO>("GET", `/v1/runs/${encodeURIComponent(slug)}/cosign`), // shim-defined
     getApprovalPayload: (slug, role) =>
-      call<ApprovalPayload>("GET", `/v1/runs/${encodeURIComponent(slug)}/approval-payload?role=${role}`),
+      call<ApprovalPayloadDTO>("GET", `/v1/runs/${encodeURIComponent(slug)}/approval-payload?role=${role}`),
     postApproval: (slug, body) =>
       call<{ accepted: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals`, body),
     declineApproval: (slug, body) =>

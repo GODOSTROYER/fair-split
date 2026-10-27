@@ -1,19 +1,31 @@
 /**
  * Board co-sign (M-BD-01/02, MM-5 "Two keys"), the pure half. The phone never takes the server's word for what it
- * signs: it recomputes `batchSha256`, the item count and the total from the items it shows (register §8, I4), draws
- * the seal from its own hash, refuses an approval payload that is not exactly that batch, and only then asks for the
- * fingerprint or device PIN. The key is Ed25519: `fs-ernesto-a1` (then `-a2`, `-a3` for each new key) in SecureStore
- * on the phone, an ephemeral `fs-ernesto-demo-{6}` key in a judge's browser (C-13). A signature is never stored or
- * queued: offline, or when the approval cannot be sent, it is dropped and the Chair signs again with a connection.
+ * signs. With WS-CORE's own digest functions (`_shims/domain-core.ts`) it recomputes `batchSha256` from the items,
+ * every member line's hash from the content it covers and `linesDigest` from those lines (register §8 as amended, I4),
+ * checks that each payout is exactly one PayPal line's net (I3), draws the seal from its own hash, and refuses an
+ * approval payload whose own items and lines do not give its digests, or that is not exactly the batch the Chair
+ * opened. Only then does it ask for the fingerprint or device PIN. The key is Ed25519: `fs-ernesto-a1` (then `-a2`,
+ * `-a3` for each new key) in SecureStore on the phone, an ephemeral `fs-ernesto-demo-{6}` key in a judge's browser
+ * (C-13). A signature is never stored or queued: offline, or when the approval cannot be sent, it is dropped and the
+ * Chair signs again with a connection.
  */
 import { ed25519 } from "@noble/curves/ed25519.js";
-import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
-import type { ApiResult, ApprovalSubmission, CosignRequestDTO } from "../_shims/api-client";
-import type { ApprovalPayload, ApprovalRole, BatchItem, DigestLine } from "../_shims/contracts";
-import { APPROVAL_PAYLOAD_KEYS } from "../_shims/contracts";
-import { batchDigest, linesDigest as digestLines, jcs } from "../_shims/domain";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
+import type {
+  ApiResult,
+  ApprovalPayloadDTO,
+  ApprovalSubmission,
+  CosignLine,
+  CosignRequestDTO,
+} from "../_shims/api-client";
+import type { ApprovalPayload, ApprovalRole, BatchItem, DeviceKeyKind } from "../_shims/contracts";
+import { APPROVAL_PAYLOAD_KEYS, APPROVAL_ROLES, KEY_ID_PATTERNS } from "../_shims/contracts";
+import { approvalBytes, batchDigest, jcs, jcsSha256, linesDigest, parseSenderItemId } from "../_shims/domain";
+
+export { approvalBytes } from "../_shims/domain";
 
 const HEX64 = /^[0-9a-f]{64}$/;
+const MEMBER_NO = /^M-\d{3}$/;
 /** The server refuses an `exp` more than 30 minutes ahead (S3.8); allow a minute of clock skew. */
 export const MAX_EXP_AHEAD_MS = 30 * 60 * 1000 + 60 * 1000;
 /** A payload that expires sooner than this is replaced before the fingerprint is asked for. */
@@ -26,7 +38,7 @@ export interface ExpectedBatch {
   rateCardSha256: string;
   /** Recomputed on the phone from the items on screen, never copied from the server's claim. */
   batchSha256: string;
-  /** Every member line, PayPal and cash (approved plan): a key binds the cash lines too. */
+  /** Recomputed on the phone from every member line, PayPal and cash (approved plan): a key binds the cash lines. */
   linesDigest: string;
   itemCount: number;
   totalCents: number;
@@ -39,6 +51,13 @@ export interface RecomputedBatch {
   totalCents: number;
 }
 
+/** The member lines a signature binds, as the phone counted them from lines whose hashes it recomputed. */
+export interface LinesSummary {
+  count: number;
+  paypal: { count: number; cents: number };
+  cash: { count: number; cents: number };
+}
+
 export type RequestProblem =
   | "malformed"
   | "no-items"
@@ -47,27 +66,15 @@ export type RequestProblem =
   | "currency"
   | "hash"
   | "count"
-  | "total";
+  | "total"
+  /** A member line is not the content its hash covers, two lines name one member, or `linesDigest` is not theirs. */
+  | "lines"
+  /** A payout that is not exactly one PayPal line's net (I3: the batch pays what the lines say, no more). */
+  | "unbalanced";
 
 export type RequestCheck =
-  | {
-      ok: true;
-      recomputed: RecomputedBatch;
-      expected: ExpectedBatch;
-      /**
-       * True when the phone recomputed `linesDigest` from the member lines itself. IC-08's request does not carry
-       * the lines yet (orchestrator), so today the cash lines are bound by the server's digest alone: the phone
-       * checks that the payload carries the same value, but cannot show or recompute what it covers.
-       */
-      linesChecked: boolean;
-    }
+  | { ok: true; recomputed: RecomputedBatch; lines: LinesSummary; expected: ExpectedBatch }
   | { ok: false; problem: RequestProblem; recomputed: RecomputedBatch | null };
-
-/**
- * The co-sign request as the phone reads it. `lines` (every member line the signature binds, PayPal and cash) is not
- * in IC-08's DTO yet; when fs-api sends it, `checkCosignRequest` recomputes `linesDigest` from it with no other change.
- */
-export type CosignRequestInput = CosignRequestDTO & { lines?: readonly DigestLine[] };
 
 /** The run and items the digest covers (register §8). */
 export interface BatchInput {
@@ -104,32 +111,104 @@ function itemProblem(items: readonly BatchItem[]): RequestProblem | null {
   return null;
 }
 
-/** The batch as this phone sees it: register §8's digest over the items shown, their count and their sum. */
+/** The batch as this phone sees it: WS-CORE's `batchDigest` over the items shown, their count and their sum. */
 export function recomputeBatch(b: BatchInput): RecomputedBatch | null {
   if (!Array.isArray(b.items) || itemProblem(b.items) !== null) return null;
-  const totalCents = b.items.reduce((s, i) => s + i.amountCents, 0);
-  if (!Number.isSafeInteger(totalCents)) return null;
-  return { batchSha256: batchDigest(b, b.items), itemCount: b.items.length, totalCents };
+  try {
+    const d = batchDigest(b, b.items);
+    if (!Number.isSafeInteger(d.totalCents)) return null;
+    return { batchSha256: d.batchSha256, itemCount: d.itemCount, totalCents: d.totalCents };
+  } catch {
+    return null;
+  }
 }
 
-function isDigestLine(v: unknown): v is DigestLine {
+function isLine(v: unknown): v is CosignLine {
   if (!v || typeof v !== "object") return false;
-  const l = v as Partial<DigestLine>;
+  const l = v as Partial<CosignLine>;
   return (
     typeof l.memberNo === "string" &&
-    l.memberNo.length > 0 &&
+    MEMBER_NO.test(l.memberNo) &&
     (l.rail === "PAYPAL" || l.rail === "CASH") &&
-    isInt(l.netCents)
+    isInt(l.netCents) &&
+    typeof l.lineSha256 === "string" &&
+    HEX64.test(l.lineSha256) &&
+    !!l.canonical &&
+    typeof l.canonical === "object" &&
+    !Array.isArray(l.canonical)
   );
 }
 
+export type LinesCheck =
+  | { ok: true; linesDigest: string; summary: LinesSummary }
+  | { ok: false; problem: "malformed" | "lines" };
+
 /**
- * Checks a co-sign request before anything is drawn as signable: the items are well formed, and the hash, count and
- * total the server claims are the ones the phone computes. The seal on screen is drawn from `recomputed`. When the
- * request carries its member lines, the lines digest is recomputed too, and a difference is the same refusal as a
- * batch hash that is not the items' hash.
+ * Every member line the signature binds, checked on the phone: each line hash is sha256(JCS(canonical)) (WS-CORE's
+ * `lineSha256`, the hash Proof plate 4 recomputes); each canonical names this line's member, rail and net and the
+ * run's rate card; then `linesDigest` over all of them, with WS-CORE's function (one line per member, at least one).
  */
-export function checkCosignRequest(req: CosignRequestInput): RequestCheck {
+export function checkLines(lines: unknown, rateCardSha256: string): LinesCheck {
+  if (!Array.isArray(lines) || lines.length === 0 || !lines.every(isLine)) {
+    return { ok: false, problem: "malformed" };
+  }
+  const summary: LinesSummary = { count: 0, paypal: { count: 0, cents: 0 }, cash: { count: 0, cents: 0 } };
+  for (const l of lines) {
+    const c = l.canonical as unknown as Record<string, unknown>;
+    let hash: string;
+    try {
+      hash = jcsSha256(l.canonical);
+    } catch {
+      return { ok: false, problem: "lines" };
+    }
+    if (
+      hash !== l.lineSha256 ||
+      c.memberNo !== l.memberNo ||
+      c.rail !== l.rail ||
+      c.netCents !== l.netCents ||
+      c.rateCardSha256 !== rateCardSha256
+    ) {
+      return { ok: false, problem: "lines" };
+    }
+    const rail = l.rail === "PAYPAL" ? summary.paypal : summary.cash;
+    rail.count++;
+    rail.cents += l.netCents;
+    summary.count++;
+  }
+  if (!Number.isSafeInteger(summary.paypal.cents) || !Number.isSafeInteger(summary.cash.cents)) {
+    return { ok: false, problem: "malformed" };
+  }
+  try {
+    return { ok: true, linesDigest: linesDigest(lines), summary };
+  } catch {
+    return { ok: false, problem: "lines" };
+  }
+}
+
+/**
+ * I3 on the phone: every payout is exactly one PayPal line's net, and no member is paid twice. A line the batch does
+ * not pay (cash, or a PayPal line that is reserved) is bound by `linesDigest` alone.
+ */
+export function itemsMatchLines(items: readonly BatchItem[], lines: readonly CosignLine[]): boolean {
+  const byMember = new Map(lines.map((l) => [l.memberNo, l]));
+  const paid = new Set<string>();
+  for (const it of items) {
+    const memberNo = parseSenderItemId(it.senderItemId)?.memberNo;
+    if (!memberNo || paid.has(memberNo)) return false;
+    paid.add(memberNo);
+    const line = byMember.get(memberNo);
+    if (line?.rail !== "PAYPAL" || line.netCents !== it.amountCents) return false;
+  }
+  return true;
+}
+
+/**
+ * Checks a co-sign request before anything is drawn as signable: the items are well formed and each names the member
+ * its `sender_item_id` pays; the hash, count and total the server claims are the ones the phone computes; every
+ * member line is the content its hash covers, and the lines digest the server claims is the one the phone computes
+ * from them; and the payouts are exactly the PayPal lines' nets. The seal on screen is drawn from `recomputed`.
+ */
+export function checkCosignRequest(req: CosignRequestDTO): RequestCheck {
   if (
     !req ||
     typeof req.runId !== "string" ||
@@ -146,30 +225,32 @@ export function checkCosignRequest(req: CosignRequestInput): RequestCheck {
   }
   const problem = itemProblem(req.items);
   if (problem) return { ok: false, problem, recomputed: null };
+  // The member number printed beside a payout must be the member its sender_item_id pays (register §8).
+  if (req.items.some((i) => parseSenderItemId(i.senderItemId)?.memberNo !== i.memberNo)) {
+    return { ok: false, problem: "bad-item", recomputed: null };
+  }
   if (req.currency !== "USD") return { ok: false, problem: "currency", recomputed: null };
   const recomputed = recomputeBatch(req);
   if (!recomputed) return { ok: false, problem: "bad-item", recomputed: null };
   if (recomputed.batchSha256 !== req.batchSha256) return { ok: false, problem: "hash", recomputed };
   if (recomputed.itemCount !== req.itemCount) return { ok: false, problem: "count", recomputed };
   if (recomputed.totalCents !== req.totalCents) return { ok: false, problem: "total", recomputed };
-  const lines: unknown = req.lines;
-  if (lines !== undefined) {
-    if (!Array.isArray(lines) || !lines.every(isDigestLine))
-      return { ok: false, problem: "malformed", recomputed };
-    if (digestLines(req.runId, lines) !== req.linesDigest) return { ok: false, problem: "hash", recomputed };
-  }
+  const lines = checkLines(req.lines, req.rateCardSha256);
+  if (!lines.ok) return { ok: false, problem: lines.problem, recomputed };
+  if (lines.linesDigest !== req.linesDigest) return { ok: false, problem: "lines", recomputed };
+  if (!itemsMatchLines(req.items, req.lines)) return { ok: false, problem: "unbalanced", recomputed };
   return {
     ok: true,
     recomputed,
-    linesChecked: lines !== undefined,
+    lines: lines.summary,
     expected: {
       runId: req.runId,
       rateCardSha256: req.rateCardSha256,
       batchSha256: recomputed.batchSha256,
-      linesDigest: req.linesDigest,
+      linesDigest: lines.linesDigest,
       itemCount: recomputed.itemCount,
       totalCents: recomputed.totalCents,
-      role: "CHAIR",
+      role: "chair",
     },
   };
 }
@@ -182,51 +263,109 @@ export function batchMatchesItems(b: BatchInput & { batchSha256: string }): bool
 /* ------------------------------------------------------------------ the approval payload (register §8) */
 
 export type PayloadProblem = "malformed" | "mismatch" | "role" | "expired" | "too-far";
-export type PayloadCheck = { ok: true; payload: ApprovalPayload } | { ok: false; problem: PayloadProblem };
+export type PayloadCheck =
+  | { ok: true; payload: ApprovalPayload; dto: ApprovalPayloadDTO }
+  | { ok: false; problem: PayloadProblem };
 
-/** Validates the shape, then that it is exactly the batch on screen, then the time window. */
+const SORTED_PAYLOAD_KEYS = [...APPROVAL_PAYLOAD_KEYS].sort().join(",");
+
+/**
+ * contracts `IsoDateTime` (zod 4.6's `z.iso.datetime()`): a real calendar date, then a time with seconds (RFC 3339
+ * needs them beside a `Z`) and any fraction, in UTC. `contracts.parity.test.ts` holds it to the package's schema.
+ */
+const ISO_DATE =
+  "(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))";
+export const ISO_DATETIME = new RegExp(
+  `^${ISO_DATE}T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$`,
+);
+
+const isPositiveInt = (v: unknown): v is number => isInt(v) && v > 0;
+const isHex64 = (v: unknown): v is string => typeof v === "string" && HEX64.test(v);
+const isRole = (v: unknown): v is ApprovalRole => (APPROVAL_ROLES as readonly unknown[]).includes(v);
+
+/**
+ * The payload's shape, exactly as contracts' `ApprovalPayload` (a strict object) accepts it and nothing more:
+ * `contracts.parity.test.ts` checks that this phone never takes a payload the package would refuse.
+ */
+export function approvalPayloadShape(raw: unknown): ApprovalPayload | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  if (Object.keys(p).sort().join(",") !== SORTED_PAYLOAD_KEYS) return null;
+  const ok =
+    p.v === 1 &&
+    typeof p.runId === "string" &&
+    typeof p.seasonId === "string" &&
+    isHex64(p.rateCardSha256) &&
+    isHex64(p.batchSha256) &&
+    isHex64(p.linesDigest) &&
+    isPositiveInt(p.itemCount) &&
+    isPositiveInt(p.totalCents) &&
+    p.currency === "USD" &&
+    isRole(p.role) &&
+    typeof p.approverId === "string" &&
+    typeof p.nonce === "string" &&
+    p.nonce.length >= 8 &&
+    typeof p.exp === "string" &&
+    ISO_DATETIME.test(p.exp) &&
+    !Number.isNaN(Date.parse(p.exp));
+  return ok ? (p as unknown as ApprovalPayload) : null;
+}
+
+/**
+ * The approval payload, checked before any key is touched (register §8, I4). First what it claims, recomputed from
+ * what came with it: the JCS the server will verify is exactly the payload's; `batchSha256`, the count and the total
+ * are WS-CORE's `batchDigest` of its items; `linesDigest` is WS-CORE's `linesDigest` of its lines, each line hash
+ * recomputed from its content; the payouts are exactly the PayPal lines. Then that it is the batch the Chair opened,
+ * for his role, inside its time window. Any difference is a mismatch: nothing is signed.
+ */
 export function checkApprovalPayload(raw: unknown, expected: ExpectedBatch, now: Date): PayloadCheck {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, problem: "malformed" };
-  const p = raw as Record<string, unknown>;
-  const keys = Object.keys(p).sort().join(",");
-  if (keys !== [...APPROVAL_PAYLOAD_KEYS].sort().join(",")) return { ok: false, problem: "malformed" };
+  const dto = raw as Partial<Record<keyof ApprovalPayloadDTO, unknown>>;
+  const payload = approvalPayloadShape(dto.payload);
   if (
-    p.v !== 1 ||
-    typeof p.runId !== "string" ||
-    typeof p.seasonId !== "string" ||
-    typeof p.rateCardSha256 !== "string" ||
-    !HEX64.test(p.rateCardSha256) ||
-    typeof p.batchSha256 !== "string" ||
-    !HEX64.test(p.batchSha256) ||
-    typeof p.linesDigest !== "string" ||
-    !HEX64.test(p.linesDigest) ||
-    !isInt(p.itemCount) ||
-    !isInt(p.totalCents) ||
-    p.currency !== "USD" ||
-    (p.role !== "TREASURER" && p.role !== "CHAIR") ||
-    typeof p.approverId !== "string" ||
-    typeof p.nonce !== "string" ||
-    p.nonce.length < 8 ||
-    typeof p.exp !== "string" ||
-    Number.isNaN(Date.parse(p.exp))
+    !payload ||
+    typeof dto.jcs !== "string" ||
+    typeof dto.senderBatchId !== "string" ||
+    !Array.isArray(dto.items) ||
+    !Array.isArray(dto.lines)
   ) {
     return { ok: false, problem: "malformed" };
   }
+  const items = dto.items as readonly BatchItem[];
+  const mismatch = { ok: false, problem: "mismatch" } as const;
+  if (dto.jcs !== jcs(payload)) return mismatch;
+  const batch = recomputeBatch({
+    runId: payload.runId,
+    senderBatchId: dto.senderBatchId,
+    rateCardSha256: payload.rateCardSha256,
+    items,
+  });
   if (
-    p.runId !== expected.runId ||
-    p.batchSha256 !== expected.batchSha256 ||
-    p.linesDigest !== expected.linesDigest ||
-    p.rateCardSha256 !== expected.rateCardSha256 ||
-    p.itemCount !== expected.itemCount ||
-    p.totalCents !== expected.totalCents
+    !batch ||
+    batch.batchSha256 !== payload.batchSha256 ||
+    batch.itemCount !== payload.itemCount ||
+    batch.totalCents !== payload.totalCents
   ) {
-    return { ok: false, problem: "mismatch" };
+    return mismatch;
   }
-  if (p.role !== expected.role) return { ok: false, problem: "role" };
-  const exp = Date.parse(p.exp);
+  const lines = checkLines(dto.lines, payload.rateCardSha256);
+  if (!lines.ok || lines.linesDigest !== payload.linesDigest) return mismatch;
+  if (!itemsMatchLines(items, dto.lines as readonly CosignLine[])) return mismatch;
+  if (
+    payload.runId !== expected.runId ||
+    payload.batchSha256 !== expected.batchSha256 ||
+    payload.linesDigest !== expected.linesDigest ||
+    payload.rateCardSha256 !== expected.rateCardSha256 ||
+    payload.itemCount !== expected.itemCount ||
+    payload.totalCents !== expected.totalCents
+  ) {
+    return mismatch;
+  }
+  if (payload.role !== expected.role) return { ok: false, problem: "role" };
+  const exp = Date.parse(payload.exp);
   if (exp <= now.getTime()) return { ok: false, problem: "expired" };
   if (exp - now.getTime() > MAX_EXP_AHEAD_MS) return { ok: false, problem: "too-far" };
-  return { ok: true, payload: p as unknown as ApprovalPayload };
+  return { ok: true, payload, dto: raw as ApprovalPayloadDTO };
 }
 
 /** True when the payload in hand will expire before a person can finish the fingerprint step. */
@@ -234,11 +373,6 @@ export function payloadStale(p: Pick<ApprovalPayload, "exp"> | null, now: Date):
   if (!p) return true;
   const exp = Date.parse(p.exp);
   return !Number.isFinite(exp) || exp - now.getTime() < PAYLOAD_FRESH_MS;
-}
-
-/** The exact bytes that get signed: UTF-8 of the JCS form. */
-export function approvalBytes(p: ApprovalPayload): Uint8Array {
-  return utf8ToBytes(jcs(p));
 }
 
 export function verifyApproval(sub: ApprovalSubmission, publicKeyHex: string): boolean {
@@ -317,28 +451,43 @@ export function secureStoreFailure(e: unknown): KeyFailure {
   return "error";
 }
 
-/** `board:ernesto` → `ernesto`: lower-case letters and digits only, so key IDs stay in the registry's pattern. */
-export function personaSlug(persona: string | null | undefined, fallback = "ernesto"): string {
-  const name = (persona ?? "").split(":").pop() ?? "";
-  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return slug.length > 0 ? slug.slice(0, 24) : fallback;
-}
+/** Persona words a key ID never carries: they mark the server's ledger keys and the judges' demo keys. */
+const RESERVED_PERSONAS: ReadonlySet<string> = new Set(["ledger", "demo"]);
 
 /**
- * The phone's own key: `fs-{persona}-a{n}` (S3 "Keys"), where `n` is the key's generation on this phone. The first is
- * `fs-ernesto-a1` (register §8, C-13); a key made after the old one was invalidated is `-a2`, and so on, so a new
- * public key is never registered under an ID that already verified earlier signatures.
+ * `board:ernesto` → `ernesto`: 1-24 lower-case letters, never `ledger` or `demo`, so every key ID this phone makes
+ * has its kind's shape (contracts `KEY_ID_PATTERNS`); anything else falls back to the Chair's name.
+ */
+export function personaSlug(persona: string | null | undefined, fallback = "ernesto"): string {
+  const name = (persona ?? "").split(":").pop() ?? "";
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .slice(0, 24);
+  return slug.length > 0 && !RESERVED_PERSONAS.has(slug) ? slug : fallback;
+}
+
+/** The last key generation a key ID can carry: `a{n}` with n from 1 to 9999 (contracts `KEY_ID_PATTERNS.app`). */
+export const MAX_KEY_GENERATION = 9999;
+
+/**
+ * The phone's own key: `fs-{persona}-a{n}` (S3 "Keys", kind `app`), where `n` is the key's generation on this
+ * phone. The first is `fs-ernesto-a1` (register §8, C-13); a key made after the old one was invalidated is `-a2`, and
+ * so on, so a new public key is never registered under an ID that already verified earlier signatures. Past
+ * `-a9999` there is no ID left to take, and no key is made.
  */
 export function deviceKeyId(persona: string | null | undefined, generation = 1): string {
   const n = Number.isSafeInteger(generation) && generation > 0 ? generation : 1;
+  if (n > MAX_KEY_GENERATION) throw new RangeError("No key ID is left for a new key on this phone");
   return `fs-${personaSlug(persona)}-a${n}`;
 }
 
-/** `fs-ernesto-a3` → `{ slug: "ernesto", generation: 3 }`; null for anything that is not a phone key. */
+/** `fs-ernesto-a3` → `{ slug: "ernesto", generation: 3 }`; null for anything that is not an app key's ID. */
 export function deviceKeyParts(
   keyId: string | null | undefined,
 ): { slug: string; generation: number } | null {
-  const m = /^fs-([a-z0-9]{1,24})-a([1-9]\d{0,5})$/.exec(keyId ?? "");
+  if (!keyId || !KEY_ID_PATTERNS.app.test(keyId)) return null;
+  const m = /^fs-([a-z]{1,24})-a([1-9][0-9]{0,3})$/.exec(keyId);
   return m?.[1] && m[2] ? { slug: m[1], generation: Number(m[2]) } : null;
 }
 
@@ -346,12 +495,17 @@ export type RandomBytes = (n: number) => Uint8Array;
 
 const ID_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
 
-/** `fs-{persona}-demo-{6}` (C-13): a judge's browser key, always labelled "Demo key (this browser)". */
+/** `fs-{persona}-demo-{6}` (C-13, kind `web_demo`): a judge's browser key, labelled "Demo key (this browser)". */
 export function demoKeyId(persona: string | null | undefined, randomBytes: RandomBytes): string {
   const r = randomBytes(6);
   let s = "";
   for (const byte of r) s += ID_ALPHABET[byte % ID_ALPHABET.length];
   return `fs-${personaSlug(persona)}-demo-${s}`;
+}
+
+/** The kind a vault's key is registered as (S3 `device_keys.kind`): the phone's is `app`, a judge's `web_demo`. */
+export function deviceKeyKindOf(vault: "device" | "demo"): DeviceKeyKind {
+  return vault === "demo" ? "web_demo" : "app";
 }
 
 export type SignOutcome =
@@ -579,7 +733,8 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
       const slug = personaSlug(persona);
       const meta = await readMeta();
       if (meta && deviceKeyParts(meta.keyId)?.slug === slug) return meta.keyId;
-      return deviceKeyId(persona, (await lastGeneration(slug, meta)) + 1);
+      const next = (await lastGeneration(slug, meta)) + 1;
+      return next > MAX_KEY_GENERATION ? null : deviceKeyId(persona, next);
     },
 
     presence: d.presence,
@@ -614,7 +769,9 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
       }
 
       // A new key, made inside the one presence step: the generation after every key this phone made for him.
-      const keyId = deviceKeyId(req.persona, (await lastGeneration(slug, null)) + 1);
+      const generation = (await lastGeneration(slug, null)) + 1;
+      if (generation > MAX_KEY_GENERATION) return { ok: false, reason: "error" };
+      const keyId = deviceKeyId(req.persona, generation);
       const sk = d.randomBytes(32);
       const skHex = bytesToHex(sk);
       const fresh: KeyMeta = {
@@ -695,17 +852,18 @@ export interface CosignDeps {
 const offlineCode = (r: { code: string; status?: number }) => r.code === "NETWORK" && r.status === undefined;
 
 /**
- * Check → presence and signature → register the key if new → submit. Nothing is signed unless the payload is
+ * Check → presence and signature → register the key if new → submit. `approval` is the approval-payload answer
+ * (`ApprovalPayloadDTO`): nothing is signed unless its own items and lines give the digests it carries and it is
  * exactly the batch on screen, nothing asks for a fingerprint without a connection, and a signature that cannot be
  * delivered is dropped, never queued: the Chair signs again when the phone is back online.
  */
 export async function cosign(
-  payload: unknown,
+  approval: unknown,
   expected: ExpectedBatch,
   deps: CosignDeps,
 ): Promise<CosignResult> {
   if (!deps.online()) return { ok: false, state: "offline", detail: "offline" };
-  const check = checkApprovalPayload(payload, expected, deps.now());
+  const check = checkApprovalPayload(approval, expected, deps.now());
   if (!check.ok) {
     const state: CosignFailure =
       check.problem === "expired" ? "stale" : check.problem === "too-far" ? "error" : "mismatch";

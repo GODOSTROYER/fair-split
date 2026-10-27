@@ -6,10 +6,12 @@
  */
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { ApiResult, ApprovalSubmission, CosignRequestDTO } from "../../_shims/api-client";
-import type { ApprovalPayload } from "../../_shims/contracts";
-import { batchDigest, linesDigest as digestLines } from "../../_shims/domain";
-import { namedLines, people, runId, season } from "../../_shims/seed";
+import type {
+  ApiResult,
+  ApprovalPayloadDTO,
+  ApprovalSubmission,
+  CosignRequestDTO,
+} from "../../_shims/api-client";
 import {
   approvalBytes,
   checkApprovalPayload,
@@ -19,7 +21,8 @@ import {
   type KeySignOutcome,
   verifyApproval,
 } from "../../lib/signing";
-import { buildDemoCosign } from "../../services/demo-fixtures";
+import { buildDemoApproval, buildDemoCosign } from "../../services/demo-fixtures";
+import { movedCashCent, movedCent, tamperedApproval } from "../../test/cosign-batches";
 import {
   type CosignSnapshot,
   commitRefusal,
@@ -36,6 +39,7 @@ import {
   commitSignature,
   type FlowEvent,
   type FlowPhase,
+  failureCue,
   flowReducer,
   refusalFailure,
   signPhase,
@@ -45,29 +49,13 @@ import {
 const NOW = new Date("2026-10-29T10:20:00+08:00");
 const rnd = (n: number) => new Uint8Array(randomBytes(n));
 
-/** One cent moved between two payouts: a valid batch with its own hash, but not the one the Chair opened. */
-function movedCent(dto: CosignRequestDTO): CosignRequestDTO {
-  const items = dto.items.map((it, i) =>
-    i === 0
-      ? { ...it, amountCents: it.amountCents - 1 }
-      : i === 1
-        ? { ...it, amountCents: it.amountCents + 1 }
-        : it,
-  );
-  return { ...dto, items, batchSha256: batchDigest(dto, items) };
-}
-
-/** The same payouts, but a cash line moved by a cent: only the lines digest differs. */
-function movedCashLine(dto: CosignRequestDTO): CosignRequestDTO {
-  const lines = namedLines.map((l) => (l.rail === "CASH" ? { ...l, netCents: l.netCents + 1 } : l));
-  return { ...dto, linesDigest: digestLines(runId, lines) };
-}
-
 /** The console: the batch it offers now, and an approval payload for whatever that batch is. */
 function consoleSide() {
   let dto = buildDemoCosign({ now: NOW, treasurerSigned: true });
   let nonce = 0;
-  const issued: ApprovalPayload[] = [];
+  /** Done to each answer after it is built: a server sending items or lines it did not build the payload from. */
+  let tamper: ((a: ApprovalPayloadDTO) => ApprovalPayloadDTO) | null = null;
+  const issued: ApprovalPayloadDTO["payload"][] = [];
   return {
     get dto() {
       return dto;
@@ -75,24 +63,18 @@ function consoleSide() {
     change(next: (d: CosignRequestDTO) => CosignRequestDTO) {
       dto = next(dto);
     },
-    payload(exp = new Date(NOW.getTime() + 10 * 60_000)): ApprovalPayload {
-      const p: ApprovalPayload = {
-        v: 1,
-        runId: dto.runId,
-        seasonId: season.id,
-        rateCardSha256: dto.rateCardSha256,
-        batchSha256: dto.batchSha256,
-        linesDigest: dto.linesDigest,
-        itemCount: dto.itemCount,
-        totalCents: dto.totalCents,
-        currency: "USD",
-        role: "CHAIR",
-        approverId: people.chair.approverId,
+    tamper(next: (a: ApprovalPayloadDTO) => ApprovalPayloadDTO) {
+      tamper = next;
+    },
+    /** The approval-payload answer for whatever batch the console offers now. */
+    payload(exp = new Date(NOW.getTime() + 10 * 60_000)): ApprovalPayloadDTO {
+      const answer = buildDemoApproval(dto, {
+        role: "chair",
         nonce: `n_${String(++nonce).padStart(10, "0")}`,
         exp: exp.toISOString(),
-      };
-      issued.push(p);
-      return p;
+      });
+      issued.push(answer.payload);
+      return tamper ? tamper(answer) : answer;
     },
     issued,
   };
@@ -114,7 +96,7 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
     const checked = checkApprovalPayload(srv.payload(), expected, NOW);
     m = rememberPayload(m, expected, checked);
     if (!checked.ok) return { ok: false, reason: checked.problem === "expired" ? "error" : "mismatch" };
-    return { ok: true, payload: checked.payload, expected };
+    return { ok: true, approval: checked.dto, expected };
   };
   const vault = createDemoVault(rnd, () => NOW);
   const key = vi.fn(
@@ -148,7 +130,7 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
     async freshPayload(): Promise<FreshPayload> {
       const plan = payloadPlan(m, NOW);
       if (plan.kind === "refuse") return { ok: false, reason: "mismatch" };
-      if (plan.kind === "cached") return { ok: true, payload: plan.payload, expected: plan.expected };
+      if (plan.kind === "cached") return { ok: true, approval: plan.approval, expected: plan.expected };
       return fetchPayload(plan.expected);
     },
     /** The release inside (or the dialog's confirm). `during` runs while the payload is in flight. */
@@ -160,8 +142,8 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
           await opts.during?.();
           return fresh;
         },
-        sign: (payload, expected, recheck) =>
-          cosign(payload, expected, {
+        sign: (approval, expected, recheck) =>
+          cosign(approval, expected, {
             now: () => NOW,
             online: () => true,
             recheck,
@@ -295,7 +277,7 @@ describe("I4 at the instant of signing", () => {
     const srv = consoleSide();
     const phone = phoneSide(srv);
     await phone.load();
-    srv.change(movedCashLine);
+    srv.change(movedCashCent);
     await phone.load();
     expect(phone.status()).toBe("changed");
     expect(await phone.commit()).toMatchObject({ ok: false, state: "mismatch" });
@@ -319,5 +301,49 @@ describe("I4 at the instant of signing", () => {
     expect(r.submission.payload.batchSha256).not.toBe(opened);
     const signed = phone.key.mock.calls[0]?.[0];
     expect(signed).toEqual(approvalBytes(r.submission.payload));
+  });
+});
+
+describe("M-BD-01 recomputes the approval payload from its own items and lines (register §8, I4)", () => {
+  it("signs a payload only after WS-CORE's batchDigest and linesDigest of its items and lines give its digests", async () => {
+    const srv = consoleSide();
+    const phone = phoneSide(srv);
+    await phone.load();
+    const r = await phone.commit();
+    if (!r.ok) throw new Error(r.detail);
+    expect(r.submission.payload).toMatchObject({
+      role: "chair",
+      batchSha256: srv.dto.batchSha256,
+      linesDigest: srv.dto.linesDigest,
+    });
+  });
+
+  it.each(["items", "lines", "jcs", "senderBatchId"] as const)(
+    "inv.i4.payload-%s-tampered: the release is refused with the clack, and nothing is signed or sent",
+    async (part) => {
+      const srv = consoleSide();
+      srv.tamper((a) => tamperedApproval(a, part));
+      const phone = phoneSide(srv);
+      await phone.load(); // the prefetch already finds the answer is not this batch …
+      expect(phone.status()).toBe("changed");
+      const r = await phone.commit(); // … and a release that still arrives signs nothing
+      expect(r).toMatchObject({ ok: false, state: "mismatch" });
+      expect(!r.ok && failureCue(r.state)).toBe("seal.mismatch"); // MM-5 mismatch: the clack and the Error haptic
+      expect(phone.key).not.toHaveBeenCalled();
+      expect(phone.register).not.toHaveBeenCalled();
+      expect(phone.submit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("inv.i4.payload-tampered-at-release: an answer fetched at the release is recomputed too", async () => {
+    const srv = consoleSide();
+    const phone = phoneSide(srv);
+    await phone.load();
+    phone.holdStalePayload(); // the release fetches a fresh answer …
+    srv.tamper((a) => tamperedApproval(a, "lines")); // … whose lines are not the ones its payload was built from
+    const r = await phone.commit();
+    expect(r).toMatchObject({ ok: false, state: "mismatch" });
+    expect(phone.key).not.toHaveBeenCalled();
+    expect(phone.status()).toBe("changed");
   });
 });

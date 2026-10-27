@@ -1,24 +1,39 @@
 import { randomBytes } from "node:crypto";
 import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
-import type { ApiResult, ApprovalSubmission, CosignRequestDTO } from "../_shims/api-client";
+import type {
+  ApiResult,
+  ApprovalPayloadDTO,
+  ApprovalSubmission,
+  CosignRequestDTO,
+} from "../_shims/api-client";
 import type { ApprovalPayload, BatchItem } from "../_shims/contracts";
-import { linesDigest as digestLines, jcs } from "../_shims/domain";
+import { deviceKeyIdFitsKind } from "../_shims/contracts";
+import { batchDigest, linesDigest as digestLines, jcs } from "../_shims/domain";
 import {
   batchItems,
   batchSha256,
   batchTotalCents,
   linesDigest,
-  namedLines,
   people,
   rateCardSha256,
   runId,
-  season,
+  runLines,
+  seasonId,
   senderBatchId,
 } from "../_shims/seed";
-import { buildDemoCosign } from "../services/demo-fixtures";
+import { buildDemoApproval, buildDemoCosign } from "../services/demo-fixtures";
+import {
+  forgedCashLine,
+  movedCashCent,
+  movedCent,
+  relined,
+  tamperedApproval,
+  withLines,
+} from "../test/cosign-batches";
 import {
   approvalBytes,
+  approvalPayloadShape,
   authFailure,
   type BiometricClass,
   batchMatchesItems,
@@ -26,6 +41,7 @@ import {
   type CosignDeps,
   checkApprovalPayload,
   checkCosignRequest,
+  checkLines,
   cosign,
   createDemoVault,
   createDeviceVault,
@@ -33,11 +49,14 @@ import {
   type DeviceVaultDeps,
   demoKeyId,
   deviceKeyId,
+  deviceKeyKindOf,
   deviceKeyParts,
   type ExpectedBatch,
   enrolledLevel,
+  itemsMatchLines,
   type KeyFailure,
   type KeySignOutcome,
+  MAX_KEY_GENERATION,
   payloadStale,
   personaSlug,
   recomputeBatch,
@@ -55,26 +74,35 @@ const expected: ExpectedBatch = {
   linesDigest,
   itemCount: batchItems.length,
   totalCents: batchTotalCents,
-  role: "CHAIR",
+  role: "chair",
 };
 
 function payload(over: Partial<ApprovalPayload> = {}): ApprovalPayload {
   return {
     v: 1,
     runId,
-    seasonId: season.id,
+    seasonId,
     rateCardSha256,
     batchSha256,
     linesDigest,
     itemCount: batchItems.length,
     totalCents: batchTotalCents,
     currency: "USD",
-    role: "CHAIR",
+    role: "chair",
     approverId: people.chair.approverId,
     nonce: "n_01JB7Q3X9M2",
     exp: new Date(NOW.getTime() + 10 * 60_000).toISOString(),
     ...over,
   };
+}
+
+/** The approval-payload answer for the seed batch: the payload, its JCS, and the items and lines it binds. */
+function approval(
+  over: Partial<ApprovalPayload> = {},
+  dto: Partial<ApprovalPayloadDTO> = {},
+): ApprovalPayloadDTO {
+  const p = payload(over);
+  return { payload: p, jcs: jcs(p), senderBatchId, items: batchItems, lines: runLines, ...dto };
 }
 
 function request(over: Partial<CosignRequestDTO> = {}): CosignRequestDTO {
@@ -88,9 +116,10 @@ function firstItem(): CosignRequestDTO["items"][number] {
 }
 
 describe("approval payload", () => {
-  it("matches the register's figures: 8 items, US$368.39", () => {
+  it("matches the register's figures: 8 items, US$368.39, and binds all 64 member lines", () => {
     expect(batchItems).toHaveLength(8);
     expect(batchTotalCents).toBe(36839);
+    expect(runLines).toHaveLength(64);
   });
 
   it("signs exactly the RFC 8785 bytes: keys sorted, no whitespace", () => {
@@ -100,8 +129,10 @@ describe("approval payload", () => {
     expect(text).not.toMatch(/\s/);
   });
 
-  it("accepts the batch on screen", () => {
-    expect(checkApprovalPayload(payload(), expected, NOW)).toMatchObject({ ok: true });
+  it("accepts the batch on screen, with the items and lines it binds", () => {
+    const r = checkApprovalPayload(approval(), expected, NOW);
+    expect(r).toMatchObject({ ok: true, payload: payload() });
+    expect(r.ok && r.dto.lines).toHaveLength(64);
   });
 
   it.each([
@@ -111,38 +142,77 @@ describe("approval payload", () => {
     ["rateCardSha256", { rateCardSha256: "f".repeat(64) }],
     ["runId", { runId: "run_other" }],
     ["linesDigest", { linesDigest: "e".repeat(64) }],
-  ] as const)("inv.i4.payload-differs: refuses when %s differs from the screen", (_k, over) => {
-    expect(checkApprovalPayload(payload(over), expected, NOW)).toEqual({ ok: false, problem: "mismatch" });
-  });
+  ] as const)(
+    "inv.i4.payload-recomputed: refuses a payload whose %s is not what its own items and lines give",
+    (_k, over) => {
+      expect(checkApprovalPayload(approval(over), expected, NOW)).toEqual({ ok: false, problem: "mismatch" });
+    },
+  );
 
-  it("inv.i4.cash-lines-bound: moving one cent between cash and PayPal lines changes the lines digest", () => {
-    const moved = namedLines.map((l) =>
-      l.memberNo === "M-053"
-        ? { ...l, netCents: l.netCents - 1 }
-        : l.memberNo === "M-014"
-          ? { ...l, netCents: l.netCents + 1 }
-          : l,
-    );
-    const changed = digestLines(runId, moved);
-    expect(changed).not.toBe(linesDigest);
-    expect(digestLines(runId, [...namedLines].reverse())).toBe(linesDigest); // order-independent
-    expect(checkApprovalPayload(payload({ linesDigest: changed }), expected, NOW)).toEqual({
+  it.each(["items", "lines", "jcs", "senderBatchId"] as const)(
+    "inv.i4.payload-recomputed: refuses an answer whose %s were changed under the same payload",
+    (part) => {
+      expect(checkApprovalPayload(tamperedApproval(approval(), part), expected, NOW)).toEqual({
+        ok: false,
+        problem: "mismatch",
+      });
+    },
+  );
+
+  it("inv.i4.payload-recomputed: refuses an answer that drops a member line or pays a cash line", () => {
+    expect(checkApprovalPayload(approval({}, { lines: runLines.slice(1) }), expected, NOW)).toEqual({
       ok: false,
       problem: "mismatch",
     });
+    const cash = runLines.find((l) => l.rail === "CASH");
+    if (!cash) throw new Error("the run has cash lines");
+    const items: BatchItem[] = [
+      ...batchItems,
+      {
+        senderItemId: `r37-${cash.memberNo}`,
+        receiver: "cash@x.invalid",
+        amountCents: cash.netCents,
+        currency: "USD",
+      },
+    ];
+    const d = batchDigest({ runId, senderBatchId, rateCardSha256 }, items);
+    const paysCash = approval(
+      { batchSha256: d.batchSha256, itemCount: d.itemCount, totalCents: d.totalCents },
+      { items },
+    );
+    expect(checkApprovalPayload(paysCash, expected, NOW)).toEqual({ ok: false, problem: "mismatch" });
+  });
+
+  it("inv.i4.payload-differs: refuses a payload that checks out but is not the batch the Chair opened", () => {
+    const other = movedCent(request());
+    const answer = buildDemoApproval(other, { role: "chair", nonce: "n_01JB7Q3X9M2", exp: payload().exp });
+    // Internally sound: its own items and lines give its digests …
+    const opened = checkCosignRequest(other);
+    expect(opened.ok && checkApprovalPayload(answer, opened.expected, NOW).ok).toBe(true);
+    // … but not the batch on screen.
+    expect(checkApprovalPayload(answer, expected, NOW)).toEqual({ ok: false, problem: "mismatch" });
+  });
+
+  it("inv.i4.cash-lines-bound: one cent moved between two cash lines is another lines digest, refused", () => {
+    const other = movedCashCent(request());
+    expect(other.batchSha256).toBe(batchSha256); // the same eight payouts …
+    expect(other.linesDigest).not.toBe(linesDigest); // … but not the same member lines
+    expect(digestLines([...runLines].reverse())).toBe(linesDigest); // order-independent
+    const answer = buildDemoApproval(other, { role: "chair", nonce: "n_01JB7Q3X9M2", exp: payload().exp });
+    expect(checkApprovalPayload(answer, expected, NOW)).toEqual({ ok: false, problem: "mismatch" });
   });
 
   it("refuses the wrong role, an expired request and an exp more than 30 minutes out", () => {
-    expect(checkApprovalPayload(payload({ role: "TREASURER" }), expected, NOW)).toEqual({
+    expect(checkApprovalPayload(approval({ role: "treasurer" }), expected, NOW)).toEqual({
       ok: false,
       problem: "role",
     });
     expect(
-      checkApprovalPayload(payload({ exp: new Date(NOW.getTime() - 1).toISOString() }), expected, NOW),
+      checkApprovalPayload(approval({ exp: new Date(NOW.getTime() - 1).toISOString() }), expected, NOW),
     ).toEqual({ ok: false, problem: "expired" });
     expect(
       checkApprovalPayload(
-        payload({ exp: new Date(NOW.getTime() + 45 * 60_000).toISOString() }),
+        approval({ exp: new Date(NOW.getTime() + 45 * 60_000).toISOString() }),
         expected,
         NOW,
       ),
@@ -150,21 +220,39 @@ describe("approval payload", () => {
   });
 
   it("refuses extra or missing fields rather than signing what it cannot read", () => {
-    expect(checkApprovalPayload({ ...payload(), memo: "x" }, expected, NOW)).toEqual({
-      ok: false,
-      problem: "malformed",
-    });
+    const bad = (p: unknown) => checkApprovalPayload({ ...approval(), payload: p }, expected, NOW);
+    expect(bad({ ...payload(), memo: "x" })).toEqual({ ok: false, problem: "malformed" });
     const { nonce: _n, ...missing } = payload();
-    expect(checkApprovalPayload(missing, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
+    expect(bad(missing)).toEqual({ ok: false, problem: "malformed" });
     // The register's pre-amendment payload (no linesDigest) is refused rather than signed without the cash lines.
     const { linesDigest: _l, ...preAmendment } = payload();
-    expect(checkApprovalPayload(preAmendment, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
-    expect(checkApprovalPayload(null, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
-    expect(checkApprovalPayload([payload()], expected, NOW)).toEqual({ ok: false, problem: "malformed" });
-    expect(checkApprovalPayload(payload({ totalCents: 368.39 }), expected, NOW)).toEqual({
+    expect(bad(preAmendment)).toEqual({ ok: false, problem: "malformed" });
+    expect(bad({ ...payload(), totalCents: 368.39 })).toEqual({ ok: false, problem: "malformed" });
+    // The roles are the package's, lowercase: "CHAIR" is not a role.
+    expect(bad({ ...payload(), role: "CHAIR" })).toEqual({ ok: false, problem: "malformed" });
+    // contracts `IsoDateTime` is UTC with a Z: an offset time is not one.
+    expect(bad({ ...payload(), exp: "2026-10-29T10:30:00+08:00" })).toEqual({
       ok: false,
       problem: "malformed",
     });
+    expect(checkApprovalPayload(null, expected, NOW)).toEqual({ ok: false, problem: "malformed" });
+    expect(checkApprovalPayload([approval()], expected, NOW)).toEqual({ ok: false, problem: "malformed" });
+    // A bare payload, without the items and lines to recompute it from, is never signed.
+    expect(checkApprovalPayload(payload(), expected, NOW)).toEqual({ ok: false, problem: "malformed" });
+    for (const part of ["jcs", "senderBatchId", "items", "lines"] as const) {
+      const { [part]: _gone, ...rest } = approval();
+      expect(checkApprovalPayload(rest, expected, NOW), part).toEqual({ ok: false, problem: "malformed" });
+    }
+  });
+
+  it("reads the payload's shape as contracts' strict ApprovalPayload does", () => {
+    expect(approvalPayloadShape(payload())).toEqual(payload());
+    expect(approvalPayloadShape({ ...payload(), itemCount: 0 })).toBeNull();
+    expect(approvalPayloadShape({ ...payload(), nonce: "short" })).toBeNull();
+    expect(approvalPayloadShape({ ...payload(), exp: "2026-02-30T10:00:00Z" })).toBeNull();
+    // RFC 3339 needs seconds beside a Z (zod 4.6's `z.iso.datetime()`).
+    expect(approvalPayloadShape({ ...payload(), exp: "2026-10-29T10:30Z" })).toBeNull();
+    expect(approvalPayloadShape({ ...payload(), exp: "2026-10-29T10:30:00.123456Z" })).not.toBeNull();
   });
 
   it("calls a payload stale when less than two minutes are left for the fingerprint step", () => {
@@ -175,50 +263,116 @@ describe("approval payload", () => {
   });
 });
 
+describe("member lines, recomputed on the phone (approved plan: both keys bind every line)", () => {
+  it("counts the 64 lines it re-hashed: 8 on PayPal (the batch) and 56 in cash, US$3,849.78", () => {
+    expect(checkLines(runLines, rateCardSha256)).toEqual({
+      ok: true,
+      linesDigest,
+      summary: { count: 64, paypal: { count: 8, cents: 36839 }, cash: { count: 56, cents: 384978 } },
+    });
+  });
+
+  it("inv.i4.line-hash: a line is refused unless its hash is its content's and its content is this line", () => {
+    expect(checkLines(forgedCashLine(runLines), rateCardSha256)).toEqual({ ok: false, problem: "lines" });
+    const [first, ...rest] = runLines;
+    if (!first) throw new Error("the run has lines");
+    const elsewhere = { ...first, memberNo: "M-099" };
+    expect(checkLines([elsewhere, ...rest], rateCardSha256)).toEqual({ ok: false, problem: "lines" });
+    const railSwap = { ...first, rail: first.rail === "CASH" ? ("PAYPAL" as const) : ("CASH" as const) };
+    expect(checkLines([railSwap, ...rest], rateCardSha256)).toEqual({ ok: false, problem: "lines" });
+    expect(checkLines(runLines, "f".repeat(64))).toEqual({ ok: false, problem: "lines" });
+    expect(checkLines([first, first, ...rest], rateCardSha256)).toEqual({ ok: false, problem: "lines" });
+  });
+
+  it("refuses lines it cannot read", () => {
+    const [first] = runLines;
+    if (!first) throw new Error("the run has lines");
+    expect(checkLines(undefined, rateCardSha256)).toEqual({ ok: false, problem: "malformed" });
+    expect(checkLines([], rateCardSha256)).toEqual({ ok: false, problem: "malformed" });
+    expect(checkLines([{ ...first, rail: "GCASH" }], rateCardSha256)).toEqual({
+      ok: false,
+      problem: "malformed",
+    });
+    expect(checkLines([{ ...first, netCents: 1.5 }], rateCardSha256)).toEqual({
+      ok: false,
+      problem: "malformed",
+    });
+    expect(checkLines([{ ...first, canonical: null }], rateCardSha256)).toEqual({
+      ok: false,
+      problem: "malformed",
+    });
+  });
+
+  it("inv.i3.payouts-are-paypal-lines: every payout is exactly one PayPal line's net, no member twice", () => {
+    expect(itemsMatchLines(batchItems, runLines)).toBe(true);
+    const [first, ...rest] = batchItems;
+    if (!first) throw new Error("the batch has items");
+    expect(itemsMatchLines([{ ...first, amountCents: first.amountCents + 1 }, ...rest], runLines)).toBe(
+      false,
+    );
+    expect(itemsMatchLines([...batchItems, { ...first, senderItemId: "r37x1-M-002" }], runLines)).toBe(false);
+    expect(itemsMatchLines([{ ...first, senderItemId: "payout-1" }, ...rest], runLines)).toBe(false);
+    const cash = runLines.find((l) => l.rail === "CASH");
+    if (!cash) throw new Error("the run has cash lines");
+    const toCash = { ...first, senderItemId: `r37-${cash.memberNo}`, amountCents: cash.netCents };
+    expect(itemsMatchLines([toCash, ...rest], runLines)).toBe(false);
+    // A re-route pays the same line under its own sender_item_id.
+    expect(itemsMatchLines([{ ...first, senderItemId: "r37x2-M-002" }, ...rest], runLines)).toBe(true);
+  });
+});
+
 describe("co-sign request, recomputed on the phone (I4)", () => {
-  it("draws the seed request's seal from its own hash: 8 items, US$368.39", () => {
+  it("draws the seed request's seal from its own hash and counts the lines it binds", () => {
     const r = checkCosignRequest(request());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.recomputed).toEqual({ batchSha256, itemCount: 8, totalCents: 36839 });
     expect(r.expected).toEqual(expected);
+    expect(r.lines).toEqual({
+      count: 64,
+      paypal: { count: 8, cents: 36839 },
+      cash: { count: 56, cents: 384978 },
+    });
   });
 
-  it("inv.i4.lines-digest-gap: without the member lines, the cash lines are bound by the server's digest alone", () => {
-    // KNOWN GAP (orchestrator: IC-08 must carry the digest lines). The Chair's signature binds every member line,
-    // PayPal and cash, but today's request carries only their digest: the phone can check that the payload repeats
-    // it (inv.i4.payload-differs) and that it does not change after he opened it (inv.i4.lines-changed), yet it
-    // cannot show the cash lines or recompute what the digest covers. `linesChecked: false` says so.
-    const r = checkCosignRequest(request({ linesDigest: "e".repeat(64) }));
-    expect(r).toMatchObject({ ok: true, linesChecked: false, expected: { linesDigest: "e".repeat(64) } });
+  it("inv.i4.lines-required: a request without its member lines is never signable", () => {
+    const { lines: _l, ...bare } = request();
+    expect(checkCosignRequest(bare as CosignRequestDTO)).toMatchObject({ ok: false, problem: "malformed" });
   });
 
-  it("inv.i4.lines-recomputed: when the request carries its member lines, the phone recomputes their digest", () => {
-    expect(checkCosignRequest({ ...request(), lines: namedLines })).toMatchObject({
-      ok: true,
-      linesChecked: true,
-    });
-    expect(checkCosignRequest({ ...request(), lines: [...namedLines].reverse() })).toMatchObject({
-      ok: true,
-    });
-    // One cent moved from a cash line to a PayPal line, under the same claimed digest: refused like a bad hash.
-    const moved = namedLines.map((l) =>
-      l.memberNo === "M-053"
-        ? { ...l, netCents: l.netCents - 1 }
-        : l.memberNo === "M-014"
-          ? { ...l, netCents: l.netCents + 1 }
-          : l,
-    );
-    expect(checkCosignRequest({ ...request(), lines: moved })).toMatchObject({ ok: false, problem: "hash" });
-    expect(checkCosignRequest({ ...request(), lines: namedLines.slice(1) })).toMatchObject({
+  it("inv.i4.lines-recomputed: the claimed lines digest must be the phone's own, over lines it re-hashed", () => {
+    expect(checkCosignRequest(request({ linesDigest: "e".repeat(64) }))).toMatchObject({
       ok: false,
-      problem: "hash",
+      problem: "lines",
     });
-    const bad = [{ memberNo: "M-014", rail: "GCASH", netCents: 1 }] as unknown as typeof namedLines;
-    expect(checkCosignRequest({ ...request(), lines: bad })).toMatchObject({
+    expect(checkCosignRequest(request({ lines: [...runLines].reverse() }))).toMatchObject({ ok: true });
+    // One cent moved between two cash lines, re-hashed honestly, under the old claimed digest.
+    const moved = movedCashCent(request());
+    expect(checkCosignRequest({ ...moved, linesDigest })).toMatchObject({ ok: false, problem: "lines" });
+    expect(checkCosignRequest(moved)).toMatchObject({
+      ok: true,
+      expected: { linesDigest: moved.linesDigest },
+    });
+    // A line changed under its old hash, a line dropped, a line for one member twice.
+    expect(checkCosignRequest(withLines(request(), forgedCashLine(runLines)))).toMatchObject({
       ok: false,
-      problem: "malformed",
+      problem: "lines",
     });
+    expect(checkCosignRequest(request({ lines: runLines.slice(1) }))).toMatchObject({
+      ok: false,
+      problem: "lines",
+    });
+    const bad = [{ memberNo: "M-014", rail: "GCASH", netCents: 1 }] as unknown as typeof runLines;
+    expect(checkCosignRequest(request({ lines: bad }))).toMatchObject({ ok: false, problem: "malformed" });
+  });
+
+  it("inv.i3.unbalanced: a payout that is not its PayPal line's net is refused, even under honest hashes", () => {
+    const req = request();
+    const [line] = req.lines.filter((l) => l.memberNo === req.items[0]?.memberNo);
+    if (!line) throw new Error("the first payout has a line");
+    // The PayPal line gains a cent and is re-hashed honestly; the payout does not.
+    const lines = req.lines.map((l) => (l === line ? relined(l, 1) : l));
+    expect(checkCosignRequest(withLines(req, lines))).toMatchObject({ ok: false, problem: "unbalanced" });
   });
 
   it("inv.i4.server-hash-refused: a claimed hash that is not the items' hash is refused, with the phone's own", () => {
@@ -235,6 +389,13 @@ describe("co-sign request, recomputed on the phone (I4)", () => {
     if (!first) throw new Error("fixture");
     const r = checkCosignRequest(request({ items: [{ ...first, receiver: "else@else.invalid" }, ...rest] }));
     expect(r).toMatchObject({ ok: false, problem: "hash" });
+  });
+
+  it("refuses a payout labelled with another member than the one it pays", () => {
+    const [first, ...rest] = request().items;
+    if (!first) throw new Error("fixture");
+    const r = checkCosignRequest(request({ items: [{ ...first, memberNo: "M-099" }, ...rest] }));
+    expect(r).toMatchObject({ ok: false, problem: "bad-item" });
   });
 
   it("checks the claimed count and total against the items", () => {
@@ -326,6 +487,46 @@ describe("keys", () => {
     expect(deviceKeyParts("fs-ernesto-a0")).toBeNull();
     expect(deviceKeyParts(null)).toBeNull();
   });
+
+  it("the Chair's key is kind app and the treasurer's kind web (register §8, the approved plan)", () => {
+    expect(people.chair).toMatchObject({ keyId: "fs-ernesto-a1", keyKind: "app" });
+    expect(deviceKeyIdFitsKind(people.chair.keyKind, people.chair.keyId)).toBe(true);
+    expect(people.treasurer).toMatchObject({ keyId: "fs-analyn-w1", keyKind: "web" });
+    expect(deviceKeyIdFitsKind(people.treasurer.keyKind, people.treasurer.keyId)).toBe(true);
+    expect(deviceKeyKindOf("device")).toBe("app");
+    expect(deviceKeyKindOf("demo")).toBe("web_demo");
+  });
+
+  it("inv.i8.key-id-shapes: every key ID the phone makes has its kind's shape (contracts KEY_ID_PATTERNS)", () => {
+    fc.assert(
+      fc.property(
+        fc.string({ maxLength: 40 }),
+        fc.integer({ min: 1, max: MAX_KEY_GENERATION }),
+        (name, generation) => {
+          const persona = `board:${name}`;
+          expect(deviceKeyIdFitsKind("app", deviceKeyId(persona, generation))).toBe(true);
+          expect(deviceKeyIdFitsKind("web_demo", demoKeyId(persona, rnd))).toBe(true);
+          // A demo key never takes an app key's shape, and an app key never a demo key's.
+          expect(deviceKeyIdFitsKind("web_demo", deviceKeyId(persona, generation))).toBe(false);
+          expect(deviceKeyIdFitsKind("app", demoKeyId(persona, rnd))).toBe(false);
+        },
+      ),
+      { numRuns: 300 },
+    );
+    // Letters only, never a ledger or demo persona: those words mark the server's ledger keys and the judges' keys.
+    expect(personaSlug("board:ernesto2")).toBe("ernesto");
+    expect(personaSlug("board:demo")).toBe("ernesto");
+    expect(personaSlug("board:ledger")).toBe("ernesto");
+    expect(personaSlug(`board:${"x".repeat(30)}`)).toBe("x".repeat(24));
+  });
+
+  it("stops at a9999: past it no key ID is left, so no key is made", () => {
+    expect(deviceKeyId("board:ernesto", MAX_KEY_GENERATION)).toBe("fs-ernesto-a9999");
+    expect(() => deviceKeyId("board:ernesto", MAX_KEY_GENERATION + 1)).toThrow(RangeError);
+    expect(deviceKeyParts("fs-ernesto-a9999")).toEqual({ slug: "ernesto", generation: 9999 });
+    expect(deviceKeyParts("fs-ernesto-a10000")).toBeNull();
+    expect(deviceKeyParts("fs-demo-a1")).toBeNull();
+  });
 });
 
 describe("the phone's key vault", () => {
@@ -405,7 +606,7 @@ describe("the phone's key vault", () => {
       },
       submit: async () => ({ ok: true, value: { accepted: true } }),
     });
-    const before = await cosign(payload(), expected, deps(vault));
+    const before = await cosign(approval(), expected, deps(vault));
     if (!before.ok) throw new Error(before.detail);
     expect(before.key.keyId).toBe("fs-ernesto-a1");
 
@@ -417,7 +618,7 @@ describe("the phone's key vault", () => {
     expect(await vault.current()).toBeNull();
     expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a2");
 
-    const after = await cosign(payload({ nonce: "n_01JB7Q3X9M3" }), expected, deps(vault));
+    const after = await cosign(approval({ nonce: "n_01JB7Q3X9M3" }), expected, deps(vault));
     if (!after.ok) throw new Error(after.detail);
     expect(after.key.keyId).toBe("fs-ernesto-a2");
     expect(after.created).toBe(true);
@@ -469,6 +670,14 @@ describe("the phone's key vault", () => {
     expect(theresa.key.publicKeyHex).not.toBe(ernesto.key.publicKeyHex);
     // Ernesto's next key on this phone is still a new ID, never his old one with a new public key.
     expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a2");
+  });
+
+  it("makes no key past fs-ernesto-a9999, rather than reuse an ID or make one outside the registry's shape", async () => {
+    const { vault, prefs, store } = phone();
+    await prefs.set("fs.boardKey.gen.ernesto", String(MAX_KEY_GENERATION));
+    expect(await vault.upcomingKeyId("board:ernesto")).toBeNull();
+    expect(await vault.sign(req())).toEqual({ ok: false, reason: "error" });
+    expect(store.map.size).toBe(0);
   });
 });
 
@@ -534,21 +743,21 @@ describe("cosign", () => {
 
   it("signs with Ed25519, registers a new key once, and the server can verify the signature", async () => {
     const d = deps();
-    const r = await cosign(payload(), expected, d);
+    const r = await cosign(approval(), expected, d);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.created).toBe(true);
     expect(r.submission.signature).toMatch(/^[0-9a-f]{128}$/);
     expect(verifyApproval(r.submission, r.key.publicKeyHex)).toBe(true);
     expect(d.register).toHaveBeenCalledOnce();
-    const again = await cosign(payload({ nonce: "n_01JB7Q3X9M3" }), expected, d);
+    const again = await cosign(approval({ nonce: "n_01JB7Q3X9M3" }), expected, d);
     expect(again.ok && again.created).toBe(false);
     expect(d.register).toHaveBeenCalledOnce();
     expect(d.submit).toHaveBeenCalledTimes(2);
   });
 
   it("inv.i4.signature-binds-payload: a signature does not verify for a changed payload", async () => {
-    const r = await cosign(payload(), expected, deps());
+    const r = await cosign(approval(), expected, deps());
     if (!r.ok) throw new Error("expected ok");
     const forged: ApprovalSubmission = {
       ...r.submission,
@@ -559,17 +768,37 @@ describe("cosign", () => {
 
   it("inv.i4.refuse-before-key: a mismatched payload never reaches the key or the server", async () => {
     const d = deps();
-    const r = await cosign(payload({ batchSha256: "1".repeat(64) }), expected, d);
+    const r = await cosign(approval({ batchSha256: "1".repeat(64) }), expected, d);
     expect(r).toEqual({ ok: false, state: "mismatch", detail: "mismatch" });
     expect(d.sign).not.toHaveBeenCalled();
     expect(d.submit).not.toHaveBeenCalled();
+  });
+
+  it.each(["items", "lines", "jcs", "senderBatchId"] as const)(
+    "inv.i4.recompute-before-key: an answer whose %s do not give its digests is never signed",
+    async (part) => {
+      const d = deps();
+      const r = await cosign(tamperedApproval(approval(), part), expected, d);
+      expect(r).toEqual({ ok: false, state: "mismatch", detail: "mismatch" });
+      expect(d.sign).not.toHaveBeenCalled();
+      expect(d.register).not.toHaveBeenCalled();
+      expect(d.submit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("inv.i4.signs-what-it-recomputed: the signed bytes are the payload whose digests the phone recomputed", async () => {
+    const d = deps();
+    const r = await cosign(approval(), expected, d);
+    if (!r.ok) throw new Error(r.detail);
+    expect(d.sign).toHaveBeenCalledWith(approvalBytes(payload()));
+    expect(r.submission).toMatchObject({ role: "chair", payload: { batchSha256, linesDigest } });
   });
 
   it("inv.i6.human-gate: nothing is registered or sent when the person cancels the fingerprint", async () => {
     const d = deps({
       sign: vi.fn(async (): Promise<KeySignOutcome> => ({ ok: false, reason: "cancelled" })),
     });
-    const r = await cosign(payload(), expected, d);
+    const r = await cosign(approval(), expected, d);
     expect(r).toEqual({ ok: false, state: "cancelled", detail: "cancelled" });
     expect(d.register).not.toHaveBeenCalled();
     expect(d.submit).not.toHaveBeenCalled();
@@ -577,13 +806,13 @@ describe("cosign", () => {
 
   it("never asks for a fingerprint without a connection", async () => {
     const d = deps({ online: () => false });
-    expect(await cosign(payload(), expected, d)).toEqual({ ok: false, state: "offline", detail: "offline" });
+    expect(await cosign(approval(), expected, d)).toEqual({ ok: false, state: "offline", detail: "offline" });
     expect(d.sign).not.toHaveBeenCalled();
   });
 
   it("inv.i4.recheck: asks again before the fingerprint and before anything is sent", async () => {
     const early = deps({ recheck: () => "mismatch" });
-    expect(await cosign(payload(), expected, early)).toEqual({
+    expect(await cosign(approval(), expected, early)).toEqual({
       ok: false,
       state: "mismatch",
       detail: "recheck",
@@ -599,7 +828,7 @@ describe("cosign", () => {
         return vault.sign({ persona: "board:ernesto", message, prompt: "p", cancelLabel: "c" });
       }),
     });
-    expect(await cosign(payload(), expected, late)).toEqual({
+    expect(await cosign(approval(), expected, late)).toEqual({
       ok: false,
       state: "mismatch",
       detail: "recheck",
@@ -611,29 +840,31 @@ describe("cosign", () => {
 
   it("drops the signature, never queues it, when the key cannot be registered", async () => {
     const d = deps({ register: vi.fn(async () => ({ ok: false as const, code: "NETWORK" as const })) });
-    const r = await cosign(payload(), expected, d);
+    const r = await cosign(approval(), expected, d);
     expect(r).toEqual({ ok: false, state: "offline", detail: "register:NETWORK" });
     expect(d.submit).not.toHaveBeenCalled();
   });
 
   it("refreshes rather than signs an expired payload, and refuses an exp too far out", async () => {
     const d = deps();
-    const old = payload({ exp: new Date(NOW.getTime() - 1000).toISOString() });
+    const old = approval({ exp: new Date(NOW.getTime() - 1000).toISOString() });
     expect(await cosign(old, expected, d)).toEqual({ ok: false, state: "stale", detail: "expired" });
-    const far = payload({ exp: new Date(NOW.getTime() + 60 * 60_000).toISOString() });
+    const far = approval({ exp: new Date(NOW.getTime() + 60 * 60_000).toISOString() });
     expect(await cosign(far, expected, d)).toEqual({ ok: false, state: "error", detail: "too-far" });
     expect(d.sign).not.toHaveBeenCalled();
   });
 
   it.each([
     ["DIGEST_MISMATCH", 409, "mismatch"],
-    ["APPROVAL_EXPIRED", 409, "stale"],
+    ["APPROVAL_EXPIRED", 422, "stale"],
     ["NONCE_REUSED", 409, "stale"],
     ["NETWORK", undefined, "offline"],
     ["RATE_LIMITED", 429, "error"],
+    ["KEY_NOT_REGISTERED", 403, "error"],
+    ["SIGNATURE_INVALID", 422, "error"],
   ] as const)("maps the server's %s to %s", async (code, status, state) => {
     const d = deps({ submit: vi.fn(async () => ({ ok: false as const, code, status })) });
-    expect(await cosign(payload(), expected, d)).toEqual({ ok: false, state, detail: code });
+    expect(await cosign(approval(), expected, d)).toEqual({ ok: false, state, detail: code });
   });
 
   it("signs with a device-style key too (the native vault's contract)", async () => {
@@ -653,7 +884,7 @@ describe("cosign", () => {
       }),
       isRegistered: () => true,
     });
-    const r = await cosign(payload(), expected, d);
+    const r = await cosign(approval(), expected, d);
     expect(r.ok && r.submission.keyId).toBe("fs-ernesto-a1");
     expect(r.ok && verifyApproval(r.submission, meta.publicKeyHex)).toBe(true);
     expect(d.register).not.toHaveBeenCalled();

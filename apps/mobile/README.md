@@ -54,10 +54,19 @@ events (MM-1).
 
 The app never calls PayPal, Claude or Gemini, and reads only `EXPO_PUBLIC_*` variables.
 
-## Temporary shims (swap when the owning workstream merges)
+## WS-CORE's packages, and the temporary shims
 
-Everything under `src/_shims/` mirrors the decision register's names so the swap is an import change:
-`contracts.ts` (IC-01, with IC-12 types), `domain.ts` (IC-02 `format.*`, `batchDigest`, `linesDigest`, `fsm.item`),
+UI code may import only `contracts` of WS-CORE's packages (register §6), so the app takes the rest as guarded copies:
+- `contracts.ts` re-exports @fairsplit/contracts' types (type-only: nothing of the package is bundled) and keeps the
+  app-only names (screen states, amount grammar, status words, IC-12 types); `contracts.parity.test.ts` holds its
+  runtime values and its approval-payload check to the package.
+- `domain-core.ts` is @fairsplit/domain's digest code (`batchDigest`, `linesDigest`, JCS, line hashes) copied byte for
+  byte; `domain-core.parity.test.ts` compares it with packages/domain and recomputes the seed's hashes.
+- `seed-run.json` is the seed snapshot's run r37 (items and all 64 member lines), copied by `node scripts/seed-run.mjs`
+  and checked by `scripts/seed-run.test.mjs`; rerun the script whenever WS-CORE regenerates the snapshot.
+
+The other files under `src/_shims/` still stand in for their packages and mirror the register's names, so the swap is
+an import change: `domain.ts` (IC-02 `format.*`, `fsm.item`; it re-exports `domain-core.ts`),
 `seed.ts` (IC-03 fixture and the register's canonical figures), `api-client.ts` (IC-08), `tokens.native.ts` (IC-09),
 `motion.ts` and `moments.ts` (IC-09 presets, IC-10 phases), `seal.ts` (`@fairsplit/seal`), `i18n.ts`
 (`@fairsplit/i18n`, plus one catalog per slice), `fonts.ts` / `font-sources*.ts` (FS Sans cuts).

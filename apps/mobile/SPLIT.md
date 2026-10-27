@@ -89,14 +89,42 @@ Code that crosses a boundary. The owner may change everything behind these names
 - Expo pins follow `npx expo install --check` (expo 58.0.20 on 28 Oct); pnpm 11 recorded the patches younger than its
   release-age floor under `minimumReleaseAgeExclude`.
 
+### Changes after WS-CORE merged (28 Oct)
+
+- `_shims/contracts.ts` takes every type from @fairsplit/contracts (a type-only import: nothing of the package is
+  bundled). Its runtime values (state lists, item ranks, key ID shapes, the payload's field set) are checked against the
+  package's own by `contracts.parity.test.ts`. A runtime import would carry zod and every schema into each phone frame
+  (+117 KB gzipped, measured) and needs a Metro rule for the package's `./x.js` specifiers, so the app does not make one.
+- Approval roles are the package's, lowercase (`treasurer`, `chair`). `DeviceKeyKind` is `app | web | web_demo`:
+  the Chair's phone key `fs-ernesto-a1` is `app`, a judge's `fs-{persona}-demo-{6}` is `web_demo`, the treasurer's
+  `fs-analyn-w1` is `web`. Every key ID the phone makes has its kind's shape (`deviceKeyIdFitsKind`, `a1`…`a9999`).
+- The digests are WS-CORE's code: `_shims/domain-core.ts` holds byte-for-byte copies of `batchCanonical`,
+  `batchDigest`, `linesRootJcs`, `linesDigest`, `jcs`, `jcsSha256` and `parseSenderItemId` (@fairsplit/domain may not
+  reach UI code, register §6, and hashes with node:crypto). `domain-core.parity.test.ts` compares each with
+  packages/domain's source, checks `sha256Hex` (@noble/hashes) against node:crypto, and recomputes the seed's hashes.
+- `linesDigest` is core's: sha256(JCS([{memberNo, lineSha256}] sorted)) over all 64 member lines, no longer the shim's
+  (runId, rail, netCents). The demo co-sign is the seed's run r37 (`_shims/seed-run.json`, copied by
+  `node scripts/seed-run.mjs`, checked by `scripts/seed-run.test.mjs`), so the phone's seal and hash are the console's.
+- M-BD-01/02 recompute, before any key is touched: every line hash from its canonical, `linesDigest` from the lines,
+  `batchSha256` from the items, the payouts against the PayPal lines (I3), and the approval payload from its own items
+  and lines (`ApprovalPayloadDTO`). Any difference is "changed" (M-BD-01) or `mismatch` (M-BD-02): the clack, nothing
+  signed. M-BD-01 also says what the signature binds besides the payouts ("all 64 member lines, 56 of them cash").
+  Tests build other valid batches and tampered answers with `test/cosign-batches.ts` (BOARD's, test-only).
+- The demo server answers with contracts' error codes (`KEY_NOT_REGISTERED`, `APPROVER_MISMATCH`,
+  `SIGNATURE_INVALID`, `VALIDATION_FAILED`, …), registers a key only under its kind's ID shape and recomputes both
+  digests from its record. `ApiErrorCode` is contracts' `ErrorCode` plus the app's `NETWORK` and pairing outcomes.
+
 ### Asked for, and left for the owning workstream
 
 These need a contract or an endpoint the app does not own; the slices already work around each one.
 - IC-01 (WS-CORE): a `rescan.requested` event `{photo, captureId, requestedBy}`. The clerk reads it on its own side.
 - IC-08 (WS-API): `GET /v1/clerk/cash-day` and `POST /v1/lines/:lineId/cash-receipt`; until then they live in
   `features/clerk/cash-port.ts` (a 404 or 501 means "no cash list").
-- WS-API: the open co-sign request (or its run slug in the pairing answer or the push), `linesDigest` lines in
-  `CosignRequestDTO`, a localisable `CosignHold` summary, and the Chair's agreement to an override.
+- WS-API: the open co-sign request (or its run slug in the pairing answer or the push), a localisable `CosignHold`
+  summary, and the Chair's agreement to an override.
+- WS-API: the approval-payload endpoint answers `ApprovalPayloadDTO` = IC-08's `{payload, jcs}` plus `senderBatchId`,
+  `items` and `lines`, and `CosignRequestDTO` carries `lines`; a line is contracts' `ProofLine` narrowed to `memberNo`,
+  `rail`, `netCents`, `canonical`, `lineSha256` (the Proof's own lines fit). The phone refuses to sign without them.
 - WS-API: the statement's co-op Grade 1 total, the clerk per slip, mention offsets for audio clips, the Committee's
   reply, slip photos; whether to issue the dot-free member link (`body~sig`).
 
@@ -138,17 +166,22 @@ skip it.
 
 ### Contracts, domain, seed and the other shims (`_shims/`, named as the register names the packages)
 
-- `contracts.ts` (IC-01): `Lang`, `LANGS`, `AppRole`, run/line/hold/item states and `ITEM_STATUS_RANK`, `RunEvent` and
-  payloads, `ApprovalPayload` + `APPROVAL_PAYLOAD_KEYS` (with `linesDigest`), `BatchItem`, `DigestLine`, `SCREEN`,
-  `APP_ROUTES`, `SCREEN_STATES` + `ScreenStateOf<S>`, `SLAB_STATES`, `AMOUNT_STATES`, `AMOUNT_STATE`,
-  `amountStateOf(line, {approved})`, `MEMBER_STATUS_WORDS`, `StatementTemplate`, `STATEMENT_SLOTS`, IC-12 types.
+- `contracts.ts` (IC-01): the package's types (`Lang`, `ApprovalPayload`, `ApprovalRole`, `BatchItem`,
+  `DeviceKeyKind`, `HoldKind`, `LineCanonical`, `ProofLine`, `Rail`, …; `RunState`/`LineState`/`ItemStatus` are its
+  `PayRunState`/`MemberLineState`/`PayoutItemStatus` without SUBMITTED), plus `LANGS`, `AppRole`, the state lists,
+  `ITEM_STATUS_RANK`, `APPROVAL_ROLES`, `APPROVAL_PAYLOAD_KEYS`, `DEVICE_KEY_KINDS`, `KEY_ID_PATTERNS`,
+  `deviceKeyIdFitsKind`, and the app-only `RunEvent` and payloads, `SCREEN`, `APP_ROUTES`, `SCREEN_STATES` +
+  `ScreenStateOf<S>`, `SLAB_STATES`, `AMOUNT_STATES`, `AMOUNT_STATE`, `amountStateOf(line, {approved})`,
+  `MEMBER_STATUS_WORDS`, `StatementTemplate`, `STATEMENT_SLOTS`, IC-12 types, `ApiErrorCode`.
 - `domain.ts` (IC-02): `format.*` (`usd`, `usdPlain`, `peso`, `pesoEstimate`, `pesoSpoken`, `cashPesos`, `cashSpoken`,
   `amountSpoken`, `percentBp`, `kg`, `date`, `dayMonth`, `time`, `elapsed`, `hash`, `bytes`, `list`), `FEE_TABLE`,
-  `batchDigest`, `linesDigest`, `jcs`, `sha256Hex`, `fsm.item.apply`.
-- `seed.ts` (IC-03 fixture): `coop`, `season`, `payer`, `fx`, `runSlug`, `runId`, `people`, `rateCard`,
-  `rateCardSha256`, `batchItems`, `batchSha256`, `batchTotalCents`, `namedLines`, `linesDigest`, `heroLine`,
-  `heroSlips`, `statementTemplates`, `resolvedHolds`, `cashDayIso`, `canonical` (every register §2 figure) and
-  `namedMembers` (the nine named members).
+  `fsm.item.apply`, and WS-CORE's digests from `domain-core.ts`: `batchDigest` (returns contracts' `BatchDigest`),
+  `batchCanonical`, `linesDigest(lines)`, `linesRootJcs`, `approvalBytes`, `jcs`, `jcsBytes`, `jcsSha256`,
+  `sha256Hex`, `parseSenderItemId`.
+- `seed.ts` (IC-03 fixture): `coop`, `season`, `payer`, `fx`, `runSlug`, `runId` and `seasonId` (the seed's),
+  `people` (with `keyKind`), `rateCard`, `rateCardSha256`, `senderBatchId`, `batchItems`, `batchSha256`,
+  `batchTotalCents`, `runLines` (all 64), `linesDigest`, `heroLine`, `heroSlips`, `statementTemplates`,
+  `resolvedHolds`, `cashDayIso`, `canonical` (every register §2 figure) and `namedMembers` (the nine named members).
 - `motion.ts` (IC-09 presets): `SPRINGS`, `TWEENS`, `TIMELINE` (MM-1, MM-5, MM-7, pending ring, Paminawa chip),
   `HOLD_MS`, `ENGRAVE_STAGGER_MS`, `FEEDBACK_EVENTS`, `MAX_FLIGHTS`. `moments.ts` (IC-10): `MOMENTS`, `isPhase`.
 - `seal.ts`: `seal(batchSha256, size)`, `sealStroke(size)`. `tokens.native.ts` (IC-09): `themes`, `space`, `radius`,
@@ -232,5 +265,6 @@ corepack pnpm smoke:web          # after build: every register §4 route in Chro
   Pangutana stay although S1 retired them.
 - One theme per surface (approved plan): the app is Adlaw. `/onboarding/theme` must exist (register route); what it
   shows is BOARD + ONBOARDING's call.
-- The signed payload carries `linesDigest`; the phone refuses a payload without it (`inv.i4.*`).
+- The signed payload carries `linesDigest`; the phone refuses a payload without it, and signs only a payload whose own
+  items and lines give both digests with WS-CORE's functions (`inv.i4.*`).
 - Member wording never shows a per-kg rate: "Your 148.0 kg of the co-op's 9,780.6 verified kilos" (S2.2.1).

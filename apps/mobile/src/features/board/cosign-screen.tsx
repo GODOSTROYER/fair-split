@@ -1,9 +1,10 @@
 /**
  * M-BD-01 co-sign request (S1.9, design D1): what Ernesto signs and why, in ten seconds, in one scroll:
  * the amount; why him; the three resolved holds with who resolved them; the seal his phone draws from the hash it
- * computed itself, with the hash in groups of four to compare with the console; key 1 and the treasurer's presence;
- * the payouts; and the flat "Ipabalik kang Analyn", which needs a reason. The thumb zone holds the way to the sign
- * sheet (M-BD-02). Nothing here signs, and nothing is ever queued: offline, it says so and waits.
+ * computed itself, with the hash in groups of four to compare with the console, and the member lines his signature
+ * binds besides the payouts; key 1 and the treasurer's presence; the payouts; and the flat "Ipabalik kang Analyn",
+ * which needs a reason. The thumb zone holds the way to the sign sheet (M-BD-02). Nothing here signs, and nothing is
+ * ever queued: offline, it says so and waits. A batch, lines or payload the phone refuses clacks once (MM-5 mismatch).
  */
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import { Platform, StyleSheet, TextInput, useWindowDimensions, View, type ViewIn
 import { format } from "../../_shims/domain";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { feedback } from "../../platform/feedback";
 import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
@@ -24,7 +26,7 @@ import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { useCosign } from "./cosign-context";
-import { presenceView, whyKey } from "./cosign-model";
+import { changedCue, presenceView, type RequestStatus, whyKey } from "./cosign-model";
 import {
   Gloss,
   HashRows,
@@ -71,6 +73,24 @@ export function CosignScreen() {
   // The amount takes first focus once the request is on screen (S1.12: the screen reader lands on what he signs).
   const hasDto = !!dto;
   useEffect(() => (hasDto ? focusFirst(top) : undefined), [hasDto]);
+
+  // MM-5's mismatch while he is looking at this screen: one clack as the request turns "changed" (the sign sheet
+  // clacks for itself when the refusal comes at the release, so an unfocused request stays quiet).
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
+  const shown = useRef<RequestStatus | null>(null);
+  useEffect(() => {
+    const cue = changedCue(shown.current, c.status);
+    shown.current = c.status;
+    if (cue && focused.current) feedback.play(cue);
+  }, [c.status]);
 
   if (!dto) {
     return (
@@ -127,6 +147,11 @@ export function CosignScreen() {
   const recomputed = c.check?.ok ? c.check.recomputed : (c.check?.recomputed ?? null);
   // The seal and the hash are always the phone's own; the server's claim is only ever shown beside them.
   const ownHash = recomputed?.batchSha256 ?? null;
+  // The member lines the signature binds besides the payouts, counted from lines whose hashes the phone recomputed.
+  const lines = c.check?.ok ? c.check.lines : null;
+  const linesArgs = lines
+    ? { n: lines.count, cash: lines.cash.count, amount: format.usd(lines.cash.cents) }
+    : null;
   const signed = c.status === "signed";
   const sealSize = Math.min(208, width - 2 * space.s16 - 2 * space.s24);
   const showPush = Platform.OS === "web" && signable;
@@ -139,7 +164,7 @@ export function CosignScreen() {
       onPress={() => router.push(signHref(c.runSlug))}
       testID="M-BD-01.sign"
     />
-  ) : c.status === "changed" && c.change !== "hash" ? (
+  ) : c.status === "changed" && c.change !== "hash" && c.change !== "lines" ? (
     <Button
       tall
       variant="tonal"
@@ -219,6 +244,14 @@ export function CosignScreen() {
               text={gloss("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
               align="center"
             />
+            {linesArgs ? (
+              <>
+                <Txt kind="caption" color="ink2" align="center" testID="M-BD-01.lines">
+                  {tr("M-BD-01.lines", linesArgs)}
+                </Txt>
+                <Gloss text={gloss("M-BD-01.lines", linesArgs)} align="center" />
+              </>
+            ) : null}
           </>
         ) : (
           <Txt kind="body" color="ink2">
@@ -302,19 +335,18 @@ function StatusBanner() {
   const gloss = useGloss();
   const treasurer = people.treasurer.first;
   switch (c.status) {
-    case "changed":
+    case "changed": {
+      // Refused before it was ever signable (the server's batch hash or member lines), or changed since he opened it.
+      const key =
+        c.change === "hash"
+          ? "M-BD-01.hashMismatch"
+          : c.change === "lines"
+            ? "M-BD-01.linesMismatch"
+            : "M-BD-01.changed";
       return (
         <Banner tone="decide" icon="info" testID="M-BD-01.changed">
-          <Txt kind="bodyStrong">
-            {c.change === "hash" ? tr("M-BD-01.hashMismatch", { name: treasurer }) : tr("M-BD-01.changed")}
-          </Txt>
-          <Gloss
-            text={
-              c.change === "hash"
-                ? gloss("M-BD-01.hashMismatch", { name: treasurer })
-                : gloss("M-BD-01.changed")
-            }
-          />
+          <Txt kind="bodyStrong">{tr(key, { name: treasurer })}</Txt>
+          <Gloss text={gloss(key, { name: treasurer })} />
           {c.change === "hash" && c.dto && c.check && !c.check.ok && c.check.recomputed ? (
             <>
               <Txt kind="hash" color="ink2">
@@ -327,6 +359,7 @@ function StatusBanner() {
           ) : null}
         </Banner>
       );
+    }
     case "expired":
       return (
         <Banner tone="decide" icon="clock" testID="M-BD-01.expired">

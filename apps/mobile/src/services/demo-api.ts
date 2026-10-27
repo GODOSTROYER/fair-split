@@ -1,12 +1,18 @@
 /**
  * Demo mode: the whole FairSplitApi in memory, for running the app without fs-api (no EXPO_PUBLIC_API_ORIGIN).
- * It behaves like the server where it matters: it verifies the Ed25519 co-signature against the registered key,
- * re-checks the batch digest and the nonce, and only ever moves item statuses forward. Every screen shows
- * "Demo data" while it is in use (I8).
+ * It behaves like the server where it matters: it registers a key only under its kind's ID shape, verifies the
+ * Ed25519 co-signature against the registered key, recomputes the batch digest and the lines digest from its own
+ * record (WS-CORE's functions, as `executeApproved` does) and checks the nonce, and only ever moves item statuses
+ * forward. Every screen shows "Demo data" while it is in use (I8).
  */
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
-import type { ApprovalSubmission, FairSplitApi, RunEventListener } from "../_shims/api-client";
+import type {
+  ApprovalSubmission,
+  CosignRequestDTO,
+  FairSplitApi,
+  RunEventListener,
+} from "../_shims/api-client";
 import type {
   ApprovalPayload,
   ApprovalRole,
@@ -15,9 +21,10 @@ import type {
   LineState,
   RunEvent,
 } from "../_shims/contracts";
-import { batchDigest, jcs } from "../_shims/domain";
-import { heroLine, people, runId, runSlug, season } from "../_shims/seed";
-import { buildDemoCosign, buildDemoStatement, type DemoStage } from "./demo-fixtures";
+import { deviceKeyIdFitsKind } from "../_shims/contracts";
+import { batchDigest, jcs, linesDigest } from "../_shims/domain";
+import { heroLine, people, runId, runSlug } from "../_shims/seed";
+import { buildDemoApproval, buildDemoCosign, buildDemoStatement, type DemoStage } from "./demo-fixtures";
 import { DEMO_BEARER, type PairedSession } from "./session";
 
 /** fs-api refuses an `exp` more than 30 minutes ahead (S3.8); one minute of clock skew is allowed. */
@@ -26,21 +33,18 @@ const MAX_EXP_AHEAD_MS = 31 * 60_000;
 /**
  * The server's own check, written independently of the phone's (`lib/signing.ts`), so the demo server tests the
  * client rather than agreeing with it: the submitted payload must be byte-for-byte the one this server issued for
- * that nonce (JCS), its batch hash must be the hash of the items on record (I4), and it must not have expired.
+ * that nonce (JCS), its batch hash and lines digest must be the ones it computes from the items and member lines on
+ * record (I4), and it must not have expired.
  */
 function serverCheck(
   sub: ApprovalSubmission,
   issued: ApprovalPayload,
-  onRecord: {
-    runId: string;
-    senderBatchId: string;
-    rateCardSha256: string;
-    items: Parameters<typeof batchDigest>[1];
-  },
+  onRecord: CosignRequestDTO,
   now: Date,
 ): "ok" | "mismatch" | "expired" {
   if (jcs(sub.payload) !== jcs(issued)) return "mismatch";
-  if (batchDigest(onRecord, onRecord.items) !== sub.payload.batchSha256) return "mismatch";
+  if (batchDigest(onRecord, onRecord.items).batchSha256 !== sub.payload.batchSha256) return "mismatch";
+  if (linesDigest(onRecord.lines) !== sub.payload.linesDigest) return "mismatch";
   const exp = Date.parse(sub.payload.exp);
   if (!(exp > now.getTime())) return "expired";
   if (exp - now.getTime() > MAX_EXP_AHEAD_MS) return "mismatch";
@@ -175,47 +179,36 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
     getStatementByLink: () =>
       ok(buildDemoStatement({ stage, now: deps.now().toISOString(), sentAt: sentAt ?? undefined })),
     async getCosignRequest(slug) {
-      if (slug !== runSlug) return { ok: false, code: "PAIRING_INVALID", status: 404 };
+      if (slug !== runSlug) return { ok: false, code: "NOT_FOUND", status: 404 };
       const dto = buildDemoCosign({ now: deps.now(), treasurerSigned: true });
       return { ok: true, value: chairSigned ? { ...dto, state: "signed" } : dto };
     },
     async getApprovalPayload(slug, role) {
-      const dto = buildDemoCosign({ now: deps.now(), treasurerSigned: true });
-      if (slug !== runSlug) return { ok: false, code: "PAIRING_INVALID", status: 404 };
-      const payload: ApprovalPayload = {
-        v: 1,
-        runId: dto.runId,
-        seasonId: season.id,
-        rateCardSha256: dto.rateCardSha256,
-        batchSha256: dto.batchSha256,
-        linesDigest: dto.linesDigest,
-        itemCount: dto.itemCount,
-        totalCents: dto.totalCents,
-        currency: "USD",
+      if (slug !== runSlug) return { ok: false, code: "NOT_FOUND", status: 404 };
+      const approval = buildDemoApproval(buildDemoCosign({ now: deps.now(), treasurerSigned: true }), {
         role,
-        approverId: role === "CHAIR" ? people.chair.approverId : people.treasurer.approverId,
         nonce: bytesToHex(deps.randomBytes(12)),
         exp: new Date(deps.now().getTime() + 15 * 60_000).toISOString(),
-      };
-      issued.set(payload.nonce, payload);
-      return { ok: true, value: payload };
+      });
+      issued.set(approval.payload.nonce, approval.payload);
+      return { ok: true, value: approval };
     },
     async postApproval(_slug, body) {
+      // The codes and statuses are contracts' `ErrorCode` and `ERROR_HTTP_STATUS`, as fs-api answers.
       const key = keys.get(body.keyId);
-      if (!key) return { ok: false, code: "UNAUTHENTICATED", status: 401 };
+      if (!key) return { ok: false, code: "KEY_NOT_REGISTERED", status: 403 };
       // A registered key signs only for its own officer: the Chair's key cannot approve as the treasurer.
       if (key.role !== body.role || key.approverId !== body.payload?.approverId) {
-        return { ok: false, code: "UNAUTHENTICATED", status: 403 };
+        return { ok: false, code: "APPROVER_MISMATCH", status: 403 };
       }
       const nonce = typeof body.payload?.nonce === "string" ? body.payload.nonce : "";
       const original = issued.get(nonce);
       if (!original || usedNonces.has(nonce)) return { ok: false, code: "NONCE_REUSED", status: 409 };
       const dto = buildDemoCosign({ now: deps.now(), treasurerSigned: true });
       const check = serverCheck(body, original, dto, deps.now());
-      if (check !== "ok") {
-        return { ok: false, code: check === "expired" ? "APPROVAL_EXPIRED" : "DIGEST_MISMATCH", status: 409 };
-      }
-      if (!signatureValid(body, key.publicKey)) return { ok: false, code: "DIGEST_MISMATCH", status: 409 };
+      if (check === "expired") return { ok: false, code: "APPROVAL_EXPIRED", status: 422 };
+      if (check !== "ok") return { ok: false, code: "DIGEST_MISMATCH", status: 409 };
+      if (!signatureValid(body, key.publicKey)) return { ok: false, code: "SIGNATURE_INVALID", status: 422 };
       usedNonces.add(body.payload.nonce);
       chairSigned = true;
       emit({
@@ -232,7 +225,14 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
     },
     declineApproval: () => ok({ ok: true as const }),
     async registerDeviceKey(body) {
-      keys.set(body.keyId, { publicKey: body.publicKey, role: "CHAIR", approverId: people.chair.approverId });
+      // A key's ID has its kind's shape (contracts `deviceKeyIdFitsKind`), so a demo key never takes an app key's ID.
+      if (!deviceKeyIdFitsKind(body.kind, body.keyId))
+        return { ok: false, code: "VALIDATION_FAILED", status: 400 };
+      // An ID verifies what it signed for good: it is never registered again with another public key.
+      const held = keys.get(body.keyId);
+      if (held && held.publicKey !== body.publicKey)
+        return { ok: false, code: "VERSION_CONFLICT", status: 409 };
+      keys.set(body.keyId, { publicKey: body.publicKey, role: "chair", approverId: people.chair.approverId });
       return { ok: true, value: { ok: true } };
     },
     postReviewRequest: () => ok({ id: `rr_demo_${++seq}` }),

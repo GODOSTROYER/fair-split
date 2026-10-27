@@ -1,62 +1,33 @@
 /**
- * TEMPORARY SHIM: replace with @fairsplit/domain (re-exported through @fairsplit/api-client) after WS-CORE merges.
+ * IC-02 as the app needs it. Two halves, kept apart on purpose:
  *
- * The subset of IC-02 the app needs: `format.*` (C-22: a deterministic formatter, never `Intl`), `batchDigest`
- * (register §8) and the payout-item rank rule `fsm.item` (register §7). Pure, no IO, no React Native.
+ * - The digests (register §8 as amended: `batchDigest`, `linesDigest`, the line hashes, JCS) are WS-CORE's own
+ *   code, copied byte for byte into `domain-core.ts` and re-exported here. @fairsplit/domain may not reach UI code
+ *   (register §6) and hashes with node:crypto, so a copy guarded by `domain-core.parity.test.ts` is the only way the
+ *   phone computes exactly what fs-api and the Proof compute.
+ * - `format.*` (C-22: a deterministic formatter, never `Intl`), `FEE_TABLE` and `fsm.item` are still the app's:
+ *   UI code receives display strings from fs-api (contracts `MoneyDTO.display`) and never calls the package's
+ *   formatter, so they stay here until WS-API serves every string the screens show.
+ *
+ * Pure, no IO, no React Native.
  */
-import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
-import canonicalize from "canonicalize";
-import type { BatchItem, DigestLine, ItemStatus, Lang } from "./contracts";
+import type { ItemStatus, Lang } from "./contracts";
 import { ITEM_STATUS_RANK } from "./contracts";
 
-/* ------------------------------------------------------------------ hashing */
-
-/** RFC 8785 (JCS) canonical JSON. Throws on values JCS cannot represent. */
-export function jcs(value: unknown): string {
-  const out = canonicalize(value);
-  if (out === undefined) throw new TypeError("Value cannot be canonicalised (RFC 8785)");
-  return out;
-}
-
-export function sha256Hex(data: string | Uint8Array): string {
-  return bytesToHex(sha256(typeof data === "string" ? utf8ToBytes(data) : data));
-}
-
-/** batchSha256 = sha256(JCS{runId, senderBatchId, rateCardSha256, items sorted by senderItemId}) (register §8). */
-export function batchDigest(
-  run: { runId: string; senderBatchId: string; rateCardSha256: string },
-  items: readonly BatchItem[],
-): string {
-  const sorted = [...items]
-    .map(({ senderItemId, receiver, amountCents, currency }) => ({
-      senderItemId,
-      receiver,
-      amountCents,
-      currency,
-    }))
-    .sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : a.senderItemId > b.senderItemId ? 1 : 0));
-  return sha256Hex(
-    jcs({
-      runId: run.runId,
-      senderBatchId: run.senderBatchId,
-      rateCardSha256: run.rateCardSha256,
-      items: sorted,
-    }),
-  );
-}
-
-/**
- * linesDigest (approved plan, register §8 amendment): one hash over every member line, PayPal and cash, so both
- * keys bind the cash lines too. Shim-defined input until WS-CORE publishes it: sha256 of JCS{runId, lines sorted by
- * memberNo: [{memberNo, rail, netCents}]}.
- */
-export function linesDigest(runId: string, lines: readonly DigestLine[]): string {
-  const sorted = [...lines]
-    .map(({ memberNo, rail, netCents }) => ({ memberNo, rail, netCents }))
-    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
-  return sha256Hex(jcs({ runId, lines: sorted }));
-}
+export {
+  approvalBytes,
+  type BatchCanonical,
+  type BatchRun,
+  batchCanonical,
+  batchDigest,
+  jcs,
+  jcsBytes,
+  jcsSha256,
+  linesDigest,
+  linesRootJcs,
+  parseSenderItemId,
+  sha256Hex,
+} from "./domain-core";
 
 /* ------------------------------------------------------------------ FEE_TABLE (S1.8, C-28) */
 

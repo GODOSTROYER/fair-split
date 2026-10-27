@@ -65,6 +65,11 @@ export const messages = defineMessages({
     fil: "Kinuwenta ng teleponong ito mula sa {n} bayad sa ibaba",
     en: "Worked out on this phone from the {n} payouts below",
   },
+  "M-BD-01.lines": {
+    ceb: "Apil usab sa imong pirma ang tanang {n} ka linya sa mga miyembro, {cash} niini cash sa bodega ({amount}).",
+    fil: "Kasama rin sa inyong pirma ang lahat ng {n} linya ng mga miyembro, {cash} rito ay cash sa bodega ({amount}).",
+    en: "Your signature also covers all {n} member lines, {cash} of them cash at the bodega ({amount}).",
+  },
   "M-BD-01.items": { ceb: "Mga bayad sa PayPal", fil: "Mga bayad sa PayPal", en: "PayPal payouts" },
   "M-BD-01.total": { ceb: "Tanan", fil: "Kabuuan", en: "Total" },
   "M-BD-01.key1": {
@@ -139,6 +144,11 @@ export const messages = defineMessages({
     ceb: "Ang hash gikan sa server dili hash niini nga mga bayad. Walay mapirmahan. Sultihi si {name}.",
     fil: "Ang hash mula sa server ay hindi hash ng mga bayad na ito. Walang mapipirmahan. Sabihan si {name}.",
     en: "The server's hash is not the hash of these payouts. Nothing can be signed. Tell {name}.",
+  },
+  "M-BD-01.linesMismatch": {
+    ceb: "Ang mga linya sa miyembro gikan sa server dili mao ang ilang hash. Walay mapirmahan. Sultihi si {name}.",
+    fil: "Hindi tugma sa kanilang hash ang mga linya ng miyembro mula sa server. Walang mapipirmahan. Sabihan si {name}.",
+    en: "The server's member lines do not match their hashes. Nothing can be signed. Tell {name}.",
   },
   "M-BD-01.claimed": {
     ceb: "Server: {hash}",
