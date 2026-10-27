@@ -231,6 +231,11 @@ export interface Metrics {
     recordedCostUsd: number;
     latencyMs: { p50: number | null; p95: number | null };
     errors: number;
+    /**
+     * Calls answered from a recording made with other prompt text under the same promptV (a frozen
+     * prompt edited in place): the numbers measure a prompt the repo no longer has, so never green.
+     */
+    promptDrift: number;
   };
 }
 
@@ -250,6 +255,7 @@ export function score(runs: readonly CaseRun[]): Scored {
   const truthPairs = new Set<string>();
   const latencies: number[] = [];
   let recordedCost = 0;
+  let promptDrift = 0;
   let screenFalsePositives = 0;
   let errors = 0;
   let boxIn = 0;
@@ -280,6 +286,7 @@ export function score(runs: readonly CaseRun[]): Scored {
       if (run.result) {
         recordedCost += run.result.result.recordedCostMicros;
         latencies.push(run.result.result.latencyMs);
+        if (run.result.result.promptDrift) promptDrift++;
       }
       continue;
     }
@@ -287,6 +294,7 @@ export function score(runs: readonly CaseRun[]): Scored {
     if (result) {
       for (const c of result.calls) {
         recordedCost += c.recordedCostMicros;
+        if (c.promptDrift) promptDrift++;
         if (c.requestedModel === "claude-opus-5-5" && c.usage.output_tokens > 0) latencies.push(c.latencyMs);
       }
       const hasInjection = run.label.slips.some((s) => s.injection || s.traps.includes("INJECTION"));
@@ -453,12 +461,16 @@ export function score(runs: readonly CaseRun[]): Scored {
         recordedCostUsd: recordedCost / 1e6,
         latencyMs: { p50: percentile(latencies, 50), p95: percentile(latencies, 95) },
         errors,
+        promptDrift,
       },
     },
   };
 }
 
-/** Whether every S4.8 bar is met. An empty set, or any missing metric, is never green. */
+/**
+ * Whether every S4.8 bar is met. An empty set, a missing metric, or a replay of a recording made with
+ * an edited prompt (prompt drift) is never green.
+ */
 export function barsMet(m: Metrics): { green: boolean; failures: string[] } {
   const failures: string[] = [];
   if (m.exactRowRate === null || m.exactRowRate < BARS.exactRowRate)
@@ -470,5 +482,9 @@ export function barsMet(m: Metrics): { green: boolean; failures: string[] } {
   if (m.duplicateF1 === null || m.duplicateF1 < BARS.duplicateF1)
     failures.push(`duplicate F1 ${m.duplicateF1 ?? "n/a"} < ${BARS.duplicateF1}`);
   if (m.reported.errors > 0) failures.push(`${m.reported.errors} case(s) errored`);
+  if (m.reported.promptDrift > 0)
+    failures.push(
+      `${m.reported.promptDrift} call(s) replayed a recording made with an edited prompt (prompt drift): record them again with --mode live`,
+    );
   return { green: failures.length === 0, failures };
 }

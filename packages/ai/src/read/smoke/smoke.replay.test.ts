@@ -2,19 +2,23 @@
 // smoke images (the S3 smoke run), then the components that run recorded once more (AI-3 zoom, AI-4
 // screen and re-screen, AI-5 rate card, AI-6 classifier). No network: the gateway runs replay_only
 // with kill_ai_live on, and a missing recording fails.
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { classifyDeduction } from "../../classify/classify.js";
+import { CLASSIFY_PROMPT_V, classifyDeduction } from "../../classify/classify.js";
 import {
   ClaudeGateway,
   FsReplayStore,
   MemorySpendMeter,
   Semaphore,
+  sha256Hex,
   staticFlags,
 } from "../../gateway/index.js";
-import { readRateCard } from "../../ratecard/read.js";
+import { RATECARD_PROMPT_V, ratecardPrompt, readRateCard } from "../../ratecard/read.js";
 import type { ReadingEvent } from "../_shims/contracts.js";
 import type { ReadDeps } from "../calls.js";
 import { type ExtractResult, extract } from "../extract.js";
+import { loadPromptFile, prompt } from "../prompts.js";
 import { SMOKE_DIR } from "./make-images.js";
 import { classifyInputs, ratecardStubInput, smokeInput } from "./run-components.js";
 
@@ -49,6 +53,33 @@ const boxRate = (r: ExtractResult) => {
   );
   return checks.filter(Boolean).length / checks.length;
 };
+
+/** The sha256 of every prompt as the repo has it today, by promptV. */
+const PROMPT_SHA: Record<string, string> = {
+  ...Object.fromEntries(
+    (["a.v1", "b.v1", "zoom.v2", "screen.v1"] as const).map((n) => [n, prompt(n).sha256]),
+  ),
+  [RATECARD_PROMPT_V]: ratecardPrompt().sha256,
+  [CLASSIFY_PROMPT_V]: sha256Hex(
+    loadPromptFile(new URL("../../classify/prompts/", import.meta.url), CLASSIFY_PROMPT_V),
+  ),
+};
+
+describe("committed recordings", () => {
+  it("every one answers the prompt text in the repo today: none would replay with prompt drift", () => {
+    const dir = join(SMOKE_DIR, "recordings");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    expect(files.length).toBeGreaterThan(0);
+    for (const f of files) {
+      const rec = JSON.parse(readFileSync(join(dir, f), "utf8")) as { prompt_v: string; prompt_sha?: string };
+      expect(
+        PROMPT_SHA[rec.prompt_v],
+        `${f}: a prompt this repo does not have (${rec.prompt_v})`,
+      ).toBeDefined();
+      expect(rec.prompt_sha, `${f} (${rec.prompt_v})`).toBe(PROMPT_SHA[rec.prompt_v]);
+    }
+  });
+});
 
 describe("smoke replay (recorded live run, claude-opus-5-5 at effort low)", () => {
   it("smoke-1 clean slip: every field auto-accepted at 0.97, boxes inside their cells", async () => {
