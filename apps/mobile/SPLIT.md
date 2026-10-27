@@ -61,8 +61,9 @@ Code that crosses a boundary. The owner may change everything behind these names
 2. MEMBER exports `BoardBayadScreen` from `features/statement/board-bayad-screen.tsx` and `PangutanaScreen` from
    `features/statement/pangutana-screen.tsx`; BOARD's `app/(board)/bayad.tsx` and `pangutana.tsx` re-export them
    (register §4: the board's Bayad and Pangutana tabs reuse the member screens).
-3. `platform/key-vault.ts` (BOARD): `keyVault.forget(): Promise<void>`. The shell's `signOut()` calls it, so a signing
-   key never outlives its pairing (added at the first integration, on BOARD's request).
+3. `platform/key-vault.ts` (BOARD): `keyVault.forget(): Promise<void>`. The shell calls it on `signOut()` and whenever
+   the pairing changes (re-paired as anyone, or unpaired), so a signing key never outlives its pairing (added at the
+   first integration, on BOARD's request; widened by the security pass).
 
 ### Changes the first integration made to the shell (27–28 Oct)
 
@@ -114,6 +115,33 @@ Code that crosses a boundary. The owner may change everything behind these names
   `SIGNATURE_INVALID`, `VALIDATION_FAILED`, …), registers a key only under its kind's ID shape and recomputes both
   digests from its record. `ApiErrorCode` is contracts' `ErrorCode` plus the app's `NETWORK` and pairing outcomes.
 
+### Security pass (28 Oct): stored data stays with whom it belongs to
+
+The automated review found the clerk outbox resending every refused capture under a new pairing, so one clerk's
+captures could be filed as another persona's ([ws/app] SECURITY (1)). The pass fixed it and every sibling: anything the
+phone keeps, or holds in memory, is bound to who it belongs to, and nothing acts on it under anyone else.
+- `services/session.ts`: `pairingId(s)` (workspace, persona and `pairedAt`, never the bearer: one pairing),
+  `identityKey(s)` (workspace and persona: one person across pairings), `pairingChanged(prev, next)`,
+  `sessionStores(s)` (one stored session at most) and `restoreSession(secret, plain, now)` (an expired device
+  pairing never brings back an older stored session).
+- `useApp()`: `currentSession()` reads the session as it is now, for a step that outlives a render; `setSession`
+  clears every other stored session; the shell forgets the board key whenever `pairingChanged`.
+- Clerk outbox (`lib/outbox.ts`, schema v3): every record keeps `filedBy` (persona, name, pairing); only the paired
+  clerk's own captures are due, sent now or sent all; the uploader gets a bearer only for the filer's own pairing
+  (`BearerFor`, else `held`); `afterPairing()` resends only that clerk's expired-token refusals (UNAUTHENTICATED,
+  FRAME_TOKEN_EXPIRED), never FORBIDDEN. Anyone else's capture (or one from before filers were kept) waits and says
+  who filed it; `useOutbox().takeOver(id, seen)` ("Ipadala isip ako", after a confirm that names the filer) makes it
+  the paired clerk's. `useOutbox().me` is the paired clerk's persona for the rows.
+- Board key (`lib/signing.ts`): `KeyVault.current(pairing)`, `upcomingKeyId(persona, pairing)` and
+  `sign({ pairing, … })`; a held key whose pairing differs is forgotten and the next key ID made in the same presence
+  step; `createKeyRegistry()` keeps registrations per pairing; `pairingRefusal` stops a signature once the phone is
+  paired again, and `cosign()` rechecks after a key registration. No signing without a session.
+- Member: a statement's offline copy is kept under `identityKey` or the link itself (`statementCacheKey`, never the
+  line a token claims), shown only while fs-api is unreachable (`readFailureOf`), dropped when it refuses the pairing
+  or the link; re-check records and pending keys are kept per member and line; nothing read for one member stays on
+  screen for the next. Clerk cash list: dropped once the co-op refuses the pairing (`dropsCashList`). Co-sign memory
+  is scoped to the run and the officer (`requestScope`).
+
 ### Asked for, and left for the owning workstream
 
 These need a contract or an endpoint the app does not own; the slices already work around each one.
@@ -139,7 +167,8 @@ useApp(): {
   theme: ThemeName; setTheme(t: ThemeName): void;         // "adlaw" by default (one theme per surface)
   onboarded: boolean; completeOnboarding(): void;          // first run; the index sends !onboarded to /onboarding/language
   listenFirst: boolean | null; setListenFirst(v: boolean): void;  // S1.9 "Basahon o Paminawon una?"
-  session: PairedSession | null; setSession(s: PairedSession | null): void; signOut(): void;
+  session: PairedSession | null; currentSession(): PairedSession | null;   // now, for steps that outlive a render
+  setSession(s: PairedSession | null): void; signOut(): void;              // one stored session; key forgotten on change
   api: FairSplitApi; demo: DemoController | null;          // demo when EXPO_PUBLIC_API_ORIGIN is unset
   online: boolean;
   lastSync: string | null; markSynced(): void;             // "Katapusang kopya, 10:21"
@@ -155,7 +184,8 @@ skip it.
 ### Services (`services/`)
 
 - `session.ts`: `PairedSession`, `sessionValid(s, now)`, `parseSession(raw, now)`, `DEMO_BEARER`, `HREF` (typed hrefs for
-  every route), `homeHref(role, runSlug)`, `pirmaHref(runSlug)`, `signHref(runSlug)`.
+  every route), `homeHref(role, runSlug)`, `pirmaHref(runSlug)`, `signHref(runSlug)`; whom stored data belongs to:
+  `pairingId(s)`, `identityKey(s)`, `pairingChanged(prev, next)`, `sessionStores(s)`, `restoreSession(…)`.
 - `connectivity.ts`: `useOnline()`, `onConnectivity(cb) → unsubscribe`, `isOnlineState(netinfo)`.
 - `frame-bridge.ts`: `inFrame`, `stage.moment(id, phase)`, `stage.feedback(event, index?)`, `stage.focus(screenId)`
   (the shell already forwards moments, feedback and focus; slices rarely call these directly).
