@@ -12,7 +12,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
-import { agentToolSchemas, buildInvoicePlan, reconcileAgentDraft, toolkitZodSchemas } from "../src/index.js";
+import { ITEM_LABEL_WORDS } from "@fairsplit/domain";
+import { agentToolSchemas, buildInvoicePlan, readAgentCreate, toolkitZodSchemas } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // One JSON line per live run; JSON Lines also keeps the gitignored cache out of Biome's way.
@@ -175,7 +176,11 @@ async function main(): Promise<void> {
     system,
     [
       "Draft and create this invoice with create_invoice. Use every value below exactly, except the three item names: " +
-        "give each line a short label of your own (at most 40 characters: letters, spaces and ,'()- only; no digits and no number words).",
+        "give each line a short label of your own (at most 40 characters: letters, spaces and ,'()- only), " +
+        "naming its own line and using only these words for it.",
+      `premium line: ${ITEM_LABEL_WORDS.PREMIUM.join(", ")}`,
+      `bonus line: ${ITEM_LABEL_WORDS.BONUS.join(", ")}`,
+      `disbursement line: ${ITEM_LABEL_WORDS.DISBURSEMENT.join(", ")}`,
       `currency_code ${a.currency_code}; invoice_number ${a.invoice_number}; reference ${a.reference}`,
       `note: ${a.note}`,
       `invoicer_email_address ${a.invoicer_email_address}`,
@@ -187,9 +192,9 @@ async function main(): Promise<void> {
     (p) => {
       const draft = p.toolCalls?.find((c) => c.name === "create_invoice")?.input;
       if (draft === undefined) return ["no create_invoice call"];
-      const r = reconcileAgentDraft(draft, plan);
+      const r = readAgentCreate(draft, plan, "spike-s2");
       return r.ok
-        ? ["draft reconciles with the code-built invoice (I1 holds)"]
+        ? ["the draft is core's canonical body for its labels (I1 holds)"]
         : r.mismatches.map((m) => `mismatch: ${m}`);
     },
   );

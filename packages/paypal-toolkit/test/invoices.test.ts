@@ -1,3 +1,4 @@
+import { autoCancelRuleArgs, canonicalInvoiceCall } from "@fairsplit/domain";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,7 +8,7 @@ import {
   type InvoiceCheckpoint,
   InvoiceDraftRejectedError,
   InvoiceNotPayableError,
-  InvoiceRuleDateError,
+  InvoicePolicyDeniedError,
   InvoiceStateError,
   Invoices,
   type InvoicesDeps,
@@ -16,8 +17,8 @@ import {
   invoiceSendApproval,
   PayPalToolkit,
   RECORD_PAYMENT_NOTE,
+  type Tk,
   ToolkitError,
-  withItemLabels,
 } from "../src/index.js";
 import {
   BUSINESS_EMAIL,
@@ -31,6 +32,7 @@ import {
   PAYER,
   payerViewLink,
   paypalError,
+  policyOf,
   RATE_CARD_SHA256,
   searchResult,
 } from "./support/fixtures.js";
@@ -53,7 +55,7 @@ const NOW = new Date("2026-11-05T02:00:00.000Z");
 const RUN = heroRun();
 const SECOND_ID = "INV2-AB12-CD34-EF56-GH78";
 /** Claude's three item labels (S4.4 create_run_invoice): the only words the agent adds. */
-const LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout and audit costs"] as const;
+const LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout disbursement costs"] as const;
 const QUOTE_NAMES = ["Premium", "Quality bonus", "Disbursement costs"];
 const labelled = (names: readonly string[]) =>
   invoiceBody().items.map((item, i) => ({ ...item, name: names[i] as string }));
@@ -556,8 +558,7 @@ describe("Invoices.ensureForRun: create → send → payable GET → AUTO_CANCEL
     happyPayPal();
     const { invoices, repo } = setup();
     const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
-    const draft = withItemLabels(plan, LABELS);
-    await invoices.ensureForRun(RUN, { draft });
+    await invoices.ensureForRun(RUN, { labels: LABELS });
     const body = requests[0]?.body as {
       detail: { note: string };
       items: { name: string; unit_amount: unknown }[];
@@ -567,12 +568,34 @@ describe("Invoices.ensureForRun: create → send → payable GET → AUTO_CANCEL
     expect(repo.rows.get(RUN.runId)?.itemLabels).toEqual([...LABELS]);
   });
 
-  it("refuses an agent draft with free text before any call", async () => {
-    const { invoices } = setup();
-    const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
-    const draft = { ...plan.createArgs, note: `${plan.note}. Thank you, Lantern Bay.` };
-    await expect(invoices.ensureForRun(RUN, { draft })).rejects.toBeInstanceOf(InvoiceDraftRejectedError);
+  it("accepts S4.4's keyed item_labels and sends them in the quote's line order", async () => {
+    happyPayPal();
+    const { invoices, repo } = setup();
+    const [premium, bonus, disbursement] = LABELS;
+    await invoices.ensureForRun(RUN, { labels: { disbursement, premium, bonus } });
+    const body = requests[0]?.body as { items: { name: string }[] };
+    expect(body.items.map((i) => i.name)).toEqual([...LABELS]);
+    expect(repo.rows.get(RUN.runId)?.itemLabels).toEqual([...LABELS]);
+  });
+
+  it.each([
+    [
+      "a word outside the line's vocabulary",
+      ["Fairtrade premium", "Bean quality bonus", "Payout and audit costs"],
+    ],
+    ["a place name", ["Premium for Bukidnon farmers", "Quality bonus", "Disbursement costs"]],
+    ["an amount in words", ["Four thousand dollars", "Quality bonus", "Disbursement costs"]],
+    ["a Filipino number word", ["Premium", "Dalawang daang bonus", "Disbursement costs"]],
+    ["a Roman numeral", ["Premium XIV", "Quality bonus", "Disbursement costs"]],
+    ["another line's word", ["Premium", "Quality bonus", "Premium disbursement"]],
+    ["two labels", ["Premium", "Quality bonus"]],
+  ])("core's label rules: refuses the agent's labels with %s before any call", async (_label, labels) => {
+    const { invoices, repo } = setup();
+    const error = await invoices.ensureForRun(RUN, { labels }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(InvoiceDraftRejectedError);
+    expect((error as InvoiceDraftRejectedError).mismatches[0]).toMatch(/^items: /);
     expect(requests).toHaveLength(0);
+    expect(repo.saves).toHaveLength(0);
   });
 
   it("refuses an approval that names another invoice number before any call", async () => {
@@ -614,22 +637,150 @@ describe("Invoices.ensureForRun: create → send → payable GET → AUTO_CANCEL
     expect(repo.rows.get(RUN.runId)?.ruleSetAt ?? null).toBeNull();
   });
 
-  it("inv.i1.no-model-numbers: a draft with a model-written amount is refused before any call", async () => {
+  it("inv.i1.no-model-numbers: keyed labels with a field beyond the three lines are refused before any call", async () => {
     const { invoices, repo } = setup();
-    const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
-    const draft = {
-      ...plan.createArgs,
-      items: plan.createArgs.items.map((item, i) =>
-        i === 0 ? { ...item, unit_amount: { currency_code: "USD", value: "2900.00" } } : item,
-      ),
+    const keyed = {
+      premium: "Premium",
+      bonus: "Quality bonus",
+      disbursement: "Disbursement costs",
+      tip: "Tip",
     };
-    const error = await invoices.ensureForRun(RUN, { draft }).catch((e: unknown) => e);
+    const error = await invoices
+      .ensureForRun(RUN, {
+        labels: keyed as unknown as { premium: string; bonus: string; disbursement: string },
+      })
+      .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(InvoiceDraftRejectedError);
-    expect((error as InvoiceDraftRejectedError).mismatches).toContain(
-      "items[0].unit_amount: differs from the quote",
-    );
     expect(requests).toHaveLength(0);
     expect(repo.saves).toHaveLength(0);
+  });
+
+  it("builds every body with core's canonicalInvoiceCall: create, send and rule are its exact arguments", async () => {
+    happyPayPal();
+    const sent: { method: string; args: unknown }[] = [];
+    const toolkit = new PayPalToolkit({ auth: fakeAuth(), limiter: openLimiter() });
+    const tk: Tk = (method, args, requestId, options) => {
+      sent.push({ method, args });
+      return toolkit.tk(method, args, requestId, options);
+    };
+    const { invoices } = setup({}, { tk });
+    await invoices.ensureForRun(RUN, { labels: LABELS });
+    const plan = buildInvoicePlan(RUN, { businessEmail: BUSINESS_EMAIL });
+    const known = { ...plan.expected, invoiceId: INVOICE_ID, invoiceDate: "2026-11-05" };
+    const want = (method: string, labels?: readonly string[]) => {
+      const call = canonicalInvoiceCall(method, known, labels);
+      if (!call.ok) throw new Error(call.reason);
+      return call.args;
+    };
+    expect(sent.filter((c) => c.method !== "get_invoice")).toEqual([
+      { method: "create_invoice", args: want("create_invoice", LABELS) },
+      { method: "send_invoice", args: want("send_invoice") },
+      { method: "create_conditional_rules_for_invoice", args: want("create_conditional_rules_for_invoice") },
+    ]);
+  });
+});
+
+describe("the executor under the agent turn's policy: decide() on exactly the body sent", () => {
+  /** A tk() that records every call it is handed, then runs it on the real toolkit over msw. */
+  function recordingTk() {
+    const sent: { method: string; args: unknown }[] = [];
+    const toolkit = new PayPalToolkit({ auth: fakeAuth(), limiter: openLimiter() });
+    const tk: Tk = (method, args, requestId, options) => {
+      sent.push({ method, args });
+      return toolkit.tk(method, args, requestId, options);
+    };
+    return { sent, tk };
+  }
+
+  it("decides create, send and rule on the very objects tk() is handed, and sends only what it allowed", async () => {
+    happyPayPal();
+    const { sent, tk } = recordingTk();
+    const { policy, decisions } = policyOf();
+    const { invoices } = setup({}, { tk });
+    await expect(invoices.ensureForRun(RUN, { labels: LABELS, policy })).resolves.toMatchObject({
+      status: "SENT",
+    });
+    const bodies = sent.filter((c) => c.method !== "get_invoice");
+    expect(decisions.map((d) => [d.call.name, d.decision.verdict])).toEqual([
+      ["create_invoice", "ALLOW"],
+      ["send_invoice", "REQUIRE_APPROVAL"],
+      ["create_conditional_rules_for_invoice", "ALLOW"],
+    ]);
+    // The same objects, not copies: what the lattice read is what the toolkit validated and sent.
+    decisions.forEach((d, i) => {
+      expect(d.call.args).toBe(bodies[i]?.args);
+      expect(Object.isFrozen(d.call.args)).toBe(true);
+    });
+  });
+
+  it("sends nothing when the lattice denies: kill_paypal_live stops the create before any call", async () => {
+    const { policy, decisions } = policyOf({
+      flags: { killPayouts: false, killPaypalLive: true, killAiLive: false },
+    });
+    const { invoices, repo } = setup();
+    const error = await invoices.ensureForRun(RUN, { labels: LABELS, policy }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(InvoicePolicyDeniedError);
+    expect((error as InvoicePolicyDeniedError).reasons).toEqual(["killSwitch: kill_paypal_live is on"]);
+    expect(decisions.map((d) => d.decision.verdict)).toEqual(["DENY"]);
+    expect(requests).toHaveLength(0);
+    expect(repo.saves).toHaveLength(0);
+  });
+
+  it.each([
+    [
+      "the brand is not on the allowlist",
+      { brandAllowlist: ["someone-else@example.test"] },
+      "recipientInBrandAllowlist",
+    ],
+    ["the run is not QUOTED", { runState: "IN_REVIEW" as const }, "phaseGate"],
+    [
+      "the session budget is spent",
+      { budget: { spentMicros: 5, capMicros: 5, iteration: 0, maxIterations: 24 } },
+      "budgetCap",
+    ],
+    ["the environment is not the sandbox", { ppEnv: "live" }, "sandboxOnly"],
+  ])("sends nothing when %s (%s denies)", async (_label, env, deniedBy) => {
+    const { policy } = policyOf(env);
+    const { invoices } = setup();
+    const error = await invoices.ensureForRun(RUN, { policy }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(InvoicePolicyDeniedError);
+    expect((error as InvoicePolicyDeniedError).decision.decidedBy).toContain(deniedBy);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("a send the lattice denies is not sent, even with the treasurer's approval", async () => {
+    let killed = false;
+    const { policy } = policyOf();
+    const flipping = {
+      ...policy,
+      env: async () => ({
+        ...(await policy.env()),
+        flags: { killPayouts: false, killPaypalLive: killed, killAiLive: false },
+      }),
+    };
+    onPost("/v2/invoicing/invoices", () => {
+      killed = true; // flipped right after the create: read fresh before the send
+      return paypalJson(createdLink(), 201);
+    });
+    const { invoices, repo } = setup();
+    await expect(invoices.ensureForRun(RUN, { policy: flipping })).rejects.toBeInstanceOf(
+      InvoicePolicyDeniedError,
+    );
+    expect(callLog()).toEqual(["POST /v2/invoicing/invoices"]);
+    expect(repo.rows.get(RUN.runId)?.sentAt ?? null).toBeNull();
+  });
+
+  it("nothing is sent when recording the decision fails (the ledger comes before the effect)", async () => {
+    const { policy } = policyOf();
+    const failing = {
+      ...policy,
+      onDecision: () => {
+        throw new Error("ledger unavailable");
+      },
+    };
+    const { invoices } = setup();
+    await expect(invoices.ensureForRun(RUN, { policy: failing })).rejects.toThrow("ledger unavailable");
+    expect(requests).toHaveLength(0);
   });
 });
 
@@ -939,13 +1090,15 @@ describe("Invoices steps one at a time (the agent's create, send, rule and read)
     expect(repo.rows.get(RUN.runId)?.payableAt ?? null).toBeNull();
   });
 
-  it("ensureRule() refuses an end date other than PayPal's invoice date + 25 days, before the rule call", async () => {
+  it("ensureRule() refuses a rule other than core's canonical one (PayPal's date + 25 days), before the rule call", async () => {
     const { invoices } = setup({ [RUN.runId]: PAYABLE });
     const error = (await invoices
-      .ensureRule(RUN, { endDate: "2026-12-04" })
-      .catch((e: unknown) => e)) as InvoiceRuleDateError;
-    expect(error).toBeInstanceOf(InvoiceRuleDateError);
-    expect(error).toMatchObject({ asked: "2026-12-04", expected: "2026-11-30" });
+      .ensureRule(RUN, { draft: autoCancelRuleArgs(INVOICE_ID, "2026-12-04") })
+      .catch((e: unknown) => e)) as InvoiceDraftRejectedError;
+    expect(error).toBeInstanceOf(InvoiceDraftRejectedError);
+    expect(error.mismatches).toEqual([
+      "rules[0].rule_expiry_terms.condition_rule_end_date: differs from the canonical body",
+    ]);
     expect(requests).toHaveLength(0);
   });
 

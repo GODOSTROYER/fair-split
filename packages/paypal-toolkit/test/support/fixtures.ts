@@ -7,8 +7,16 @@
 // from there.
 
 import { createHash } from "node:crypto";
+import type { Decision, ToolCall } from "@fairsplit/contracts";
 import { vi } from "vitest";
-import { type InvoiceQuote, type InvoiceRun, invoiceMemo, type PayPalLimiter } from "../../src/index.js";
+import {
+  type InvoicePolicy,
+  type InvoicePolicyEnv,
+  type InvoiceQuote,
+  type InvoiceRun,
+  invoiceMemo,
+  type PayPalLimiter,
+} from "../../src/index.js";
 import { TOOLKIT_BASE } from "./msw.js";
 
 /** Hashes are computed, never typed (register §2). */
@@ -233,4 +241,30 @@ export function openLimiter() {
     }),
   );
   return { take };
+}
+
+/**
+ * What the agent turn's lattice reads besides the invoice, as a QUOTED run under a fresh budget sees
+ * it: no kill flag on, the sandbox, and Lantern Bay on the brand allowlist.
+ */
+export const OPEN_ENV: InvoicePolicyEnv = {
+  flags: { killPayouts: false, killPaypalLive: false, killAiLive: false },
+  ppEnv: "sandbox",
+  runState: "QUOTED",
+  holds: [],
+  budget: { spentMicros: 0, capMicros: 1_000_000, iteration: 0, maxIterations: 24 },
+  brandAllowlist: [PAYER.email],
+};
+
+/** The agent turn's policy over `env` (OPEN_ENV and `overrides`), recording every decision it is told of. */
+export function policyOf(overrides: Partial<InvoicePolicyEnv> = {}) {
+  const decisions: { call: ToolCall; decision: Decision }[] = [];
+  const env = vi.fn(async (): Promise<InvoicePolicyEnv> => ({ ...OPEN_ENV, ...overrides }));
+  const policy: InvoicePolicy = {
+    env,
+    onDecision: (call, decision) => {
+      decisions.push({ call, decision });
+    },
+  };
+  return { policy, decisions, env };
 }

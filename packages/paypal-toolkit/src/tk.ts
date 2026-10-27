@@ -15,6 +15,8 @@ import { toolkitZodSchemas } from "./schemas.js";
 export const TOOLKIT_SOURCE = "FairSplit";
 /** PayPalHttp's timeout (S3 §S3.6.2); the toolkit itself sets none. */
 export const DEFAULT_TIMEOUT_MS = 15_000;
+/** Every PayPalAPI this package builds runs in the toolkit's sandbox mode (policy `sandboxOnly`). */
+export const TOOLKIT_SANDBOX = true;
 
 /**
  * IC-04 `limiter.take`, shared with PayPalHttp (WS-PPCORE's `PayPalLimiter`). A denial is a decision
@@ -195,7 +197,7 @@ export class PayPalToolkit {
       if (refused) throw new ToolkitLimitedError(method, refused.reason, refused.retryAfterMs);
       const token = await this.#deps.auth.token();
       const api = new PayPalAPI(token.v, {
-        sandbox: true,
+        sandbox: TOOLKIT_SANDBOX,
         source: TOOLKIT_SOURCE,
         ...(requestId ? { request_id: requestId } : {}),
       });

@@ -124,8 +124,8 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
     this.runStates.set(runId, "APPROVED");
   }
 
-  /** The database's lines (on rail, or every member line) change, as loadPosting and loadRun read them. */
-  edit(runId: string, patch: Partial<Pick<PostingRow, "lines" | "memberLines" | "overrides">>): void {
+  /** The database's lines (on rail, or every member line) or holds change, as loadPosting and loadRun read them. */
+  edit(runId: string, patch: Partial<Pick<PostingRow, "lines" | "memberLines" | "holds">>): void {
     const posting = this.postings.get(runId);
     const run = this.runs.get(runId);
     if (!posting && !run) throw new Error(`no run ${runId}`);
@@ -156,13 +156,25 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
     );
     return {
       ...row,
+      spentNonces: this.#spentNonces(runId, row.spentNonces),
       approvals: (this.approvals.get(runId) ?? []).filter((r) => r.voidedAt === null).map((r) => r.approval),
       submitted: written ? { at: written.batch.at, batchSha256: written.batch.batchSha256 } : null,
     };
   }
 
   async loadRun(runId: string): Promise<PayoutRunFacts | null> {
-    return this.runs.get(runId) ?? null;
+    const run = this.runs.get(runId);
+    return run ? { ...run, spentNonces: this.#spentNonces(runId, run.spentNonces) } : null;
+  }
+
+  /**
+   * What the database holds as spent for the run: the seeded nonces and every voided approval's. A
+   * seed that is not a list stands for a broken read and is handed on as it is.
+   */
+  #spentNonces(runId: string, seeded: readonly string[]): readonly string[] {
+    if (!Array.isArray(seeded)) return seeded;
+    const voided = this.voidedNonces(runId).filter((n): n is string => typeof n === "string");
+    return [...new Set([...seeded, ...voided])];
   }
 
   async writeSubmitted(batch: SubmittedBatch): Promise<SubmittedMark | null> {

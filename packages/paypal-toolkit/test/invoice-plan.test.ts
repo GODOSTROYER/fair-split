@@ -1,30 +1,30 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
 import {
   AUTO_CANCEL_AFTER_DAYS,
   AUTO_CANCEL_MAX_DAYS_AHEAD,
-  approvalCovers,
   autoCancelDate,
+  canonicalInvoiceCall,
+  canonicalSend,
+  QUOTE_ITEM_KEYS,
+} from "@fairsplit/domain";
+import { describe, expect, it } from "vitest";
+import {
+  approvalCovers,
   autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
-  INVOICE_ITEM_KEYS,
-  INVOICE_ITEM_LABEL,
+  draftDifferences,
   InvoicePlanError,
   type InvoiceQuote,
   invoiceMemo,
   invoiceNumberFor,
   invoiceSendApproval,
-  isInvoiceItemLabel,
-  itemLabelsProblem,
   ppDate,
   rateCardReference,
-  reconcileAgentDraft,
+  readAgentCreate,
   runSlug,
   seasonIdCode,
   sendArgsSha256,
-  sendInvoiceArgs,
-  withItemLabels,
 } from "../src/index.js";
 import {
   BUSINESS_EMAIL,
@@ -35,6 +35,7 @@ import {
   PAYER,
   RATE_CARD_SHA256,
 } from "./support/fixtures.js";
+import { mutants } from "./support/mutations.js";
 
 const plan = () => buildInvoicePlan(heroRun(), { businessEmail: BUSINESS_EMAIL });
 const planFor = (quote: InvoiceQuote) => () =>
@@ -72,7 +73,7 @@ describe("register §8 invoice fields", () => {
     );
   });
 
-  it("auto-cancels on the invoice date + 25 days (C-27): an invoice dated 5 Nov cancels on 30 Nov", () => {
+  it("auto-cancels on the invoice date + 25 days (C-27, core's autoCancelDate): 5 Nov cancels on 30 Nov", () => {
     expect(AUTO_CANCEL_AFTER_DAYS).toBe(25);
     expect(autoCancelDate("2026-11-05")).toBe("2026-11-30");
     expect(autoCancelDate("2026-12-20")).toBe("2027-01-14");
@@ -114,6 +115,24 @@ describe("register §8 invoice fields", () => {
     expect(p.totalCents).toBe(BigInt(HERO_QUOTE.totalCents));
   });
 
+  it("is core's canonical body: canonicalInvoiceCall over the plan's expectation, nothing local", () => {
+    const p = plan();
+    expect(p.expected).toEqual({
+      quote: HERO_QUOTE,
+      invoiceNumber: "FS-2026A-r37",
+      reference: `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
+      memo: invoiceMemo("2026-A", RATE_CARD_SHA256, LOT_CODE),
+      businessEmail: BUSINESS_EMAIL,
+      payer: { email: PAYER.email, businessName: PAYER.businessName },
+    });
+    const call = canonicalInvoiceCall("create_invoice", {
+      ...p.expected,
+      invoiceId: null,
+      invoiceDate: null,
+    });
+    expect(call).toEqual({ ok: true, method: "create_invoice", args: p.createArgs });
+  });
+
   it("never sends an invoice date or a payment term: PayPal dates the invoice, so a send cannot schedule it", () => {
     const p = plan();
     expect(p.createArgs).not.toHaveProperty("invoice_date");
@@ -144,7 +163,7 @@ describe("register §8 invoice fields", () => {
       InvoiceQuote["items"][number],
       InvoiceQuote["items"][number],
     ];
-    expect(INVOICE_ITEM_KEYS).toEqual(["PREMIUM", "BONUS", "DISBURSEMENT"]);
+    expect(QUOTE_ITEM_KEYS).toEqual(["PREMIUM", "BONUS", "DISBURSEMENT"]);
     expect(planFor({ ...HERO_QUOTE, items: [premium, bonus] })).toThrow(/exactly three/);
     expect(planFor({ ...HERO_QUOTE, items: [bonus, premium, disbursement] })).toThrow(/must be PREMIUM/);
     expect(
@@ -155,79 +174,30 @@ describe("register §8 invoice fields", () => {
   it.each([
     ["a digit", "Premium 2026"],
     ["an amount", "Premium $2,887.50"],
-    ["an amount in words", "Four thousand dollars"],
-    ["a number word inside a hyphenated phrase", "Twenty-five percent bonus"],
+    ["an amount in words", "Four thousand premium"],
+    ["a Filipino number word", "Dalawang daang premium"],
+    ["a Roman numeral", "Premium XIV"],
     ["over 40 characters", "Premium paid to the members of the co-op as ratified"],
     ["a leading space", " Premium"],
     ["a trailing space", "Premium "],
-    ["a leading punctuation mark", "(Premium)"],
     ["a colon", "Premium: season"],
-    ["a domain", "Pay at example.test"],
-    ["an e-mail address", "Pay ann@example"],
+    ["a domain", "Premium at example.test"],
     ["a non-ASCII letter", "Prémium"],
+    ["a word outside the premium line's vocabulary", "Premium for Bukidnon"],
+    ["another line's word", "Premium bonus"],
+    ["no word of its own line", "Fairtrade"],
     ["an empty label", ""],
-  ])("refuses an item label with %s (register §8 labels)", (_label, name) => {
+  ])("refuses a quote whose own premium name has %s (core's label rules)", (_label, name) => {
     const items = HERO_QUOTE.items.map((i) => (i.key === "PREMIUM" ? { ...i, name } : i));
-    expect(isInvoiceItemLabel(name)).toBe(false);
     expect(planFor({ ...HERO_QUOTE, items })).toThrow(/label/);
   });
 
-  it.each([
-    ["Cebuano", "Upat ka libo"],
-    ["Cebuano hundreds", "Duha ka gatos"],
-    ["Cebuano tens", "Kap-atan nga premium"],
-    ["Filipino, with the linker", "Dalawang daang premium"],
-    ["Filipino teens", "Labimpito"],
-    ["Filipino tens", "Dalawampu't isa"],
-    ["Filipino thousands", "Sanlibong premium"],
-    ["Spanish", "Cuatro mil"],
-    ["Filipino Spanish", "Singkwenta"],
-    ["a Roman numeral", "Premium XIV"],
-    ["a two-letter Roman numeral", "Premium (XL)"],
-  ])("inv.i1.no-model-numbers: refuses an item label that spells a number in %s", (_label, name) => {
-    expect(isInvoiceItemLabel(name)).toBe(false);
-    const items = HERO_QUOTE.items.map((i) => (i.key === "PREMIUM" ? { ...i, name } : i));
-    expect(planFor({ ...HERO_QUOTE, items })).toThrow(/number/);
-  });
-
-  it("keeps words that only look like numbers: a grade letter, an English 'once', Tagalog 'una' (first)", () => {
-    for (const name of ["Grade C premium", "Bonus paid once", "Unang bayad", "Mix of grades", "Civil costs"])
-      expect(isInvoiceItemLabel(name)).toBe(true);
-  });
-
-  it("refuses a label that names another quote line ('Quality bonus' on the premium line)", () => {
-    expect(itemLabelsProblem(["Quality bonus", "Premium", "Disbursement costs"])).toMatch(
-      /item 1: a label may not name another line/,
-    );
-    expect(itemLabelsProblem(["Fairtrade premium", "Bean quality bonus", "Premium costs"])).toMatch(
-      /item 3: a label may not name another line \("premium"\)/,
-    );
-    expect(itemLabelsProblem(["Premium", "Audit fees", "Disbursement costs"])).toMatch(/item 2/);
+  it("refuses a quote whose names are swapped between lines", () => {
     const swapped = HERO_QUOTE.items.map((i, n, all) => ({
       ...i,
       name: (all[(n + 1) % 3] as typeof i).name,
     }));
-    expect(planFor({ ...HERO_QUOTE, items: swapped })).toThrow(/another line/);
-  });
-
-  it("accepts register §8 labels: letters, spaces and ,'()-, a letter first, no number words", () => {
-    for (const name of [
-      "Premium",
-      "Quality bonus",
-      "Disbursement costs",
-      "Members' premium (Fairtrade)",
-      "Co-op fee, audit",
-      "Second payment",
-      "Someone's tone",
-    ])
-      expect(isInvoiceItemLabel(name)).toBe(true);
-    expect(INVOICE_ITEM_LABEL.test("A".repeat(40))).toBe(true);
-    expect(INVOICE_ITEM_LABEL.test("A".repeat(41))).toBe(false);
-  });
-
-  it("refuses a quote whose three labels are not distinct", () => {
-    const items = HERO_QUOTE.items.map((i) => ({ ...i, name: i.key === "BONUS" ? "premium" : i.name }));
-    expect(planFor({ ...HERO_QUOTE, items })).toThrow(/distinct/);
+    expect(planFor({ ...HERO_QUOTE, items: swapped })).toThrow(/label/);
   });
 
   it("keeps a zero line as a 0.00 line, so the invoice always has the quote's three lines", () => {
@@ -243,10 +213,18 @@ describe("register §8 invoice fields", () => {
     expect(planFor(heroQuote({ premium: 0, bonus: 0, disbursement: 0 }))).toThrow(/more than zero/);
   });
 
-  it("requires a real invoicer and payer e-mail", () => {
+  it("requires a real invoicer and payer e-mail, in plain ASCII as the policy lattice compares them", () => {
     expect(() => buildInvoicePlan(heroRun(), { businessEmail: "coop" })).toThrow(InvoicePlanError);
+    expect(() => buildInvoicePlan(heroRun(), { businessEmail: "coop@exampl\u212a.test" })).toThrow(
+      InvoicePlanError,
+    );
     expect(() =>
       buildInvoicePlan(heroRun({ payer: { ...PAYER, email: "nobody" } }), { businessEmail: BUSINESS_EMAIL }),
+    ).toThrow(InvoicePlanError);
+    expect(() =>
+      buildInvoicePlan(heroRun({ payer: { ...PAYER, email: ` ${PAYER.email}` } }), {
+        businessEmail: BUSINESS_EMAIL,
+      }),
     ).toThrow(InvoicePlanError);
   });
 });
@@ -290,8 +268,8 @@ describe("sendNeedsTreasurer: an approval sends exactly one invoice", () => {
     invoiceId: invoice.invoiceId,
   });
 
-  it("binds the exact send: sha256 of the JCS of {invoice_id, send_to_recipient: false}, nothing else sent", () => {
-    expect(sendInvoiceArgs(invoice.invoiceId)).toEqual({
+  it("binds the exact send: sha256 of the JCS of core's canonicalSend, {invoice_id, send_to_recipient: false}", () => {
+    expect(canonicalSend(invoice.invoiceId)).toEqual({
       invoice_id: invoice.invoiceId,
       send_to_recipient: false,
     });
@@ -329,174 +307,163 @@ describe("sendNeedsTreasurer: an approval sends exactly one invoice", () => {
   });
 });
 
-describe("inv.i1.no-model-numbers: the agent chooses the three item labels and nothing else", () => {
-  /** Claude's labels (the approved plan: "Item names: Claude's recorded labels"); S4.4 `checkLabels`. */
-  const LABELS = ["Fairtrade premium", "Quality bonus (Grade one)", "Payout costs"] as const;
-  const GOOD_LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout and audit costs"] as const;
-  const agentDraft = (labels: readonly string[] = GOOD_LABELS) => {
+describe("inv.i1.no-model-numbers: what the model's create_invoice arguments may say (readAgentCreate)", () => {
+  const RUN_ID = heroRun().runId;
+  /** Claude's labels: each names its own line, in its line's closed vocabulary (core). */
+  const LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout disbursement costs"] as const;
+  const [premium, bonus, disbursement] = LABELS;
+  /** Core's canonical body for these labels, as plain JSON the model could have written. */
+  const canonicalFor = (labels: readonly string[] = LABELS): Record<string, unknown> => {
     const p = plan();
-    return { ...structuredClone(p.createArgs), items: withItemLabels(p, labels).items };
+    const call = canonicalInvoiceCall(
+      "create_invoice",
+      { ...p.expected, invoiceId: null, invoiceDate: null },
+      labels,
+    );
+    if (!call.ok) throw new Error(call.reason);
+    return structuredClone(call.args) as unknown as Record<string, unknown>;
   };
 
-  it("accepts the agent's three labels, keeping every number and every other field the code's", () => {
-    const p = plan();
-    const result = reconcileAgentDraft(agentDraft(), p);
-    expect(result).toEqual({
+  it("accepts S4.4's keyed item_labels and builds core's body from them, in the quote's line order", () => {
+    const keyed = { bonus, disbursement, premium };
+    expect(readAgentCreate({ item_labels: keyed }, plan(), RUN_ID)).toEqual({
       ok: true,
-      args: {
-        ...p.createArgs,
-        items: p.createArgs.items.map((item, i) => ({ ...item, name: GOOD_LABELS[i] })),
-      },
+      labels: keyed,
+      args: canonicalFor(),
     });
+    expect(readAgentCreate({ run_id: RUN_ID, item_labels: keyed }, plan(), RUN_ID).ok).toBe(true);
   });
 
-  it("accepts the code's own names (the deterministic path's draft)", () => {
-    const p = plan();
-    expect(reconcileAgentDraft(structuredClone(p.createArgs), p)).toEqual({ ok: true, args: p.createArgs });
+  it("accepts a toolkit draft that is exactly core's canonical body for its own labels, in any key order", () => {
+    const draft = canonicalFor();
+    expect(readAgentCreate(draft, plan(), RUN_ID)).toEqual({ ok: true, labels: [...LABELS], args: draft });
+    const reordered = Object.fromEntries(Object.entries(draft).reverse());
+    expect(readAgentCreate(reordered, plan(), RUN_ID).ok).toBe(true);
+    // The deterministic path's draft: the quote's own names.
+    expect(readAgentCreate(structuredClone(plan().createArgs), plan(), RUN_ID).ok).toBe(true);
   });
 
-  it("checks a set of labels as S4.4's checkLabels does, and refuses number words too", () => {
-    expect(itemLabelsProblem(GOOD_LABELS)).toBeNull();
-    expect(itemLabelsProblem(GOOD_LABELS.slice(0, 2))).toMatch(/three/);
-    expect(itemLabelsProblem(["Premium", "PREMIUM", "Costs"])).toMatch(/distinct/);
-    expect(itemLabelsProblem(LABELS)).toMatch(/number/);
-    expect(itemLabelsProblem(["Premium", 7, "Costs"])).toMatch(/letters/);
-    expect(() => withItemLabels(plan(), LABELS)).toThrow(InvoicePlanError);
+  it.each([
+    [
+      "another run's run_id",
+      { run_id: "0199f6a0-0000-7000-8000-000000000038", item_labels: { premium, bonus, disbursement } },
+    ],
+    ["a field beside item_labels", { item_labels: { premium, bonus, disbursement }, note: "Pay now" }],
+    ["labels as a list under item_labels", { item_labels: [...LABELS] }],
+    ["a fourth keyed label", { item_labels: { premium, bonus, disbursement, tip: "Tip" } }],
+    ["a keyed label missing", { item_labels: { premium, bonus } }],
+    ["a keyed label that is not text", { item_labels: { premium, bonus, disbursement: 60 } }],
+    ["words instead of arguments", "Create the invoice"],
+    ["nothing", null],
+    ["an empty object", {}],
+  ])("refuses %s", (_label, input) => {
+    const read = readAgentCreate(input, plan(), RUN_ID);
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.mismatches.length).toBeGreaterThan(0);
   });
 
-  it("the note is exactly the code-rendered memo: no closing phrase, no free text", () => {
-    const p = plan();
-    expect(p.note).toBe(invoiceMemo("2026-A", RATE_CARD_SHA256, LOT_CODE));
-    const result = reconcileAgentDraft({ ...agentDraft(), note: `${p.note}. Thank you.` }, p);
-    expect(result).toEqual({ ok: false, mismatches: ["note: differs from the code-built invoice"] });
-  });
-
-  it("names a key the code never sets as such, even one every object inherits", () => {
-    const draft = JSON.parse(`{"constructor": "x", "__proto__": {"allow_tip": true}}`) as object;
-    const result = reconcileAgentDraft({ ...agentDraft(), ...draft }, plan());
-    expect(result).toEqual({
-      ok: false,
-      mismatches: ["constructor: not a field the agent may set", "__proto__: not a field the agent may set"],
+  it.each([
+    ["an amount in words", ["Four thousand premium", bonus, disbursement]],
+    ["a digit", [premium, "Bonus 1386", disbursement]],
+    ["a Cebuano number word", ["Upat ka libo premium", bonus, disbursement]],
+    ["a Roman numeral", [premium, bonus, "Disbursement costs MMDCCC"]],
+    // The old local check let these through; core's per-line vocabulary does not.
+    [
+      "a word outside the line's vocabulary ('audit')",
+      [premium, bonus, "Payout and audit disbursement costs"],
+    ],
+    ["a place name", ["Premium for Bukidnon farmers", bonus, disbursement]],
+    ["a payment rail", [premium, bonus, "Disbursement by Zelle"]],
+    ["another line's word", [premium, "Quality bonus premium", disbursement]],
+    ["a label that does not name its own line", ["Fairtrade", bonus, disbursement]],
+    ["two lines swapped", [bonus, premium, disbursement]],
+  ])("core's label rules: refuses labels with %s, keyed or in a draft", (_label, labels) => {
+    const [p, b, d] = labels as [string, string, string];
+    const keyed = readAgentCreate({ item_labels: { premium: p, bonus: b, disbursement: d } }, plan(), RUN_ID);
+    expect(keyed.ok).toBe(false);
+    const draft = canonicalFor();
+    (draft.items as { name: string }[]).forEach((item, i) => {
+      item.name = labels[i] as string;
     });
+    const drafted = readAgentCreate(draft, plan(), RUN_ID);
+    expect(drafted).toMatchObject({ ok: false });
+    if (!drafted.ok) expect(drafted.mismatches[0]).toMatch(/^items: /);
   });
 
-  const cases: [string, (d: ReturnType<typeof agentDraft>) => unknown][] = [
+  it("inv.i1.canonical-body: refuses a draft that differs from the canonical body in any byte, and says where", () => {
+    const all = mutants(canonicalFor());
+    expect(all.length).toBeGreaterThan(150);
+    for (const { label, draft } of all) {
+      const read = readAgentCreate(draft, plan(), RUN_ID);
+      expect(read.ok, label).toBe(false);
+      if (!read.ok) expect(read.mismatches.length, label).toBeGreaterThan(0);
+    }
+  });
+
+  it.each([
     [
       "a changed unit amount",
-      (d) => ({
+      (d: Draft) => ({
         ...d,
         items: d.items.map((i, n) =>
-          n === 0 ? { ...i, unit_amount: { currency_code: "USD", value: "2888.50" } } : i,
+          n ? i : { ...i, unit_amount: { currency_code: "USD", value: "2888.50" } },
         ),
       }),
+      "items[0].unit_amount.value: differs from the canonical body",
     ],
     [
-      "a changed quantity",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 1 ? { ...i, quantity: "2" } : i)) }),
+      "a shipping cost",
+      (d: Draft) => ({ ...d, shipping_cost: "25.00" }),
+      "shipping_cost: not in the canonical body",
     ],
-    ["an extra line", (d) => ({ ...d, items: [...d.items, { ...(d.items[2] as object), name: "Tip" }] })],
-    ["a dropped line", (d) => ({ ...d, items: d.items.slice(0, 2) })],
-    ["a shipping cost", (d) => ({ ...d, shipping_cost: "25.00" })],
+    ["a tip", (d: Draft) => ({ ...d, allow_tip: true }), "allow_tip: not in the canonical body"],
     [
-      "a partial-payment minimum",
-      (d) => ({ ...d, allow_partial_payment: true, minimum_partial_payment_amount: "100.00" }),
-    ],
-    ["a tip", (d) => ({ ...d, allow_tip: true })],
-    [
-      "a per-item discount",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, discount: { percent: "10" } })) }),
+      "an invoice date",
+      (d: Draft) => ({ ...d, invoice_date: "2026-11-05" }),
+      "invoice_date: not in the canonical body",
     ],
     [
-      "a per-item tax",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, tax: { name: "VAT", percent: "12" } })) }),
+      "a closing phrase after the memo",
+      (d: Draft) => ({ ...d, note: `${d.note}. Thank you.` }),
+      "note: differs from the canonical body",
     ],
-    ["another invoice number", (d) => ({ ...d, invoice_number: "FS-2026A-r38" })],
-    ["another reference", (d) => ({ ...d, reference: "rc:0000000000000000" })],
-    ["another invoicer", (d) => ({ ...d, invoicer_email_address: "attacker@example.test" })],
+    ["a missing note", (d: Draft) => ({ ...d, note: undefined }), "note: missing"],
     [
       "another payer",
-      (d) => ({ ...d, primary_recipients: [{ billing_info: { email_address: "attacker@example.test" } }] }),
-    ],
-    ["an invoice date (the code never sends one)", (d) => ({ ...d, invoice_date: "2026-11-05" })],
-    ["a due date the toolkit schema would strip", (d) => ({ ...d, due_date: "2026-11-20" })],
-    [
-      "a payment term the toolkit schema would strip",
-      (d) => ({ ...d, payment_term: { term_type: "NET_10" } }),
-    ],
-    [
-      "a recipient field the schema would strip",
-      (d) => ({
+      (d: Draft) => ({
         ...d,
         primary_recipients: [
-          {
-            billing_info: {
-              business_name: PAYER.businessName,
-              email_address: PAYER.email,
-              pay_to: "attacker@example.test",
-            },
-          },
+          { billing_info: { business_name: PAYER.businessName, email_address: "attacker@example.test" } },
         ],
       }),
+      "primary_recipients[0].billing_info.email_address: differs from the canonical body",
     ],
+    ["an extra line", (d: Draft) => ({ ...d, items: [...d.items, d.items[2]] }), "items: "],
     [
-      "an item field the schema would strip",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, total: "9999.00" } : i)) }),
+      "a key every object inherits",
+      (d: Draft) => ({ ...d, ...(JSON.parse('{"__proto__": {"allow_tip": true}}') as object) }),
+      "__proto__: not in the canonical body",
     ],
-    ["a note without the memo", (d) => ({ ...d, note: "Season premium" })],
-    ["a number in the note", (d) => ({ ...d, note: `${plan().note}. Please pay 5000 instead.` })],
-    [
-      "a number in an item name",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Premium 2887.50" } : i)) }),
-    ],
-    [
-      "a number in a description",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, description: "9,625 kg" })) }),
-    ],
-    ["a missing currency", (d) => ({ ...d, currency_code: undefined })],
-    ["not an invoice at all", () => ({ hello: "world" })],
-    // Labels are the agent's only words, and they cannot carry an amount, a link or an address.
-    [
-      "an amount in words in a label",
-      (d) => ({
-        ...d,
-        items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Four thousand dollars" } : i)),
-      }),
-    ],
-    [
-      "a label with a number word",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 1 ? { ...i, name: "Grade one bonus" } : i)) }),
-    ],
-    [
-      "a link in a label",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 2 ? { ...i, name: "Pay at pay.example" } : i)) }),
-    ],
-    [
-      "two labels that are the same",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, name: "Season premium" })) }),
-    ],
-    [
-      "a label that is not text",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n ? i : { ...i, name: 7 })) }),
-    ],
-    ["a missing label", (d) => ({ ...d, items: d.items.map((i, n) => (n ? i : { ...i, name: undefined })) })],
-    [
-      "an item description, even without digits",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, description: "Paid to members as ratified" })) }),
-    ],
-    // The note is the memo, exactly (register §8; S4.4 referenceCarriesHash).
-    ["a free-text closing", (d) => ({ ...d, note: `${plan().note}. Thank you, Lantern Bay.` })],
-    ["an amount in words", (d) => ({ ...d, note: `${plan().note}. Please pay five thousand dollars.` })],
-    ["a link in the note", (d) => ({ ...d, note: `${plan().note}. Pay at https://pay.example.test` })],
-    ["a polite closing phrase", (d) => ({ ...d, note: `${plan().note}. Thank you.` })],
-    ["a missing note", (d) => ({ ...d, note: undefined })],
-    ["pay-by-bank", (d) => ({ ...d, enable_pay_by_bank: true })],
-    ["a theme colour", (d) => ({ ...d, theme_color: "#000000" })],
-    ["an invoicer business name", (d) => ({ ...d, invoicer_business_name: "Another Co-op" })],
-  ];
+  ])("names %s", (_label, mutate, mismatch) => {
+    const read = readAgentCreate(
+      JSON.parse(JSON.stringify(mutate(canonicalFor() as unknown as Draft))),
+      plan(),
+      RUN_ID,
+    );
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.mismatches.some((m) => m.startsWith(mismatch))).toBe(true);
+  });
 
-  it.each(cases)("refuses %s", (_label, mutate) => {
-    const result = reconcileAgentDraft(mutate(agentDraft()), plan());
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.mismatches.length).toBeGreaterThan(0);
+  it("draftDifferences compares values code unit for code unit and ignores only key order", () => {
+    expect(draftDifferences({ a: "x", b: [1, { c: true }] }, { b: [1, { c: true }], a: "x" })).toEqual([]);
+    // "a" + U+0301 COMBINING ACUTE and U+00E1: the same text after NFC, two different bodies here.
+    expect(draftDifferences({ a: "a\u0301" }, { a: "\u00e1" })).toEqual([
+      "a: differs from the canonical body",
+    ]);
+    expect(draftDifferences({ a: "1.0" }, { a: "1.00" })).toEqual(["a: differs from the canonical body"]);
+    expect(draftDifferences({ a: 1 }, { a: "1" })).toEqual(["a: differs from the canonical body"]);
+    expect(draftDifferences([1, 2], [1])).toEqual(["(body): 2 entries, the canonical body has 1"]);
   });
 });
+
+type Draft = CreateInvoiceArgs & { note?: string | undefined };

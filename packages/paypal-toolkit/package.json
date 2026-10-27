@@ -18,6 +18,8 @@
   "dependencies": {
     "zod": "catalog:zod3",
     "@paypal/agent-toolkit": "catalog:",
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/domain": "workspace:*",
     "@fairsplit/paypal-core": "workspace:*"
   },
   "devDependencies": {

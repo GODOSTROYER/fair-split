@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
+import { linesDigest } from "@fairsplit/domain";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import {
+  type ApprovalPayload,
   type ApprovedLine,
   batchNote,
   DEFAULT_RETRY_DELAYS_MS,
@@ -10,16 +12,18 @@ import {
   type PayPalHttp,
   type PayPalResult,
   payPalRequestId,
+  type RunHold,
 } from "../src/index.js";
 import {
   approve,
   CHAIR,
   makeSigner,
-  registeredKeyVerifier,
+  OFFICER_KEYS,
+  officerKey,
   STRANGER,
+  signPayload,
   TREASURER,
 } from "./support/approvals.js";
-import { referenceBatchDigest, referenceLinesDigest } from "./support/digest.js";
 import {
   approvalsFor,
   batchBody,
@@ -571,6 +575,7 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       code: "DIGEST_MISMATCH",
       reason: "The batch changed after it was signed. Nothing was sent.",
       senderBatchId: HERO_SENDER_BATCH_ID,
+      check: "DIGEST_MISMATCH",
     });
     expectNothingSent(repo);
   });
@@ -619,7 +624,8 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       });
       await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
         code: "APPROVALS_MISSING",
-        reason: "The treasurer's approval is missing",
+        reason: "The treasurer's approval is missing.",
+        check: "APPROVALS_MISSING",
       });
       expectNothingSent(repo);
     });
@@ -629,9 +635,19 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       const { service, repo } = await setup({ approvals: alone });
       await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
         code: "APPROVALS_MISSING",
-        reason: "The Chair's co-signature is missing (R5: BATCH_OVER_THRESHOLD)",
+        reason: "The Chair's co-signature is missing.",
+        check: "APPROVALS_MISSING",
       });
       expectNothingSent(repo);
+    });
+
+    /** A hold of the run, as the database holds it, resolved by `kind` (or not yet resolved). */
+    const hold = (kind: RunHold["kind"], resolution: string | null): RunHold => ({
+      kind,
+      resolution:
+        resolution === null
+          ? null
+          : { kind: resolution as NonNullable<RunHold["resolution"]>["kind"], by: "board:ernesto", at: null },
     });
 
     it("posts a batch under every threshold on the treasurer's key alone, but not with an override", async () => {
@@ -642,21 +658,104 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
         (await setup({ lines: small, approvals: alone })).service.executeApproved(RUN_ID),
       ).resolves.toMatchObject({ kind: "created" });
 
-      const overridden = await setup({ lines: small, approvals: alone, overrides: 1 });
+      const overridden = await setup({
+        lines: small,
+        approvals: alone,
+        holds: [hold("DUPLICATE_SLIP", "TWO_DELIVERIES")],
+      });
       await expect(overridden.service.executeApproved(RUN_ID)).resolves.toMatchObject({
         code: "APPROVALS_MISSING",
-        reason: "The Chair's co-signature is missing (R5: OVERRIDE)",
+        reason: "The Chair's co-signature is missing.",
       });
     });
 
-    it("refuses one person signing as both treasurer and Chair", async () => {
+    it.each([
+      ["TWO_DELIVERIES on a duplicate slip", [hold("DUPLICATE_SLIP", "TWO_DELIVERIES")], true],
+      ["CONFIRM_AS_READ on a rate mismatch", [hold("RATE_MISMATCH", "CONFIRM_AS_READ")], true],
+      ["CONFIRM_AS_READ on a suspected injection", [hold("SUSPECTED_INJECTION", "CONFIRM_AS_READ")], true],
+      ["CONFIRM_AS_READ on a low-confidence read", [hold("LOW_CONFIDENCE", "CONFIRM_AS_READ")], false],
+      ["COUNT_ONCE on a duplicate slip", [hold("DUPLICATE_SLIP", "COUNT_ONCE")], false],
+      ["EXCLUDE_LINE on a rate mismatch", [hold("RATE_MISMATCH", "EXCLUDE_LINE")], false],
+      ["a hold still open", [hold("RATE_MISMATCH", null)], false],
+    ] as const)(
+      "inv.i6.override-cosign: R5 counts overrides with domain overrideCount: %s needs the Chair: %s",
+      async (_label, holds, chairNeeded) => {
+        const small = HERO_LINES.slice(0, 3); // under every R5 amount threshold
+        onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
+        const alone = await approvalsFor(small, { signers: [TREASURER] });
+        const { service } = await setup({ lines: small, approvals: alone, holds: [...holds] });
+        await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject(
+          chairNeeded
+            ? { kind: "refused", code: "APPROVALS_MISSING", check: "APPROVALS_MISSING" }
+            : { kind: "created" },
+        );
+      },
+    );
+
+    it("refuses a hold the database cannot spell (an unknown resolution would count as no override)", async () => {
+      const small = HERO_LINES.slice(0, 3);
+      const alone = await approvalsFor(small, { signers: [TREASURER] });
+      const unknown = {
+        kind: "DUPLICATE_SLIP",
+        resolution: { kind: "TWO_DELIVERIES_LATER", by: "x", at: null },
+      };
+      const { service, repo } = await setup({
+        lines: small,
+        approvals: alone,
+        holds: [unknown as unknown as RunHold],
+      });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        kind: "refused",
+        code: "INVALID_BATCH",
+        reason: "The run's holds were not read",
+      });
+      expect(repo.events).toEqual([]);
+      expect(requests).toHaveLength(0);
+    });
+
+    it("inv.i6.distinct-keys: one person registered for both roles is refused, even with two keys", async () => {
+      // Analyn holds a second key, registered for the Chair: two key IDs and two keys, one person.
       const sameKey = makeSigner("chair", TREASURER.approverId, "fs-analyn-w2");
       const approvals = await approvalsFor(HERO_LINES, { signers: [TREASURER, sameKey] });
-      const verify = registeredKeyVerifier([TREASURER, CHAIR, sameKey]);
-      const { service, repo } = await setup({ approvals }, { verifyApprovalSignature: verify });
+      const registry = [...OFFICER_KEYS, officerKey(sameKey)];
+      const { service, repo } = await setup({ approvals }, { officerKeys: async () => registry });
       await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
         code: "APPROVALS_MISSING",
-        reason: "The treasurer and the Chair must be two people with two keys",
+        reason: "The treasurer and the Chair must be two people with two keys.",
+        check: "SIGNERS_NOT_DISTINCT",
+      });
+      expectNothingSent(repo);
+    });
+
+    it("inv.i6.distinct-keys: one public key registered for both roles is refused, under two key IDs and two approvers", async () => {
+      // The Chair's row holds the treasurer's own public key: Ernesto's approval is signed by Analyn's key.
+      const chairOnAnalynsKey = makeSigner("chair", CHAIR.approverId, "fs-ernesto-a2", TREASURER.keyId);
+      expect(chairOnAnalynsKey.publicKeyHex).toBe(TREASURER.publicKeyHex);
+      const approvals = await approvalsFor(HERO_LINES, { signers: [TREASURER, chairOnAnalynsKey] });
+      const registry = [officerKey(TREASURER), officerKey(chairOnAnalynsKey)];
+      const { service, repo } = await setup({ approvals }, { officerKeys: async () => registry });
+      await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+        kind: "refused",
+        code: "APPROVALS_MISSING",
+        reason: "The treasurer and the Chair must be two people with two keys.",
+        senderBatchId: HERO_SENDER_BATCH_ID,
+        check: "SIGNERS_NOT_DISTINCT",
+      });
+      expectNothingSent(repo);
+      // A failed check voids both keys: they sign again, with two keys, what the database holds.
+      expect(repo.types()).toEqual(["voidApprovals"]);
+      expect(repo.runStates.get(RUN_ID)).toBe("IN_REVIEW");
+    });
+
+    it("inv.i6.distinct-keys: one key ID presented for both roles is refused", async () => {
+      const [treasurer] = await approvalsFor(HERO_LINES, { signers: [TREASURER] });
+      const t = treasurer as NonNullable<typeof treasurer>;
+      // The treasurer's key, presented again as the Chair's, over a Chair payload.
+      const asChair = signPayload(TREASURER, { ...t.payload, role: "chair", nonce: "nonce-chair-0001" });
+      const { service, repo } = await setup({ approvals: [t, asChair] });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        kind: "refused",
+        check: "KEY_NOT_REGISTERED",
       });
       expectNothingSent(repo);
     });
@@ -668,24 +767,96 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       const { service, repo } = await setup({ approvals: await approvalsFor(HERO_LINES, { exp }) });
       await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
         code: "DIGEST_MISMATCH",
-        reason: "An approval expired before the batch was sent. Nothing was sent.",
+        reason: "The co-sign request expired. Send again.",
+        check: "APPROVAL_EXPIRED",
       });
       expectNothingSent(repo);
     });
 
-    it("refuses a signature that does not verify against the registered key", async () => {
+    it("inv.i6.registered-signer: refuses a signature that does not verify against the registry's key", async () => {
       const [treasurer, chair] = await approvalsFor(HERO_LINES);
       const forged = { ...(treasurer as NonNullable<typeof treasurer>), signatureHex: "00".repeat(64) };
-      const unregistered = (await approvalsFor(HERO_LINES, { signers: [STRANGER] }))[0];
-      for (const bad of [forged, unregistered]) {
-        const { service, repo } = await setup({ approvals: [bad, chair].filter((a) => a !== undefined) });
-        await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
-          code: "DIGEST_MISMATCH",
-          reason: "An approval's signature does not verify against a registered key. Nothing was sent.",
-        });
-        expectNothingSent(repo);
-      }
+      const { service, repo } = await setup({ approvals: [forged, chair].filter((a) => a !== undefined) });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "DIGEST_MISMATCH",
+        reason: "The signature does not verify.",
+        check: "SIGNATURE_INVALID",
+      });
+      expectNothingSent(repo);
     });
+
+    const MALLORY = makeSigner("treasurer", TREASURER.approverId, "fs-analyn-w1", "mallory's own key");
+    it.each([
+      [
+        "a key the registry does not hold",
+        [STRANGER, CHAIR],
+        OFFICER_KEYS,
+        /fs-mallory-w9 is not a registered/,
+      ],
+      [
+        "a revoked key",
+        [TREASURER, CHAIR],
+        [officerKey(TREASURER, { revokedAt: "2026-11-05T02:00:00.000Z" }), officerKey(CHAIR)],
+        /fs-analyn-w1 was revoked/,
+      ],
+      [
+        "a key registered for the other role",
+        [TREASURER, CHAIR],
+        [officerKey(TREASURER, { role: "chair" }), officerKey(CHAIR)],
+        /not registered to sign for the treasurer/,
+      ],
+      [
+        "a registry row whose kind does not fit its key ID",
+        [TREASURER, CHAIR],
+        [officerKey(TREASURER, { kind: "app" }), officerKey(CHAIR)],
+        /not a device key of its kind/,
+      ],
+      [
+        "the registered key ID presenting another public key (Mallory's)",
+        [MALLORY, CHAIR],
+        OFFICER_KEYS,
+        /not the registered key for the treasurer/,
+      ],
+    ] as const)(
+      "inv.i6.registered-signer: refuses %s as an unknown signer, and voids",
+      async (_label, signers, registry, reason) => {
+        const approvals = await approvalsFor(HERO_LINES, { signers: [...signers] });
+        const { service, repo } = await setup({ approvals }, { officerKeys: async () => registry });
+        const out = await service.executeApproved(RUN_ID);
+        expect(out).toMatchObject({ kind: "refused", code: "DIGEST_MISMATCH", check: "KEY_NOT_REGISTERED" });
+        expect(out.kind === "refused" && out.reason).toMatch(reason);
+        expectNothingSent(repo);
+        expect(repo.types()).toEqual(["voidApprovals"]);
+      },
+    );
+
+    it("refuses an approval whose nonce the database holds as spent (a voided approval never signs again)", async () => {
+      const approvals = await approvalsFor(HERO_LINES);
+      const spent = (approvals[1] as NonNullable<(typeof approvals)[1]>).payload.nonce;
+      const { service, repo } = await setup({ approvals, spentNonces: [spent] });
+      await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+        code: "DIGEST_MISMATCH",
+        reason: "This approval was already used.",
+        check: "NONCE_REUSED",
+      });
+      expectNothingSent(repo);
+    });
+
+    it.each([
+      ["not a list", { spentNonces: "none" as unknown as string[] }],
+      ["a nonce that is not text", { spentNonces: [7 as unknown as string] }],
+    ])(
+      "refuses spent nonces the database read as %s: an invalid batch, nothing voided",
+      async (_label, extra) => {
+        const { service, repo } = await setup(extra);
+        await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+          code: "INVALID_BATCH",
+          reason: "The run's spent approval nonces were not read",
+        });
+        expect(repo.events).toEqual([]);
+        expect(requests).toHaveLength(0);
+      },
+    );
 
     it("refuses two approvals that share a nonce", async () => {
       const digest = await digestFor(HERO_LINES);
@@ -702,7 +873,8 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       const { service, repo } = await setup({ approvals });
       await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
         code: "DIGEST_MISMATCH",
-        reason: "An approval's nonce was already used. Nothing was sent.",
+        reason: "Each approval needs its own nonce.",
+        check: "NONCE_REUSED",
       });
       expectNothingSent(repo);
     });
@@ -717,6 +889,11 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
         { linesDigest: "e".repeat(64) },
       ],
       ["no lines at all (an approval without linesDigest)", { linesDigest: undefined }],
+      ["a currency other than USD", { currency: "PHP" } as unknown as Partial<ApprovalPayload>],
+      [
+        "a payload with a field the register does not sign",
+        { memo: "pay more" } as unknown as Partial<ApprovalPayload>,
+      ],
     ])("refuses an approval signed for %s", async (_label, payload) => {
       const digest = await digestFor(HERO_LINES);
       const batch = {
@@ -838,9 +1015,13 @@ describe("S3.6.4 step 3: a failed approval check voids the approvals and sends t
     expect(requests).toHaveLength(0);
   });
 
-  it("voids them when a signature does not verify against the registered key", async () => {
-    const { service, repo } = await setup(undefined, { verifyApprovalSignature: async () => false });
-    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
+  it("voids them when the registry holds another key for the Chair", async () => {
+    const registry = [officerKey(TREASURER), officerKey(CHAIR, { publicKeyHex: STRANGER.publicKeyHex })];
+    const { service, repo } = await setup(undefined, { officerKeys: async () => registry });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      code: "DIGEST_MISMATCH",
+      check: "KEY_NOT_REGISTERED",
+    });
     expect(repo.types()).toEqual(["voidApprovals"]);
   });
 
@@ -877,6 +1058,7 @@ describe("inv.i4.digest-is-payout: both keys bind every member line (linesDigest
       code: "DIGEST_MISMATCH",
       reason: LINE_CHANGED,
       senderBatchId: HERO_SENDER_BATCH_ID,
+      check: "DIGEST_MISMATCH",
     });
 
     expect(requests).toHaveLength(0);
@@ -921,18 +1103,44 @@ describe("inv.i4.digest-is-payout: both keys bind every member line (linesDigest
     expect(repo.types()).toEqual(["voidApprovals"]);
   });
 
-  it("recomputes linesDigest through the injected IC-02 function from every member line the database holds", async () => {
-    const linesDigest = vi.fn(referenceLinesDigest);
+  it("inv.i6.lines-digest: payload and expectation carry core's linesDigest over {memberNo, lineSha256} of every member line", async () => {
+    // What both keys sign is domain linesDigest over all 64 lines (8 on PayPal, 56 cash)…
+    expect(LINES_DIGEST).toBe(linesDigest(MEMBER_LINES));
+    const signed = await approvalsFor(HERO_LINES);
+    expect(signed.map((a) => a.payload.linesDigest)).toEqual([LINES_DIGEST, LINES_DIGEST]);
+    // …and the service recomputes it from exactly those pairs: other columns the rows carry do not count.
+    const rows = MEMBER_LINES.map((l) => ({ ...l, rail: "OFF_RAIL", netCents: 1 }));
     onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
-    const { service } = await setup(undefined, { linesDigest });
-
+    const { service } = await setup({ approvals: signed, memberLines: rows });
     await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "created" });
-
-    expect(linesDigest).toHaveBeenCalledTimes(1);
-    // Exactly {memberNo, lineSha256} of all 64 lines (8 on PayPal, 56 cash), nothing else.
-    expect(linesDigest.mock.calls[0]?.[0]).toEqual(MEMBER_LINES);
-    expect(linesDigest.mock.results[0]?.value).toBe(LINES_DIGEST);
   });
+
+  it.each([
+    [
+      "the PayPal lines only",
+      linesDigest(MEMBER_LINES.filter((l) => HERO_LINES.some((h) => h.memberNo === l.memberNo))),
+    ],
+    ["every line but one cash line", linesDigest(MEMBER_LINES.filter((l) => l.memberNo !== CASH_MEMBER))],
+    ["one cash line as it was before an edit", linesDigest(withEditedLine(CASH_MEMBER))],
+    ["no line at all", "0".repeat(64)],
+  ])(
+    "inv.i6.lines-digest: approvals with a wrong linesDigest (%s) refuse: nothing written or sent, both keys voided",
+    async (_label, wrong) => {
+      const signed = await approvalsFor(HERO_LINES, { linesDigest: wrong });
+      const { service, repo } = await setup({ approvals: signed });
+      await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+        kind: "refused",
+        code: "DIGEST_MISMATCH",
+        reason: LINE_CHANGED,
+        senderBatchId: HERO_SENDER_BATCH_ID,
+        check: "DIGEST_MISMATCH",
+      });
+      expect(requests).toHaveLength(0);
+      expect(repo.batches.size).toBe(0);
+      expect(repo.types()).toEqual(["voidApprovals"]);
+      expect(repo.voidedNonces(RUN_ID)).toEqual(signed.map((a) => a.payload.nonce));
+    },
+  );
 
   it.each([
     ["no member lines", []],
@@ -953,38 +1161,21 @@ describe("inv.i4.digest-is-payout: both keys bind every member line (linesDigest
     expect(repo.events).toEqual([]);
     expect(repo.runStates.get(RUN_ID)).toBe("APPROVED");
   });
-
-  it.each([
-    ["linesDigest", { linesDigest: () => "not a digest" }],
-    ["batchDigest", { batchDigest: async () => "" }],
-  ] as const)(
-    "an IC-02 %s that returns no sha256 is a fault: the post rejects, nothing voided, written or sent",
-    async (_label, extra) => {
-      const { service, repo } = await setup(undefined, extra);
-      await expect(service.executeApproved(RUN_ID)).rejects.toThrow(TypeError);
-      expect(requests).toHaveLength(0);
-      expect(repo.events).toEqual([]);
-      expect(repo.liveNonces(RUN_ID)).toHaveLength(2);
-    },
-  );
 });
 
 describe("PayoutsService wiring: the money guards are required", () => {
   const base = (): PayoutsServiceDeps => ({
     http: new RealPayPalHttp(),
     repo: new MemoryPayoutsRepo(),
-    batchDigest: referenceBatchDigest,
-    linesDigest: referenceLinesDigest,
-    verifyApprovalSignature: registeredKeyVerifier(),
+    officerKeys: async () => OFFICER_KEYS,
     killSwitch: async () => false,
     limits: JUDGE_LIMITS,
   });
 
   it.each([
     ["no kill switch", { killSwitch: undefined }],
-    ["no batch digest", { batchDigest: undefined }],
-    ["no lines digest", { linesDigest: undefined }],
-    ["no signature check", { verifyApprovalSignature: undefined }],
+    ["no officer key registry", { officerKeys: undefined }],
+    ["an officer key list instead of its reader", { officerKeys: OFFICER_KEYS }],
     ["no limits", { limits: undefined }],
     ["no batch cap", { limits: { ...JUDGE_LIMITS, maxBatchTotalCents: undefined } }],
     ["no item cap", { limits: { ...JUDGE_LIMITS, maxItems: undefined } }],

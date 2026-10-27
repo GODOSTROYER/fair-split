@@ -6,6 +6,7 @@
 // lands; then read them from packages/seed/snapshot/season-2026A.json.
 
 import { createHash } from "node:crypto";
+import { batchDigest, linesDigest } from "@fairsplit/domain";
 import {
   type ApprovedLine,
   batchNote,
@@ -18,7 +19,6 @@ import {
   senderItemId,
 } from "../../src/index.js";
 import { approve, CHAIR, type TestSigner, TREASURER } from "./approvals.js";
-import { referenceBatchDigest, referenceLinesDigest } from "./digest.js";
 import { SANDBOX } from "./msw.js";
 
 /** The service's clock in every test: approvals below expire 10 minutes after it. */
@@ -71,8 +71,8 @@ export const MEMBER_LINES: readonly MemberLineHash[] = Array.from({ length: 64 }
 /** M-045 is paid in cash at the bodega: off rail, so in no PayPal batch. */
 export const CASH_MEMBER = "M-045";
 
-/** IC-02 linesDigest of MEMBER_LINES: what both keys sign as `linesDigest`. */
-export const LINES_DIGEST = referenceLinesDigest(MEMBER_LINES);
+/** Domain `linesDigest` of MEMBER_LINES: what both keys sign as `linesDigest`. */
+export const LINES_DIGEST = linesDigest(MEMBER_LINES);
 
 /** The member lines with `memberNo`'s line edited (re-hashed) after the keys signed. */
 export const withEditedLine = (memberNo: string, lines = MEMBER_LINES): MemberLineHash[] =>
@@ -84,6 +84,7 @@ export const RUN_FACTS: PayoutRunFacts = {
   seasonId: "0199f6a0-0000-7000-8000-00000002026a",
   cosign: { ruleId: "R5", batchOverCents: 30_000, lineOverCents: 15_000, anyOverride: true },
   memberLines: MEMBER_LINES,
+  spentNonces: [],
 };
 
 export const HERO_SENDER_BATCH_ID = senderBatchId(RUN_BASE);
@@ -98,9 +99,12 @@ export interface RunIds {
 export const rerouteBatchId = (memberNo: string, rerouteNo: number, run: RunIds = RUN_BASE): string =>
   senderBatchId({ ...RUN_BASE, ...run, rerouteNo, memberNo });
 
+/** What `digestFor` answers for lines no batch can carry: the service refuses them before any approval check. */
+const NO_BATCH_DIGEST = createHash("sha256").update("lines no batch can carry").digest("hex");
+
 /**
- * The digest the treasurer and the Chair sign for a set of lines (reference IC-02). With `rerouteNo`
- * the lines are a re-route's one line, and its member names the batch.
+ * The digest the treasurer and the Chair sign for a set of lines (domain `batchDigest`, number cents).
+ * With `rerouteNo` the lines are a re-route's one line, and its member names the batch.
  */
 export async function digestFor(
   lines: readonly ApprovedLine[],
@@ -114,13 +118,16 @@ export async function digestFor(
   const items = lines.map((l) => ({
     senderItemId: senderItemId({ runSeq: run.runSeq, memberNo: l.memberNo, rerouteNo }),
     receiver: l.receiver,
-    amountCents: l.amountCents,
+    amountCents: Number(l.amountCents),
     currency: l.currency,
   }));
-  return referenceBatchDigest(
-    { runId: run.runId, senderBatchId: sbid, rateCardSha256: RATE_CARD_SHA256 },
-    items,
-  );
+  try {
+    return batchDigest({ runId: run.runId, senderBatchId: sbid, rateCardSha256: RATE_CARD_SHA256 }, items)
+      .batchSha256;
+  } catch {
+    // A zero, negative or repeated line: domain refuses to hash it, and so does the service's batch check.
+    return NO_BATCH_DIGEST;
+  }
 }
 
 /**
@@ -160,7 +167,7 @@ export async function postingSnapshot(
     ...RUN_FACTS,
     lines,
     approvals: extra.approvals ?? (await approvalsFor(lines)),
-    overrides: 0,
+    holds: [],
     submitted: null,
     ...extra,
   };
