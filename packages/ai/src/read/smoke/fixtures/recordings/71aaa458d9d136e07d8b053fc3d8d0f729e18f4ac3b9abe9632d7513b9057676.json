@@ -1,0 +1,672 @@
+{
+  "v": 1,
+  "cache_key": "71aaa458d9d136e07d8b053fc3d8d0f729e18f4ac3b9abe9632d7513b9057676",
+  "purpose": "ratecard",
+  "model": "claude-opus-5-5",
+  "model_served": "claude-opus-5-5",
+  "effort": "medium",
+  "variant": "-",
+  "prompt_v": "ratecard.v1",
+  "schema_v": "ratecard.v1",
+  "input_sha": "06c916202cc66761cf3983272082d686ddedba3810520beeeb8e270de5aa2668",
+  "sent_sha": "1fafa90b77c5adead724388e8390d8ce19d60b4a0512b0b5779a5fd3d4c544b8",
+  "prompt_sha": "77cd9d213b275f41e0d25f0ce979d9ba6445075f85ff0f1f81824e8a89c67ad4",
+  "usage": {
+    "input_tokens": 2865,
+    "output_tokens": 1772,
+    "cache_read_input_tokens": 2864,
+    "cache_creation_input_tokens": 0,
+    "thinking_tokens": 569,
+    "iterations": null
+  },
+  "cost_micros": 47473,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011CgHGB9WeN19pPVGZSEMai",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "thinking",
+        "thinking": "",
+        "signature": "REDACTED"
+      },
+      {
+        "type": "text",
+        "text": "{\"resolution_no\":\"BR 2026-99\",\"ratified_on_as_written\":\"14 March 2026\",\"terms\":[{\"rule_id\":\"R1\",\"kind\":\"DEDUCTION\",\"pool\":\"NONE\",\"basis\":\"PCT_OF_BONUS\",\"value_as_written\":\"5%\",\"cap_as_written\":\"₱5,000\",\"condition_as_written\":\"\",\"requires_document\":\"NONE\",\"source\":{\"page\":1,\"box\":{\"x1\":258,\"y1\":445,\"x2\":1035,\"y2\":520},\"quote\":\"Capital build-up (CBU): 5% of the member's quality bonus, until the member's paid-up CBU reaches ₱5,000.\"}},{\"rule_id\":\"R2\",\"kind\":\"DEDUCTION\",\"pool\":\"NONE\",\"basis\":\"PER_NET_KG\",\"value_as_written\":\"₱1.50\",\"cap_as_written\":\"\",\"condition_as_written\":\"for deliveries collected at a purok pickup point\",\"requires_document\":\"NONE\",\"source\":{\"page\":1,\"box\":{\"x1\":258,\"y1\":560,\"x2\":1068,\"y2\":632},\"quote\":\"Hauling: ₱1.50 per kilo of net weight for deliveries collected at a purok pickup point.\"}},{\"rule_id\":\"R5\",\"kind\":\"COSIGN\",\"pool\":\"NONE\",\"basis\":\"BATCH_TOTAL\",\"value_as_written\":\"US$300\",\"cap_as_written\":\"\",\"condition_as_written\":\"\",\"requires_document\":\"NONE\",\"source\":{\"page\":1,\"box\":{\"x1\":258,\"y1\":674,\"x2\":1132,\"y2\":746},\"quote\":\"The Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold.\"}},{\"rule_id\":\"R5\",\"kind\":\"COSIGN\",\"pool\":\"NONE\",\"basis\":\"LINE_TOTAL\",\"value_as_written\":\"US$150\",\"cap_as_written\":\"\",\"condition_as_written\":\"\",\"requires_document\":\"NONE\",\"source\":{\"page\":1,\"box\":{\"x1\":258,\"y1\":674,\"x2\":1132,\"y2\":746},\"quote\":\"The Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold.\"}},{\"rule_id\":\"R5\",\"kind\":\"COSIGN\",\"pool\":\"NONE\",\"basis\":\"OVERRIDE\",\"value_as_written\":\"\",\"cap_as_written\":\"\",\"condition_as_written\":\"\",\"requires_document\":\"NONE\",\"source\":{\"page\":1,\"box\":{\"x1\":258,\"y1\":674,\"x2\":1132,\"y2\":746},\"quote\":\"The Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold.\"}},{\"rule_id\":\"CLOSED\",\"kind\":\"CLOSED_LIST\",\"pool\":\"NONE\",\"basis\":\"NONE\",\"value_as_written\":\"\",\"cap_as_written\":\"\",\"condition_as_written\":\"\",\"requires_document\":\"NONE\",\"source\":{\"page\":1,\"box\":{\"x1\":258,\"y1\":788,\"x2\":1150,\"y2\":860},\"quote\":\"No deduction other than those in this Schedule shall be applied to any member payout.\"}}],\"signatories\":[{\"role\":\"SECRETARY\",\"name_as_written\":\"Marites Dagohoy\",\"signed\":\"YES\"},{\"role\":\"CHAIR\",\"name_as_written\":\"Ernesto Cabahug\",\"signed\":\"YES\"}],\"anomalies\":[{\"kind\":\"HANDWRITTEN_AMENDMENT\",\"page\":1,\"box\":{\"x1\":750,\"y1\":890,\"x2\":1040,\"y2\":945},\"verbatim\":\"R7 Iba pa P150\"}]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 2865,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 2864,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 1772,
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard",
+      "output_tokens_details": {
+        "thinking_tokens": 569
+      }
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 11760,
+      "d": "{\"resolution_no"
+    },
+    {
+      "ms": 11813,
+      "d": "\":\"BR 2026-"
+    },
+    {
+      "ms": 11866,
+      "d": "99\",\"ratified_on_"
+    },
+    {
+      "ms": 11911,
+      "d": "as_written\":\"14 March"
+    },
+    {
+      "ms": 11959,
+      "d": " 2026\",\"terms\":["
+    },
+    {
+      "ms": 12012,
+      "d": "{\"rule_id\":\""
+    },
+    {
+      "ms": 12077,
+      "d": "R1\",\"kind\":\"D"
+    },
+    {
+      "ms": 12124,
+      "d": "EDUCTION\",\"p"
+    },
+    {
+      "ms": 12159,
+      "d": "ool\":\"NONE\",\"bas"
+    },
+    {
+      "ms": 12232,
+      "d": "is\":\"PCT_O"
+    },
+    {
+      "ms": 12260,
+      "d": "F_BONUS\",\"value"
+    },
+    {
+      "ms": 12310,
+      "d": "_as_written\":\"5%"
+    },
+    {
+      "ms": 12361,
+      "d": "\",\"cap_as_written\":"
+    },
+    {
+      "ms": 12425,
+      "d": "\"₱5,000\",\"cond"
+    },
+    {
+      "ms": 12461,
+      "d": "ition_as_written\":\"\",\""
+    },
+    {
+      "ms": 12528,
+      "d": "requires_document\":\"NON"
+    },
+    {
+      "ms": 12562,
+      "d": "E\",\"source\":{\"page\":"
+    },
+    {
+      "ms": 12611,
+      "d": "1,\"box\":{\"x"
+    },
+    {
+      "ms": 12669,
+      "d": "1\":258,\"y1\":"
+    },
+    {
+      "ms": 12711,
+      "d": "445,\"x2\":1035"
+    },
+    {
+      "ms": 12771,
+      "d": ",\"y2\":520},\""
+    },
+    {
+      "ms": 12824,
+      "d": "quote\":\"Capital build"
+    },
+    {
+      "ms": 12864,
+      "d": "-up (CBU): "
+    },
+    {
+      "ms": 12911,
+      "d": "5% of the member's quality"
+    },
+    {
+      "ms": 12981,
+      "d": " bonus, until the member's"
+    },
+    {
+      "ms": 13017,
+      "d": " paid-up CBU re"
+    },
+    {
+      "ms": 13067,
+      "d": "aches ₱5,000"
+    },
+    {
+      "ms": 13120,
+      "d": ".\"}},{\"rule_"
+    },
+    {
+      "ms": 13175,
+      "d": "id\":\"R2\",\"kind"
+    },
+    {
+      "ms": 13212,
+      "d": "\":\"DEDUCT"
+    },
+    {
+      "ms": 13259,
+      "d": "ION\",\"pool\":\"NON"
+    },
+    {
+      "ms": 13318,
+      "d": "E\",\"basis\":\"PER"
+    },
+    {
+      "ms": 13370,
+      "d": "_NET_KG\",\"value"
+    },
+    {
+      "ms": 13432,
+      "d": "_as_written\":\"₱"
+    },
+    {
+      "ms": 13467,
+      "d": "1.50\",\"cap_as"
+    },
+    {
+      "ms": 13509,
+      "d": "_written\":\"\",\"condition_"
+    },
+    {
+      "ms": 13563,
+      "d": "as_written\":\"for deli"
+    },
+    {
+      "ms": 13620,
+      "d": "veries collected at a purok"
+    },
+    {
+      "ms": 13669,
+      "d": " pickup point\",\"requires_"
+    },
+    {
+      "ms": 13721,
+      "d": "document\":\"NONE\",\"source"
+    },
+    {
+      "ms": 13772,
+      "d": "\":{\"page\":1,\""
+    },
+    {
+      "ms": 13821,
+      "d": "box\":{\"x1\":258"
+    },
+    {
+      "ms": 13875,
+      "d": ",\"y1\":560,\""
+    },
+    {
+      "ms": 13914,
+      "d": "x2\":1068,\"y"
+    },
+    {
+      "ms": 13980,
+      "d": "2\":632},\"quote\":"
+    },
+    {
+      "ms": 14030,
+      "d": "\"Hauling: "
+    },
+    {
+      "ms": 14065,
+      "d": "₱1.50 per kil"
+    },
+    {
+      "ms": 14112,
+      "d": "o of net weight for deli"
+    },
+    {
+      "ms": 14177,
+      "d": "veries collected at a purok"
+    },
+    {
+      "ms": 14223,
+      "d": " pickup point.\"}},{"
+    },
+    {
+      "ms": 14271,
+      "d": "\"rule_id\":\"R"
+    },
+    {
+      "ms": 14316,
+      "d": "5\",\"kind\":\"COS"
+    },
+    {
+      "ms": 14371,
+      "d": "IGN\",\"pool\":\""
+    },
+    {
+      "ms": 14426,
+      "d": "NONE\",\"basis\":\""
+    },
+    {
+      "ms": 14480,
+      "d": "BATCH_TOT"
+    },
+    {
+      "ms": 14525,
+      "d": "AL\",\"value_as_written"
+    },
+    {
+      "ms": 14570,
+      "d": "\":\"US$300\",\"cap"
+    },
+    {
+      "ms": 14613,
+      "d": "_as_written\":\"\",\"cond"
+    },
+    {
+      "ms": 14664,
+      "d": "ition_as_written\":\"\",\""
+    },
+    {
+      "ms": 14728,
+      "d": "requires_document\":\"NON"
+    },
+    {
+      "ms": 14766,
+      "d": "E\",\"source\":{\"page\":"
+    },
+    {
+      "ms": 14813,
+      "d": "1,\"box\":{\"x"
+    },
+    {
+      "ms": 14880,
+      "d": "1\":258,\"y1\":"
+    },
+    {
+      "ms": 14914,
+      "d": "674,\"x2\":1132"
+    },
+    {
+      "ms": 14961,
+      "d": ",\"y2\":746},\""
+    },
+    {
+      "ms": 15023,
+      "d": "quote\":\"The Chair"
+    },
+    {
+      "ms": 15074,
+      "d": "person shall co-sign"
+    },
+    {
+      "ms": 15110,
+      "d": " any payout batch over US$"
+    },
+    {
+      "ms": 15165,
+      "d": "300, any member line over US$"
+    },
+    {
+      "ms": 15216,
+      "d": "150, and any override of a h"
+    },
+    {
+      "ms": 15267,
+      "d": "old.\"}},{\"rule"
+    },
+    {
+      "ms": 15320,
+      "d": "_id\":\"R5\",\"k"
+    },
+    {
+      "ms": 15382,
+      "d": "ind\":\"COSIGN"
+    },
+    {
+      "ms": 15414,
+      "d": "\",\"pool\":\"NONE"
+    },
+    {
+      "ms": 15476,
+      "d": "\",\"basis\":\"LINE"
+    },
+    {
+      "ms": 15514,
+      "d": "_TOTAL\",\"value"
+    },
+    {
+      "ms": 15561,
+      "d": "_as_written\":\"US$"
+    },
+    {
+      "ms": 15632,
+      "d": "150\",\"cap_as_written"
+    },
+    {
+      "ms": 15663,
+      "d": "\":\"\",\"condition_as_"
+    },
+    {
+      "ms": 15732,
+      "d": "written\":\"\",\"requires_document"
+    },
+    {
+      "ms": 15771,
+      "d": "\":\"NONE\",\"source\":"
+    },
+    {
+      "ms": 15830,
+      "d": "{\"page\":1,\"box"
+    },
+    {
+      "ms": 15877,
+      "d": "\":{\"x1\":258,"
+    },
+    {
+      "ms": 15932,
+      "d": "\"y1\":674,\"x"
+    },
+    {
+      "ms": 15981,
+      "d": "2\":1132,\"y2"
+    },
+    {
+      "ms": 16031,
+      "d": "\":746},\"quote\":\""
+    },
+    {
+      "ms": 16075,
+      "d": "The Chairperson shall"
+    },
+    {
+      "ms": 16124,
+      "d": " co-sign any payout bat"
+    },
+    {
+      "ms": 16182,
+      "d": "ch over US$300, any member"
+    },
+    {
+      "ms": 16233,
+      "d": " line over US$150, and any"
+    },
+    {
+      "ms": 16284,
+      "d": " override of a hold.\"}},"
+    },
+    {
+      "ms": 16331,
+      "d": "{\"rule_id\":\""
+    },
+    {
+      "ms": 16381,
+      "d": "R5\",\"kind\":\"CO"
+    },
+    {
+      "ms": 16430,
+      "d": "SIGN\",\"pool\":"
+    },
+    {
+      "ms": 16485,
+      "d": "\"NONE\",\"basis\":"
+    },
+    {
+      "ms": 16512,
+      "d": "\"OVERRIDE"
+    },
+    {
+      "ms": 16571,
+      "d": "\",\"value_as_written\":\""
+    },
+    {
+      "ms": 16619,
+      "d": "\",\"cap_as_written\":"
+    },
+    {
+      "ms": 16670,
+      "d": "\"\",\"condition_as_written"
+    },
+    {
+      "ms": 16719,
+      "d": "\":\"\",\"requires_document\":"
+    },
+    {
+      "ms": 16768,
+      "d": "\"NONE\",\"source\":{"
+    },
+    {
+      "ms": 16830,
+      "d": "\"page\":1,\"box\":"
+    },
+    {
+      "ms": 16882,
+      "d": "{\"x1\":258,\""
+    },
+    {
+      "ms": 16930,
+      "d": "y1\":674,\"x2"
+    },
+    {
+      "ms": 16981,
+      "d": "\":1132,\"y2\":"
+    },
+    {
+      "ms": 17025,
+      "d": "746},\"quote\":\"The"
+    },
+    {
+      "ms": 17080,
+      "d": " Chairperson shall co"
+    },
+    {
+      "ms": 17145,
+      "d": "-sign any payout batch"
+    },
+    {
+      "ms": 17168,
+      "d": " over US$300, any member line"
+    },
+    {
+      "ms": 17218,
+      "d": " over US$150, and any override"
+    },
+    {
+      "ms": 17283,
+      "d": " of a hold.\"}},{"
+    },
+    {
+      "ms": 17332,
+      "d": "\"rule_id\":\"C"
+    },
+    {
+      "ms": 17381,
+      "d": "LOSED\",\"kind\":"
+    },
+    {
+      "ms": 17434,
+      "d": "\"CLOSED_L"
+    },
+    {
+      "ms": 17481,
+      "d": "IST\",\"pool\":\"N"
+    },
+    {
+      "ms": 17532,
+      "d": "ONE\",\"basis\":\"N"
+    },
+    {
+      "ms": 17582,
+      "d": "ONE\",\"value_as_written"
+    },
+    {
+      "ms": 17632,
+      "d": "\":\"\",\"cap_as_"
+    },
+    {
+      "ms": 17682,
+      "d": "written\":\"\",\"condition_as"
+    },
+    {
+      "ms": 17738,
+      "d": "_written\":\"\",\"requires_"
+    },
+    {
+      "ms": 17786,
+      "d": "document\":\"NONE\",\"source"
+    },
+    {
+      "ms": 17819,
+      "d": "\":{\"page\":1,\""
+    },
+    {
+      "ms": 17871,
+      "d": "box\":{\"x1\":258"
+    },
+    {
+      "ms": 17931,
+      "d": ",\"y1\":788,\""
+    },
+    {
+      "ms": 17991,
+      "d": "x2\":1150,\"y"
+    },
+    {
+      "ms": 18019,
+      "d": "2\":860},\"quote\":"
+    },
+    {
+      "ms": 18073,
+      "d": "\"No deduction other than those"
+    },
+    {
+      "ms": 18145,
+      "d": " in this Schedule shall"
+    },
+    {
+      "ms": 18162,
+      "d": " be applied to any member payout"
+    },
+    {
+      "ms": 18213,
+      "d": ".\"}}],\"signatories"
+    },
+    {
+      "ms": 18274,
+      "d": "\":[{\"role\":\"S"
+    },
+    {
+      "ms": 18335,
+      "d": "ECRETARY\",\"name_"
+    },
+    {
+      "ms": 18384,
+      "d": "as_written\":\"Marites"
+    },
+    {
+      "ms": 18434,
+      "d": " Dagoh"
+    },
+    {
+      "ms": 18461,
+      "d": "oy\",\"signed\":\"Y"
+    },
+    {
+      "ms": 18527,
+      "d": "ES\"},{\"role\":\""
+    },
+    {
+      "ms": 18583,
+      "d": "CHAIR\",\"name_"
+    },
+    {
+      "ms": 18623,
+      "d": "as_written\":\"Ern"
+    },
+    {
+      "ms": 18685,
+      "d": "esto Cabahug\",\""
+    },
+    {
+      "ms": 18720,
+      "d": "signed\":\"YES\"}"
+    },
+    {
+      "ms": 18766,
+      "d": "],\"anomalies\":["
+    },
+    {
+      "ms": 18832,
+      "d": "{\"kind\":\"HAN"
+    },
+    {
+      "ms": 18886,
+      "d": "DWRITTEN_"
+    },
+    {
+      "ms": 18912,
+      "d": "AMENDMENT\",\""
+    },
+    {
+      "ms": 18965,
+      "d": "page\":1,\"box\":{"
+    },
+    {
+      "ms": 19035,
+      "d": "\"x1\":750,\"y"
+    },
+    {
+      "ms": 19071,
+      "d": "1\":890,\"x2\":"
+    },
+    {
+      "ms": 19126,
+      "d": "1040,\"y2\":945"
+    },
+    {
+      "ms": 19195,
+      "d": "},\"verbatim\":\""
+    },
+    {
+      "ms": 19211,
+      "d": "R7 Iba pa"
+    },
+    {
+      "ms": 19323,
+      "d": " P150\"}]}"
+    }
+  ],
+  "recorded_at": "2026-10-22T12:18:22.291Z",
+  "latency_ms": 19326,
+  "first_delta_ms": 11760,
+  "provenance": "live"
+}

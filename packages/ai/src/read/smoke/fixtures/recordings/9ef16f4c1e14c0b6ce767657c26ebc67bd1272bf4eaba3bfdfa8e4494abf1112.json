@@ -1,0 +1,67 @@
+{
+  "v": 1,
+  "cache_key": "9ef16f4c1e14c0b6ce767657c26ebc67bd1272bf4eaba3bfdfa8e4494abf1112",
+  "purpose": "classify",
+  "model": "claude-sonnet-5-5",
+  "model_served": "claude-sonnet-5-5",
+  "effort": "low",
+  "variant": "-",
+  "prompt_v": "classify.v1",
+  "schema_v": "classify.v1+rc:a4aee86c+992ed420",
+  "input_sha": "8a82a41bbf01b1d0d1fb2ba0647f35059990f8f0efdde3d8500e5cc019531299",
+  "sent_sha": null,
+  "prompt_sha": "d6560206754f1c640b0924547d8bf93d9d1bc37287cce45a758685be3aff61f1",
+  "usage": {
+    "input_tokens": 714,
+    "output_tokens": 14,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "thinking_tokens": 0,
+    "iterations": null
+  },
+  "cost_micros": 1568,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-sonnet-5-5",
+    "id": "msg_011CgHFwVdys67Qb3t8N7DTa",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"rule_id\":\"R2\"}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 714,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 14,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 1716,
+      "d": "{\"rule_id\":\"R2\"}"
+    }
+  ],
+  "recorded_at": "2026-10-22T12:15:17.497Z",
+  "latency_ms": 1716,
+  "first_delta_ms": 1716,
+  "provenance": "live"
+}

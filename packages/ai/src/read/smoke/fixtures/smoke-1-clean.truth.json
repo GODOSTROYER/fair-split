@@ -1,0 +1,26 @@
+[
+  {
+    "serial": "0901",
+    "values": {
+      "serial": "0901",
+      "line_no": "",
+      "date": "7/14/26",
+      "member_no": "M-101",
+      "member_name": "ROSA LIM",
+      "plot_no": "P-101-A",
+      "sacks": "2 PP",
+      "gross_kg": "64.80",
+      "tare_kg": "0.30",
+      "net_kg": "64.50",
+      "mc_pct": "7.5",
+      "mc_less_kg": "0.00",
+      "payable_kg": "64.50",
+      "grade": "G1",
+      "clerk_initials": "JD"
+    },
+    "deductions": ["Hauling P96.75"],
+    "overwritten": null,
+    "smudged": null,
+    "marginNote": null
+  }
+]
