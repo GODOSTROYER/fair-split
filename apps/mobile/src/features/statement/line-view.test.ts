@@ -1,10 +1,18 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { StatementDTO } from "../../_shims/api-client";
-import { MEMBER_STATUS_WORDS } from "../../_shims/contracts";
-import { capsuleFor, EMPTY_TRACK, type ItemTrack } from "../../lib/item-status";
+import { LANGS, MEMBER_STATUS_WORDS } from "../../_shims/contracts";
+import { MOMENTS } from "../../_shims/moments";
+import {
+  CAPSULE_WORD,
+  type CapsuleState,
+  capsuleFor,
+  EMPTY_TRACK,
+  type ItemTrack,
+} from "../../lib/item-status";
 import { mergeTrack } from "../../lib/statement";
 import { buildDemoStatement, DEMO_STAGES, type DemoStage } from "../../services/demo-fixtures";
-import { historyRows, lineView, sealSigners } from "./line-view";
+import { capsuleText, elapsedClock, historyRows, lineView, msOf, sealSigners } from "./line-view";
 import { messages, t } from "./messages";
 import { previewLine } from "./preview";
 
@@ -118,8 +126,143 @@ describe("MM-1 is driven by item.updated, not by the clock", () => {
     const v = view(dto, "en", track);
     expect(v.capsule).toBe("paid");
     expect(v.amountState).toBe("landed");
+    expect(v.fillsOnPress).toBe(true);
     expect(v.paidAt).toBe("2026-10-30T01:20:00Z");
     expect(v.word).toBe("Paid, 30 Oct");
+  });
+});
+
+describe("MM-1 keeps the words PayPal pressed until the label crossfades (design §7 M1)", () => {
+  // Sent at 09:00:00 Manila; PayPal's SUCCESS 14 s later.
+  const sent = at("sent");
+  const pressedAt = "2026-10-30T01:00:14Z";
+  const pressed: ItemTrack = { status: "SUCCESS", updatedAt: pressedAt, seen: ["e9"] };
+  const clock = elapsedClock(msOf(sent.history.find((h) => h.kind === "sent")?.at ?? null), msOf(pressedAt));
+
+  it("the clock reads the time PayPal took, stopped where PayPal pressed it", () => {
+    expect(clock).toBe("0:14");
+    expect(elapsedClock(null, msOf(pressedAt))).toBeNull();
+    expect(elapsedClock(msOf(pressedAt), null)).toBeNull();
+    // A phone clock behind the server's never shows a negative wait.
+    expect(elapsedClock(msOf(pressedAt), msOf("2026-10-30T01:00:10Z"))).toBe("0:00");
+    expect(msOf("not a time")).toBeNull();
+  });
+
+  it("while the item waits for PayPal, the plate carries its words and the running clock", () => {
+    const v = view(sent, "ceb");
+    expect(v.sentWord).toBe("Gipadala na, naghulat sa PayPal");
+    expect(capsuleText(v, { phase: "pending", swapped: false }, "0:13")).toEqual({
+      before: { word: "Gipadala na, naghulat sa PayPal", clock: "0:13" },
+      after: null,
+    });
+  });
+
+  it("the before layer is never empty while the plate is pressed, flooded and filled", () => {
+    for (const lang of LANGS) {
+      const v = view(sent, lang, pressed);
+      expect(v.capsule).toBe("paid");
+      // The label crossfade starts at 400 ms: until it ends on screen, `swap` is below 1.
+      for (const phase of ["pending", "press", "flood", "fill", "label", "invite"] as const) {
+        const text = capsuleText(v, { phase, swapped: false }, clock);
+        expect(text.before?.word, `${lang} ${phase}`).toBe(MEMBER_STATUS_WORDS.PAYPAL_PENDING[lang]);
+        expect(text.before?.clock, `${lang} ${phase}`).toBe("0:14");
+        expect(text.after).toBe(v.word);
+      }
+    }
+    const v = view(sent, "ceb", pressed);
+    expect(capsuleText(v, { phase: "flood", swapped: false }, clock).after).toBe("Bayad na, 30 Okt");
+    // Reduced motion crossfades the label at once: the words stay until the moment is done, if invisible.
+    expect(capsuleText(v, { phase: "fill", swapped: true }, clock).before).not.toBeNull();
+  });
+
+  it("the old words leave only when the moment is done and the crossfade has finished on screen", () => {
+    const v = view(sent, "ceb", pressed);
+    expect(capsuleText(v, { phase: "done", swapped: true }, clock)).toEqual({
+      before: null,
+      after: "Bayad na, 30 Okt",
+    });
+    // A late frame (a busy phone, a background tab): the moment's clock says done, the label is still fading in.
+    expect(capsuleText(v, { phase: "done", swapped: false }, clock).before?.word).toBe(
+      "Gipadala na, naghulat sa PayPal",
+    );
+    expect(capsuleText(view(at("paid"), "ceb"), { phase: "done", swapped: true }, null).before).toBeNull();
+  });
+
+  it("covers every MM-1 phase, and only the capsules MM-1 presses carry the words", () => {
+    const v = view(sent, "en", pressed);
+    for (const phase of MOMENTS["MM-1"]) {
+      for (const swapped of [false, true]) {
+        expect(capsuleText(v, { phase, swapped }, clock).after).toBe("Paid, 30 Oct");
+      }
+    }
+    for (const stage of ["checking", "unclaimed", "cash-due", "cash-received"] as const) {
+      const flat = view(at(stage));
+      expect(flat.sentWord).toBeNull();
+      expect(capsuleText(flat, { phase: "pending", swapped: false }, null)).toEqual({
+        before: null,
+        after: null,
+      });
+    }
+  });
+});
+
+describe("inv.i3.member-view: a line that does not add up is never presented as settled", () => {
+  const CAPSULES = Object.keys(CAPSULE_WORD) as CapsuleState[];
+  const broken = (dto: StatementDTO, drift: number): StatementDTO => ({
+    ...dto,
+    amounts: { ...dto.amounts, netCents: dto.amounts.netCents + drift },
+  });
+
+  it("a paid line whose receipt is a cent off stays hollow, is not filled by MM-1, and says who checks it", () => {
+    const dto = broken(at("paid"), 1);
+    const v = view(dto, "en");
+    expect(v.capsule).toBe("paid");
+    expect(v.conserved).toBe(false);
+    expect(v.amountState).toBe("hollow");
+    expect(v.fillsOnPress).toBe(false);
+    expect(v.detail).toEqual({ key: "M-MB-01.unbalanced", args: { name: "Analyn" } });
+    expect(t("en", "M-MB-01.unbalanced", v.detail?.args)).toBe(
+      "Still being checked: the figures on this line don't add up. Treasurer Analyn will check them.",
+    );
+    expect(t("ceb", "M-MB-01.unbalanced", v.detail?.args)).toMatch(/^Gisusi pa/);
+    // PayPal's word stays PayPal's: the capsule still reads what PayPal confirmed.
+    expect(v.word).toBe("Paid, 30 Oct");
+  });
+
+  it("cash the clerk recorded is not attested while the line does not add up", () => {
+    const v = view(broken(at("cash-received"), -2), "fil");
+    expect(v.amountState).toBe("hollow");
+    expect(v.detail?.key).toBe("M-MB-01.unbalanced");
+  });
+
+  it("inv.i3.member-view.property: for any drift, stage, capsule and language, never landed or attested", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: -5_000, max: 5_000 }).filter((d) => d !== 0),
+        fc.constantFrom(...DEMO_STAGES),
+        fc.constantFrom(...CAPSULES),
+        fc.constantFrom(...LANGS),
+        (drift, stage, capsule, lang) => {
+          const dto = broken(at(stage), drift);
+          const v = lineView(dto, capsule, trackOf(dto), lang);
+          return (
+            !v.conserved &&
+            v.amountState !== "landed" &&
+            v.amountState !== "attested" &&
+            !v.fillsOnPress &&
+            (!v.showAmount || v.detail?.key === "M-MB-01.unbalanced")
+          );
+        },
+      ),
+    );
+  });
+
+  it("a line that adds up keeps the grammar: landed when PayPal confirmed it, attested when the clerk recorded it", () => {
+    expect(view(at("paid")).conserved).toBe(true);
+    expect(view(at("paid")).amountState).toBe("landed");
+    expect(view(at("cash-received")).amountState).toBe("attested");
+    expect(view(at("sent")).fillsOnPress).toBe(true);
+    expect(view(at("unclaimed")).fillsOnPress).toBe(false);
   });
 });
 

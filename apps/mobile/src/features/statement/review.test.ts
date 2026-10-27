@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
+import type { ApiResult } from "../../_shims/api-client";
 import { capsuleFor } from "../../lib/item-status";
+import { UUIDV7_RE, uuidv7 } from "../../lib/uuidv7";
 import { buildDemoStatement } from "../../services/demo-fixtures";
 import { hapticAt, traceState, zoomLimit, zoomTransform } from "./mm7";
 import { isPreviewLine, previewLine } from "./preview";
 import {
   cleanNote,
+  createReviewSender,
   NOTE_MAX,
+  type PostReview,
+  pangutanaScreenState,
+  parsePendingReview,
   parseReview,
+  pendingReviewPrefKey,
+  pendingReviewStore,
+  type ReviewBody,
+  reviewBody,
+  reviewDigest,
   reviewPrefKey,
   reviewScreenState,
   serializeReview,
@@ -48,6 +59,136 @@ describe("Ipasusi pag-usab: the request this phone remembers", () => {
     expect(reviewScreenState({ ...base, record: { id: "x", at: "2026-10-30T02:00:00Z", slip: null } })).toBe(
       "sent",
     );
+  });
+
+  it("Pangutana is none or offline while her line loads, after its read failed, and for an officer", () => {
+    const base = { record: null, phase: "idle" as const, composing: true, online: true };
+    expect(pangutanaScreenState({ ...base, read: "ready" })).toBe("composing");
+    for (const read of ["none", "loading", "error"] as const) {
+      expect(pangutanaScreenState({ ...base, read })).toBe("none");
+      expect(pangutanaScreenState({ ...base, read, online: false })).toBe("offline");
+    }
+  });
+});
+
+describe("inv.i7.review-idempotency: each composed request is filed once", () => {
+  const lineId = "line_2026A_r37_M-014";
+  const ok = (id: string): ApiResult<{ id: string }> => ({ ok: true, value: { id } });
+  const lost: ApiResult<{ id: string }> = { ok: false, code: "NETWORK" };
+
+  /** A post that answers from a script and records the key each call carried. */
+  function scripted(...answers: ApiResult<{ id: string }>[]) {
+    const calls: { body: ReviewBody; key: string }[] = [];
+    const post: PostReview = async (body, opts) => {
+      calls.push({ body, key: opts.idempotencyKey });
+      return answers.shift() ?? lost;
+    };
+    return { post, calls };
+  }
+  function memoryKv() {
+    const m = new Map<string, string>();
+    return {
+      m,
+      kv: {
+        get: async (k: string) => m.get(k) ?? null,
+        set: async (k: string, v: string) => {
+          m.set(k, v);
+        },
+        del: async (k: string) => {
+          m.delete(k);
+        },
+      },
+    };
+  }
+  let n = 0;
+  const mint = () => uuidv7(Date.parse("2026-10-30T02:00:00Z") + n++, (k) => new Uint8Array(k).fill(n));
+
+  it("a retry reuses the key until the Committee's inbox accepts the request", async () => {
+    const { kv } = memoryKv();
+    const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
+    const { post, calls } = scripted(lost, lost, ok("rr_1"));
+    const body = reviewBody(lineId, "0403", "Ang kilo sa 0403");
+    expect(await send(body, post)).toMatchObject({ ok: false, code: "NETWORK" });
+    expect(await send(body, post)).toMatchObject({ ok: false });
+    const done = await send(body, post);
+    expect(done).toMatchObject({ ok: true, id: "rr_1" });
+    expect(calls).toHaveLength(3);
+    expect(new Set(calls.map((c) => c.key)).size).toBe(1);
+    expect(calls[0]?.key).toMatch(UUIDV7_RE);
+    expect(done?.key).toBe(calls[0]?.key);
+    // Accepted: the next request is a new one.
+    const next = scripted(ok("rr_2"));
+    await send(reviewBody(lineId, null, ""), next.post);
+    expect(next.calls[0]?.key).not.toBe(calls[0]?.key);
+  });
+
+  it("two commits in one frame send once", async () => {
+    const { kv } = memoryKv();
+    const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
+    const { post, calls } = scripted(ok("rr_1"));
+    const body = reviewBody(lineId, null, "");
+    const first = send(body, post);
+    const second = send(body, post);
+    expect(first).not.toBeNull();
+    expect(second).toBeNull();
+    await first;
+    expect(calls).toHaveLength(1);
+    // Once it settles, the phone can send again.
+    const third = send(body, scripted(ok("rr_2")).post);
+    expect(third).not.toBeNull();
+    await third;
+  });
+
+  it("a changed slip or note is a new request with a new key", async () => {
+    const { kv } = memoryKv();
+    const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
+    const { post, calls } = scripted(lost, lost, lost);
+    await send(reviewBody(lineId, "0403", "Ang kilo"), post);
+    await send(reviewBody(lineId, "0403", "  Ang   kilo "), post); // the same note as sent
+    await send(reviewBody(lineId, "0419", "Ang kilo"), post);
+    expect(calls[1]?.key).toBe(calls[0]?.key);
+    expect(calls[2]?.key).not.toBe(calls[0]?.key);
+  });
+
+  it("the key survives a restart, as a key and a digest, never the note", async () => {
+    const { m, kv } = memoryKv();
+    const body = reviewBody(lineId, "0403", "Ang kilo sa 0403 kulang");
+    const before = scripted(lost);
+    await createReviewSender({ mint, store: pendingReviewStore(kv) })(body, before.post);
+    const saved = m.get(pendingReviewPrefKey(lineId)) ?? "";
+    expect(parsePendingReview(saved)).toEqual({ key: before.calls[0]?.key, digest: reviewDigest(body) });
+    expect(saved).not.toContain("kulang");
+    // A new sender (the app restarted) finds the same key for the same request, and forgets it once accepted.
+    const after = scripted(ok("rr_1"));
+    await createReviewSender({ mint, store: pendingReviewStore(kv) })(body, after.post);
+    expect(after.calls[0]?.key).toBe(before.calls[0]?.key);
+    expect(m.has(pendingReviewPrefKey(lineId))).toBe(false);
+  });
+
+  it("starts over when the server holds another body under the key, and fails safe when the post throws", async () => {
+    const { kv } = memoryKv();
+    const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
+    const body = reviewBody(lineId, null, "x");
+    const reused = scripted({ ok: false, code: "IDEMPOTENCY_KEY_REUSED", status: 422 }, ok("rr_9"));
+    expect(await send(body, reused.post)).toMatchObject({ ok: false, code: "IDEMPOTENCY_KEY_REUSED" });
+    await send(body, reused.post);
+    expect(reused.calls[1]?.key).not.toBe(reused.calls[0]?.key);
+    const throws: PostReview = async () => {
+      throw new Error("socket closed");
+    };
+    expect(await send(body, throws)).toMatchObject({ ok: false, code: "NETWORK" });
+  });
+
+  it("sends the body fs-api reads: the line, the slip if one was picked, the note as sent", () => {
+    expect(reviewBody(lineId, null, "  ")).toEqual({ lineId });
+    expect(reviewBody(lineId, "0403", " Kulang \n ang kilo ")).toEqual({
+      lineId,
+      slip: "0403",
+      note: "Kulang ang kilo",
+    });
+    expect(reviewDigest(reviewBody(lineId, "0403", "a"))).toMatch(/^[0-9a-f]{64}$/);
+    expect(parsePendingReview('{"key":"nope","digest":"00"}')).toBeNull();
+    expect(parsePendingReview("{")).toBeNull();
   });
 });
 

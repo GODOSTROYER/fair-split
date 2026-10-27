@@ -5,7 +5,9 @@
  * - The amount block takes first accessibility focus and Paminawa second (S1.9).
  * - The amount follows the amount grammar (S2.2.1): hollow while the money is with PayPal or due at the bodega,
  *   landed only when a verified `item.updated` says PayPal confirmed it (MM-1), attested when the clerk records the
- *   cash. A line still being checked has no amount yet: her kilos, slips and the expected date stand in.
+ *   cash. A line still being checked has no amount yet: her kilos, slips and the expected date stand in. A line
+ *   whose receipt does not add up on this phone stays hollow, says so, and names who checks it (I3,
+ *   `data-conserved`).
  * - Every amount on the receipt can be tapped (MM-7): it opens to where it comes from, down to the slip in the
  *   clerk's hand.
  * - "Paminawon una": the reading opens and starts by itself once per launch, never under TalkBack.
@@ -267,6 +269,7 @@ function Statement({
             accessibilityLiveRegion="polite"
             style={styles.amountBlock}
             testID="M-MB-01.amountBlock"
+            dataSet={{ conserved: view.conserved ? "true" : "false" }}
           >
             <View
               importantForAccessibility="no-hide-descendants"
@@ -280,7 +283,7 @@ function Statement({
                     text={view.hero.amount}
                     srLabel={view.hero.spoken}
                     state={view.amountState}
-                    fill={view.capsule === "sent" || view.capsule === "paid" ? mm1.fill : undefined}
+                    fill={view.fillsOnPress ? mm1.fill : undefined}
                   />
                   {under ? (
                     <Sentence

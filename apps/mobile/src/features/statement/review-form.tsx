@@ -2,7 +2,8 @@
  * "Ipasusi pag-usab" (S1.9; M-MB-04): the member sends her line, a slip if she picks one, and an optional note to
  * the Mediation and Conciliation Committee (RA 9520 Art. 43). The same form sits in the statement's sheet and on the
  * Pangutana tab. Nothing about her pay changes while the Committee looks; once sent, the request's status shows in
- * ink with the Committee's stamp. Sending needs a signal: it is never queued silently.
+ * ink with the Committee's stamp. Sending needs a signal: it is never queued silently. Each composed request is filed
+ * once: it carries a UUIDv7 Idempotency-Key that "Try again" reuses until the Committee's inbox accepts it.
  */
 import { useCallback, useState } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
@@ -11,13 +12,30 @@ import type { Lang } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
 import { fontFamily } from "../../_shims/fonts";
 import { radius, space } from "../../_shims/tokens.native";
+import { uuidv7 } from "../../lib/uuidv7";
+import { prefs } from "../../platform/kv";
+import { randomBytes } from "../../platform/random";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Banner, Chip, InkStamp } from "../../ui/primitives";
 import { Slab } from "../../ui/slab";
 import { Txt } from "../../ui/text";
-import { cleanNote, NOTE_MAX, type ReviewPhase, type ReviewRecord } from "./review";
+import {
+  createReviewSender,
+  NOTE_MAX,
+  type PostReview,
+  pendingReviewStore,
+  type ReviewPhase,
+  type ReviewRecord,
+  reviewBody,
+} from "./review";
 import { useT } from "./use-t";
+
+/** One sender for the phone: the statement's sheet and the Pangutana tab share its keys and its in-flight guard. */
+const sendReview = createReviewSender({
+  mint: () => uuidv7(Date.now(), randomBytes),
+  store: pendingReviewStore(prefs),
+});
 
 /** The form's state; `record` keeps the request this phone sent (the statement store's `recordReview`). */
 export function useReviewForm(dto: StatementDTO | null, record: (r: ReviewRecord) => void) {
@@ -26,21 +44,21 @@ export function useReviewForm(dto: StatementDTO | null, record: (r: ReviewRecord
   const [note, setNote] = useState("");
   const [phase, setPhase] = useState<ReviewPhase>("idle");
   const send = useCallback(async () => {
-    if (!dto || phase === "sending") return;
+    if (!dto) return;
+    // Until the shell's client sends the Idempotency-Key header it ignores the key; the request is the same.
+    const post: PostReview = api.postReviewRequest.bind(api);
+    const attempt = sendReview(reviewBody(dto.lineId, slip, note), post);
+    if (!attempt) return; // a request is already on its way: this commit sends nothing
     setPhase("sending");
-    const r = await api.postReviewRequest({
-      lineId: dto.lineId,
-      slip: slip ?? undefined,
-      note: cleanNote(note),
-    });
+    const r = await attempt;
     if (r.ok) {
-      record({ id: r.value.id, at: new Date().toISOString(), slip });
+      record({ id: r.id, at: new Date().toISOString(), slip });
       setNote("");
       setPhase("idle");
       return;
     }
     setPhase("failed");
-  }, [api, dto, note, phase, record, slip]);
+  }, [api, dto, note, record, slip]);
   return { slip, setSlip, note, setNote, phase, send, composing: note.trim().length > 0 || slip !== null };
 }
 

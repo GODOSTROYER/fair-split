@@ -5,7 +5,9 @@
  *   after 60 s) and the time since it was sent: "Gipadala na, naghulat sa PayPal 0:14".
  * - A verified `item.updated` SUCCESS is PayPal's press: the plate sinks flush (press, 0 ms), jade floods it from the
  *   bottom-right corner (90), the hollow amount fills to ink (120), the chime and two taps play (180), the label
- *   crossfades to "Bayad na, 30 Okt" (400), and one 1 px ink ring pulses on Paminawa (900 → done at 1300).
+ *   crossfades to "Bayad na, 30 Okt" (400), and one 1 px ink ring pulses on Paminawa (900 → done at 1300). Until the
+ *   crossfade the plate keeps the words she was reading, with the ring and the clock stopped where PayPal pressed
+ *   it, and it keeps its height after they leave, so nothing below it moves.
  * - Reduced motion reaches the same phases with colour and label crossfades over 150 ms and no travel; the low tier
  *   fades the jade in over 120 ms and fills the amount at once. Sound and haptics stay in both.
  * - A cold load that is already paid, or a confirmation older than 120 s, shows the end state without playing.
@@ -18,6 +20,7 @@ import { type LayoutChangeEvent, StyleSheet, View } from "react-native";
 import Animated, {
   cancelAnimation,
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -25,7 +28,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
-import { format } from "../../_shims/domain";
+import { scheduleOnRN } from "react-native-worklets";
 import { radius, slabDepth, space } from "../../_shims/tokens.native";
 import type { CapsuleState } from "../../lib/item-status";
 import { STATUS_GLYPH } from "../../lib/item-status";
@@ -36,11 +39,13 @@ import { MomentMarker, type MomentPhase, useMoment } from "../../ui/moment";
 import { reducedFade, TIMELINE, tween } from "../../ui/motion";
 import { Hatch } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
-import type { LineView } from "./line-view";
+import { capsuleText, elapsedClock, type LineView, msOf } from "./line-view";
 import type { PaidSignal } from "./statement-store";
 
 /** The capsule's raised edge before PayPal presses it (design §7 M1: "its 5 px inset closes to 0"). */
 const EDGE = slabDepth.d2;
+/** The capsule's least height: one line of the status word with its padding, above the 48 dp target. */
+const FACE_MIN = 52;
 const T = TIMELINE["MM-1"];
 /** Confirmations already played on this phone: a remount never replays one (motion is evidence, MM-6). */
 const PLAYED = new Set<string>();
@@ -55,6 +60,11 @@ export interface Mm1 {
   fill: SharedValue<number>;
   /** 0 "Gipadala na…", 1 "Bayad na, 30 Okt". */
   swap: SharedValue<number>;
+  /**
+   * `swap` has reached 1 on screen: "Bayad na" fully covers the old words. Read from the animation itself, not from
+   * the moment's clock, so a slow frame never leaves the plate without words.
+   */
+  swapped: boolean;
   /** The one ring on Paminawa: 0 → 1 once. */
   invite: SharedValue<number>;
 }
@@ -73,12 +83,22 @@ function fresh(paid: PaidSignal | null): paid is PaidSignal {
 export function useBayadNa(capsule: CapsuleState, paid: PaidSignal | null, focused = true): Mm1 {
   const { motion } = useFs();
   const isPaid = capsule === "paid";
-  const mm1 = useMoment("MM-1", isPaid ? "done" : "pending");
-  const press = useSharedValue(isPaid ? 1 : 0);
-  const flood = useSharedValue(isPaid ? 1 : 0);
-  const fill = useSharedValue(isPaid ? 1 : 0);
-  const swap = useSharedValue(isPaid ? 1 : 0);
+  // Opened already paid, it rests at the end. A confirmation still fresh enough to play starts from the plate as it
+  // was before PayPal's press, so the moment has somewhere to travel from.
+  const [settled] = useState(() => isPaid && !fresh(paid));
+  const mm1 = useMoment("MM-1", settled ? "done" : "pending");
+  const press = useSharedValue(settled ? 1 : 0);
+  const flood = useSharedValue(settled ? 1 : 0);
+  const fill = useSharedValue(settled ? 1 : 0);
+  const swap = useSharedValue(settled ? 1 : 0);
   const invite = useSharedValue(0);
+  const [swapped, setSwapped] = useState(settled);
+  useAnimatedReaction(
+    () => swap.get() >= 1,
+    (full, was) => {
+      if (full !== was) scheduleOnRN(setSwapped, full);
+    },
+  );
   const playing = useRef(false);
   const { set, start, rest, timers } = mm1;
 
@@ -151,15 +171,18 @@ export function useBayadNa(capsule: CapsuleState, paid: PaidSignal | null, focus
     timers,
   ]);
 
-  return { phase: mm1.phase, rootProps: mm1.rootProps, press, flood, fill, swap, invite };
+  return { phase: mm1.phase, rootProps: mm1.rootProps, press, flood, fill, swap, swapped, invite };
 }
 
-/** Two opposed arcs, turning half a turn per cycle (so the loop is seamless), for at most 60 s. */
-function PendingRing({ color, since }: { color: string; since: number }) {
+/**
+ * Two opposed arcs, turning half a turn per cycle (so the loop is seamless), for at most 60 s. PayPal's press stops
+ * them where they are (`spinning` false), like the clock beside them.
+ */
+function PendingRing({ color, since, spinning }: { color: string; since: number; spinning: boolean }) {
   const { motion } = useFs();
   const spin = useSharedValue(0);
   useEffect(() => {
-    if (motion.reduced) return;
+    if (motion.reduced || !spinning) return;
     const left = TIMELINE.pendingRing.maxAnimateMs - (Date.now() - since);
     if (left <= 0) return;
     spin.set(withRepeat(withTiming(1, tween("engrave")), -1, false));
@@ -171,7 +194,7 @@ function PendingRing({ color, since }: { color: string; since: number }) {
       clearTimeout(stop);
       cancelAnimation(spin);
     };
-  }, [since, motion.reduced, spin]);
+  }, [since, spinning, motion.reduced, spin]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.get() * 180}deg` }] }));
   return (
     <Animated.View style={style}>
@@ -188,27 +211,38 @@ function PendingRing({ color, since }: { color: string; since: number }) {
   );
 }
 
-function useElapsed(since: number | null): string | null {
-  const [now, setNow] = useState(() => Date.now());
+/**
+ * The capsule's clock. It counts while the item waits for PayPal and stops where PayPal pressed it (it simply stops
+ * ticking, so the figure she was reading never jumps); a plate first drawn after the press reads the time PayPal took.
+ */
+function useCapsuleClock(view: LineView): string | null {
+  const since = msOf(view.sentAt);
+  const ticking = view.capsule === "sent" && since !== null;
+  const [now, setNow] = useState(() => (ticking ? Date.now() : msOf(view.paidAt)));
   useEffect(() => {
-    if (since === null) return;
+    if (!ticking) return;
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [since]);
-  return since === null ? null : format.elapsed(now - since);
+  }, [ticking]);
+  return elapsedClock(since, now);
 }
 
 export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1; testID: string }) {
   const { t, motion } = useFs();
-  const sentMs = view.sentAt ? Date.parse(view.sentAt) : null;
+  const sentMs = msOf(view.sentAt);
   const inFlight = view.capsule === "sent" || view.capsule === "paid";
-  const elapsed = useElapsed(
-    view.capsule === "sent" && sentMs !== null && !Number.isNaN(sentMs) ? sentMs : null,
-  );
+  const clock = useCapsuleClock(view);
+  const text = capsuleText(view, { phase: mm1.phase, swapped: mm1.swapped }, clock);
+  const carrying = text.before !== null;
   const [box, setBox] = useState({ w: 0, h: 0 });
-  const onFace = (e: LayoutChangeEvent) =>
-    setBox({ w: Math.ceil(e.nativeEvent.layout.width), h: Math.ceil(e.nativeEvent.layout.height) });
+  // The height the plate had while it carried the words PayPal pressed: it keeps it once they leave.
+  const [held, setHeld] = useState(0);
+  const onFace = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setBox({ w: Math.ceil(width), h: Math.ceil(height) });
+    if (carrying) setHeld(height);
+  };
   const reduced = motion.reduced;
 
   // PayPal's press: the face travels (5, 5) and the edges collapse into it. Reduced motion: the face is set flush
@@ -289,7 +323,15 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
         ) : null}
         <Animated.View
           onLayout={onFace}
-          style={[styles.face, { backgroundColor: t.color.plate2, borderColor: t.color.rule }, travel]}
+          style={[
+            styles.face,
+            {
+              minHeight: carrying ? FACE_MIN : Math.max(FACE_MIN, held),
+              backgroundColor: t.color.plate2,
+              borderColor: t.color.rule,
+            },
+            travel,
+          ]}
         >
           <Animated.View
             pointerEvents="none"
@@ -299,26 +341,41 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
               flood,
             ]}
           />
-          <Animated.View style={[styles.row, before]} importantForAccessibility="no-hide-descendants">
-            {sentMs !== null ? <PendingRing color={t.color.ink} since={sentMs} /> : null}
-            <Txt kind="bodyStrong" style={{ flexShrink: 1 }}>
-              {view.capsule === "sent" ? view.word : ""}
-            </Txt>
-            {elapsed ? (
-              <Txt kind="figure" color="ink2" style={styles.elapsed}>
-                {elapsed}
+          {/* Before the press, and through it until the label crossfades: the words she was reading. */}
+          {text.before ? (
+            <Animated.View
+              testID={`${testID}.before`}
+              style={[styles.row, before]}
+              importantForAccessibility="no-hide-descendants"
+            >
+              {sentMs !== null ? (
+                <PendingRing color={t.color.ink} since={sentMs} spinning={view.capsule === "sent"} />
+              ) : null}
+              <Txt kind="bodyStrong" style={styles.word}>
+                {text.before.word}
               </Txt>
-            ) : null}
-          </Animated.View>
+              {text.before.clock ? (
+                <Txt kind="figure" color="ink2" style={styles.elapsed}>
+                  {text.before.clock}
+                </Txt>
+              ) : null}
+            </Animated.View>
+          ) : null}
+          {/* After: over the old words while they fade, then on its own. */}
           <Animated.View
-            style={[styles.row, styles.overlay, after]}
+            testID={`${testID}.after`}
+            style={[styles.row, carrying ? styles.overlay : null, after]}
             importantForAccessibility="no-hide-descendants"
             pointerEvents="none"
           >
-            <Glyph name="check" size={20} color={t.color.onJade} />
-            <Txt kind="bodyStrong" style={{ color: t.color.onJade, flexShrink: 1 }}>
-              {view.capsule === "paid" ? view.word : ""}
-            </Txt>
+            {text.after ? (
+              <>
+                <Glyph name="check" size={20} color={t.color.onJade} />
+                <Txt kind="bodyStrong" style={[styles.word, { color: t.color.onJade }]}>
+                  {text.after}
+                </Txt>
+              </>
+            ) : null}
           </Animated.View>
         </Animated.View>
       </View>
@@ -384,7 +441,6 @@ const styles = StyleSheet.create({
   slot: { paddingRight: EDGE, paddingBottom: EDGE, alignSelf: "stretch" },
   edge: { position: "absolute", transformOrigin: "left top" },
   face: {
-    minHeight: 52,
     borderWidth: 1,
     borderRadius: radius.none,
     justifyContent: "center",
@@ -401,7 +457,7 @@ const styles = StyleSheet.create({
   overlay: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   elapsed: { marginLeft: "auto" },
   flat: {
-    minHeight: 52,
+    minHeight: FACE_MIN,
     borderWidth: 1,
     borderRadius: radius.none,
     justifyContent: "center",

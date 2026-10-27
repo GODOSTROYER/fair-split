@@ -5,11 +5,19 @@
  *
  * Token shape (shim-defined until WS-API fixes it): `base64url(JCS{lineId, exp}) "." base64url(signature)`. A `~` is
  * read as the separator too: static hosts that treat a dot in the last path segment as a file extension (and answer
- * 404 for `/app/s/abc.def`) can be given the dot-free form; both characters lie outside the base64url alphabet.
+ * 404 for `/app/s/abc.def`) can be given the dot-free form; both characters lie outside the base64url alphabet. The
+ * dot-free form is only a spelling of the link: fs-api is always handed the token as it signed it (`token`, with
+ * the dot), so a server that verifies `body.sig` never sees a `~`.
  */
 
 export type MemberLinkCheck =
-  | { ok: true; lineId: string; exp: string }
+  | {
+      ok: true;
+      lineId: string;
+      exp: string;
+      /** The token as fs-api signed it, `body.sig`, whichever separator the link was written with. */
+      token: string;
+    }
   | { ok: false; reason: "malformed" | "expired" };
 
 const B64URL = /^[A-Za-z0-9_-]+$/;
@@ -51,5 +59,5 @@ export function readMemberLink(token: string, now: Date): MemberLinkCheck {
   const t = Date.parse(exp);
   if (Number.isNaN(t)) return { ok: false, reason: "malformed" };
   if (t <= now.getTime()) return { ok: false, reason: "expired" };
-  return { ok: true, lineId, exp };
+  return { ok: true, lineId, exp, token: `${body}.${sig}` };
 }

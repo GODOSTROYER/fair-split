@@ -9,7 +9,9 @@
  * - MM-7's traces: what each tapped amount comes from, down to the slips (`traceFor`).
  *
  * `lineConservation` re-adds the line on the phone (I3): premium + bonus − deductions + credits must equal the net,
- * to the cent. A line that does not add up is never presented as settled.
+ * to the cent. A line that does not add up is never presented as settled: the statement's `lineView` keeps its
+ * amount hollow (never landed or attested, and MM-1 does not fill it) under a "Gisusi pa" sentence naming the
+ * treasurer, and the net trace says it does not add up.
  */
 import type { StatementDTO, StatementSlip } from "../_shims/api-client";
 import type { Lang } from "../_shims/contracts";

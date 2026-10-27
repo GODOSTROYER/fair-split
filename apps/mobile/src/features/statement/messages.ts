@@ -103,6 +103,11 @@ export const messages = defineMessages({
     fil: "Ililipat po ito sa susunod na bayad. Nakalaan para sa inyo, hindi ibibigay sa iba.",
     en: "Moved to the next pay run. Reserved for you, never shared out.",
   },
+  "M-MB-01.unbalanced": {
+    ceb: "Gisusi pa: dili tugma ang mga numero niini nga linya. Si Treasurer {name} ang mosusi.",
+    fil: "Sinusuri pa po: hindi tugma ang mga numero ng linyang ito. Susuriin ito ni Treasurer {name}.",
+    en: "Still being checked: the figures on this line don't add up. Treasurer {name} will check them.",
+  },
 
   /* ------------------------------------------------------------ Paminawa slab */
   "M-MB-01.paminawa": { ceb: "Paminawa", fil: "Pakinggan", en: "Listen" },
@@ -424,6 +429,16 @@ export const messages = defineMessages({
     en: "You have the right to see the co-op's records.",
   },
   "M-MB-04.rightsCite": same("RA 9520, Art. 83"),
+  "M-MB-04.loadFailed": {
+    ceb: "Wala makuha ang inyong linya",
+    fil: "Hindi nakuha ang inyong linya",
+    en: "Your line didn't load",
+  },
+  "M-MB-04.loadFailedBody": {
+    ceb: "Kinahanglan ang inyong linya aron makapangayo og pagsusi pag-usab. Sulayi pag-usab, o inig naa nay signal.",
+    fil: "Kailangan ang inyong linya para makahiling ng muling pagsusuri. Subukan muli, o kapag may signal na.",
+    en: "Asking for a re-check needs your line. Try again, or once you have a signal.",
+  },
   "M-MB-04.recheckTitle": { ceb: "Ipasusi pag-usab", fil: "Ipasuri muli", en: "Ask for a re-check" },
   "M-MB-04.recheckBody": {
     ceb: "Ipadala ang inyong linya ug resibo sa Komite sa Mediation ug Conciliation. Dili kini mausab sa inyong bayad samtang gisusi.",

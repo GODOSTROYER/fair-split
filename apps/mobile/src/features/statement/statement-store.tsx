@@ -98,6 +98,8 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       return;
     }
     loading.current = true;
+    // "Try again" after a failed first read shows the read starting over, not the failure it is replacing.
+    if (!dtoRef.current) setStatus("loading");
     try {
       const r = linkToken ? await api.getStatementByLink(linkToken) : await api.getStatement();
       if (r.ok) {

@@ -4,6 +4,9 @@
  * Conciliation Committee (Art. 43), with the status of the request she sent. States: none, composing, sending,
  * sent, failed, offline (IC-01). The board's Pangutana tab reuses this screen (register §4): the Chair sees who to
  * ask and the members' rights, without a member's line or its re-check.
+ *
+ * Who to ask and her rights never wait for her line: if it cannot be read, they show with the treasurer's title,
+ * and the re-check gives way to a block that says the line did not load, with "Try again".
  */
 import { StyleSheet, View } from "react-native";
 import { format } from "../../_shims/domain";
@@ -12,12 +15,12 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
-import { InkStamp } from "../../ui/primitives";
+import { Button, InkStamp } from "../../ui/primitives";
 import { figures, Sentence } from "../../ui/sentence";
-import { Skeleton } from "../../ui/states";
+import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { COLUMN, LangBar } from "./parts";
-import { reviewScreenState } from "./review";
+import { type LineRead, pangutanaScreenState } from "./review";
 import { ReviewFields, ReviewStatus, useReviewForm } from "./review-form";
 import { useStatement } from "./statement-store";
 import { useT } from "./use-t";
@@ -30,11 +33,14 @@ export function PangutanaScreen() {
   const st = useStatement({ enabled: isMember });
   const dto = isMember ? st.dto : null;
   const form = useReviewForm(dto, st.recordReview);
-  const state = isMember
-    ? reviewScreenState({ record: st.review, phase: form.phase, composing: form.composing, online })
-    : online
-      ? "none"
-      : "offline";
+  const read: LineRead = !isMember ? "none" : dto ? "ready" : st.status === "error" ? "error" : "loading";
+  const state = pangutanaScreenState({
+    read,
+    record: st.review,
+    phase: form.phase,
+    composing: form.composing,
+    online,
+  });
 
   return (
     <Screen testID="M-MB-04" state={state} contentStyle={COLUMN}>
@@ -47,7 +53,7 @@ export function PangutanaScreen() {
         <Txt kind="label" color="ink2" accessibilityRole="header">
           {tr("M-MB-04.whoTitle")}
         </Txt>
-        {isMember && !dto ? (
+        {read === "loading" ? (
           <Skeleton lines={2} />
         ) : (
           <>
@@ -83,6 +89,24 @@ export function PangutanaScreen() {
           </Txt>
         </View>
       </View>
+
+      {read === "error" ? (
+        <EmptyState
+          glyph="wifiOff"
+          title={tr("M-MB-04.loadFailed")}
+          body={tr("M-MB-04.loadFailedBody")}
+          testID="M-MB-04.error"
+          action={
+            <Button
+              variant="tonal"
+              icon="refresh"
+              label={tr("common.tryAgain")}
+              onPress={() => void st.reload()}
+              testID="M-MB-04.retry"
+            />
+          }
+        />
+      ) : null}
 
       {isMember && dto ? (
         <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-04.recheck">
