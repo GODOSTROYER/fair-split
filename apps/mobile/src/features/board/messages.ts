@@ -45,9 +45,15 @@ export const messages = defineMessages({
     en: "Resolved by {name}, {time}",
   },
   "M-BD-01.holdA11y": {
-    ceb: "{id}, {kind}. {summary}",
-    fil: "{id}, {kind}. {summary}",
-    en: "{id}, {kind}. {summary}",
+    ceb: "{id}, {kind}. {resolved}.",
+    fil: "{id}, {kind}. {resolved}.",
+    en: "{id}, {kind}. {resolved}.",
+  },
+  /* The console's own summary of a hold is English until fs-api sends a localisable one: labelled as such. */
+  "M-BD-01.holdNote": {
+    ceb: "Gikan sa console, sa English",
+    fil: "Mula sa console, sa English",
+    en: "From the console",
   },
   "M-BD-01.seal": {
     ceb: "Itandi ang selyo ug ang hash sa console",

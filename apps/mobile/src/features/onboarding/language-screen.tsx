@@ -1,12 +1,15 @@
 /**
- * M-ON-01 first run, language (design A0): three large plates, Cebuano, Filipino and English, each written and heard
- * in its own language (the phone's own voice, labelled, I8), with the honest "not yet" for Hiligaynon, Waray and
- * Bikol. The question is asked in all three languages at once, because nobody has chosen one yet.
+ * M-ON-01 first run, language (design A0): the first screen anyone sees, so it carries the product's own materials.
+ * The lockup with the season and lot stencilled as on the co-op's jute sacks; the question in all three languages
+ * at once (nobody has chosen one yet); and the three languages as three sheets of paper on the tablea desk, each
+ * written and heard in its own language (the phone's own voice, labelled, I8), the chosen one stamped in ink. The
+ * honest "not yet" for Hiligaynon, Waray and Bikol is written on the desk itself.
  */
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { LANGS } from "../../_shims/contracts";
-import { radius, space } from "../../_shims/tokens.native";
+import { season } from "../../_shims/seed";
+import { space } from "../../_shims/tokens.native";
 import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
@@ -15,7 +18,7 @@ import { Glyph } from "../../ui/glyph";
 import { Button } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { t as inLang } from "./messages";
-import { ChoicePlate, StepFooter, useSample } from "./parts";
+import { ChoicePlate, COLUMN, Desk, DeskNote, StencilMark, StepFooter, useSample } from "./parts";
 import { useT } from "./use-t";
 
 export function LanguageScreen() {
@@ -28,6 +31,7 @@ export function LanguageScreen() {
     <Screen
       testID="M-ON-01"
       state="language"
+      contentStyle={COLUMN}
       footer={
         <StepFooter>
           <Button
@@ -39,10 +43,29 @@ export function LanguageScreen() {
         </StepFooter>
       }
     >
+      <View style={styles.lockup} testID="M-ON-01.lockup">
+        <Txt kind="title2">{tr("app.name")}</Txt>
+        <View style={styles.marks}>
+          <StencilMark
+            text={season.code}
+            label={tr("M-ON-01.size.season", { season: season.code })}
+            size={28}
+            color={t.color.ink}
+            ground={t.color.ground}
+            testID="M-ON-01.mark.season"
+          />
+          <StencilMark
+            text={season.lot}
+            label={tr("M-ON-01.mark.lot", { lot: season.lot })}
+            size={16}
+            color={t.color.ink2}
+            ground={t.color.ground}
+            testID="M-ON-01.mark.lot"
+          />
+        </View>
+      </View>
+
       <View style={styles.lead}>
-        <Txt kind="label" color="ink2">
-          {tr("app.lockup")}
-        </Txt>
         <Txt kind="title1" accessibilityRole="header" lang={lang}>
           {inLang(lang, "M-ON-01.lang.prompt")}
         </Txt>
@@ -53,31 +76,30 @@ export function LanguageScreen() {
         ))}
       </View>
 
-      <View style={styles.plates} accessibilityRole="radiogroup">
-        {LANGS.map((l) => (
-          <ChoicePlate
-            key={l}
-            lang={l}
-            selected={l === lang}
-            onSelect={() => setLang(l)}
-            title={inLang(l, "M-ON-01.lang.name")}
-            body={inLang(l, "M-ON-01.lang.sample")}
-            testID={`M-ON-01.lang.${l}`}
-            play={{
-              playing: sample.playing === l,
-              onPress: () => void sample.play(l, inLang(l, "M-ON-01.lang.sample"), l),
-              label: inLang(l, "M-ON-01.lang.play"),
-              stopLabel: inLang(l, "M-ON-01.lang.stop"),
-              testID: `M-ON-01.play.${l}`,
-            }}
-          />
-        ))}
-        <View style={[styles.notYet, { borderColor: t.color.rule }]} testID="M-ON-01.lang.not-yet">
-          <Txt kind="body" color="ink2">
-            {tr("M-ON-01.lang.notYet")}
-          </Txt>
+      <Desk testID="M-ON-01.desk">
+        <View style={styles.plates} accessibilityRole="radiogroup">
+          {LANGS.map((l) => (
+            <ChoicePlate
+              key={l}
+              paper
+              lang={l}
+              selected={l === lang}
+              onSelect={() => setLang(l)}
+              title={inLang(l, "M-ON-01.lang.name")}
+              body={inLang(l, "M-ON-01.lang.sample")}
+              testID={`M-ON-01.lang.${l}`}
+              play={{
+                playing: sample.playing === l,
+                onPress: () => void sample.play(l, inLang(l, "M-ON-01.lang.sample"), l),
+                label: inLang(l, "M-ON-01.lang.play"),
+                stopLabel: inLang(l, "M-ON-01.lang.stop"),
+                testID: `M-ON-01.play.${l}`,
+              }}
+            />
+          ))}
         </View>
-      </View>
+        <DeskNote testID="M-ON-01.lang.not-yet">{tr("M-ON-01.lang.notYet")}</DeskNote>
+      </Desk>
 
       <View style={styles.notes}>
         <View style={styles.voice}>
@@ -86,7 +108,7 @@ export function LanguageScreen() {
             {tr("common.deviceVoice")}
           </Txt>
         </View>
-        <Txt kind="caption" color="ink3">
+        <Txt kind="caption" color="ink2">
           {tr("M-ON-01.lang.change")}
         </Txt>
       </View>
@@ -95,15 +117,16 @@ export function LanguageScreen() {
 }
 
 const styles = StyleSheet.create({
-  lead: { gap: space.s4 },
-  plates: { gap: space.s12 },
-  notYet: {
-    paddingVertical: space.s12,
-    paddingHorizontal: space.s16,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.plate,
+  lockup: { gap: space.s8 },
+  marks: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    columnGap: space.s16,
+    rowGap: space.s4,
   },
+  lead: { gap: space.s4 },
+  plates: { gap: space.s16 },
   notes: { gap: space.s4 },
   voice: { flexDirection: "row", alignItems: "center", gap: space.s4 },
 });

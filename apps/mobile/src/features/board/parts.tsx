@@ -29,7 +29,7 @@ import { ms, reducedFade, spring, tween } from "../../ui/motion";
 import { Button, InkStamp, Rule } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Txt } from "../../ui/text";
-import { compactLayout, hashRows, memberOf } from "./cosign-model";
+import { compactLayout, hashRows, holdNote, memberOf } from "./cosign-model";
 import type { BoardKey } from "./messages";
 import { useT } from "./use-t";
 
@@ -108,6 +108,11 @@ export function resolverName(initials: string): string {
   return initials === people.treasurer.initials ? people.treasurer.first : initials;
 }
 
+/**
+ * One resolved hold, in the Chair's language: what kind of hold it was and who resolved it, when. The console's
+ * summary is English with English figures (IC-08 has no localisable form yet), so outside English it is shown only as
+ * a labelled note when he opens the row, or always in a judge frame that asked for English glosses (`holdNote`).
+ */
 export function HoldRow({
   hold,
   expanded,
@@ -118,17 +123,29 @@ export function HoldRow({
   onToggle(): void;
 }) {
   const { t } = useFs();
+  const { lang, gloss: glossOn } = useApp();
   const tr = useT();
   const gloss = useGloss();
   const kind = tr(`hold.${hold.kind}` as BoardKey);
+  const resolved = tr("M-BD-01.holdBy", {
+    name: resolverName(hold.resolvedBy),
+    time: format.time(hold.resolvedAt),
+  });
+  const note = holdNote(lang, { gloss: glossOn, expanded });
+  const label = [
+    tr("M-BD-01.holdA11y", { id: hold.id, kind, resolved }),
+    note === "line" ? hold.summary : note === "note" ? `${tr("M-BD-01.holdNote")}: ${hold.summary}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <Pressable
       onPress={onToggle}
       accessibilityRole="button"
       accessibilityState={{ expanded }}
-      accessibilityLabel={tr("M-BD-01.holdA11y", { id: hold.id, kind, summary: hold.summary })}
+      accessibilityLabel={label}
       testID={`M-BD-01.hold.${hold.id}`}
-      dataSet={{ state: expanded ? "open" : "closed" }}
+      dataSet={{ state: expanded ? "open" : "closed", note }}
       style={({ pressed }) => [styles.hold, pressed && { backgroundColor: t.color.pencilWash }]}
     >
       <View style={styles.holdStamp}>
@@ -144,16 +161,23 @@ export function HoldRow({
           </Txt>
         </View>
         <Gloss text={gloss(`hold.${hold.kind}` as BoardKey)} />
-        <Txt kind="body" color="ink2" numberOfLines={expanded ? undefined : 2}>
-          {hold.summary}
-        </Txt>
-        {expanded ? (
-          <Txt kind="caption" color="ink3">
-            {tr("M-BD-01.holdBy", {
-              name: resolverName(hold.resolvedBy),
-              time: format.time(hold.resolvedAt),
-            })}
+        {note === "line" ? (
+          <Txt kind="body" color="ink2" numberOfLines={expanded ? undefined : 2}>
+            {hold.summary}
           </Txt>
+        ) : null}
+        <Txt kind="caption" color="ink2">
+          {resolved}
+        </Txt>
+        {note === "note" ? (
+          <View style={styles.holdNote} testID={`M-BD-01.hold.${hold.id}.note`}>
+            <Txt kind="caption" color="ink3">
+              {tr("M-BD-01.holdNote")}
+            </Txt>
+            <Txt kind="body" color="ink2" lang="en">
+              {hold.summary}
+            </Txt>
+          </View>
         ) : null}
       </View>
       <Glyph name={expanded ? "chevronDown" : "chevron"} size={20} color={t.color.ink3} />
@@ -417,6 +441,7 @@ const styles = StyleSheet.create({
   },
   holdStamp: { paddingTop: space.s2 },
   holdText: { flex: 1, gap: space.s2 },
+  holdNote: { gap: space.s2, paddingTop: space.s4 },
   holdHead: { flexDirection: "row", alignItems: "baseline", gap: space.s8, flexWrap: "wrap" },
   items: { gap: space.s4 },
   itemRow: {

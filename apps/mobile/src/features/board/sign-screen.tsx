@@ -54,7 +54,8 @@ const NOTE: Partial<Record<SignPhase | "stale", BoardKey>> = {
 };
 
 export function SignScreen() {
-  const { c, phase, flow, mm5, attempt, key, presence, onHoldState, commit, retry, newKey } = useSign();
+  const { c, phase, flow, mm5, attempt, key, upcoming, presence, onHoldState, commit, retry, newKey } =
+    useSign();
   const { api, session } = useApp();
   const { t } = useFs();
   const tr = useT();
@@ -139,13 +140,15 @@ export function SignScreen() {
           : "M-BD-02.caption.pin";
   const caption = tr(captionKey);
   const persona = session?.persona ?? "board:ernesto";
+  // The key the next signature makes: `fs-ernesto-a1` on a new phone, `-a2` once a new key replaced it.
+  const nextKeyId = upcoming ?? deviceKeyId(persona);
   const keyLine = demoKey
     ? key
       ? tr("M-BD-02.key.demo", { key: key.keyId })
       : tr("M-BD-02.key.demoNew")
     : key
       ? tr("M-BD-02.key.device", { key: key.keyId })
-      : tr("M-BD-02.key.first", { key: deviceKeyId(persona) });
+      : tr("M-BD-02.key.first", { key: nextKeyId });
 
   const thumb = (
     <View
@@ -161,8 +164,8 @@ export function SignScreen() {
     >
       {done ? (
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
-          <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? deviceKeyId(persona) })}</Txt>
-          <Gloss text={gloss("M-BD-02.signed", { key: key?.keyId ?? deviceKeyId(persona) })} />
+          <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}</Txt>
+          <Gloss text={gloss("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })} />
           {demoKey ? (
             <Txt kind="caption" color="ink2" testID="M-BD-02.demo-key">
               {tr("common.demoKey")}
@@ -195,7 +198,9 @@ export function SignScreen() {
           ) : null}
           {!blocked ? <Gloss text={gloss(captionKey)} align="center" /> : null}
           <Slab
-            key={attempt}
+            // A slab that goes flush (the batch changed, the request closed) is a new slab: the shared Slab would
+            // otherwise keep its dialog open and act on an armed release (I4; the shell is asked to stop that too).
+            key={`${attempt}${blocked ? ".flush" : ""}`}
             testID="M-BD-02.slab"
             label={tr("M-BD-02.slab")}
             icon="fingerprint"

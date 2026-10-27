@@ -1,8 +1,9 @@
 /**
- * M-BD-02's controller: the slab's hold states drive the pure flow (`sign-flow.ts`); a release inside fetches a fresh
- * payload, checks it against the batch the phone computed, asks for the one presence step and signs, registers a
- * new key, and posts the approval. The accepted signature starts MM-5's phone half (`signed-2`, then `sealed` at
- * +720 ms with the seal's plunk, then `inked` at +960 ms); every failure springs the slab back with nothing signed.
+ * M-BD-02's controller: the slab's hold states drive the pure flow (`sign-flow.ts`); a release inside goes through
+ * `commitSignature`, which asks the provider's gate first (is this still the batch the Chair opened?), fetches a
+ * fresh payload for that batch, asks the gate again, then the one presence step and the signature, registers a new
+ * key, and posts the approval. The accepted signature starts MM-5's phone half (`signed-2`, then `sealed` at +720 ms
+ * with the seal's plunk, then `inked` at +960 ms); every failure springs the slab back with nothing signed.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { format } from "../../_shims/domain";
@@ -22,7 +23,14 @@ import { useMoment } from "../../ui/moment";
 import { TIMELINE } from "../../ui/motion";
 import { useCosign } from "./cosign-context";
 import type { BoardKey } from "./messages";
-import { flowReducer, SIGN_MOMENT_PHASE, signPhase } from "./sign-flow";
+import {
+  commitSignature,
+  flowReducer,
+  refusalFailure,
+  SIGN_MOMENT_PHASE,
+  signPhase,
+  slabLive,
+} from "./sign-flow";
 import { useT } from "./use-t";
 
 /** Keys whose public half this app session has already handed to the server (registration is idempotent). */
@@ -39,6 +47,8 @@ const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
   error: "M-BD-02.error",
 };
 
+const PERSONA = "board:ernesto";
+
 export function useSign() {
   const c = useCosign();
   const { api, session, online } = useApp();
@@ -47,7 +57,10 @@ export function useSign() {
   /** Remounts the slab so it springs back to rest after a failed signature. */
   const [attempt, setAttempt] = useState(0);
   const [key, setKey] = useState<KeyMeta | null>(null);
+  /** The key ID the next signature will use when no key is in hand (`fs-ernesto-a2` after a new key). */
+  const [upcoming, setUpcoming] = useState<string | null>(null);
   const [presence, setPresence] = useState<BiometricClass | null | undefined>(undefined);
+  const persona = session?.persona ?? PERSONA;
   const joined = signPhase(c.status, c.key1, flow);
   // A phone with no screen lock is told before the hold, not after it (`presence` is null once probed).
   const phase = joined === "ready" && presence === null ? "no-lock" : joined;
@@ -55,14 +68,23 @@ export function useSign() {
   const mm5 = useMoment("MM-5", momentTarget);
   const { set: setMoment, phase: momentPhase } = mm5;
 
+  const readKey = useCallback(async () => {
+    const [current, next] = await Promise.all([keyVault.current(), keyVault.upcomingKeyId(persona)]);
+    return { current, next };
+  }, [persona]);
+
   useEffect(() => {
     let alive = true;
-    void keyVault.current().then((m) => alive && setKey(m));
+    void readKey().then((k) => {
+      if (!alive) return;
+      setKey(k.current);
+      setUpcoming(k.next);
+    });
     void keyVault.presence().then((p) => alive && setPresence(p));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [readKey]);
 
   // Phases follow the flow; `signed-2` alone is started by the signature itself (a real event id). The first phase
   // is announced too, so the judge stage knows the Chair's sheet is open (IC-12 `fs.moment`).
@@ -82,6 +104,15 @@ export function useSign() {
       setAttempt((a) => a + 1);
     }
   }, [online, flow]);
+
+  // The request stopped being signable mid-hold or with the dialog open (the batch changed, it expired, it closed):
+  // the sheet remounts the slab flush, so the hold the flow remembers ends too, and nothing is armed any more.
+  const live = slabLive(phase);
+  useEffect(() => {
+    if (!live && (flow === "holding" || flow === "armed" || flow === "confirm")) {
+      dispatch({ type: "hold", state: "rest" });
+    }
+  }, [live, flow]);
 
   const onHoldState = useCallback((state: HoldState) => dispatch({ type: "hold", state }), []);
 
@@ -106,32 +137,37 @@ export function useSign() {
     const amount = format.usd(dto.totalCents);
     let r: CosignResult;
     try {
-      const fresh = await c.freshPayload();
-      if (!fresh.ok) return fail(fresh.reason);
-      r = await cosign(fresh.payload, fresh.expected, {
-        now: () => new Date(),
-        online: () => online,
-        sign: (message) =>
-          keyVault.sign({
-            persona: session?.persona ?? "board:ernesto",
-            message,
-            prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
-            detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
-            cancelLabel: tr("common.cancel"),
-            sessionTag: session ? `${session.workspaceId}:${session.pairedAt}` : undefined,
+      r = await commitSignature({
+        // I4 at the instant of the release: the gate reads the latest batch, not the one this slab was drawn with.
+        refusal: () => refusalFailure(c.commitRefusal()),
+        payload: c.freshPayload,
+        sign: (payload, expected, recheck) =>
+          cosign(payload, expected, {
+            now: () => new Date(),
+            online: () => online,
+            recheck,
+            sign: (message) =>
+              keyVault.sign({
+                persona,
+                message,
+                prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
+                detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
+                cancelLabel: tr("common.cancel"),
+                sessionTag: session ? `${session.workspaceId}:${session.pairedAt}` : undefined,
+              }),
+            isRegistered: (id) => registered.has(id),
+            register: async (k) => {
+              const res = await api.registerDeviceKey({
+                keyId: k.keyId,
+                publicKey: k.publicKeyHex,
+                kind: keyVault.kind === "demo" ? "web_demo" : "app",
+                biometricClass: k.biometricClass,
+              });
+              if (res.ok) registered.add(k.keyId);
+              return res;
+            },
+            submit: (body) => api.postApproval(c.runSlug, body),
           }),
-        isRegistered: (id) => registered.has(id),
-        register: async (k) => {
-          const res = await api.registerDeviceKey({
-            keyId: k.keyId,
-            publicKey: k.publicKeyHex,
-            kind: keyVault.kind === "demo" ? "web_demo" : "app",
-            biometricClass: k.biometricClass,
-          });
-          if (res.ok) registered.add(k.keyId);
-          return res;
-        },
-        submit: (body) => api.postApproval(c.runSlug, body),
       });
     } catch {
       // A key store or a network layer that throws is a failed attempt like any other: nothing was sent.
@@ -148,7 +184,7 @@ export function useSign() {
     });
     mm5.timers.at(TIMELINE["MM-5"].inkedAfterMs, () => dispatch({ type: "inked" }));
     announce(tr("M-BD-02.signed", { key: r.key.keyId }));
-  }, [api, c, fail, mm5, online, session, tr]);
+  }, [api, c, fail, mm5, online, persona, session, tr]);
 
   /** After a fix outside the app (a screen lock set) or a refused batch: back to a slab that can be held. */
   const retry = useCallback(() => {
@@ -157,12 +193,17 @@ export function useSign() {
     void keyVault.presence().then(setPresence);
   }, []);
 
-  /** Fingerprints changed and the bound key is gone: forget it; the next signature makes and registers a new one. */
+  /**
+   * Fingerprints changed and the bound key is gone: forget it. The next signature makes the next key
+   * (`fs-ernesto-a2`), which is registered as a new key, so the old ID keeps verifying what it signed.
+   */
   const newKey = useCallback(async () => {
     await keyVault.forget();
-    setKey(null);
+    const k = await readKey();
+    setKey(k.current);
+    setUpcoming(k.next);
     retry();
-  }, [retry]);
+  }, [readKey, retry]);
 
-  return { c, phase, flow, mm5, attempt, key, presence, onHoldState, commit, retry, newKey };
+  return { c, phase, flow, mm5, attempt, key, upcoming, presence, onHoldState, commit, retry, newKey };
 }

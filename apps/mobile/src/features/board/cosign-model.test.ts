@@ -1,18 +1,30 @@
 import { describe, expect, it } from "vitest";
 import type { CosignRequestDTO } from "../../_shims/api-client";
-import { SCREEN_STATES } from "../../_shims/contracts";
-import { batchSha256 } from "../../_shims/seed";
-import { checkCosignRequest } from "../../lib/signing";
+import { type ApprovalPayload, SCREEN_STATES } from "../../_shims/contracts";
+import { batchDigest } from "../../_shims/domain";
+import { batchSha256, linesDigest, people, season } from "../../_shims/seed";
+import { checkApprovalPayload, checkCosignRequest } from "../../lib/signing";
 import { buildDemoCosign } from "../../services/demo-fixtures";
 import {
   type CosignSnapshot,
+  canCommit,
   changeReason,
+  commitRefusal,
   compactLayout,
+  EMPTY_MEMORY,
+  forgetPayload,
   hashRows,
+  holdNote,
   memberOf,
+  openedFrom,
+  payloadPlan,
+  prefetchFor,
   presenceView,
+  rememberPayload,
+  rememberRequest,
   requestExpired,
   requestStatus,
+  sameAsOpened,
   sealKeysFor,
   treasurerPresence,
   whyKey,
@@ -28,7 +40,7 @@ function snap(over: Partial<CosignSnapshot> = {}, dto: Partial<CosignRequestDTO>
     dto: d,
     check: checkCosignRequest(d),
     payloadOk: true,
-    openedHash: batchSha256,
+    opened: { batchSha256, linesDigest },
     online: true,
     now: NOW.getTime(),
     sentBack: false,
@@ -63,7 +75,13 @@ describe("M-BD-01 status", () => {
   });
 
   it("inv.i4.changed-after-open: a new batch under the same request is never signable", () => {
-    const s = snap({ openedHash: "a".repeat(64) });
+    const s = snap({ opened: { batchSha256: "a".repeat(64), linesDigest } });
+    expect(changeReason(s)).toBe("changed");
+    expect(requestStatus(s)).toBe("changed");
+  });
+
+  it("inv.i4.lines-changed-after-open: the same payouts with other member lines are a changed batch too", () => {
+    const s = snap({ opened: { batchSha256, linesDigest: "b".repeat(64) } });
     expect(changeReason(s)).toBe("changed");
     expect(requestStatus(s)).toBe("changed");
   });
@@ -144,5 +162,148 @@ describe("large text", () => {
     expect(compactLayout(195, 422, 1)).toBe(true); // 200% browser zoom on a 390 px phone
     expect(compactLayout(360, 520, 1)).toBe(true);
     expect(compactLayout(411, 891, 2)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ signing only what was opened (I4) */
+
+/** The same eight payouts with one cent moved between two of them: a valid batch, but not the one opened. */
+function otherBatch(dto: CosignRequestDTO): CosignRequestDTO {
+  const items = dto.items.map((it, i) =>
+    i === 0
+      ? { ...it, amountCents: it.amountCents - 1 }
+      : i === 1
+        ? { ...it, amountCents: it.amountCents + 1 }
+        : it,
+  );
+  return { ...dto, items, batchSha256: batchDigest(dto, items) };
+}
+
+function payloadFor(dto: CosignRequestDTO, over: Partial<ApprovalPayload> = {}): ApprovalPayload {
+  return {
+    v: 1,
+    runId: dto.runId,
+    seasonId: season.id,
+    rateCardSha256: dto.rateCardSha256,
+    batchSha256: dto.batchSha256,
+    linesDigest: dto.linesDigest,
+    itemCount: dto.itemCount,
+    totalCents: dto.totalCents,
+    currency: "USD",
+    role: "CHAIR",
+    approverId: people.chair.approverId,
+    nonce: "n_01JB7Q3X9M2",
+    exp: new Date(NOW.getTime() + 10 * 60_000).toISOString(),
+    ...over,
+  };
+}
+
+describe("the gate in front of the key", () => {
+  it("lets the key be asked for only while the request is open and is the batch he opened", () => {
+    expect(commitRefusal(snap())).toBeNull();
+    expect(canCommit(snap({}, { state: "override", reason: "override" }))).toBe(true);
+  });
+
+  const cases: [string, Partial<CosignSnapshot>, Partial<CosignRequestDTO>, string][] = [
+    ["the batch changed", { opened: { batchSha256: "a".repeat(64), linesDigest } }, {}, "mismatch"],
+    ["the payload was another batch", { payloadOk: false }, {}, "mismatch"],
+    ["the server's hash is not the items'", {}, { batchSha256: "0".repeat(64) }, "mismatch"],
+    ["nothing was ever opened", { opened: null }, {}, "mismatch"],
+    ["there is no signal", { online: false }, {}, "offline"],
+    ["it was sent back", { sentBack: true }, {}, "closed"],
+    ["it is signed already", { chairSigned: true }, {}, "closed"],
+    ["it expired", { now: NOW.getTime() + 31 * 60_000 }, {}, "closed"],
+    ["it was declined elsewhere", {}, { state: "declined" }, "closed"],
+    ["nothing has loaded", { dto: null, check: null, loading: true }, {}, "closed"],
+  ];
+  it.each(cases)("inv.i4.gate: refuses when %s", (_why, over, dto, refusal) => {
+    const s = snap(over, dto);
+    expect(commitRefusal(s)).toBe(refusal);
+    expect(canCommit(s)).toBe(false);
+  });
+});
+
+describe("what the phone remembers between fetches", () => {
+  const a = buildDemoCosign({ now: NOW, treasurerSigned: true });
+  const b = otherBatch(a);
+
+  it("opens the first good batch, and keeps it when the same batch is fetched again", () => {
+    const first = rememberRequest(EMPTY_MEMORY, a, false);
+    expect(first.opened).toEqual({ batchSha256, linesDigest });
+    const withPayload = { ...first, payload: payloadFor(a), payloadOk: true };
+    const again = rememberRequest(withPayload, a, false);
+    expect(again.opened).toEqual(first.opened);
+    expect(again.payload).toEqual(withPayload.payload);
+    expect(again.payloadOk).toBe(true);
+  });
+
+  it("inv.i4.payload-dropped-on-change: a new batch keeps the opened one and drops the payload in hand", () => {
+    const opened = { ...rememberRequest(EMPTY_MEMORY, a, false), payload: payloadFor(a), payloadOk: true };
+    const changed = rememberRequest(opened, b, false);
+    expect(changed.opened).toEqual(opened.opened);
+    expect(sameAsOpened(changed.check, changed.opened)).toBe(false);
+    expect(changed.payload).toBeNull();
+    expect(changed.payloadOk).toBeNull();
+    expect(prefetchFor(changed)).toBeNull();
+    expect(payloadPlan(changed, NOW)).toEqual({ kind: "refuse" });
+  });
+
+  it("opens the new batch only when he reviews it again, and starts it with no payload", () => {
+    const changed = rememberRequest(rememberRequest(EMPTY_MEMORY, a, false), b, false);
+    const reviewed = rememberRequest(changed, b, true);
+    expect(reviewed.opened).toEqual(openedFrom(checkCosignRequest(b)));
+    expect(reviewed.payload).toBeNull();
+    expect(prefetchFor(reviewed)?.batchSha256).toBe(b.batchSha256);
+  });
+
+  it("never opens a batch whose claimed hash is not its items' hash", () => {
+    const bad = rememberRequest(EMPTY_MEMORY, { ...a, batchSha256: "0".repeat(64) }, false);
+    expect(bad.opened).toBeNull();
+    expect(prefetchFor(bad)).toBeNull();
+    expect(payloadPlan(bad, NOW)).toEqual({ kind: "refuse" });
+  });
+
+  it("prefetches only an open request whose key 1 is in", () => {
+    expect(prefetchFor(rememberRequest(EMPTY_MEMORY, a, false))?.batchSha256).toBe(batchSha256);
+    expect(prefetchFor(rememberRequest(EMPTY_MEMORY, { ...a, treasurerSigned: null }, false))).toBeNull();
+    expect(prefetchFor(rememberRequest(EMPTY_MEMORY, { ...a, state: "signed" }, false))).toBeNull();
+  });
+
+  it("keeps a payload only for the batch it was checked against, and only while that batch is open", () => {
+    const m = rememberRequest(EMPTY_MEMORY, a, false);
+    const expected = prefetchFor(m);
+    if (!expected) throw new Error("the fixture is signable");
+    const good = checkApprovalPayload(payloadFor(a), expected, NOW);
+    expect(rememberPayload(m, expected, good)).toMatchObject({ payloadOk: true });
+    const wrong = checkApprovalPayload(payloadFor(b), expected, NOW);
+    expect(rememberPayload(m, expected, wrong)).toMatchObject({ payload: null, payloadOk: false });
+    const late = payloadFor(a, { exp: new Date(NOW.getTime() - 1).toISOString() });
+    const expired = checkApprovalPayload(late, expected, NOW);
+    expect(rememberPayload(m, expected, expired)).toMatchObject({ payload: null, payloadOk: null });
+    // An answer for a batch he no longer has open changes nothing (he reviewed the new one meanwhile).
+    const reviewed = rememberRequest(m, b, true);
+    expect(rememberPayload(reviewed, expected, good)).toBe(reviewed);
+    expect(rememberPayload(reviewed, expected, wrong)).toBe(reviewed);
+    expect(forgetPayload({ ...m, payload: payloadFor(a) }).payload).toBeNull();
+  });
+
+  it("uses the payload in hand while it has two minutes left, then fetches one for the opened batch", () => {
+    const m = rememberRequest(EMPTY_MEMORY, a, false);
+    const fresh = { ...m, payload: payloadFor(a), payloadOk: true };
+    expect(payloadPlan(fresh, NOW)).toMatchObject({ kind: "cached" });
+    const soon = new Date(NOW.getTime() + 90_000).toISOString();
+    const stale = { ...fresh, payload: payloadFor(a, { exp: soon }) };
+    expect(payloadPlan(stale, NOW)).toMatchObject({ kind: "fetch", expected: { batchSha256, linesDigest } });
+    // A payload in hand that is not the opened batch is never reused, whatever it claims.
+    expect(payloadPlan({ ...fresh, payload: payloadFor(b) }, NOW)).toMatchObject({ kind: "fetch" });
+  });
+});
+
+describe("a resolved hold in the Chair's language", () => {
+  it("never sets the console's English summary as his own words", () => {
+    expect(holdNote("en", { gloss: false, expanded: false })).toBe("line");
+    expect(holdNote("ceb", { gloss: false, expanded: false })).toBe("hidden");
+    expect(holdNote("ceb", { gloss: false, expanded: true })).toBe("note");
+    expect(holdNote("fil", { gloss: true, expanded: false })).toBe("note");
   });
 });

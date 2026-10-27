@@ -1,8 +1,5 @@
-import { Redirect } from "expo-router";
-import { runSlug } from "../../../_shims/seed";
-import { pirmaHref } from "../../../services/session";
-
-/** TEMPORARY: the open co-sign request will come from push or the workspace feed (WS-API); the fixture run until then. */
-export default function PirmaIndex() {
-  return <Redirect href={pirmaHref(runSlug)} />;
-}
+/**
+ * The Pirma tab's index: finds the co-sign request that is waiting for the Chair, or says there is none. Until fs-api
+ * names the open request (orchestrator), it asks the run a push or link last opened, then the seed's run.
+ */
+export { PirmaIndexScreen as default } from "../../../features/board/pirma-index";

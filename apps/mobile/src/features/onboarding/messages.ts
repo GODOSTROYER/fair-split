@@ -37,6 +37,8 @@ export const messages = defineMessages({
     en: "You can change this any time.",
   },
   "M-ON-01.continue": { ceb: "Padayon", fil: "Magpatuloy", en: "Continue" },
+  /** The lot stencilled on the co-op's sacks, read aloud (the season mark reads "Season {season}"). */
+  "M-ON-01.mark.lot": same("Lot {lot}"),
 
   /* "Klaro ba?" (the theme route: one theme, read at this phone's text size) */
   "M-ON-01.size.title": {
@@ -154,6 +156,7 @@ export const messages = defineMessages({
     fil: "Hindi naikonekta. Subukan muli o humingi ng bagong QR.",
     en: "Pairing didn't finish. Try again or ask for a new QR.",
   },
+  "M-ON-01.pair.scanAgain": { ceb: "I-scan pag-usab", fil: "I-scan muli", en: "Scan again" },
   "M-ON-01.pair.pairing": {
     ceb: "Ginakonektar ang telepono",
     fil: "Ikinokonekta ang telepono",

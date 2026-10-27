@@ -20,6 +20,7 @@ import { buildDemoCosign } from "../services/demo-fixtures";
 import {
   approvalBytes,
   authFailure,
+  type BiometricClass,
   batchMatchesItems,
   biometricClassFor,
   type CosignDeps,
@@ -27,11 +28,15 @@ import {
   checkCosignRequest,
   cosign,
   createDemoVault,
+  createDeviceVault,
   createSoftwareSigner,
+  type DeviceVaultDeps,
   demoKeyId,
   deviceKeyId,
+  deviceKeyParts,
   type ExpectedBatch,
   enrolledLevel,
+  type KeyFailure,
   type KeySignOutcome,
   payloadStale,
   personaSlug,
@@ -179,6 +184,43 @@ describe("co-sign request, recomputed on the phone (I4)", () => {
     expect(r.expected).toEqual(expected);
   });
 
+  it("inv.i4.lines-digest-gap: without the member lines, the cash lines are bound by the server's digest alone", () => {
+    // KNOWN GAP (orchestrator: IC-08 must carry the digest lines). The Chair's signature binds every member line,
+    // PayPal and cash, but today's request carries only their digest: the phone can check that the payload repeats
+    // it (inv.i4.payload-differs) and that it does not change after he opened it (inv.i4.lines-changed), yet it
+    // cannot show the cash lines or recompute what the digest covers. `linesChecked: false` says so.
+    const r = checkCosignRequest(request({ linesDigest: "e".repeat(64) }));
+    expect(r).toMatchObject({ ok: true, linesChecked: false, expected: { linesDigest: "e".repeat(64) } });
+  });
+
+  it("inv.i4.lines-recomputed: when the request carries its member lines, the phone recomputes their digest", () => {
+    expect(checkCosignRequest({ ...request(), lines: namedLines })).toMatchObject({
+      ok: true,
+      linesChecked: true,
+    });
+    expect(checkCosignRequest({ ...request(), lines: [...namedLines].reverse() })).toMatchObject({
+      ok: true,
+    });
+    // One cent moved from a cash line to a PayPal line, under the same claimed digest: refused like a bad hash.
+    const moved = namedLines.map((l) =>
+      l.memberNo === "M-053"
+        ? { ...l, netCents: l.netCents - 1 }
+        : l.memberNo === "M-014"
+          ? { ...l, netCents: l.netCents + 1 }
+          : l,
+    );
+    expect(checkCosignRequest({ ...request(), lines: moved })).toMatchObject({ ok: false, problem: "hash" });
+    expect(checkCosignRequest({ ...request(), lines: namedLines.slice(1) })).toMatchObject({
+      ok: false,
+      problem: "hash",
+    });
+    const bad = [{ memberNo: "M-014", rail: "GCASH", netCents: 1 }] as unknown as typeof namedLines;
+    expect(checkCosignRequest({ ...request(), lines: bad })).toMatchObject({
+      ok: false,
+      problem: "malformed",
+    });
+  });
+
   it("inv.i4.server-hash-refused: a claimed hash that is not the items' hash is refused, with the phone's own", () => {
     const r = checkCosignRequest(request({ batchSha256: "0".repeat(64) }));
     expect(r).toEqual({
@@ -273,6 +315,160 @@ describe("keys", () => {
     expect(personaSlug("board:Ma. Theresa")).toBe("matheresa");
     expect(personaSlug(null)).toBe("ernesto");
     expect(deviceKeyId("board:../../etc")).toBe("fs-etc-a1");
+  });
+
+  it("numbers each new key on the phone: fs-{persona}-a{n} (S3 Keys)", () => {
+    expect(deviceKeyId("board:ernesto", 2)).toBe("fs-ernesto-a2");
+    expect(deviceKeyId("board:ernesto", 0)).toBe("fs-ernesto-a1");
+    expect(deviceKeyId("board:ernesto", 1.5)).toBe("fs-ernesto-a1");
+    expect(deviceKeyParts("fs-ernesto-a12")).toEqual({ slug: "ernesto", generation: 12 });
+    expect(deviceKeyParts("fs-ernesto-demo-abc234")).toBeNull();
+    expect(deviceKeyParts("fs-ernesto-a0")).toBeNull();
+    expect(deviceKeyParts(null)).toBeNull();
+  });
+});
+
+describe("the phone's key vault", () => {
+  function memory() {
+    const map = new Map<string, string>();
+    return {
+      map,
+      get: async (k: string) => map.get(k) ?? null,
+      set: async (k: string, v: string) => {
+        map.set(k, v);
+      },
+      del: async (k: string) => {
+        map.delete(k);
+      },
+    };
+  }
+
+  function phone(cls: BiometricClass | null = "pin-gated") {
+    const prefs = memory();
+    const store = memory();
+    const deps = {
+      prefs,
+      secrets: {
+        get: vi.fn((name: string, _o: { bound: boolean; prompt: string }) => store.get(name)),
+        set: vi.fn((name: string, value: string, _o: { bound: boolean; prompt: string }) =>
+          store.set(name, value),
+        ),
+        del: (name: string) => store.del(name),
+      },
+      presence: async () => cls,
+      askPresence: vi.fn(async (): Promise<KeyFailure | null> => null),
+      randomBytes: rnd,
+      now: () => NOW,
+    } satisfies DeviceVaultDeps;
+    return { vault: createDeviceVault(deps), deps, prefs, store };
+  }
+
+  const req = (persona = "board:ernesto") => ({
+    persona,
+    message: approvalBytes(payload()),
+    prompt: "Pirmahi",
+    cancelLabel: "Kanselahon",
+  });
+
+  it("makes fs-ernesto-a1 inside the first presence step, then signs with it", async () => {
+    const { vault, deps } = phone();
+    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a1");
+    const first = await vault.sign(req());
+    if (!first.ok) throw new Error(first.reason);
+    expect(first).toMatchObject({
+      created: true,
+      key: { keyId: "fs-ernesto-a1", biometricClass: "pin-gated" },
+    });
+    const again = await vault.sign(req());
+    if (!again.ok) throw new Error(again.reason);
+    expect(again.created).toBe(false);
+    expect(again.key).toEqual(first.key);
+    expect(deps.askPresence).toHaveBeenCalledTimes(2); // one presence step per signature
+    expect(await vault.current()).toEqual(first.key);
+  });
+
+  it("inv.i4.new-key-new-id: after forget() the next key is fs-ernesto-a2, registered as a new key", async () => {
+    const { vault, store } = phone();
+    const registry = new Map<string, string>();
+    const deps = (v: typeof vault): CosignDeps => ({
+      now: () => NOW,
+      online: () => true,
+      sign: (message) => v.sign({ ...req(), message }),
+      isRegistered: (id) => registry.has(id),
+      register: async (k) => {
+        // A registry that never lets a key ID change its public key, as fs-api must.
+        if (registry.has(k.keyId) && registry.get(k.keyId) !== k.publicKeyHex) {
+          return { ok: false, code: "UNAUTHENTICATED", status: 409 };
+        }
+        registry.set(k.keyId, k.publicKeyHex);
+        return { ok: true, value: { ok: true } };
+      },
+      submit: async () => ({ ok: true, value: { accepted: true } }),
+    });
+    const before = await cosign(payload(), expected, deps(vault));
+    if (!before.ok) throw new Error(before.detail);
+    expect(before.key.keyId).toBe("fs-ernesto-a1");
+
+    // Fingerprints changed: Android drops the bound secret, and the Chair taps "Make a new key".
+    store.map.clear();
+    const lost = await vault.sign(req());
+    expect(lost).toEqual({ ok: false, reason: "invalidated" });
+    await vault.forget();
+    expect(await vault.current()).toBeNull();
+    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a2");
+
+    const after = await cosign(payload({ nonce: "n_01JB7Q3X9M3" }), expected, deps(vault));
+    if (!after.ok) throw new Error(after.detail);
+    expect(after.key.keyId).toBe("fs-ernesto-a2");
+    expect(after.created).toBe(true);
+    expect(after.key.publicKeyHex).not.toBe(before.key.publicKeyHex);
+    // Both keys stay in the registry, so the earlier signature still verifies against the key that made it.
+    expect(registry.get("fs-ernesto-a1")).toBe(before.key.publicKeyHex);
+    expect(registry.get("fs-ernesto-a2")).toBe(after.key.publicKeyHex);
+    expect(verifyApproval(before.submission, registry.get(before.submission.keyId) ?? "")).toBe(true);
+    expect(verifyApproval(after.submission, registry.get(after.submission.keyId) ?? "")).toBe(true);
+
+    // And the next one after that is -a3: the generation outlives every key it named.
+    await vault.forget();
+    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a3");
+  });
+
+  it("does not use up a key ID when the first presence step is cancelled", async () => {
+    const { vault, deps, store } = phone();
+    deps.askPresence.mockResolvedValueOnce("cancelled");
+    expect(await vault.sign(req())).toEqual({ ok: false, reason: "cancelled" });
+    expect(store.map.size).toBe(0);
+    expect(await vault.current()).toBeNull();
+    const r = await vault.sign(req());
+    expect(r.ok && r.key.keyId).toBe("fs-ernesto-a1");
+  });
+
+  it("binds the key to the fingerprint on strong Android biometrics, and maps the OS prompt's refusals", async () => {
+    const { vault, deps } = phone("biometric-bound");
+    const r = await vault.sign(req());
+    expect(r.ok && r.key.biometricClass).toBe("biometric-bound");
+    expect(deps.secrets.set).toHaveBeenCalledWith("fs.boardKey.sk.fs-ernesto-a1", expect.any(String), {
+      bound: true,
+      prompt: "Pirmahi",
+    });
+    expect(deps.askPresence).not.toHaveBeenCalled(); // the OS prompt guarding the secret is the presence step
+    deps.secrets.get.mockRejectedValueOnce(new Error("User canceled the authentication"));
+    expect(await vault.sign(req())).toEqual({ ok: false, reason: "cancelled" });
+    deps.secrets.get.mockRejectedValueOnce(new Error("KeyPermanentlyInvalidatedException"));
+    expect(await vault.sign(req())).toEqual({ ok: false, reason: "invalidated" });
+  });
+
+  it("refuses without a screen lock, and never signs for one officer with another's key", async () => {
+    expect(await phone(null).vault.sign(req())).toEqual({ ok: false, reason: "no-lock" });
+    const { vault } = phone();
+    const ernesto = await vault.sign(req());
+    const theresa = await vault.sign(req("board:Ma. Theresa"));
+    if (!ernesto.ok || !theresa.ok) throw new Error("expected both keys");
+    expect(ernesto.key.keyId).toBe("fs-ernesto-a1");
+    expect(theresa.key.keyId).toBe("fs-matheresa-a1");
+    expect(theresa.key.publicKeyHex).not.toBe(ernesto.key.publicKeyHex);
+    // Ernesto's next key on this phone is still a new ID, never his old one with a new public key.
+    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a2");
   });
 });
 
@@ -383,6 +579,34 @@ describe("cosign", () => {
     const d = deps({ online: () => false });
     expect(await cosign(payload(), expected, d)).toEqual({ ok: false, state: "offline", detail: "offline" });
     expect(d.sign).not.toHaveBeenCalled();
+  });
+
+  it("inv.i4.recheck: asks again before the fingerprint and before anything is sent", async () => {
+    const early = deps({ recheck: () => "mismatch" });
+    expect(await cosign(payload(), expected, early)).toEqual({
+      ok: false,
+      state: "mismatch",
+      detail: "recheck",
+    });
+    expect(early.sign).not.toHaveBeenCalled();
+
+    let changed = false;
+    const vault = createDemoVault(rnd, () => NOW);
+    const late = deps({
+      recheck: () => (changed ? "mismatch" : null),
+      sign: vi.fn(async (message: Uint8Array): Promise<KeySignOutcome> => {
+        changed = true; // the batch changed while the prompt was up
+        return vault.sign({ persona: "board:ernesto", message, prompt: "p", cancelLabel: "c" });
+      }),
+    });
+    expect(await cosign(payload(), expected, late)).toEqual({
+      ok: false,
+      state: "mismatch",
+      detail: "recheck",
+    });
+    expect(late.sign).toHaveBeenCalledOnce();
+    expect(late.register).not.toHaveBeenCalled();
+    expect(late.submit).not.toHaveBeenCalled();
   });
 
   it("drops the signature, never queues it, when the key cannot be registered", async () => {

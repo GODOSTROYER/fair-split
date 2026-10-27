@@ -9,11 +9,11 @@
  * `signPhase` joins it with the request's own status from M-BD-01, and the two maps turn a phase into the screen's
  * `data-state` and the MM-5 `data-moment-phase`, so tests can drive the whole flow without a device.
  */
-import type { ScreenStateOf } from "../../_shims/contracts";
+import type { ApprovalPayload, ScreenStateOf } from "../../_shims/contracts";
 import type { MomentPhase } from "../../_shims/moments";
-import type { CosignFailure } from "../../lib/signing";
+import type { CosignFailure, CosignResult, ExpectedBatch } from "../../lib/signing";
 import type { HoldState } from "../../ui/hold";
-import type { RequestStatus } from "./cosign-model";
+import type { CommitRefusal, FreshPayload, RequestStatus } from "./cosign-model";
 
 /** The local flow: what the slab and the signature are doing. */
 export type FlowPhase =
@@ -193,4 +193,42 @@ export function amountStateFor(phase: SignPhase): "pencil" | "ink" {
 export function sealKeys(phase: SignPhase, key1: boolean): 0 | 1 | 2 {
   if (phase === "signed" || phase === "sealed" || phase === "inked") return 2;
   return key1 ? 1 : 0;
+}
+
+/* ------------------------------------------------------------------ the release, as one guarded step (I4) */
+
+/** A refusal at the gate, as the sheet says it: a changed batch clacks, no signal waits, a closed request just ends. */
+export function refusalFailure(r: CommitRefusal | null): CosignFailure | null {
+  if (r === "mismatch") return "mismatch";
+  if (r === "offline") return "offline";
+  return r === "closed" ? "error" : null;
+}
+
+export interface CommitSteps {
+  /** Why the key may not be asked for at this instant, read from the latest state (not the last render), or null. */
+  refusal(): CosignFailure | null;
+  /** A payload for the batch the Chair opened (the provider's `freshPayload`). */
+  payload(): Promise<FreshPayload>;
+  /** `cosign()` with the phone's deps bound; `recheck` runs before the presence step and before anything is sent. */
+  sign(
+    payload: ApprovalPayload,
+    expected: ExpectedBatch,
+    recheck: () => CosignFailure | null,
+  ): Promise<CosignResult>;
+}
+
+/**
+ * A release inside the slab, or the dialog's confirm. Refused before anything is fetched when the request is no
+ * longer the batch the Chair opened (the batch changed during the hold, or with the dialog open); refused again if it
+ * changed while the payload was fetched; and `cosign` drops a signature made while it changed under the fingerprint
+ * prompt. Every refusal ends with nothing signed and nothing sent.
+ */
+export async function commitSignature(steps: CommitSteps): Promise<CosignResult> {
+  const before = steps.refusal();
+  if (before) return { ok: false, state: before, detail: "refused" };
+  const fresh = await steps.payload();
+  if (!fresh.ok) return { ok: false, state: fresh.reason, detail: "payload" };
+  const during = steps.refusal();
+  if (during) return { ok: false, state: during, detail: "changed" };
+  return steps.sign(fresh.payload, fresh.expected, steps.refusal);
 }

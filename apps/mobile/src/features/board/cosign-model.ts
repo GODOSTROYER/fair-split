@@ -7,12 +7,52 @@
  *
  * "Changed" covers three refusals with one promise, "Nothing was signed": the server's hash is not the hash of the
  * items it sent, the batch changed after he opened it, or the approval payload is not this batch.
+ *
+ * The same promise holds at the instant of signing (I4): `commitRefusal` is asked when the slab is released (or the
+ * dialog confirmed), again after the payload arrives and again after the fingerprint step, and `payloadPlan` builds
+ * the expected batch only while the request on screen is still the batch he opened. A batch that changes during the
+ * hold, with the dialog open or while a stale payload is replaced is therefore never signed.
  */
 import type { CosignRequestDTO } from "../../_shims/api-client";
-import type { ScreenStateOf } from "../../_shims/contracts";
-import type { RequestCheck } from "../../lib/signing";
+import type { ApprovalPayload, Lang, ScreenStateOf } from "../../_shims/contracts";
+import {
+  type CosignRequestInput,
+  checkApprovalPayload,
+  checkCosignRequest,
+  type ExpectedBatch,
+  type PayloadCheck,
+  payloadStale,
+  type RequestCheck,
+} from "../../lib/signing";
 
 export type RequestStatus = ScreenStateOf<"M-BD-01">;
+
+/** The batch the Chair opened: the hash his seal was drawn from, and the member lines the request carried with it. */
+export interface OpenedBatch {
+  batchSha256: string;
+  linesDigest: string;
+}
+
+export function openedFrom(check: RequestCheck | null): OpenedBatch | null {
+  return check?.ok
+    ? { batchSha256: check.recomputed.batchSha256, linesDigest: check.expected.linesDigest }
+    : null;
+}
+
+/** An expected batch (a payload's target) is the batch the Chair opened. */
+export function matchesOpened(
+  expected: Pick<ExpectedBatch, "batchSha256" | "linesDigest">,
+  opened: OpenedBatch | null,
+): boolean {
+  return (
+    !!opened && expected.batchSha256 === opened.batchSha256 && expected.linesDigest === opened.linesDigest
+  );
+}
+
+/** The request on screen is still exactly the batch the Chair opened (I4). */
+export function sameAsOpened(check: RequestCheck | null, opened: OpenedBatch | null): boolean {
+  return !!check?.ok && matchesOpened(check.expected, opened);
+}
 
 export interface CosignSnapshot {
   /** The first fetch is still running. */
@@ -23,8 +63,8 @@ export interface CosignSnapshot {
   check: RequestCheck | null;
   /** The approval payload matched this batch (true), did not (false), or has not been fetched (null). */
   payloadOk: boolean | null;
-  /** The batch hash the phone computed when the Chair first opened this request. */
-  openedHash: string | null;
+  /** The batch the phone computed when the Chair first opened this request (or opened it again to review). */
+  opened: OpenedBatch | null;
   online: boolean;
   now: number;
   /** This phone sent it back to the treasurer. */
@@ -37,7 +77,7 @@ export type ChangeReason = "hash" | "changed" | "payload";
 
 export function changeReason(s: CosignSnapshot): ChangeReason | null {
   if (s.check && !s.check.ok) return "hash";
-  if (s.check?.ok && s.openedHash && s.check.recomputed.batchSha256 !== s.openedHash) return "changed";
+  if (s.check?.ok && s.opened && !sameAsOpened(s.check, s.opened)) return "changed";
   if (s.payloadOk === false) return "payload";
   return null;
 }
@@ -63,6 +103,138 @@ export function requestStatus(s: CosignSnapshot): RequestStatus {
   if (changeReason(s)) return "changed";
   if (!s.online) return "offline";
   return dto.state === "override" ? "override" : "request";
+}
+
+/* ------------------------------------------------------------------ signing only what was opened (I4) */
+
+/** Why the Chair's key may not be asked for right now: a changed batch, no connection, or nothing open to sign. */
+export type CommitRefusal = "mismatch" | "offline" | "closed";
+
+/**
+ * The gate in front of the key: the request is open to him (request or override), it checks out, and it is still
+ * exactly the batch he opened. Read from the latest state at the moment of the release, never from what the slab
+ * was rendered with, because a release can arrive after the batch changed under a hold or an open dialog.
+ */
+export function commitRefusal(s: CosignSnapshot): CommitRefusal | null {
+  const status = requestStatus(s);
+  if (status === "changed") return "mismatch";
+  if (status === "offline") return "offline";
+  if (status !== "request" && status !== "override") return "closed";
+  return sameAsOpened(s.check, s.opened) ? null : "mismatch";
+}
+
+export function canCommit(s: CosignSnapshot): boolean {
+  return commitRefusal(s) === null;
+}
+
+/** What the phone remembers about the request between fetches: the half of the provider the gate reads. */
+export interface RequestMemory {
+  dto: CosignRequestDTO | null;
+  check: RequestCheck | null;
+  /** Set by the first good fetch, and again only when the Chair reviews a changed batch ("Review again"). */
+  opened: OpenedBatch | null;
+  /** The approval payload in hand, always for the opened batch. */
+  payload: ApprovalPayload | null;
+  /** The last payload checked was this batch (true), was not (false), or none was checked (null). */
+  payloadOk: boolean | null;
+}
+
+export const EMPTY_MEMORY: RequestMemory = {
+  dto: null,
+  check: null,
+  opened: null,
+  payload: null,
+  payloadOk: null,
+};
+
+/**
+ * A fetched request. The first good one, or one fetched to review again (`adopt`), becomes the batch the Chair has
+ * opened. Any batch other than the opened one drops the payload in hand, so no payload outlives the batch it was
+ * checked against.
+ */
+export function rememberRequest(m: RequestMemory, dto: CosignRequestInput, adopt: boolean): RequestMemory {
+  const check = checkCosignRequest(dto);
+  const opened = check.ok && (adopt || m.opened === null) ? openedFrom(check) : m.opened;
+  const keep = !adopt && sameAsOpened(check, opened);
+  return {
+    dto,
+    check,
+    opened,
+    payload: keep ? m.payload : null,
+    payloadOk: keep ? m.payloadOk : null,
+  };
+}
+
+/** The opened batch is signable and key 1 is in: fetch its payload ahead, so the fingerprint step starts at once. */
+export function prefetchFor(m: RequestMemory): ExpectedBatch | null {
+  if (!m.dto || !m.check?.ok || !sameAsOpened(m.check, m.opened)) return null;
+  const signable = m.dto.state === "request" || m.dto.state === "override";
+  return signable && m.dto.treasurerSigned ? m.check.expected : null;
+}
+
+/**
+ * A payload checked against `expected`. It is kept only while `expected` is still the batch the Chair opened: one
+ * that answers for a batch he has since stopped looking at is neither kept nor allowed to mark this one as changed.
+ */
+export function rememberPayload(
+  m: RequestMemory,
+  expected: ExpectedBatch,
+  result: PayloadCheck,
+): RequestMemory {
+  if (!matchesOpened(expected, m.opened) || !sameAsOpened(m.check, m.opened)) return m;
+  if (result.ok) return { ...m, payload: result.payload, payloadOk: true };
+  // An expired payload is simply replaced next time; any other difference means it is not this batch.
+  return result.problem === "expired" ? { ...m, payload: null } : { ...m, payload: null, payloadOk: false };
+}
+
+/** Its nonce was used or refused: the next signature fetches a fresh payload. */
+export function forgetPayload(m: RequestMemory): RequestMemory {
+  return { ...m, payload: null };
+}
+
+export type PayloadPlan =
+  | { kind: "refuse" }
+  | { kind: "cached"; payload: ApprovalPayload; expected: ExpectedBatch }
+  | { kind: "fetch"; expected: ExpectedBatch };
+
+/**
+ * Which payload the next fingerprint step may use. The expected batch is built only while the request on screen is
+ * the batch the Chair opened; the payload in hand is used only while it is that batch and has two minutes left;
+ * anything else is fetched again and checked against the opened batch, never against whatever the server has now.
+ */
+export function payloadPlan(m: RequestMemory, now: Date): PayloadPlan {
+  if (!m.check?.ok || !sameAsOpened(m.check, m.opened)) return { kind: "refuse" };
+  const expected = m.check.expected;
+  if (
+    m.payload &&
+    m.payloadOk &&
+    !payloadStale(m.payload, now) &&
+    checkApprovalPayload(m.payload, expected, now).ok
+  ) {
+    return { kind: "cached", payload: m.payload, expected };
+  }
+  return { kind: "fetch", expected };
+}
+
+/** A payload ready for the fingerprint step, or why there is none. */
+export type FreshPayload =
+  | { ok: true; payload: ApprovalPayload; expected: ExpectedBatch }
+  | { ok: false; reason: "offline" | "mismatch" | "error" };
+
+/* ------------------------------------------------------------------ resolved holds in his language */
+
+/**
+ * Where the console's summary of a resolved hold goes. fs-api sends it in English only (IC-08 `CosignHold.summary`),
+ * with figures formatted for English; until it sends a localisable template, it is never set as the Chair's own
+ * words: in English it is his line, otherwise a labelled English note, shown when he opens the hold (or always in a
+ * judge frame that asked for English glosses).
+ */
+export function holdNote(
+  lang: Lang,
+  opts: { gloss: boolean; expanded: boolean },
+): "line" | "note" | "hidden" {
+  if (lang === "en") return "line";
+  return opts.gloss || opts.expanded ? "note" : "hidden";
 }
 
 /** The two officers' keys on the seal: key 1 owns rings 0–2, key 2 rings 3–4. */

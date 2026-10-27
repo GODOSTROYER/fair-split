@@ -2,16 +2,16 @@
  * Board co-sign (M-BD-01/02, MM-5 "Two keys"), the pure half. The phone never takes the server's word for what it
  * signs: it recomputes `batchSha256`, the item count and the total from the items it shows (register §8, I4), draws
  * the seal from its own hash, refuses an approval payload that is not exactly that batch, and only then asks for the
- * fingerprint or device PIN. The key is Ed25519: `fs-ernesto-a1` in SecureStore on the phone, an ephemeral
- * `fs-ernesto-demo-{6}` key in a judge's browser (C-13). A signature is never stored or queued: offline, or when the
- * approval cannot be sent, it is dropped and the Chair signs again with a connection.
+ * fingerprint or device PIN. The key is Ed25519: `fs-ernesto-a1` (then `-a2`, `-a3` for each new key) in SecureStore
+ * on the phone, an ephemeral `fs-ernesto-demo-{6}` key in a judge's browser (C-13). A signature is never stored or
+ * queued: offline, or when the approval cannot be sent, it is dropped and the Chair signs again with a connection.
  */
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 import type { ApiResult, ApprovalSubmission, CosignRequestDTO } from "../_shims/api-client";
-import type { ApprovalPayload, ApprovalRole, BatchItem } from "../_shims/contracts";
+import type { ApprovalPayload, ApprovalRole, BatchItem, DigestLine } from "../_shims/contracts";
 import { APPROVAL_PAYLOAD_KEYS } from "../_shims/contracts";
-import { batchDigest, jcs } from "../_shims/domain";
+import { batchDigest, linesDigest as digestLines, jcs } from "../_shims/domain";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 /** The server refuses an `exp` more than 30 minutes ahead (S3.8); allow a minute of clock skew. */
@@ -50,8 +50,24 @@ export type RequestProblem =
   | "total";
 
 export type RequestCheck =
-  | { ok: true; recomputed: RecomputedBatch; expected: ExpectedBatch }
+  | {
+      ok: true;
+      recomputed: RecomputedBatch;
+      expected: ExpectedBatch;
+      /**
+       * True when the phone recomputed `linesDigest` from the member lines itself. IC-08's request does not carry
+       * the lines yet (orchestrator), so today the cash lines are bound by the server's digest alone: the phone
+       * checks that the payload carries the same value, but cannot show or recompute what it covers.
+       */
+      linesChecked: boolean;
+    }
   | { ok: false; problem: RequestProblem; recomputed: RecomputedBatch | null };
+
+/**
+ * The co-sign request as the phone reads it. `lines` (every member line the signature binds, PayPal and cash) is not
+ * in IC-08's DTO yet; when fs-api sends it, `checkCosignRequest` recomputes `linesDigest` from it with no other change.
+ */
+export type CosignRequestInput = CosignRequestDTO & { lines?: readonly DigestLine[] };
 
 /** The run and items the digest covers (register §8). */
 export interface BatchInput {
@@ -96,11 +112,24 @@ export function recomputeBatch(b: BatchInput): RecomputedBatch | null {
   return { batchSha256: batchDigest(b, b.items), itemCount: b.items.length, totalCents };
 }
 
+function isDigestLine(v: unknown): v is DigestLine {
+  if (!v || typeof v !== "object") return false;
+  const l = v as Partial<DigestLine>;
+  return (
+    typeof l.memberNo === "string" &&
+    l.memberNo.length > 0 &&
+    (l.rail === "PAYPAL" || l.rail === "CASH") &&
+    isInt(l.netCents)
+  );
+}
+
 /**
  * Checks a co-sign request before anything is drawn as signable: the items are well formed, and the hash, count and
- * total the server claims are the ones the phone computes. The seal on screen is drawn from `recomputed`.
+ * total the server claims are the ones the phone computes. The seal on screen is drawn from `recomputed`. When the
+ * request carries its member lines, the lines digest is recomputed too, and a difference is the same refusal as a
+ * batch hash that is not the items' hash.
  */
-export function checkCosignRequest(req: CosignRequestDTO): RequestCheck {
+export function checkCosignRequest(req: CosignRequestInput): RequestCheck {
   if (
     !req ||
     typeof req.runId !== "string" ||
@@ -123,9 +152,16 @@ export function checkCosignRequest(req: CosignRequestDTO): RequestCheck {
   if (recomputed.batchSha256 !== req.batchSha256) return { ok: false, problem: "hash", recomputed };
   if (recomputed.itemCount !== req.itemCount) return { ok: false, problem: "count", recomputed };
   if (recomputed.totalCents !== req.totalCents) return { ok: false, problem: "total", recomputed };
+  const lines: unknown = req.lines;
+  if (lines !== undefined) {
+    if (!Array.isArray(lines) || !lines.every(isDigestLine))
+      return { ok: false, problem: "malformed", recomputed };
+    if (digestLines(req.runId, lines) !== req.linesDigest) return { ok: false, problem: "hash", recomputed };
+  }
   return {
     ok: true,
     recomputed,
+    linesChecked: lines !== undefined,
     expected: {
       runId: req.runId,
       rateCardSha256: req.rateCardSha256,
@@ -288,9 +324,22 @@ export function personaSlug(persona: string | null | undefined, fallback = "erne
   return slug.length > 0 ? slug.slice(0, 24) : fallback;
 }
 
-/** The phone's own key: `fs-{persona}-a1` (register §8, C-13). */
-export function deviceKeyId(persona: string | null | undefined): string {
-  return `fs-${personaSlug(persona)}-a1`;
+/**
+ * The phone's own key: `fs-{persona}-a{n}` (S3 "Keys"), where `n` is the key's generation on this phone. The first is
+ * `fs-ernesto-a1` (register §8, C-13); a key made after the old one was invalidated is `-a2`, and so on, so a new
+ * public key is never registered under an ID that already verified earlier signatures.
+ */
+export function deviceKeyId(persona: string | null | undefined, generation = 1): string {
+  const n = Number.isSafeInteger(generation) && generation > 0 ? generation : 1;
+  return `fs-${personaSlug(persona)}-a${n}`;
+}
+
+/** `fs-ernesto-a3` → `{ slug: "ernesto", generation: 3 }`; null for anything that is not a phone key. */
+export function deviceKeyParts(
+  keyId: string | null | undefined,
+): { slug: string; generation: number } | null {
+  const m = /^fs-([a-z0-9]{1,24})-a([1-9]\d{0,5})$/.exec(keyId ?? "");
+  return m?.[1] && m[2] ? { slug: m[1], generation: Number(m[2]) } : null;
 }
 
 export type RandomBytes = (n: number) => Uint8Array;
@@ -362,6 +411,11 @@ export interface VaultSignRequest {
 export interface KeyVault {
   readonly kind: "device" | "demo";
   current(): Promise<KeyMeta | null>;
+  /**
+   * The key ID the next signature for this persona will use: the key in hand, or the one it will make (`-a2` after
+   * `-a1` was forgotten). Null where it cannot be known ahead (the demo key's random suffix).
+   */
+  upcomingKeyId(persona: string): Promise<string | null>;
   /** The presence step the next signature asks for, or null when the phone has no screen lock. */
   presence(): Promise<BiometricClass | null>;
   sign(req: VaultSignRequest): Promise<KeySignOutcome>;
@@ -375,6 +429,9 @@ export function createDemoVault(randomBytes: RandomBytes, now: () => Date = () =
     kind: "demo",
     async current() {
       return held?.meta ?? null;
+    },
+    async upcomingKeyId() {
+      return null;
     },
     async presence() {
       return "none";
@@ -411,6 +468,192 @@ export function createDemoVault(randomBytes: RandomBytes, now: () => Date = () =
   };
 }
 
+/** Plain preferences: a key's public half, its class and the generation count. Never the secret. */
+export interface PrefsStore {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+  del(key: string): Promise<void>;
+}
+
+/** Where the secret half lives (SecureStore). A `bound` secret is readable only through the OS fingerprint prompt. */
+export interface SecretStore {
+  get(name: string, opts: { bound: boolean; prompt: string }): Promise<string | null>;
+  set(name: string, value: string, opts: { bound: boolean; prompt: string }): Promise<void>;
+  del(name: string): Promise<void>;
+}
+
+export interface DeviceVaultDeps {
+  prefs: PrefsStore;
+  secrets: SecretStore;
+  /** The presence step the phone allows now (`biometricClassFor` what is enrolled), or null without a screen lock. */
+  presence(): Promise<BiometricClass | null>;
+  /** The fingerprint-or-PIN prompt of a pin-gated key: null when the person passed it. */
+  askPresence(prompt: string, detail: string | undefined, cancelLabel: string): Promise<KeyFailure | null>;
+  randomBytes: RandomBytes;
+  now(): Date;
+}
+
+const KEY_META = "fs.boardKey.meta";
+/** SecureStore names allow letters, digits, `.`, `-` and `_`: key IDs already fit. */
+const secretName = (keyId: string) => `fs.boardKey.sk.${keyId}`;
+/** The last key generation made on this phone for a persona: it outlives the key, so no key ID is ever reused. */
+const generationName = (slug: string) => `fs.boardKey.gen.${slug}`;
+
+function signWith(skHex: string, message: Uint8Array): string {
+  const sk = hexToBytes(skHex);
+  try {
+    return bytesToHex(ed25519.sign(message, sk));
+  } finally {
+    sk.fill(0);
+  }
+}
+
+/**
+ * The Chair's key on the phone (architecture §9, S3.8, C-13), with the stores and the OS prompts injected so the
+ * rules are tested in Node. One presence step per signature:
+ * - "biometric-bound": the secret is stored behind the OS fingerprint prompt, so the prompt guards every read; a new
+ *   key is made, signs, and is stored behind that same prompt, so a first signature asks once;
+ * - "pin-gated": the fingerprint or device PIN is asked for, then the secret is read.
+ * Each new key takes the next generation (`fs-ernesto-a1`, then `-a2` after fingerprints changed and the old key was
+ * forgotten), so a new public key is always registered as a new key, and every earlier signature still verifies
+ * against the key it was made with.
+ */
+export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
+  async function readMeta(): Promise<KeyMeta | null> {
+    const raw = await d.prefs.get(KEY_META);
+    if (!raw) return null;
+    try {
+      const m = JSON.parse(raw) as Partial<KeyMeta>;
+      if (
+        typeof m.keyId !== "string" ||
+        !deviceKeyParts(m.keyId) ||
+        typeof m.publicKeyHex !== "string" ||
+        typeof m.createdAt !== "string"
+      ) {
+        return null;
+      }
+      const cls = m.biometricClass === "biometric-bound" ? "biometric-bound" : "pin-gated";
+      return { keyId: m.keyId, publicKeyHex: m.publicKeyHex, biometricClass: cls, createdAt: m.createdAt };
+    } catch {
+      return null;
+    }
+  }
+
+  async function lastGeneration(slug: string, meta: KeyMeta | null): Promise<number> {
+    const raw = await d.prefs.get(generationName(slug));
+    const stored = raw === null ? 0 : Number(raw);
+    const held = deviceKeyParts(meta?.keyId);
+    return Math.max(
+      Number.isSafeInteger(stored) && stored > 0 ? stored : 0,
+      held?.slug === slug ? held.generation : 0,
+    );
+  }
+
+  async function noteGeneration(keyId: string): Promise<void> {
+    const parts = deviceKeyParts(keyId);
+    if (!parts) return;
+    if ((await lastGeneration(parts.slug, null)) < parts.generation) {
+      await d.prefs.set(generationName(parts.slug), String(parts.generation));
+    }
+  }
+
+  async function forgetKey(meta: KeyMeta | null): Promise<void> {
+    if (meta) {
+      await noteGeneration(meta.keyId);
+      await d.secrets.del(secretName(meta.keyId)).catch(() => {});
+    }
+    await d.prefs.del(KEY_META);
+  }
+
+  async function keep(meta: KeyMeta): Promise<void> {
+    await noteGeneration(meta.keyId);
+    await d.prefs.set(KEY_META, JSON.stringify(meta));
+  }
+
+  return {
+    kind: "device",
+
+    current: readMeta,
+
+    async upcomingKeyId(persona) {
+      const slug = personaSlug(persona);
+      const meta = await readMeta();
+      if (meta && deviceKeyParts(meta.keyId)?.slug === slug) return meta.keyId;
+      return deviceKeyId(persona, (await lastGeneration(slug, meta)) + 1);
+    },
+
+    presence: d.presence,
+
+    async sign(req): Promise<KeySignOutcome> {
+      const cls = await d.presence();
+      if (!cls) return { ok: false, reason: "no-lock" };
+      const slug = personaSlug(req.persona);
+      let meta = await readMeta();
+      // A phone re-paired to another officer never signs with the previous officer's key.
+      if (meta && deviceKeyParts(meta.keyId)?.slug !== slug) {
+        await forgetKey(meta);
+        meta = null;
+      }
+
+      if (meta) {
+        let skHex: string | null;
+        try {
+          if (meta.biometricClass === "biometric-bound") {
+            skHex = await d.secrets.get(secretName(meta.keyId), { bound: true, prompt: req.prompt });
+          } else {
+            const failed = await d.askPresence(req.prompt, req.detail, req.cancelLabel);
+            if (failed) return { ok: false, reason: failed };
+            skHex = await d.secrets.get(secretName(meta.keyId), { bound: false, prompt: req.prompt });
+          }
+        } catch (e) {
+          return { ok: false, reason: secureStoreFailure(e) };
+        }
+        // Null means the system invalidated the key (fingerprints changed) or the store was cleared.
+        if (!skHex) return { ok: false, reason: "invalidated" };
+        return { ok: true, key: meta, signatureHex: signWith(skHex, req.message), created: false };
+      }
+
+      // A new key, made inside the one presence step: the generation after every key this phone made for him.
+      const keyId = deviceKeyId(req.persona, (await lastGeneration(slug, null)) + 1);
+      const sk = d.randomBytes(32);
+      const skHex = bytesToHex(sk);
+      const fresh: KeyMeta = {
+        keyId,
+        publicKeyHex: bytesToHex(ed25519.getPublicKey(sk)),
+        biometricClass: cls,
+        createdAt: d.now().toISOString(),
+      };
+      try {
+        if (cls === "biometric-bound") {
+          // Android asks for the fingerprint to store a bound key: that prompt is this signature's presence step.
+          const signatureHex = bytesToHex(ed25519.sign(req.message, sk));
+          await d.secrets.set(secretName(keyId), skHex, { bound: true, prompt: req.prompt });
+          await keep(fresh);
+          return { ok: true, key: fresh, signatureHex, created: true };
+        }
+        const failed = await d.askPresence(req.prompt, req.detail, req.cancelLabel);
+        if (failed) return { ok: false, reason: failed };
+        await d.secrets.set(secretName(keyId), skHex, { bound: false, prompt: req.prompt });
+        await keep(fresh);
+        return {
+          ok: true,
+          key: fresh,
+          signatureHex: bytesToHex(ed25519.sign(req.message, sk)),
+          created: true,
+        };
+      } catch (e) {
+        return { ok: false, reason: secureStoreFailure(e) };
+      } finally {
+        sk.fill(0);
+      }
+    },
+
+    async forget() {
+      await forgetKey(await readMeta());
+    },
+  };
+}
+
 /* ------------------------------------------------------------------ the whole step */
 
 /**
@@ -441,6 +684,12 @@ export interface CosignDeps {
   isRegistered(keyId: string): boolean;
   register(key: KeyMeta): Promise<ApiResult<{ ok: true }>>;
   submit(body: ApprovalSubmission): Promise<ApiResult<{ accepted: true }>>;
+  /**
+   * Asked just before the presence step and again before anything leaves the phone: why this attempt must stop now
+   * (the batch on screen changed, the request closed, the phone went offline), or null. The fingerprint prompt can
+   * stay up for a while; a signature made while the batch changed underneath it is dropped, never sent (I4).
+   */
+  recheck?(): CosignFailure | null;
 }
 
 const offlineCode = (r: { code: string; status?: number }) => r.code === "NETWORK" && r.status === undefined;
@@ -462,8 +711,12 @@ export async function cosign(
       check.problem === "expired" ? "stale" : check.problem === "too-far" ? "error" : "mismatch";
     return { ok: false, state, detail: check.problem };
   }
+  const before = deps.recheck?.() ?? null;
+  if (before) return { ok: false, state: before, detail: "recheck" };
   const signed = await deps.sign(approvalBytes(check.payload));
   if (!signed.ok) return { ok: false, state: signed.reason, detail: signed.reason };
+  const after = deps.recheck?.() ?? null;
+  if (after) return { ok: false, state: after, detail: "recheck" };
   if (signed.created || !deps.isRegistered(signed.key.keyId)) {
     const reg = await deps.register(signed.key);
     if (!reg.ok)
