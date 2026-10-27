@@ -53,6 +53,24 @@ describe("written amounts and the amount check", () => {
     expect(voucherOn("Advance ca-0192 300")).toBe("CA-0192");
   });
 
+  it("the written amount is a whole number as written, never the tail of a longer one", () => {
+    expect(parseWrittenAmount("Hauling ₱1,091.20")).toBe(109_120);
+    expect(parseWrittenAmount("Multa 200.")).toBe(20_000);
+    // Each of these used to type its tail: 20500, 9120, 3000, 0.
+    expect(parseWrittenAmount("Hauling ₱91.205")).toBeNull();
+    expect(parseWrittenAmount("Hauling ₱1.091.20")).toBeNull();
+    expect(parseWrittenAmount("CBU 1,30")).toBeNull();
+    expect(parseWrittenAmount("CBU 1,000,00")).toBeNull();
+    expect(parseWrittenAmount("Hauling ₱99999999999999999")).toBeNull(); // not a safe integer
+    // A malformed amount checks as no amount: R2 then fails closed (RATE_MISMATCH), never passes.
+    expect(
+      checkAmount(R2, "Hauling ₱1.091.20", parseWrittenAmount("Hauling ₱1.091.20"), { netGrams: 60800 }),
+    ).toEqual({
+      ok: false,
+      reason: "no written amount",
+    });
+  });
+
   it("R2 is ₱1.50 × net kg (slip 0458: 60.80 × 1.50 = 91.20 passes)", () => {
     expect(checkAmount(R2, "Hauling P91.20", 9120, { netGrams: 60800 })).toEqual({
       ok: true,

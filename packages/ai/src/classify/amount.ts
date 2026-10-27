@@ -6,13 +6,18 @@ import type { Basis, RequiredDocument } from "../ratecard/schema.js";
  * checks it against the ratified rule; the model only names the rule.
  */
 
-/** The written amount: the last number on the line, optionally prefixed ₱, P or PHP → centavos. */
+/**
+ * The written amount: the last number on the line, optionally prefixed ₱, P or PHP → centavos. A
+ * number is a maximal run of digits with "," or "." only between digits, read strictly ("1,300.00",
+ * "91.20"); a run that is no well-formed amount ("91.205", "1.091.20", "1,30") makes no amount at all,
+ * never its tail, so the rule's check fails closed (as ratecard/parse.ts reads a rate card).
+ */
 export function parseWrittenAmount(line: string): number | null {
-  const all = [...line.matchAll(/(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d.,]*\d)/g)];
-  const last = all.at(-1)?.[1];
-  if (!last) return null;
-  const [i, f = ""] = last.replace(/,/g, "").split(".");
-  return Number(i) * 100 + Number(f.padEnd(2, "0"));
+  const last = [...line.matchAll(/\d+(?:[.,]\d+)*/g)].at(-1)?.[0];
+  const m = last ? /^(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/.exec(last) : null;
+  if (!m?.[1]) return null;
+  const minor = Number(m[1].replace(/,/g, "")) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
+  return Number.isSafeInteger(minor) ? minor : null;
 }
 
 /** A voucher number written on the line, e.g. "CA-0192". */
