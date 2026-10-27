@@ -15,7 +15,9 @@
  * own clock (`Date.now() + 24 h`) lands a little short whenever that clock lags the database's, and is refused.
  */
 import { sql } from "drizzle-orm";
-import type { DbOrTx } from "./client.js";
+import type { Db, DbOrTx } from "./client.js";
+import { rethrowDbError } from "./errors.js";
+import { isTransaction } from "./tx.js";
 
 /** A judge session (and so its workspace's first expiry) lasts 24 hours: the judge cookie's lifetime (S3.9). */
 export const JUDGE_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -67,4 +69,28 @@ export async function claimJudgeWorkspace(
   const row = rows[0];
   if (!row) return null;
   return { workspaceId: row.id, claimedAt: toDate(row.claimed_at), expiresAt: toDate(row.expires_at) };
+}
+
+/**
+ * Purges an expired judge workspace with all its rows (the hourly `judgeReset`, S3.9 step 2): true when purged,
+ * false when it no longer exists; `FS409 PURGE_REFUSED` (as FairSplitDbError) when it is not a judge workspace, has
+ * not expired, or has money in flight (a POSTING run, a payout item not yet terminal).
+ *
+ * `fs_purge_workspace()` takes the workspace lock before the workspace row (migrations/0014, the src/tx.ts lock
+ * order), so it waits for a transition of that workspace to commit instead of deadlocking with it. It runs in a
+ * transaction of its own: inside a caller's transaction it would come after whatever row locks the caller holds,
+ * which is the order the lock rule forbids, so a transaction is refused here.
+ */
+export async function purgeJudgeWorkspace(db: Db, workspaceId: string): Promise<boolean> {
+  if (isTransaction(db)) {
+    throw new TypeError("purgeJudgeWorkspace runs in its own transaction: pass the pool, not a transaction");
+  }
+  try {
+    const rows = (await db.execute(sql`select fs_purge_workspace(${workspaceId}) as ok`)) as unknown as {
+      ok: boolean;
+    }[];
+    return rows[0]?.ok === true;
+  } catch (e) {
+    rethrowDbError(e);
+  }
 }

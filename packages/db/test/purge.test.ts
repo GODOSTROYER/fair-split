@@ -5,7 +5,9 @@
  */
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { FairSplitDbError } from "../src/errors.js";
 import { appendEvent } from "../src/events.js";
+import { purgeJudgeWorkspace } from "../src/judge-pool.js";
 import { appendLedger } from "../src/ledger.js";
 import { ledgerEntries, rateCards, rateRules, runEvents, workspaces } from "../src/schema/index.js";
 import { fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
@@ -186,5 +188,34 @@ describe("append-only history cannot be cascaded away", () => {
     const [left] = await t.owner.sql<{ n: number }[]>`
       select count(*)::int as n from fs_private.purge_tickets where workspace_id = ${gone.workspaceId}`;
     expect(left?.n).toBe(0);
+  });
+});
+
+describe("purgeJudgeWorkspace: the TypeScript side of the purge", () => {
+  it("purges an expired judge workspace, answers false for one already gone, and maps refusals to FairSplitDbError", async () => {
+    const gone = await fixtureWorkspace(t.app.db, {
+      kind: "judge",
+      expiresAt: new Date(Date.now() - 1000),
+      withRun: true,
+    });
+    await withHistory(gone.workspaceId);
+    expect(await purgeJudgeWorkspace(t.app.db, gone.workspaceId)).toBe(true);
+    expect(await count(runEvents, gone.workspaceId)).toBe(0);
+    expect(await purgeJudgeWorkspace(t.app.db, gone.workspaceId)).toBe(false);
+    const live = await fixtureWorkspace(t.app.db, {
+      kind: "judge",
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+    const e = await purgeJudgeWorkspace(t.app.db, live.workspaceId).catch((err: unknown) => err);
+    expect(e).toBeInstanceOf(FairSplitDbError);
+    expect(e).toMatchObject({ code: "PURGE_REFUSED", subject: live.workspaceId });
+  });
+
+  it("refuses to run inside a caller's transaction, where it could follow the caller's row locks", async () => {
+    const gone = await fixtureWorkspace(t.app.db, { kind: "judge", expiresAt: new Date(Date.now() - 1000) });
+    await expect(
+      t.app.db.transaction((tx) => purgeJudgeWorkspace(tx as never, gone.workspaceId)),
+    ).rejects.toThrow(TypeError);
+    expect(await purgeJudgeWorkspace(t.app.db, gone.workspaceId)).toBe(true);
   });
 });

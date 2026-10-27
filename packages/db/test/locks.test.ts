@@ -3,12 +3,13 @@
  * lock per workspace, and every repository write takes that lock BEFORE its first row lock. Two transactions
  * can then never hold a row lock and the workspace lock in opposite orders, so they never deadlock.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pgError } from "../src/errors.js";
+import { appendEvent } from "../src/events.js";
 import { repos } from "../src/repos/index.js";
-import { memberLines, payRuns } from "../src/schema/index.js";
+import { memberLines, payRuns, runEvents, workspaces } from "../src/schema/index.js";
 import { fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
 import { isTransaction, withWorkspaceTx } from "../src/tx.js";
 import { scopeOf, sleep } from "./helpers.js";
@@ -144,5 +145,65 @@ describe("lock order: the workspace lock before any row lock", () => {
       if (s.status === "rejected") expect(isDeadlock(s.reason), String(s.reason)).toBe(false);
     }
     expect(results.map((s) => s.status)).toEqual(["fulfilled", "fulfilled"]);
+  });
+});
+
+describe("lock order: fs_purge_workspace takes the workspace lock before the workspace row", () => {
+  /** backends of this database waiting on a lock right now */
+  async function waiting(): Promise<number> {
+    const [row] = await t.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from pg_stat_activity
+       where datname = current_database() and wait_event_type = 'Lock'`;
+    return row?.n ?? 0;
+  }
+
+  it("a purge racing a transition of the same workspace waits for it instead of deadlocking", async () => {
+    for (let i = 0; i < 3; i++) {
+      const ws = await fixtureWorkspace(t.app.db, {
+        kind: "judge",
+        expiresAt: new Date(Date.now() - 1000),
+        withRun: true,
+      });
+      const runId = ws.runId ?? "";
+      const scope = scopeOf(ws.workspaceId);
+      let purge: Promise<unknown> = Promise.resolve();
+      // A: a run transition in its usual shape (workspace lock, the run's row lock, then the run.state event, whose
+      // foreign key share-locks the workspace row), paused between its row lock and its event while B starts
+      const a = withWorkspaceTx(t.app.db, scope, async (tx) => {
+        await tx
+          .update(payRuns)
+          .set({ state: "QUOTED", version: sql`${payRuns.version} + 1` })
+          .where(and(eq(payRuns.id, runId), eq(payRuns.state, "DRAFT")));
+        // B: the hourly judgeReset purges the expired workspace
+        purge = t.app.sql`select fs_purge_workspace(${ws.workspaceId}) as ok`;
+        purge.catch(() => {}); // observed below
+        const deadline = Date.now() + 3000;
+        while ((await waiting()) === 0 && Date.now() < deadline) await sleep(10);
+        await sleep(50);
+        await appendEvent(tx, {
+          workspaceId: ws.workspaceId,
+          runId,
+          type: "run.state",
+          actor: scope.actor,
+          provenance: "live",
+          payload: { id: runId, from: "DRAFT", to: "QUOTED", cause: "race", version: 1 },
+        });
+      });
+      // A first: `purge` is assigned inside A's transaction
+      const [ra] = await Promise.allSettled([a]);
+      const [rb] = await Promise.allSettled([purge]);
+      for (const s of [ra, rb]) {
+        if (s.status === "rejected") expect(isDeadlock(s.reason), String(s.reason)).toBe(false);
+        expect(s.status).toBe("fulfilled");
+      }
+      // the purge waited for the transition, then took the workspace with the event it wrote
+      expect(rb.status === "fulfilled" && (rb.value as { ok: boolean }[])[0]?.ok).toBe(true);
+      expect(
+        await t.owner.db.select().from(workspaces).where(eq(workspaces.id, ws.workspaceId)),
+      ).toHaveLength(0);
+      expect(
+        await t.owner.db.select().from(runEvents).where(eq(runEvents.workspaceId, ws.workspaceId)),
+      ).toHaveLength(0);
+    }
   });
 });
