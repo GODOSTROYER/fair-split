@@ -20,6 +20,11 @@
   and `verify:qa-bypass`, 27 Oct.)
 - Even with the step out of reach, WS-QA owns the checker and the rules: a merged edit that turns
   `tools/check-ownership.mjs` into a no-op would switch the gate off for every later PR just as well.
+- The checker judged `git diff <base>...<head>`. When the two commits have more than one merge base, git diffs
+  from the first and only warns, while `git merge` merges against a virtual base built from all of them. A branch
+  can get that shape on purpose: start at a main merge's first parent and merge its second parent with `-s ours`.
+  Such a branch passed as "all within WS-API" while its merge deleted WS-PPCORE's merged webhook hardening
+  (finding, 27 Oct).
 - The register's "Changes" line says ADR PRs are `docs/adr/NNN-title.md` and that WS-QA commits the register as
   `docs/decision-register.md`. WS-QA cannot edit `docs/spec/`, and two copies of the register would drift.
 
@@ -57,6 +62,12 @@
      register lives only at `docs/spec/00-decision-register.md`, and every document links it there.
    - Register §11 "The user merges daily" and S5.2.4's queue, `fs-bot`, ruleset and `merge_group` lines read as
      plan amendment 2 and decisions 1 to 4 above.
+8. **The gate judges the merge.** With `--base`, the changed paths are the union of the branch's own diff since its
+   merge base, every path that the merged tree (`git merge-tree --write-tree`, the machinery `git merge` uses)
+   changes on the base, and every path the merge leaves conflicted. A file that the merge moves by following a
+   rename on `main` is judged where git puts it. Base and head must have exactly one merge base: with none, or with
+   several, the check fails closed and asks for `main`'s tip to be merged into the branch first. A conflict does
+   not fail the check, because the merger's resolution takes one side's version and the branch's side is judged.
 
 ## Consequences
 
@@ -69,6 +80,8 @@
   token. Every later PR is judged by main's copy.
 - Tests: `packages/test-kit/test/check-ownership.test.mjs` (suites "the gate on GitHub" and "--base mode") and
   `packages/test-kit/test/repo-docs.test.mjs`.
+- A branch with several merge bases, such as one cut from an integration branch that merged several workstreams
+  (`ws/api`, `ws/console` and `ws/agent` had six on 27 Oct), merges `main`'s tip before the gate judges it.
 - What gets worse: a change to the rules (a new workstream row, say) needs one more explicit step from the
   merger. Such changes are rare, and silent ones are exactly what the gate must not allow.
 

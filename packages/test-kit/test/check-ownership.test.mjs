@@ -107,6 +107,31 @@ function quietMain(args, env = {}) {
   }
 }
 
+/**
+ * A branch with two best merge bases against main, made on purpose. main = merge(p1, p2), where p2 is WS-PPCORE's
+ * branch. ws/api starts at p1 and merges p2 with `-s ours` (p2's history, p1's tree), then adds an owned route.
+ * `git diff main...ws/api` diffs from one merge base and shows only the route; `git merge` merges against a
+ * virtual base built from both, so it silently reverts WS-PPCORE's merged files. main is checked out at the end.
+ */
+function crissCross() {
+  const r = makeRepo({ "docs/ownership.md": realRules, [CHECKER_FILE]: readText(CHECKER_FILE) });
+  r.git("checkout", "-q", "-b", "ws/ppcore");
+  r.write("apps/api/src/webhooks/security.ts", "export const hardened = true;\n");
+  r.write("packages/paypal-core/src/webhook/verify.ts", "export const verify = 'hardened';\n");
+  const p2 = r.commit("harden the webhooks");
+  r.git("checkout", "-q", "main");
+  r.write("docs/notes.md", "main moves on\n");
+  const p1 = r.commit("main moves on");
+  r.git("merge", "-q", "--no-ff", "-m", "merge: ws/ppcore", "ws/ppcore");
+  const main2 = r.git("rev-parse", "HEAD");
+  r.git("checkout", "-q", "-b", "ws/api", p1);
+  r.git("merge", "-q", "-s", "ours", "-m", "take ws/ppcore's history, not its tree", "ws/ppcore");
+  r.write("apps/api/src/routes/ping.ts", "export {};\n");
+  const attack = r.commit("an owned route");
+  r.git("checkout", "-q", "main");
+  return { r, p1, p2, main2, attack };
+}
+
 const quiet = (fn) => {
   const { log, error } = console;
   console.log = () => {};
@@ -732,6 +757,138 @@ describe("--base mode: a PR is judged by its base's rules", { timeout: 60_000 },
     expect(renamed.code, renamed.out).toBe(0);
   });
 
+  it("fails closed when base and head have more than one merge base: the merge would revert another lane", () => {
+    const { r, p1, p2, main2, attack } = crissCross();
+    const args = (head) => [
+      "--branch",
+      "ws/api",
+      "--base",
+      main2,
+      "--head",
+      head,
+      "--repo",
+      r.dir,
+      "--strict",
+    ];
+    expect(r.git("merge-base", "--all", main2, attack).split("\n").sort()).toEqual([p1, p2].sort());
+    // The trap: a diff from one merge base shows only the owned route...
+    expect(r.git("diff", "--name-status", `${main2}...${attack}`)).toBe("A\tapps/api/src/routes/ping.ts");
+    // ...while git merge, against a virtual base built from both, deletes WS-PPCORE's merged files.
+    r.git("checkout", "-q", "-b", "trial", main2);
+    r.git("merge", "-q", "--no-ff", "-m", "trial merge", attack);
+    const merged = r.git("ls-tree", "-r", "--name-only", "HEAD").split("\n");
+    r.git("checkout", "-q", "main");
+    expect(merged).toContain("apps/api/src/routes/ping.ts");
+    expect(merged).not.toContain("apps/api/src/webhooks/security.ts");
+    expect(merged).not.toContain("packages/paypal-core/src/webhook/verify.ts");
+
+    const judged = quietMain(args(attack));
+    expect(judged.code).toBe(1);
+    expect(judged.out).toMatch(/2 merge bases/);
+    expect(judged.out).toContain(p1);
+    expect(judged.out).toContain(p2);
+    expect(judged.out).toMatch(/merge .* into the branch first/);
+    expect(judged.out).not.toMatch(/all within/);
+
+    // The remedy the message names: merge the base's tip into the branch. There is then one merge base, and
+    // the revert shows as what it is.
+    r.git("checkout", "-q", "ws/api");
+    r.git("merge", "-q", "--no-edit", main2);
+    const remerged = r.git("rev-parse", "HEAD");
+    r.git("checkout", "-q", "main");
+    expect(r.git("merge-base", "--all", main2, remerged)).toBe(main2);
+    const caught = quietMain(args(remerged));
+    expect(caught.code).toBe(1);
+    expect(caught.out).toContain(
+      "D apps/api/src/webhooks/security.ts: not owned by WS-API (owned by WS-PPCORE)",
+    );
+    expect(caught.out).toContain(
+      "D packages/paypal-core/src/webhook/verify.ts: not owned by WS-API (owned by WS-PPCORE)",
+    );
+
+    // Control: an honest branch that merged main's tip and adds the same route passes.
+    r.git("checkout", "-q", "-b", "ws/api-honest", p1);
+    r.git("merge", "-q", "--no-edit", main2);
+    r.write("apps/api/src/routes/ping.ts", "export {};\n");
+    const honest = r.commit("an owned route, on top of main");
+    r.git("checkout", "-q", "main");
+    const ok = quietMain(args(honest));
+    expect(ok.code, ok.out).toBe(0);
+    expect(ok.out).toContain("1 changed path(s), all within WS-API");
+  });
+
+  it("judges the tree git merge would produce: a file the merge moves into another lane's folder", () => {
+    const r = makeRepo({
+      "docs/ownership.md": realRules,
+      "apps/api/src/hooks/a.ts": "export const a = 1;\n",
+      "apps/api/src/hooks/b.ts": "export const b = 2;\n",
+    });
+    r.git("checkout", "-q", "-b", "ws/api");
+    r.write("apps/api/src/hooks/c.ts", "export const c = 3;\n");
+    const pr = r.commit("a new file in a WS-API folder");
+    r.git("checkout", "-q", "main");
+    r.git("mv", "apps/api/src/hooks", "apps/api/src/webhooks");
+    const main2 = r.commitIndex("main moves that folder under webhooks/ (WS-PPCORE)");
+    // The branch's own diff names only its folder; git merge follows the directory rename and puts the new file
+    // under apps/api/src/webhooks/, which WS-PPCORE owns.
+    expect(r.git("diff", "--name-status", `${main2}...${pr}`)).toBe("A\tapps/api/src/hooks/c.ts");
+    const judged = quietMain([
+      "--branch",
+      "ws/api",
+      "--base",
+      main2,
+      "--head",
+      pr,
+      "--repo",
+      r.dir,
+      "--strict",
+    ]);
+    expect(judged.code).toBe(1);
+    expect(judged.out).toContain("A apps/api/src/webhooks/c.ts: not owned by WS-API (owned by WS-PPCORE)");
+    expect(judged.out).not.toContain("apps/api/src/hooks/c.ts:");
+    expect(judged.out).toMatch(/conflicts? in 1 path/);
+  });
+
+  it("a conflict inside the branch's own paths is the merger's to resolve: judged, not refused", () => {
+    const r = makeRepo({
+      "docs/ownership.md": realRules,
+      "apps/api/src/routes/x.ts": "export const x = 0;\n",
+    });
+    r.git("checkout", "-q", "-b", "ws/api");
+    r.write("apps/api/src/routes/x.ts", "export const x = 1;\n");
+    const pr = r.commit("branch edit");
+    r.git("checkout", "-q", "main");
+    r.write("apps/api/src/routes/x.ts", "export const x = 2;\n");
+    const main2 = r.commit("main edit");
+    const judged = quietMain([
+      "--branch",
+      "ws/api",
+      "--base",
+      main2,
+      "--head",
+      pr,
+      "--repo",
+      r.dir,
+      "--strict",
+    ]);
+    expect(judged.code, judged.out).toBe(0);
+    expect(judged.out).toContain("all within WS-API");
+    expect(judged.out).toMatch(/conflicts? in 1 path.*apps\/api\/src\/routes\/x\.ts/s);
+  });
+
+  it("fails closed when the branch shares no history with the base", () => {
+    const r = makeRepo({ "docs/ownership.md": realRules });
+    r.git("checkout", "-q", "--orphan", "ws/api");
+    r.git("rm", "-rqf", ".");
+    r.write("apps/api/src/routes/ping.ts", "export {};\n");
+    const pr = r.commit("unrelated history");
+    r.git("checkout", "-q", "main");
+    const judged = quietMain(["--branch", "ws/api", "--base", r.mainSha, "--head", pr, "--repo", r.dir]);
+    expect(judged.code).toBe(1);
+    expect(judged.out).toMatch(/share no history/);
+    expect(judged.out).not.toMatch(/all within/);
+  });
+
   it("reads paths NUL-separated: a non-ASCII name is not quoted into a path nobody owns", () => {
     const r = makeRepo({ "docs/ownership.md": realRules });
     r.git("checkout", "-q", "-b", "ws/qa");
@@ -1000,6 +1157,19 @@ describe("the gate on GitHub: .github/workflows/ownership.yml", { timeout: 60_00
       const ok = runGate(r, docs, "ws/qa");
       expect(ok.code, ok.out).toBe(0);
       expect(ok.out).toContain("all within WS-QA");
+    },
+  );
+
+  it.skipIf(!bash)(
+    "with main's real checker: a PR with two merge bases, whose merge would revert WS-PPCORE, fails",
+    () => {
+      const { r, p1, p2, attack } = crissCross();
+      const run = runGate(r, attack, "ws/api");
+      expect(run.code, run.out).toBe(1);
+      expect(run.out).toMatch(/2 merge bases/);
+      expect(run.out).toContain(p1);
+      expect(run.out).toContain(p2);
+      expect(run.out).not.toMatch(/all within/);
     },
   );
 });

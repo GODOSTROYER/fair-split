@@ -4,7 +4,9 @@
 # the default branch: the checker and the rules that judge a PR are main's, never the PR's. A PR cannot edit,
 # skip or weaken the check that judges it, as it could a step in ci.yml (pull_request runs the PR's own copy).
 # The job never checks out, installs or runs the PR's code. It fetches the PR's commits as data, and only git
-# reads them (`git diff`, `git ls-tree`); no step runs pnpm or any file from the PR.
+# reads them (`git merge-base`, `git merge-tree --write-tree`, `git diff`, `git ls-tree`): the checker judges what
+# merging the PR into main would change, and fails closed when the two have more than one merge base. No step
+# runs pnpm or any file from the PR.
 #
 # This file is one of the gate's files (GATE_FILES in tools/check-ownership.mjs): no branch may delete, rename or
 # retype it, and a change to it lands only when the merger approves exactly that version, so a merged PR cannot

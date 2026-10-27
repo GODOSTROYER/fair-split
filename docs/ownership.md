@@ -69,6 +69,12 @@ has no checker, if the rules cannot be read or parsed, or if git reports any err
 that commit", the PR fails. It never runs the PR's own copy, and it refuses PRs from forks. `ci.yml` runs no
 ownership check, because on `pull_request` GitHub runs the PR's own copy of `ci.yml`.
 
+The check judges the merge, not only the branch's diff: every path the branch changed since its merge base with
+`main`, every path the merged tree (`git merge-tree --write-tree`) changes on `main`, and every path the merge
+leaves conflicted. A branch with more than one merge base fails closed, because `git merge` then merges against a
+virtual base that no diff shows and can silently revert work already on `main`; merge `main`'s tip into the branch
+first, so that it is the only merge base.
+
 The merger runs the same check before every merge (CONTRIBUTING.md, "Merging"). While `main` has no ruleset, that
 run is the gate.
 

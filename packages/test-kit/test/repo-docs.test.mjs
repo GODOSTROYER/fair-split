@@ -82,6 +82,13 @@ describe("repo docs", () => {
       expect(rules).toContain(`\`${f}\``);
     }
     expect(rules).toContain("`pull_request_target`");
+    // The gate judges the merge, and refuses a branch with more than one merge base (ADR-0006 decision 8).
+    expect(rules).toContain("`git merge-tree --write-tree`");
+    expect(rules).toMatch(/more than one merge base fails closed/);
+    expect(contributing).toMatch(/more than one merge base,\s+it fails closed/);
+    expect(read("docs/adr/0006-ownership-gate-runs-from-main.md")).toMatch(
+      /8\. \*\*The gate judges the merge\.\*\*/,
+    );
     // The workstream is the branch name; the docs say so instead of implying an access-control boundary.
     expect(rules).toMatch(/does\s+not authenticate who pushed/);
     expect(rules).not.toMatch(/CI runs the PR's own copy|base commit's `tools\/check-ownership\.mjs`/);

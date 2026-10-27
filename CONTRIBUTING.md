@@ -82,6 +82,10 @@ git show main:tools/check-ownership.mjs > "$TMPDIR/check-ownership.main.mjs"
 node "$TMPDIR/check-ownership.main.mjs" --repo . --branch ws/<id> --base main --head ws/<id> --strict
 ```
 
+The check judges what merging the branch into `main` would change (the branch's own diff, the merged tree from
+`git merge-tree --write-tree`, and any conflicted paths). If the branch and `main` have more than one merge base,
+it fails closed: the workstream merges `main`'s tip into its branch first, then the merger reruns it.
+
 If the branch changes one of the gate's files, the check fails and prints a token. The merger reads that diff
 (`git diff main...ws/<id> -- docs/ownership.md tools/check-ownership.mjs .github/workflows/ownership.yml`) and,
 only if it is right, reruns the same command with `--approve-gate-change <token>`. The token covers exactly those

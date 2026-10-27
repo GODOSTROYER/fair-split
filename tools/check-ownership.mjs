@@ -2,13 +2,18 @@
 // Fails when a change touches a path its workstream does not own (docs/ownership.md).
 //
 // Usage:
-//   node tools/check-ownership.mjs --branch ws/qa --base origin/main      # diff <base>...HEAD via git
-//   node tools/check-ownership.mjs --branch ws/qa --base main --head ws/qa # diff <base>...<head>
+//   node tools/check-ownership.mjs --branch ws/qa --base origin/main      # judge merging HEAD into <base>
+//   node tools/check-ownership.mjs --branch ws/qa --base main --head ws/qa # judge merging <head> into <base>
 //   node tools/check-ownership.mjs --ws qa path/a path/b                  # explicit files (treated as edits)
 //   git diff --name-status main...HEAD | node tools/check-ownership.mjs --ws WS-QA --stdin
+// With --base, the changed paths are what merging <head> into <base> would bring, as `git merge` makes it
+// (mergeChanges): the branch's own diff since its merge base, every path the merged tree changes on <base>
+// (`git merge-tree --write-tree`), and every path the merge leaves conflicted. Base and head must have exactly one
+// merge base; with several, git merge merges against a virtual base that no diff shows, so the check fails closed
+// and asks for the base's tip to be merged into the branch first.
 // Options:
 //   --repo <dir>            repository to diff and read rules from (default: the script's parent directory)
-//   --head <ref>            with --base: the commit to judge (default HEAD); the diff is <base>...<head>
+//   --head <ref>            with --base: the commit to judge (default HEAD), merged into <base>
 //   --ownership-ref <ref>   read docs/ownership.md from this commit. With --base it defaults to the base, so
 //                           a PR is judged by the base's rules and cannot widen its own row. It fails closed
 //                           (exit 1) unless the base copy is read and parsed. The one exception is bootstrap:
@@ -365,7 +370,8 @@ export function parseArgs(argv) {
     else if (a === "--help" || a === "-h") opts.help = true;
     else opts.files.push(a);
   }
-  if (opts.head && !opts.base) throw new Error("--head needs --base (the diff is <base>...<head>)");
+  if (opts.head && !opts.base)
+    throw new Error("--head needs --base (<head> is judged as merged into <base>)");
   if (opts.approveGateChange && !/^[0-9a-f]{16}$/.test(opts.approveGateChange)) {
     throw new Error("--approve-gate-change takes the 16-hex-digit token the checker printed");
   }
@@ -491,6 +497,93 @@ export function loadOwnership({ repo, ref, file, head }) {
   }
 }
 
+/** An error that refuses to judge (the check fails closed), as opposed to one that stops it from reading. */
+class Refusal extends Error {}
+
+const isObjectId = (s) => typeof s === "string" && /^[0-9a-f]{40,64}$/.test(s);
+
+/**
+ * The changes that merging commit `headSha` into commit `baseSha` brings, as `git merge` (ort) would make them:
+ * - the branch's own changes, `git diff -M <merge base> <head>`;
+ * - every path the merged tree changes on the base, `git diff -M <base> <tree>` with `<tree>` from
+ *   `git merge-tree --write-tree`, so a file that the merge moves by following a rename on the base is judged
+ *   where git puts it;
+ * - every path the merge leaves conflicted (status M unless already listed): the merger resolves those.
+ * A conflict does not stop the check: whatever the merger picks at a conflicted path is one side's version, and
+ * the branch's side is judged above.
+ * Throws a Refusal unless the two commits have exactly one merge base. With several (a criss-cross history),
+ * git merge merges against a virtual base built from all of them, which no diff from one base shows. Such a
+ * history can be made on purpose: start at a main merge's first parent, merge its second parent with `-s ours`
+ * (its history without its tree), and merging that branch into main reverts the second parent's work while
+ * `git diff main...branch` shows none of it. `labels` name the two commits in messages.
+ * Returns { changes: [{status, path}], tree, mergeBase, conflicts: [path] }.
+ */
+export function mergeChanges(repo, baseSha, headSha, labels = { base: baseSha, head: headSha }) {
+  if (!isObjectId(baseSha) || !isObjectId(headSha)) throw new Error("mergeChanges takes two full commit ids");
+  const pair = `--base ${labels.base} (${baseSha}) and --head ${labels.head} (${headSha})`;
+  const found = gitTry(repo, ["merge-base", "--all", baseSha, headSha]);
+  const bases = found.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (found.status === 1 && bases.length === 0 && found.stderr === "") {
+    throw new Refusal(
+      `cannot judge this merge: ${pair} share no history (no merge base); git merge refuses them`,
+    );
+  }
+  if (found.status !== 0 || bases.length === 0 || !bases.every(isObjectId)) {
+    throw new Error(`git merge-base --all failed (${found.stderr.split("\n")[0] || `exit ${found.status}`})`);
+  }
+  if (bases.length > 1) {
+    throw new Refusal(
+      `cannot judge this merge: ${pair} have ${bases.length} merge bases (${bases.join(", ")}). git merge ` +
+        "would merge against a virtual base built from all of them, which no diff from one of them shows: such " +
+        "a merge can silently revert work that is already on the base. Merge the base's tip " +
+        `(${labels.base}, ${baseSha}) into the branch first, so that it is the only merge base, then rerun.`,
+    );
+  }
+  const [mergeBase] = bases;
+  const own = parseNameStatusZ(git(repo, ["diff", "--name-status", "-z", "-M", mergeBase, headSha]));
+
+  const merged = spawnSync(
+    "git",
+    ["merge-tree", "--write-tree", "-z", "--name-only", "--no-messages", baseSha, headSha],
+    {
+      cwd: repo,
+      encoding: "utf8",
+      env: GIT_ENV,
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 256 * 1024 * 1024,
+    },
+  );
+  // 0: clean, 1: conflicts; anything else is an error (merge-tree --write-tree needs git 2.38 or newer).
+  if (merged.status !== 0 && merged.status !== 1) {
+    const why =
+      String(merged.stderr || merged.error?.message || "").split("\n")[0] || `exit ${merged.status}`;
+    throw new Error(`git merge-tree --write-tree failed (${why}); git 2.38 or newer is needed`);
+  }
+  const fields = String(merged.stdout).split("\0");
+  if (fields.at(-1) === "") fields.pop();
+  const [tree, ...conflictedPaths] = fields;
+  if (!isObjectId(tree)) throw new Error("git merge-tree --write-tree printed no tree id");
+  const onBase = parseNameStatusZ(git(repo, ["diff", "--name-status", "-z", "-M", baseSha, tree]));
+
+  const changes = [];
+  const seen = new Set();
+  const add = (c) => {
+    const key = `${c.status}\0${c.path}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      changes.push(c);
+    }
+  };
+  for (const c of [...own, ...onBase]) add(c);
+  const conflicts = [...new Set(conflictedPaths.map(normalize))];
+  const listed = new Set(changes.map((c) => c.path));
+  for (const path of conflicts) if (!listed.has(path)) add({ status: "M", path });
+  return { changes, tree, mergeBase, conflicts };
+}
+
 /**
  * The approval token for a change to the gate's files: the first 16 hex digits of a SHA-256 over each changed
  * gate path with its status and its tree entry (mode and blob id) at `headSha`. Any further edit to those files,
@@ -564,28 +657,32 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   const extra = [];
   try {
     if (opts.base) {
+      const head = opts.head ?? "HEAD";
       const baseSha = commitOf(repo, opts.base);
-      headSha = commitOf(repo, opts.head ?? "HEAD");
+      headSha = commitOf(repo, head);
       if (!baseSha) throw new Error(`--base ${opts.base} is not a commit in ${repo}`);
-      if (!headSha) throw new Error(`--head ${opts.head ?? "HEAD"} is not a commit in ${repo}`);
-      const diff = git(repo, [
-        "diff",
-        "--name-status",
-        "-z",
-        "-M",
-        "--end-of-options",
-        `${baseSha}...${headSha}`,
-      ]);
-      changes = parseNameStatusZ(diff);
-      const tree = git(repo, ["ls-tree", "-r", "-z", "--full-tree", "--name-only", headSha]).split("\0");
-      extra.push(...caseCollisions(tree.filter(Boolean), changes));
+      if (!headSha) throw new Error(`--head ${head} is not a commit in ${repo}`);
+      const merge = mergeChanges(repo, baseSha, headSha, { base: opts.base, head });
+      changes = merge.changes;
+      if (merge.conflicts.length) {
+        console.warn(
+          `check-ownership: note: merging ${head} into ${opts.base} conflicts in ${merge.conflicts.length} ` +
+            `path(s), which the merger resolves; each is judged as a change: ${merge.conflicts.join(", ")}`,
+        );
+      }
+      // Letter-case collisions in the judged commit or in the tree the merge would produce.
+      const paths = (sha) =>
+        git(repo, ["ls-tree", "-r", "-z", "--full-tree", "--name-only", sha]).split("\0");
+      const tree = new Set([...paths(headSha), ...paths(merge.tree)].filter(Boolean));
+      extra.push(...caseCollisions([...tree], changes));
     } else if (opts.stdin) {
       changes = parseNameStatus(readFileSync(0, "utf8"));
     } else {
       changes = opts.files.map((path) => ({ status: "M", path }));
     }
   } catch (e) {
-    console.error(`check-ownership: cannot read the changed paths: ${e.message}`);
+    const what = e instanceof Refusal ? "" : "cannot read the changed paths: ";
+    console.error(`check-ownership: ${what}${e.message}`);
     return 1;
   }
 
