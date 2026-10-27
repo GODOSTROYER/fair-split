@@ -1,4 +1,10 @@
-import type { ApprovalRole, OfficerKey, SignedApproval } from "@fairsplit/contracts";
+import type {
+  ApprovalRole,
+  EngineHold,
+  HoldResolutionKind,
+  OfficerKey,
+  SignedApproval,
+} from "@fairsplit/contracts";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { TEST_RULES } from "./__fixtures__/world.js";
@@ -16,7 +22,7 @@ import {
   requiresChair,
 } from "./approval.js";
 import { sha256Hex } from "./canon.js";
-import { linesRootSha256 } from "./engine.js";
+import { linesRootSha256, overrideCount } from "./engine.js";
 import { ed25519FromSeed, ed25519Sign } from "./sig.js";
 
 const RC = "a".repeat(64);
@@ -552,6 +558,41 @@ describe("R5: who must co-sign", () => {
     expect(
       requiresChair({ batchTotalCents: 100, lineAmountsCents: [100], overrides: 1 }, cosign).reasons,
     ).toEqual(["OVERRIDE"]);
+  });
+
+  it("overrideCount counts the resolutions R5 calls overrides: TWO_DELIVERIES, CONFIRM_AS_READ on a rate or injection hold", () => {
+    const hold = (kind: EngineHold["kind"], resolution: EngineHold["resolution"]): EngineHold => ({
+      key: `${kind}:x`,
+      kind,
+      gate: "BLOCKS_APPROVAL",
+      state: resolution ? "RESOLVED" : "OPEN",
+      memberNo: "M-001",
+      serials: [],
+      rowIds: [],
+      documentIds: [],
+      params: {},
+      resolution,
+    });
+    const by = (kind: HoldResolutionKind) => ({ kind, by: "treasurer:analyn", at: NOW.toISOString() });
+    expect(overrideCount([])).toBe(0);
+    expect(
+      overrideCount([
+        hold("DUPLICATE_SLIP", by("COUNT_ONCE")),
+        hold("IMPLAUSIBLE_YIELD", by("REGISTER_PLOT")),
+        hold("NO_RULE", by("RETURN_AS_CREDIT")),
+        hold("LOW_CONFIDENCE", by("CONFIRM_AS_READ")),
+        hold("RATE_MISMATCH", by("EXCLUDE_LINE")),
+        hold("SUSPECTED_INJECTION", null),
+      ]),
+    ).toBe(0);
+    expect(
+      overrideCount([
+        hold("DUPLICATE_SLIP", by("TWO_DELIVERIES")),
+        hold("RATE_MISMATCH", by("CONFIRM_AS_READ")),
+        hold("SUSPECTED_INJECTION", by("CONFIRM_AS_READ")),
+        hold("NO_RULE", by("APPLY_RULE")),
+      ]),
+    ).toBe(3);
   });
 
   it("property: the treasurer alone is enough only below every threshold", () => {

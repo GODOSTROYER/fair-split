@@ -285,14 +285,15 @@ function plateComputed(p: ProofBundle, c: ProofCrypto): PlateResult {
 const revokedBy = (revokedAt: string | null, at: string) =>
   revokedAt !== null && !(Date.parse(revokedAt) > Date.parse(at));
 
-// 5 Two keys: the treasurer always signs and the Chair co-signs above the card's thresholds (R5).
-// Each signature is over this batch and these lines (its `linesDigest` is the lines root of every
-// member line, cash included), recorded by an `approval.signed` entry after its key's
-// `key.registered` entry, and verifies against the key the officer registry publishes for that key
-// ID, role and approver (passed in from outside the bundle). The bundle's keys, in the approval or
-// in the ledger, are never trusted. Seeded or demo keys make the plate a sample (demo mode only):
-// `keyIdIsSample` decides from the published kind, and the ledger's own registration or the key ID
-// can only add to that.
+// 5 Two keys: the treasurer always signs and the Chair co-signs above the card's thresholds and,
+// when the card says so, for any override the run's computation records (R5: `overrides` on its
+// `lines.computed` entry). Each signature is over this batch and these lines (its `linesDigest` is
+// the lines root of every member line, cash included), recorded by an `approval.signed` entry after
+// its key's `key.registered` entry, and verifies against the key the officer registry publishes for
+// that key ID, role and approver (passed in from outside the bundle). The bundle's keys, in the
+// approval or in the ledger, are never trusted. Seeded or demo keys make the plate a sample (demo
+// mode only): `keyIdIsSample` decides from the published kind, and the ledger's own registration or
+// the key ID can only add to that.
 function plateTwoKeys(
   p: ProofBundle,
   c: ProofCrypto,
@@ -303,7 +304,12 @@ function plateTwoKeys(
   const items = p.batch.items;
   const total = sumOf(items.map((i) => i.amountCents));
   const cosign = p.rateCard.canonical.rules.cosign;
-  const needsChair = total > cosign.batchOverCents || items.some((i) => i.amountCents > cosign.lineOverCents);
+  const computed = computedEntry(p);
+  if (!computed) return fail("No computation for this run is in the chain.");
+  const needsChair =
+    total > cosign.batchOverCents ||
+    items.some((i) => i.amountCents > cosign.lineOverCents) ||
+    (cosign.anyOverride && computed.payload.overrides > 0);
   const roles = p.approvals.map((a) => a.role);
   if (!roles.includes("treasurer")) return fail("The treasurer's signature is missing.");
   if (needsChair && !roles.includes("chair")) return fail("The Chair's co-signature is missing.");

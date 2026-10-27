@@ -36,6 +36,7 @@ import {
   lineCanonical,
   linesDigest,
   linesRootSha256,
+  overrideCount,
   paypalRequestId,
   publishedFees,
   quarantineNotice,
@@ -369,8 +370,9 @@ export function buildSnapshot(): Built {
     sign("chair", SEEDED_KEY_IDS.chair, chair.persona, TIMELINE.chairSigned),
   ];
   const note = batchNote(SEASON.label, digest.batchSha256);
+  const overrides = overrideCount(resolved.holds);
   const chairNeeded = requiresChair(
-    { batchTotalCents: digest.totalCents, lineAmountsCents: items.map((i) => i.amountCents), overrides: 0 },
+    { batchTotalCents: digest.totalCents, lineAmountsCents: items.map((i) => i.amountCents), overrides },
     rules.cosign,
   );
 
@@ -591,6 +593,7 @@ export function buildSnapshot(): Built {
         netCents: c.netCents,
         onRailNetCents: c.onRailNetCents,
         balanced: c.balanced,
+        overrides: overrideCount(resolved.holds),
       },
       TIMELINE.computed,
       engine,

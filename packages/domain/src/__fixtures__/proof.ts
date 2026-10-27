@@ -17,7 +17,7 @@ import {
 } from "../batch.js";
 import { sha256Hex } from "../canon.js";
 import { buildLedger, type LedgerFact, signCheckpoint } from "../chain.js";
-import { computeLines, lineCanonical, linesRootSha256 } from "../engine.js";
+import { computeLines, lineCanonical, linesRootSha256, overrideCount } from "../engine.js";
 import { quoteInvoice } from "../quote.js";
 import { ed25519FromSeed, ed25519Sign } from "../sig.js";
 import { input, member, row, TEST_LOT, testCard } from "./world.js";
@@ -176,6 +176,7 @@ export function honestProof(): ProofBundle {
         netCents: out.conservation.netCents,
         onRailNetCents: out.conservation.onRailNetCents,
         balanced: out.conservation.balanced,
+        overrides: overrideCount(out.holds),
       },
       T("02:05:00"),
       { actorKind: "engine", actorId: "engine v1" },

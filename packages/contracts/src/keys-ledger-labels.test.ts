@@ -464,6 +464,7 @@ describe("ledger payloads the Proof binds (S3.12)", () => {
       netCents: 421_817,
       onRailNetCents: 36_839,
       balanced: true,
+      overrides: 0,
     },
     "approval.signed": {
       runId: "run-1",
@@ -502,6 +503,16 @@ describe("ledger payloads the Proof binds (S3.12)", () => {
       expect(r.success, `${kind}: ${r.success ? "" : r.error.message}`).toBe(true);
       expect(schema.safeParse({ ...(samples[kind] as object), extra: 1 }).success, kind).toBe(false);
     }
+  });
+
+  it("lines.computed carries the run's override count, so Proof can hold R5's override co-sign", () => {
+    const schema = LedgerPayloads["lines.computed"];
+    const { overrides: _dropped, ...without } = samples["lines.computed"] as Record<string, unknown>;
+    expect(schema.safeParse(without).success).toBe(false);
+    for (const bad of [-1, 1.5, "1", null]) {
+      expect(schema.safeParse({ ...without, overrides: bad }).success, String(bad)).toBe(false);
+    }
+    expect(schema.safeParse({ ...without, overrides: 2 }).success).toBe(true);
   });
 
   it("types webhook.applied by resource", () => {

@@ -25668,11 +25668,12 @@
           "bonusPoolCents": 138600,
           "netCents": 421817,
           "onRailNetCents": 36839,
-          "balanced": true
+          "balanced": true,
+          "overrides": 0
         },
         "at": "2026-10-29T02:07:03.000Z",
         "prevHash": "d526bde254a32165ed35f1d844b097fcad9a89b1823c32713da21d9d64e09bc4",
-        "entryHash": "dc96fcf3590444c3610d1c31e1a720efba426e29a9340f0d2b540b658e6ae1a5"
+        "entryHash": "761b2c7944b5162543b6c20d93724eb59005d991170fa3038ca5e446cce44055"
       },
       {
         "seq": 79,
@@ -25689,8 +25690,8 @@
           "nonce": "1f2418376b72858738e21e7b5ecb7dda"
         },
         "at": "2026-10-29T02:09:00.000Z",
-        "prevHash": "dc96fcf3590444c3610d1c31e1a720efba426e29a9340f0d2b540b658e6ae1a5",
-        "entryHash": "4f8c454eaaa69b9d63b19c5fa04a228453263fd10c9a1f5c15cdc74091ce4024"
+        "prevHash": "761b2c7944b5162543b6c20d93724eb59005d991170fa3038ca5e446cce44055",
+        "entryHash": "560062ccca13a116513bfe4a1ea59d4a6eb5657aeec9fcff8b02d7d34a4c6fc1"
       },
       {
         "seq": 80,
@@ -25707,8 +25708,8 @@
           "nonce": "64270e822e054bdde38a2fcdf5710952"
         },
         "at": "2026-10-29T02:10:31.000Z",
-        "prevHash": "4f8c454eaaa69b9d63b19c5fa04a228453263fd10c9a1f5c15cdc74091ce4024",
-        "entryHash": "f07e1128adeea3b17754b107b8adae49edbfe31882a1f9b87f518beccf682321"
+        "prevHash": "560062ccca13a116513bfe4a1ea59d4a6eb5657aeec9fcff8b02d7d34a4c6fc1",
+        "entryHash": "01134032cf35ca53237edd0b3e3d438d7fce039beac755f2a1b69c5625ed849c"
       },
       {
         "seq": 81,
@@ -25725,8 +25726,8 @@
           "note": "Fair Split 2026-A, batch 0f839be7"
         },
         "at": "2026-10-29T02:10:35.000Z",
-        "prevHash": "f07e1128adeea3b17754b107b8adae49edbfe31882a1f9b87f518beccf682321",
-        "entryHash": "502806a22c3c8b4e4c215ae93fba06a0ec2ef1604d6c93e3ab249f81063f3239"
+        "prevHash": "01134032cf35ca53237edd0b3e3d438d7fce039beac755f2a1b69c5625ed849c",
+        "entryHash": "d4b7489a9faf44cfd28bcaf3991bea23da80feffb0f98928f428f9fcd69205fb"
       },
       {
         "seq": 82,
@@ -25745,8 +25746,8 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:10:52.000Z",
-        "prevHash": "502806a22c3c8b4e4c215ae93fba06a0ec2ef1604d6c93e3ab249f81063f3239",
-        "entryHash": "035c3f1dcddc221fff3a11f08d31b0cc93acdfc4e8405b1dbf21e03722b5c879"
+        "prevHash": "d4b7489a9faf44cfd28bcaf3991bea23da80feffb0f98928f428f9fcd69205fb",
+        "entryHash": "41762ab76daef269cfb9342c003137669655fa7c37d1409ed32d767921f43b9a"
       },
       {
         "seq": 83,
@@ -25765,8 +25766,8 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:11:04.000Z",
-        "prevHash": "035c3f1dcddc221fff3a11f08d31b0cc93acdfc4e8405b1dbf21e03722b5c879",
-        "entryHash": "c154b05ad0b0e0185a27464e4bf81569145f24188350de9de305c19152984b8d"
+        "prevHash": "41762ab76daef269cfb9342c003137669655fa7c37d1409ed32d767921f43b9a",
+        "entryHash": "96b9fae2eb2d14362fb90ced5ae9c2059fbe41aeeafaf4f3df4965b1486e90c9"
       },
       {
         "seq": 84,
@@ -25785,8 +25786,8 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:11:09.000Z",
-        "prevHash": "c154b05ad0b0e0185a27464e4bf81569145f24188350de9de305c19152984b8d",
-        "entryHash": "d735f128e713adac1695a47a13259620339b963af6aea2e0d7f83f267264018d"
+        "prevHash": "96b9fae2eb2d14362fb90ced5ae9c2059fbe41aeeafaf4f3df4965b1486e90c9",
+        "entryHash": "f7aa3503857b99ef22bf24e3bab71cce0e86923b51437cb899d0824a4005ad80"
       },
       {
         "seq": 85,
@@ -25805,8 +25806,8 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:11:15.000Z",
-        "prevHash": "d735f128e713adac1695a47a13259620339b963af6aea2e0d7f83f267264018d",
-        "entryHash": "a700b1838fc1b96075b144fa8f0f403d07a75cf91d057f7c77686be0073b065e"
+        "prevHash": "f7aa3503857b99ef22bf24e3bab71cce0e86923b51437cb899d0824a4005ad80",
+        "entryHash": "fece4d46f0c034fd2f27bd9cd19d28e6509fcf41b095704dc049115c85336976"
       },
       {
         "seq": 86,
@@ -25825,8 +25826,8 @@
           "status": "UNCLAIMED"
         },
         "at": "2026-10-29T02:11:20.000Z",
-        "prevHash": "a700b1838fc1b96075b144fa8f0f403d07a75cf91d057f7c77686be0073b065e",
-        "entryHash": "2cb7e2d9583511932bc6fbc904300fc5f86b47327d9128352e5e234308244cc2"
+        "prevHash": "fece4d46f0c034fd2f27bd9cd19d28e6509fcf41b095704dc049115c85336976",
+        "entryHash": "80f3ef6cc494b0d519806c1dc33479231c122ecfed12f2563880464bf8c81003"
       },
       {
         "seq": 87,
@@ -25845,8 +25846,8 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:11:31.000Z",
-        "prevHash": "2cb7e2d9583511932bc6fbc904300fc5f86b47327d9128352e5e234308244cc2",
-        "entryHash": "4dccd0cbc0bc813d2abe57c791faafcb9f806bec5393f721ccd07151074bff8c"
+        "prevHash": "80f3ef6cc494b0d519806c1dc33479231c122ecfed12f2563880464bf8c81003",
+        "entryHash": "895873c35082fc0f221eb10923707120d995ea6bd57da433e56e7586fd966188"
       },
       {
         "seq": 88,
@@ -25865,8 +25866,8 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:12:01.000Z",
-        "prevHash": "4dccd0cbc0bc813d2abe57c791faafcb9f806bec5393f721ccd07151074bff8c",
-        "entryHash": "dcce7c51fa08a8c4d1dc83b8f87a9f69ff62ec21ed59c7b777b088425847802b"
+        "prevHash": "895873c35082fc0f221eb10923707120d995ea6bd57da433e56e7586fd966188",
+        "entryHash": "00140bcea37b03cee7250d7aedbfd58d9608521778a2d6b91b0f92b932406fac"
       },
       {
         "seq": 89,
@@ -25880,8 +25881,8 @@
           "afterCancel": "cash"
         },
         "at": "2026-10-29T02:12:30.000Z",
-        "prevHash": "dcce7c51fa08a8c4d1dc83b8f87a9f69ff62ec21ed59c7b777b088425847802b",
-        "entryHash": "c101cc2199515a794d7c5b2dd336dc3f72eea51c9c9a9d199e0d1a00feb9fc97"
+        "prevHash": "00140bcea37b03cee7250d7aedbfd58d9608521778a2d6b91b0f92b932406fac",
+        "entryHash": "2eca0e36a2d7005ecf1cfe14af8f10d87617206150d50c2ceeda62a9bf116683"
       },
       {
         "seq": 90,
@@ -25900,8 +25901,8 @@
           "status": "RETURNED"
         },
         "at": "2026-10-29T02:12:44.000Z",
-        "prevHash": "c101cc2199515a794d7c5b2dd336dc3f72eea51c9c9a9d199e0d1a00feb9fc97",
-        "entryHash": "06ea3c165c364443b3aa790deeb4b6f556e5c20386ce12a03edae2b71613d12b"
+        "prevHash": "2eca0e36a2d7005ecf1cfe14af8f10d87617206150d50c2ceeda62a9bf116683",
+        "entryHash": "e763074885c4c04fbb30121ead0adfe61781bc7a634f5a187571cd7db0cf0bc8"
       },
       {
         "seq": 91,
@@ -25920,18 +25921,18 @@
           "status": "SUCCESS"
         },
         "at": "2026-10-29T02:13:47.000Z",
-        "prevHash": "06ea3c165c364443b3aa790deeb4b6f556e5c20386ce12a03edae2b71613d12b",
-        "entryHash": "3ab01bb770f6ef4cfc9ed000e0a3584e0f7925036e26c92b12e783c989320b4e"
+        "prevHash": "e763074885c4c04fbb30121ead0adfe61781bc7a634f5a187571cd7db0cf0bc8",
+        "entryHash": "60dff1890d03d50c0ab441dfa9fd219149a84e3b3bf72129d07b3eb7fc20af79"
       }
     ],
     "checkpoint": {
       "v": 1,
       "runId": "01a1852b-c280-792f-8540-bc7919b9823f",
       "seq": 91,
-      "entryHash": "3ab01bb770f6ef4cfc9ed000e0a3584e0f7925036e26c92b12e783c989320b4e",
+      "entryHash": "60dff1890d03d50c0ab441dfa9fd219149a84e3b3bf72129d07b3eb7fc20af79",
       "at": "2026-10-29T02:15:00.000Z",
       "keyId": "fs-ledger-s1",
-      "signatureHex": "029c06aaa81935c3eb56492111e56c3983b5f6ef195c8c871cb52f0c3777e71b61d060e479a9681757f8d963ae44c463fd4c21913d568ca715d6bb196ff95d04"
+      "signatureHex": "a6bbec6dfd13b1a7f207fd9482b1360f444d6e6f344a7609bcbfd57a9c43f4d4a754eddc47d5b030ff15e256ae536cf184502427fc8f28a8e0bed46351faa904"
     }
   },
   "publishedKeys": {

@@ -785,6 +785,8 @@ describe("the Proof bundle is bound to its ledger (S3.12)", () => {
       netCents: 421_817,
       onRailNetCents: 36_839,
       balanced: true,
+      // H1 COUNT_ONCE, H2 REGISTER_PLOT, H3 RETURN_AS_CREDIT and 0462 by hand: no override (R5).
+      overrides: 0,
     });
     expect(attestedEntries(p.ledger, "payout.submitting").map((e) => e.payload)).toEqual([
       {

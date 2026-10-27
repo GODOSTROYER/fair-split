@@ -465,6 +465,37 @@ describe("verifyChain(proof): the chain and the six Proof plates", () => {
     expect(v.plates.twoKeys).toEqual({ ok: true, reason: null });
     expect(v.plates.ratified.ok).toBe(false);
   });
+
+  it("inv.i6.override-cosign: a run with an override needs the Chair's key on Proof too (R5)", () => {
+    // The review's failing input: a run under both thresholds, one TWO_DELIVERIES resolution, signed
+    // by the treasurer alone. The computation in the chain carries its override count.
+    const p = honestProof();
+    const lenientCard = (anyOverride: boolean) => {
+      const cosign = {
+        ...p.rateCard.canonical.rules.cosign,
+        batchOverCents: 99_999_999,
+        lineOverCents: 99_999_999,
+        anyOverride,
+      };
+      return { ...p.rateCard.canonical, rules: { ...p.rateCard.canonical.rules, cosign } };
+    };
+    const run = (overrides: number, anyOverride = true, approvals = p.approvals.slice(0, 1)) => {
+      const ledger = buildLedger(
+        p.ledger.map((e) =>
+          e.kind === "lines.computed" ? { ...e, payload: { ...(e.payload as object), overrides } } : e,
+        ),
+      );
+      const rateCard = { ...p.rateCard, canonical: lenientCard(anyOverride) };
+      return verify(withCheckpoint({ ...p, ledger, rateCard, approvals }));
+    };
+    expect(attestedEntries(p.ledger, "lines.computed")[0]?.payload.overrides).toBe(0);
+    expect(run(0).plates.twoKeys).toEqual({ ok: true, reason: null });
+    expect(run(1).plates.twoKeys).toEqual({ ok: false, reason: "The Chair's co-signature is missing." });
+    expect(run(3).plates.twoKeys.ok).toBe(false);
+    // With the Chair's key the override is covered; a card that does not ask for it needs no Chair.
+    expect(run(1, true, p.approvals).plates.twoKeys).toEqual({ ok: true, reason: null });
+    expect(run(1, false).plates.twoKeys).toEqual({ ok: true, reason: null });
+  });
 });
 
 // ------------------------------------------------------------------ both keys bind the cash lines

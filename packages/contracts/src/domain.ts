@@ -776,6 +776,12 @@ export const LedgerPayloads = {
     netCents: Cents,
     onRailNetCents: Cents,
     balanced: z.boolean(),
+    /**
+     * Hold resolutions in this computation that R5 calls overrides (domain `overrideCount`:
+     * TWO_DELIVERIES, or CONFIRM_AS_READ on a RATE_MISMATCH or SUSPECTED_INJECTION hold). With the
+     * card's `cosign.anyOverride`, any override makes Proof plate 5 require the Chair's key.
+     */
+    overrides: z.int().nonnegative(),
   }),
   /** Appended with the approval, by the approver: the entry's actorId is `approverId`. */
   "approval.signed": z.strictObject({
