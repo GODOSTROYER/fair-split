@@ -15,6 +15,12 @@ catalogs:
     '@biomejs/biome':
       specifier: 2.6.2
       version: 2.6.2
+    '@hono/node-server':
+      specifier: 2.1.5
+      version: 2.1.5
+    '@hono/zod-openapi':
+      specifier: 1.6.3
+      version: 1.6.3
     '@noble/curves':
       specifier: 2.4.0
       version: 2.4.0
@@ -201,6 +207,103 @@ importers:
       turbo:
         specifier: 'catalog:'
         version: 2.11.10
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.10.1)(jsdom@30.1.2(@noble/hashes@2.4.0))(msw@3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  apps/api:
+    dependencies:
+      '@fairsplit/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@fairsplit/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@fairsplit/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@fairsplit/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@fairsplit/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@fairsplit/outbox':
+        specifier: workspace:*
+        version: link:../../packages/outbox
+      '@fairsplit/paypal-core':
+        specifier: workspace:*
+        version: link:../../packages/paypal-core
+      '@fairsplit/paypal-payouts':
+        specifier: workspace:*
+        version: link:../../packages/paypal-payouts
+      '@fairsplit/paypal-toolkit':
+        specifier: workspace:*
+        version: link:../../packages/paypal-toolkit
+      '@fairsplit/seed':
+        specifier: workspace:*
+        version: link:../../packages/seed
+      '@hono/node-server':
+        specifier: 'catalog:'
+        version: 2.1.5(hono@4.13.13)
+      '@hono/zod-openapi':
+        specifier: 'catalog:'
+        version: 1.6.3(hono@4.13.13)(zod@4.6.7)
+      '@renderinc/sdk':
+        specifier: 'catalog:'
+        version: 1.3.0(@opentelemetry/api@1.10.0)
+      canonicalize:
+        specifier: 'catalog:'
+        version: 5.1.0
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.10.0)(pg@8.23.1)(postgres@3.4.9)
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.13
+      pino:
+        specifier: 'catalog:'
+        version: 10.4.0
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
+      sharp:
+        specifier: 'catalog:'
+        version: 0.35.5(@types/node@24.10.1)
+      ts-pattern:
+        specifier: 'catalog:'
+        version: 5.9.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@noble/curves':
+        specifier: 'catalog:'
+        version: 2.4.0
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.1
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
+      embedded-postgres:
+        specifier: 'catalog:'
+        version: 17.10.0-beta.17
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
+      msw:
+        specifier: 'catalog:'
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.1(tsx@4.23.15)(typescript@6.0.3)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -402,13 +505,34 @@ importers:
       '@fairsplit/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@fairsplit/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@fairsplit/seed':
+        specifier: workspace:*
+        version: link:../seed
+      '@noble/curves':
+        specifier: 'catalog:'
+        version: 2.4.0
+      canonicalize:
+        specifier: 'catalog:'
+        version: 5.1.0
       eventsource-parser:
         specifier: 'catalog:'
         version: 4.1.2
+      msw:
+        specifier: 'catalog:'
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.1
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -932,6 +1056,11 @@ packages:
   '@asamuzakjp/dom-selector@9.2.4':
     resolution: {integrity: sha512-YnVzxDxLaqL0t7Q4wfcgHZjg55Wm6y5EaO7Bhu3q9J7wq/8iw3PhsnWiOQhYekx4VexnbkgWpTT6n+QIV7kczw==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
+
+  '@asteasolutions/zod-to-openapi@9.1.0':
+    resolution: {integrity: sha512-pLMeRgRYS7/vZIgAAkOe2P6+XGTifR1MT9pqDoxZ11EmcJJ+DPmdPqLN8ZZF4U8R9KHCCQCS9c2wtuE8wSrfkw==}
+    peerDependencies:
+      zod: ^4.0.0
 
   '@azu/format-text@1.0.2':
     resolution: {integrity: sha512-Swi4N7Edy1Eqq82GxgEECXSSLyn6GOb5htRFPzBDdUkECGXtlf12ynO5oJSpWKPwCaUssOu7NfhDcCWpIC6Ywg==}
@@ -1697,6 +1826,19 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
+
+  '@hono/zod-openapi@1.6.3':
+    resolution: {integrity: sha512-VYR82Y60plu8g3pN60OUXMVKpmxh3R04Qs++3DY9vtwZ9/sA/BRY0PcRIR+Z37/3itWtM7pYwT9bKiH9JhqV6Q==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      hono: '>=4.10.0'
+      zod: ^4.0.0
+
+  '@hono/zod-validator@0.9.1':
+    resolution: {integrity: sha512-iiv6w0qrIc0arfvCtUqBWsvl4fXjzaTcQcCJTTtCnkawF9HHGE+KjEl0ox3gQJ6rKZEgE3mLExlQCF72M+mNuw==}
+    peerDependencies:
+      hono: '>=4.11.2'
+      zod: ^3.25.0 || ^4.0.0
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3972,6 +4114,9 @@ packages:
   openapi-typescript-helpers@0.0.15:
     resolution: {integrity: sha512-opyTPaunsklCBpTK8JGef6mfPhLSnyy5a0IN9vKtx3+4aExf+KxEqYwIy3hqkedXIB97u357uLMJsOnm3GVjsw==}
 
+  openapi3-ts@4.6.2:
+    resolution: {integrity: sha512-gyyil3DweqhXiEhTqtAs9wwRLfWHmetwhI4kmM5Rn0d6gtmK863Ki7qqbQnp9+Wwlqoe3B1LFWj7kMp5ctE4rQ==}
+
   os@0.1.2:
     resolution: {integrity: sha512-ZoXJkvAnljwvc56MbvhtKVWmSkzV712k42Is2mA0+0KTSRakq5XXuXpjZjgAt9ctzl51ojhQWakQQpmOvXWfjQ==}
 
@@ -5092,6 +5237,11 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
+  '@asteasolutions/zod-to-openapi@9.1.0(zod@4.6.7)':
+    dependencies:
+      openapi3-ts: 4.6.2
+      zod: 4.6.7
+
   '@azu/format-text@1.0.2': {}
 
   '@azu/style-format@1.0.1':
@@ -5610,6 +5760,19 @@ snapshots:
   '@hono/node-server@2.1.5(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
+
+  '@hono/zod-openapi@1.6.3(hono@4.13.13)(zod@4.6.7)':
+    dependencies:
+      '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.6.7)
+      '@hono/zod-validator': 0.9.1(hono@4.13.13)(zod@4.6.7)
+      hono: 4.13.13
+      openapi3-ts: 4.6.2
+      zod: 4.6.7
+
+  '@hono/zod-validator@0.9.1(hono@4.13.13)(zod@4.6.7)':
+    dependencies:
+      hono: 4.13.13
+      zod: 4.6.7
 
   '@img/colour@1.1.0': {}
 
@@ -7628,6 +7791,10 @@ snapshots:
       openapi-typescript-helpers: 0.0.15
 
   openapi-typescript-helpers@0.0.15: {}
+
+  openapi3-ts@4.6.2:
+    dependencies:
+      yaml: 2.9.1
 
   os@0.1.2: {}
 
