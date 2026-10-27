@@ -5,15 +5,12 @@
 import { type ServerType, serve } from "@hono/node-server";
 import type { Logger } from "pino";
 import { API_VERSION, createApp, type FairSplitApp } from "./app.js";
-import {
-  createCredentialKeys,
-  createCredentialResolver,
-  dbCredentialStore,
-} from "./credentials/verify/index.js";
+import { createCredentialKeys, createCredentialResolver } from "./credentials/verify/index.js";
 import { openDataLayer, wireOutbox } from "./db.js";
 import { type ApiEnv, type EnvSource, parseEnv } from "./env.js";
 import { systemClock } from "./lib/clock.js";
 import type { AppDeps } from "./lib/context.js";
+import { appCredentialStore } from "./lib/credential-store.js";
 import { dbIdempotencyStore } from "./lib/idempotency.js";
 import { createKeyedRateLimiter } from "./lib/rate-limit.js";
 import { createLogger } from "./middleware/logger.js";
@@ -39,7 +36,7 @@ export async function startServer(source: EnvSource = process.env): Promise<Runn
   const ppLimiter = dbPayPalLimiter(data.limiter);
   const paypal = createPayPalRail({ paypal: env.paypal, limiter: ppLimiter, recorder: ppLimiter, logger });
   const keys = createCredentialKeys(env.secrets);
-  const store = dbCredentialStore(data.database.db);
+  const store = appCredentialStore(data.database.db);
   const clock = systemClock;
   const deps: AppDeps = {
     env,

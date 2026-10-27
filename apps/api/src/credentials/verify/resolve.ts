@@ -172,10 +172,14 @@ function invalid(p: ApiProblem): ResolveResult {
   return { kind: "invalid", problem: p };
 }
 
-/** The production store: frame_tokens joined with workspaces. Revocation of links is a gap (see SPLIT.md). */
+/**
+ * The production store: frame_tokens joined with workspaces. Link revocation is required, never defaulted: a
+ * store without it would keep honouring revoked member and brand links (fail-open). fs-api passes the judge
+ * slice's ledger-backed check through `appCredentialStore(db)` (src/lib/credential-store.ts).
+ */
 export function dbCredentialStore(
   db: Db,
-  opts: { isLinkRevoked?: (jti: string) => Promise<boolean> } = {},
+  opts: { isLinkRevoked: (jti: string) => Promise<boolean> },
 ): CredentialStore {
   const ft = schema.frameTokens;
   const ws = schema.workspaces;
@@ -207,7 +211,7 @@ export function dbCredentialStore(
         .limit(1);
       return !!row;
     },
-    isLinkRevoked: opts.isLinkRevoked ?? (async () => false),
+    isLinkRevoked: opts.isLinkRevoked,
   };
 }
 
