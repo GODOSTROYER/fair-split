@@ -1,14 +1,20 @@
 // S3.6.4 step 3 under concurrency (the STATE.md security entry of 27 Oct). A failed approval check
 // voids the approvals the service checked, named by their nonces, and only while they are still the
 // run's live approvals and the run is APPROVED; the void takes its turn in the service's write queue;
-// an infrastructure fault in the signature check voids nothing. The mirror on the write side: a
+// an infrastructure fault in the officer key registry voids nothing. The mirror on the write side: a
 // primary batch's rows are written (APPROVED → POSTING) only while the approvals that were checked
 // are still live, so an executor that read the run before a void and a re-sign cannot post the old
 // lines.
 
+import { linesDigest } from "@fairsplit/domain";
 import { describe, expect, it, vi } from "vitest";
-import type { ApprovedLine, PayoutsRepository, SignedApproval, SubmittedBatch } from "../src/index.js";
-import { referenceLinesDigest } from "./support/digest.js";
+import type {
+  ApprovedLine,
+  OfficerKey,
+  PayoutsRepository,
+  SignedApproval,
+  SubmittedBatch,
+} from "../src/index.js";
 import {
   approvalsFor,
   created,
@@ -142,17 +148,17 @@ describe("a failed check voids only the approvals it checked, and only while the
   });
 });
 
-describe("an infrastructure fault in the signature check voids nothing", () => {
-  it("a check that cannot reach the key registry throws: the post rejects, nothing voided, written or sent", async () => {
+describe("an infrastructure fault in the officer key registry voids nothing", () => {
+  it("a registry that cannot be read throws: the post rejects, nothing voided, written or sent", async () => {
     const { repo, nonces } = await approvedRun();
-    const verify = vi.fn(async (): Promise<boolean> => {
+    const officerKeys = vi.fn(async (): Promise<readonly OfficerKey[]> => {
       throw new Error("device_keys unavailable");
     });
-    const { service } = makeService(repo, { verifyApprovalSignature: verify });
+    const { service } = makeService(repo, { officerKeys });
 
     await expect(service.executeApproved(RUN_ID)).rejects.toThrow("device_keys unavailable");
 
-    expect(verify).toHaveBeenCalled();
+    expect(officerKeys).toHaveBeenCalledWith(RUN_ID);
     expect(repo.events).toEqual([]);
     expect(repo.liveNonces(RUN_ID)).toEqual(nonces);
     expect(repo.runStates.get(RUN_ID)).toBe("APPROVED");
@@ -170,12 +176,13 @@ describe("an infrastructure fault in the signature check voids nothing", () => {
     ['"yes"', "yes"],
     ["1", 1],
     ["null", null],
+    ["one row, not a list", { keyId: "fs-analyn-w1" }],
   ])(
-    "a check that answers %s, not true or false, is a fault: nothing voided or sent",
+    "a registry read that answers %s, not a list, is a fault: nothing voided or sent",
     async (_label, answer) => {
       const { repo, nonces } = await approvedRun();
       const { service } = makeService(repo, {
-        verifyApprovalSignature: async () => answer as unknown as boolean,
+        officerKeys: async () => answer as unknown as readonly OfficerKey[],
       });
       await expect(service.executeApproved(RUN_ID)).rejects.toThrow(TypeError);
       expect(repo.events).toEqual([]);
@@ -202,7 +209,7 @@ describe("the write's compare-and-set: rows only under approvals that are still 
       l.memberNo === "M-014" ? { ...l, amountCents: l.amountCents + 100n } : l,
     );
     const editedMembers = withEditedLine("M-014");
-    const s2 = await approvalsFor(edited, { linesDigest: referenceLinesDigest(editedMembers) });
+    const s2 = await approvalsFor(edited, { linesDigest: linesDigest(editedMembers) });
     onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
     // Meanwhile a late check voids S1 (IN_REVIEW), M-014's line is edited, and both keys sign S2.
     const late = makeService(repo, { now: () => LATE }).service;

@@ -1,6 +1,5 @@
 import { type PayoutLimits, PayoutsService, type PayoutsServiceDeps } from "../../src/index.js";
-import { registeredKeyVerifier } from "./approvals.js";
-import { referenceBatchDigest, referenceLinesDigest } from "./digest.js";
+import { OFFICER_KEYS } from "./approvals.js";
 import { NOW } from "./fixtures.js";
 import { RealPayPalHttp } from "./http.js";
 import type { MemoryPayoutsRepo } from "./repo.js";
@@ -30,9 +29,7 @@ export function makeService(repo: MemoryPayoutsRepo, extra: Partial<PayoutsServi
   const service = new PayoutsService({
     http: new RealPayPalHttp(),
     repo,
-    batchDigest: referenceBatchDigest,
-    linesDigest: referenceLinesDigest,
-    verifyApprovalSignature: registeredKeyVerifier(),
+    officerKeys: async () => OFFICER_KEYS,
     killSwitch: async () => false,
     limits: JUDGE_LIMITS,
     sleep: async (ms) => void sleeps.push(ms),

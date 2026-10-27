@@ -1,16 +1,40 @@
 // IC-06 PayoutsService: the only caller of create_payout_batch and cancel_unclaimed_payout_item
 // (register §8 rules, S3 §S3.6.4). A post: kill switch (read fresh) → the batch and every member
-// line re-read from the database, both digests recomputed (I4) → every approval checked against them:
-// run, season, card, batch digest, lines digest (the cash lines too), count, total, exp, nonce, two
-// people where R5 needs the Chair, and an Ed25519 signature by a registered key (I6); a failed check
-// voids exactly the approvals checked, while they are still the run's → sandbox guards (receivers,
-// US$400, 8 items; for a new batch the daily cap and the balance, read in one turn with the write) →
-// batch and item rows written as SUBMITTED, only under approvals still live → POST with
-// PayPal-Request-Id = sha256(sender_batch_id) → 5xx/timeouts retried with the same ids, the kill
-// switch re-read before each retry → "already exists" adopted through the HATEOAS link only if every
-// listed item re-hashes to the approved digest. Nothing here trusts a line, an amount or an approval
-// the caller hands in.
+// line re-read from the database, both digests recomputed with WS-CORE's own functions (domain
+// `batchDigest` and `linesDigest`, I4) → every approval checked by domain `checkApprovals` against an
+// expectation per role: the signer looked up in the officer key registry (`expectedSigner`), the
+// run, season, card, batch digest, lines digest (the cash lines too), count and total; exp, an unspent
+// nonce, two people with two distinct keys where R5 (`requiresChair`, overrides by `overrideCount`)
+// needs the Chair, and an Ed25519 signature by the registered key (I6). A failed check voids exactly
+// the approvals checked, while they are still the run's → sandbox guards (receivers, US$400, 8 items;
+// for a new batch the daily cap and the balance, read in one turn with the write) → batch and item
+// rows written as SUBMITTED, only under approvals still live → POST with PayPal-Request-Id =
+// sha256(sender_batch_id) → 5xx/timeouts retried with the same ids, the kill switch re-read before
+// each retry → "already exists" adopted through the HATEOAS link only if every listed item re-hashes
+// to the approved digest. Nothing here trusts a line, an amount or an approval the caller hands in.
 
+import {
+  type Actor,
+  type ApprovalRole,
+  type BatchItem,
+  type EngineHold,
+  HOLD_KINDS,
+  HoldResolutionKind,
+  type OfficerKey,
+  type RateCardRules,
+  SignedApproval,
+} from "@fairsplit/contracts";
+import {
+  type ApprovalCheckCode,
+  type ApprovalExpectation,
+  type BatchRun,
+  batchDigest,
+  checkApprovals,
+  expectedSigner,
+  linesDigest,
+  overrideCount,
+  requiresChair,
+} from "@fairsplit/domain";
 import type {
   CallPriority,
   PayPalFailure,
@@ -18,16 +42,6 @@ import type {
   PayPalHttp,
   PayPalResult,
 } from "@fairsplit/paypal-core";
-import type { Actor, ApprovalRole, SignedApproval } from "./_shims/contracts.js";
-import {
-  type BatchDigestFn,
-  type BatchDigestRun,
-  type CosignRule,
-  type LinesDigestFn,
-  type MemberLineHash,
-  type PayoutItemSpec,
-  requiresChair,
-} from "./_shims/domain.js";
 import { type FairSplitPayoutBatch, fairSplitPayoutBatch } from "./fair-split-schema.js";
 import {
   type CreatePayoutBatchResponse,
@@ -56,8 +70,6 @@ import { PayoutsApiError } from "./tools.js";
 
 /** Retry the same request at 1 s, 3 s and 9 s (S3 §S3.6.4); after that the sweeper owns it. */
 export const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000, 9_000];
-/** S3.8: an approval's `exp` is at most 30 minutes after it was signed. */
-export const APPROVAL_MAX_TTL_MS = 30 * 60 * 1000;
 /** PayPal's limit on items per batch. */
 export const PAYPAL_MAX_BATCH_ITEMS = 15_000;
 const CONTEXT: Context = { sandbox: true };
@@ -71,6 +83,16 @@ const MAX_SAFE_CENTS = BigInt(Number.MAX_SAFE_INTEGER);
 const CANCEL_ACTOR_KINDS: ReadonlySet<Actor["kind"]> = new Set(["human", "system"]);
 
 // ---- what the service reads ------------------------------------------------------------------
+
+/** One member line of the run, on or off rail, as its stored hash: what domain `linesDigest` reads. */
+export interface MemberLineHash {
+  memberNo: string;
+  /** The line's lineSha256 as the database holds it: 64 lowercase hex characters. */
+  lineSha256: string;
+}
+
+/** A hold of the run as the database holds it: R5's overrides are domain `overrideCount` over these. */
+export type RunHold = Pick<EngineHold, "kind" | "resolution">;
 
 /** An on-rail line as the database holds it at the moment of the POST. */
 export interface ApprovedLine {
@@ -91,13 +113,19 @@ export interface PayoutRunFacts {
   seasonId: string;
   rateCardSha256: string;
   /** R5 of the ratified card: when the Chair must co-sign. */
-  cosign: CosignRule;
+  cosign: RateCardRules["cosign"];
   /**
    * Every member line of the run, on and off rail (the cash lines too), as `{memberNo, lineSha256}`
-   * stored now. The service recomputes `linesDigest` from them with the injected IC-02 function, and
-   * every approval must have signed exactly that (I4: the approved plan's amendment to register §8).
+   * stored now. The service recomputes domain `linesDigest` over exactly these pairs, and every
+   * approval must have signed exactly that (I4: the approved plan's amendment to register §8).
    */
   memberLines: readonly MemberLineHash[];
+  /**
+   * The nonces the database holds as spent for this run: every voided approval's (`voided_at` set).
+   * Domain `checkApprovals` refuses an approval whose nonce is among them (NONCE_REUSED), so an
+   * approval once voided never authorises a write again.
+   */
+  spentNonces: readonly string[];
 }
 
 /** Batch and item rows already written as SUBMITTED: when, and the digest they carry. */
@@ -112,8 +140,11 @@ export interface PostingSnapshot extends PayoutRunFacts {
   lines: readonly ApprovedLine[];
   /** The run's approvals that are not voided, exactly as signed. */
   approvals: readonly SignedApproval[];
-  /** Hold overrides the run carries (R5: any override needs the Chair). */
-  overrides: number;
+  /**
+   * Every hold of the run, with its resolution: R5's overrides are domain `overrideCount` over them,
+   * and any override needs the Chair.
+   */
+  holds: readonly RunHold[];
   /** Set when an earlier attempt wrote the batch rows: the post resumes with the same ids. */
   submitted: SubmittedMark | null;
 }
@@ -170,8 +201,16 @@ export type BatchOutcome =
   /**
    * Nothing was sent (or, for ADOPT_FAILED, nothing new was created): HALT or wait. QUEUED and
    * CIRCUIT_OPEN come after the rows were written as SUBMITTED; a later call resumes the same ids.
+   * `check` names the domain `checkApprovals` refusal behind an approval refusal: S3.6.4 step 3
+   * answers DIGEST_MISMATCH (or APPROVALS_MISSING), and `check` says which check failed.
    */
-  | { kind: "refused"; code: RefusalCode; reason: string; senderBatchId: string | null }
+  | {
+      kind: "refused";
+      code: RefusalCode;
+      reason: string;
+      senderBatchId: string | null;
+      check?: ApprovalCheckCode;
+    }
   /** A synchronous 4xx (e.g. INSUFFICIENT_FUNDS): PayPal created nothing. The run goes to DENIED. */
   | {
       kind: "rejected";
@@ -403,21 +442,17 @@ export interface PayoutsServiceDeps {
    */
   http: PayPalHttp;
   repo: PayoutsRepository;
-  /** IC-02 `batchDigest(run, items)`; the service only compares. */
-  batchDigest: BatchDigestFn;
-  /** IC-02 `linesDigest(lines)` over every member line of the run; the service only compares. */
-  linesDigest: LinesDigestFn;
   /**
-   * True only if the approval's Ed25519 signature verifies against the approver's registered,
-   * unrevoked `device_keys` row (IC-02 `approvalSignatureValid`, never the approval's own
-   * publicKeyHex) and that key belongs to `payload.approverId` for that role. Everything else about
-   * the approval is checked here. It resolves false ONLY for an unknown, revoked or misattributed key
-   * or a signature that does not verify, and a false voids the approvals (S3.6.4 step 3). An
-   * infrastructure fault (the key registry unreadable, a timeout) must throw instead: the post then
-   * rejects with nothing voided, written or sent, and a later call checks again. Any answer but a
-   * boolean is taken for such a fault.
+   * The officer key registry of the run's workspace, read fresh for every check: `device_keys` joined
+   * with each officer's role, revoked keys included (with `revokedAt`), as domain `expectedSigner`
+   * reads it. It is the only trust anchor: the key an approval presents only selects a row, and its
+   * signature is verified against that row's public key, never the approval's own. A key the registry
+   * does not hold for the role, a revoked or seeded key, or a row whose kind does not fit its ID is an
+   * unknown signer, which voids the approvals (S3.6.4 step 3). An infrastructure fault (the registry
+   * unreadable, a timeout) must throw instead: the post then rejects with nothing voided, written or
+   * sent, and a later call checks again. Any answer but a list is taken for such a fault.
    */
-  verifyApprovalSignature: (approval: SignedApproval) => Promise<boolean>;
+  officerKeys: (runId: string) => Promise<readonly OfficerKey[]>;
   /** `kill_payouts` / `kill_paypal_live` / FS_KILL, read fresh before every POST, retries included. */
   killSwitch: () => Promise<boolean>;
   limits: PayoutLimits;
@@ -442,12 +477,13 @@ interface PostSpec {
   reroute: RerouteOf | null;
   lines: readonly ApprovedLine[];
   approvals: readonly SignedApproval[];
-  overrides: number;
+  /** The run's holds (R5 overrides); none for a re-route, whose run was co-signed for them already. */
+  holds: readonly RunHold[];
   submitted: SubmittedMark | null;
 }
 
 interface PostContext {
-  run: BatchDigestRun;
+  run: BatchRun;
   senderBatchId: string;
   requestId: string;
   digest: string;
@@ -461,18 +497,25 @@ interface Refusal {
 /** Why the approvals do not authorise the batch the database holds (S3.6.4 step 3). */
 interface ApprovalRefusal extends Refusal {
   code: "DIGEST_MISMATCH" | "APPROVALS_MISSING";
+  /** The domain `checkApprovals` refusal behind it; absent for an approval that is not one at all. */
+  check?: ApprovalCheckCode;
 }
 
-const refused = (code: RefusalCode, reason: string, senderBatchId: string | null): BatchOutcome => ({
+const refused = (
+  code: RefusalCode,
+  reason: string,
+  senderBatchId: string | null,
+  check?: ApprovalCheckCode,
+): BatchOutcome => ({
   kind: "refused",
   code,
   reason,
   senderBatchId,
+  ...(check === undefined ? {} : { check }),
 });
 
 const CHANGED = "The batch changed after it was signed. Nothing was sent.";
-/** WS-CORE's wording for a linesDigest that no longer matches (domain `checkApproval`). */
-const LINES_CHANGED = "A line changed after it was signed. Nothing was sent.";
+const NOT_AN_APPROVAL = "An approval is not a signed approval of the register's payload. Nothing was sent.";
 const NO_LONGER_APPROVED =
   "The run is no longer approved under these approvals. Nothing was written or sent.";
 
@@ -555,6 +598,7 @@ function validateLines(lines: readonly ApprovedLine[]): string | null {
   if (lines.length < 1 || lines.length > PAYPAL_MAX_BATCH_ITEMS)
     return `A batch holds 1 to 15,000 items, not ${lines.length}`;
   const members = new Set<string>();
+  let total = 0n;
   for (const line of lines) {
     if (line.currency !== "USD") return `${line.memberNo}: payouts are USD only`;
     if (typeof line.amountCents !== "bigint" || line.amountCents <= 0n || line.amountCents > MAX_SAFE_CENTS)
@@ -563,7 +607,10 @@ function validateLines(lines: readonly ApprovedLine[]): string | null {
       return `${line.memberNo}: recipient_type is EMAIL only`;
     if (members.has(line.memberNo)) return `${line.memberNo} appears twice`;
     members.add(line.memberNo);
+    total += line.amountCents;
   }
+  // The digest and the approvals carry cents as JSON numbers: the total must be exact as one.
+  if (total > MAX_SAFE_CENTS) return "The batch total is too large to sign";
   return null;
 }
 
@@ -590,12 +637,30 @@ function validateMemberLines(
   return null;
 }
 
-/** An injected IC-02 digest must answer a sha256; anything else is a fault, never a mismatch. */
-function expectSha256(value: unknown, what: string): string {
-  if (typeof value !== "string" || !SHA256_HEX.test(value)) {
-    throw new TypeError(`${what} must return 64 lowercase hex characters`);
+const HOLD_KIND_SET: ReadonlySet<string> = new Set(HOLD_KINDS);
+const RESOLUTION_KIND_SET: ReadonlySet<string> = new Set(HoldResolutionKind.options);
+
+/** A hold as `overrideCount` reads it: a known kind, and no resolution or a known one. */
+function isRunHold(hold: unknown): hold is RunHold {
+  if (hold === null || typeof hold !== "object") return false;
+  const { kind, resolution } = hold as { kind?: unknown; resolution?: unknown };
+  if (typeof kind !== "string" || !HOLD_KIND_SET.has(kind)) return false;
+  if (resolution === null) return true;
+  const resolved = (resolution ?? {}) as { kind?: unknown };
+  return typeof resolved.kind === "string" && RESOLUTION_KIND_SET.has(resolved.kind);
+}
+
+/**
+ * What the approval check reads besides the approvals: the spent nonces as strings, and the holds
+ * R5 counts overrides over, each one readable (an unknown resolution would count as no override).
+ */
+function validateCheckFacts(facts: PayoutRunFacts, holds: readonly RunHold[]): string | null {
+  const spent: unknown = facts.spentNonces;
+  if (!Array.isArray(spent) || spent.some((n) => typeof n !== "string")) {
+    return "The run's spent approval nonces were not read";
   }
-  return value;
+  if (!Array.isArray(holds) || !holds.every(isRunHold)) return "The run's holds were not read";
+  return null;
 }
 
 /** The nonces that name these approvals' rows (approvals.nonce is UNIQUE), each once. */
@@ -644,12 +709,20 @@ function requireFunction<T>(value: T, what: string): T {
   return value;
 }
 
+/** A batch item as domain `batchDigest` hashes it (number cents: JCS has no bigint). */
+function toBatchItem(item: Pick<SubmittedItem, "senderItemId" | "receiver" | "amountCents">): BatchItem {
+  return {
+    senderItemId: item.senderItemId,
+    receiver: item.receiver,
+    amountCents: Number(item.amountCents),
+    currency: "USD",
+  };
+}
+
 export class PayoutsService {
   readonly #http: PayPalHttp;
   readonly #repo: PayoutsRepository;
-  readonly #digest: BatchDigestFn;
-  readonly #linesDigest: LinesDigestFn;
-  readonly #verifySignature: (approval: SignedApproval) => Promise<boolean>;
+  readonly #officerKeys: (runId: string) => Promise<readonly OfficerKey[]>;
   readonly #killSwitch: () => Promise<boolean>;
   readonly #limits: PayoutLimits;
   readonly #delays: readonly number[];
@@ -662,9 +735,7 @@ export class PayoutsService {
   constructor(deps: PayoutsServiceDeps) {
     this.#http = deps.http;
     this.#repo = deps.repo;
-    this.#digest = requireFunction(deps.batchDigest, "the IC-02 batch digest");
-    this.#linesDigest = requireFunction(deps.linesDigest, "the IC-02 lines digest");
-    this.#verifySignature = requireFunction(deps.verifyApprovalSignature, "an approval signature check");
+    this.#officerKeys = requireFunction(deps.officerKeys, "the officer key registry");
     this.#killSwitch = requireFunction(deps.killSwitch, "the kill switch");
     this.#limits = assertLimits(deps.limits);
     this.#delays = deps.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
@@ -686,7 +757,7 @@ export class PayoutsService {
       reroute: null,
       lines: snapshot.lines,
       approvals: snapshot.approvals,
-      overrides: snapshot.overrides,
+      holds: snapshot.holds,
       submitted: snapshot.submitted,
     });
   }
@@ -776,7 +847,7 @@ export class PayoutsService {
         },
       ],
       approvals: request.approvals,
-      overrides: 0,
+      holds: [],
       submitted,
     });
   }
@@ -811,18 +882,19 @@ export class PayoutsService {
       if (error instanceof PayoutIdError) return refused("INVALID_BATCH", error.message, null);
       throw error;
     }
-    const invalid = validateLines(spec.lines) ?? validateMemberLines(facts.memberLines, spec.lines);
+    const invalid =
+      validateLines(spec.lines) ??
+      validateMemberLines(facts.memberLines, spec.lines) ??
+      validateCheckFacts(facts, spec.holds);
     if (invalid) return refused("INVALID_BATCH", invalid, senderBatchId);
 
-    // I4: the approved digests are the payout. Re-hash what the database holds now: the batch
-    // (batchSha256 binds the PayPal items) and every member line (linesDigest binds the cash lines too).
-    const run: BatchDigestRun = { runId: facts.runId, senderBatchId, rateCardSha256: facts.rateCardSha256 };
-    const digest = expectSha256(await this.#digest(run, items.map(toSpec)), "The IC-02 batch digest");
-    const linesDigest = expectSha256(
-      await this.#linesDigest(
-        facts.memberLines.map(({ memberNo, lineSha256 }) => ({ memberNo, lineSha256 })),
-      ),
-      "The IC-02 lines digest",
+    // I4: the approved digests are the payout. Re-hash what the database holds now, with WS-CORE's
+    // own functions: the batch (domain `batchDigest`: batchSha256 binds the PayPal items) and every
+    // member line (domain `linesDigest` over exactly {memberNo, lineSha256}: it binds the cash lines).
+    const run: BatchRun = { runId: facts.runId, senderBatchId, rateCardSha256: facts.rateCardSha256 };
+    const digest = batchDigest(run, items.map(toBatchItem)).batchSha256;
+    const lines = linesDigest(
+      facts.memberLines.map(({ memberNo, lineSha256 }) => ({ memberNo, lineSha256 })),
     );
     const totalCents = items.reduce((sum, i) => sum + i.amountCents, 0n);
     if (spec.submitted && spec.submitted.batchSha256 !== digest) {
@@ -837,7 +909,7 @@ export class PayoutsService {
     const nonces = approvalNonces(spec.approvals);
     const gate = await this.#checkApprovals(spec, {
       digest,
-      linesDigest,
+      linesDigest: lines,
       itemCount: items.length,
       totalCents,
       at,
@@ -860,7 +932,7 @@ export class PayoutsService {
         };
         await this.#exclusive(() => this.#repo.voidApprovals(voided));
       }
-      return refused(gate.code, gate.reason, senderBatchId);
+      return refused(gate.code, gate.reason, senderBatchId, gate.check);
     }
 
     const guard = this.#guard(items, totalCents);
@@ -957,91 +1029,73 @@ export class PayoutsService {
   }
 
   /**
-   * I6 inside the service: who must have signed is derived from database facts (R5), and every
-   * approval must sign exactly this batch and these member lines (`linesDigest`), be unexpired at
-   * `at`, carry its own nonce, and verify against a registered key. The treasurer and the Chair are
-   * two people with two keys. A signature check that throws (an infrastructure fault) rejects the post
-   * from here, before anything is voided.
+   * I6 inside the service, with WS-CORE's own check (domain `checkApprovals`). Who must have signed
+   * is derived from database facts: R5 `requiresChair` over the batch, its lines and the run's
+   * overrides (`overrideCount` over its holds). Each role's expectation is the signer the officer key
+   * registry holds for it (`expectedSigner`; the presented key ID only selects a row) and the batch
+   * re-hashed now: run, season, card, `batchSha256`, `linesDigest`, count and total. Then every
+   * approval must sign exactly that, be unexpired at `at`, carry its own nonce that the database does
+   * not hold as spent, and verify against the registry's key; the treasurer and the Chair are two
+   * people with two keys (distinct key IDs, public keys and approvers). A registry read that throws
+   * (an infrastructure fault) rejects the post from here, before anything is voided.
    */
   async #checkApprovals(
     spec: PostSpec,
     batch: { digest: string; linesDigest: string; itemCount: number; totalCents: bigint; at: Date },
   ): Promise<ApprovalRefusal | null> {
     const { facts } = spec;
-    const mismatch = (reason = CHANGED): ApprovalRefusal => ({ code: "DIGEST_MISMATCH", reason });
-    const at = batch.at.getTime();
-    const byRole = new Map<ApprovalRole, SignedApproval>();
-    const nonces = new Set<string>();
-    for (const approval of spec.approvals) {
-      const p = approval?.payload;
-      if (!p || approval.role !== p.role || (p.role !== "treasurer" && p.role !== "chair")) {
-        return mismatch("An approval's role does not match what it signed. Nothing was sent.");
-      }
-      if (
-        p.v !== 1 ||
-        p.runId !== facts.runId ||
-        p.seasonId !== facts.seasonId ||
-        p.rateCardSha256 !== facts.rateCardSha256 ||
-        p.batchSha256 !== batch.digest ||
-        p.itemCount !== batch.itemCount ||
-        !Number.isSafeInteger(p.totalCents) ||
-        BigInt(p.totalCents) !== batch.totalCents ||
-        p.currency !== "USD"
-      ) {
-        return mismatch();
-      }
-      // The cash lines are in no PayPal item: only linesDigest binds them (the plan's amendment).
-      if (p.linesDigest !== batch.linesDigest) return mismatch(LINES_CHANGED);
-      const exp = typeof p.exp === "string" ? Date.parse(p.exp) : Number.NaN;
-      if (Number.isNaN(exp) || exp <= at || exp - at > APPROVAL_MAX_TTL_MS) {
-        return mismatch("An approval expired before the batch was sent. Nothing was sent.");
-      }
-      if (typeof p.nonce !== "string" || p.nonce.length < 8 || nonces.has(p.nonce)) {
-        return mismatch("An approval's nonce was already used. Nothing was sent.");
-      }
-      nonces.add(p.nonce);
-      if (byRole.has(p.role)) return mismatch("One role signed twice. Nothing was sent.");
-      byRole.set(p.role, approval);
+    if (!spec.approvals.every((a) => SignedApproval.safeParse(a).success)) {
+      return { code: "DIGEST_MISMATCH", reason: NOT_AN_APPROVAL };
     }
-
-    const treasurer = byRole.get("treasurer");
-    if (!treasurer) return { code: "APPROVALS_MISSING", reason: "The treasurer's approval is missing" };
+    const registry: unknown = await this.#officerKeys(facts.runId);
+    if (!Array.isArray(registry)) {
+      throw new TypeError("officerKeys must list the registry's rows; a fault must throw");
+    }
+    const expected: Partial<Record<ApprovalRole, ApprovalExpectation>> = {};
+    const unknownSigner: Partial<Record<ApprovalRole, string>> = {};
+    for (const approval of spec.approvals) {
+      const { role } = approval;
+      if (expected[role] || unknownSigner[role]) continue; // one role signing twice: checkApprovals refuses it
+      const found = expectedSigner(registry as readonly OfficerKey[], role, approval.keyId, batch.at);
+      if (!found.ok) {
+        unknownSigner[role] = found.reason;
+        continue;
+      }
+      expected[role] = {
+        ...found.signer,
+        runId: facts.runId,
+        seasonId: facts.seasonId,
+        rateCardSha256: facts.rateCardSha256,
+        batchSha256: batch.digest,
+        linesDigest: batch.linesDigest,
+        itemCount: batch.itemCount,
+        totalCents: Number(batch.totalCents),
+        role,
+      };
+    }
     const chairRule = requiresChair(
       {
         batchTotalCents: Number(batch.totalCents),
         lineAmountsCents: spec.lines.map((l) => Number(l.amountCents)),
-        overrides: spec.overrides,
+        overrides: overrideCount(spec.holds),
       },
       facts.cosign,
     );
-    const chair = byRole.get("chair");
-    if (chairRule.required && !chair) {
-      return {
-        code: "APPROVALS_MISSING",
-        reason: `The Chair's co-signature is missing (R5: ${chairRule.reasons.join(", ")})`,
-      };
-    }
-    if (
-      chair &&
-      (chair.payload.approverId === treasurer.payload.approverId || chair.keyId === treasurer.keyId)
-    ) {
-      return {
-        code: "APPROVALS_MISSING",
-        reason: "The treasurer and the Chair must be two people with two keys",
-      };
-    }
-    for (const approval of byRole.values()) {
-      const valid: unknown = await this.#verifySignature(approval);
-      if (typeof valid !== "boolean") {
-        throw new TypeError("verifyApprovalSignature must answer true or false; a fault must throw");
-      }
-      if (!valid) {
-        return mismatch(
-          "An approval's signature does not verify against a registered key. Nothing was sent.",
-        );
-      }
-    }
-    return null;
+    const check = checkApprovals(
+      { approvals: spec.approvals, expected, chairRequired: chairRule.required },
+      batch.at,
+      new Set(facts.spentNonces),
+    );
+    if (check.ok) return null;
+    // A signer the registry does not hold is named as expectedSigner found it (revoked, seeded, …).
+    const stranger = spec.approvals.find((a) => !expected[a.role]);
+    const reason =
+      check.code === "KEY_NOT_REGISTERED" && stranger
+        ? (unknownSigner[stranger.role] ?? check.reason)
+        : check.reason;
+    // S3.6.4 step 3 answers DIGEST_MISMATCH; a missing or second-person co-signature is APPROVALS_MISSING.
+    const missing = check.code === "APPROVALS_MISSING" || check.code === "SIGNERS_NOT_DISTINCT";
+    return { code: missing ? "APPROVALS_MISSING" : "DIGEST_MISMATCH", reason, check: check.code };
   }
 
   #guard(items: SubmittedItem[], totalCents: bigint): string | null {
@@ -1253,13 +1307,15 @@ export class PayoutsService {
     // Nothing to re-hash yet: adopting now would trust the header total alone (not I4).
     if (items.length === 0) return unresolved("ADOPT_PENDING", last);
 
-    const specs: PayoutItemSpec[] = [];
+    const listed: BatchItem[] = [];
     for (const it of items) {
       const amountCents = readValueCents(it?.payout_item?.amount?.value);
       const senderItemId = it?.payout_item?.sender_item_id;
       const receiver = it?.payout_item?.receiver;
       if (
         amountCents === null ||
+        amountCents <= 0n ||
+        amountCents > MAX_SAFE_CENTS ||
         typeof senderItemId !== "string" ||
         senderItemId.length === 0 ||
         typeof receiver !== "string" ||
@@ -1267,10 +1323,9 @@ export class PayoutsService {
       ) {
         return fail("The existing batch has an item we cannot read");
       }
-      specs.push({ senderItemId, receiver, amountCents, currency: "USD" });
+      listed.push(toBatchItem({ senderItemId, receiver, amountCents }));
     }
-    specs.sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : a.senderItemId > b.senderItemId ? 1 : 0));
-    if ((await this.#digest(ctx.run, specs)) !== ctx.digest) {
+    if (rehash(ctx.run, listed) !== ctx.digest) {
       return fail("The existing batch differs from the approved digest");
     }
 
@@ -1450,11 +1505,14 @@ export class PayoutsService {
   }
 }
 
-function toSpec(item: SubmittedItem): PayoutItemSpec {
-  return {
-    senderItemId: item.senderItemId,
-    receiver: item.receiver,
-    amountCents: item.amountCents,
-    currency: item.currency,
-  };
+/**
+ * Domain `batchDigest` of the items PayPal lists for a batch, or null when no batch of ours can list
+ * them (the same sender_item_id twice): such a batch is never the approved one.
+ */
+function rehash(run: BatchRun, items: readonly BatchItem[]): string | null {
+  try {
+    return batchDigest(run, items).batchSha256;
+  } catch {
+    return null;
+  }
 }

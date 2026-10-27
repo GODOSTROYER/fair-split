@@ -10,9 +10,7 @@ IC-05 `PayPalHttp`.
 const payouts = new PayoutsService({
   http, // IC-05 PayPalHttp: WS-PPCORE's createPayPalHttp (it owns the 401 token refresh)
   repo, // IC-04 port
-  batchDigest, // IC-02: the PayPal items
-  linesDigest, // IC-02: every member line, cash lines included
-  verifyApprovalSignature, // Ed25519 against the registered device_keys row; throws on a fault
+  officerKeys, // (runId) => the officer key registry (device_keys joined with roles); throws on a fault
   killSwitch, // required: read fresh before every POST, retries included
   limits: {
     maxBatchTotalCents, // C-21: US$400
@@ -34,15 +32,23 @@ await runAgentPayoutTool({ http, payoutBatchIds, payoutItemIds }, name, input);
 
 `executeApproved(runId)` (register §8, S3 §S3.6.4) trusts nothing the caller hands in: kill switch →
 `repo.loadPosting(runId)` re-reads the LOCKED lines, every member line of the run (`memberLines`,
-`{memberNo, lineSha256}`, on and off rail) and the approvals → both digests recomputed with the injected
-IC-02 functions (I4; the plan's "both digests recomputed from the database"): `batchDigest` over the
-PayPal items and `linesDigest` over every member line → every approval must sign exactly that batch
-(run, season, card, digest, item count, total) and those lines (`linesDigest`, so a cash line changed
-after both keys signed is refused: "A line changed after it was signed. Nothing was sent."), be
-unexpired, carry its own nonce and verify against a registered key; the treasurer always signs, the
-Chair too when R5 says so, and they are two people (I6) → guards: receivers, total, items, and for a new
-batch the daily cap and the balance → batch and item rows written as SUBMITTED, only while the approvals
-checked are still live →
+`{memberNo, lineSha256}`, on and off rail), the run's holds, its spent nonces and the approvals → both
+digests recomputed with WS-CORE's own functions (I4; the plan's "both digests recomputed from the
+database"): domain `batchDigest` over the PayPal items and domain `linesDigest` over exactly
+`{memberNo, lineSha256}` of every member line → domain `checkApprovals`, against one
+`ApprovalExpectation` per role: the signer the officer key registry holds for it (domain
+`expectedSigner`: the presented key ID only selects a row; an unregistered, revoked or seeded key, a key
+of the other role or a row whose kind does not fit its ID is an unknown signer) and the batch as
+re-hashed now (run, season, card, `batchSha256`, `linesDigest`, item count, total). So every approval
+must sign exactly that batch and those lines (a cash line changed after both keys signed is refused: "A
+line changed after it was signed. Nothing was sent."), be unexpired, carry its own nonce that the
+database does not hold as spent, and verify against the registry's key; the treasurer always signs, the
+Chair too when R5 says so (`requiresChair`, its overrides counted by domain `overrideCount` over the
+run's holds), and they are two people with two keys: distinct key IDs, public keys and approvers (I6).
+The outcome's `check` names the `checkApprovals` refusal (`KEY_NOT_REGISTERED`, `SIGNERS_NOT_DISTINCT`,
+`NONCE_REUSED`, …) behind S3's `DIGEST_MISMATCH` (`APPROVALS_MISSING` for a missing or second-person
+co-signature) → guards: receivers, total, items, and for a new batch the daily cap and the balance →
+batch and item rows written as SUBMITTED, only while the approvals checked are still live →
 `POST /v1/payments/payouts` with `sender_batch_id` `{season}-{rc8}-r{runSeq}`, items `r{runSeq}-{memberNo}`,
 note "Fair Split 2026-A, batch {digest8}", `recipient_type: EMAIL`, USD, and
 `PayPal-Request-Id: sha256(sender_batch_id)` → on 5xx or timeout, the same request again at 1 s, 3 s,
@@ -64,12 +70,13 @@ repository applies it only while the run is APPROVED and every live approval of 
 an executor whose read went stale never voids a set signed after its read, nor the approvals another
 executor's rows were written under (the run is POSTING then). A resumed post voids nothing (its rows are
 SUBMITTED and PayPal may hold the batch: HALT), nor does a refused re-route (its approvals are its own).
-`verifyApprovalSignature` resolves false only for a bad key or signature; an infrastructure fault must
-throw, and the post then rejects with nothing voided, written or sent (an answer that is not a boolean is
-treated the same way, as is an IC-02 digest that does not return a sha256). Nonces:
-`executeApproved` reads approvals only from the database, where `approvals.nonce` is UNIQUE (S3 data
-model), and refuses a set that repeats one; a re-route's approvals must be stored the same way before
-`reroute` is called, and can only ever re-authorise the identical batch, whose ids PayPal dedupes.
+`officerKeys(runId)` answers the registry's rows; an infrastructure fault must throw, and the post then
+rejects with nothing voided, written or sent (an answer that is not a list is treated the same way).
+Nonces: `executeApproved` reads approvals only from the database, where `approvals.nonce` is UNIQUE (S3
+data model), refuses a set that repeats one, and passes the run's `spentNonces` (every voided approval's)
+to `checkApprovals`, so a voided approval never signs again; a re-route's approvals must be stored the
+same way before `reroute` is called, and can only ever re-authorise the identical batch, whose ids PayPal
+dedupes.
 
 **Daily cap and balance** (S3 §S3.6.4 step 4). A new batch, primary or re-route, goes out only while
 `postsInLast24h(now)` is under `maxPostsPer24h` (else `refused DAILY_CAP`) and the estimated balance less
@@ -114,8 +121,8 @@ the run, stalled while a check voided those approvals, a line was edited and bot
 cannot post the old lines although the run is APPROVED again.
 
 `createPayoutBatch` and `cancelUnclaimedPayoutItem` are not exported: money moves only through the
-service. IC-05 types come from `@fairsplit/paypal-core`; shims in `src/_shims/` still stand in for
-`domain` and `contracts` until WS-CORE merges.
+service. IC-05 types come from `@fairsplit/paypal-core`, the approval and hold shapes from
+`@fairsplit/contracts`, and the digests and the approval check from `@fairsplit/domain`.
 The agent's two read-tool schemas are checked in (`src/agent-read-schemas.ts`); `scripts/gen-read-schemas.ts`
 regenerates them with `scripts/zod-json-schema.ts`, a dev-only converter for exactly the zod those two
 schemas use, and a test fails on drift. `zod-to-json-schema` (pinned for the S2 fallback only) is not a
@@ -125,20 +132,19 @@ dependency.
 `test/support/repo.ts` is the reference behaviour):
 - **WS-DATA (IC-04).** `loadPosting` and `loadRun` return `memberLines`: `{memberNo, lineSha256}` for every
   `member_lines` row of the run, on and off rail, with `line_sha256` NOT NULL (a null hash is refused as
-  an invalid batch). `writeSubmitted` for a primary batch, in its one transaction: `UPDATE pay_runs SET
-  state = 'POSTING' WHERE id = $run AND state = 'APPROVED'` guarded by every `$approvalNonces` row being
-  the run's with `voided_at IS NULL`; no row updated and no rows under the sender_batch_id → write
-  nothing, return null. `voidApprovals`, in one transaction: move the run `APPROVED → IN_REVIEW` only if
-  `NOT EXISTS (live approval of the run whose nonce <> ALL($nonces))`; if it moved, `UPDATE approvals
-  SET voided_at = $at, void_reason = $reason WHERE run_id = $run AND nonce = ANY($nonces) AND voided_at
-  IS NULL`; otherwise write nothing.
+  an invalid batch); and `spentNonces`: the nonce of every approval of the run with `voided_at` set.
+  `loadPosting` also returns `holds`: every hold of the run as `{kind, resolution}` (contracts
+  `EngineHold`; `resolution` null while open), from which the service counts R5's overrides with domain
+  `overrideCount` (it no longer reads an `overrides` number). `writeSubmitted` for a primary batch, in its
+  one transaction: `UPDATE pay_runs SET state = 'POSTING' WHERE id = $run AND state = 'APPROVED'` guarded
+  by every `$approvalNonces` row being the run's with `voided_at IS NULL`; no row updated and no rows
+  under the sender_batch_id → write nothing, return null. `voidApprovals`, in one transaction: move the
+  run `APPROVED → IN_REVIEW` only if `NOT EXISTS (live approval of the run whose nonce <> ALL($nonces))`;
+  if it moved, `UPDATE approvals SET voided_at = $at, void_reason = $reason WHERE run_id = $run AND
+  nonce = ANY($nonces) AND voided_at IS NULL`; otherwise write nothing.
 - **WS-API and WS-OPS (whoever wires the service).** Every approval payload, the re-route's too, is built
-  with WS-CORE's `buildApprovalPayload`, its `linesDigest` computed by domain `linesDigest` from the same
-  member lines the repository returns. The injected `verifyApprovalSignature` throws on a registry fault
-  and resolves false only for a bad key or signature; `linesDigest` is a required dependency.
-- **Shim swap (after WS-CORE merges).** `ApprovalPayload`/`SignedApproval` from `@fairsplit/contracts`
-  (its `linesDigest` is a required `Sha256Hex`), `linesDigest` and `batchDigest` from
-  `@fairsplit/domain`. Then `#checkApprovals` can delegate to domain `checkApprovals` with one
-  `ApprovalExpectation` per role carrying the database-recomputed `batchSha256` and `linesDigest`, the
-  `device_keys` signer from `expectedSigner`, and the run's spent nonces; keep the R5 input, the void and
-  the write's compare-and-set here.
+  with domain `buildApprovalPayload`, its `linesDigest` computed by domain `linesDigest` from the same
+  member lines the repository returns. `officerKeys(runId)` reads the run's workspace registry from
+  `device_keys` joined with each officer's role, as contracts `OfficerKey` rows (revoked ones included,
+  with `revokedAt`), and throws on a fault. The `batchDigest`, `linesDigest` and
+  `verifyApprovalSignature` dependencies are gone: the service computes and checks with domain itself.
