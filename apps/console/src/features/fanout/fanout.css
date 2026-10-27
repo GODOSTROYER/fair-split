@@ -1,0 +1,419 @@
+/* W-TR-08 Run: the split fan (MM-6), the parked decision, the run log in three lanes and the latency dots.
+   Graphite is sent, jade is PayPal-confirmed money, canary is a person's decision, red only a PayPal failure,
+   hatch is cash with its word. Durations and easings from @fairsplit/motion's CSS variables. */
+
+.fsr-fanout {
+  display: grid;
+  gap: var(--fs-space-16);
+  min-width: 0;
+}
+
+.fsr-fanout__beds {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-fanout__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-8) var(--fs-space-24);
+}
+
+.fsr-fanout__head h2,
+.fsr-fanout__status {
+  margin: 0;
+}
+
+.fsr-fanout__status {
+  color: var(--fs-ink-2);
+}
+
+.fsr-fanout__figure {
+  padding-block: var(--fs-space-16);
+  border-block: 1px solid var(--fs-rule);
+}
+
+.fsr-fanout__share {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsr-fanout__rerouted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+/* ------------------------------------------------------------------ the fan */
+
+.fsr-fan {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.fsr-fan .fs-seal__ring {
+  stroke: var(--fs-ink-2);
+}
+
+.fsr-fan__bar {
+  fill: var(--fs-ink-3);
+}
+
+.fsr-fan__hatch-line {
+  fill: var(--fs-hatch);
+}
+
+.fsr-fan__band {
+  stroke: var(--fs-rule);
+  stroke-width: 1;
+}
+
+.fsr-fan__slice {
+  fill: url(#fsr-fan-hatch);
+  stroke: var(--fs-rule);
+  stroke-width: 0.5;
+}
+
+/* Cash handed over and attested: the slice turns from hatch to ink (never jade). */
+.fsr-fan__slice[data-attested] {
+  fill: var(--fs-ink);
+}
+
+.fsr-fan__label {
+  fill: var(--fs-ink-2);
+  font-family: var(--fs-font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsr-fan__label--band,
+.fsr-fan__label--moved {
+  fill: var(--fs-ink-2);
+}
+
+.fsr-fan__amount {
+  fill: var(--fs-ink);
+  font-weight: 600;
+}
+
+.fsr-fan__amount[data-amount-state="pencil"] {
+  fill: var(--fs-pencil);
+}
+
+.fsr-fan__amount[data-amount-state="hollow"] {
+  fill: none;
+  stroke: var(--fs-ink);
+  stroke-width: 0.8px;
+}
+
+/* A thread is drawn with pathLength 1: its dash offset is how much is still to go. */
+.fsr-fan__thread {
+  stroke: var(--fs-pencil);
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: calc(1 - var(--fsr-p, 0));
+  stroke-linecap: butt;
+}
+
+.fsr-fan__item[data-tone="landed"] .fsr-fan__thread {
+  stroke: var(--fs-jade);
+}
+
+/* Live only: sent threads draw to 70% (500 ms, staggered 40 ms); a confirmation runs on to 100% (300 ms) and
+   then turns jade (200 ms); a move to cash retracts the thread (300 ms). */
+.fsr-fan__thread[data-animate] {
+  transition:
+    stroke-dashoffset var(--fs-dur-thread) var(--fs-ease-out) var(--fsr-delay, 0ms),
+    stroke var(--fs-dur-crossfade) var(--fs-ease-out) var(--fsr-delay, 0ms);
+}
+
+.fsr-fan__item[data-tone="landed"] .fsr-fan__thread[data-animate] {
+  transition:
+    stroke-dashoffset var(--fs-dur-thread-complete) var(--fs-ease-out) var(--fsr-delay, 0ms),
+    stroke var(--fs-dur-crossfade) var(--fs-ease-out)
+    calc(var(--fsr-delay, 0ms) + var(--fs-dur-thread-complete));
+}
+
+.fsr-fan__item[data-tone="moved"] .fsr-fan__thread[data-animate] {
+  transition: stroke-dashoffset var(--fs-dur-thread-complete) var(--fs-ease-out) var(--fsr-delay, 0ms);
+}
+
+.fsr-fan__cap[data-tone="parked"] {
+  fill: var(--fs-canary);
+}
+
+.fsr-fan__cap[data-tone="failed"] {
+  fill: var(--fs-red);
+}
+
+.fsr-fan__parked rect {
+  fill: var(--fs-canary);
+}
+
+.fsr-fan__parked text {
+  fill: var(--fs-on-canary);
+  font-family: var(--fs-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The member stub: raised 3 px while the payment is in flight; PayPal's confirmation presses it flush, jade. */
+.fsr-fan__stub-edge {
+  fill: var(--fs-rule);
+}
+
+.fsr-fan__stub-face {
+  fill: var(--fs-plate);
+  stroke: var(--fs-ink-3);
+  stroke-width: 1;
+  transform: translate(-3px, -3px);
+}
+
+.fsr-fan__item[data-tone="landed"] .fsr-fan__stub-face {
+  fill: var(--fs-jade);
+  stroke: var(--fs-jade-flush-border);
+  transform: none;
+}
+
+.fsr-fan__item[data-tone="moved"] .fsr-fan__stub-face {
+  fill: url(#fsr-fan-hatch);
+  stroke: var(--fs-rule);
+  transform: none;
+}
+
+.fsr-fan__item[data-tone="unsent"] .fsr-fan__stub-face {
+  stroke-dasharray: 2 2;
+}
+
+.fsr-fan__stub[data-animate] .fsr-fan__stub-face {
+  transition:
+    transform var(--fs-spring-land-dur) var(--fs-spring-land)
+    calc(var(--fsr-delay, 0ms) + var(--fs-dur-thread-complete)),
+    fill var(--fs-dur-flood) var(--fs-ease-out) calc(var(--fsr-delay, 0ms) + var(--fs-dur-thread-complete));
+}
+
+/* Reduced motion: threads appear at 70%, completion is an instant colour change, no inset press. */
+.fsr-fan[data-motion="reduced"] .fsr-fan__thread[data-animate] {
+  transition: stroke var(--fs-dur-reduced) var(--fs-ease-out);
+}
+
+.fsr-fan[data-motion="reduced"] .fsr-fan__stub-face {
+  transform: none;
+}
+
+.fsr-fan[data-motion="reduced"] .fsr-fan__stub[data-animate] .fsr-fan__stub-face {
+  transition: fill var(--fs-dur-reduced) var(--fs-ease-out);
+}
+
+/* ------------------------------------------------------------------ the parked decision (Rhea) */
+
+.fsr-parked {
+  display: grid;
+  gap: var(--fs-space-12);
+  max-width: 760px;
+  padding: var(--fs-space-24);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-parked h3,
+.fsr-parked p {
+  margin: 0;
+}
+
+.fsr-parked h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-12);
+}
+
+.fsr-parked__chip {
+  padding: 2px 8px;
+  border: 1px solid var(--fs-canary-border, var(--fs-canary));
+  background: var(--fs-canary);
+  color: var(--fs-on-canary);
+}
+
+.fsr-parked__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--fs-space-24) var(--fs-space-32);
+}
+
+.fsr-parked__flat {
+  display: grid;
+  gap: var(--fs-space-4);
+  max-width: 320px;
+}
+
+/* ------------------------------------------------------------------ the run log and the latency dots */
+
+.fsr-fanout__below {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  gap: var(--fs-space-32);
+}
+
+.fsr-fanout__side {
+  display: grid;
+  gap: var(--fs-space-16);
+}
+
+.fsr-fanout__fees {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+.fsr-log {
+  display: grid;
+  gap: var(--fs-space-12);
+  min-width: 0;
+}
+
+.fsr-log h2,
+.fsr-log__note {
+  margin: 0;
+}
+
+.fsr-log__note {
+  color: var(--fs-ink-3);
+}
+
+.fsr-log__lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--fs-space-24);
+}
+
+.fsr-log__lane {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-8);
+  min-width: 0;
+}
+
+.fsr-log__lane-title {
+  margin: 0;
+  padding-bottom: var(--fs-space-8);
+  border-bottom: 1px solid var(--fs-ink-3);
+  color: var(--fs-ink);
+}
+
+.fsr-log__empty {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+.fsr-log__rows {
+  display: grid;
+  max-height: 420px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.fsr-log__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--fs-space-8);
+  padding: var(--fs-space-8) 0;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-log__row p {
+  margin: 0;
+}
+
+.fsr-log__words {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  color: var(--fs-ink);
+}
+
+.fsr-log__detail {
+  grid-column: 1;
+  color: var(--fs-ink-3);
+  overflow-wrap: anywhere;
+}
+
+.fsr-log__time {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--fs-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A repeated delivery changes nothing: one quiet row, no motion, no sound. */
+.fsr-log__row[data-duplicate] .fsr-log__words {
+  color: var(--fs-ink-2);
+}
+
+.fsr-log__row[data-live] .fsr-log__words {
+  animation: fsr-wipe var(--fs-dur-print) linear both;
+}
+
+[data-motion="reduced"] .fsr-log__row[data-live] .fsr-log__words {
+  animation: none;
+}
+
+@keyframes fsr-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+
+.fsr-latency {
+  display: grid;
+  gap: var(--fs-space-8);
+  margin: 0;
+}
+
+.fsr-latency p {
+  margin: 0;
+}
+
+.fsr-latency__track {
+  position: relative;
+  height: 24px;
+  border-bottom: 1px solid var(--fs-ink-3);
+}
+
+.fsr-latency__dot {
+  position: absolute;
+  top: 9px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--fs-ink);
+}
+
+.fsr-latency__p50 {
+  position: absolute;
+  top: 0;
+  bottom: -6px;
+  width: 1px;
+  background: var(--fs-ink-2);
+}
+
+@media (max-width: 1279px) {
+  .fsr-fanout__below {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsr-log__lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

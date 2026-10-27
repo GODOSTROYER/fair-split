@@ -1,0 +1,246 @@
+/* The runs slice's shared pieces (W-TR-05 to W-TR-09): screen heads, banners, empty states, digit swaps and the
+   drawn slip. Tablea tokens only; corners 0 or 2; only paper casts a shadow; motion times from @fairsplit/motion's
+   CSS variables. Class prefix fsr- (the shell owns fsc-). */
+
+.fsr-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+.fsr-screen__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-8) var(--fs-space-16);
+}
+
+.fsr-screen__slug {
+  color: var(--fs-ink-3);
+}
+
+.fsr-muted {
+  color: var(--fs-ink-3);
+}
+
+/* A run-level fact the screen must say first. Red only when PayPal is the actor (design §2.2). */
+.fsr-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-12);
+  margin: 0;
+  padding: var(--fs-space-12) var(--fs-space-16);
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsr-banner[data-tone="red"] {
+  border-color: var(--fs-red);
+  background: var(--fs-red-wash);
+  color: var(--fs-red);
+}
+
+.fsr-banner[data-tone="canary"] {
+  border-color: var(--fs-canary-border);
+  background: var(--fs-canary-wash);
+}
+
+.fsr-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-12);
+  max-width: 64ch;
+  padding: var(--fs-space-24) 0;
+}
+
+.fsr-empty__beds {
+  display: grid;
+  gap: var(--fs-space-8);
+  width: min(720px, 100%);
+  margin-bottom: var(--fs-space-12);
+}
+
+/* ------------------------------------------------------------------ the next decision, marked by who decides */
+
+.fsr-next {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+}
+
+.fsr-next__mark {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--fs-canary);
+}
+
+.fsr-next[data-kind="approve"] .fsr-next__mark {
+  background: var(--fs-ink);
+}
+
+/* ------------------------------------------------------------------ DigitSwap */
+
+.fsr-digits {
+  position: relative;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.fsr-digits__row {
+  display: inline-flex;
+}
+
+.fsr-digits__char,
+.fsr-digits__slot {
+  position: relative;
+  display: inline-block;
+}
+
+.fsr-digits__in {
+  display: inline-block;
+  animation: fsr-digit-in var(--fs-dur-digit-in) var(--fs-ease-out) both;
+  animation-delay: var(--fsr-swap-delay, 0ms);
+}
+
+.fsr-digits__out {
+  position: absolute;
+  inset: 0 auto auto 0;
+  animation: fsr-digit-out var(--fs-dur-digit-out) var(--fs-ease-out) both;
+  animation-delay: var(--fsr-swap-delay, 0ms);
+}
+
+.fsr-digits--wash {
+  animation: fsr-pencil-wash calc(var(--fs-dur-flash) + var(--fs-dur-flash-fade)) var(--fs-ease-out) both;
+  animation-delay: var(--fsr-swap-delay, 0ms);
+}
+
+@keyframes fsr-digit-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fsr-digit-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes fsr-pencil-wash {
+  from {
+    background: var(--fs-pencil-wash);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ the drawn slip (evidence) */
+
+.fsr-slip {
+  flex: none;
+  width: max-content;
+}
+
+.fsr-slip__svg {
+  display: block;
+}
+
+/* The synthetic tag sits in the free bottom corner, so the red serial (a field people compare) stays visible. */
+.fsr-slip .fs-paper__tag {
+  top: auto;
+  bottom: 6px;
+  right: 6px;
+}
+
+.fsr-slip__form {
+  font-family: var(--fs-font-ui);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.fsr-slip__form--title {
+  font-size: 9px;
+  font-weight: 700;
+  font-stretch: 87.5%;
+}
+
+.fsr-slip__serial {
+  font-family: var(--fs-font-ui);
+  font-size: 19px;
+  font-weight: 760;
+  font-stretch: 75%;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsr-slip__hand {
+  font-family: var(--fs-font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  font-stretch: 75%;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsr-slip__hand--small {
+  font-size: 11.5px;
+}
+
+/* A canary highlighter stroke behind the handwriting: a person must look here. */
+.fsr-slip__highlight {
+  fill: var(--fs-canary);
+  opacity: 0.85;
+}
+
+.fsr-slip__stain {
+  fill: #b79f73;
+  opacity: 0.32;
+}
+
+/* ------------------------------------------------------------------ flat form controls inside the slice */
+
+.fsr-field {
+  display: grid;
+  gap: var(--fs-space-4);
+}
+
+.fsr-field > span {
+  color: var(--fs-ink-2);
+}
+
+.fsr-input {
+  min-height: 40px;
+  padding: 0 var(--fs-space-12);
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  font: inherit;
+}
+
+.fsr-input:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: var(--fs-focus-offset);
+}
+
+textarea.fsr-input {
+  min-height: 88px;
+  padding: var(--fs-space-8) var(--fs-space-12);
+  resize: vertical;
+}

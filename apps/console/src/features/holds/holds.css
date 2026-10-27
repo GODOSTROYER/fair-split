@@ -1,0 +1,441 @@
+/* W-TR-06 Hold drawer: one hold card flat on the drawer's plate-2, its evidence as paper, MM-3's twin compare.
+   Machine text prints in pencil (S2.2.1: the engine's line and Claude's differ only by the pencil glyph and the
+   word Claude). Canary marks what a person must look at; jade never appears here. */
+
+.fsr-hold-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+.fsr-hold__beds {
+  display: grid;
+  gap: var(--fs-space-16);
+}
+
+/* The card is the drawer's content, not a card inside a card. */
+.fsr-hold.fs-hold {
+  padding: 0;
+  background: transparent;
+}
+
+.fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) {
+  background: transparent;
+}
+
+.fsr-hold .fs-hold__voice[data-voice="engine"] dd {
+  color: var(--fs-pencil);
+}
+
+.fsr-hold .fs-hold__evidence {
+  display: grid;
+  gap: var(--fs-space-24);
+}
+
+.fsr-hold .fs-hold__actions .fs-flat {
+  text-decoration: none;
+}
+
+.fsr-hold__result {
+  margin: 0;
+}
+
+.fsr-hold__result .fs-print__value {
+  color: var(--fs-ink);
+}
+
+.fsr-hold__dial {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-16);
+  padding: var(--fs-space-12) var(--fs-space-16);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-hold__dial p {
+  margin: 0;
+  max-width: 34ch;
+}
+
+/* ------------------------------------------------------------------ MM-3: the two copies of slip 0457 */
+
+.fsr-twin {
+  display: grid;
+  gap: var(--fs-space-16);
+  min-width: 0;
+}
+
+.fsr-twin__copies {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 40px;
+  isolation: isolate;
+}
+
+.fsr-twin__copy {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+}
+
+.fsr-twin__caption {
+  color: var(--fs-ink-2);
+}
+
+.fsr-twin__seam {
+  position: absolute;
+  top: 0;
+  bottom: 28px;
+  left: 50%;
+  width: 1px;
+  background: var(--fs-canary);
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+/* closed: before the act, nothing is on the desk yet. */
+.fsr-twin[data-phase="closed"] .fsr-twin__copy {
+  opacity: 0;
+}
+
+/* glide-in: the two photos arrive on the glide spring. */
+.fsr-twin[data-animate][data-phase="glide-in"] .fsr-twin__copy {
+  animation: fsr-twin-in var(--fs-spring-glide-dur) var(--fs-spring-glide) both;
+}
+
+/* converge: the copies meet on the centre line and stay there. */
+.fsr-twin[data-converged] .fsr-twin__copy[data-side="a"] {
+  transform: translateX(16px);
+}
+
+.fsr-twin[data-converged] .fsr-twin__copy[data-side="b"] {
+  transform: translateX(-16px);
+}
+
+.fsr-twin[data-animate][data-phase="converge"] .fsr-twin__copy[data-side="a"] {
+  animation: fsr-converge-a var(--fs-dur-converge) var(--fs-ease-out) both;
+}
+
+.fsr-twin[data-animate][data-phase="converge"] .fsr-twin__copy[data-side="b"] {
+  animation: fsr-converge-b var(--fs-dur-converge) var(--fs-ease-out) both;
+}
+
+.fsr-twin[data-lit] .fsr-twin__seam {
+  opacity: 1;
+  transform: none;
+}
+
+/* underline: the matching fields light in canary on both copies, in turn. */
+.fsr-twin .fsr-slip__highlight {
+  transform: scaleX(0);
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+.fsr-twin[data-lit] .fsr-slip__highlight {
+  transform: none;
+}
+
+.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight,
+.fsr-twin[data-animate][data-phase="underline"] .fsr-twin__seam {
+  animation: fsr-underline var(--fs-dur-underline) var(--fs-ease-out) both;
+}
+
+.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight[data-box="date"] {
+  animation-delay: calc(var(--fs-dur-underline) / 6);
+}
+
+.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight[data-box="member"] {
+  animation-delay: calc(var(--fs-dur-underline) / 3);
+}
+
+.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight[data-box="net"] {
+  animation-delay: calc(var(--fs-dur-underline) / 2);
+}
+
+@keyframes fsr-twin-in {
+  from {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fsr-converge-a {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(16px);
+  }
+}
+
+@keyframes fsr-converge-b {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes fsr-underline {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes fsr-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion keeps every phase, with no travel: crossfades into place, the fields fade in lit. */
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__copy,
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__seam,
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__highlight {
+  transform: none;
+}
+
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="glide-in"] .fsr-twin__copy {
+  animation: fsr-fade-in var(--fs-dur-crossfade) var(--fs-ease-out) both;
+}
+
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="converge"] .fsr-twin__copy {
+  animation: none;
+}
+
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__highlight {
+  opacity: 0;
+}
+
+.fsr-twin.fsr-twin[data-motion="reduced"][data-lit] .fsr-slip__highlight {
+  opacity: 0.85;
+}
+
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-slip__highlight,
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-twin__seam {
+  animation: fsr-fade-in var(--fs-dur-reduced) var(--fs-ease-out) both;
+}
+
+/* The low tier: the crops start already overlapped (MM-3 low). */
+.fsr-twin.fsr-twin[data-motion="low"][data-animate][data-phase="converge"] .fsr-twin__copy {
+  animation: none;
+}
+
+/* The fields, side by side, as the engine compared them. */
+.fsr-twin__fields {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fsr-twin__fields th,
+.fsr-twin__fields td {
+  padding: var(--fs-space-4) var(--fs-space-8);
+  border-bottom: 1px solid var(--fs-rule);
+  text-align: left;
+}
+
+.fsr-twin__fields th {
+  width: 88px;
+  color: var(--fs-ink-3);
+  font-weight: inherit;
+}
+
+.fsr-twin__fields td {
+  color: var(--fs-pencil);
+}
+
+.fsr-twin[data-lit] .fsr-twin__fields tr[data-match] th {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-twin__eq {
+  display: inline-block;
+  width: 20px;
+  color: var(--fs-ink-3);
+}
+
+.fsr-twin__verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsr-twin__verdict[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ H2: plots and kilos a tree */
+
+.fsr-yield {
+  display: grid;
+  gap: var(--fs-space-16);
+}
+
+.fsr-yield__bar {
+  display: grid;
+  gap: var(--fs-space-8);
+  margin: 0;
+}
+
+.fsr-yield__track {
+  position: relative;
+  height: 6px;
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-yield__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fs-pencil-faint);
+}
+
+.fsr-yield__over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  background: var(--fs-canary);
+}
+
+.fsr-yield__limit {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: 50%;
+  width: 1px;
+  background: var(--fs-ink-2);
+}
+
+.fsr-yield__caption {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--fs-space-12);
+  color: var(--fs-ink-2);
+}
+
+.fsr-yield__bar[data-over] .fsr-yield__caption > :first-child {
+  color: var(--fs-canary-text);
+}
+
+.fsr-plots {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-plots p {
+  margin: 0;
+}
+
+.fsr-plots ul {
+  display: grid;
+  gap: var(--fs-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsr-plots li {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-2);
+}
+
+.fsr-plots li[data-registered] {
+  color: var(--fs-ink);
+}
+
+.fsr-plots li:not([data-registered]) .fs-glyph {
+  color: var(--fs-canary-text);
+}
+
+/* ------------------------------------------------------------------ H3: box 13 against the closed list */
+
+.fsr-norule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--fs-space-24);
+}
+
+.fsr-norule__marks {
+  display: grid;
+  flex: 1 1 200px;
+  gap: var(--fs-space-8);
+  min-width: 0;
+}
+
+.fsr-norule__marks p {
+  margin: 0;
+}
+
+.fsr-norule__marks ul {
+  display: grid;
+  gap: var(--fs-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsr-norule__marks li {
+  display: grid;
+  gap: 2px;
+  padding-bottom: var(--fs-space-8);
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-norule__ok,
+.fsr-norule__none {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+}
+
+.fsr-norule__ok {
+  color: var(--fs-ink-2);
+}
+
+.fsr-norule__none {
+  color: var(--fs-canary-text);
+}
+
+/* ------------------------------------------------------------------ "These are two deliveries": a reason first */
+
+.fsr-reason {
+  display: grid;
+  gap: var(--fs-space-8);
+  padding: var(--fs-space-16);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-reason p {
+  margin: 0;
+}
+
+.fsr-reason__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-16);
+}
