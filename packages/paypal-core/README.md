@@ -83,7 +83,8 @@ so the bearer token cannot be sent anywhere else.
    - expired, signature invalid: `SIGNATURE_MISMATCH` (junk pointing at an old PayPal cert URL).
 4. Signature: RSA-SHA256 over `transmissionId|transmissionTime|webhookId|crc32(raw)`, CRC as unsigned
    decimal. Simulator events (signed with the literal `WEBHOOK_ID`) are accepted only with dev mocks on
-   (`PP_DEV_MOCKS=1`, refused when `NODE_ENV=production`) and labelled `dev_mock`.
+   (`PP_DEV_MOCKS=1`, refused at boot when `RENDER=true` or `NODE_ENV=production`, S3.6.5) and labelled
+   `dev_mock`.
 5. Replay: once the signature verifies, the transmission id is recorded through the injected
    `TransmissionStore` (unique; kept until transmission time + 6 min) and a repeat is
    `TRANSMISSION_REPLAYED` (400). A store failure is `REPLAY_CHECK_FAILED`, retryable (503). This is

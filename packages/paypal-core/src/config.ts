@@ -17,7 +17,7 @@ export interface PayPalRuntimeConfig {
   clientSecret: string;
   /** PP_WEBHOOK_ID; null when not required (e.g. while registering the webhook). */
   webhookId: string | null;
-  /** PP_DEV_MOCKS=1: accept simulator events as 'dev_mock'. Refused when NODE_ENV=production. */
+  /** PP_DEV_MOCKS=1: accept simulator events as 'dev_mock'. Refused when RENDER=true or NODE_ENV=production. */
   devMocks: boolean;
   /**
    * PP_CERT_ALLOW: PayPal cert ids to pin (comma or space separated ids, or their sandbox cert URLs),
@@ -70,6 +70,7 @@ function pick(source: EnvSource, names: readonly string[]): string | undefined {
 
 const WebhookIdSchema = z.string().regex(/^[A-Za-z0-9]{1,50}$/);
 const TRUTHY = new Set(["1", "true", "yes", "on"]);
+const isTruthy = (value: string | undefined) => TRUTHY.has((value ?? "").trim().toLowerCase());
 
 export function loadPayPalConfig(
   source: EnvSource = process.env,
@@ -106,7 +107,16 @@ export function loadPayPalConfig(
       NAMES.webhookId[0],
     ]);
   }
-  const devMocks = TRUTHY.has((pick(source, NAMES.devMocks) ?? "").toLowerCase());
+  const devMocks = isTruthy(pick(source, NAMES.devMocks));
+  // S3.6.5 / S3.13: boot refuses PP_DEV_MOCKS=1 when RENDER=true. Render sets RENDER=true on every
+  // service whatever NODE_ENV says, and anyone can have PayPal's public simulator send events to our URL.
+  if (devMocks && isTruthy(source.RENDER)) {
+    throw new PayPalConfigError(
+      "DEV_MOCKS_IN_PRODUCTION",
+      "PP_DEV_MOCKS cannot be on when RENDER=true (simulator events would be accepted on Render)",
+      [NAMES.devMocks[0], "RENDER"],
+    );
+  }
   if (devMocks && source.NODE_ENV === "production") {
     throw new PayPalConfigError(
       "DEV_MOCKS_IN_PRODUCTION",

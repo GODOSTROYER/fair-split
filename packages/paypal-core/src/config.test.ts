@@ -137,4 +137,34 @@ describe("loadPayPalConfig", () => {
     );
     expect(loadPayPalConfig({ ...base, PP_DEV_MOCKS: "0", NODE_ENV: "production" }).devMocks).toBe(false);
   });
+
+  // Verifier follow-up (trust, minor): S3.6.5 and S3.13 refuse PP_DEV_MOCKS=1 when RENDER=true. Render sets
+  // RENDER=true on every service whatever NODE_ENV says, and anyone can have PayPal's public simulator
+  // send events to our URL, so a Render deploy with dev mocks on would accept them as 'dev_mock'.
+  it.each([
+    ["NODE_ENV unset", {}],
+    ["NODE_ENV=development", { NODE_ENV: "development" }],
+    ["NODE_ENV=test", { NODE_ENV: "test" }],
+  ])("refuses dev mocks on Render (RENDER=true), %s, naming the variables but no value", (_label, extra) => {
+    const base = {
+      PP_ENV: "sandbox",
+      PP_CLIENT_ID: id,
+      PP_CLIENT_SECRET: secret,
+      PP_WEBHOOK_ID: "WH1",
+      ...extra,
+    };
+    for (const render of ["true", "TRUE", " true ", "1"]) {
+      for (const mocks of [{ PP_DEV_MOCKS: "1" }, { PAYPAL_DEV_MOCKS: "true" }]) {
+        const err = catchConfig(() => loadPayPalConfig({ ...base, ...mocks, RENDER: render }));
+        expect(err.code).toBe("DEV_MOCKS_IN_PRODUCTION");
+        expect(err.variables).toEqual(["PP_DEV_MOCKS", "RENDER"]);
+        expect(err.message).toMatch(/RENDER/);
+      }
+    }
+    // Dev mocks off is fine on Render, and RENDER unset or false leaves local development alone.
+    expect(loadPayPalConfig({ ...base, PP_DEV_MOCKS: "0", RENDER: "true" }).devMocks).toBe(false);
+    expect(loadPayPalConfig({ ...base, RENDER: "true" }).devMocks).toBe(false);
+    expect(loadPayPalConfig({ ...base, PP_DEV_MOCKS: "1", RENDER: "false" }).devMocks).toBe(true);
+    expect(loadPayPalConfig({ ...base, PP_DEV_MOCKS: "1" }).devMocks).toBe(true);
+  });
 });
