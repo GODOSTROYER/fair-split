@@ -543,6 +543,8 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
     });
     expect(repo.batches.size).toBe(0);
     expect(requests).toHaveLength(0);
+    // A re-route's approvals are its own: refusing them voids nothing of the run's.
+    expect(repo.types()).toEqual([]);
   });
 
   it("inv.i6.human-gate: a re-route needs the treasurer's fresh signature", async () => {

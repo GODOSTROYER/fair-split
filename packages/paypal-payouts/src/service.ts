@@ -300,6 +300,17 @@ export interface PayoutsRepository {
     message: string;
     debugId: string | null;
   }): Promise<void>;
+  /**
+   * S3.6.4 step 3: the run's approvals failed their check before anything was written for its batch.
+   * In one transaction: void every approval of the run not voided yet (voided_at, the reason) and move
+   * the run back to IN_REVIEW, so both keys sign again what the database holds now.
+   */
+  voidApprovals(voided: {
+    runId: string;
+    code: ApprovalRefusal["code"];
+    reason: string;
+    at: string;
+  }): Promise<void>;
   findItem(payoutItemId: string): Promise<PayoutItemRow | null>;
   /** The item that already supersedes `payoutItemId`, if any. */
   findSupersedingItem(payoutItemId: string): Promise<SupersedingItem | null>;
@@ -409,6 +420,11 @@ interface PostContext {
 interface Refusal {
   code: RefusalCode;
   reason: string;
+}
+
+/** Why the approvals do not authorise the batch the database holds (S3.6.4 step 3). */
+interface ApprovalRefusal extends Refusal {
+  code: "DIGEST_MISMATCH" | "APPROVALS_MISSING";
 }
 
 const refused = (code: RefusalCode, reason: string, senderBatchId: string | null): BatchOutcome => ({
@@ -733,7 +749,21 @@ export class PayoutsService {
     if (Number.isNaN(at.getTime()))
       return refused("INVALID_BATCH", "Unreadable submission time", senderBatchId);
     const gate = await this.#checkApprovals(spec, { digest, itemCount: items.length, totalCents, at });
-    if (gate) return refused(gate.code, gate.reason, senderBatchId);
+    if (gate) {
+      // S3.6.4 step 3: these approvals no longer authorise what the database holds. With nothing
+      // written for the run's batch yet, they are voided and the run goes back to IN_REVIEW. A resumed
+      // post (rows SUBMITTED, the batch perhaps at PayPal) is a HALT, not a review; a re-route's
+      // approvals are its own, not the run's.
+      if (spec.kind === "primary" && !spec.submitted) {
+        await this.#repo.voidApprovals({
+          runId: facts.runId,
+          code: gate.code,
+          reason: gate.reason,
+          at: this.#now().toISOString(),
+        });
+      }
+      return refused(gate.code, gate.reason, senderBatchId);
+    }
 
     const guard = this.#guard(items, totalCents);
     if (guard) return refused("SANDBOX_GUARD", guard, senderBatchId);
@@ -832,9 +862,9 @@ export class PayoutsService {
   async #checkApprovals(
     spec: PostSpec,
     batch: { digest: string; itemCount: number; totalCents: bigint; at: Date },
-  ): Promise<Refusal | null> {
+  ): Promise<ApprovalRefusal | null> {
     const { facts } = spec;
-    const mismatch = (reason = CHANGED): Refusal => ({ code: "DIGEST_MISMATCH", reason });
+    const mismatch = (reason = CHANGED): ApprovalRefusal => ({ code: "DIGEST_MISMATCH", reason });
     const at = batch.at.getTime();
     const byRole = new Map<ApprovalRole, SignedApproval>();
     const nonces = new Set<string>();

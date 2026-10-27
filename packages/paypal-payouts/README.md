@@ -49,6 +49,15 @@ items differ, or under another sender_batch_id, is `refused ADOPT_FAILED` (HALT)
 `unresolved` resumes later with the same ids, its approvals judged as of the moment its rows were
 written.
 
+**A failed approval check** (S3.6.4 step 3; the plan's "Change one payout after both keys"). With nothing
+written yet for the run's batch, `repo.voidApprovals` voids the run's approvals and moves it back to
+IN_REVIEW in one transaction, so both keys sign what the database holds now; the outcome is still
+`refused DIGEST_MISMATCH` (or `APPROVALS_MISSING`). A resumed post voids nothing (its rows are SUBMITTED
+and PayPal may hold the batch: HALT), nor does a refused re-route (its approvals are its own). Nonces:
+`executeApproved` reads approvals only from the database, where `approvals.nonce` is UNIQUE (S3 data
+model), and refuses a set that repeats one; a re-route's approvals must be stored the same way before
+`reroute` is called, and can only ever re-authorise the identical batch, whose ids PayPal dedupes.
+
 **Daily cap and balance** (S3 §S3.6.4 step 4). A new batch, primary or re-route, goes out only while
 `postsInLast24h(now)` is under `maxPostsPer24h` (else `refused DAILY_CAP`) and the estimated balance less
 the batch stays at or above `minBalanceCents` (else `refused SANDBOX_GUARD`; an unknown balance refuses

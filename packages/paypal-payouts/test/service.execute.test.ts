@@ -548,9 +548,11 @@ describe("PayoutsService.executeApproved(runId): the approved digest is the payo
 });
 
 describe("PayoutsService.executeApproved: refusals send nothing", () => {
+  /** No POST and no batch row; a failed approval check may only void the approvals (S3.6.4 step 3). */
   const expectNothingSent = (repo: MemoryPayoutsRepo) => {
     expect(requests).toHaveLength(0);
-    expect(repo.events).toHaveLength(0);
+    expect(repo.batches.size).toBe(0);
+    expect(repo.types().filter((t) => t !== "voidApprovals")).toEqual([]);
   };
 
   it("inv.i4.digest-is-payout: lines the database changed after signing are refused", async () => {
@@ -581,7 +583,10 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       submitted: { at: NOW.toISOString(), batchSha256: await digestFor(HERO_LINES.slice(1)) },
     });
     await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
-    expectNothingSent(repo);
+    // The rows an earlier attempt wrote stay as they were; nothing else is written or sent.
+    expect(requests).toHaveLength(0);
+    expect(repo.types()).toEqual([]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
   });
 
   it("refuses when the kill switch is on (read fresh), before reading the run", async () => {
@@ -761,6 +766,72 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
     await expect(b.service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
     expectNothingSent(a.repo);
     expectNothingSent(b.repo);
+  });
+});
+
+describe("S3.6.4 step 3: a failed approval check voids the approvals and sends the run back to IN_REVIEW", () => {
+  const edited = () =>
+    HERO_LINES.map((l) => (l.memberNo === "M-014" ? { ...l, amountCents: l.amountCents + 1n } : l));
+
+  it("inv.i4.digest-is-payout: 'Change one payout after both keys': refused, nothing sent, both keys voided", async () => {
+    const signed = await approvalsFor(HERO_LINES);
+    const { service, repo } = await setup({ lines: edited(), approvals: signed });
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "refused",
+      code: "DIGEST_MISMATCH",
+      reason: "The batch changed after it was signed. Nothing was sent.",
+    });
+
+    expect(requests).toHaveLength(0);
+    expect(repo.events).toEqual([
+      {
+        type: "voidApprovals",
+        runId: RUN_ID,
+        code: "DIGEST_MISMATCH",
+        reason: "The batch changed after it was signed. Nothing was sent.",
+        at: NOW.toISOString(),
+      },
+    ]);
+    // Voided means gone: a retry finds no approval to post on, until both keys sign the new lines.
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "APPROVALS_MISSING" });
+    expect(requests).toHaveLength(0);
+    expect(repo.batches.size).toBe(0);
+  });
+
+  it.each([
+    ["the Chair's key is missing above R5", { signers: [TREASURER] }, "APPROVALS_MISSING"],
+    ["an approval expired", { exp: NOW.toISOString() }, "DIGEST_MISMATCH"],
+  ] as const)("voids them when %s", async (_label, options, code) => {
+    const { service, repo } = await setup({ approvals: await approvalsFor(HERO_LINES, options) });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "refused", code });
+    expect(repo.types()).toEqual(["voidApprovals"]);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("voids them when a signature does not verify against the registered key", async () => {
+    const { service, repo } = await setup(undefined, { verifyApprovalSignature: async () => false });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
+    expect(repo.types()).toEqual(["voidApprovals"]);
+  });
+
+  it("a resumed post voids nothing: its rows are SUBMITTED and PayPal may hold the batch (HALT, not IN_REVIEW)", async () => {
+    const { service, repo } = await setup({
+      lines: edited(),
+      submitted: { at: NOW.toISOString(), batchSha256: await digestFor(HERO_LINES) },
+    });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "DIGEST_MISMATCH" });
+    expect(repo.types()).toEqual([]);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+    expect(requests).toHaveLength(0);
+  });
+
+  it("a guard refusal voids nothing: the keys signed exactly this batch", async () => {
+    const { service, repo } = await setup(undefined, {
+      limits: { ...JUDGE_LIMITS, receiverAllowed: () => false },
+    });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "SANDBOX_GUARD" });
+    expect(repo.types()).toEqual([]);
   });
 });
 

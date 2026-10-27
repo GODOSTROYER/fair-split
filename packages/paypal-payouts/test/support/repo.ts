@@ -17,6 +17,7 @@ export type RepoEvent =
   | { type: "markPosted"; senderBatchId: string; payoutBatchId: string; outcome: string }
   | { type: "markRejected"; senderBatchId: string; status: number; name: string }
   | { type: "markCancelRequested"; payoutItemId: string; intent: string; by: string }
+  | { type: "voidApprovals"; runId: string; code: string; reason: string; at: string }
   | { type: "applyItemStatus"; payoutItemId: string; transactionStatus: string; source: string };
 
 type BatchRow = {
@@ -136,6 +137,13 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
       name: r.name,
     });
     row.status = "REJECTED";
+  }
+
+  /** Voids the run's approvals and moves it back to IN_REVIEW: loadPosting then holds none. */
+  async voidApprovals(v: Parameters<PayoutsRepository["voidApprovals"]>[0]): Promise<void> {
+    this.events.push({ type: "voidApprovals", runId: v.runId, code: v.code, reason: v.reason, at: v.at });
+    const posting = this.postings.get(v.runId);
+    if (posting) this.postings.set(v.runId, { ...posting, approvals: [] });
   }
 
   async findItem(payoutItemId: string): Promise<PayoutItemRow | null> {

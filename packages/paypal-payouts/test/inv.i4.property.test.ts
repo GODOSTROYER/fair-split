@@ -79,7 +79,7 @@ function apply(lines: readonly ApprovedLine[], m: Mutation): ApprovedLine[] | nu
 }
 
 describe("inv.i4.digest-is-payout", () => {
-  it("refuses every change the database's lines undergo after signing, and sends nothing", async () => {
+  it("refuses every change the database's lines undergo after signing, sends nothing and voids the keys", async () => {
     const approvals = await approvalsFor(HERO_LINES);
     await fc.assert(
       fc.asyncProperty(mutation, async (m) => {
@@ -92,7 +92,9 @@ describe("inv.i4.digest-is-payout", () => {
         const out = await service.executeApproved(RUN_FACTS.runId);
         expect(out.kind).toBe("refused");
         if (out.kind === "refused") expect(["DIGEST_MISMATCH", "INVALID_BATCH"]).toContain(out.code);
-        expect(repo.events).toHaveLength(0);
+        // Nothing written but, after a failed approval check, the void (S3.6.4 step 3).
+        const voided = out.kind === "refused" && out.code === "DIGEST_MISMATCH";
+        expect(repo.types()).toEqual(voided ? ["voidApprovals"] : []);
         expect(requests).toHaveLength(0);
       }),
       { numRuns: 200 },
