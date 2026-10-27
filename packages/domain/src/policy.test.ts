@@ -14,6 +14,8 @@ import {
   autoCancelDate,
   autoCancelRuleArgs,
   canonicalInvoice,
+  canonicalInvoiceCall,
+  canonicalSend,
   itemLabelProblem,
   parseStrictIsoDate,
 } from "./invoice.js";
@@ -99,6 +101,53 @@ const call = (name: string, args: unknown = {}): ToolCall => ({ name, args });
 const reasonOf = (d: ReturnType<typeof decide>, p: PolicyName) =>
   d.results.find((r) => r.policy === p)?.reason;
 
+/** Each quote line's own word, written out here, independently of the checker's vocabulary. */
+const LINE_WORD = [/\bpremiums?\b/, /\bbonus(?:es)?\b/, /\bdisbursements?\b/] as const;
+const NUMBERISH =
+  /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand|million|[ivxlcdm]{2,}|[olisz]+)\b/;
+const CONTACT_OR_CHARGE =
+  /\b(?:at|dot|com|www|https?|e?mail|call|wire|zelle|venmo|refund|credit|discount|shipping|tax|paid)\b/;
+
+/** What any allowed label must be, whatever the checker says: a safe name for line `i`, nothing else. */
+function expectSafeLabel(name: string, i: number) {
+  const folded = name.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  expect(name.length, name).toBeLessThanOrEqual(40);
+  expect(name, name).toMatch(/^[A-Za-z][A-Za-z ,'()-]*$/);
+  expect(name.trim(), name).toBe(name);
+  expect(name, name).not.toMatch(/ {2}/);
+  expect(folded, name).toMatch(LINE_WORD[i] as RegExp);
+  for (const [k, re] of LINE_WORD.entries()) if (k !== i) expect(folded, name).not.toMatch(re);
+  expect(folded, name).not.toMatch(NUMBERISH);
+  expect(folded, name).not.toMatch(CONTACT_OR_CHARGE);
+}
+
+/** Label-like strings: words from a small pool, including ones the vocabulary refuses. */
+const labelLike = fc
+  .array(
+    fc.constantFrom(
+      "Premium",
+      "premium",
+      "Bonus",
+      "Quality",
+      "Disbursement",
+      "costs",
+      "Season",
+      "one",
+      "at",
+      "dot",
+      "LX",
+      "lO",
+      "Refund",
+      "Acme",
+      "fees",
+      "PayPal",
+      "(lot)",
+      "members'",
+    ),
+    { minLength: 1, maxLength: 4 },
+  )
+  .map((ws) => ws.join(" "));
+
 describe("the canonical invoice (I1: code builds every field PayPal sees)", () => {
   it("canonicalInvoice builds exactly S3.6.3's create arguments: no dates, no payment term, nothing extra", () => {
     expect(canonicalInvoice(EXPECTED)).toEqual(CANONICAL);
@@ -114,19 +163,25 @@ describe("the canonical invoice (I1: code builds every field PayPal sees)", () =
       ].sort(),
     );
     expect(JSON.stringify(canonicalInvoice(EXPECTED))).not.toMatch(/date|payment_term/);
-    const labelled = canonicalInvoice(EXPECTED, ["Season premium", "Grade one bonus", "PayPal fees (est)"]);
+    const labelled = canonicalInvoice(EXPECTED, [
+      "Season premium",
+      "Top grade quality bonus",
+      "PayPal payout disbursement fees",
+    ]);
     expect(labelled.items.map((i) => i.name)).toEqual([
       "Season premium",
-      "Grade one bonus",
-      "PayPal fees (est)",
+      "Top grade quality bonus",
+      "PayPal payout disbursement fees",
     ]);
     expect(labelled.items.map((i) => i.unit_amount)).toEqual(CANONICAL.items.map((i) => i.unit_amount));
     expect(() => canonicalInvoice(EXPECTED, ["Premium 2026", "Bonus", "Fees"])).toThrow(RangeError);
   });
 
-  it("item labels are at most 40 letters, spaces and ,'()- with no digits, and distinct", () => {
+  it("item labels are at most 40 letters, single spaces and ,'()- with no digits, each naming its own line", () => {
     expect(itemLabelProblem(["Premium", "Quality bonus", "Disbursement costs"])).toBeNull();
-    expect(itemLabelProblem(["Members' premium (lot)", "Bonus, grade one", "Pay-out costs"])).toBeNull();
+    expect(
+      itemLabelProblem(["Members' premium (lot)", "Bonus, top grade", "Pay-out disbursement costs"]),
+    ).toBeNull();
     for (const bad of [
       "Premium 2026",
       "Premium US$4",
@@ -139,10 +194,16 @@ describe("the canonical invoice (I1: code builds every field PayPal sees)", () =
       "x".repeat(41),
       "Prémium",
       "Premium / bonus",
+      "Premium  costs",
+      "Premium ",
     ]) {
-      expect(itemLabelProblem([bad, "Bonus", "Costs"]), bad).not.toBeNull();
+      // The other two labels are valid, so the refusal is item 1's own.
+      expect(itemLabelProblem([bad, "Quality bonus", "Disbursement costs"]), bad).toMatch(/^Item 1's label/);
     }
-    expect(itemLabelProblem(["Premium", "premium", "Costs"])).toMatch(/distinct/);
+    // Labels are distinct by construction: each must name its own line and no other.
+    expect(itemLabelProblem(["Premium", "premium", "Disbursement costs"])).toBe(
+      "Item 2's label names the premium line, not its own",
+    );
     expect(itemLabelProblem(["Premium", "Bonus"])).toMatch(/three/);
   });
 
@@ -183,7 +244,7 @@ describe("inv.i1.whole-body: invoiceEqualsQuote compares the whole body with the
     });
     const labelled = draft();
     labelled.items.forEach((it, i) => {
-      it.name = ["Season premium", "Grade one bonus", "Disbursement and handling"][i];
+      it.name = ["Season premium", "Top grade quality bonus", "Disbursement and handling"][i];
     });
     expect(decide(call("create_invoice", labelled), ctx()).verdict).toBe("ALLOW");
   });
@@ -292,14 +353,19 @@ describe("inv.i1.whole-body: invoiceEqualsQuote compares the whole body with the
     }
   });
 
-  it("compares after normalisation: amounts as cents and e-mail case only", () => {
+  it("compares exactly, with no normalisation: another amount spelling or e-mail case is denied", () => {
     const d = draft({ invoicer_email_address: BUSINESS.toUpperCase() });
     (d.items[1] as Draft["items"][number]).unit_amount.value = minorToDecimal(
       quote.items[1]?.unitAmountCents ?? 0,
     ).replace(/0$/, "");
     (d.primary_recipients[0] as { billing_info: { email_address: string } }).billing_info.email_address =
       PAYER.toUpperCase();
-    expect(decide(call("create_invoice", d), ctx()).verdict).toBe("ALLOW");
+    const v = decide(call("create_invoice", d), ctx());
+    expect(v.verdict).toBe("DENY");
+    expect(v.decidedBy).toEqual(["invoiceEqualsQuote"]);
+    expect(reasonOf(v, "invoiceEqualsQuote")).toBe(
+      "invoicer_email_address, items[1].unit_amount.value, primary_recipients[0].billing_info.email_address differ from the code's invoice",
+    );
   });
 
   it("inv.i1.no-model-numbers: property, a draft that moves money is denied; a relabel passes only if the label is valid", () => {
@@ -353,18 +419,327 @@ describe("inv.i1.whole-body: invoiceEqualsQuote compares the whole body with the
       }),
       { numRuns: 300 },
     );
+    let allowed = 0;
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 2 }), fc.string({ maxLength: 45 }), (i, name) => {
-        const d = draft();
-        (d.items[i] as Draft["items"][number]).name = name;
-        const labels = d.items.map((x) => x.name as string);
-        const r = decide(call("create_invoice", d), ctx());
-        expect(r.results.find((x) => x.policy === "invoiceEqualsQuote")?.verdict).toBe(
-          itemLabelProblem(labels) === null ? "ALLOW" : "DENY",
-        );
-      }),
-      { numRuns: 300 },
+      fc.property(
+        fc.integer({ min: 0, max: 2 }),
+        fc.oneof(fc.string({ maxLength: 45 }), labelLike),
+        (i, name) => {
+          const d = draft();
+          (d.items[i] as Draft["items"][number]).name = name;
+          const r = decide(call("create_invoice", d), ctx());
+          // Independent of the checker: an allowed label is a safe name for its own line.
+          if (r.results.find((x) => x.policy === "invoiceEqualsQuote")?.verdict === "ALLOW") {
+            allowed++;
+            expectSafeLabel(name, i);
+          }
+        },
+      ),
+      { numRuns: 600 },
     );
+    // Not vacuous: label-like strings do reach ALLOW.
+    expect(allowed).toBeGreaterThan(0);
+  });
+});
+
+// A run whose e-mails carry every letter a homoglyph attack folds into (k, i, a, e, o) and whose
+// first line is US$300.00, so each lookalike below differs from code's bytes by one character.
+const EXACT_BUSINESS = "kalinaw-treasurer@kakao-coop.example";
+const EXACT_PAYER = "buyer@kalinaw-kakao.example";
+const EXACT_EXPECTED: Expected = {
+  ...EXPECTED,
+  quote: {
+    ...quote,
+    items: quote.items.map((it, i) => (i === 0 ? { ...it, unitAmountCents: 30_000 } : it)),
+  },
+  businessEmail: EXACT_BUSINESS,
+  payer: { email: EXACT_PAYER, businessName: PAYER_NAME },
+  brandAllowlist: [EXACT_PAYER],
+};
+const exactCtx = (expected: Partial<Expected> = {}) => ctx({}, { ...EXACT_EXPECTED, ...expected });
+const exactDraft = (): Draft => structuredClone(canonicalInvoice(EXACT_EXPECTED)) as unknown as Draft;
+const recipientOf = (d: Draft) =>
+  (d.primary_recipients[0] as { billing_info: { email_address: string } }).billing_info;
+
+/** One-character lookalikes: each looks like (or case-folds into) the ASCII letter it replaces. */
+const LOOKALIKES: readonly [label: string, swap: (s: string) => string][] = [
+  ["U+212A KELVIN SIGN for k", (s) => s.replace("k", "K")],
+  ["U+0130 LATIN CAPITAL I WITH DOT ABOVE for i", (s) => s.replace("i", "İ")],
+  ["U+FF20 FULLWIDTH COMMERCIAL AT for @", (s) => s.replace("@", "＠")],
+  ["U+0430 CYRILLIC SMALL A for a", (s) => s.replace("a", "а")],
+  ["U+0435 CYRILLIC SMALL IE for e", (s) => s.replace("e", "е")],
+  ["U+043E CYRILLIC SMALL O for o", (s) => s.replace("o", "о")],
+];
+
+describe("inv.i1.exact: invoiceEqualsQuote allows only the exact bytes code built", () => {
+  it("allows the exact canonical body, and its JSON round trip (regression)", () => {
+    for (const [body, c] of [
+      [canonicalInvoice(EXPECTED), ctx()],
+      [canonicalInvoice(EXACT_EXPECTED), exactCtx()],
+      [JSON.parse(JSON.stringify(canonicalInvoice(EXACT_EXPECTED))), exactCtx()],
+    ] as const) {
+      expect(decide(call("create_invoice", body), c)).toMatchObject({ verdict: "ALLOW", decidedBy: [] });
+    }
+  });
+
+  it("String.prototype.toLowerCase folds U+212A into ASCII k: the hole an e-mail check must not use", () => {
+    expect("K".toLowerCase()).toBe("k");
+    expect(EXACT_BUSINESS.replace("k", "K").toLowerCase()).toBe(EXACT_BUSINESS);
+    expect(EXACT_PAYER.replace("k", "K").toLowerCase()).toBe(EXACT_PAYER);
+  });
+
+  it("an invoicer e-mail with a lookalike character is denied, naming the field", () => {
+    for (const [label, swap] of LOOKALIKES) {
+      const d = exactDraft();
+      d.invoicer_email_address = swap(EXACT_BUSINESS);
+      expect(d.invoicer_email_address, label).not.toBe(EXACT_BUSINESS);
+      const v = decide(call("create_invoice", d), exactCtx());
+      expect(v.verdict, label).toBe("DENY");
+      expect(reasonOf(v, "invoiceEqualsQuote"), label).toBe(
+        "invoicer_email_address differs from the code's invoice",
+      );
+      expect(reasonOf(v, "invoicerIsBusinessEmail"), label).toBe(
+        "invoicer_email_address is not a plain ASCII e-mail address",
+      );
+    }
+  });
+
+  it("a recipient e-mail with a lookalike character is denied, naming the field", () => {
+    const at = "primary_recipients[0].billing_info.email_address";
+    for (const [label, swap] of LOOKALIKES) {
+      const d = exactDraft();
+      recipientOf(d).email_address = swap(EXACT_PAYER);
+      const v = decide(call("create_invoice", d), exactCtx());
+      expect(v.verdict, label).toBe("DENY");
+      expect(reasonOf(v, "invoiceEqualsQuote"), label).toBe(`${at} differs from the code's invoice`);
+      expect(reasonOf(v, "recipientInBrandAllowlist"), label).toBe(
+        `${at} is not a plain ASCII e-mail address`,
+      );
+    }
+  });
+
+  it("a CC e-mail, lookalike or not, is denied by name", () => {
+    for (const [label, swap] of LOOKALIKES) {
+      const d = exactDraft();
+      d.cc = [swap(EXACT_PAYER)];
+      const v = decide(call("create_invoice", d), exactCtx());
+      expect(v.verdict, label).toBe("DENY");
+      expect(reasonOf(v, "invoiceEqualsQuote"), label).toBe("Not in the canonical invoice: cc");
+      expect(reasonOf(v, "recipientInBrandAllowlist"), label).toBe(
+        "Not a recipient field the draft may set: cc",
+      );
+    }
+  });
+
+  it("an allowlist entry that is not plain ASCII matches nothing", () => {
+    const v = decide(
+      call("create_invoice", exactDraft()),
+      exactCtx({ brandAllowlist: [EXACT_PAYER.replace("k", "K")] }),
+    );
+    expect(reasonOf(v, "recipientInBrandAllowlist")).toBe("A recipient is not on the brand allowlist");
+    const business = decide(
+      call("create_invoice", exactDraft()),
+      exactCtx({ businessEmail: EXACT_BUSINESS.replace("k", "K") }),
+    );
+    expect(business.verdict).toBe("DENY");
+    expect(business.decidedBy).toContain("invoicerIsBusinessEmail");
+  });
+
+  it("an amount is the canonical two-decimal string exactly: no trim, no zero padding, no other digits", () => {
+    expect(exactDraft().items[0]?.unit_amount.value).toBe("300.00");
+    const spellings: unknown[] = [
+      " 0300.0\n",
+      "300.0",
+      "0300.00",
+      "300.00 ",
+      " 300.00",
+      "300.00\n",
+      "３００.00",
+      "300.000",
+      "+300.00",
+      "3e2",
+      "300",
+      "300.00​",
+      "300,00",
+      300,
+      30_000,
+    ];
+    for (const value of spellings) {
+      const d = exactDraft();
+      (d.items[0] as Draft["items"][number]).unit_amount.value = value;
+      const v = decide(call("create_invoice", d), exactCtx());
+      expect(v.verdict, JSON.stringify(value)).toBe("DENY");
+      expect(v.decidedBy, JSON.stringify(value)).toEqual(["invoiceEqualsQuote"]);
+      expect(reasonOf(v, "invoiceEqualsQuote"), JSON.stringify(value)).toBe(
+        "items[0].unit_amount.value differs from the code's invoice",
+      );
+    }
+  });
+
+  it("an ASCII-case variant of code's e-mail is denied by invoiceEqualsQuote; the allowlists fold ASCII case only", () => {
+    const invoicer = exactDraft();
+    invoicer.invoicer_email_address = "Kalinaw-Treasurer@kakao-coop.example";
+    const vi = decide(call("create_invoice", invoicer), exactCtx());
+    expect(vi.verdict).toBe("DENY");
+    expect(vi.decidedBy).toEqual(["invoiceEqualsQuote"]);
+    expect(reasonOf(vi, "invoicerIsBusinessEmail")).toBeNull();
+
+    const recipient = exactDraft();
+    recipientOf(recipient).email_address = "Buyer@Kalinaw-Kakao.EXAMPLE";
+    const vr = decide(call("create_invoice", recipient), exactCtx());
+    expect(vr.verdict).toBe("DENY");
+    expect(vr.decidedBy).toEqual(["invoiceEqualsQuote"]);
+    expect(reasonOf(vr, "invoiceEqualsQuote")).toBe(
+      "primary_recipients[0].billing_info.email_address differs from the code's invoice",
+    );
+    expect(reasonOf(vr, "recipientInBrandAllowlist")).toBeNull();
+
+    // The allowlist side folds too, ASCII only.
+    const upperList = exactCtx({ brandAllowlist: [EXACT_PAYER.toUpperCase()] });
+    expect(POLICIES.recipientInBrandAllowlist(call("create_invoice", exactDraft()), upperList).verdict).toBe(
+      0,
+    );
+  });
+
+  it("property: one changed character in any leaf code owns never yields ALLOW; a label passes only if valid", () => {
+    type Leaf = { path: (string | number)[]; value: string };
+    const leavesOf = (v: unknown, path: (string | number)[] = []): Leaf[] => {
+      if (typeof v === "string") return [{ path, value: v }];
+      if (Array.isArray(v)) return v.flatMap((x, i) => leavesOf(x, [...path, i]));
+      if (v !== null && typeof v === "object") {
+        return Object.entries(v).flatMap(([k, x]) => leavesOf(x, [...path, k]));
+      }
+      return [];
+    };
+    const setAt = (root: unknown, path: (string | number)[], value: string) => {
+      let o = root as Record<string | number, unknown>;
+      for (const k of path.slice(0, -1)) o = o[k] as Record<string | number, unknown>;
+      o[path.at(-1) as string | number] = value;
+    };
+    const runs = { base: [EXPECTED, ctx()], exact: [EXACT_EXPECTED, exactCtx()] } as const;
+    const tricky = fc.constantFrom(
+      " ",
+      "\n",
+      "\t",
+      " ",
+      "​",
+      "́",
+      "K",
+      "İ",
+      "ı",
+      "＠",
+      "０",
+      "а",
+      "е",
+      "о",
+      "0",
+      "+",
+      "e",
+      "K",
+      "k",
+      ".",
+      ",",
+      "@",
+    );
+    const ch = fc.oneof(tricky, fc.string({ unit: "binary", minLength: 1, maxLength: 1 }));
+    fc.assert(
+      fc.property(
+        fc.constantFrom("base" as const, "exact" as const),
+        fc.nat(),
+        fc.constantFrom("insert", "delete", "replace", "flipCase"),
+        fc.nat(),
+        ch,
+        (run, leafIx, op, posIx, c) => {
+          const [expected, context] = runs[run];
+          const body = structuredClone(canonicalInvoice(expected));
+          const leaves = leavesOf(body);
+          const leaf = leaves[leafIx % leaves.length] as Leaf;
+          const s = leaf.value;
+          const i = posIx % (s.length + (op === "insert" ? 1 : 0) || 1);
+          const flipped = (x: string) => (x === x.toUpperCase() ? x.toLowerCase() : x.toUpperCase());
+          const mutated =
+            op === "insert"
+              ? s.slice(0, i) + c + s.slice(i)
+              : op === "delete"
+                ? s.slice(0, i) + s.slice(i + 1)
+                : op === "replace"
+                  ? s.slice(0, i) + c + s.slice(i + 1)
+                  : s.slice(0, i) + flipped(s.charAt(i)) + s.slice(i + 1);
+          fc.pre(mutated !== s);
+          setAt(body, leaf.path, mutated);
+          const v = decide(call("create_invoice", body), context);
+          const isLabel = leaf.path[0] === "items" && leaf.path[2] === "name";
+          if (isLabel) {
+            // Independent of the checker: if the edited label is allowed, it still safely names its line.
+            if (v.results.find((r) => r.policy === "invoiceEqualsQuote")?.verdict === "ALLOW") {
+              expectSafeLabel(mutated, leaf.path[1] as number);
+            }
+          } else {
+            expect(v.verdict).toBe("DENY");
+            expect(v.decidedBy).toContain("invoiceEqualsQuote");
+          }
+        },
+      ),
+      { numRuns: 2000 },
+    );
+  });
+});
+
+describe("inv.i1.executor-body: the money executor sends the body code built, never the model's args", () => {
+  const RULE_EXPECTED = { ...EXPECTED, invoiceId: INVOICE_ID, invoiceDate: INVOICE_DATE };
+  const LABELS = ["Season premium", "Top grade quality bonus", "Disbursement and handling"] as const;
+
+  it("canonicalInvoiceCall builds each invoice call's body from the run alone (plus the checked labels)", () => {
+    expect(canonicalInvoiceCall("create_invoice", EXPECTED)).toEqual({
+      ok: true,
+      method: "create_invoice",
+      args: canonicalInvoice(EXPECTED),
+    });
+    expect(canonicalInvoiceCall("create_invoice", EXPECTED, LABELS)).toEqual({
+      ok: true,
+      method: "create_invoice",
+      args: canonicalInvoice(EXPECTED, LABELS),
+    });
+    expect(canonicalInvoiceCall("create_conditional_rules_for_invoice", RULE_EXPECTED)).toEqual({
+      ok: true,
+      method: "create_conditional_rules_for_invoice",
+      args: autoCancelRuleArgs(INVOICE_ID, autoCancelDate(INVOICE_DATE)),
+    });
+    expect(canonicalInvoiceCall("send_invoice", RULE_EXPECTED)).toEqual({
+      ok: true,
+      method: "send_invoice",
+      args: canonicalSend(INVOICE_ID),
+    });
+  });
+
+  it("refuses rather than guesses: bad labels, no invoice yet, an unreadable date, another tool", () => {
+    for (const [method, e, labels] of [
+      ["create_invoice", EXPECTED, ["Premium 2026", "Bonus", "Costs"]],
+      ["create_conditional_rules_for_invoice", EXPECTED, undefined],
+      ["create_conditional_rules_for_invoice", { ...RULE_EXPECTED, invoiceDate: "29 Oct 2026" }, undefined],
+      ["send_invoice", EXPECTED, undefined],
+      ["create_payout_batch", RULE_EXPECTED, undefined],
+    ] as const) {
+      expect(canonicalInvoiceCall(method, e, labels), method).toMatchObject({ ok: false });
+    }
+  });
+
+  it("invoiceEqualsQuote allows each call exactly when its args equal the executor's body", () => {
+    const c = ruleCtx();
+    for (const method of ["create_conditional_rules_for_invoice", "send_invoice"] as const) {
+      const built = canonicalInvoiceCall(method, c.expected);
+      if (!built.ok) throw new Error(built.reason);
+      expect(POLICIES.invoiceEqualsQuote(call(method, built.args), c), method).toEqual({
+        verdict: 0,
+        reason: null,
+      });
+    }
+    const created = canonicalInvoiceCall("create_invoice", EXPECTED, LABELS);
+    if (!created.ok) throw new Error(created.reason);
+    expect(POLICIES.invoiceEqualsQuote(call("create_invoice", created.args), ctx())).toEqual({
+      verdict: 0,
+      reason: null,
+    });
   });
 });
 
@@ -751,6 +1126,40 @@ describe("policy lattice: decide(call, ctx) = max verdict (register §9)", () =>
     expect(decide(call("get_payout_item", { id: "x" }), ctx({ runState: "SETTLING" })).verdict).toBe("ALLOW");
   });
 
+  it("S4 purposes: the AUTO_CANCEL rule (tool 11) is allowed in QUOTED and INVOICED, still only the canonical one", () => {
+    // S3.6.3 adds the rule after the send and the payable GET, and INVOICE_SENT moves QUOTED -> INVOICED.
+    const rule = call("create_conditional_rules_for_invoice", RULE("2026-11-23"));
+    for (const runState of ["QUOTED", "INVOICED"] as const) {
+      expect(decide(rule, ruleCtx({}, { runState })).verdict, runState).toBe("ALLOW");
+      const other = call("create_conditional_rules_for_invoice", RULE("2026-11-24"));
+      expect(decide(other, ruleCtx({}, { runState })).decidedBy, runState).toContain("invoiceEqualsQuote");
+    }
+    for (const runState of ["DRAFT", "FUNDED", "IN_REVIEW", "POSTED"] as const) {
+      expect(decide(rule, ruleCtx({}, { runState })).decidedBy, runState).toContain("phaseGate");
+    }
+    expect(decide(rule, ruleCtx({}, { runState: "INVOICED", invoiceExists: false })).decidedBy).toContain(
+      "phaseGate",
+    );
+    // The send (tool 12) stays QUOTED only.
+    const send = call("send_invoice", { invoice_id: INVOICE_ID, send_to_recipient: false });
+    expect(decide(send, ruleCtx({}, { runState: "INVOICED" })).decidedBy).toContain("phaseGate");
+  });
+
+  it("an IDN (punycode) business or brand address is read like any other ASCII address", () => {
+    const business = "coop@kalinaw.xn--p1ai";
+    const payer = "buyer@lantern.xn--80asehdb";
+    const expected = {
+      businessEmail: business,
+      payer: { email: payer, businessName: PAYER_NAME },
+      brandAllowlist: [payer],
+    };
+    const body = canonicalInvoice({ ...EXPECTED, ...expected });
+    expect(decide(call("create_invoice", body), ctx({}, expected))).toMatchObject({
+      verdict: "ALLOW",
+      decidedBy: [],
+    });
+  });
+
   it("kill switches, sandbox-only, allowlist and budget", () => {
     expect(
       decide(
@@ -862,6 +1271,115 @@ describe("policy lattice: decide(call, ctx) = max verdict (register §9)", () =>
         expect(() => decide(call(name, args), ruleCtx())).not.toThrow();
       }),
       { numRuns: 300 },
+    );
+  });
+
+  it("deeply nested or looping arguments are denied, never a stack overflow", () => {
+    // The review's probes: ~3,133 nested arrays or ~5,007 nested objects overflowed the walkers.
+    const deepArrays = JSON.parse(`${"[".repeat(5000)}${"]".repeat(5000)}`) as unknown;
+    let deepObjects: unknown = "x";
+    for (let i = 0; i < 6000; i++) deepObjects = { a: deepObjects };
+    const looping: Record<string, unknown> = {};
+    looping.self = looping;
+    const drafts: [string, unknown][] = [
+      ["deep note", draft({ note: deepArrays })],
+      ["deep objects under an unknown key", draft({ extra: deepObjects })],
+      ["a loop under an unknown key", draft({ extra: looping })],
+      ["a deep item name", { ...draft(), items: [{ ...CANONICAL.items[0], name: deepArrays }] }],
+    ];
+    for (const [label, args] of drafts) {
+      let d: ReturnType<typeof decide> | undefined;
+      expect(() => {
+        d = decide(call("create_invoice", args), ctx());
+      }, label).not.toThrow();
+      expect(d?.verdict, label).toBe("DENY");
+    }
+    const deep = decide(call("create_invoice", draft({ extra: deepObjects })), ctx());
+    for (const p of ["recipientInBrandAllowlist", "dueWithin30Days"] as const) {
+      expect(reasonOf(deep, p), p).toBe("The arguments nest too deeply to check");
+    }
+    const rule = decide(
+      call("create_conditional_rules_for_invoice", { ...RULE("2026-11-23"), x: looping }),
+      ruleCtx(),
+    );
+    expect(rule.verdict).toBe("DENY");
+    expect(reasonOf(rule, "dueWithin30Days")).toBe("The arguments nest too deeply to check");
+    // A canonical body is far shallower than the bound.
+    expect(decide(call("create_invoice", draft()), ctx()).verdict).toBe("ALLOW");
+  });
+
+  it("a policy that throws is a DENY for that policy, never an exception out of the lattice", () => {
+    const boom = () => {
+      throw new RangeError("Maximum call stack size exceeded");
+    };
+    const d = decideWith(call("get_hold", { hold_id: "H1" }), ctx(), {
+      allowlist: POLICIES.allowlist,
+      budgetCap: boom,
+    });
+    expect(d).toMatchObject({ verdict: "DENY", decidedBy: ["budgetCap"] });
+    expect(reasonOf(d, "budgetCap")).toBe("The arguments could not be checked");
+  });
+});
+
+describe("inv.i1.structural-paths: a key spelled like a path never passes as the allowed recipient", () => {
+  const recipientOnly = (args: unknown) =>
+    decideWith(call("create_invoice", args), ctx(), {
+      recipientInBrandAllowlist: POLICIES.recipientInBrandAllowlist,
+    });
+
+  it("the review's probes are denied by recipientInBrandAllowlist alone, naming the key as written", () => {
+    const flatKey = { ...draft(), "primary_recipients[1].billing_info.email_address": "x@evil.example" };
+    const d1 = recipientOnly(flatKey);
+    expect(d1.verdict).toBe("DENY");
+    expect(reasonOf(d1, "recipientInBrandAllowlist")).toBe(
+      'Not a recipient field the draft may set: ["primary_recipients[1].billing_info.email_address"]',
+    );
+    const nestedKey = {
+      ...draft(),
+      "primary_recipients[0].billing_info": { email_address: "x@evil.example" },
+    };
+    const d2 = recipientOnly(nestedKey);
+    expect(d2.verdict).toBe("DENY");
+    // The key names a recipient, so it is the stray field (structurally it is not the allowed place).
+    expect(reasonOf(d2, "recipientInBrandAllowlist")).toBe(
+      'Not a recipient field the draft may set: ["primary_recipients[0].billing_info"]',
+    );
+    const disguised = { ...draft(), "billing[0].info": { email_address: "x@evil.example" } };
+    expect(reasonOf(recipientOnly(disguised), "recipientInBrandAllowlist")).toBe(
+      'Not a recipient field the draft may set: ["billing[0].info"].email_address',
+    );
+    // The full lattice names the key as written too, never the legitimate field.
+    expect(reasonOf(decide(call("create_invoice", flatKey), ctx()), "invoiceEqualsQuote")).toBe(
+      'Not in the canonical invoice: ["primary_recipients[1].billing_info.email_address"]',
+    );
+  });
+
+  it("an e-mail anywhere but the recipient's and the invoicer's place is a stray recipient", () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ note: "Pay x@evil.example" }, "note"],
+      [{ extra: ["x@evil.example"] }, "extra[0]"],
+      [
+        { items: CANONICAL.items.map((i, k) => (k === 2 ? { ...i, name: "x@evil.example" } : i)) },
+        "items[2].name",
+      ],
+      [{ recipientEmail: "x@evil.example" }, "recipientEmail"],
+      [{ "Email-To": PAYER }, '["Email-To"]'],
+    ];
+    for (const [over, path] of cases) {
+      const d = recipientOnly(draft(over));
+      expect(d.verdict, path).toBe("DENY");
+      expect(reasonOf(d, "recipientInBrandAllowlist"), path).toBe(
+        `Not a recipient field the draft may set: ${path}`,
+      );
+    }
+    // The canonical places stay allowed.
+    expect(recipientOnly(draft()).verdict).toBe("ALLOW");
+  });
+
+  it("audit paths escape keys that are not plain identifiers, in printable ASCII", () => {
+    const d = decide(call("create_invoice", draft({ "a.b": 1, "x‮y": 2, "items[0]": 3 })), ctx());
+    expect(reasonOf(d, "invoiceEqualsQuote")).toBe(
+      'Not in the canonical invoice: ["a.b"], ["items[0]"], ["x\\u202ey"]',
     );
   });
 });

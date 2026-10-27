@@ -2,7 +2,6 @@
 // adds EMAIL-only, USD-only, two decimals on top.
 
 import { describe, expect, it } from "vitest";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   cancelUnclaimedPayoutItemParameters,
   createPayoutBatchParameters,
@@ -12,7 +11,7 @@ import {
   getPayoutItemParameters,
   PayoutParamsError,
 } from "../src/index.js";
-import { FetchPayPalHttp } from "./support/http.js";
+import { RealPayPalHttp } from "./support/http.js";
 import { useMsw } from "./support/msw.js";
 
 useMsw();
@@ -48,10 +47,6 @@ describe("createPayoutBatchParameters (vendored from PR #107)", () => {
     expect(parsed).not.toHaveProperty("paypal_request_id");
   });
 
-  it("converts to a fully inlined JSON Schema", () => {
-    expect(JSON.stringify(zodToJsonSchema(createPayoutBatchParameters({})))).not.toContain("$ref");
-  });
-
   it.each([
     [
       "get_payout_batch",
@@ -77,7 +72,7 @@ describe("createPayoutBatchParameters (vendored from PR #107)", () => {
   });
 
   it("throws before any request when the PR's validation fails", async () => {
-    const http = new FetchPayPalHttp();
+    const http = new RealPayPalHttp();
     await expect(getPayoutBatch(http, {}, { payout_batch_id: "a/b" })).rejects.toBeInstanceOf(
       PayoutParamsError,
     );

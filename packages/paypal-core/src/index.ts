@@ -154,6 +154,7 @@ export {
   createMemoryTransmissionStore,
   createPayPalWebhookVerifier,
   DEFAULT_CERT_FETCH_BUDGET,
+  DEFAULT_EXPIRED_CERT_POSTBACKS_PER_HOUR,
   type ExpiredCertPolicy,
   MAX_TRANSMISSION_SKEW_MS,
   MAX_WEBHOOK_BODY_BYTES,
@@ -173,6 +174,7 @@ export {
   type VerifyOptions,
   type VerifyOutcome,
   verifyPayPal,
+  type WebhookVerifierAlert,
   type WebhookVerifierConfig,
   type WebhookVerifierHealth,
 } from "./webhook/verify.js";

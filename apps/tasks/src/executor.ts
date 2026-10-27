@@ -7,7 +7,11 @@ import { invokeTask, type TaskRuntime } from "./invoke.js";
 import type { Logger } from "./log.js";
 
 export interface RunOptions {
-  /** Workflows: Render dedupes starts with the same key for 24 h. Pass the outbox dedupe key. */
+  /**
+   * Workflows: Render returns the first run for a key repeated within 24 h. The key must be
+   * attempt-scoped (`renderIdempotencyKey(outboxIds, attempt)` in ./handoff/idempotency.ts), never
+   * the bare outbox dedupe key, or a sweeper re-dispatch gets the earlier failed run back.
+   */
   readonly idempotencyKey?: string;
   readonly signal?: AbortSignal;
 }
@@ -73,6 +77,8 @@ export function createInlineExecutor(deps: {
   runtime: TaskRuntime;
   logger: Logger;
   concurrency?: number;
+  /** Runs before every task (InvokeContext.preflight); the inline CLI passes the S3.4 role check. */
+  preflight?: () => Promise<void>;
 }): InlineExecutor {
   const gate = new Semaphore(deps.concurrency ?? INLINE_CONCURRENCY);
   return {
@@ -90,6 +96,7 @@ export function createInlineExecutor(deps: {
           executor: "inline",
           signal: options?.signal,
           logger: deps.logger,
+          preflight: deps.preflight,
         });
         return { executor: "inline", outcome };
       } finally {

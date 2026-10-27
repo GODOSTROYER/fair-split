@@ -6,13 +6,14 @@
 import { sql } from "drizzle-orm";
 import { bigint, check, index, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 import { checkProvenance, checkSha, createdAt, id, provenance, tstz } from "./_columns.js";
-import { workspaceId } from "./workspace.js";
+import { workspaceIdKept } from "./workspace.js";
 
 export const llmCalls = pgTable(
   "llm_calls",
   {
     id: id(),
-    workspaceId: workspaceId(),
+    /** SET NULL on purge (S3 deviation 4): the day's spend per budget key must outlive a Judge workspace */
+    workspaceId: workspaceIdKept(),
     cacheKey: text("cache_key").notNull().unique("llm_calls_cache_key_uq"),
     purpose: text("purpose").notNull(),
     /** daily | eval | session:{id} — spend is metered per budget key per UTC day */

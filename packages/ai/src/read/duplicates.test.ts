@@ -132,6 +132,27 @@ describe("duplicate signals (S4.2): a hash of a slip never makes a duplicate on 
     ]);
   });
 
+  it("without a reviewed rectangle there is no hash, so signal 4 cannot fire: only the serial pairs", () => {
+    // A page (template rectangles not yet reviewed) or a live read without cropFixture: dhash null.
+    // S4.2: signal 4 counts "only with signal 3", so a re-shoot with a misread serial goes unpaired.
+    const misread = [
+      cand("PAGE1#0", { serial: "0471" }),
+      cand("PAGE2#0", { serial: "0477" }), // same member, date and payable kilos
+    ];
+    expect(duplicatePairs(misread)).toEqual([]);
+    // One side hashed, the other not: still no corroboration.
+    expect(
+      duplicatePairs([
+        misread[0] as DuplicateCandidate,
+        { ...(misread[1] as DuplicateCandidate), dhash: "00ff00ff00ff00ff" },
+      ]),
+    ).toEqual([]);
+    // A serial that reads still pairs, hash or no hash.
+    expect(duplicatePairs([cand("PAGE1#0"), cand("PAGE2#0")])).toEqual([
+      { a: "PAGE1#0", b: "PAGE2#0", signals: ["SAME_SERIAL"], copies: ["WHITE_ORIGINAL", "WHITE_ORIGINAL"] },
+    ]);
+  });
+
   it("never pairs two slots of one photo on the hash: they are two pieces of paper", () => {
     const h = "00ff00ff00ff00ff";
     expect(

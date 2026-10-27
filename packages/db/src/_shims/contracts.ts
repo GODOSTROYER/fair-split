@@ -101,6 +101,20 @@ export const ITEM_STATUS_RANK = {
 export type ItemStatus = keyof typeof ITEM_STATUS_RANK;
 export const ITEM_STATUSES = Object.keys(ITEM_STATUS_RANK) as ItemStatus[];
 
+/** S3.5: the member line state that mirrors each payout item status (WS-CORE's ITEM_STATUS_TO_LINE_STATE). */
+export const ITEM_STATUS_TO_LINE_STATE: Readonly<Record<ItemStatus | "SUBMITTED", LineState>> = {
+  SUBMITTED: "SUBMITTED",
+  PENDING: "PAYPAL_PENDING",
+  ONHOLD: "PAYPAL_HELD",
+  UNCLAIMED: "UNCLAIMED",
+  RETURNED: "RETURNED",
+  FAILED: "NEEDS_ACTION",
+  BLOCKED: "NEEDS_ACTION",
+  SUCCESS: "PAID",
+  REFUNDED: "REVERSED",
+  REVERSED: "REVERSED",
+};
+
 /** IC-01 RunEvent types. */
 export const RUN_EVENT_TYPES = [
   "run.state",

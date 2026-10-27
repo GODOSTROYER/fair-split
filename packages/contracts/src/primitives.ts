@@ -56,26 +56,115 @@ export type PhotoId = z.infer<typeof PhotoId>;
 export const PlotNo = z.string().regex(/^P-\d{3}-[A-Z]$/);
 export type PlotNo = z.infer<typeof PlotNo>;
 
+// ---------------------------------------------------------------- key IDs (S3.8, register C-13)
+// Every key ID is anchored lowercase ASCII with bounded parts. `{persona}` is 1-24 letters and is
+// never `ledger` or `demo` (those words mark the server's ledger keys and demo keys); `{n}` is
+// 1-9999 with no leading zero; a demo key's suffix is exactly 6 of [a-z0-9]. Every shape and every
+// schema below is assembled from these parts, so no shape is ever written twice. The parts use only
+// syntax a PostgreSQL ARE reads the same way (anchors, `[a-z]`, `{m,n}`, `(?:…)`, `(?!…)`).
+
+/** `fs-{persona}`, where the persona is never `ledger` or `demo`. */
+const PERSONA = "fs-(?!(?:ledger|demo)-)[a-z]{1,24}";
+/** `{n}`: 1-9999, no leading zero. */
+const SEQ = "[1-9][0-9]{0,3}";
+/** What follows `fs-{persona}-` in each officer key shape. */
+const SUFFIX = { app: `a${SEQ}`, web: `w${SEQ}`, demo: "demo-[a-z0-9]{6}", seeded: `s${SEQ}` } as const;
+/** What follows `fs-ledger-` in each ledger key shape. */
+const LEDGER_SUFFIX = { ledger: `k${SEQ}`, seededLedger: `s${SEQ}` } as const;
+
+const personaShape = (...suffixes: string[]) =>
+  `^${PERSONA}-${suffixes.length === 1 ? suffixes[0] : `(?:${suffixes.join("|")})`}$`;
+const ledgerShape = (...suffixes: string[]) =>
+  `^fs-ledger-${suffixes.length === 1 ? suffixes[0] : `(?:${suffixes.join("|")})`}$`;
+
+/** Each key ID shape, the one source for the schemas below and for the domain's sample rule. */
+export const KEY_ID_PATTERNS = {
+  /** A person's app key in SecureStore behind biometrics: `fs-{persona}-a{n}` (`fs-ernesto-a1`). */
+  app: new RegExp(personaShape(SUFFIX.app)),
+  /** A persisted non-extractable WebCrypto key: `fs-{persona}-w{n}` (the treasurer's `fs-analyn-w1`). */
+  web: new RegExp(personaShape(SUFFIX.web)),
+  /** A labelled browser key made for one judge session (C-13): `fs-{persona}-demo-{6}`. */
+  demo: new RegExp(personaShape(SUFFIX.demo)),
+  /** A seed-only officer key: `fs-{persona}-s{n}`. */
+  seeded: new RegExp(personaShape(SUFFIX.seeded)),
+  /** The server's ledger signing key: `fs-ledger-k{n}`. */
+  ledger: new RegExp(ledgerShape(LEDGER_SUFFIX.ledger)),
+  /** A seed-only ledger key: `fs-ledger-s{n}`. */
+  seededLedger: new RegExp(ledgerShape(LEDGER_SUFFIX.seededLedger)),
+} as const;
+
 /**
- * A key a person holds: `fs-{persona}-{a|w}{n}`. `a` keys live in the app's SecureStore, `w` keys in
- * one browser session (S3.8). Only these are registered in `device_keys` or accepted by the API.
+ * `DeviceKeyId`'s pattern as a string: the app, web and demo shapes. It uses only syntax a
+ * PostgreSQL ARE reads the same way, so `device_keys.key_id`'s CHECK is derived from it
+ * (`key_id ~ DEVICE_KEY_ID_PATTERN`) instead of being written a second time.
  */
-export const DeviceKeyId = z.string().regex(/^fs-[a-z]+-[aw]\d+$/);
+export const DEVICE_KEY_ID_PATTERN = personaShape(SUFFIX.app, SUFFIX.web, SUFFIX.demo);
+
+/**
+ * A key a person holds: an app key (`a`), a persisted browser key (`w`) or a judge-session demo key
+ * (`demo`). Only these are registered in `device_keys` or accepted by the API.
+ */
+export const DeviceKeyId = z.string().regex(new RegExp(DEVICE_KEY_ID_PATTERN));
 export type DeviceKeyId = z.infer<typeof DeviceKeyId>;
 
 /**
  * A seed-only key: `fs-{persona}-s{n}`. Its private half derives from public text so the seeded
  * Proof verifies; it is labelled seeded, never registered in `device_keys` and never trusted.
  */
-export const SeededKeyId = z.string().regex(/^fs-[a-z]+-s\d+$/);
+export const SeededKeyId = z.string().regex(KEY_ID_PATTERNS.seeded);
 export type SeededKeyId = z.infer<typeof SeededKeyId>;
 
-/** Any key ID a signed approval may carry: a device key, or a seeded key in seeded data. */
-export const KeyId = z.string().regex(/^fs-[a-z]+-[aws]\d+$/);
+/**
+ * Any key ID a signed approval may carry: a device key, or a seeded key in seeded data. Never a
+ * ledger key ID: those are `LedgerKeyId` only.
+ */
+export const KeyId = z
+  .string()
+  .regex(new RegExp(personaShape(SUFFIX.app, SUFFIX.web, SUFFIX.demo, SUFFIX.seeded)));
 export type KeyId = z.infer<typeof KeyId>;
 
+/** The server's ledger signing key: `fs-ledger-k{n}`; a seed-only key is `fs-ledger-s{n}`. */
+export const LedgerKeyId = z
+  .string()
+  .regex(new RegExp(ledgerShape(LEDGER_SUFFIX.ledger, LEDGER_SUFFIX.seededLedger)));
+export type LedgerKeyId = z.infer<typeof LedgerKeyId>;
+
+/** A seed-only key, officer (`fs-{persona}-s{n}`) or ledger (`fs-ledger-s{n}`). */
 export function isSeededKeyId(keyId: string): boolean {
-  return SeededKeyId.safeParse(keyId).success;
+  return KEY_ID_PATTERNS.seeded.test(keyId) || KEY_ID_PATTERNS.seededLedger.test(keyId);
+}
+
+/**
+ * The one ID shape each signing-key kind carries (S3.8, C-13; contracts `SigningKeyKind`): an app
+ * key is `a{n}`, a persisted browser key `w{n}`, a judge-session key `demo-{6}` and a seed-only key
+ * `s{n}`. So a key's ID alone tells its kind: a judge's key can never take a real key's ID.
+ */
+export const KEY_ID_PATTERN_BY_KIND = {
+  app: KEY_ID_PATTERNS.app,
+  web: KEY_ID_PATTERNS.web,
+  web_demo: KEY_ID_PATTERNS.demo,
+  seeded: KEY_ID_PATTERNS.seeded,
+} as const;
+
+/** The one ID shape each ledger-key kind carries (`LedgerKey.kind`). */
+export const LEDGER_KEY_ID_PATTERN_BY_KIND = {
+  server: KEY_ID_PATTERNS.ledger,
+  seeded: KEY_ID_PATTERNS.seededLedger,
+} as const;
+
+function fitsShape(shapes: Readonly<Record<string, RegExp>>, kind: unknown, keyId: unknown): boolean {
+  if (typeof kind !== "string" || typeof keyId !== "string" || !Object.hasOwn(shapes, kind)) return false;
+  return (shapes[kind] as RegExp).test(keyId);
+}
+
+/** True when `keyId` has the ID shape of the signing-key `kind`; an unknown kind fits nothing. */
+export function keyIdFitsKind(kind: unknown, keyId: unknown): boolean {
+  return fitsShape(KEY_ID_PATTERN_BY_KIND, kind, keyId);
+}
+
+/** True when `keyId` has the ID shape of the ledger-key `kind`; an unknown kind fits nothing. */
+export function ledgerKeyIdFitsKind(kind: unknown, keyId: unknown): boolean {
+  return fitsShape(LEDGER_KEY_ID_PATTERN_BY_KIND, kind, keyId);
 }
 
 /** Raw 32-byte Ed25519 public key, lowercase hex. */

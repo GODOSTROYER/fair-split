@@ -14,6 +14,14 @@ export const DB_ERROR_CODES = [
   "PURGE_REFUSED",
   /** a column that never changes once written, e.g. workspaces.kind (subject: "table.column") */
   "FROZEN_COLUMN",
+  /** I5: a state write that is not an edge of its machine (subject: "table:FROM->TO") */
+  "ILLEGAL_TRANSITION",
+  /** I5: a state change must count version up by exactly one, and version never moves otherwise (subject: table) */
+  "VERSION_MISMATCH",
+  /** I2: a seed window may open only for a fresh showcase or judge workspace (subject: workspace id) */
+  "SEED_REFUSED",
+  /** I5: runs, lines, holds, payout items and approvals leave only with their workspace's purge (subject: table) */
+  "DELETE_REFUSED",
 ] as const;
 export type DbErrorCode = (typeof DB_ERROR_CODES)[number];
 

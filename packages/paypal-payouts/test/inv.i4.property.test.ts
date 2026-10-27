@@ -1,10 +1,19 @@
 // inv.i4.digest-is-payout (architecture §0): whatever the database's lines become between the
-// signatures and the POST, the re-hash refuses it and nothing reaches the repository or PayPal.
+// signatures and the POST, the re-hash refuses it and nothing reaches the repository or PayPal. That
+// holds for the PayPal lines (batchSha256) and for every member line, the cash lines too (linesDigest,
+// the approved plan's amendment to register §8).
 
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { ApprovedLine } from "../src/index.js";
-import { approvalsFor, HERO_LINES, postingSnapshot, RUN_FACTS } from "./support/fixtures.js";
+import type { ApprovedLine, MemberLineHash } from "../src/index.js";
+import {
+  approvalsFor,
+  HERO_LINES,
+  lineHash,
+  MEMBER_LINES,
+  postingSnapshot,
+  RUN_FACTS,
+} from "./support/fixtures.js";
 import { requests, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
 import { makeService } from "./support/service.js";
@@ -78,8 +87,82 @@ function apply(lines: readonly ApprovedLine[], m: Mutation): ApprovedLine[] | nu
   }
 }
 
+type LinesMutation =
+  | { kind: "rehash"; index: number; version: number }
+  | { kind: "dropCash"; index: number }
+  | { kind: "add"; memberNo: number }
+  | { kind: "swapHashes"; a: number; b: number };
+
+const PAYPAL_MEMBERS = new Set(HERO_LINES.map((l) => l.memberNo));
+const memberIndex = fc.integer({ min: 0, max: MEMBER_LINES.length - 1 });
+const linesMutation: fc.Arbitrary<LinesMutation> = fc.oneof(
+  fc.record({
+    kind: fc.constant("rehash" as const),
+    index: memberIndex,
+    version: fc.integer({ min: 2, max: 99 }),
+  }),
+  fc.record({ kind: fc.constant("dropCash" as const), index: memberIndex }),
+  fc.record({ kind: fc.constant("add" as const), memberNo: fc.integer({ min: 65, max: 999 }) }),
+  fc.record({ kind: fc.constant("swapHashes" as const), a: memberIndex, b: memberIndex }),
+);
+
+/** Every member line after the change, or null for a change that leaves them as signed. */
+function applyToLines(lines: readonly MemberLineHash[], m: LinesMutation): MemberLineHash[] | null {
+  const out = lines.map((l) => ({ ...l }));
+  switch (m.kind) {
+    case "rehash": {
+      const l = out[m.index] as MemberLineHash;
+      l.lineSha256 = lineHash(l.memberNo, m.version);
+      return out;
+    }
+    case "dropCash": {
+      // A PayPal line's member line cannot go while its item stays: that is an invalid batch.
+      if (PAYPAL_MEMBERS.has((out[m.index] as MemberLineHash).memberNo)) return null;
+      out.splice(m.index, 1);
+      return out;
+    }
+    case "add": {
+      const memberNo = `M-${String(m.memberNo).padStart(3, "0")}`;
+      out.push({ memberNo, lineSha256: lineHash(memberNo) });
+      return out;
+    }
+    case "swapHashes": {
+      const a = out[m.a] as MemberLineHash;
+      const b = out[m.b] as MemberLineHash;
+      if (a.lineSha256 === b.lineSha256) return null;
+      [a.lineSha256, b.lineSha256] = [b.lineSha256, a.lineSha256];
+      return out;
+    }
+  }
+}
+
 describe("inv.i4.digest-is-payout", () => {
-  it("refuses every change the database's lines undergo after signing, and sends nothing", async () => {
+  it("refuses every change to the run's member lines after signing, cash lines included: nothing sent, the keys voided", async () => {
+    const approvals = await approvalsFor(HERO_LINES);
+    await fc.assert(
+      fc.asyncProperty(linesMutation, async (m) => {
+        const memberLines = applyToLines(MEMBER_LINES, m);
+        fc.pre(memberLines !== null);
+        // The PayPal lines are exactly as signed, so batchSha256 still matches: only linesDigest sees it.
+        const repo = new MemoryPayoutsRepo({
+          postings: [await postingSnapshot(HERO_LINES, { approvals, memberLines: memberLines ?? [] })],
+        });
+        const { service } = makeService(repo);
+        const out = await service.executeApproved(RUN_FACTS.runId);
+        expect(out).toMatchObject({
+          kind: "refused",
+          code: "DIGEST_MISMATCH",
+          reason: "A line changed after it was signed. Nothing was sent.",
+        });
+        expect(repo.types()).toEqual(["voidApprovals"]);
+        expect(repo.batches.size).toBe(0);
+        expect(requests).toHaveLength(0);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  it("refuses every change the database's lines undergo after signing, sends nothing and voids the keys", async () => {
     const approvals = await approvalsFor(HERO_LINES);
     await fc.assert(
       fc.asyncProperty(mutation, async (m) => {
@@ -92,7 +175,9 @@ describe("inv.i4.digest-is-payout", () => {
         const out = await service.executeApproved(RUN_FACTS.runId);
         expect(out.kind).toBe("refused");
         if (out.kind === "refused") expect(["DIGEST_MISMATCH", "INVALID_BATCH"]).toContain(out.code);
-        expect(repo.events).toHaveLength(0);
+        // Nothing written but, after a failed approval check, the void (S3.6.4 step 3).
+        const voided = out.kind === "refused" && out.code === "DIGEST_MISMATCH";
+        expect(repo.types()).toEqual(voided ? ["voidApprovals"] : []);
         expect(requests).toHaveLength(0);
       }),
       { numRuns: 200 },

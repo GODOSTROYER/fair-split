@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - media
 
 # Hoisted linking keeps Metro (Expo) happy on Windows; see docs/spec/architecture.md section 18.
 nodeLinker: hoisted
@@ -65,10 +66,10 @@ catalog:
   "@testing-library/dom": 10.4.2
   "jsdom": 30.1.2
   "@noble/curves": 2.4.0
-  "embedded-postgres": 17.10.0-beta.17
-  "zod-to-json-schema": 3.25.2
   "yaml": 2.9.1
   "ajv": 8.20.0
+  "embedded-postgres": 17.10.0-beta.17
+  "ajv-formats": 3.0.1
 
 catalogs:
   zod3:
@@ -83,6 +84,8 @@ allowBuilds:
   "@embedded-postgres/linux-x64": true
   "@embedded-postgres/darwin-arm64": true
   "@embedded-postgres/darwin-x64": true
+  "@google/genai": false
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - "@biomejs/biome@2.6.2"

@@ -1,60 +1,53 @@
-// A fetch-based IC-05 PayPalHttp test double, built to the contract in S3 §S3.6.2: bearer token,
-// PayPal-Request-Id when given, the paypal-debug-id header, and `links` merged from the top level
-// and every `details[].link` (Payouts puts the original batch link there). Transport failures throw.
-// The production implementation is WS-PPCORE's; this double only stands in for it in tests.
+// WS-PPCORE's real IC-05 client (`createPayPalHttp` from @fairsplit/paypal-core), pointed at msw's
+// sandbox: every request crosses a real fetch, so the service is tested on the client production wires
+// in (limiter gate, bearer token, PayPal-Request-Id, its own retries of idempotent calls, the 401
+// refresh, links merged from details[].link). The token is fixed, the limiter never refuses and waits
+// are skipped unless a test injects its own `auth`, `limiter` or `sleep`.
 
-import type { PayPalHttp, PayPalLink, PayPalRequest, PayPalResult } from "../../src/index.js";
-import { SANDBOX } from "./msw.js";
+import {
+  createPayPalHttp,
+  type PayPalAuth,
+  type PayPalHttp,
+  type PayPalHttpConfig,
+  type PayPalRequest,
+  type PayPalResult,
+  unlimitedLimiter,
+} from "@fairsplit/paypal-core";
 
-export class FetchPayPalHttp implements PayPalHttp {
+export const TEST_TOKEN = "test-token";
+
+export interface FixedAuth extends Pick<PayPalAuth, "token" | "invalidate"> {
+  /** The stale token passed to each invalidate() (the client's 401 handling). */
+  readonly invalidated: (string | undefined)[];
+}
+
+/** The shared token cache, always handing out the same token. */
+export function fixedAuth(): FixedAuth {
+  const invalidated: (string | undefined)[] = [];
+  return {
+    invalidated,
+    token: async () => ({ v: TEST_TOKEN, exp: Date.now() + 3_600_000, scopes: [], appId: null }),
+    invalidate: (stale) => void invalidated.push(stale),
+  };
+}
+
+/** The real client, recording each request the payouts code hands it. */
+export class RealPayPalHttp implements PayPalHttp {
   readonly calls: PayPalRequest[] = [];
+  readonly #client: PayPalHttp;
 
-  constructor(
-    private readonly token = "test-token",
-    private readonly timeoutMs = 2_000,
-  ) {}
-
-  async request<T>(r: PayPalRequest): Promise<PayPalResult<T>> {
-    this.calls.push(r);
-    const started = performance.now();
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      authorization: `Bearer ${this.token}`,
-    };
-    if (r.requestId) headers["paypal-request-id"] = r.requestId;
-    const res = await fetch(`${SANDBOX}${r.path}`, {
-      method: r.method,
-      headers,
-      ...(r.body === undefined ? {} : { body: JSON.stringify(r.body) }),
-      signal: AbortSignal.timeout(this.timeoutMs),
+  constructor(config: Partial<Pick<PayPalHttpConfig, "auth" | "limiter" | "sleep">> = {}) {
+    this.#client = createPayPalHttp({
+      env: "sandbox",
+      auth: config.auth ?? fixedAuth(),
+      limiter: config.limiter ?? unlimitedLimiter,
+      sleep: config.sleep ?? (async () => {}),
+      timeoutMs: 2_000,
     });
-    const text = await res.text();
-    const body = text.length > 0 ? (JSON.parse(text) as unknown) : null;
-    const debugId = res.headers.get("paypal-debug-id");
-    const ms = Math.round(performance.now() - started);
-    if (res.ok) return { ok: true, status: res.status, body: body as T, debugId, ms };
-    const err = (body ?? {}) as {
-      name?: string;
-      message?: string;
-      details?: unknown[];
-      links?: PayPalLink[];
-    };
-    const details = Array.isArray(err.details) ? err.details : [];
-    const links: PayPalLink[] = [...(Array.isArray(err.links) ? err.links : [])];
-    for (const d of details) {
-      const link = (d as { link?: unknown }).link;
-      if (Array.isArray(link)) links.push(...(link as PayPalLink[]));
-    }
-    return {
-      ok: false,
-      status: res.status,
-      name: err.name ?? "HTTP_ERROR",
-      message: err.message ?? "",
-      details,
-      links,
-      debugId,
-      retryable: res.status >= 500,
-      ms,
-    };
+  }
+
+  request<T = unknown>(request: PayPalRequest): Promise<PayPalResult<T>> {
+    this.calls.push(request);
+    return this.#client.request<T>(request);
   }
 }

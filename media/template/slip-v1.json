@@ -1,0 +1,323 @@
+{
+  "id": "slip-v1",
+  "version": 1,
+  "synthetic": true,
+  "description": "Printed weigh-slip template v1 for synthetic Fair Split evidence. Rectangles are slip-normalised (0..1, origin top-left) and nominal; per-image reviewed fixtures are the only source of crops.",
+  "paper": {
+    "pad": "triplicate carbonless",
+    "nominalFormat": "A6",
+    "copies": {
+      "WHITE_ORIGINAL": "thin off-white carbonless pad paper",
+      "PINK_DUPLICATE": "thin pink carbonless duplicate paper",
+      "YELLOW_TRIPLICATE": "thin pale-yellow carbonless triplicate paper"
+    }
+  },
+  "printed": {
+    "coop": "BULAWANON KAKAW GROWERS MULTI-PURPOSE COOPERATIVE",
+    "place": "Calinan, Davao City",
+    "title": "RESIBO SA PAGTIMBANG / WEIGH SLIP · Uga nga kakaw",
+    "serialPrefix": "No.",
+    "signatureLabel": "Pirma / Thumbmark",
+    "clerkLabel": "Clerk",
+    "copyFooter": {
+      "WHITE_ORIGINAL": "ORIGINAL – MEMBER",
+      "PINK_DUPLICATE": "DUPLICATE – OFFICE",
+      "YELLOW_TRIPLICATE": "TRIPLICATE – LOGBOOK"
+    },
+    "specimen": "SPECIMEN · SYNTHETIC DEMO PAD · NOT A RECORD"
+  },
+  "boxes": [
+    {
+      "no": 1,
+      "label": "Petsa",
+      "gloss": "Date",
+      "fields": [
+        "date"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 2,
+      "label": "Miyembro No.",
+      "gloss": "Member no.",
+      "fields": [
+        "member_no"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 3,
+      "label": "Ngalan",
+      "gloss": "Name",
+      "fields": [
+        "member_name"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 4,
+      "label": "Plot No.",
+      "gloss": "Plot no.",
+      "fields": [
+        "plot_no"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 5,
+      "label": "Sako",
+      "gloss": "Sacks",
+      "fields": [
+        "sacks"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 6,
+      "label": "Gross (kg)",
+      "gloss": "Gross weight (kg)",
+      "fields": [
+        "gross_kg"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 7,
+      "label": "Tare (kg)",
+      "gloss": "Tare (kg)",
+      "fields": [
+        "tare_kg"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 8,
+      "label": "Net (kg)",
+      "gloss": "Net weight (kg)",
+      "fields": [
+        "net_kg"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 9,
+      "label": "MC %",
+      "gloss": "Moisture content (%)",
+      "fields": [
+        "mc_pct"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 10,
+      "label": "Bawas MC (kg)",
+      "gloss": "Less for moisture (kg)",
+      "fields": [
+        "mc_less_kg"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 11,
+      "label": "Bayranan (kg)",
+      "gloss": "Payable weight (kg)",
+      "fields": [
+        "payable_kg"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 12,
+      "label": "Grado",
+      "gloss": "Grade",
+      "fields": [
+        "grade"
+      ],
+      "lines": 1
+    },
+    {
+      "no": 13,
+      "label": "Kaltas",
+      "gloss": "Deductions",
+      "fields": [
+        "deduction_1",
+        "deduction_2"
+      ],
+      "lines": 2
+    }
+  ],
+  "fields": [
+    "serial",
+    "date",
+    "member_no",
+    "member_name",
+    "plot_no",
+    "sacks",
+    "gross_kg",
+    "tare_kg",
+    "net_kg",
+    "mc_pct",
+    "mc_less_kg",
+    "payable_kg",
+    "grade",
+    "deduction_1",
+    "deduction_2",
+    "signature",
+    "clerk_initials"
+  ],
+  "geometry": {
+    "table": {
+      "x": [
+        0.058,
+        0.128,
+        0.355,
+        0.94
+      ]
+    },
+    "rows": [
+      0.159,
+      0.202,
+      0.246,
+      0.289,
+      0.332,
+      0.376,
+      0.419,
+      0.464,
+      0.51,
+      0.556,
+      0.602,
+      0.647,
+      0.694,
+      0.783
+    ],
+    "serial": {
+      "x1": 0.8,
+      "y1": 0.09,
+      "x2": 0.95,
+      "y2": 0.13
+    },
+    "signature": {
+      "x1": 0.058,
+      "y1": 0.807,
+      "x2": 0.613,
+      "y2": 0.916
+    },
+    "clerk": {
+      "x1": 0.645,
+      "y1": 0.807,
+      "x2": 0.94,
+      "y2": 0.916
+    },
+    "footer": {
+      "x1": 0.2,
+      "y1": 0.925,
+      "x2": 0.8,
+      "y2": 0.975
+    }
+  },
+  "fieldRects": {
+    "serial": {
+      "x1": 0.8,
+      "y1": 0.09,
+      "x2": 0.95,
+      "y2": 0.13
+    },
+    "signature": {
+      "x1": 0.058,
+      "y1": 0.807,
+      "x2": 0.613,
+      "y2": 0.916
+    },
+    "clerk_initials": {
+      "x1": 0.645,
+      "y1": 0.807,
+      "x2": 0.94,
+      "y2": 0.916
+    },
+    "date": {
+      "x1": 0.355,
+      "y1": 0.159,
+      "x2": 0.94,
+      "y2": 0.202
+    },
+    "member_no": {
+      "x1": 0.355,
+      "y1": 0.202,
+      "x2": 0.94,
+      "y2": 0.246
+    },
+    "member_name": {
+      "x1": 0.355,
+      "y1": 0.246,
+      "x2": 0.94,
+      "y2": 0.289
+    },
+    "plot_no": {
+      "x1": 0.355,
+      "y1": 0.289,
+      "x2": 0.94,
+      "y2": 0.332
+    },
+    "sacks": {
+      "x1": 0.355,
+      "y1": 0.332,
+      "x2": 0.94,
+      "y2": 0.376
+    },
+    "gross_kg": {
+      "x1": 0.355,
+      "y1": 0.376,
+      "x2": 0.94,
+      "y2": 0.419
+    },
+    "tare_kg": {
+      "x1": 0.355,
+      "y1": 0.419,
+      "x2": 0.94,
+      "y2": 0.464
+    },
+    "net_kg": {
+      "x1": 0.355,
+      "y1": 0.464,
+      "x2": 0.94,
+      "y2": 0.51
+    },
+    "mc_pct": {
+      "x1": 0.355,
+      "y1": 0.51,
+      "x2": 0.94,
+      "y2": 0.556
+    },
+    "mc_less_kg": {
+      "x1": 0.355,
+      "y1": 0.556,
+      "x2": 0.94,
+      "y2": 0.602
+    },
+    "payable_kg": {
+      "x1": 0.355,
+      "y1": 0.602,
+      "x2": 0.94,
+      "y2": 0.647
+    },
+    "grade": {
+      "x1": 0.355,
+      "y1": 0.647,
+      "x2": 0.94,
+      "y2": 0.694
+    },
+    "deduction_1": {
+      "x1": 0.355,
+      "y1": 0.694,
+      "x2": 0.94,
+      "y2": 0.7384999999999999
+    },
+    "deduction_2": {
+      "x1": 0.355,
+      "y1": 0.7384999999999999,
+      "x2": 0.94,
+      "y2": 0.783
+    }
+  },
+  "nativeReview": "Cebuano and Filipino labels pending native review (OD-2)"
+}

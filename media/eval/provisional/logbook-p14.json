@@ -1,0 +1,478 @@
+{
+  "case": "logbook-p14",
+  "set": "dev",
+  "kind": "logbook_page",
+  "image": "masters/logbook-p14.jpg",
+  "fixture": "fixtures/logbook-p14.json",
+  "slips": [
+    {
+      "slot": "1",
+      "serial": "0456",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "1",
+          "visible": "1",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/14",
+          "visible": "07/14",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0456",
+          "visible": "0456",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-039",
+          "visible": "M-039",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "J. RIPALDA",
+          "visible": "J. RIPALDA",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "35.20",
+          "visible": "35.20",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "2",
+      "serial": "0457",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "2",
+          "visible": "2",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/14",
+          "visible": "07/14",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0457",
+          "visible": "0457",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-007",
+          "visible": "M-007",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "D. LAPINIG",
+          "visible": "D. LAPINIG",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "42.00",
+          "visible": "42.00",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "3",
+      "serial": "0458",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "3",
+          "visible": "3",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/14",
+          "visible": "07/14",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0458",
+          "visible": "0458",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-018",
+          "visible": "M-018",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "T. PACAÑA",
+          "visible": "T. PACAÑA",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "60.80",
+          "visible": "60.80",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [
+        {
+          "visible": "MULTA GA ₱200",
+          "rule": "NO_MATCH",
+          "expect": "AUTO"
+        }
+      ],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "4",
+      "serial": "0459",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "4",
+          "visible": "4",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/14",
+          "visible": "07/14",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0459",
+          "visible": "0459",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-053",
+          "visible": "M-053",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "M. PONCE",
+          "visible": "M. PONCE",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "51.70",
+          "visible": "51.70",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "5",
+      "serial": "0460",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "5",
+          "visible": "5",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/15",
+          "visible": "07/15",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0460",
+          "visible": "0460",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-022",
+          "visible": "M-022",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "P. OMPAD",
+          "visible": "P. OMPAD",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "30.40",
+          "visible": "30.40",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G2",
+          "visible": "G2",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "6",
+      "serial": "0461",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "6",
+          "visible": "6",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/15",
+          "visible": "07/15",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0461",
+          "visible": "0461",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-002",
+          "visible": "M-002",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "F. YBAÑEZ",
+          "visible": "F. YBAÑEZ",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "24.60",
+          "visible": "24.60",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "7",
+      "serial": "0462",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "7",
+          "visible": "7",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/15",
+          "visible": "07/15",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0462",
+          "visible": "0462",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-060",
+          "visible": "M-060",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "A. SUMAMPAO",
+          "visible": "A. SUMAMPAO",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "64.50",
+          "visible": "64.50",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "8",
+      "serial": "0463",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "8",
+          "visible": "8",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/15",
+          "visible": "07/15",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0463",
+          "visible": "0463",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-031",
+          "visible": "M-031",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "R. JUMAWAN",
+          "visible": "R. JUMAWAN",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "28.90",
+          "visible": "28.90",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "9",
+      "serial": "0464",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "9",
+          "visible": "9",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/16",
+          "visible": "07/16",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0464",
+          "visible": "0464",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-053",
+          "visible": "M-053",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "M. PONCE",
+          "visible": "M. PONCE",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "48.30",
+          "visible": "48.30",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G2",
+          "visible": "G2",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    },
+    {
+      "slot": "10",
+      "serial": "0465",
+      "copy": "LOGBOOK_LINE",
+      "fields": {
+        "line_no": {
+          "value": "10",
+          "visible": "10",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/16",
+          "visible": "07/16",
+          "expect": "AUTO"
+        },
+        "serial": {
+          "value": "0465",
+          "visible": "0465",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-039",
+          "visible": "M-039",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "J. RIPALDA",
+          "visible": "J. RIPALDA",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "26.10",
+          "visible": "26.10",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": [],
+      "duplicate_of": null,
+      "injection": null
+    }
+  ],
+  "rate_card": null,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "reviewed_at": "2026-10-22T12:20:00.000Z"
+}

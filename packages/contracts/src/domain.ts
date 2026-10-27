@@ -31,7 +31,11 @@ import {
   IsoDate,
   IsoDateTime,
   Json,
+  KEY_ID_PATTERN_BY_KIND,
   KeyId,
+  keyIdFitsKind,
+  LedgerKeyId,
+  ledgerKeyIdFitsKind,
   MemberNo,
   NonNegCents,
   PlotNo,
@@ -510,13 +514,24 @@ export const BatchDigest = z.strictObject({
 });
 export type BatchDigest = z.infer<typeof BatchDigest>;
 
-/** The JCS payload each approver signs with Ed25519 (register §8). */
+/**
+ * The JCS payload each approver signs with Ed25519: register §8 as amended by the approved plan
+ * (ADR-0001), JCS{v, runId, seasonId, rateCardSha256, batchSha256, linesDigest, itemCount, totalCents,
+ * currency, role, approverId, nonce, exp}. `batchSha256` binds the PayPal items; `linesDigest` binds
+ * every member line, so both keys cover the cash lines too.
+ */
 export const ApprovalPayload = z.strictObject({
   v: z.literal(1),
   runId: z.string(),
   seasonId: z.string(),
   rateCardSha256: Sha256Hex,
   batchSha256: Sha256Hex,
+  /**
+   * The lines root over every member line, on and off rail: sha256(JCS([{memberNo, lineSha256}]
+   * sorted by memberNo)), the root the run's `lines.computed` entry carries and Proof plate 4
+   * recomputes (domain `linesDigest`).
+   */
+  linesDigest: Sha256Hex,
   itemCount: z.int().positive(),
   totalCents: z.int().positive(),
   currency: z.literal("USD"),
@@ -542,43 +557,50 @@ export const SignedApproval = z.strictObject({
 export type SignedApproval = z.infer<typeof SignedApproval>;
 
 /**
- * How a signing key came to exist. `app` is a person's own device key. `web_demo` is a labelled
- * browser key made for one judge session (C-13) and `seeded` derives from public text: both are
- * sample keys, so a Proof they sign reads "Sample", never "Verified".
+ * How a signing key came to exist (S3 `device_keys.kind`, plus `seeded`). `app` is a person's app
+ * key (`fs-{persona}-a{n}`) and `web` a persisted browser key (`fs-{persona}-w{n}`, the treasurer's
+ * `fs-analyn-w1`). `web_demo` is a labelled browser key made for one judge session (C-13) and
+ * `seeded` derives from public text: both are sample keys, so a Proof they sign reads "Sample",
+ * never "Verified". Ledger keys have their own kinds (`LedgerKey.kind`: `server` or `seeded`).
  */
-export const SigningKeyKind = z.enum(["app", "web_demo", "seeded"]);
+export const SigningKeyKind = z.enum(["app", "web", "web_demo", "seeded"]);
 export type SigningKeyKind = z.infer<typeof SigningKeyKind>;
 export const SAMPLE_KEY_KINDS: readonly SigningKeyKind[] = ["web_demo", "seeded"];
+// Every signing-key kind has its one ID shape (primitives `KEY_ID_PATTERN_BY_KIND`).
+KEY_ID_PATTERN_BY_KIND satisfies Readonly<Record<SigningKeyKind, RegExp>>;
+
+const KIND_FITS_ID = { message: "The key ID does not have its kind's shape (S3.8, C-13)", path: ["keyId"] };
 
 /**
  * One officer key: a row of the registry the server reads from `device_keys` (joined with the
  * officer's role) and the entry the app publishes for Proof. The key may sign only as `approverId`
- * in `role`.
+ * in `role`, and its kind fits its ID (`keyIdFitsKind`): a list with a misfit row does not parse.
  */
-export const OfficerKey = z.strictObject({
-  keyId: KeyId,
-  approverId: z.string().min(1),
-  role: ApprovalRole,
-  publicKeyHex: Ed25519PublicKeyHex,
-  kind: SigningKeyKind,
-  revokedAt: IsoDateTime.nullable(),
-});
+export const OfficerKey = z
+  .strictObject({
+    keyId: KeyId,
+    approverId: z.string().min(1),
+    role: ApprovalRole,
+    publicKeyHex: Ed25519PublicKeyHex,
+    kind: SigningKeyKind,
+    revokedAt: IsoDateTime.nullable(),
+  })
+  .refine((k) => keyIdFitsKind(k.kind, k.keyId), KIND_FITS_ID);
 export type OfficerKey = z.infer<typeof OfficerKey>;
 
-/** The server's ledger signing key: `fs-ledger-k{n}`; a seed-only key is `fs-ledger-s{n}`. */
-export const LedgerKeyId = z.string().regex(/^fs-ledger-[ks]\d+$/);
-export type LedgerKeyId = z.infer<typeof LedgerKeyId>;
-
 /**
- * A pinned ledger key. `seeded` derives from public text: a checkpoint it signs reads "Sample". Once
- * `revokedAt` is set the key is untrusted for every checkpoint, whatever date the checkpoint claims.
+ * A pinned ledger key: `server` is `fs-ledger-k{n}`; `seeded` is `fs-ledger-s{n}` and derives from
+ * public text, so a checkpoint it signs reads "Sample". Once `revokedAt` is set the key is untrusted
+ * for every checkpoint, whatever date the checkpoint claims.
  */
-export const LedgerKey = z.strictObject({
-  keyId: LedgerKeyId,
-  publicKeyHex: Ed25519PublicKeyHex,
-  kind: z.enum(["server", "seeded"]),
-  revokedAt: IsoDateTime.nullable(),
-});
+export const LedgerKey = z
+  .strictObject({
+    keyId: LedgerKeyId,
+    publicKeyHex: Ed25519PublicKeyHex,
+    kind: z.enum(["server", "seeded"]),
+    revokedAt: IsoDateTime.nullable(),
+  })
+  .refine((k) => ledgerKeyIdFitsKind(k.kind, k.keyId), KIND_FITS_ID);
 export type LedgerKey = z.infer<typeof LedgerKey>;
 
 /**
@@ -709,14 +731,17 @@ const webhookApplied = {
 export const LedgerPayloads = {
   /**
    * A key enters the ledger before it signs; `persona` is the approverId it signs as. Proof plate 5
-   * takes public keys only from here, never from the bundle.
+   * takes public keys only from here, never from the bundle. A registration whose kind does not fit
+   * its key ID attests nothing.
    */
-  "key.registered": z.strictObject({
-    keyId: KeyId,
-    persona: z.string().min(1),
-    kind: SigningKeyKind,
-    publicKeyHex: Ed25519PublicKeyHex,
-  }),
+  "key.registered": z
+    .strictObject({
+      keyId: KeyId,
+      persona: z.string().min(1),
+      kind: SigningKeyKind,
+      publicKeyHex: Ed25519PublicKeyHex,
+    })
+    .refine((k) => keyIdFitsKind(k.kind, k.keyId), KIND_FITS_ID),
   "rate_card.ratified": z.strictObject({
     rateCardSha256: Sha256Hex,
     resolutionNo: z.string(),
@@ -751,6 +776,12 @@ export const LedgerPayloads = {
     netCents: Cents,
     onRailNetCents: Cents,
     balanced: z.boolean(),
+    /**
+     * Hold resolutions in this computation that R5 calls overrides (domain `overrideCount`:
+     * TWO_DELIVERIES, or CONFIRM_AS_READ on a RATE_MISMATCH or SUSPECTED_INJECTION hold). With the
+     * card's `cosign.anyOverride`, any override makes Proof plate 5 require the Chair's key.
+     */
+    overrides: z.int().nonnegative(),
   }),
   /** Appended with the approval, by the approver: the entry's actorId is `approverId`. */
   "approval.signed": z.strictObject({

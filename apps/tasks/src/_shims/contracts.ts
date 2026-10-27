@@ -41,6 +41,9 @@ export function isTaskName(value: unknown): value is TaskName {
   return typeof value === "string" && NAME_SET.has(value);
 }
 
+/** S3.4 `workspaces.kind`. `showcase` and `judge` workspaces run in Judge Mode (register C-06). */
+export type WorkspaceKind = "showcase" | "judge" | "real";
+
 /** IC-04: the executor that ran a task (S3.3 `task_outbox.executor`). */
 export type ExecutorKind = "inline" | "workflow" | "worker";
 
@@ -61,7 +64,8 @@ export function contractsDrift(): string[] {
 
 // ---------------------------------------------------------------------------------------------
 // Scheduled-task arguments and dedupe keys (IC-01 "each entry giving its arguments and idempotency
-// key"). PROPOSED by WS-OPS for fs-cron; WS-CORE to confirm or replace at the 24 Oct freeze.
+// key"). PROPOSED by WS-OPS for the hourly tick and fs-api's boot; WS-CORE to confirm or replace at
+// the 24 Oct freeze.
 
 export type ScheduledArgValue = string | number;
 
@@ -77,7 +81,10 @@ export const TASK_KEYS = {
     args: { trigger: "cron", slot },
     dedupeKey: `judgeReset:cron:${slot}`,
   }),
-  /** Hourly webhook catch-up (S3.6). */
+  /**
+   * Webhook catch-up, enqueued by fs-api at boot (S3.6.5), not by the tick. Keyed by the UTC hour
+   * of the boot, so a crash-looping instance still makes at most one catch-up call an hour.
+   */
   reconcileCatchup: (slot: string): ScheduledTaskKey => ({
     args: { mode: "catchup", slot },
     dedupeKey: `reconcile:catchup:${slot}`,

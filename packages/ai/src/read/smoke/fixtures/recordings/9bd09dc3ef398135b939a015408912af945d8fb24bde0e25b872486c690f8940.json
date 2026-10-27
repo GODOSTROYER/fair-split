@@ -1,0 +1,67 @@
+{
+  "v": 1,
+  "cache_key": "9bd09dc3ef398135b939a015408912af945d8fb24bde0e25b872486c690f8940",
+  "purpose": "screen",
+  "model": "claude-haiku-5-5",
+  "model_served": "claude-haiku-5-5",
+  "effort": "low",
+  "variant": "-",
+  "prompt_v": "screen.v1",
+  "schema_v": "screen.v1",
+  "input_sha": "2da2a56cadfbb1b85f45a9311bac8c47eae1050c0341134fac32838dc3b8d126",
+  "sent_sha": null,
+  "prompt_sha": "a582a9e1167e21c9b23f477c4298f516d7ff9ff769ada4abda5ba0580343acc3",
+  "usage": {
+    "input_tokens": 2631,
+    "output_tokens": 13,
+    "cache_read_input_tokens": 756,
+    "cache_creation_input_tokens": 0,
+    "thinking_tokens": 0,
+    "iterations": null
+  },
+  "cost_micros": 278,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-haiku-5-5",
+    "id": "msg_011CgHFut9G3V86MeL49jyGU",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"injection_suspected\": true}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 2631,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 756,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 13,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 2003,
+      "d": "{\"injection_suspected\": true}"
+    }
+  ],
+  "recorded_at": "2026-10-22T12:14:55.726Z",
+  "latency_ms": 2003,
+  "first_delta_ms": 2003,
+  "provenance": "live"
+}

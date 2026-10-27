@@ -40,15 +40,17 @@ export const STUDIES = {
     cues: [
       { act: "rise", at: 300 },
       { act: "hold-1", at: 1500 },
+      { act: "release-1", at: 3150 },
       { act: "signed-1", at: 3200 },
-      { act: "hold-2", at: 4600 },
+      { act: "hold-2", at: 4500 },
+      { act: "release-2", at: 5800 },
       { act: "signed-2", at: 6100 },
     ],
-    note: "H1 resolves at 300 ms. Analyn holds from 1.5 s; her signature is accepted at 3.2 s. Ernesto holds on his phone from 4.6 s; his signature is accepted at 6.1 s.",
+    note: "H1 resolves at 300 ms. Analyn holds from 1.5 s; the slab arms at 3.1 s and she lets go inside at 3.15 s, so her browser signs; the signature is accepted at 3.2 s. Ernesto holds on his phone from 4.5 s; it arms at 5.7 s, he lets go at 5.8 s, and his signature is accepted at 6.1 s.",
   },
   "MM-5-early": {
     moment: "MM-5",
-    title: "Two keys: released early",
+    title: "Released early",
     duration: 2800,
     cues: [
       { act: "rise", at: 0 },
@@ -56,6 +58,17 @@ export const STUDIES = {
       { act: "released-early", at: 1800 },
     ],
     note: "Analyn lets go at 900 ms of a 1,600 ms hold. Nothing is signed.",
+  },
+  "MM-5-disarmed": {
+    moment: "MM-5",
+    title: "Armed, then slid off",
+    duration: 3600,
+    cues: [
+      { act: "rise", at: 0 },
+      { act: "hold-1", at: 600 },
+      { act: "disarm-1", at: 2700 },
+    ],
+    note: "Analyn holds past the click at 2.2 s, then slides off the slab before letting go at 2.7 s. The face rebounds and nothing is signed.",
   },
 } as const satisfies Record<string, Study>;
 

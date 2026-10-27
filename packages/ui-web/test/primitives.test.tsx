@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -119,6 +119,55 @@ describe("Seal", () => {
     expect(container.querySelectorAll("path.fs-seal__ring")[1]?.getAttribute("stroke-dashoffset")).toBe(
       "0.5",
     );
+  });
+
+  it("draws one ring per key below 96 px, and a two-ring frame follows rings 0 and 3", () => {
+    const { container, rerender } = render(wrap(<Seal batchSha256={digest} size={64} keys={0} testId="s" />));
+    expect(screen.getByTestId("s").dataset.variant).toBe("two");
+    expect(container.querySelectorAll("circle.fs-seal__band")).toHaveLength(2);
+    rerender(wrap(<Seal batchSha256={digest} size={64} keys={1} testId="s" />));
+    expect(container.querySelectorAll("path.fs-seal__ring")).toHaveLength(1);
+    rerender(
+      wrap(
+        <Seal
+          batchSha256={digest}
+          size={64}
+          keys={2}
+          testId="s"
+          frame={{ rings: [1, 0, 0, 0.25, 0], opacity: [1, 0, 0, 1, 0] }}
+        />,
+      ),
+    );
+    const rings = container.querySelectorAll("path.fs-seal__ring");
+    expect(rings).toHaveLength(2);
+    expect(rings[1]?.getAttribute("stroke-dashoffset")).toBe("0.75");
+    rerender(wrap(<Seal batchSha256={digest} size={96} keys={2} testId="s" />));
+    expect(screen.getByTestId("s").dataset.variant).toBe("five");
+  });
+
+  it("prints the first 16 hex digits in groups of four under the seal, for matching by eye", () => {
+    render(wrap(<Seal batchSha256={digest} size={96} keys={1} showHash testId="s" />));
+    expect(screen.getByTestId("s.hash").textContent).toBe(
+      `${digest.slice(0, 4)} ${digest.slice(4, 8)} ${digest.slice(8, 12)} ${digest.slice(12, 16)}`,
+    );
+    expect(screen.getByTestId("s").closest("figure")).not.toBeNull();
+  });
+
+  it("never strokes thinner than one device pixel", () => {
+    const original = window.devicePixelRatio;
+    try {
+      const strokeAt = (dpr: number) => {
+        Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: dpr });
+        const { container, unmount } = render(wrap(<Seal batchSha256={digest} size={200} keys={2} />));
+        const width = container.querySelector("path.fs-seal__ring")?.getAttribute("stroke-width");
+        unmount();
+        return width;
+      };
+      expect(strokeAt(1)).toBe("1");
+      expect(strokeAt(2)).toBe("0.75");
+    } finally {
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: original });
+    }
   });
 });
 
@@ -267,6 +316,40 @@ describe("HoldCard", () => {
     );
     expect(screen.getByTestId("h1.resolution").textContent).toBe("Resolved");
     expect(screen.queryByTestId("h1.once")).toBeNull();
+  });
+
+  it("a resolution the server refuses springs the slab back, even through the resolving frame", async () => {
+    let refuse: (reason: unknown) => void = () => undefined;
+    const onCommit = vi.fn(
+      () =>
+        new Promise<void>((_, reject) => {
+          refuse = reject;
+        }),
+    );
+    const card = (state: HoldView["state"]) =>
+      wrap(
+        <HoldCard hold={{ ...hold, state }} gate="BLOCKS_APPROVAL" actions={actions(onCommit)} testId="h1" />,
+      );
+    const { rerender } = render(card("open"));
+    const face = () => screen.getByTestId("h1.once.face");
+    const restingFace = face().style.transform;
+    fireEvent.pointerDown(face(), { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(face(), { button: 0, pointerId: 1 });
+    expect(screen.getByTestId("h1.once").dataset).toMatchObject({ state: "committed", busy: "" });
+    // The press lands flush (d2: 5 px) a frame later.
+    await waitFor(() => expect(face().style.transform).toBe("translate(5px, 5px)"));
+    // The screen shows the POST in flight, then the hold is still open: the 409 refused it.
+    rerender(card("resolving"));
+    await act(async () => refuse(new Error("409")));
+    rerender(card("open"));
+    const slab = screen.getByTestId("h1.once");
+    expect(slab.dataset.state).toBe("rest");
+    expect(slab.dataset.busy).toBeUndefined();
+    // The face is back at rest, not left sunk where the resolving frame drew it.
+    await waitFor(() => expect(face().style.transform).toBe(restingFace));
+    fireEvent.pointerDown(face(), { button: 0, pointerId: 2 });
+    fireEvent.pointerUp(face(), { button: 0, pointerId: 2 });
+    expect(onCommit).toHaveBeenCalledTimes(2);
   });
 
   it("every state the card can show is in the contract, and only resolved and excluded are final", () => {

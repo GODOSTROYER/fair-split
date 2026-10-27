@@ -7,13 +7,14 @@ import {
   type GatewayResult,
   inputShaOf,
   isGatewayError,
+  jsonForPrompt,
   jsonOutputFormat,
   type Lane,
   type OutputFormat,
   parseStructured,
   type WarmTarget,
 } from "../gateway/index.js";
-import { imageIdentity } from "./prep.js";
+import { imageIdentity, type ModelCrop } from "./prep.js";
 import { prompt } from "./prompts.js";
 import { EXTRACTION_SCHEMA_V, Extraction, ZOOM_SCHEMA_V, ZoomRead } from "./schema.js";
 
@@ -139,25 +140,28 @@ export async function readVariant(
     format: EXTRACTION_FORMAT,
     onSnapshot: input.onSnapshot,
   });
-  return { extraction: parseStructured(result.message, Extraction, EXTRACTION_FORMAT), result };
+  // A schema failure keeps the call's result on the error: the call ran, and its cost counts.
+  return { extraction: parseWithResult(result, Extraction, EXTRACTION_FORMAT), result };
 }
 
 export interface ZoomInput {
   documentSha256: string;
   rotation: number;
-  crop: { image: Buffer; rect: { x1: number; y1: number; x2: number; y2: number } };
+  /** A crop from `sanitizeForModel` (S4.2): the only kind of crop a model may see. */
+  crop: Pick<ModelCrop, "image" | "rect" | "recipe">;
   label: string;
 }
 
 /**
  * AI-3: one field re-read on a tighter crop, claude-opus-5-5 at effort medium. Box in crop pixels.
- * The crop must come from a reviewed rectangle (C-10); `extract` never builds one from model boxes.
+ * The crop comes from a reviewed rectangle (C-10) through `sanitizeForModel`; its replay identity
+ * names everything that decided its bytes (window, sanitiser version, slip, quarantined boxes).
  */
 export async function zoomRead(
   input: ZoomInput,
   deps: ReadDeps,
 ): Promise<{ read: ZoomRead; result: GatewayResult }> {
-  const p = prompt("zoom.v1");
+  const p = prompt("zoom.v2");
   const result = await deps.gateway.call({
     ...callOptions(deps),
     purpose: "zoom",
@@ -169,6 +173,7 @@ export async function zoomRead(
     schemaV: ZOOM_SCHEMA_V,
     inputSha: imageIdentity(input.documentSha256, {
       zoom: input.crop.rect,
+      sanitized: input.crop.recipe,
       label: input.label,
       rotation: input.rotation,
     }),
@@ -242,14 +247,15 @@ async function screenCall(content: unknown[], inputSha: string, deps: ReadDeps):
 
 /**
  * AI-4: claude-haiku-5-5 (effort low — the gateway always sets effort; register deviation 1), the
- * variant-A image plus every transcribed string JSON-encoded inside <transcription>.
+ * variant-A image plus every transcribed string inside <transcription>, JSON-encoded by
+ * `jsonForPrompt` so no transcribed text can close the block (S4.7 layer 5).
  */
 export async function injectionScreen(input: ScreenInput, deps: ReadDeps): Promise<ScreenOutcome> {
   return screenCall(
     [
       { type: "text", text: "Image 0:" },
       imageBlock(input.jpegA, { boxes: false }),
-      { type: "text", text: `<transcription>${JSON.stringify(input.transcription)}</transcription>` },
+      { type: "text", text: `<transcription>${jsonForPrompt(input.transcription)}</transcription>` },
     ],
     imageIdentity(input.documentSha256, {
       screen: "A",
@@ -279,7 +285,7 @@ export async function rescreenStrings(input: RescreenInput, deps: ReadDeps): Pro
         type: "text",
         text: "Transcription only (no image): every remaining string two readers copied from the document.",
       },
-      { type: "text", text: `<transcription>${JSON.stringify(input.strings)}</transcription>` },
+      { type: "text", text: `<transcription>${jsonForPrompt(input.strings)}</transcription>` },
     ],
     imageIdentity(input.documentSha256, {
       screen: "remaining",

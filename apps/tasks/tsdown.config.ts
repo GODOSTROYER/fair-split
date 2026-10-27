@@ -6,7 +6,14 @@
 // node_modules, ERR_MODULE_NOT_FOUND for the `.js` specifiers otherwise). The bundle therefore
 // inlines every workspace package and leaves real npm dependencies external; they are installed
 // on Render by `pnpm install --frozen-lockfile` in the build command.
+//
+// Inlined modules keep their own `import.meta` (build/inline-import-meta.ts), so a package that reads
+// files next to its source (packages/ai's prompts, packages/db's migrations) finds them in the
+// checkout, as it does unbundled. dist therefore runs where it was built, which is how Render runs it.
+//
+// tsdown loads this file with Node's own TypeScript support, which resolves `.ts` specifiers only.
 import { defineConfig, type UserConfig } from "tsdown";
+import { inlinedImportMeta } from "./build/inline-import-meta.ts";
 
 /** Workspace packages that must be inlined into the bundle. */
 export const WORKSPACE_PACKAGES = /^@fairsplit\//;
@@ -32,6 +39,7 @@ export const bundleConfig = {
   dts: false,
   sourcemap: true,
   deps: { alwaysBundle: [WORKSPACE_PACKAGES] },
+  plugins: [inlinedImportMeta()],
   logLevel: "warn",
 } satisfies UserConfig;
 

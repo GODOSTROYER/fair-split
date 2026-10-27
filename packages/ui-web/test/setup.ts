@@ -1,9 +1,10 @@
 // jsdom lacks a few browser APIs the primitives touch; tests also skip Motion's animations (S2 §2.8: test
-// builds set MotionGlobalConfig.skipAnimations).
+// builds set MotionGlobalConfig.skipAnimations). Animation frames come from ./frames.ts, loaded first.
 
-import { cleanup } from "@testing-library/react";
+import { act, cleanup } from "@testing-library/react";
 import { MotionGlobalConfig } from "motion/react";
 import { afterEach } from "vitest";
+import { flushFrames } from "./frames.js";
 
 MotionGlobalConfig.skipAnimations = true;
 
@@ -35,4 +36,8 @@ if (!HTMLElement.prototype.setPointerCapture) {
   HTMLElement.prototype.hasPointerCapture = () => false;
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  act(() => flushFrames());
+  cleanup();
+  flushFrames();
+});

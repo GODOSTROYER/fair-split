@@ -1,6 +1,6 @@
 /**
- * PayPal mirror group (register §7, §8): payout_batches, payout_items, webhook_events, paypal_calls
- * (also the limiter window), reconciliation_reports.
+ * PayPal mirror group (register §7, §8): payout_batches, payout_items, webhook_events, webhook_transmissions
+ * (the webhook replay record), paypal_calls (also the limiter window), reconciliation_reports.
  *
  * - Batch and item rows are written as SUBMITTED before the POST, so early webhooks join on our keys.
  * - Item statuses follow register ranks; `status_rank` must equal the status's rank and only ever rises
@@ -27,7 +27,7 @@ import {
   wsIdUnique,
 } from "./_columns.js";
 import { memberLines, payRuns } from "./runs.js";
-import { workspaceId, workspaceIdNullable } from "./workspace.js";
+import { workspaceId, workspaceIdKept, workspaceIdNullable } from "./workspace.js";
 
 /** Our own pre-POST status (rank 0) followed by PayPal's ranked item statuses. */
 export const PAYOUT_ITEM_STATUS_RANK = { SUBMITTED: 0, ...ITEM_STATUS_RANK } as const;
@@ -148,8 +148,8 @@ export const webhookEvents = pgTable(
   "webhook_events",
   {
     id: id(),
-    /** null until the event is resolved to a workspace (S3 deviation 4) */
-    workspaceId: workspaceIdNullable(),
+    /** null until the event is resolved to a workspace (S3 deviation 4); SET NULL on purge, so dedupe survives */
+    workspaceId: workspaceIdKept(),
     paypalEventId: text("paypal_event_id").notNull().unique("webhook_events_paypal_event_id_uq"),
     eventType: text("event_type").notNull(),
     resourceType: text("resource_type"),
@@ -176,14 +176,34 @@ export const webhookEvents = pgTable(
   ],
 );
 
+/**
+ * The replay record behind paypal-core's `TransmissionStore` (src/webhook-transmissions.ts): a verified delivery's
+ * transmission id is accepted once, until `expires_at` (transmission time + 6 min). Global, like the event-id dedupe:
+ * a delivery reaches us before it names a workspace. Expiry is judged by the app's clock (an app-supplied `now`),
+ * never the database's now(). `claim_token` is the verifier's token for the claim that wrote the record (a fresh UUID
+ * per claim, null when none was given): a release with a token deletes only that claim's record.
+ */
+export const webhookTransmissions = pgTable(
+  "webhook_transmissions",
+  {
+    transmissionId: text("transmission_id").primaryKey(),
+    expiresAt: tstz("expires_at").notNull(),
+    claimToken: uuid("claim_token"),
+  },
+  (t) => [
+    check("webhook_transmissions_id_ck", sql`${t.transmissionId} ~ '^[A-Za-z0-9_-]{1,64}$'`),
+    index("webhook_transmissions_expires_idx").on(t.expiresAt),
+  ],
+);
+
 export const CALL_PRIORITIES = ["live", "background"] as const;
 
 export const paypalCalls = pgTable(
   "paypal_calls",
   {
     id: id(),
-    /** null for system calls (OAuth, health checks) */
-    workspaceId: workspaceIdNullable(),
+    /** null for system calls (OAuth, health checks); SET NULL on purge: the window and circuit are global */
+    workspaceId: workspaceIdKept(),
     /** the moment the limiter granted the slot; the 60 s window and the 6 min circuit read this column */
     at: tstz("at").notNull().default(sql`clock_timestamp()`),
     purpose: text("purpose").notNull(),

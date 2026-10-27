@@ -106,7 +106,7 @@ describe("inv.i7.crash-between-commit-and-dispatch", () => {
     await started(ob.dispatcher).start();
     await sleep(300);
     expect(calls.get(id)).toBeUndefined(); // not yet: it is someone else's claim
-    expect(await ob.dispatcher.sweep()).toEqual({ redispatched: 1, recovered: 0, dead: 0 });
+    expect(await ob.dispatcher.sweep()).toEqual({ rescued: 0, redispatched: 1, recovered: 0, dead: 0 });
     await until(async () => (await rowOf(t.app.db, id)).state === "done");
     expect(calls.get(id)).toBe(1);
   });
@@ -123,7 +123,7 @@ describe("inv.i7.crash-between-commit-and-dispatch", () => {
       workerId: "sweeper",
       executor: inlineExecutor(async () => {}),
     });
-    expect(await d.sweep()).toEqual({ redispatched: 0, recovered: 1, dead: 1 });
+    expect(await d.sweep()).toEqual({ rescued: 0, redispatched: 0, recovered: 1, dead: 1 });
     expect((await rowOf(t.app.db, a)).state).toBe("queued");
     const dead = await rowOf(t.app.db, b);
     expect(dead.state).toBe("dead");

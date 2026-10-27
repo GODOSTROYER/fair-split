@@ -1,7 +1,7 @@
 // End-to-end harness test on a throwaway labelled set (plain generated pages, not eval images): a
 // mocked live run records, a replay run reproduces it with no network, and a missing recording
 // fails the run.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -16,6 +16,7 @@ import { setupServer } from "msw/node";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { CaseLabel } from "./labels.js";
+import { loadRegistry } from "./pipeline.js";
 import { defaultOptions, parseArgs, runEval } from "./run.js";
 
 const server = setupServer();
@@ -313,6 +314,29 @@ describe("eval harness", () => {
         6,
       );
 
+      // A prompt edited in place (same promptV, new text) leaves its recordings stale: a replay that
+      // serves one is never green, however good the numbers look.
+      const [stale] = readdirSync(recordings).filter((f) => f.endsWith(".json"));
+      const rec = JSON.parse(readFileSync(join(recordings, stale as string), "utf8")) as Record<
+        string,
+        unknown
+      >;
+      writeFileSync(
+        join(recordings, stale as string),
+        JSON.stringify({ ...rec, prompt_sha: "0".repeat(64) }),
+      );
+      const drifted = await runEval(
+        defaultOptions({ mode: "replay", mediaRoot: media, recordingsDir: recordings, outDir: out, now }),
+      );
+      expect(drifted.report.metrics.reported.promptDrift).toBe(1);
+      expect(drifted.report.metrics.exactRowRate).toBe(1);
+      expect(drifted.report.green).toBe(false);
+      expect(drifted.exitCode).toBe(1);
+      expect(drifted.report.failures).toContain(
+        "1 call(s) replayed a recording made with an edited prompt (prompt drift): record them again with --mode live",
+      );
+      writeFileSync(join(recordings, stale as string), JSON.stringify(rec));
+
       const missing = await runEval(
         defaultOptions({
           mode: "replay",
@@ -332,6 +356,55 @@ describe("eval harness", () => {
     }
     // Three whole pipelines (image prep, two reads, screen) run three times over: far past the 5 s default.
   }, 60_000);
+
+  it("validates against the seed's registry from --registry; a report on the labels' own registry is provisional", async () => {
+    const media = mkdtempSync(join(tmpdir(), "fs-eval-registry-"));
+    try {
+      expect(parseArgs(["--registry", "seed/members.json"])).toEqual({ registryPath: "seed/members.json" });
+      const file = join(media, "members.json");
+      writeFileSync(
+        file,
+        JSON.stringify({
+          members: [
+            { member_no: "M-014", name: "Consolacion Bacus" },
+            { memberNo: "M-031", name: "Rhea Jumawan" },
+          ],
+        }),
+      );
+      const reg = loadRegistry(file);
+      expect([...reg.keys()]).toEqual(["M-014", "M-031"]);
+      expect(reg.get("M-031")).toEqual({ memberNo: "M-031", name: "Rhea Jumawan" });
+      const bad = (body: unknown) => {
+        writeFileSync(file, JSON.stringify(body));
+        return () => loadRegistry(file);
+      };
+      expect(bad([])).toThrow(/no members/);
+      expect(bad([{ member_no: "14", name: "X" }])).toThrow(/M-###/);
+      expect(bad([{ member_no: "M-014", name: " " }])).toThrow();
+      expect(
+        bad([
+          { member_no: "M-014", name: "A" },
+          { memberNo: "M-014", name: "B" },
+        ]),
+      ).toThrow(/twice/);
+
+      const o = defaultOptions({
+        mediaRoot: media,
+        recordingsDir: join(media, "r"),
+        outDir: join(media, "out"),
+        allowEmpty: true,
+      });
+      const labels = await runEval(o);
+      expect(labels.report.registry).toEqual({ source: "labels", members: 0, path: null });
+      expect(labels.report.provisional).toMatch(/registry built from the labelled slips/);
+      writeFileSync(file, JSON.stringify([{ member_no: "M-014", name: "Consolacion Bacus" }]));
+      const seeded = await runEval({ ...o, registryPath: file });
+      expect(seeded.report.registry).toEqual({ source: "file", members: 1, path: "members.json" });
+      expect(seeded.report.provisional).toBeNull();
+    } finally {
+      rmSync(media, { recursive: true, force: true });
+    }
+  });
 
   it("an empty set is never green, and fails unless --allow-empty", async () => {
     const media = mkdtempSync(join(tmpdir(), "fs-eval-empty-"));

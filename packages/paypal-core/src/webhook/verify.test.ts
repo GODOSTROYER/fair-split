@@ -252,7 +252,7 @@ describe("verifyPayPal: certificate URL and certificate checks", () => {
       notAfter: new Date(Date.now() - DAY),
     });
     const s2 = signed({ privateKey: old.privateKey, certUrl: serve("wrong-host-old", old.pem) });
-    const outcome = await verifier({ expiredCertPolicy: "accept" }).verifyDetailed(
+    const outcome = await verifier({ postback: async () => "SUCCESS" }).verifyDetailed(
       s2.body,
       s2.headers,
       TEST_WEBHOOK_ID,
@@ -575,12 +575,17 @@ describe("verifier.prewarm", () => {
 });
 
 describe("verifyPayPal: deliveries signed with an expired PayPal certificate", () => {
+  // Security review (MEDIUM): a key behind an expired certificate is the key we should trust least, so
+  // one delivery PayPal confirmed must never vouch for another. Each delivery is judged on its own: its
+  // own postback, its own transmission id, never 'self', and always labelled CERT_EXPIRED so that
+  // processWebhook takes state from a fresh GET, never from the body (apps/api/src/webhooks/apply.ts).
   const expiredLeaf = pki.issueLeaf({
     notBefore: new Date(Date.now() - 400 * DAY),
     notAfter: new Date(Date.now() - DAY),
   });
-  const expiredDelivery = () =>
-    signed({ privateKey: expiredLeaf.privateKey, certUrl: serve("expired", expiredLeaf.pem) });
+  const expiredDelivery = (overrides: Partial<Parameters<typeof signWebhook>[0]> = {}) =>
+    signed({ privateKey: expiredLeaf.privateKey, certUrl: serve("expired", expiredLeaf.pem), ...overrides });
+  const tid = (s: { headers: Record<string, string> }) => s.headers["paypal-transmission-id"] ?? "";
 
   it("policy reject: CERT_EXPIRED once the signature has checked out", async () => {
     const s = expiredDelivery();
@@ -589,125 +594,192 @@ describe("verifyPayPal: deliveries signed with an expired PayPal certificate", (
     ).toMatchObject({
       mode: false,
       reason: "CERT_EXPIRED",
+      retryable: false,
       detail: expect.stringContaining("signature valid"),
     });
   });
 
-  it("a bad signature under an expired certificate is SIGNATURE_MISMATCH and does not degrade health", async () => {
+  it("a bad signature under an expired certificate is SIGNATURE_MISMATCH, costs no postback and does not degrade health", async () => {
     const other = pki.issueLeaf();
     const s = signed({ privateKey: other.privateKey, certUrl: serve("expired", expiredLeaf.pem) });
-    const v = verifier({ expiredCertPolicy: "accept" });
+    const postback = vi.fn<PostbackFn>(async () => "SUCCESS");
+    const v = verifier({ postback });
     expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).reason).toBe("SIGNATURE_MISMATCH");
+    expect(postback).not.toHaveBeenCalled();
     expect(v.health()).toMatchObject({ status: "ok", signedWithExpiredCert: 0 });
   });
 
-  it("policy accept: 'self' with CERT_EXPIRED_ACCEPTED, logged, and health() turns degraded", async () => {
+  it("is never accepted as 'self', whatever the policy or PayPal's answer", async () => {
+    const answers: (PostbackFn | undefined)[] = [
+      undefined,
+      async () => "SUCCESS",
+      async () => "FAILURE",
+      async () => "ERROR",
+      () => new Promise(() => undefined),
+    ];
+    const modes = new Set<string>();
+    for (const expiredCertPolicy of ["reject", "postback"] as const) {
+      for (const postback of answers) {
+        for (const budget of [0, 5]) {
+          const v = verifier({
+            expiredCertPolicy,
+            postbackDeadlineMs: 20,
+            expiredCertPostbacksPerHour: budget,
+            ...(postback ? { postback } : {}),
+          });
+          for (let i = 0; i < 2; i++) {
+            const s = expiredDelivery();
+            const outcome = await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID, { postback: true });
+            modes.add(String(outcome.mode));
+            if (outcome.mode !== false) expect(outcome.certWarning).toBe("CERT_EXPIRED");
+          }
+        }
+      }
+    }
+    expect([...modes].sort()).toEqual(["false", "postback"]);
+  });
+
+  it("policy postback (default): every delivery gets its own postback; one PayPal confirmed vouches for no other", async () => {
     const warn = vi.fn();
-    const v = verifier({ expiredCertPolicy: "accept", logger: { warn } });
-    const s = expiredDelivery();
-    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
-      mode: "self",
-      reason: null,
-      certWarning: "CERT_EXPIRED_ACCEPTED",
+    const answers = new Map<string, "SUCCESS" | "FAILURE">();
+    const postback = vi.fn<PostbackFn>(async (input) => answers.get(input.transmissionId) ?? "FAILURE");
+    const v = verifier({ postback, logger: { warn } });
+
+    const first = expiredDelivery();
+    answers.set(tid(first), "SUCCESS");
+    expect(await v.verifyDetailed(first.body, first.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: "postback",
+      postback: "SUCCESS",
+      certWarning: "CERT_EXPIRED",
     });
+    expect(postback.mock.calls[0]?.[0]).toMatchObject({
+      rawEvent: first.body,
+      webhookId: TEST_WEBHOOK_ID,
+      transmissionId: tid(first),
+    });
+
+    // Same certificate, moments later: PayPal is asked again, about this transmission.
+    const second = expiredDelivery();
+    answers.set(tid(second), "SUCCESS");
+    expect(await v.verifyDetailed(second.body, second.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: "postback",
+      postback: "SUCCESS",
+      certWarning: "CERT_EXPIRED",
+    });
+    expect(postback.mock.calls[1]?.[0]).toMatchObject({ transmissionId: tid(second) });
+
+    // A third, signed with the same certificate, that PayPal does not confirm: refused, despite the two before it.
+    const third = expiredDelivery();
+    expect(await v.verifyDetailed(third.body, third.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: false,
+      reason: "CERT_EXPIRED",
+      postback: "FAILURE",
+      retryable: false,
+    });
+    expect(postback).toHaveBeenCalledTimes(3);
     expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        expiredCertPolicy: "accept",
-        validTo: expiredLeaf.cert.validToDate.toISOString(),
-      }),
+      expect.objectContaining({ validTo: expiredLeaf.cert.validToDate.toISOString() }),
       "paypal webhook signed with an expired certificate",
     );
     const health = v.health();
     expect(health).toMatchObject({
       status: "degraded",
-      signedWithExpiredCert: 1,
-      acceptedWithExpiredCert: 1,
-      expiredCertPolicy: "accept",
+      signedWithExpiredCert: 3,
+      acceptedWithExpiredCert: 2,
+      expiredCertPolicy: "postback",
     });
     expect(health.problems.join(" ")).toMatch(/signed with an expired certificate/);
     expect(health.problems.join(" ")).toMatch(/signing certificate expired on/);
   });
 
-  it("policy postback (default): PayPal confirms once per certificate; later deliveries pass as 'self'", async () => {
-    const postback = vi.fn<PostbackFn>(async () => "SUCCESS");
-    const v = verifier({ postback });
-    const first = expiredDelivery();
-    expect(await v.verifyDetailed(first.body, first.headers, TEST_WEBHOOK_ID)).toMatchObject({
-      mode: "postback",
-      postback: "SUCCESS",
-      certWarning: "CERT_EXPIRED_CONFIRMED",
-    });
-    expect(postback.mock.calls[0]?.[0]).toMatchObject({ rawEvent: first.body, webhookId: TEST_WEBHOOK_ID });
-    const second = expiredDelivery();
-    expect(await v.verifyDetailed(second.body, second.headers, TEST_WEBHOOK_ID)).toMatchObject({
-      mode: "self",
-      postback: null,
-      certWarning: "CERT_EXPIRED_CONFIRMED",
-    });
-    expect(postback).toHaveBeenCalledTimes(1);
-    expect(v.health()).toMatchObject({
-      status: "degraded",
-      signedWithExpiredCert: 2,
-      acceptedWithExpiredCert: 2,
-    });
-  });
-
-  it("policy postback: no confirmation is a 400 (PayPal retries), and PayPal is asked again only after 10 min", async () => {
-    let t = Date.now();
-    const postback = vi.fn<PostbackFn>(async () => "FAILURE");
-    const v = verifier({ postback, now: () => t });
-    const s = expiredDelivery();
-    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
-      mode: false,
-      reason: "CERT_EXPIRED",
-      postback: "FAILURE",
-    });
-    expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).detail).toMatch(/asked recently/);
-    expect(postback).toHaveBeenCalledTimes(1);
-    t += 11 * 60_000;
-    // PayPal's retry 11 minutes on is a fresh transmission (the first one is now outside the 5-minute window).
-    const retry = signed({
-      privateKey: expiredLeaf.privateKey,
-      certUrl: testCertUrl("expired"),
-      transmissionTime: new Date(t).toISOString(),
-    });
-    await v.verifyDetailed(retry.body, retry.headers, TEST_WEBHOOK_ID);
-    expect(postback).toHaveBeenCalledTimes(2);
-  });
-
-  it("policy postback: a concurrent burst shares one confirmation instead of 400-ing while it runs", async () => {
-    let release: (answer: "SUCCESS") => void = () => undefined;
+  it("policy postback: concurrent deliveries share nothing; each waits for its own answer", async () => {
+    const pending = new Map<string, (answer: "SUCCESS" | "FAILURE" | "ERROR") => void>();
     const postback = vi.fn<PostbackFn>(
-      () =>
+      (input) =>
         new Promise((resolve) => {
-          release = resolve;
+          pending.set(input.transmissionId, resolve);
         }),
     );
     const v = verifier({ postback });
-    const burst = [expiredDelivery(), expiredDelivery(), expiredDelivery()].map((s) =>
-      v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID),
-    );
-    await vi.waitFor(() => expect(postback).toHaveBeenCalledTimes(1));
-    release("SUCCESS");
-    const outcomes = await Promise.all(burst);
-    expect(outcomes.map((o) => [o.mode, o.certWarning])).toEqual([
-      ["postback", "CERT_EXPIRED_CONFIRMED"],
-      ["self", "CERT_EXPIRED_CONFIRMED"],
-      ["self", "CERT_EXPIRED_CONFIRMED"],
+    const burst = [expiredDelivery(), expiredDelivery(), expiredDelivery()] as const;
+    const outcomes = burst.map((s) => v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID));
+    await vi.waitFor(() => expect(postback).toHaveBeenCalledTimes(3));
+    expect(postback.mock.calls.map((c) => c[0].transmissionId).sort()).toEqual(burst.map(tid).sort());
+    // Answered out of order, and differently: nothing one delivery learns reaches another.
+    pending.get(tid(burst[2]))?.("ERROR");
+    pending.get(tid(burst[1]))?.("FAILURE");
+    pending.get(tid(burst[0]))?.("SUCCESS");
+    expect((await Promise.all(outcomes)).map((o) => [o.mode, o.reason, o.postback, o.retryable])).toEqual([
+      ["postback", null, "SUCCESS", false],
+      [false, "CERT_EXPIRED", "FAILURE", false],
+      [false, "CERT_EXPIRED", "ERROR", true],
     ]);
+  });
+
+  it("policy postback: FAILURE is a verdict (400) and keeps the transmission id; ERROR and TIMEOUT are retryable (503) and free it", async () => {
+    let answer: "FAILURE" | "ERROR" | "SUCCESS" = "FAILURE";
+    const postback = vi.fn<PostbackFn>(async () => answer);
+    const v = verifier({ postback });
+    const refused = expiredDelivery();
+    expect((await v.verifyDetailed(refused.body, refused.headers, TEST_WEBHOOK_ID)).postback).toBe("FAILURE");
+    // A copy of the refused delivery is a replay: no second postback.
+    expect((await v.verifyDetailed(refused.body, refused.headers, TEST_WEBHOOK_ID)).reason).toBe(
+      "TRANSMISSION_REPLAYED",
+    );
     expect(postback).toHaveBeenCalledTimes(1);
+
+    answer = "ERROR";
+    const unlucky = expiredDelivery();
+    expect(await v.verifyDetailed(unlucky.body, unlucky.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: false,
+      reason: "CERT_EXPIRED",
+      postback: "ERROR",
+      retryable: true,
+    });
+    // PayPal's retry of the same transmission is judged afresh, with its own postback.
+    answer = "SUCCESS";
+    expect(await v.verifyDetailed(unlucky.body, unlucky.headers, TEST_WEBHOOK_ID)).toMatchObject({
+      mode: "postback",
+      certWarning: "CERT_EXPIRED",
+    });
+    expect(postback).toHaveBeenCalledTimes(3);
+  });
+
+  it("policy postback: at most expiredCertPostbacksPerHour postbacks; beyond that a delivery is retryable and costs no PayPal call", async () => {
+    let t = Date.now();
+    const postback = vi.fn<PostbackFn>(async () => "SUCCESS");
+    const v = verifier({ postback, now: () => t, expiredCertPostbacksPerHour: 2 });
+    const at = () => ({ transmissionTime: new Date(t).toISOString() });
+    const outcomes = [];
+    for (let i = 0; i < 5; i++) {
+      const s = expiredDelivery(at());
+      outcomes.push(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID));
+    }
+    expect(postback).toHaveBeenCalledTimes(2);
+    expect(outcomes.map((o) => o.mode)).toEqual(["postback", "postback", false, false, false]);
+    expect(outcomes[4]).toMatchObject({
+      reason: "CERT_EXPIRED",
+      retryable: true,
+      postback: null,
+      detail: expect.stringContaining("postback budget"),
+    });
+    t += 31 * 60_000; // one postback refilled
+    const later = expiredDelivery(at());
+    expect((await v.verifyDetailed(later.body, later.headers, TEST_WEBHOOK_ID)).mode).toBe("postback");
+    expect(postback).toHaveBeenCalledTimes(3);
   });
 
   it("policy postback without a postback function fails closed", async () => {
     const s = expiredDelivery();
     expect(await verifier().verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
       reason: "CERT_EXPIRED",
+      retryable: false,
       detail: expect.stringContaining("no postback configured"),
     });
     expect(await verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe(false);
   });
 
-  it("a hanging confirmation cannot hold the delivery past the postback deadline", async () => {
+  it("a hanging confirmation cannot hold the delivery past the postback deadline; PayPal's retry is judged afresh", async () => {
     let signal: AbortSignal | undefined;
     const postback: PostbackFn = (_input, options) => {
       signal = options?.signal;
@@ -718,8 +790,31 @@ describe("verifyPayPal: deliveries signed with an expired PayPal certificate", (
     const started = performance.now();
     const outcome = await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID);
     expect(performance.now() - started).toBeLessThan(2_000);
-    expect(outcome).toMatchObject({ mode: false, reason: "CERT_EXPIRED", postback: "TIMEOUT" });
+    expect(outcome).toMatchObject({
+      mode: false,
+      reason: "CERT_EXPIRED",
+      postback: "TIMEOUT",
+      retryable: true,
+    });
     expect(signal?.aborted).toBe(true);
+    expect((await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).reason).not.toBe(
+      "TRANSMISSION_REPLAYED",
+    );
+  });
+
+  it("a simulator event under an expired certificate stays 'dev_mock', labelled CERT_EXPIRED, with no postback", async () => {
+    const postback = vi.fn<PostbackFn>(async () => "SUCCESS");
+    const s = expiredDelivery({ webhookId: MOCK_WEBHOOK_ID });
+    expect(
+      await verifier({ devMocks: true, postback }).verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID),
+    ).toMatchObject({ mode: "dev_mock", certWarning: "CERT_EXPIRED", postback: null });
+    expect(postback).not.toHaveBeenCalled();
+  });
+
+  it("refuses an expiredCertPolicy it does not know (the old 'accept' trusted expired certificates as 'self')", () => {
+    expect(() =>
+      verifier({ expiredCertPolicy: "accept" as unknown as WebhookVerifierConfig["expiredCertPolicy"] }),
+    ).toThrow(/expiredCertPolicy/);
   });
 });
 
@@ -889,13 +984,49 @@ describe("verifier.health (for /readyz and /ops)", () => {
     expect(() => verifier({ knownCertIds: ["CERT-nope"] })).toThrow(/cert ids/);
   });
 
-  it("reports deliveries answered 503 because the certificate fetch budget was used up", async () => {
-    const v = verifier({ certFetchBudget: { expectedPerHour: 0, otherPerHour: 0 } });
-    const s = signed();
-    expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
-      reason: "CERT_FETCH_THROTTLED",
-      retryable: true,
+  it("counts deliveries answered 503 because the certificate fetch budget was used up, and raises CERT_FETCH_THROTTLED only once it persists", async () => {
+    let t = Date.now();
+    const v = verifier({
+      now: () => t,
+      certFetchBudget: { expectedPerHour: 0, otherPerHour: 0 },
+      certFetchThrottleAlert: { threshold: 3, windowMs: 10 * 60_000 },
     });
-    expect(v.health().problems.join(" ")).toMatch(/1 delivery .* certificate fetch budget used up/);
+    const throttle = async () => {
+      const s = signed({ transmissionTime: new Date(t).toISOString() });
+      expect(await v.verifyDetailed(s.body, s.headers, TEST_WEBHOOK_ID)).toMatchObject({
+        reason: "CERT_FETCH_THROTTLED",
+        retryable: true,
+      });
+    };
+    // A blip (PayPal retries a 503) is counted, not alarming.
+    for (let i = 0; i < 3; i++) await throttle();
+    expect(v.health()).toMatchObject({
+      status: "ok",
+      alerts: [],
+      certFetchThrottled: { count: 3, threshold: 3, windowMs: 10 * 60_000 },
+      rejected: { CERT_FETCH_THROTTLED: 3 },
+    });
+    // More than 3 within 10 minutes: it persists.
+    t += 60_000;
+    await throttle();
+    const health = v.health();
+    expect(health).toMatchObject({ status: "degraded", alerts: ["CERT_FETCH_THROTTLED"] });
+    expect(health.problems.join(" ")).toMatch(/CERT_FETCH_THROTTLED: 4 deliveries in the last 10 min/);
+    expect(health.problems.join(" ")).toMatch(/PP_CERT_ALLOW/);
+    // Ten quiet minutes later it clears.
+    t += 10 * 60_000 + 1_000;
+    expect(v.health()).toMatchObject({ status: "ok", alerts: [], certFetchThrottled: { count: 0 } });
+  });
+
+  it("gives every problem a machine-readable alert code for /ops", async () => {
+    const soon = pki.issueLeaf({
+      notBefore: new Date(Date.now() - DAY),
+      notAfter: new Date(Date.now() + 10 * DAY),
+    });
+    const s = signed({ privateKey: soon.privateKey, certUrl: serve("expiring-soon-codes", soon.pem) });
+    const v = verifier();
+    expect(await v.verifyPayPal(s.body, s.headers, TEST_WEBHOOK_ID)).toBe("self");
+    expect(v.health()).toMatchObject({ status: "degraded", alerts: ["SIGNING_CERT_EXPIRING"] });
+    expect(verifier().health()).toMatchObject({ status: "ok", alerts: [], problems: [] });
   });
 });

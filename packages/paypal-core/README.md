@@ -39,17 +39,36 @@ so the bearer token cannot be sent anywhere else.
    counts toward the 40/min budget), is written to `paypal_calls` (`webhooks.cert`), and a 429 opens the
    6-minute circuit. Before that, local budgets (`DEFAULT_CERT_FETCH_BUDGET`, per hour, by cert id so
    `api` and `api-m` count once) decide whether an unauthenticated request may cause a fetch at all:
-   - a certificate that signed a verified delivery, was pre-warmed or is pinned (`knownCertIds`, e.g.
-     from `PP_CERT_ALLOW`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
+   - **one hard cap over everything: at most 3 certificate fetches in any 60 minutes** (`totalPerHour`, a
+     sliding window), of any id, known or not, `prewarm` included (S3.6.7 "at most 3 an hour"; plan:
+     1,000 forged deliveries, at most 3 fetches). Nothing below adds to it;
+   - a certificate that signed a verified delivery, was pre-warmed or is pinned (`PP_CERT_ALLOW`, or
+     `knownCertIds`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
      fetched again (validity is still checked on every use);
-   - **per client IP** first (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
-   - then **global**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
-     hour, every other well-formed id 1 an hour (S3.6.7: at most 3 an hour), and 2 an hour **reserved**
-     for known ids not loaded yet (after a restart) that nothing else can spend;
+   - known ids not loaded yet (pinned, pre-warmed, or seen before a restart) may make 2 fetches in any
+     hour (`knownPerHour`), **held back out of the 3**: an unknown id may fetch only while one stays free
+     for each known id not loaded yet. They go first and **without** the per-IP budget, so neither a
+     flood of unknown ids nor one that shares PayPal's client key (no `X-Forwarded-For`, a miscounted
+     proxy hop) can keep them out; once their 2 are spent they continue as below;
+   - **per client IP** next (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
+   - then **shared**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
+     hour, every other well-formed id 1 an hour;
    - a delivery refused by a budget is `CERT_FETCH_THROTTLED` with `retryable: true`: the route answers
      **503** with `Retry-After` (PayPal retries 25 times over 3 days) and stores nothing. So are a limiter
      refusal, a timeout, a network error and a PayPal 5xx/429 on the fetch; a 404 or junk PEM stays a 400;
-   - 1,000 forged deliveries cost at most 3 certificate fetches and no other PayPal call (tested);
+   - the bound for a burst of forged deliveries of any size, **whatever is pinned: 3 certificate
+     fetches**, and no other PayPal call (tested as an exact count for 0 to 5 pins not loaded yet, and
+     as a property: no 60 minutes ever hold a 4th fetch). Sustained: at most 3 in any 60 minutes;
+   - starvation: a sustained flood keeps the shared buckets empty, so a genuine certificate nobody has
+     verified yet (fresh deploy, PayPal's yearly rotation) waits (503s, PayPal retries) while it lasts.
+     `PP_CERT_ALLOW` (comma or space separated ids or sandbox cert URLs, at most 8) pins ids so they draw
+     on the fetches held back for known ids instead: list the current signing certificate and, once
+     PayPal publishes it, the next one. Call `prewarm` at boot, before serving: an id that becomes known
+     only after a flood spent the hour's 3 waits for the hour like any other. Pinning does not narrow
+     (S3.6.5 says "narrows": that would turn an unannounced rotation into 400s; see Deviations).
+     `health()` raises `CERT_FETCH_THROTTLED` once throttling persists (more than 5 throttled deliveries
+     in 15 min; `certFetchThrottleAlert`). A fetch is charged before its status is known, 404s included:
+     a budget only 200s spend would let a flood of random PayPal-shaped ids (all 404) fetch without bound;
    - PEMs are fetched over TLS with redirects refused, at most 64 KB, cached (24 h, LRU) and
      single-flighted; failed ids are not retried for a minute. `prewarm(urls)` loads the certificate of
      the newest stored verified event at boot (`prewarmWebhookCertificates` in `apps/api/src/webhooks`).
@@ -57,33 +76,87 @@ so the bearer token cannot be sent anywhere else.
    RSA key of 2048 bits or more, not be a CA, and (with optional `trustAnchors`) chain to a pinned
    certificate. Its validity window is checked separately, after the signature:
    - in date: accepted;
-   - expired, signature valid (`expiredCertPolicy`): `postback` (default) asks PayPal once per
-     certificate (bounded, one call) and on SUCCESS accepts, remembering the certificate for 24 h with
-     `certWarning: CERT_EXPIRED_CONFIRMED`; `accept` accepts with `CERT_EXPIRED_ACCEPTED`; `reject` 400s.
-     Every such delivery is logged and turns `health()` degraded;
+   - expired, signature valid (`expiredCertPolicy`): never `self`, and one delivery never vouches for
+     another (nothing is cached per certificate or shared between concurrent deliveries). `postback`
+     (default) claims the transmission id, then asks PayPal about **this** transmission (one call, 6 s,
+     at most `expiredCertPostbacksPerHour` = 20 an hour): SUCCESS is accepted as `postback` with
+     `certWarning: CERT_EXPIRED`; FAILURE is a 400 (the id stays claimed, so a copy is a replay);
+     ERROR, TIMEOUT or no budget left is retryable (503, the id is released). `reject` 400s. There is
+     no `accept`. Every such delivery is logged and turns `health()` degraded;
    - expired, signature invalid: `SIGNATURE_MISMATCH` (junk pointing at an old PayPal cert URL).
 4. Signature: RSA-SHA256 over `transmissionId|transmissionTime|webhookId|crc32(raw)`, CRC as unsigned
    decimal. Simulator events (signed with the literal `WEBHOOK_ID`) are accepted only with dev mocks on
-   (`PP_DEV_MOCKS=1`, refused when `NODE_ENV=production`) and labelled `dev_mock`.
+   (`PP_DEV_MOCKS=1`, refused at boot when `RENDER=true` or `NODE_ENV=production`, S3.6.5) and labelled
+   `dev_mock`.
 5. Replay: once the signature verifies, the transmission id is recorded through the injected
    `TransmissionStore` (unique; kept until transmission time + 6 min) and a repeat is
    `TRANSMISSION_REPLAYED` (400). A store failure is `REPLAY_CHECK_FAILED`, retryable (503). This is
    separate from event-id dedupe: PayPal's resend has a new transmission id and lands as a duplicate.
    The route releases the id when it could not store the event, so PayPal's retry is not a "replay".
+   A claim that reports an error may still have committed (a lost reply), so the verifier releases it
+   too, by the claim's own token (`claim(id, expiresAt, now, claimToken)`, `release(id, claimToken)`):
+   never a record a concurrent copy holds. A release that fails is retried once, then raised as
+   `TRANSMISSION_RELEASE_FAILED` in `health()`.
    UNVERIFIED until spike S5: whether PayPal's retries after a non-2xx carry new transmission headers;
-   if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event.
-6. The webhook route never asks for a postback: processWebhook calls `confirmWebhookByPostback`
+   if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event:
+   each pass starts where the last finished pass ended (`completedThrough`, minus 10 minutes), never at
+   the newest applied event, so a refused event older than one applied after it is still listed.
+6. The webhook route never asks for the badge postback: processWebhook calls `confirmWebhookByPostback`
    (`apps/api/src/webhooks/postback.ts`) after the 200, from the transmission headers kept in the row.
-7. Applying events (`apps/api/src/webhooks/apply.ts`, re-exported by the route): only a signature-verified
-   (`self`/`postback`) PAYOUTS-ITEM.SUCCEEDED applies at once (MM-1), corroborated by the settle GETs at
-   +25 s (Judge) / +90 s; a GET that disagrees wins and raises `WEBHOOK_GET_MISMATCH` on `/ops` (a lower
-   rank is written as a correction, the one sanctioned exception to forward-only); every other status,
-   and a SUCCEEDED labelled `dev_mock` or `fetched`, changes state only after a fresh GET.
+   A delivery's only in-request PayPal calls are a certificate fetch (step 2: at most 3 in any hour,
+   all deliveries together) and the expired-certificate check of step 3 (one per such delivery, at most
+   20 an hour; none for forged or replayed copies).
+7. Applying events (`apps/api/src/webhooks/apply.ts`, re-exported by the route; pass it the stored row):
+   only a signature-verified (`self`/`postback`) PAYOUTS-ITEM.SUCCEEDED under an in-date certificate
+   applies at once (MM-1), corroborated by the settle GETs at +25 s (Judge) / +90 s; a GET that disagrees
+   wins and raises `WEBHOOK_GET_MISMATCH` on `/ops` (a lower rank is written as a correction, the one
+   sanctioned exception to forward-only); every other status, a SUCCEEDED labelled `dev_mock` or
+   `fetched`, any row whose `delivery.certWarning` is set (`CERT_EXPIRED`, even when PayPal's postback
+   confirmed it: state comes from PayPal's GET, never from an expired-certificate body) and a verified
+   row whose `delivery` is missing or lacks the `certWarning` key (`DELIVERY_NOT_RECORDED`) change state
+   only after a fresh GET. Only an explicit `certWarning: null` lets a SUCCEEDED apply at once, so
+   **MM-1 needs `delivery` stored as written, null keys included** (shim-swap notes below).
+8. Rejections (forged, stale, replayed, malformed): 400 and a `rejected` `webhook_events` row that keeps
+   **hashes only** (S3.4, review resolution 18): `raw` is `{"raw_sha256","bytes"}`, never the body (a
+   replayed copy of a genuine delivery carries receivers and amounts), and PayPal's five headers are
+   clipped to 256 characters (`MAX_REJECTED_HEADER_CHARS`). Rows are **rate-limited over a sliding
+   hour**: at most 10 rows per client address (IPv6 by /64; no address = one shared count) and 100
+   overall in any 60 minutes (`DEFAULT_REJECTED_ROW_LIMITS`; S3 "≤ 100 rows an hour", E-18 "at most 100
+   stored rejects"). A row counts for an hour after it was
+   stored, whatever the clock hour, so a burst across the top of the hour cannot store twice the cap.
+   The rest are only counted in `handler.health()` (counters for the last hour, never a body or an
+   address) and logged at most once an hour. A rejection that writes no row (identical junk, failed
+   insert) gives its slot back. Memory stays flat: at most 100 rows' times and address keys, and 60
+   refusal counters. Tested: 1,000 forged deliveries store at most 100 rows (10 from one address), also
+   in 1.5 s across the top of the hour, and make no PayPal call; a property test checks the sliding hour
+   against a model for random arrivals.
 
-`verifier.health()` reports `ok | degraded` with plain-language problems: deliveries signed with an
-expired certificate, a known certificate URL that can no longer be fetched, deliveries answered 503
-because the fetch budget was used up, or a signing certificate with fewer than 14 days left. WS-API: put it in the `/readyz` body as `webhooks`, but never fail
-readiness on it (Render's health check would restart a healthy process); show it on `/ops`.
+`verifier.health()` reports `ok | degraded` with plain-language `problems` and their codes in `alerts`:
+`CERT_FETCH_THROTTLED` (persistent throttling, above), `SIGNED_WITH_EXPIRED_CERT`, `KNOWN_CERT_FETCH_FAILED`
+(a known certificate URL that can no longer be fetched), `SIGNING_CERT_EXPIRED` and `SIGNING_CERT_EXPIRING`
+(fewer than 14 days left). `certFetchThrottled` and `rejected` count throttled deliveries below the
+threshold. The route's `handler.health()` reports rejected rows stored and not stored in the last hour
+(degraded while any were not stored). WS-API: put both
+in the `/readyz` body (`webhooks`, `webhookRoute`), but never fail readiness on them (Render's health
+check would restart a healthy process); show them on `/ops`.
+
+## Deviations from the specs (for an ADR; `docs/spec` is not ours to edit)
+
+1. **`PP_CERT_ALLOW` pins; it does not narrow** (S3.6.5 says "narrows"). Narrowing would turn an
+   unannounced certificate rotation into 400s; pinning only holds certificate fetches back for the listed
+   ids and keeps them once loaded. Every check still runs on every use.
+2. **Expired-certificate confirmations are PayPal calls outside S3.6.7's list.** A delivery whose
+   signature verifies under an expired PayPal certificate costs one `verify-webhook-signature` call
+   during the request (step 3), at most 20 an hour (`expiredCertPostbacksPerHour`). None unless PayPal
+   signs with an expired certificate (or its expired key leaked); forged and replayed copies cost none.
+   Proposed S3.6.7 line: "expired-certificate confirmations: at most 20 an hour (normally none)".
+   Certificate fetches stay within S3.6.7's "at most 3 an hour", pins included (step 2).
+3. **Rejects live in `webhook_events` (status `rejected`), not in S3.4's `webhook_rejects`.** They keep
+   what S3.4 lists for that table (body hash and size, five headers of at most 256 characters; no IP
+   hash, because no address is stored at all), at most 100 an hour. But WS-DATA's `webhook_events` is
+   not purgeable by the app (0005 revokes DELETE), so S3.9's 7-day purge cannot reach them (at most
+   about 100 rows of under 2 KB an hour). Proposed: WS-DATA adds `webhook_rejects` with the 7-day purge
+   (or purges `status = 'rejected'` rows), and the route writes rejects there.
 
 ## Spike results
 
@@ -129,21 +202,46 @@ readiness on it (Render's health check would restart a healthy process); show it
 - `apps/api/src/webhooks/_shims/contracts.ts` → `@fairsplit/contracts` (TaskName `processWebhook`, the
   webhook_events vocabulary, `webhook.received`).
 - `apps/api/src/webhooks/_shims/persistence.ts` → `@fairsplit/outbox` / `@fairsplit/db`.
-- **Proposed to WS-DATA:** one nullable column `webhook_events.delivery jsonb` (transmission headers,
-  reject reason, certificate warning; type `WebhookDelivery`) instead of four new columns. Arrival time is
-  the row's created-at default; resource type is in `raw`. Without it the route still works, but the
-  deferred postback, the boot pre-warm and `/ops` reject reasons do not.
+- **Required from WS-DATA (for MM-1):** one nullable column `webhook_events.delivery jsonb` (transmission
+  headers, reject reason, certificate warning; type `WebhookDelivery`) instead of four new columns.
+  Arrival time is the row's created-at default; resource type is in `raw`. It must keep null-valued keys
+  (jsonb does; never `jsonb_strip_nulls`): `webhookApplyRule` applies an in-date signed SUCCEEDED at once
+  only when the stored `delivery.certWarning` is an explicit `null`. Without the column (or with null keys
+  stripped) the route still stores events, but every SUCCEEDED is `DELIVERY_NOT_RECORDED` and waits for
+  the settle GET at +25 s / +90 s, so **MM-1 never fires** (fails closed: no money risk); the deferred
+  postback, the boot pre-warm and `/ops` reject reasons stop working too. A dedicated `cert_warning`
+  column is no substitute on its own: it restores none of those three, and its NULL would mean both "in
+  date" and "never written".
 - **Proposed to WS-CORE before the 24 Oct freeze:** widen the `webhook.received` run event's `verified`
   from `"self" | "postback"` (architecture §5) to also allow `"dev_mock"` and `"fetched"`, so simulator
   and catch-up events keep their label (I8). Until then `webhookRunEvent()` returns null for them rather
   than relabelling.
 - **Proposed to WS-DATA:** table `webhook_transmissions (transmission_id text PRIMARY KEY, expires_at
-  timestamptz NOT NULL)` behind `TransmissionStore` (SQL in `src/webhook/transmission.ts`), injected as
-  `createPayPalCore({ webhookTransmissionStore })`. Until then the in-memory store (one fs-api instance)
-  applies; a restart forgets ids, and event-id dedupe still stops a second apply.
+  timestamptz NOT NULL, claim_token uuid)` behind `TransmissionStore` (SQL in
+  `src/webhook/transmission.ts`), injected as `createPayPalCore({ webhookTransmissionStore })`. `claim`
+  stores the claim token it is handed; `release(id, token)` deletes only the row with that token (any row
+  when no token is given). Until then the in-memory store (one fs-api instance) applies; a restart
+  forgets ids, and event-id dedupe still stops a second apply.
+- **For WS-DATA (record only; theirs to build):** the production `TransmissionStore` must compare
+  `expires_at` against the app-supplied timestamp, the `now` argument of `claim(id, expiresAt, now)`
+  (`… WHERE webhook_transmissions.expires_at <= $3`), never the database's `now()`: freshness (the
+  5-minute window) is judged by the app clock, so a database clock running ahead would treat a live id
+  as expired and let a replayed copy through. The hourly purge takes an app-supplied time too.
 - **For WS-API:** mount `honoPayPalWebhook(handler)`; it takes the client address from the rightmost
   `X-Forwarded-For` entry (Render appends the connecting address; UNVERIFIED, confirm at S5 and pass
-  `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`.
+  `clientIp` if there is a second proxy). Wire `releaseTransmission: core.verifier.releaseTransmission`
+  and `now` (the app clock), and report `handler.health()`. In `insertWebhookEvent`, persist
+  `row.delivery` as it is, into `webhook_events.delivery` (not only its `rejectReason` into `error`), and
+  hand the stored `delivery` back to `webhookApplyRule` in processWebhook: that is what MM-1 runs on.
+  Build the core with `createPayPalCore({ config: loadPayPalConfig(process.env), … })`: it checks PP_* at
+  boot (sandbox only, `PP_CERT_ALLOW` well formed, dev mocks refused on Render) and carries
+  `knownCertIds`, the `PP_CERT_ALLOW` pins. `config.knownCertIds` is required, so a config built another
+  way must say what it pins (`[]` pins nothing); otherwise the `CERT_FETCH_THROTTLED` alert's advice
+  ("pin the ids in `PP_CERT_ALLOW`") would do nothing.
+- **For WS-OPS:** list `PP_CERT_ALLOW` (`sync: false`) for `fs-api` in `render.yaml`. In
+  `reconcile{catchup}`, persist both `resume` (until a pass returns null) and `completedThrough` (when a
+  pass returns one) and pass them back to `catchUpWebhookEvents`: a pass without `completedThrough`
+  starts from the newest applied event, and a webhook refused for good before it is never listed.
 - Until WS-API scaffolds `apps/api`, the webhook route is typechecked by `tsconfig.consumers.json` and
   tested by the `api-webhooks` vitest project here.
 
@@ -154,7 +252,8 @@ readiness on it (Render's health check would restart a healthy process); show it
 - `processWebhook` (resolution, re-GET, state transitions); its postback step exists
   (`confirmWebhookByPostback`) and the rules it must follow are code (`apply.ts`: `webhookApplyRule`,
   `corroborateWithSettleGet`, `openForSettleGets`). Catch-up exists (`apps/api/src/webhooks/catchup.ts`, rows labelled
-  `fetched`); WS-OPS schedules it in `reconcile{catchup}` and persists `resume` between passes.
+  `fetched`); WS-OPS schedules it in `reconcile{catchup}` and persists `resume` and `completedThrough`
+  between passes.
 
 ## `tools/setup-webhooks.ts`
 

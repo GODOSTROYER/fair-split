@@ -1,5 +1,15 @@
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DAY_MS = 86_400_000;
+const PAYPAL_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+
+/**
+ * S3 §S3.6.2 `ppDate`: PayPal's calendar date (America/Los_Angeles), yyyy-mm-dd. The only "today"
+ * compared with a date PayPal holds: at 00:30 UTC the UTC date is already tomorrow in PayPal's eyes.
+ * Kept here: @fairsplit/paypal-core does not export it, and only the invoice chain needs it.
+ */
+export function ppDate(at: Date = new Date()): string {
+  return PAYPAL_DATE.format(at);
+}
 
 /** The UTC calendar date of an instant, yyyy-MM-dd (PayPal invoice dates are UTC). */
 export function utcDate(at: Date): string {

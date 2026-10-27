@@ -1,0 +1,6 @@
+# Local caches and per-machine state (never committed)
+.cache/
+audio/.quota.json
+.codex-ledger.json
+raw/
+*.lock

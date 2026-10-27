@@ -116,6 +116,40 @@ export function pageFixture(): PhotoFixture {
   };
 }
 
+/** A page covered in 4 px black and white stripes: any pixel a sanitiser misses shows through. */
+export async function stripedPage(width: number = PAGE.width, height: number = PAGE.height): Promise<Buffer> {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+<defs><pattern id="s" width="8" height="8" patternUnits="userSpaceOnUse">
+<rect width="4" height="8" fill="#000"/><rect x="4" width="4" height="8" fill="#fff"/></pattern></defs>
+<rect width="${width}" height="${height}" fill="url(#s)"/></svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/**
+ * Min and max channel value over a region of an image, the region given in pixels of that image and
+ * shrunk by `inset` on every side (JPEG and Lanczos ringing stay out of the sample).
+ */
+export async function regionStats(image: Buffer, b: Box, inset = 4): Promise<{ min: number; max: number }> {
+  const { data, info } = await sharp(image).raw().toBuffer({ resolveWithObject: true });
+  let min = 255;
+  let max = 0;
+  const x1 = Math.max(0, Math.ceil(b.x1) + inset);
+  const y1 = Math.max(0, Math.ceil(b.y1) + inset);
+  const x2 = Math.min(info.width, Math.floor(b.x2) - inset);
+  const y2 = Math.min(info.height, Math.floor(b.y2) - inset);
+  if (x2 <= x1 || y2 <= y1) throw new RangeError(`empty sample region ${JSON.stringify(b)}`);
+  for (let y = y1; y < y2; y++) {
+    for (let x = x1; x < x2; x++) {
+      for (let c = 0; c < Math.min(3, info.channels); c++) {
+        const v = data[(y * info.width + x) * info.channels + c] as number;
+        min = Math.min(min, v);
+        max = Math.max(max, v);
+      }
+    }
+  }
+  return { min, max };
+}
+
 /** A plain, deterministic page image (contents do not matter to a mocked model). */
 export async function plainPage(seed = 0): Promise<Buffer> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PAGE.width}" height="${PAGE.height}">

@@ -1,8 +1,13 @@
-// fs-cron: Render runs `node apps/tasks/dist/cron.js` hourly at :07 (render.yaml `schedule`).
-// Each pass enqueues, through the transactional outbox (I7), the scheduled tasks due in this hour:
-//   every pass               judgeReset, reconcile{catchup}       keyed by UTC hour
-//   any pass 02:00-05:59 UTC reconcile{nightly}                   keyed by UTC date
-//   every pass               warmCaches                           keyed by 23-hour window
+// The hourly schedule: which scheduled tasks are due at a given instant, with their outbox dedupe
+// keys (approved S3.3 step 6). fs-cron is a thin trigger: at :07 it runs tools/cron-tick.mjs, which
+// POSTs fs-api's /internal/cron/tick over the private network, and the tick enqueues this plan through
+// the transactional outbox (I7). This module is the tested reference for that tick (HANDOFF to
+// WS-API / WS-DATA: lift `planCronRun` and `runCron` with the outbox adapter; apps cannot import
+// apps). Its CLI prints any hour's plan.
+//   every pass                 judgeReset                 keyed by UTC hour
+//   any pass 02:00-05:59 UTC   reconcile{nightly}         keyed by UTC date
+//   every pass                 warmCaches                 keyed by 23-hour window
+// reconcile{catchup} is not here: webhook catch-up runs once per fs-api boot (S3.6.5), not hourly.
 // Dedupe keys come from the contracts shim (IC-01) and `enqueue` is ON CONFLICT DO NOTHING, so the
 // first successful pass in a slot creates the row and later passes are no-ops. A skipped or failed
 // pass is therefore made up by the next one, instead of waiting a whole day or window.
@@ -32,7 +37,7 @@ export interface CronJob {
   readonly dedupeKey: string;
 }
 
-/** The outbox port the cron writes to. WS-DATA's adapter wraps `enqueue(tx, name, args, dedupeKey)`. */
+/** The outbox port the plan is written to. WS-DATA's adapter wraps `enqueue(tx, name, args, dedupeKey)`. */
 export interface CronSink {
   enqueue(job: CronJob): Promise<{ readonly id: string; readonly created: boolean }>;
 }
@@ -63,10 +68,7 @@ export function warmWindow(now: Date): number {
 export function planCronRun(now: Date): CronJob[] {
   if (Number.isNaN(now.getTime())) throw new Error("planCronRun needs a valid date");
   const slot = hourSlot(now);
-  const jobs: CronJob[] = [
-    { name: "judgeReset", ...TASK_KEYS.judgeResetCron(slot) },
-    { name: "reconcile", ...TASK_KEYS.reconcileCatchup(slot) },
-  ];
+  const jobs: CronJob[] = [{ name: "judgeReset", ...TASK_KEYS.judgeResetCron(slot) }];
   const h = now.getUTCHours();
   if (h >= NIGHTLY_UTC_HOUR && h < NIGHTLY_UTC_HOUR + NIGHTLY_WINDOW_HOURS) {
     jobs.push({ name: "reconcile", ...TASK_KEYS.reconcileNightly(slot.slice(0, 10)) });
@@ -110,7 +112,11 @@ export function parseCronArgs(argv: readonly string[]): CronCliOptions {
   return at ? { plan, at } : { plan };
 }
 
-/** Exit code: 0 all enqueued (or plan only), 1 any enqueue failed or no outbox is wired. */
+/**
+ * CLI. `--plan [--at=<iso>]` prints a pass's plan. Without `--plan` it enqueues the plan directly,
+ * which needs an outbox sink (local runs once WS-DATA wires one; on Render the tick does this).
+ * Exit code: 0 all enqueued (or plan only), 1 any enqueue failed or no outbox is wired.
+ */
 export async function main(
   argv: readonly string[],
   deps: { sink?: CronSink | undefined; logger?: Logger; now?: () => Date } = {},

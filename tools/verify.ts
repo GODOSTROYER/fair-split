@@ -1,7 +1,8 @@
 // Clean-clone verification (gate G7: "Verify from a clean clone; submit").
 //
 //   corepack pnpm exec tsx tools/verify.ts [--source=<git url or path>] [--ref=<branch|sha>]
-//                                          [--dir=<empty dir>] [--keep] [--lint] [--json]
+//                                          [--dir=<empty dir>] [--db=<postgres url>]
+//                                          [--keep] [--lint] [--json]
 //
 // Clones the committed tree (never the working copy), then runs, stopping at the first failure:
 //   install    corepack pnpm install --frozen-lockfile
@@ -9,8 +10,12 @@
 //   lint       corepack pnpm lint            (only with --lint)
 //   test       corepack pnpm test
 //   build      corepack pnpm build
-// Children get a scrubbed environment: no API keys, no PayPal credentials, CI=1, so a clean clone
-// proves the repo passes with recorded fixtures only. Exit 0 when every step passes.
+// Children get a scrubbed environment (`isDroppedEnv`): no API keys, no PayPal or database
+// credentials, no kill flags, CI=1, so a clean clone proves the repo passes on recorded fixtures.
+// The Postgres integration tier (S3.16) runs on packages/db's embedded Postgres by default; `--db`
+// points it at a server instead, as FS_TEST_DATABASE_URL for the test step only (never printed).
+// The test step reports the tests each package skipped, so a tier that quietly skips shows up.
+// Exit 0 when every step passes.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,6 +36,8 @@ export interface VerifyOptions {
   readonly dir: string;
   readonly ref?: string | undefined;
   readonly lint?: boolean;
+  /** Postgres for the integration tier, given to the test step as FS_TEST_DATABASE_URL. */
+  readonly db?: string | undefined;
 }
 
 export interface StepResult {
@@ -40,6 +47,8 @@ export interface StepResult {
   readonly exitCode: number | null;
   /** Last lines of combined output, for a failing step only. */
   readonly tail?: string;
+  /** The test step only: tests skipped per package, read from the vitest summaries. */
+  readonly skipped?: Readonly<Record<string, number>>;
 }
 
 /** Pure: the ordered steps for a verification run. */
@@ -66,13 +75,25 @@ export function planVerify(opts: VerifyOptions): VerifyStep[] {
   return steps;
 }
 
+/** Anything named like a credential. */
+const SECRET_NAME = /KEY|SECRET|TOKEN|PASSWORD|PASSWD|SCRYPT|SHA256|CREDENTIAL|PRIVATE|COOKIE/i;
+/**
+ * Whole families: PayPal (PP_ and the older PAYPAL_), model and platform keys, the app's own
+ * settings (FS_*: FS_KILL, FS_APP_DB_PASSWORD, FS_DB_*, FS_TEST_DATABASE_URL, …), the older KILL_*
+ * flags, every database URL (DATABASE_URL, DATABASE_OWNER_URL, LIMITER_DATABASE_URL, …), libpq's PG*
+ * variables, and NODE_ENV (production would make the install skip devDependencies).
+ */
+const DROPPED_FAMILY =
+  /^(PP_|PAYPAL_|ANTHROPIC_|GEMINI_|OPENAI_|GOOGLE_|RENDER_|EXPO_|FS_|KILL_|PG[A-Z]+$|NODE_ENV$)|(^|_)DATABASE(_[A-Z]+)*_URL$/i;
+
 /** Env names never passed to a verification child. */
-const DROPPED_ENV =
-  /^(PP_|ANTHROPIC_|GEMINI_|RENDER_API_KEY$|OPENAI_|EXPO_ACCESS_TOKEN$|STATEMENT_SIGNING_KEY$|BETTER_AUTH_SECRET$|DATABASE_URL$)/;
+export function isDroppedEnv(name: string): boolean {
+  return SECRET_NAME.test(name) || DROPPED_FAMILY.test(name);
+}
 
 export function childEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(env)) if (!DROPPED_ENV.test(k)) out[k] = v;
+  for (const [k, v] of Object.entries(env)) if (!isDroppedEnv(k)) out[k] = v;
   out.CI = "1";
   out.COREPACK_ENABLE_DOWNLOAD_PROMPT = "0";
   out.EXECUTOR = "inline";
@@ -104,6 +125,46 @@ export const spawnRunner: StepRunner = (step, cwd, env) => {
   };
 };
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour codes, which start with ESC.
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+/**
+ * Tests skipped per package, from vitest's summary lines (`Tests  3 failed | 40 passed | 2 skipped (45)`),
+ * which turbo prefixes with `<package>:test: `. Todo tests count as skipped. Packages with none are omitted.
+ */
+export function skippedTests(output: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const line of output.replace(ANSI, "").split(/\r?\n/)) {
+    const m = /^(?:(\S+?):test:)?\s*Tests\s+(.+)\(\d+\)\s*$/.exec(line);
+    if (!m) continue;
+    const pkg = m[1] ?? "(root)";
+    const n = [...(m[2] ?? "").matchAll(/(\d+)\s+(?:skipped|todo)\b/g)].reduce(
+      (sum, x) => sum + Number(x[1]),
+      0,
+    );
+    if (n > 0) out[pkg] = (out[pkg] ?? 0) + n;
+  }
+  return out;
+}
+
+/** One line for the log: `none`, or `@fairsplit/db 3, @fairsplit/ai 1 (4 in all)`. */
+export function describeSkipped(skipped: Readonly<Record<string, number>>): string {
+  const entries = Object.entries(skipped).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  if (entries.length === 0) return "none";
+  const total = entries.reduce((sum, [, n]) => sum + n, 0);
+  return `${entries.map(([pkg, n]) => `${pkg} ${n}`).join(", ")} (${total} in all)`;
+}
+
+/** The password in a postgres URL, raw and decoded, when it is long enough to scrub safely. */
+function passwordOf(url: string): string[] {
+  try {
+    const raw = new URL(url).password;
+    return [...new Set([raw, decodeURIComponent(raw)])].filter((p) => p.length >= 4);
+  } catch {
+    return [];
+  }
+}
+
 export function runVerify(
   opts: VerifyOptions,
   deps: {
@@ -116,10 +177,16 @@ export function runVerify(
   const runner = deps.runner ?? spawnRunner;
   const now = deps.now ?? Date.now;
   const env = childEnv(deps.env ?? process.env);
+  const db = opts.db?.trim() || undefined;
+  // The --db URL carries a password; nothing this tool prints or returns may contain either.
+  const hidden = db ? [db, ...passwordOf(db)] : [];
   const results: StepResult[] = [];
   for (const step of planVerify(opts)) {
     const started = now();
-    const { exitCode, output } = runner(step, step.inClone ? opts.dir : resolve(opts.dir, ".."), env);
+    const stepEnv = step.id === "test" && db ? { ...env, FS_TEST_DATABASE_URL: db } : env;
+    const cwd = step.inClone ? opts.dir : resolve(opts.dir, "..");
+    const { exitCode, output: raw } = runner(step, cwd, stepEnv);
+    const output = hidden.reduce((text, secret) => text.split(secret).join("<--db>"), raw);
     const ok = exitCode === 0;
     const result: StepResult = {
       id: step.id,
@@ -127,6 +194,7 @@ export function runVerify(
       ms: now() - started,
       exitCode,
       ...(ok ? {} : { tail: output.trim().split(/\r?\n/).slice(-30).join("\n") }),
+      ...(step.id === "test" ? { skipped: skippedTests(output) } : {}),
     };
     results.push(result);
     deps.onStep?.(result);
@@ -139,6 +207,7 @@ export interface CliOptions {
   source: string;
   ref?: string | undefined;
   dir?: string;
+  db?: string;
   keep: boolean;
   lint: boolean;
   json: boolean;
@@ -153,7 +222,10 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     if (k === "--source" && v) o.source = v;
     else if (k === "--ref" && v) o.ref = v;
     else if (k === "--dir" && v) o.dir = v;
-    else if (k === "--keep") o.keep = true;
+    else if (k === "--db" && v) {
+      if (!/^postgres(ql)?:\/\//.test(v)) throw new Error("--db must be a postgres:// URL");
+      o.db = v;
+    } else if (k === "--keep") o.keep = true;
     else if (k === "--lint") o.lint = true;
     else if (k === "--json") o.json = true;
     else throw new Error(`unknown argument: ${a}`);
@@ -180,15 +252,18 @@ function main(argv: readonly string[]): number {
     dir = join(mkdtempSync(join(tmpdir(), "fs-verify-")), "fair-split");
   }
   const results = runVerify(
-    { source: cli.source, dir, ref: cli.ref, lint: cli.lint },
+    { source: cli.source, dir, ref: cli.ref, lint: cli.lint, db: cli.db },
     {
       onStep: (r) => {
         if (!cli.json)
           console.log(`${r.ok ? "PASS" : "FAIL"}  ${r.id.padEnd(9)}  ${(r.ms / 1000).toFixed(1)} s`);
         if (!r.ok && !cli.json && r.tail) console.log(r.tail);
+        if (r.skipped && !cli.json) console.log(`      skipped tests: ${describeSkipped(r.skipped)}`);
       },
     },
   );
+  if (!cli.json && !cli.db)
+    console.log("      integration tier: packages/db's embedded Postgres (pass --db=<url> to use a server)");
   const ok =
     results.every((r) => r.ok) &&
     results.length === planVerify({ source: cli.source, dir, ref: cli.ref, lint: cli.lint }).length;

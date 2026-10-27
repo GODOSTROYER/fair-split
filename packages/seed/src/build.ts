@@ -34,7 +34,9 @@ import {
   invoiceReference,
   type LedgerFact,
   lineCanonical,
+  linesDigest,
   linesRootSha256,
+  overrideCount,
   paypalRequestId,
   publishedFees,
   quarantineNotice,
@@ -347,6 +349,8 @@ export function buildSnapshot(): Built {
       seasonId,
       rateCardSha256: card.sha256,
       batch: digest,
+      // Both keys bind every member line, the 56 cash lines too (the approved plan's linesDigest).
+      linesDigest: linesDigest(resolved.lines),
       role,
       approverId,
       nonce: sha256Hex(`nonce:${slug}:${role}`).slice(0, 32),
@@ -366,8 +370,9 @@ export function buildSnapshot(): Built {
     sign("chair", SEEDED_KEY_IDS.chair, chair.persona, TIMELINE.chairSigned),
   ];
   const note = batchNote(SEASON.label, digest.batchSha256);
+  const overrides = overrideCount(resolved.holds);
   const chairNeeded = requiresChair(
-    { batchTotalCents: digest.totalCents, lineAmountsCents: items.map((i) => i.amountCents), overrides: 0 },
+    { batchTotalCents: digest.totalCents, lineAmountsCents: items.map((i) => i.amountCents), overrides },
     rules.cosign,
   );
 
@@ -588,6 +593,7 @@ export function buildSnapshot(): Built {
         netCents: c.netCents,
         onRailNetCents: c.onRailNetCents,
         balanced: c.balanced,
+        overrides: overrideCount(resolved.holds),
       },
       TIMELINE.computed,
       engine,
@@ -775,7 +781,8 @@ export function buildSnapshot(): Built {
         reference,
         note: invoiceMemo(SEASON.label, card.sha256, LOT.lotCode),
         invoiceDate: RUN.invoiceDate,
-        dueDate: format.addDays(RUN.invoiceDate, RUN.dueInDays),
+        // No payment term is ever sent (00-plan, S3.6.3): the invoice has no due date.
+        dueDate: null,
         autoCancelOn: format.addDays(RUN.invoiceDate, RUN.autoCancelInDays),
         status: "MARKED_AS_PAID",
         amountCents: quote.totalCents,

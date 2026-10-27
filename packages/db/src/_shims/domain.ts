@@ -6,7 +6,9 @@
  * - the ledger entry hash: sha256(prev_hash ‖ JCS({seq, kind, actorKind, actorId, impersonatedBy, payload, at}))
  *   (S3.12). `‖` is read as concatenating the 64-char lowercase hex of prev_hash with the JCS text, UTF-8 encoded;
  * - the transition tables for runs and lines (register §7, architecture §4, S3.5), used as the default
- *   policy by the optimistic `transition()` helpers. WS-CORE's `fsm.run|line|item` replaces them.
+ *   policy by the optimistic `transition()` helpers. They are edge-for-edge WS-CORE's `fsm.run|line|item`
+ *   (packages/domain/src/fsm.ts on ws/core), which replaces them; migrations/0006 holds the same edges in SQL and
+ *   test/state-guards.test.ts fails if the two ever differ.
  */
 import { createHash } from "node:crypto";
 import canonicalize from "canonicalize";
@@ -82,27 +84,29 @@ const RUN_EDGES: Edges<RunState> = {
   SETTLED: ["CLOSED"],
 };
 
-/** Item rank behind each post-submission line state (S3.5 "item status → line state"). */
-const LINE_ITEM_RANK: Partial<Record<LineState, number>> = {
-  PAYPAL_PENDING: ITEM_STATUS_RANK.PENDING,
-  PAYPAL_HELD: ITEM_STATUS_RANK.ONHOLD,
-  UNCLAIMED: ITEM_STATUS_RANK.UNCLAIMED,
-  RETURNED: ITEM_STATUS_RANK.RETURNED,
-  NEEDS_ACTION: ITEM_STATUS_RANK.FAILED,
-  PAID: ITEM_STATUS_RANK.SUCCESS,
-  REVERSED: ITEM_STATUS_RANK.REVERSED,
-};
-
-const LINE_EDGES: Edges<LineState> = {
+/**
+ * Member lines (register §7, S3.5). Every edge but two moves forward: LOCKED → READY unlocks a line whose approvals
+ * were voided before posting, and REROUTED → SUBMITTED starts the next attempt. A line never skips SUBMITTED →
+ * PAYPAL_PENDING: an item webhook that beats our 201 walks the line through PAYPAL_PENDING in one transaction
+ * (`lines.followItem`). RETURNED follows only UNCLAIMED (our own cancel) and leads only to cash or a re-route.
+ */
+const LINE_EDGES: Record<LineState, readonly LineState[]> = {
   COMPUTED: ["READY", "HELD"],
   HELD: ["READY", "EXCLUDED"],
   READY: ["OFF_RAIL_DUE", "LOCKED"],
-  OFF_RAIL_DUE: ["OFF_RAIL_PAID"],
-  // approvals voided after locking (digest mismatch, kill switch) unlock the line
   LOCKED: ["SUBMITTED", "READY"],
   SUBMITTED: ["PAYPAL_PENDING", "NEEDS_ACTION"],
+  PAYPAL_PENDING: ["PAYPAL_HELD", "UNCLAIMED", "NEEDS_ACTION", "PAID", "REVERSED"],
+  PAYPAL_HELD: ["UNCLAIMED", "NEEDS_ACTION", "PAID", "REVERSED"],
+  UNCLAIMED: ["RETURNED", "NEEDS_ACTION", "PAID", "REVERSED"],
   RETURNED: ["OFF_RAIL_DUE", "REROUTED"],
   REROUTED: ["SUBMITTED"],
+  NEEDS_ACTION: ["PAID", "REVERSED"],
+  PAID: ["REVERSED"],
+  REVERSED: [],
+  OFF_RAIL_DUE: ["OFF_RAIL_PAID"],
+  OFF_RAIL_PAID: [],
+  EXCLUDED: [],
 };
 
 export function canTransitionRun(from: RunState, to: RunState): boolean {
@@ -111,16 +115,10 @@ export function canTransitionRun(from: RunState, to: RunState): boolean {
 }
 
 export function canTransitionLine(from: LineState, to: LineState): boolean {
-  if (LINE_EDGES[from]?.includes(to)) return true;
-  const a = LINE_ITEM_RANK[from];
-  const b = LINE_ITEM_RANK[to];
-  if (a === undefined || b === undefined || b <= a) return false;
-  // RETURNED only follows our own cancel of an UNCLAIMED item
-  if (to === "RETURNED") return from === "UNCLAIMED";
-  return true;
+  return LINE_EDGES[from].includes(to);
 }
 
-/** A status applies only if it outranks the current one; RETURNED needs our own cancel first. */
+/** A status applies only if it outranks the current one; RETURNED only follows our own cancel of an UNCLAIMED item. */
 export function canApplyItemStatus(
   from: ItemStatus | "SUBMITTED",
   to: ItemStatus,
@@ -128,6 +126,6 @@ export function canApplyItemStatus(
 ): boolean {
   const a = from === "SUBMITTED" ? 0 : ITEM_STATUS_RANK[from];
   if (ITEM_STATUS_RANK[to] <= a) return false;
-  if (to === "RETURNED") return opts.cancelRequested;
+  if (to === "RETURNED") return opts.cancelRequested && from === "UNCLAIMED";
   return true;
 }

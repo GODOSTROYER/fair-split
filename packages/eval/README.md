@@ -14,7 +14,7 @@ corepack pnpm --filter @fairsplit/eval eval:replay
 corepack pnpm --filter @fairsplit/eval eval:live
 
 # Options: --mode replay|live|batch --set test|dev --cap-usd N --media DIR --labels DIR
-#          --recordings DIR --out DIR --allow-empty --no-zoom --no-screen --history
+#          --recordings DIR --out DIR --registry FILE --allow-empty --no-zoom --no-screen --history
 ```
 
 Exit code 0 means every bar is met: exact-row rate >= 0.85, zero unsafe auto-accepts, injection
@@ -32,6 +32,15 @@ catch rate 1.0, duplicate F1 >= 0.9, and no case errored. An empty set is never 
   committing; the pre-commit hook checks JSON formatting.
 - Report: `report/latest.json` (served to the in-product waffle through a read-only API route) and,
   for live runs, `report/history/`.
+
+## Member registry
+
+The validators check member numbers and names against a registry. `--registry FILE` takes the seed
+snapshot's members (an array of `{member_no, name}`, or `{members: [...]}`). Without it the registry is
+built from the labelled slips, which makes "not in the registry" stricter than production (a misread
+number naming another of the 64 members would be auto-accepted there) and so flatters the
+unsafe-auto-accept metric: such a report says `provisional`, with the reason, and the console prints it.
+Pass the seed's members as soon as WS-CORE's seed snapshot lands.
 
 ## Deferred
 

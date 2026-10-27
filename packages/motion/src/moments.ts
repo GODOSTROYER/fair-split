@@ -2,8 +2,10 @@
 // selectors: every moment root renders data-moment="<id>" and data-moment-phase="<phase>". The full, low-tier
 // and reduced-motion renderers all emit the same phases; only what is drawn between them differs.
 //
-// Phase lists follow S2 §2.9. The supporting INVOICE.PAID beat takes the register's ID, MM-S (S2 called it
-// BEAT-PAID; that name stays available as an alias).
+// Phase lists follow the revised S2 §2.9: MM-5 signs on a release inside the armed slab (armed-1/2), takes
+// the dialog route as confirm-1/2 and can be disarmed; MM-3 lights matching field pairs rather than drawing an
+// underline. The supporting INVOICE.PAID beat takes the register's ID, MM-S (S2 calls it BEAT-PAID; that
+// name stays available as an alias).
 
 export const MOMENTS = {
   "MM-1": ["pending", "press", "flood", "fill", "label", "invite", "done"],
@@ -20,20 +22,25 @@ export const MOMENTS = {
     "entered",
     "done",
   ],
-  "MM-3": ["closed", "glide-in", "converge", "underline", "ready", "pressed", "needle", "wave", "resolved"],
+  "MM-3": ["closed", "glide-in", "converge", "pairs", "ready", "pressed", "needle", "wave", "resolved"],
   "MM-4": ["idle", "refuse", "plate", "done"],
   "MM-5": [
     "blocked",
     "rising",
     "ready",
     "hold-1",
+    "armed-1",
+    "confirm-1",
     "signed-1",
     "waiting-2",
     "hold-2",
+    "armed-2",
+    "confirm-2",
     "signed-2",
     "sealed",
     "inked",
     "released-early",
+    "disarmed",
     "declined",
     "expired",
     "mismatch",
@@ -70,6 +77,8 @@ export interface MomentInfo<M extends MomentId = MomentId> {
   readonly terminal: readonly MomentPhase<M>[];
   /** Phases that only appear on an exception path. */
   readonly exceptions: readonly MomentPhase<M>[];
+  /** Phases of an equivalent route that stands in for part of the happy path (MM-5's dialog route). */
+  readonly alternates: readonly MomentPhase<M>[];
   /** The reduced-motion renderer: same phases, no spatial travel, colour and opacity over 150 ms. */
   readonly reducedMotion: string;
   /** The low tier (≤ 3 GB RAM, or a slow web device): at most three animations, no flights. */
@@ -92,6 +101,7 @@ export const MOMENT_INFO: Catalogue = {
     proves: "PayPal, not the app, says she is paid, and every copy changes at once",
     terminal: ["done"],
     exceptions: [],
+    alternates: [],
     reducedMotion: "Colour and label crossfade over 150 ms; no inset travel and no corner flood",
     lowTier: "Jade fades in over 120 ms instead of flooding from the corner; the amount fills instantly",
     assertion: "Reaches done within 3 s of the event",
@@ -108,6 +118,7 @@ export const MOMENT_INFO: Catalogue = {
     proves: "Claude reads in pencil; doubt becomes the treasurer's ink",
     terminal: ["landed", "done"],
     exceptions: [],
+    alternates: [],
     reducedMotion:
       "No flight: a 2 px pencil outline on the crop and a 1 px connector for 600 ms; the band jumps",
     lowTier: "Same as reduced motion: no flight, outline and connector, the band jumps",
@@ -124,10 +135,11 @@ export const MOMENT_INFO: Catalogue = {
     proves: "The duplicate cost 63 neighbours; counting it once pays them back",
     terminal: ["resolved"],
     exceptions: [],
-    reducedMotion:
-      "200 ms crossfades into the overlap and for the needle; digits change with a 600 ms pencil-wash",
-    lowTier: "The crops start already overlapped",
-    assertion: "The needle crosses 2.0% once and the card ends flush in ink with the AS stamp",
+    alternates: [],
+    reducedMotion: "200 ms crossfades; the pairs fade in; digits change instantly with a 600 ms pencil-wash",
+    lowTier: "The crops start converged; the pairs light as in full",
+    assertion:
+      "The pairs count the DTO's compared fields (4 of 4); the needle crosses 2.0% once; the card ends flush in ink with the AS stamp",
   },
   "MM-4": {
     id: "MM-4",
@@ -140,6 +152,7 @@ export const MOMENT_INFO: Catalogue = {
     proves: "Not even the treasurer can add a deduction mid-season",
     terminal: ["done"],
     exceptions: [],
+    alternates: [],
     reducedMotion: "No shake; the steel edges and bolts brighten for 200 ms and the plate appears",
     lowTier: "As full: the shake is a CSS transform",
     assertion: "The plate prints at max(120 ms, arrival of the 409)",
@@ -147,18 +160,20 @@ export const MOMENT_INFO: Catalogue = {
   "MM-5": {
     id: "MM-5",
     name: "Two keys",
-    trigger: "Last BLOCKS_APPROVAL hold resolved; two approval.signed events (Ed25519)",
+    trigger:
+      "Last BLOCKS_APPROVAL hold resolved; two approval.signed events (Ed25519), each signed on a release inside the armed slab or through the dialog",
     screens: ["W-TR-07", "M-BD-02"],
     surfaces: ["console", "app"],
     owners: ["WS-CONSOLE", "WS-APP"],
     filmTime: "1:10–1:24",
     proves: "Two named people bound this exact batch",
     terminal: ["inked"],
-    exceptions: ["released-early", "declined", "expired", "mismatch"],
+    exceptions: ["released-early", "disarmed", "declined", "expired", "mismatch"],
+    alternates: ["confirm-1", "confirm-2"],
     reducedMotion: "A stepped bar with a percentage replaces face travel; the edges fade; the rings fade in",
     lowTier: "On the Chair's phone the rings appear complete with a 200 ms fade; the ticks stay",
     assertion:
-      "Commit at 1600 ± 50 ms; both contexts reach sealed within 150 ms; a tampered hash gives mismatch",
+      "armed-1 at 1600 ± 50 ms; no approval POST before a release inside; both contexts reach sealed within 150 ms; a tampered hash gives mismatch and no POST",
   },
   "MM-6": {
     id: "MM-6",
@@ -171,6 +186,7 @@ export const MOMENT_INFO: Catalogue = {
     proves: "Sent is not paid; cash members share the page; a repeat changes nothing",
     terminal: ["settled"],
     exceptions: ["denied"],
+    alternates: [],
     reducedMotion:
       "Threads appear at 70%; completion is an instant colour change; stubs change colour without the press",
     lowTier: "Threads draw without stagger; stubs change colour without the inset press",
@@ -187,6 +203,7 @@ export const MOMENT_INFO: Catalogue = {
     proves: "Every peso traces to a pencil mark she recognises",
     terminal: ["tiled", "rest"],
     exceptions: [],
+    alternates: [],
     reducedMotion: "A 200 ms crossfade straight to the crop at its final scale",
     lowTier: "A 200 ms crossfade straight to the crop at its final scale",
     assertion: "Zoom commits at 1.6× with one haptic; Back reverses to rest",
@@ -202,6 +219,7 @@ export const MOMENT_INFO: Catalogue = {
     proves: "The season is funded only when PayPal confirms the invoice",
     terminal: ["funded"],
     exceptions: [],
+    alternates: [],
     reducedMotion:
       "Colour changes only: the pool turns solid and Funded turns jade flush, with no arc travel",
     lowTier: "As full: one arc is cheap",
@@ -209,10 +227,11 @@ export const MOMENT_INFO: Catalogue = {
   },
 };
 
-/** The phases a moment passes through on its happy path, in order. */
+/** The phases a moment passes through on its happy path, in order: no exceptions, no alternate route. */
 export function happyPath<M extends MomentId>(id: M): MomentPhase<M>[] {
-  const exceptions = new Set<string>(MOMENT_INFO[id].exceptions);
-  return (MOMENTS[id] as readonly MomentPhase<M>[]).filter((p) => !exceptions.has(p));
+  const info = MOMENT_INFO[id];
+  const off = new Set<string>([...info.exceptions, ...info.alternates]);
+  return (MOMENTS[id] as readonly MomentPhase<M>[]).filter((p) => !off.has(p));
 }
 
 export function isPhase<M extends MomentId>(id: M, phase: string): phase is MomentPhase<M> {

@@ -1,5 +1,5 @@
 // SMOKE ONLY (spike S3 prerequisite). Generates three synthetic test images, their fixtures and the
-// values drawn on them, under packages/ai/test/fixtures-smoke/. C-24: eval images come from Codex
+// values drawn on them, under packages/ai/src/read/smoke/fixtures/. C-24: eval images come from Codex
 // image_gen only — these images exist to smoke-test the gateway and the readers and are never part
 // of the eval set. Run once: `corepack pnpm --filter @fairsplit/ai smoke:images`.
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -7,9 +7,15 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import type { PhotoFixture } from "../_shims/contracts.js";
 import type { Box, RowField } from "../schema.js";
+import {
+  RATECARD_STUB_FILE,
+  RATECARD_STUB_ID,
+  ratecardStubSvg,
+  ratecardStubTextLayer,
+} from "./ratecard-stub.js";
 import { CELLS, cellOf, SLIP_H, SLIP_W, type SlipSpec, slipSvg } from "./slip-svg.js";
 
-export const SMOKE_DIR = fileURLToPath(new URL("../../../test/fixtures-smoke/", import.meta.url));
+export const SMOKE_DIR = fileURLToPath(new URL("./fixtures/", import.meta.url));
 
 export interface SmokeImage {
   id: string;
@@ -257,19 +263,37 @@ export function truthOf(img: SmokeImage) {
   }));
 }
 
-async function main(): Promise<void> {
+/**
+ * Writes the smoke images. `--only slips` or `--only ratecard` limits it: the slip PNGs key the
+ * committed read recordings (their sha256 is the document identity), so re-drawing them on another
+ * machine would orphan every recording.
+ */
+async function main(argv: readonly string[]): Promise<void> {
+  const only = argv.includes("--only") ? argv[argv.indexOf("--only") + 1] : undefined;
   mkdirSync(SMOKE_DIR, { recursive: true });
-  for (const img of SMOKE_IMAGES) {
-    const png = await sharp(Buffer.from(imageSvg(img)))
-      .png({ compressionLevel: 9 })
-      .toBuffer();
-    writeFileSync(`${SMOKE_DIR}${img.file}`, png);
-    writeFileSync(`${SMOKE_DIR}${img.id}.fixture.json`, `${JSON.stringify(fixtureOf(img), null, 2)}\n`);
-    writeFileSync(`${SMOKE_DIR}${img.id}.truth.json`, `${JSON.stringify(truthOf(img), null, 2)}\n`);
-    console.log(`wrote ${img.file} (${png.length} bytes)`);
+  if (only === undefined || only === "slips") {
+    for (const img of SMOKE_IMAGES) {
+      const png = await sharp(Buffer.from(imageSvg(img)))
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+      writeFileSync(`${SMOKE_DIR}${img.file}`, png);
+      writeFileSync(`${SMOKE_DIR}${img.id}.fixture.json`, `${JSON.stringify(fixtureOf(img), null, 2)}\n`);
+      writeFileSync(`${SMOKE_DIR}${img.id}.truth.json`, `${JSON.stringify(truthOf(img), null, 2)}\n`);
+      console.log(`wrote ${img.file} (${png.length} bytes)`);
+    }
+  }
+  if (only === undefined || only === "ratecard") {
+    // The AI-5 smoke page (a stub of Schedule A) and its text layer.
+    const card = await sharp(Buffer.from(ratecardStubSvg())).png({ compressionLevel: 9 }).toBuffer();
+    writeFileSync(`${SMOKE_DIR}${RATECARD_STUB_FILE}`, card);
+    writeFileSync(
+      `${SMOKE_DIR}${RATECARD_STUB_ID}.text.json`,
+      `${JSON.stringify(ratecardStubTextLayer(), null, 2)}\n`,
+    );
+    console.log(`wrote ${RATECARD_STUB_FILE} (${card.length} bytes)`);
   }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  await main();
+  await main(process.argv.slice(2));
 }

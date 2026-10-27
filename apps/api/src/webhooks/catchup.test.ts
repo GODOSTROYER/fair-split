@@ -52,6 +52,8 @@ function fakeDb(preexisting: string[] = []) {
     rows,
     outbox,
     transaction,
+    /** An event that reached us another way (a delivery): already on file. */
+    markStored: (id: string) => ids.add(id),
     insertWebhookEvent: async (tx: Tx, row: WebhookEventInsert) => {
       if (ids.has(row.paypalEventId)) return null;
       ids.add(row.paypalEventId);
@@ -227,7 +229,9 @@ describe("catchUpWebhookEvents", () => {
       start: result.window.start.toISOString(),
       end: NOW.toISOString(),
       next: `${LIST_URL}?page=3`,
+      through: NOW.toISOString(),
     });
+    expect(result.completedThrough).toBeNull();
   });
 
   it("repeating a truncated pass without its cursor never gets past PayPal's newest page", async () => {
@@ -299,6 +303,99 @@ describe("catchUpWebhookEvents", () => {
     expect(passes[0]?.resume?.next).toContain("move_to=next");
     expect(calls.map((q) => q.get("index_id"))).toEqual([null, "4", "8"]);
     expect(new Set(db.rows.map((r) => r.paypalEventId)).size).toBe(9);
+  });
+
+  // Verifier probe (trust, minor): transmission.ts and the README promise that a delivery refused for
+  // good (PayPal's retries reusing the first headers) is recovered by catch-up. A pass that starts at the
+  // newest applied event minus 10 minutes never lists an older refused event once anything newer has
+  // been applied: an UNCLAIMED created 09:00:05 was refused, a SUCCEEDED applied at 09:20, and the
+  // 10:07 pass queried from 09:10 and inserted nothing.
+  it("recovers an older refused event after a newer one was applied: a pass starts from the previous pass's completedThrough, not the newest applied event", async () => {
+    const refused = {
+      ...(syntheticEvent("PAYMENT.PAYOUTS-ITEM.UNCLAIMED", {}, "refused") as Listed),
+      create_time: "2026-10-29T09:00:05Z",
+    };
+    const applied = {
+      ...(syntheticEvent("PAYMENT.PAYOUTS-ITEM.SUCCEEDED", {}, "applied") as Listed),
+      create_time: "2026-10-29T09:20:00Z",
+    };
+    const calls = fakeListing([refused, applied], "newest_first");
+    const db = fakeDb([applied.id]);
+    const at = new Date("2026-10-29T10:07:00Z");
+    const result = await catchUpWebhookEvents(
+      { ...deps(db), now: () => at },
+      {
+        lastAppliedAt: new Date("2026-10-29T09:20:00Z"),
+        // The previous pass (at boot, 08:57) finished its window.
+        completedThrough: new Date("2026-10-29T08:57:00Z"),
+      },
+    );
+    expect(calls[0]?.get("start_time")).toBe("2026-10-29T08:47:00.000Z");
+    expect(db.rows.map((r) => r.paypalEventId)).toEqual([refused.id]);
+    expect(result).toMatchObject({ inserted: 1, alreadyStored: 1, truncated: false, resume: null });
+    // The next pass starts from here.
+    expect(result.completedThrough?.toISOString()).toBe(at.toISOString());
+  });
+
+  it.each(["newest_first", "oldest_first"] as const)(
+    "reports completedThrough only once the window is finished (%s): null while a resume is pending, then the window's own end",
+    async (order) => {
+      fakeListing(events(12, "2026-10-29T10:51:00Z"), order);
+      const passes = await catchUpUntilDone(fakeDb(), { maxPages: 1, pageSize: 4 });
+      expect(passes).toHaveLength(4);
+      expect(passes.map((p) => p.completedThrough?.toISOString() ?? null)).toEqual([
+        null,
+        null,
+        null,
+        NOW.toISOString(),
+      ]);
+      expect(passes.slice(0, -1).every((p) => p.resume?.through === NOW.toISOString())).toBe(true);
+    },
+  );
+
+  it("passes chained the way WS-OPS runs them lose nothing between them, whatever is applied in between", async () => {
+    // Pass 1 at 10:00 finishes; then E (10:05) is refused for good and F (10:30) is applied; pass 2 at
+    // 11:00 starts from pass 1's completedThrough and recovers E.
+    const e = {
+      ...(syntheticEvent("PAYMENT.PAYOUTS-ITEM.HELD", {}, "e") as Listed),
+      create_time: "2026-10-29T10:05:00Z",
+    };
+    const f = {
+      ...(syntheticEvent("PAYMENT.PAYOUTS-ITEM.SUCCEEDED", {}, "f") as Listed),
+      create_time: "2026-10-29T10:30:00Z",
+    };
+    const all: Listed[] = [];
+    fakeListing(all, "newest_first");
+    const db = fakeDb();
+    let at = new Date("2026-10-29T10:00:00Z");
+    const pass = (completedThrough: Date | null, lastAppliedAt: Date | null) =>
+      catchUpWebhookEvents({ ...deps(db), now: () => at }, { lastAppliedAt, completedThrough });
+    const first = await pass(null, new Date("2026-10-29T09:00:00Z"));
+    expect(first.completedThrough?.toISOString()).toBe("2026-10-29T10:00:00.000Z");
+    all.push(e, f);
+    db.markStored(f.id); // F was delivered and applied; E never got in
+    at = new Date("2026-10-29T11:00:00Z");
+    const second = await pass(first.completedThrough, new Date(f.create_time));
+    expect(second.window.start.toISOString()).toBe("2026-10-29T09:50:00.000Z");
+    expect(db.rows.map((r) => r.paypalEventId)).toEqual([e.id]);
+    expect(second.completedThrough?.toISOString()).toBe("2026-10-29T11:00:00.000Z");
+  });
+
+  it("ignores an unreadable completedThrough (warns) and starts from the newest applied event", async () => {
+    const queries: URLSearchParams[] = [];
+    server.use(
+      http.get(LIST_URL, ({ request }) => {
+        queries.push(new URL(request.url).searchParams);
+        return HttpResponse.json({ events: [], links: [] });
+      }),
+    );
+    const warn = vi.fn();
+    await catchUpWebhookEvents(deps(fakeDb(), { warn }), {
+      lastAppliedAt: LAST_APPLIED,
+      completedThrough: new Date(Number.NaN),
+    });
+    expect(queries[0]?.get("start_time")).toBe("2026-10-29T10:50:00.000Z");
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("ignores an unreadable cursor and starts the window over", async () => {

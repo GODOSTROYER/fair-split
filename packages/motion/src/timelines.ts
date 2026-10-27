@@ -172,13 +172,40 @@ const mm2: Timeline<"MM-2"> = {
 
 // -------------------------------------------------------------------------------------------------- MM-3
 
+/** The matching field pairs on slip 0457's two copies, in the order they light (S2 §2.9). */
+export const MM3_PAIRS = ["serial", "date", "member", "net-kg"] as const;
+const pairsStart = 900;
+const pairsDone = pairsStart + MM3_PAIRS.length * TIMING.pairStagger;
+
+/** Each pair: a canary outline on both cells and a connector, then a tick. Only the first enters `pairs`. */
+const pairs = (motion: MotionRef): Step<"MM-3">[] =>
+  MM3_PAIRS.map((field, i) => ({
+    at: pairsStart + i * TIMING.pairStagger,
+    ...(i === 0 ? { phase: "pairs" as const, note: "A tick per pair" } : {}),
+    target: `pair.${field}`,
+    to: 1,
+    motion,
+    feedback: "row.printed" as const,
+  }));
+
+/** "4 of 4 fields match. Same slip." prints once the last pair is lit. */
+const verdict = (motion: MotionRef): Step<"MM-3"> => ({
+  at: pairsDone,
+  phase: "ready",
+  target: "verdict",
+  to: 1,
+  motion,
+  note: "The count comes from the DTO's compared fields",
+});
+
 const mm3: Timeline<"MM-3"> = {
   initial: {
     "photos.x": 1,
     "photos.opacity": 1,
     "crops.x": 1,
     "crops.opacity": 1,
-    underline: 0,
+    ...Object.fromEntries(MM3_PAIRS.map((field) => [`pair.${field}`, 0])),
+    verdict: 0,
     needle: 2.05,
     "needle.fade": 1,
     wave: 0,
@@ -191,25 +218,22 @@ const mm3: Timeline<"MM-3"> = {
       full: [
         { at: 0, phase: "glide-in", target: "photos.x", to: 0, motion: { spring: "glide" } },
         { at: 450, phase: "converge", target: "crops.x", to: 0, motion: { tween: "converge" } },
-        { at: 900, phase: "underline", target: "underline", to: 1, motion: { tween: "underline" } },
-        { at: 900, feedback: "duplicate.found" },
-        { at: 1200, phase: "ready" },
+        ...pairs({ tween: "pair" }),
+        verdict({ tween: "print" }),
       ],
       reduced: [
         { at: 0, phase: "glide-in", target: "photos.x", to: 0, motion: instant },
         { at: 0, target: "photos.opacity", from: 0, to: 1, motion: crossfade200 },
         { at: 450, phase: "converge", target: "crops.x", to: 0, motion: instant },
         { at: 450, target: "crops.opacity", from: 0, to: 1, motion: crossfade200 },
-        { at: 900, phase: "underline", target: "underline", to: 1, motion: reducedFade },
-        { at: 900, feedback: "duplicate.found" },
-        { at: 1200, phase: "ready" },
+        ...pairs(reducedFade),
+        verdict(reducedFade),
       ],
       low: [
         { at: 0, phase: "glide-in", target: "photos.x", to: 0, motion: { spring: "glide" } },
-        { at: 450, phase: "converge", target: "crops.x", to: 0, motion: instant, note: "Already overlapped" },
-        { at: 900, phase: "underline", target: "underline", to: 1, motion: { tween: "underline" } },
-        { at: 900, feedback: "duplicate.found" },
-        { at: 1200, phase: "ready" },
+        { at: 450, phase: "converge", target: "crops.x", to: 0, motion: instant, note: "Already converged" },
+        ...pairs({ tween: "pair" }),
+        verdict({ tween: "print" }),
       ],
     },
     {
@@ -328,6 +352,9 @@ const mm5: Timeline<"MM-5"> = {
     "ring2.opacity": 0,
     "ring3.opacity": 0,
     "ring4.opacity": 0,
+    "slab.released": 0,
+    "phone.released": 0,
+    dialog: 0,
     presence: 0,
     "seal.scale": 1,
     "label.approved": 0,
@@ -361,11 +388,12 @@ const mm5: Timeline<"MM-5"> = {
         ...quarters(TIMING.holdConsole, "slab"),
         {
           at: TIMING.holdConsole,
+          phase: "armed-1",
           target: "slab.travel",
           to: 8,
           motion: { tween: "press60" },
           feedback: "hold.bottom",
-          note: "Clunks flush; the browser signs",
+          note: "Clunks flush; the label reads Release to sign. Nothing is signed yet",
         },
       ],
       reduced: [
@@ -377,9 +405,51 @@ const mm5: Timeline<"MM-5"> = {
           motion: { ms: TIMING.holdConsole, ease: "linear" },
         },
         ...stepped(TIMING.holdConsole, "slab"),
-        { at: TIMING.holdConsole, target: "slab.step", to: 1, motion: instant, feedback: "hold.bottom" },
-        { at: TIMING.holdConsole, target: "slab.edgeOpacity", to: 0, motion: { tween: "edgesFade" } },
+        {
+          at: TIMING.holdConsole,
+          phase: "armed-1",
+          target: "slab.step",
+          to: 1,
+          motion: instant,
+          feedback: "hold.bottom",
+        },
       ],
+    },
+    {
+      id: "release-1",
+      trigger: "Release inside the armed slab: the browser signs (the phase moves on approval.signed)",
+      full: [
+        {
+          at: 0,
+          target: "slab.released",
+          to: 1,
+          motion: instant,
+          note: "The face stays flush and the label returns",
+        },
+      ],
+      reduced: [
+        { at: 0, target: "slab.released", to: 1, motion: instant },
+        { at: 0, target: "slab.edgeOpacity", to: 0, motion: { tween: "edgesFade" } },
+      ],
+    },
+    {
+      id: "disarm-1",
+      trigger:
+        "After armed-1 the pointer leaves, the window blurs, the press is cancelled or the page scrolls",
+      full: [
+        { at: 0, phase: "disarmed", target: "slab.travel", to: 0, motion: { spring: "rebound" } },
+        { at: 0, target: "slab.fill", to: 0, motion: { tween: "retract200" }, note: "Nothing was signed." },
+      ],
+      reduced: [
+        { at: 0, phase: "disarmed", target: "slab.step", to: 0, motion: instant },
+        { at: 0, target: "slab.fill", to: 0, motion: reducedFade },
+      ],
+    },
+    {
+      id: "confirm-1",
+      trigger: "Enter, a virtual click or the visible link: ConfirmDialog opens on the console",
+      full: [{ at: 0, phase: "confirm-1", target: "dialog", to: 1, motion: { tween: "drawerIn" } }],
+      reduced: [{ at: 0, phase: "confirm-1", target: "dialog", to: 1, motion: reducedFade }],
     },
     {
       id: "signed-1",
@@ -420,11 +490,12 @@ const mm5: Timeline<"MM-5"> = {
         ...quarters(TIMING.holdPhone, "phone"),
         {
           at: TIMING.holdPhone,
+          phase: "armed-2",
           target: "phone.travel",
           to: 8,
           motion: { tween: "press60" },
           feedback: "hold.bottom",
-          note: "Bottom-out, then biometric, then the Ed25519 signature",
+          note: "Bottom-out; the label reads Release to sign",
         },
       ],
       reduced: [
@@ -436,8 +507,27 @@ const mm5: Timeline<"MM-5"> = {
           motion: { ms: TIMING.holdPhone, ease: "linear" },
         },
         ...stepped(TIMING.holdPhone, "phone"),
-        { at: TIMING.holdPhone, target: "phone.step", to: 1, motion: instant, feedback: "hold.bottom" },
+        {
+          at: TIMING.holdPhone,
+          phase: "armed-2",
+          target: "phone.step",
+          to: 1,
+          motion: instant,
+          feedback: "hold.bottom",
+        },
       ],
+    },
+    {
+      id: "release-2",
+      trigger: "Release inside on the phone: the biometric, then Ed25519 (web export: the labelled demo key)",
+      full: [{ at: 0, target: "phone.released", to: 1, motion: instant }],
+    },
+    {
+      id: "confirm-2",
+      trigger:
+        "TalkBack, the link or Enter on the phone: the M3 dialog opens; Pirmahi asks for the biometric",
+      full: [{ at: 0, phase: "confirm-2", target: "dialog", to: 1, motion: { tween: "drawerIn" } }],
+      reduced: [{ at: 0, phase: "confirm-2", target: "dialog", to: 1, motion: reducedFade }],
     },
     {
       id: "signed-2",

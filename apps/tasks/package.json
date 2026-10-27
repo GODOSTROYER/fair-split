@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Render Workflows entry (registers every TaskName), cron.ts and the inline executor",
+  "description": "Render Workflows entry (extract, readRateCard, warmCaches), the cron plan and the inline executor for every TaskName",
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit -p tsconfig.json",

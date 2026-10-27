@@ -1,5 +1,5 @@
 // SMOKE ONLY (spike S3 prerequisite): reads A and B, live once, on the three synthetic smoke images.
-// Responses are recorded (scrubbed) as replay fixtures under test/fixtures-smoke/recordings/; a second
+// Responses are recorded (scrubbed) as replay fixtures under src/read/smoke/fixtures/recordings/; a second
 // run replays them at no cost. Spend is capped and metered in packages/ai/.cache/ (never committed).
 // Run: `corepack pnpm --filter @fairsplit/ai smoke:live`.
 import { readFileSync, writeFileSync } from "node:fs";

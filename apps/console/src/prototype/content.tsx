@@ -11,6 +11,7 @@ import {
   type WebSlabConfirm,
 } from "@fairsplit/ui-web";
 import {
+  BATCH_SHA256,
   HERO,
   HERO_RATE,
   HOLDS,
@@ -21,22 +22,40 @@ import {
   RATE_CARD_SHA256,
   RULES,
   SEASON,
+  TERMS,
   TOTALS,
 } from "./fixture.js";
-import { hashPrefix, money, percent, phpEstimate, plain, usd } from "./format.js";
+import { hashPrefix, money, percent, php, phpEstimate, plain, usd } from "./format.js";
 import { SlipSheet } from "./slips.js";
 
 export const en = (key: MessageKey, values?: Values) => translate("en", key, values);
 export const RC_SHORT = hashPrefix(RATE_CARD_SHA256);
 
+/** Schedule A's rules, in the order the card states them. */
+export const RULE_IDS = ["R0", "R1", "R2", "R3", "R4"] as const;
+export type RuleId = (typeof RULE_IDS)[number];
+
+/** BR 2026-04's Schedule A as the bolted plate prints it: each rule's copy with the card's own terms filled in. */
+export function rateCardRules(): readonly { readonly id: RuleId; readonly text: string }[] {
+  const terms: Readonly<Record<RuleId, Values | undefined>> = {
+    R0: undefined,
+    R1: { share: TERMS.cbuSharePct, cap: php(TERMS.cbuCapCentavos) },
+    R2: { rate: php(TERMS.haulingCentavosPerKg) },
+    R3: { share: TERMS.loanSharePct },
+    R4: { share: TERMS.advanceSharePct },
+  };
+  return RULE_IDS.map((id) => ({ id, text: en(`W-TR-02.${id}`, terms[id]) }));
+}
+
 /** The paid-by-PayPal members in the batch, as the dialog lists them. */
 export const BATCH_RECIPIENTS = MEMBERS.filter((m) => m.rail === "paypal").map((m) => m.no);
 
 /**
- * The Approve slab's dialog route (S2 §2.7): the amount, the recipients and the consequence, then the key.
- * Every hold slab carries one, including still frames, so the contract never builds a slab without it.
+ * The Approve slab's dialog route (S2 §2.7): the amount, the recipients and the consequence, and the batch's
+ * seal at 96 px with its hash in groups of four, then the key. Every hold slab carries one, including still
+ * frames, so the contract never builds a slab without it.
  */
-export function approveConfirm(): WebSlabConfirm {
+export function approveConfirm(keys: 0 | 1 = 0): WebSlabConfirm {
   const count = TOTALS.paypalCount;
   return {
     title: en("confirm.title", { count }),
@@ -48,6 +67,7 @@ export function approveConfirm(): WebSlabConfirm {
         </p>
       </>
     ),
+    seal: { batchSha256: BATCH_SHA256, keys },
   };
 }
 

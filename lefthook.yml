@@ -2,9 +2,9 @@ pre-commit:
   parallel: true
   commands:
     secrets:
-      run: pnpm exec secretlint {staged_files}
+      run: node tools/run-staged.mjs secretlint
     guard-env:
       run: node tools/guard-env.mjs {staged_files}
     biome:
       glob: "*.{ts,tsx,js,mjs,cjs,json}"
-      run: pnpm exec biome check --no-errors-on-unmatched {staged_files}
+      run: node tools/run-staged.mjs biome

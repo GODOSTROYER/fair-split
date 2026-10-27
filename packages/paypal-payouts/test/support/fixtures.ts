@@ -6,9 +6,11 @@
 // lands; then read them from packages/seed/snapshot/season-2026A.json.
 
 import { createHash } from "node:crypto";
+import { batchDigest, linesDigest } from "@fairsplit/domain";
 import {
   type ApprovedLine,
   batchNote,
+  type MemberLineHash,
   type PayoutItemRow,
   type PayoutRunFacts,
   type PostingSnapshot,
@@ -17,7 +19,6 @@ import {
   senderItemId,
 } from "../../src/index.js";
 import { approve, CHAIR, type TestSigner, TREASURER } from "./approvals.js";
-import { referenceBatchDigest } from "./digest.js";
 import { SANDBOX } from "./msw.js";
 
 /** The service's clock in every test: approvals below expire 10 minutes after it. */
@@ -54,40 +55,101 @@ export const RUN_BASE = {
   rateCardSha256: RATE_CARD_SHA256,
 } as const;
 
+/** A member line's stored lineSha256; an edited line re-hashes to another (version 2, 3, …). */
+export const lineHash = (memberNo: string, version = 1): string =>
+  createHash("sha256").update(`member line ${memberNo} v${version}`).digest("hex");
+
+/**
+ * Every member line of the run as `{memberNo, lineSha256}`: M-001 … M-064, the eight PayPal lines
+ * above (HERO_LINES) and 56 cash lines (register §2: 64 of 64 explained).
+ */
+export const MEMBER_LINES: readonly MemberLineHash[] = Array.from({ length: 64 }, (_, i) => {
+  const memberNo = `M-${String(i + 1).padStart(3, "0")}`;
+  return { memberNo, lineSha256: lineHash(memberNo) };
+});
+
+/** M-045 is paid in cash at the bodega: off rail, so in no PayPal batch. */
+export const CASH_MEMBER = "M-045";
+
+/** Domain `linesDigest` of MEMBER_LINES: what both keys sign as `linesDigest`. */
+export const LINES_DIGEST = linesDigest(MEMBER_LINES);
+
+/** The member lines with `memberNo`'s line edited (re-hashed) after the keys signed. */
+export const withEditedLine = (memberNo: string, lines = MEMBER_LINES): MemberLineHash[] =>
+  lines.map((l) => (l.memberNo === memberNo ? { memberNo, lineSha256: lineHash(memberNo, 2) } : l));
+
 /** Run facts as the database holds them; R5 thresholds from BR 2026-04 (register §2). */
 export const RUN_FACTS: PayoutRunFacts = {
   ...RUN_BASE,
   seasonId: "0199f6a0-0000-7000-8000-00000002026a",
   cosign: { ruleId: "R5", batchOverCents: 30_000, lineOverCents: 15_000, anyOverride: true },
+  memberLines: MEMBER_LINES,
+  spentNonces: [],
 };
 
 export const HERO_SENDER_BATCH_ID = senderBatchId(RUN_BASE);
 
-/** The digest the treasurer and the Chair sign for a set of lines (reference IC-02). */
-export async function digestFor(lines: readonly ApprovedLine[], rerouteNo?: number): Promise<string> {
-  const sbid = senderBatchId({ ...RUN_BASE, rerouteNo });
-  const items = lines.map((l) => ({
-    senderItemId: senderItemId({ runSeq: RUN_BASE.runSeq, memberNo: l.memberNo, rerouteNo }),
-    receiver: l.receiver,
-    amountCents: l.amountCents,
-    currency: l.currency,
-  }));
-  return referenceBatchDigest(
-    { runId: RUN_BASE.runId, senderBatchId: sbid, rateCardSha256: RATE_CARD_SHA256 },
-    items,
-  );
+/** A run's own ids (the hero run, r37, unless a test posts another run of the season). */
+export interface RunIds {
+  runId: string;
+  runSeq: number;
 }
 
-/** Signed approvals of exactly these lines (the treasurer and, by default, the Chair). */
+/** A re-route's sender_batch_id in the hero run (or `run`): `{base}-x{n}-{memberNo}`. */
+export const rerouteBatchId = (memberNo: string, rerouteNo: number, run: RunIds = RUN_BASE): string =>
+  senderBatchId({ ...RUN_BASE, ...run, rerouteNo, memberNo });
+
+/** What `digestFor` answers for lines no batch can carry: the service refuses them before any approval check. */
+const NO_BATCH_DIGEST = createHash("sha256").update("lines no batch can carry").digest("hex");
+
+/**
+ * The digest the treasurer and the Chair sign for a set of lines (domain `batchDigest`, number cents).
+ * With `rerouteNo` the lines are a re-route's one line, and its member names the batch.
+ */
+export async function digestFor(
+  lines: readonly ApprovedLine[],
+  rerouteNo?: number,
+  run: RunIds = RUN_BASE,
+): Promise<string> {
+  const sbid =
+    rerouteNo === undefined
+      ? senderBatchId({ ...RUN_BASE, ...run })
+      : rerouteBatchId((lines[0] as ApprovedLine).memberNo, rerouteNo, run);
+  const items = lines.map((l) => ({
+    senderItemId: senderItemId({ runSeq: run.runSeq, memberNo: l.memberNo, rerouteNo }),
+    receiver: l.receiver,
+    amountCents: Number(l.amountCents),
+    currency: l.currency,
+  }));
+  try {
+    return batchDigest({ runId: run.runId, senderBatchId: sbid, rateCardSha256: RATE_CARD_SHA256 }, items)
+      .batchSha256;
+  } catch {
+    // A zero, negative or repeated line: domain refuses to hash it, and so does the service's batch check.
+    return NO_BATCH_DIGEST;
+  }
+}
+
+/**
+ * Signed approvals of exactly these lines (the treasurer and, by default, the Chair), each binding
+ * the run's member lines as `linesDigest` (MEMBER_LINES unless `linesDigest` says otherwise).
+ */
 export async function approvalsFor(
   lines: readonly ApprovedLine[] = HERO_LINES,
-  options: { signers?: readonly TestSigner[]; rerouteNo?: number; exp?: string } = {},
+  options: {
+    signers?: readonly TestSigner[];
+    rerouteNo?: number;
+    exp?: string;
+    run?: RunIds;
+    linesDigest?: string;
+  } = {},
 ): Promise<SignedApproval[]> {
   const batch = {
-    runId: RUN_FACTS.runId,
+    runId: options.run?.runId ?? RUN_FACTS.runId,
     seasonId: RUN_FACTS.seasonId,
     rateCardSha256: RUN_FACTS.rateCardSha256,
-    batchSha256: await digestFor(lines, options.rerouteNo),
+    batchSha256: await digestFor(lines, options.rerouteNo, options.run),
+    linesDigest: options.linesDigest ?? LINES_DIGEST,
     itemCount: lines.length,
     totalCents: Number(lines.reduce((s, l) => s + l.amountCents, 0n)),
   };
@@ -105,7 +167,7 @@ export async function postingSnapshot(
     ...RUN_FACTS,
     lines,
     approvals: extra.approvals ?? (await approvalsFor(lines)),
-    overrides: 0,
+    holds: [],
     submitted: null,
     ...extra,
   };

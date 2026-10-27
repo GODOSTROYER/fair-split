@@ -1,101 +1,203 @@
-# @fairsplit/tasks: Workflows entry, cron and inline executor
+# @fairsplit/tasks: Workflows entry, cron plan and inline executor
 
-Owner: WS-OPS. This package wires every IC-01 `TaskName` to an executor. It holds no business logic: each task is a thin wrapper that validates its ids and calls a handler injected from the owning workstream (`src/wiring.ts`).
+Owner: WS-OPS. This package wires the IC-01 `TaskName` registry to executors. It holds no business logic:
+each task is a thin wrapper that validates its ids, reads the kill flags and calls a handler injected
+from the owning workstream (`src/wiring.ts`).
 
-| Entry           | Built file       | Who runs it                                                                                                                                        |
-| --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`). Refuses to boot unless `PP_ENV=sandbox`, then registers all 16 tasks plus the `opsPing` and `opsDbPing` diagnostics |
-| `src/cron.ts`   | `dist/cron.js`   | Render cron (`fs-cron`, `7 * * * *`). Enqueues the scheduled tasks through the outbox                                                              |
-| `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`): `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                          |
+| Entry           | Built file       | Who runs it                                                                                                                                                                 |
+| --------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`). Boot checks, then registers S3.3's three Workflows tasks (`extract`, `readRateCard`, `warmCaches`) plus the `opsPing` and `opsDbPing` probes |
+| `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`), for any of the 16 TaskNames: `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                      |
+| `src/cron.ts`   | `dist/cron.js`   | The hourly plan, as a tested reference for fs-api's `/internal/cron/tick`, and a CLI: `node apps/tasks/dist/cron.js --plan --at=<iso>`                                      |
 
-The app exports nothing. Apps are siblings in the dependency rule, so fs-api must not import it.
-`src/handoff/dispatcher.ts` (workflow start, 20 s inline fallback, `chooseExecutor`) is WS-OPS's tested
-reference for the dispatcher side of S3.3. It is **handed off to WS-DATA**, which owns "outbox with the
-inline executor" and `run(name, ids)` (IC-04), and moves to `packages/outbox` as a file move. Until then,
-fs-api's `buildFilter` includes `apps/tasks/**` so that a change to task policy redeploys both sides.
+On Render, `fs-cron` runs `tools/cron-tick.mjs`, a dependency-free script that POSTs fs-api's
+`/internal/cron/tick` over the private network (approved S3.3, S3.14). fs-api enqueues the plan.
 
-**Build.** `tsdown` (`tsdown.config.ts`) bundles the three entries. It inlines every `@fairsplit/*`
-package, because they export TypeScript source with `.js` specifiers and have no build step, and it
-leaves npm dependencies external. `test/bundle.test.ts` builds the bundle, checks that no workspace
-import survives, and runs `dist/index.js` under the fake workflow host. A probe package shaped like
-WS-CORE's proves that the config, and not just today's empty contracts, is what makes it work.
+The app exports nothing: apps are siblings in the dependency rule, so fs-api must not import it.
+`src/handoff/` (the dispatcher side of S3.3 and the Render idempotency key) and `src/db-env.ts` (boot-time
+database credentials) are tested references for WS-DATA and WS-API to lift into `packages/outbox`,
+`packages/db` and `apps/api` as file moves.
+
+**Build.** `tsdown` bundles the three entries. It inlines every `@fairsplit/*` package (they export
+TypeScript source and have no build step) and leaves npm dependencies external. `test/bundle.test.ts`
+runs the built `dist/index.js` under a fake Workflows host that speaks the SDK's socket protocol.
+
+**Files next to a package's source.** packages/ai loads its prompts with
+`new URL("./prompts/", import.meta.url)` and packages/db finds `../migrations` the same way. Rolldown
+leaves `import.meta` alone, so once inlined those would resolve under `dist/` (ENOENT, and every
+`./prompts/` folder would become the same one). `build/inline-import-meta.ts` therefore makes
+`import.meta.url`, `.filename`, `.dirname` and `.main` in every inlined module describe its source file,
+as Node does unbundled, and fails the build on any other use (`import.meta.resolve`, the bare object).
+The paths are relative to `dist/`, so the bundle runs inside the checkout it was built from, which is
+how Render runs it (the external npm dependencies need that checkout's `node_modules` too). The app's
+own modules keep the chunk's `import.meta`: the entries compare it with `process.argv[1]`. Because the
+prompts are read at deploy time, `render.yaml` never ignores `*.md` files; only tests and READMEs are
+skipped (`checkIgnoredPaths` in `tools/lib/blueprint.ts`).
 
 ## Task contract
 
-- Arguments are **outbox ids only** (S3.3). The wrapper refuses anything that isn't a short id, so a payload can never reach Workflows' 4 MB input cap.
+- Arguments are **outbox ids only** (S3.3), never payloads, so nothing can reach Workflows' 4 MB input cap.
 - **Entry guards** (`src/invoke.ts`, the one wrapper every executor uses):
-  1. The ids are validated.
-  2. The kill flags are read fresh. `FS_KILL=payouts` refuses `postPayoutBatch`, `cancelUnclaimed` and `reroute`, while posted batches keep settling. `paypal_live` also refuses `ensureInvoice`. `ai_live` refuses nothing here, because ClaudeGateway switches to replay. WS-DATA's per-workspace `system_flags` read joins through `anyFlag`. If a flag read throws, the run fails closed.
-  3. The handler runs.
-- A handler returns `{status: "done" | "skipped" | "failed"}`. `skipped` means the optimistic claim found the row already taken, which is the normal result of a duplicate dispatch.
-- **Permanent failures reach the outbox.** If a handler (or a guard) throws `PermanentTaskError` (`NOT_WIRED`, `INVALID_INPUT`, `KILL_SWITCH`, …), the wrapper calls `OutboxPort.markFailed(id, code, detail)` for each id and then returns `failed`. That stops the sweeper from re-dispatching the row. If that write fails, the run throws instead of reporting success. WS-DATA implements the port as an idempotent `UPDATE task_outbox SET state='dead', last_error=… WHERE id=$1 AND state<>'done'`. A handler that returns `failed` itself must record the row itself.
-- **One retry owner: the outbox sweeper.** S3.3's claim moves the row to `running` before any I/O, so a Render retry after a transient throw would only ever see `skipped`. Every task therefore registers with `maxRetries: 0`. A transient error is rethrown, the Render run shows as failed, and the row stays `running` until the sweeper re-queues it after 5 minutes (dead after 8 attempts). If WS-DATA makes the claim re-entrant (`OR (state='running' AND claimed_by=$taskRunId)`), Render retries can be turned on in `src/policy.ts`.
+  1. run the entry's role check (`src/app-role.ts`, S3.4), once per process, before its first task. A
+     role that can UPDATE `ledger_entries` refuses every task permanently (`BOOT_REFUSED`); a check that
+     cannot reach the database, or finds it unmigrated, fails the run and is asked again by the next;
+  2. validate the ids;
+  3. read the kill flags fresh (`FS_KILL` united with the workspace's `system_flags`, S3.11). Only
+     `kill_payouts` refuses at entry: `postPayoutBatch`, `cancelUnclaimed` and `reroute`, while posted
+     batches keep settling. A flag read that throws fails the run (fail closed);
+  4. call the handler with the flag set in `TaskInvocation.flags`. `kill_paypal_live` means a labelled
+     replay in Judge Mode and a refusal in a real workspace, which only the handler can tell apart:
+     `paypalLane(flags, workspaceKind)`. `kill_ai_live` means replay only: `aiLane(flags)`.
+- A handler returns `{status: "done" | "skipped" | "failed", mode?: "live" | "replay"}`. `skipped` means
+  the optimistic claim found the row already taken: the normal result of a duplicate dispatch.
+- **Permanent failures reach the outbox.** A `PermanentTaskError` (`NOT_WIRED`, `INVALID_INPUT`,
+  `KILL_SWITCH`, `BOOT_REFUSED`, …) is written with `OutboxPort.markFailed(id, code, detail)` for each
+  id, then returned as `failed`. If that write fails, the run throws instead of reporting success.
+  Transient errors are rethrown.
 
-| Lane (`TASK_POLICY`) | Tasks                                                                                                            | Executor when `EXECUTOR=workflow`            |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `inline-api`         | ensureInvoice, recordPayment, processWebhook, postPayoutBatch, settleBatch, cancelUnclaimed, reroute, pushNotify | inline in fs-api (warm OAuth cache)          |
-| `workflow-live`      | extract, readRateCard, computeRun, explain, agentTurn                                                            | Workflows when live, inline in replay        |
-| `workflow-scheduled` | reconcile, judgeReset, warmCaches                                                                                | Workflows, started via the outbox by fs-cron |
+## Retry model
 
-## Cron schedule (`fs-cron`, hourly at :07 UTC)
+1. **Within one run** (Workflows lanes only): Render retries a thrown attempt as a new attempt of the
+   same task run, twice, after 5 s and 10 s (`RENDER_RETRY`). The retry does useful work when the failed
+   attempt left the row claimable: it failed before the claim (boot, runtime, role check, database
+   reach: the row is still `dispatched`), or the runner gave the row back, as WS-DATA's runner does on
+   a handler failure (back to `queued` with backoff). Otherwise the retry's claim exits `skipped`,
+   which is safe.
+2. **Across runs:** the outbox re-queues the row and the dispatcher starts a **new** run. Render returns
+   the first run for an idempotency key repeated within 24 h, so the key is scoped to the dispatch attempt
+   (`renderIdempotencyKey(outboxIds, attempt)`), never the bare dedupe key.
+3. **Pickup fallback** (`runWithFallback`): if `startTask` throws, the run is not `running` within 20 s,
+   or Render reports it `failed` or `canceled` before it was ever seen running, the task runs inline.
+   The Workflows run is never cancelled: it may already hold the claim and be part-way through its
+   effects, and the claim makes the late duplicate harmless.
+4. **Sweeper** (S3.3, the same 5 minutes for every task): a row `dispatched` for 5 minutes without a
+   claim, or `running` for 5 minutes without a heartbeat, is re-queued; it is `dead` after 8 attempts.
+   The claim heartbeats while its handler runs (WS-DATA's runner, every 30 s), so a long attempt is
+   never swept; a timeout only bounds an attempt that hangs. A hung live read (`extract`, 300 s) is back
+   in the queue within 10 minutes (`hungAttemptRequeuedAfterMs`), a crashed one 5 minutes after its
+   last heartbeat. `test/retry-model.test.ts` drives the real wrappers through a fake Render that keeps
+   both rules.
 
-Every pass offers every job that is due. `enqueue` is `ON CONFLICT (dedupe_key) DO NOTHING`, so the first _successful_ pass in a slot creates the row. A skipped or failed pass is made up by the next one.
+| Lane (`TASK_POLICY`) | Tasks                                                                                                                                                                   | With `EXECUTOR=workflow`                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `inline-api`         | ensureInvoice, recordPayment, processWebhook, postPayoutBatch, settleBatch, cancelUnclaimed, reroute, computeRun, explain, agentTurn, pushNotify, reconcile, judgeReset | inline in fs-api: one warm OAuth cache     |
+| `workflow-live`      | extract, readRateCard                                                                                                                                                   | Workflows when live; inline when replaying |
+| `workflow-scheduled` | warmCaches                                                                                                                                                              | Workflows; enqueued by the hourly tick     |
 
-| Offered on                | Job                                              | Dedupe key (one row per)            |
-| ------------------------- | ------------------------------------------------ | ----------------------------------- |
-| every pass                | `judgeReset{trigger:"cron"}`                     | `judgeReset:cron:{yyyy-mm-ddThh}`   |
-| every pass                | `reconcile{mode:"catchup"}` (webhook catch-up)   | `reconcile:catchup:{hour}`          |
-| passes 02:07 to 05:07 UTC | `reconcile{mode:"nightly"}` (Transaction Search) | `reconcile:nightly:{date}`          |
-| every pass                | `warmCaches{window}`                             | `warmCaches:w{floor(hourIndex/23)}` |
+`chooseExecutor` also keeps every AI lane inline while the dispatcher's own fresh flags carry
+`kill_ai_live`, so a lagging `FS_KILL` on fs-tasks can never run a live Claude call. fs-tasks holds no
+PayPal credentials and does not register the inline lanes: a stray `startTask` for one is refused before
+Render is called.
 
-warmCaches works on 23-hour windows, not a nightly slot, because compiled grammars expire 24 h after their last use (S4). The args and dedupe-key builders live in the contracts shim (`TASK_KEYS`) as a proposal for WS-CORE to confirm when IC-01 freezes. The cron holds only `DATABASE_URL`. Until WS-DATA wires `loadCronSink()`, it logs the plan and exits 1, so the Render run shows as failed instead of silently doing nothing. `node apps/tasks/dist/cron.js --plan --at=<iso>` prints any hour's plan.
+## Hourly plan (fs-cron at :07 UTC → `/internal/cron/tick`)
+
+Each tick offers every job that is due. `enqueue` is `ON CONFLICT (dedupe_key) DO NOTHING`, so the first
+successful tick in a slot creates the row, and a missed or failed tick is made up by the next one.
+
+| Offered on                    | Job                                              | Dedupe key (one row per)            |
+| ----------------------------- | ------------------------------------------------ | ----------------------------------- |
+| every tick                    | `judgeReset{trigger:"cron"}`                     | `judgeReset:cron:{yyyy-mm-ddThh}`   |
+| ticks from 02:00 to 05:59 UTC | `reconcile{mode:"nightly"}` (Transaction Search) | `reconcile:nightly:{date}`          |
+| every tick                    | `warmCaches{window}`                             | `warmCaches:w{floor(hourIndex/23)}` |
+
+Webhook catch-up (`reconcile{mode:"catchup"}`) runs once per fs-api boot (S3.6.5), keyed by the boot's
+UTC hour, not from the tick. warmCaches uses 23-hour windows because compiled grammars expire 24 h after
+their last use (S4). The args and keys live in the contracts shim (`TASK_KEYS`) as a proposal for WS-CORE.
+
+`tools/cron-tick.mjs` sends `POST /internal/cron/tick` with `Authorization: Bearer $CRON_SECRET` and
+`{"at": "<iso>"}`. It exits 0 on 2xx, and on 429 (fs-api already took a tick in this half hour); it retries
+connection errors and 5xx twice and never follows a redirect with the secret.
 
 ## Deploying (render.yaml)
 
-1. In Render, go to **New → Blueprint** and pick the repo. Render reads `render.yaml` and creates `fs-db` (Postgres 18, `0.1c-256mb`), `fs-api` (web, `0.5c-512mb`), `fs-tasks` (workflow) and `fs-cron`, all in `virginia`. Every service runs Node `24.22.1`, from `NODE_VERSION` in the `fs-config` group. A policy test enforces the pin and will read `.node-version` once WS-QA adds the file.
-2. Render prompts once for every `sync: false` value. Render environment groups cannot hold `sync: false` values, so each secret is declared on every service that needs it, and you enter it once per service:
-   - **fs-api:** `DATABASE_URL`, `PP_CLIENT_ID`, `PP_CLIENT_SECRET`, `PP_WEBHOOK_ID`, `PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`, `PP_RECEIVERS`, `ANTHROPIC_API_KEY`, `RENDER_API_KEY`, `STATEMENT_SIGNING_KEY`, `EXPO_ACCESS_TOKEN`, `FS_KILL`.
-   - **fs-tasks:** `DATABASE_URL`, the four `PP_*` values, `ANTHROPIC_API_KEY`, `STATEMENT_SIGNING_KEY`, `EXPO_ACCESS_TOKEN`, `FS_KILL`.
-   - **fs-cron:** `DATABASE_URL`.
-   - `BETTER_AUTH_SECRET` is generated by Render (`generateValue`, a deliberate deviation from S3.13's `sync: false`).
-   - Leave `FS_KILL` empty unless you want to force a kill flag.
-3. **Database roles (S3.4, register §7).** Only fs-api's `preDeployCommand` connects as the owner, through `DATABASE_OWNER_URL` (`fromDatabase`). **Contract for WS-DATA:** `@fairsplit/db migrate` reads `DATABASE_OWNER_URL`, never `DATABASE_URL`. The migrations create `fs_app` with `REVOKE UPDATE, DELETE ON run_events, ledger_entries, agent_sessions`. After the first deploy, paste `fs_app`'s connection URL (internal host) into `DATABASE_URL` on all three services. A policy test fails if any running service's `DATABASE_URL` is the owner's connection string.
-   - For spike S6, before `fs_app` exists, set fs-tasks' `DATABASE_URL` to the owner's _internal_ URL. `opsDbPing` then answers both S3.14 questions. Replace it with `fs_app` afterwards.
-   - If S6 shows that the owner cannot `CREATE ROLE`, the BEFORE UPDATE/DELETE triggers are the only enforcement. Record that as an ADR (WS-QA owns `docs/`) before pointing `DATABASE_URL` at the owner, and expect the policy test to need the same ADR reference.
-4. fs-api gets `FS_TASKS_SLUG` from `fromService … property: slug`, so task slugs follow whatever slug Render assigns.
-5. Migrations run in fs-api's `preDeployCommand` only, because Blueprint workflows accept no `preDeployCommand`. Keep migrations expand-then-contract.
-6. Every service deploys on `checksPass`. From 1 to 15 Dec, set `autoDeployTrigger: off` and promote hotfixes manually.
-7. Build filters cover each service's workspace dependency closure. A test derives the closure from `workspace:` dependencies. fs-cron uses the same paths as fs-tasks (same bundle), and fs-api includes `apps/tasks/**`.
-8. After the first deploy, record the real `onrender.com` host in `docs/sandbox.md` (WS-QA), then run:
-   - `corepack pnpm exec tsx tools/spike-s6.ts --live` to measure S6. It reports the startTask p50 (must be 10 s or less, otherwise set `EXECUTOR=worker`), whether fs-db is reachable from the workflow over the private network, and whether the database user can `CREATE ROLE`. It also states whether the verdict covers the full Blueprint or **fs-tasks only**: until `@fairsplit/api` has a build script and `@fairsplit/db` has a `migrate` script, fs-api cannot deploy.
-   - `corepack pnpm exec tsx tools/health-check.ts --origin=https://<host>` to check health.
+1. **New → Blueprint**, from the `deploy` branch. Render creates `fs-db` (Postgres 18, `0.1c-256mb`),
+   `fs-api` (web, `0.5c-512mb`, `/healthz`), `fs-tasks` (workflow) and `fs-cron` (`7 * * * *`), all in
+   `virginia`, each with `NODE_VERSION=24.22.1`. There is no environment group (S3.13).
+2. Render prompts once for each `sync: false` value:
+   - **fs-api:** `PP_CLIENT_ID`, `PP_CLIENT_SECRET`, `PP_WEBHOOK_ID`, `PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`,
+     `PP_RECEIVERS`, `PP_UNCLAIMED_RECEIVER`, `ANTHROPIC_API_KEY`, `RENDER_API_KEY`, `EXPO_PUSH_TOKEN`,
+     `OPS_PASSWORD_SCRYPT`, `JUDGE_CODE_SHA256`, and `FS_KILL` (leave empty);
+   - **fs-tasks:** `ANTHROPIC_API_KEY` and `FS_KILL` (leave empty).
+   - **Generated:** `FS_APP_DB_PASSWORD`, `STATEMENT_SIGNING_KEY`, `COOKIE_KEY` and `CRON_SECRET`, on
+     fs-api, shared with the others through `fromService`.
+   - Render ignores `sync: false` keys added later, so set any later secret in the Dashboard by hand.
+3. **PayPal rail (ADR-0002).** `PP_MODE: simulator` runs the contract-faithful simulator, labelled as a
+   simulated rail. Once sandbox credentials exist, change that one line to `sandbox`.
+4. **Database roles (S3.4, register §7).** fs-api holds the owner's URL only as `DATABASE_OWNER_URL`,
+   which `@fairsplit/db migrate` reads in the preDeployCommand (on Render it never reads `DATABASE_URL`).
+   Migrate creates `fs_app` with LOGIN, or resets its password, from `FS_APP_DB_PASSWORD`, so the first
+   deploy needs no manual step. No service declares `DATABASE_URL`: fs-api's boot builds fs_app's from the
+   owner URL's host, port and database and then deletes the owner URL from `process.env`
+   (`useAppDatabaseUrl`, the reference for WS-API); fs-tasks builds it from `FS_DB_HOST`, `FS_DB_PORT`,
+   `FS_DB_NAME` and the shared password, and never sees the owner's credentials. Both refuse to start on
+   an ambiguous or half-set environment, and refuse to run a task as a role that can UPDATE
+   `ledger_entries`. This layout departs from the S3.14 snippet; ADR-0005 records why.
+   - **Residual risk (ADR-0005):** deleting the owner URL from `process.env` does not erase it from the
+     process's initial environment (`/proc/self/environ`), so code execution or a file read in fs-api
+     could still recover it. `fs-db` therefore sets `ipAllowList: []`: Render then refuses every
+     external connection, so a leaked owner URL works only from inside the private network. For `psql`,
+     open a Shell on fs-api in the Dashboard.
+   - If S6 finds that workflows do not receive `fromService` values, copy fs-api's `FS_APP_DB_PASSWORD`
+     to fs-tasks by hand; fs-tasks refuses to boot until it has one.
+   - If S6 finds that the owner cannot `CREATE ROLE`, migrate fails the deploy. The S3.4 fallback (the
+     app runs as the owner, with delete-guard triggers) needs an ADR first.
+5. **Kill switch.** `system_flags` is the runtime authority. `FS_KILL` is the deploy-wide override and
+   must hold the same value on fs-api and fs-tasks; `opsPing` reports fs-tasks' value.
+6. Every service deploys on `checksPass`. From 1 to 15 Dec, promote hotfixes by hand (S3.14).
+7. Build filters cover each service's workspace dependency closure and every file its commands run;
+   `test/render-blueprint.test.ts` derives both. fs-api also rebuilds on `apps/tasks/**`, because the
+   executor lanes must match its dispatcher.
+8. After the first deploy:
+   - `corepack pnpm exec tsx tools/spike-s6.ts --live` measures S6: the `startTask` p50 (10 s or less,
+     else `EXECUTOR=worker`), fs-db reach from the workflow as fs_app (which also proves the owner could
+     create fs_app), and that fs_app can neither create roles nor UPDATE `ledger_entries`. It states
+     whether the verdict covers the full Blueprint or fs-tasks only, until `@fairsplit/api` can build and
+     `@fairsplit/db` has `migrate`.
+   - `corepack pnpm exec tsx tools/health-check.ts --origin=https://<host>`.
 
-Render's health check is `/healthz` (liveness). `/readyz` depends on PayPal and the webhook registration, and a platform restart can't fix those, so `tools/health-check.ts` and the uptime job watch it instead.
+Render's health check is `/healthz` (liveness). `/readyz` depends on PayPal and the webhook registration,
+which a restart cannot fix, so the health check and `uptime.yml` watch it instead.
 
 ## Tools (WS-OPS)
 
-- `tools/verify.ts`: the clean-clone gate (G7). It clones the committed HEAD, then runs `install --frozen-lockfile`, `typecheck`, `test` and `build`, with no credentials in the environment.
-- `tools/health-check.ts`: checks `/healthz`, `/readyz`, `PP_ENV`, the token's exact scopes, webhook registration and drift, and the sandbox balance (warn under US$10k, fail under US$5k). It makes at most 3 PayPal calls and prints only non-secret facts. **The REST app must have List Balances enabled** (scope `https://uri.paypal.com/services/reporting/balances/read`), not just Transaction Search. Without it the balance call returns 403, which counts as a failure because the US$5k guard would be blind.
-- `tools/spike-s6.ts`: Blueprint schema and policy checks, deploy readiness (full or fs-tasks only), the entry's cold start under a fake workflow host (`tools/lib/fake-workflow-host.ts`, which speaks the SDK's socket protocol), live startTask latency, and the `opsDbPing` database verdicts.
-- `tools/lib/render-blueprint.schema.json`: Render's published Blueprint schema, vendored. Refresh it with `tsx tools/spike-s6.ts --refresh-schema`.
+- `tools/verify.ts`: the clean-clone gate (G7). Clones the committed HEAD and runs `install
+  --frozen-lockfile`, `typecheck`, `test` and `build` with a scrubbed environment (no API keys, PayPal or
+  database credentials, kill flags or `FS_*` settings). The Postgres tier runs on packages/db's embedded
+  Postgres; `--db=<url>` uses a server instead (as `FS_TEST_DATABASE_URL`, test step only, never printed).
+  The test step reports skipped tests per package.
+- `tools/health-check.ts`: `/healthz`, `/readyz`, `PP_ENV` (unset fails, as at boot), `PP_MODE`, the
+  token's exact scopes, webhook registration and drift, and the sandbox balance (warn under US$10k, fail
+  under US$5k). At most 3 PayPal calls; prints only non-secret facts. On the simulator the PayPal checks
+  are skipped and labelled. **The REST apps need List Balances ticked** (scope
+  `https://uri.paypal.com/services/reporting/balances/read`), not only Transaction Search as register §8
+  and S1 list; without it the balance call returns 403 and the US$5k guard is blind.
+- `tools/scan-dist.ts`: the last step of fs-api's build (S3.13). Fails if any secret env value (8+
+  characters) or a PayPal, Anthropic, Render or Google key shape reaches `apps/*/dist`. Prints names, never values.
+- `tools/lint-render.ts`: CI's render.yaml lint (S3.17): Render's schema plus the rules above.
+- `tools/spike-s6.ts`: Blueprint checks, the entry's cold start under the fake host, live `startTask`
+  latency and the `opsDbPing` verdicts. `tools/lib/render-blueprint.schema.json` is Render's published
+  schema, vendored; refresh it with `tsx tools/spike-s6.ts --refresh-schema`.
+- `tools/cron-tick.mjs`: fs-cron's whole job.
 
 ## Shims to swap after WS-CORE merges
 
-`src/_shims/contracts.ts` mirrors the IC-01 `TaskName` registry and proposes `TASK_KEYS` (args and dedupe keys for the three scheduled tasks). Replace its imports with `@fairsplit/contracts` and delete the file. `test/registry.test.ts` pins the 16 names independently, and the entry logs `contractsDrift()` at boot once contracts exports `TASK_NAMES`.
+`src/_shims/contracts.ts` mirrors the IC-01 `TaskName` registry and proposes `TASK_KEYS`. Replace its
+imports with `@fairsplit/contracts` and delete it. `test/registry.test.ts` pins the 16 names
+independently, and the entry logs `contractsDrift()` at boot once contracts exports `TASK_NAMES`.
 
 ## Requests to other workstreams
 
-- **WS-DATA:**
-  - `OutboxPort.markFailed` (idempotent);
-  - a `system_flags` `FlagCheck`;
-  - the `CronSink`;
-  - `migrate` reading `DATABASE_OWNER_URL`;
-  - a no-op `migrate` script before 24 Oct;
-  - adopt `src/handoff/dispatcher.ts` into `packages/outbox`;
-  - confirm the sweeper-owned retry model, or make the claim re-entrant.
-- **WS-API:** a stub `@fairsplit/api` with a `build` script and `/healthz` before 24 Oct, so that S6 can deploy the full Blueprint.
+- **WS-DATA:** `OutboxPort.markFailed` (idempotent); a `system_flags` `FlagSource`; the `CronSink`; adopt
+  `src/handoff/` into `packages/outbox` with a dispatcher-incremented attempt counter for the Render key;
+  keep the runner's release on handler failure and the claim's heartbeat (the one 5-minute sweeper
+  threshold relies on it: `readRateCard` may run 10 minutes); keep migrate's `DATABASE_OWNER_URL`
+  contract, which render.yaml relies on. Once `@fairsplit/db` merges, fs-tasks' role check becomes its
+  `assertAppRole`.
+- **WS-API (a gate for the first fs-api deploy, ADR-0005):** call `useAppDatabaseUrl` at boot before
+  anything reads `DATABASE_URL` (render.yaml gives fs-api only `DATABASE_OWNER_URL`, so without it fs-api
+  has no database URL), then the S3.4 role check; serve `/internal/cron/tick` as above; pass the fresh
+  flags to `chooseExecutor`; read `FS_TASKS_SLUG`.
 - **WS-CORE:** confirm or replace `TASK_KEYS` at the IC-01 freeze.
-- **WS-QA:**
-  - add `!pnpm-lock.yaml` to `biome.json` `files.includes`, because Biome reformats pnpm's lockfile and every `pnpm install` rewrites it;
-  - record `yaml` 2.9.1 and `ajv` 8.20.0 in `docs/versions.md`;
-  - add `.node-version` (`24.22.1`).
+- **WS-QA:** run `tools/lint-render.ts` in CI; add `.node-version` (`24.22.1`); amend register §8/S1 to
+  tick List Balances on both REST apps. (`yaml` 2.9.1 and `ajv` 8.20.0 came through the deps lane,
+  `deps/ops-pins`, and are in `docs/versions.md`.)

@@ -705,6 +705,13 @@
   gap: 16px 24px;
 }
 
+.prim-live__refuse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+}
+
 .prim-live__events {
   display: flex;
   flex-wrap: wrap;
@@ -798,4 +805,126 @@
   align-items: center;
   gap: 8px;
   color: var(--fs-pencil);
+}
+
+/* ---------------------------------------------------------------- seal sheet */
+
+.sheet-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 32px;
+}
+
+.sheet-grid {
+  display: grid;
+  /* Wide enough for the caption ("012 4d4a c1b4") when the seals are only 64 px. */
+  grid-template-columns: repeat(auto-fill, minmax(max(calc(var(--sheet-seal) + 16px), 112px), 1fr));
+  gap: 8px;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-cell {
+  appearance: none;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 8px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--fs-radius-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sheet-cell:hover {
+  border-color: var(--fs-rule);
+}
+
+.sheet-cell[aria-pressed="true"] {
+  border-color: var(--fs-ink-3);
+  background: var(--fs-plate);
+}
+
+.sheet-cell:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: var(--fs-focus-offset);
+}
+
+.sheet-cell__seal {
+  display: block;
+}
+
+.sheet-cell__seal img {
+  display: block;
+}
+
+.sheet-cell__caption {
+  color: var(--fs-ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sheet-cell__n {
+  color: var(--fs-ink-2);
+}
+
+.sheet-inspect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 32px 48px;
+  margin-top: 32px;
+  padding: 24px 0;
+  border-top: 1px solid var(--fs-rule);
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.sheet-inspect__seals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.sheet-inspect__seal {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.sheet-inspect__seal figcaption {
+  color: var(--fs-ink-3);
+}
+
+.sheet-inspect__data {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  min-width: min(100%, 420px);
+}
+
+.sheet-print {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+/* Thermal paper is the white copy in both themes, and paper is the one thing that casts a shadow. */
+.sheet-print__paper {
+  padding: 16px;
+  background: var(--fs-copy-white);
+  box-shadow: var(--fs-shadow-paper);
+}
+
+.sheet-print__canvas {
+  display: block;
+  image-rendering: pixelated;
 }

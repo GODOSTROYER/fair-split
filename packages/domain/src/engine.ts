@@ -79,6 +79,14 @@ export function isOverride(kind: HoldKind, resolution: HoldResolutionKind): bool
   return resolution === "CONFIRM_AS_READ" && (kind === "RATE_MISMATCH" || kind === "SUSPECTED_INJECTION");
 }
 
+/**
+ * How many of a computation's holds were resolved by an override (`isOverride`): R5's `overrides`
+ * (`requiresChair`), and the count the run's `lines.computed` ledger entry carries for Proof.
+ */
+export function overrideCount(holds: readonly Pick<EngineHold, "kind" | "resolution">[]): number {
+  return holds.filter((h) => h.resolution !== null && isOverride(h.kind, h.resolution.kind)).length;
+}
+
 export const holdKey = {
   duplicate: (serial: string) => `DUPLICATE_SLIP:${serial}`,
   nearDuplicate: (rowA: string, rowB: string) => `DUPLICATE_SLIP:${[rowA, rowB].sort().join("~")}`,

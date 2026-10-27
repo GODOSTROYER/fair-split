@@ -28,10 +28,14 @@ export interface EvalReport {
     prep: string;
   };
   invalid_labels: Array<{ file: string; error: string }>;
+  /** Where the validators' member registry came from: the seed snapshot (a file) or the labels. */
+  registry: { source: "file" | "labels"; members: number; path: string | null };
+  /** Why the numbers are not yet the production measure (null when they are). */
+  provisional: string | null;
 }
 
 export function versions(): EvalReport["versions"] {
-  const p = (n: "a.v1" | "b.v1" | "zoom.v1" | "screen.v1") => `${n}@${prompt(n).sha256.slice(0, 12)}`;
+  const p = (n: "a.v1" | "b.v1" | "zoom.v2" | "screen.v1") => `${n}@${prompt(n).sha256.slice(0, 12)}`;
   return {
     models: {
       read: "claude-opus-5-5 (low)",
@@ -43,7 +47,7 @@ export function versions(): EvalReport["versions"] {
     prompts: {
       readA: p("a.v1"),
       readB: p("b.v1"),
-      zoom: p("zoom.v1"),
+      zoom: p("zoom.v2"),
       screen: p("screen.v1"),
       ratecard: `${RATECARD_PROMPT_V}@${ratecardPrompt().sha256.slice(0, 12)}`,
       classify: CLASSIFY_PROMPT_V,

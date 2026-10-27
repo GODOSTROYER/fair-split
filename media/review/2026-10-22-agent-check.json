@@ -1,0 +1,103 @@
+{
+  "v": 1,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "method": "Every written value read on the full-resolution image and on the per-field crop sheet (fixture rectangles), compared character by character with the prompt's content spec. Slips: 17 fields each (serial, boxes 1-13 with both Kaltas lines, signature presence, clerk initials). Logbook: 10 lines x 7 cells + the month. BR pages: every printed line.",
+  "reviewedAt": "2026-10-22T08:30:00.000Z",
+  "images": [
+    {
+      "asset": "exp-e1-0403",
+      "sha256Prefix": "0bcb1c548244",
+      "promptVersion": "p0 (prompts/experiments/e1-0403.p0.md)",
+      "checked": 17,
+      "mismatches": [],
+      "notes": ["Exploratory exec before tools/imagegen.ts existed; image kept out of git (media/raw)."]
+    },
+    {
+      "asset": "exp-e5-4up",
+      "sha256Prefix": "5783c21d03b2",
+      "promptVersion": "p0 (prompts/experiments/e5-photo4.p0.md)",
+      "checked": 68,
+      "mismatches": [],
+      "notes": ["Exploratory exec; the 0462 stain rendered as a formless blob, as intended."]
+    },
+    {
+      "asset": "spike-0403",
+      "sha256Prefix": "bc4797b8db85",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [],
+      "notes": ["Row 13's value cell drawn with two inner rules (three sub-rows); values unaffected."]
+    },
+    { "asset": "spike-0403", "sha256Prefix": "7c9cc9a68be3", "promptVersion": "p1", "checked": 17, "mismatches": [] },
+    { "asset": "spike-0457-white", "sha256Prefix": "1bfe92bfd68a", "promptVersion": "p1", "checked": 17, "mismatches": [] },
+    { "asset": "spike-0457-white", "sha256Prefix": "46de4cc05b36", "promptVersion": "p1", "checked": 17, "mismatches": [] },
+    {
+      "asset": "spike-0457-pink",
+      "sha256Prefix": "f75ad0944ec3",
+      "promptVersion": "edit of spike-0457-white",
+      "checked": 17,
+      "mismatches": [],
+      "notes": ["Codex edit kept every character in place: pink paper, fainter carbon strokes, footer DUPLICATE – OFFICE."]
+    },
+    { "asset": "spike-0458", "sha256Prefix": "d3a5ab56f726", "promptVersion": "p1", "checked": 17, "mismatches": [] },
+    { "asset": "spike-0458", "sha256Prefix": "c1fc9d60d774", "promptVersion": "p1", "checked": 17, "mismatches": [] },
+    {
+      "asset": "spike-0462",
+      "sha256Prefix": "5089c24edbb3",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [
+        { "where": "gross_kg", "expected": "6?.80", "visible": "67.80", "cause": "p1 quoted the \"6?.80\" pattern; Codex drew a digit-like glyph instead of washing the 4 out" },
+        { "where": "net_kg", "expected": "6?.50", "visible": "67.50", "cause": "same as gross_kg" }
+      ]
+    },
+    {
+      "asset": "spike-0462",
+      "sha256Prefix": "ce9aef002b4d",
+      "promptVersion": "p1",
+      "checked": 17,
+      "mismatches": [
+        { "where": "gross_kg", "expected": "6?.80", "visible": "6?.80 (a literal question mark drawn in ink)", "cause": "p1 quoted the \"?\" pattern and Codex wrote it" },
+        { "where": "net_kg", "expected": "6?.50", "visible": "6?.50 (a literal question mark drawn in ink)", "cause": "same as gross_kg" }
+      ]
+    },
+    {
+      "asset": "spike-0462",
+      "sha256Prefix": "effe66d2c03d",
+      "promptVersion": "p2",
+      "checked": 17,
+      "mismatches": [],
+      "notes": ["p2 names the washed-out character by position and forbids substitutes: the 4 is a formless blue blur."]
+    },
+    { "asset": "spike-0462", "sha256Prefix": "232b15791037", "promptVersion": "p2", "checked": 17, "mismatches": [] },
+    {
+      "asset": "spike-4up",
+      "sha256Prefix": "c95efb188d6e",
+      "promptVersion": "p1",
+      "checked": 68,
+      "mismatches": [
+        { "where": "BR 0462 gross_kg", "expected": "6?.80", "visible": "62.80", "cause": "p1 stain pattern drawn as a ghost digit" },
+        { "where": "BR 0462 net_kg", "expected": "6?.50", "visible": "63.50", "cause": "p1 stain pattern drawn as a ghost digit" }
+      ]
+    },
+    {
+      "asset": "spike-4up",
+      "sha256Prefix": "ae943fbe5f6b",
+      "promptVersion": "p2",
+      "checked": 68,
+      "mismatches": [],
+      "notes": ["Inside the 0462 stain a faint ghost of the 4 remains; a reader may still read 64.80, so A-L must confirm the by-hand trap with a real read before acceptance."]
+    },
+    {
+      "asset": "logbook-p14",
+      "sha256Prefix": "b25229479c0a",
+      "promptVersion": "p1",
+      "checked": 71,
+      "mismatches": [],
+      "notes": ["Grade written G1 with a serif-less 1 (reads as GI); the S4.2 normaliser maps I to G1."]
+    },
+    { "asset": "logbook-p14", "sha256Prefix": "2a1f1fce1161", "promptVersion": "p1", "checked": 71, "mismatches": [] },
+    { "asset": "br-2026-04-p1", "sha256Prefix": "dbd4641bc591", "promptVersion": "p1", "checked": 17, "mismatches": [] },
+    { "asset": "br-2026-04-p2", "sha256Prefix": "ded93f5ac757", "promptVersion": "p1", "checked": 26, "mismatches": [] }
+  ]
+}
