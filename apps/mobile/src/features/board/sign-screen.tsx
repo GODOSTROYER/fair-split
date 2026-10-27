@@ -1,273 +1,184 @@
 /**
- * M-BD-02 Sign, the phone side of MM-5 "Two keys" (design D2, S2.9). A d3 jade slab "Pirmahi", 64 dp, in the thumb
- * zone: hold 1,200 ms (a tick at each quarter), then the fingerprint or device PIN, then an Ed25519 signature over
- * the JCS payload with `fs-ernesto-a1`; web frames sign with a labelled demo key. The outer two seal rings engrave
- * when the signature is accepted and the seal lands.
- * Phases (data-moment-phase): ready → hold-2 → biometric → signed-2 → sealed, or released-early / mismatch /
- * expired. Cancelled: the slab springs back and nothing is signed.
+ * M-BD-02 Sign (S1.9, design D2, S2.9 MM-5): the seal his phone drew from the batch, the hash to compare with the
+ * console, the amount, and in the thumb zone the d3 jade slab "Pirmahi", 64 dp: hold 1,200 ms (a tick each
+ * quarter), release inside, then the fingerprint or device PIN, then an Ed25519 signature over the JCS payload with
+ * `fs-ernesto-a1`. A judge's browser signs with a labelled demo key. "Can't hold?" and TalkBack take the dialog.
+ * When the key is in, rings 3–4 engrave, the seal lands, and the amount turns from pencil to ink.
  */
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { ScreenStateOf } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
-import type { MomentPhase } from "../../_shims/moments";
 import { people } from "../../_shims/seed";
-import { radius, space, target } from "../../_shims/tokens.native";
-import { cosign } from "../../lib/signing";
-import { feedback } from "../../platform/feedback";
-import { type KeyMeta, keyVault } from "../../platform/key-vault";
+import { space, target } from "../../_shims/tokens.native";
+import { deviceKeyId } from "../../lib/signing";
+import { pirmaHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
+import { Glyph } from "../../ui/glyph";
 import { MomentMarker } from "../../ui/moment";
-import { HOLD_MS, TIMELINE } from "../../ui/motion";
-import { Banner, Button } from "../../ui/primitives";
+import { HOLD_MS } from "../../ui/motion";
+import { Banner, Button, InkStamp } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Slab } from "../../ui/slab";
+import { Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
-import { expectedFor, useCosign } from "./use-cosign";
+import { memberOf, presenceView } from "./cosign-model";
+import type { BoardKey } from "./messages";
+import { SignedAmount } from "./parts";
+import { amountStateFor, SIGN_SCREEN_STATE, type SignPhase, sealKeys, slabLive } from "./sign-flow";
+import { useSign } from "./use-sign";
 import { useT } from "./use-t";
 
-type Phase =
-  | "ready"
-  | "hold-2"
-  | "armed-2"
-  | "confirm-2"
-  | "biometric"
-  | "signed-2"
-  | "sealed"
-  | "released-early"
-  | "disarmed"
-  | "cancelled"
-  | "mismatch"
-  | "expired"
-  | "error"
-  | "no-lock"
-  | "invalidated";
-
-/** The screen's `data-state` (S1.9 M-BD-02) for each step of the flow. */
-const SCREEN_STATE: Readonly<Record<Phase, ScreenStateOf<"M-BD-02">>> = {
-  ready: "ready",
-  "hold-2": "holding",
-  "armed-2": "armed",
-  "confirm-2": "confirm",
-  biometric: "biometric",
-  "signed-2": "signed",
-  sealed: "signed",
-  "released-early": "released-early",
-  disarmed: "disarmed",
-  cancelled: "cancelled",
-  mismatch: "mismatch",
-  expired: "expired",
-  error: "error",
-  "no-lock": "no-lock",
-  invalidated: "invalidated",
+/** Why the slab cannot be held right now: shown under the flush, hatched slab (never greyed out, S2.7). */
+const BLOCKED: Partial<Record<SignPhase, BoardKey>> = {
+  waiting: "M-BD-02.waitKey1",
+  offline: "M-BD-01.offline",
+  mismatch: "M-BD-02.mismatch",
+  expired: "M-BD-01.expired",
+  "no-lock": "M-BD-02.noLock",
+  invalidated: "M-BD-02.invalidated",
+  closed: "M-BD-02.closed",
+  declined: "M-BD-01.sentBack",
+  loading: "common.loading",
 };
 
-/** The phone's MM-5 phases (S2.9, `data-moment-phase`). */
-const MOMENT_PHASE: Readonly<Record<Phase, MomentPhase<"MM-5">>> = {
-  ready: "ready",
-  "hold-2": "hold-2",
-  "armed-2": "armed-2",
-  "confirm-2": "confirm-2",
-  biometric: "armed-2",
-  "signed-2": "signed-2",
-  sealed: "sealed",
-  "released-early": "released-early",
-  disarmed: "disarmed",
-  cancelled: "disarmed",
-  mismatch: "mismatch",
-  expired: "expired",
-  error: "ready",
-  "no-lock": "ready",
-  invalidated: "ready",
+/** A failed attempt that leaves the slab live: said once, above it. */
+const NOTE: Partial<Record<SignPhase | "stale", BoardKey>> = {
+  cancelled: "M-BD-02.cancelled",
+  error: "M-BD-02.error",
+  "locked-out": "M-BD-02.lockedOut",
+  stale: "M-BD-02.stale",
 };
 
 export function SignScreen() {
-  const { runSlug } = useLocalSearchParams<{ runSlug: string }>();
-  const { api, session, online } = useApp();
+  const { c, phase, flow, mm5, attempt, key, presence, onHoldState, commit, retry, newKey } = useSign();
+  const { api, session } = useApp();
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
-  const { dto, payload, state, reload, markSigned } = useCosign(runSlug ?? "");
-  const [phase, setPhase] = useState<Phase>("ready");
-  const [attempt, setAttempt] = useState(0);
-  const [meta, setMeta] = useState<KeyMeta | null>(null);
-  const registered = useRef(new Set<string>());
+  const { width, height } = useWindowDimensions();
+  const dto = c.dto;
+  const treasurer = people.treasurer.first;
 
-  useEffect(() => {
-    void keyVault.current().then(setMeta);
-  }, []);
-  useEffect(() => {
-    if (state === "signed" && phase === "ready") setPhase("sealed");
-    if (state === "changed") setPhase("mismatch");
-    if (state === "expired") setPhase("expired");
-  }, [state, phase]);
+  useFocusEffect(
+    useCallback(() => {
+      if (c.status !== "request" && c.status !== "override") return;
+      void api.postPresence({ view: `${presenceView(c.runSlug, null)}:sign` });
+    }, [api, c.runSlug, c.status]),
+  );
 
-  const persona = (session?.persona ?? "board:ernesto").split(":")[1] ?? "ernesto";
-  const season = dto?.seasonCode ?? "";
-  const demoKey = keyVault.kind === "demo";
-
-  const sign = async () => {
-    if (!dto || !payload) return;
-    setPhase("biometric");
-    const prompt = tr("M-BD-02.prompt", { season });
-    const key = await keyVault.ensureKey(persona, prompt);
-    if ("error" in key) {
-      setPhase(key.error === "no-lock" ? "no-lock" : key.error === "cancelled" ? "cancelled" : "error");
-      setAttempt((a) => a + 1);
-      return;
-    }
-    setMeta(key);
-    if (!registered.current.has(key.keyId)) {
-      const reg = await api.registerDeviceKey({
-        keyId: key.keyId,
-        publicKey: key.publicKeyHex,
-        kind: demoKey ? "web_demo" : "app",
-        biometricClass: key.biometricClass,
-      });
-      if (!reg.ok) {
-        setPhase("error");
-        setAttempt((a) => a + 1);
-        return;
-      }
-      registered.current.add(key.keyId);
-    }
-    const result = await cosign(payload, expectedFor(dto), prompt, {
-      signer: keyVault.signer(key, tr("common.cancel")),
-      now: () => new Date(),
-      submit: (body) => api.postApproval(dto.runSlug, body),
-    });
-    if (result.ok) {
-      setPhase("signed-2");
-      markSigned();
-      setTimeout(() => {
-        setPhase("sealed");
-        feedback.play("seal.complete");
-      }, TIMELINE["MM-5"].sealedAfterMs);
-      return;
-    }
-    if (result.state === "mismatch") {
-      feedback.play("seal.mismatch");
-      setPhase("mismatch");
-    } else if (result.state === "cancelled") {
-      setPhase(result.detail === "invalidated" ? "invalidated" : "cancelled");
-    } else if (result.detail === "invalidated") {
-      setPhase("invalidated");
-    } else {
-      setPhase(result.state === "expired" ? "expired" : "error");
-    }
-    setAttempt((a) => a + 1); // remount the slab so it springs back to rest
+  const back = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace(pirmaHref(c.runSlug));
   };
 
-  if (!dto)
+  const ownHash = c.check?.recomputed?.batchSha256 ?? null;
+  const done = phase === "signed" || phase === "sealed" || phase === "inked";
+  const keys = sealKeys(phase, c.key1);
+  // The amount, the seal and the slab share one screen: the seal gives way on short phones (never below 132 dp).
+  const sealSize = Math.max(132, Math.min(232, width - 4 * space.s16, height - RESERVED_DP));
+  const demoKey = (key?.biometricClass ?? presence) === "none";
+  const amount = dto ? format.usd(dto.totalCents) : "";
+
+  const header = (
+    <View style={styles.header}>
+      <Pressable
+        onPress={back}
+        accessibilityRole="button"
+        accessibilityLabel={tr("M-BD-02.back")}
+        hitSlop={8}
+        style={({ pressed }) => [styles.backButton, pressed && { backgroundColor: t.color.pencilWash }]}
+        testID="M-BD-02.back"
+      >
+        <Glyph name="back" color={t.color.ink} />
+      </Pressable>
+      <Txt kind="title2" accessibilityRole="header" style={styles.flex}>
+        {tr("M-BD-02.title")}
+      </Txt>
+    </View>
+  );
+
+  if (!dto || !ownHash) {
+    const reason = BLOCKED[phase];
     return (
-      <Screen testID="M-BD-02" state="loading">
-        {null}
+      <Screen testID="M-BD-02" state={SIGN_SCREEN_STATE[phase]}>
+        {header}
+        {phase === "loading" ? (
+          <Skeleton lines={2} block={sealSize} />
+        ) : (
+          <Banner tone="decide" icon="info" testID={`M-BD-02.${phase}`}>
+            <Txt kind="body">{tr(reason ?? "M-BD-02.closed", { name: treasurer })}</Txt>
+          </Banner>
+        )}
       </Screen>
     );
+  }
 
-  const keys: 0 | 1 | 2 = phase === "signed-2" || phase === "sealed" ? 2 : dto.treasurerSigned ? 1 : 0;
-  const done = phase === "signed-2" || phase === "sealed";
-  const blocked = !online
-    ? tr("M-BD-01.offline")
-    : phase === "mismatch" || phase === "expired" || !payload
-      ? " "
-      : undefined;
-  const caption = demoKey
-    ? tr("M-BD-02.captionDemo")
-    : meta?.biometricClass === "pin-gated"
-      ? tr("M-BD-02.captionPin")
-      : tr("M-BD-02.caption");
-  const amount = format.usd(dto.totalCents);
-  const message: Partial<Record<Phase, string>> = {
-    cancelled: tr("M-BD-02.cancelled"),
-    mismatch: tr("M-BD-02.mismatch"),
-    expired: tr("M-BD-01.expired", { name: people.treasurer.first }),
-    error: tr("M-BD-02.error"),
-    "no-lock": tr("M-BD-02.noLock"),
-    invalidated: tr("M-BD-02.invalidated"),
-  };
+  const blocked = slabLive(phase) || phase === "biometric" ? undefined : BLOCKED[phase];
+  const note = flow === "stale" ? NOTE.stale : NOTE[phase];
+  const caption =
+    phase === "biometric"
+      ? tr(demoKey ? "M-BD-02.signingDemo" : "M-BD-02.signing")
+      : demoKey
+        ? tr("M-BD-02.caption.demo")
+        : presence === "biometric-bound"
+          ? tr("M-BD-02.caption.biometric")
+          : tr("M-BD-02.caption.pin");
+  const persona = session?.persona ?? "board:ernesto";
+  const keyLine = demoKey
+    ? key
+      ? tr("M-BD-02.key.demo", { key: key.keyId })
+      : tr("M-BD-02.key.demoNew")
+    : key
+      ? tr("M-BD-02.key.device", { key: key.keyId })
+      : tr("M-BD-02.key.first", { key: deviceKeyId(persona) });
 
-  return (
-    <View style={{ flex: 1, backgroundColor: t.color.ground }}>
-      <Screen testID="M-BD-02" state={SCREEN_STATE[phase]} contentStyle={{ paddingBottom: 220 }}>
-        <View
-          style={styles.markerWrap}
-          testID="moment-MM-5"
-          dataSet={{ moment: "MM-5", momentPhase: MOMENT_PHASE[phase] }}
-          collapsable={false}
-        >
-          <MomentMarker id="MM-5" phase={MOMENT_PHASE[phase]} />
+  const thumb = (
+    <View
+      style={[
+        styles.thumb,
+        {
+          paddingBottom: insets.bottom + space.s16,
+          backgroundColor: t.color.ground,
+          borderTopColor: t.color.rule,
+        },
+      ]}
+    >
+      {done ? (
+        <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
+          <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? deviceKeyId(persona) })}</Txt>
+          {demoKey ? (
+            <Txt kind="caption" color="ink2" testID="M-BD-02.demo-key">
+              {tr("common.demoKey")}
+            </Txt>
+          ) : null}
+          <Button tall label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
         </View>
-        <Txt kind="title1" accessibilityRole="header">
-          {tr("M-BD-02.title")}
-        </Txt>
-        <View style={[styles.card, { backgroundColor: t.color.plate }]}>
-          <SealView batchSha256={dto.batchSha256} size={168} keys={keys} testID="M-BD-02.seal" />
-          <Txt
-            kind="amountHero"
-            color={done ? "ink" : "pencil"}
-            accessibilityLabel={format.amountSpoken(dto.totalCents)}
-          >
-            {amount}
-          </Txt>
-          <Txt kind="body" color="ink2" align="center">
-            {tr("M-BD-01.request", { season, n: dto.itemCount })}
-          </Txt>
-          <Txt kind="hash" color="ink2">
-            {`${format.hash(dto.batchSha256, 2)} … ${dto.batchSha256.slice(-8).replace(/(.{4})/, "$1 ")}`}
-          </Txt>
-        </View>
-        {done ? (
-          <Banner icon="check" testID="M-BD-02.signed">
-            <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: meta?.keyId ?? "" })}</Txt>
-            {phase === "sealed" ? (
-              <Txt kind="body" color="ink2">
-                {tr("M-BD-02.sealed", { a: people.treasurer.first, b: people.chair.first })}
-              </Txt>
-            ) : null}
-          </Banner>
-        ) : null}
-        {message[phase] ? (
-          <Banner tone="decide" icon="info" testID={`M-BD-02.${phase}`}>
-            <Txt kind="body">{message[phase]}</Txt>
-          </Banner>
-        ) : null}
-        <Txt kind="caption" color="ink2" testID="M-BD-02.key">
-          {demoKey
-            ? `${tr("M-BD-02.demoKey")}${meta ? `, ${meta.keyId}` : ""}`
-            : tr("M-BD-02.deviceKey", { key: meta?.keyId ?? `fs-${persona}-a1` })}
-        </Txt>
-        {done ? (
-          <Button variant="tonal" label={tr("common.back")} icon="back" onPress={() => router.back()} />
-        ) : null}
-        {phase === "mismatch" || phase === "expired" ? (
-          <Button
-            variant="tonal"
-            icon="refresh"
-            label={tr("common.tryAgain")}
-            onPress={() => {
-              setPhase("ready");
-              void reload();
-            }}
-          />
-        ) : null}
-      </Screen>
-
-      {!done ? (
-        <View
-          style={[
-            styles.thumbZone,
-            {
-              paddingBottom: insets.bottom + space.s16,
-              backgroundColor: t.color.ground,
-              borderTopColor: t.color.rule,
-            },
-          ]}
-        >
+      ) : (
+        <>
+          {note ? (
+            <Banner
+              tone={phase === "cancelled" || flow === "stale" ? "neutral" : "decide"}
+              icon="info"
+              testID={`M-BD-02.note`}
+            >
+              <Txt kind="body">{tr(note)}</Txt>
+            </Banner>
+          ) : null}
+          {!blocked ? (
+            <Txt
+              kind="body"
+              color="ink2"
+              align="center"
+              testID="M-BD-02.caption"
+              accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
+            >
+              {caption}
+            </Txt>
+          ) : null}
           <Slab
             key={attempt}
             testID="M-BD-02.slab"
@@ -277,61 +188,148 @@ export function SignScreen() {
             tone="jade"
             hold={HOLD_MS.phone}
             height={target.hero}
-            unavailableReason={blocked}
+            unavailableReason={blocked ? tr(blocked, { name: treasurer }) : undefined}
             srLabel={tr("M-BD-02.srLabel", {
               label: tr("M-BD-02.slab"),
               amount: format.amountSpoken(dto.totalCents),
             })}
-            onHoldState={(h) =>
-              setPhase((p) =>
-                h === "holding"
-                  ? "hold-2"
-                  : h === "armed"
-                    ? "armed-2"
-                    : h === "confirm"
-                      ? "confirm-2"
-                      : h === "released-early"
-                        ? "released-early"
-                        : h === "disarmed"
-                          ? "disarmed"
-                          : h === "rest" && p === "confirm-2"
-                            ? "ready"
-                            : p,
-              )
-            }
-            onCommit={() => void sign()}
-            holdUntilLabel={tr("M-BD-02.holdUntil")}
+            onHoldState={onHoldState}
+            onCommit={commit}
             anotherWayLabel={tr("M-BD-02.another")}
             confirm={{
               title: tr("M-BD-02.confirmTitle"),
-              body: tr("M-BD-02.confirmBody", { n: dto.itemCount, amount }),
+              body: tr(demoKey ? "M-BD-02.confirmBodyDemo" : "M-BD-02.confirmBody", {
+                n: dto.itemCount,
+                amount,
+              }),
               amount,
-              recipients: dto.items.map((i) => ({ name: i.memberNo, amount: format.usd(i.amountCents) })),
-              batchSha256: dto.batchSha256,
-              keys: dto.treasurerSigned ? 1 : 0,
+              recipients: dto.items.map((i) => ({ name: memberOf(i), amount: format.usd(i.amountCents) })),
+              batchSha256: ownHash,
+              keys: c.key1 ? 1 : 0,
               confirmLabel: tr("M-BD-02.confirmSign"),
               cancelLabel: tr("common.cancel"),
             }}
           />
-          <Txt kind="body" color="ink2" align="center" style={{ marginTop: space.s8 }}>
-            {caption}
+          {phase === "mismatch" ? (
+            <Button
+              variant="tonal"
+              icon="refresh"
+              label={tr("M-BD-01.reviewAgain")}
+              onPress={() => {
+                void c.reload(true);
+                retry();
+                back();
+              }}
+              testID="M-BD-02.review-again"
+            />
+          ) : phase === "invalidated" ? (
+            <Button
+              variant="tonal"
+              label={tr("M-BD-02.newKey")}
+              onPress={() => void newKey()}
+              testID="M-BD-02.new-key"
+            />
+          ) : phase === "no-lock" ? (
+            <Button
+              variant="tonal"
+              icon="refresh"
+              label={tr("common.tryAgain")}
+              onPress={retry}
+              testID="M-BD-02.retry"
+            />
+          ) : null}
+          <Txt kind="caption" color="ink3" align="center" testID="M-BD-02.key" selectable>
+            {keyLine}
           </Txt>
-        </View>
-      ) : null}
+        </>
+      )}
     </View>
+  );
+
+  return (
+    <Screen testID="M-BD-02" state={SIGN_SCREEN_STATE[phase]} footer={thumb} contentStyle={styles.content}>
+      <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
+        <MomentMarker id="MM-5" phase={mm5.phase} />
+        {header}
+        <View style={[styles.plate, { backgroundColor: t.color.plate }]} testID="M-BD-02.batch">
+          <SealView
+            batchSha256={ownHash}
+            size={sealSize}
+            keys={keys}
+            engrave={c.engrave || done}
+            testID="M-BD-02.seal"
+          />
+          <View style={styles.hash}>
+            <Txt
+              kind="hash"
+              color="ink2"
+              align="center"
+              testID="M-BD-02.hash"
+              dataSet={{ hash: ownHash }}
+              accessibilityLabel={tr("seal.hash", { hash: format.hash(ownHash) })}
+            >
+              {`${format.hash(ownHash, 2)} … ${format.hash(ownHash.slice(-8))}`}
+            </Txt>
+            <Txt kind="caption" color="ink3" align="center">
+              {tr("M-BD-02.compare")}
+            </Txt>
+          </View>
+          <View style={styles.amount}>
+            <SignedAmount
+              text={amount}
+              srLabel={format.amountSpoken(dto.totalCents)}
+              ink={amountStateFor(phase) === "ink"}
+              live={c.engrave || done}
+              testID="M-BD-02.amount"
+            />
+            <Txt kind="body" color="ink2" align="center">
+              {tr("M-BD-01.count", { n: dto.itemCount })}
+            </Txt>
+          </View>
+        </View>
+        {phase === "sealed" || phase === "inked" ? (
+          <View style={styles.approved} testID="M-BD-02.sealed">
+            <InkStamp initials={people.treasurer.initials} label={people.treasurer.name} />
+            <InkStamp initials={people.chair.initials} label={people.chair.name} />
+            <Txt kind="bodyStrong" style={styles.flex}>
+              {tr("M-BD-02.sealed", { a: treasurer, b: people.chair.first })}
+            </Txt>
+          </View>
+        ) : null}
+        {phase === "inked" ? (
+          <Txt kind="body" color="ink2">
+            {tr("M-BD-02.next", { n: dto.itemCount })}
+          </Txt>
+        ) : null}
+      </View>
+    </Screen>
   );
 }
 
+/** Everything on the sign sheet except the seal, in dp (header, amount, hash, thumb zone, insets). */
+const RESERVED_DP = 620;
+
 const styles = StyleSheet.create({
-  markerWrap: { position: "absolute", width: 1, height: 1 },
-  card: { padding: space.s16, gap: space.s12, alignItems: "center", borderRadius: radius.none },
-  thumbZone: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+  content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24 },
+  moment: { gap: space.s24 },
+  flex: { flex: 1 },
+  header: { flexDirection: "row", alignItems: "center", gap: space.s8, marginLeft: -space.s12 },
+  backButton: {
+    width: target.min,
+    height: target.min,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: target.min / 2,
+  },
+  plate: { alignItems: "center", gap: space.s12, paddingVertical: space.s24, paddingHorizontal: space.s16 },
+  hash: { gap: space.s2, alignItems: "center" },
+  amount: { gap: space.s4, alignItems: "center" },
+  approved: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  thumb: {
+    gap: space.s8,
     paddingHorizontal: space.s16,
     paddingTop: space.s16,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
+  doneZone: { gap: space.s8 },
 });

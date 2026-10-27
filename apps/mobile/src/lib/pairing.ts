@@ -1,12 +1,58 @@
 /**
  * Pairing (M-ON-01, register §4): a single-use QR (10 minutes) or, when the camera is denied, its 6-digit code
  * binds this phone to a role and workspace. The QR carries `/app/pair?t=…` (register), and S3's fragment form
- * `#t=…` and the native scheme `fairsplit://pair?t=…` are accepted too.
+ * `#t=…` and the native scheme `fairsplit://pair?t=…` are accepted too. The same module guards the other way into
+ * the app from outside, a tapped notification (`pushRoute`): only the app's own routes, never an address.
  */
 
 import type { ApiResult, PairClaimRequest, PairClaimResponse } from "../_shims/api-client";
 import type { ApiErrorCode } from "../_shims/contracts";
+import { RUN_SLUG_RE } from "../_shims/contracts";
 import type { PairedSession } from "../services/session";
+
+/** The pairing code is six digits; anything else typed or pasted is dropped as the person types. */
+export const CODE_LENGTH = 6;
+
+/** Keeps the digits of what was typed or pasted ("418 207", "418-207"), at most six. */
+export function normalizeCode(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, CODE_LENGTH);
+}
+
+/** "418207" → "418 207": how the treasurer's screen prints it, so the two can be compared by eye. */
+export function displayCode(code: string): string {
+  const d = normalizeCode(code);
+  return d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
+}
+
+const LEAVES = new Set(["bayad", "resibo", "pangutana", "paminawa", "scan", "outbox", "pirma"]);
+
+/**
+ * The in-app route a notification may open (architecture §8: a co-sign request or the statement), or null. Only
+ * the register's routes pass, a run slug must look like one (`2026A-r37`), and anything with a scheme, a host,
+ * `..`, a backslash, a query or a fragment is refused: a push can never send the phone to an outside address.
+ */
+export function pushRoute(data: unknown): string | null {
+  const url =
+    typeof data === "string"
+      ? data
+      : data && typeof data === "object" && typeof (data as { url?: unknown }).url === "string"
+        ? (data as { url: string }).url
+        : null;
+  if (!url || url.length > 200 || !url.startsWith("/") || url.startsWith("//")) return null;
+  if (/[\\?#:%\s]|\.\./.test(url)) return null;
+  // Route groups are part of the file path, not the URL: "/(board)/pirma/2026A-r37" is "/pirma/2026A-r37".
+  const parts = url
+    .split("/")
+    .slice(1)
+    .filter((p) => !/^\([a-z]+\)$/.test(p));
+  const [leaf, slug, sub, ...rest] = parts;
+  if (!leaf || !LEAVES.has(leaf) || rest.length > 0) return null;
+  if (leaf !== "pirma") return slug === undefined ? `/${leaf}` : null;
+  if (slug === undefined) return "/pirma";
+  if (!RUN_SLUG_RE.test(slug)) return null;
+  if (sub === undefined) return `/pirma/${slug}`;
+  return sub === "sign" ? `/pirma/${slug}/sign` : null;
+}
 
 export type { PairedSession } from "../services/session";
 

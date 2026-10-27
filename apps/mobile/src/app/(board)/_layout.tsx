@@ -4,18 +4,26 @@ import { NavBar } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { useT } from "../../ui/text";
 
-/** Board tabs: Pirma, Bayad, Pangutana; Bayad and Pangutana reuse the member screens (register §4). */
+/**
+ * Board tabs (register §4): Pirma, Bayad, Pangutana; Bayad and Pangutana reuse the member screens. The sign sheet
+ * (M-BD-02) takes the whole screen so its 64 dp slab owns the thumb zone: the navigation bar steps aside there.
+ */
 export default function BoardTabs() {
   const { session } = useApp();
   const t = useT();
-  const leaf = useSegments().at(-1);
+  const segments = useSegments() as string[];
+  const leaf = segments.at(-1);
   // /bayad and /pangutana are shared with members (register §4); send a member phone to its own copy.
   if (session?.role === "member" && (leaf === "bayad" || leaf === "pangutana")) {
     return <Redirect href={`/(member)/(tabs)/${leaf}`} />;
   }
   if (session?.role !== "board") return <Redirect href="/" />;
+  const signing = segments.includes("sign");
   return (
-    <Tabs tabBar={(p) => <NavBar {...p} />} screenOptions={{ headerShown: false, animation: "none" }}>
+    <Tabs
+      tabBar={(p) => (signing ? null : <NavBar {...p} />)}
+      screenOptions={{ headerShown: false, animation: "none" }}
+    >
       <Tabs.Screen
         name="pirma"
         options={{ title: t("tab.pirma"), tabBarIcon: ({ color }) => <Glyph name="sign" color={color} /> }}
