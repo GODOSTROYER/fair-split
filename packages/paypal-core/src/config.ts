@@ -21,10 +21,11 @@ export interface PayPalRuntimeConfig {
   devMocks: boolean;
   /**
    * PP_CERT_ALLOW: PayPal cert ids to pin (comma or space separated ids, or their sandbox cert URLs),
-   * e.g. the current signing certificate and the next one once PayPal publishes it. Pinned ids get the
-   * certificate-fetch budget reserved for known ids, so a flood of forged deliveries cannot keep them
-   * out, and once loaded they are kept. It pins; it does not narrow: an unpinned PayPal-shaped id is
-   * still fetched under the shared budget, so an unannounced rotation is delayed, not refused.
+   * e.g. the current signing certificate and the next one once PayPal publishes it. Pinned ids draw on
+   * the certificate fetches held back for known ids (2 of the 3 in any hour), so a flood of forged
+   * deliveries cannot keep them out, and once loaded they are kept. It pins; it does not narrow: an
+   * unpinned PayPal-shaped id is still fetched under the shared budget, so an unannounced rotation is
+   * delayed, not refused.
    */
   knownCertIds: readonly string[];
 }

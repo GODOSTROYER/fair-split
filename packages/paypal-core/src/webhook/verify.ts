@@ -12,30 +12,33 @@
 // Certificate fetches are PayPal calls like any other: they take a token from the injected limiter
 // (purpose `webhooks.cert`, background priority), are written to `paypal_calls` by the injected
 // recorder, and a 429 opens the circuit. Before that, local budgets decide whether an unauthenticated
-// request may make us fetch at all (security review finding 2; S3.6.7 "cert fetches: at most 3 an
-// hour"). In order:
+// request may make us fetch at all (security review finding 2). In order:
+//   0. One hard cap over everything: at most 3 certificate fetches in any 60 minutes (a sliding
+//      window, `totalPerHour`), of any id, known or not, prewarm included (S3.6.7 "cert fetches: at
+//      most 3 an hour"; plan: 1,000 forged deliveries cost at most 3). Nothing below adds to it.
 //   1. Known certificates never need a fetch: a certificate that signed a verified delivery (or was
 //      pre-warmed, or is pinned with `knownCertIds`) is kept as last-known-good, outside the cache's
 //      TTL and LRU, for as long as the process lives. Its validity is still checked on every use.
 //   2. Known ids that are not loaded yet (pinned with `knownCertIds` / PP_CERT_ALLOW, pre-warmed, or
-//      seen before a restart) have 2 an hour reserved that nothing else can spend. They take it first,
-//      without the per-IP budget, so a flood that shares PayPal's client key (no X-Forwarded-For, a
-//      miscounted proxy hop) cannot keep them out; once it is empty they go on as below.
+//      seen before a restart) may make 2 fetches in any hour (`knownPerHour`), and those are held back
+//      out of the 3: an unknown id may fetch only while one stays free for each known id not loaded
+//      yet. They go first, without the per-IP budget, so neither a flood of unknown ids nor one that
+//      shares PayPal's client key (no X-Forwarded-For, a miscounted proxy hop) can keep them out; once
+//      their 2 are spent they go on as below.
 //   3. Per client IP (IPv6 by /64, ./client-ip.ts), 2 fetches an hour. One address cannot drain the
 //      global budget; requests with no address share one budget.
-//   4. Global, by cert id: ids with PayPal's shape (`CERT-360caa42-…`, every PayPal cert id since
+//   4. Shared, by cert id: ids with PayPal's shape (`CERT-360caa42-…`, every PayPal cert id since
 //      2015) have their own 2 an hour; any other well-formed id shares 1 an hour (PayPal-shaped and
 //      known ids may use it too).
-//      A local token is given back when the limiter refuses the fetch (nothing was sent).
+//      Every local use is given back when the limiter refuses the fetch (nothing was sent).
 // A delivery refused by any budget is CERT_FETCH_THROTTLED and retryable: the route answers 503 and
 // PayPal retries (25 times over 3 days), so a flood delays a genuine delivery but cannot make us
-// call it forged. The bound, for a burst of forged deliveries of any size: at most 3 certificate
-// fetches for unknown ids, plus one per known id not loaded yet, and at most `knownPerHour` (2) of
-// those, so 3 + min(unloaded known ids, 2); no other PayPal call. Sustained, the buckets refill at
-// those rates per hour.
+// call it forged. The bound, for a burst of forged deliveries of any size and whatever is pinned: at
+// most 3 certificate fetches, and no other PayPal call; sustained, at most 3 in any 60 minutes.
 // Starvation: a sustained flood can keep spending the shared buckets, so a genuine certificate nobody
 // has verified yet (fresh deploy, PayPal's yearly rotation) may wait while the flood lasts. Pin the
-// current and the next cert id in PP_CERT_ALLOW: pinned ids draw on the reserved bucket. health()
+// current and the next cert id in PP_CERT_ALLOW: pinned ids draw on the fetches held back for them; an
+// id that becomes known only after a flood spent the hour's 3 waits for the hour like any other. health()
 // raises CERT_FETCH_THROTTLED once throttling persists (more than 5 in 15 minutes by default). A fetch
 // is charged before its status is known, 404s included: charging only 200s would let a flood of random
 // PayPal-shaped ids (all 404) fetch without bound, since any budget that admits a fetch must be one a
@@ -131,20 +134,34 @@ export const MAX_WEBHOOK_BODY_BYTES = 64 * 1024;
  */
 export const PAYPAL_CERT_ID_PATTERN = /^CERT-360caa42-[0-9a-f]{8}-[0-9a-f]{8}$/;
 
-/** Certificate fetches allowed per hour (token buckets that refill continuously). */
+/** Certificate fetches allowed per hour. */
 export interface CertFetchBudget {
-  /** Per client IP (IPv6 by /64), checked before any global budget. */
+  /**
+   * Every certificate fetch, of any id, known or not, prewarm included: at most this many in any 60
+   * minutes (a sliding window). S3.6.7 "cert fetches: at most 3 an hour"; plan: 1,000 forged
+   * deliveries cost at most 3.
+   */
+  totalPerHour: number;
+  /** Per client IP (IPv6 by /64), checked before any global budget (a token bucket). */
   perIpPerHour: number;
-  /** Unknown ids with PayPal's shape (PAYPAL_CERT_ID_PATTERN). */
+  /** Unknown ids with PayPal's shape (PAYPAL_CERT_ID_PATTERN) (a token bucket). */
   expectedPerHour: number;
-  /** Shared by every other unknown id (and PayPal-shaped ids once their own budget is spent). */
+  /** Shared by every other unknown id, and PayPal-shaped ids once theirs is spent (a token bucket). */
   otherPerHour: number;
-  /** Reserved for known ids that are not loaded yet (pinned, pre-warmed, or seen before a restart). */
+  /**
+   * Known ids that are not loaded yet (pinned, pre-warmed, or seen before a restart): at most this many
+   * fetches in any 60 minutes, without the per-IP budget, held back out of `totalPerHour`: an unknown
+   * id may fetch only while one stays free for each known id not loaded yet (up to this many).
+   */
   knownPerHour: number;
 }
 
-/** expected + other = 3 an hour for certificates nobody has verified yet (S3.6.7). */
+/**
+ * 3 fetches in any hour, all ids together (S3.6.7); of those, unknown PayPal-shaped ids may use 2 and
+ * other ids 1, and up to 2 are held back for known ids not loaded yet.
+ */
 export const DEFAULT_CERT_FETCH_BUDGET: Readonly<CertFetchBudget> = Object.freeze({
+  totalPerHour: 3,
   perIpPerHour: 2,
   expectedPerHour: 2,
   otherPerHour: 1,
@@ -437,9 +454,11 @@ function toBytes(raw: RawBody): Uint8Array {
 }
 
 interface Bucket {
-  take(): boolean;
-  /** Give back a token that was taken but not spent (the fetch never happened). */
-  refund(): void;
+  /**
+   * Take one use, leaving at least `leave` (default 0) for others. Returns how to give that use back
+   * (when it was taken but not spent: the fetch never happened), or null when refused.
+   */
+  take(leave?: number): (() => void) | null;
 }
 
 /** A continuously refilled token bucket holding at most `perHour` tokens, starting full. */
@@ -452,15 +471,51 @@ function tokenBucket(perHour: number, now: () => number): Bucket {
     at = t;
   };
   return {
-    take() {
+    take(leave = 0) {
       refill();
-      if (tokens < 1) return false;
+      if (tokens - leave < 1) return null;
       tokens -= 1;
-      return true;
+      let returned = false;
+      return () => {
+        if (returned) return;
+        returned = true;
+        refill();
+        tokens = Math.min(perHour, tokens + 1);
+      };
     },
-    refund() {
-      refill();
-      tokens = Math.min(perHour, tokens + 1);
+  };
+}
+
+/**
+ * At most `limit` uses in any hour, exactly: a use counts for one hour after it was taken (a sliding
+ * window, so no span of 60 minutes, one across the top of the hour included, holds more). Memory is
+ * at most `limit` timestamps.
+ */
+function hourWindow(limit: number, now: () => number): Bucket & { left(): number } {
+  const uses: number[] = [];
+  let latest = Number.NEGATIVE_INFINITY;
+  /** Never runs backwards, so `uses` stays in order; a clock stepped back only keeps uses counted longer. */
+  const expire = () => {
+    latest = Math.max(latest, now());
+    while (uses.length > 0 && latest - (uses[0] ?? latest) >= HOUR_MS) uses.shift();
+    return latest;
+  };
+  return {
+    left() {
+      expire();
+      return limit - uses.length;
+    },
+    take(leave = 0) {
+      const t = expire();
+      if (uses.length + 1 + leave > limit) return null;
+      uses.push(t);
+      let returned = false;
+      return () => {
+        if (returned) return;
+        returned = true;
+        const index = uses.indexOf(t);
+        if (index !== -1) uses.splice(index, 1);
+      };
     },
   };
 }
@@ -515,9 +570,12 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
 
   const budget: CertFetchBudget = { ...DEFAULT_CERT_FETCH_BUDGET, ...config.certFetchBudget };
   const expectedIds = config.expectedCertIdPattern ?? PAYPAL_CERT_ID_PATTERN;
+  /** Every certificate fetch, of any id: at most totalPerHour in any 60 minutes. */
+  const totalWindow = hourWindow(budget.totalPerHour, now);
+  /** Fetches of known ids that are not loaded yet, held back out of totalWindow. */
+  const knownWindow = hourWindow(budget.knownPerHour, now);
   const expectedBucket = tokenBucket(budget.expectedPerHour, now);
   const otherBucket = tokenBucket(budget.otherPerHour, now);
-  const knownBucket = tokenBucket(budget.knownPerHour, now);
   const ipBuckets = new Map<string, Bucket>();
   // Everything below is keyed by cert id: api.sandbox and api-m.sandbox serve the same certificates.
   const inflight = new Map<string, Promise<LoadResult>>();
@@ -689,13 +747,13 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   }
 
   /**
-   * Take a shared global token for this cert id (known ids try their reserved bucket before this, in
-   * loadCert); returns the bucket to refund, or null when none is left.
+   * How many of the hour's fetches an unknown id must leave free: one per known id not loaded yet
+   * (pinned, pre-warmed, or one whose certificate was dropped), at most what knownPerHour has left.
    */
-  function takeShared(certId: string): Bucket | null {
-    const order =
-      knownGood.has(certId) || expectedIds.test(certId) ? [expectedBucket, otherBucket] : [otherBucket];
-    return order.find((bucket) => bucket.take()) ?? null;
+  function heldBackForKnown(): number {
+    let unloaded = 0;
+    for (const id of knownGood.keys()) if (!lastGood.has(id)) unloaded += 1;
+    return unloaded === 0 ? 0 : Math.min(unloaded, knownWindow.left());
   }
 
   const throttled = (detail: string): Promise<LoadResult> =>
@@ -724,23 +782,37 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
         retryable: blocked.retryable,
       });
     }
-    // Local budgets come first, so forged requests never reach the shared limiter. A known id (pinned,
-    // pre-warmed, seen) takes its reserved bucket before, and without, the per-IP budget: a flood that
-    // shares PayPal's client key (no X-Forwarded-For, a miscounted proxy hop) cannot keep it out, and the
-    // reserved bucket (knownPerHour) plus failedUntil bound it on their own. Every other fetch, and a
-    // known id once that bucket is empty, takes a per-IP token, then a shared global one.
-    let perIp: Bucket | null = null;
-    let global: Bucket | null = knownGood.has(certId) && knownBucket.take() ? knownBucket : null;
-    if (global === null) {
-      perIp = clientIp === undefined ? null : ipBucket(clientIp);
-      if (perIp && !perIp.take()) return throttled("per-ip budget");
-      global = takeShared(certId);
-      if (global === null) {
-        perIp?.refund();
+    // Local budgets come first, so forged requests never reach the shared limiter. Every fetch, of any
+    // id, prewarm included, spends one of totalPerHour (3) in any 60 minutes: nothing goes on top of it.
+    // A known id (pinned, pre-warmed, seen) takes one of knownPerHour first, without the per-IP budget: a
+    // flood that shares PayPal's client key (no X-Forwarded-For, a miscounted proxy hop) cannot keep it
+    // out. Every other fetch, and a known id once knownPerHour is spent, takes a per-IP token, then a
+    // shared one, then one of the hour's total that leaves enough free for the known ids not loaded yet
+    // (heldBackForKnown), so a flood of unknown ids cannot spend what a pinned certificate needs.
+    const charges: (() => void)[] = [];
+    const charge = (bucket: Bucket, leave = 0) => {
+      const giveBack = bucket.take(leave);
+      if (giveBack) charges.push(giveBack);
+      return giveBack !== null;
+    };
+    const giveAllBack = () => {
+      for (const giveBack of charges.splice(0)) giveBack();
+    };
+    const known = knownGood.has(certId);
+    if (known && charge(knownWindow)) {
+      if (!charge(totalWindow)) {
+        giveAllBack();
+        return throttled("global budget");
+      }
+    } else {
+      const perIp = clientIp === undefined ? null : ipBucket(clientIp);
+      if (perIp && !charge(perIp)) return throttled("per-ip budget");
+      const shared = known || expectedIds.test(certId) ? [expectedBucket, otherBucket] : [otherBucket];
+      if (!shared.some((bucket) => charge(bucket)) || !charge(totalWindow, heldBackForKnown())) {
+        giveAllBack();
         return throttled("global budget");
       }
     }
-    const charged = { perIp, global };
     const run = fetchCert(url)
       .then((result) => {
         if (result.ok) {
@@ -748,9 +820,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
           failedUntil.delete(certId);
           if (knownGood.has(certId)) rememberKnown(certId, result.cert);
         } else if (result.reason === "CERT_FETCH_THROTTLED") {
-          // The limiter refused: nothing was fetched, so the local tokens are given back.
-          charged.perIp?.refund();
-          charged.global.refund();
+          // The limiter refused: nothing was fetched, so every local use is given back.
+          giveAllBack();
         } else {
           touch(
             failedUntil,
@@ -955,7 +1026,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
     if (expired && signed === "self" && expiredPostback) {
       // Never 'self' under an expired certificate: PayPal must confirm this very transmission. Nothing
       // is cached per certificate and nothing is shared, so no other delivery can lend it trust.
-      if (!expiredPostbacks.take()) {
+      if (expiredPostbacks.take() === null) {
         await releaseQuietly(transmissionId, claimToken);
         return fail("CERT_EXPIRED", "signature valid; expired-certificate postback budget used up", {
           retryable: true,

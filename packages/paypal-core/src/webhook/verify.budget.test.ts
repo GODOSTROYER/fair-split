@@ -2,8 +2,13 @@
 // certificate-fetch budget a genuine delivery needs. A per-IP budget comes before the global one; the
 // global budget reserves room for PayPal's own cert ids and for certificates that already signed a
 // verified delivery; those stay cached; a throttled delivery is retryable (the route answers 503).
+// Verifier follow-up (regress, minor): fetches reserved for known ids came on top of the 3 an hour, so
+// pins that were not loaded yet let forged deliveries force 5. Every fetch now counts toward one hard cap
+// of 3 in any 60 minutes (S3.6.7; plan: 1,000 forged deliveries, at most 3 certificate fetches), and the
+// fetches reserved for known ids are held back out of those 3.
 
 import { generateKeyPairSync, randomUUID } from "node:crypto";
+import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 import type { LimiterRequest, PayPalLimiter } from "../limiter.js";
 import { createTestPki, signWebhook, syntheticEvent, TEST_WEBHOOK_ID } from "../testing/index.js";
@@ -107,8 +112,11 @@ function setup(config: WebhookVerifierConfig = {}, pems?: Record<string, string>
 }
 
 describe("certificate fetch budget: defaults", () => {
-  it("allow at most 3 fetches an hour for certificates nobody has verified yet (S3.6.7)", () => {
+  it("allow at most 3 fetches in any hour, of any ids, known or not (S3.6.7; plan: at most 3 for 1,000 forged deliveries)", () => {
+    expect(DEFAULT_CERT_FETCH_BUDGET.totalPerHour).toBe(3);
     expect(DEFAULT_CERT_FETCH_BUDGET.expectedPerHour + DEFAULT_CERT_FETCH_BUDGET.otherPerHour).toBe(3);
+    // The fetches held back for known ids come out of the 3, and always leave unknown ids at least one.
+    expect(DEFAULT_CERT_FETCH_BUDGET.knownPerHour).toBeLessThan(DEFAULT_CERT_FETCH_BUDGET.totalPerHour);
     expect(DEFAULT_CERT_FETCH_BUDGET.perIpPerHour).toBeLessThanOrEqual(3);
     expect(PAYPAL_CERT_ID_PATTERN.test("CERT-360caa42-fca2a594-bf9ab596")).toBe(true);
     expect(PAYPAL_CERT_ID_PATTERN.test("CERT-360caa42-fca2a784-5edc0ebc")).toBe(true);
@@ -251,33 +259,47 @@ describe("certificate fetch budget: global, with room reserved for PayPal's ids 
     expect(host.calls).toHaveLength(1);
   });
 
-  it("prewarm() of a stored certificate uses the budget reserved for known certificates, whatever forged traffic did", async () => {
+  it("prewarm() at boot loads the stored certificate, and a flood that follows cannot make it fetch again", async () => {
     const { v, verify, host, now } = setup();
-    for (let i = 0; i < 100; i++) await verify(forged(paypalShaped(i), now()), `198.51.100.${i % 50}`);
-    expect(host.calls).toHaveLength(3);
     const [warm] = await v.prewarm([GENUINE]);
     expect(warm).toMatchObject({ ok: true, source: "network" });
-    expect(host.calls).toHaveLength(4);
+    for (let i = 0; i < 100; i++) await verify(forged(paypalShaped(i), now()), `198.51.100.${i % 50}`);
+    expect(host.calls).toHaveLength(3); // the pre-warm and 2 forged: still 3 in the hour
     expect(await verify(genuine(now()), "173.0.82.126")).toMatchObject({ mode: "self", certSource: "cache" });
+    expect(host.calls).toHaveLength(3);
+  });
+
+  it("an id that becomes known only after a flood spent the hour's 3 fetches waits for the hour like any other", async () => {
+    const { v, verify, host, now, advance } = setup();
+    for (let i = 0; i < 100; i++) await verify(forged(paypalShaped(i), now()), `198.51.100.${i % 50}`);
+    expect(host.calls).toHaveLength(3);
+    const [late] = await v.prewarm([GENUINE]);
+    expect(late).toMatchObject({ ok: false, reason: "CERT_FETCH_THROTTLED" });
+    expect(host.calls).toHaveLength(3);
+    advance(HOUR);
+    expect((await v.prewarm([GENUINE]))[0]).toMatchObject({ ok: true, source: "network" });
+    expect(host.calls).toHaveLength(4);
   });
 });
 
 describe("the fetch bound with known ids that are not loaded yet (pinned or pre-warmed)", () => {
-  // The bound for a burst: 3 fetches for unknown ids (expected + other), plus one per known id that is
-  // not loaded yet, and never more than knownPerHour of those. A known id is fetched once: a 200 keeps
-  // it as last-known-good, a failure is not retried for a minute (failedCertRetryMs).
+  // The bound for a burst, whatever is pinned: 3 certificate fetches, known ids included. Known ids that
+  // are not loaded yet have up to knownPerHour of those 3 held back for them (unknown ids cannot spend
+  // them), so they still land during a flood. A known id is fetched once: a 200 keeps it as
+  // last-known-good, a failure is not retried for a minute (failedCertRetryMs).
+  // Verifier probe (regress, minor): pins not loaded yet used to come on top: 5 fetches with 2 of them.
   const pinnedId = (n: number) => `CERT-360caa42-0badc0de-${hex8(n)}`;
   const pinnedUrl = (n: number) => certUrl(pinnedId(n));
 
   it.each([
-    { unloaded: 0, knownPerHour: 2, bound: 3 },
-    { unloaded: 1, knownPerHour: 2, bound: 4 },
-    { unloaded: 2, knownPerHour: 2, bound: 5 },
-    { unloaded: 5, knownPerHour: 2, bound: 5 },
-    { unloaded: 5, knownPerHour: 4, bound: 7 },
+    { unloaded: 0, knownPerHour: 2, pinnedFetches: 0 },
+    { unloaded: 1, knownPerHour: 2, pinnedFetches: 1 },
+    { unloaded: 2, knownPerHour: 2, pinnedFetches: 2 },
+    { unloaded: 5, knownPerHour: 2, pinnedFetches: 2 },
+    { unloaded: 5, knownPerHour: 4, pinnedFetches: 3 },
   ])(
-    "$unloaded unloaded known ids, knownPerHour $knownPerHour: 1,000 forged deliveries cost exactly $bound certificate fetches",
-    async ({ unloaded, knownPerHour, bound }) => {
+    "$unloaded unloaded known ids, knownPerHour $knownPerHour: 1,000 forged deliveries cost exactly 3 certificate fetches, $pinnedFetches of them for pinned ids",
+    async ({ unloaded, knownPerHour, pinnedFetches: expectedPinned }) => {
       // One pinned id is genuine and served (it loads and is kept); the others are not served (404).
       const pinned = Array.from({ length: unloaded }, (_, n) => pinnedId(n));
       const pems = { [GENUINE]: leaf.pem, ...(unloaded > 0 ? { [pinnedUrl(0)]: leaf.pem } : {}) };
@@ -296,15 +318,64 @@ describe("the fetch bound with known ids that are not loaded yet (pinned or pre-
                 : GENUINE;
         await verify(forged(target, now()), `198.51.${(i >> 8) & 255}.${i & 255}`);
       }
-      expect(bound).toBe(3 + Math.min(unloaded, knownPerHour));
-      expect(host.calls).toHaveLength(bound);
+      expect(host.calls).toHaveLength(3);
       const pinnedFetches = host.calls.filter((u) => pinned.some((id) => u.endsWith(id)));
-      expect(pinnedFetches).toHaveLength(Math.min(unloaded, knownPerHour));
+      expect(expectedPinned).toBe(Math.min(unloaded, knownPerHour, 3));
+      expect(pinnedFetches).toHaveLength(expectedPinned);
       expect(new Set(pinnedFetches).size).toBe(pinnedFetches.length);
-      expect(takes).toHaveLength(bound);
+      expect(takes).toHaveLength(3);
       expect(postback).not.toHaveBeenCalled();
     },
   );
+
+  it("never more than 3 fetches in any 60 minutes, sustained over hours, whatever is pinned or pre-warmed", async () => {
+    // Random floods over hours: forged deliveries at random PayPal-shaped, other and pinned ids (one
+    // served, the rest never), from one shared key or a few addresses, mixed with pre-warms. The hourly
+    // cap is a sliding window: no span of 60 minutes, one across the top of the hour included, holds a
+    // 4th certificate fetch.
+    await fc.assert(
+      fc.asyncProperty(
+        fc.integer({ min: 0, max: 4 }),
+        fc.array(
+          fc.record({
+            gap: fc.oneof(
+              fc.constantFrom(0, 1, 59 * MINUTE, HOUR - 1, HOUR, HOUR + 1),
+              fc.integer({ min: 0, max: 40 * MINUTE }),
+            ),
+            target: fc.integer({ min: 0, max: 6 }),
+            ip: fc.integer({ min: 0, max: 3 }),
+            prewarm: fc.boolean(),
+          }),
+          { maxLength: 80 },
+        ),
+        async (pins, arrivals) => {
+          const pinned = Array.from({ length: pins }, (_, n) => pinnedId(n));
+          const { v, verify, host, now, advance } = setup(
+            { knownCertIds: pinned },
+            { [GENUINE]: leaf.pem, [pinnedUrl(0)]: leaf.pem },
+          );
+          const fetchedAt: number[] = [];
+          for (const [i, a] of arrivals.entries()) {
+            advance(a.gap);
+            const target =
+              a.target === 0
+                ? paypalShaped(i)
+                : a.target === 1
+                  ? otherShaped(i)
+                  : a.target === 2
+                    ? GENUINE
+                    : pinnedUrl(a.target - 3);
+            const before = host.calls.length;
+            if (a.prewarm) await v.prewarm([target]);
+            else await verify(forged(target, now()), a.ip === 0 ? null : `198.51.100.${a.ip}`);
+            for (let k = before; k < host.calls.length; k++) fetchedAt.push(now());
+          }
+          return fetchedAt.every((t) => fetchedAt.filter((u) => u > t - HOUR && u <= t).length <= 3);
+        },
+      ),
+      { numRuns: 60 },
+    );
+  });
 });
 
 describe("a genuine certificate PayPal has not used yet (rotation, fresh deploy)", () => {
@@ -397,8 +468,14 @@ describe("a genuine certificate PayPal has not used yet (rotation, fresh deploy)
     }
     expect(host.calls.filter((u) => u === NEXT).length).toBeGreaterThan(0);
     pems[NEXT] = leaf.pem; // PayPal now serves and signs with it
-    advance(30 * MINUTE); // one reserved fetch refilled; the flood goes on
+    advance(30 * MINUTE); // the hour's 3 fetches are still spent: PayPal is asked to retry
     await flood(verify, now(), 5_000);
+    expect(await verify(signedWith(NEXT, now()), "173.0.82.126")).toMatchObject({
+      reason: "CERT_FETCH_THROTTLED",
+      retryable: true,
+    });
+    advance(30 * MINUTE); // an hour after those fetches; the flood goes on and takes what it may first
+    await flood(verify, now(), 6_000);
     expect(await verify(signedWith(NEXT, now()), "173.0.82.126")).toMatchObject({ mode: "self" });
   });
 });

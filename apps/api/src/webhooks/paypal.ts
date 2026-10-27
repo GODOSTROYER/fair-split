@@ -5,8 +5,11 @@
 //   2. Verify offline: CRC32 of the raw bytes + RSA-SHA256 with PayPal's cert (injected verifier),
 //      transmission time within 5 minutes, each transmission id once (replay), per-IP and global
 //      certificate-fetch budgets keyed by the client address the adapter derives.
-//      The route never asks for a postback, so a delivery costs no PayPal call beyond a first-time
-//      certificate fetch; verification is capped at `verifyTimeoutMs` (20 s; PayPal waits 30 s).
+//      The route never asks for the badge postback (processWebhook does, after the 200). Its only
+//      PayPal calls are a first-time certificate fetch (at most 3 in any hour, all deliveries together)
+//      and, only for a delivery whose signature verifies under an expired PayPal certificate, that
+//      delivery's own verify-webhook-signature call (at most 20 an hour; forged and replayed copies
+//      cost none). Verification is capped at `verifyTimeoutMs` (20 s; PayPal waits 30 s).
 //   3. One transaction: INSERT webhook_events ON CONFLICT (paypal_event_id) DO NOTHING;
 //      inserted → enqueue('processWebhook', {webhookEventId}, 'wh:<event id>') in the same
 //      transaction (I7); already there → record the duplicate delivery ("already applied").

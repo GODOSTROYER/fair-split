@@ -39,33 +39,36 @@ so the bearer token cannot be sent anywhere else.
    counts toward the 40/min budget), is written to `paypal_calls` (`webhooks.cert`), and a 429 opens the
    6-minute circuit. Before that, local budgets (`DEFAULT_CERT_FETCH_BUDGET`, per hour, by cert id so
    `api` and `api-m` count once) decide whether an unauthenticated request may cause a fetch at all:
+   - **one hard cap over everything: at most 3 certificate fetches in any 60 minutes** (`totalPerHour`, a
+     sliding window), of any id, known or not, `prewarm` included (S3.6.7 "at most 3 an hour"; plan:
+     1,000 forged deliveries, at most 3 fetches). Nothing below adds to it;
    - a certificate that signed a verified delivery, was pre-warmed or is pinned (`PP_CERT_ALLOW`, or
      `knownCertIds`) is kept as **last-known-good**, outside the cache's TTL and LRU, and is never
      fetched again (validity is still checked on every use);
-   - known ids not loaded yet (pinned, pre-warmed, or seen before a restart) have 2 an hour **reserved**
-     that nothing else can spend, taken first and **without** the per-IP budget, so a flood that shares
-     PayPal's client key (no `X-Forwarded-For`, a miscounted proxy hop) cannot keep them out; once it is
-     empty they continue as below;
+   - known ids not loaded yet (pinned, pre-warmed, or seen before a restart) may make 2 fetches in any
+     hour (`knownPerHour`), **held back out of the 3**: an unknown id may fetch only while one stays free
+     for each known id not loaded yet. They go first and **without** the per-IP budget, so neither a
+     flood of unknown ids nor one that shares PayPal's client key (no `X-Forwarded-For`, a miscounted
+     proxy hop) can keep them out; once their 2 are spent they continue as below;
    - **per client IP** next (2 an hour; IPv6 by /64; IPv4-mapped as IPv4; no address = one shared budget);
-   - then **global**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
-     hour, every other well-formed id 1 an hour (S3.6.7: at most 3 an hour);
+   - then **shared**: unknown ids with PayPal's shape (`CERT-360caa42-…`, `PAYPAL_CERT_ID_PATTERN`) 2 an
+     hour, every other well-formed id 1 an hour;
    - a delivery refused by a budget is `CERT_FETCH_THROTTLED` with `retryable: true`: the route answers
      **503** with `Retry-After` (PayPal retries 25 times over 3 days) and stores nothing. So are a limiter
      refusal, a timeout, a network error and a PayPal 5xx/429 on the fetch; a 404 or junk PEM stays a 400;
-   - the bound for a burst of forged deliveries of any size: at most 3 certificate fetches for unknown
-     ids, plus one per known id not loaded yet (pinned or pre-warmed), and at most `knownPerHour` (2) of
-     those, so **3 + min(unloaded known ids, 2)**, and no other PayPal call (tested as an exact count).
-     With every known id loaded, 1,000 forged deliveries cost at most 3. Sustained, the buckets refill
-     at those rates per hour;
+   - the bound for a burst of forged deliveries of any size, **whatever is pinned: 3 certificate
+     fetches**, and no other PayPal call (tested as an exact count for 0 to 5 pins not loaded yet, and
+     as a property: no 60 minutes ever hold a 4th fetch). Sustained: at most 3 in any 60 minutes;
    - starvation: a sustained flood keeps the shared buckets empty, so a genuine certificate nobody has
      verified yet (fresh deploy, PayPal's yearly rotation) waits (503s, PayPal retries) while it lasts.
      `PP_CERT_ALLOW` (comma or space separated ids or sandbox cert URLs, at most 8) pins ids so they draw
-     on the reserved bucket instead: list the current signing certificate and, once PayPal publishes it,
-     the next one. It pins; it does not narrow (S3.6.5 says "narrows": that would turn an unannounced
-     rotation into 400s). `health()` raises `CERT_FETCH_THROTTLED` once throttling persists (more than 5
-     throttled deliveries in 15 min; `certFetchThrottleAlert`). A fetch is charged before its status is
-     known, 404s included: a budget only 200s spend would let a flood of random PayPal-shaped ids (all 404)
-     fetch without bound;
+     on the fetches held back for known ids instead: list the current signing certificate and, once
+     PayPal publishes it, the next one. Call `prewarm` at boot, before serving: an id that becomes known
+     only after a flood spent the hour's 3 waits for the hour like any other. Pinning does not narrow
+     (S3.6.5 says "narrows": that would turn an unannounced rotation into 400s; see Deviations).
+     `health()` raises `CERT_FETCH_THROTTLED` once throttling persists (more than 5 throttled deliveries
+     in 15 min; `certFetchThrottleAlert`). A fetch is charged before its status is known, 404s included:
+     a budget only 200s spend would let a flood of random PayPal-shaped ids (all 404) fetch without bound;
    - PEMs are fetched over TLS with redirects refused, at most 64 KB, cached (24 h, LRU) and
      single-flighted; failed ids are not retried for a minute. `prewarm(urls)` loads the certificate of
      the newest stored verified event at boot (`prewarmWebhookCertificates` in `apps/api/src/webhooks`).
@@ -96,8 +99,11 @@ so the bearer token cannot be sent anywhere else.
    `TRANSMISSION_RELEASE_FAILED` in `health()`.
    UNVERIFIED until spike S5: whether PayPal's retries after a non-2xx carry new transmission headers;
    if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event.
-6. The webhook route never asks for a postback: processWebhook calls `confirmWebhookByPostback`
+6. The webhook route never asks for the badge postback: processWebhook calls `confirmWebhookByPostback`
    (`apps/api/src/webhooks/postback.ts`) after the 200, from the transmission headers kept in the row.
+   A delivery's only in-request PayPal calls are a certificate fetch (step 2: at most 3 in any hour,
+   all deliveries together) and the expired-certificate check of step 3 (one per such delivery, at most
+   20 an hour; none for forged or replayed copies).
 7. Applying events (`apps/api/src/webhooks/apply.ts`, re-exported by the route; pass it the stored row):
    only a signature-verified (`self`/`postback`) PAYOUTS-ITEM.SUCCEEDED under an in-date certificate
    applies at once (MM-1), corroborated by the settle GETs at +25 s (Judge) / +90 s; a GET that disagrees
@@ -128,6 +134,18 @@ threshold. The route's `handler.health()` reports rejected rows stored and not s
 (degraded while any were not stored). WS-API: put both
 in the `/readyz` body (`webhooks`, `webhookRoute`), but never fail readiness on them (Render's health
 check would restart a healthy process); show them on `/ops`.
+
+## Deviations from the specs (for an ADR; `docs/spec` is not ours to edit)
+
+1. **`PP_CERT_ALLOW` pins; it does not narrow** (S3.6.5 says "narrows"). Narrowing would turn an
+   unannounced certificate rotation into 400s; pinning only holds certificate fetches back for the listed
+   ids and keeps them once loaded. Every check still runs on every use.
+2. **Expired-certificate confirmations are PayPal calls outside S3.6.7's list.** A delivery whose
+   signature verifies under an expired PayPal certificate costs one `verify-webhook-signature` call
+   during the request (step 3), at most 20 an hour (`expiredCertPostbacksPerHour`). None unless PayPal
+   signs with an expired certificate (or its expired key leaked); forged and replayed copies cost none.
+   Proposed S3.6.7 line: "expired-certificate confirmations: at most 20 an hour (normally none)".
+   Certificate fetches stay within S3.6.7's "at most 3 an hour", pins included (step 2).
 
 ## Spike results
 

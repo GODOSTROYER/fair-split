@@ -1,8 +1,8 @@
 // Finding 2 (security review, MEDIUM) at the route: unauthenticated requests cannot spend the
 // certificate-fetch budget a genuine delivery needs, a delivery that cannot be checked now is a
 // retryable 503 (PayPal retries), and with every known certificate loaded, 1,000 forged deliveries cost
-// at most 3 certificate fetches and no other PayPal call (plan, Verification). The general bound, with
-// known ids not loaded yet, is 3 + min(unloaded known ids, knownPerHour): verify.budget.test.ts.
+// at most 3 certificate fetches and no other PayPal call (plan, Verification). The bound holds whatever
+// is pinned (known ids not loaded yet draw on fetches held back out of the 3): verify.budget.test.ts.
 
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import {
