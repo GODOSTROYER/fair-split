@@ -101,6 +101,8 @@ export const OpsOverview = z.strictObject({
   }),
   items: z.partialRecord(PayoutItemStatus, Count),
   sse: z.strictObject({ open: Count, byLabel: z.record(z.string(), Count) }),
+  /** The outbox dispatcher in this process (inline executor) and the configured executor. */
+  dispatcher: z.strictObject({ running: z.boolean(), executor: z.enum(["inline", "workflow", "worker"]) }),
   ledger: z.array(
     z.strictObject({
       workspaceId: z.uuid(),
@@ -139,7 +141,7 @@ function counts(rows: readonly { key: string | null; n: number | string }[]): Re
 }
 
 export async function opsOverview(
-  deps: Pick<AppDeps, "db" | "env" | "clock" | "sse" | "paypal" | "credentials">,
+  deps: Pick<AppDeps, "db" | "env" | "clock" | "sse" | "paypal" | "credentials" | "outbox">,
   view: OpsView,
 ): Promise<OpsOverview> {
   const db = deps.db;
@@ -369,6 +371,7 @@ export async function opsOverview(
     },
     items: counts(items),
     sse: { open: sse.open, byLabel: sse.byLabel },
+    dispatcher: { running: deps.outbox?.started ?? false, executor: deps.env.executor.kind },
     ledger,
     claude: {
       todayMicros: spend.reduce((s, r) => s + Number(r.micros), 0),

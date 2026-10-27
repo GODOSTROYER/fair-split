@@ -59,6 +59,7 @@ describe("GET /v1/ops/overview", () => {
     });
     expect(o.outbox.dead.find((d) => d.name === "explain")?.lastError).toBe("statement template refused");
     expect(o.limiter).toMatchObject({ perWindow: 40, backgroundPerWindow: 20, circuitOpen: false });
+    expect(o.dispatcher).toEqual({ running: false, executor: "inline" });
   });
 
   it("a judge sees only their own workspace, re-verifies its chain, and reads no other tenant's errors", async () => {
@@ -187,7 +188,7 @@ describe("treasurer web-key registration (POST /v1/ops/keys)", () => {
     };
   };
 
-  it("registers the key with proof of possession: device_keys and a key.registered ledger entry, together", async () => {
+  it("inv.i6.human-gate: registers the key only with the operator and the browser's proof of possession, on the chain", async () => {
     const r = await t.json<{ key: OfficerKey; registered: boolean; ledgerSeq: number }>("/v1/ops/keys", {
       method: "POST",
       body: body(),

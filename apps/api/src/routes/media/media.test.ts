@@ -76,7 +76,7 @@ describe("GET /media/archived/:photoId.svg", () => {
 });
 
 describe("GET /v1/media/audio/:lineId", () => {
-  it("names the synthetic Gemini clip when the manifest has one (labelled), else the device's voice", async () => {
+  it("inv.i8.labels: names the synthetic Gemini clip when the manifest has one, else the device's voice", async () => {
     const link = t.credentials.memberLink({
       workspaceId: w.workspaceId,
       lineId: must(w.lineIds.get("M-014")),

@@ -119,6 +119,17 @@ describe("Proof of the seeded showcase (seeded keys: Sample)", () => {
     expect(att.body.verification.plates.payoutItems.ok).toBe(true);
   });
 
+  it("inv.i2.rules-before-facts: the card was ratified before the first slip, by date and in chain order", async () => {
+    const r = await t.json<unknown>(`/v1/proof/${w.runSlug}`);
+    const { bundle } = ProofResponse.parse(r.body);
+    expect(bundle.rateCard.ratifiedAt.slice(0, 10) <= bundle.firstSlipDate).toBe(true);
+    const ratified = must(bundle.ledger.find((e) => e.kind === "rate_card.ratified"));
+    const accepted = bundle.ledger.filter((e) => e.kind === "rows.accepted");
+    expect(accepted.length).toBe(bundle.documents.length);
+    expect(accepted.every((e) => e.seq > ratified.seq)).toBe(true);
+    expect((ratified.payload as { rateCardSha256: string }).rateCardSha256).toBe(bundle.rateCard.sha256);
+  });
+
   it("signs a checkpoint over the ledger head, never dated before it (the clock is behind the film's timeline)", async () => {
     expect(t.clock.now().toISOString() < must(getProof().ledger.at(-1)).at).toBe(true);
     const r = await t.json<unknown>(`/v1/proof/${w.runSlug}`);

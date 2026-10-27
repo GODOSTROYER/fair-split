@@ -84,7 +84,7 @@ describe("GET /v1/proof/:runSlug/metrics", () => {
 });
 
 describe("GET /v1/proof/:runSlug/events (public, aggregates only)", () => {
-  it("moves the counters forward on run and item events; never sends an item, a member or a receiver", async () => {
+  it("inv.i5.forward-only: moves counters forward on run and item events; never sends an item, member or receiver", async () => {
     const { response, reader } = await t.sse(`/v1/proof/${w.runSlug}/events`);
     expect(response.status).toBe(200);
     const next = reader.next(10_000);
