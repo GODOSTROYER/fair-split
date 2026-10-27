@@ -23,7 +23,17 @@ corepack pnpm --filter @fairsplit/api test          # embedded Postgres, no netw
 corepack pnpm --filter @fairsplit/api typecheck
 corepack pnpm --filter @fairsplit/api openapi > openapi.json   # the document, no database needed
 DATABASE_URL=postgres://… corepack pnpm --filter @fairsplit/api dev   # local server on :8787
+corepack pnpm --filter @fairsplit/api smoke         # boot fs-api on embedded Postgres, smoke every route
+corepack pnpm --filter @fairsplit/api smoke -- --dist   # the same against the bundle (after `build`)
 ```
+
+**Smoke** (`src/smoke`): boots fs-api in its own process the way Render does (fresh migrated database,
+`PP_MODE=simulator`, throwaway secrets made for the run and never printed), then drives it over HTTP: health and
+readiness, the OpenAPI document and `/v1/docs`, `/.well-known/fairsplit-keys.json`, a judge session, every IC-01
+command through the typed client (a success must parse with the contract, a refusal must be one of the command's
+listed codes; a 501, a 500 or drift fails), the run, workspace, line and Proof streams (each event parsed as a
+`RunEvent`), `/ops` sign-in, a brand link, the judge code and Reset. `--url <origin>` smokes a running server,
+`--sim-url <origin>` points the rail at a running simulator, `--json <file>` writes the report.
 
 `pnpm build` bundles `dist/index.js` (tsdown inlines the `@fairsplit/*` packages); Render starts
 `node apps/api/dist/index.js` and binds `0.0.0.0:$PORT`. SIGTERM drains: streams end (clients replay from
