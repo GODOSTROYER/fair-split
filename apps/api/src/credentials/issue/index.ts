@@ -1,7 +1,9 @@
 // Credential issuance (judge slice). The verify side is src/credentials/verify (shell); both use one codec.
 // Other slices import from here, never from the files below:
 //   - PROOF (print, statements): `issueMemberLink` + `recordLinkIssued` for the 80 mm slip and the statement;
-//   - the shell's server.ts: `dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) })`.
+//     a route that returns a link calls `refuseReplayOfSecret(ctx.header)` first (no secret in idempotency_keys);
+//   - the shell's server.ts: `dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) })`, so a
+//     revoked statement link stops opening every route, not only GET /v1/credential.
 export {
   type JudgeCookieRead,
   judgeCookieValue,
@@ -40,12 +42,14 @@ export {
   isPairingToken,
   PAIRING_TOKEN_PREFIX,
   type PairingLookup,
+  pairingCap,
   pairingTokenSha256,
 } from "./pairing.js";
 export {
   canIssue,
   ISSUER_ROLES,
   isPairableRole,
+  mayPair,
   PAIRABLE_ROLES,
   type PairableRole,
   type PersonaRef,
@@ -53,6 +57,7 @@ export {
   parsePersonaRef,
   resolvePersona,
 } from "./personas.js";
+export { refuseReplayOfSecret } from "./secrets.js";
 export {
   CONSOLE_PERSONA,
   type MintedToken,

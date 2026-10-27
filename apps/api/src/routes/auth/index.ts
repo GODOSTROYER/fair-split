@@ -6,9 +6,16 @@
 // `GET /v1/credential` with the link as the bearer (that is the link exchange; revocation is checked there).
 // Wire formats live in src/credentials/verify/codec.ts; issuance helpers in src/credentials/issue.
 // IC-01 commands here: createPairing, claimPairing.
-import { appendLedger, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
+//
+// Two rules hold for every route here that returns a secret: it refuses an Idempotency-Key (the shell would
+// store the secret for replay; `refuseReplayOfSecret`), and the credential it mints never outlives the one
+// that asked (a pairing's device token is capped by its issuer's expiry). Outside Judge Mode the treasurer
+// pairs only itself, clerks and members; the operator pairs the other officers (`POST /v1/ops/pairing`).
+import { CreatePairingResponse } from "@fairsplit/contracts";
+import { appendLedger, schema, systemScope, type WorkspaceScope, withWorkspaceTx } from "@fairsplit/db";
 import { and, desc, eq } from "drizzle-orm";
 import {
+  type CreatedPairing,
   canIssue,
   clearOperatorCookie,
   consumePairing,
@@ -18,17 +25,26 @@ import {
   issueBrandLink,
   issueMemberLink,
   linkWasIssued,
+  mayPair,
   mintBearerToken,
+  type PersonaRef,
   type PersonaResult,
+  pairingCap,
   parsePersonaRef,
   recordLinkIssued,
+  refuseReplayOfSecret,
   resolvePersona,
   revokeLink,
   sessionOfWorkspace,
   setOperatorCookie,
   verifyOperatorPassword,
 } from "../../credentials/issue/index.js";
-import { actorOf, type Credential, type JudgeSessionCredential } from "../../credentials/verify/index.js";
+import {
+  actorOf,
+  type Credential,
+  DEVICE_TOKEN_TTL_MS,
+  type JudgeSessionCredential,
+} from "../../credentials/verify/index.js";
 import { JUDGE_RATE_RULES } from "../../judge/runtime.js";
 import {
   BrandLinkRequest,
@@ -40,10 +56,11 @@ import {
   OkResponse,
   OpsLoginRequest,
   OpsLoginResponse,
+  OpsPairingRequest,
   RevokeLinkRequest,
   RevokeLinkResponse,
 } from "../../judge/schemas.js";
-import { requireOwnSession, workspaceAlive, workspaceRow } from "../../judge/session.js";
+import { requireOwnSession, type WorkspaceRow, workspaceAlive, workspaceRow } from "../../judge/session.js";
 import { clientIp, hashedClientIp } from "../../lib/client-ip.js";
 import { reply } from "../../lib/command.js";
 import type { AppContext, AppDeps } from "../../lib/context.js";
@@ -81,6 +98,40 @@ function credentialKey(cred: Credential): string {
   }
 }
 
+/**
+ * Writes a pairing and its `pairing.created` ledger entry in one transaction. `capAt` is the issuing
+ * credential's own expiry (null for the operator): the pairing, and the device token claimed from it,
+ * never outlive it.
+ */
+async function makePairing(
+  deps: AppDeps,
+  o: { scope: WorkspaceScope; ws: WorkspaceRow; ref: PersonaRef; now: Date; capAt: Date | null },
+): Promise<CreatedPairing> {
+  return withWorkspaceTx(deps.db, o.scope, async (tx) => {
+    const p = await createPairingRow(tx, {
+      keys: deps.credentials.keys,
+      publicOrigin: deps.env.publicOrigin,
+      workspaceId: o.ws.id,
+      ref: o.ref,
+      now: o.now,
+      workspaceExpiresAt: o.ws.expiresAt,
+      capAt: o.capAt,
+    });
+    await appendLedger(tx, o.scope, {
+      kind: "pairing.created",
+      payload: {
+        pairingId: p.id,
+        role: o.ref.role,
+        persona: o.ref.persona,
+        exp: p.expiresAt.toISOString(),
+        capAt: o.capAt?.toISOString() ?? null,
+      },
+      at: o.now,
+    });
+    return p;
+  });
+}
+
 async function newestRunSlug(deps: AppDeps, workspaceId: string): Promise<string | null> {
   const [row] = await deps.db
     .select({ runSlug: schema.payRuns.runSlug })
@@ -95,6 +146,7 @@ export default defineRouteFolder({
   folder: "auth",
   commands: {
     createPairing: async (ctx) => {
+      refuseReplayOfSecret(ctx.header);
       const { deps, credential: cred, input } = ctx;
       if (!canIssue(cred.role)) {
         throw problem.forbidden("Pairing a phone needs the treasurer's console or the judge stage.");
@@ -106,27 +158,14 @@ export default defineRouteFolder({
       const now = ctx.now();
       const ws = await workspaceRow(deps.db, cred.workspaceId);
       if (!workspaceAlive(ws, now)) throw problem.expired("This workspace has ended.");
-      const scope = ctx.scope;
-      const created = await withWorkspaceTx(deps.db, scope, async (tx) => {
-        const p = await createPairingRow(tx, {
-          keys: deps.credentials.keys,
-          publicOrigin: deps.env.publicOrigin,
-          workspaceId: cred.workspaceId,
-          ref: resolved.ref,
-          now,
-          workspaceExpiresAt: ws.expiresAt,
-        });
-        await appendLedger(tx, scope, {
-          kind: "pairing.created",
-          payload: {
-            pairingId: p.id,
-            role: resolved.ref.role,
-            persona: resolved.ref.persona,
-            exp: p.expiresAt.toISOString(),
-          },
-          at: now,
-        });
-        return p;
+      const may = mayPair({ role: cred.role, persona: cred.persona }, resolved.ref, ws.kind);
+      if (!may.ok) throw problem.forbidden(may.message);
+      const created = await makePairing(deps, {
+        scope: ctx.scope,
+        ws,
+        ref: resolved.ref,
+        now,
+        capAt: cred.expiresAt,
       });
       return reply(201, {
         url: created.url,
@@ -136,6 +175,7 @@ export default defineRouteFolder({
     },
 
     claimPairing: async (ctx) => {
+      refuseReplayOfSecret(ctx.header);
       const { deps, input } = ctx;
       const now = ctx.now();
       const perIp = deps.rateLimits.take(RATE_RULES.pairingClaim, ipOf(ctx.c, deps));
@@ -157,6 +197,11 @@ export default defineRouteFolder({
       if (!workspaceAlive(ws, now)) throw pairingInvalid("This session has ended. Make a new pairing.");
       const minted = await withWorkspaceTx(deps.db, row.workspaceId, async (tx) => {
         if (!(await consumePairing(tx, row.id, now))) throw pairingInvalid();
+        // never past the credential that made the pairing (S3.8: a 2 h console token never becomes 30 days)
+        const cap = await pairingCap(tx, row.workspaceId, row.id);
+        if (cap && cap.getTime() <= now.getTime()) {
+          throw pairingInvalid("The credential that made this pairing has ended. Make a new one.");
+        }
         const sessionId = await sessionOfWorkspace(tx, row.workspaceId);
         const token = await mintBearerToken(tx, {
           workspaceId: row.workspaceId,
@@ -167,6 +212,7 @@ export default defineRouteFolder({
           sessionId,
           now,
           workspaceExpiresAt: ws.expiresAt,
+          ...(cap ? { ttlMs: Math.min(DEVICE_TOKEN_TTL_MS, cap.getTime() - now.getTime()) } : {}),
         });
         const actor = {
           kind: "human" as const,
@@ -212,6 +258,7 @@ export default defineRouteFolder({
         errors: ["RATE_LIMITED"],
       },
       async (ctx) => {
+        refuseReplayOfSecret(ctx.header);
         requireOwnSession(ctx.credential, ctx.params.sid);
         const cred = ctx.credential as JudgeSessionCredential;
         const deps = ctx.deps;
@@ -293,6 +340,47 @@ export default defineRouteFolder({
 
     r.route(
       {
+        method: "POST",
+        path: "/v1/ops/pairing",
+        auth: "operator",
+        name: "opsPairing",
+        summary:
+          "Pair an officer's phone in a live workspace (operator only; the treasurer pairs only itself, clerks and members)",
+        description:
+          "Outside Judge Mode the Chair, the brand and any other treasurer are paired by the operator, never by another officer (S3.8 separation of duties). Single use, 10 minutes; the claim is POST /v1/pairing/claim.",
+        request: OpsPairingRequest,
+        response: CreatePairingResponse,
+        success: [201],
+        errors: ["RATE_LIMITED"],
+      },
+      async (ctx) => {
+        refuseReplayOfSecret(ctx.header);
+        const deps = ctx.deps;
+        const limit = deps.rateLimits.take(JUDGE_RATE_RULES.opsPairing, "operator");
+        if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
+        const now = ctx.now();
+        const ws = await workspaceRow(deps.db, ctx.input.workspaceId);
+        if (!workspaceAlive(ws, now)) throw problem.notFound("No such workspace.");
+        const resolved = await resolvePersona(deps.db, ws.id, ctx.input);
+        if (!resolved.ok) throw personaProblem(resolved);
+        const created = await makePairing(deps, {
+          scope: systemScope(ws.id, { kind: "human", id: "operator" }),
+          ws,
+          ref: resolved.ref,
+          now,
+          capAt: null,
+        });
+        ctx.log.info({ workspaceId: ws.id, role: resolved.ref.role }, "operator made a pairing");
+        return reply(201, {
+          url: created.url,
+          code6: created.code6,
+          expiresAt: created.expiresAt.toISOString(),
+        });
+      },
+    );
+
+    r.route(
+      {
         method: "GET",
         path: "/v1/credential",
         auth: "public",
@@ -368,6 +456,7 @@ export default defineRouteFolder({
         errors: ["RATE_LIMITED"],
       },
       async (ctx) => {
+        refuseReplayOfSecret(ctx.header);
         const { deps, credential: cred } = ctx;
         if (!canIssue(cred.role)) throw problem.forbidden("Statement links come from the treasurer.");
         const limit = deps.rateLimits.take(JUDGE_RATE_RULES.links, credentialKey(cred));
@@ -417,8 +506,8 @@ export default defineRouteFolder({
       async (ctx) => {
         const { deps, credential: cred } = ctx;
         if (!canIssue(cred.role)) throw problem.forbidden("Statement links are revoked by the treasurer.");
-        if (!(await linkWasIssued(deps.db, cred.workspaceId, ctx.input.jti))) {
-          throw problem.notFound("No link with that id was issued in this workspace.");
+        if (!(await linkWasIssued(deps.db, cred.workspaceId, ctx.input.jti, "member"))) {
+          throw problem.notFound("No statement link with that id was issued in this workspace.");
         }
         const revoked = await withWorkspaceTx(deps.db, ctx.scope, (tx) =>
           revokeLink(tx, ctx.scope, { jti: ctx.input.jti, at: ctx.now() }),
@@ -437,9 +526,13 @@ export default defineRouteFolder({
         request: BrandLinkRequest,
         response: LinkResponse,
         success: [201],
+        errors: ["RATE_LIMITED"],
       },
       async (ctx) => {
+        refuseReplayOfSecret(ctx.header);
         const deps = ctx.deps;
+        const limit = deps.rateLimits.take(JUDGE_RATE_RULES.brandLinks, "operator");
+        if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
         const now = ctx.now();
         // The operator has no workspace of its own: it names one, and only an existing, live one.
         const ws = await workspaceRow(deps.db, ctx.input.workspaceId);

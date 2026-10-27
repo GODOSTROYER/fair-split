@@ -21,6 +21,32 @@ export function canIssue(role: Role): boolean {
   return (ISSUER_ROLES as readonly string[]).includes(role);
 }
 
+/**
+ * Who may pair a phone for which persona (S3.8 role table; separation of duties). In a judge workspace the
+ * judge acts as every persona of their own workspace, so the stage and its console pair any of them.
+ * Elsewhere (showcase, real) the treasurer pairs only its own persona, clerks and members: the Chair (the
+ * second key), the brand and any other treasurer are paired by the operator (`POST /v1/ops/pairing`), so
+ * one officer's credential can never become another officer's.
+ */
+export function mayPair(
+  issuer: { role: Role; persona: string },
+  target: Pick<PersonaRef, "role" | "persona">,
+  workspaceKind: string,
+): { ok: true } | { ok: false; message: string } {
+  if (!canIssue(issuer.role)) {
+    return { ok: false, message: "Pairing a phone needs the treasurer's console or the judge stage." };
+  }
+  if (workspaceKind === "judge") return { ok: true };
+  if (target.role === "member" || target.role === "clerk") return { ok: true };
+  if (issuer.role === "treasurer" && target.role === "treasurer" && target.persona === issuer.persona) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    message: `Outside Judge Mode the operator pairs ${target.role}:${target.persona}'s phone (/ops), never another officer.`,
+  };
+}
+
 export interface PersonaRef {
   role: PairableRole;
   /** `analyn`, `ernesto`, `M-014`… (the actor id is `{role}:{persona}`) */

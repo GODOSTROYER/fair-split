@@ -9,7 +9,7 @@
 import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
 import type { Role } from "@fairsplit/contracts";
 import { type DbOrTx, schema, uuidv7 } from "@fairsplit/db";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { CredentialKeys } from "../verify/index.js";
 import { PAIRING_TTL_MS } from "../verify/index.js";
 import type { PersonaRef } from "./personas.js";
@@ -68,7 +68,12 @@ const columns = {
   usedAt: schema.pairingTokens.usedAt,
 };
 
-/** Inserts a pairing (10 minutes, never past the workspace's end). */
+/**
+ * Inserts a pairing: 10 minutes, never past the workspace's end, and never past `capAt`, the expiry of the
+ * credential that issued it (null for the operator). The issuing route records `capAt` in its
+ * `pairing.created` ledger entry, and the claim caps the device token by it (`pairingCap`), so a credential
+ * can never mint one that outlives it, however often a phone pairs itself again.
+ */
 export async function createPairingRow(
   tx: DbOrTx,
   o: {
@@ -78,10 +83,15 @@ export async function createPairingRow(
     ref: PersonaRef;
     now: Date;
     workspaceExpiresAt: Date | null;
+    capAt?: Date | null;
   },
 ): Promise<CreatedPairing> {
   const expiresAt = new Date(
-    Math.min(o.now.getTime() + PAIRING_TTL_MS, o.workspaceExpiresAt?.getTime() ?? Number.POSITIVE_INFINITY),
+    Math.min(
+      o.now.getTime() + PAIRING_TTL_MS,
+      o.workspaceExpiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+      o.capAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    ),
   );
   if (expiresAt.getTime() <= o.now.getTime()) throw new RangeError("createPairing: the workspace has ended");
   // A code is claimed without naming a workspace, so it must be unique among live codes everywhere.
@@ -159,6 +169,30 @@ export async function findPairing(
   if (rows.length > 1) return { ok: false, reason: "ambiguous" };
   const row = rows[0] as (typeof rows)[number];
   return { ok: true, row: { ...row, role: row.role as Role }, via: "code6" };
+}
+
+/**
+ * The latest moment a credential claimed from this pairing may live: the issuing credential's own expiry,
+ * as its `pairing.created` ledger entry recorded it. Null when the issuer was the operator (or for a
+ * pairing recorded before caps existed): the workspace's end and the device lifetime still apply.
+ */
+export async function pairingCap(db: DbOrTx, workspaceId: string, pairingId: string): Promise<Date | null> {
+  const le = schema.ledgerEntries;
+  const [row] = await db
+    .select({ capAt: sql<string | null>`${le.payload}->>'capAt'` })
+    .from(le)
+    .where(
+      and(
+        eq(le.workspaceId, workspaceId),
+        eq(le.kind, "pairing.created"),
+        sql`${le.payload}->>'pairingId' = ${pairingId}`,
+      ),
+    )
+    .limit(1);
+  if (!row?.capAt) return null;
+  const at = new Date(row.capAt);
+  // an unreadable cap is treated as already passed: refuse rather than mint an uncapped token
+  return Number.isNaN(at.getTime()) ? new Date(0) : at;
 }
 
 /** Compare-and-set: marks the pairing used. False when another claim won or it expired meanwhile. */

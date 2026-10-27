@@ -115,14 +115,27 @@ export async function isLinkRevoked(db: DbOrTx, jti: string): Promise<boolean> {
   return !!row;
 }
 
-/** True when a `link.issued` entry for this jti exists in the workspace (a revocation must name a real link). */
-export async function linkWasIssued(db: DbOrTx, workspaceId: string, jti: string): Promise<boolean> {
+/**
+ * True when a `link.issued` entry for this jti (of this kind, when given) exists in the workspace: a
+ * revocation must name a real link, and the treasurer's statement-link revoke names a member link only.
+ */
+export async function linkWasIssued(
+  db: DbOrTx,
+  workspaceId: string,
+  jti: string,
+  kind?: LinkKind,
+): Promise<boolean> {
   const le = schema.ledgerEntries;
   const [row] = await db
     .select({ id: le.id })
     .from(le)
     .where(
-      and(eq(le.workspaceId, workspaceId), eq(le.kind, "link.issued"), sql`${le.payload}->>'jti' = ${jti}`),
+      and(
+        eq(le.workspaceId, workspaceId),
+        eq(le.kind, "link.issued"),
+        sql`${le.payload}->>'jti' = ${jti}`,
+        ...(kind ? [sql`${le.payload}->>'kind' = ${kind}`] : []),
+      ),
     )
     .limit(1);
   return !!row;

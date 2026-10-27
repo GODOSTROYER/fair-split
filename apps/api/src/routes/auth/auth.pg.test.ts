@@ -4,9 +4,14 @@ import { ApiError, ClaimPairingResponse, CreatePairingResponse } from "@fairspli
 import { schema } from "@fairsplit/db";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { hashOperatorPassword } from "../../credentials/issue/index.js";
+import { hashOperatorPassword, isLinkRevoked } from "../../credentials/issue/index.js";
 import { code6Digest } from "../../credentials/issue/pairing.js";
-import { JUDGE_COOKIE, OPERATOR_COOKIE } from "../../credentials/verify/index.js";
+import {
+  createCredentialResolver,
+  dbCredentialStore,
+  JUDGE_COOKIE,
+  OPERATOR_COOKIE,
+} from "../../credentials/verify/index.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
 
 type PairingBody = ReturnType<typeof CreatePairingResponse.parse>;
@@ -135,29 +140,24 @@ describe("POST /v1/pairing (createPairing)", () => {
     expect(ApiError.parse(after.body).code).toBe("FRAME_TOKEN_EXPIRED");
   });
 
-  it("replays an Idempotency-Key retry instead of making a second pairing", async () => {
+  it("400 VALIDATION_FAILED for an Idempotency-Key: a minted secret is never stored for replay", async () => {
     const s = await session();
-    const headers = { "idempotency-key": "pair-retry-1" };
-    const body = { persona: "jessie", role: "clerk" };
-    const a = await t.json<PairingBody>("/v1/pairing", {
+    const r = await t.json<ApiError>("/v1/pairing", {
       method: "POST",
-      body,
-      headers,
+      body: { persona: "jessie", role: "clerk" },
+      headers: { "idempotency-key": "pair-retry-1" },
       as: bearer(s.consoleToken),
     });
-    const b = await t.json<PairingBody>("/v1/pairing", {
-      method: "POST",
-      body,
-      headers,
-      as: bearer(s.consoleToken),
+    expect(r.status).toBe(400);
+    expect(ApiError.parse(r.body)).toMatchObject({
+      code: "VALIDATION_FAILED",
+      details: { issues: [{ path: "headers.idempotency-key" }] },
     });
-    expect(b.headers.get("idempotent-replayed")).toBe("true");
-    expect(b.body).toEqual(a.body);
     const rows = await t.deps.db
       .select({ id: schema.pairingTokens.id })
       .from(schema.pairingTokens)
       .where(eq(schema.pairingTokens.workspaceId, s.workspaceId));
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(0);
   });
 });
 
@@ -570,5 +570,379 @@ describe("GET /v1/credential", () => {
       headers: { cookie: `${JUDGE_COOKIE.name}=${s.cookie}x` },
     });
     expect(tampered.status).toBe(401);
+  });
+});
+
+describe("who may issue for whom (S3.8 roles; separation of duties)", () => {
+  /** A showcase workspace with its officers: outside Judge Mode no officer may stand in for another. */
+  async function showcase() {
+    const fx = await t.fixture({ kind: "showcase" });
+    const owner = t.pg?.owner.db;
+    if (!owner) throw new Error("no database");
+    await owner.insert(schema.memberships).values(
+      (
+        [
+          ["treasurer", "analyn"],
+          ["treasurer", "rosa"],
+          ["board", "ernesto"],
+          ["clerk", "jessie"],
+          ["brand", "dana"],
+        ] as const
+      ).map(([role, persona]) => ({ workspaceId: fx.workspaceId, role, persona })),
+    );
+    const treasurer = await t.credentials.frameToken({
+      workspaceId: fx.workspaceId,
+      role: "treasurer",
+      persona: "analyn",
+    });
+    return { workspaceId: fx.workspaceId, treasurer };
+  }
+
+  it("outside Judge Mode the treasurer pairs only itself, clerks and members (403 for the Chair, the brand, another treasurer)", async () => {
+    const w = await showcase();
+    const as = bearer(w.treasurer);
+    for (const body of [
+      { persona: "ernesto", role: "board" },
+      { persona: "dana", role: "brand" },
+      { persona: "rosa", role: "treasurer" },
+    ]) {
+      const r = await t.json<ApiError>("/v1/pairing", { method: "POST", body, as });
+      expect(r.status, JSON.stringify(body)).toBe(403);
+      expect(ApiError.parse(r.body).code).toBe("FORBIDDEN");
+    }
+    for (const body of [
+      { persona: "analyn", role: "treasurer" },
+      { persona: "jessie", role: "clerk" },
+      { persona: "M-001", role: "member", memberNo: "M-001" },
+    ]) {
+      const r = await t.json<PairingBody>("/v1/pairing", { method: "POST", body, as });
+      expect(r.status, JSON.stringify(body)).toBe(201);
+    }
+  });
+
+  it("the operator pairs any officer of a live workspace; the claim acts as that officer", async () => {
+    const w = await showcase();
+    const login = await t.json("/v1/ops/login", { method: "POST", body: { password: PASSWORD } });
+    const ops = t.credentials.operator(
+      /fs_ops=([^;]+)/.exec(login.headers.get("set-cookie") ?? "")?.[1] ?? "",
+    );
+    const r = await t.json<PairingBody>("/v1/ops/pairing", {
+      method: "POST",
+      body: { workspaceId: w.workspaceId, persona: "ernesto", role: "board" },
+      as: ops,
+    });
+    expect(r.status).toBe(201);
+    const p = CreatePairingResponse.parse(r.body);
+    const claimed = await t.json<ClaimBody>("/v1/pairing/claim", {
+      method: "POST",
+      body: { token: p.url.split("#t=")[1] },
+    });
+    expect(claimed.status).toBe(200);
+    expect(ClaimPairingResponse.parse(claimed.body)).toMatchObject({
+      role: "board",
+      persona: "ernesto",
+      workspaceId: w.workspaceId,
+    });
+    // a showcase workspace never ends: the phone keeps the full 30 days
+    expect(Date.parse(claimed.body.expiresAt) - t.clock.nowMs()).toBe(30 * 86_400_000);
+    // nobody else may use the operator's door; an unknown workspace is 404; a secret is never replayed
+    const notOps = await t.json<ApiError>("/v1/ops/pairing", {
+      method: "POST",
+      body: { workspaceId: w.workspaceId, persona: "ernesto", role: "board" },
+      as: bearer(w.treasurer),
+    });
+    expect(notOps.status).toBe(403);
+    const unknown = await t.json<ApiError>("/v1/ops/pairing", {
+      method: "POST",
+      body: { workspaceId: "0192f8a0-0000-7000-8000-00000000dead", persona: "ernesto", role: "board" },
+      as: ops,
+    });
+    expect(unknown.status).toBe(404);
+    const keyed = await t.json<ApiError>("/v1/ops/pairing", {
+      method: "POST",
+      body: { workspaceId: w.workspaceId, persona: "jessie", role: "clerk" },
+      headers: { "idempotency-key": "ops-pair-1" },
+      as: ops,
+    });
+    expect(keyed.status).toBe(400);
+  });
+
+  it("a credential never mints one that outlives it: a phone paired from a 2 h console token ends with it", async () => {
+    const s = await session();
+    const consoleExp = (await t.json<{ expiresAt: string }>("/v1/credential", { as: bearer(s.consoleToken) }))
+      .body.expiresAt;
+    const fromConsole = CreatePairingResponse.parse(
+      (await pair(s, { persona: "ernesto", role: "board" })).body,
+    );
+    const fromStage = CreatePairingResponse.parse(
+      (await pair(s, { persona: "jessie", role: "clerk" }, judge(s))).body,
+    );
+    const claim = async (p: PairingBody) =>
+      t.json<ClaimBody & ApiError>("/v1/pairing/claim", {
+        method: "POST",
+        body: { token: p.url.split("#t=")[1] },
+      });
+    const chair = await claim(fromConsole);
+    expect(chair.status).toBe(200);
+    expect(chair.body.expiresAt).toBe(consoleExp);
+    // the stage's cookie lives as long as the workspace (to the second): so does the phone it pairs
+    const stageExp = (await t.json<{ expiresAt: string }>("/v1/credential", { as: judge(s) })).body.expiresAt;
+    const clerk = await claim(fromStage);
+    expect(clerk.body.expiresAt).toBe(stageExp);
+    expect(Date.parse(stageExp) - t.clock.nowMs()).toBeGreaterThan(24 * 3_600_000 - 1_000);
+    // and a chain of self-pairings never extends it: the Chair's phone pairs a member, capped again
+    const chained = await t.json<PairingBody>("/v1/pairing", {
+      method: "POST",
+      body: { persona: "M-014", role: "member", memberNo: "M-014" },
+      as: bearer(chair.body.token),
+    });
+    expect(chained.status).toBe(403); // the Chair does not issue credentials at all
+    const treasurerPhone = await claim(
+      CreatePairingResponse.parse((await pair(s, { persona: "analyn", role: "treasurer" })).body),
+    );
+    const viaPhone = await t.json<PairingBody>("/v1/pairing", {
+      method: "POST",
+      body: { persona: "M-014", role: "member", memberNo: "M-014" },
+      as: bearer(treasurerPhone.body.token),
+    });
+    const member = await claim(CreatePairingResponse.parse(viaPhone.body));
+    expect(Date.parse(member.body.expiresAt)).toBeLessThanOrEqual(Date.parse(treasurerPhone.body.expiresAt));
+    expect(member.body.expiresAt).toBe(consoleExp);
+  });
+
+  it("410 PAIRING_TOKEN_INVALID when the credential that made the pairing has ended before the claim", async () => {
+    const s = await session();
+    const brief = await t.credentials.frameToken({
+      workspaceId: s.workspaceId,
+      role: "treasurer",
+      persona: "analyn",
+      sessionId: s.sessionId,
+      expiresAt: new Date(t.clock.nowMs() + 5 * 60_000),
+    });
+    const p = CreatePairingResponse.parse(
+      (await pair(s, { persona: "ernesto", role: "board" }, bearer(brief))).body,
+    );
+    // a pairing never outlives its issuer either
+    expect(Date.parse(p.expiresAt) - t.clock.nowMs()).toBe(5 * 60_000);
+    t.clock.advance(5 * 60_000 + 1);
+    const late = await t.json<ApiError>("/v1/pairing/claim", { method: "POST", body: { code6: p.code6 } });
+    expect(late.status).toBe(410);
+    expect(ApiError.parse(late.body).code).toBe("PAIRING_TOKEN_INVALID");
+  });
+});
+
+describe("secrets are never stored or replayed", () => {
+  /** Every text and JSON column of every table that contains `needle`. */
+  async function columnsHolding(needle: string): Promise<string[]> {
+    const sql = t.pg?.owner.sql;
+    if (!sql) throw new Error("no database");
+    const cols = await sql<{ table_name: string; column_name: string }[]>`
+      select c.table_name, c.column_name from information_schema.columns c
+        join information_schema.tables tb on tb.table_name = c.table_name and tb.table_schema = c.table_schema
+       where c.table_schema = 'public' and tb.table_type = 'BASE TABLE'
+         and c.data_type in ('text', 'jsonb', 'json', 'character varying')`;
+    const hits: string[] = [];
+    for (const c of cols) {
+      const [row] = await sql.unsafe<{ n: number }[]>(
+        `select count(*)::int as n from "${c.table_name}" where "${c.column_name}"::text like $1`,
+        [`%${needle}%`],
+      );
+      if ((row?.n ?? 0) > 0) hits.push(`${c.table_name}.${c.column_name}`);
+    }
+    return hits;
+  }
+
+  it("every route that mints a secret refuses an Idempotency-Key, and no secret it minted is anywhere in the database", async () => {
+    const s = await session();
+    const login = await t.json("/v1/ops/login", { method: "POST", body: { password: PASSWORD } });
+    const ops = t.credentials.operator(
+      /fs_ops=([^;]+)/.exec(login.headers.get("set-cookie") ?? "")?.[1] ?? "",
+    );
+    const [member] = await t.deps.db
+      .select({ id: schema.members.id })
+      .from(schema.members)
+      .where(and(eq(schema.members.workspaceId, s.workspaceId), eq(schema.members.memberNo, "M-014")));
+    const [line] =
+      (await t.pg?.owner.db
+        .insert(schema.memberLines)
+        .values({
+          workspaceId: s.workspaceId,
+          runId: s.runId,
+          memberId: member?.id as string,
+          state: "READY",
+          rail: "ON",
+          currency: "USD",
+          verifiedG: 1000n,
+          grade1G: 1000n,
+          premiumCents: 3000n,
+          bonusCents: 1500n,
+          deductionsCents: 131n,
+          creditsCents: 0n,
+          netCents: 4369n,
+          deductions: [],
+          provenance: "replay",
+        })
+        .returning({ id: schema.memberLines.id })) ?? [];
+    const cookie = { cookie: `${JUDGE_COOKIE.name}=${s.cookie}` };
+    const routes: [string, unknown, Record<string, string>, ReturnType<typeof bearer> | undefined][] = [
+      ["/v1/judge/sessions", {}, cookie, undefined],
+      ["/v1/pairing", { persona: "ernesto", role: "board" }, {}, bearer(s.consoleToken)],
+      ["/v1/pairing/claim", { code6: "123456" }, {}, bearer(s.consoleToken)],
+      [`/v1/judge/sessions/${s.sessionId}/frames`, { persona: "board:ernesto" }, {}, judge(s)],
+      ["/v1/links/member", { lineId: line?.id }, {}, bearer(s.consoleToken)],
+      ["/v1/links/brand", { workspaceId: s.workspaceId }, {}, ops],
+      ["/v1/ops/pairing", { workspaceId: s.workspaceId, persona: "ernesto", role: "board" }, {}, ops],
+    ];
+    const minted: string[] = [s.consoleToken];
+    for (const [path, body, headers, as] of routes) {
+      const keyed = await t.json<ApiError>(path, {
+        method: "POST",
+        body,
+        headers: { ...headers, "idempotency-key": `k-${path}` },
+        ...(as ? { as } : {}),
+      });
+      expect(keyed.status, path).toBe(400);
+      expect(ApiError.parse(keyed.body).details).toMatchObject({
+        issues: [{ path: "headers.idempotency-key" }],
+      });
+      // without the key each one works, and returns its secret exactly once
+      const r = await t.json<Record<string, unknown>>(path, {
+        method: "POST",
+        body,
+        headers,
+        ...(as ? { as } : {}),
+      });
+      if (path === "/v1/pairing/claim") continue; // 123456 is no live code: 410, nothing minted
+      expect([200, 201], path).toContain(r.status);
+      const secret = (r.body.consoleToken ?? r.body.token ?? r.body.url) as string;
+      minted.push(
+        secret.includes("#t=") ? (secret.split("#t=")[1] as string) : (secret.split("/").at(-1) as string),
+      );
+    }
+    // a paired phone's device token too
+    const p = CreatePairingResponse.parse((await pair(s, { persona: "jessie", role: "clerk" })).body);
+    const device = await t.json<ClaimBody>("/v1/pairing/claim", { method: "POST", body: { code6: p.code6 } });
+    minted.push(device.body.token);
+    expect(minted.every((m) => m.length >= 20)).toBe(true);
+    for (const secret of minted) expect(await columnsHolding(secret), secret.slice(0, 4)).toEqual([]);
+  });
+});
+
+describe("links: revocation names a member link; brand links are throttled", () => {
+  it("wired as SPLIT.md asks (dbCredentialStore + isLinkRevoked), the shell's resolver refuses a revoked link on every route", async () => {
+    const s = await session();
+    const [member] = await t.deps.db
+      .select({ id: schema.members.id })
+      .from(schema.members)
+      .where(and(eq(schema.members.workspaceId, s.workspaceId), eq(schema.members.memberNo, "M-014")));
+    const [line] =
+      (await t.pg?.owner.db
+        .insert(schema.memberLines)
+        .values({
+          workspaceId: s.workspaceId,
+          runId: s.runId,
+          memberId: member?.id as string,
+          state: "READY",
+          rail: "ON",
+          currency: "USD",
+          verifiedG: 1000n,
+          grade1G: 1000n,
+          premiumCents: 3000n,
+          bonusCents: 1500n,
+          deductionsCents: 131n,
+          creditsCents: 0n,
+          netCents: 4369n,
+          deductions: [],
+          provenance: "replay",
+        })
+        .returning({ id: schema.memberLines.id })) ?? [];
+    const issued = await t.json<{ url: string; jti: string }>("/v1/links/member", {
+      method: "POST",
+      body: { lineId: line?.id },
+      as: bearer(s.consoleToken),
+    });
+    const token = issued.body.url.split("/s/")[1] as string;
+    const db = t.deps.db;
+    const resolver = createCredentialResolver({
+      store: dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) }),
+      keys: t.deps.credentials.keys,
+      clock: t.clock,
+    });
+    expect(await resolver.resolve({ authorization: `Bearer ${token}` })).toMatchObject({
+      kind: "ok",
+      credential: { kind: "member_link", jti: issued.body.jti },
+    });
+    await t.json("/v1/links/member/revoke", {
+      method: "POST",
+      body: { jti: issued.body.jti },
+      as: bearer(s.consoleToken),
+    });
+    const after = await resolver.resolve({ authorization: `Bearer ${token}` });
+    expect(after.kind).toBe("invalid");
+    if (after.kind === "invalid") expect(after.problem.code).toBe("UNAUTHENTICATED");
+  });
+
+  it("a brand link's id is not a statement link: the member revoke answers 404 and the brand link still opens", async () => {
+    const s = await session();
+    const login = await t.json("/v1/ops/login", { method: "POST", body: { password: PASSWORD } });
+    const ops = t.credentials.operator(
+      /fs_ops=([^;]+)/.exec(login.headers.get("set-cookie") ?? "")?.[1] ?? "",
+    );
+    const brand = await t.json<{ url: string; jti: string }>("/v1/links/brand", {
+      method: "POST",
+      body: { workspaceId: s.workspaceId },
+      as: ops,
+    });
+    const revoke = await t.json<ApiError>("/v1/links/member/revoke", {
+      method: "POST",
+      body: { jti: brand.body.jti },
+      as: bearer(s.consoleToken),
+    });
+    expect(revoke.status).toBe(404);
+    const opened = await t.json("/v1/credential", { as: bearer(brand.body.url.split("/b/")[1] as string) });
+    expect(opened.status).toBe(200);
+  });
+
+  it("429 RATE_LIMITED after twenty brand links in ten minutes", async () => {
+    const s = await session();
+    const login = await t.json("/v1/ops/login", { method: "POST", body: { password: PASSWORD } });
+    const ops = t.credentials.operator(
+      /fs_ops=([^;]+)/.exec(login.headers.get("set-cookie") ?? "")?.[1] ?? "",
+    );
+    for (let i = 0; i < 20; i++) {
+      const r = await t.json("/v1/links/brand", {
+        method: "POST",
+        body: { workspaceId: s.workspaceId },
+        as: ops,
+      });
+      expect(r.status).toBe(201);
+    }
+    const limited = await t.json<ApiError>("/v1/links/brand", {
+      method: "POST",
+      body: { workspaceId: s.workspaceId },
+      as: ops,
+    });
+    expect(limited.status).toBe(429);
+    expect(ApiError.parse(limited.body).code).toBe("RATE_LIMITED");
+  });
+});
+
+describe("operator sign-in cannot be locked out by guessers", () => {
+  it("thirty wrong guesses a minute from many networks never shut the operator out", async () => {
+    for (let n = 0; n < 6; n++) {
+      for (let i = 0; i < 5; i++) {
+        await t.json("/v1/ops/login", {
+          method: "POST",
+          body: { password: `guess-${n}-${i}` },
+          headers: { "true-client-ip": `203.0.113.${200 + n}` },
+        });
+      }
+    }
+    const ok = await t.json<{ ok: boolean }>("/v1/ops/login", {
+      method: "POST",
+      body: { password: PASSWORD },
+      headers: { "true-client-ip": "203.0.113.250" },
+    });
+    expect(ok.status).toBe(200);
   });
 });
