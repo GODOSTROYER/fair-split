@@ -17,38 +17,20 @@ import {
   itemCounts,
   lineAmountState,
   runStrip,
+  sessionView,
   showcaseView,
 } from "./run-view.js";
 
 const snapshot = seedSnapshot();
 
-/** A whole judge run from the mock world, in order (instant pace). */
+/** A whole judge run from the mock world, in order: funding, by-hand, three holds, two keys, the fan-out. */
 function judgeRun() {
   const world = createTestWorld();
-  const session = world.createJudgeSession();
-  world.markPaid(session.runSlug);
-  const h1 = world.holdIdFor(session.runSlug, "H1");
-  const h2 = world.holdIdFor(session.runSlug, "H2");
-  const h3 = world.holdIdFor(session.runSlug, "H3");
-  const field = world.byHandFieldId(session.runSlug);
-  if (!h1 || !h2 || !h3 || !field) throw new Error("the seed lost a hold");
-  world.enterField(field, { value: "64.80" });
-  world.resolveHold(h1, { resolution: "COUNT_ONCE" });
-  world.resolveHold(h2, {
-    resolution: "REGISTER_PLOT",
-    plot: { plotNo: "P-053-B", areaHa: "0.80", trees: 120 },
-  });
-  world.resolveHold(h3, { resolution: "RETURN_AS_CREDIT" });
-  const payload = world.approvalPayload(session.runSlug, "treasurer").payload;
-  world.submitApproval(session.runSlug, {
-    role: "treasurer",
-    keyId: "fs-analyn-w1",
-    signature: "a".repeat(128),
-    payload,
-  });
-  world.cosign(session.runSlug);
-  const events = world.eventsAfter(`run:${session.runSlug}`, null);
-  return { world, session, events };
+  world.markPaid();
+  world.resolveAll();
+  world.sign("treasurer");
+  world.cosign();
+  return { world, session: { runSlug: world.runSlug, runId: world.runId }, events: world.eventsAfter(null) };
 }
 
 describe("run view reducer", () => {
@@ -68,6 +50,13 @@ describe("run view reducer", () => {
     expect(view.events).toEqual([]);
   });
 
+  it("starts a judge session's run from the INVOICED clone, under the session's own run", () => {
+    const view = sessionView(snapshot, { runSlug: "2026A-r4170001", runId: snapshot.run.id });
+    expect(view).toMatchObject({ origin: "session", runSlug: "2026A-r4170001", state: "INVOICED" });
+    expect(view.invoice).toEqual(firstView(snapshot).invoice);
+    expect(view.lastEventId).toBeNull();
+  });
+
   it("reads the showcase run's end state from the seed", () => {
     const view = showcaseView(snapshot);
     expect(view.state).toBe(snapshot.run.state);
@@ -78,7 +67,7 @@ describe("run view reducer", () => {
 
   it("plays a whole judge run to settlement, with every hold resolved and both keys signed", () => {
     const { session, events } = judgeRun();
-    const view = applyRunEvents(emptyRunView(session.runSlug, "session"), events);
+    const view = applyRunEvents(sessionView(snapshot, session), events);
     expect(view.state).toBe("NEEDS_FOLLOW_UP");
     expect(blockingHolds(view)).toEqual([]);
     expect(view.approvals.treasurer?.role).toBe("treasurer");
@@ -86,7 +75,9 @@ describe("run view reducer", () => {
     const counts = itemCounts(view);
     expect(counts.total).toBe(snapshot.figures.batchItemCount);
     expect(counts.confirmed).toBe(snapshot.figures.batchItemCount - 1); // Rhea parks
-    expect(view.webhooks.duplicates).toBe(1);
+    // The mock reports item moves without webhook.received rows (reported to WS-API); count what it sent.
+    const deliveries = events.filter((e) => e.type === "webhook.received");
+    expect(view.webhooks.received).toBe(deliveries.length);
     expect(runStrip(view, true)).toMatchObject({
       RATIFIED: true,
       FUNDED: true,
@@ -100,14 +91,14 @@ describe("run view reducer", () => {
 
   it("inv.i5.replay: an event at or below the last applied ID changes nothing", () => {
     const { session, events } = judgeRun();
-    const view = applyRunEvents(emptyRunView(session.runSlug, "session"), events);
+    const view = applyRunEvents(sessionView(snapshot, session), events);
     const again = applyRunEvents(view, events);
     expect(again).toBe(view);
   });
 
   it("inv.i5.items-climb: a payout item never moves down in rank", () => {
     const { session, events } = judgeRun();
-    const view = applyRunEvents(emptyRunView(session.runSlug, "session"), events);
+    const view = applyRunEvents(sessionView(snapshot, session), events);
     const paid = Object.values(view.items).find((i) => i.status === "SUCCESS");
     if (!paid) throw new Error("no paid item");
     const late: RunEvent = {
@@ -133,6 +124,31 @@ describe("run view reducer", () => {
     const next = applyRunEvent(view, late);
     expect(next.items[paid.senderItemId]?.status).toBe("SUCCESS");
     expect(next.lines[paid.memberNo]?.state).toBe("PAID");
+  });
+
+  it("counts PayPal's webhook deliveries and a repeated one (dedupe shows, nothing moves twice)", () => {
+    const delivery = (id: string, duplicate: boolean): RunEvent => ({
+      id,
+      ws: "ws",
+      runId: null,
+      at: new Date().toISOString(),
+      actor: { kind: "paypal", id: "paypal:webhook", impersonatedBy: null },
+      provenance: "simulated_rail",
+      type: "webhook.received",
+      payload: {
+        webhookEventId: `wh-${id}`,
+        paypalEventId: "WH-MOCK-1",
+        eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+        verified: "self",
+        duplicate,
+      },
+    });
+    const view = applyRunEvents(emptyRunView("2026A-r4170009", "session"), [
+      delivery("1", false),
+      delivery("2", true),
+    ]);
+    expect(view.webhooks).toMatchObject({ received: 2, duplicates: 1 });
+    expect(view.webhooks.last).toMatchObject({ paypalEventId: "WH-MOCK-1", duplicate: true, eventId: "2" });
   });
 
   it("inv.i5.exit-final: a run that was cancelled, denied or halted stays there", () => {
@@ -164,7 +180,7 @@ describe("run view reducer", () => {
 
   it("amounts follow S2.2.1: pencil before approval, ink after, hollow in flight, landed when PayPal confirms", () => {
     const { session, events } = judgeRun();
-    const at = (n: number) => applyRunEvents(emptyRunView(session.runSlug, "session"), events.slice(0, n));
+    const at = (n: number) => applyRunEvents(sessionView(snapshot, session), events.slice(0, n));
     const approvedAt = events.findIndex((e) => e.type === "run.state" && e.payload.to === "APPROVED");
     const pendingAt = events.findIndex((e) => e.type === "item.updated" && e.payload.to === "PENDING");
     expect(lineAmountState(at(approvedAt), "M-014")).toBe("pencil");

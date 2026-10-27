@@ -5,8 +5,8 @@
 
 import type { RunEvent } from "@fairsplit/contracts";
 import type { QueryClient } from "@tanstack/react-query";
-import type { DataAdapter, StreamStatus } from "./adapter.js";
-import { queryKeys, runViewQuery } from "./query.js";
+import type { StreamStatus } from "./adapter.js";
+import { queryKeys, type RunViewDeps, runViewQuery } from "./query.js";
 import { applyRunEvent, type RunView } from "./run-view.js";
 
 export interface EventMeta {
@@ -35,11 +35,14 @@ export const REPLAY_SKEW_MS = 1500;
 export class StreamHub {
   private readonly channels = new Map<string, Channel>();
 
+  private readonly client: QueryClient;
+
   constructor(
-    private readonly adapter: DataAdapter,
-    private readonly client: QueryClient,
+    private readonly deps: RunViewDeps,
     private readonly now: () => number = () => Date.now(),
-  ) {}
+  ) {
+    this.client = deps.client;
+  }
 
   private channel(runSlug: string): Channel {
     let channel = this.channels.get(runSlug);
@@ -85,14 +88,14 @@ export class StreamHub {
     this.setStatus(channel, { kind: "connecting" });
     let base: RunView;
     try {
-      base = await this.client.ensureQueryData(runViewQuery(this.adapter, this.client, runSlug));
+      base = await this.client.ensureQueryData(runViewQuery(this.deps, runSlug));
     } catch {
       if (generation === channel.generation) this.setStatus(channel, { kind: "closed", reason: "not-found" });
       return;
     }
     if (channel.refs === 0 || generation !== channel.generation) return;
     channel.subscribedAt = this.now();
-    channel.stop = this.adapter.subscribe(
+    channel.stop = this.deps.adapter.subscribe(
       { kind: "run", runSlug },
       {
         onEvent: (event) => this.deliver(runSlug, channel, event),

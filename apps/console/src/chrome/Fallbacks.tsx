@@ -4,7 +4,7 @@
 import { Glyph } from "@fairsplit/ui-web";
 import { type ErrorComponentProps, Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { isApiRequestError } from "../data/errors.js";
+import { requestIdOf } from "../data/errors.js";
 import { Wordmark } from "./Wordmark.js";
 
 export function useDocumentTitle(title: string | null): void {
@@ -36,7 +36,7 @@ export function NotFound() {
 export function RouteError({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   useDocumentTitle("Something failed");
-  const requestId = isApiRequestError(error) ? error.error.requestId : undefined;
+  const requestId = requestIdOf(error);
   return (
     <main className="fsc-fallback" role="alert" data-testid="route-error" data-state="error">
       <Wordmark />

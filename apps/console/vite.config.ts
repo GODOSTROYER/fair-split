@@ -41,6 +41,9 @@ export default defineConfig(({ command, mode }) => {
     define: { __FS_DATA__: JSON.stringify(data) },
     // contracts carries its own copy of zod 4.6.7 (the root hoists zod 3 for paypal-*); one copy is enough.
     resolve: { dedupe: ["zod"] },
+    // The mock's handlers come from @fairsplit/api-client's source (imports "msw") while the worker starts from
+    // "msw/browser": pre-bundle both in one pass so they share one msw core (two copies never match a request).
+    optimizeDeps: data === "mock" ? { include: ["msw", "msw/browser"] } : undefined,
     plugins: [
       tanstackRouter({ target: "react", autoCodeSplitting: true, quoteStyle: "double", semicolons: true }),
       react(),

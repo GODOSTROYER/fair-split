@@ -7,18 +7,17 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, type RenderResult, render, waitFor } from "@testing-library/react";
 import { AppProviders } from "../chrome/AppProviders.js";
 import type { DataAdapter } from "../data/adapter.js";
-import type { MockWorld } from "../data/mock/world.js";
 import type { DataRuntime } from "../data/provider.js";
 import type { JudgeSession } from "../data/session.js";
 import { type ConsoleRouter, createConsoleRouter } from "../router.js";
 import { setViewport } from "./viewport.js";
-import { createTestRuntime, createTestWorld } from "./world.js";
+import { createTestRuntime, createTestWorld, type TestWorld } from "./world.js";
 
 export interface RenderConsoleOptions {
   /** Where the console opens (default `/judge`). */
   readonly path?: string;
   /** The world behind the API; a fresh one over the seed by default. */
-  readonly world?: MockWorld;
+  readonly world?: TestWorld;
   /** The motion renderer (default "full"; pass "reduced" for the reduced variants). */
   readonly motion?: MotionPreference;
   /** Window size before the first render (S1.6 layouts); default 1470 × 956. */
@@ -29,7 +28,7 @@ export interface RenderedConsole extends RenderResult {
   readonly router: ConsoleRouter;
   readonly runtime: DataRuntime;
   readonly adapter: DataAdapter;
-  readonly world: MockWorld;
+  readonly world: TestWorld;
   /** Navigates like a link would and waits for the route to settle. */
   navigate(path: string): Promise<void>;
   /** The first press: starts a judge session (createJudgeSession) and waits until the stage shows it. */

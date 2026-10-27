@@ -1,18 +1,19 @@
 // One SSE stream per run, shared by every screen (S3.7): the hub reduces events into the run's query data so
 // all surfaces see the same state at once (C-05), and flags history as replay so only live events may start a
-// moment (motion is evidence). The session store starts one judge session per press and forgets its token.
+// moment (motion is evidence). The session store starts one judge session per press and forgets its token;
+// the session's run starts from its own base, never from a showcase read cached under the same slug.
 
 import { describe, expect, it } from "vitest";
 import { createTestRuntime, createTestWorld } from "../test/world.js";
 import type { EventMeta } from "./hub.js";
-import { queryKeys } from "./query.js";
+import { queryKeys, runViewQuery } from "./query.js";
 import type { RunView } from "./run-view.js";
 
 describe("stream hub", () => {
   it("reduces a run's events into its query data, and flags history as replay", async () => {
     const { runtime, world } = createTestRuntime(createTestWorld());
     const session = await runtime.session.start();
-    world.markPaid(session.runSlug); // history: emitted before anyone subscribed
+    world.markPaid(); // history: emitted before anyone subscribed
     const seen: { type: string; meta: EventMeta }[] = [];
     runtime.hub.listen(session.runSlug, (event, meta) => seen.push({ type: event.type, meta }));
     const release = runtime.hub.acquire(session.runSlug);
@@ -20,12 +21,12 @@ describe("stream hub", () => {
       .poll(() => runtime.client.getQueryData<RunView>(queryKeys.run(session.runSlug))?.state)
       .toBe("IN_REVIEW");
     expect(runtime.hub.status(session.runSlug).kind).toBe("open");
+    expect(runtime.client.getQueryData<RunView>(queryKeys.run(session.runSlug))?.origin).toBe("session");
     // History replays without the replay flag only if it is recent; everything here is seconds old, so the
     // skew allowance keeps it live. A frame stamped well before the subscription counts as replay.
     expect(seen.length).toBeGreaterThan(0);
-    const h1 = world.holdIdFor(session.runSlug, "H1");
-    if (!h1) throw new Error("no H1");
-    world.resolveHold(h1, { resolution: "COUNT_ONCE" });
+    world.enterByHand();
+    world.resolve("H1");
     await expect.poll(() => seen.some((s) => s.type === "hold.resolved" && !s.meta.replay)).toBe(true);
     release();
     expect(runtime.hub.status(session.runSlug).kind).toBe("closed");
@@ -33,10 +34,10 @@ describe("stream hub", () => {
 
   it("marks events stamped before the subscription (beyond the skew allowance) as replay", async () => {
     let now = Date.now() - 60_000;
-    const world = createTestWorld({ now: () => now });
+    const world = createTestWorld({ now: () => new Date(now) });
     const { runtime } = createTestRuntime(world);
     const session = await runtime.session.start();
-    world.markPaid(session.runSlug);
+    world.markPaid();
     now = Date.now();
     const flags: boolean[] = [];
     runtime.hub.listen(session.runSlug, (_event, meta) => flags.push(meta.replay));
@@ -57,6 +58,17 @@ describe("stream hub", () => {
     b();
     expect(runtime.hub.status(session.runSlug).kind).toBe("closed");
   });
+
+  it("a session's run never starts from the showcase read cached under its slug", async () => {
+    const { runtime } = createTestRuntime();
+    // The mock's session reuses the showcase's slug (r37): read the showcase first, as /runs/2026A-r37 would.
+    const showcase = await runtime.client.fetchQuery(runViewQuery(runtime, "2026A-r37"));
+    expect(showcase.origin).toBe("showcase");
+    const session = await runtime.session.start();
+    expect(session.runSlug).toBe("2026A-r37");
+    const live = await runtime.client.fetchQuery(runViewQuery(runtime, session.runSlug));
+    expect(live).toMatchObject({ origin: "session", state: "INVOICED", lastEventId: null });
+  });
 });
 
 describe("judge session", () => {
@@ -65,15 +77,19 @@ describe("judge session", () => {
     const [a, b] = await Promise.all([runtime.session.start(), runtime.session.start()]);
     expect(a).toBe(b);
     expect(runtime.session.getState().status).toBe("active");
-    expect(world.sessionForRun(a.runSlug)).not.toBeNull();
+    world.markPaid();
+    expect(world.run.state).toBe("IN_REVIEW");
+    runtime.client.setQueryData(queryKeys.run(a.runSlug), { stale: true });
     await runtime.session.reset();
     expect(runtime.session.getState()).toEqual({ status: "none", session: null, error: null });
-    expect(world.sessionForRun(a.runSlug)).toBeNull();
+    // Reset returned the world to the first press and dropped the session run's cached view.
+    expect(world.run.state).toBe("INVOICED");
+    expect(world.events()).toEqual([]);
+    expect(runtime.client.getQueryData(queryKeys.run(a.runSlug))).toBeUndefined();
     // The token is gone: a command now needs a fresh session.
-    await expect(
-      adapter.call("markPaid", { params: { runSlug: a.runSlug }, body: {} }),
-    ).rejects.toMatchObject({
+    await expect(adapter.call("markPaid", { params: { runSlug: a.runSlug } })).rejects.toMatchObject({
       code: "UNAUTHENTICATED",
+      status: 401,
     });
   });
 

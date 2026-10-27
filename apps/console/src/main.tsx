@@ -1,5 +1,5 @@
 // Console entry: one Vite SPA served from the API's origin (register §4). It builds the data runtime (the
-// HTTP adapter over API_COMMANDS; in a mock build, a mock world over the seed snapshot answers it through
+// adapter over @fairsplit/api-client; in a mock build, api-client's seeded mock of fs-api answers it through
 // msw, or in memory where a service worker cannot run), the router, and the providers every surface shares.
 // WS-DS's /prototype keeps working under the same root.
 
@@ -8,7 +8,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AppProviders, motionFromLocation } from "./chrome/AppProviders.js";
 import type { DataAdapter } from "./data/adapter.js";
-import { createHttpAdapter } from "./data/http.js";
+import { createApiAdapter } from "./data/api.js";
 import { createDataRuntime } from "./data/provider.js";
 import { loadSnapshot } from "./data/snapshot.js";
 import { env } from "./lib/env.js";
@@ -23,7 +23,12 @@ async function createAdapter(): Promise<DataAdapter> {
     const { startMockData } = await import("./data/mock/browser.js");
     return (await startMockData(await loadSnapshot(), env.apiBase)).adapter;
   }
-  return createHttpAdapter({ baseUrl: env.apiBase, snapshot: loadSnapshot, paypalRail: env.paypalRail });
+  return createApiAdapter({
+    source: "http",
+    baseUrl: env.apiBase,
+    snapshot: loadSnapshot,
+    paypalRail: env.paypalRail,
+  });
 }
 
 /** If the console cannot start at all, say so in plain HTML instead of leaving a blank page. */

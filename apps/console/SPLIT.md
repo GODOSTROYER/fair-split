@@ -2,8 +2,8 @@
 
 The console (`apps/console`, WS-CONSOLE) is built in four steps. The **shell** (this commit) registers every web
 route, draws the Judge stage and its chrome in Tablea, and provides the data layer, the test kit and every
-dependency. The **wire** step merges `ws/api`, moves `src/data/` onto `@fairsplit/api-client` and creates the
-three slice worktrees. Then **season**, **runs** and **proof** build their screens in parallel.
+dependency. The **wire** step (done) merged `ws/api`, moved `src/data/` onto `@fairsplit/api-client` and its msw
+mock, and created the three slice worktrees. Now **season**, **runs** and **proof** build their screens in parallel.
 
 Read first: `docs/spec/00-plan.md` (wins), `docs/spec/01-design-direction.md`, register §1–§5, S1.5–S1.12, S2 (all)
 and `docs/adr/0002-simulated-paypal-sandbox-and-private-repo.md`.
@@ -58,7 +58,7 @@ Navigate with `webRoutes.*` and `<AppLink href>` (a real anchor) or TanStack's `
 
 ## What the shell gives you
 
-### Data (`src/data/`): TanStack Query over an adapter shaped like `API_COMMANDS`
+### Data (`src/data/`): TanStack Query over `@fairsplit/api-client`
 
 | API                                                 | Use                                                                                                                                                                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,11 +72,24 @@ Navigate with `webRoutes.*` and `<AppLink href>` (a real anchor) or TanStack's `
 | `usePaypalRail()`                                   | `"simulator"` or `"sandbox"`: label every PayPal value with it (I8)                                                                                                     |
 | `useDescribeContext()`, `describeEvent(event, ctx)` | Run-log rows in three lanes (W-TR-08's log, the ribbon)                                                                                                                 |
 | `run-view.ts` selectors                             | `openHolds`, `blockingHolds`, `holdCards`, `byHandHolds`, `itemCounts`, `atLeast`, `runStrip`, `checkpointFor`, `livePresence`, `lineAmountState`, `invoiceAmountState` |
-| `errors.ts`                                         | `ApiRequestError` (`.code`, `.status`, `.ratified()` for MM-4's hash), `TransportError`, `errorView(e)`, `ERROR_WORDS`                                                  |
-| `adapter.pending` (via `useAdapter()`)              | `snapshot`, `frameToken`, `resetSession`, `paypalRail`: reads the API lacks (reported)                                                                                  |
+| `errors.ts`                                         | `CommandError<N>`, `errorView(e)`, `isApiClientError(e, ...codes)`, `asRateCardRatified(e)` (below)                                                                     |
+| `useAdapter().api`, `adapter.pending`               | The typed client, and the routes API_COMMANDS lacks (below)                                                                                                             |
+- **Failures** (`errors.ts`): `CommandError<N>` is api-client's `ApiClientError` (`.code` narrowed to the codes
+  command N may answer, `.status`, `.requestId`, `.paypalDebugId`, `.notImplemented`), `NetworkError` or
+  `ContractError`. `asRateCardRatified(e)` gives MM-4's card hash; `errorView(e)` and `requestIdOf(e)` feed
+  `CommandNotice`; `ERROR_WORDS` holds the console's sentence per code.
+- **The typed client** (`useAdapter().api`): `api.url("proofJson", { runSlug })` for links and downloads,
+  `api.request({ path, schema })` for a route outside IC-01, `api.rail` for the last answer's `X-FS-Rail`.
+- **Pending routes** (`adapter.pending`): `snapshot` (the seed), `frameToken` (`POST /v1/judge/sessions/:sid/frames`),
+  `resetSession` (`.../reset`) and `paypalRail` (`GET /healthz`, falling back to the build's label).
 
 State that moves arrives as `RunEvent`s and is reduced into the run's query data; mutations do not refetch. A
-command's result is not the state: the event that follows it is. The reducer is forward-only (I5).
+command's result is not the state: the event that follows it is. The reducer is forward-only (I5). The judge
+session's run starts from `sessionView` (the INVOICED clone, S3.9) and replays its stream from the start; a cached
+read under the same slug is dropped when a session starts or ends (the mock reuses r37's slug for the session).
+
+A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that owns the command has not landed yet:
+`CommandNotice` says "This step isn't wired on the server yet". Build against the mock; never hide the 501.
 
 ### Stage (`src/stage/`)
 
@@ -162,16 +175,26 @@ const view = await renderConsole({
   viewport: { width: 1920 },
 });
 const session = await view.startSession(); // the first press (createJudgeSession)
-act(() => view.world.markPaid(session.runSlug)); // drive the run: the world emits the events
+act(() => {
+  view.world.markPaid(); // drive the run as the people would: the world emits the events
+  view.world.enterByHand("64.80");
+});
 await screen.findByTestId("W-TR-06"); // then assert data-state, phases, amount states
 await expectNoAxeViolations(view.container);
 ```
 
-- `createTestWorld()` is the contract-faithful mock API over the seed, instant pace: every command of
-  `API_COMMANDS`, the SSE replay, holds, two keys, the fan-out with Rhea parked and one repeated delivery. Its
-  helpers (`holdIdFor`, `byHandFieldId`, `lineIdFor`, `cosign`) reach IDs the UI would get from events.
-- `renderConsole` uses the in-memory adapter (fast); `startMockServer(world)` + `createTestHttpAdapter()` run the
-  same world over HTTP and SSE through msw (unhandled requests fail).
+- `createTestWorld(options?)` is api-client's mock of fs-api (`@fairsplit/api-client/msw`, see its README) at
+  stage `invoiced` in `manual` pace, with the console's pending routes and a driver: `markPaid()`,
+  `enterByHand(value?)`, `resolve(label, body?)` (H1 COUNT_ONCE, H2 REGISTER_PLOT, H3 RETURN_AS_CREDIT by default),
+  `resolveAll()`, `sign(role)`, `cosign()`, `payCash(memberNo)`, `command(name, { params, body | query, as })`,
+  `holdId(label)`, `fieldId()`, `lineId(memberNo)`, `eventsAfter(id)`. Driver steps settle the reading or fan-out
+  they start; a command pressed in the UI leaves them queued until `act(() => view.world.settle())`. The world's
+  own API is there too: `run`, `holds()`, `lines()`, `events()`, `failNext(command, code)` for hard-to-reach
+  refusals (`KILL_SWITCH_ON`, `CIRCUIT_OPEN`, `PAYPAL_REJECTED`...), `advance(n)`, `reset(stage)`. Pass
+  `{ stage: "review" | "approve" | "posted" | "settled" }` to open a screen mid-story.
+- `renderConsole` runs the adapter over msw's handlers in memory (fast, no interception);
+  `startMockServer(world)` + `createTestHttpAdapter()` run the same handlers over HTTP and SSE through msw/node
+  (unhandled requests fail).
 - Slab presses: `fireEvent.keyDown(getByTestId("{testId}.face"), { key: "Enter" })` (ui-web's Slab).
 - Moments: assert `momentPhase(container, "MM-3")` and `tracedPhases("MM-3")` in `full` and `reduced`; phase names
   only from `@fairsplit/motion`. Use `vi.useFakeTimers()` to step through acts.
@@ -182,9 +205,9 @@ await expectNoAxeViolations(view.container);
 
 React 19.3, TanStack Router 1.170.45 and Query 5.104.5, Base UI 1.9.0, Motion 14.0.0, AG Grid Community and
 React 36.2.0, zod 4.6.7, eventsource-parser 4.1.2, @noble/curves 2.4.0, the `@fairsplit/*` packages (contracts,
-domain, seed, tokens, motion, seal, ui-web, i18n); for tests Vitest 5.0.5, Testing Library (react 16.3.3, dom
-10.4.2), jsdom 30.1.2, msw 3.0.3, axe-core 4.13.0, fast-check 4.10.2. No QR encoder and no `user-event` exist in
-the catalog: draw the co-sign QR from an API-provided matrix or request a pin through the deps lane.
+domain, seed, tokens, motion, seal, ui-web, i18n, api-client); for tests Vitest 5.0.5, Testing Library (react
+16.3.3, dom 10.4.2), jsdom 30.1.2, msw 3.0.3, axe-core 4.13.0, fast-check 4.10.2. No QR encoder and no `user-event`
+exist in the catalog: draw the co-sign QR from an API-provided matrix or request a pin through the deps lane.
 
 ## Known gaps (reported to their owners)
 
@@ -192,7 +215,11 @@ the catalog: draw the co-sign QR from an API-provided matrix or request a pin th
   WS-APP's frame side, until WS-CORE adds them.
 - IC-01 lacks `SCREENS[id].states` and `AMOUNT_STATE`: `lib/screens.ts` and `run-view.ts` carry S1's and S2's lists.
 - API_COMMANDS lacks the season and run reads, the frame token, Reset and the PayPal mode: `adapter.pending`
-  serves them from the seed and the mock until WS-API ships them; the wire step maps them.
+  calls them (seed, `POST /v1/judge/sessions/:sid/frames`, `.../reset`, `GET /healthz`); the console's mock serves
+  the three routes over api-client's world (`src/data/mock/pending.ts`) until WS-API ships them.
+- api-client's mock has one session whose run reuses the showcase slug (r37; a real session gets its own runSeq),
+  emits no `webhook.received` events (W-TR-08's repeated delivery cannot be shown from the mock yet), and serves no
+  frame-token or Reset route (the console's mock does). Reported to WS-API.
 - ui-web lacks SplitFan, FundingArc, RunStrip, RunLog, SlipViewer, FlightLayer, TwinCompare, ByHandField,
   QRPairCard, VerifyPanel, PlotField, EvalWaffle, PrintStatement, Drawer and DigitSwap: build them in your
   `features/` folder on ui-web's primitives and tokens.

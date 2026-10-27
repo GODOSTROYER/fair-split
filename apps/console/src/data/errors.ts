@@ -1,58 +1,33 @@
-// Errors a command can end in. The API answers every failure with an IC-01 `ApiError`; a 409
-// RATE_CARD_RATIFIED also cites the card hash (MM-4 prints it). Anything else is a transport failure.
+// Errors a command can end in, from @fairsplit/api-client (IC-08): the API answered an IC-01 `ApiError`
+// (`ApiClientError`, its `code` narrowed to what that command may answer), the request got no answer
+// (`NetworkError`), or the answer broke the contract (`ContractError`). A 409 RATE_CARD_RATIFIED also cites the
+// card hash (MM-4 prints it): `asRateCardRatified(e)`. Screens show any of them through `errorView`.
 
 import {
-  type ApiCommandName,
-  ApiError,
-  ERROR_HTTP_STATUS,
-  type ErrorCode,
-  RateCardRatifiedError,
-} from "@fairsplit/contracts";
+  ApiClientError,
+  type ClientFailure,
+  type CommandErrorCode,
+  ContractError,
+  isApiClientError,
+  NetworkError,
+} from "@fairsplit/api-client";
+import type { ErrorCode } from "@fairsplit/contracts";
+import type { CallableName } from "./adapter.js";
 
-export class ApiRequestError extends Error {
-  override readonly name = "ApiRequestError";
-  readonly error: ApiError;
-  readonly command: ApiCommandName;
+export {
+  ApiClientError,
+  asRateCardRatified,
+  type ClientFailure,
+  ContractError,
+  isApiClientError,
+  isContractError,
+  isNetworkError,
+  isNotImplemented,
+  NetworkError,
+} from "@fairsplit/api-client";
 
-  constructor(command: ApiCommandName, error: ApiError) {
-    super(error.message);
-    this.command = command;
-    this.error = error;
-  }
-
-  get code(): ErrorCode {
-    return this.error.code;
-  }
-
-  get status(): number {
-    return this.error.status;
-  }
-
-  /** The 409 body that refuses an edit to the ratified card, with its hash, or null. */
-  ratified(): RateCardRatifiedError | null {
-    const parsed = RateCardRatifiedError.safeParse(this.error);
-    return parsed.success ? parsed.data : null;
-  }
-}
-
-/** The network failed, or the response was not what the contract says. */
-export class TransportError extends Error {
-  override readonly name = "TransportError";
-  readonly command: ApiCommandName | null;
-  readonly httpStatus: number | null;
-
-  constructor(message: string, command: ApiCommandName | null, httpStatus: number | null = null) {
-    super(message);
-    this.command = command;
-    this.httpStatus = httpStatus;
-  }
-}
-
-export type CommandError = ApiRequestError | TransportError;
-
-export function isApiRequestError(error: unknown): error is ApiRequestError {
-  return error instanceof ApiRequestError;
-}
+/** What command N can fail with: `error.code` is narrowed to the codes N may answer (IC-01 plus boundary codes). */
+export type CommandError<N extends CallableName = CallableName> = ClientFailure<CommandErrorCode<N>>;
 
 /**
  * What each refusal means, in the console's words (S1.11: say what happened and what to do; a hold is never an
@@ -96,6 +71,9 @@ export const ERROR_WORDS: Readonly<Record<ErrorCode, string>> = {
   INTERNAL: "The server failed on this step. Nothing changed.",
 };
 
+/** A registered command whose API slice has not landed yet (501): said plainly, never as a failure. */
+export const NOT_BUILT_WORDS = "This step isn't wired on the server yet. Nothing changed.";
+
 /** Codes where PayPal is the actor: the only refusals that may show red (design §2.2). */
 export const PAYPAL_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   "PAYPAL_REJECTED",
@@ -114,27 +92,45 @@ export interface ErrorView {
   readonly code: ErrorCode | null;
 }
 
+/** The request ID of any failure that has one (for "Request 01J…" lines), else null. */
+export function requestIdOf(error: unknown): string | null {
+  if (error instanceof ApiClientError || error instanceof ContractError) return error.requestId;
+  return null;
+}
+
 /** Turns any failure from a command, query or stream into what a screen shows. */
 export function errorView(error: unknown): ErrorView {
-  if (isApiRequestError(error)) {
-    const e = error.error;
+  if (isApiClientError(error)) {
     const refs: string[] = [];
-    if (e.requestId) refs.push(`Request ${e.requestId}`);
-    if (e.paypalDebugId) refs.push(`PayPal debug ID ${e.paypalDebugId}`);
-    const title = ERROR_WORDS[e.code];
+    if (error.requestId) refs.push(`Request ${error.requestId}`);
+    if (error.paypalDebugId) refs.push(`PayPal debug ID ${error.paypalDebugId}`);
+    const title = error.notImplemented ? NOT_BUILT_WORDS : ERROR_WORDS[error.code];
     return {
       title,
-      detail: e.message && e.message !== title ? e.message : null,
+      detail: error.message && error.message !== title ? error.message : null,
       refs,
-      paypal: PAYPAL_CODES.has(e.code),
-      code: e.code,
+      paypal: PAYPAL_CODES.has(error.code),
+      code: error.code,
     };
   }
-  if (error instanceof TransportError) {
+  if (error instanceof NetworkError) {
     return {
-      title: "The connection failed. Nothing changed.",
+      title: error.aborted
+        ? "The step was cancelled. Nothing changed."
+        : "The connection failed. Nothing changed.",
+      detail: null,
+      refs: [],
+      paypal: false,
+      code: null,
+    };
+  }
+  if (error instanceof ContractError) {
+    const refs = [`HTTP ${error.status}`];
+    if (error.requestId) refs.unshift(`Request ${error.requestId}`);
+    return {
+      title: "The server answered in a shape this console doesn't know. Nothing changed.",
       detail: error.message,
-      refs: error.httpStatus ? [`HTTP ${error.httpStatus}`] : [],
+      refs,
       paypal: false,
       code: null,
     };
@@ -146,23 +142,4 @@ export function errorView(error: unknown): ErrorView {
     paypal: false,
     code: null,
   };
-}
-
-/** Reads an error body: an `ApiError` (or a 409 with the card hash), else a generic one for its status. */
-export function toApiError(status: number, body: unknown): ApiError {
-  const ratified = RateCardRatifiedError.safeParse(body);
-  if (ratified.success) return ratified.data;
-  const parsed = ApiError.safeParse(body);
-  if (parsed.success) return parsed.data;
-  const code = statusToCode(status);
-  return { code, status: ERROR_HTTP_STATUS[code], message: `The API answered ${status}.` };
-}
-
-function statusToCode(status: number): ErrorCode {
-  if (status === 401) return "UNAUTHENTICATED";
-  if (status === 403) return "FORBIDDEN";
-  if (status === 404) return "NOT_FOUND";
-  if (status === 429) return "RATE_LIMITED";
-  if (status === 400) return "VALIDATION_FAILED";
-  return "INTERNAL";
 }

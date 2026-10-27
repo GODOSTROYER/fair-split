@@ -6,9 +6,9 @@ import { ERROR_CODES } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
 import { describeContext, describeEvent } from "../data/describe.js";
 import { ERROR_WORDS, errorView, PAYPAL_CODES } from "../data/errors.js";
-import { applyRunEvents, emptyRunView, firstView } from "../data/run-view.js";
+import { applyRunEvents, emptyRunView, firstView, sessionView } from "../data/run-view.js";
 import { provenanceFooter } from "../lib/provenance.js";
-import { createTestWorld, seedSnapshot } from "../test/world.js";
+import { createTestWorld, seedSnapshot, type TestWorld } from "../test/world.js";
 import { railLine, story, whatsReal } from "./copy.js";
 import { nextStep } from "./next-step.js";
 import { activeRailItem, railItems } from "./rail-items.js";
@@ -17,14 +17,10 @@ import { stageNoticeFor } from "./StageNotice.js";
 const snapshot = seedSnapshot();
 const CTX = { inSession: true, season: "2026-A", recordedOn: "29 Oct", byHandSlip: "0462", payouts: 8 };
 
-function runTo(step: (world: ReturnType<typeof createTestWorld>, runSlug: string) => void) {
+function runTo(step: (world: TestWorld) => void) {
   const world = createTestWorld();
-  const session = world.createJudgeSession();
-  step(world, session.runSlug);
-  return applyRunEvents(
-    emptyRunView(session.runSlug, "session"),
-    world.eventsAfter(`run:${session.runSlug}`, null),
-  );
+  step(world);
+  return applyRunEvents(sessionView(snapshot, world), world.eventsAfter(null));
 }
 
 describe("run pill (S1.6)", () => {
@@ -35,32 +31,21 @@ describe("run pill (S1.6)", () => {
       actor: "person",
       text: "Next: mark the invoice paid (sandbox)",
     });
-    const reading = runTo((w, r) => {
-      w.markPaid(r);
+    const reading = runTo((w) => {
+      w.markPaid();
     });
     expect(nextStep(reading, CTX)).toMatchObject({ id: "by-hand", actor: "person", screen: "W-TR-04" });
-    const holds = runTo((w, r) => {
-      w.markPaid(r);
-      w.enterField(w.byHandFieldId(r) ?? "", { value: "64.80" });
+    const holds = runTo((w) => {
+      w.markPaid();
+      w.enterByHand("64.80");
     });
     const step = nextStep(holds, CTX);
     expect(step).toMatchObject({ id: "holds", screen: "W-TR-06", text: "Next: 3 holds need you" });
     expect(step.to).toBe(`/runs/${holds.runSlug}/split?hold=H1`);
-    const cosign = runTo((w, r) => {
-      w.markPaid(r);
-      w.enterField(w.byHandFieldId(r) ?? "", { value: "64.80" });
-      for (const label of ["H1", "H2", "H3"] as const) {
-        const id = w.holdIdFor(r, label) ?? "";
-        if (label === "H1") w.resolveHold(id, { resolution: "COUNT_ONCE" });
-        if (label === "H2")
-          w.resolveHold(id, {
-            resolution: "REGISTER_PLOT",
-            plot: { plotNo: "P-053-B", areaHa: "0.80", trees: 120 },
-          });
-        if (label === "H3") w.resolveHold(id, { resolution: "RETURN_AS_CREDIT" });
-      }
-      const payload = w.approvalPayload(r, "treasurer").payload;
-      w.submitApproval(r, { role: "treasurer", keyId: "fs-analyn-w1", signature: "b".repeat(128), payload });
+    const cosign = runTo((w) => {
+      w.markPaid();
+      w.resolveAll();
+      w.sign("treasurer");
     });
     expect(nextStep(cosign, CTX)).toMatchObject({ id: "cosign", persona: "chair", actor: "person" });
   });
@@ -96,10 +81,9 @@ describe("honest labels (I8: nothing simulated is unlabelled)", () => {
   it("inv.i8.log: a simulated PayPal notice is never called verified", () => {
     const ctx = describeContext(snapshot);
     const world = createTestWorld();
-    const session = world.createJudgeSession();
-    world.markPaid(session.runSlug);
+    world.markPaid();
     const rows = world
-      .eventsAfter(`run:${session.runSlug}`, null)
+      .eventsAfter(null)
       .filter((e) => e.provenance === "simulated_rail")
       .map((e) => describeEvent(e, ctx))
       .filter((r) => r !== null);

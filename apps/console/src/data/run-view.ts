@@ -202,6 +202,18 @@ export function firstView(snapshot: SeasonSnapshot): RunView {
   };
 }
 
+/**
+ * A judge session's run before its first event (S3.9): the session claims a workspace cloned from the showcase
+ * as it stood at INVOICED, so the base is the first view under the session's own run. Everything after it
+ * arrives over the run's SSE stream, replayed from the start.
+ */
+export function sessionView(
+  snapshot: SeasonSnapshot,
+  run: { readonly runSlug: string; readonly runId: string },
+): RunView {
+  return { ...firstView(snapshot), runSlug: run.runSlug, runId: run.runId, origin: "session" };
+}
+
 /** The showcase run (r37) at its end state, straight from the snapshot. Everything in it is seeded. */
 export function showcaseView(snapshot: SeasonSnapshot): RunView {
   const run = snapshot.run;

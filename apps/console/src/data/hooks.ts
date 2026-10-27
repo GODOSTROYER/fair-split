@@ -22,10 +22,10 @@ export function useAdapter() {
 /** A command as a mutation: `const resolve = useCommand("resolveHold"); resolve.mutate({ params, body })`. */
 export function useCommand<N extends CallableName>(
   name: N,
-  options: Omit<UseMutationOptions<CommandResponse<N>, CommandError, CommandInput<N>>, "mutationFn"> = {},
+  options: Omit<UseMutationOptions<CommandResponse<N>, CommandError<N>, CommandInput<N>>, "mutationFn"> = {},
 ) {
   const { adapter } = useDataRuntime();
-  return useMutation<CommandResponse<N>, CommandError, CommandInput<N>>({
+  return useMutation<CommandResponse<N>, CommandError<N>, CommandInput<N>>({
     ...options,
     mutationKey: ["command", name],
     mutationFn: (input) => adapter.call(name, input),
@@ -36,10 +36,10 @@ export function useCommand<N extends CallableName>(
 export function useCommandQuery<N extends GetCommandName>(
   name: N,
   input: CommandInput<N>,
-  options: Omit<UseQueryOptions<CommandResponse<N>, CommandError>, "queryKey" | "queryFn"> = {},
+  options: Omit<UseQueryOptions<CommandResponse<N>, CommandError<N>>, "queryKey" | "queryFn"> = {},
 ) {
   const { adapter } = useDataRuntime();
-  return useQuery<CommandResponse<N>, CommandError>({
+  return useQuery<CommandResponse<N>, CommandError<N>>({
     ...options,
     queryKey: queryKeys.command(name, input),
     queryFn: ({ signal }) => adapter.call(name, input, { signal }),
@@ -98,8 +98,7 @@ export function useRunStream(runSlug: string | null): StreamStatus {
 
 /** A run's live view (snapshot base plus every streamed event). Pair it with useRunStream to stay live. */
 export function useRunView(runSlug: string) {
-  const { adapter, client } = useDataRuntime();
-  return useQuery(runViewQuery(adapter, client, runSlug));
+  return useQuery(runViewQuery(useDataRuntime(), runSlug));
 }
 
 /**
@@ -130,11 +129,12 @@ export interface StageRun {
 
 /** The stage's current run. Before the first press it is the first view, built with no calls (S3.9). */
 export function useStageRun(): StageRun {
-  const { adapter, client } = useDataRuntime();
+  const runtime = useDataRuntime();
+  const { adapter, client } = runtime;
   const session = useJudgeSession();
   const snapshot = useSnapshot().data;
   const runSlug = session.session?.runSlug ?? null;
-  const live = useQuery({ ...runViewQuery(adapter, client, runSlug ?? "none"), enabled: runSlug !== null });
+  const live = useQuery({ ...runViewQuery(runtime, runSlug ?? "none"), enabled: runSlug !== null });
   const first = useQuery({ ...firstViewQuery(adapter, client), enabled: runSlug === null });
   return {
     runSlug: runSlug ?? snapshot?.run.runSlug ?? null,

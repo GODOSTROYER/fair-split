@@ -11,19 +11,20 @@ Claude writes in pencil. People sign in ink. PayPal makes it carbon.
 
 ```sh
 corepack pnpm install
-corepack pnpm --filter @fairsplit/console dev        # mock data: msw over the seeded season, no API needed
+corepack pnpm --filter @fairsplit/console dev        # mock data: api-client's seeded mock of fs-api, no API needed
 ```
 
 | Variable (only `VITE_PUBLIC_*` reaches the bundle) | Meaning                                                                     |
 | -------------------------------------------------- | --------------------------------------------------------------------------- |
 | `VITE_PUBLIC_FS_DATA=mock\|http`                   | Dev defaults to `mock`; a build defaults to `http` (the API on this origin) |
-| `VITE_PUBLIC_FS_PAYPAL_RAIL=simulator\|sandbox`    | How PayPal steps are labelled until the API reports `PP_MODE` (ADR-0002)    |
+| `VITE_PUBLIC_FS_PAYPAL_RAIL=simulator\|sandbox`    | The PayPal label when `/healthz` cannot report the API's rail (ADR-0002)    |
 | `VITE_PUBLIC_FS_API_BASE`                          | An API origin other than this one (http or https only)                      |
 | `FS_API_DEV_ORIGIN` (dev server only)              | With `VITE_PUBLIC_FS_DATA=http`, where `/v1`, `/app` and `/media` proxy to  |
 
 In mock mode the stage says so in its top bar and caption, PayPal is labelled as the simulated sandbox, and a
 development stand-in answers the phone frames' bridge at `/app` (the real frames are the Expo web export fs-api
-serves). Nothing reaches PayPal, Claude or Gemini from the browser, ever.
+serves). `window.__fsMock.driver` acts as the treasurer or the Chair without the UI (`cosign()` signs the second
+key while no Chair frame is attached). Nothing reaches PayPal, Claude or Gemini from the browser, ever.
 
 ## Check it
 
@@ -41,7 +42,7 @@ corepack pnpm --filter @fairsplit/console build
 | `src/screens` | One module per screen (W-JG-01 … W-OP-01) and the props contract the routes pass             |
 | `src/stage`   | The Judge stage: layout, the phone dock and frames, the IC-12 FrameBridge, the director      |
 | `src/chrome`  | Top bar, rail, run pill, ribbon, What's real, drawers, notices, print beds, Data mode tables |
-| `src/data`    | The adapter shaped like `API_COMMANDS`, TanStack Query hooks, the SSE hub, the mock world    |
+| `src/data`    | The adapter over `@fairsplit/api-client`, TanStack Query hooks, the SSE hub, the mock wiring |
 | `src/theme`   | The console's CSS on the `--fs-*` tokens, and the AG Grid theme                              |
 | `src/lib`     | Formatting, moments, shortcuts, Data mode, provenance footers, SHA-256, verify seam          |
 | `src/sound`   | The stage's sound (off by default, remembered per viewer)                                    |

@@ -29,7 +29,8 @@ describe("Judge stage", () => {
     );
     expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
     expect(callSpy).not.toHaveBeenCalled();
-    expect(view.world.sessionForRun("2026A-r4170001")).toBeNull();
+    expect(view.world.run.state).toBe("INVOICED");
+    expect(view.world.events()).toEqual([]);
   });
 
   it("the first press starts the run; the stream moves the stage, the pill and the ribbon", async () => {
@@ -37,6 +38,11 @@ describe("Judge stage", () => {
     await press("W-JG-01.markPaid");
     const stage = screen.getByTestId("W-JG-01.stage");
     await waitFor(() => expect(stage.dataset.state).toBe("session"));
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    // Reading after funding is asynchronous on the server: the world plays it when the test says so.
+    act(() => {
+      view.world.settle();
+    });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("by-hand"));
     expect(screen.getByTestId("W-JG-01.runPill.state").textContent).toBe("In review");
     expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(
@@ -46,7 +52,7 @@ describe("Judge stage", () => {
     // The rest of the loop arrives the same way: by events, never by timers.
     const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
     act(() => {
-      view.world.enterField(view.world.byHandFieldId(runSlug) ?? "", { value: "64.80" });
+      view.world.enterByHand("64.80");
     });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
     expect(screen.getByTestId("W-JG-01.runPill.next").getAttribute("href")).toBe(
@@ -63,7 +69,9 @@ describe("Judge stage", () => {
       fireEvent.click(screen.getByTestId("W-JG-01.reset"));
     });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready"));
-    expect(view.world.sessionForRun(runSlug)).toBeNull();
+    expect(view.world.run.state).toBe("INVOICED");
+    expect(view.world.events()).toEqual([]);
+    expect(runSlug).toBe(view.world.runSlug);
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
   });
 
@@ -152,8 +160,12 @@ describe("Judge stage", () => {
   });
 
   it("reduced motion keeps every state: the stage still moves on events", async () => {
-    await renderConsole({ path: "/judge", motion: "reduced" });
+    const view = await renderConsole({ path: "/judge", motion: "reduced" });
     await press("W-JG-01.markPaid");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("reading"));
+    act(() => {
+      view.world.settle();
+    });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("by-hand"));
   });
 });

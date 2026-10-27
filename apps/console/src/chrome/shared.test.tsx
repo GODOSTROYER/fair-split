@@ -3,7 +3,7 @@
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ApiRequestError } from "../data/errors.js";
+import { ApiClientError } from "../data/errors.js";
 import { DataModeProvider } from "../lib/data-mode.js";
 import { ShortcutsProvider } from "../lib/shortcuts.js";
 import { expectNoAxeViolations } from "../test/axe.js";
@@ -98,12 +98,15 @@ describe("Data mode", () => {
 
 describe("CommandNotice", () => {
   it("says what happened in the console's words, with the API's message and the request ID", async () => {
-    const error = new ApiRequestError("resolveHold", {
-      code: "HOLD_NOT_OPEN",
-      status: 409,
-      message: "This hold is already decided.",
-      requestId: "req_01JTEST",
-    });
+    const error = new ApiClientError(
+      {
+        code: "HOLD_NOT_OPEN",
+        status: 409,
+        message: "This hold is already decided.",
+        requestId: "req_01JTEST",
+      },
+      { command: "resolveHold", rail: "simulated", requestId: "req_01JTEST" },
+    );
     const retry = vi.fn();
     const view = render(<CommandNotice error={error} testId="W-TR-06.error" onRetry={retry} />);
     const notice = screen.getByTestId("W-TR-06.error");
@@ -117,12 +120,10 @@ describe("CommandNotice", () => {
   });
 
   it("is red only when PayPal is the actor, and renders nothing without an error", () => {
-    const paypal = new ApiRequestError("payCash", {
-      code: "PAYPAL_REJECTED",
-      status: 502,
-      message: "PayPal said no.",
-      paypalDebugId: "f00dbabe",
-    });
+    const paypal = new ApiClientError(
+      { code: "PAYPAL_REJECTED", status: 502, message: "PayPal said no.", paypalDebugId: "f00dbabe" },
+      { command: "payCash", rail: "simulated", requestId: null },
+    );
     const view = render(<CommandNotice error={paypal} testId="W-TR-08.error" />);
     expect(screen.getByTestId("W-TR-08.error").dataset.tone).toBe("paypal");
     expect(screen.getByTestId("W-TR-08.error").textContent).toMatch(/PayPal debug ID f00dbabe/);
