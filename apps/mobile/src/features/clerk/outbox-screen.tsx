@@ -1,150 +1,179 @@
 /**
- * M-CL-02 Outbox (S1.8 M-CK-02): per capture a thumbnail, the serial once read, the member hint, the file size and a
- * progress ring. States: queued, uploading, uploaded, read ("4 ka linya nabasa"), failed ("Mosulay pag-usab sa
- * 40 s", with "Ipadala karon").
+ * M-CL-02 Outbox (design K1 "the outbox: thumbnail, serial, member hint, file size and a progress ring per slip"):
+ * everything this phone has filed, in the order things happen. What is still on the phone comes first, in the
+ * order it will go (cash receipts first, then oldest first); then what reached the co-op today; then earlier.
+ * Each capture says where it is in words. One waiting on a retry, or refused for a reason a resend can fix, offers
+ * "Ipadala karon"; a refused one can be removed from the phone, after a confirm.
  */
-import { Image } from "expo-image";
-import { useEffect, useState } from "react";
-import { FlatList, StyleSheet, View } from "react-native";
-import { format } from "../../_shims/domain";
+import { router } from "expo-router";
+import { Fragment } from "react";
+import { StyleSheet, View } from "react-native";
 import { radius, space } from "../../_shims/tokens.native";
-import { type CaptureRecord, MANUAL_ONLY } from "../../lib/outbox";
+import { type CaptureRecord, MANUAL_ONLY, summarise } from "../../lib/outbox";
+import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
-import { TopBar } from "../../ui/chrome";
-import { Banner, Button, DemoLabel, Rule } from "../../ui/primitives";
+import { Screen, TopBar } from "../../ui/chrome";
+import { Snackbar, useSnackbar } from "../../ui/overlay";
+import { Banner, Button, Rule, SectionTitle } from "../../ui/primitives";
+import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
+import { CaptureRow } from "./capture-row";
+import { sectionsOf, sendableCount } from "./capture-view";
+import type { ClerkKey } from "./messages";
+import { pluralKey } from "./messages";
 import { useOutbox } from "./outbox-provider";
-import { ProgressRing } from "./parts";
+import { useRemoveCapture } from "./remove-capture";
+import { outboxScreenState } from "./screen-state";
+import { useNow } from "./use-now";
+import { useClerkSite } from "./use-site";
 import { useT } from "./use-t";
 
-function useNow(ms: number) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), ms);
-    return () => clearInterval(id);
-  }, [ms]);
-  return now;
-}
-
-function Row({ r, now, onSendNow }: { r: CaptureRecord; now: number; onSendNow(): void }) {
-  const { t } = useFs();
+export function OutboxScreen() {
+  const { online } = useApp();
   const tr = useT();
-  const waitS = Math.max(0, Math.ceil((r.nextAttemptAt - now) / 1000));
-  const refused = r.state === "failed" && r.nextAttemptAt === MANUAL_ONLY;
-  const stateText =
-    r.state === "queued"
-      ? tr("M-CL-02.queued")
-      : r.state === "uploading"
-        ? `${tr("M-CL-02.uploading")} ${Math.round(r.progress * 100)}%`
-        : r.state === "uploaded"
-          ? tr("M-CL-02.uploaded")
-          : r.state === "read"
-            ? tr("M-CL-02.read", { n: r.rowsRead ?? 0 })
-            : refused
-              ? tr("M-CL-02.refused")
-              : tr("M-CL-02.retryIn", { s: waitS });
+  const outbox = useOutbox();
+  const site = useClerkSite();
+  const snack = useSnackbar();
+  const remove = useRemoveCapture({ onRemoved: snack.show, testID: "M-CL-02.remove" });
+  const { records } = outbox;
+  const now = useNow(
+    records.some((r) => r.state === "uploading" || (r.state === "failed" && r.nextAttemptAt !== MANUAL_ONLY)),
+  );
+  const sections = sectionsOf(records, now);
+  const sum = summarise(records);
+  const state = outboxScreenState({ online, records });
+  const sendable = sendableCount(records);
+  const rows = {
+    now,
+    online,
+    treasurer: site.treasurer,
+    onSendNow: outbox.sendNow,
+    onRemove: remove.ask,
+  };
+
   return (
-    <View style={styles.row} testID={`M-CL-02.row.${r.id}`} dataSet={{ state: r.state }}>
-      <Image
-        source={{ uri: r.thumbUri ?? r.fileUri }}
-        style={[styles.thumb, { borderColor: t.color.rule }]}
-        contentFit="cover"
-        accessibilityLabel={r.source === "sample" ? tr("M-CL-02.sample") : undefined}
-      />
-      <View style={{ flex: 1, gap: space.s2 }}>
-        <Txt kind="bodyStrong">
-          {r.serial ? tr("M-CL-02.serial", { serial: r.serial }) : tr("M-CL-02.notRead")}
-        </Txt>
-        <Txt kind="caption" color="ink2">
-          {[
-            r.source === "sample" ? tr("M-CL-02.sample") : null,
-            r.memberHint,
-            format.bytes(r.bytes),
-            format.time(new Date(r.createdAt).toISOString()),
-          ]
-            .filter(Boolean)
-            .join(", ")}
-        </Txt>
-        <Txt
-          kind="label"
-          color={r.state === "failed" ? "canaryText" : "ink2"}
-          accessibilityLiveRegion="polite"
-        >
-          {stateText}
-        </Txt>
-        {r.duplicateOf ? (
-          <Txt kind="caption" color="ink3">
-            {tr("M-CL-02.duplicateOf")}
-          </Txt>
+    <View style={{ flex: 1 }}>
+      <TopBar title={tr("M-CL-02.title")} />
+      <Screen testID="M-CL-02" state={state} topInset={false}>
+        {outbox.status === "opening" ? <Skeleton lines={3} block={64} /> : null}
+
+        {outbox.status === "error" ? (
+          <Banner
+            tone="decide"
+            icon="info"
+            action={<Button variant="text" label={tr("common.tryAgain")} onPress={outbox.reopen} />}
+          >
+            <Txt kind="bodyStrong">{tr("common.error")}</Txt>
+          </Banner>
         ) : null}
-        {r.state === "failed" ? (
-          <Button
-            variant="text"
-            label={tr("M-CL-02.sendNow")}
-            onPress={onSendNow}
-            style={{ alignSelf: "flex-start" }}
-            testID={`M-CL-02.send-now.${r.id}`}
+
+        {outbox.status === "ready" && records.length === 0 ? (
+          <EmptyState
+            glyph="outbox"
+            title={tr("M-CL-02.emptyTitle")}
+            body={tr("M-CL-02.emptyBody")}
+            testID="M-CL-02.empty"
+            action={
+              <Button
+                icon="scan"
+                label={tr("M-CL-01.scan")}
+                onPress={() => router.navigate(HREF.scan)}
+                testID="M-CL-02.scan"
+              />
+            }
           />
         ) : null}
-      </View>
-      <ProgressRing state={r.state} progress={r.progress} />
+
+        {records.length ? (
+          <View style={styles.summary}>
+            <Txt kind="bodyStrong" testID="M-CL-02.summary" style={{ flex: 1 }}>
+              {sections.phone.length
+                ? tr("M-CL-02.summary", { phone: sections.phone.length, sent: sections.today.length })
+                : tr("M-CL-02.summaryClear", { sent: sections.today.length })}
+            </Txt>
+            {online && sendable ? (
+              <Button
+                variant="tonal"
+                icon="forward"
+                label={tr("M-CL-02.sendAll")}
+                onPress={outbox.sendAll}
+                testID="M-CL-02.send-all"
+              />
+            ) : null}
+          </View>
+        ) : null}
+
+        {!online && sum.onPhone ? (
+          <Banner icon="wifiOff" testID="M-CL-02.offline">
+            <Txt kind="bodyStrong">{tr(pluralKey("M-CL-01.offline", sum.onPhone), { n: sum.onPhone })}</Txt>
+            <Txt kind="body" color="ink2">
+              {tr("M-CL-01.offlineAfter")}
+            </Txt>
+          </Banner>
+        ) : null}
+
+        <Section title="M-CL-02.sectionPhone" records={sections.phone} testID="M-CL-02.phone" {...rows} />
+        <Section title="M-CL-02.sectionToday" records={sections.today} testID="M-CL-02.today" {...rows} />
+        <Section
+          title="M-CL-02.sectionEarlier"
+          records={sections.earlier}
+          testID="M-CL-02.earlier"
+          {...rows}
+        />
+      </Screen>
+      <Snackbar msg={snack.msg} />
+      {remove.dialog}
     </View>
   );
 }
 
-export function OutboxScreen() {
-  const { online } = useApp();
-  const outbox = useOutbox();
+function Section({
+  title,
+  records,
+  now,
+  online,
+  treasurer,
+  onSendNow,
+  onRemove,
+  testID,
+}: {
+  title: ClerkKey;
+  records: readonly CaptureRecord[];
+  now: number;
+  online: boolean;
+  treasurer: string | null;
+  onSendNow(id: string): void;
+  onRemove(r: CaptureRecord): void;
+  testID: string;
+}) {
   const { t } = useFs();
   const tr = useT();
-  const now = useNow(1000);
-  const records = outbox?.records ?? [];
-  const onPhone = records.filter(
-    (r) => r.state === "queued" || r.state === "failed" || r.state === "uploading",
-  ).length;
+  if (records.length === 0) return null;
   return (
-    <View
-      style={{ flex: 1, backgroundColor: t.color.ground }}
-      testID="M-CL-02"
-      dataSet={{ state: online ? "online" : "offline" }}
-    >
-      <TopBar title={tr("M-CL-02.title")} />
-      <FlatList
-        data={records}
-        keyExtractor={(r) => r.id}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={{ gap: space.s12, marginBottom: space.s12 }}>
-            <DemoLabel />
-            {!online ? (
-              <Banner tone="decide" icon="wifiOff">
-                <Txt kind="bodyStrong">{tr("M-CL-01.offline", { n: onPhone })}</Txt>
-              </Banner>
-            ) : null}
-          </View>
-        }
-        ItemSeparatorComponent={Rule}
-        ListEmptyComponent={
-          <View style={[styles.empty, { borderColor: t.color.rule }]}>
-            <Txt kind="body" color="ink2">
-              {tr("M-CL-02.empty")}
-            </Txt>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View style={{ backgroundColor: t.color.plate }}>
-            <Row r={item} now={now} onSendNow={() => void outbox?.outbox.sendNow(item.id)} />
-          </View>
-        )}
-      />
+    <View testID={testID}>
+      <SectionTitle>{tr(title)}</SectionTitle>
+      <View style={[styles.plate, { backgroundColor: t.color.plate }]}>
+        {records.map((r, i) => (
+          <Fragment key={r.id}>
+            {i > 0 ? <Rule /> : null}
+            <CaptureRow
+              r={r}
+              now={now}
+              online={online}
+              treasurer={treasurer}
+              onSendNow={() => onSendNow(r.id)}
+              onRemove={() => onRemove(r)}
+              testID={`M-CL-02.row.${r.id}`}
+            />
+          </Fragment>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: space.s16, paddingBottom: space.s48 },
-  row: { flexDirection: "row", alignItems: "center", gap: space.s12, padding: space.s12 },
-  thumb: { width: 56, height: 56, borderWidth: 1, borderRadius: radius.none },
-  empty: { padding: space.s24, borderWidth: 1, borderStyle: "dashed", borderRadius: radius.plate },
+  summary: { flexDirection: "row", alignItems: "center", gap: space.s12, flexWrap: "wrap" },
+  plate: { borderRadius: radius.plate, paddingHorizontal: space.s12 },
 });

@@ -1,71 +1,56 @@
 /**
- * Native upload with progress: expo-file-system streams the file from disk (no base64 in JS memory, which matters
- * on 2 GB phones) with the Idempotency-Key and Content-Digest headers.
+ * Android/iOS: expo-file-system streams the file from the app's documents (no base64 in JS memory, which matters on
+ * 2 GB phones), with the Idempotency-Key and Content-Digest headers from the shared protocol. An upload with no
+ * progress for 45 s is cancelled and retried later with the same key, so one stalled link on a purok road can
+ * never block the queue behind it.
  */
 import { File, UploadType } from "expo-file-system";
-import { contentDigestHeader, type FairSplitApi } from "../_shims/api-client";
-import type { Uploader, UploadOutcome } from "../lib/outbox";
+import type { FairSplitApi } from "../_shims/api-client";
+import {
+  headerLookup,
+  interpretUpload,
+  LOCAL_ERROR,
+  originOf,
+  STALL_MS,
+  uploadRequest,
+} from "../features/clerk/upload-protocol";
+import type { Uploader } from "../lib/outbox";
 import { demoUploader } from "./uploader-demo";
 
-export function createUploader(api: FairSplitApi, getBearer: () => string | null): Uploader {
-  if (api.mode === "demo") return demoUploader();
-  return async (rec, onProgress): Promise<UploadOutcome> => {
+export interface UploaderDeps {
+  api: FairSplitApi;
+  getBearer: () => string | null;
+  now?: () => number;
+}
+
+export function createUploader(deps: UploaderDeps): Uploader {
+  if (deps.api.mode === "demo") return demoUploader();
+  const now = deps.now ?? Date.now;
+  const origin = originOf(deps.api.captureUrl());
+  return async (rec, onProgress) => {
     const file = new File(rec.fileUri);
-    const headers: Record<string, string> = {
-      "Content-Type": rec.mime,
-      "Idempotency-Key": rec.id,
-      "Content-Digest": contentDigestHeader(rec.sha256),
-      "X-Capture-Meta": JSON.stringify({
-        capturedAt: new Date(rec.createdAt).toISOString(),
-        station: rec.station,
-        memberHint: rec.memberHint,
-        bytes: rec.bytes,
-      }),
-    };
-    const bearer = getBearer();
-    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    if (!file.exists) return { kind: "reject", error: LOCAL_ERROR.fileMissing };
+    const req = uploadRequest(rec, origin, deps.getBearer());
+    const ctrl = new AbortController();
+    let stall = setTimeout(() => ctrl.abort(), STALL_MS);
     try {
-      const res = await file.upload(api.captureUrl(), {
-        httpMethod: "POST",
+      const res = await file.upload(req.url, {
+        httpMethod: req.method,
         uploadType: UploadType.BINARY_CONTENT,
-        headers,
+        headers: req.headers,
+        mimeType: rec.mime,
+        signal: ctrl.signal,
         onProgress: (p) => {
+          clearTimeout(stall);
+          stall = setTimeout(() => ctrl.abort(), STALL_MS);
           if (p.totalBytes > 0) onProgress(p.bytesSent / p.totalBytes);
         },
       });
-      return interpret(res.status, res.body);
-    } catch (e) {
-      return { kind: "retry", error: e instanceof Error ? e.message : "network" };
+      return interpretUpload(rec.kind, res.status, res.body, headerLookup(res.headers), now());
+    } catch {
+      return { kind: "retry", error: ctrl.signal.aborted ? LOCAL_ERROR.stalled : LOCAL_ERROR.network };
+    } finally {
+      clearTimeout(stall);
     }
   };
-}
-
-export function interpret(status: number, body: string): UploadOutcome {
-  if (status >= 200 && status < 300) {
-    try {
-      const v = JSON.parse(body) as {
-        documentId: string;
-        exactDuplicateOf?: string | null;
-        rowsRead?: number | null;
-        serial?: string | null;
-      };
-      return {
-        kind: "ok",
-        documentId: v.documentId,
-        duplicateOf: v.exactDuplicateOf ?? null,
-        rowsRead: v.rowsRead ?? null,
-        serial: v.serial ?? null,
-      };
-    } catch {
-      return { kind: "retry", error: "bad response" };
-    }
-  }
-  if (status === 429 || status >= 500) return { kind: "retry", error: String(status) };
-  let code = String(status);
-  try {
-    code = (JSON.parse(body) as { error?: { code?: string } }).error?.code ?? code;
-  } catch {
-    // keep the status
-  }
-  return { kind: "reject", error: code };
 }

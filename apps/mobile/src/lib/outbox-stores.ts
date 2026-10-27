@@ -1,9 +1,23 @@
 /**
- * Two OutboxStore implementations with identical semantics:
+ * Two OutboxStore implementations with identical semantics (one shared test suite runs against both):
  * - `SqliteOutboxStore` over a tiny async driver, so it runs on expo-sqlite (Android) and node:sqlite (tests);
- * - `MemoryOutboxStore` for the web export, whose captures are Judge Mode samples and never outlive the tab.
+ * - `MemoryOutboxStore` for the web frames, whose captures are Judge Mode samples or demo photos.
+ *
+ * The SQLite schema is versioned with `PRAGMA user_version`. Version 2 adds cash receipts ("Nadawat" photos) and the
+ * library and file sources; a phone still on the first build's table is migrated in one transaction, keeping every
+ * capture (a capture is never lost, not even to an upgrade).
  */
-import type { CaptureRecord, CaptureState, OutboxStore } from "./outbox";
+import {
+  CAPTURE_SOURCES,
+  CAPTURE_STATES,
+  type CapturePatch,
+  type CaptureRecord,
+  type CaptureState,
+  isRefused,
+  MANUAL_ONLY,
+  type NadawatMeta,
+  type OutboxStore,
+} from "./outbox";
 
 export type SqlParam = string | number | null;
 
@@ -13,21 +27,33 @@ export interface SqlDriver {
   all<T>(sql: string, params: readonly SqlParam[]): Promise<T[]>;
 }
 
-export const OUTBOX_SCHEMA = `
-CREATE TABLE IF NOT EXISTS captures (
+export const OUTBOX_SCHEMA_VERSION = 2;
+
+const list = (xs: readonly string[]) => xs.map((x) => `'${x}'`).join(",");
+
+/** Version 2: one row per capture; a cash receipt carries its line, amount, rate and attester (one per line). */
+export const OUTBOX_TABLE_V2 = (name: string) => `
+CREATE TABLE ${name} (
   id TEXT PRIMARY KEY NOT NULL,
-  sha256 TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL DEFAULT 'slip' CHECK (kind IN ('slip','nadawat')),
+  sha256 TEXT NOT NULL UNIQUE CHECK (length(sha256) = 64),
   file_uri TEXT NOT NULL,
   thumb_uri TEXT,
   mime TEXT NOT NULL,
-  bytes INTEGER NOT NULL,
+  bytes INTEGER NOT NULL CHECK (bytes >= 0),
   width INTEGER,
   height INTEGER,
   station TEXT NOT NULL,
   member_hint TEXT,
-  source TEXT NOT NULL CHECK (source IN ('scanner','camera','sample')),
+  source TEXT NOT NULL CHECK (source IN (${list(CAPTURE_SOURCES)})),
+  line_id TEXT,
+  member_no TEXT,
+  member_name TEXT,
+  cents INTEGER,
+  php_per_usd TEXT,
+  attested_by TEXT,
   created_at INTEGER NOT NULL,
-  state TEXT NOT NULL CHECK (state IN ('queued','uploading','uploaded','read','failed')),
+  state TEXT NOT NULL CHECK (state IN (${list(CAPTURE_STATES)})),
   attempts INTEGER NOT NULL DEFAULT 0,
   next_attempt_at INTEGER NOT NULL,
   last_error TEXT,
@@ -36,13 +62,44 @@ CREATE TABLE IF NOT EXISTS captures (
   duplicate_of TEXT,
   rows_read INTEGER,
   serial TEXT,
-  uploaded_at INTEGER
-);
+  uploaded_at INTEGER,
+  CHECK (kind = 'slip' OR (line_id IS NOT NULL AND member_no IS NOT NULL AND cents IS NOT NULL
+    AND php_per_usd IS NOT NULL AND attested_by IS NOT NULL))
+);`;
+
+const INDEXES = `
 CREATE INDEX IF NOT EXISTS captures_due ON captures (state, next_attempt_at);
-`;
+CREATE UNIQUE INDEX IF NOT EXISTS captures_nadawat_line ON captures (line_id) WHERE kind = 'nadawat';`;
+
+/** The columns version 1 had (the first build), in order, for the copy into version 2. */
+const V1_COLUMNS = [
+  "id",
+  "sha256",
+  "file_uri",
+  "thumb_uri",
+  "mime",
+  "bytes",
+  "width",
+  "height",
+  "station",
+  "member_hint",
+  "source",
+  "created_at",
+  "state",
+  "attempts",
+  "next_attempt_at",
+  "last_error",
+  "progress",
+  "document_id",
+  "duplicate_of",
+  "rows_read",
+  "serial",
+  "uploaded_at",
+] as const;
 
 interface Row {
   id: string;
+  kind: CaptureRecord["kind"];
   sha256: string;
   file_uri: string;
   thumb_uri: string | null;
@@ -53,6 +110,12 @@ interface Row {
   station: string;
   member_hint: string | null;
   source: CaptureRecord["source"];
+  line_id: string | null;
+  member_no: string | null;
+  member_name: string | null;
+  cents: number | null;
+  php_per_usd: string | null;
+  attested_by: string | null;
   created_at: number;
   state: CaptureState;
   attempts: number;
@@ -66,18 +129,8 @@ interface Row {
   uploaded_at: number | null;
 }
 
-const COLUMNS: Readonly<Record<keyof Omit<CaptureRecord, "id">, keyof Row>> = {
-  sha256: "sha256",
-  fileUri: "file_uri",
-  thumbUri: "thumb_uri",
-  mime: "mime",
-  bytes: "bytes",
-  width: "width",
-  height: "height",
-  station: "station",
-  memberHint: "member_hint",
-  source: "source",
-  createdAt: "created_at",
+/** Patchable fields → columns. Bytes, kind and attestation are written once, on insert. */
+const PATCH_COLUMNS: Readonly<Record<keyof CapturePatch, keyof Row>> = {
   state: "state",
   attempts: "attempts",
   nextAttemptAt: "next_attempt_at",
@@ -90,19 +143,34 @@ const COLUMNS: Readonly<Record<keyof Omit<CaptureRecord, "id">, keyof Row>> = {
   uploadedAt: "uploaded_at",
 };
 
+const num = (v: number | bigint | null): number | null => (v === null ? null : Number(v));
+
 function fromRow(r: Row): CaptureRecord {
+  const nadawat: NadawatMeta | null =
+    r.kind === "nadawat"
+      ? {
+          lineId: r.line_id ?? "",
+          memberNo: r.member_no ?? "",
+          memberName: r.member_name ?? "",
+          cents: Number(r.cents ?? 0),
+          phpPerUsd: r.php_per_usd ?? "0",
+          attestedBy: r.attested_by ?? "",
+        }
+      : null;
   return {
     id: r.id,
+    kind: r.kind,
     sha256: r.sha256,
     fileUri: r.file_uri,
     thumbUri: r.thumb_uri,
     mime: r.mime,
     bytes: Number(r.bytes),
-    width: r.width === null ? null : Number(r.width),
-    height: r.height === null ? null : Number(r.height),
+    width: num(r.width),
+    height: num(r.height),
     station: r.station,
     memberHint: r.member_hint,
     source: r.source,
+    nadawat,
     createdAt: Number(r.created_at),
     state: r.state,
     attempts: Number(r.attempts),
@@ -111,43 +179,117 @@ function fromRow(r: Row): CaptureRecord {
     progress: Number(r.progress),
     documentId: r.document_id,
     duplicateOf: r.duplicate_of,
-    rowsRead: r.rows_read === null ? null : Number(r.rows_read),
+    rowsRead: num(r.rows_read),
     serial: r.serial,
-    uploadedAt: r.uploaded_at === null ? null : Number(r.uploaded_at),
+    uploadedAt: num(r.uploaded_at),
   };
 }
 
-function setClause(patch: Partial<CaptureRecord>): { sql: string; params: SqlParam[] } {
+function toRow(rec: CaptureRecord): Row {
+  const n = rec.nadawat;
+  return {
+    id: rec.id,
+    kind: rec.kind,
+    sha256: rec.sha256,
+    file_uri: rec.fileUri,
+    thumb_uri: rec.thumbUri,
+    mime: rec.mime,
+    bytes: rec.bytes,
+    width: rec.width,
+    height: rec.height,
+    station: rec.station,
+    member_hint: rec.memberHint,
+    source: rec.source,
+    line_id: n?.lineId ?? null,
+    member_no: n?.memberNo ?? null,
+    member_name: n?.memberName ?? null,
+    cents: n?.cents ?? null,
+    php_per_usd: n?.phpPerUsd ?? null,
+    attested_by: n?.attestedBy ?? null,
+    created_at: rec.createdAt,
+    state: rec.state,
+    attempts: rec.attempts,
+    next_attempt_at: rec.nextAttemptAt,
+    last_error: rec.lastError,
+    progress: rec.progress,
+    document_id: rec.documentId,
+    duplicate_of: rec.duplicateOf,
+    rows_read: rec.rowsRead,
+    serial: rec.serial,
+    uploaded_at: rec.uploadedAt,
+  };
+}
+
+function setClause(patch: CapturePatch): { sql: string; params: SqlParam[] } {
   const parts: string[] = [];
   const params: SqlParam[] = [];
   for (const [k, v] of Object.entries(patch)) {
-    if (k === "id" || v === undefined) continue;
-    const col = COLUMNS[k as keyof typeof COLUMNS];
-    if (!col) throw new RangeError(`Unknown capture field: ${k}`);
+    if (v === undefined) continue;
+    const col = PATCH_COLUMNS[k as keyof CapturePatch];
+    if (!col) throw new RangeError(`Not a patchable capture field: ${k}`);
     parts.push(`${col} = ?`);
     params.push(v as SqlParam);
   }
   return { sql: parts.join(", "), params };
 }
 
+/** Cash receipts first (they change a member's line), then the oldest page. */
+const DUE_ORDER = "CASE kind WHEN 'nadawat' THEN 0 ELSE 1 END, created_at ASC, id ASC";
+
+/** The co-op's refusal holds the row (`isRefused`); its one parameter is `MANUAL_ONLY`. */
+const REFUSED = "state = 'failed' AND next_attempt_at = ?";
+
 export class SqliteOutboxStore implements OutboxStore {
   constructor(private readonly db: SqlDriver) {}
 
   async init() {
-    await this.db.exec(OUTBOX_SCHEMA);
+    const [v] = await this.db.all<{ user_version: number }>("PRAGMA user_version", []);
+    if (Number(v?.user_version ?? 0) >= OUTBOX_SCHEMA_VERSION) return;
+    const cols = await this.db.all<{ name: string }>("PRAGMA table_info(captures)", []);
+    const stamp = `PRAGMA user_version = ${OUTBOX_SCHEMA_VERSION};`;
+    if (cols.length === 0) {
+      await this.transaction(`${OUTBOX_TABLE_V2("captures")}\n${INDEXES}\n${stamp}`);
+    } else if (cols.some((c) => c.name === "kind")) {
+      await this.transaction(`${INDEXES}\n${stamp}`);
+    } else {
+      // The first build's table (no `kind`): rebuild it as version 2, keeping every row as a slip.
+      const copy = V1_COLUMNS.join(", ");
+      await this.transaction(`DROP TABLE IF EXISTS captures_v2;
+${OUTBOX_TABLE_V2("captures_v2")}
+INSERT INTO captures_v2 (${copy}, kind) SELECT ${copy}, 'slip' FROM captures;
+DROP TABLE captures;
+ALTER TABLE captures_v2 RENAME TO captures;
+${INDEXES}
+${stamp}`);
+    }
+  }
+
+  /** Schema statements (constants only, never user input) in one transaction: all of it or none of it. */
+  private async transaction(sql: string) {
+    await this.db.exec("BEGIN;");
+    try {
+      await this.db.exec(sql);
+      await this.db.exec("COMMIT;");
+    } catch (e) {
+      await this.db.exec("ROLLBACK;").catch(() => {});
+      throw e;
+    }
   }
 
   async insert(rec: CaptureRecord) {
-    const cols = ["id", ...Object.values(COLUMNS)];
-    const values: SqlParam[] = [
-      rec.id,
-      ...Object.keys(COLUMNS).map((k) => rec[k as keyof typeof COLUMNS] as SqlParam),
-    ];
-    const r = await this.db.run(
-      `INSERT OR IGNORE INTO captures (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
-      values,
-    );
-    return r.changes === 1 ? "inserted" : "duplicate";
+    const row = toRow(rec);
+    const cols = Object.keys(row);
+    try {
+      const r = await this.db.run(
+        `INSERT OR IGNORE INTO captures (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
+        Object.values(row) as SqlParam[],
+      );
+      return r.changes === 1 ? ("inserted" as const) : ("duplicate" as const);
+    } catch (e) {
+      // OR IGNORE covers UNIQUE; a partial unique index can still raise on some SQLite builds.
+      if (/UNIQUE/i.test(e instanceof Error ? e.message : String(e))) return "duplicate" as const;
+      throw e;
+    }
   }
 
   async get(id: string) {
@@ -160,6 +302,13 @@ export class SqliteOutboxStore implements OutboxStore {
     return r ? fromRow(r) : null;
   }
 
+  async findNadawat(lineId: string) {
+    const [r] = await this.db.all<Row>("SELECT * FROM captures WHERE kind = 'nadawat' AND line_id = ?", [
+      lineId,
+    ]);
+    return r ? fromRow(r) : null;
+  }
+
   async list() {
     const rows = await this.db.all<Row>("SELECT * FROM captures ORDER BY created_at DESC, id DESC", []);
     return rows.map(fromRow);
@@ -168,19 +317,19 @@ export class SqliteOutboxStore implements OutboxStore {
   async due(now: number, limit: number) {
     const rows = await this.db.all<Row>(
       `SELECT * FROM captures WHERE state IN ('queued','failed') AND next_attempt_at <= ?
-       ORDER BY created_at ASC, id ASC LIMIT ?`,
+       ORDER BY ${DUE_ORDER} LIMIT ?`,
       [now, limit],
     );
     return rows.map(fromRow);
   }
 
-  async update(id: string, patch: Partial<CaptureRecord>) {
+  async update(id: string, patch: CapturePatch) {
     const { sql, params } = setClause(patch);
     if (!sql) return;
     await this.db.run(`UPDATE captures SET ${sql} WHERE id = ?`, [...params, id]);
   }
 
-  async transition(id: string, from: readonly CaptureState[], patch: Partial<CaptureRecord>) {
+  async transition(id: string, from: readonly CaptureState[], patch: CapturePatch) {
     const { sql, params } = setClause(patch);
     if (!sql || from.length === 0) return false;
     const r = await this.db.run(
@@ -197,6 +346,44 @@ export class SqliteOutboxStore implements OutboxStore {
     );
     return r.changes;
   }
+
+  async removeSettled(before: number) {
+    const rows = await this.db.all<Row>(
+      "SELECT * FROM captures WHERE state IN ('uploaded','read') AND created_at < ?",
+      [before],
+    );
+    if (rows.length) {
+      await this.db.run("DELETE FROM captures WHERE state IN ('uploaded','read') AND created_at < ?", [
+        before,
+      ]);
+    }
+    return rows.map(fromRow);
+  }
+
+  async removeRefused(id: string) {
+    const [row] = await this.db.all<Row>(`SELECT * FROM captures WHERE id = ? AND ${REFUSED}`, [
+      id,
+      MANUAL_ONLY,
+    ]);
+    if (!row) return null;
+    const r = await this.db.run(`DELETE FROM captures WHERE id = ? AND ${REFUSED}`, [id, MANUAL_ONLY]);
+    return r.changes === 1 ? fromRow(row) : null;
+  }
+
+  async rekeyRefused(id: string, newId: string, patch: CapturePatch) {
+    const { sql, params } = setClause(patch);
+    const r = await this.db.run(
+      `UPDATE captures SET id = ?${sql ? `, ${sql}` : ""} WHERE id = ? AND ${REFUSED}`,
+      [newId, ...params, id, MANUAL_ONLY],
+    );
+    return r.changes === 1;
+  }
+}
+
+const clone = (r: CaptureRecord): CaptureRecord => ({ ...r, nadawat: r.nadawat ? { ...r.nadawat } : null });
+
+function dueRank(r: CaptureRecord): number {
+  return r.kind === "nadawat" ? 0 : 1;
 }
 
 export class MemoryOutboxStore implements OutboxStore {
@@ -205,45 +392,56 @@ export class MemoryOutboxStore implements OutboxStore {
   async init() {}
 
   async insert(rec: CaptureRecord) {
-    for (const r of this.rows.values()) if (r.sha256 === rec.sha256) return "duplicate" as const;
     if (this.rows.has(rec.id)) return "duplicate" as const;
-    this.rows.set(rec.id, { ...rec });
+    for (const r of this.rows.values()) {
+      if (r.sha256 === rec.sha256) return "duplicate" as const;
+      if (rec.kind === "nadawat" && r.kind === "nadawat" && r.nadawat?.lineId === rec.nadawat?.lineId) {
+        return "duplicate" as const;
+      }
+    }
+    this.rows.set(rec.id, clone(rec));
     return "inserted" as const;
   }
 
   async get(id: string) {
     const r = this.rows.get(id);
-    return r ? { ...r } : null;
+    return r ? clone(r) : null;
   }
 
   async findBySha(sha256: string) {
-    for (const r of this.rows.values()) if (r.sha256 === sha256) return { ...r };
+    for (const r of this.rows.values()) if (r.sha256 === sha256) return clone(r);
+    return null;
+  }
+
+  async findNadawat(lineId: string) {
+    for (const r of this.rows.values())
+      if (r.kind === "nadawat" && r.nadawat?.lineId === lineId) return clone(r);
     return null;
   }
 
   async list() {
     return [...this.rows.values()]
       .sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1))
-      .map((r) => ({ ...r }));
+      .map(clone);
   }
 
   async due(now: number, limit: number) {
     return [...this.rows.values()]
       .filter((r) => (r.state === "queued" || r.state === "failed") && r.nextAttemptAt <= now)
-      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+      .sort((a, b) => dueRank(a) - dueRank(b) || a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
       .slice(0, limit)
-      .map((r) => ({ ...r }));
+      .map(clone);
   }
 
-  async update(id: string, patch: Partial<CaptureRecord>) {
+  async update(id: string, patch: CapturePatch) {
     const r = this.rows.get(id);
-    if (r) this.rows.set(id, { ...r, ...patch, id: r.id, sha256: r.sha256 });
+    if (r) this.rows.set(id, { ...r, ...defined(patch) });
   }
 
-  async transition(id: string, from: readonly CaptureState[], patch: Partial<CaptureRecord>) {
+  async transition(id: string, from: readonly CaptureState[], patch: CapturePatch) {
     const r = this.rows.get(id);
-    if (!r || !from.includes(r.state)) return false;
-    this.rows.set(id, { ...r, ...patch, id: r.id, sha256: r.sha256 });
+    if (!r || !from.includes(r.state) || from.length === 0) return false;
+    this.rows.set(id, { ...r, ...defined(patch) });
     return true;
   }
 
@@ -257,4 +455,41 @@ export class MemoryOutboxStore implements OutboxStore {
     }
     return n;
   }
+
+  async removeSettled(before: number) {
+    const out: CaptureRecord[] = [];
+    for (const r of [...this.rows.values()]) {
+      if ((r.state === "uploaded" || r.state === "read") && r.createdAt < before) {
+        this.rows.delete(r.id);
+        out.push(clone(r));
+      }
+    }
+    return out;
+  }
+
+  async removeRefused(id: string) {
+    const r = this.rows.get(id);
+    if (!r || !isRefused(r)) return null;
+    this.rows.delete(id);
+    return clone(r);
+  }
+
+  async rekeyRefused(id: string, newId: string, patch: CapturePatch) {
+    const r = this.rows.get(id);
+    if (!r || !isRefused(r) || this.rows.has(newId)) return false;
+    this.rows.delete(id);
+    this.rows.set(newId, { ...r, ...defined(patch), id: newId });
+    return true;
+  }
+}
+
+/** Drops undefined values, so a patch never erases a field it did not name (as the SQL store behaves). */
+function defined(patch: CapturePatch): CapturePatch {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    if (!(k in PATCH_COLUMNS)) throw new RangeError(`Not a patchable capture field: ${k}`);
+    out[k] = v;
+  }
+  return out as CapturePatch;
 }

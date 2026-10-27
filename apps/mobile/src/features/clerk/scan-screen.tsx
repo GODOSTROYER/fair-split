@@ -1,251 +1,297 @@
 /**
- * M-CL-01 Scan (design K1, S1.8 M-CK-01): a top app bar with the station chip, one FAB "Scan resibo". The FAB opens
- * the system document scanner; if that is unavailable, the camera with an edge guide. Every page is resized, hashed
- * and filed in the offline outbox, signal or not: "Walay signal. 3 ka resibo natipigan sa telepono."
+ * M-CL-01 Scan (design K1, S1.9): a small top app bar with the station chip ("Purok 2 pickup", when the pairing or
+ * the co-op names the station) and one floating action, "Scan resibo", in the right thumb's reach. The treasurer's
+ * rescan requests come first, as banners; then the status line, today's slips as rings that close as they reach the
+ * co-op; on cash day, the cash list; the last pages scanned; and, in demo and Judge Mode, the labelled sample slips.
+ *
+ * Field-grade: Adlaw light for daylight, 48 dp targets and a 64 dp scan slab, text to 2×, nothing that needs two
+ * hands. Every page is filed on the phone first, signal or not: "Walay signal. 3 ka resibo natipigan sa telepono."
  */
-import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
-import { format } from "../../_shims/domain";
+import { Fragment, useState } from "react";
+import { StyleSheet, View } from "react-native";
 import { radius, space, target } from "../../_shims/tokens.native";
-import { type CaptureRecord, summarise } from "../../lib/outbox";
-import { feedback } from "../../platform/feedback";
-import {
-  documentScannerAvailable,
-  type ProcessedPage,
-  processPage,
-  samplePage,
-  sampleSerials,
-  scanWithSystemScanner,
-  supportsSamples,
-} from "../../platform/scanner";
+import { isSameManilaDay, MANUAL_ONLY, summarise } from "../../lib/outbox";
+import { hasCameraFallback } from "../../platform/scanner";
+import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen, TopBar } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Snackbar, useSnackbar } from "../../ui/overlay";
-import { Banner, Button, Chip, SectionTitle } from "../../ui/primitives";
+import { Banner, Button, Chip, Rule, SectionTitle } from "../../ui/primitives";
+import { Slab } from "../../ui/slab";
 import { Txt } from "../../ui/text";
+import { CameraCapture } from "./camera-capture";
+import { CaptureRow } from "./capture-row";
+import { CashPlate } from "./cash-plate";
+import { useCashDay } from "./cash-provider";
+import { pluralKey } from "./messages";
+import { NadawatSheet } from "./nadawat-sheet";
 import { useOutbox } from "./outbox-provider";
-import { CameraCapture, ProgressRing } from "./parts";
+import { useRemoveCapture } from "./remove-capture";
+import { RescanBanner } from "./rescan-banner";
+import { useRescans } from "./rescan-provider";
+import { ReviewSheet } from "./review-sheet";
+import { SamplesPlate } from "./samples-plate";
+import { scanScreenState } from "./screen-state";
+import { TodayTally } from "./tally";
+import { useCaptureFlow } from "./use-capture";
+import { useCompact } from "./use-compact";
+import { useNow } from "./use-now";
+import { useClerkSite } from "./use-site";
 import { useT } from "./use-t";
 
+/** Room under the content for the floating scan slab and its snackbar. */
+const DOCK = target.hero + space.s32 + space.s8;
+
 export function ScanScreen() {
-  const { online } = useApp();
-  const outbox = useOutbox();
+  const { online, api, frame } = useApp();
   const { t } = useFs();
   const tr = useT();
   const snack = useSnackbar();
-  const [camera, setCamera] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const records = outbox?.records ?? [];
-  const sum = summarise(records);
-  const station = tr("M-CL-01.station");
+  const outbox = useOutbox();
+  const cash = useCashDay();
+  const site = useClerkSite();
+  const rescans = useRescans();
+  const remove = useRemoveCapture({ onRemoved: snack.show, testID: "M-CL-01.remove" });
+  const [openLine, setOpenLine] = useState<string | null>(null);
+  const compact = useCompact();
+  const { station } = site;
+  // Judge Mode on a live fs-api accepts sample slips only (S3.9); demo mode offers them beside real capture.
+  const samplesOnly = api.mode === "live" && frame.inFrame;
+  const showSamples = api.mode === "demo" || frame.inFrame;
+  const flow = useCaptureFlow({ station: station ?? "", samplesOnly, show: snack.show });
+  const { records } = outbox;
+  const now = useNow(
+    records.some((r) => r.state === "uploading" || (r.state === "failed" && r.nextAttemptAt !== MANUAL_ONLY)),
+  );
+  const slips = summarise(records.filter((r) => r.kind === "slip"));
+  // "N slips weren't accepted" counts slips; a refused cash receipt says so on its own row of the cash list.
+  const refused = slips.refused;
+  const recent = records.filter((r) => isSameManilaDay(r.createdAt, now)).slice(0, 3);
+  const state = scanScreenState({ online, busy: flow.busy, event: flow.event, records });
+  const entry = openLine ? (cash.entries.find((e) => e.line.lineId === openLine) ?? null) : null;
+  const cashFirst = cash.open && cash.entries.some((e) => e.status === "due");
+  const viewOutbox = () => router.navigate(HREF.outbox);
+  const canScan = !flow.busy && outbox.status === "ready";
 
-  const file = async (pages: ProcessedPage[]) => {
-    if (!outbox) return;
-    let saved = 0;
-    for (const p of pages) {
-      if (p.tooDark) {
-        snack.show(tr("M-CL-01.quality"), "decide");
-        continue;
-      }
-      const r = await outbox.outbox.add({
-        sha256: p.sha256,
-        fileUri: p.uri,
-        thumbUri: p.thumbUri,
-        mime: p.mime,
-        bytes: p.bytes,
-        width: p.width,
-        height: p.height,
-        station,
-        memberHint: null,
-        source: p.source,
-      });
-      if (r.outcome === "duplicate-file") {
-        const at = r.existing.uploadedAt ?? r.existing.createdAt;
-        snack.show(
-          tr(r.existing.uploadedAt ? "M-CL-01.duplicate" : "M-CL-01.duplicateWaiting", {
-            time: format.time(new Date(at).toISOString()),
-          }),
-          "decide",
-        );
-      } else {
-        saved++;
-        feedback.play("slip.captured");
-      }
-    }
-    if (saved) snack.show(tr("M-CL-01.saved", { n: saved }));
-    void outbox.outbox.sync();
-  };
-
-  const scan = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (Platform.OS === "web") return;
-      if (!documentScannerAvailable()) {
-        snack.show(tr("M-CL-01.unavailable"), "decide");
-        setCamera(true);
-        return;
-      }
-      const r = await scanWithSystemScanner();
-      if (r.kind === "pages") await file(r.pages);
-      else if (r.kind === "unavailable") {
-        snack.show(tr("M-CL-01.unavailable"), "decide");
-        setCamera(true);
-      } else if (r.kind === "error") snack.show(tr("common.error"), "decide");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const status = !online
-    ? tr("M-CL-01.offline", { n: sum.onPhone })
-    : sum.onPhone
-      ? tr("M-CL-01.waiting", { n: sum.onPhone })
-      : tr("M-CL-01.allSent");
+  const cashPlate = <CashPlate cash={cash} onOpen={(e) => setOpenLine(e.line.lineId)} />;
+  // At large text or on a narrow window the station moves under the title, so the title never squeezes out.
+  const stationChip = station ? (
+    <View
+      accessible
+      accessibilityLabel={tr("M-CL-01.stationSr", { station })}
+      testID="M-CL-01.station"
+      style={compact ? styles.stationCompact : null}
+    >
+      <Chip icon="scale" label={station} />
+    </View>
+  ) : null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.color.ground }}>
-      <TopBar
-        title={tr("M-CL-01.title")}
-        trailing={<Chip icon="scale" label={station} testID="M-CL-01.station" />}
-      />
+    <View style={[styles.root, { backgroundColor: t.color.ground }]}>
+      <TopBar title={tr("M-CL-01.title")} trailing={compact ? undefined : (stationChip ?? undefined)} />
       <Screen
         testID="M-CL-01"
-        state={online ? "ready" : "offline"}
+        state={state}
         topInset={false}
-        contentStyle={{ paddingBottom: 120 }}
+        contentStyle={{ paddingBottom: DOCK + space.s24 }}
+        footer={
+          <View style={styles.dock} pointerEvents="box-none">
+            <Slab
+              label={
+                flow.busy
+                  ? tr("M-CL-01.scanning")
+                  : tr(samplesOnly ? "M-CL-01.addSampleNext" : "M-CL-01.scan")
+              }
+              srLabel={tr(samplesOnly ? "M-CL-01.addSampleNext" : "M-CL-01.scanSr")}
+              depth="d1"
+              tone="chalk"
+              icon={samplesOnly ? "slip" : "scan"}
+              height={target.hero}
+              disabled={!canScan}
+              onCommit={flow.scan}
+              testID="M-CL-01.scan"
+            />
+          </View>
+        }
       >
-        <Banner
-          tone={online ? "neutral" : "decide"}
-          icon={online ? "outbox" : "wifiOff"}
-          testID="M-CL-01.status"
-        >
-          <Txt kind="bodyStrong">{status}</Txt>
-        </Banner>
+        {compact ? stationChip : null}
 
-        <View style={[styles.today, { backgroundColor: t.color.plate }]}>
-          <Txt kind="label" color="ink2">
-            {tr("M-CL-01.today")}
-          </Txt>
-          <Txt kind="amountL">{String(sum.total)}</Txt>
-          <Txt kind="body" color="ink2">
-            {tr("M-CL-01.count", { n: sum.total, sent: sum.sent })}
-          </Txt>
-        </View>
+        {rescans.map((q) => (
+          <RescanBanner
+            key={q.id}
+            request={q}
+            original={q.captureId ? (records.find((r) => r.id === q.captureId) ?? null) : null}
+            onScan={flow.scan}
+            disabled={!canScan}
+          />
+        ))}
 
-        {records.length ? (
+        <StatusLine
+          online={online}
+          status={outbox.status}
+          onPhone={slips.onPhone}
+          total={slips.total}
+          refused={refused}
+          onView={viewOutbox}
+          onRetry={outbox.reopen}
+        />
+
+        <TodayTally records={records} now={now} />
+
+        {cashFirst ? cashPlate : null}
+
+        {recent.length ? (
           <View>
-            <SectionTitle>{tr("M-CL-02.title")}</SectionTitle>
-            <View style={[styles.recent, { backgroundColor: t.color.plate }]}>
-              {records.slice(0, 3).map((r: CaptureRecord) => (
-                <Pressable
-                  key={r.id}
-                  onPress={() => router.push("/(clerk)/outbox")}
-                  accessibilityRole="button"
-                  style={styles.recentRow}
-                >
-                  <Image
-                    source={{ uri: r.thumbUri ?? r.fileUri }}
-                    style={[styles.thumb, { borderColor: t.color.rule }]}
-                    contentFit="cover"
+            <SectionTitle>{tr("M-CL-01.recent")}</SectionTitle>
+            <View style={[styles.plate, { backgroundColor: t.color.plate }]}>
+              {recent.map((r, i) => (
+                <Fragment key={r.id}>
+                  {i > 0 ? <Rule /> : null}
+                  <CaptureRow
+                    r={r}
+                    now={now}
+                    online={online}
+                    treasurer={site.treasurer}
+                    paper={56}
+                    onSendNow={() => outbox.sendNow(r.id)}
+                    onRemove={() => remove.ask(r)}
+                    testID={`M-CL-01.recent.${r.id}`}
                   />
-                  <Txt kind="body" style={{ flex: 1 }}>
-                    {r.serial ? tr("M-CL-02.serial", { serial: r.serial }) : tr("M-CL-02.notRead")}
-                  </Txt>
-                  <ProgressRing state={r.state} progress={r.progress} size={28} />
-                </Pressable>
+                </Fragment>
               ))}
             </View>
+            <Button
+              variant="text"
+              icon="forward"
+              label={tr("M-CL-01.seeAll")}
+              onPress={viewOutbox}
+              style={styles.seeAll}
+              testID="M-CL-01.see-all"
+            />
           </View>
         ) : null}
 
-        {supportsSamples ? (
-          <View style={[styles.samples, { borderColor: t.color.rule }]} testID="M-CL-01.samples">
-            <Txt kind="title2">{tr("M-CL-01.samples")}</Txt>
-            <Txt kind="body" color="ink2">
-              {tr("M-CL-01.samplesHint")}
-            </Txt>
-            {sampleSerials.map((serial) => (
-              <Button
-                key={serial}
-                variant="tonal"
-                icon="slip"
-                label={tr("M-CL-01.addSample", { serial })}
-                testID={`M-CL-01.sample.${serial}`}
-                onPress={() => void samplePage(serial).then((p) => file([p]))}
-              />
-            ))}
-          </View>
+        {cashFirst ? null : cashPlate}
+
+        {showSamples ? (
+          <SamplesPlate records={records} samplesOnly={samplesOnly} onAdd={(s) => void flow.addSample(s)} />
         ) : null}
       </Screen>
 
-      {Platform.OS !== "web" ? (
-        <Pressable
-          testID="M-CL-01.fab"
-          accessibilityRole="button"
-          accessibilityLabel={tr("M-CL-01.fab")}
-          onPress={() => void scan()}
-          disabled={busy || !outbox}
-          style={({ pressed }) => [
-            styles.fab,
-            { backgroundColor: pressed || busy ? t.color.ink2 : t.color.ink },
-          ]}
-        >
-          <Glyph name="scan" color={t.color.plate} />
-          <Txt kind="slab" style={{ color: t.color.plate }}>
-            {tr("M-CL-01.fab")}
-          </Txt>
-        </Pressable>
-      ) : null}
-      <Snackbar msg={snack.msg} bottom={Platform.OS !== "web" ? 96 : 24} />
-      <CameraCapture
-        visible={camera}
-        onClose={() => setCamera(false)}
-        title={
-          <Txt kind="title2" style={{ color: "#FFFFFF" }}>
-            {tr("M-CL-01.fab")}
-          </Txt>
-        }
-        onCaptured={(uri) => {
-          setCamera(false);
-          void processPage(uri, "camera").then((p) => file([p]));
-        }}
+      <Snackbar msg={snack.msg} bottom={DOCK} />
+      <ReviewSheet
+        review={flow.review}
+        onRescan={flow.rescan}
+        onKeep={flow.keep}
+        onDismiss={flow.dismissReview}
       />
+      <NadawatSheet
+        entry={entry}
+        cash={cash}
+        site={site}
+        samples={showSamples}
+        samplesOnly={samplesOnly}
+        onClose={() => setOpenLine(null)}
+      />
+      {remove.dialog}
+      {hasCameraFallback ? (
+        <CameraCapture
+          visible={flow.camera}
+          title={tr("M-CL-01.cameraTitle")}
+          onClose={flow.closeCamera}
+          onCaptured={(uri) => void flow.fromCamera(uri)}
+          onLibrary={flow.fromLibrary}
+          onDenied={flow.cameraDenied}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Where the clerk's work stands, in one sentence. Offline is not a warning: the slips are safe, and they go out by
+ * themselves (neutral, never canary). Only a slip the co-op refused asks for him (canary, a person's decision).
+ */
+function StatusLine({
+  online,
+  status,
+  onPhone,
+  total,
+  refused,
+  onView,
+  onRetry,
+}: {
+  online: boolean;
+  status: "opening" | "ready" | "error";
+  onPhone: number;
+  total: number;
+  refused: number;
+  onView(): void;
+  onRetry(): void;
+}) {
+  const { t } = useFs();
+  const tr = useT();
+  if (status === "error") {
+    return (
+      <Banner
+        tone="decide"
+        icon="info"
+        testID="M-CL-01.status"
+        action={<Button variant="text" label={tr("common.tryAgain")} onPress={onRetry} />}
+      >
+        <Txt kind="bodyStrong">{tr("common.error")}</Txt>
+      </Banner>
+    );
+  }
+  if (!online) {
+    return (
+      <Banner icon="wifiOff" testID="M-CL-01.status">
+        <Txt kind="bodyStrong">
+          {onPhone ? tr(pluralKey("M-CL-01.offline", onPhone), { n: onPhone }) : tr("M-CL-01.offlineEmpty")}
+        </Txt>
+        {onPhone ? (
+          <Txt kind="body" color="ink2">
+            {tr("M-CL-01.offlineAfter")}
+          </Txt>
+        ) : null}
+      </Banner>
+    );
+  }
+  if (refused) {
+    return (
+      <Banner
+        tone="decide"
+        icon="info"
+        testID="M-CL-01.status"
+        action={<Button variant="text" label={tr("M-CL-01.view")} onPress={onView} />}
+      >
+        <Txt kind="bodyStrong">{tr(pluralKey("M-CL-01.refused", refused), { n: refused })}</Txt>
+      </Banner>
+    );
+  }
+  const [glyph, text] = onPhone
+    ? (["outbox", tr(pluralKey("M-CL-01.waiting", onPhone), { n: onPhone })] as const)
+    : total
+      ? (["check", tr("M-CL-01.allSent")] as const)
+      : (["scan", tr("M-CL-01.ready")] as const);
+  return (
+    <View testID="M-CL-01.status" style={styles.line}>
+      <Glyph name={glyph} size={20} color={t.color.ink} />
+      <Txt kind="bodyStrong" style={{ flex: 1 }}>
+        {text}
+      </Txt>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  today: { padding: space.s16, gap: space.s4, borderRadius: radius.none },
-  recent: { borderRadius: radius.none },
-  recentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s12,
-    padding: space.s12,
-    minHeight: target.min + 8,
-  },
-  thumb: { width: 44, height: 44, borderWidth: 1, borderRadius: radius.none },
-  samples: {
-    gap: space.s8,
-    padding: space.s16,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.plate,
-  },
-  fab: {
-    position: "absolute",
-    right: space.s16,
-    bottom: space.s16,
-    minHeight: target.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s12,
-    paddingHorizontal: space.s24,
-    borderRadius: radius.plate,
-  },
+  root: { flex: 1 },
+  dock: { position: "absolute", right: space.s16, bottom: space.s16 },
+  plate: { borderRadius: radius.plate, paddingHorizontal: space.s12 },
+  seeAll: { alignSelf: "flex-start", marginTop: space.s4 },
+  stationCompact: { alignSelf: "flex-start", maxWidth: "100%" },
+  line: { flexDirection: "row", alignItems: "center", gap: space.s8, minHeight: target.min },
 });
