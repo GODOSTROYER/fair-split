@@ -131,13 +131,19 @@ headers: `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmiss
   with `details[]` (`field` as a JSON pointer, `location`, `issue` such as `MISSING_REQUIRED_PARAMETER`,
   `INVALID_STRING_MAX_LENGTH`, `INVALID_PARAMETER_VALUE`, `INVALID_PARAMETER_SYNTAX`, `INVALID_ARRAY_MAX_ITEMS`;
   unparsable JSON → `MALFORMED_REQUEST_JSON`).
-- **Every response body and webhook event** the simulator produces is validated against the same specs. In strict
-  mode (default) a violation becomes a 500 with `x-fairsplit-sim-contract: violated`, and every test asserts that
-  `simulator.violations` stays empty. PayPal's schemas rarely forbid extra properties and make most fields
-  optional, so schema validity alone does not prove a shape: `test/golden.test.ts` also pins shapes to what PayPal
-  publishes — the ERRPYO002 sample body, the sandbox's "Not a valid webhook URL" refusal, the webhook envelope,
-  PayPal's own request examples from the specs (its verify example fails only on its placeholder `cert_url`), and
-  the three-day retry schedule.
+- **Every response body and webhook event** the simulator produces is validated against the same specs — an
+  event's envelope against Webhooks' `event`, and its free-form `resource` against its own API schema (Invoicing's
+  `invoice`, Payouts' `payout_batch` or `payout_item`). In strict mode (default) a violation becomes a 500 with
+  `x-fairsplit-sim-contract: violated`, and every test asserts that `simulator.violations` stays empty.
+- **No invented fields.** PayPal's schemas almost never say `additionalProperties: false`, so a schema validator
+  accepts made-up properties. `SIM_STRICT_PROPERTIES` (on in the whole test suite) also records, as violations,
+  response and event properties the specs never declare. Two exceptions carry published evidence: `encType` on
+  Payouts links (PayPal's Payouts samples) and `link` in a duplicate `sender_batch_id` error's `details[]` (the
+  spec's own description of that error). The check is why the batch header echo no longer carries the request's
+  `note`: PayPal's response-side `sender_batch_header` has no such field.
+- **Published samples.** `test/golden.test.ts` pins shapes to what PayPal publishes — the ERRPYO002 sample body,
+  the sandbox's "Not a valid webhook URL" refusal, the webhook envelope, PayPal's own request examples from the
+  specs (its verify example fails only on its placeholder `cert_url`), and the three-day retry schedule.
 - **Tests (Vitest):** the full money loop (token → create → send → AUTO_CANCEL rule → record payment →
   signed `INVOICING.INVOICE.PAID` → payout batch → PROCESSING → SUCCESS, Rhea UNCLAIMED → cancel → RETURNED,
   balance in cents, Transaction Search), a contract tour that calls every implemented operation, valid and invalid
@@ -201,6 +207,7 @@ and pay pages, health — and is **the only one a host app may mount publicly**.
 | `SIM_TRUST_PROXY`                                  | off                        | Key the throttle on the right-most `X-Forwarded-For` entry (one proxy)        |
 | `SIM_LATENCY_MS`                                   | `0`                        | `120` or a range `80-250`                                                     |
 | `SIM_STRICT`                                       | on                         | Spec violations become 500s                                                   |
+| `SIM_STRICT_PROPERTIES`                            | off (on in tests)          | Also record properties the specs never declare as violations                  |
 | `SIM_IDEMPOTENCY`                                  | `declared`                 | `declared` (Payouts POST only) or `all-posts`                                 |
 | `SIM_DUPLICATE_DELIVERY`, `SIM_OUT_OF_ORDER`       | off                        | Delivery toggles                                                              |
 | `SIM_WEBHOOK_ORIGINS`                              | none                       | Extra origins webhooks may go to (comma-separated); own origin always allowed |

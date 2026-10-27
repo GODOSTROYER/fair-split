@@ -214,6 +214,10 @@ function restRoutes(sim: Simulator): Hono<{ Bindings: SimEnv }> {
         body = err.body;
       }
     }
+    if (sim.options.strictProperties && issues.length === 0) {
+      const extra = sim.contract.undeclaredInResponse(route.op, status, body ?? null, result.responseSchema);
+      if (extra.length > 0) sim.recordViolation(`${route.op} ${status}: undeclared ${extra.join(", ")}`);
+    }
     for (const [k, v] of Object.entries(result.headers ?? {})) headers.set(k, v);
     const text = body === undefined || status === 204 ? null : JSON.stringify(body);
     if (text !== null) headers.set("content-type", "application/json");

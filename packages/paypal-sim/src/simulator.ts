@@ -50,6 +50,7 @@ export interface EffectiveOptions {
   rateLimit: SimulatorOptions["rateLimit"];
   latencyMs: number | [number, number];
   strict: boolean;
+  strictProperties: boolean;
   deliveryFetch: (url: string, init: RequestInit) => Promise<Response>;
   maxAttempts: number;
   deliveryTimeoutMs: number;
@@ -145,6 +146,7 @@ export class Simulator {
       rateLimit: opts.rateLimit === undefined ? { perMinute: 50, blockSeconds: 300 } : opts.rateLimit,
       latencyMs: opts.latencyMs ?? 0,
       strict: opts.strict ?? true,
+      strictProperties: opts.strictProperties ?? false,
       deliveryFetch: fetchImpl,
       maxAttempts: opts.delivery?.maxAttempts ?? 26,
       deliveryTimeoutMs: opts.delivery?.timeoutMs ?? 10_000,

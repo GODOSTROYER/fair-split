@@ -229,6 +229,18 @@ const ERROR_SCHEMA: Record<SpecName, (status: number, has: (n: string) => boolea
   oauth: () => "oauth_error",
 };
 
+/**
+ * Fields PayPal's real responses carry that its vendored schemas do not declare (`definition.property`).
+ * Only fields with published evidence belong here:
+ *  - Payouts links carry `encType: "application/json"` (PayPal's Payouts samples, e.g. "Show payout batch" on
+ *    developer.paypal.com/api/payouts/customize).
+ *  - A duplicate `sender_batch_id` error's `details[]` carry `link`, the HATEOAS link to the original batch
+ *    (the spec's own sender_batch_id description: the error "includes a HATEOAS link to the original payout").
+ */
+const PUBLISHED_BUT_UNDECLARED: Partial<Record<SpecName, Set<string>>> = {
+  payouts: new Set(["link_description.encType", "error_details-2.link"]),
+};
+
 const GENERIC_ERROR: JsonObject = {
   type: "object",
   required: ["name", "message", "debug_id"],
@@ -240,6 +252,8 @@ export class Contract {
   private readonly ops = new Map<string, Operation>();
   private readonly defs = new Map<SpecName, Set<string>>();
   private readonly validators = new Map<string, ValidateFunction>();
+  /** The converted draft-07 definitions per `spec:mode`, for the undeclared-property walk. */
+  private readonly schemaDefs = new Map<string, JsonObject>();
   private readonly seenRequests = new Set<string>();
   private readonly seenResponses = new Map<string, Set<number>>();
   readonly specs: Record<SpecName, { title: string; version: string }>;
@@ -341,6 +355,7 @@ export class Contract {
     }
     for (const mode of ["req", "res"] as const) {
       this.ajv.addSchema({ $id: `fs-sim:${spec}:${mode}`, definitions: definitions[mode] });
+      this.schemaDefs.set(`${spec}:${mode}`, definitions[mode]);
     }
     this.defs.set(spec, names);
   }
@@ -397,10 +412,7 @@ export class Contract {
       this.seenResponses.set(key, seen);
     }
     seen.add(status);
-    let def: string | null | undefined;
-    if (override) def = override;
-    else if (status >= 400) def = ERROR_SCHEMA[o.spec](status, (n) => this.has(o.spec, n));
-    else def = o.responses[String(status)] ?? (status === 204 ? null : o.responses.default);
+    const def = this.responseDef(o, status, override);
     if (!def) {
       if (body === undefined || body === null || body === "") return [];
       return [
@@ -413,6 +425,83 @@ export class Contract {
       ];
     }
     return this.check(o.spec, def, body, "res");
+  }
+
+  private responseDef(o: Operation, status: number, override?: string): string | null | undefined {
+    if (override) return override;
+    if (status >= 400) return ERROR_SCHEMA[o.spec](status, (n) => this.has(o.spec, n));
+    return o.responses[String(status)] ?? (status === 204 ? null : o.responses.default);
+  }
+
+  /** Undeclared properties of a response body (see `undeclared`), against the schema validateResponse uses. */
+  undeclaredInResponse(key: string, status: number, body: unknown, override?: string): string[] {
+    const o = this.op(key);
+    const def = this.responseDef(o, status, override);
+    return def ? this.undeclared(o.spec, def, body, "res") : [];
+  }
+
+  /**
+   * JSON pointers of properties in `value` that the schema never declares. PayPal's schemas almost never say
+   * `additionalProperties: false`, so ajv accepts invented fields; this walk catches them. An object counts as
+   * open (anything goes) only when no applicable schema declares `properties` (a free-form object, such as an
+   * event's `resource`) or one of them allows additional properties. allOf, anyOf and oneOf branches pool their
+   * declared properties: a property is declared when any branch declares it.
+   */
+  undeclared(spec: SpecName, def: string, value: unknown, mode: Mode = "res"): string[] {
+    const defs = this.schemaDefs.get(`${spec}:${mode}`) ?? {};
+    const published = PUBLISHED_BUT_UNDECLARED[spec] ?? new Set<string>();
+    const out: string[] = [];
+    type Branch = { schema: JsonObject; name: string | null };
+    const resolve = (s: Json | undefined): Branch | null => {
+      let cur: Json | undefined = s;
+      let name: string | null = null;
+      for (let i = 0; i < 32 && isObject(cur) && typeof cur.$ref === "string"; i++) {
+        name = refName(cur.$ref);
+        cur = defs[name];
+      }
+      return isObject(cur) ? { schema: cur, name } : null;
+    };
+    const branches = (s: Json | undefined, acc: Branch[], depth: number): void => {
+      const r = resolve(s);
+      if (!r || depth > 32) return;
+      acc.push(r);
+      for (const k of ["allOf", "anyOf", "oneOf"]) {
+        const list = r.schema[k];
+        if (Array.isArray(list)) for (const sub of list) branches(sub, acc, depth + 1);
+      }
+    };
+    const walk = (schemas: Json[], v: unknown, path: string, depth: number): void => {
+      if (depth > 64) return;
+      const flat: Branch[] = [];
+      for (const s of schemas) branches(s, flat, 0);
+      if (flat.length === 0) return;
+      if (Array.isArray(v)) {
+        const items = flat
+          .map((f) => f.schema.items)
+          .filter((x): x is Json => x !== undefined && !Array.isArray(x));
+        if (items.length > 0) for (const [i, el] of v.entries()) walk(items, el, `${path}/${i}`, depth + 1);
+        return;
+      }
+      if (typeof v !== "object" || v === null) return;
+      const extra = flat
+        .map((f) => f.schema.additionalProperties)
+        .filter((a): a is JsonObject => isObject(a));
+      const open =
+        !flat.some((f) => isObject(f.schema.properties)) ||
+        flat.some((f) => f.schema.additionalProperties === true);
+      for (const [k, child] of Object.entries(v)) {
+        const declared = flat
+          .map((f) => (isObject(f.schema.properties) ? f.schema.properties[k] : undefined))
+          .filter((x): x is Json => x !== undefined);
+        const where = `${path}/${k}`;
+        if (declared.length > 0) walk(declared, child, where, depth + 1);
+        else if (extra.length > 0) walk(extra, child, where, depth + 1);
+        else if (!open && !flat.some((f) => f.name !== null && published.has(`${f.name}.${k}`)))
+          out.push(where);
+      }
+    };
+    walk([{ $ref: `#/definitions/${def}` }], value, "", 0);
+    return out;
   }
 
   coverage(): { requests: string[]; responses: Record<string, number[]> } {

@@ -42,6 +42,12 @@ export interface SimulatorOptions {
   latencyMs?: number | [number, number];
   /** A response that violates the vendored spec becomes a 500 (default true). */
   strict?: boolean;
+  /**
+   * Also record, as contract violations, response and event properties the vendored spec never declares
+   * (PayPal's schemas accept invented fields, since they rarely say `additionalProperties: false`). Off by
+   * default; the test suite turns it on.
+   */
+  strictProperties?: boolean;
   now?: () => number;
   /** Used to POST webhook deliveries (default: global fetch). It is always called with `redirect: "manual"`. */
   deliveryFetch?: (url: string, init: RequestInit) => Promise<Response>;
@@ -99,7 +105,7 @@ function bool(v: string | undefined): boolean | undefined {
  * Reads simulator options from the environment:
  * SIM_PUBLIC_URL, SIM_API_BASE_URL, SIM_BASE_PATH, SIM_SPEED, SIM_DATA_DIR, SIM_PERSIST,
  * SIM_RATE_LIMIT_PER_MIN (0 disables), SIM_RATE_LIMIT_BLOCK_S, SIM_LATENCY_MS ("120" or "80-250"),
- * SIM_STRICT, SIM_OUT_OF_ORDER, SIM_DUPLICATE_DELIVERY, SIM_PAYOUT_FEE_CENTS, SIM_REPORTING_LAG_S,
+ * SIM_STRICT, SIM_STRICT_PROPERTIES, SIM_OUT_OF_ORDER, SIM_DUPLICATE_DELIVERY, SIM_PAYOUT_FEE_CENTS, SIM_REPORTING_LAG_S,
  * SIM_ACCOUNTS_FILE, SIM_ADMIN_TOKEN, SIM_WEBHOOK_ORIGINS (comma-separated), SIM_ALLOW_LOOPBACK_WEBHOOKS,
  * SIM_TRUST_PROXY, SIM_IDEMPOTENCY (declared | all-posts), SIM_INVOICE_FEE_BPS, SIM_INVOICE_FEE_CENTS.
  */
@@ -124,6 +130,8 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): SimulatorO
   }
   const strict = bool(env.SIM_STRICT);
   if (strict !== undefined) opts.strict = strict;
+  const strictProperties = bool(env.SIM_STRICT_PROPERTIES);
+  if (strictProperties !== undefined) opts.strictProperties = strictProperties;
   const outOfOrder = bool(env.SIM_OUT_OF_ORDER);
   const duplicate = bool(env.SIM_DUPLICATE_DELIVERY);
   if (outOfOrder !== undefined || duplicate !== undefined)

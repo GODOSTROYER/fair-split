@@ -299,3 +299,42 @@ describe("invoice receiving fee", () => {
     expect(invoiceFeeCents(433_350, { percentBps: 0, fixedCents: 0 })).toBe(0);
   });
 });
+
+describe("strict property check (fields PayPal's schemas never declare)", () => {
+  it("flags invented fields, allows free-form objects and the published-but-undeclared Payouts fields", async () => {
+    const sim = await newSim();
+    const c = sim.contract;
+    expect(
+      c.undeclared("payouts", "payout_batch", {
+        batch_header: { payout_batch_id: "SIMABCDEFGHIJ", invented: 1 },
+        links: [
+          { href: "https://x/y", rel: "self", method: "GET", encType: "application/json", extra: true },
+        ],
+      }),
+    ).toEqual(["/batch_header/invented", "/links/0/extra"]);
+    expect(c.undeclared("invoicing", "invoice", { id: "INV2-SIMA-AAAA-BBBB-CCCC", made_up: true })).toEqual([
+      "/made_up",
+    ]);
+    // An event's resource is a free-form object in the Webhooks spec: anything goes there (it is checked
+    // against its own API schema separately).
+    expect(c.undeclared("webhooks", "event", { id: "WH-1", resource: { anything: { at: "all" } } })).toEqual(
+      [],
+    );
+    await sim.close();
+  });
+
+  it("checks every emitted event's resource against its API schema", async () => {
+    const sim = await newSim();
+    sim.webhooks.emit({
+      clientId: sim.registry.apps[0]?.client_id as string,
+      eventType: "INVOICING.INVOICE.UPDATED",
+      resourceType: "invoices",
+      resourceVersion: "2.0",
+      summary: "broken on purpose",
+      resource: { invoice: { id: "INV2-SIMA-AAAA-BBBB-CCCC", status: "NOT_A_STATUS", invented: 1 } },
+      resourceIds: [],
+    });
+    expect(sim.violations.join(" | ")).toMatch(/event INVOICING\.INVOICE\.UPDATED resource\.invoice:/);
+    await sim.close();
+  });
+});

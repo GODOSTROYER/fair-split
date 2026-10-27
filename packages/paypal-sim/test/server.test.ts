@@ -12,7 +12,7 @@ describe("standalone server", () => {
   let tok: string;
 
   beforeAll(async () => {
-    server = await startServer({ port: 0, speed: 0, logger: () => {} });
+    server = await startServer({ port: 0, speed: 0, logger: () => {}, strictProperties: true });
     const app = server.simulator.registry.apps[0];
     const res = await fetch(`${server.url}/v1/oauth2/token`, {
       method: "POST",

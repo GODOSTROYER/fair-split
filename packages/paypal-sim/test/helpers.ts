@@ -47,7 +47,13 @@ export const MEMBER_PAYOUTS: { memberNo: string; email: string; value: string }[
  * production policy (own origin only) is exercised in rail.test.ts and security.test.ts.
  */
 export async function newSim(opts: SimulatorOptions = {}): Promise<Simulator> {
-  return createSimulator({ speed: 0, logger: () => {}, allowLoopbackWebhooks: true, ...opts });
+  return createSimulator({
+    speed: 0,
+    logger: () => {},
+    allowLoopbackWebhooks: true,
+    strictProperties: true,
+    ...opts,
+  });
 }
 
 export interface Reply {

@@ -4,6 +4,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { crc32 } from "node:zlib";
 import { SIMULATED_HEADER } from "../constants.js";
+import type { SpecName } from "../contract/openapi.js";
 import { checkWebhookTarget } from "../net.js";
 import type { Simulator } from "../simulator.js";
 import type { DeliveryRecord, EventRecord, Json, JsonObject, WebhookRecord } from "../state.js";
@@ -55,6 +56,13 @@ export const RETRY_BACKOFF_S: readonly number[] = Object.freeze([
 /** The literal webhook ID PayPal uses to sign mock (simulate-event) deliveries. */
 export const MOCK_WEBHOOK_ID = "WEBHOOK_ID";
 
+/** resource_type → [spec, definition, the part of `resource` it describes, where (for messages)]. */
+const RESOURCE_SCHEMAS: Record<string, [SpecName, string, (r: JsonObject) => unknown, string]> = {
+  invoices: ["invoicing", "invoice", (r) => r.invoice, " resource.invoice"],
+  payouts: ["payouts", "payout_batch", (r) => r, " resource"],
+  payouts_item: ["payouts", "payout_item", (r) => r, " resource"],
+};
+
 export interface EmitInput {
   clientId: string;
   eventType: string;
@@ -101,8 +109,7 @@ export class WebhookEngine {
     const id = newEventId();
     const createdAt = this.sim.clock.now();
     const event = this.buildEvent(id, input, createdAt);
-    const issues = this.sim.contract.check("webhooks", "event", event, "res");
-    if (issues.length > 0) this.sim.recordViolation(`event ${input.eventType}: ${JSON.stringify(issues)}`);
+    this.checkEvent(event, input);
     if (targets.length === 0) return null;
     const record: EventRecord = {
       id,
@@ -122,6 +129,28 @@ export class WebhookEngine {
     }
     this.sim.markDirty();
     return record;
+  }
+
+  /**
+   * The envelope is checked against the Webhooks spec's `event`, whose `resource` is a free-form object, so the
+   * resource is also checked against its own API schema: an invoice event's `resource.invoice` is Invoicing's
+   * `invoice`, a batch event's resource Payouts' `payout_batch`, an item event's Payouts' `payout_item`.
+   */
+  private checkEvent(event: JsonObject, input: EmitInput): void {
+    const parts: [SpecName, string, unknown, string][] = [["webhooks", "event", event, ""]];
+    const target = RESOURCE_SCHEMAS[input.resourceType];
+    if (target) parts.push([target[0], target[1], target[2](input.resource), target[3]]);
+    for (const [spec, def, value, where] of parts) {
+      const issues = this.sim.contract.check(spec, def, value, "res");
+      if (issues.length > 0) {
+        this.sim.recordViolation(`event ${input.eventType}${where}: ${JSON.stringify(issues)}`);
+        continue;
+      }
+      if (!this.sim.options.strictProperties) continue;
+      const extra = this.sim.contract.undeclared(spec, def, value, "res");
+      if (extra.length > 0)
+        this.sim.recordViolation(`event ${input.eventType}${where}: undeclared ${extra.join(", ")}`);
+    }
   }
 
   /** Creates a signed transmission of `event` to `webhook` (a resend or duplicate gets a new transmission id). */

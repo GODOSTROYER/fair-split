@@ -274,8 +274,10 @@ export class PayoutEngine {
 
     // 5. Accept: PENDING batch, funds held, processing scheduled.
     const batchId = newBatchId();
+    // The echo is PayPal's response-side payout_sender_batch_header: the request's `note` is not part of it
+    // (neither in the schema nor in PayPal's published samples).
     const senderHeader: JsonObject = { sender_batch_id: senderBatchId };
-    for (const k of ["recipient_type", "email_subject", "email_message", "note"]) {
+    for (const k of ["recipient_type", "email_subject", "email_message"]) {
       const v = header[k];
       if (typeof v === "string") senderHeader[k] = v;
     }

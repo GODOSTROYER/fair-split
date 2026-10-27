@@ -149,7 +149,7 @@ describe("simulator rail mounted in a host app (README wiring)", () => {
 
     rail = await setupPayPalRail(
       { PP_MODE: "simulator", PP_CLIENT_ID: "SIM-fs-dev-client" },
-      { publicBaseUrl: hostUrl, basePath: "/paypal-sim", speed: 0, logger: noop },
+      { publicBaseUrl: hostUrl, basePath: "/paypal-sim", speed: 0, logger: noop, strictProperties: true },
     );
   });
 
