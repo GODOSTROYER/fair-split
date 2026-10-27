@@ -1,0 +1,84 @@
+/* Console stylesheet: Tailwind 4 for layout only (its theme is reset by @fairsplit/tokens/tailwind.css),
+   then the --fs-* tokens, the self-hosted faces and the ui-web materials. */
+
+@import "tailwindcss";
+@import "@fairsplit/tokens/tailwind.css";
+@import "@fairsplit/tokens/theme.web.css";
+@import "@fairsplit/tokens/fonts.css";
+@import "@fairsplit/ui-web/styles.css";
+
+@source "../../../packages/ui-web/src";
+
+@layer base {
+  html {
+    background: var(--fs-ground);
+    color: var(--fs-ink);
+    font-family: var(--fs-font-ui);
+    font-size: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--fs-ground);
+    font-family: var(--fs-font-ui);
+    font-weight: 450;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  /* The Tablea lacquer: a 128 px noise tile at 3% on the ground of the web console only (design §2.5). */
+  html[data-theme="tablea"]:not([data-rec="1"]) body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: url("../../../assets/textures/noise-128.png");
+    opacity: var(--fs-noise-opacity);
+    pointer-events: none;
+  }
+
+  ::selection {
+    background: var(--fs-ink);
+    color: var(--fs-ground);
+  }
+
+  * {
+    scrollbar-color: var(--fs-rule) transparent;
+    scrollbar-width: thin;
+  }
+
+  :focus-visible {
+    outline: var(--fs-focus-width) solid var(--fs-pod);
+    outline-offset: var(--fs-focus-offset);
+  }
+
+  :where(h1, h2, h3, h4, p, figure, dl, dd, ol, ul) {
+    margin: 0;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  /* Button groups are fieldsets (role group) without the fieldset chrome. */
+  :where(fieldset.proto-group) {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* No monospace anywhere (design §2.3): code-like names are set in the condensed UI face. */
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--fs-font-ui);
+    font-stretch: 87.5%;
+    font-size: inherit;
+    color: var(--fs-ink);
+  }
+}

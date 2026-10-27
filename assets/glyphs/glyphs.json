@@ -1,0 +1,220 @@
+{
+  "$comment": "Fair Split's 14 domain glyphs (design §2.6, S2 §2.6). 24 px grid, 2 px strokes, square caps, mitre joins, 45° chamfers that echo the slab edges. Each glyph has an outline variant and a fill variant that marks state. Element modes: stroke (2 px currentColor line), fill (currentColor shape), cut (a 2 px line removed from the fill through a mask). @fairsplit/tokens generates @fairsplit/tokens/glyphs from this file.",
+  "grid": 24,
+  "stroke": 2,
+  "glyphs": {
+    "sack": {
+      "meaning": "A jute sack of dried cacao; season and lot marks",
+      "outline": [
+        { "mode": "stroke", "d": "M10 6L7 9V19L9 21H15L17 19V9L14 6Z" },
+        { "mode": "stroke", "d": "M9 3L12 6L15 3" },
+        { "mode": "stroke", "d": "M10 13H14" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M10 6L7 9V19L9 21H15L17 19V9L14 6Z" },
+        { "mode": "stroke", "d": "M10 6L7 9V19L9 21H15L17 19V9L14 6Z" },
+        { "mode": "stroke", "d": "M9 3L12 6L15 3" },
+        { "mode": "cut", "d": "M10 13H14" }
+      ]
+    },
+    "triplicate-slip": {
+      "meaning": "A weigh-slip book: white original, pink duplicate, yellow copy",
+      "outline": [
+        { "mode": "stroke", "d": "M10 3H21V15" },
+        { "mode": "stroke", "d": "M7 6H18V18" },
+        { "mode": "stroke", "d": "M4 9H15V21H4Z" },
+        { "mode": "stroke", "d": "M7 13H12" },
+        { "mode": "stroke", "d": "M7 17H10" }
+      ],
+      "fill": [
+        { "mode": "stroke", "d": "M10 3H21V15" },
+        { "mode": "stroke", "d": "M7 6H18V18" },
+        { "mode": "fill", "d": "M4 9H15V21H4Z" },
+        { "mode": "stroke", "d": "M4 9H15V21H4Z" },
+        { "mode": "cut", "d": "M7 13H12" },
+        { "mode": "cut", "d": "M7 17H10" }
+      ]
+    },
+    "duplicate": {
+      "meaning": "The same slip counted twice",
+      "outline": [
+        { "mode": "stroke", "d": "M9 7V3H21V17H15" },
+        { "mode": "stroke", "d": "M3 7H15V21H3Z" },
+        { "mode": "stroke", "d": "M6 12H12" },
+        { "mode": "stroke", "d": "M6 16H12" }
+      ],
+      "fill": [
+        { "mode": "stroke", "d": "M9 7V3H21V17H15" },
+        { "mode": "fill", "d": "M3 7H15V21H3Z" },
+        { "mode": "stroke", "d": "M3 7H15V21H3Z" },
+        { "mode": "cut", "d": "M6 12H12" },
+        { "mode": "cut", "d": "M6 16H12" }
+      ]
+    },
+    "hanging-scale": {
+      "meaning": "The bodega's hanging scale; still checking; mass balance",
+      "outline": [
+        { "mode": "stroke", "d": "M10 3H14" },
+        { "mode": "stroke", "d": "M12 3V5" },
+        { "mode": "stroke", "d": "M18.5 11.5A6.5 6.5 0 1 1 5.5 11.5A6.5 6.5 0 1 1 18.5 11.5Z" },
+        { "mode": "stroke", "d": "M12 11.5L14.5 9" },
+        { "mode": "stroke", "d": "M12 18V21H9" }
+      ],
+      "fill": [
+        { "mode": "stroke", "d": "M10 3H14" },
+        { "mode": "stroke", "d": "M12 3V5" },
+        { "mode": "fill", "d": "M18.5 11.5A6.5 6.5 0 1 1 5.5 11.5A6.5 6.5 0 1 1 18.5 11.5Z" },
+        { "mode": "stroke", "d": "M18.5 11.5A6.5 6.5 0 1 1 5.5 11.5A6.5 6.5 0 1 1 18.5 11.5Z" },
+        { "mode": "cut", "d": "M12 11.5L14.5 9" },
+        { "mode": "stroke", "d": "M12 18V21H9" }
+      ]
+    },
+    "thumbmark": {
+      "meaning": "A member signing with a thumbmark; cash received",
+      "outline": [
+        { "mode": "stroke", "d": "M6 18V12A6 6 0 0 1 18 12V16" },
+        { "mode": "stroke", "d": "M9 19V12A3 3 0 0 1 15 12V18" },
+        { "mode": "stroke", "d": "M12 12V20" }
+      ],
+      "fill": [
+        {
+          "mode": "fill",
+          "d": "M12 3C16.4 3 20 7 20 12V15C20 19 16.4 21 12 21C7.6 21 4 19 4 15V12C4 7 7.6 3 12 3Z"
+        },
+        { "mode": "cut", "d": "M7 18V12A5 5 0 0 1 17 12V16" },
+        { "mode": "cut", "d": "M12 12V20" }
+      ]
+    },
+    "cut-test-bean": {
+      "meaning": "A cacao bean cut open for the grading test; Grade 1",
+      "outline": [
+        { "mode": "stroke", "d": "M12 3C16 3 19 7 19 12C19 17 16 21 12 21C8 21 5 17 5 12C5 7 8 3 12 3Z" },
+        { "mode": "stroke", "d": "M12 6V18" },
+        { "mode": "stroke", "d": "M9 10V14" },
+        { "mode": "stroke", "d": "M15 10V14" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M12 3C16 3 19 7 19 12C19 17 16 21 12 21C8 21 5 17 5 12C5 7 8 3 12 3Z" },
+        { "mode": "stroke", "d": "M12 3C16 3 19 7 19 12C19 17 16 21 12 21C8 21 5 17 5 12C5 7 8 3 12 3Z" },
+        { "mode": "cut", "d": "M12 6V18" }
+      ]
+    },
+    "seal": {
+      "meaning": "The batch seal, completed by two people",
+      "outline": [
+        { "mode": "stroke", "d": "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12Z" },
+        { "mode": "stroke", "d": "M12 6L13.5 10.5L18 12L13.5 13.5L12 18L10.5 13.5L6 12L10.5 10.5Z" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12Z" },
+        { "mode": "stroke", "d": "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12Z" },
+        { "mode": "cut", "d": "M12 6L13.5 10.5L18 12L13.5 13.5L12 18L10.5 13.5L6 12L10.5 10.5Z" }
+      ]
+    },
+    "cash": {
+      "meaning": "Cash at the bodega; always shown with the word",
+      "outline": [
+        { "mode": "stroke", "d": "M3 8H21V18H3Z" },
+        { "mode": "stroke", "d": "M6 5H18" },
+        { "mode": "stroke", "d": "M14 13A2 2 0 1 1 10 13A2 2 0 1 1 14 13Z" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M3 8H21V18H3Z" },
+        { "mode": "stroke", "d": "M3 8H21V18H3Z" },
+        { "mode": "stroke", "d": "M6 5H18" },
+        { "mode": "cut", "d": "M14 13A2 2 0 1 1 10 13A2 2 0 1 1 14 13Z" }
+      ]
+    },
+    "bolt": {
+      "meaning": "Bolted: ratified rules that will not move",
+      "outline": [
+        { "mode": "stroke", "d": "M9 4H15L20 9V15L15 20H9L4 15V9Z" },
+        { "mode": "stroke", "d": "M9.5 14.5L14.5 9.5" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M9 4H15L20 9V15L15 20H9L4 15V9Z" },
+        { "mode": "stroke", "d": "M9 4H15L20 9V15L15 20H9L4 15V9Z" },
+        { "mode": "cut", "d": "M9.5 14.5L14.5 9.5" }
+      ]
+    },
+    "pencil": {
+      "meaning": "Claude, always beside the word Claude; machine readings",
+      "outline": [
+        { "mode": "stroke", "d": "M14 4L20 10L9 21H3V15Z" },
+        { "mode": "stroke", "d": "M3 15L9 21" },
+        { "mode": "stroke", "d": "M11 7L17 13" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M14 4L20 10L9 21H3V15Z" },
+        { "mode": "stroke", "d": "M14 4L20 10L9 21H3V15Z" },
+        { "mode": "cut", "d": "M3 15L9 21" },
+        { "mode": "cut", "d": "M11 7L17 13" }
+      ]
+    },
+    "plot": {
+      "meaning": "A registered plot; positions are abstract",
+      "outline": [
+        { "mode": "stroke", "d": "M3 6L6 3H21V18L18 21H3Z" },
+        { "mode": "stroke", "d": "M8 8H9" },
+        { "mode": "stroke", "d": "M15 8H16" },
+        { "mode": "stroke", "d": "M8 15H9" },
+        { "mode": "stroke", "d": "M15 15H16" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M3 6L6 3H21V18L18 21H3Z" },
+        { "mode": "stroke", "d": "M3 6L6 3H21V18L18 21H3Z" },
+        { "mode": "cut", "d": "M8 8H9" },
+        { "mode": "cut", "d": "M15 8H16" },
+        { "mode": "cut", "d": "M8 15H9" },
+        { "mode": "cut", "d": "M15 15H16" }
+      ]
+    },
+    "rail": {
+      "meaning": "A payment thread on the PayPal rail",
+      "outline": [
+        { "mode": "stroke", "d": "M3 10H7V14H3Z" },
+        { "mode": "stroke", "d": "M7 12H16" },
+        { "mode": "stroke", "d": "M16 9H19L21 11V13L19 15H16Z" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M3 10H7V14H3Z" },
+        { "mode": "stroke", "d": "M3 10H7V14H3Z" },
+        { "mode": "stroke", "d": "M7 12H16" },
+        { "mode": "fill", "d": "M16 9H19L21 11V13L19 15H16Z" },
+        { "mode": "stroke", "d": "M16 9H19L21 11V13L19 15H16Z" }
+      ]
+    },
+    "listen": {
+      "meaning": "Paminawa: hear the statement read aloud",
+      "outline": [
+        { "mode": "stroke", "d": "M3 9H7L11 5V19L7 15H3Z" },
+        { "mode": "stroke", "d": "M15 9A4 4 0 0 1 15 15" },
+        { "mode": "stroke", "d": "M18 6A8.5 8.5 0 0 1 18 18" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M3 9H7L11 5V19L7 15H3Z" },
+        { "mode": "stroke", "d": "M3 9H7L11 5V19L7 15H3Z" },
+        { "mode": "stroke", "d": "M15 9A4 4 0 0 1 15 15" },
+        { "mode": "stroke", "d": "M18 6A8.5 8.5 0 0 1 18 18" }
+      ]
+    },
+    "logbook": {
+      "meaning": "The bodega logbook, the second witness for a field entered by hand",
+      "outline": [
+        { "mode": "stroke", "d": "M5 3H19V21H5Z" },
+        { "mode": "stroke", "d": "M8 3V21" },
+        { "mode": "stroke", "d": "M11 8H16" },
+        { "mode": "stroke", "d": "M11 12H16" },
+        { "mode": "stroke", "d": "M11 16H14" }
+      ],
+      "fill": [
+        { "mode": "fill", "d": "M5 3H19V21H5Z" },
+        { "mode": "stroke", "d": "M5 3H19V21H5Z" },
+        { "mode": "cut", "d": "M8 3V21" },
+        { "mode": "cut", "d": "M11 8H16" },
+        { "mode": "cut", "d": "M11 12H16" },
+        { "mode": "cut", "d": "M11 16H14" }
+      ]
+    }
+  }
+}
