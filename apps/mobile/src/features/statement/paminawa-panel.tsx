@@ -16,6 +16,7 @@ import {
   type ScrollViewInstance,
   StyleSheet,
   View,
+  type ViewInstance,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -157,14 +158,27 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
     player.play(0);
   }, [auto, motion.screenReader, voice, playable, player]);
 
-  // Keep the sentence being read in view.
+  // Keep the sentence being read in view: measured when it starts (layout events can be late or missing in a
+  // throttled frame), with the last reported layout as the fallback.
   const scroll = useRef<ScrollViewInstance>(null);
+  const content = useRef<ViewInstance>(null);
+  const rows = useRef<(ViewInstance | null)[]>([]);
   const tops = useRef<number[]>([]);
   useEffect(() => {
     if (state.status !== "playing") return;
-    const y = tops.current[state.index];
-    if (y !== undefined)
+    const go = (y: number) =>
       scroll.current?.scrollTo({ y: Math.max(0, y - space.s24), animated: !motion.reduced });
+    const row = rows.current[state.index];
+    const fallback = tops.current[state.index];
+    if (row && content.current) {
+      row.measureLayout(
+        content.current,
+        (_x, y) => go(y),
+        () => fallback !== undefined && go(fallback),
+      );
+    } else if (fallback !== undefined) {
+      go(fallback);
+    }
   }, [state.index, state.status, motion.reduced]);
 
   const playingNow = state.status === "playing";
@@ -192,53 +206,58 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
         </Pressable>
       </View>
       <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.transcript}>
-        {/* The labels scroll away with the transcript, so a small phone keeps most of its height for the words. */}
-        <View style={styles.top}>
-          <DemoLabel />
-          <LangBar testID="M-MB-03" />
-          {label ? (
-            <View style={styles.voice} testID="M-MB-03.voice" dataSet={{ state: plan.mode }}>
-              <Glyph name={plan.mode === "text-only" ? "info" : "listen"} size={18} color={t.color.ink2} />
-              <Txt kind="body" color="ink2" style={styles.flex}>
-                {label}
+        <View ref={content} collapsable={false} style={styles.content}>
+          {/* The labels scroll away with the transcript, so a small phone keeps most of its height for the words. */}
+          <View style={styles.top}>
+            <DemoLabel />
+            <LangBar testID="M-MB-03" />
+            {label ? (
+              <View style={styles.voice} testID="M-MB-03.voice" dataSet={{ state: plan.mode }}>
+                <Glyph name={plan.mode === "text-only" ? "info" : "listen"} size={18} color={t.color.ink2} />
+                <Txt kind="body" color="ink2" style={styles.flex}>
+                  {label}
+                </Txt>
+              </View>
+            ) : null}
+            {!online ? (
+              <Txt kind="caption" color="ink2" testID="M-MB-03.offline">
+                {tr("M-MB-03.offline")}
               </Txt>
-            </View>
-          ) : null}
-          {!online ? (
-            <Txt kind="caption" color="ink2" testID="M-MB-03.offline">
-              {tr("M-MB-03.offline")}
-            </Txt>
-          ) : null}
+            ) : null}
+          </View>
+          <View style={[styles.rule, { backgroundColor: t.color.rule }]} />
+          {pairs.map((p, i) => {
+            const current = i === state.index && state.status !== "idle";
+            return (
+              <Pressable
+                key={p.sentence.id}
+                ref={(r) => {
+                  rows.current[i] = r;
+                }}
+                onLayout={(e: LayoutChangeEvent) => {
+                  tops.current[i] = e.nativeEvent.layout.y;
+                }}
+                onPress={playable ? () => player.play(i) : undefined}
+                disabled={!playable}
+                accessibilityRole={playable ? "button" : "text"}
+                accessibilityHint={playable ? tr("M-MB-03.playFrom") : undefined}
+                aria-selected={current}
+                testID={`M-MB-03.sentence.${i}`}
+                dataSet={{ state: current ? "current" : "idle" }}
+                style={({ pressed }) => [styles.sentence, pressed && { backgroundColor: t.color.pencilWash }]}
+              >
+                <GlossedSentence
+                  pair={p}
+                  lang={lang}
+                  gloss={st.gloss}
+                  kind="statementLead"
+                  color={current || state.status === "idle" ? "ink" : "ink2"}
+                  underline={current}
+                />
+              </Pressable>
+            );
+          })}
         </View>
-        <View style={[styles.rule, { backgroundColor: t.color.rule }]} />
-        {pairs.map((p, i) => {
-          const current = i === state.index && state.status !== "idle";
-          return (
-            <Pressable
-              key={p.sentence.id}
-              onLayout={(e: LayoutChangeEvent) => {
-                tops.current[i] = e.nativeEvent.layout.y;
-              }}
-              onPress={playable ? () => player.play(i) : undefined}
-              disabled={!playable}
-              accessibilityRole={playable ? "button" : "text"}
-              accessibilityHint={playable ? tr("M-MB-03.playFrom") : undefined}
-              aria-selected={current}
-              testID={`M-MB-03.sentence.${i}`}
-              dataSet={{ state: current ? "current" : "idle" }}
-              style={({ pressed }) => [styles.sentence, pressed && { backgroundColor: t.color.pencilWash }]}
-            >
-              <GlossedSentence
-                pair={p}
-                lang={lang}
-                gloss={st.gloss}
-                kind="statementLead"
-                color={current || state.status === "idle" ? "ink" : "ink2"}
-                underline={current}
-              />
-            </Pressable>
-          );
-        })}
       </ScrollView>
 
       <View
@@ -342,7 +361,8 @@ const styles = StyleSheet.create({
   top: { paddingHorizontal: space.s8, gap: space.s12, paddingBottom: space.s8 },
   voice: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   rule: { height: 1, marginHorizontal: space.s8, marginBottom: space.s8 },
-  transcript: { paddingHorizontal: space.s8, paddingTop: space.s8, paddingBottom: space.s24, gap: space.s4 },
+  transcript: { paddingHorizontal: space.s8, paddingTop: space.s8, paddingBottom: space.s24 },
+  content: { gap: space.s4 },
   sentence: { paddingHorizontal: space.s8, paddingVertical: space.s8, borderRadius: radius.plate },
   controls: { gap: space.s16, paddingHorizontal: space.s16, paddingTop: space.s16, borderTopWidth: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
