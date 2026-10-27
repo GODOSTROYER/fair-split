@@ -28,7 +28,7 @@ import {
 import { itemMachine } from "@fairsplit/domain";
 import { enqueue, type TaskContext } from "@fairsplit/outbox";
 import { getPayoutBatch, getPayoutItem } from "@fairsplit/paypal-payouts";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { ACTORS, emit, proofLedger } from "../runs/events.js";
 import { lockRun } from "../runs/load.js";
@@ -290,8 +290,10 @@ export async function processWebhook(
   const scope = systemScope(target.workspaceId, ACTORS.paypalWebhook);
   const eventTypeOk = typed.success ? (typed.data as WebhookEventType) : null;
 
-  // PayPal's word first, when the rule says a GET must decide (S3.6.5).
+  // PayPal's word first, when the rule says a GET must decide (S3.6.5). Without an item id to GET (PayPal names
+  // items only in the settle GET), the event changes nothing and the batch GET decides.
   let fresh: { status: PayoutItemStatus | null; payoutItemId: string | null } | null = null;
+  let batchGetDecides = false;
   if (target.kind === "item") {
     const rule = webhookApplyRule({ eventType, verified });
     if (rule.action === "fresh_get_first") {
@@ -309,6 +311,8 @@ export async function processWebhook(
           status: itemStatusOf(got.body.transaction_status),
           payoutItemId: got.body.payout_item_id ?? id,
         };
+      } else {
+        batchGetDecides = true;
       }
     }
   }
@@ -341,9 +345,12 @@ export async function processWebhook(
       { runId, provenance, actor: ACTORS.paypalWebhook },
     );
     const at = deps.clock.now();
-    if (target.kind === "item" && eventTypeOk) {
-      const fromEvent = itemStatusOf(eventType);
-      const status = fresh ? fresh.status : fromEvent;
+    if (target.kind === "item" && eventTypeOk && batchGetDecides) {
+      // Nothing to GET by id yet: change nothing; the settle GET (due within 10 s, or brought forward) decides.
+      await settleGetSoon(tx, deps, target.workspaceId, target.item.batchId, row.paypalEventId);
+    } else if (target.kind === "item" && eventTypeOk) {
+      // Either the GET's answer, or a signature-verified SUCCEEDED (apply contract rule 2).
+      const status = fresh ? fresh.status : itemStatusOf(eventType);
       if (status) {
         const [item] = await tx
           .select()
@@ -382,55 +389,12 @@ export async function processWebhook(
         }
       }
     } else if (target.kind === "batch" && eventTypeOk) {
-      const batchStatus =
-        BATCH[resource.batch_header?.batch_status ?? eventType.split(".").pop() ?? ""] ?? null;
-      if (batchStatus) {
-        await tx
-          .update(schema.payoutBatches)
-          .set({ status: batchStatus })
-          .where(eq(schema.payoutBatches.id, target.batchId));
-        const [b] = await tx
-          .select()
-          .from(schema.payoutBatches)
-          .where(eq(schema.payoutBatches.id, target.batchId));
-        await proofLedger(
-          tx,
-          scope,
-          "webhook.applied",
-          {
-            eventId: row.paypalEventId,
-            eventType: eventTypeOk,
-            verified,
-            provenance,
-            resource: "payout_batch",
-            senderBatchId: b?.senderBatchId ?? "",
-            batchStatus,
-          },
-          { runId, at, actor: ACTORS.paypalWebhook },
-        );
-        const run = await lockRun(tx, scope, runId);
-        if (batchStatus === "PROCESSING" && run.state === "POSTED") {
-          await moveRun(tx, scope, {
-            id: run.id,
-            from: "POSTED",
-            to: "SETTLING",
-            version: run.version,
-            cause: cause("PROCESSING", row.paypalEventId),
-            provenance,
-            actor: ACTORS.paypalWebhook,
-          });
-        }
-        if (batchStatus === "SUCCESS" || batchStatus === "DENIED") {
-          // A batch SUCCESS runs the settle GET at once; a DENIED is confirmed by that GET first.
-          const next = { batchId: target.batchId, n: 1 };
-          await enqueue(
-            tx,
-            "settleBatch",
-            next,
-            `${TASKS.settleBatch.dedupeKey(next)}:wh:${row.paypalEventId}`,
-            { workspaceId: target.workspaceId },
-          );
-        }
+      // A batch event never writes the batch's status or moves the run from its own payload (apply contract
+      // rule 3): SUCCESS runs the settle GET at once, DENIED is confirmed by that GET, and PROCESSING waits for
+      // the scheduled one (+25 s / +90 s after the POST; we never poll). The GET writes status and run state.
+      const named = BATCH[eventType.split(".").pop() ?? ""];
+      if (named === "SUCCESS" || named === "DENIED") {
+        await enqueueSettleNow(tx, target.workspaceId, target.batchId, row.paypalEventId);
       }
     } else if (target.kind === "invoice" && eventTypeOk) {
       const [inv] = await tx
@@ -457,6 +421,47 @@ export async function processWebhook(
     }
     await ctx.complete(tx);
   });
+}
+
+/** The settle GET at once, keyed to the event that asked for it (its follow-ups dedupe with the regular chain). */
+async function enqueueSettleNow(
+  tx: Tx,
+  workspaceId: string,
+  batchId: string,
+  eventId: string,
+): Promise<void> {
+  const next = { batchId, n: 1 };
+  await enqueue(tx, "settleBatch", next, `${TASKS.settleBatch.dedupeKey(next)}:wh:${eventId}`, {
+    workspaceId,
+  });
+}
+
+/** How soon a scheduled settle GET must be due for an item event to wait for it (S3.6.5). */
+export const SETTLE_SOON_MS = 10_000;
+
+/** S3.6.5: "use the settleBatch GET if one is due within 10 s"; otherwise bring one forward. */
+async function settleGetSoon(
+  tx: Tx,
+  deps: Deps,
+  workspaceId: string,
+  batchId: string,
+  eventId: string,
+): Promise<void> {
+  const t = schema.taskOutbox;
+  const [due] = await tx
+    .select({ id: t.id })
+    .from(t)
+    .where(
+      and(
+        eq(t.workspaceId, workspaceId),
+        eq(t.name, "settleBatch"),
+        inArray(t.state, ["queued", "dispatched"]),
+        sql`${t.args}->>'batchId' = ${batchId}`,
+        lte(t.runAfter, new Date(deps.clock.now().getTime() + SETTLE_SOON_MS)),
+      ),
+    )
+    .limit(1);
+  if (!due) await enqueueSettleNow(tx, workspaceId, batchId, eventId);
 }
 
 function resourceKeyOf(t: Exclude<Resolved, { kind: "orphan" }>): string {
