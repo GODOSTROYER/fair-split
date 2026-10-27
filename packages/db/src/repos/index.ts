@@ -18,6 +18,13 @@ import { appendLedger, type LedgerAppend } from "../ledger.js";
 import * as s from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
 import { withWorkspaceTx } from "../tx.js";
+import {
+  beginPosting,
+  type CheckedApprovalVoid,
+  memberLineHashes,
+  type PostingStart,
+  voidCheckedApprovals,
+} from "./posting.js";
 import { type ScopedTable, scopedTable, type WsTable } from "./scoped.js";
 import { type SeasonRules, setSeasonRules } from "./seasons.js";
 import {
@@ -38,6 +45,7 @@ import {
   voidApprovals,
 } from "./transitions.js";
 
+export * from "./posting.js";
 export * from "./scoped.js";
 export * from "./seasons.js";
 export * from "./transitions.js";
@@ -136,12 +144,16 @@ export function repos(scope: WorkspaceScope, policy: TransitionPolicy = DEFAULT_
     runs: {
       ...bound.payRuns,
       transition: (db: DbOrTx, t: RunTransition) => transitionRun(db, scope, t, policy),
+      /** APPROVED → POSTING only under the approvals the post was checked under (payouts writeSubmitted, primary) */
+      beginPosting: (db: DbOrTx, p: PostingStart) => beginPosting(db, scope, p, policy),
     },
     lines: {
       ...bound.memberLines,
       transition: (db: DbOrTx, t: LineTransition) => transitionLine(db, scope, t, policy),
       /** walk the line to the state its payout item's status maps to (early webhooks, S3.5) */
       followItem: (db: DbOrTx, f: LineFollow) => followItem(db, scope, f, policy),
+      /** every member line of the run as {memberNo, lineSha256}, by member number (payouts memberLines) */
+      hashes: (db: DbOrTx, runId: string) => memberLineHashes(db, scope, runId),
     },
     holdStates: {
       transition: (db: DbOrTx, t: HoldTransition) => transitionHold(db, scope, t, policy),
@@ -156,6 +168,8 @@ export function repos(scope: WorkspaceScope, policy: TransitionPolicy = DEFAULT_
       ...bound.approvals,
       /** voids the run's live signatures (line edit, kill switch, digest mismatch) and records it in the ledger */
       void: (db: DbOrTx, v: ApprovalVoid) => voidApprovals(db, scope, v),
+      /** voids the approvals a failed check named, only while they are the run's live set; APPROVED → IN_REVIEW */
+      voidChecked: (db: DbOrTx, v: CheckedApprovalVoid) => voidCheckedApprovals(db, scope, v, policy),
     },
     events: {
       append: (db: DbOrTx, e: Omit<NewRunEvent, "workspaceId" | "actor">) =>

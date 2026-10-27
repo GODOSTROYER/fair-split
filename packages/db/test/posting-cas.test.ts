@@ -1,0 +1,435 @@
+/**
+ * The persistence half of WS-PPMONEY's `PayoutsRepository` port (paypal-payouts README, "Downstream", WS-DATA IC-04):
+ * the compare-and-sets that keep a stale executor from voiding approvals signed after its read, or from posting
+ * under approvals a check has voided since, and the member lines `linesDigest` is recomputed from. The port itself is
+ * WS-API's adapter, which calls these inside its own transactions.
+ */
+import { randomUUID } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { RunState } from "../src/_shims/contracts.js";
+import type { Tx } from "../src/client.js";
+import { type Repos, repos } from "../src/repos/index.js";
+import { approvals, ledgerEntries, memberLines, payRuns, runEvents } from "../src/schema/index.js";
+import { type FixtureWorkspace, fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
+import { caught, scopeOf, sleep } from "./helpers.js";
+
+let t: TestDb;
+beforeAll(async () => {
+  t = await openTestDb({ max: 8 });
+});
+afterAll(async () => {
+  await t?.close();
+});
+
+const DIGEST = "b".repeat(64);
+
+async function approvedRun(members = 2) {
+  const ws = await fixtureWorkspace(t.app.db, { withRun: true, runState: "APPROVED", members });
+  return { ws, runId: ws.runId ?? "", r: repos(scopeOf(ws.workspaceId)) };
+}
+
+/** Another run of the same workspace, inserted straight into `state`. */
+async function anotherRun(ws: FixtureWorkspace, state: RunState = "APPROVED"): Promise<string> {
+  const [run] = await t.owner.db
+    .insert(payRuns)
+    .values({
+      workspaceId: ws.workspaceId,
+      seasonId: ws.seasonId,
+      rateCardId: ws.rateCardId,
+      seasonCode: "2026A",
+      currency: "USD",
+      rateCardSha256: ws.rateCardSha256,
+      provenance: "seeded",
+      state,
+    })
+    .returning({ id: payRuns.id });
+  return run?.id ?? "";
+}
+
+interface Signed {
+  id: string;
+  nonce: string;
+}
+
+async function sign(
+  ws: FixtureWorkspace,
+  runId: string,
+  role: "treasurer" | "board",
+  batchSha256 = DIGEST,
+): Promise<Signed> {
+  const nonce = randomUUID();
+  const [a] = await t.app.db
+    .insert(approvals)
+    .values({
+      workspaceId: ws.workspaceId,
+      runId,
+      role,
+      decision: "SIGNED",
+      approverId: role === "treasurer" ? "treasurer:analyn" : "board:ernesto",
+      keyId: role === "treasurer" ? "fs-analyn-w1" : "fs-ernesto-a1",
+      payloadJcs: '{"v":1}',
+      signature: "c2lnbmF0dXJl",
+      batchSha256,
+      nonce,
+      exp: new Date(Date.now() + 30 * 60_000),
+      provenance: "live",
+    })
+    .returning({ id: approvals.id });
+  return { id: a?.id ?? "", nonce };
+}
+
+async function runRow(runId: string) {
+  const [row] = await t.owner.db.select().from(payRuns).where(eq(payRuns.id, runId));
+  return row;
+}
+
+async function liveNonces(runId: string): Promise<string[]> {
+  const rows = await t.owner.db
+    .select({ nonce: approvals.nonce })
+    .from(approvals)
+    .where(and(eq(approvals.runId, runId), isNull(approvals.voidedAt)));
+  return rows.map((a) => a.nonce ?? "").sort();
+}
+
+async function voidEntries(workspaceId: string) {
+  return t.owner.db
+    .select()
+    .from(ledgerEntries)
+    .where(and(eq(ledgerEntries.workspaceId, workspaceId), eq(ledgerEntries.kind, "approval.voided")));
+}
+
+/** Both officers signed again: IN_REVIEW → TREASURER_APPROVED → APPROVED. */
+async function reapprove(r: Repos, runId: string): Promise<void> {
+  for (const [from, to] of [
+    ["IN_REVIEW", "TREASURER_APPROVED"],
+    ["TREASURER_APPROVED", "APPROVED"],
+  ] as const) {
+    expect(
+      (await r.runs.transition(t.app.db, { id: runId, from, to, cause: "signed", provenance: "live" })).ok,
+    ).toBe(true);
+  }
+}
+
+/**
+ * Runs `write` in a transaction that takes no workspace lock and stays open, its row locks held, until `commit()`:
+ * a writer that skips the lock order, caught between its write and its commit.
+ */
+async function holdOpen(write: (tx: Tx) => Promise<void>): Promise<{ commit: () => Promise<void> }> {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let ready = () => {};
+  const written = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  const done = t.app.db.transaction(async (tx) => {
+    await write(tx);
+    ready();
+    await gate;
+  });
+  await Promise.race([written, done]);
+  return {
+    commit: async () => {
+      release();
+      await done;
+    },
+  };
+}
+
+const posting = (runId: string, nonces: readonly string[], batchSha256 = DIGEST) => ({
+  id: runId,
+  approvalNonces: nonces,
+  batchSha256,
+  senderBatchId: `2026A-cas-${randomUUID()}`,
+  cause: "post",
+  provenance: "live" as const,
+});
+
+const checkedVoid = (runId: string, nonces: readonly string[], at?: Date) => ({
+  runId,
+  nonces,
+  reason: "DIGEST_MISMATCH",
+  provenance: "live" as const,
+  ...(at ? { at } : {}),
+});
+
+describe("lines.hashes: every member line of the run, as linesDigest reads it", () => {
+  it("returns each line on and off rail as {memberNo, lineSha256} by member number, the hash as stored", async () => {
+    const { ws, runId, r } = await approvedRun(3);
+    const line = (i: number, rail: "ON" | "OFF", lineSha256: string | null) => ({
+      workspaceId: ws.workspaceId,
+      runId,
+      memberId: ws.memberIds[i] ?? "",
+      state: "LOCKED" as const,
+      rail,
+      currency: "USD",
+      verifiedG: 1000n,
+      grade1G: 0n,
+      premiumCents: 100n,
+      bonusCents: 0n,
+      deductionsCents: 0n,
+      creditsCents: 0n,
+      netCents: 100n,
+      deductions: [],
+      lineSha256,
+      provenance: "seeded" as const,
+    });
+    await t.app.db
+      .insert(memberLines)
+      .values([line(2, "ON", "c".repeat(64)), line(0, "OFF", "a".repeat(64)), line(1, "ON", null)]);
+    expect(await r.lines.hashes(t.app.db, runId)).toEqual([
+      { memberNo: "M-001", lineSha256: "a".repeat(64) },
+      { memberNo: "M-002", lineSha256: null },
+      { memberNo: "M-003", lineSha256: "c".repeat(64) },
+    ]);
+    // another run of the workspace has no lines; another workspace's run is out of this scope's reach
+    expect(await r.lines.hashes(t.app.db, await anotherRun(ws))).toEqual([]);
+    const other = await approvedRun(1);
+    await t.app.db.insert(memberLines).values({
+      ...line(0, "ON", "d".repeat(64)),
+      workspaceId: other.ws.workspaceId,
+      runId: other.runId,
+      memberId: other.ws.memberIds[0] ?? "",
+    });
+    expect(await other.r.lines.hashes(t.app.db, other.runId)).toHaveLength(1);
+    expect(await r.lines.hashes(t.app.db, other.runId)).toEqual([]);
+  });
+});
+
+describe("inv.i6.void-cas: approvals.voidChecked voids the approvals a check named, only while they are the run's live set", () => {
+  it("voids them and sends the run back to IN_REVIEW in one transaction, with one ledger entry", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const [t1, b1] = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")];
+    const before = await runRow(runId);
+    const at = new Date(Date.now() - 5_000);
+    const res = await r.approvals.voidChecked(t.app.db, checkedVoid(runId, [t1.nonce, b1.nonce], at));
+    if (!res.ok) throw new Error(`expected the void to apply, got ${res.reason}`);
+    expect(res.voided.map((a) => a.id).sort()).toEqual([t1.id, b1.id].sort());
+    for (const a of res.voided) {
+      expect(a.voidedAt?.getTime()).toBe(at.getTime());
+      expect(a.voidReason).toBe("DIGEST_MISMATCH");
+    }
+    expect(res.row).toMatchObject({ state: "IN_REVIEW", version: (before?.version ?? 0) + 1 });
+    expect(res.event?.type).toBe("run.state");
+    expect(await liveNonces(runId)).toEqual([]);
+    const entries = await voidEntries(ws.workspaceId);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.payload).toMatchObject({
+      runId,
+      reason: "DIGEST_MISMATCH",
+      approvalIds: [t1.id, b1.id].sort(),
+    });
+    const events = await t.owner.db.select().from(runEvents).where(eq(runEvents.runId, runId));
+    expect(events.map((e) => e.payload)).toContainEqual(
+      expect.objectContaining({ from: "APPROVED", to: "IN_REVIEW", cause: "DIGEST_MISMATCH" }),
+    );
+  });
+
+  it("writes nothing while a live approval is one the check never read (signed after its read)", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const read = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")].map((a) => a.nonce);
+    // meanwhile another executor's check voids that set, a line is edited and both keys sign again
+    expect((await r.approvals.voidChecked(t.app.db, checkedVoid(runId, read))).ok).toBe(true);
+    const fresh = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")].map((a) => a.nonce);
+    await reapprove(r, runId);
+    const before = await runRow(runId);
+    // the stale executor voids what it read: nothing changes
+    expect(await r.approvals.voidChecked(t.app.db, checkedVoid(runId, read))).toEqual({
+      ok: false,
+      reason: "UNNAMED_APPROVAL",
+      current: "APPROVED",
+    });
+    // naming only part of the live set changes nothing either
+    expect(await r.approvals.voidChecked(t.app.db, checkedVoid(runId, [fresh[0] ?? ""]))).toMatchObject({
+      ok: false,
+      reason: "UNNAMED_APPROVAL",
+    });
+    expect(await liveNonces(runId)).toEqual([...fresh].sort());
+    expect(await runRow(runId)).toEqual(before);
+    expect(await voidEntries(ws.workspaceId)).toHaveLength(1);
+  });
+
+  it("writes nothing once the run has left APPROVED, or for a run outside the scope", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const nonces = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")].map((a) => a.nonce);
+    // another executor wrote its rows under these approvals: the run is POSTING
+    expect((await r.runs.beginPosting(t.app.db, posting(runId, nonces))).ok).toBe(true);
+    expect(await r.approvals.voidChecked(t.app.db, checkedVoid(runId, nonces))).toEqual({
+      ok: false,
+      reason: "STALE",
+      current: "POSTING",
+    });
+    expect(await liveNonces(runId)).toEqual([...nonces].sort());
+    expect(await voidEntries(ws.workspaceId)).toHaveLength(0);
+    expect(await r.approvals.voidChecked(t.app.db, checkedVoid(randomUUID(), nonces))).toMatchObject({
+      ok: false,
+      reason: "NOT_FOUND",
+    });
+    const other = await approvedRun();
+    const theirs = await sign(other.ws, other.runId, "treasurer");
+    expect(await r.approvals.voidChecked(t.app.db, checkedVoid(other.runId, [theirs.nonce]))).toMatchObject({
+      ok: false,
+      reason: "NOT_FOUND",
+    });
+    expect(await liveNonces(other.runId)).toEqual([theirs.nonce]);
+  });
+
+  it("never voids an approval outside the run's live set, even when the call names it", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const mine = await sign(ws, runId, "treasurer");
+    const otherRun = await anotherRun(ws);
+    const theirs = await sign(ws, otherRun, "treasurer");
+    const res = await r.approvals.voidChecked(t.app.db, checkedVoid(runId, [mine.nonce, theirs.nonce]));
+    if (!res.ok) throw new Error(`expected the void to apply, got ${res.reason}`);
+    expect(res.voided.map((a) => a.id)).toEqual([mine.id]);
+    expect(await liveNonces(otherRun)).toEqual([theirs.nonce]);
+  });
+
+  it("waits for an approval still being inserted for the run (no workspace lock), then counts it", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const t1 = await sign(ws, runId, "treasurer");
+    const held = await holdOpen(async (tx) => {
+      await tx.insert(approvals).values({
+        workspaceId: ws.workspaceId,
+        runId,
+        role: "board",
+        decision: "SIGNED",
+        approverId: "board:ernesto",
+        keyId: "fs-ernesto-a1",
+        payloadJcs: '{"v":1}',
+        signature: "c2lnbmF0dXJl",
+        batchSha256: DIGEST,
+        nonce: randomUUID(),
+        exp: new Date(Date.now() + 30 * 60_000),
+        provenance: "live",
+      });
+    });
+    const voiding = r.approvals.voidChecked(t.app.db, checkedVoid(runId, [t1.nonce]));
+    await sleep(150);
+    await held.commit();
+    expect(await voiding).toEqual({ ok: false, reason: "UNNAMED_APPROVAL", current: "APPROVED" });
+    expect(await liveNonces(runId)).toHaveLength(2);
+    expect((await runRow(runId))?.state).toBe("APPROVED");
+  });
+
+  it("a void reason is a code, never free text", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const a = await sign(ws, runId, "treasurer");
+    const e = await caught(() =>
+      r.approvals.voidChecked(t.app.db, { ...checkedVoid(runId, [a.nonce]), reason: "the digest changed" }),
+    );
+    expect(e).toBeInstanceOf(TypeError);
+    expect(await liveNonces(runId)).toEqual([a.nonce]);
+  });
+});
+
+describe("inv.i6.posting-cas: runs.beginPosting moves APPROVED → POSTING only under the approvals the post was checked under", () => {
+  it("moves the run with its digest and sender_batch_id while every named approval is live and signed that digest", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const nonces = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")].map((a) => a.nonce);
+    const p = posting(runId, nonces);
+    const res = await r.runs.beginPosting(t.app.db, p);
+    if (!res.ok) throw new Error(`expected the post to start, got ${res.reason}`);
+    expect(res.row).toMatchObject({ state: "POSTING", batchSha256: DIGEST, senderBatchId: p.senderBatchId });
+    expect(res.event?.payload).toMatchObject({ from: "APPROVED", to: "POSTING", cause: "post" });
+    expect(await liveNonces(runId)).toEqual([...nonces].sort());
+  });
+
+  it("refuses a stale executor: its approvals were voided, and both keys signed again since its read", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const read = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")].map((a) => a.nonce);
+    expect((await r.approvals.voidChecked(t.app.db, checkedVoid(runId, read))).ok).toBe(true);
+    await sign(ws, runId, "treasurer");
+    await sign(ws, runId, "board");
+    await reapprove(r, runId);
+    const before = await runRow(runId);
+    expect(await r.runs.beginPosting(t.app.db, posting(runId, read))).toEqual({
+      ok: false,
+      reason: "APPROVALS_STALE",
+      current: "APPROVED",
+    });
+    expect(await runRow(runId)).toEqual(before);
+  });
+
+  it("refuses an empty set, an unknown nonce, another run's approval and approvals that signed another digest", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const t1 = await sign(ws, runId, "treasurer");
+    const theirs = await sign(ws, await anotherRun(ws), "board");
+    const before = await runRow(runId);
+    for (const p of [
+      posting(runId, []),
+      posting(runId, [t1.nonce, randomUUID()]),
+      posting(runId, [t1.nonce, theirs.nonce]),
+      posting(runId, [t1.nonce], "e".repeat(64)),
+    ]) {
+      expect(await r.runs.beginPosting(t.app.db, p), JSON.stringify(p.approvalNonces)).toEqual({
+        ok: false,
+        reason: "APPROVALS_STALE",
+        current: "APPROVED",
+      });
+    }
+    expect(await runRow(runId)).toEqual(before);
+    // the same nonce named twice is still one live approval
+    expect((await r.runs.beginPosting(t.app.db, posting(runId, [t1.nonce, t1.nonce]))).ok).toBe(true);
+  });
+
+  it("refuses a run that is not APPROVED, and one outside the scope", async () => {
+    const { ws, r } = await approvedRun();
+    const inReview = await anotherRun(ws, "IN_REVIEW");
+    const a = await sign(ws, inReview, "treasurer");
+    expect(await r.runs.beginPosting(t.app.db, posting(inReview, [a.nonce]))).toEqual({
+      ok: false,
+      reason: "STALE",
+      current: "IN_REVIEW",
+    });
+    expect(await r.runs.beginPosting(t.app.db, posting(randomUUID(), [a.nonce]))).toMatchObject({
+      ok: false,
+      reason: "NOT_FOUND",
+    });
+    const other = await approvedRun();
+    const theirs = await sign(other.ws, other.runId, "treasurer");
+    expect(await r.runs.beginPosting(t.app.db, posting(other.runId, [theirs.nonce]))).toMatchObject({
+      ok: false,
+      reason: "NOT_FOUND",
+    });
+    expect((await runRow(other.runId))?.state).toBe("APPROVED");
+  });
+
+  it("waits for a void still in flight on a named approval (no workspace lock), then refuses", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const [t1, b1] = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")];
+    const held = await holdOpen(async (tx) => {
+      await tx
+        .update(approvals)
+        .set({ voidedAt: new Date(), voidReason: "LINE_EDITED" })
+        .where(eq(approvals.id, b1.id));
+    });
+    const starting = r.runs.beginPosting(t.app.db, posting(runId, [t1.nonce, b1.nonce]));
+    await sleep(150);
+    await held.commit();
+    expect(await starting).toEqual({ ok: false, reason: "APPROVALS_STALE", current: "APPROVED" });
+    expect((await runRow(runId))?.state).toBe("APPROVED");
+  });
+
+  it("of a void and a post racing on one approval set, exactly one wins and the rows agree with it", async () => {
+    for (let i = 0; i < 4; i++) {
+      const { ws, runId, r } = await approvedRun();
+      const nonces = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")].map((a) => a.nonce);
+      const [voided, posted] = await Promise.all([
+        r.approvals.voidChecked(t.app.db, checkedVoid(runId, nonces)),
+        r.runs.beginPosting(t.app.db, posting(runId, nonces)),
+      ]);
+      expect([voided.ok, posted.ok].filter(Boolean)).toHaveLength(1);
+      const run = await runRow(runId);
+      if (posted.ok) {
+        expect(run?.state).toBe("POSTING");
+        expect(await liveNonces(runId)).toEqual([...nonces].sort());
+      } else {
+        expect(run?.state).toBe("IN_REVIEW");
+        expect(await liveNonces(runId)).toEqual([]);
+      }
+    }
+  });
+});

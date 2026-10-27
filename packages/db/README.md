@@ -56,6 +56,21 @@ an item notice that beats our 201 (SUCCESS while the line is still SUBMITTED) wa
 PAID at once, and the late 201's own edge then finds the line STALE. Stale notices are no-ops; a superseded item
 (re-route) no longer moves its line.
 
+**The payouts port's compare-and-sets** (WS-PPMONEY's `PayoutsRepository`; the adapter that implements the port is
+WS-API's, and calls these in its own transactions):
+- `runs.beginPosting(tx, {id, approvalNonces, batchSha256, senderBatchId, cause, provenance})`, first in a primary
+  batch's `writeSubmitted`: APPROVED → POSTING only while every named approval is a live SIGNED approval of the run
+  that signed `batchSha256`; otherwise nothing is written (`APPROVALS_STALE`, `STALE`, `NOT_FOUND`) and the port
+  returns null.
+- `approvals.voidChecked(tx, {runId, nonces, reason, at?, provenance})`, the port's `voidApprovals`: voids the named
+  approvals and moves APPROVED → IN_REVIEW only while every live approval of the run is named (`UNNAMED_APPROVAL`,
+  `STALE` otherwise, nothing written); never voids an approval outside the run's live set.
+- `lines.hashes(db, runId)`: every member line of the run, on and off rail, as `{memberNo, lineSha256}` by member
+  number (`memberLines` for `loadPosting` and `loadRun`; a null hash stays null for the service to refuse).
+
+Both writes lock the run row before reading approvals, so even a writer that skips the workspace lock cannot slip a
+void or a new approval between the check and the commit.
+
 Lifecycle columns are guarded (I5): `repos(scope).*.update` cannot write a run's or line's `state`/`version`, a hold's
 state or resolution, an item's `status`, rank or cancel stamp, or any column of an approval — a compile error, and
 `GuardedColumnError` at runtime. The database refuses the same writes for every role (below).
