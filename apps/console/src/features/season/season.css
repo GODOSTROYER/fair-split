@@ -1,0 +1,736 @@
+/* The season slice's shared materials (W-TR-01, and the parts the Judge stage's first view borrows): the
+   stencilled marks, the run strip, the invoice and the pool with MM-S's arc, the contact sheet of photos and the
+   eval waffle. Every colour, size and timing is a --fs-* token. Paper is the only thing with a shadow; money
+   is outlined until PayPal says so; Claude's draft prints in pencil. */
+
+/* ---------------------------------------------------------------- loading beds (the gate) */
+
+.fsc-gate {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  max-width: 1280px;
+}
+
+.fsc-gate__lede {
+  max-width: 64ch;
+  color: var(--fs-ink-2);
+}
+
+.fsc-gate__beds {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 32px;
+}
+
+.fsc-gate__beds[data-columns="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fsc-gate__column {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.fsc-gate__group {
+  display: grid;
+  gap: 12px;
+}
+
+.fsc-gate__group[data-shape="photo"] {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+/* ---------------------------------------------------------------- marks */
+
+.fsc-mark {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fsc-mark__stencil {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.fsc-mark__season {
+  color: var(--fs-ink);
+}
+
+.fsc-mark__lot {
+  color: var(--fs-ink-2);
+}
+
+.fsc-mark__coop {
+  color: var(--fs-ink-2);
+}
+
+/* The sack stencil, full size: the season's own name in paint, the lot beside it. */
+.fsc-mark[data-size="hero"] .fsc-mark__season {
+  font-size: 4.5rem;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+}
+
+.fsc-mark[data-size="hero"] .fsc-mark__lot {
+  font-size: 1.75rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.fsc-section-title {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+/* ---------------------------------------------------------------- the run strip */
+
+.fsc-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-strip__stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 0;
+  color: var(--fs-ink-3);
+}
+
+/* One rule runs the length of the sequence, through each stage's mark. */
+.fsc-strip__stage::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--fs-rule);
+}
+
+.fsc-strip__stage[data-state="lit"]::before {
+  background: var(--fs-ink-3);
+}
+
+.fsc-strip__mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--fs-rule);
+  background: var(--fs-ground);
+  color: var(--fs-ground);
+}
+
+.fsc-strip__label {
+  position: relative;
+  justify-self: start;
+  padding: 0 8px 0 2px;
+  background: var(--fs-ground);
+  white-space: nowrap;
+}
+
+.fsc-strip__stage[data-state="lit"] {
+  color: var(--fs-ink);
+}
+
+.fsc-strip__stage[data-state="lit"] .fsc-strip__mark {
+  border-color: var(--fs-ink);
+  background: var(--fs-ink);
+}
+
+.fsc-strip__stage[data-state="current"] {
+  color: var(--fs-ink);
+}
+
+.fsc-strip__stage[data-state="current"] .fsc-strip__mark {
+  border-color: var(--fs-ink);
+}
+
+/* ---------------------------------------------------------------- invoice, arc and pool (MM-S) */
+
+.fsc-fund {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 96px;
+  row-gap: 40px;
+  align-items: start;
+}
+
+.fsc-fund[data-layout="column"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fsc-fund[data-layout="row"] > .fsc-fund__invoice {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.fsc-fund[data-layout="row"] > .fsc-fund__pool {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.fsc-fund__plate {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  min-width: 0;
+  padding: 22px 26px 24px;
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+}
+
+.fsc-fund__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-height: 31px;
+}
+
+.fsc-fund__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink);
+}
+
+.fsc-fund__title .fs-glyph {
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__status {
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__status[data-state="funded"] {
+  color: var(--fs-ink);
+}
+
+.fsc-fund__total {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.fsc-fund__muted {
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__estimate {
+  color: var(--fs-ink-3);
+}
+
+/* A large amount: the outline (money in flight) under a solid layer the evidence fills. Both layers use the
+   hollow cut so the fill lands exactly on its outline. */
+.fsc-figure {
+  display: inline-block;
+}
+
+.fsc-figure__digits {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  font-family: var(--fs-font-hollow);
+}
+
+.fsc-figure__hollow {
+  color: transparent;
+  -webkit-text-stroke: var(--fs-hollow-stroke) var(--fs-ink);
+}
+
+.fsc-figure__solid {
+  position: absolute;
+  inset: 0;
+  color: var(--fs-ink);
+}
+
+/* An inline amount in flight is ink-2 with a dashed underline; landed is plain ink (S2.2.1). */
+.fsc-inline-amount {
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsc-inline-amount[data-amount-state="hollow"],
+.fsc-fund[data-moment-phase="arc"] .fsc-inline-amount {
+  color: var(--fs-ink-2);
+  text-decoration: underline dashed 1.5px var(--fs-ink-3);
+  text-underline-offset: 5px;
+}
+
+.fsc-fund__draft {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-fund__draft-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-pencil);
+}
+
+.fsc-fund__lines {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.fsc-fund__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.fsc-fund__line dt {
+  display: grid;
+  gap: 2px;
+}
+
+.fsc-fund__line dd {
+  margin: 0;
+  text-align: right;
+}
+
+.fsc-fund__pencil {
+  color: var(--fs-pencil);
+}
+
+.fsc-fund__note {
+  max-width: 62ch;
+  color: var(--fs-ink-3);
+}
+
+.fsc-fund__pool-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fsc-fund__pool-label .fs-glyph {
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__line--aside {
+  padding-top: 10px;
+  border-top: 1px solid var(--fs-rule);
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__meta {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__meta dd {
+  margin: 0;
+}
+
+.fsc-fund__sent dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fsc-fund__source {
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__action {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding-top: 20px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+/* The first view's denser plate: Claude's draft, then the slab, then the memo in one caption. */
+.fsc-fund[data-compact] .fsc-fund__plate {
+  gap: 16px;
+}
+
+.fsc-fund[data-compact] .fsc-fund__draft {
+  gap: 6px;
+  padding-top: 12px;
+}
+
+.fsc-fund[data-compact] .fsc-fund__lines {
+  gap: 4px;
+}
+
+.fsc-fund__memo {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+/* The arc lives over the whole block and never takes a pointer. In Data mode its table takes a row. */
+.fsc-fund__arc {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.fsc-fund__arc[data-datamode] {
+  position: static;
+  grid-column: 1 / -1;
+  pointer-events: auto;
+}
+
+.fsc-fund__arc .fsc-mirrored__visual {
+  position: absolute;
+  inset: 0;
+}
+
+.fsc-fund__arc-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.fsc-fund__arc-path {
+  fill: none;
+  stroke: var(--fs-jade);
+  stroke-width: 2;
+  stroke-linecap: square;
+}
+
+/* "Funded": PayPal's press. A 3 px raised chip whose inset closes and whose face floods jade from the corner. */
+.fsc-funded {
+  position: relative;
+  display: inline-block;
+  margin: 0 3px 3px 0;
+}
+
+.fsc-funded__edge {
+  position: absolute;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.fsc-funded__edge--r {
+  top: 0;
+  left: 100%;
+  width: 3px;
+  height: 100%;
+  background: var(--fs-slab-jade-right);
+}
+
+.fsc-funded__edge--b {
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--fs-slab-jade-bottom);
+}
+
+.fsc-funded__face {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px 0 10px;
+  overflow: hidden;
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsc-funded__flood {
+  position: absolute;
+  inset: 0;
+  background: var(--fs-jade);
+  transform-origin: 100% 100%;
+}
+
+.fsc-funded__label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fsc-fund[data-moment-phase="funded"] .fsc-funded__label {
+  color: var(--fs-on-jade);
+}
+
+/* ---------------------------------------------------------------- the contact sheet */
+
+.fsc-contact {
+  --fsc-cols: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--fsc-cols), minmax(0, 1fr));
+  gap: 20px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-contact[data-columns="6"] {
+  --fsc-cols: 6;
+}
+
+.fsc-contact[data-columns="12"] {
+  --fsc-cols: 12;
+  gap: 14px 12px;
+}
+
+.fsc-contact__link {
+  display: grid;
+  gap: 8px;
+  color: var(--fs-ink-2);
+  text-decoration: none;
+}
+
+/* A print of the photo: white border, the desk and its slips inside, the evidence shadow beneath. */
+.fsc-contact__paper {
+  display: block;
+  padding: 4px;
+  background: var(--fs-copy-white);
+  box-shadow: var(--fs-shadow-paper);
+  transform: rotate(var(--fsc-turn, 0deg));
+}
+
+.fsc-contact__link:hover .fsc-contact__id {
+  color: var(--fs-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--fs-ink-3);
+  text-underline-offset: 3px;
+}
+
+.fsc-contact__link:focus-visible {
+  outline: none;
+}
+
+.fsc-contact__link:focus-visible .fsc-contact__paper {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: 4px;
+}
+
+.fsc-contact__caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fsc-contact__id {
+  font-weight: 600;
+}
+
+.fsc-contact__item[data-read] .fsc-contact__caption {
+  color: var(--fs-ink);
+}
+
+/* ---------------------------------------------------------------- the eval waffle */
+
+.fsc-waffle {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.fsc-waffle__grid {
+  display: grid;
+  grid-template-columns: repeat(10, 16px);
+  gap: 4px;
+}
+
+.fsc-waffle__cell {
+  width: 16px;
+  height: 16px;
+  border: 1px dashed var(--fs-rule);
+}
+
+.fsc-waffle__cell[data-cell="exact"] {
+  border: 0;
+  background: var(--fs-ink);
+}
+
+.fsc-waffle__cell[data-cell="person"] {
+  border: 1.5px solid var(--fs-canary-border);
+}
+
+.fsc-waffle__cell[data-cell="unsafe"] {
+  border: 0;
+  background: var(--fs-red);
+}
+
+.fsc-waffle__cell[data-cell="miss"] {
+  border: 1px solid var(--fs-ink-3);
+}
+
+.fsc-waffle__caption {
+  max-width: 44ch;
+  color: var(--fs-ink-3);
+}
+
+/* ---------------------------------------------------------------- W-TR-01 Season */
+
+.fsc-season {
+  display: grid;
+  align-content: start;
+  gap: 28px;
+  max-width: 1280px;
+}
+
+.fsc-season__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+}
+
+.fsc-season__titles {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fsc-season__title {
+  margin: 0;
+}
+
+.fsc-season__coop {
+  color: var(--fs-ink);
+}
+
+.fsc-season__lede {
+  max-width: 64ch;
+  color: var(--fs-ink-2);
+}
+
+/* The next human step, as one linked sentence: the mark says who moves the run, as on the run pill. */
+.fsc-season__next {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.fsc-season__next-word {
+  color: var(--fs-ink-3);
+}
+
+.fsc-season__next-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  color: var(--fs-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--fs-ink-3);
+  text-underline-offset: 4px;
+}
+
+.fsc-season__next-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.fsc-season__next-mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--fs-canary);
+}
+
+.fsc-season__next[data-actor="machine"] .fsc-season__next-mark {
+  background: var(--fs-pencil);
+}
+
+.fsc-season__next[data-actor="paypal"] .fsc-season__next-mark {
+  border: 1.5px solid var(--fs-ink-2);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-season__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  margin: -8px 0 0;
+  color: var(--fs-ink);
+}
+
+.fsc-season__state .fs-glyph {
+  color: var(--fs-ink-2);
+}
+
+.fsc-season__muted {
+  color: var(--fs-ink-3);
+}
+
+.fsc-season__lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px 56px;
+  padding-top: 24px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-season__desk {
+  display: grid;
+  gap: 16px;
+}
+
+.fsc-season__desk-head {
+  display: grid;
+  gap: 4px;
+}
+
+/* ---------------------------------------------------------------- narrower screens */
+
+@media (max-width: 1279px) {
+  .fsc-fund {
+    column-gap: 72px;
+  }
+
+  .fsc-season__lower {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1099px) {
+  .fsc-fund {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-fund[data-layout="row"] > :is(.fsc-fund__invoice, .fsc-fund__pool) {
+    grid-row: auto;
+    grid-column: 1;
+  }
+
+  .fsc-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .fsc-contact[data-columns="6"] {
+    --fsc-cols: 4;
+  }
+
+  .fsc-mark[data-size="hero"] .fsc-mark__season {
+    font-size: 3.5rem;
+  }
+}
