@@ -8,7 +8,7 @@
 //   GET /.well-known/fairsplit-keys.json?run=2026A-r… one run's officers (a judge session's demo keys included)
 import { PublishedKeys, RunSlug } from "@fairsplit/contracts";
 import { z } from "zod";
-import { ledgerKeyOf } from "../../ledger/keys.js";
+import { describeLedgerKey, ledgerKeyOf } from "../../ledger/keys.js";
 import { reply } from "../../lib/command.js";
 import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
@@ -23,6 +23,15 @@ const KeysQuery = z.strictObject({ run: RunSlug.optional() });
 export default defineRouteFolder({
   folder: "wellknown",
   commands: {},
+  // One line at boot naming what signs Proof checkpoints (never key material): a sample key in production is
+  // a deliberate demo, but it must be visible.
+  onBoot: async (deps) => {
+    const k = describeLedgerKey(ledgerKeyOf(deps));
+    const line = { keyId: k.keyId, kind: k.kind, source: k.source, proofReads: k.proofReads };
+    if (k.kind === "seeded" && deps.env.production)
+      deps.logger.warn(line, "proof: checkpoints are signed by a SAMPLE ledger key");
+    else deps.logger.info(line, "proof: ledger checkpoint key");
+  },
   routes: (r) => {
     r.route(
       {

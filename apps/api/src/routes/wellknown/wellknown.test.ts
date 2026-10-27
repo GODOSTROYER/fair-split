@@ -8,6 +8,7 @@ import { SAMPLE_LEDGER_KEY_ID } from "../../ledger/keys.js";
 import { storedPublicKeyOf } from "../../proof/keys.js";
 import { loadShowcase, type ShowcaseWorld } from "../../proof/testing/world.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
+import wellknown from "./index.js";
 
 let t: TestApp;
 let w: ShowcaseWorld;
@@ -102,5 +103,31 @@ describe("GET /.well-known/fairsplit-keys.json", () => {
     const bad = await t.json<ApiError>("/.well-known/fairsplit-keys.json?run=../../etc");
     expect(bad.status).toBe(400);
     expect(bad.body.code).toBe("VALIDATION_FAILED");
+  });
+});
+
+describe("boot", () => {
+  it("names the checkpoint key once, and warns when production signs with a sample key", async () => {
+    const lines: { level: string; obj: unknown; msg: string }[] = [];
+    const logger = {
+      info: (obj: unknown, msg: string) => lines.push({ level: "info", obj, msg }),
+      warn: (obj: unknown, msg: string) => lines.push({ level: "warn", obj, msg }),
+    };
+    const deps = { ...t.deps, logger: logger as never };
+    await wellknown.onBoot?.(deps);
+    await wellknown.onBoot?.({ ...deps, env: { ...t.deps.env, production: true } });
+    expect(lines).toEqual([
+      {
+        level: "info",
+        obj: { keyId: SAMPLE_LEDGER_KEY_ID, kind: "seeded", source: "derived_sample", proofReads: "Sample" },
+        msg: "proof: ledger checkpoint key",
+      },
+      {
+        level: "warn",
+        obj: { keyId: SAMPLE_LEDGER_KEY_ID, kind: "seeded", source: "derived_sample", proofReads: "Sample" },
+        msg: "proof: checkpoints are signed by a SAMPLE ledger key",
+      },
+    ]);
+    expect(JSON.stringify(lines)).not.toMatch(/private|[0-9a-f]{64}/);
   });
 });
