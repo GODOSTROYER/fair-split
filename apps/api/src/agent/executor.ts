@@ -178,15 +178,18 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
     },
 
     async addAutoCancelRule(req) {
-      // The rule's date comes from PayPal's invoice date, read back by a GET; never from the agent.
+      // The rule's date comes from PayPal's invoice date, read back by a GET; never from the agent. Only this
+      // run's own invoice (the database's id) is ever read or written: an id the agent made up goes straight to
+      // the lattice below (a recorded DENY) and touches nothing.
       let invoiceDate: string | null = null;
       const current = await withWorkspaceTx(deps.db, scope, async (tx) =>
         invoiceWorld(tx, scope, deps, await runById(tx, scope, req.runId)),
       );
+      const ours = current.expected.invoiceId;
       invoiceDate = current.expected.invoiceDate;
-      if (!invoiceDate) {
+      if (!invoiceDate && ours !== null && req.invoiceId === ours) {
         try {
-          const got = await getInvoice(tk, req.invoiceId);
+          const got = await getInvoice(tk, ours);
           invoiceDate = got.invoiceDate;
           if (invoiceDate) {
             await deps.db
@@ -207,9 +210,11 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
           ? autoCancelRuleArgs(req.invoiceId, autoCancelDate(date))
           : { invoice_id: req.invoiceId, rules: [] },
       }));
-      if (decision.verdict === "DENY" || !date) return refused(decision);
+      if (decision.verdict === "DENY" || !date || ours === null || req.invoiceId !== ours) {
+        return refused(decision);
+      }
       try {
-        const on = await addAutoCancelRule(tk, req.invoiceId, date);
+        const on = await addAutoCancelRule(tk, ours, date);
         await deps.db
           .update(schema.invoices)
           .set({ ruleCreatedAt: deps.clock.now(), autoCancelOn: on })
