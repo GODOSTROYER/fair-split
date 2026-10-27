@@ -1,7 +1,7 @@
 // Judge slice on embedded Postgres: the world clone, the pool, sessions (start, resume, throttles, QUEUED),
 // Reset, presence, the "Try to break it" controls, the judge code, demo keys and the judgeReset task.
 import { createHash, sign as edSign, generateKeyPairSync } from "node:crypto";
-import { ApiError, CreateJudgeSessionResponse, LedgerPayloads, TASKS } from "@fairsplit/contracts";
+import { ApiError, CreateJudgeSessionResponse, LedgerPayloads, RunEvent, TASKS } from "@fairsplit/contracts";
 import { asDbError, schema, systemScope, verifyChain } from "@fairsplit/db";
 import { jcs } from "@fairsplit/domain";
 import { getMembers, getPhotos, getSlips, getSnapshot } from "@fairsplit/seed";
@@ -966,5 +966,37 @@ describe("the human gate at this slice's boundary", () => {
       const ro = await t.json<ApiError>(path, { ...init, as: t.credentials.bearer(link) });
       expect(ro.status, `${method} ${path} with a member link`).toBe(403);
     }
+  });
+});
+
+describe("presence on the run stream (MM-5)", () => {
+  it("the Chair's frame beat reaches the console's run stream as an IC-01 presence event", async () => {
+    const s = await startSession({ ip: "203.0.113.140" });
+    const chair = await t.json<{ token: string }>(`/v1/judge/sessions/${s.body.sessionId}/frames`, {
+      method: "POST",
+      body: { persona: "board:ernesto" },
+      as: judge(s.cookie),
+    });
+    const { response, reader } = await t.sse(`/v1/runs/${s.body.runSlug}/events`, {
+      as: t.credentials.bearer(s.body.consoleToken),
+    });
+    expect(response.status).toBe(200);
+    const arrived = reader.next(10_000);
+    const beat = await t.json("/v1/presence", {
+      method: "POST",
+      body: { view: "M-BD-01" },
+      as: t.credentials.bearer(chair.body.token),
+    });
+    expect(beat.status).toBe(200);
+    const msg = await arrived;
+    expect(msg.event).toBe("presence");
+    const event = RunEvent.parse(JSON.parse(msg.data));
+    expect(event).toMatchObject({
+      type: "presence",
+      runId: s.body.runId,
+      actor: { kind: "human", id: "board:ernesto", impersonatedBy: `judge_session:${s.body.sessionId}` },
+      payload: { persona: "ernesto", view: "M-BD-01", holdId: null },
+    });
+    await reader.close();
   });
 });
