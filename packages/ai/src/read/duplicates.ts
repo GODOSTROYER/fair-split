@@ -13,6 +13,9 @@ import type { CopyColour } from "./schema.js";
  *    pairs at 8 or less), and two slots of one photo are two pieces of paper.
  * 4. MEMBER_DATE_KILOS: the same member, date and payable kilos under different serials, counted only
  *    with signal 3 (a re-shoot whose serial was misread), so two real deliveries on one day stay clean.
+ *    Without a reviewed rectangle there is no dHash (pages until their template rectangles are
+ *    reviewed; live reads without `cropFixture`), so there signal 4 cannot fire and a re-shoot whose
+ *    serial was misread goes unpaired: the price of never pairing two real same-day deliveries.
  *
  * A pair is proposed on signal 1, on signal 2, or on signals 3 and 4 together; never on 3 alone (ADR 0003).
  */
