@@ -67,8 +67,18 @@ On Windows, use a local NTFS drive (never a mapped drive), enable long paths and
 ## Commits and pull requests
 
 - Conventional commits (`feat(test-kit): …`, `fix(domain): …`, `docs: …`).
-- The pre-commit hook runs secretlint, `tools/guard-env.mjs` and Biome. Fix with
-  `corepack pnpm exec biome check --write <paths>`. Never use `--no-verify`.
+- The pre-commit hook (`lefthook.yml`) runs secretlint, `tools/guard-env.mjs` and Biome over the staged files.
+  Fix Biome's findings with `corepack pnpm exec biome check --write <paths>`. Never use `--no-verify`.
+- secretlint and Biome run through `tools/run-staged.mjs`. It reads the staged files from git
+  (`git diff --cached --name-only --diff-filter=ACMR`, the files lefthook's `{staged_files}` lists) and calls each
+  tool's JavaScript entry with `node`, 40 files at a time. lefthook used to put every staged path on one command
+  line, and on Windows `pnpm exec` goes through cmd.exe, which rejects lines over 8,191 characters, so a merge
+  commit that stages a few hundred files could not pass the hook. Biome gets only the staged `.ts`, `.tsx`, `.js`,
+  `.mjs`, `.cjs` and `.json` files. Run one step by hand with `node tools/run-staged.mjs secretlint` (or `biome`),
+  or the whole hook with `corepack pnpm exec lefthook run pre-commit`.
+- `biome ci .` skips generated folders: `.turbo` (turbo's task cache), `dist`, `coverage`, `.expo`, `node_modules`
+  and the other folders `.gitignore` lists, and also `docs/spec`. A new generated folder goes into both
+  `.gitignore` and `biome.json`; test-kit's `biome-ignores.test.mjs` fails until they agree.
 - Fill in the PR template. The orchestrator merges (below); there is no merge queue or daily train.
 
 ## Merging

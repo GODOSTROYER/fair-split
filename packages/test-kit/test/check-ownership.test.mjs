@@ -219,6 +219,15 @@ describe("docs/ownership.md", () => {
     expect(owns(ownership, "WS-OPS", "tools/check-ownership.mjs")).toBe(false);
     expect(owns(ownership, "WS-QA", "tools/check-ownership.mjs")).toBe(true);
   });
+
+  it("gives WS-QA the pre-commit hook: lefthook.yml and every tools/ script it runs, so one PR can change it", () => {
+    const scripts = [...readText("lefthook.yml").matchAll(/\bnode (tools\/[\w./-]+)/g)].map((m) => m[1]);
+    expect(scripts).toEqual(expect.arrayContaining(["tools/run-staged.mjs", "tools/guard-env.mjs"]));
+    for (const file of ["lefthook.yml", ...scripts]) {
+      expect(owns(ownership, "WS-QA", file), file).toBe(true);
+      expect(owns(ownership, "WS-OPS", file), file).toBe(false);
+    }
+  });
 });
 
 describe("workstreamFromBranch", () => {

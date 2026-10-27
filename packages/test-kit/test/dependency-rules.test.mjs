@@ -364,11 +364,14 @@ describe("Biome keeps every edge that dependency-cruiser calls type-only erased"
 });
 
 describe("the real tree", () => {
+  // The whole-tree cruise is CPU-bound: about 90 s alone on a busy Windows machine, and over 300 s beside test-kit's
+  // other files while other workstreams build on the same machine. It always ends, and a timeout here says nothing
+  // about the rules, so the budget is ten minutes.
   it("passes deps:check over apps, packages, tools and e2e", () => {
     const result = cruise(repoRoot, ["{apps,packages,tools,e2e}"]);
     expect(result.summary.violations).toEqual([]);
     const sources = result.modules.map((m) => m.source);
     expect(sources).toContain("tools/check-ownership.mjs");
     expect(sources).toContain("packages/test-kit/src/index.ts");
-  }, 120_000);
+  }, 600_000);
 });

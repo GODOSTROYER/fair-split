@@ -11,7 +11,7 @@ written as if public. Secrets live only in the gitignored `.env`, Render env var
 | ---------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `.gitignore`           | `.env*` (except `.env.example`), keystores, credential JSONs, Firebase files                               | Every commit                                      |
 | `tools/guard-env.mjs`  | Any `.env` file; Anthropic, Google and PayPal secret patterns                                              | lefthook pre-commit; CI on changed files          |
-| secretlint             | The recommended preset over the whole tree                                                                 | lefthook pre-commit; CI                           |
+| secretlint             | The recommended preset: staged files at pre-commit (via `tools/run-staged.mjs`), the whole tree in CI      | lefthook pre-commit; CI                           |
 | gitleaks               | Push: the pushed commits. PR: the PR's commits. Nightly and manual run: all history reachable from the ref | CI `gitleaks` job (`gitleaks/gitleaks-action` v3) |
 | Fixture scrubber       | Tokens → `REDACTED`, emails → `sb-<hash>@sandbox.fairsplit.invalid`                                        | `@fairsplit/test-kit`; CI re-checks every fixture |
 | GitHub push protection | Known provider token formats                                                                               | On push (enable in repo settings)                 |
