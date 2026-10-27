@@ -14,13 +14,17 @@ afterAll(async () => {
   await t?.close();
 });
 
-/** Tables that are not workspace data: the tenancy root and Better Auth's own tables. */
+/**
+ * Tables that are not workspace data: the tenancy root, Better Auth's own tables, and the webhook replay record (a
+ * delivery's transmission id is claimed before the event names a workspace; it is a key and an expiry, nothing more).
+ */
 const NO_WORKSPACE = new Set([
   "workspaces",
   "auth_user",
   "auth_session",
   "auth_account",
   "auth_verification",
+  "webhook_transmissions",
 ]);
 /** System-wide rows are allowed here (S3 deviation 4 plus cron tasks, system PayPal calls and health reports). */
 const NULLABLE_WORKSPACE = new Set([
@@ -91,7 +95,14 @@ describe("register §7 table conventions", () => {
         "cash_receipts",
         "review_requests",
       ],
-      ["payout_batches", "payout_items", "webhook_events", "paypal_calls", "reconciliation_reports"],
+      [
+        "payout_batches",
+        "payout_items",
+        "webhook_events",
+        "webhook_transmissions",
+        "paypal_calls",
+        "reconciliation_reports",
+      ],
       ["task_outbox", "run_events", "ledger_entries", "ledger_heads", "agent_sessions", "llm_calls"],
       ["idempotency_keys", "system_flags"],
     ].flat();
