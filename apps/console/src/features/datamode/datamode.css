@@ -1,0 +1,40 @@
+/* Data mode's plate: a small, flat status plate in the corner while Data mode is on (W-TR-10). Plate-2 with a rule,
+   corners 2, no shadow; it adapts to the surface's theme because every colour is a token. */
+
+.dm-badge {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: var(--fs-z-snackbar);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.dm-badge > .fs-glyph {
+  color: var(--fs-ink-2);
+}
+
+.dm-badge__title {
+  font-weight: 640;
+  white-space: nowrap;
+}
+
+.dm-badge .fs-link {
+  min-height: 24px;
+}
+
+@media print {
+  .dm-badge {
+    display: none;
+  }
+}
