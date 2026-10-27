@@ -1,29 +1,40 @@
 /**
- * `/app/s/:token`, the member's link (register §4): Ed25519-signed, valid 30 days, one line, read only. The phone
- * reads the claims to explain an expired or broken link; the server verifies the signature when it serves the line.
+ * `/app/s/:token`, the member's link (register §4): Ed25519-signed by fs-api, valid 30 days, one line, read only.
+ * The phone reads the token's claims only to explain an expired or broken link without a round trip; the server
+ * verifies the signature when it serves the line. A valid link opens the same statement, read only: no re-check, no
+ * demo controls, and Paminawa opens in place.
  */
 import { useLocalSearchParams } from "expo-router";
 import { readMemberLink } from "../../lib/member-link";
 import { Screen } from "../../ui/chrome";
-import { Banner } from "../../ui/primitives";
-import { Txt } from "../../ui/text";
+import { EmptyState } from "../../ui/states";
 import { BayadScreen } from "./bayad-screen";
+import { COLUMN, LangBar } from "./parts";
+import { StatementProvider } from "./statement-store";
 import { useT } from "./use-t";
 
 export function MemberLinkScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const tr = useT();
-  const check = readMemberLink(typeof token === "string" ? token : "", new Date());
+  const raw = typeof token === "string" ? token : "";
+  const check = readMemberLink(raw, new Date());
   if (!check.ok) {
+    const expired = check.reason === "expired";
     return (
-      <Screen testID="M-MB-01" state={check.reason === "expired" ? "link-expired" : "link-invalid"}>
-        <Banner tone="decide" icon="info">
-          <Txt kind="body">
-            {tr(check.reason === "expired" ? "M-MB-01.linkExpired" : "M-MB-01.linkInvalid")}
-          </Txt>
-        </Banner>
+      <Screen testID="M-MB-01" state={expired ? "link-expired" : "link-invalid"} contentStyle={COLUMN}>
+        <LangBar testID="M-MB-01" />
+        <EmptyState
+          glyph={expired ? "clock" : "info"}
+          title={tr("M-MB-01.linkTitle")}
+          body={tr(expired ? "M-MB-01.linkExpired" : "M-MB-01.linkInvalid")}
+          testID="M-MB-01.link"
+        />
       </Screen>
     );
   }
-  return <BayadScreen linkToken={token} />;
+  return (
+    <StatementProvider linkToken={raw} linkLineId={check.lineId}>
+      <BayadScreen readOnlyUntil={check.exp} />
+    </StatementProvider>
+  );
 }

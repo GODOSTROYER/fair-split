@@ -1,15 +1,24 @@
 /**
- * MM-7 "Tap a peso" (design §7 M7, S2.9): from her slip chip the view zooms about the tap point from 1× to 2.4×
- * into the crop where the kilos are written in Jessie's hand; the statement dims to 20%; the other crops tile
- * beneath with their sum printed flat. Back reverses the zoom. Low tier and reduced motion: a 200 ms crossfade
- * straight to the crop. Crops come from the reviewed fixtures (IC-11) only; until WS-MEDIA lands this draws a
- * labelled sample of the slip template.
+ * MM-7's zoom (design §7 M7, S2.9 "Tap a peso"): from the slip she tapped, the view zooms about the tap point into
+ * the slip where her kilos are written in the clerk's hand, with the figure she traced framed in 1 px ink; the
+ * statement dims to 20%; a Rigid / Segment_Tick haptic fires two-thirds of the way in. Then her other slips tile
+ * beneath, 60 ms apart, with their sum printed flat ("Tanan: 148.0 kg"), and Paminawa can read the sentence that
+ * names them, lifting each slip as it is named. Back plays the zoom in reverse.
+ *
+ * Phases come from the screen's MM-7 moment (zooming → zoomed → tiled → returning); they follow the spring's own
+ * completion, not a timer. Reduced motion and the low tier crossfade (200 ms) straight to the slip at full size.
  */
-import { Image } from "expo-image";
-import { useEffect, useState } from "react";
-import { BackHandler, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  BackHandler,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ViewInstance,
+} from "react-native";
 import Animated, {
-  Easing,
   FadeIn,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -17,251 +26,265 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-import type { StatementSlip } from "../../_shims/api-client";
+import type { StatementDTO } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
-import { format } from "../../_shims/domain";
-import { radius, space } from "../../_shims/tokens.native";
+import { SPRING_SOURCE } from "../../_shims/motion";
+import { layer, space } from "../../_shims/tokens.native";
+import { slipFigures, slipTotal } from "../../lib/figures";
+import type { AudioPlan } from "../../lib/statement";
 import { feedback } from "../../platform/feedback";
+import type { VoiceChoice } from "../../platform/speech";
 import { useFs } from "../../theme/theme";
-import { ms, spring, tween } from "../../ui/motion";
+import { focusFirst } from "../../ui/a11y";
+import type { MomentPhase } from "../../ui/moment";
+import { ms, spring, TIMELINE, tween } from "../../ui/motion";
 import { Button } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
-import type { Mm7Phase } from "./receipt-bar";
+import { hapticAt, zoomLimit, zoomTransform } from "./mm7";
+import { canPlay } from "./paminawa-machine";
+import { SLIP_ASPECT, type SlipOwner, SlipPaper } from "./slip-paper";
+import { SlipTiles, type TapPoint } from "./slip-tiles";
+import { usePaminawa } from "./use-paminawa";
 import { useT } from "./use-t";
 
-const ZOOM = 2.4;
-const GLIDE_SETTLE_MS = 661;
-
-/** Below this width a crop is a list thumbnail: serial and kilos only, with the sample tag as a strip. */
-const COMPACT_MAX_W = 160;
-const STRIP_H = 12;
-
-/** A slip crop: the reviewed photo when it exists, otherwise a labelled sample of the template. */
-export function SlipCrop({ slip, width, lang }: { slip: StatementSlip; width: number; lang: Lang }) {
-  const { t } = useFs();
-  const tr = useT();
-  const height = Math.round(width * 0.62);
-  const compact = width < COMPACT_MAX_W;
-  return (
-    <View
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel={`${tr("M-MB-02.slip", { serial: slip.serial })}, ${format.kg(slip.netGrams, 2)}. ${tr("common.syntheticSample")}`}
-      style={[
-        styles.paper,
-        { width, height, backgroundColor: t.color.copyWhite, boxShadow: t.shadowPaper } as object,
-      ]}
-    >
-      {slip.cropUrl ? (
-        <Image source={{ uri: slip.cropUrl }} style={StyleSheet.absoluteFill} contentFit="contain" />
-      ) : compact ? (
-        <View style={styles.compact}>
-          <Txt maxFontSizeMultiplier={1} style={{ color: "#BF2A1C", fontSize: 9, lineHeight: 11 }}>
-            {`No. ${slip.serial}`}
-          </Txt>
-          <Txt
-            maxFontSizeMultiplier={1}
-            numberOfLines={1}
-            style={{
-              color: t.color.ballpoint,
-              fontFamily: "MonaSans_500Medium",
-              fontSize: Math.round(width * 0.2),
-              lineHeight: Math.round(width * 0.24),
-              transform: [{ rotate: "-2deg" }],
-            }}
-          >
-            {format.kg(slip.netGrams, 2).replace(" kg", "")}
-          </Txt>
-        </View>
-      ) : (
-        <View style={styles.template}>
-          <View style={styles.templateHead}>
-            <Txt kind="caption" style={{ color: "#4E453E" }} maxFontSizeMultiplier={1}>
-              Bulawanon Kakaw Growers MPC
-            </Txt>
-            <Txt kind="caption" style={{ color: "#BF2A1C" }} maxFontSizeMultiplier={1}>
-              {`No. ${slip.serial}`}
-            </Txt>
-          </View>
-          {[
-            ["Date", format.date(slip.deliveredOn, lang)],
-            ["Net kg", format.kg(slip.netGrams, 2).replace(" kg", "")],
-          ].map(([k, v]) => (
-            <View key={k} style={[styles.field, { borderBottomColor: "#D8D4CD" }]}>
-              <Txt kind="caption" style={{ color: "#6F665E", width: width * 0.22 }} maxFontSizeMultiplier={1}>
-                {k}
-              </Txt>
-              <Txt
-                maxFontSizeMultiplier={1}
-                style={{
-                  color: t.color.ballpoint,
-                  fontFamily: "MonaSans_500Medium",
-                  fontSize: Math.round(width * (k === "Net kg" ? 0.1 : 0.06)),
-                  transform: [{ rotate: "-2deg" }],
-                }}
-              >
-                {v}
-              </Txt>
-            </View>
-          ))}
-        </View>
-      )}
-      {/* Design §2.5 "Paper": every sample carries "Synthetic sample" in its corner; a thumbnail is too small for a
-          corner tag that leaves the kilos readable, so there it is a strip along the bottom edge. */}
-      <View
-        style={[
-          compact ? styles.strip : styles.tag,
-          { backgroundColor: t.color.plate2, borderColor: t.color.rule },
-        ]}
-      >
-        <Txt
-          kind="caption"
-          color="ink2"
-          maxFontSizeMultiplier={1}
-          numberOfLines={1}
-          style={compact ? styles.stripText : undefined}
-        >
-          {tr("common.syntheticSample")}
-        </Txt>
-      </View>
-    </View>
-  );
-}
+/** The statement shows at 20% under the zoom (design §7 M7). */
+const DIM = 0.8;
+/** How long the `glide` spring takes to come to rest: twice its perceptual duration (critically damped). */
+const SETTLE_MS = SPRING_SOURCE.glide.d * 2000;
 
 export function SlipZoom({
-  slips,
+  dto,
   serial,
   origin,
   lang,
+  owner,
   onPhase,
   onClosed,
+  sources,
+  voice,
+  autoListen,
 }: {
-  slips: readonly StatementSlip[];
+  dto: StatementDTO;
   serial: string;
-  origin: { x: number; y: number };
+  origin: TapPoint;
   lang: Lang;
-  onPhase(p: Mm7Phase): void;
+  owner: SlipOwner;
+  onPhase(p: MomentPhase<"MM-7">): void;
   onClosed(): void;
+  /** The statement's SOURCES sentence as Paminawa would read it (one step), or an empty plan. */
+  sources: AudioPlan;
+  voice: VoiceChoice | null | undefined;
+  autoListen: boolean;
 }) {
   const { t, motion } = useFs();
   const tr = useT();
+  const insets = useSafeAreaInsets();
   const { width: W, height: H } = useWindowDimensions();
-  const cardW = Math.min(W - space.s32, 380);
-  const cardH = Math.round(cardW * 0.62);
-  const top = Math.max(space.s64, H * 0.12);
-  const centre = { x: W / 2, y: top + cardH / 2 };
   const instant = motion.reduced || motion.low;
-  const s = useSharedValue(instant ? 1 : 1 / ZOOM);
-  const k = useSharedValue(instant ? 1 : 0); // 0 = at the chip, 1 = in place
-  const dim = useSharedValue(0);
+  const zoom = zoomLimit(null);
+  const cardW = Math.min(W - space.s32, 400);
+  const cardH = Math.round(cardW * SLIP_ASPECT);
+  const top = insets.top + Math.max(space.s48, H * 0.08);
+  const centre = useMemo(() => ({ x: W / 2, y: top + cardH / 2 }), [W, top, cardH]);
+  const k = useSharedValue(instant ? 1 : 0);
+  const shown = useSharedValue(0);
   const [tiled, setTiled] = useState(false);
-  const active = slips.find((x) => x.serial === serial) ?? slips[0];
-  const others = slips.filter((x) => x.serial !== active?.serial);
+  const [leaving, setLeaving] = useState(false);
+  const paper = useRef<ViewInstance>(null);
+  const later = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (later.current) clearTimeout(later.current);
+    },
+    [],
+  );
+  const active = dto.slips.find((x) => x.serial === serial) ?? dto.slips[0];
+  const total = slipTotal(dto);
+  const player = usePaminawa(sources, {
+    voice,
+    lockTitle: tr("M-MB-03.lockTitle"),
+    lockArtist: dto.coop.name,
+  });
 
+  // In: glide from the chip (or crossfade), then tile the other slips 60 ms apart. The phases follow the
+  // animation's own end; a frame that is throttled (a judge frame scrolled out of view, a backgrounded tab) never
+  // reports one, so the same end is also reached after the spring's settling time and the slip set in place.
   useEffect(() => {
     onPhase("zooming");
+    let done = false;
+    const settled = () => {
+      if (done) return;
+      done = true;
+      k.set(1);
+      shown.set(1);
+      onPhase("zoomed");
+      setTiled(true);
+      const stagger = TIMELINE["MM-7"].tileStaggerMs * Math.max(0, dto.slips.length - 1);
+      later.current = setTimeout(() => onPhase("tiled"), stagger + ms("print"));
+    };
+    later.current = setTimeout(settled, instant ? ms("crossfade") + ms("micro") : SETTLE_MS);
     if (instant) {
-      dim.set(withTiming(1, tween("crossfade")));
-      const id = setTimeout(() => {
-        onPhase("zoomed");
-        setTiled(true);
-        onPhase("tiled");
-      }, ms("crossfade"));
-      return () => clearTimeout(id);
+      shown.set(withTiming(1, tween("crossfade"), (f) => f && scheduleOnRN(settled)));
+      return;
     }
-    dim.set(withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }));
-    s.set(withSpring(1, spring("glide")));
-    k.set(withSpring(1, spring("glide")));
-    // Phases follow the timeline, not frame delivery: the glide spring settles in about 661 ms (S2.8).
-    const id = setTimeout(settle, GLIDE_SETTLE_MS);
-    return () => clearTimeout(id);
+    shown.set(withTiming(1, tween("micro")));
+    k.set(withSpring(1, spring("glide"), (f) => f && scheduleOnRN(settled)));
   }, []);
 
-  function settle() {
-    onPhase("zoomed");
-    setTiled(true);
-    onPhase("tiled");
-  }
+  useEffect(() => (tiled ? focusFirst(paper, 0) : undefined), [tiled]);
 
-  // A Rigid / Segment_Tick haptic as the zoom crosses 1.6× (of 2.4×).
+  // "Paminawon una": the sentence that names her slips reads itself once they are on the table (never under
+  // TalkBack, and never on the web without a tap).
+  const listened = useRef(false);
+  useEffect(() => {
+    if (!tiled || !autoListen || listened.current || !canPlay(sources)) return;
+    listened.current = true;
+    player.play(0);
+  }, [tiled, autoListen, sources, player]);
+
+  // The zoom commits two-thirds of the way in.
   useAnimatedReaction(
-    () => s.get() >= 1.6 / ZOOM,
+    () => k.get() >= hapticAt(),
     (crossed, was) => {
       if (crossed && was === false) scheduleOnRN(feedback.play, "zoom.commit");
     },
   );
 
   const close = () => {
+    if (leaving) return;
+    setLeaving(true);
+    if (later.current) clearTimeout(later.current);
+    player.pause();
     onPhase("returning");
     setTiled(false);
+    let closed = false;
+    const done = () => {
+      if (closed) return;
+      closed = true;
+      onClosed();
+    };
+    const exit = instant ? "crossfade" : "drawerOut";
+    later.current = setTimeout(done, ms(exit) + ms("micro"));
     if (instant) {
-      dim.set(withTiming(0, tween("crossfade")));
-      setTimeout(onClosed, ms("crossfade"));
+      shown.set(withTiming(0, tween("crossfade"), (f) => f && scheduleOnRN(done)));
       return;
     }
-    dim.set(withTiming(0, { duration: 240 }));
-    s.set(withSpring(1 / ZOOM, spring("glide")));
-    k.set(withSpring(0, spring("glide")));
-    // Exits run about 20% faster than entrances (design §3 rule 5).
-    setTimeout(onClosed, Math.round(GLIDE_SETTLE_MS * 0.8));
+    // Exits run faster than entrances (design §3 rule 5).
+    shown.set(withTiming(0, tween("drawerOut")));
+    k.set(withTiming(0, tween("drawerOut"), (f) => f && scheduleOnRN(done)));
   };
+  const closeRef = useRef(close);
+  closeRef.current = close;
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      close();
+      closeRef.current();
       return true;
     });
-    return () => sub.remove();
+    if (Platform.OS !== "web" || typeof document === "undefined") return () => sub.remove();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      sub.remove();
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const scrim = useAnimatedStyle(() => ({ opacity: shown.get() * DIM }));
+  const card = useAnimatedStyle(() => {
+    const z = zoomTransform(k.get(), origin, centre, zoom);
+    return {
+      opacity: instant ? shown.get() : 1,
+      transform: [{ translateX: z.translateX }, { translateY: z.translateY }, { scale: z.scale }],
+    };
   });
 
-  const scrim = useAnimatedStyle(() => ({ opacity: dim.get() * 0.8 }));
-  const card = useAnimatedStyle(() => ({
-    opacity: instant ? dim.get() : 1,
-    transform: [
-      { translateX: (origin.x - centre.x) * (1 - k.get()) },
-      { translateY: (origin.y - centre.y) * (1 - k.get()) },
-      { scale: s.get() },
-    ],
-  }));
-
   if (!active) return null;
-  const total = format.kg(slips.reduce((sum, x) => sum + x.netGrams, 0));
-  const tileW = Math.floor((cardW - space.s8 * 2) / 3);
+  const f = slipFigures(active, lang);
 
   return (
-    <View style={StyleSheet.absoluteFill} testID="M-MB-01.zoom">
+    <View
+      style={[StyleSheet.absoluteFill, { zIndex: layer.flight }]}
+      testID="M-MB-01.zoom"
+      dataSet={{ state: tiled ? "tiled" : leaving ? "returning" : "zooming" }}
+      accessibilityViewIsModal
+    >
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.color.ground }, scrim]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={tr("M-MB-02.close")} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={close}
+          accessibilityRole="button"
+          accessibilityLabel={tr("M-MB-02.close")}
+          testID="M-MB-01.zoom.scrim"
+        />
       </Animated.View>
-      <Animated.View style={[styles.card, { top, left: (W - cardW) / 2 }, card]}>
-        <SlipCrop slip={active} width={cardW} lang={lang} />
+      <Animated.View
+        style={[styles.card, { top, left: (W - cardW) / 2, width: cardW, height: cardH }, card]}
+        pointerEvents="box-none"
+      >
+        <View ref={paper} collapsable={false} accessible accessibilityLabel={tr("M-MB-02.slip", { serial })}>
+          <SlipPaper
+            slip={active}
+            owner={owner}
+            width={cardW}
+            focusNet
+            testID={`M-MB-01.zoom.${active.serial}`}
+          />
+        </View>
       </Animated.View>
       {tiled ? (
         <Animated.View
-          entering={motion.reduced ? undefined : FadeIn.duration(180)}
-          style={[styles.tiles, { top: top + cardH + space.s24, left: (W - cardW) / 2, width: cardW }]}
+          entering={instant ? undefined : FadeIn.duration(ms("print"))}
+          style={[
+            styles.tray,
+            {
+              top: top + cardH + space.s8,
+              left: (W - cardW) / 2 - space.s12,
+              width: cardW + space.s24,
+              backgroundColor: t.color.ground,
+            },
+          ]}
         >
-          <View style={{ flexDirection: "row", gap: space.s8 }}>
-            {others.map((o) => (
-              <SlipCrop key={o.serial} slip={o} width={tileW} lang={lang} />
-            ))}
-          </View>
-          <Txt kind="amountM" accessibilityLiveRegion="polite">
-            {total}
+          <Txt kind="body" color="ink2">
+            {tr("M-MB-02.written", { date: f.date })}
+          </Txt>
+          <SlipTiles
+            slips={dto.slips}
+            owner={owner}
+            testPrefix="M-MB-01.zoom.tile"
+            current={active.serial}
+            lit={player.state.lit}
+          />
+          <Txt kind="amountM" accessibilityLiveRegion="polite" testID="M-MB-01.zoom.total">
+            {tr("M-MB-01.slipsTotal", { kg: total.kg })}
           </Txt>
           {!active.cropUrl ? (
             <Txt kind="caption" color="ink2">
               {tr("M-MB-02.photoPending")}
             </Txt>
           ) : null}
-          <Button
-            variant="tonal"
-            icon="back"
-            label={tr("M-MB-02.close")}
-            onPress={close}
-            testID="M-MB-01.zoom.back"
-          />
+          <View style={styles.actions}>
+            {canPlay(sources) ? (
+              <Button
+                variant="tonal"
+                icon={player.state.status === "playing" ? "pause" : "listen"}
+                label={player.state.status === "playing" ? tr("M-MB-03.pause") : tr("M-MB-02.zoomListen")}
+                onPress={() => (player.state.status === "playing" ? player.pause() : player.play(0))}
+                testID="M-MB-01.zoom.listen"
+              />
+            ) : null}
+            <Button
+              variant="text"
+              icon="back"
+              label={tr("M-MB-02.close")}
+              onPress={close}
+              testID="M-MB-01.zoom.back"
+            />
+          </View>
         </Animated.View>
       ) : null}
     </View>
@@ -269,44 +292,8 @@ export function SlipZoom({
 }
 
 const styles = StyleSheet.create({
-  paper: { borderRadius: radius.none, overflow: "hidden" },
-  template: { flex: 1, padding: space.s12, gap: space.s8 },
-  compact: {
-    flex: 1,
-    paddingHorizontal: space.s4,
-    paddingTop: space.s4,
-    paddingBottom: STRIP_H,
-    justifyContent: "space-between",
-  },
-  // Separate objects rather than overriding `top` with undefined: react-native-web drops undefined values, which
-  // would leave both `top` and `bottom` set and stretch the tag over the slip.
-  strip: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: STRIP_H,
-    alignItems: "center",
-    justifyContent: "center",
-    borderTopWidth: 1,
-  },
-  stripText: { fontSize: 8, lineHeight: 10 },
-  templateHead: { flexDirection: "row", justifyContent: "space-between" },
-  field: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: space.s8,
-    borderBottomWidth: 1,
-    paddingBottom: 2,
-  },
-  tag: {
-    position: "absolute",
-    top: space.s8,
-    right: space.s8,
-    paddingHorizontal: space.s4,
-    borderWidth: 1,
-    borderRadius: radius.plate,
-  },
   card: { position: "absolute" },
-  tiles: { position: "absolute", gap: space.s12 },
+  // The table the slips are laid on: solid, so the dimmed statement never shows through the words.
+  tray: { position: "absolute", gap: space.s12, padding: space.s12 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.s8, alignItems: "center" },
 });
