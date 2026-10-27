@@ -23,10 +23,32 @@ const CONFIRM: WebSlabConfirm = {
   body: "US$368.39 to 8 members by PayPal. This moves money and cannot be undone.",
 };
 
-// Type-level contract (S2 §2.7): a hold slab always carries its dialog route; a press slab has none.
-// Never called; `tsc` checks the expectations.
+/** A promise the test settles by hand: the approval POST in flight. */
+function deferred() {
+  let resolve: () => void = () => undefined;
+  let reject: (reason: unknown) => void = () => undefined;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+// Type-level contract (S2 §2.7): a hold slab always carries its dialog route; a press slab has none; a commit
+// may return a promise (S2 types it `onCommit(): Promise<void>`). Never called; `tsc` checks the expectations.
 export function contractChecks() {
   return [
+    <Slab
+      key="async"
+      label="Approve"
+      srLabel="Approve"
+      depth="d3"
+      tone="jade"
+      hold={1600}
+      confirm={CONFIRM}
+      testId="async"
+      onCommit={async () => undefined}
+    />,
     // @ts-expect-error a hold slab without `confirm` does not type-check
     <Slab
       key="a"
@@ -237,9 +259,92 @@ describe("Slab", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("a d2 slab whose commit is refused springs back to rest and can be pressed again", async () => {
+    const refused = deferred();
+    const onCommit = vi.fn<() => void | Promise<void>>().mockReturnValueOnce(refused.promise);
+    render(
+      wrap(
+        <Slab
+          label="Count it once"
+          srLabel="Count it once"
+          depth="d2"
+          tone="chalk"
+          testId="s"
+          onCommit={onCommit}
+        />,
+      ),
+    );
+    fireEvent.pointerDown(face("s"), { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(face("s"), { button: 0, pointerId: 1 });
+    // In flight: flush and busy, and a second press does nothing.
+    expect(root("s").dataset).toMatchObject({ state: "committed", busy: "" });
+    expect(face("s").getAttribute("aria-busy")).toBe("true");
+    fireEvent.keyDown(face("s"), { key: "Enter" });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    await act(async () => refused.reject(new Error("409")));
+    expect(root("s").dataset.state).toBe("rest");
+    expect(root("s").dataset.busy).toBeUndefined();
+    expect(face("s").getAttribute("aria-busy")).toBeNull();
+    expect(face("s").getAttribute("aria-disabled")).toBeNull();
+    fireEvent.keyDown(face("s"), { key: "Enter" });
+    expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(root("s").dataset.state).toBe("committed");
+  });
+
+  it("a d2 press released off the slab springs back even when the browser would not capture the pointer", () => {
+    const onCommit = vi.fn();
+    render(
+      wrap(
+        <Slab
+          label="Count it once"
+          srLabel="Count it once"
+          depth="d2"
+          tone="chalk"
+          testId="s"
+          onCommit={onCommit}
+        />,
+      ),
+    );
+    const body = face("s").parentElement;
+    if (!body) throw new Error("the face sits in the slab body");
+    body.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, left: 0, top: 0, right: 200, bottom: 48, width: 200, height: 48 }) as DOMRect;
+    face("s").setPointerCapture = () => {
+      throw new DOMException("No active pointer with the given id is found.", "NotFoundError");
+    };
+    fireEvent.pointerDown(face("s"), { button: 0, pointerId: 3, clientX: 100, clientY: 20 });
+    expect(root("s").dataset.state).toBe("pressed");
+    fireEvent.pointerUp(document.body, { button: 0, pointerId: 3, clientX: 400, clientY: 300 });
+    expect(root("s").dataset.state).toBe("rest");
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.pointerDown(face("s"), { button: 0, pointerId: 3, clientX: 100, clientY: 20 });
+    fireEvent.pointerUp(document.body, { button: 0, pointerId: 3, clientX: 100, clientY: 20 });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("a d1 slab takes no second press while its commit is in flight", async () => {
+    const pending = deferred();
+    const onCommit = vi.fn<() => void | Promise<void>>().mockReturnValueOnce(pending.promise);
+    render(
+      wrap(<Slab label="Listen" srLabel="Listen" depth="d1" tone="chalk" testId="s" onCommit={onCommit} />),
+    );
+    fireEvent.keyDown(face("s"), { key: "Enter" });
+    expect(root("s").dataset).toMatchObject({ state: "rest", busy: "" });
+    fireEvent.keyDown(face("s"), { key: "Enter" });
+    fireEvent.pointerDown(face("s"), { button: 0, pointerId: 1 });
+    expect(root("s").dataset.state).toBe("rest");
+    fireEvent.pointerUp(face("s"), { button: 0, pointerId: 1 });
+    fireEvent.click(face("s"), { detail: 0 });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve());
+    expect(root("s").dataset.busy).toBeUndefined();
+    fireEvent.keyDown(face("s"), { key: "Enter" });
+    expect(onCommit).toHaveBeenCalledTimes(2);
+  });
+
   describe("hold to commit: arm on hold, act on release inside (S2 §2.7, WCAG 2.5.2)", () => {
     const approve = (
-      onCommit: () => void,
+      onCommit: () => void | Promise<void>,
       motion: MotionPreference = "full",
       onHoldChange?: (change: HoldChange) => void,
     ) =>
@@ -398,6 +503,294 @@ describe("Slab", () => {
       expect(onCommit).not.toHaveBeenCalled();
     });
 
+    describe("the pointer is followed until it lets go, captured or not", () => {
+      const refuseCapture = () => {
+        face("approve").setPointerCapture = () => {
+          throw new DOMException("No active pointer with the given id is found.", "NotFoundError");
+        };
+      };
+
+      it("a release off the slab disarms it without capture, so the next quick tap signs nothing", () => {
+        const onCommit = vi.fn();
+        const changes = vi.fn();
+        approve(onCommit, "full", changes);
+        boxFace("approve");
+        refuseCapture();
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 4, clientX: 150, clientY: 30 });
+        act(() => vi.advanceTimersByTime(1700));
+        expect(root("approve").dataset.state).toBe("armed");
+        // Uncaptured, the release lands on whatever is under the pointer, not on the face.
+        fireEvent.pointerUp(document.body, { button: 0, pointerId: 4, clientX: 420, clientY: 300 });
+        expect(root("approve").dataset.state).toBe("rest");
+        expect(changes).toHaveBeenLastCalledWith("disarmed");
+        // A quick tap afterwards is a new hold let go early: it never inherits the old hold's arming.
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 4, clientX: 150, clientY: 30 });
+        act(() => vi.advanceTimersByTime(100));
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 4, clientX: 150, clientY: 30 });
+        expect(onCommit).not.toHaveBeenCalled();
+        expect(changes).toHaveBeenLastCalledWith("released-early");
+      });
+
+      it("leaving the slab disarms it without capture", () => {
+        const onCommit = vi.fn();
+        approve(onCommit);
+        boxFace("approve");
+        refuseCapture();
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 4, clientX: 150, clientY: 30 });
+        act(() => vi.advanceTimersByTime(1700));
+        fireEvent.pointerMove(document.body, { pointerId: 4, clientX: 150, clientY: 140 });
+        expect(root("approve").dataset.state).toBe("rest");
+        expect(screen.getByTestId("approve.hint").textContent).toContain("Nothing was signed.");
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 4, clientX: 150, clientY: 30 });
+        expect(onCommit).not.toHaveBeenCalled();
+      });
+
+      it("a hold whose release never arrived ends when that pointer presses again, and signs nothing", () => {
+        const onCommit = vi.fn();
+        const changes = vi.fn();
+        approve(onCommit, "full", changes);
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+        act(() => vi.advanceTimersByTime(1700));
+        // Let go outside the window: no pointerup ever arrives. The same pointer pressing again ends that hold.
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+        expect(changes.mock.calls.map(([c]) => c)).toEqual(["holding", "armed", "disarmed", "holding"]);
+        act(() => vi.advanceTimersByTime(100));
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1 });
+        expect(onCommit).not.toHaveBeenCalled();
+        expect(root("approve").dataset.state).toBe("rest");
+      });
+
+      it("a second finger neither signs nor ends the first finger's hold", () => {
+        const onCommit = vi.fn();
+        approve(onCommit);
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+        act(() => vi.advanceTimersByTime(1700));
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 2 });
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 2 });
+        fireEvent.pointerCancel(face("approve"), { pointerId: 2 });
+        expect(root("approve").dataset.state).toBe("armed");
+        expect(onCommit).not.toHaveBeenCalled();
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1 });
+        expect(onCommit).toHaveBeenCalledTimes(1);
+      });
+
+      it("a Space key-up never signs a hold the pointer is making", () => {
+        const onCommit = vi.fn();
+        approve(onCommit);
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+        act(() => vi.advanceTimersByTime(1700));
+        fireEvent.keyDown(face("approve"), { key: " " });
+        fireEvent.keyUp(face("approve"), { key: " " });
+        expect(root("approve").dataset.state).toBe("armed");
+        expect(onCommit).not.toHaveBeenCalled();
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1 });
+        expect(onCommit).toHaveBeenCalledTimes(1);
+      });
+
+      it("stops following the pointer once the slab unmounts", () => {
+        const onCommit = vi.fn();
+        const { unmount } = approve(onCommit);
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+        act(() => vi.advanceTimersByTime(1700));
+        unmount();
+        fireEvent.pointerUp(document.body, { button: 0, pointerId: 1 });
+        expect(onCommit).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("a sign that does not go through (S2 §2.7: onCommit returns a promise)", () => {
+      const holdSpace = () => {
+        fireEvent.keyDown(face("approve"), { key: " " });
+        act(() => vi.advanceTimersByTime(1700));
+        fireEvent.keyUp(face("approve"), { key: " " });
+      };
+      const holdPointer = () => {
+        fireEvent.pointerDown(face("approve"), { button: 0, pointerId: 1 });
+        act(() => vi.advanceTimersByTime(1700));
+        fireEvent.pointerUp(face("approve"), { button: 0, pointerId: 1 });
+      };
+
+      it.each([
+        ["a Space hold", holdSpace],
+        ["a pointer hold", holdPointer],
+      ])("refused after %s: springs back, says nothing was signed, and signs again", async (_, sign) => {
+        const first = deferred();
+        const second = deferred();
+        const onCommit = vi
+          .fn<() => void | Promise<void>>()
+          .mockReturnValueOnce(first.promise)
+          .mockReturnValueOnce(second.promise);
+        approve(onCommit);
+        const fill = () => root("approve").querySelector<HTMLElement>(".fs-slab__fill")?.style.transform;
+        sign();
+        expect(onCommit).toHaveBeenCalledTimes(1);
+        expect(root("approve").dataset).toMatchObject({ state: "committed", busy: "" });
+        expect(face("approve").getAttribute("aria-busy")).toBe("true");
+        // While the answer is out, the face waits flush and full.
+        await act(async () => vi.advanceTimersByTime(100));
+        expect([face("approve").style.transform, fill()]).toEqual(["translate(8px, 8px)", "scaleX(1)"]);
+        // MM-5 mismatch: the 409 says the batch changed. Nothing was signed, so the slab offers itself again.
+        await act(async () => first.reject(new Error("409 BATCH_CHANGED")));
+        await act(async () => vi.advanceTimersByTime(100));
+        expect([face("approve").style.transform, fill()]).toEqual(["translate(0px, 0px)", "scaleX(0)"]);
+        expect(root("approve").dataset).toMatchObject({ state: "rest", holdProgress: "0" });
+        expect(root("approve").dataset.busy).toBeUndefined();
+        expect(face("approve").getAttribute("aria-busy")).toBeNull();
+        expect(face("approve").getAttribute("aria-disabled")).toBeNull();
+        expect(face("approve").textContent).toBe("Approve 8 payouts");
+        expect(screen.getByTestId("approve.hint").textContent).toContain("Nothing was signed.");
+        expect(screen.getByTestId("approve.alt")).toBeTruthy();
+        sign();
+        expect(onCommit).toHaveBeenCalledTimes(2);
+        await act(async () => second.resolve());
+        expect(root("approve").dataset.state).toBe("committed");
+        expect(root("approve").dataset.busy).toBeUndefined();
+      });
+
+      it("refused from the dialog: springs back, and the link opens the dialog again", async () => {
+        vi.useRealTimers();
+        const first = deferred();
+        const second = deferred();
+        const onCommit = vi
+          .fn<() => void | Promise<void>>()
+          .mockReturnValueOnce(first.promise)
+          .mockReturnValueOnce(second.promise);
+        approve(onCommit);
+        fireEvent.keyDown(face("approve"), { key: "Enter" });
+        fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter" });
+        expect(onCommit).toHaveBeenCalledTimes(1);
+        expect(root("approve").dataset).toMatchObject({ state: "committed", busy: "" });
+        await act(async () => first.reject(new Error("offline")));
+        expect(root("approve").dataset).toMatchObject({ state: "rest", holdProgress: "0" });
+        expect(screen.getByTestId("approve.hint").textContent).toContain("Nothing was signed.");
+        fireEvent.click(screen.getByTestId("approve.alt"));
+        fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter" });
+        expect(onCommit).toHaveBeenCalledTimes(2);
+        await act(async () => second.resolve());
+        expect(root("approve").dataset.state).toBe("committed");
+      });
+
+      it("a dialog reopened before it has finished closing offers a fresh confirm slab", async () => {
+        // jsdom plays no CSS, so Base UI would unmount the dialog at once. Give a closing dialog the exit fade
+        // a browser plays, lasting until `exit` settles, so the dialog is still there when it reopens.
+        const exit = deferred();
+        const proto = HTMLElement.prototype as { getAnimations?: () => unknown[] };
+        proto.getAnimations = function (this: HTMLElement) {
+          if (!this.hasAttribute("data-ending-style")) return [];
+          const timing = { duration: 150, iterations: 1 };
+          return [
+            {
+              finished: exit.promise,
+              pending: false,
+              playState: "running",
+              effect: { getTiming: () => timing },
+            },
+          ];
+        };
+        try {
+          const refused = deferred();
+          const onCommit = vi.fn<() => void | Promise<void>>().mockReturnValueOnce(refused.promise);
+          approve(onCommit);
+          fireEvent.keyDown(face("approve"), { key: "Enter" });
+          fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter" });
+          await act(async () => vi.advanceTimersByTime(50));
+          expect(screen.getByTestId("approve.dialog").hasAttribute("data-ending-style")).toBe(true);
+          // The 409 is back while the dialog is still fading out, and the link opens it again at once.
+          await act(async () => refused.reject(new Error("409")));
+          fireEvent.click(screen.getByTestId("approve.alt"));
+          expect(screen.getByTestId("approve.dialog.confirm").dataset.state).toBe("rest");
+          fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter" });
+          expect(onCommit).toHaveBeenCalledTimes(2);
+          expect(root("approve").dataset.state).toBe("committed");
+        } finally {
+          exit.resolve();
+          await act(async () => vi.advanceTimersByTime(100));
+          delete proto.getAnimations;
+        }
+      });
+
+      it("an answer that arrives after the slab is gone changes nothing", async () => {
+        const refused = deferred();
+        const { unmount } = approve(() => refused.promise);
+        holdSpace();
+        unmount();
+        await act(async () => refused.reject(new Error("too late")));
+        expect(screen.queryByTestId("approve")).toBeNull();
+      });
+
+      it("reduced motion: a refused sign brings the faded edges back", async () => {
+        const refused = deferred();
+        approve(() => refused.promise, "reduced");
+        holdSpace();
+        const edge = root("approve").querySelector<HTMLElement>(".fs-slab__edge--r");
+        await act(async () => vi.advanceTimersByTime(50));
+        expect(edge?.style.opacity).toBe("0");
+        await act(async () => refused.reject(new Error("409")));
+        await act(async () => vi.advanceTimersByTime(50));
+        expect(edge?.style.opacity).toBe("1");
+        expect(root("approve").dataset.state).toBe("rest");
+      });
+
+      it("while a sign is in flight, no route signs again", () => {
+        const pending = deferred();
+        const onCommit = vi.fn(() => pending.promise);
+        approve(onCommit);
+        holdSpace();
+        holdPointer();
+        fireEvent.keyDown(face("approve"), { key: "Enter" });
+        fireEvent.click(face("approve"), { detail: 0 });
+        expect(screen.queryByTestId("approve.alt")).toBeNull();
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+        expect(onCommit).toHaveBeenCalledTimes(1);
+      });
+
+      it("a refusal that lands after the slab became unavailable leaves it unavailable", async () => {
+        const refused = deferred();
+        const slab = (reason?: string) =>
+          wrap(
+            <Slab
+              label="Approve 8 payouts"
+              srLabel="Approve 8 payouts"
+              depth="d3"
+              tone="jade"
+              hold={1600}
+              confirm={CONFIRM}
+              unavailableReason={reason}
+              testId="approve"
+              onCommit={() => refused.promise}
+            />,
+          );
+        const { rerender } = render(slab());
+        holdSpace();
+        rerender(slab("Payouts are paused"));
+        await act(async () => refused.reject(new Error("paused")));
+        expect(root("approve").dataset.state).toBe("unavailable");
+        expect(screen.queryByTestId("approve.hint")).toBeNull();
+      });
+
+      it("a commit that throws signs nothing: back to rest, and the error still surfaces", () => {
+        const surfaced: unknown[] = [];
+        const onError = (e: ErrorEvent) => {
+          surfaced.push(e.error);
+          e.preventDefault();
+        };
+        window.addEventListener("error", onError);
+        try {
+          const onCommit = vi.fn(() => {
+            throw new Error("bug in the caller");
+          });
+          approve(onCommit);
+          holdSpace();
+          expect(onCommit).toHaveBeenCalledTimes(1);
+          expect(root("approve").dataset).toMatchObject({ state: "rest", holdProgress: "0" });
+          expect(screen.getByTestId("approve.hint").textContent).toContain("Nothing was signed.");
+          expect(surfaced).toEqual([expect.objectContaining({ message: "bug in the caller" })]);
+        } finally {
+          window.removeEventListener("error", onError);
+        }
+      });
+    });
+
     it.each([
       ["losing focus", () => fireEvent.blur(face("approve"))],
       ["a cancelled pointer", () => fireEvent.pointerCancel(face("approve"), { pointerId: 1 })],
@@ -518,6 +911,32 @@ describe("Slab", () => {
       // A held Enter repeats; the repeat never confirms.
       fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter", repeat: true });
       expect(onCommit).not.toHaveBeenCalled();
+    });
+
+    it("after signing in the dialog opened from the link, focus lands on the slab, not the page (G5)", async () => {
+      vi.useRealTimers();
+      approve(() => undefined);
+      const link = screen.getByTestId("approve.alt");
+      link.focus();
+      fireEvent.click(link);
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("approve.dialog.cancel")));
+      fireEvent.keyDown(screen.getByTestId("approve.dialog.confirm.face"), { key: "Enter" });
+      expect(root("approve").dataset.state).toBe("committed");
+      // Signing removed the link that opened the dialog; focus must not fall back to <body>.
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(face("approve")));
+    });
+
+    it("Not now returns focus to the link that opened the dialog", async () => {
+      vi.useRealTimers();
+      approve(() => undefined);
+      const link = screen.getByTestId("approve.alt");
+      link.focus();
+      fireEvent.click(link);
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("approve.dialog.cancel")));
+      fireEvent.click(screen.getByTestId("approve.dialog.cancel"));
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("approve.alt")));
     });
 
     it("a click the browser sends straight after a key press is that press, not a second activation", () => {

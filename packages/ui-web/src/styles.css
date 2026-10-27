@@ -200,6 +200,11 @@
     cursor: default;
   }
 
+  /* A commit in flight (S2 §2.7 onCommit's promise): the slab waits where the commit left it. */
+  .fs-slab[data-busy] .fs-slab__face {
+    cursor: progress;
+  }
+
   .fs-slab[data-state="unavailable"] .fs-slab__face {
     background:
       repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);

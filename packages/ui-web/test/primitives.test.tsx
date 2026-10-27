@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -316,6 +316,40 @@ describe("HoldCard", () => {
     );
     expect(screen.getByTestId("h1.resolution").textContent).toBe("Resolved");
     expect(screen.queryByTestId("h1.once")).toBeNull();
+  });
+
+  it("a resolution the server refuses springs the slab back, even through the resolving frame", async () => {
+    let refuse: (reason: unknown) => void = () => undefined;
+    const onCommit = vi.fn(
+      () =>
+        new Promise<void>((_, reject) => {
+          refuse = reject;
+        }),
+    );
+    const card = (state: HoldView["state"]) =>
+      wrap(
+        <HoldCard hold={{ ...hold, state }} gate="BLOCKS_APPROVAL" actions={actions(onCommit)} testId="h1" />,
+      );
+    const { rerender } = render(card("open"));
+    const face = () => screen.getByTestId("h1.once.face");
+    const restingFace = face().style.transform;
+    fireEvent.pointerDown(face(), { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(face(), { button: 0, pointerId: 1 });
+    expect(screen.getByTestId("h1.once").dataset).toMatchObject({ state: "committed", busy: "" });
+    // The press lands flush (d2: 5 px) a frame later.
+    await waitFor(() => expect(face().style.transform).toBe("translate(5px, 5px)"));
+    // The screen shows the POST in flight, then the hold is still open: the 409 refused it.
+    rerender(card("resolving"));
+    await act(async () => refuse(new Error("409")));
+    rerender(card("open"));
+    const slab = screen.getByTestId("h1.once");
+    expect(slab.dataset.state).toBe("rest");
+    expect(slab.dataset.busy).toBeUndefined();
+    // The face is back at rest, not left sunk where the resolving frame drew it.
+    await waitFor(() => expect(face().style.transform).toBe(restingFace));
+    fireEvent.pointerDown(face(), { button: 0, pointerId: 2 });
+    fireEvent.pointerUp(face(), { button: 0, pointerId: 2 });
+    expect(onCommit).toHaveBeenCalledTimes(2);
   });
 
   it("every state the card can show is in the contract, and only resolved and excluded are final", () => {

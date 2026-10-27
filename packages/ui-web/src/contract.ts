@@ -32,7 +32,8 @@ export type HoldProgress = 0 | 25 | 50 | 75 | 100;
  * the window blurred, the press was cancelled, the page scrolled or hid: nothing was signed), `dialog`
  * (confirm-1/2: Enter, a screen reader's activation or the visible link opened the dialog route) and
  * `dismissed` (the dialog closed without signing: back to ready). A signature is never reported here: it
- * arrives as `approval.signed` (signed-1/2).
+ * arrives as `approval.signed` (signed-1/2). Nor is a refused one (MM-5 `mismatch`): the screen learns it from
+ * the rejection of its own `onCommit` promise, and the slab only springs back (see `SlabCommit`).
  */
 export const HOLD_CHANGES = [
   "holding",
@@ -64,6 +65,16 @@ export interface SlabConfirm<Body = string> {
   readonly cancelLabel?: string;
 }
 
+/**
+ * What a slab does when it commits (S2 §2.7 types it `onCommit(): Promise<void>`). While the returned promise
+ * is pending the slab is busy (`data-busy`, `aria-busy`): it stays where the commit left it and no route commits
+ * again. Fulfilled, the commit stands. Rejected, or thrown, means nothing was done (an MM-5 mismatch 409, a
+ * network error, an expired session): the face springs back, a hold slab says "Nothing was signed." and the
+ * slab can be pressed again. The caller says why; the slab never does. A commit that has nothing to wait for
+ * may return nothing.
+ */
+export type SlabCommit = () => void | Promise<void>;
+
 interface SlabBaseProps {
   readonly label: string;
   readonly depth: Depth;
@@ -74,7 +85,7 @@ interface SlabBaseProps {
   readonly unavailableReason?: string;
   /** What a screen reader hears: label, amount and consequence. */
   readonly srLabel: string;
-  readonly onCommit: () => void;
+  readonly onCommit: SlabCommit;
   readonly testId: string;
 }
 
@@ -247,7 +258,8 @@ export interface SlabAction {
   readonly kind: "slab";
   readonly label: string;
   readonly srLabel: string;
-  readonly onCommit: () => void;
+  /** Return the resolution's promise: if it is refused, the slab springs back and can be pressed again. */
+  readonly onCommit: SlabCommit;
   readonly testId: string;
   /** The audit agent proposed this resolution: a pencil caption says so. */
   readonly suggestedByClaude?: boolean;

@@ -8,8 +8,14 @@
 // signed. The route is chosen per event, never by detecting a screen reader: a pointer, touch, pen or Space
 // hold drives the slab; Enter, a click with no pointer behind it or the visible link opens the dialog.
 //
+// One press at a time: the keyboard, or one pointer followed on the window until it lets go, so a release or a
+// move off the slab is seen even when the browser will not capture the pointer. A second finger, or Space
+// during a pointer hold, is not part of that press: it neither ends it nor signs it.
+//
 // Every way to commit (release, a signed hold, the dialog) passes one gate: a still frame, an unavailable slab
-// and a bolted slab never commit, and a committed slab never commits twice.
+// and a bolted slab never commit, a committed slab never commits twice, and nothing commits while a commit is
+// in flight. A commit may return a promise (S2 §2.7: `onCommit(): Promise<void>`). If it rejects, nothing was
+// done: the face springs back, a hold slab says "Nothing was signed." and the slab can be pressed again.
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { DEPTH, TIMING } from "@fairsplit/motion/presets";
@@ -81,6 +87,9 @@ export interface WebSlabOptions {
 /** The contract with web nodes in the dialog. A hold slab without `confirm` does not type-check. */
 export type WebSlabProps = SlabProps<ReactNode> & WebSlabOptions;
 
+/** Who is pressing: the keyboard, a screen reader's click, or one pointer by its id. */
+type PressSource = "key" | "virtual" | number;
+
 const STEP_TRAVEL = TIMING.holdStepTravel;
 
 /**
@@ -93,6 +102,11 @@ function withinFootprint(body: HTMLElement | null, d: number, x: number, y: numb
   const r = body.getBoundingClientRect();
   if (r.width === 0 && r.height === 0) return true;
   return x >= r.left && x <= r.right + d && y >= r.top && y <= r.bottom + d;
+}
+
+/** A commit that answers later: anything with a `then`. */
+function isPending(outcome: unknown): outcome is PromiseLike<unknown> {
+  return typeof (outcome as { then?: unknown } | null | undefined)?.then === "function";
 }
 
 export function Slab(props: WebSlabProps) {
@@ -131,6 +145,9 @@ export function Slab(props: WebSlabProps) {
   const [progress, setProgress] = useState<HoldProgress>(0);
   const [notice, setNotice] = useState<SlabNotice | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  /** Counts the dialog's openings, so each one offers a fresh confirm slab. */
+  const [opening, setOpening] = useState(0);
+  const [busy, setBusyNow] = useState(false);
   const state = frame?.state ?? liveState;
 
   // The live state as of the latest change, so a second commit in the same tick sees the first.
@@ -139,8 +156,22 @@ export function Slab(props: WebSlabProps) {
     liveRef.current = next;
     setLiveStateNow(next);
   }, []);
-  // Hold timers, window listeners and the dialog outlive the render that started them, so they read the
-  // slab's availability and the caller's latest callbacks from here, synced before paint.
+  /** A commit is in flight: the slab takes no press, and no route commits, until it settles. */
+  const busyRef = useRef(false);
+  const setBusy = useCallback((next: boolean) => {
+    busyRef.current = next;
+    setBusyNow(next);
+  }, []);
+  /** Numbers the commits, so an answer that arrives after unmount changes nothing. */
+  const attempt = useRef(0);
+  useEffect(
+    () => () => {
+      attempt.current += 1;
+    },
+    [],
+  );
+  // Hold timers, window listeners, the dialog and a commit's answer outlive the render that started them, so
+  // they read the slab's availability and the caller's latest callbacks from here, synced before paint.
   const latest = useRef({ still: frame !== undefined, unavailable, bolted, onCommit, onHoldChange });
   useLayoutEffect(() => {
     latest.current = { still: frame !== undefined, unavailable, bolted, onCommit, onHoldChange };
@@ -166,23 +197,53 @@ export function Slab(props: WebSlabProps) {
   const holding = useRef(false);
   /** The hold reached its time: releasing inside signs. */
   const armed = useRef(false);
+  /** A d1 or d2 press is in progress. */
+  const pressed = useRef(false);
+  /** Who is pressing now, if anyone: one press at a time. */
+  const source = useRef<PressSource | null>(null);
+  /** Stops following the pressing pointer on the window. */
+  const unfollow = useRef<(() => void) | null>(null);
+  const faceRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const altRef = useRef<HTMLButtonElement>(null);
   const hintId = useId();
   const reasonId = useId();
 
-  // Still frames: follow the frame values exactly.
+  // Still frames: follow the frame values exactly. When a frame goes (a HoldCard leaves "resolving"), the live
+  // slab takes back the travel, fill and edges of its own state.
+  const framed = useRef(frame !== undefined);
   useEffect(() => {
-    if (!frame) return;
-    travel.set(frame.travel ?? (frame.state === "unavailable" ? d : 0));
-    fill.set(frame.fill ?? 0);
-    edgeOpacity.set(frame.edgeOpacity ?? 1);
-    setStepValue(frame.step ?? 0);
-  }, [frame, travel, fill, edgeOpacity, d]);
+    if (frame) {
+      framed.current = true;
+      travel.set(frame.travel ?? (frame.state === "unavailable" ? d : 0));
+      fill.set(frame.fill ?? 0);
+      edgeOpacity.set(frame.edgeOpacity ?? 1);
+      setStepValue(frame.step ?? 0);
+      return;
+    }
+    if (!framed.current) return;
+    framed.current = false;
+    const now = liveRef.current;
+    const committed = now === "committed";
+    travel.jump(now === "unavailable" || (committed && !reduced) ? d : 0);
+    fill.jump(committed && hold ? 1 : 0);
+    edgeOpacity.jump(committed && reduced ? 0 : 1);
+    setStepValue(committed && hold ? 1 : 0);
+  }, [frame, travel, fill, edgeOpacity, d, reduced, hold]);
 
   const clearTimers = useCallback(() => {
     for (const id of timers.current) clearTimeout(id);
     timers.current = [];
   }, []);
   useEffect(() => clearTimers, [clearTimers]);
+
+  /** The press is over, however it ended: nobody is pressing, and its pointer is no longer followed. */
+  const clearPress = useCallback(() => {
+    source.current = null;
+    unfollow.current?.();
+    unfollow.current = null;
+  }, []);
+  useEffect(() => clearPress, [clearPress]);
 
   const moveTo = useCallback(
     (to: number, how: "press" | "press60" | "rebound") => {
@@ -196,15 +257,49 @@ export function Slab(props: WebSlabProps) {
     [reduced, travel],
   );
 
-  /** S2 §2.7: never from a still frame, an unavailable or a bolted slab, and never twice. */
+  /**
+   * S2 §2.7: never from a still frame, an unavailable or a bolted slab, never while a commit is in flight, and
+   * never twice.
+   */
   const canCommit = useCallback(() => {
     const now = latest.current;
-    return !now.still && !now.unavailable && !now.bolted && liveRef.current !== "committed";
+    return (
+      !now.still && !now.unavailable && !now.bolted && !busyRef.current && liveRef.current !== "committed"
+    );
   }, []);
+
+  /**
+   * The commit did not go through (its promise rejected, or it threw), so nothing was done. A slab still where
+   * its commit left it springs back and can be pressed again, and a hold slab says "Nothing was signed."; one
+   * that became unavailable or bolted in the meantime keeps that state.
+   */
+  const unsign = useCallback(
+    (id: number) => {
+      if (id !== attempt.current) return;
+      setBusy(false);
+      const now = liveRef.current;
+      if (now !== "committed" && now !== "rest") return;
+      setLiveState("rest");
+      setProgress(0);
+      setStepValue(0);
+      if (hold) setNotice("disarmed");
+      // A still frame owns the motion values; the live ones come back when it goes.
+      if (latest.current.still) return;
+      if (hold) animate(fill, 0, reduced ? tween("reduced") : tween("retract200"));
+      moveTo(0, "rebound");
+      if (edgeOpacity.get() < 1) animate(edgeOpacity, 1, tween("edgesFade"));
+    },
+    [setBusy, setLiveState, hold, fill, reduced, moveTo, edgeOpacity],
+  );
+  // A commit's answer arrives after the render that sent it: it settles through the latest `unsign`.
+  const unsignLatest = useRef(unsign);
+  useLayoutEffect(() => {
+    unsignLatest.current = unsign;
+  });
 
   const commit = useCallback(() => {
     if (!canCommit()) return;
-    latest.current.onCommit();
+    const id = ++attempt.current;
     if (stayDown) {
       setLiveState("committed");
       if (reduced) animate(edgeOpacity, 0, tween("edgesFade"));
@@ -212,7 +307,23 @@ export function Slab(props: WebSlabProps) {
       setLiveState("rest");
       moveTo(0, "rebound");
     }
-  }, [canCommit, stayDown, setLiveState, reduced, edgeOpacity, moveTo]);
+    let outcome: unknown;
+    try {
+      outcome = latest.current.onCommit();
+    } catch (error) {
+      // A commit that throws did nothing: say so, then let the error surface as any handler's would.
+      unsign(id);
+      throw error;
+    }
+    if (!isPending(outcome)) return;
+    setBusy(true);
+    outcome.then(
+      () => {
+        if (id === attempt.current) setBusy(false);
+      },
+      () => unsignLatest.current(id),
+    );
+  }, [canCommit, stayDown, setLiveState, reduced, edgeOpacity, moveTo, unsign, setBusy]);
 
   // ------------------------------------------------------------------- hold: arm on hold, act on release
   /** The hold time is reached: the face clunks flush and the slab waits for a release inside. */
@@ -265,6 +376,7 @@ export function Slab(props: WebSlabProps) {
     const wasArmed = armed.current;
     holding.current = false;
     armed.current = false;
+    clearPress();
     clearTimers();
     setProgress(0);
     setStepValue(0);
@@ -273,7 +385,7 @@ export function Slab(props: WebSlabProps) {
     animate(fill, 0, reduced ? tween("reduced") : tween("retract200"));
     moveTo(0, "rebound");
     report(wasArmed ? "disarmed" : "released-early");
-  }, [clearTimers, setLiveState, fill, reduced, moveTo, report]);
+  }, [clearPress, clearTimers, setLiveState, fill, reduced, moveTo, report]);
 
   /** A release inside the slab: an armed slab signs; anything earlier was let go too soon. */
   const releaseInside = useCallback(() => {
@@ -284,25 +396,26 @@ export function Slab(props: WebSlabProps) {
     }
     holding.current = false;
     armed.current = false;
+    clearPress();
     clearTimers();
     commit();
-  }, [cancelHold, clearTimers, commit]);
+  }, [cancelHold, clearPress, clearTimers, commit]);
 
-  /** Drops pending steps and any hold in progress, silently: the slab's availability changed under it. */
-  const abandonHold = useCallback(() => {
+  /** Drops any press or hold in progress, silently: the slab's availability changed under it. */
+  const abandonPress = useCallback(() => {
     clearTimers();
+    clearPress();
+    pressed.current = false;
     if (!holding.current) return;
     holding.current = false;
     armed.current = false;
     setProgress(0);
     setStepValue(0);
     fill.jump(0);
-  }, [clearTimers, fill]);
+  }, [clearTimers, clearPress, fill]);
 
   // A hidden page, the window losing focus, or a scroll that moves the slab ends a hold in progress. A scroll
   // elsewhere (a log filling up beside it) does not.
-  const faceRef = useRef<HTMLButtonElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!hold) return;
     const onHide = () => {
@@ -328,14 +441,14 @@ export function Slab(props: WebSlabProps) {
   }, [hold, cancelHold]);
 
   // Availability changes. A slab that becomes available rises on the settle spring (MM-5 "rising"); one that
-  // becomes unavailable or bolted abandons a hold in progress and closes its dialog: neither may sign now.
+  // becomes unavailable or bolted abandons a press in progress and closes its dialog: neither may sign now.
   const previousBase = useRef(baseState);
   useEffect(() => {
     if (frame) return;
     const was = previousBase.current;
     previousBase.current = baseState;
     if (was === baseState) return;
-    abandonHold();
+    abandonPress();
     setDialogOpen(false);
     setNotice(null);
     setLiveState(baseState);
@@ -356,11 +469,9 @@ export function Slab(props: WebSlabProps) {
         animate(travel, 0, spring("settle"));
       }
     }
-  }, [baseState, frame, abandonHold, setLiveState, travel, edgeOpacity, reduced, d]);
+  }, [baseState, frame, abandonPress, setLiveState, travel, edgeOpacity, reduced, d]);
 
   // ------------------------------------------------------------------- press (d1, d2) and refusal
-  const pressed = useRef(false);
-
   const refuse = useCallback(() => {
     setLiveState("refusing");
     feedback.play("bolted.refuse");
@@ -372,30 +483,42 @@ export function Slab(props: WebSlabProps) {
     );
   }, [setLiveState, onRefuse]);
 
-  const pressStart = useCallback(() => {
-    const now = liveRef.current;
-    if (unavailable || now === "unavailable" || now === "committed") return;
-    if (bolted) {
-      refuse();
-      return;
-    }
-    if (hold) {
-      startHold();
-      return;
-    }
-    pressed.current = true;
-    setLiveState("pressed");
-    moveTo(d, "press");
-    if (depth === "d1") feedback.play("slab.d1.press");
-  }, [unavailable, bolted, hold, refuse, startHold, setLiveState, moveTo, d, depth]);
+  /** Starts a press by `who`. False when there is none: another press is under way, or the slab takes none. */
+  const pressStart = useCallback(
+    (who: PressSource): boolean => {
+      const now = liveRef.current;
+      if (source.current !== null || unavailable || now === "unavailable" || now === "committed")
+        return false;
+      if (bolted) {
+        refuse();
+        return false;
+      }
+      if (busyRef.current) return false;
+      source.current = who;
+      if (hold) {
+        startHold();
+        return true;
+      }
+      pressed.current = true;
+      setLiveState("pressed");
+      moveTo(d, "press");
+      if (depth === "d1") feedback.play("slab.d1.press");
+      return true;
+    },
+    [unavailable, bolted, hold, refuse, startHold, setLiveState, moveTo, d, depth],
+  );
 
+  /** The press in progress ends: released inside, it commits (a hold slab once armed); otherwise it springs back. */
   const pressEnd = useCallback(
     (inside: boolean) => {
+      if (source.current === null) return;
       if (hold) {
-        if (inside) releaseInside();
+        if (!holding.current) clearPress();
+        else if (inside) releaseInside();
         else cancelHold();
         return;
       }
+      clearPress();
       if (!pressed.current) return;
       pressed.current = false;
       if (depth === "d1") feedback.play("slab.d1.release");
@@ -407,11 +530,53 @@ export function Slab(props: WebSlabProps) {
       if (depth === "d2") feedback.play("slab.d2.commit");
       commit();
     },
-    [hold, releaseInside, cancelHold, depth, setLiveState, moveTo, commit],
+    [hold, clearPress, releaseInside, cancelHold, depth, setLiveState, moveTo, commit],
+  );
+
+  // The window follows the pressing pointer through the latest callbacks: its listeners outlive renders.
+  const onWindow = useRef({ move: (_x: number, _y: number) => {}, release: (_inside: boolean) => {} });
+  useLayoutEffect(() => {
+    onWindow.current = {
+      // Leaving the slab ends a hold: it is released early, or disarmed once armed (S2 §2.7).
+      move: (x, y) => {
+        if (hold && holding.current && !withinFootprint(bodyRef.current, d, x, y)) cancelHold();
+      },
+      release: (inside) => pressEnd(inside),
+    };
+  });
+
+  /**
+   * Follows one pointer on the window until the press ends. Capture usually keeps the moves and the release on
+   * the face, but a browser may refuse capture or lose it; followed here, a release or a move off the slab is
+   * still seen, so a hold never outlives its pointer.
+   */
+  const follow = useCallback(
+    (pointerId: number, view: Window) => {
+      unfollow.current?.();
+      const ours = (e: globalThis.PointerEvent) => e.pointerId === pointerId && source.current === pointerId;
+      const onMove = (e: globalThis.PointerEvent) => {
+        if (ours(e)) onWindow.current.move(e.clientX, e.clientY);
+      };
+      const onUp = (e: globalThis.PointerEvent) => {
+        if (ours(e)) onWindow.current.release(withinFootprint(bodyRef.current, d, e.clientX, e.clientY));
+      };
+      const onCancel = (e: globalThis.PointerEvent) => {
+        if (ours(e)) onWindow.current.release(false);
+      };
+      view.addEventListener("pointermove", onMove, true);
+      view.addEventListener("pointerup", onUp, true);
+      view.addEventListener("pointercancel", onCancel, true);
+      unfollow.current = () => {
+        view.removeEventListener("pointermove", onMove, true);
+        view.removeEventListener("pointerup", onUp, true);
+        view.removeEventListener("pointercancel", onCancel, true);
+      };
+    },
+    [d],
   );
 
   // ------------------------------------------------------------------- the dialog route (hold slabs)
-  /** Opens only from rest. A bolted slab refuses instead; an unavailable or committed one does nothing. */
+  /** Opens only from rest. A bolted slab refuses instead; an unavailable, committed or busy one does nothing. */
   const openDialog = useCallback(() => {
     if (!hold || frame) return;
     const now = liveRef.current;
@@ -420,8 +585,9 @@ export function Slab(props: WebSlabProps) {
       refuse();
       return;
     }
-    if (now !== "rest") return;
+    if (now !== "rest" || busyRef.current || source.current !== null) return;
     setNotice(null);
+    setOpening((n) => n + 1);
     setDialogOpen(true);
     report("dialog");
   }, [hold, frame, unavailable, bolted, refuse, report]);
@@ -438,25 +604,34 @@ export function Slab(props: WebSlabProps) {
     commit();
   }, [canCommit, travel, reduced, d, fill, commit]);
 
+  /**
+   * Where focus goes as the dialog closes: back to whatever opened it, unless that is gone. Signing removes
+   * the "Approve another way" link, so focus lands on the face instead of falling to the page (G5).
+   */
+  const dialogFinalFocus = useCallback(
+    () => (altRef.current?.isConnected ? true : (faceRef.current ?? true)),
+    [],
+  );
+
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     if (frame || e.button !== 0) return;
-    // Capture keeps the release and every move on the slab, so leaving it is seen. A pointer the browser
-    // no longer tracks throws here; the press still counts.
-    try {
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-    } catch {
-      // Without capture the face still gets the release while the pointer stays on it.
+    const id = e.pointerId;
+    if (source.current !== null) {
+      // A press is under way. A second finger, or a pointer during a Space press, is not part of it. The same
+      // pointer pressing again means its release never reached the page (it was let go outside the window):
+      // that press is over, and this one starts afresh.
+      if (source.current !== id) return;
+      pressEnd(false);
     }
-    pressStart();
-  };
-  const onPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
-    // Leaving the slab ends a hold: it is released early, or disarmed once armed (S2 §2.7).
-    if (frame || !hold || !holding.current) return;
-    if (!withinFootprint(bodyRef.current, d, e.clientX, e.clientY)) cancelHold();
-  };
-  const onPointerUp = (e: PointerEvent<HTMLButtonElement>) => {
-    if (frame) return;
-    pressEnd(withinFootprint(bodyRef.current, d, e.clientX, e.clientY));
+    if (!pressStart(id)) return;
+    // Capture keeps the moves and the release on the face. A pointer the browser no longer tracks throws here;
+    // the press still counts, and the window follows it either way.
+    try {
+      e.currentTarget.setPointerCapture?.(id);
+    } catch {
+      // Followed on the window below.
+    }
+    follow(id, e.currentTarget.ownerDocument.defaultView ?? window);
   };
   // Keyboard presses act on keydown and keyup and cancel the browser's own click. Should a browser send that
   // click anyway (detail 0, straight after the key), it is the same press, not a screen reader's activation.
@@ -475,15 +650,14 @@ export function Slab(props: WebSlabProps) {
   );
   // A click with no pointer press behind it (detail 0) is a screen reader's activation: a hold slab takes the
   // dialog route (S2 §2.7) and a press slab commits as Enter would. Pointer presses are handled on pointerdown
-  // and pointerup.
+  // and on the window.
   const onClick = (e: MouseEvent<HTMLButtonElement>) => {
     if (frame || e.detail !== 0 || keyClick.current) return;
     if (hold) {
       openDialog();
       return;
     }
-    pressStart();
-    pressEnd(true);
+    if (pressStart("virtual")) pressEnd(true);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (frame) return;
@@ -495,13 +669,12 @@ export function Slab(props: WebSlabProps) {
         openDialog();
         return;
       }
-      pressStart();
-      pressEnd(true);
+      if (pressStart("key")) pressEnd(true);
       return;
     }
     if (e.key === " " || e.key === "Spacebar") {
       e.preventDefault();
-      if (!e.repeat) pressStart();
+      if (!e.repeat) pressStart("key");
     }
   };
   const onKeyUp = (e: KeyboardEvent<HTMLButtonElement>) => {
@@ -509,7 +682,8 @@ export function Slab(props: WebSlabProps) {
     if (e.key === " " || e.key === "Spacebar") {
       e.preventDefault();
       markKeyPress();
-      pressEnd(true);
+      // Only the key's own press ends here: Space never signs a hold a pointer is making.
+      if (source.current === "key") pressEnd(true);
     }
   };
 
@@ -521,11 +695,13 @@ export function Slab(props: WebSlabProps) {
       : holdQuarter(frame.fill ?? frame.step ?? 0)
     : progress;
   const shownNotice = frame ? frame.notice : notice;
+  const shownBusy = !frame && busy;
   // A hold slab that could still sign shows its route; the caption can be turned off, the link cannot.
   const signable =
     hold !== undefined &&
     !unavailable &&
     !bolted &&
+    !shownBusy &&
     state !== "unavailable" &&
     state !== "committed" &&
     state !== "bolted" &&
@@ -549,6 +725,7 @@ export function Slab(props: WebSlabProps) {
       data-tone={tone}
       data-size={size}
       data-bolted={bolted ? "" : undefined}
+      data-busy={shownBusy ? "" : undefined}
       data-motion={mode}
       data-hold-progress={hold ? holdProgress : undefined}
       data-full={width === "100%" ? "" : undefined}
@@ -573,17 +750,15 @@ export function Slab(props: WebSlabProps) {
           className="fs-slab__face"
           style={{ transform: faceTransform }}
           aria-label={srLabel}
-          aria-disabled={unavailable || state === "committed" ? true : undefined}
+          aria-disabled={unavailable || state === "committed" || shownBusy ? true : undefined}
+          aria-busy={shownBusy || undefined}
           aria-describedby={describedBy || undefined}
           data-testid={`${testId}.face`}
           onPointerDown={onPointerDown}
-          onPointerMove={hold ? onPointerMove : undefined}
-          onPointerUp={onPointerUp}
-          onPointerCancel={() => pressEnd(false)}
           onClick={onClick}
           onKeyDown={onKeyDown}
           onKeyUp={onKeyUp}
-          onBlur={() => (hold ? cancelHold() : pressEnd(false))}
+          onBlur={() => pressEnd(false)}
           onContextMenu={hold ? (e) => e.preventDefault() : undefined}
         >
           {hold && <motion.span className="fs-slab__fill" style={{ transform: fillTransform }} aria-hidden />}
@@ -626,7 +801,13 @@ export function Slab(props: WebSlabProps) {
               {t("slab.altRoute")}
             </span>
           ) : (
-            <button type="button" className="fs-link" data-testid={`${testId}.alt`} onClick={openDialog}>
+            <button
+              ref={altRef}
+              type="button"
+              className="fs-link"
+              data-testid={`${testId}.alt`}
+              onClick={openDialog}
+            >
               {t("slab.altRoute")}
             </button>
           )}
@@ -660,6 +841,8 @@ export function Slab(props: WebSlabProps) {
           tone={tone}
           testId={`${testId}.dialog`}
           onConfirm={confirmDialog}
+          finalFocus={dialogFinalFocus}
+          opening={opening}
         />
       )}
     </div>
@@ -673,6 +856,10 @@ interface ConfirmDialogProps {
   readonly tone: WebSlabProps["tone"];
   readonly onConfirm: () => void;
   readonly testId: string;
+  /** Where focus goes as the dialog closes (Base UI `finalFocus`); by default, back to what opened it. */
+  readonly finalFocus?: () => HTMLElement | boolean | null;
+  /** Changes with each opening, so each opening offers a fresh confirm slab, even one reopened mid-exit. */
+  readonly opening?: number;
 }
 
 /**
@@ -681,14 +868,28 @@ interface ConfirmDialogProps {
  * so no action depends on timing alone. Focus opens on "Not now", the least destructive control, so a second
  * Enter after the one that opened the dialog never signs by accident.
  */
-export function ConfirmDialog({ open, onOpenChange, confirm, tone, onConfirm, testId }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  open,
+  onOpenChange,
+  confirm,
+  tone,
+  onConfirm,
+  testId,
+  finalFocus,
+  opening = 0,
+}: ConfirmDialogProps) {
   const t = useT();
   const cancelRef = useRef<HTMLButtonElement>(null);
   return (
     <AlertDialog.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
       <AlertDialog.Portal>
         <AlertDialog.Backdrop className="fs-dialog__scrim" />
-        <AlertDialog.Popup className="fs-dialog" data-testid={testId} initialFocus={cancelRef}>
+        <AlertDialog.Popup
+          className="fs-dialog"
+          data-testid={testId}
+          initialFocus={cancelRef}
+          finalFocus={finalFocus}
+        >
           <AlertDialog.Title className="fs-dialog__title fs-t-title-2">{confirm.title}</AlertDialog.Title>
           <div className="fs-dialog__content" data-sealed={confirm.seal ? "" : undefined}>
             <AlertDialog.Description className="fs-dialog__body fs-t-body" render={<div />}>
@@ -707,6 +908,7 @@ export function ConfirmDialog({ open, onOpenChange, confirm, tone, onConfirm, te
           </div>
           <div className="fs-dialog__actions">
             <Slab
+              key={opening}
               label={confirm.confirmLabel ?? t("confirm.approve")}
               srLabel={confirm.confirmLabel ?? t("confirm.approve")}
               depth="d3"
