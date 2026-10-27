@@ -323,6 +323,11 @@ export function FundingBlock({
           />
           <span className="fsc-fund__estimate fs-t-caption">{invoice.pesoEstimate}</span>
         </div>
+        {action && compact && (
+          <div className="fsc-fund__action" data-place="lead">
+            {action}
+          </div>
+        )}
         <div className="fsc-fund__draft" data-provenance="claude" data-testid={`${screen}.invoice.draft`}>
           <p className="fsc-fund__draft-head fs-t-label">
             <Glyph name="pencil" size={16} />
@@ -371,7 +376,7 @@ export function FundingBlock({
             )}
           </dl>
         )}
-        {action && <div className="fsc-fund__action">{action}</div>}
+        {action && !compact && <div className="fsc-fund__action">{action}</div>}
       </article>
 
       <Mirrored

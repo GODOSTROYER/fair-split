@@ -365,6 +365,13 @@
   border-top: 1px solid var(--fs-rule);
 }
 
+/* On the first view the one press sits right under the amount it pays, above Claude's draft. */
+.fsc-fund__action[data-place="lead"] {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-top: 0;
+}
+
 /* The first view's denser plate: Claude's draft, then the slab, then the memo in one caption. */
 .fsc-fund[data-compact] .fsc-fund__plate {
   gap: 16px;

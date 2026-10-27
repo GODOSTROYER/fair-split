@@ -256,27 +256,7 @@ export function ReadingRoom({
             {READING_COPY.title}
           </h1>
         </div>
-        <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
-          <Glyph
-            name={state === "reading" ? "pencil" : state === "offline" ? "ms:wifi-off" : "triplicate-slip"}
-            size={16}
-          />
-          <span>
-            {sentence}
-            {state === "offline" && ` ${READING_COPY.stateOffline}`}
-            {state === "live-paused" && ` ${READING_COPY.stateLivePaused}`}
-          </span>
-        </p>
       </header>
-
-      <Filmstrip
-        season={season}
-        replay={film}
-        earlier={earlierPhotos(snapshot)}
-        active={photo.photoId}
-        progress={replayProgress(view, snapshot)}
-        testId="W-TR-03.film"
-      />
 
       <div
         className="fsc-read__body"
@@ -295,25 +275,46 @@ export function ReadingRoom({
           mode={mode}
           testId="W-TR-03.bench"
         />
-        <Beds
-          season={season}
-          photoId={photo.photoId}
-          slips={slips}
-          rows={rows}
-          landings={landings}
-          active={activeRow}
-          onActive={setActiveRow}
-          onOpenCrop={(serial) => {
-            const s = slips.find((x) => x.slip.serial === serial);
-            if (s) setZoom(zoomOnSlip(s.position));
-          }}
-          onByHand={(serial) => router.history.push(webRoutes.byHand(season, serial))}
-          tableRef={tableRef}
-          started={started || photo.set === "EARLIER"}
-          treasurer={treasurer}
-          notice={(serial) => quarantineNotice(snapshot, serial)}
-          testId="W-TR-03.beds"
-        />
+        <div className="fsc-read__side">
+          <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
+            <Glyph
+              name={state === "reading" ? "pencil" : state === "offline" ? "ms:wifi-off" : "triplicate-slip"}
+              size={16}
+            />
+            <span>
+              {sentence}
+              {state === "offline" && ` ${READING_COPY.stateOffline}`}
+              {state === "live-paused" && ` ${READING_COPY.stateLivePaused}`}
+            </span>
+          </p>
+          <Filmstrip
+            season={season}
+            replay={film}
+            earlier={earlierPhotos(snapshot)}
+            active={photo.photoId}
+            progress={replayProgress(view, snapshot)}
+            testId="W-TR-03.film"
+          />
+          <Beds
+            season={season}
+            photoId={photo.photoId}
+            slips={slips}
+            rows={rows}
+            landings={landings}
+            active={activeRow}
+            onActive={setActiveRow}
+            onOpenCrop={(serial) => {
+              const s = slips.find((x) => x.slip.serial === serial);
+              if (s) setZoom(zoomOnSlip(s.position));
+            }}
+            onByHand={(serial) => router.history.push(webRoutes.byHand(season, serial))}
+            tableRef={tableRef}
+            started={started || photo.set === "EARLIER"}
+            treasurer={treasurer}
+            notice={(serial) => quarantineNotice(snapshot, serial)}
+            testId="W-TR-03.beds"
+          />
+        </div>
         <FlightLayer flights={flights} connectors={connectors} onDone={onFlightDone} />
       </div>
 
