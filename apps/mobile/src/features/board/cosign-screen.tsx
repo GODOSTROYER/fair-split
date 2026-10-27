@@ -25,7 +25,18 @@ import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { useCosign } from "./cosign-context";
 import { presenceView, whyKey } from "./cosign-model";
-import { HashRows, HoldRow, PayoutRows, PresenceLine, PushNote, SignedAmount, SimulatedPush } from "./parts";
+import {
+  Gloss,
+  HashRows,
+  HoldRow,
+  PayoutRows,
+  PresenceLine,
+  PushNote,
+  SignedAmount,
+  SimulatedPush,
+  useCompact,
+  useGloss,
+} from "./parts";
 import { useT } from "./use-t";
 
 const PRESENCE_EVERY_MS = 10_000;
@@ -36,6 +47,8 @@ export function CosignScreen() {
   const { t } = useFs();
   const tr = useT();
   const { width } = useWindowDimensions();
+  const compact = useCompact();
+  const gloss = useGloss();
   const [openHold, setOpenHold] = useState<string | null>(null);
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const top = useRef<ViewInstance>(null);
@@ -100,7 +113,7 @@ export function CosignScreen() {
           >
             <Txt kind="bodyStrong">{tr(c.status === "offline" ? "common.offline" : "M-BD-01.error")}</Txt>
             <Txt kind="body" color="ink2">
-              {tr(c.status === "offline" ? "M-BD-01.offline" : "common.offlineRetry")}
+              {tr(c.status === "offline" ? "M-BD-01.offline" : "common.error")}
             </Txt>
           </Banner>
         )}
@@ -118,32 +131,33 @@ export function CosignScreen() {
   const sealSize = Math.min(208, width - 2 * space.s16 - 2 * space.s24);
   const showPush = Platform.OS === "web" && signable;
 
-  const footer = signable ? (
-    <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
-      <Button
-        tall
-        icon="sign"
-        label={tr("M-BD-01.sign")}
-        onPress={() => router.push(signHref(c.runSlug))}
-        testID="M-BD-01.sign"
-      />
-    </View>
+  const action = signable ? (
+    <Button
+      tall
+      icon="sign"
+      label={tr("M-BD-01.sign")}
+      onPress={() => router.push(signHref(c.runSlug))}
+      testID="M-BD-01.sign"
+    />
   ) : c.status === "changed" && c.change !== "hash" ? (
-    <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
-      <Button
-        tall
-        variant="tonal"
-        icon="refresh"
-        label={tr("M-BD-01.reviewAgain")}
-        onPress={() => void c.reload(true)}
-        testID="M-BD-01.review-again"
-      />
-    </View>
+    <Button
+      tall
+      variant="tonal"
+      icon="refresh"
+      label={tr("M-BD-01.reviewAgain")}
+      onPress={() => void c.reload(true)}
+      testID="M-BD-01.review-again"
+    />
   ) : c.status === "offline" ? (
-    <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
-      <Button tall icon="sign" label={tr("M-BD-01.sign")} disabled testID="M-BD-01.sign" />
-    </View>
+    <Button tall icon="sign" label={tr("M-BD-01.sign")} disabled testID="M-BD-01.sign" />
   ) : null;
+  // The thumb zone holds the one way forward; with large text it joins the scroll instead (S1.12 reflow).
+  const footer =
+    action && !compact ? (
+      <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
+        {action}
+      </View>
+    ) : null;
 
   return (
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
@@ -154,6 +168,7 @@ export function CosignScreen() {
         <Txt kind="title2" accessibilityRole="header">
           {tr("M-BD-01.heading", { season: dto.seasonCode })}
         </Txt>
+        <Gloss text={gloss("M-BD-01.heading", { season: dto.seasonCode })} />
         <SignedAmount
           text={amount}
           srLabel={format.amountSpoken(dto.totalCents)}
@@ -164,7 +179,9 @@ export function CosignScreen() {
         <Txt kind="body" color="ink2">
           {tr("M-BD-01.count", { n: dto.itemCount })}
         </Txt>
+        <Gloss text={gloss("M-BD-01.count", { n: dto.itemCount })} />
         <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
+        <Gloss text={gloss(whyKey(dto), { threshold })} testID="M-BD-01.why.gloss" />
       </View>
 
       {dto.holds.length > 0 ? (
@@ -198,6 +215,10 @@ export function CosignScreen() {
             <Txt kind="caption" color="ink2" align="center" testID="M-BD-01.computed">
               {tr("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
             </Txt>
+            <Gloss
+              text={gloss("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
+              align="center"
+            />
           </>
         ) : (
           <Txt kind="body" color="ink2">
@@ -209,11 +230,14 @@ export function CosignScreen() {
       <View style={styles.section} testID="M-BD-01.keys">
         <View style={styles.keyLine} testID="M-BD-01.key1">
           {c.key1 ? <InkStamp initials={people.treasurer.initials} label={people.treasurer.name} /> : null}
-          <Txt kind="body" style={styles.flexShrink}>
-            {c.key1
-              ? tr("M-BD-01.key1", { name: treasurer })
-              : tr("M-BD-01.waitingKey1", { name: treasurer })}
-          </Txt>
+          <View style={styles.flexShrink}>
+            <Txt kind="body">
+              {c.key1
+                ? tr("M-BD-01.key1", { name: treasurer })
+                : tr("M-BD-01.waitingKey1", { name: treasurer })}
+            </Txt>
+            <Gloss text={gloss(c.key1 ? "M-BD-01.key1" : "M-BD-01.waitingKey1", { name: treasurer })} />
+          </View>
         </View>
         {signed ? (
           <View style={styles.keyLine} testID="M-BD-01.key2">
@@ -226,6 +250,8 @@ export function CosignScreen() {
           <PresenceLine name={treasurer} />
         ) : null}
       </View>
+
+      {compact ? action : null}
 
       <View style={styles.section}>
         <SectionTitle>{tr("M-BD-01.items")}</SectionTitle>
@@ -273,6 +299,7 @@ export function CosignScreen() {
 function StatusBanner() {
   const c = useCosign();
   const tr = useT();
+  const gloss = useGloss();
   const treasurer = people.treasurer.first;
   switch (c.status) {
     case "changed":
@@ -281,6 +308,13 @@ function StatusBanner() {
           <Txt kind="bodyStrong">
             {c.change === "hash" ? tr("M-BD-01.hashMismatch", { name: treasurer }) : tr("M-BD-01.changed")}
           </Txt>
+          <Gloss
+            text={
+              c.change === "hash"
+                ? gloss("M-BD-01.hashMismatch", { name: treasurer })
+                : gloss("M-BD-01.changed")
+            }
+          />
           {c.change === "hash" && c.dto && c.check && !c.check.ok && c.check.recomputed ? (
             <>
               <Txt kind="hash" color="ink2">
@@ -297,6 +331,7 @@ function StatusBanner() {
       return (
         <Banner tone="decide" icon="clock" testID="M-BD-01.expired">
           <Txt kind="body">{tr("M-BD-01.expired", { name: treasurer })}</Txt>
+          <Gloss text={gloss("M-BD-01.expired", { name: treasurer })} />
         </Banner>
       );
     case "offline":
@@ -306,24 +341,28 @@ function StatusBanner() {
           <Txt kind="body" color="ink2">
             {tr("M-BD-01.offline")}
           </Txt>
+          <Gloss text={gloss("M-BD-01.offline")} />
         </Banner>
       );
     case "sent-back":
       return (
         <Banner icon="back" testID="M-BD-01.sent-back">
           <Txt kind="body">{tr("M-BD-01.sentBack", { name: treasurer })}</Txt>
+          <Gloss text={gloss("M-BD-01.sentBack", { name: treasurer })} />
         </Banner>
       );
     case "signed":
       return (
         <Banner icon="check" testID="M-BD-01.signed">
           <Txt kind="bodyStrong">{tr("M-BD-01.signed")}</Txt>
+          <Gloss text={gloss("M-BD-01.signed")} />
         </Banner>
       );
     case "override":
       return (
         <Banner tone="decide" icon="info" testID="M-BD-01.override">
           <Txt kind="body">{tr("M-BD-01.override", { name: treasurer })}</Txt>
+          <Gloss text={gloss("M-BD-01.override", { name: treasurer })} />
         </Banner>
       );
     default:

@@ -4,8 +4,8 @@
  * the amount, the labelled "Simulated push" that stands in for FCM in judge frames, the honest push status on a
  * phone, and the amount that turns from pencil to ink when both keys are in.
  */
-import { useEffect, useMemo } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -16,9 +16,11 @@ import Animated, {
 import type { CosignHold, CosignRequestDTO } from "../../_shims/api-client";
 import type { AmountState } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
+import type { MessageArgs } from "../../_shims/i18n";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
 import { openPushSettings } from "../../platform/push";
+import { useApp } from "../../state/app";
 import { usePushStatus } from "../../state/use-push";
 import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
@@ -27,9 +29,46 @@ import { ms, reducedFade, spring, tween } from "../../ui/motion";
 import { Button, InkStamp, Rule } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Txt } from "../../ui/text";
-import { hashRows, memberOf } from "./cosign-model";
+import { compactLayout, hashRows, memberOf } from "./cosign-model";
 import type { BoardKey } from "./messages";
 import { useT } from "./use-t";
+
+/* ------------------------------------------------------------------ large text */
+
+/** The board's reflow rule (`compactLayout`) for this window. */
+export function useCompact(): boolean {
+  const { width, height, fontScale } = useWindowDimensions();
+  return compactLayout(width, height, fontScale);
+}
+
+/* ------------------------------------------------------------------ English under the Chair's words */
+
+/**
+ * The stage's gloss (IC-12 `fs.prefs.gloss`): judges driving the Chair frame read English under each Cebuano or
+ * Filipino line, so they can see what they sign. Off on phones and when the app is already in English.
+ */
+export function useGloss(): (key: BoardKey, args?: MessageArgs) => string | null {
+  const { gloss, lang } = useApp();
+  const en = useT("en");
+  return useCallback((key, args) => (gloss && lang !== "en" ? en(key, args) : null), [gloss, lang, en]);
+}
+
+export function Gloss({
+  text,
+  align,
+  testID,
+}: {
+  text: string | null;
+  align?: "left" | "center";
+  testID?: string;
+}) {
+  if (!text) return null;
+  return (
+    <Txt kind="caption" color="ink3" align={align} lang="en" testID={testID}>
+      {text}
+    </Txt>
+  );
+}
 
 /* ------------------------------------------------------------------ the hash, to compare by eye */
 
@@ -80,6 +119,7 @@ export function HoldRow({
 }) {
   const { t } = useFs();
   const tr = useT();
+  const gloss = useGloss();
   const kind = tr(`hold.${hold.kind}` as BoardKey);
   return (
     <Pressable
@@ -103,6 +143,7 @@ export function HoldRow({
             {kind}
           </Txt>
         </View>
+        <Gloss text={gloss(`hold.${hold.kind}` as BoardKey)} />
         <Txt kind="body" color="ink2" numberOfLines={expanded ? undefined : 2}>
           {hold.summary}
         </Txt>
@@ -136,7 +177,13 @@ export function PayoutRows({
     <View style={styles.items} testID="M-BD-01.items">
       {items.map((i) => (
         <View key={i.senderItemId} style={styles.itemRow}>
-          <Txt kind="figure" style={styles.flex}>
+          <Txt
+            kind="figure"
+            style={styles.flex}
+            importantForAccessibility="no"
+            accessibilityElementsHidden
+            aria-hidden
+          >
             {memberOf(i)}
           </Txt>
           <AmountDisplay
@@ -150,7 +197,13 @@ export function PayoutRows({
       ))}
       <Rule />
       <View style={styles.itemRow}>
-        <Txt kind="bodyStrong" style={styles.flex}>
+        <Txt
+          kind="bodyStrong"
+          style={styles.flex}
+          importantForAccessibility="no"
+          accessibilityElementsHidden
+          aria-hidden
+        >
           {tr("M-BD-01.total")}
         </Txt>
         <AmountDisplay
@@ -177,6 +230,7 @@ export function SignedAmount({
   ink,
   live,
   testID,
+  align = "left",
 }: {
   text: string;
   srLabel: string;
@@ -184,9 +238,15 @@ export function SignedAmount({
   /** True when the change happens on screen; false draws the end state still. */
   live: boolean;
   testID: string;
+  align?: "left" | "center";
 }) {
   const { motion } = useFs();
   const opacity = useSharedValue(ink ? 1 : 0);
+  // The figure never wraps or clips: in a column narrower than the amount (200% zoom, a 2× font on a small
+  // phone) it scales down to fit, and gives back the height it no longer needs.
+  const [avail, setAvail] = useState(0);
+  const [natural, setNatural] = useState({ w: 0, h: 0 });
+  const scale = avail > 0 && natural.w > avail ? avail / natural.w : 1;
   useEffect(() => {
     if (!ink) {
       opacity.set(0);
@@ -196,16 +256,29 @@ export function SignedAmount({
   }, [ink, live, motion.reduced, opacity]);
   const inkStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   return (
-    <View testID={testID} dataSet={{ amountState: ink ? "ink" : "pencil" }}>
-      <AmountDisplay text={text} srLabel={srLabel} state="pencil" />
-      <Animated.View
-        style={[StyleSheet.absoluteFill, inkStyle]}
-        pointerEvents="none"
-        importantForAccessibility="no-hide-descendants"
-        accessibilityElementsHidden
+    <View
+      testID={testID}
+      dataSet={{ amountState: ink ? "ink" : "pencil" }}
+      onLayout={(e) => setAvail(e.nativeEvent.layout.width)}
+      style={[styles.fit, { alignItems: align === "center" ? "center" : "flex-start" }]}
+    >
+      <View
+        onLayout={(e) => setNatural({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        style={[
+          align === "center" ? styles.originCenter : styles.originLeft,
+          scale < 1 ? { transform: [{ scale }], marginBottom: -natural.h * (1 - scale) } : null,
+        ]}
       >
-        <AmountDisplay text={text} srLabel={srLabel} state="ink" />
-      </Animated.View>
+        <AmountDisplay text={text} srLabel={srLabel} state="pencil" />
+        <Animated.View
+          style={[StyleSheet.absoluteFill, inkStyle]}
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+        >
+          <AmountDisplay text={text} srLabel={srLabel} state="ink" />
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -306,6 +379,7 @@ export function PushNote() {
 export function PresenceLine({ name }: { name: string }) {
   const { t } = useFs();
   const tr = useT();
+  const gloss = useGloss();
   return (
     <Animated.View
       entering={FadeIn.duration(ms("crossfade"))}
@@ -314,15 +388,22 @@ export function PresenceLine({ name }: { name: string }) {
       accessibilityLiveRegion="polite"
     >
       <View style={[styles.dot, { backgroundColor: t.color.ink }]} />
-      <Txt kind="body" color="ink2">
-        {tr("M-BD-01.presence", { name })}
-      </Txt>
+      <View style={styles.flexShrink}>
+        <Txt kind="body" color="ink2">
+          {tr("M-BD-01.presence", { name })}
+        </Txt>
+        <Gloss text={gloss("M-BD-01.presence", { name })} />
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  flexShrink: { flexShrink: 1 },
+  fit: { alignSelf: "stretch" },
+  originLeft: { transformOrigin: "left top" },
+  originCenter: { transformOrigin: "center top" },
   hashRows: { alignItems: "center", gap: space.s2 },
   hashRow: { letterSpacing: 0.6 },
   hold: {
@@ -352,7 +433,7 @@ const styles = StyleSheet.create({
     // A system container keeps the system's own radius (design §2.4); the notification is the phone's, not ours.
     borderRadius: 20,
   },
-  pushHead: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  pushHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.s8 },
   pushLabel: {
     flexDirection: "row",
     alignItems: "center",

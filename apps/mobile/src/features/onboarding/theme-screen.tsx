@@ -70,9 +70,14 @@ export function ThemeScreen() {
         style={[styles.sample, { backgroundColor: t.color.copyWhite, borderColor: t.color.rule }]}
         testID="M-ON-01.size.sample"
       >
-        <Txt kind="label" color="ink2">
-          {tr("M-ON-01.size.coop", { coop: coop.name, season: season.code })}
-        </Txt>
+        <View>
+          <Txt kind="label" color="ink2">
+            {coop.name}
+          </Txt>
+          <Txt kind="label" color="ink3">
+            {tr("M-ON-01.size.season", { season: season.code })}
+          </Txt>
+        </View>
         <Txt kind="statementLead" lang={lang}>
           {tr("M-ON-01.size.greeting", { name: heroLine.nameByLang[lang] })}
         </Txt>

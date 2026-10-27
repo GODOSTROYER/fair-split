@@ -49,7 +49,7 @@ export const messages = defineMessages({
     fil: "Ganito ang inyong statement ng bayad, sa laki ng letra ng teleponong ito.",
     en: "This is how your pay statement looks at this phone's text size.",
   },
-  "M-ON-01.size.coop": same("{coop}, Season {season}"),
+  "M-ON-01.size.season": same("Season {season}"),
   "M-ON-01.size.greeting": {
     ceb: "Maayong adlaw, {name}. Salamat sa inyong paghago.",
     fil: "Magandang araw po, {name}. Salamat po sa inyong pagsisikap.",

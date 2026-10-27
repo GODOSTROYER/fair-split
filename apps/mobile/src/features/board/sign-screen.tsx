@@ -27,7 +27,7 @@ import { Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { memberOf, presenceView } from "./cosign-model";
 import type { BoardKey } from "./messages";
-import { SignedAmount } from "./parts";
+import { Gloss, SignedAmount, useCompact, useGloss } from "./parts";
 import { amountStateFor, SIGN_SCREEN_STATE, type SignPhase, sealKeys, slabLive } from "./sign-flow";
 import { useSign } from "./use-sign";
 import { useT } from "./use-t";
@@ -60,6 +60,8 @@ export function SignScreen() {
   const tr = useT();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const compact = useCompact();
+  const gloss = useGloss();
   const dto = c.dto;
   const treasurer = people.treasurer.first;
 
@@ -79,7 +81,10 @@ export function SignScreen() {
   const done = phase === "signed" || phase === "sealed" || phase === "inked";
   const keys = sealKeys(phase, c.key1);
   // The amount, the seal and the slab share one screen: the seal gives way on short phones (never below 132 dp).
-  const sealSize = Math.max(132, Math.min(232, width - 4 * space.s16, height - RESERVED_DP));
+  const sealSize = Math.max(
+    132,
+    Math.min(232, width - 4 * space.s16, compact ? Number.POSITIVE_INFINITY : height - RESERVED_DP),
+  );
   const demoKey = (key?.biometricClass ?? presence) === "none";
   const amount = dto ? format.usd(dto.totalCents) : "";
 
@@ -95,9 +100,12 @@ export function SignScreen() {
       >
         <Glyph name="back" color={t.color.ink} />
       </Pressable>
-      <Txt kind="title2" accessibilityRole="header" style={styles.flex}>
-        {tr("M-BD-02.title")}
-      </Txt>
+      <View style={styles.flex}>
+        <Txt kind="title2" accessibilityRole="header">
+          {tr("M-BD-02.title")}
+        </Txt>
+        <Gloss text={gloss("M-BD-02.title")} />
+      </View>
     </View>
   );
 
@@ -119,14 +127,17 @@ export function SignScreen() {
 
   const blocked = slabLive(phase) || phase === "biometric" ? undefined : BLOCKED[phase];
   const note = flow === "stale" ? NOTE.stale : NOTE[phase];
-  const caption =
+  const captionKey: BoardKey =
     phase === "biometric"
-      ? tr(demoKey ? "M-BD-02.signingDemo" : "M-BD-02.signing")
+      ? demoKey
+        ? "M-BD-02.signingDemo"
+        : "M-BD-02.signing"
       : demoKey
-        ? tr("M-BD-02.caption.demo")
+        ? "M-BD-02.caption.demo"
         : presence === "biometric-bound"
-          ? tr("M-BD-02.caption.biometric")
-          : tr("M-BD-02.caption.pin");
+          ? "M-BD-02.caption.biometric"
+          : "M-BD-02.caption.pin";
+  const caption = tr(captionKey);
   const persona = session?.persona ?? "board:ernesto";
   const keyLine = demoKey
     ? key
@@ -141,15 +152,17 @@ export function SignScreen() {
       style={[
         styles.thumb,
         {
-          paddingBottom: insets.bottom + space.s16,
+          paddingBottom: compact ? 0 : insets.bottom + space.s16,
           backgroundColor: t.color.ground,
           borderTopColor: t.color.rule,
         },
+        compact ? styles.thumbInline : null,
       ]}
     >
       {done ? (
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
           <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? deviceKeyId(persona) })}</Txt>
+          <Gloss text={gloss("M-BD-02.signed", { key: key?.keyId ?? deviceKeyId(persona) })} />
           {demoKey ? (
             <Txt kind="caption" color="ink2" testID="M-BD-02.demo-key">
               {tr("common.demoKey")}
@@ -166,6 +179,7 @@ export function SignScreen() {
               testID={`M-BD-02.note`}
             >
               <Txt kind="body">{tr(note)}</Txt>
+              <Gloss text={gloss(note)} />
             </Banner>
           ) : null}
           {!blocked ? (
@@ -179,6 +193,7 @@ export function SignScreen() {
               {caption}
             </Txt>
           ) : null}
+          {!blocked ? <Gloss text={gloss(captionKey)} align="center" /> : null}
           <Slab
             key={attempt}
             testID="M-BD-02.slab"
@@ -188,7 +203,13 @@ export function SignScreen() {
             tone="jade"
             hold={HOLD_MS.phone}
             height={target.hero}
-            unavailableReason={blocked ? tr(blocked, { name: treasurer }) : undefined}
+            unavailableReason={
+              blocked
+                ? [tr(blocked, { name: treasurer }), gloss(blocked, { name: treasurer })]
+                    .filter(Boolean)
+                    .join("\n")
+                : undefined
+            }
             srLabel={tr("M-BD-02.srLabel", {
               label: tr("M-BD-02.slab"),
               amount: format.amountSpoken(dto.totalCents),
@@ -247,7 +268,12 @@ export function SignScreen() {
   );
 
   return (
-    <Screen testID="M-BD-02" state={SIGN_SCREEN_STATE[phase]} footer={thumb} contentStyle={styles.content}>
+    <Screen
+      testID="M-BD-02"
+      state={SIGN_SCREEN_STATE[phase]}
+      footer={compact ? undefined : thumb}
+      contentStyle={[styles.content, compact ? { paddingBottom: insets.bottom + space.s24 } : null]}
+    >
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
         <MomentMarker id="MM-5" phase={mm5.phase} />
         {header}
@@ -256,7 +282,7 @@ export function SignScreen() {
             batchSha256={ownHash}
             size={sealSize}
             keys={keys}
-            engrave={c.engrave || done}
+            engrave={c.engrave}
             testID="M-BD-02.seal"
           />
           <View style={styles.hash}>
@@ -279,8 +305,9 @@ export function SignScreen() {
               text={amount}
               srLabel={format.amountSpoken(dto.totalCents)}
               ink={amountStateFor(phase) === "ink"}
-              live={c.engrave || done}
+              live={c.engrave}
               testID="M-BD-02.amount"
+              align="center"
             />
             <Txt kind="body" color="ink2" align="center">
               {tr("M-BD-01.count", { n: dto.itemCount })}
@@ -291,16 +318,21 @@ export function SignScreen() {
           <View style={styles.approved} testID="M-BD-02.sealed">
             <InkStamp initials={people.treasurer.initials} label={people.treasurer.name} />
             <InkStamp initials={people.chair.initials} label={people.chair.name} />
-            <Txt kind="bodyStrong" style={styles.flex}>
-              {tr("M-BD-02.sealed", { a: treasurer, b: people.chair.first })}
-            </Txt>
+            <View style={styles.flex}>
+              <Txt kind="bodyStrong">{tr("M-BD-02.sealed", { a: treasurer, b: people.chair.first })}</Txt>
+              <Gloss text={gloss("M-BD-02.sealed", { a: treasurer, b: people.chair.first })} />
+            </View>
           </View>
         ) : null}
         {phase === "inked" ? (
-          <Txt kind="body" color="ink2">
-            {tr("M-BD-02.next", { n: dto.itemCount })}
-          </Txt>
+          <View>
+            <Txt kind="body" color="ink2">
+              {tr("M-BD-02.next", { n: dto.itemCount })}
+            </Txt>
+            <Gloss text={gloss("M-BD-02.next", { n: dto.itemCount })} />
+          </View>
         ) : null}
+        {compact ? thumb : null}
       </View>
     </Screen>
   );
@@ -323,7 +355,7 @@ const styles = StyleSheet.create({
   },
   plate: { alignItems: "center", gap: space.s12, paddingVertical: space.s24, paddingHorizontal: space.s16 },
   hash: { gap: space.s2, alignItems: "center" },
-  amount: { gap: space.s4, alignItems: "center" },
+  amount: { gap: space.s4, alignItems: "center", alignSelf: "stretch" },
   approved: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   thumb: {
     gap: space.s8,
@@ -331,5 +363,6 @@ const styles = StyleSheet.create({
     paddingTop: space.s16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  thumbInline: { paddingHorizontal: 0, paddingTop: space.s16 },
   doneZone: { gap: space.s8 },
 });

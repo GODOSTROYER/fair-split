@@ -120,3 +120,11 @@ export function memberOf(item: { senderItemId: string; memberNo?: string }): str
 export function presenceView(runSlug: string, holdId: string | null): string {
   return holdId ? `cosign:${runSlug}:hold:${holdId}` : `cosign:${runSlug}`;
 }
+
+/**
+ * Large text or a short window (S1.12: font scale 2.0, 200% zoom on the web): fixed footers would cover most of the
+ * screen, so the thumb zone and the sign button move into the scroll.
+ */
+export function compactLayout(width: number, height: number, fontScale: number): boolean {
+  return width < 320 || height < 560 || fontScale >= 1.5;
+}

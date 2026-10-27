@@ -7,6 +7,7 @@ import { buildDemoCosign } from "../../services/demo-fixtures";
 import {
   type CosignSnapshot,
   changeReason,
+  compactLayout,
   hashRows,
   memberOf,
   presenceView,
@@ -133,5 +134,15 @@ describe("what the Chair reads", () => {
     expect(memberOf({ senderItemId: "r37x2-M-031", memberNo: "M-031" })).toBe("M-031");
     expect(presenceView("2026A-r37", null)).toBe("cosign:2026A-r37");
     expect(presenceView("2026A-r37", "H2")).toBe("cosign:2026A-r37:hold:H2");
+  });
+});
+
+describe("large text", () => {
+  it("moves the thumb zone into the scroll at 200% zoom, on short phones and from font scale 1.5", () => {
+    expect(compactLayout(390, 844, 1)).toBe(false);
+    expect(compactLayout(360, 740, 1.3)).toBe(false);
+    expect(compactLayout(195, 422, 1)).toBe(true); // 200% browser zoom on a 390 px phone
+    expect(compactLayout(360, 520, 1)).toBe(true);
+    expect(compactLayout(411, 891, 2)).toBe(true);
   });
 });

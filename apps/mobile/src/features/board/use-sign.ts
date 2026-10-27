@@ -4,7 +4,7 @@
  * new key, and posts the approval. The accepted signature starts MM-5's phone half (`signed-2`, then `sealed` at
  * +720 ms with the seal's plunk, then `inked` at +960 ms); every failure springs the slab back with nothing signed.
  */
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { format } from "../../_shims/domain";
 import { type BiometricClass, type CosignFailure, cosign, type KeyMeta } from "../../lib/signing";
 import { feedback } from "../../platform/feedback";
@@ -42,7 +42,9 @@ export function useSign() {
   const [attempt, setAttempt] = useState(0);
   const [key, setKey] = useState<KeyMeta | null>(null);
   const [presence, setPresence] = useState<BiometricClass | null | undefined>(undefined);
-  const phase = signPhase(c.status, c.key1, flow);
+  const joined = signPhase(c.status, c.key1, flow);
+  // A phone with no screen lock is told before the hold, not after it (`presence` is null once probed).
+  const phase = joined === "ready" && presence === null ? "no-lock" : joined;
   const momentTarget = SIGN_MOMENT_PHASE[phase];
   const mm5 = useMoment("MM-5", momentTarget);
   const { set: setMoment, phase: momentPhase } = mm5;
@@ -56,10 +58,15 @@ export function useSign() {
     };
   }, []);
 
-  // Phases follow the flow; `signed-2` alone is started by the signature itself (a real event id).
+  // Phases follow the flow; `signed-2` alone is started by the signature itself (a real event id). The first phase
+  // is announced too, so the judge stage knows the Chair's sheet is open (IC-12 `fs.moment`).
+  const announced = useRef(false);
   useEffect(() => {
     if (phase === "signed") return;
-    if (momentPhase !== momentTarget) setMoment(momentTarget);
+    if (momentPhase !== momentTarget || !announced.current) {
+      announced.current = true;
+      setMoment(momentTarget);
+    }
   }, [phase, momentTarget, momentPhase, setMoment]);
 
   // Back online: a dropped signature is never resent, but the slab may be held again.
