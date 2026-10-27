@@ -1,140 +1,43 @@
 // The code-owned invoice (register §8; the approved plan's "PayPal integration contract"; S3
-// §S3.6.3). Every field PayPal sees is derived here from the run and the code-computed quote.
-// invoice_date and payment_term are never sent: PayPal dates the invoice itself, so sending can
-// never schedule it, and the AUTO_CANCEL date follows the date PayPal holds (C-27). The agent's
-// draft may differ in one thing only: the three item labels (the plan: "Item names: Claude's recorded
-// labels"; S4.4 `canonicalInvoice(quote, labels)`), which can spell no number, link or address (I1).
-// The note is the memo, exactly.
+// §S3.6.3). Every field PayPal sees comes from WS-CORE's `canonicalInvoiceCall(method, expected,
+// labels)`, built from the run and the code-computed quote alone. invoice_date and payment_term are
+// never sent: PayPal dates the invoice itself, so sending can never schedule it, and the AUTO_CANCEL
+// date follows the date PayPal holds (C-27). The agent contributes one thing only: the three item
+// labels (the plan: "Item names: Claude's recorded labels"; S4.4 `canonicalInvoice(quote, labels)`),
+// which core checks against each line's closed vocabulary, so they can spell no number, link or
+// address (I1). The note is the memo, exactly.
 
-import { createHash } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
-import type { InvoiceQuote, QuoteItemKey } from "./_shims/domain.js";
+import type { InvoiceQuote } from "@fairsplit/contracts";
+import {
+  AUTO_CANCEL_MAX_DAYS_AHEAD,
+  type CanonicalInvoice,
+  type CanonicalInvoiceCall,
+  type CanonicalInvoiceItem,
+  canonicalInvoiceCall,
+  canonicalSend,
+  type InvoiceExpectation,
+  type ItemLabels,
+  isAsciiEmail,
+  itemLabelProblem,
+  jcsSha256,
+  QUOTE_ITEM_KEYS,
+} from "@fairsplit/domain";
 import { addDays, parseIsoDate } from "./dates.js";
-import { centsToValue } from "./money.js";
-import { toolkitZodSchemas } from "./schemas.js";
 
-/** Register C-27: auto-cancel on the invoice date + 25 days ("30 Nov" is showcase copy only). */
-export const AUTO_CANCEL_AFTER_DAYS = 25;
-/** dueWithin30Days (S4 policy lattice): the AUTO_CANCEL date is after today and at most 30 days out. */
-export const AUTO_CANCEL_MAX_DAYS_AHEAD = 30;
 /** PayPal Invoicing v2 limits (invoicing_v2.json): invoice_number ≤ 25, reference ≤ 120. */
 export const INVOICE_NUMBER_MAX = 25;
 export const REFERENCE_MAX = 120;
 
-/** The quote's three lines, in invoice order (register §2): premium, quality bonus, disbursement costs. */
-export const INVOICE_ITEM_KEYS: readonly QuoteItemKey[] = ["PREMIUM", "BONUS", "DISBURSEMENT"];
+/** Exactly the toolkit 1.11.0 `create_invoice` arguments we send (core `CanonicalInvoice`). */
+export type CreateInvoiceArgs = CanonicalInvoice;
+export type CreateInvoiceItem = CanonicalInvoiceItem;
 
 /**
- * Register §8 item labels, as S4.4's `checkLabels` (and WS-CORE's `itemLabelProblem`) reads them: 1–40
- * characters, a letter first, then letters, spaces and `,'()-`. No digit, `@`, `.`, `/` or `:`, so no
- * amount, link, e-mail address or phone number fits.
- */
-export const INVOICE_ITEM_LABEL = /^[A-Za-z][A-Za-z ,'()-]{0,39}$/;
-
-/**
- * Number words. Letters alone can still spell an amount ("Four thousand dollars", "Upat ka libo"), so
- * I1 also refuses these at the money edge, in the languages of the co-op, the brand and its statements:
- * English, Filipino (with the linker: "dalawang daan"), Cebuano ("duha ka gatos") and Spanish with its
- * Filipino spellings ("singkwenta"). Ordinals ("Second payment", Tagalog "una") and fractions carry no
- * amount and pass. So do the few that are everyday English ("paid once", "dose", "dyes"): an amount
- * spelled with them still needs a word listed here ("once mil", "dose mil").
- */
-const NUMBER_WORDS = [
-  // English
-  "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen",
-  "sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fourty|fifty|sixty|seventy|eighty|ninety",
-  "hundreds?|thousands?|millions?|billions?|trillions?|dozens?",
-  // Filipino, with the linker -ng / -g ("isang libo", "dalawang daan"); the teens are labin-/labim-/labing-
-  "(?:isa|dalawa|tatlo|apat|lima|anim|pito|walo|siyam|sampu|dalawampu|tatlumpu|apatnapu|limampu|animnapu",
-  "pitumpu|walumpu|siyamnapu|daan|raan|sandaan|libo|sanlibo|milyon)(?:ng|g)?|labi(?:ng|n|m)[a-z-]*",
-  // Cebuano ("upat ka libo")
-  "duha|tulo|upat|unom|napulo|kawhaan|katloan|kap-atan|kalim-an|kan-uman|kapitoan|kawaloan|kasiyaman",
-  "gatos|sangatos|baynte|traynta",
-  // Spanish, and its Filipino spellings
-  "uno|dos|tres|cuatro|kwatro|cinco|singko|seis|sais|siete|siyete|ocho|otso|nueve|nuwebe|diez|diyes",
-  "onse|doce|trece|trese|catorce|katorse|quince|kinse|veinte|beinte|bente|treinta|trenta|cuarenta",
-  "kwarenta|cincuenta|singkwenta|sesenta|setenta|ochenta|otsenta|noventa|nobenta|cien|cientos?|siyento",
-  "quinientos|mil|millon|millones",
-].join("|");
-const NUMBER_WORD = new RegExp(`\\b(?:${NUMBER_WORDS})\\b`, "i");
-
-/**
- * A Roman numeral of two or more capitals ("XIV", "XL"): it spells an amount just as "fourteen" does. A
- * lone capital ("Grade C") and a lowercase word ("mix") are letters, not numerals.
- */
-const ROMAN_NUMERAL = /^M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$/;
-
-function romanNumeral(label: string): string | null {
-  for (const token of label.split(/[^A-Za-z]+/)) {
-    if (token.length >= 2 && ROMAN_NUMERAL.test(token)) return token;
-  }
-  return null;
-}
-
-/**
- * The words that name each quote line. A label may not use another line's ("Quality bonus" on the
- * premium line would bill the brand's premium under the bonus's name).
- */
-const LINE_WORDS: Readonly<Record<QuoteItemKey, RegExp>> = {
-  PREMIUM: /\bpremiums?\b/i,
-  BONUS: /\b(?:bonus(?:es)?|quality)\b/i,
-  DISBURSEMENT: /\b(?:disbursements?|costs?|fees?|expenses?)\b/i,
-};
-
-/** Why `label` is not a register §8 item label, or null. */
-function itemLabelProblem(label: unknown): string | null {
-  if (typeof label !== "string" || label.trim() !== label || !INVOICE_ITEM_LABEL.test(label)) {
-    return "a label is 1-40 letters, spaces and ,'()-, starting with a letter";
-  }
-  const word = NUMBER_WORD.exec(label)?.[0] ?? romanNumeral(label);
-  return word ? `a label may not spell a number ("${word}")` : null;
-}
-
-/** True when `name` is a register §8 item label (letters only, no number words). */
-export function isInvoiceItemLabel(name: unknown): name is string {
-  return itemLabelProblem(name) === null;
-}
-
-/**
- * Why `labels` cannot name the invoice's three lines, or null: one label per quote line, in quote
- * order, each a register §8 label, all distinct (ignoring case), and none naming another line. The
- * same check covers the agent's labels, the quote's own names and an invoice offered for adoption.
- */
-export function itemLabelsProblem(labels: readonly unknown[]): string | null {
-  if (labels.length !== INVOICE_ITEM_KEYS.length) return "there must be three labels, one per quote line";
-  for (const [i, label] of labels.entries()) {
-    const problem = itemLabelProblem(label);
-    if (problem) return `item ${i + 1}: ${problem}`;
-  }
-  const folded = new Set(labels.map((l) => (l as string).toLowerCase()));
-  if (folded.size !== labels.length) return "the three labels must be distinct";
-  for (const [i, label] of (labels as readonly string[]).entries()) {
-    for (const other of INVOICE_ITEM_KEYS) {
-      if (other === INVOICE_ITEM_KEYS[i]) continue;
-      const named = LINE_WORDS[other].exec(label);
-      if (named) return `item ${i + 1}: a label may not name another line ("${named[0].toLowerCase()}")`;
-    }
-  }
-  return null;
-}
-
-/**
- * The only send_invoice arguments Fair Split ever sends (register §8): never e-mailed by PayPal, and
- * no subject, note or additional recipient, so no agent text reaches the brand through a send.
- */
-export function sendInvoiceArgs(invoiceId: string): { invoice_id: string; send_to_recipient: false } {
-  return { invoice_id: invoiceId, send_to_recipient: false };
-}
-
-/**
- * sha256 (lowercase hex) of the JCS of `sendInvoiceArgs(invoiceId)`: the exact send a treasurer
- * approval binds. Both members are JSON primitives, so JSON.stringify of the key-sorted object is its
- * JCS (RFC 8785).
+ * sha256 (lowercase hex) of the JCS of core's `canonicalSend(invoiceId)`, `{invoice_id,
+ * send_to_recipient: false}`: the exact send a treasurer approval binds.
  */
 export function sendArgsSha256(invoiceId: string): string {
-  const args = sendInvoiceArgs(invoiceId);
-  const sorted = Object.fromEntries(Object.entries(args).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-  return createHash("sha256").update(JSON.stringify(sorted), "utf8").digest("hex");
+  return jcsSha256(canonicalSend(invoiceId));
 }
 
 /**
@@ -210,28 +113,10 @@ export interface InvoiceRun {
   sendApproval?: TreasurerApproval | null;
 }
 
-export interface CreateInvoiceItem {
-  name: string;
-  quantity: string;
-  unit_amount: { currency_code: "USD"; value: string };
-  unit_of_measure: "AMOUNT";
-}
-
-/** Exactly the toolkit 1.11.0 `create_invoice` arguments we send: no invoice_date, no payment term. */
-export interface CreateInvoiceArgs {
-  currency_code: "USD";
-  invoice_number: string;
-  reference: string;
-  note: string;
-  invoicer_email_address: string;
-  primary_recipients: { billing_info: { business_name: string; email_address: string } }[];
-  items: CreateInvoiceItem[];
-}
-
 /**
  * The code-built invoice for one run. It carries no date: the AUTO_CANCEL date is the date PayPal
- * gives the invoice + 25 days (`autoCancelDate`), and there is no due date at all, because toolkit
- * 1.11.0 cannot send a payment_term and nothing PayPal does not hold may look like one (I8).
+ * gives the invoice + 25 days (core `autoCancelDate`), and there is no due date at all, because
+ * toolkit 1.11.0 cannot send a payment_term and nothing PayPal does not hold may look like one (I8).
  */
 export interface InvoicePlan {
   runId: string;
@@ -240,6 +125,12 @@ export interface InvoicePlan {
   /** The memo, e.g. "Season 2026-A, RC 7f3a 91c2, lot LB-PH-2026-03". */
   note: string;
   totalCents: bigint;
+  /**
+   * What code builds every invoice call from (core `InvoiceExpectation`): the quote, the invoice
+   * number, reference and memo, the business account as invoicer and the brand as the one payer.
+   */
+  expected: InvoiceExpectation;
+  /** Core `canonicalInvoiceCall("create_invoice", expected)`: the quote's own names as item names. */
   createArgs: CreateInvoiceArgs;
 }
 
@@ -252,7 +143,6 @@ export class InvoicePlanError extends Error {
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const SEASON_CODE = /^(\d{4})-([A-Z])$/;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function check(condition: boolean, message: string): asserts condition {
   if (!condition) throw new InvoicePlanError(message);
@@ -296,11 +186,6 @@ export function invoiceMemo(seasonCode: string, rateCardSha256: string, lotCode:
   return `Season ${seasonCode}, RC ${rateCardSha256.slice(0, 4)} ${rateCardSha256.slice(4, 8)}, lot ${lotCode}`;
 }
 
-/** C-27: the AUTO_CANCEL date is the invoice date PayPal holds + 25 days. */
-export function autoCancelDate(invoiceDate: string): string {
-  return addDays(invoiceDate, AUTO_CANCEL_AFTER_DAYS);
-}
-
 /**
  * dueWithin30Days: null when `autoCancelOn` is after `today` and at most 30 days out, else why not.
  * `today` is PayPal's date (`ppDate`), the calendar the invoice date comes from.
@@ -323,40 +208,32 @@ function quoteCents(value: unknown, what: string): bigint {
 
 /**
  * The quote's three lines, always three, in quote order (architecture §6.2: the items deep-equal the
- * quote). A zero line stays a 0.00 line rather than changing the invoice's shape, as WS-CORE's
+ * quote). A zero line stays a 0.00 line rather than changing the invoice's shape, as core's
  * `invoiceEqualsQuote` expects. The quote must belong to this run's card and lot, its lines must sum
- * to its total and agree with its pools; nothing here adjusts a figure.
+ * to its total and agree with its pools, and its own names must be labels core accepts for their
+ * lines (the server chain sends them when the agent gives none); nothing here adjusts a figure.
  */
-function quoteItems(run: InvoiceRun): { items: CreateInvoiceItem[]; totalCents: bigint } {
+function quoteTotal(run: InvoiceRun): bigint {
   const { quote } = run;
   check(quote.currency === "USD", `Invoices are USD only (sandbox accounts are US): ${quote.currency}`);
   check(quote.rateCardSha256 === run.rateCardSha256, "The quote was computed from another rate card");
   check(quote.lotCode === run.lotCode, "The quote was computed for another lot");
   check(
-    Array.isArray(quote.items) && quote.items.length === INVOICE_ITEM_KEYS.length,
+    Array.isArray(quote.items) && quote.items.length === QUOTE_ITEM_KEYS.length,
     "A quote has exactly three lines",
   );
-  const byKey = new Map<QuoteItemKey, bigint>();
-  const items = INVOICE_ITEM_KEYS.map((key, i): CreateInvoiceItem => {
+  const cents = QUOTE_ITEM_KEYS.map((key, i) => {
     const item = quote.items[i];
     check(item?.key === key, `Quote line ${i + 1} must be ${key}`);
     check(item.quantity === "1", `${key}: the quantity is always 1`);
-    const problem = itemLabelProblem(item.name);
-    check(problem === null, `${key}: ${problem}`);
-    const cents = quoteCents(item.unitAmountCents, `${key} amount`);
-    byKey.set(key, cents);
-    return {
-      name: item.name,
-      quantity: "1",
-      unit_amount: { currency_code: "USD", value: centsToValue(cents) },
-      unit_of_measure: "AMOUNT",
-    };
+    return quoteCents(item.unitAmountCents, `${key} amount`);
   });
-  const names = itemLabelsProblem(items.map((item) => item.name));
+  const names = itemLabelProblem(
+    quote.items.map((item) => item.name),
+    quote.items.map((item) => item.key),
+  );
   check(names === null, `The quote's line labels: ${names}`);
-  const premium = byKey.get("PREMIUM") ?? 0n;
-  const bonus = byKey.get("BONUS") ?? 0n;
-  const disbursement = byKey.get("DISBURSEMENT") ?? 0n;
+  const [premium = 0n, bonus = 0n, disbursement = 0n] = cents;
   const total = quoteCents(quote.totalCents, "totalCents");
   check(
     premium + bonus + disbursement === total,
@@ -370,140 +247,134 @@ function quoteItems(run: InvoiceRun): { items: CreateInvoiceItem[]; totalCents: 
       quoteCents(quote.poolCents, "poolCents") === premium + bonus,
     "The quote's pools disagree with its lines",
   );
-  return { items, totalCents: total };
+  return total;
 }
 
-/** Builds every code-owned field of the invoice for one run (no IO, no clock, no date). */
+/**
+ * Builds the code's expectation for one run and core's create body from it (no IO, no clock, no
+ * date). The invoicer and the payer must be strict printable-ASCII e-mails, as the policy lattice
+ * compares them (core `isAsciiEmail`).
+ */
 export function buildInvoicePlan(run: InvoiceRun, context: { businessEmail: string }): InvoicePlan {
-  check(EMAIL.test(context.businessEmail), "The invoicer must be the business account's e-mail");
-  check(EMAIL.test(run.payer.email), "The payer e-mail is not an e-mail address");
+  check(isAsciiEmail(context.businessEmail), "The invoicer must be the business account's e-mail");
+  check(isAsciiEmail(run.payer.email), "The payer e-mail is not an e-mail address");
   check(run.payer.businessName.trim().length > 0, "The payer needs a business name");
   const invoiceNumber = invoiceNumberFor(run.seasonCode, run.runSeq);
   const reference = rateCardReference(run.rateCardSha256);
   check(reference.length <= REFERENCE_MAX, "reference too long");
   const note = invoiceMemo(run.seasonCode, run.rateCardSha256, run.lotCode);
-  const { items, totalCents } = quoteItems(run);
-  return {
-    runId: run.runId,
+  const totalCents = quoteTotal(run);
+  const expected: InvoiceExpectation = {
+    quote: run.quote,
     invoiceNumber,
     reference,
-    note,
-    totalCents,
-    createArgs: {
-      currency_code: "USD",
-      invoice_number: invoiceNumber,
-      reference,
-      note,
-      invoicer_email_address: context.businessEmail,
-      primary_recipients: [
-        { billing_info: { business_name: run.payer.businessName, email_address: run.payer.email } },
-      ],
-      items,
-    },
+    memo: note,
+    businessEmail: context.businessEmail,
+    payer: { email: run.payer.email, businessName: run.payer.businessName },
   };
+  const create = canonicalInvoiceCall("create_invoice", { ...expected, invoiceId: null, invoiceDate: null });
+  check(create.ok && create.method === "create_invoice", `The quote cannot be invoiced: ${reasonOf(create)}`);
+  return { runId: run.runId, invoiceNumber, reference, note, totalCents, expected, createArgs: create.args };
 }
 
-/**
- * S4.4 `canonicalInvoice(quote, labels)`: the plan's create arguments with `labels` as the three item
- * names. Everything else, every amount included, stays the code's. Throws InvoicePlanError when the
- * labels are not three distinct register §8 labels.
- */
-export function withItemLabels(plan: InvoicePlan, labels: readonly unknown[]): CreateInvoiceArgs {
-  const problem = itemLabelsProblem(labels);
-  check(problem === null, `Item labels refused: ${problem}`);
-  return {
-    ...plan.createArgs,
-    items: plan.createArgs.items.map((item, i) => ({ ...item, name: labels[i] as string })),
-  };
-}
+const reasonOf = (call: CanonicalInvoiceCall): string => (call.ok ? "" : call.reason);
 
 /** Builds the PayPal-Request-Id for a conditional rule (register §8). */
 export const conditionalRuleRequestId = (invoiceId: string): string => `cr-${invoiceId}`;
 
-/** The AUTO_CANCEL rule (register §8): SPECIFIC_DATE, sent under request id `cr-{invoiceId}`. */
-export function autoCancelRuleArgs(invoiceId: string, autoCancelOn: string) {
-  parseIsoDate(autoCancelOn);
-  return {
-    invoice_id: invoiceId,
-    rules: [
-      {
-        conditional_rule_type: "AUTO_CANCEL" as const,
-        rule_expiry_terms: {
-          rule_expiry_condition: "SPECIFIC_DATE" as const,
-          condition_rule_end_date: autoCancelOn,
-        },
-      },
-    ],
-  };
-}
+// ---------------------------------------------------------------- what the model's arguments may say
 
-export type DraftReconciliation = { ok: true; args: CreateInvoiceArgs } | { ok: false; mismatches: string[] };
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
 
-/** Item fields a draft may carry. All but the name must equal the code-built line exactly. */
-const ITEM_FIELDS = ["name", "quantity", "unit_amount", "unit_of_measure"] as const;
-const ITEM_FIELD_SET: ReadonlySet<string> = new Set(ITEM_FIELDS);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+/** A path as audit text: `items[0].unit_amount.value`, other keys quoted. */
+function pathText(path: readonly (string | number)[]): string {
+  let out = "";
+  for (const s of path) {
+    if (typeof s === "number") out += `[${s}]`;
+    else if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(s)) out += out === "" ? s : `.${s}`;
+    else out += `[${JSON.stringify(s)}]`;
+  }
+  return out || "(body)";
 }
 
 /**
- * Invariant I1 at the money edge: the agent writes no number and no free text. Accepts the agent's
- * create_invoice draft only if it passes the toolkit's own schema, every field equals the code-built
- * invoice (currency, number, reference, the memo as the note, invoicer, recipients, and each of the
- * three lines' quantity, amount and unit), no other field is set (no date, shipping, tip, partial
- * payment, pay-by-bank, discount, tax or description, at any depth: the draft is compared as written,
- * so a key the schema would strip still counts), and the three item names are distinct register §8
- * labels with no number words. Returns the plan's arguments carrying those labels, so every value sent
- * is the code's except the labels (S4.4 `canonicalInvoice(quote, labels)`).
+ * Where the model's arguments differ from the canonical body, by path: a key the body does not carry,
+ * a key it carries that is missing, and any other difference of type, length or value. Strings are
+ * compared code unit for code unit (no trim, case folding or normalisation), so "any byte" differs.
+ * Key order carries no meaning in JSON and is not compared. It descends only while both sides nest,
+ * so its depth is the canonical body's, whatever the model wrote. Empty: the two are the same JSON.
  */
-export function reconcileAgentDraft(draft: unknown, plan: InvoicePlan): DraftReconciliation {
-  const parsed = toolkitZodSchemas().get("create_invoice")?.safeParse(draft);
-  if (!parsed?.success || !isRecord(draft))
-    return { ok: false, mismatches: ["draft does not match the toolkit create_invoice schema"] };
-  const expected = plan.createArgs as unknown as Record<string, unknown>;
-  const mismatches: string[] = [];
-
-  for (const [key, value] of Object.entries(draft)) {
-    if (key === "items" || value === undefined) continue;
-    if (!Object.hasOwn(expected, key)) mismatches.push(`${key}: not a field the agent may set`);
-    else if (!isDeepStrictEqual(value, expected[key]))
-      mismatches.push(`${key}: differs from the code-built invoice`);
-  }
-  for (const key of Object.keys(expected)) {
-    if (key !== "items" && draft[key] === undefined) mismatches.push(`${key}: missing`);
-  }
-
-  const items = Array.isArray(draft.items) ? (draft.items as unknown[]) : [];
-  const wanted = plan.createArgs.items;
-  const labels: unknown[] = [];
-  if (items.length !== wanted.length) {
-    mismatches.push(`items: ${items.length} lines, the quote has ${wanted.length}`);
-  } else {
-    items.forEach((raw, i) => {
-      const got = isRecord(raw) ? raw : {};
-      const want = wanted[i] as unknown as Record<string, unknown>;
-      for (const [key, value] of Object.entries(got)) {
-        if (value === undefined || key === "name") continue;
-        if (!ITEM_FIELD_SET.has(key)) mismatches.push(`items[${i}].${key}: not a field the agent may set`);
-        else if (!isDeepStrictEqual(value, want[key]))
-          mismatches.push(`items[${i}].${key}: differs from the quote`);
+export function draftDifferences(draft: unknown, canonical: unknown): string[] {
+  const out: string[] = [];
+  const walk = (a: unknown, b: unknown, path: (string | number)[]): void => {
+    if (isRecord(a) && isRecord(b)) {
+      for (const k of Object.keys(a)) {
+        if (!Object.hasOwn(b, k)) out.push(`${pathText([...path, k])}: not in the canonical body`);
       }
-      for (const key of ITEM_FIELDS) {
-        if (got[key] === undefined) mismatches.push(`items[${i}].${key}: missing`);
+      for (const k of Object.keys(b)) {
+        if (!Object.hasOwn(a, k)) out.push(`${pathText([...path, k])}: missing`);
+        else walk(a[k], b[k], [...path, k]);
       }
-      if (got.name !== undefined) {
-        const problem = itemLabelProblem(got.name);
-        if (problem) mismatches.push(`items[${i}].name: ${problem}`);
+    } else if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) {
+        out.push(`${pathText(path)}: ${a.length} entries, the canonical body has ${b.length}`);
+      } else {
+        a.forEach((x, i) => {
+          walk(x, b[i], [...path, i]);
+        });
       }
-      labels.push(got.name);
-    });
-    if (mismatches.length === 0) {
-      const problem = itemLabelsProblem(labels);
-      if (problem) mismatches.push(`items: ${problem}`);
+    } else if (a !== b) {
+      out.push(`${pathText(path)}: differs from the canonical body`);
     }
-  }
+  };
+  walk(draft, canonical, []);
+  return out;
+}
 
-  if (mismatches.length > 0) return { ok: false, mismatches };
-  return { ok: true, args: withItemLabels(plan, labels) };
+/** The labels a model's create_invoice arguments carry, and the body code builds from them. */
+export type AgentCreateRead =
+  | { ok: true; labels: readonly string[] | ItemLabels; args: CreateInvoiceArgs }
+  | { ok: false; mismatches: string[] };
+
+const KEYED_FORM: ReadonlySet<string> = new Set(["item_labels", "run_id"]);
+
+/**
+ * I1 at the money edge: what the model's create_invoice arguments may say. Either S4.4's
+ * `{item_labels: {premium, bonus, disbursement}}` (with this run's `run_id`, if any), or a toolkit
+ * draft that is, byte for byte, core's canonical body for the item names it carries. Anything else
+ * (another amount, a date, a tip, free text, an extra key, a key missing…) is refused, and the model's
+ * arguments are never what is sent: the body is `canonicalInvoiceCall`'s, built from the run, and the
+ * labels are checked by core's closed per-line vocabulary.
+ */
+export function readAgentCreate(input: unknown, plan: InvoicePlan, runId: string): AgentCreateRead {
+  const build = (labels: readonly unknown[] | ItemLabels): AgentCreateRead => {
+    const call = canonicalInvoiceCall(
+      "create_invoice",
+      { ...plan.expected, invoiceId: null, invoiceDate: null },
+      labels as readonly string[] | ItemLabels,
+    );
+    if (!call.ok || call.method !== "create_invoice")
+      return { ok: false, mismatches: [`items: ${reasonOf(call)}`] };
+    return { ok: true, labels: labels as readonly string[] | ItemLabels, args: call.args };
+  };
+  if (!isRecord(input)) return { ok: false, mismatches: ["(body): not an object"] };
+  if (Object.hasOwn(input, "item_labels")) {
+    const stray = Object.keys(input).filter((k) => !KEYED_FORM.has(k));
+    if (stray.length > 0)
+      return { ok: false, mismatches: stray.map((k) => `${pathText([k])}: not an input`) };
+    if (Object.hasOwn(input, "run_id") && input.run_id !== runId) {
+      return { ok: false, mismatches: ["run_id: not this run"] };
+    }
+    const labels = input.item_labels;
+    if (!isRecord(labels))
+      return { ok: false, mismatches: ["item_labels: not keyed premium, bonus, disbursement"] };
+    return build(labels as unknown as ItemLabels);
+  }
+  const items = input.items;
+  const names = Array.isArray(items) ? items.map((item) => (isRecord(item) ? item.name : undefined)) : [];
+  const built = build(names);
+  if (!built.ok) return built;
+  const differences = draftDifferences(input, built.args);
+  return differences.length === 0 ? built : { ok: false, mismatches: differences };
 }

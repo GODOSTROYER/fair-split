@@ -21,6 +21,11 @@ chooses the three item labels (letters, spaces and `,'()-`, distinct, no number 
 that asks for labels: Opus 5.5 labelled the lines "Premium", "Quality bonus" and "Disbursement costs", kept
 every other value, and the draft reconciles; 5.2 s, US$0.0609.
 
+Changed on 28 Oct, with WS-CORE's contracts on main: the script now checks the draft with
+`readAgentCreate` (it must be core's `canonicalInvoiceCall` body, byte for byte, for its own labels) and
+gives the model each line's closed vocabulary (`ITEM_LABEL_WORDS`). The runs above used the earlier
+`reconcileAgentDraft`; the 23 Oct labels are core's quote names and pass the new check too. Not re-run.
+
 Spend: US$0.0614 + US$0.0061 + US$0.0629 + US$0.0609 at US$4 / US$20 per MTok, effort `low`, no sampling parameters,
 no forced `tool_choice`. Server-side fallbacks were left off on purpose, so the result is Opus 5.5's own.
 

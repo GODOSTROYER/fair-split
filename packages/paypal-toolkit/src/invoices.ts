@@ -5,29 +5,39 @@
 // task resumes where it stopped. invoice_date and payment_term are never sent. Every call goes
 // through tk(), i.e. the toolkit's PayPalAPI on our token (graft G1); the agent's create, send, rule
 // and read run through these same steps (agent.ts), never through raw tk().
+//
+// The executor (I1): every create, rule and send body is WS-CORE's `canonicalInvoiceCall(method,
+// expected, labels)`, built from the run and the checkpoint alone; the agent only ever contributes
+// the three item labels, which core checks. When the agent's turn drives a step, its policy is
+// passed in and core's `decide()` runs on exactly the body about to be sent, before tk() is called.
 
+import type { PolicyCtx, Provenance, ToolCall } from "@fairsplit/contracts";
+import {
+  asciiEmailKey,
+  type CanonicalInvoiceCall,
+  canonicalInvoiceCall,
+  decide,
+  type InvoiceCallExpectation,
+  type ItemLabels,
+  itemLabelProblem,
+} from "@fairsplit/domain";
 import type { CallPriority } from "@fairsplit/paypal-core";
-import type { Provenance } from "./_shims/contracts.js";
 import type { ToolkitMethod } from "./actions.js";
 import { parseIsoDate, ppDate } from "./dates.js";
 import {
   approvalCovers,
-  autoCancelDate,
-  autoCancelRuleArgs,
   autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
   conditionalRuleRequestId,
+  draftDifferences,
   type InvoicePlan,
   type InvoiceRun,
-  itemLabelsProblem,
-  reconcileAgentDraft,
-  sendInvoiceArgs,
   type TreasurerApproval,
-  withItemLabels,
 } from "./invoice-plan.js";
 import { centsToValue, readValueCents } from "./money.js";
-import { type Tk, ToolkitError } from "./tk.js";
+import { type InvoicePolicy, InvoicePolicyDeniedError } from "./policy.js";
+import { type Tk, TOOLKIT_SANDBOX, ToolkitError } from "./tk.js";
 
 /** What the chain has already done for a run (one row, keyed by run). */
 export interface InvoiceCheckpoint {
@@ -99,13 +109,22 @@ export interface InvoicesDeps {
   ruleBeforeSend?: boolean;
 }
 
-export interface EnsureInvoiceOptions {
-  /**
-   * The audit agent's create_invoice draft, e.g. S4.4's `canonicalInvoice(quote, labels)`: it may only
-   * choose the three item labels (I1). Everything sent is the code's except those labels.
-   */
-  draft?: unknown;
+export interface InvoiceStepOptions {
   priority?: CallPriority;
+  /**
+   * The agent turn's lattice. With it, core's `decide()` runs on every body the step is about to
+   * send, exactly as sent, and anything but ALLOW (or REQUIRE_APPROVAL for a send the treasurer
+   * approved) sends nothing. The server chain (S4.4's fallback) runs without it.
+   */
+  policy?: InvoicePolicy;
+}
+
+export interface EnsureInvoiceOptions extends InvoiceStepOptions {
+  /**
+   * The audit agent's three item labels: S4.4's keyed `{premium, bonus, disbursement}`, or a list in
+   * the quote's line order. Core checks them (I1); the body is `canonicalInvoiceCall`'s.
+   */
+  labels?: readonly string[] | ItemLabels;
 }
 
 export interface EnsureInvoiceResult {
@@ -172,7 +191,10 @@ export interface FundingCheck {
   provenance: Extract<Provenance, "live" | "simulated_rail">;
 }
 
-/** The agent's draft broke invariant I1 or the register §8 fields. Nothing was sent. */
+/**
+ * The agent's labels or arguments are not core's canonical body for this call (I1, register §8).
+ * Nothing was sent.
+ */
 export class InvoiceDraftRejectedError extends Error {
   constructor(readonly mismatches: string[]) {
     super(`Agent invoice draft rejected: ${mismatches.join("; ")}`);
@@ -201,17 +223,6 @@ export class InvoiceApprovalError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "InvoiceApprovalError";
-  }
-}
-
-/** The AUTO_CANCEL date asked for is not PayPal's invoice date + 25 days (C-27). Nothing was sent. */
-export class InvoiceRuleDateError extends Error {
-  constructor(
-    readonly asked: string,
-    readonly expected: string,
-  ) {
-    super(`the AUTO_CANCEL date must be ${expected} (the invoice date + 25 days), not ${asked}`);
-    this.name = "InvoiceRuleDateError";
   }
 }
 
@@ -303,8 +314,19 @@ function str(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/** Two strict printable-ASCII e-mails equal but for ASCII A-Z case (core `asciiEmailKey`). */
 function sameEmail(a: unknown, b: string): boolean {
-  return typeof a === "string" && a.trim().toLowerCase() === b.trim().toLowerCase();
+  const key = asciiEmailKey(a);
+  return key !== null && key === asciiEmailKey(b);
+}
+
+/** A body is decided and sent as one frozen object: nothing told of the decision can change it. */
+function frozen<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const v of Object.values(value)) frozen(v);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 function findLink(links: unknown, rel: string): string | null {
@@ -389,7 +411,7 @@ export function invoiceMoneyExtras(body: unknown): string[] {
  * Adopt only our own invoice, deep-equal to the canonical body `canonicalInvoice(quote, labels)` for
  * the labels it carries: the fresh GET must show our number, reference, the memo as its note,
  * currency, total, the business account as invoicer, the brand as the one recipient, the three quote
- * lines (quantity and amount; their names three distinct register §8 labels), no free text we never
+ * lines (quantity and amount; their names labels core accepts for their lines), no free text we never
  * send (line descriptions, terms), no money extras, a readable invoice date and a status we can carry
  * on from. Anything missing or different is a HALT (InvoiceAdoptError). Returns the status, PayPal's
  * invoice date (the AUTO_CANCEL date is computed from it) and the labels.
@@ -418,12 +440,14 @@ function verifyAdoptable(
       `it asks for ${str(invoice.amount?.value) ?? "no amount"}, not ${centsToValue(plan.totalCents)}`,
     );
   }
-  if (!sameEmail(invoice.invoicer?.email_address, plan.createArgs.invoicer_email_address)) {
+  if (!sameEmail(invoice.invoicer?.email_address, plan.expected.businessEmail)) {
     throw halt("another account is the invoicer");
   }
   const recipients = invoice.primary_recipients ?? [];
-  const payer = plan.createArgs.primary_recipients[0]?.billing_info.email_address ?? "";
-  if (recipients.length !== 1 || !sameEmail(recipients[0]?.billing_info?.email_address, payer)) {
+  if (
+    recipients.length !== 1 ||
+    !sameEmail(recipients[0]?.billing_info?.email_address, plan.expected.payer.email)
+  ) {
     throw halt("it is addressed to someone else");
   }
   const items = invoice.items ?? [];
@@ -440,7 +464,10 @@ function verifyAdoptable(
     });
   if (!sameItems) throw halt("its lines differ from the quote");
   const itemLabels = items.map((item) => item?.name);
-  const labels = itemLabelsProblem(itemLabels);
+  const labels = itemLabelProblem(
+    itemLabels,
+    plan.expected.quote.items.map((item) => item.key),
+  );
   if (labels) throw halt(`its line labels are not ours: ${labels}`);
   if (items.some((item) => str(item?.description) !== null)) throw halt("its lines carry descriptions");
   const extras = invoiceMoneyExtras(invoice);
@@ -522,19 +549,80 @@ export class Invoices {
     return this.#now().toISOString();
   }
 
+  /** Core's expectation for this run's invoice as the checkpoint knows it (PayPal's id and date). */
+  #expected(plan: InvoicePlan, cp: InvoiceCheckpoint): InvoiceCallExpectation {
+    return { ...plan.expected, invoiceId: cp.invoiceId, invoiceDate: cp.invoiceDate };
+  }
+
+  /** Core's `canonicalInvoiceCall` for a rule or a send; a run that cannot build it yet sends nothing. */
+  #canonical<M extends "create_conditional_rules_for_invoice" | "send_invoice">(
+    plan: InvoicePlan,
+    cp: InvoiceCheckpoint,
+    method: M,
+  ): Extract<CanonicalInvoiceCall, { ok: true; method: M }> {
+    const call = canonicalInvoiceCall(method, this.#expected(plan, cp));
+    if (!call.ok) throw new InvoiceStateError(`No ${method} for ${plan.invoiceNumber}: ${call.reason}`);
+    return call as Extract<CanonicalInvoiceCall, { ok: true; method: M }>;
+  }
+
   /**
-   * The create arguments: an agent draft that reconciles with the plan (I1), else the labels the run's
-   * invoice was first created with (so a recreated invoice reads the same), else the quote's names.
+   * The create body, core's `canonicalInvoiceCall("create_invoice", expected, labels)`: with the
+   * agent's labels (refused, nothing sent, unless core accepts them for their lines), else the labels
+   * the run's invoice was first created with (so a recreated invoice reads the same), else the quote's
+   * own names.
    */
-  #argsFor(plan: InvoicePlan, draft: unknown, cp: InvoiceCheckpoint): CreateInvoiceArgs {
-    if (draft !== undefined) {
-      const reconciled = reconcileAgentDraft(draft, plan);
-      if (!reconciled.ok) throw new InvoiceDraftRejectedError(reconciled.mismatches);
-      return reconciled.args;
+  #createArgs(
+    plan: InvoicePlan,
+    labels: readonly string[] | ItemLabels | undefined,
+    cp: InvoiceCheckpoint,
+  ): CreateInvoiceArgs {
+    const expected = this.#expected(plan, cp);
+    if (labels !== undefined) {
+      const call = canonicalInvoiceCall("create_invoice", expected, labels);
+      if (!call.ok || call.method !== "create_invoice") {
+        throw new InvoiceDraftRejectedError([`items: ${call.ok ? "not an invoice" : call.reason}`]);
+      }
+      return call.args;
     }
-    if (cp.itemLabels && itemLabelsProblem(cp.itemLabels) === null)
-      return withItemLabels(plan, cp.itemLabels);
+    if (cp.itemLabels) {
+      const call = canonicalInvoiceCall("create_invoice", expected, cp.itemLabels);
+      if (call.ok && call.method === "create_invoice") return call.args;
+    }
     return plan.createArgs;
+  }
+
+  /**
+   * The agent turn's lattice on the call about to be sent: core's `decide()` over exactly this body,
+   * with the code's expectation for the invoice as the checkpoint knows it. Only ALLOW sends, or
+   * REQUIRE_APPROVAL for a send whose treasurer approval this step has already checked.
+   */
+  async #decide(
+    policy: InvoicePolicy | undefined,
+    call: ToolCall,
+    plan: InvoicePlan,
+    cp: InvoiceCheckpoint,
+    approved = false,
+  ): Promise<void> {
+    if (!policy) return;
+    const env = await policy.env();
+    const ctx: PolicyCtx = {
+      flags: { ...env.flags },
+      ppEnv: env.ppEnv,
+      toolkitSandbox: TOOLKIT_SANDBOX,
+      runState: env.runState,
+      invoiceExists: cp.invoiceId !== null,
+      holds: [...env.holds],
+      budget: { ...env.budget },
+      expected: {
+        ...this.#expected(plan, cp),
+        brandAllowlist: [...env.brandAllowlist],
+      },
+      today: ppDate(this.#now()),
+    };
+    const decision = decide(call, ctx);
+    await policy.onDecision?.(call, decision);
+    const allowed = decision.verdict === "ALLOW" || (approved && decision.verdict === "REQUIRE_APPROVAL");
+    if (!allowed) throw new InvoicePolicyDeniedError(call, decision);
   }
 
   /**
@@ -545,7 +633,7 @@ export class Invoices {
   async create(run: InvoiceRun, options: EnsureInvoiceOptions = {}): Promise<CreateStepResult> {
     let cp = await this.checkpoint(run.runId);
     const plan = this.#planFor(run, cp);
-    const args = this.#argsFor(plan, options.draft, cp);
+    const args = this.#createArgs(plan, options.labels, cp);
     const result = (alreadyDone: boolean, calls: number): CreateStepResult => ({
       invoiceId: cp.invoiceId as string,
       invoiceNumber: plan.invoiceNumber,
@@ -558,7 +646,7 @@ export class Invoices {
     });
     if (cp.invoiceId) return result(true, 0);
     const { call, calls } = this.#caller(options.priority);
-    await this.#createStep(run.runId, plan, args, call);
+    await this.#createStep(run.runId, plan, cp, args, call, options.policy);
     cp = await this.checkpoint(run.runId);
     return result(false, calls());
   }
@@ -571,7 +659,8 @@ export class Invoices {
   async ensureForRun(run: InvoiceRun, options: EnsureInvoiceOptions = {}): Promise<EnsureInvoiceResult> {
     let cp = await this.checkpoint(run.runId);
     const plan = this.#planFor(run, cp);
-    const args = this.#argsFor(plan, options.draft, cp);
+    const args = this.#createArgs(plan, options.labels, cp);
+    const { policy } = options;
     if (run.sendApproval && run.sendApproval.invoiceNumber !== plan.invoiceNumber) {
       throw new InvoiceApprovalError(
         `The treasurer approved sending ${run.sendApproval.invoiceNumber}, not ${plan.invoiceNumber}`,
@@ -599,11 +688,11 @@ export class Invoices {
     // At most two passes: a SCHEDULED invoice is replaced once, and a second SCHEDULED halts.
     for (;;) {
       if (!cp.invoiceId) {
-        await this.#createStep(run.runId, plan, args, call);
+        await this.#createStep(run.runId, plan, cp, args, call, policy);
         await reload();
       }
       if (this.#ruleBeforeSend && !cp.ruleSetAt) {
-        await this.#ruleStep(run.runId, cp, call);
+        await this.#ruleStep(run.runId, plan, cp, call, { policy });
         await reload();
       }
       if (!cp.sentAt) {
@@ -613,7 +702,7 @@ export class Invoices {
         // recreated invoice waits for the treasurer's approval of it, unsent.
         if (approval.invoiceId != null && approval.invoiceId === cp.scheduledInvoiceId)
           return result("PENDING_APPROVAL");
-        await this.#sendStep(run.runId, plan, cp, approval, call, { bound: false });
+        await this.#sendStep(run.runId, plan, cp, approval, call, { bound: false, policy });
         await reload();
       }
       if (!cp.payableAt) {
@@ -625,7 +714,7 @@ export class Invoices {
         }
       }
       if (!cp.ruleSetAt) {
-        await this.#ruleStep(run.runId, cp, call);
+        await this.#ruleStep(run.runId, plan, cp, call, { policy });
         await reload();
       }
       return result("SENT");
@@ -641,7 +730,7 @@ export class Invoices {
   async send(
     run: InvoiceRun,
     approval: TreasurerApproval | null,
-    options: { priority?: CallPriority } = {},
+    options: InvoiceStepOptions = {},
   ): Promise<SendStepResult> {
     let cp = await this.checkpoint(run.runId);
     const plan = this.#planFor(run, cp);
@@ -653,7 +742,7 @@ export class Invoices {
       throw new InvoiceApprovalError(`Sending ${plan.invoiceNumber} needs the treasurer's approval`);
     const { call, calls } = this.#caller(options.priority);
     if (!cp.sentAt && approval) {
-      await this.#sendStep(run.runId, plan, cp, approval, call, { bound: true });
+      await this.#sendStep(run.runId, plan, cp, approval, call, { bound: true, policy: options.policy });
       cp = await this.checkpoint(run.runId);
     }
     await this.#readInvoice(run.runId, cp, call, { recover: false });
@@ -662,39 +751,54 @@ export class Invoices {
   }
 
   /**
-   * The AUTO_CANCEL step alone (the agent's rule): PayPal's invoice date + 25 days, never another
-   * date. `endDate`, when given, must be that date, or nothing is sent (InvoiceRuleDateError).
+   * The AUTO_CANCEL step alone (the agent's rule): core's canonical rule, on PayPal's invoice date +
+   * 25 days, never another date. `draft`, the rule the agent wrote out in full, must be that body
+   * exactly, or nothing is sent (InvoiceDraftRejectedError).
    */
   async ensureRule(
     run: InvoiceRun,
-    options: { priority?: CallPriority; endDate?: string } = {},
+    options: InvoiceStepOptions & { draft?: unknown } = {},
   ): Promise<RuleStepResult> {
     let cp = await this.checkpoint(run.runId);
-    this.#planFor(run, cp);
+    const plan = this.#planFor(run, cp);
     if (!cp.invoiceId) throw new InvoiceStateError(`Run ${run.runId} has no invoice yet`);
     const invoiceId = cp.invoiceId;
     if (cp.ruleSetAt && cp.autoCancelOn) {
-      if (options.endDate !== undefined && options.endDate !== cp.autoCancelOn)
-        throw new InvoiceRuleDateError(options.endDate, cp.autoCancelOn);
+      if (options.draft !== undefined) {
+        const rule = this.#canonical(plan, cp, "create_conditional_rules_for_invoice");
+        const differences = draftDifferences(options.draft, rule.args);
+        if (differences.length > 0) throw new InvoiceDraftRejectedError(differences);
+      }
       return { invoiceId, autoCancelOn: cp.autoCancelOn, alreadyDone: true, calls: 0 };
     }
     const { call, calls } = this.#caller(options.priority);
-    await this.#ruleStep(run.runId, cp, call, options.endDate);
+    await this.#ruleStep(run.runId, plan, cp, call, { draft: options.draft, policy: options.policy });
     cp = await this.checkpoint(run.runId);
     return { invoiceId, autoCancelOn: cp.autoCancelOn as string, alreadyDone: false, calls: calls() };
   }
 
   /** get_invoice for the run's own invoice (the agent's read). Writes nothing. */
-  async fetch(run: InvoiceRun, options: { priority?: CallPriority } = {}): Promise<unknown> {
+  async fetch(run: InvoiceRun, options: InvoiceStepOptions = {}): Promise<unknown> {
     const cp = await this.checkpoint(run.runId);
-    this.#planFor(run, cp);
+    const plan = this.#planFor(run, cp);
     if (!cp.invoiceId) throw new InvoiceStateError(`Run ${run.runId} has no invoice yet`);
-    return this.#tk("get_invoice", { invoice_id: cp.invoiceId }, undefined, options);
+    const args = frozen({ invoice_id: cp.invoiceId });
+    await this.#decide(options.policy, { name: "get_invoice", args }, plan, cp);
+    return this.#tk("get_invoice", args, undefined, { priority: options.priority });
   }
 
   /** Create or adopt, then checkpoint the invoice (and its sent and payable state, when PayPal shows them). */
-  async #createStep(runId: string, plan: InvoicePlan, args: CreateInvoiceArgs, call: Call): Promise<void> {
-    const created = await this.#createOrAdopt(plan, args, call);
+  async #createStep(
+    runId: string,
+    plan: InvoicePlan,
+    cp: InvoiceCheckpoint,
+    args: CreateInvoiceArgs,
+    call: Call,
+    policy: InvoicePolicy | undefined,
+  ): Promise<void> {
+    const body = frozen(args);
+    await this.#decide(policy, { name: "create_invoice", args: body }, plan, cp);
+    const created = await this.#createOrAdopt(plan, body, call);
     const at = this.#stamp();
     await this.#repo.save(runId, {
       invoiceId: created.invoiceId,
@@ -718,7 +822,7 @@ export class Invoices {
     cp: InvoiceCheckpoint,
     approval: TreasurerApproval,
     call: Call,
-    options: { bound: boolean },
+    options: { bound: boolean; policy?: InvoicePolicy | undefined },
   ): Promise<void> {
     const invoiceId = cp.invoiceId as string;
     if (!approvalCovers(approval, { invoiceNumber: plan.invoiceNumber, invoiceId }, options)) {
@@ -731,7 +835,10 @@ export class Invoices {
         `The treasurer's approval names ${approval?.invoiceNumber ?? "nothing"}${named}, not this send of ${plan.invoiceNumber} (${invoiceId})`,
       );
     }
-    const payerViewUrl = await this.#send(invoiceId, call);
+    // sendNeedsTreasurer: the lattice asks for the approval this step has just checked.
+    const body = frozen(this.#canonical(plan, cp, "send_invoice").args);
+    await this.#decide(options.policy, { name: "send_invoice", args: body }, plan, cp, true);
+    const payerViewUrl = await this.#send(body, call);
     await this.#repo.save(runId, { sentAt: this.#stamp(), payerViewUrl: payerViewUrl ?? cp.payerViewUrl });
   }
 
@@ -818,24 +925,36 @@ export class Invoices {
     });
   }
 
-  async #ruleStep(runId: string, cp: InvoiceCheckpoint, call: Call, endDate?: string): Promise<void> {
+  /**
+   * Core's canonical AUTO_CANCEL rule, on PayPal's invoice date + 25 days (read with a GET first when
+   * the run does not hold it yet), under request id `cr-{invoiceId}`. An agent's full `draft` of the
+   * rule must be exactly that body; the date must be after PayPal's today and within 30 days.
+   */
+  async #ruleStep(
+    runId: string,
+    plan: InvoicePlan,
+    cp: InvoiceCheckpoint,
+    call: Call,
+    options: { draft?: unknown; policy?: InvoicePolicy | undefined },
+  ): Promise<void> {
     const invoiceId = cp.invoiceId as string;
-    let invoiceDate = cp.invoiceDate;
-    if (invoiceDate === null) {
+    let dated = cp;
+    if (dated.invoiceDate === null) {
       await this.#readInvoice(runId, cp, call, { recover: false });
-      invoiceDate = (await this.checkpoint(runId)).invoiceDate;
-      if (invoiceDate === null) throw new InvoiceStateError(`No invoice date for ${invoiceId}`);
+      dated = { ...cp, invoiceDate: (await this.checkpoint(runId)).invoiceDate };
+      if (dated.invoiceDate === null) throw new InvoiceStateError(`No invoice date for ${invoiceId}`);
     }
-    const autoCancelOn = autoCancelDate(invoiceDate);
-    if (endDate !== undefined && endDate !== autoCancelOn)
-      throw new InvoiceRuleDateError(endDate, autoCancelOn);
+    const rule = this.#canonical(plan, dated, "create_conditional_rules_for_invoice");
+    if (options.draft !== undefined) {
+      const differences = draftDifferences(options.draft, rule.args);
+      if (differences.length > 0) throw new InvoiceDraftRejectedError(differences);
+    }
+    const autoCancelOn = rule.args.rules[0].rule_expiry_terms.condition_rule_end_date;
     const outside = autoCancelWindowError(autoCancelOn, ppDate(this.#now()));
     if (outside) throw new InvoiceStateError(`No AUTO_CANCEL rule for ${invoiceId}: ${outside}`);
-    await call(
-      "create_conditional_rules_for_invoice",
-      autoCancelRuleArgs(invoiceId, autoCancelOn),
-      conditionalRuleRequestId(invoiceId),
-    );
+    const body = frozen(rule.args);
+    await this.#decide(options.policy, { name: rule.method, args: body }, plan, dated);
+    await call(rule.method, body, conditionalRuleRequestId(invoiceId));
     await this.#repo.save(runId, { ruleSetAt: this.#stamp(), autoCancelOn });
   }
 
@@ -897,14 +1016,14 @@ export class Invoices {
     };
   }
 
-  async #send(invoiceId: string, call: Call): Promise<string | null> {
+  async #send(body: { invoice_id: string; send_to_recipient: false }, call: Call): Promise<string | null> {
     try {
-      return payerViewUrlFromSend(await call<unknown>("send_invoice", sendInvoiceArgs(invoiceId)));
+      return payerViewUrlFromSend(await call<unknown>("send_invoice", body));
     } catch (error) {
       if (!(error instanceof ToolkitError)) throw error;
       // S3.10: a send that may have happened is checked with a GET (SCHEDULED counts as sent: the
       // payable GET that follows deals with it).
-      const invoice = await call<InvoiceLike>("get_invoice", { invoice_id: invoiceId });
+      const invoice = await call<InvoiceLike>("get_invoice", { invoice_id: body.invoice_id });
       const status = str(invoice?.status);
       if (status !== null && (SENT_STATUSES.has(status) || status === "SCHEDULED"))
         return str(invoice.detail?.metadata?.recipient_view_url);
