@@ -414,7 +414,6 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
           onKeyDown={onKey}
           data-testid="W-PF-01.trace.zoom-out"
           aria-label={LINES_COPY.zoomOut}
-          aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Minus"
         >
           <span aria-hidden>−</span>
         </button>
@@ -425,7 +424,6 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
           onKeyDown={onKey}
           data-testid="W-PF-01.trace.zoom-in"
           aria-label={LINES_COPY.zoomIn}
-          aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Plus"
         >
           <span aria-hidden>+</span>
         </button>
