@@ -1,0 +1,58 @@
+{
+  "v": 2,
+  "id": "br-2026-04-p1",
+  "group": "docs",
+  "synthetic": true,
+  "image": {
+    "master": "masters/br-2026-04-p1.jpg",
+    "display": "docs/br-2026-04-p1.webp",
+    "width": 1055,
+    "height": 1491,
+    "sha256": "e2d156ab17d6ba940e9cfc686e455251fa3d3d36dc048e5b0b8bfae61270d265"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "text-block detect v1 (dark-pixel line profile, blocks split on blank lines); values and crops checked: Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
+    "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+    "reviewedAt": "2026-10-22T12:20:00.000Z",
+    "notes": [
+      "Values checked: Claude (WS-MEDIA agent), visual check; the user's label review is still required, 2026-10-22T12:20:00.000Z"
+    ],
+    "cropIssues": []
+  },
+  "kind": "rate_card_page",
+  "page": 1,
+  "textLayer": "docs/BR-2026-04.text.json",
+  "blocks": [
+    {
+      "id": "GA_CITATION",
+      "rect": {
+        "x1": 0.0597,
+        "y1": 0.3756,
+        "x2": 0.9403,
+        "y2": 0.4675
+      },
+      "text": "WHEREAS, the General Assembly, at its meeting of …"
+    },
+    {
+      "id": "MANDATE",
+      "rect": {
+        "x1": 0.0607,
+        "y1": 0.4903,
+        "x2": 0.9374,
+        "y2": 0.5594
+      },
+      "text": "WHEREAS, the General Assembly directed the Board of Directors …"
+    },
+    {
+      "id": "RESOLVED",
+      "rect": {
+        "x1": 0.0616,
+        "y1": 0.5835,
+        "x2": 0.9308,
+        "y2": 0.6546
+      },
+      "text": "NOW, THEREFORE, … to adopt Schedule A …"
+    }
+  ]
+}

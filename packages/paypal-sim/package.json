@@ -1,0 +1,32 @@
+{
+  "name": "@fairsplit/paypal-sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Contract-faithful simulator of the PayPal REST subset Fair Split uses (simulated rail, ADR-0002)",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "start": "tsx src/bin/start.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@paypal/agent-toolkit": "catalog:",
+    "@paypal/paypal-server-sdk": "catalog:",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -12,13 +12,20 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "eval": "tsx src/run.ts",
+    "eval:replay": "tsx src/run.ts --mode replay --set test",
+    "eval:live": "tsx src/run.ts --mode live --set test --cap-usd 3"
   },
   "dependencies": {
     "@fairsplit/ai": "workspace:*",
-    "@fairsplit/contracts": "workspace:*"
+    "@fairsplit/contracts": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "msw": "catalog:",
+    "sharp": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/node": "catalog:"

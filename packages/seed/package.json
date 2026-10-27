@@ -8,9 +8,11 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./snapshot/season-2026A.json": "./snapshot/season-2026A.json"
   },
   "scripts": {
+    "generate": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
@@ -21,6 +23,7 @@
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:",
+    "tsx": "catalog:",
     "@types/node": "catalog:"
   }
 }

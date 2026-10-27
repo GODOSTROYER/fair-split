@@ -11,13 +11,17 @@
     }
   },
   "scripts": {
+    "review": "tsx src/review-doc.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
-    "i18next": "catalog:"
+    "i18next": "catalog:",
+    "i18next-icu": "catalog:",
+    "intl-messageformat": "catalog:"
   },
   "devDependencies": {
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/node": "catalog:"

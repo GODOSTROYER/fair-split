@@ -1,0 +1,20 @@
+@fairsplit/paypal-payouts
+Copyright 2026 Fair Split contributors (MIT, see the repository LICENSE)
+
+This package contains code adapted from PayPal Agent Toolkit, pull request #107
+("Add Payouts tools (Python and TypeScript)", https://github.com/paypal/agent-toolkit/pull/107,
+head commit 5cca31b98598659b6baaa0c151d01a58009d71d6), Copyright PayPal and contributors,
+licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0):
+
+  - src/regex.ts: the payout ID and amount patterns (typescript/src/shared/regex.ts), unchanged.
+  - src/parameters.ts: the four payout parameter schemas (typescript/src/shared/parameters.ts).
+    Changed only in formatting and in the unused context parameter's name; the converted JSON
+    Schema is identical to the PR's.
+  - src/prompts.ts: the four payout tool descriptions (typescript/src/shared/prompts.ts); the text
+    is identical.
+  - src/tools.ts: the four Tool entries and the ALL_TOOLS_ENABLED exclusion of create and cancelItem
+    (typescript/src/shared/tools.ts); names, actions and shape unchanged.
+  - src/functions.ts: the four payout functions (typescript/src/shared/functions.ts), changed to send
+    through an injected PayPalHttp instead of axios and PayPalClient and to return its result union.
+
+The Apache License 2.0 applies to those portions.

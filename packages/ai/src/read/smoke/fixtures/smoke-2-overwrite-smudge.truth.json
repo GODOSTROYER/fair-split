@@ -1,0 +1,32 @@
+[
+  {
+    "serial": "0902",
+    "values": {
+      "serial": "0902",
+      "line_no": "",
+      "date": "7/15/26",
+      "member_no": "M-102",
+      "member_name": "BENJIE TAN",
+      "plot_no": "P-102-B",
+      "sacks": "3 JUTE",
+      "gross_kg": "81.20",
+      "tare_kg": "0.45",
+      "net_kg": "80.75",
+      "mc_pct": "8.0",
+      "mc_less_kg": "0.81",
+      "payable_kg": "79.94",
+      "grade": "G2",
+      "clerk_initials": "JD"
+    },
+    "deductions": ["Multa (absent GA) 200"],
+    "overwritten": {
+      "field": "grade",
+      "from": "G1"
+    },
+    "smudged": {
+      "field": "net_kg",
+      "charIndex": 1
+    },
+    "marginNote": null
+  }
+]

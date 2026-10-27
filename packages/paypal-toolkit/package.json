@@ -12,7 +12,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "spike:s2": "tsx spikes/s2-openai-schemas.ts"
   },
   "dependencies": {
     "zod": "catalog:zod3",
@@ -20,8 +21,11 @@
     "@fairsplit/paypal-core": "workspace:*"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@types/node": "catalog:",
+    "msw": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@types/node": "catalog:"
+    "vitest": "catalog:"
   }
 }

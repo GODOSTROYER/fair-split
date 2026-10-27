@@ -1,0 +1,154 @@
+/* M-MB-01 inside a phone frame: the app's Adlaw daylight theme, statement-first. */
+
+.mb {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 100%;
+  padding: 16px 16px 0;
+  background: var(--fs-ground);
+  color: var(--fs-ink);
+}
+
+.mb-review {
+  justify-self: start;
+  padding: 3px 8px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+}
+
+.mb-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px 16px 16px;
+  background: var(--fs-plate);
+}
+
+.mb-card__head {
+  display: grid;
+  gap: 2px;
+}
+
+.mb-muted {
+  color: var(--fs-ink-2);
+}
+
+.mb-greeting {
+  max-width: 24ch;
+}
+
+.mb-detail {
+  color: var(--fs-ink-2);
+}
+
+.mb-amount .fs-amount__figure {
+  font-size: 3rem;
+  line-height: 3.25rem;
+}
+
+.mb-listen {
+  position: relative;
+}
+
+.mb-listen__ring {
+  position: absolute;
+  inset: -6px 0 -2px -6px;
+  border: 1px solid var(--fs-ink);
+  pointer-events: none;
+}
+
+.mb-slips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mb-slip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink);
+}
+
+.mb-history {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mb-history li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.mb-history__stamps {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.mb-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.mb-questions {
+  padding: 0 4px;
+  color: var(--fs-ink);
+}
+
+.mb-recheck {
+  justify-self: start;
+  margin-left: 4px;
+  min-height: 48px;
+}
+
+.mb-nav {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 8px -16px 0;
+  padding: 10px 0 16px;
+  border-top: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+}
+
+.mb-nav__tab {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: var(--fs-ink-2);
+}
+
+.mb-nav__indicator {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 30px;
+  border-radius: 15px;
+}
+
+.mb-nav__tab[aria-current="page"] {
+  color: var(--fs-ink);
+}
+
+.mb-nav__tab[aria-current="page"] .mb-nav__indicator {
+  background: var(--fs-rule);
+}

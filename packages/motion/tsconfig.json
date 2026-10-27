@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
-    "noEmit": true
+    "noEmit": true,
+    "lib": ["ES2023", "DOM"]
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts"]
 }

@@ -8,21 +8,43 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./gateway": {
+      "types": "./src/gateway/index.ts",
+      "default": "./src/gateway/index.ts"
+    },
+    "./read": {
+      "types": "./src/read/index.ts",
+      "default": "./src/read/index.ts"
+    },
+    "./ratecard": {
+      "types": "./src/ratecard/index.ts",
+      "default": "./src/ratecard/index.ts"
+    },
+    "./classify": {
+      "types": "./src/classify/index.ts",
+      "default": "./src/classify/index.ts"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "smoke:images": "tsx src/read/smoke/make-images.ts",
+    "smoke:live": "tsx src/read/smoke/run-live.ts",
+    "smoke:components": "tsx src/read/smoke/run-components.ts"
   },
   "dependencies": {
     "@fairsplit/contracts": "workspace:*",
     "@fairsplit/domain": "workspace:*",
     "@anthropic-ai/sdk": "catalog:",
+    "canonicalize": "catalog:",
     "partial-json": "catalog:",
     "sharp": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "msw": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/node": "catalog:"
