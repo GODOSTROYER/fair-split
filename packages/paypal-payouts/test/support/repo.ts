@@ -139,11 +139,17 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
     row.status = "REJECTED";
   }
 
-  /** Voids the run's approvals and moves it back to IN_REVIEW: loadPosting then holds none. */
+  /**
+   * Voids the run's approvals and moves it back to IN_REVIEW, so loadPosting then holds none; a run
+   * whose primary batch rows were written (POSTING) is left as it is.
+   */
   async voidApprovals(v: Parameters<PayoutsRepository["voidApprovals"]>[0]): Promise<void> {
     this.events.push({ type: "voidApprovals", runId: v.runId, code: v.code, reason: v.reason, at: v.at });
     const posting = this.postings.get(v.runId);
-    if (posting) this.postings.set(v.runId, { ...posting, approvals: [] });
+    const posted = [...this.batches.values()].some(
+      (b) => b.batch.runId === v.runId && b.batch.kind === "primary",
+    );
+    if (posting && !posted) this.postings.set(v.runId, { ...posting, approvals: [] });
   }
 
   async findItem(payoutItemId: string): Promise<PayoutItemRow | null> {

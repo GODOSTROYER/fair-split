@@ -303,7 +303,8 @@ export interface PayoutsRepository {
   /**
    * S3.6.4 step 3: the run's approvals failed their check before anything was written for its batch.
    * In one transaction: void every approval of the run not voided yet (voided_at, the reason) and move
-   * the run back to IN_REVIEW, so both keys sign again what the database holds now.
+   * the run back to IN_REVIEW, so both keys sign again what the database holds now. Compare-and-set on
+   * the run's state: a run another call already moved to POSTING (its rows written) is left as it is.
    */
   voidApprovals(voided: {
     runId: string;
