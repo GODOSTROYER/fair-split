@@ -1,15 +1,17 @@
 // Statements and re-check requests at the HTTP boundary, on embedded Postgres with the seed's showcase run:
 // who may read a statement, createReviewRequest with every listed error, the ledger entry it appends in the same
 // transaction (and the Proof still verifies after it), and the `explain` task through the real outbox.
+import { createHash } from "node:crypto";
 import { type ApiError, ProofResponse, ReviewRequestDTO, TASKS } from "@fairsplit/contracts";
-import { schema } from "@fairsplit/db";
-import { format, verifyChain } from "@fairsplit/domain";
+import { schema, withWorkspaceTx } from "@fairsplit/db";
+import { format, sha256Hex, verifyChain } from "@fairsplit/domain";
 import { enqueue } from "@fairsplit/outbox";
 import { getLine, getMember } from "@fairsplit/seed";
-import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { and, eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { commitmentSalt } from "../../ledger/commitments.js";
 import { loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
-import { noteSha256, REVIEW_LEDGER_KIND } from "../../statements/review.js";
+import { REVIEW_LEDGER_KIND, type ReviewOpening } from "../../statements/review.js";
 import { TEMPLATES_V1 } from "../../statements/templates.js";
 import type { StatementView } from "../../statements/view.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
@@ -139,6 +141,36 @@ describe("createReviewRequest (POST /v1/review-requests)", () => {
     });
   }
 
+  const noteSalt = (reviewRequestId: string) =>
+    commitmentSalt(t.deps.credentials.keys, {
+      purpose: "review.note",
+      workspaceId: w.workspaceId,
+      subjectId: reviewRequestId,
+    });
+
+  async function reviewEntries() {
+    const rows = await t.deps.db
+      .select({ seq: schema.ledgerEntries.seq, payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(
+        and(
+          eq(schema.ledgerEntries.workspaceId, w.workspaceId),
+          eq(schema.ledgerEntries.kind, REVIEW_LEDGER_KIND),
+        ),
+      );
+    return rows.map((r) => ({ seq: Number(r.seq), payload: r.payload as Record<string, unknown> }));
+  }
+
+  /** Advisory locks some session of this test database is waiting for. */
+  async function waitingAdvisoryLocks(): Promise<number> {
+    const rows = await t.deps.db.execute(
+      sql`select count(*)::int as n from pg_locks
+          where locktype = 'advisory' and not granted
+            and database = (select oid from pg_database where datname = current_database())`,
+    );
+    return Number((rows[0] as { n: number }).n);
+  }
+
   it("a member asks about their own line and a slip: 201, a row and a ledger entry with the note's hash only", async () => {
     const token = await memberToken("M-014");
     const slip = must(must(getLine("M-014")).slipSerials[0]);
@@ -167,16 +199,84 @@ describe("createReviewRequest (POST /v1/review-requests)", () => {
         ),
       );
     const entry = entries.find((e) => (e.payload as { reviewRequestId?: string }).reviewRequestId === dto.id);
+    // sha256(salt ‖ note) with a salt only this server can derive: checkable with plain sha256 once opened
+    const salt = noteSalt(dto.id);
     expect(entry?.payload).toEqual({
       reviewRequestId: dto.id,
       runId: w.runId,
       lineId: line("M-014"),
       memberNo: "M-014",
       slipSerial: slip,
-      noteSha256: noteSha256(note),
+      noteSha256: createHash("sha256").update(salt).update(note, "utf8").digest("hex"),
     });
     expect(JSON.stringify(entry?.payload)).not.toContain("palihug");
     expect(entry?.actorId).toBe("member:M-014");
+  });
+
+  it("the public chain never carries a bare hash of a note: no dictionary opens it, equal notes do not link", async () => {
+    const note = "Kulang ang timbang";
+    const filed: string[] = [];
+    for (const no of ["M-018", "M-033"]) {
+      const r = await t.json<{ reviewRequest: ReviewRequestDTO }>("/v1/review-requests", {
+        method: "POST",
+        body: { lineId: line(no), note },
+        as: t.credentials.bearer(await memberToken(no)),
+      });
+      expect(r.status).toBe(201);
+      filed.push(r.body.reviewRequest.id);
+    }
+    const committed = (await reviewEntries())
+      .filter((e) => filed.includes(e.payload.reviewRequestId as string))
+      .map((e) => e.payload.noteSha256);
+    expect(committed).toHaveLength(2);
+    expect(committed).not.toContain(sha256Hex(note));
+    expect(committed[0]).not.toBe(committed[1]);
+    // the public Proof carries the entries, and nowhere the bare hash
+    const r = await t.json<unknown>(`/v1/proof/${w.runSlug}`);
+    expect(JSON.stringify(r.body)).not.toContain(sha256Hex(note));
+  });
+
+  it("two concurrent requests (different Idempotency-Keys) file once: the workspace lock comes before the duplicate check", async () => {
+    const token = await memberToken("M-039");
+    const body = { lineId: line("M-039"), note: "Duha ka resibo sa 0412?" };
+    let locked!: () => void;
+    let release!: () => void;
+    const held = new Promise<void>((r) => {
+      locked = r;
+    });
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    // Another writer holds the workspace lock, so both requests queue behind it at the same point.
+    const holder = withWorkspaceTx(t.deps.db, w.workspaceId, async () => {
+      locked();
+      await gate;
+    });
+    await held;
+    const post = (key: string) =>
+      t.json<{ reviewRequest: ReviewRequestDTO }>("/v1/review-requests", {
+        method: "POST",
+        body,
+        headers: { "idempotency-key": key },
+        as: t.credentials.bearer(token),
+      });
+    const first = post("double-tap-1");
+    const second = post("double-tap-2");
+    await vi.waitFor(async () => expect(await waitingAdvisoryLocks()).toBe(2), { timeout: 10_000 });
+    release();
+    await holder;
+    const [a, b] = await Promise.all([first, second]);
+    expect([a.status, b.status]).toEqual([201, 201]);
+    expect(b.body.reviewRequest.id).toBe(a.body.reviewRequest.id);
+    const rows = await t.deps.db
+      .select({ id: schema.reviewRequests.id })
+      .from(schema.reviewRequests)
+      .where(eq(schema.reviewRequests.lineId, line("M-039")));
+    expect(rows).toHaveLength(1);
+    const entries = (await reviewEntries()).filter(
+      (e) => e.payload.reviewRequestId === a.body.reviewRequest.id,
+    );
+    expect(entries).toHaveLength(1);
   });
 
   it("a double tap files once (the identical open request comes back)", async () => {
@@ -308,9 +408,9 @@ describe("createReviewRequest (POST /v1/review-requests)", () => {
     expect(over.body.code).toBe("RATE_LIMITED");
   });
 
-  it("lists a line's requests for its member and the officers", async () => {
+  it("lists a line's requests for its member and the officers, each with the opening of its chain entry", async () => {
     const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
-    const r = await t.json<{ reviewRequests: ReviewRequestDTO[] }>(
+    const r = await t.json<{ reviewRequests: ReviewRequestDTO[]; openings: ReviewOpening[] }>(
       `/v1/statements/${line("M-014")}/review-requests`,
       {
         as: t.credentials.bearer(link),
@@ -318,6 +418,32 @@ describe("createReviewRequest (POST /v1/review-requests)", () => {
     );
     expect(r.status).toBe(200);
     expect(r.body.reviewRequests.map((x) => x.slipSerial)).toEqual([must(getLine("M-014")).slipSerials[0]]);
+    // the member checks their request is on the public chain with plain sha256: salt ‖ note → the entry's hash
+    const [req] = r.body.reviewRequests;
+    const [opening] = r.body.openings;
+    const entry = must((await reviewEntries()).find((e) => e.payload.reviewRequestId === must(req).id));
+    expect(opening).toEqual({
+      reviewRequestId: must(req).id,
+      ledgerSeq: entry.seq,
+      noteSha256: entry.payload.noteSha256,
+      saltHex: noteSalt(must(req).id).toString("hex"),
+    });
+    const recomputed = createHash("sha256")
+      .update(Buffer.from(must(opening?.saltHex), "hex"))
+      .update(must(req?.note), "utf8")
+      .digest("hex");
+    expect(recomputed).toBe(entry.payload.noteSha256);
+    // a request without a note has nothing to open
+    const officer = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
+    const bare = await t.json<{ openings: ReviewOpening[] }>(
+      `/v1/statements/${line("M-053")}/review-requests`,
+      {
+        as: t.credentials.bearer(officer),
+      },
+    );
+    expect(bare.body.openings).toEqual([
+      expect.objectContaining({ noteSha256: null, saltHex: null, ledgerSeq: expect.any(Number) }),
+    ]);
   });
 });
 

@@ -12,7 +12,7 @@ import { reply } from "../../lib/command.js";
 import { defineRouteFolder } from "../../lib/slice.js";
 import { readableStatement } from "../../statements/access.js";
 import { explainTask } from "../../statements/explain.js";
-import { createReviewRequest, listReviewRequests } from "../../statements/review.js";
+import { createReviewRequest, listReviewRequests, ReviewOpening } from "../../statements/review.js";
 import { StatementView, statementView } from "../../statements/view.js";
 
 const StatementQuery = z.strictObject({ lang: ContractLang.optional() });
@@ -68,7 +68,12 @@ export default defineRouteFolder({
         auth: "public",
         name: "reviewRequests",
         summary: "A line's re-check requests (open ones show on W-TR-09 and the member's Pangutana)",
-        response: z.strictObject({ reviewRequests: z.array(ReviewRequestDTO) }),
+        description:
+          "Same readers as the statement. Each request's `review.requested` chain entry records only `noteSha256 = sha256(salt ‖ utf8(note))`, so the public Proof's ledger never opens to a dictionary of notes; `openings` hands this line's readers each salt, to check the entry with plain sha256.",
+        response: z.strictObject({
+          reviewRequests: z.array(ReviewRequestDTO),
+          openings: z.array(ReviewOpening),
+        }),
         errors: ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "FORBIDDEN"],
       },
       async (ctx) => {
@@ -79,14 +84,13 @@ export default defineRouteFolder({
           ctx.params.lineId,
           undefined,
         );
-        return {
-          reviewRequests: await listReviewRequests(
-            ctx.deps.db,
-            sc.workspaceId,
-            sc.facts.lineId,
-            sc.facts.memberNo,
-          ),
-        };
+        return listReviewRequests(
+          ctx.deps.db,
+          ctx.deps.credentials,
+          sc.workspaceId,
+          sc.facts.lineId,
+          sc.facts.memberNo,
+        );
       },
     );
   },
