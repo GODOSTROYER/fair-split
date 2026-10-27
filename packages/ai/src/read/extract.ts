@@ -1095,6 +1095,10 @@ export function remainingStrings(
  * when nothing was left to re-screen (`rescreen` null: there is no clean verdict to rely on).
  * A screen that could not run never saw the image, and the re-screen sees text only: then the crops
  * stay withheld even after a clean re-screen (its holds stay as located).
+ * Residual risk, as S4.2 has it (crops are withheld only when no read located the text): a screen
+ * that ran and fired, with located text and a clean text re-screen, releases the crops, so a second
+ * injection both reads missed could sit inside a zoom crop. There a zoom can only agree with read A
+ * or B (rule 6, 0.80: a person still confirms), and the agent's crops are hatched at every located box.
  */
 export function screenFallout(
   docId: string,
