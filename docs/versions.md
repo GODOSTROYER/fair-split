@@ -81,6 +81,8 @@ pin must be **at least 14 days old** when it is chosen. Only `deps/*` PRs change
 | `i18next`                                      | 26.5.4   | `catalog:`     | 2026-10-21 | **no** (1 d)           |
 | `react-i18next`                                | 17.1.0   | `catalog:`     | 2026-10-17 | **no** (5 d)           |
 | `@noble/curves`                                | 2.4.0    | `catalog:`     | 2026-08-27 | yes                    |
+| `yaml`                                         | 2.9.1    | `catalog:`     | 2026-09-11 | yes (41 d)             |
+| `ajv`                                          | 8.20.0   | `catalog:`     | 2026-04-24 | yes (181 d)            |
 | `zod`                                          | 3.25.76  | `catalog:zod3` | 2025-07-08 | yes                    |
 
 ### Pins under 14 days old
@@ -93,6 +95,20 @@ chosen by the bootstrap scaffold before this check existed, and `pnpm-workspace.
 
 Until that decision lands, treat the table above as the record of what is installed, not as compliance.
 The user decides; WS-QA opens the ADR.
+
+## Added through deps PRs
+
+Each row above that a `deps/*` PR added after the first check, with its consumer and why.
+
+| Package | Version | PR                            | Consumer           | Why                                                                                      |
+| ------- | ------- | ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------- |
+| `yaml`  | 2.9.1   | `deps/ops-pins` (22 Oct 2026) | `apps/tasks` (dev) | `tools/lib/blueprint.ts` parses `render.yaml` for the Blueprint lint (S3.13, S3.17)      |
+| `ajv`   | 8.20.0  | `deps/ops-pins` (22 Oct 2026) | `apps/tasks` (dev) | Validates `render.yaml` against Render's published Blueprint JSON Schema (draft 2020-12) |
+
+Publish dates checked on 22 Oct 2026 with `npm view <pkg> time --json`. `yaml` is an optional peer of
+`vite`, so the lockfile also records it in the peer suffix of every importer's `vite`, `vitest` and `msw`
+entries. That churn is why the lockfile changes only in `deps/*` PRs, merged one at a time and before the
+workstream that consumes them.
 
 ## Planned additions (not installed yet)
 

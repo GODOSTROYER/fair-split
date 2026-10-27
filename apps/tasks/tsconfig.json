@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src",
+    "test",
+    "build",
+    "tsdown.config.ts",
+    "vitest.config.ts",
+    "../../tools/verify.ts",
+    "../../tools/health-check.ts",
+    "../../tools/spike-s6.ts",
+    "../../tools/scan-dist.ts",
+    "../../tools/lint-render.ts",
+    "../../tools/lib/**/*.ts"
+  ]
+}

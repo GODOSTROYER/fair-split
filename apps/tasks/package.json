@@ -1,0 +1,30 @@
+{
+  "name": "@fairsplit/tasks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render Workflows entry (extract, readRateCard, warmCaches), the cron plan and the inline executor for every TaskName",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "inline": "tsx src/inline.ts",
+    "cron:plan": "tsx src/cron.ts --plan"
+  },
+  "dependencies": {
+    "@fairsplit/contracts": "workspace:*",
+    "@renderinc/sdk": "catalog:",
+    "pino": "catalog:",
+    "postgres": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "ajv": "catalog:",
+    "msw": "catalog:",
+    "tsdown": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "yaml": "catalog:"
+  }
+}

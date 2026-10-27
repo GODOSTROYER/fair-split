@@ -1,0 +1,6 @@
+{
+  "name": "@fairsplit/tools",
+  "private": true,
+  "type": "module",
+  "description": "Repo tools run with tsx from the root (not a workspace package)"
+}

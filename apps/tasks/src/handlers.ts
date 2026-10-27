@@ -1,0 +1,95 @@
+// The handler port. Implementations live in other workstreams (outbox, paypal-*, ai); this package
+// only wires them to an executor. A handler receives ids only, loads its state by id, claims its
+// `task_outbox` row optimistically and is a no-op when run twice (architecture §2 step 4, S3.3).
+//
+// For a Render retry (a new attempt of the same taskRunId, Workflows lanes only) to do useful work,
+// a failed attempt must not leave the row claimed: release it on failure (WS-DATA's runner returns
+// it to `queued`) or make the claim re-entrant for the same run. While the handler runs, the claim
+// heartbeats (WS-DATA's runner), because S3.3's sweeper takes a `running` row after 5 minutes without
+// one and a Workflows attempt may run longer. See the retry model in policy.ts.
+import type { ExecutorKind, TaskName } from "./_shims/contracts.js";
+import type { ActiveFlags } from "./kill.js";
+
+/** What every executor passes to a handler. */
+export interface TaskInvocation {
+  readonly name: TaskName;
+  /** `task_outbox` ids (IC-04 `run(name, ids)`); never payloads. */
+  readonly ids: readonly string[];
+  readonly executor: ExecutorKind;
+  /** Render Workflows run id, when the workflow executor ran it. */
+  readonly taskRunId?: string | undefined;
+  readonly signal?: AbortSignal | undefined;
+  /**
+   * Kill flags in force for this run, read fresh at entry (`FS_KILL` ∪ the workspace's
+   * `system_flags`). Entry has already refused `kill_payouts` tasks; the handler applies the rest:
+   * `paypalLane(flags, kind)` for PayPal calls, `aiLane(flags)` for Claude calls (S3.11).
+   */
+  readonly flags: ActiveFlags;
+}
+
+/**
+ * JSON-serialisable result. `skipped` means the claim found the row already taken or finished,
+ * which is the normal outcome of a duplicate dispatch.
+ */
+export interface TaskOutcome {
+  readonly status: "done" | "skipped" | "failed";
+  readonly detail?: string;
+  /** Machine code for a permanent failure, for example `NOT_WIRED` or `KILL_SWITCH`. */
+  readonly code?: string;
+  /** `replay` when the run served recorded output instead of a live call; the UI labels it (I8). */
+  readonly mode?: "live" | "replay";
+}
+
+export type TaskHandler = (invocation: TaskInvocation) => Promise<TaskOutcome>;
+
+export type TaskHandlers = Readonly<Record<TaskName, TaskHandler>>;
+
+/**
+ * A failure that retrying cannot fix (bad input, a refused policy, a dead row). The wrapper turns it
+ * into a `failed` outcome instead of throwing, so Render does not spend retries on it.
+ */
+export class PermanentTaskError extends Error {
+  override readonly name = "PermanentTaskError";
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** Thrown at task entry when a kill flag that covers the task is on (architecture §11, S3.11). */
+export class KillSwitchError extends PermanentTaskError {
+  constructor(
+    readonly task: TaskName,
+    readonly flag: string,
+  ) {
+    super("KILL_SWITCH", `Task ${task} refused: kill switch ${flag} is on`);
+  }
+}
+
+/** Thrown by the placeholder handlers until the owning workstream's implementation is wired in. */
+export class TaskNotWiredError extends PermanentTaskError {
+  constructor(readonly task: TaskName) {
+    super("NOT_WIRED", `Task ${task} has no handler wired yet`);
+  }
+}
+
+/** Every TaskName mapped to a handler that refuses with NOT_WIRED. */
+export function unwiredHandlers(names: readonly TaskName[]): TaskHandlers {
+  const entries = names.map((name) => [
+    name,
+    async (): Promise<TaskOutcome> => {
+      throw new TaskNotWiredError(name);
+    },
+  ]);
+  return Object.freeze(Object.fromEntries(entries)) as TaskHandlers;
+}
+
+/** Overlay real handlers on the placeholders; unknown keys are a type error. */
+export function withHandlers(
+  base: TaskHandlers,
+  overrides: Partial<Record<TaskName, TaskHandler>>,
+): TaskHandlers {
+  return Object.freeze({ ...base, ...overrides });
+}
