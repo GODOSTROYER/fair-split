@@ -3,11 +3,29 @@
  * hold words and `{{PLACEHOLDERS}}` only; every number is filled in here from engine values formatted by
  * `format.*`. Invariant I1 on the phone: a sentence that carries a digit, or an unknown placeholder, is never shown
  * or spoken.
+ *
+ * The same filled sentences feed three readers:
+ * - the statement and its English gloss (`glossPairs`: the English sentence with the same template id);
+ * - Paminawa (`audioPlan`): each sentence plays its synthetic clip when one was rendered from exactly these words
+ *   (`textSha256`), otherwise the phone's own voice reads it, labelled; Filipino clips stand in for Cebuano ones
+ *   when spike S10 failed ("Audio sa Filipino; teksto sa Cebuano");
+ * - the slip chips, which rise when the voice names a slip (`MentionCue`: a character index for the phone's voice,
+ *   a time offset for a clip).
  */
-import type { StatementDTO } from "../_shims/api-client";
-import type { Lang, StatementSlot, StatementTemplate } from "../_shims/contracts";
-import { FEE_TABLE, format } from "../_shims/domain";
+import type { StatementAudioClip, StatementDTO } from "../_shims/api-client";
+import {
+  type AmountState,
+  amountStateOf,
+  ITEM_STATUS_RANK,
+  type Lang,
+  type LineState,
+  type StatementSlot,
+  type StatementTemplate,
+} from "../_shims/contracts";
+import { FEE_TABLE, format, sha256Hex } from "../_shims/domain";
 import type { Segment } from "../ui/figures";
+import { writtenPesos } from "./figures";
+import { type CapsuleState, EMPTY_TRACK, type ItemTrack } from "./item-status";
 
 export interface PlaceholderValue {
   display: string;
@@ -93,6 +111,11 @@ const kilos = (grams: number): PlaceholderValue => ({
   spoken: format.kg(grams, 1).replace(" kg", " kilos"),
 });
 
+/** How a voice reads a slip serial: digit by digit ("0 4 0 3"), never "four hundred three". */
+export function spokenSerial(serial: string): string {
+  return serial.split("").join(" ");
+}
+
 /** Which PAY sentence applies: a line that moved to the bodega reads the cash variant. */
 export type PayRail = "paypal" | "cash";
 
@@ -108,7 +131,6 @@ export function statementValues(
 ): Record<string, PlaceholderValue> {
   const a = dto.amounts;
   const serials = dto.slips.map((x) => x.serial);
-  const spokenSerial = (x: string) => x.split("").join(" ");
   const g1 = dto.kilos.grade1Grams;
   const deduction = s?.slot === "DEDUCTION" ? a.deductions.find((d) => d.ruleId === s.ref) : a.deductions[0];
   const credit = s?.slot === "CREDIT" ? a.credits.find((c) => c.slip === s.ref) : a.credits[0];
@@ -145,7 +167,7 @@ export function statementValues(
   }
   if (credit) {
     values.CREDIT_USD = usd(credit.cents);
-    values.WRITTEN_PHP = { display: `₱${format.usdPlain(credit.writtenCentavos).replace(/\.00$/, "")}` };
+    values.WRITTEN_PHP = { display: writtenPesos(credit.writtenCentavos) };
     values.SLIP = {
       display: credit.slip,
       spoken: spokenSerial(credit.slip),
@@ -182,3 +204,288 @@ export function statementSentences(dto: StatementDTO, lang: Lang, rail?: PayRail
 }
 
 export type StatementSentence = ReturnType<typeof statementSentences>["sentences"][number];
+
+/* ------------------------------------------------------------------ English gloss */
+
+export interface GlossPair {
+  sentence: StatementSentence;
+  /** The English sentence with the same template id, for judges and family (null in English). */
+  gloss: StatementSentence | null;
+}
+
+/**
+ * The slots that carry money. While a line is still being checked it has no amount yet (S1.9 `checking`), so the
+ * statement and Paminawa leave these sentences out rather than speak a figure nobody has approved.
+ */
+export const MONEY_SLOTS: readonly StatementSlot[] = ["PREMIUM", "BONUS", "DEDUCTION", "CREDIT", "PAY"];
+
+const keep = (exclude: readonly StatementSlot[] | undefined) => (s: { slot: StatementSlot | null }) =>
+  !exclude || s.slot === null || !exclude.includes(s.slot);
+
+/** Each Cebuano or Filipino sentence with its English counterpart underneath (IC-12 `gloss`, S1.13). */
+export function glossPairs(
+  dto: StatementDTO,
+  lang: Lang,
+  rail?: PayRail,
+  exclude?: readonly StatementSlot[],
+): GlossPair[] {
+  const sentences = statementSentences(dto, lang, rail).sentences.filter(keep(exclude));
+  if (lang === "en") return sentences.map((sentence) => ({ sentence, gloss: null }));
+  const en = new Map(statementSentences(dto, "en", rail).sentences.map((s) => [s.id, s]));
+  return sentences.map((sentence) => ({ sentence, gloss: en.get(sentence.id) ?? null }));
+}
+
+/** One slot's sentence (the greeting, the help line, the AI note), with its gloss. */
+export function sentenceFor(pairs: readonly GlossPair[], slot: StatementSlot): GlossPair | null {
+  return pairs.find((p) => p.sentence.slot === slot) ?? null;
+}
+
+/* ------------------------------------------------------------------ Paminawa: what plays each sentence */
+
+/**
+ * A clip as fs-api serves it from `media/audio/manifest.json`. `mentions` (the offset of each slip the voice names)
+ * is in the manifest (register §9) but not yet in the IC-08 DTO; it is read when present.
+ */
+export type AudioClip = StatementAudioClip & {
+  mentions?: readonly { ref: string; offsetMs: number }[];
+};
+
+export type Voice =
+  | {
+      kind: "clip";
+      url: string;
+      /** The clip's language: Filipino under Cebuano text when S10 failed. */
+      lang: Lang;
+      label: string;
+      durationMs: number | null;
+    }
+  /** The phone's own voice reads the sentence (labelled "Tingog sa telepono"). */
+  | { kind: "device" }
+  /** No clip and no voice on this phone for this language: the transcript is the statement. */
+  | { kind: "none" };
+
+export interface MentionCue {
+  /** `slip:0403`. */
+  ref: string;
+  serial: string;
+  /** Where the spoken text names the slip, for the phone's voice (`onBoundary` reaches it). */
+  charIndex: number;
+  /** When the clip names it: the manifest's offset, else estimated from the clip's length; null when unknown. */
+  offsetMs: number | null;
+}
+
+export interface AudioStep {
+  /** Index of the sentence on screen (the transcript underlines it). */
+  index: number;
+  id: string;
+  slot: StatementSlot | null;
+  /** What the phone's voice reads (money and serials as words); the display text is the transcript's. */
+  spoken: string;
+  voice: Voice;
+  cues: readonly MentionCue[];
+}
+
+export type AudioMode = "synthetic" | "mixed" | "device-voice" | "filipino-audio" | "text-only";
+
+export interface AudioPlan {
+  mode: AudioMode;
+  steps: AudioStep[];
+}
+
+function cuesFor(spoken: string, mentions: readonly string[], clip: AudioClip | null): MentionCue[] {
+  const cues: MentionCue[] = [];
+  let from = 0;
+  for (const ref of mentions) {
+    const serial = ref.replace(/^slip:/, "");
+    const at = spoken.indexOf(spokenSerial(serial), from);
+    const charIndex = at >= 0 ? at : from;
+    if (at >= 0) from = at + spokenSerial(serial).length;
+    const known = clip?.mentions?.find((m) => m.ref === ref)?.offsetMs;
+    const estimated =
+      clip?.durationMs && spoken.length > 0
+        ? Math.round((clip.durationMs * charIndex) / spoken.length)
+        : null;
+    cues.push({ ref, serial, charIndex, offsetMs: known ?? estimated });
+  }
+  return cues;
+}
+
+function clipFor(
+  clips: readonly AudioClip[] | undefined,
+  spoken: string,
+  playable: (url: string) => boolean,
+): AudioClip | null {
+  if (!clips?.length) return null;
+  const hash = sha256Hex(spoken);
+  return clips.find((c) => c.textSha256 === hash && playable(c.url)) ?? null;
+}
+
+/**
+ * What reads each sentence. A clip is used only when it was rendered from exactly this sentence's words (its
+ * `textSha256`), so changed words never play stale audio; a clip the phone cannot reach (offline, not cached) falls
+ * back to the phone's voice. For Cebuano without Cebuano clips, Filipino clips of the same template stand in.
+ */
+export function audioPlan(
+  dto: StatementDTO,
+  lang: Lang,
+  opts: {
+    deviceVoice: boolean;
+    playable?: (url: string) => boolean;
+    rail?: PayRail;
+    /** Slots to leave out (`MONEY_SLOTS` while the line is still being checked). */
+    exclude?: readonly StatementSlot[];
+  },
+): AudioPlan {
+  const playable = opts.playable ?? (() => true);
+  const sentences = statementSentences(dto, lang, opts.rail).sentences.filter(keep(opts.exclude));
+  const own = dto.audio[lang] as readonly AudioClip[] | undefined;
+  const filStandIn = lang === "ceb" && !own?.length && !!dto.audio.fil?.length;
+  const fil = filStandIn
+    ? new Map(statementSentences(dto, "fil", opts.rail).sentences.map((s) => [s.id, s]))
+    : null;
+  const filClips = dto.audio.fil as readonly AudioClip[] | undefined;
+  const steps = sentences.map((s, index): AudioStep => {
+    const standIn = fil?.get(s.id) ?? null;
+    const clip = standIn ? clipFor(filClips, standIn.spoken, playable) : clipFor(own, s.spoken, playable);
+    if (clip) {
+      const voiced = standIn ?? s;
+      return {
+        index,
+        id: s.id,
+        slot: s.slot,
+        spoken: s.spoken,
+        voice: {
+          kind: "clip",
+          url: clip.url,
+          lang: standIn ? "fil" : lang,
+          label: clip.label,
+          durationMs: clip.durationMs ?? null,
+        },
+        cues: cuesFor(voiced.spoken, voiced.mentions, clip),
+      };
+    }
+    return {
+      index,
+      id: s.id,
+      slot: s.slot,
+      spoken: s.spoken,
+      voice: opts.deviceVoice ? { kind: "device" } : { kind: "none" },
+      cues: cuesFor(s.spoken, s.mentions, null),
+    };
+  });
+  const clipped = steps.filter((x) => x.voice.kind === "clip");
+  const mode: AudioMode =
+    steps.length > 0 && clipped.length === steps.length
+      ? filStandIn
+        ? "filipino-audio"
+        : "synthetic"
+      : clipped.length > 0
+        ? "mixed"
+        : opts.deviceVoice
+          ? "device-voice"
+          : "text-only";
+  return { mode, steps };
+}
+
+/** Cues from `fired` on, in order, up to the first one not yet reached (each cue fires once). */
+function duePrefix(
+  cues: readonly MentionCue[],
+  fired: number,
+  reached: (c: MentionCue) => boolean,
+): MentionCue[] {
+  const due: MentionCue[] = [];
+  for (const c of cues.slice(fired)) {
+    if (!reached(c)) break;
+    due.push(c);
+  }
+  return due;
+}
+
+/** The cues to fire as the phone's voice reaches `charIndex` (each cue once, in order). */
+export function cuesReached(cues: readonly MentionCue[], charIndex: number, fired: number): MentionCue[] {
+  return duePrefix(cues, fired, (c) => c.charIndex <= charIndex);
+}
+
+/**
+ * The cues to fire as a clip reaches `ms` of media time (the playback rate does not matter: offsets are in the
+ * clip's own time). A cue with no known offset fires as the clip starts.
+ */
+export function clipCuesReached(cues: readonly MentionCue[], ms: number, fired: number): MentionCue[] {
+  return duePrefix(cues, fired, (c) => (c.offsetMs ?? 0) <= ms);
+}
+
+/* ------------------------------------------------------------------ the item track across reloads */
+
+/**
+ * Merges a fresh statement read into the item track that SSE keeps current. The read is the server's truth, but an
+ * `item.updated` can land while the read is in flight, so a read never moves the status backwards (I5). A read
+ * with no item status at all (a run that was reset, or not yet posted) clears the track; event ids already seen are
+ * kept, so a redelivered event still changes nothing.
+ */
+export function mergeTrack(track: ItemTrack, item: StatementDTO["item"]): ItemTrack {
+  const status = item?.status ?? null;
+  if (status === null) return { ...EMPTY_TRACK, seen: track.seen };
+  if (track.status === null || ITEM_STATUS_RANK[status] >= ITEM_STATUS_RANK[track.status]) {
+    return { status, updatedAt: item?.updatedAt ?? track.updatedAt, seen: track.seen };
+  }
+  return track;
+}
+
+/* ------------------------------------------------------------------ the amount grammar on the statement */
+
+/** The line state each capsule stands for, so the hero amount follows IC-09's grammar (`AMOUNT_STATE`). */
+const LINE_FOR_CAPSULE: Readonly<Record<CapsuleState, LineState>> = {
+  checking: "READY",
+  "held-line": "HELD",
+  sent: "PAYPAL_PENDING",
+  paid: "PAID",
+  "cash-due": "OFF_RAIL_DUE",
+  "cash-received": "OFF_RAIL_PAID",
+  unclaimed: "UNCLAIMED",
+  returned: "RETURNED",
+  "paypal-held": "PAYPAL_HELD",
+  "needs-action": "NEEDS_ACTION",
+  reversed: "REVERSED",
+  excluded: "EXCLUDED",
+};
+
+/** Both keys signed this run: the approval is in her history, or the batch has a digest. */
+export function lineApproved(dto: StatementDTO): boolean {
+  return dto.batchSha256 !== null || dto.history.some((h) => h.kind === "approved");
+}
+
+/**
+ * `data-amount-state` of the hero amount: hollow while the money is in flight (sent, parked, cash due), landed only
+ * when PayPal confirmed it, attested when the clerk recorded the cash handed over (S2.2.1).
+ */
+export function amountStateFor(capsule: CapsuleState, approved: boolean): AmountState {
+  return amountStateOf(LINE_FOR_CAPSULE[capsule], { approved });
+}
+
+/* ------------------------------------------------------------------ the phone's own voice */
+
+/** The phone voice that reads a language: its BCP 47 tag, and the exact voice when the phone names one. */
+export interface VoiceChoice {
+  language: string;
+  voiceId: string | null;
+}
+
+/** Best first. Cebuano falls back to Filipino (Tagalog) voices, as the first-run samples do; never to English. */
+const VOICE_PREFERENCE: Readonly<Record<Lang, readonly string[]>> = {
+  ceb: ["ceb", "fil", "tl"],
+  fil: ["fil", "tl"],
+  en: ["en-ph", "en-us", "en-gb", "en"],
+};
+
+/** Picks the phone's voice for a statement language from the voices it lists, or null when it has none for it. */
+export function chooseVoice(
+  lang: Lang,
+  available: readonly { identifier: string; language: string }[],
+): VoiceChoice | null {
+  const norm = available.map((v) => ({ id: v.identifier, tag: v.language.replace("_", "-").toLowerCase() }));
+  for (const want of VOICE_PREFERENCE[lang]) {
+    const hit = norm.find((v) => v.tag === want || v.tag.startsWith(`${want}-`));
+    if (hit) return { language: hit.tag, voiceId: hit.id };
+  }
+  return null;
+}

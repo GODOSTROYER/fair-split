@@ -1,146 +1,130 @@
 /**
- * M-MB-04 Pangutana: who to ask, where and when; the member's right to see records (RA 9520 Art. 83); and
- * "Ipasusi pag-usab", which sends the line, a slip and an optional note to the Mediation and Conciliation
- * Committee (Art. 43). States: none, sent, answered.
+ * M-MB-04 Pangutana (design §6 M4): who to ask, where and when; the member's right to see the co-op's records (RA
+ * 9520 Art. 83); and "Ipasusi pag-usab", which sends her line, a slip and an optional note to the Mediation and
+ * Conciliation Committee (Art. 43), with the status of the request she sent. States: none, composing, sending,
+ * sent, failed, offline (IC-01). The board's Pangutana tab reuses this screen (register §4): the Chair sees who to
+ * ask and the members' rights, without a member's line or its re-check.
+ *
+ * Who to ask and her rights never wait for her line: if it cannot be read, they show with the treasurer's title,
+ * and the re-check gives way to a block that says the line did not load, with "Try again".
  */
-import { useState } from "react";
-import { StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { format } from "../../_shims/domain";
-import { cashDayIso, people } from "../../_shims/seed";
 import { radius, space } from "../../_shims/tokens.native";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
-import { Banner, Chip, InkStamp, MachineTranslatedNote, SectionTitle } from "../../ui/primitives";
+import { Glyph } from "../../ui/glyph";
+import { Button, InkStamp } from "../../ui/primitives";
 import { figures, Sentence } from "../../ui/sentence";
-import { Slab } from "../../ui/slab";
+import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
-import { useStatement } from "./use-statement";
+import { COLUMN, LangBar } from "./parts";
+import { type LineRead, pangutanaScreenState } from "./review";
+import { ReviewFields, ReviewStatus, useReviewForm } from "./review-form";
+import { useStatement } from "./statement-store";
 import { useT } from "./use-t";
 
 export function PangutanaScreen() {
-  const { api, lang, session } = useApp();
+  const { lang, online, session } = useApp();
   const isMember = session?.role === "member";
   const { t } = useFs();
   const tr = useT();
-  const { dto } = useStatement();
-  const [slip, setSlip] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [state, setState] = useState<"none" | "sending" | "sent" | "failed">("none");
-
-  const send = async () => {
-    if (!dto || state === "sending") return;
-    setState("sending");
-    const r = await api.postReviewRequest({
-      lineId: dto.lineId,
-      slip: slip ?? undefined,
-      note: note.trim() || undefined,
-    });
-    setState(r.ok ? "sent" : "failed");
-  };
+  const st = useStatement({ enabled: isMember });
+  const dto = isMember ? st.dto : null;
+  const form = useReviewForm(dto, st.recordReview);
+  const read: LineRead = !isMember ? "none" : dto ? "ready" : st.status === "error" ? "error" : "loading";
+  const state = pangutanaScreenState({
+    read,
+    record: st.review,
+    phase: form.phase,
+    composing: form.composing,
+    online,
+  });
 
   return (
-    <Screen testID="M-MB-04" state={state === "sending" ? "none" : state}>
+    <Screen testID="M-MB-04" state={state} contentStyle={COLUMN}>
       <Txt kind="title1" accessibilityRole="header">
         {tr("M-MB-04.title")}
       </Txt>
+      <LangBar testID="M-MB-04" glossable={false} />
 
-      <View style={[styles.card, { backgroundColor: t.color.plate }]}>
-        <SectionTitle>{tr("M-MB-04.whoTitle")}</SectionTitle>
-        <View style={styles.who}>
-          <InkStamp initials={people.treasurer.initials} label={people.treasurer.name} />
-          <View style={{ flex: 1 }}>
-            <Txt kind="title2">{`Treasurer ${dto?.treasurer.name ?? people.treasurer.name}`}</Txt>
-            <Txt kind="body" color="ink2">
-              {tr("M-MB-04.where")}
-            </Txt>
-          </View>
-        </View>
-        <Sentence
-          segments={figures(tr("M-MB-04.when", { date: format.date(dto?.cashDay ?? cashDayIso, lang) }))}
-        />
-      </View>
-
-      <View style={{ gap: space.s4 }}>
-        <Txt kind="statementBody">{tr("M-MB-04.rights")}</Txt>
-        <Txt kind="caption" color="ink3">
-          {tr("M-MB-04.rightsCite")}
+      <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-04.who">
+        <Txt kind="label" color="ink2" accessibilityRole="header">
+          {tr("M-MB-04.whoTitle")}
         </Txt>
+        {read === "loading" ? (
+          <Skeleton lines={2} />
+        ) : (
+          <>
+            <View style={styles.who}>
+              {dto ? <InkStamp initials={dto.treasurer.initials} label={dto.treasurer.name} /> : null}
+              <View style={styles.flex}>
+                <Txt kind="title2">
+                  {dto ? tr("M-MB-04.treasurer", { name: dto.treasurer.name }) : tr("M-MB-04.treasurerOnly")}
+                </Txt>
+                <Txt kind="body" color="ink2">
+                  {tr("M-MB-04.where")}
+                </Txt>
+              </View>
+            </View>
+            <Sentence
+              lang={lang}
+              segments={figures(
+                dto?.cashDay
+                  ? tr("M-MB-04.when", { date: format.date(dto.cashDay, lang) })
+                  : tr("M-MB-04.whenAny"),
+              )}
+            />
+          </>
+        )}
       </View>
 
-      {isMember ? (
-        <View style={[styles.card, { backgroundColor: t.color.plate }]}>
+      <View style={styles.rights} testID="M-MB-04.rights">
+        <Glyph name="people" size={24} color={t.color.ink2} />
+        <View style={styles.flex}>
+          <Txt kind="statementBody">{tr("M-MB-04.rights")}</Txt>
+          <Txt kind="caption" color="ink3">
+            {tr("M-MB-04.rightsCite")}
+          </Txt>
+        </View>
+      </View>
+
+      {read === "error" ? (
+        <EmptyState
+          glyph="wifiOff"
+          title={tr("M-MB-04.loadFailed")}
+          body={tr("M-MB-04.loadFailedBody")}
+          testID="M-MB-04.error"
+          action={
+            <Button
+              variant="tonal"
+              icon="refresh"
+              label={tr("common.tryAgain")}
+              onPress={() => void st.reload()}
+              testID="M-MB-04.retry"
+            />
+          }
+        />
+      ) : null}
+
+      {isMember && dto ? (
+        <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-04.recheck">
           <Txt kind="title2" accessibilityRole="header">
-            {tr("M-MB-04.recheckTitle")}
+            {st.review ? tr("M-MB-04.yourRequest") : tr("M-MB-04.recheckTitle")}
           </Txt>
-          <Txt kind="body" color="ink2">
-            {tr("M-MB-04.recheckBody")}
-          </Txt>
-          {state === "sent" ? (
-            <View style={styles.sent} testID="M-MB-04.sent">
-              <InkStamp initials="MC" label="Mediation and Conciliation Committee" />
-              <Txt kind="bodyStrong">{tr("M-MB-04.sent")}</Txt>
-            </View>
+          {st.review ? (
+            <ReviewStatus record={st.review} lang={lang} testID="M-MB-04.sent" />
           ) : (
             <>
-              <Txt kind="label" color="ink2">
-                {tr("M-MB-04.pickSlip")}
+              <Txt kind="body" color="ink2">
+                {tr("M-MB-04.recheckBody")}
               </Txt>
-              <View style={styles.chips}>
-                <Chip
-                  label={tr("M-MB-04.wholeLine")}
-                  selected={slip === null}
-                  onPress={() => setSlip(null)}
-                />
-                {dto?.slips.map((s) => (
-                  <Chip
-                    key={s.serial}
-                    icon="slip"
-                    label={s.serial}
-                    selected={slip === s.serial}
-                    onPress={() => setSlip(s.serial)}
-                    testID={`M-MB-04.slip.${s.serial}`}
-                  />
-                ))}
-              </View>
-              <TextInput
-                testID="M-MB-04.note"
-                value={note}
-                onChangeText={setNote}
-                multiline
-                maxLength={280}
-                accessibilityLabel={tr("M-MB-04.note")}
-                placeholder={tr("M-MB-04.note")}
-                placeholderTextColor={t.color.ink3}
-                style={[
-                  styles.note,
-                  {
-                    color: t.color.ink,
-                    borderColor: t.color.ink3,
-                    backgroundColor: t.color.plate2,
-                    fontFamily: "AtkinsonHyperlegibleNext_400Regular",
-                  },
-                ]}
-              />
-              {state === "failed" ? (
-                <Banner tone="decide" icon="wifiOff">
-                  <Txt kind="body">{tr("M-MB-04.failed")}</Txt>
-                </Banner>
-              ) : null}
-              <Slab
-                testID="M-MB-04.send"
-                label={state === "sending" ? tr("M-MB-04.sending") : tr("M-MB-04.send")}
-                depth="d1"
-                tone="chalk"
-                srLabel={tr("M-MB-04.send")}
-                disabled={!dto || state === "sending"}
-                onCommit={() => void send()}
-              />
+              <ReviewFields dto={dto} form={form} testPrefix="M-MB-04" />
             </>
           )}
         </View>
       ) : null}
-      <MachineTranslatedNote />
     </Screen>
   );
 }
@@ -148,15 +132,6 @@ export function PangutanaScreen() {
 const styles = StyleSheet.create({
   card: { padding: space.s16, gap: space.s12, borderRadius: radius.none },
   who: { flexDirection: "row", alignItems: "center", gap: space.s12 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
-  note: {
-    minHeight: 96,
-    borderWidth: 1,
-    borderRadius: radius.plate,
-    padding: space.s12,
-    fontSize: 18,
-    lineHeight: 26,
-    textAlignVertical: "top",
-  },
-  sent: { flexDirection: "row", alignItems: "center", gap: space.s12, paddingVertical: space.s8 },
+  flex: { flex: 1 },
+  rights: { flexDirection: "row", alignItems: "flex-start", gap: space.s12 },
 });
