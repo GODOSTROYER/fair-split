@@ -73,17 +73,19 @@ describe("inv.i7.outbox: the task is enqueued in the transaction that requires i
 
   it("accepts a transaction from another copy of drizzle-orm (entity kind, not instanceof)", async () => {
     const kind = Symbol.for("drizzle:entityKind");
+    // a transaction class from a "different" drizzle-orm: the same entity kind, another constructor
     class ForeignPgTransaction {
       static readonly [kind]: string = "PgTransaction";
+      constructor(
+        readonly insert: unknown,
+        readonly select: unknown,
+      ) {}
     }
     const k = key("foreign");
     await t.app.db.transaction(async (tx) => {
-      // a transaction object whose class comes from a "different" drizzle-orm, driving the same connection
-      const foreign = Object.assign(Object.create(ForeignPgTransaction.prototype), {
-        insert: tx.insert.bind(tx),
-        select: tx.select.bind(tx),
-      });
-      const res = await enqueue(foreign, "computeRun", { runId: "r" }, k);
+      // an instance of it driving the same connection
+      const foreign = new ForeignPgTransaction(tx.insert.bind(tx), tx.select.bind(tx));
+      const res = await enqueue(foreign as never, "computeRun", { runId: "r" }, k);
       expect(res.inserted).toBe(true);
     });
     const rows = await t.app.db.select().from(s.taskOutbox).where(eq(s.taskOutbox.dedupeKey, k));

@@ -475,7 +475,8 @@ export interface ApprovalVoid {
   reason: string;
 }
 
-const VOID_REASON = /^[A-Z][A-Z0-9_]{1,63}$/;
+/** A void reason: a code such as LINE_EDITED or DIGEST_MISMATCH, never free text (S3.12). */
+export const VOID_REASON = /^[A-Z][A-Z0-9_]{1,63}$/;
 
 /**
  * Voids every live signature of a run — a line edited after key 1, the kill switch halting an approved run, a digest

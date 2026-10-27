@@ -56,6 +56,25 @@ an item notice that beats our 201 (SUCCESS while the line is still SUBMITTED) wa
 PAID at once, and the late 201's own edge then finds the line STALE. Stale notices are no-ops; a superseded item
 (re-route) no longer moves its line.
 
+**The payouts port's compare-and-sets** (WS-PPMONEY's `PayoutsRepository`; the adapter that implements the port is
+WS-API's, and calls these in its own transactions):
+- `runs.beginPosting(tx, {id, approvalNonces, batchSha256, senderBatchId, cause, provenance})`, first in a primary
+  batch's `writeSubmitted`: APPROVED → POSTING only while every named approval is a live SIGNED approval of the run
+  that signed `batchSha256`; otherwise nothing is written (`APPROVALS_STALE`, `STALE`, `NOT_FOUND`) and the port
+  returns null.
+- `approvals.voidChecked(tx, {runId, nonces, reason, at?, provenance})`, the port's `voidApprovals`: voids the named
+  approvals and moves APPROVED → IN_REVIEW only while every live approval of the run is named (`UNNAMED_APPROVAL`,
+  `STALE` otherwise, nothing written); never voids an approval outside the run's live set.
+- `lines.hashes(db, runId)`: every member line of the run, on and off rail, as `{memberNo, lineSha256}` by member
+  number (`memberLines` for `loadPosting` and `loadRun`; a null hash stays null for the service to refuse).
+
+Both writes lock the run row, then the approvals they read, so even a writer that skips the workspace lock cannot
+slip a new approval or a void between the check and the commit. An approval being inserted key-share-locks its run
+row (the foreign key check) until it commits: the run-row lock waits for it, and `voidChecked` then counts it. A void
+in flight holds its approval's row: `beginPosting`'s share lock and `voidChecked`'s update lock on the approvals wait
+for it, then find the approval voided. `posting-cas.test.ts` commits each such held write only once the server shows
+the call blocked on it (`pg_blocking_pids`, never a timer), and removing any one of these three locks fails its test.
+
 Lifecycle columns are guarded (I5): `repos(scope).*.update` cannot write a run's or line's `state`/`version`, a hold's
 state or resolution, an item's `status`, rank or cancel stamp, or any column of an approval — a compile error, and
 `GuardedColumnError` at runtime. The database refuses the same writes for every role (below).
@@ -86,6 +105,9 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
 - **I5** payout items: `status_rank` must match the status and only rise; our cancel is stamped once, on an UNCLAIMED
   item, and RETURNED needs that stamp from an earlier statement.
 - **I4/I6** approvals: a signed approval never changes; it can be voided once (`approvals.void`, recorded in the ledger).
+- **I6 keys** (S3.8, C-13): `device_keys.kind` is `app`, `web` or `web_demo` (a seeded key is never registered), and
+  one CHECK per kind holds `key_id` to that kind's shape, built from contracts' `DEVICE_KEY_ID_PATTERN_BY_KIND`
+  (0017): `fs-{p}-a{n}`, `fs-{p}-w{n}`, `fs-{p}-demo-{6}`. A judge's demo key never takes a real key's ID.
 - **No deletes** (0015): runs, lines, holds, payout items and approvals leave only with their workspace's purge.
   `fs_app` has no DELETE or TRUNCATE on them, and triggers refuse every role (`FS409 DELETE_REFUSED:<table>`), so a
   signed approval cannot be deleted to free its slot, nor an item deleted and re-inserted at a lower status.

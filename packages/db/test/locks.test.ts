@@ -25,9 +25,12 @@ afterAll(async () => {
 describe("isTransaction", () => {
   it("recognises a transaction from another installed copy of drizzle-orm, where instanceof fails", () => {
     const kind = Symbol.for("drizzle:entityKind");
-    // what a second copy's classes look like: same entity kinds, different constructors
+    // what a second copy's classes look like: same entity kinds, different constructors, a transaction's methods
     class ForeignPgTransaction {
       static readonly [kind]: string = "PgTransaction";
+      rollback(): never {
+        throw new Error("Rollback");
+      }
     }
     class ForeignPostgresJsTransaction extends ForeignPgTransaction {
       static override readonly [kind]: string = "PostgresJsTransaction";
