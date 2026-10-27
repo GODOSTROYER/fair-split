@@ -88,7 +88,8 @@ function makeRepo(tools) {
   const callLog = (tool) => join(dir, ".calls", `${tool}.jsonl`);
   git("init", "-q", "-b", "main");
   for (const file of HOOK_FILES) write(file, readFileSync(resolve(repoRoot, file)));
-  write(".gitignore", "node_modules/\n.calls/\nlefthook-local.yml\nold-hook.cjs\n");
+  // No trailing slash: on Linux the link below is a symlink, which a directory pattern does not match.
+  write(".gitignore", "node_modules\n.calls/\nlefthook-local.yml\nold-hook.cjs\n");
   if (tools === "real") {
     const link = join(dir, "node_modules");
     symlinkSync(resolve(repoRoot, "node_modules"), link, "junction");
