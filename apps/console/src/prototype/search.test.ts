@@ -2,7 +2,7 @@
 // seal being inspected included, so a flagged seal is a link.
 
 import { describe, expect, it } from "vitest";
-import { parseSearch, SHEET_COUNT, SHEET_SIZES } from "../src/prototype/search.js";
+import { parseSearch, SHEET_COUNT, SHEET_SIZES } from "./search.js";
 
 describe("prototype URL state", () => {
   it("keeps the seal sheet's size only when it is one S2 names (64, 200 or 320 px)", () => {

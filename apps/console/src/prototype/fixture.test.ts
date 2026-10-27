@@ -12,9 +12,9 @@ import {
   RATE_CARD_SHA256,
   SENDER_BATCH_ID,
   TOTALS,
-} from "../src/prototype/fixture.js";
-import { kg, phpEstimate, usd, usdSpoken } from "../src/prototype/format.js";
-import { sha256Hex } from "../src/prototype/hash.js";
+} from "./fixture.js";
+import { kg, phpEstimate, usd, usdSpoken } from "./format.js";
+import { sha256Hex } from "./hash.js";
 
 describe("prototype fixture vs register §2", () => {
   it("every derived line sums to the register's net", () => {
