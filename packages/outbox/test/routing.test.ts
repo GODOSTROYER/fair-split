@@ -127,6 +127,8 @@ describe("the dispatcher routes every claimed row (EXECUTOR=workflow)", () => {
     });
     const read = await enqueued(t.app.db, "extract", { documentIds: ["d"], runId: null });
     await until(allDone([post, read]));
+    // the run id is written once startTask answers, which may be after the task itself finished
+    await until(async () => (await rowOf(t.app.db, read)).workflowRunId !== null);
     expect(render.started).toEqual(["fs-tasks/extract"]);
     expect((await rowOf(t.app.db, post)).executor).toBe("inline");
     expect(await rowOf(t.app.db, read)).toMatchObject({ executor: "workflow", workflowRunId: "trn-1" });
