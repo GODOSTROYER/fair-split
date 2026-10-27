@@ -5,10 +5,17 @@
  * money, webhook, engine and agent tasks always run inline in fs-api; only the live slip read, the rate-card read and
  * cache warming go to Render Workflows (or the worker) when EXECUTOR says so, and a replayed task stays inline.
  * Each row records the executor it was handed to.
+ *
+ * Review minor (dispatcher.ts): `replay` defaulted to "never", so with EXECUTOR=workflow a Judge Mode read went to
+ * Workflows unless the app injected a predicate; the predicate ran inside the claiming transaction while it held up
+ * to batchSize*4 row locks; and with no inline capacity, a remote row beyond that window waited behind inline rows.
+ * Now the default predicate reads the database (a judge workspace replays, C-06; so does kill_ai_live, per workspace
+ * or FS_KILL), every replay check runs before the claim locks anything, and remote-eligible rows are looked up on
+ * their own, so they never queue behind inline work.
  */
 import { schema as s } from "@fairsplit/db";
-import { openTestDb, type TestDb } from "@fairsplit/db/testing";
-import { inArray } from "drizzle-orm";
+import { fixtureWorkspace, openTestDb, type TestDb } from "@fairsplit/db/testing";
+import { inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   createOutbox,
@@ -16,6 +23,7 @@ import {
   type ExecutorKind,
   type ExecutorRoute,
   REMOTE_TASKS,
+  replayFromDatabase,
   TASK_NAMES,
   type TaskHandlers,
   type TaskName,
@@ -75,7 +83,7 @@ function workflowOutbox(
   handlers: TaskHandlers,
   extra: {
     route?: ExecutorRoute;
-    replay?: (task: { name: TaskName; args: unknown }) => boolean;
+    replay?: (task: { id: string; name: TaskName; args: unknown }) => boolean | Promise<boolean>;
     concurrency?: number;
   } = {},
 ) {
@@ -190,5 +198,104 @@ describe("the dispatcher routes every claimed row (EXECUTOR=workflow)", () => {
     expect(states.filter((x) => x === "queued")).toHaveLength(2);
     open();
     await until(allDone(computes));
+  });
+});
+
+describe("replay by default: Judge Mode and kill_ai_live stay inline without an injected predicate", () => {
+  it("a judge workspace's read stays in fs-api, a real workspace's goes to Workflows, kill_ai_live keeps it home", async () => {
+    const judge = await fixtureWorkspace(t.app.db, { kind: "judge" });
+    const real = await fixtureWorkspace(t.app.db, { kind: "real" });
+    const killed = await fixtureWorkspace(t.app.db, { kind: "real" });
+    await t.owner.db
+      .insert(s.systemFlags)
+      .values({ workspaceId: killed.workspaceId, flag: "kill_ai_live", on: true, setBy: "test" });
+    const { handlers } = counting();
+    const { ob, render } = workflowOutbox(handlers); // no replay predicate injected
+    await ob.dispatcher.start();
+    const read = (workspaceId: string, doc: string) =>
+      enqueued(t.app.db, "extract", { documentIds: [doc], runId: null }, { workspaceId });
+    const j = await read(judge.workspaceId, "judge-0449");
+    const r = await read(real.workspaceId, "real-0449");
+    const k = await enqueued(
+      t.app.db,
+      "readRateCard",
+      { documentId: "rc" },
+      { workspaceId: killed.workspaceId },
+    );
+    await until(allDone([j, r, k]));
+    expect((await rowOf(t.app.db, j)).executor).toBe("inline");
+    expect((await rowOf(t.app.db, r)).executor).toBe("workflow");
+    expect((await rowOf(t.app.db, k)).executor).toBe("inline");
+    expect(render.started).toEqual(["fs-tasks/extract"]);
+  });
+
+  it("replayFromDatabase: FS_KILL=ai_live replays every read, system tasks included; an unknown workspace is live", async () => {
+    const real = await fixtureWorkspace(t.app.db, { kind: "real" });
+    const forced = replayFromDatabase(t.app.db, { env: { FS_KILL: "ai_live" } });
+    const normal = replayFromDatabase(t.app.db, { env: {} });
+    const task = (workspaceId: string | null) => ({
+      id: "00000000-0000-7000-8000-000000000000",
+      name: "warmCaches" as TaskName,
+      workspaceId,
+      args: {},
+    });
+    expect(await forced(task(null))).toBe(true);
+    expect(await forced(task(real.workspaceId))).toBe(true);
+    expect(await normal(task(null))).toBe(false);
+    expect(await normal(task(real.workspaceId))).toBe(false);
+    expect(await normal(task("01a00000-0000-7000-8000-000000000000"))).toBe(false);
+  });
+});
+
+describe("claiming: the replay check holds no row locks, and remote rows never wait behind inline ones", () => {
+  it("the replay predicate runs before the claim locks the row", async () => {
+    const seen: string[] = [];
+    const { handlers } = counting();
+    const { ob } = workflowOutbox(handlers, {
+      replay: async (task) => {
+        // another connection can take the row's lock at once (NOWAIT) only if the claim does not hold it
+        const free = await t.owner.db
+          .transaction(async (tx) => {
+            await tx.execute(sql`select id from task_outbox where id = ${task.id} for update nowait`);
+          })
+          .then(
+            () => true,
+            () => false,
+          );
+        seen.push(free ? "free" : "locked");
+        return false;
+      },
+    });
+    await ob.dispatcher.start();
+    const id = await enqueued(t.app.db, "extract", { documentIds: ["nowait"], runId: null });
+    await until(allDone([id]));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((x) => x === "free")).toBe(true);
+    expect((await rowOf(t.app.db, id)).executor).toBe("workflow");
+  });
+
+  it("a read queued behind more inline work than any claim window still goes to Workflows at once", async () => {
+    let open: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      open = r;
+    });
+    const { handlers } = counting();
+    const { ob, render } = workflowOutbox({ ...handlers, computeRun: () => gate }, { concurrency: 1 });
+    stops.push(async () => open()); // runs before the drain, so a failure here cannot hang the hook
+    const computes: string[] = [];
+    for (let i = 0; i < 60; i++) computes.push(await enqueued(t.app.db, "computeRun", { runId: `q${i}` }));
+    const read = await enqueued(t.app.db, "extract", { documentIds: ["behind-60"], runId: null });
+    await ob.dispatcher.start();
+    await until(allDone([read]));
+    expect(render.started).toEqual(["fs-tasks/extract"]);
+    // fs-api still holds only what it can run: one computeRun, the other 59 wait unclaimed
+    const states = await t.app.db
+      .select({ state: s.taskOutbox.state, n: sql<number>`count(*)::int` })
+      .from(s.taskOutbox)
+      .where(inArray(s.taskOutbox.id, computes))
+      .groupBy(s.taskOutbox.state);
+    expect(Object.fromEntries(states.map((x) => [x.state, x.n]))).toEqual({ running: 1, queued: 59 });
+    open();
+    await until(allDone(computes), 20_000);
   });
 });

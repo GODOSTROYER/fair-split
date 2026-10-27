@@ -49,9 +49,13 @@ for 5 minutes is re-queued, or `dead` when its attempts are spent.
 **Routing (S3.3, register deviation 3).** `defaultRoute` keeps every money, webhook, engine and agent task inline in
 fs-api, even with `EXECUTOR=workflow`: one warm OAuth cache, sub-second money steps. Only `REMOTE_TASKS` (`extract`, the
 live slip read; `readRateCard`; `warmCaches`) go to Render Workflows (or the worker), and only when they run live:
-`createOutbox({replay})` names the tasks that will replay recorded output (Judge Mode, `kill_ai_live`), which stay
-inline. `createOutbox({route})` overrides the table; a route to an executor this process does not have runs inline.
-Inline rows are claimed only while the in-process executor has a free slot, and remote rows never wait behind them.
+a task that will replay recorded output stays inline. By default (`replayFromDatabase`) that is every task of a judge
+workspace (Judge Mode replays Claude, C-06) and every task while `kill_ai_live` is on for its workspace or forced by
+`FS_KILL`; `createOutbox({replay})` replaces the predicate. `createOutbox({route})` overrides the table; a route to an
+executor this process does not have runs inline. Routing (and the replay check) happens before the claim locks
+anything: candidates are read without locks, then a short transaction locks those still queued (`SKIP LOCKED`) and
+marks them. Inline rows are claimed only while the in-process executor has a free slot, and rows the route may send
+away are looked up on their own, so they never wait behind inline work.
 
 Handlers must be idempotent: load state by id and move it with optimistic transitions, so a rerun after a crash between
 the handler's commit and `done` is a no-op (tested). Tests use the embedded Postgres harness from `@fairsplit/db/testing`.

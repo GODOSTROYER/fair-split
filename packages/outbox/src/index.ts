@@ -35,7 +35,10 @@ export interface OutboxOptions extends Omit<RunnerDeps, "db"> {
   executor?: ExecutorKind;
   /** per-task routing (default: S3.3's table, `defaultRoute`); a route to an executor not configured runs inline */
   route?: DispatcherOptions["route"];
-  /** true for a task that will replay recorded output (Judge Mode, kill_ai_live): it stays inline */
+  /**
+   * true for a task that will replay recorded output (Judge Mode, kill_ai_live): it stays inline. Default with a remote
+   * executor: `replayFromDatabase(db)` (judge workspaces and kill_ai_live replay).
+   */
   replay?: DispatcherOptions["replay"];
   /** required when executor is "workflow" */
   workflowClient?: WorkflowClient;

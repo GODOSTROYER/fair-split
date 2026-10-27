@@ -5,8 +5,11 @@
  * 2. Claim due rows with `FOR UPDATE SKIP LOCKED` (queued → dispatched), so any number of dispatchers share the
  *    queue without double-claiming. Each row is routed on its own (routing.ts: money and webhook tasks inline, the
  *    live AI reads on Workflows when EXECUTOR=workflow, replays inline), and its executor and hand-off count are
- *    recorded with the claim. Inline rows are claimed only while the in-process executor has a free slot; rows bound
- *    for a remote executor never wait behind them.
+ *    recorded with the claim. Routing happens first, without locks: the candidates are read, the replay predicate
+ *    (default `replayFromDatabase`: a judge workspace or kill_ai_live replays) answers for each one that could leave,
+ *    and only then does a short transaction lock the candidates still queued and mark them. Inline rows are claimed
+ *    only while the in-process executor has a free slot; rows that could go remote are looked up on their own, so
+ *    they never wait behind inline ones.
  * 3. If a remote hand-off throws, or the task has not reached `running` within 20 s, run the same task inline (the
  *    runner's claim makes the race with a late remote start harmless).
  * 4. The sweep (every minute) makes that durable and bounded: a remote hand-off older than the start timeout runs
@@ -20,10 +23,10 @@
 import { type Db, schema as s } from "@fairsplit/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import postgres, { type Sql } from "postgres";
-import type { TaskName } from "./_shims/contracts.js";
+import { TASK_NAMES, type TaskName } from "./_shims/contracts.js";
 import type { TaskArgs } from "./enqueue.js";
 import type { Executor } from "./executors.js";
-import { defaultRoute, type ExecutorRoute } from "./routing.js";
+import { defaultRoute, type ExecutorRoute, replayFromDatabase } from "./routing.js";
 import type { ExecutorKind } from "./runner.js";
 
 /** A claimed row on its way to an executor. */
@@ -56,7 +59,11 @@ export interface DispatcherOptions {
   fallback?: Executor;
   /** picks each claimed row's executor (default: S3.3's table, see routing.ts) */
   route?: ExecutorRoute;
-  /** true when a claimed task will replay recorded output, so it stays inline (default: never) */
+  /**
+   * true when a task will replay recorded output, so it stays inline. Asked before the claim locks anything, and only
+   * for a task the route would send away. Default with a remote executor: `replayFromDatabase(db)` (a judge
+   * workspace replays, C-06; so does kill_ai_live, per workspace or FS_KILL).
+   */
   replay?: (task: TaskRef) => boolean | Promise<boolean>;
   workerId: string;
   batchSize?: number;
@@ -100,6 +107,7 @@ export function createDispatcher(o: DispatcherOptions): Dispatcher {
   const local = (o.executor.remote ? o.fallback : o.executor) as Executor;
   const remote = o.executor.remote ? o.executor : null;
   const route = o.route ?? defaultRoute;
+  const replay = o.replay ?? (remote ? replayFromDatabase(o.db) : undefined);
   const batchSize = o.batchSize ?? 10;
   const pollMs = o.pollMs ?? 1000;
   const startTimeoutMs = o.startTimeoutMs ?? 20_000;
@@ -118,9 +126,9 @@ export function createDispatcher(o: DispatcherOptions): Dispatcher {
   async function kindOf(task: TaskRef): Promise<ExecutorKind> {
     const ctx = { configured: o.executor.kind, workspaceId: task.workspaceId, replay: false };
     // ask about replay only when it could matter (a task the route would send away)
-    if (o.replay && route(task.name, ctx) !== "inline") {
+    if (replay && route(task.name, ctx) !== "inline") {
       try {
-        ctx.replay = await o.replay(task);
+        ctx.replay = await replay(task);
       } catch (e) {
         emit({ type: "dispatch_failed", id: task.id, name: task.name, error: `replay check: ${String(e)}` });
         return "inline";
@@ -130,36 +138,70 @@ export function createDispatcher(o: DispatcherOptions): Dispatcher {
     return kind === "inline" || kind !== remote?.kind ? "inline" : kind;
   }
 
-  async function claim(): Promise<Routed[]> {
-    let inlineFree = local.capacity?.() ?? batchSize;
-    if (inlineFree <= 0 && !remote) return [];
-    return o.db.transaction(async (tx) => {
-      const rows = (await tx.execute(sql`
+  /** Names the route may send to the remote executor (asked with no workspace and no replay). */
+  const remoteNames: string[] = remote
+    ? TASK_NAMES.filter((n: TaskName) => {
+        const kind = route(n, { configured: o.executor.kind, workspaceId: null, replay: false });
+        return kind !== "inline" && kind === remote.kind;
+      })
+    : [];
+
+  type Row = { id: string; name: string; workspace_id: string | null; args: TaskArgs };
+  const toTask = (r: Row): TaskRef => ({
+    id: r.id,
+    name: r.name as TaskName,
+    workspaceId: r.workspace_id,
+    args: r.args,
+  });
+
+  /**
+   * Due rows worth routing, read without locks: the oldest of any name while the in-process executor has room, and
+   * separately the oldest the route may send away, so those never wait behind inline work.
+   */
+  async function candidates(inlineFree: number): Promise<TaskRef[]> {
+    const byId = new Map<string, Row>();
+    if (inlineFree > 0) {
+      const rows = (await o.db.execute(sql`
         select id, name, workspace_id, args from ${s.taskOutbox}
          where state = 'queued' and run_after <= now()
          order by run_after, id
-         for update skip locked
-         limit ${remote ? batchSize * 4 : Math.min(batchSize, inlineFree)}`)) as unknown as {
-        id: string;
-        name: string;
-        workspace_id: string | null;
-        args: TaskArgs;
-      }[];
+         limit ${batchSize}`)) as unknown as Row[];
+      for (const r of rows) byId.set(r.id, r);
+    }
+    if (remoteNames.length > 0) {
+      const rows = (await o.db.execute(sql`
+        select id, name, workspace_id, args from ${s.taskOutbox}
+         where state = 'queued' and run_after <= now() and name in ${remoteNames}
+         order by run_after, id
+         limit ${batchSize}`)) as unknown as Row[];
+      for (const r of rows) byId.set(r.id, r);
+    }
+    return [...byId.values()].map(toTask);
+  }
+
+  async function claim(): Promise<Routed[]> {
+    let inlineFree = local.capacity?.() ?? batchSize;
+    if (inlineFree <= 0 && !remote) return [];
+    // 1. route every candidate first, outside any transaction: the replay check may read the database or call out
+    const routed: Routed[] = [];
+    for (const task of await candidates(inlineFree)) routed.push({ ...task, kind: await kindOf(task) });
+    if (routed.length === 0) return [];
+    // 2. a short transaction locks the candidates still queued (another dispatcher may have taken some) and marks them
+    return o.db.transaction(async (tx) => {
+      const locked = (await tx.execute(sql`
+        select id from ${s.taskOutbox}
+         where id in ${routed.map((r) => r.id)} and state = 'queued' and run_after <= now()
+         for update skip locked`)) as unknown as { id: string }[];
+      const free = new Set(locked.map((r) => r.id));
       const picked: Routed[] = [];
-      for (const r of rows) {
+      for (const task of routed) {
         if (picked.length >= batchSize) break;
-        const task: TaskRef = {
-          id: r.id,
-          name: r.name as TaskName,
-          workspaceId: r.workspace_id,
-          args: r.args,
-        };
-        const kind = await kindOf(task);
-        if (kind === "inline") {
+        if (!free.has(task.id)) continue;
+        if (task.kind === "inline") {
           if (inlineFree <= 0) continue; // stays queued (and unlocked at commit) for a later tick
           inlineFree--;
         }
-        picked.push({ ...task, kind });
+        picked.push(task);
       }
       for (const kind of new Set(picked.map((p) => p.kind))) {
         const ids = picked.filter((p) => p.kind === kind).map((p) => p.id);

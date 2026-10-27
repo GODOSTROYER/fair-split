@@ -6,9 +6,12 @@
  *
  *   extract (the live slip read, which shows its Render run id), readRateCard, warmCaches
  *
- * The dispatcher asks the route for every claimed row and records the answer in `task_outbox.executor`. Apps may
+ * The dispatcher asks the route for every row it claims and records the answer in `task_outbox.executor`. Apps may
  * inject their own route (`createOutbox({route})`); a route to an executor this process does not have runs inline.
+ * Whether a task replays comes from `replayFromDatabase` unless the app injects its own predicate.
  */
+import { type DbOrTx, envKills, schema as s } from "@fairsplit/db";
+import { and, eq } from "drizzle-orm";
 import type { TaskName } from "./_shims/contracts.js";
 import type { ExecutorKind } from "./runner.js";
 
@@ -32,3 +35,37 @@ export const REMOTE_TASKS: ReadonlySet<TaskName> = new Set<TaskName>([
 /** The S3.3 table: REMOTE_TASKS go to the configured remote executor unless they replay; everything else inline. */
 export const defaultRoute: ExecutorRoute = (name, ctx) =>
   ctx.configured !== "inline" && !ctx.replay && REMOTE_TASKS.has(name) ? ctx.configured : "inline";
+
+/** What the replay predicate is asked about: a claimed (or about to be claimed) row. */
+export interface ReplayQuestion {
+  id: string;
+  name: TaskName;
+  workspaceId: string | null;
+}
+
+/**
+ * The default replay predicate (used whenever EXECUTOR names a remote executor and the app injects none): a task
+ * replays recorded output, so it has nothing to offload and stays inline, when
+ *   - its workspace is a judge workspace: Judge Mode always replays Claude's output (C-06, S3.3 "Judge Mode replays
+ *     the AI output"); or
+ *   - kill_ai_live is on for its workspace, or forced everywhere by FS_KILL (system tasks have only the latter).
+ * Read fresh from the database on every call, never cached (S3.11). An unknown workspace is not a replay.
+ */
+export function replayFromDatabase(
+  db: DbOrTx,
+  opts: { env?: Record<string, string | undefined> } = {},
+): (task: ReplayQuestion) => Promise<boolean> {
+  return async (task) => {
+    if (envKills(opts.env ?? process.env).has("kill_ai_live")) return true;
+    if (task.workspaceId === null) return false;
+    const [row] = await db
+      .select({ kind: s.workspaces.kind, killed: s.systemFlags.on })
+      .from(s.workspaces)
+      .leftJoin(
+        s.systemFlags,
+        and(eq(s.systemFlags.workspaceId, s.workspaces.id), eq(s.systemFlags.flag, "kill_ai_live")),
+      )
+      .where(eq(s.workspaces.id, task.workspaceId));
+    return row !== undefined && (row.kind === "judge" || row.killed === true);
+  };
+}
