@@ -16,6 +16,7 @@ import {
   fact,
   honestProof,
   KEY_IDS,
+  KEY_KINDS,
   LEDGER_KEY,
   PROOF_KEYS,
   PROOF_TRUST,
@@ -23,7 +24,7 @@ import {
   withCheckpoint,
 } from "./__fixtures__/proof.js";
 import { testCanonical } from "./__fixtures__/world.js";
-import { approvalBytes, buildApprovalPayload } from "./approval.js";
+import { approvalBytes, buildApprovalPayload, linesDigest } from "./approval.js";
 import { batchDigest, batchNote, invoiceReference, senderBatchId } from "./batch.js";
 import { jcsSha256, sha256Hex } from "./canon.js";
 import {
@@ -127,6 +128,7 @@ function resign(p: ProofBundle): SignedApproval[] {
       seasonId: a.payload.seasonId,
       rateCardSha256: p.rateCard.sha256,
       batch: { batchSha256: p.batch.batchSha256, itemCount: p.batch.items.length, totalCents: total },
+      linesDigest: a.payload.linesDigest,
       role: a.role,
       approverId: a.payload.approverId,
       nonce: a.payload.nonce,
@@ -442,7 +444,7 @@ describe("verifyChain(proof): the chain and the six Proof plates", () => {
         {
           keyId: KEY_IDS[role],
           persona: APPROVERS[role],
-          kind: "app",
+          kind: KEY_KINDS[role],
           publicKeyHex: PROOF_KEYS[role].publicKeyHex,
         },
         "2026-10-01T00:00:00.000Z",
@@ -462,6 +464,150 @@ describe("verifyChain(proof): the chain and the six Proof plates", () => {
     // The card no longer re-hashes, so plate 2 fails, but plate 5 accepts the treasurer alone.
     expect(v.plates.twoKeys).toEqual({ ok: true, reason: null });
     expect(v.plates.ratified.ok).toBe(false);
+  });
+});
+
+// ------------------------------------------------------------------ both keys bind the cash lines
+
+/** M-003 is paid in cash: cut its line by US$1.00 with an R1 deduction nobody approved, re-hashed. */
+function cutCashLine(p: ProofBundle): ProofBundle["lines"] {
+  return p.lines.map((l) => {
+    if (l.memberNo !== "M-003") return l;
+    const canonical = {
+      ...l.canonical,
+      deductions: [
+        ...l.canonical.deductions,
+        { ruleId: "R1" as const, amountCents: 100, ref: null, carriedCentavos: null },
+      ],
+      netCents: l.canonical.netCents - 100,
+    };
+    return {
+      ...l,
+      deductionsCents: l.deductionsCents + 100,
+      netCents: canonical.netCents,
+      canonical,
+      lineSha256: jcsSha256(canonical),
+    };
+  });
+}
+
+/** The `lines.computed` payload a server recomputing the run over `lines` would append. */
+function computedOver(p: ProofBundle, lines: ProofBundle["lines"]): LedgerPayload<"lines.computed"> {
+  const first = attestedEntries(p.ledger, "lines.computed")[0];
+  if (!first) throw new Error("the honest proof has a computation");
+  return {
+    ...first.payload,
+    linesRootSha256: linesDigest(lines),
+    netCents: lines.reduce((s, l) => s + l.netCents, 0),
+  };
+}
+
+const ENGINE = { actorKind: "engine" as const, actorId: "engine v1" };
+
+describe("inv.i6.lines-digest: both keys bind every member line, so a cash line cannot change after signing", () => {
+  it("the signed payload carries the lines root plate 4 recomputes", () => {
+    const p = honestProof();
+    expect(p.lines.find((l) => l.memberNo === "M-003")?.rail).toBe("CASH");
+    for (const a of p.approvals) expect(a.payload.linesDigest).toBe(linesDigest(p.lines));
+    expect(attestedEntries(p.ledger, "lines.computed")[0]?.payload.linesRootSha256).toBe(
+      linesDigest(p.lines),
+    );
+  });
+
+  it("a cash line cut after both keys, recomputed into the chain and re-anchored with the ledger key, fails", () => {
+    // The review's probe: the approvals sit at seq 9 and 10, the new computation is appended at 16,
+    // the chain is extended and the checkpoint re-signed with fs-ledger-k1.
+    const p = honestProof();
+    const lines = cutCashLine(p);
+    const recomputed = appendLedger(
+      p.ledger,
+      fact("lines.computed", computedOver(p, lines), T("02:14:00"), ENGINE),
+    );
+    expect(attestedEntries(p.ledger, "approval.signed").map((e) => e.seq)).toEqual([9, 10]);
+    expect(recomputed.seq).toBe(16);
+    const tampered = withCheckpoint(
+      { ...p, lines, ledger: [...p.ledger, recomputed] },
+      LEDGER_KEY,
+      p.runId,
+      T("02:15:00"),
+    );
+    const v = verify(tampered);
+    expect(v.chain.ok).toBe(true);
+    expect(v.checkpoint.ok).toBe(true);
+    expect(v.plates.computed).toEqual({
+      ok: false,
+      reason: "The lines were computed again after they were signed.",
+    });
+    expect(v.plates.twoKeys).toEqual({ ok: false, reason: "A signature does not cover these lines." });
+    expect(v).toMatchObject({ ok: false, status: "failed" });
+    expect(verify(tampered, PROOF_TRUST, { demoMode: true }).status).toBe("failed");
+  });
+
+  it("the same cut written into the chain before the signatures still fails: only the officers' keys can sign lines", () => {
+    const p = honestProof();
+    const lines = cutCashLine(p);
+    const ledger = buildLedger(
+      p.ledger.map((e) => (e.kind === "lines.computed" ? { ...e, payload: computedOver(p, lines) } : e)),
+    );
+    const v = verify(withCheckpoint({ ...p, lines, ledger }));
+    expect(v.chain.ok && v.checkpoint.ok).toBe(true);
+    // Plate 4 alone is satisfied: the rewritten computation precedes the signatures and matches.
+    expect(v.plates.computed).toEqual({ ok: true, reason: null });
+    expect(v.plates.twoKeys).toEqual({ ok: false, reason: "A signature does not cover these lines." });
+    expect(v).toMatchObject({ ok: false, status: "failed" });
+  });
+
+  it("plate 4 reads the computation the signatures follow: a recomputation between the two keys fails", () => {
+    const p = honestProof();
+    const entries = [...p.ledger];
+    const [computed] = entries.splice(
+      entries.findIndex((e) => e.kind === "lines.computed"),
+      1,
+    );
+    if (!computed) throw new Error("no computation");
+    // Re-insert it after the treasurer's signature, before the Chair's.
+    entries.splice(entries.findIndex((e) => e.kind === "approval.signed") + 1, 0, computed);
+    const v = verify(withCheckpoint({ ...p, ledger: buildLedger(entries) }));
+    expect(v.plates.computed).toEqual({
+      ok: false,
+      reason: "The lines were computed again after they were signed.",
+    });
+    expect(v.ok).toBe(false);
+  });
+
+  it("a recomputation after a voided signature verifies: only the signatures the Proof counts must follow it", () => {
+    // A line edit after key 1 voids both approvals (the approved plan); the run is recomputed and
+    // signed again. The voided signature stays in the chain, before the recomputation.
+    const p = honestProof();
+    const at = p.ledger.findIndex((e) => e.kind === "lines.computed");
+    const computed = p.ledger[at];
+    if (!computed) throw new Error("no computation");
+    const voidedSignature = fact(
+      "approval.signed",
+      {
+        runId: p.runId,
+        role: "treasurer",
+        keyId: KEY_IDS.treasurer,
+        approverId: APPROVERS.treasurer,
+        batchSha256: p.batch.batchSha256,
+        nonce: "nonce-treasurer-0000",
+      },
+      T("02:04:00"),
+      { actorKind: "human", actorId: APPROVERS.treasurer },
+    );
+    const voided = plain(
+      "approval.voided",
+      { role: "treasurer", nonce: "nonce-treasurer-0000" },
+      T("02:04:30"),
+    );
+    const ledger = buildLedger([
+      ...p.ledger.slice(0, at),
+      { ...computed, at: T("02:03:00") },
+      voidedSignature,
+      voided,
+      ...p.ledger.slice(at),
+    ]);
+    expect(verify(withCheckpoint({ ...p, ledger }))).toMatchObject({ ok: true, status: "verified" });
   });
 });
 
@@ -537,8 +683,8 @@ describe("inv.i6.proof-trust: plate 5 verifies against the published officer key
   it("keys re-registered in a re-chained ledger and re-signed are refused: only the published keys are trusted", () => {
     const p = honestProof();
     const attacker = rekey(p, {
-      treasurer: { keyId: KEY_IDS.treasurer, pair: ATTACKER.treasurer, kind: "app" },
-      chair: { keyId: KEY_IDS.chair, pair: ATTACKER.chair, kind: "app" },
+      treasurer: { keyId: KEY_IDS.treasurer, pair: ATTACKER.treasurer, kind: KEY_KINDS.treasurer },
+      chair: { keyId: KEY_IDS.chair, pair: ATTACKER.chair, kind: KEY_KINDS.chair },
     });
     // Everything the bundle can show is consistent: chain, checkpoint, ledger registrations.
     const v = verify(attacker.proof);
@@ -582,8 +728,8 @@ describe("inv.i6.proof-trust: plate 5 verifies against the published officer key
 
   it("the treasurer and the Chair need distinct published keys, not just distinct key IDs", () => {
     const same = rekey(honestProof(), {
-      treasurer: { keyId: KEY_IDS.treasurer, pair: PROOF_KEYS.treasurer, kind: "app" },
-      chair: { keyId: KEY_IDS.chair, pair: PROOF_KEYS.treasurer, kind: "app" },
+      treasurer: { keyId: KEY_IDS.treasurer, pair: PROOF_KEYS.treasurer, kind: KEY_KINDS.treasurer },
+      chair: { keyId: KEY_IDS.chair, pair: PROOF_KEYS.treasurer, kind: KEY_KINDS.chair },
     });
     expect(verify(same.proof, same.trust).plates.twoKeys).toEqual({
       ok: false,

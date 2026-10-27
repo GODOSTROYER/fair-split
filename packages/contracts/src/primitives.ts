@@ -78,12 +78,18 @@ export const KEY_ID_PATTERNS = {
 } as const;
 
 /**
+ * `DeviceKeyId`'s pattern as a string. It uses only syntax a PostgreSQL ARE reads the same way
+ * (anchors, `[a-z]`, `{m,n}`, `(?:…)` and the `(?!…)` lookahead), so `device_keys.key_id`'s CHECK is
+ * derived from it (`key_id ~ DEVICE_KEY_ID_PATTERN`) instead of being written a second time.
+ */
+export const DEVICE_KEY_ID_PATTERN =
+  "^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-(?:[aw][1-9][0-9]{0,3}|demo-[a-z0-9]{6})$";
+
+/**
  * A key a person holds: an app key (`a`), a persisted browser key (`w`) or a judge-session demo key
  * (`demo`). Only these are registered in `device_keys` or accepted by the API.
  */
-export const DeviceKeyId = z
-  .string()
-  .regex(/^fs-(?!(?:ledger|demo)-)[a-z]{1,24}-(?:[aw][1-9][0-9]{0,3}|demo-[a-z0-9]{6})$/);
+export const DeviceKeyId = z.string().regex(new RegExp(DEVICE_KEY_ID_PATTERN));
 export type DeviceKeyId = z.infer<typeof DeviceKeyId>;
 
 /**

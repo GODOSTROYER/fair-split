@@ -49,6 +49,7 @@ import {
   IsoDate,
   IsoDateTime,
   Json,
+  KEY_ID_PATTERNS,
   KeyId,
   Lang,
   MemberNo,
@@ -105,6 +106,25 @@ export const PairingToken = z.strictObject({
   usedAt: IsoDateTime.nullable(),
 });
 export type PairingToken = z.infer<typeof PairingToken>;
+
+/**
+ * The one ID shape each `device_keys.kind` may carry, as PostgreSQL-compatible pattern strings (see
+ * `DEVICE_KEY_ID_PATTERN`): an app key is `fs-{persona}-a{n}`, a persisted browser key
+ * `fs-{persona}-w{n}` (the treasurer's `fs-analyn-w1`), and a judge-session key is `web_demo` with a
+ * C-13 demo ID `fs-{persona}-demo-{6}`, so a judge's key can never take a real key's ID.
+ */
+export const DEVICE_KEY_ID_PATTERN_BY_KIND: Readonly<Record<DeviceKeyKind, string>> = {
+  app: KEY_ID_PATTERNS.app.source,
+  web: KEY_ID_PATTERNS.web.source,
+  web_demo: KEY_ID_PATTERNS.demo.source,
+};
+
+/** True when `keyId` has the ID shape of `kind` (`DEVICE_KEY_ID_PATTERN_BY_KIND`); any other kind fits nothing. */
+export function deviceKeyIdFitsKind(kind: string, keyId: string): boolean {
+  if (!Object.hasOwn(DEVICE_KEY_ID_PATTERN_BY_KIND, kind)) return false;
+  const pattern = DEVICE_KEY_ID_PATTERN_BY_KIND[kind as DeviceKeyKind];
+  return typeof keyId === "string" && new RegExp(pattern).test(keyId);
+}
 
 /** A registered signing key. Seeded keys (`fs-{persona}-s{n}`) are never written here. */
 export const DeviceKey = z.strictObject({

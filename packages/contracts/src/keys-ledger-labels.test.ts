@@ -3,9 +3,13 @@
 import { describe, expect, it } from "vitest";
 import {
   API_COMMANDS,
+  ApprovalPayload,
+  DEVICE_KEY_ID_PATTERN,
+  DEVICE_KEY_ID_PATTERN_BY_KIND,
   DeviceKey,
   DeviceKeyId,
   DeviceKeyKind,
+  deviceKeyIdFitsKind,
   ERROR_HTTP_STATUS,
   HOLD_GATE_LABELS,
   HOLD_KIND_LABELS,
@@ -45,6 +49,7 @@ const payload = {
   seasonId: "season-1",
   rateCardSha256: H("a"),
   batchSha256: H("b"),
+  linesDigest: H("c"),
   itemCount: 8,
   totalCents: 36_839,
   currency: "USD",
@@ -126,6 +131,68 @@ describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
     }
   });
 
+  it("device_keys derives its CHECKs from here: one pattern string the database can use, one ID shape per kind", () => {
+    // A plain string that is also a PostgreSQL ARE: `key_id ~ DEVICE_KEY_ID_PATTERN`.
+    expect(typeof DEVICE_KEY_ID_PATTERN).toBe("string");
+    const strings = [DEVICE_KEY_ID_PATTERN, ...Object.values(DEVICE_KEY_ID_PATTERN_BY_KIND)];
+    for (const s of strings) {
+      // Only syntax both engines read the same way: no class escapes, word boundaries, lookbehind or
+      // inline flags, and anchored at both ends.
+      expect(s, s).not.toMatch(/\\[dDwWsSbB]|\(\?<|\(\?[a-z]/);
+      expect(s.startsWith("^") && s.endsWith("$"), s).toBe(true);
+    }
+    const db = new RegExp(DEVICE_KEY_ID_PATTERN);
+    // The review's probe IDs: the old CHECK '^fs-[a-z0-9]+-[aw][0-9]+$' disagreed with DeviceKeyId on each.
+    const probes: [string, boolean][] = [
+      ["fs-ernesto-demo-abc123", true],
+      ["fs-analyn-demo-000000", true],
+      ["fs-ernesto-demo-a1b2c3", true],
+      ["fs-analyn-w1", true],
+      ["fs-ernesto-a1", true],
+      ["fs-ernesto-a9999", true],
+      ["fs-ledger-a1", false],
+      ["fs-demo-w1", false],
+      ["fs-ernesto-a0", false],
+      ["fs-ernesto-a01", false],
+      ["fs-x9-a1", false],
+      ["fs-judge1-w1", false],
+      ["fs-ernesto-a123456", false],
+      ["fs-ernesto-a10000", false],
+      [`fs-${"a".repeat(30)}-a1`, false],
+      ["fs-ernesto-s1", false],
+      ["fs-ledger-k1", false],
+    ];
+    for (const [id, ok] of probes) {
+      expect(db.test(id), id).toBe(ok);
+      expect(DeviceKeyId.safeParse(id).success, id).toBe(ok);
+      // A device key ID fits exactly one kind; anything else fits none.
+      const kinds = DeviceKeyKind.options.filter((k) => deviceKeyIdFitsKind(k, id));
+      expect(kinds.length, id).toBe(ok ? 1 : 0);
+      for (const k of DeviceKeyKind.options) {
+        expect(new RegExp(DEVICE_KEY_ID_PATTERN_BY_KIND[k]).test(id), `${k} ${id}`).toBe(
+          deviceKeyIdFitsKind(k, id),
+        );
+      }
+    }
+    expect(Object.keys(DEVICE_KEY_ID_PATTERN_BY_KIND).sort()).toEqual([...DeviceKeyKind.options].sort());
+    // The treasurer's real WebCrypto key is `web`; a judge-session key is `web_demo` with a C-13 demo
+    // ID, so it can never take the treasurer's ID.
+    expect(deviceKeyIdFitsKind("web", "fs-analyn-w1")).toBe(true);
+    expect(deviceKeyIdFitsKind("app", "fs-ernesto-a1")).toBe(true);
+    expect(deviceKeyIdFitsKind("web_demo", "fs-ernesto-demo-a1b2c3")).toBe(true);
+    for (const [kind, id] of [
+      ["web_demo", "fs-analyn-w1"],
+      ["app", "fs-analyn-w1"],
+      ["web", "fs-ernesto-a1"],
+      ["web", "fs-ernesto-demo-a1b2c3"],
+      ["seeded", "fs-ernesto-s1"],
+      ["server", "fs-ledger-k1"],
+      ["toString", "fs-ernesto-a1"],
+    ] as const) {
+      expect(deviceKeyIdFitsKind(kind, id), `${kind} ${id}`).toBe(false);
+    }
+  });
+
   it("the API and device_keys refuse a seeded key; a signed approval may carry one", () => {
     const req = { role: "chair", signature: "c".repeat(128), payload };
     expect(SubmitApprovalRequest.safeParse({ ...req, keyId: "fs-ernesto-a1" }).success).toBe(true);
@@ -160,6 +227,36 @@ describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
     };
     expect(SnapshotOfficer.safeParse(officer).success).toBe(true);
     expect(SnapshotOfficer.safeParse({ ...officer, keyId: "fs-ernesto-s1" }).success).toBe(false);
+  });
+
+  it("inv.i6.lines-digest: the signed payload carries linesDigest, so both keys bind every member line", () => {
+    // The approved plan amends register §8: JCS{v, runId, seasonId, rateCardSha256, batchSha256,
+    // linesDigest, itemCount, totalCents, currency, role, approverId, nonce, exp}.
+    expect(Object.keys(ApprovalPayload.shape).sort()).toEqual(
+      [
+        "approverId",
+        "batchSha256",
+        "currency",
+        "exp",
+        "itemCount",
+        "linesDigest",
+        "nonce",
+        "rateCardSha256",
+        "role",
+        "runId",
+        "seasonId",
+        "totalCents",
+        "v",
+      ].sort(),
+    );
+    expect(ApprovalPayload.safeParse(payload).success).toBe(true);
+    const { linesDigest: _dropped, ...withoutLines } = payload;
+    expect(ApprovalPayload.safeParse(withoutLines).success).toBe(false);
+    for (const bad of ["", H("C"), "c".repeat(63), H("g"), 42]) {
+      expect(ApprovalPayload.safeParse({ ...payload, linesDigest: bad }).success, String(bad)).toBe(false);
+    }
+    const req = { role: "chair", keyId: "fs-ernesto-a1", signature: "c".repeat(128) };
+    expect(SubmitApprovalRequest.safeParse({ ...req, payload: withoutLines }).success).toBe(false);
   });
 
   it("names identity mismatches with their own error codes", () => {

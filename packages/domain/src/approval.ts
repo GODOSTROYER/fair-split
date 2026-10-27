@@ -1,7 +1,8 @@
-// I6: a person approves the irreversible step. Each approver signs the register §8 JCS payload
-// {v, runId, seasonId, rateCardSha256, batchSha256, itemCount, totalCents, currency, role,
-// approverId, nonce, exp} with Ed25519. The Chair co-signs a batch over US$300, a line over US$150
-// and any override (R5).
+// I6: a person approves the irreversible step. Each approver signs the register §8 JCS payload, as
+// amended by the approved plan, {v, runId, seasonId, rateCardSha256, batchSha256, linesDigest,
+// itemCount, totalCents, currency, role, approverId, nonce, exp} with Ed25519: `batchSha256` binds the
+// PayPal items and `linesDigest` every member line, the cash lines too. The Chair co-signs a batch over
+// US$300, a line over US$150 and any override (R5).
 //
 // Trust comes only from the officer key registry (`device_keys`), which the server reads for the
 // role being signed. A key presented with an approval is compared against the registry's key for
@@ -17,7 +18,8 @@ import {
   type RateCardRules,
   type SignedApproval,
 } from "@fairsplit/contracts";
-import { approvalBytes } from "./digest-input.js";
+import { sha256Hex } from "./canon.js";
+import { approvalBytes, linesRootJcs } from "./digest-input.js";
 import { jcs } from "./jcs.js";
 import { ed25519Verify } from "./sig.js";
 
@@ -25,11 +27,27 @@ export { approvalBytes } from "./digest-input.js";
 
 export const APPROVAL_MAX_TTL_MS = 30 * 60 * 1000;
 
+/**
+ * The `linesDigest` both approvers sign: the lines root over every member line of the run, on and off
+ * rail, sha256(JCS([{memberNo, lineSha256}] sorted by memberNo)). It is the root the run's
+ * `lines.computed` ledger entry carries and Proof plate 4 recomputes, so a cash line changed after
+ * signing no longer matches either key. One line per member; at least one line.
+ */
+export function linesDigest(lines: readonly { memberNo: string; lineSha256: string }[]): string {
+  if (lines.length === 0) throw new RangeError("linesDigest needs the run's lines");
+  if (new Set(lines.map((l) => l.memberNo)).size !== lines.length) {
+    throw new RangeError("linesDigest needs one line per member");
+  }
+  return sha256Hex(linesRootJcs(lines));
+}
+
 export interface ApprovalInput {
   runId: string;
   seasonId: string;
   rateCardSha256: string;
   batch: Pick<BatchDigest, "batchSha256" | "itemCount" | "totalCents">;
+  /** `linesDigest(lines)` over every member line of the run, recomputed from the database. */
+  linesDigest: string;
   role: ApprovalRole;
   approverId: string;
   nonce: string;
@@ -43,6 +61,7 @@ export function buildApprovalPayload(input: ApprovalInput): ApprovalPayload {
     seasonId: input.seasonId,
     rateCardSha256: input.rateCardSha256,
     batchSha256: input.batch.batchSha256,
+    linesDigest: input.linesDigest,
     itemCount: input.batch.itemCount,
     totalCents: input.batch.totalCents,
     currency: "USD",
@@ -93,6 +112,8 @@ export interface ApprovalExpectation extends ExpectedSigner {
   seasonId: string;
   rateCardSha256: string;
   batchSha256: string;
+  /** `linesDigest(lines)` recomputed from the database's lines for the run (I4). */
+  linesDigest: string;
   itemCount: number;
   totalCents: number;
   role: ApprovalRole;
@@ -157,8 +178,9 @@ function requireNonceStore(usedNonces: unknown): asserts usedNonces is ReadonlyS
  * Server-side check of one submitted approval (I6). In order: the signer must be exactly the
  * expected registry key for the role (else "Unknown signer", before any signature is checked; never
  * a seeded or revoked key); the payload must name that approver, role and season and match the
- * recomputed batch; `exp` must be in the future and at most 30 minutes away; the nonce must not be
- * in `usedNonces`; and the signature must verify against `expected.publicKeyHex`.
+ * recomputed batch and the recomputed lines digest; `exp` must be in the future and at most 30
+ * minutes away; the nonce must not be in `usedNonces`; and the signature must verify against
+ * `expected.publicKeyHex`.
  */
 export function checkApproval(
   signed: SignedApproval,
@@ -198,6 +220,9 @@ export function checkApproval(
     p.currency !== "USD"
   ) {
     return refuse("DIGEST_MISMATCH", "The batch changed after it was signed. Nothing was sent.");
+  }
+  if (p.linesDigest !== expected.linesDigest) {
+    return refuse("DIGEST_MISMATCH", "A line changed after it was signed. Nothing was sent.");
   }
   const exp = Date.parse(p.exp);
   if (Number.isNaN(exp) || exp <= now.getTime() || exp - now.getTime() > APPROVAL_MAX_TTL_MS) {

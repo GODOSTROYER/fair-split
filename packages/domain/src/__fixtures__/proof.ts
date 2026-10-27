@@ -6,7 +6,7 @@ import type {
   ProofTrust,
   SignedApproval,
 } from "@fairsplit/contracts";
-import { approvalBytes, buildApprovalPayload } from "../approval.js";
+import { approvalBytes, buildApprovalPayload, linesDigest } from "../approval.js";
 import {
   batchDigest,
   batchNote,
@@ -27,7 +27,9 @@ export const PROOF_KEYS = {
   chair: ed25519FromSeed(sha256Hex("proof fixture key chair")),
 };
 export const APPROVERS = { treasurer: "treasurer:analyn", chair: "board:ernesto" } as const;
-export const KEY_IDS = { treasurer: "fs-analyn-a1", chair: "fs-ernesto-a1" } as const;
+/** S3.8: the treasurer signs with her WebCrypto key `fs-analyn-w1`, the Chair with his app key. */
+export const KEY_IDS = { treasurer: "fs-analyn-w1", chair: "fs-ernesto-a1" } as const;
+export const KEY_KINDS = { treasurer: "web", chair: "app" } as const;
 /** The server's ledger key: it signs each Proof's checkpoint; verifiers pin its public key. */
 export const LEDGER_KEY = {
   keyId: "fs-ledger-k1",
@@ -41,7 +43,7 @@ export const PROOF_TRUST: ProofTrust = {
     approverId: APPROVERS[role],
     role,
     publicKeyHex: PROOF_KEYS[role].publicKeyHex,
-    kind: "app" as const,
+    kind: KEY_KINDS[role],
     revokedAt: null,
   })),
   ledger: [
@@ -102,6 +104,7 @@ export function honestProof(): ProofBundle {
       seasonId: "season-1",
       rateCardSha256: card.sha256,
       batch: digest,
+      linesDigest: linesDigest(out.lines),
       role,
       approverId: APPROVERS[role],
       nonce: `nonce-${role}-0001`,
@@ -138,7 +141,7 @@ export function honestProof(): ProofBundle {
         {
           keyId: KEY_IDS[role],
           persona: APPROVERS[role],
-          kind: "app",
+          kind: KEY_KINDS[role],
           publicKeyHex: PROOF_KEYS[role].publicKeyHex,
         },
         "2026-10-01T00:00:00.000Z",

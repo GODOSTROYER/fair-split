@@ -3,6 +3,7 @@
 import {
   DeviceKeyId,
   type EngineInput,
+  KEY_ID_PATTERNS,
   type ProofBundle,
   PublishedKeys,
   SeasonSnapshot,
@@ -24,6 +25,7 @@ import {
   format,
   jcsSha256,
   lineSha256,
+  linesDigest,
   paypalRequestId,
   quotesInTextLayer,
   verifyChain,
@@ -76,8 +78,12 @@ describe("co-op, people and season", () => {
 
   it("officers, the clerk's initials on every slip, and the payer", () => {
     const o = Object.fromEntries(s.officers.map((x) => [x.role, x]));
-    expect(o.TREASURER).toMatchObject({ name: "Analyn R. Sumalinog", initials: "AS" });
+    // S3.8 and the approved plan: the treasurer signs with fs-analyn-w1, a non-extractable WebCrypto
+    // key registered from /ops (kind web); the Chair with fs-ernesto-a1 in SecureStore (kind app).
+    expect(o.TREASURER).toMatchObject({ name: "Analyn R. Sumalinog", initials: "AS", keyId: "fs-analyn-w1" });
     expect(o.CHAIR).toMatchObject({ name: "Ernesto P. Cabahug", initials: "EC", keyId: "fs-ernesto-a1" });
+    expect(KEY_ID_PATTERNS.web.test(o.TREASURER?.keyId ?? "")).toBe(true);
+    expect(KEY_ID_PATTERNS.app.test(o.CHAIR?.keyId ?? "")).toBe(true);
     expect(o.SECRETARY?.name).toBe("Ma. Theresa L. Gumapac");
     expect(o.CLERK).toMatchObject({ name: "Jessie D. Dumaguing", initials: "JD" });
     expect(getSlips().every((x) => x.clerkInitials === "JD")).toBe(true);
@@ -524,8 +530,14 @@ describe("batch, approvals and end state", () => {
       ["chair", "fs-ernesto-s1"],
     ]);
     const registered = attestedEntries(s.proof.ledger, "key.registered");
+    // Both keys bind every member line, the 56 cash lines too: the lines root plate 4 recomputes.
+    const root = attestedEntries(s.proof.ledger, "lines.computed")[0]?.payload.linesRootSha256;
+    expect(linesDigest(resolved.lines)).toBe(root);
+    expect(linesDigest(s.proof.lines)).toBe(root);
+    expect(resolved.lines.filter((l) => l.rail === "CASH")).toHaveLength(56);
     for (const a of run.approvals) {
       expect(a.payload.batchSha256).toBe(run.batchSha256);
+      expect(a.payload.linesDigest).toBe(root);
       expect(a.payload).toMatchObject({ itemCount: 8, totalCents: 36_839, currency: "USD" });
       const key = registered.find((e) => e.payload.keyId === a.keyId)?.payload.publicKeyHex ?? "";
       expect(approvalSignatureValid(a, key)).toBe(true);
@@ -694,7 +706,7 @@ describe("seeded keys never stand in for a person (I6)", () => {
   const deviceIds = s.officers.map((o) => o.keyId).filter((k): k is string => k !== null);
 
   it("no seeded approval carries a device key ID fs-{persona}-{a|w}{n}; officers keep theirs as identity only", () => {
-    expect(deviceIds).toEqual(["fs-analyn-a1", "fs-ernesto-a1"]);
+    expect(deviceIds).toEqual(["fs-analyn-w1", "fs-ernesto-a1"]);
     for (const a of [...run.approvals, ...s.proof.approvals]) {
       expect(DeviceKeyId.safeParse(a.keyId).success, a.keyId).toBe(false);
       expect(SeededKeyId.safeParse(a.keyId).success, a.keyId).toBe(true);
@@ -737,6 +749,7 @@ describe("seeded keys never stand in for a person (I6)", () => {
           seasonId: s.season.id,
           rateCardSha256: getRateCard().sha256,
           batchSha256: run.batchSha256,
+          linesDigest: a.payload.linesDigest,
           itemCount: 8,
           totalCents: 36_839,
           role: a.role,
@@ -812,6 +825,7 @@ describe("the Proof bundle is bound to its ledger (S3.12)", () => {
         seasonId: a.payload.seasonId,
         rateCardSha256: p.rateCard.sha256,
         batch: d,
+        linesDigest: a.payload.linesDigest,
         role: a.role,
         approverId: a.payload.approverId,
         nonce: a.payload.nonce,

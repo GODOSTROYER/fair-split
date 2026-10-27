@@ -511,13 +511,24 @@ export const BatchDigest = z.strictObject({
 });
 export type BatchDigest = z.infer<typeof BatchDigest>;
 
-/** The JCS payload each approver signs with Ed25519 (register §8). */
+/**
+ * The JCS payload each approver signs with Ed25519: register §8 as amended by the approved plan
+ * (ADR-0001), JCS{v, runId, seasonId, rateCardSha256, batchSha256, linesDigest, itemCount, totalCents,
+ * currency, role, approverId, nonce, exp}. `batchSha256` binds the PayPal items; `linesDigest` binds
+ * every member line, so both keys cover the cash lines too.
+ */
 export const ApprovalPayload = z.strictObject({
   v: z.literal(1),
   runId: z.string(),
   seasonId: z.string(),
   rateCardSha256: Sha256Hex,
   batchSha256: Sha256Hex,
+  /**
+   * The lines root over every member line, on and off rail: sha256(JCS([{memberNo, lineSha256}]
+   * sorted by memberNo)), the root the run's `lines.computed` entry carries and Proof plate 4
+   * recomputes (domain `linesDigest`).
+   */
+  linesDigest: Sha256Hex,
   itemCount: z.int().positive(),
   totalCents: z.int().positive(),
   currency: z.literal("USD"),

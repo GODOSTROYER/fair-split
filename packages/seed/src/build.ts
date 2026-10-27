@@ -34,6 +34,7 @@ import {
   invoiceReference,
   type LedgerFact,
   lineCanonical,
+  linesDigest,
   linesRootSha256,
   paypalRequestId,
   publishedFees,
@@ -347,6 +348,8 @@ export function buildSnapshot(): Built {
       seasonId,
       rateCardSha256: card.sha256,
       batch: digest,
+      // Both keys bind every member line, the 56 cash lines too (the approved plan's linesDigest).
+      linesDigest: linesDigest(resolved.lines),
       role,
       approverId,
       nonce: sha256Hex(`nonce:${slug}:${role}`).slice(0, 32),

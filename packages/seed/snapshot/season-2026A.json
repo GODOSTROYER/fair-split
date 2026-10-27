@@ -35,7 +35,7 @@
       "shortName": "Analyn",
       "initials": "AS",
       "persona": "treasurer:analyn",
-      "keyId": "fs-analyn-a1"
+      "keyId": "fs-analyn-w1"
     },
     {
       "role": "CHAIR",
@@ -21685,6 +21685,7 @@
           "seasonId": "019ca6b1-dc00-7c73-8b2b-9661129af6b4",
           "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
           "batchSha256": "0f839be7c2c7751364a49064f305f96bb1a190dfe44711358426366a2d7ae6f3",
+          "linesDigest": "ad94cc7fa665c005eb36f0dd05bf537be597151c121f27be3b3f1f3d5289e177",
           "itemCount": 8,
           "totalCents": 36839,
           "currency": "USD",
@@ -21693,7 +21694,7 @@
           "nonce": "1f2418376b72858738e21e7b5ecb7dda",
           "exp": "2026-10-29T02:39:00.000Z"
         },
-        "signatureHex": "c0f42ba4e7fd6373c871ac88a4a2b4b38a37083cc2ced2ec7ca77ea39ed734ab8a42995db9d1221c0f9be57c22b8efebee4a133784b6f8d4de40115479842c07"
+        "signatureHex": "a54104b2243a87bfa708edf819045e2e915bf0a9c5d8a67bfb387fdbadb4af4988029d1a122c3e4ee569f1584d4f9c393ab8a58835fd78a872124eb67c483a08"
       },
       {
         "role": "chair",
@@ -21705,6 +21706,7 @@
           "seasonId": "019ca6b1-dc00-7c73-8b2b-9661129af6b4",
           "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
           "batchSha256": "0f839be7c2c7751364a49064f305f96bb1a190dfe44711358426366a2d7ae6f3",
+          "linesDigest": "ad94cc7fa665c005eb36f0dd05bf537be597151c121f27be3b3f1f3d5289e177",
           "itemCount": 8,
           "totalCents": 36839,
           "currency": "USD",
@@ -21713,7 +21715,7 @@
           "nonce": "64270e822e054bdde38a2fcdf5710952",
           "exp": "2026-10-29T02:40:31.000Z"
         },
-        "signatureHex": "e35ae2b7c85658cbf898ed3090ffd8e23a5331cdb7c32c1093b7c7131aa59534b99b66335196c60987abb2f72489fb63cbf92c7498b6da075228005a738ff70a"
+        "signatureHex": "ea99085bb72fd955a39b00838817f25ddc335314754d89ed405b834c77c6d23376d84dd14d072b3b17d6d31c46a1c29f3b5ad125431a20c2a9676d7017482405"
       }
     ],
     "chairNeeded": {
@@ -24177,6 +24179,7 @@
           "seasonId": "019ca6b1-dc00-7c73-8b2b-9661129af6b4",
           "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
           "batchSha256": "0f839be7c2c7751364a49064f305f96bb1a190dfe44711358426366a2d7ae6f3",
+          "linesDigest": "ad94cc7fa665c005eb36f0dd05bf537be597151c121f27be3b3f1f3d5289e177",
           "itemCount": 8,
           "totalCents": 36839,
           "currency": "USD",
@@ -24185,7 +24188,7 @@
           "nonce": "1f2418376b72858738e21e7b5ecb7dda",
           "exp": "2026-10-29T02:39:00.000Z"
         },
-        "signatureHex": "c0f42ba4e7fd6373c871ac88a4a2b4b38a37083cc2ced2ec7ca77ea39ed734ab8a42995db9d1221c0f9be57c22b8efebee4a133784b6f8d4de40115479842c07"
+        "signatureHex": "a54104b2243a87bfa708edf819045e2e915bf0a9c5d8a67bfb387fdbadb4af4988029d1a122c3e4ee569f1584d4f9c393ab8a58835fd78a872124eb67c483a08"
       },
       {
         "role": "chair",
@@ -24197,6 +24200,7 @@
           "seasonId": "019ca6b1-dc00-7c73-8b2b-9661129af6b4",
           "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
           "batchSha256": "0f839be7c2c7751364a49064f305f96bb1a190dfe44711358426366a2d7ae6f3",
+          "linesDigest": "ad94cc7fa665c005eb36f0dd05bf537be597151c121f27be3b3f1f3d5289e177",
           "itemCount": 8,
           "totalCents": 36839,
           "currency": "USD",
@@ -24205,7 +24209,7 @@
           "nonce": "64270e822e054bdde38a2fcdf5710952",
           "exp": "2026-10-29T02:40:31.000Z"
         },
-        "signatureHex": "e35ae2b7c85658cbf898ed3090ffd8e23a5331cdb7c32c1093b7c7131aa59534b99b66335196c60987abb2f72489fb63cbf92c7498b6da075228005a738ff70a"
+        "signatureHex": "ea99085bb72fd955a39b00838817f25ddc335314754d89ed405b834c77c6d23376d84dd14d072b3b17d6d31c46a1c29f3b5ad125431a20c2a9676d7017482405"
       }
     ],
     "batch": {
