@@ -1,14 +1,16 @@
 // src/routes/lines: owned by the RUNS slice (apps/api/SPLIT.md).
-// Line actions: pay in cash (cancel UNCLAIMED), re-route (P1).
-// IC-01 commands here: payCash, resend (each answers 501 NOT_IMPLEMENTED until filled in).
-// Replace `notImplemented` with a handler; the shell validates input, credentials and the response contract.
-import { notImplemented } from "../../lib/command.js";
+// Line actions: pay in cash (cancel an UNCLAIMED item, then OFF_RAIL_DUE) and the P1 re-route (`resend`),
+// with their outbox tasks (`cancelUnclaimed`, `reroute`).
 import { defineRouteFolder } from "../../lib/slice.js";
+import { payCashHandler } from "../../runs/paypal.js";
+import { rerouteTasks, resendHandler } from "../../runs/reroute.js";
+import { lineTasks } from "../../runs/tasks.js";
 
 export default defineRouteFolder({
   folder: "lines",
   commands: {
-    payCash: notImplemented,
-    resend: notImplemented,
+    payCash: payCashHandler,
+    resend: resendHandler,
   },
+  tasks: (deps) => ({ ...lineTasks(deps), ...rerouteTasks(deps) }),
 });
