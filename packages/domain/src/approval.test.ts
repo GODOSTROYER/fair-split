@@ -467,9 +467,43 @@ describe("inv.i6.registered-signer: approvals verify only against the registry's
     ).toMatchObject({ code: "KEY_NOT_REGISTERED" });
     const later: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), revokedAt: "2026-10-29T03:00:00.000Z" }];
     expect(expectedSigner(later, "treasurer", KEY_ID.treasurer, NOW).ok).toBe(true);
-    // A browser demo key registered for a judge session may sign (it is labelled; Proof reads "Sample").
-    const demo: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), keyId: "fs-analyn-w7", kind: "web_demo" }];
-    expect(expectedSigner(demo, "treasurer", "fs-analyn-w7", NOW).ok).toBe(true);
+    // A C-13 browser demo key registered for a judge session may sign (labelled; Proof reads "Sample").
+    const demoId = "fs-analyn-demo-a1b2c3";
+    const demo: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), keyId: demoId, kind: "web_demo" }];
+    expect(expectedSigner(demo, "treasurer", demoId, NOW).ok).toBe(true);
+  });
+
+  it("a registry row that is not a device key of its own kind never yields a signer", () => {
+    // Rows the database could hold if its CHECKs drift from the contracts: a ledger key ID, an ID of
+    // another kind's shape, a judge key under a real key's w ID, a kind no device key has.
+    const rows: [string, OfficerKey["kind"] | "server"][] = [
+      ["fs-ledger-k1", "app"],
+      ["fs-ledger-k1", "server"],
+      ["fs-analyn-w1", "app"],
+      ["fs-analyn-a1", "web"],
+      ["fs-analyn-w1", "web_demo"],
+      ["fs-analyn-demo-a1b2c3", "web"],
+      ["fs-analyn-demo-a1b2c3", "app"],
+    ];
+    for (const [keyId, kind] of rows) {
+      const registry = [{ ...(REGISTRY[0] as OfficerKey), keyId, kind: kind as OfficerKey["kind"] }];
+      expect(expectedSigner(registry, "treasurer", keyId, NOW), `${kind} ${keyId}`).toMatchObject({
+        ok: false,
+        code: "KEY_NOT_REGISTERED",
+        reason: expect.stringMatching(/^Unknown signer/),
+      });
+    }
+    // The review's probe: a ledger key ID in an unparsed registry row, and an approval carrying it.
+    const ledgerSigned = signed({ keyId: "fs-ledger-k1" });
+    const posing = expected("treasurer", { keyId: "fs-ledger-k1" });
+    expect(checkApproval(ledgerSigned, posing, NOW, NONE)).toMatchObject({
+      ok: false,
+      code: "KEY_NOT_REGISTERED",
+      reason: expect.stringMatching(/^Unknown signer/),
+    });
+    // The real keys still sign: the treasurer's web key and the Chair's app key.
+    expect(checkApproval(signed(), expected("treasurer"), NOW, NONE)).toEqual({ ok: true });
+    expect(checkApproval(signed({ role: "chair" }), expected("chair"), NOW, NONE)).toEqual({ ok: true });
   });
 
   it("property: only the registry's key for the role, with its approver and season, ever passes", () => {

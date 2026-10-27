@@ -16,17 +16,22 @@ import {
   HOLD_STATE_LABELS,
   INVOICE_STATUS_LABELS,
   isSeededKeyId,
+  KEY_ID_PATTERN_BY_KIND,
   KEY_ID_PATTERNS,
   KeyId,
+  keyIdFitsKind,
   LANGS,
   type LabelVars,
+  LedgerKey,
   LedgerKeyId,
   LedgerPayloads,
+  ledgerKeyIdFitsKind,
   MEMBER_LINE_LABELS,
   OfficerKey,
   PAYOUT_ITEM_STATUS_LABELS,
   PROOF_LEDGER_KINDS,
   PROVENANCE_LABELS,
+  PublishedKeys,
   pickLabel,
   RAIL_LABELS,
   ROLE_NOUNS,
@@ -257,6 +262,134 @@ describe("key IDs: device keys sign, seeded keys never do (S3.8)", () => {
     }
     const req = { role: "chair", keyId: "fs-ernesto-a1", signature: "c".repeat(128) };
     expect(SubmitApprovalRequest.safeParse({ ...req, payload: withoutLines }).success).toBe(false);
+  });
+
+  it("one source: each key ID schema accepts exactly the union of its KEY_ID_PATTERNS", () => {
+    const P = KEY_ID_PATTERNS;
+    // A combinatorial corpus around every shape: valid IDs, near misses, reserved personas, bounds.
+    const prefixes = ["fs-", "fs", "FS-", "fx-", ""];
+    const personas = ["ernesto", "analyn", "a", "x".repeat(24), "x".repeat(25), "ledger", "demo", "Ernesto"];
+    const suffixes = [
+      "a1",
+      "w1",
+      "s1",
+      "k1",
+      "a9999",
+      "w10000",
+      "a0",
+      "s01",
+      "demo-a1b2c3",
+      "demo-ABC123",
+      "demo-abc12",
+      "demo-abc1234",
+      "x1",
+      "",
+    ];
+    const tails = ["", " ", "\n", "-", "1"];
+    const corpus: string[] = [];
+    for (const pre of prefixes)
+      for (const who of personas)
+        for (const suffix of suffixes) for (const tail of tails) corpus.push(`${pre}${who}-${suffix}${tail}`);
+    expect(corpus.length).toBeGreaterThan(2000);
+    const db = new RegExp(DEVICE_KEY_ID_PATTERN);
+    let device = 0;
+    for (const id of corpus) {
+      const shapes = Object.values(P).filter((re) => re.test(id));
+      // The shapes are disjoint: an ID has at most one.
+      expect(shapes.length, JSON.stringify(id)).toBeLessThanOrEqual(1);
+      const isDevice = P.app.test(id) || P.web.test(id) || P.demo.test(id);
+      if (isDevice) device++;
+      expect(DeviceKeyId.safeParse(id).success, JSON.stringify(id)).toBe(isDevice);
+      expect(db.test(id), JSON.stringify(id)).toBe(isDevice);
+      expect(KeyId.safeParse(id).success, JSON.stringify(id)).toBe(isDevice || P.seeded.test(id));
+      expect(SeededKeyId.safeParse(id).success, JSON.stringify(id)).toBe(P.seeded.test(id));
+      expect(LedgerKeyId.safeParse(id).success, JSON.stringify(id)).toBe(
+        P.ledger.test(id) || P.seededLedger.test(id),
+      );
+      expect(isSeededKeyId(id), JSON.stringify(id)).toBe(P.seeded.test(id) || P.seededLedger.test(id));
+    }
+    expect(device).toBeGreaterThan(10);
+    // The database pattern is assembled from the same parts as the shapes, not spelled out again.
+    for (const kind of ["app", "web", "demo"] as const) {
+      const body = P[kind].source.replace(/^\^fs-\(\?!\(\?:ledger\|demo\)-\)\[a-z\]\{1,24\}-/, "");
+      expect(DEVICE_KEY_ID_PATTERN, kind).toContain(body.replace(/\$$/, ""));
+    }
+  });
+
+  it("a key's kind fits its ID shape: device keys, published officer and ledger keys, key.registered", () => {
+    const officer = {
+      keyId: "fs-ernesto-a1",
+      approverId: "board:ernesto",
+      role: "chair",
+      publicKeyHex: H("d"),
+      kind: "app",
+      revokedAt: null,
+    };
+    const device = {
+      id: "0192d5a0-0000-7000-8000-000000000001",
+      workspaceId: "0192d5a0-0000-7000-8000-000000000002",
+      keyId: "fs-ernesto-a1",
+      persona: "board:ernesto",
+      publicKeyHex: H("d"),
+      kind: "app",
+      label: "Phone key",
+      revokedAt: null,
+    };
+    const registered = LedgerPayloads["key.registered"];
+    const fits: [string, string][] = [
+      ["fs-ernesto-a1", "app"],
+      ["fs-analyn-w1", "web"],
+      ["fs-analyn-demo-a1b2c3", "web_demo"],
+    ];
+    const misfits: [string, string][] = [
+      ["fs-analyn-a1", "web"],
+      ["fs-analyn-w1", "app"],
+      ["fs-analyn-w1", "web_demo"],
+      ["fs-analyn-w2", "web_demo"],
+      ["fs-analyn-demo-a1b2c3", "app"],
+      ["fs-analyn-demo-a1b2c3", "web"],
+      ["fs-ernesto-a1", "web_demo"],
+    ];
+    for (const [keyId, kind] of fits) {
+      expect(keyIdFitsKind(kind, keyId), `${kind} ${keyId}`).toBe(true);
+      expect(OfficerKey.safeParse({ ...officer, keyId, kind }).success, `${kind} ${keyId}`).toBe(true);
+      expect(DeviceKey.safeParse({ ...device, keyId, kind }).success, `${kind} ${keyId}`).toBe(true);
+      expect(registered.safeParse({ keyId, persona: "p", kind, publicKeyHex: H("d") }).success).toBe(true);
+    }
+    for (const [keyId, kind] of [...misfits, ["fs-analyn-s1", "app"], ["fs-analyn-w1", "seeded"]]) {
+      expect(keyIdFitsKind(kind, keyId), `${kind} ${keyId}`).toBe(false);
+      expect(OfficerKey.safeParse({ ...officer, keyId, kind }).success, `${kind} ${keyId}`).toBe(false);
+      expect(DeviceKey.safeParse({ ...device, keyId, kind }).success, `${kind} ${keyId}`).toBe(false);
+      expect(registered.safeParse({ keyId, persona: "p", kind, publicKeyHex: H("d") }).success).toBe(false);
+    }
+    // Seeded keys are officer keys of kind seeded only, never device keys.
+    expect(OfficerKey.safeParse({ ...officer, keyId: "fs-ernesto-s1", kind: "seeded" }).success).toBe(true);
+    expect(DeviceKey.safeParse({ ...device, keyId: "fs-ernesto-s1", kind: "seeded" }).success).toBe(false);
+    // Ledger keys: server keys are fs-ledger-k{n}, seed-only ones fs-ledger-s{n}.
+    const ledger = { keyId: "fs-ledger-k1", publicKeyHex: H("e"), kind: "server", revokedAt: null };
+    expect(LedgerKey.safeParse(ledger).success).toBe(true);
+    expect(LedgerKey.safeParse({ ...ledger, keyId: "fs-ledger-s1", kind: "seeded" }).success).toBe(true);
+    expect(LedgerKey.safeParse({ ...ledger, keyId: "fs-ledger-s1" }).success).toBe(false);
+    expect(LedgerKey.safeParse({ ...ledger, kind: "seeded" }).success).toBe(false);
+    expect(ledgerKeyIdFitsKind("server", "fs-ledger-k2")).toBe(true);
+    expect(ledgerKeyIdFitsKind("app", "fs-ledger-k2")).toBe(false);
+    // A published key list with one misfit row is unreadable as a whole, so a verifier trusts nothing.
+    const doc = { v: 1, officers: [officer], ledger: [ledger] };
+    expect(PublishedKeys.safeParse(doc).success).toBe(true);
+    expect(PublishedKeys.safeParse({ ...doc, officers: [{ ...officer, kind: "web" }] }).success).toBe(false);
+    // The kinds named here are exactly the contracts' kinds.
+    expect(Object.keys(KEY_ID_PATTERN_BY_KIND).sort()).toEqual([...SigningKeyKind.options].sort());
+    for (const k of DeviceKeyKind.options) {
+      expect(DEVICE_KEY_ID_PATTERN_BY_KIND[k]).toBe(KEY_ID_PATTERN_BY_KIND[k].source);
+    }
+    for (const [kind, id] of [
+      ["toString", "fs-ernesto-a1"],
+      ["constructor", "fs-ernesto-a1"],
+      ["app", 42],
+      [null, "fs-ernesto-a1"],
+    ] as const) {
+      expect(keyIdFitsKind(kind, id), `${String(kind)} ${String(id)}`).toBe(false);
+    }
   });
 
   it("names identity mismatches with their own error codes", () => {

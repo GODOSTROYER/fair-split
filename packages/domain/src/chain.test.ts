@@ -890,13 +890,18 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
       treasurer: { keyId: "fs-analyn-s1", pair: seededPair("fs-analyn-s1"), kind: "seeded" },
       chair: { keyId: "fs-ernesto-s1", pair: seededPair("fs-ernesto-s1"), kind: "seeded" },
     },
+    // C-13: a judge session's labelled browser keys carry demo IDs, never a real key's w ID.
     web_demo: {
       treasurer: {
-        keyId: "fs-analyn-w7",
+        keyId: "fs-analyn-demo-a1b2c3",
         pair: ed25519FromSeed(sha256Hex("demo treasurer")),
         kind: "web_demo",
       },
-      chair: { keyId: "fs-ernesto-w7", pair: ed25519FromSeed(sha256Hex("demo chair")), kind: "web_demo" },
+      chair: {
+        keyId: "fs-ernesto-demo-d4e5f6",
+        pair: ed25519FromSeed(sha256Hex("demo chair")),
+        kind: "web_demo",
+      },
     },
   };
 
@@ -916,13 +921,19 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
     });
   }
 
-  it("a seeded key ID or a ledger registration as seeded makes it a sample, whatever the published kind", () => {
+  it("a key published or registered under a kind its ID does not fit trusts nothing, even in demo mode", () => {
+    // Seeded keys published as app keys: the key list does not parse, so nothing is trusted.
     const asApp = rekey(honestProof(), {
       treasurer: { ...SAMPLE.seeded.treasurer, kind: "app" },
       chair: { ...SAMPLE.seeded.chair, kind: "app" },
     });
-    expect(verify(asApp.proof, asApp.trust).status).toBe("failed");
-    expect(verify(asApp.proof, asApp.trust, { demoMode: true }).status).toBe("sample");
+    for (const demoMode of [false, true]) {
+      const v = verify(asApp.proof, asApp.trust, { demoMode });
+      expect(v, String(demoMode)).toMatchObject({ ok: false, status: "failed" });
+      expect(v.plates.twoKeys.reason).toBe("A signing key is not among the published officer keys.");
+      expect(v.checkpoint.reason).toBe("The ledger checkpoint is not signed by a pinned ledger key.");
+    }
+    // The bundle's own ledger registering the real keys as seeded: those entries attest nothing.
     const p = honestProof();
     const ledger = buildLedger(
       p.ledger.map((e) =>
@@ -930,18 +941,20 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
       ),
     );
     const registeredSeeded = withCheckpoint({ ...p, ledger });
-    expect(verify(registeredSeeded).status).toBe("failed");
-    expect(verify(registeredSeeded, PROOF_TRUST, { demoMode: true }).status).toBe("sample");
+    for (const demoMode of [false, true]) {
+      const v = verify(registeredSeeded, PROOF_TRUST, { demoMode });
+      expect(v, String(demoMode)).toMatchObject({ ok: false, status: "failed" });
+      expect(v.plates.twoKeys.reason).toBe("A signing key is not registered in the chain.");
+    }
   });
 
-  it("the treasurer's real browser key fs-analyn-w1 (kind web) verifies; published as web_demo or app it is a sample", () => {
+  it("the treasurer's real browser key fs-analyn-w1 (kind web) verifies; published as web_demo or app nothing is trusted", () => {
     const w1 = { keyId: "fs-analyn-w1", pair: ed25519FromSeed(sha256Hex("treasurer browser key")) };
     const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
     const real = rekey(honestProof(), { treasurer: { ...w1, kind: "web" }, chair });
     expect(verify(real.proof, real.trust)).toMatchObject({ ok: true, status: "verified", sampleKeys: [] });
-    // The trust registry's kind decides: published as web_demo, the same key is a sample even
-    // though the bundle's own ledger registers it as web. Published as app, its w ID does not fit
-    // the kind, so it is a sample too.
+    // A w ID is a real browser key's, so a key list publishing it as web_demo or app is unreadable:
+    // it never reads Verified, nor Sample.
     for (const kind of ["web_demo", "app"] as const) {
       const trust: ProofTrust = {
         ...real.trust,
@@ -949,51 +962,51 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
       };
       expect(verify(real.proof, trust).status, kind).toBe("failed");
       expect(verify(real.proof, trust, { demoMode: true }), kind).toMatchObject({
-        status: "sample",
-        sampleKeys: ["fs-analyn-w1"],
+        ok: false,
+        status: "failed",
+        sampleKeys: [],
       });
     }
   });
 
-  it("a published key list with a C-13 demo key (fs-{persona}-demo-{6}) parses and reads sample in demo mode", () => {
+  it("a published key list with a C-13 demo key (fs-{persona}-demo-{6}) as web_demo reads sample in demo mode", () => {
     const pair = ed25519FromSeed(sha256Hex("judge demo key"));
     const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
-    // Published as web_demo (the honest label), and as web or app (a mislabelled demo ID).
-    for (const kind of ["web_demo", "web", "app"] as const) {
-      const demo = { keyId: "fs-analyn-demo-a1b2c3", pair, kind };
-      const { proof, trust } = rekey(honestProof(), { treasurer: demo, chair });
-      const published: PublishedKeys = { v: 1, ...trust };
-      const strict = verify(proof, published);
-      expect(strict, kind).toMatchObject({ ok: false, status: "failed" });
-      expect(strict.plates.twoKeys.reason, kind).toBe(
-        "A signature uses a sample key, so this Proof can only read as a Sample.",
-      );
-      const demoMode = verify(proof, published, { demoMode: true });
-      expect(demoMode.plates, kind).toEqual(ALL_OK);
-      expect(demoMode, kind).toMatchObject({
+    const demo = { keyId: "fs-analyn-demo-a1b2c3", pair, kind: "web_demo" as const };
+    const honest = rekey(honestProof(), { treasurer: demo, chair });
+    const published: PublishedKeys = { v: 1, ...honest.trust };
+    const strict = verify(honest.proof, published);
+    expect(strict).toMatchObject({ ok: false, status: "failed" });
+    expect(strict.plates.twoKeys.reason).toBe(
+      "A signature uses a sample key, so this Proof can only read as a Sample.",
+    );
+    const demoMode = verify(honest.proof, published, { demoMode: true });
+    expect(demoMode.plates).toEqual(ALL_OK);
+    expect(demoMode).toMatchObject({ ok: false, status: "sample", sampleKeys: ["fs-analyn-demo-a1b2c3"] });
+    // A demo ID published as web or app (mislabelled) makes the list unreadable: nothing is trusted.
+    for (const kind of ["web", "app"] as const) {
+      const { proof, trust } = rekey(honestProof(), { treasurer: { ...demo, kind }, chair });
+      expect(verify(proof, { v: 1, ...trust }, { demoMode: true }), kind).toMatchObject({
         ok: false,
-        status: "sample",
-        sampleKeys: ["fs-analyn-demo-a1b2c3"],
+        status: "failed",
       });
     }
   });
 
-  it("a seeded ledger key ID pinned with kind server still makes the checkpoint a sample", () => {
+  it("a seeded ledger key ID pinned with kind server is unreadable trust: the checkpoint fails in demo mode too", () => {
     const seededLedger = { keyId: "fs-ledger-s2", ...seededPair("fs-ledger-s2") };
     const proof = withCheckpoint(honestProof(), seededLedger);
-    const trust: ProofTrust = {
+    const pinned = (kind: "server" | "seeded"): ProofTrust => ({
       ...PROOF_TRUST,
-      ledger: [
-        {
-          keyId: seededLedger.keyId,
-          publicKeyHex: seededLedger.publicKeyHex,
-          kind: "server",
-          revokedAt: null,
-        },
-      ],
-    };
-    expect(verify(proof, trust).status).toBe("failed");
-    expect(verify(proof, trust, { demoMode: true })).toMatchObject({
+      ledger: [{ keyId: seededLedger.keyId, publicKeyHex: seededLedger.publicKeyHex, kind, revokedAt: null }],
+    });
+    expect(verify(proof, pinned("server")).status).toBe("failed");
+    expect(verify(proof, pinned("server"), { demoMode: true })).toMatchObject({
+      status: "failed",
+      checkpoint: { ok: false, reason: "The ledger checkpoint is not signed by a pinned ledger key." },
+    });
+    // Pinned honestly as seeded, it is a sample.
+    expect(verify(proof, pinned("seeded"), { demoMode: true })).toMatchObject({
       status: "sample",
       sampleKeys: ["fs-ledger-s2"],
     });

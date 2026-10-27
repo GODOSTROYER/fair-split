@@ -13,6 +13,8 @@ import {
   type ApprovalRole,
   type BatchDigest,
   type CosignReason,
+  DeviceKeyId,
+  deviceKeyIdFitsKind,
   isSeededKeyId,
   type OfficerKey,
   type RateCardRules,
@@ -93,6 +95,7 @@ export type ApprovalCheck = { ok: true } | { ok: false; code: ApprovalCheckCode;
 const refuse = (code: ApprovalCheckCode, reason: string): ApprovalCheck => ({ ok: false, code, reason });
 
 const SEEDED_NEVER_SIGN = "Seeded sample keys never sign.";
+const isDeviceKeyId = (keyId: unknown): boolean => DeviceKeyId.safeParse(keyId).success;
 const ROLE_NOUN: Readonly<Record<ApprovalRole, string>> = { treasurer: "treasurer", chair: "Chair" };
 
 /**
@@ -149,6 +152,11 @@ export function expectedSigner(
   if (!row) return unknown(`Unknown signer: ${keyId} is not a registered officer key.`);
   if (rows.length > 1) return unknown(`Unknown signer: the key registry lists ${keyId} more than once.`);
   if (isSeededKeyId(row.keyId) || row.kind === "seeded") return unknown(SEEDED_NEVER_SIGN);
+  // The row may never have been parsed (a database whose CHECKs drift from the contracts): only a
+  // device key ID of its own kind's shape can sign, never a ledger key or a misfit row.
+  if (!isDeviceKeyId(row.keyId) || !deviceKeyIdFitsKind(row.kind, row.keyId)) {
+    return unknown(`Unknown signer: ${keyId} is not a device key of its kind.`);
+  }
   if (row.role !== role) {
     return unknown(`Unknown signer: ${keyId} is not registered to sign for the ${ROLE_NOUN[role]}.`);
   }
@@ -192,6 +200,9 @@ export function checkApproval(
   const p = signed.payload;
   if (isSeededKeyId(signed.keyId) || isSeededKeyId(expected.keyId)) {
     return refuse("KEY_NOT_REGISTERED", SEEDED_NEVER_SIGN);
+  }
+  if (!isDeviceKeyId(signed.keyId) || !isDeviceKeyId(expected.keyId)) {
+    return refuse("KEY_NOT_REGISTERED", `Unknown signer: ${signed.keyId} is not a device key.`);
   }
   if (revokedBy(expected.revokedAt, now)) {
     return refuse("KEY_NOT_REGISTERED", `Unknown signer: ${expected.keyId} was revoked.`);

@@ -49,8 +49,9 @@ import {
   IsoDate,
   IsoDateTime,
   Json,
-  KEY_ID_PATTERNS,
+  KEY_ID_PATTERN_BY_KIND,
   KeyId,
+  keyIdFitsKind,
   Lang,
   MemberNo,
   NonNegCents,
@@ -114,28 +115,37 @@ export type PairingToken = z.infer<typeof PairingToken>;
  * C-13 demo ID `fs-{persona}-demo-{6}`, so a judge's key can never take a real key's ID.
  */
 export const DEVICE_KEY_ID_PATTERN_BY_KIND: Readonly<Record<DeviceKeyKind, string>> = {
-  app: KEY_ID_PATTERNS.app.source,
-  web: KEY_ID_PATTERNS.web.source,
-  web_demo: KEY_ID_PATTERNS.demo.source,
+  app: KEY_ID_PATTERN_BY_KIND.app.source,
+  web: KEY_ID_PATTERN_BY_KIND.web.source,
+  web_demo: KEY_ID_PATTERN_BY_KIND.web_demo.source,
 };
 
-/** True when `keyId` has the ID shape of `kind` (`DEVICE_KEY_ID_PATTERN_BY_KIND`); any other kind fits nothing. */
-export function deviceKeyIdFitsKind(kind: string, keyId: string): boolean {
-  if (!Object.hasOwn(DEVICE_KEY_ID_PATTERN_BY_KIND, kind)) return false;
-  const pattern = DEVICE_KEY_ID_PATTERN_BY_KIND[kind as DeviceKeyKind];
-  return typeof keyId === "string" && new RegExp(pattern).test(keyId);
+/**
+ * True when `kind` is a device-key kind and `keyId` has its ID shape (`DEVICE_KEY_ID_PATTERN_BY_KIND`);
+ * any other kind, `seeded` included, fits nothing.
+ */
+export function deviceKeyIdFitsKind(kind: unknown, keyId: unknown): boolean {
+  return DeviceKeyKind.safeParse(kind).success && keyIdFitsKind(kind, keyId);
 }
 
-/** A registered signing key. Seeded keys (`fs-{persona}-s{n}`) are never written here. */
-export const DeviceKey = z.strictObject({
-  ...scoped,
-  keyId: DeviceKeyId,
-  persona: z.string(),
-  publicKeyHex: Ed25519PublicKeyHex,
-  kind: DeviceKeyKind,
-  label: z.string(),
-  revokedAt: IsoDateTime.nullable(),
-});
+/**
+ * A registered signing key. Seeded keys (`fs-{persona}-s{n}`) are never written here, and the kind
+ * fits the ID (`deviceKeyIdFitsKind`): the database CHECKs per kind use `DEVICE_KEY_ID_PATTERN_BY_KIND`.
+ */
+export const DeviceKey = z
+  .strictObject({
+    ...scoped,
+    keyId: DeviceKeyId,
+    persona: z.string(),
+    publicKeyHex: Ed25519PublicKeyHex,
+    kind: DeviceKeyKind,
+    label: z.string(),
+    revokedAt: IsoDateTime.nullable(),
+  })
+  .refine((k) => deviceKeyIdFitsKind(k.kind, k.keyId), {
+    message: "The key ID does not have its kind's shape (S3.8, C-13)",
+    path: ["keyId"],
+  });
 export type DeviceKey = z.infer<typeof DeviceKey>;
 
 export const PushToken = z.strictObject({

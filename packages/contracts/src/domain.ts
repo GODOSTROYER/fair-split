@@ -31,8 +31,11 @@ import {
   IsoDate,
   IsoDateTime,
   Json,
+  KEY_ID_PATTERN_BY_KIND,
   KeyId,
+  keyIdFitsKind,
   LedgerKeyId,
+  ledgerKeyIdFitsKind,
   MemberNo,
   NonNegCents,
   PlotNo,
@@ -563,32 +566,41 @@ export type SignedApproval = z.infer<typeof SignedApproval>;
 export const SigningKeyKind = z.enum(["app", "web", "web_demo", "seeded"]);
 export type SigningKeyKind = z.infer<typeof SigningKeyKind>;
 export const SAMPLE_KEY_KINDS: readonly SigningKeyKind[] = ["web_demo", "seeded"];
+// Every signing-key kind has its one ID shape (primitives `KEY_ID_PATTERN_BY_KIND`).
+KEY_ID_PATTERN_BY_KIND satisfies Readonly<Record<SigningKeyKind, RegExp>>;
+
+const KIND_FITS_ID = { message: "The key ID does not have its kind's shape (S3.8, C-13)", path: ["keyId"] };
 
 /**
  * One officer key: a row of the registry the server reads from `device_keys` (joined with the
  * officer's role) and the entry the app publishes for Proof. The key may sign only as `approverId`
- * in `role`.
+ * in `role`, and its kind fits its ID (`keyIdFitsKind`): a list with a misfit row does not parse.
  */
-export const OfficerKey = z.strictObject({
-  keyId: KeyId,
-  approverId: z.string().min(1),
-  role: ApprovalRole,
-  publicKeyHex: Ed25519PublicKeyHex,
-  kind: SigningKeyKind,
-  revokedAt: IsoDateTime.nullable(),
-});
+export const OfficerKey = z
+  .strictObject({
+    keyId: KeyId,
+    approverId: z.string().min(1),
+    role: ApprovalRole,
+    publicKeyHex: Ed25519PublicKeyHex,
+    kind: SigningKeyKind,
+    revokedAt: IsoDateTime.nullable(),
+  })
+  .refine((k) => keyIdFitsKind(k.kind, k.keyId), KIND_FITS_ID);
 export type OfficerKey = z.infer<typeof OfficerKey>;
 
 /**
- * A pinned ledger key. `seeded` derives from public text: a checkpoint it signs reads "Sample". Once
- * `revokedAt` is set the key is untrusted for every checkpoint, whatever date the checkpoint claims.
+ * A pinned ledger key: `server` is `fs-ledger-k{n}`; `seeded` is `fs-ledger-s{n}` and derives from
+ * public text, so a checkpoint it signs reads "Sample". Once `revokedAt` is set the key is untrusted
+ * for every checkpoint, whatever date the checkpoint claims.
  */
-export const LedgerKey = z.strictObject({
-  keyId: LedgerKeyId,
-  publicKeyHex: Ed25519PublicKeyHex,
-  kind: z.enum(["server", "seeded"]),
-  revokedAt: IsoDateTime.nullable(),
-});
+export const LedgerKey = z
+  .strictObject({
+    keyId: LedgerKeyId,
+    publicKeyHex: Ed25519PublicKeyHex,
+    kind: z.enum(["server", "seeded"]),
+    revokedAt: IsoDateTime.nullable(),
+  })
+  .refine((k) => ledgerKeyIdFitsKind(k.kind, k.keyId), KIND_FITS_ID);
 export type LedgerKey = z.infer<typeof LedgerKey>;
 
 /**
@@ -719,14 +731,17 @@ const webhookApplied = {
 export const LedgerPayloads = {
   /**
    * A key enters the ledger before it signs; `persona` is the approverId it signs as. Proof plate 5
-   * takes public keys only from here, never from the bundle.
+   * takes public keys only from here, never from the bundle. A registration whose kind does not fit
+   * its key ID attests nothing.
    */
-  "key.registered": z.strictObject({
-    keyId: KeyId,
-    persona: z.string().min(1),
-    kind: SigningKeyKind,
-    publicKeyHex: Ed25519PublicKeyHex,
-  }),
+  "key.registered": z
+    .strictObject({
+      keyId: KeyId,
+      persona: z.string().min(1),
+      kind: SigningKeyKind,
+      publicKeyHex: Ed25519PublicKeyHex,
+    })
+    .refine((k) => keyIdFitsKind(k.kind, k.keyId), KIND_FITS_ID),
   "rate_card.ratified": z.strictObject({
     rateCardSha256: Sha256Hex,
     resolutionNo: z.string(),

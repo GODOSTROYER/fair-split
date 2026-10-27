@@ -32,9 +32,11 @@ describe("inv.i8.sample-key-ids: one rule decides which keys are samples (office
   it("fs-analyn-w1, the treasurer's real browser key (S3.8), is real as kind web and a sample as web_demo", () => {
     expect(keyIdIsSample("fs-analyn-w1", "web")).toBe(false);
     expect(keyIdIsSample("fs-analyn-w1", "web_demo")).toBe(true);
-    // Judge-session w keys are told apart by their registered kind, never by their ID.
+    // web_demo is a sample whatever its ID. The contracts give judge keys C-13 demo IDs and refuse a
+    // w ID under web_demo (`keyIdFitsKind`), so a w ID is only ever a real browser key's.
     expect(keyIdIsSample("fs-ernesto-w7", "web_demo")).toBe(true);
     expect(keyIdIsSample("fs-ernesto-w7", "web")).toBe(false);
+    expect(keyIdIsSample("fs-ernesto-demo-a1b2c3", "web_demo")).toBe(true);
   });
 
   it("a seeded ID (fs-{persona}-s{n}, including fs-ledger-s{n}) is a sample whatever its kind", () => {
