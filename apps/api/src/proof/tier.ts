@@ -24,9 +24,21 @@ export const FULL_TIER_ROLES: readonly Role[] = ["brand", "treasurer", "board", 
 /** The placeholder a withheld receiver carries: never an address, never a mask of one. */
 export const WITHHELD_RECEIVER = "withheld";
 
+/**
+ * One rule for "is this the run's workspace?", used by the tiers, the brand view and /ops: workspace ids are
+ * UUIDs, compared as UUIDs (case-insensitively), never as the strings a credential happened to carry.
+ */
+export function workspaceKey(workspaceId: string): string {
+  return workspaceId.toLowerCase();
+}
+
+export function sameWorkspace(a: string, b: string): boolean {
+  return workspaceKey(a) === workspaceKey(b);
+}
+
 export function tierFor(credential: Credential | null, runWorkspaceId: string): ProofTier {
   if (!credential || credential.kind === "operator") return { tier: "public" };
-  if (credential.workspaceId.toLowerCase() !== runWorkspaceId.toLowerCase()) return { tier: "public" };
+  if (!sameWorkspace(credential.workspaceId, runWorkspaceId)) return { tier: "public" };
   switch (credential.kind) {
     case "brand_link":
       return { tier: "full" };

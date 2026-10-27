@@ -161,6 +161,21 @@ export async function findRunInWorkspace(
   return row ? toProofRun(row) : null;
 }
 
+/**
+ * The run as the snapshot `db` sees it. A caller's lookup happened before the snapshot began, so a transition
+ * committed in between would mix two moments (the run's state, hashes and reference from one, everything else
+ * from the other); every builder therefore re-reads the run inside its own snapshot and trusts only the ids.
+ */
+async function runInSnapshot(db: DbOrTx, run: Pick<ProofRun, "id" | "workspaceId">): Promise<ProofRun> {
+  const [row] = await db
+    .select(runColumns)
+    .from(schema.payRuns)
+    .where(and(eq(schema.payRuns.workspaceId, run.workspaceId), eq(schema.payRuns.id, run.id)))
+    .limit(1);
+  if (!row) throw problem.notFound("No such pay run.");
+  return toProofRun(row);
+}
+
 export function proofReady(run: ProofRun): boolean {
   return PROOF_STATES.includes(run.state) && run.batchSha256 !== null && run.senderBatchId !== null;
 }
@@ -263,7 +278,9 @@ export function loadRunFacts(db: DbOrTx, run: ProofRun): Promise<ProofFacts> {
   return readSnapshot(db, (tx) => readFacts(tx, run, false));
 }
 
-async function readFacts(db: DbOrTx, run: ProofRun, strict = true): Promise<ProofFacts> {
+async function readFacts(db: DbOrTx, lookedUp: ProofRun, strict = true): Promise<ProofFacts> {
+  const run = await runInSnapshot(db, lookedUp);
+  if (strict && !proofReady(run)) notReady(run);
   const ledger = await readWorkspaceLedger(db, run.workspaceId);
   const invoice = await readInvoiceOrNull(db, run, strict);
   const lines = await readLines(db, run);
@@ -301,7 +318,9 @@ export function buildProofBundle(db: DbOrTx, run: ProofRun, o: BuildOptions): Pr
   return readSnapshot(db, (tx) => assemble(tx, run, o));
 }
 
-async function assemble(db: DbOrTx, run: ProofRun, o: BuildOptions): Promise<BuiltProof> {
+async function assemble(db: DbOrTx, lookedUp: ProofRun, o: BuildOptions): Promise<BuiltProof> {
+  const run = await runInSnapshot(db, lookedUp);
+  if (!proofReady(run)) notReady(run);
   const ledger = await readWorkspaceLedger(db, run.workspaceId);
   const card = await readCard(db, run);
   const invoice = await readInvoice(db, run);

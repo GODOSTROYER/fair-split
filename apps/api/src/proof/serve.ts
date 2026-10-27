@@ -42,7 +42,7 @@ export async function servePublicProof(
     ...(log ? { log } : {}),
   });
   const tier = tierFor(credential, run.workspaceId);
-  return finish(run, built, tier);
+  return finish(built, tier);
 }
 
 /** `proofExport`: the full bundle for the brand, the treasurer, the Chair or a judge, in their own workspace. */
@@ -63,10 +63,12 @@ export async function serveProofExport(
     now: deps.clock.now(),
     ...(log ? { log } : {}),
   });
-  return finish(run, built, { tier: "full" });
+  return finish(built, { tier: "full" });
 }
 
-function finish(run: ProofRun, built: BuiltProof, tier: ProofTier): ServedProof {
+function finish(built: BuiltProof, tier: ProofTier): ServedProof {
+  // the run as the bundle's own snapshot read it (never the lookup that preceded it)
+  const run: ProofRun = built.facts.run;
   let own: string | null = null;
   if (tier.tier === "member") {
     const line = built.facts.lines.find(

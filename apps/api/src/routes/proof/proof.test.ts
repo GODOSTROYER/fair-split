@@ -9,11 +9,12 @@ import {
   type PublishedKeys,
 } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import { verifyChain } from "@fairsplit/domain";
+import { invoiceReference, verifyChain } from "@fairsplit/domain";
 import { getProof, getRun } from "@fairsplit/seed";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { SAMPLE_LEDGER_KEY_ID, SERVER_LEDGER_KEY_ID } from "../../ledger/keys.js";
+import { ledgerKeyOf, SAMPLE_LEDGER_KEY_ID, SERVER_LEDGER_KEY_ID } from "../../ledger/keys.js";
+import { buildProofBundle, findRunBySlug, loadProofFacts, type ProofRun } from "../../proof/bundle.js";
 import { loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
 import { WITHHELD_RECEIVER } from "../../proof/tier.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
@@ -74,6 +75,22 @@ describe("Proof of the seeded showcase (seeded keys: Sample)", () => {
       ...theirs,
       documents: sortDocs(theirs.documents),
     });
+  });
+
+  it("builds from the run as its own snapshot reads it, never from the caller's earlier lookup", async () => {
+    const run = must(await findRunBySlug(t.deps.db, w.runSlug, t.clock.now()));
+    // what a lookup made just before a transition committed would still say
+    const stale: ProofRun = {
+      ...run,
+      state: "POSTED",
+      rateCardSha256: "0".repeat(64),
+      batchSha256: "1".repeat(64),
+    };
+    const built = await buildProofBundle(t.deps.db, stale, { key: ledgerKeyOf(t.deps), now: t.clock.now() });
+    expect(built.facts.run).toEqual(run);
+    expect(built.bundle.batch.rateCardSha256).toBe(w.rateCardSha256);
+    expect(built.bundle.invoice.reference).toBe(invoiceReference(w.rateCardSha256));
+    expect((await loadProofFacts(t.deps.db, stale)).run).toEqual(run);
   });
 
   it("the full tier verifies in demo mode as a Sample, all six plates, against the published keys", async () => {

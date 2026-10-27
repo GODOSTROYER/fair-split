@@ -30,7 +30,7 @@ import {
   proofReady,
   readSnapshot,
 } from "./bundle.js";
-import { FULL_TIER_ROLES } from "./tier.js";
+import { FULL_TIER_ROLES, sameWorkspace } from "./tier.js";
 
 export const BrandMember = z.strictObject({
   memberNo: z.string(),
@@ -101,7 +101,7 @@ export async function brandRun(
       FULL_TIER_ROLES.includes(credential.role));
   if (!allowed) throw problem.forbidden("The brand view is Lantern Bay's (and the co-op officers').");
   const run = await findRunBySlug(db, runSlug, now);
-  if (!run || run.workspaceId !== credential.workspaceId) {
+  if (!run || !sameWorkspace(run.workspaceId, credential.workspaceId)) {
     throw problem.notFound("No such pay run for this link.");
   }
   return run;
@@ -254,8 +254,10 @@ export function brandView(db: DbOrTx, run: ProofRun): Promise<BrandView> {
   return readSnapshot(db, (tx) => readBrandView(tx, run));
 }
 
-async function readBrandView(db: DbOrTx, run: ProofRun): Promise<BrandView> {
-  const { rows, facts } = await brandRows(db, run);
+async function readBrandView(db: DbOrTx, lookedUp: ProofRun): Promise<BrandView> {
+  const { rows, facts } = await brandRows(db, lookedUp);
+  // the run as this snapshot read it: state, hashes and readiness from the same moment as the rows
+  const run = facts.run;
   const [inv] = await db
     .select({
       invoiceNumber: schema.invoices.invoiceNumber,

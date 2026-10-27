@@ -124,6 +124,16 @@ describe("GET /v1/brand/:runSlug", () => {
     expect(r.status).toBe(404);
     expect(r.body.code).toBe("NOT_FOUND");
   });
+
+  it("compares workspaces as UUIDs, as the Proof's tiers do: a link naming its workspace in capitals still reads it", async () => {
+    const upper = t.credentials.brandLink({ workspaceId: w.workspaceId.toUpperCase() });
+    const view = await t.json<BrandView>(`/v1/brand/${w.runSlug}`, { as: t.credentials.bearer(upper) });
+    expect(view.status, JSON.stringify(view.body)).toBe(200);
+    const csv = await t.request(`/v1/brand/${w.runSlug}/export.csv`, { as: t.credentials.bearer(upper) });
+    expect(csv.status).toBe(200);
+    const proof = await t.json(`/v1/proof/${w.runSlug}`, { as: t.credentials.bearer(upper) });
+    expect(proof.headers.get("x-fs-proof-tier")).toBe("full");
+  });
 });
 
 describe("GET /v1/brand/:runSlug/export.csv", () => {

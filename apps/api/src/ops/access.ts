@@ -3,6 +3,7 @@
 // revocation) are the operator's alone.
 import type { Credential } from "../credentials/verify/index.js";
 import { problem } from "../lib/problem.js";
+import { workspaceKey } from "../proof/tier.js";
 
 export type OpsView = { kind: "operator" } | { kind: "workspace"; workspaceId: string };
 
@@ -16,7 +17,7 @@ export function opsView(credential: Credential | null, credentialProblem: Error 
     (credential.kind === "judge_session" || credential.kind === "frame" || credential.kind === "device") &&
     WORKSPACE_ROLES.has(credential.role)
   ) {
-    return { kind: "workspace", workspaceId: credential.workspaceId };
+    return { kind: "workspace", workspaceId: workspaceKey(credential.workspaceId) };
   }
   throw problem.forbidden("/ops is the operator's, and a judge's or an officer's for their own workspace.");
 }
