@@ -21,7 +21,15 @@ export const CAN = {
   capture: ["clerk", "treasurer", "judge"],
   /** The board ratifies the card (Secretary certifies, Chair attests). */
   ratify: ["board", "judge"],
-  readRuns: ["treasurer", "board", "clerk", "judge", "brand"],
+  /**
+   * A run and its season: the batch (every member's receiver and amount), lines, holds, approvals, slips and
+   * the rate card. The co-op's officers and its clerk only. The brand views the Proof brand tier and exports it
+   * (S3.8; the PROOF slice's /v1/brand routes, receivers masked), and a member reads their own line through
+   * their link; neither reads a run here (C-23 keeps the public Proof to member IDs).
+   */
+  readRuns: ["treasurer", "board", "clerk", "judge"],
+  /** The kill switches, who set them and when: the same readers. */
+  readFlags: ["treasurer", "board", "clerk", "judge"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export function allow(credential: ActingCredential, roles: readonly Role[], what: string): void {

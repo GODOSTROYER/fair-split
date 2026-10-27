@@ -64,7 +64,10 @@ export default defineRouteFolder({
         summary: "The workspace's kill switches, read fresh (env-forced ones included)",
         response: FlagList,
       },
-      async (ctx) => flagList(ctx.deps, ctx.scope),
+      async (ctx) => {
+        allow(ctx.credential, CAN.readFlags, "Reading the kill switches");
+        return flagList(ctx.deps, ctx.scope);
+      },
     );
     r.route(
       {
