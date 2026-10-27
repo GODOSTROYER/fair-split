@@ -9,7 +9,8 @@
 // Every import must be declared in the importing package's own package.json; the packages AGENTS.md
 // excludes on purpose are rejected; zod 3.25.76 is imported only inside packages/paypal-*, which in turn
 // never import zod 4. packages/ai reaches the money packages only through paypal-toolkit and the read-only
-// entry of paypal-payouts (ADR-0004).
+// entry of paypal-payouts (ADR-0004). tools/ and e2e/ import packages by name through their exports, except that
+// a tool may import, by path, the source of a package its own workstream owns (docs/ownership.md).
 //
 // Paths are relative to the working directory, so run it from the repository root:
 //   corepack pnpm deps:check
@@ -144,13 +145,87 @@ const EXCLUDED_RE = `(^|/node_modules/|^node_modules/)(${EXCLUDED_PACKAGES.map((
 ).join("|")})(/|$)`;
 
 // Known debt that lapses by itself. WS-PPCORE's webhook tests landed in apps/api/src/webhooks before WS-API
-// scaffolded apps/api, so there is no apps/api/package.json to declare msw in. While that file is missing,
-// those test files may import msw (catalog-pinned, the test-kit's mocking library) and nothing else
-// undeclared. Once WS-API adds apps/api/package.json, this matches nothing and msw must be declared there
-// (devDependencies, through a deps PR) like any other import.
+// scaffolded apps/api, so there is no apps/api/package.json to declare their test libraries in. While that file
+// is missing, those test files may import msw (the test-kit's mocking library) and fast-check (property tests),
+// both catalog-pinned, and nothing else undeclared. Once WS-API adds apps/api/package.json, this matches nothing
+// and both must be declared there (devDependencies) like any other import.
 const PENDING_API_TESTS = existsSync(join("apps", "api", "package.json"))
   ? NEVER
   : "^apps/api/src/webhooks/[^/]+\\.test\\.ts$";
+const PENDING_API_TEST_LIBRARIES = ["msw", "fast-check"];
+
+/** Repo-relative files under `dir` (POSIX separators), node_modules skipped. */
+function filesUnder(dir) {
+  const out = [];
+  const walk = (d) => {
+    if (!existsSync(d)) return;
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = posix.join(d, e.name);
+      if (e.isDirectory()) {
+        if (e.name !== "node_modules") walk(p);
+      } else if (e.isFile()) out.push(p);
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+/**
+ * Tools that script a workspace package their own workstream owns (docs/ownership.md, read with the ownership
+ * gate's own parser), such as WS-OPS's tools and apps/tasks, or WS-PPSIM's tools/paypal-sim.ts and
+ * packages/paypal-sim. Like that package's tests, they may import its source by path; any other import from tools/
+ * goes through a package's exports, by name. Returns [{ tools, packages }], one entry per set of packages, and
+ * exempts nothing when the rules cannot be read.
+ */
+function ownPackageTools() {
+  let gate;
+  let ownership;
+  try {
+    gate = require("./tools/check-ownership.mjs");
+    ownership = gate.parseOwnership(readFileSync(join("docs", "ownership.md"), "utf8"));
+  } catch {
+    return [];
+  }
+  const owners = (file) => Object.keys(ownership.workstreams).filter((ws) => gate.owns(ownership, ws, file));
+  const packages = workspaceDirs().map(([root, dir]) => `${root}/${dir}`);
+  const groups = new Map();
+  for (const tool of filesUnder("tools")) {
+    const ws = owners(tool);
+    const own = packages.filter((p) => ws.some((w) => gate.owns(ownership, w, `${p}/package.json`)));
+    if (own.length === 0) continue;
+    const key = own.join("\n");
+    if (!groups.has(key)) groups.set(key, { tools: [], packages: own });
+    groups.get(key).tools.push(tool);
+  }
+  return [...groups.values()];
+}
+
+const OWN_PACKAGE_TOOLS = ownPackageTools();
+const EXEMPT_TOOLS = OWN_PACKAGE_TOOLS.flatMap((g) => g.tools);
+
+/**
+ * A rule for imports from tools/ and e2e/, as one rule for every file but the same-workstream tools, plus one per
+ * group of those whose `to.pathNot` also lets them reach their own packages.
+ */
+function toolsRule(name, comment, to) {
+  const pathNot = [to.pathNot ?? []].flat();
+  return [
+    {
+      name,
+      comment,
+      severity: "error",
+      from: { path: "^(tools|e2e)/", pathNot: EXEMPT_TOOLS.length ? `^(${alt(EXEMPT_TOOLS)})$` : NEVER },
+      to,
+    },
+    ...OWN_PACKAGE_TOOLS.map((g) => ({
+      name,
+      comment: `${comment}; these ${g.tools.length} tool(s) may also reach ${g.packages.join(", ")}, which their own workstream owns`,
+      severity: "error",
+      from: { path: `^(${alt(g.tools)})$` },
+      to: { ...to, pathNot: [...pathNot, `^(${alt(g.packages)})/`] },
+    })),
+  ];
+}
 
 /**
  * Code that never runs in a server or an app: tests (*.test.*, *.spec.*, anything under a test/, tests/ or
@@ -222,14 +297,11 @@ module.exports = {
         pathNot: ["^$1/$2/", ENTRY_RE],
       },
     },
-    {
-      name: "no-deep-imports-from-tools",
-      comment:
-        "tools/ and e2e/ import workspace packages only through an entry in their package.json exports",
-      severity: "error",
-      from: { path: "^(tools|e2e)/" },
-      to: { path: "^(packages|apps)/([^/]+)/", pathNot: ENTRY_RE },
-    },
+    ...toolsRule(
+      "no-deep-imports-from-tools",
+      "tools/ and e2e/ import workspace packages only through an entry in their package.json exports",
+      { path: "^(packages|apps)/([^/]+)/", pathNot: ENTRY_RE },
+    ),
     {
       name: "no-relative-cross-package",
       comment: "Cross-package imports use the @fairsplit/<dir> name, never a relative path",
@@ -237,14 +309,11 @@ module.exports = {
       from: { path: "^(packages|apps)/([^/]+)/" },
       to: { dependencyTypes: ["local"], path: "^(packages|apps)/([^/]+)/", pathNot: "^$1/$2/" },
     },
-    {
-      name: "no-relative-package-imports-from-tools",
-      comment:
-        "tools/ and e2e/ import workspace packages by their @fairsplit/<dir> name, never a relative path",
-      severity: "error",
-      from: { path: "^(tools|e2e)/" },
-      to: { dependencyTypes: ["local"], path: "^(packages|apps)/" },
-    },
+    ...toolsRule(
+      "no-relative-package-imports-from-tools",
+      "tools/ and e2e/ import workspace packages by their @fairsplit/<dir> name, never a relative path",
+      { dependencyTypes: ["local"], path: "^(packages|apps)/" },
+    ),
     {
       name: "no-undeclared-deps",
       comment:
@@ -257,11 +326,14 @@ module.exports = {
     {
       name: "no-undeclared-deps-until-apps-api-package",
       comment:
-        "apps/api has no package.json yet: its webhook tests may import msw undeclared, nothing else. " +
-        "Lapses once apps/api/package.json exists",
+        "apps/api has no package.json yet: its webhook tests may import msw and fast-check undeclared, nothing " +
+        "else. Lapses once apps/api/package.json exists",
       severity: "error",
       from: { path: PENDING_API_TESTS },
-      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"], pathNot: "(^|/)node_modules/msw/" },
+      to: {
+        dependencyTypes: ["npm-no-pkg", "npm-unknown"],
+        pathNot: `(^|/)node_modules/(${alt(PENDING_API_TEST_LIBRARIES)})/`,
+      },
     },
     {
       name: "no-excluded-packages",

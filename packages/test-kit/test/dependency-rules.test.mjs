@@ -3,7 +3,15 @@
 // The fixture mirrors this repo's layout: nodeLinker hoisted, zod 3.25.76 hoisted to the root,
 // zod 4 nested under the packages that declare catalog:zod.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -144,9 +152,33 @@ beforeAll(() => {
     'import { cents } from "../packages/domain/src/money.js";\nexport const y = cents;\n',
   );
 
-  // apps/api before WS-API scaffolds it (no package.json): its webhook tests may import msw undeclared.
+  // A tool may import its own workstream's package source (docs/ownership.md, the real rules): WS-OPS owns
+  // tools/** (except other rows' tools) and apps/tasks; WS-PPSIM owns tools/paypal-sim.ts and packages/paypal-sim;
+  // WS-MEDIA owns tools/tts.ts; WS-QA owns e2e/**.
+  put("docs/ownership.md", readFileSync(resolve(repoRoot, "docs/ownership.md"), "utf8"));
+  put("apps/tasks/package.json", pkgJson("@fairsplit/tasks", { exports: { ".": "./src/index.ts" } }));
+  put("apps/tasks/src/index.ts", "export const tasks = 1;\n");
+  put("apps/tasks/src/env.ts", "export const env = 1;\n");
+  workspacePackage("paypal-sim", {});
+  put("packages/paypal-sim/src/index.ts", "export const sim = 1;\n");
+  put("packages/paypal-sim/src/bin/start.ts", "export const start = 1;\n");
+  const fromTasks = (depth) =>
+    `import { env } from "${"../".repeat(depth)}apps/tasks/src/env.js";\nexport { env };\n`;
+  const fromSim = 'import { start } from "../packages/paypal-sim/src/bin/start.js";\nexport { start };\n';
+  put("tools/ops-health.ts", fromTasks(1)); // WS-OPS -> apps/tasks: same workstream
+  put("tools/lib/ops-lib.ts", fromTasks(2)); // WS-OPS -> apps/tasks: same workstream
+  put("tools/paypal-sim.ts", fromSim); // WS-PPSIM -> packages/paypal-sim: same workstream
+  put("tools/tts.ts", fromTasks(1)); // WS-MEDIA -> apps/tasks (WS-OPS)
+  put("tools/ops-sim.ts", fromSim); // WS-OPS -> packages/paypal-sim (WS-PPSIM)
+  put("e2e/plant-e2e.ts", fromTasks(1)); // WS-QA -> apps/tasks (WS-OPS)
+
+  // apps/api before WS-API scaffolds it (no package.json): its webhook tests may import msw and fast-check
+  // undeclared.
   npmPackage("node_modules/msw", "msw", "3.0.3");
+  npmPackage("node_modules/fast-check", "fast-check", "4.10.2");
   put("apps/api/src/webhooks/plant-msw.test.ts", 'import "msw";\nexport {};\n');
+  put("apps/api/src/webhooks/plant-fc.test.ts", 'import fc from "fast-check";\nexport const f = fc;\n');
+  put("apps/api/src/webhooks/plant-fc-runtime.ts", 'import "fast-check";\nexport {};\n');
   put("apps/api/src/webhooks/plant-other.test.ts", 'import "canonicalize";\nexport {};\n');
   put("apps/api/src/webhooks/plant-runtime.ts", 'import "msw";\nexport {};\n');
   // ...and runtime code must not reach msw (or any test code) through a test file's re-export.
@@ -228,11 +260,24 @@ describe("dependency-cruiser rules fire on planted violations", () => {
     for (const f of Object.keys(INLINE_TYPE_CYCLES)) expect(rulesFor(`packages/db/src/${f}`), f).toEqual([]);
   });
 
-  it("apps/api without a package.json: its webhook tests may import msw undeclared, and nothing else", () => {
+  it("apps/api without a package.json: its webhook tests may import msw and fast-check undeclared, nothing else", () => {
     expect(rulesFor("apps/api/src/webhooks/plant-msw.test.ts")).toEqual([]);
+    expect(rulesFor("apps/api/src/webhooks/plant-fc.test.ts")).toEqual([]);
     const other = "apps/api/src/webhooks/plant-other.test.ts";
     expect(hits("no-undeclared-deps-until-apps-api-package", other)).toHaveLength(1);
     expect(hits("no-undeclared-deps", "apps/api/src/webhooks/plant-runtime.ts")).toHaveLength(1);
+    expect(hits("no-undeclared-deps", "apps/api/src/webhooks/plant-fc-runtime.ts")).toHaveLength(1);
+  });
+
+  it("a tool may import its own workstream's package source by path; any other tool goes through exports", () => {
+    // Same workstream per docs/ownership.md: WS-OPS's tools and apps/tasks, WS-PPSIM's tool and its package.
+    for (const f of ["tools/ops-health.ts", "tools/lib/ops-lib.ts", "tools/paypal-sim.ts"]) {
+      expect(rulesFor(f), f).toEqual([]);
+    }
+    const both = ["no-deep-imports-from-tools", "no-relative-package-imports-from-tools"];
+    for (const f of ["tools/tts.ts", "tools/ops-sim.ts", "e2e/plant-e2e.ts", "tools/plant-tool.ts"]) {
+      expect(rulesFor(f).sort(), f).toEqual(both);
+    }
   });
 
   it("no-runtime-imports-of-tests: runtime code reaching msw through a test's re-export, or importing a CLI", () => {
@@ -266,11 +311,28 @@ describe("dependency-cruiser rules fire on planted violations", () => {
 
 describe("the apps/api msw allowance", () => {
   // Runs after the planted-violation checks above: it adds apps/api/package.json to the shared fixture.
-  it("lapses once apps/api/package.json exists: msw must then be declared there", () => {
+  it("lapses once apps/api/package.json exists: msw and fast-check must then be declared there", () => {
     put("apps/api/package.json", pkgJson("@fairsplit/api"));
     const after = cruise(fx, ["apps"]).summary.violations;
-    const msw = after.filter((v) => v.from === "apps/api/src/webhooks/plant-msw.test.ts");
-    expect(msw.map((v) => v.rule.name)).toEqual(["no-undeclared-deps"]);
+    for (const f of ["plant-msw.test.ts", "plant-fc.test.ts"]) {
+      const found = after.filter((v) => v.from === `apps/api/src/webhooks/${f}`);
+      expect(
+        found.map((v) => v.rule.name),
+        f,
+      ).toEqual(["no-undeclared-deps"]);
+    }
+  }, 120_000);
+});
+
+describe("the same-workstream tools exemption", () => {
+  // Runs after the checks above: it removes the fixture's docs/ownership.md.
+  it("exempts no tool when docs/ownership.md cannot be read", () => {
+    rmSync(join(fx, "docs/ownership.md"));
+    const after = cruise(fx, ["tools"]).summary.violations;
+    for (const f of ["tools/ops-health.ts", "tools/lib/ops-lib.ts", "tools/paypal-sim.ts"]) {
+      const rules = [...new Set(after.filter((v) => v.from === f).map((v) => v.rule.name))].sort();
+      expect(rules, f).toEqual(["no-deep-imports-from-tools", "no-relative-package-imports-from-tools"]);
+    }
   }, 120_000);
 });
 
