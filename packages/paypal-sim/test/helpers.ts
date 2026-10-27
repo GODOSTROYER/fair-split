@@ -1,9 +1,40 @@
-// Shared test helpers: a fast simulator (SIM_SPEED=0), an authenticated API client and a webhook receiver
-// that keeps the raw bytes of every delivery.
+// Shared test helpers: a fast simulator (SIM_SPEED=0), an authenticated API client, a webhook receiver that
+// keeps the raw bytes of every delivery, and fake time for the tests whose outcome depends on the clock.
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { vi } from "vitest";
 import type { SimulatorOptions } from "../src/config.js";
 import { createSimulator, type Simulator } from "../src/simulator.js";
+
+/**
+ * Longer than vitest's testTimeout (vitest.config.ts). Wall-clock limits inside a test sit beyond it, so a
+ * starved machine can only make a test slow (or time it out), never abort a webhook POST to a local receiver
+ * and count a retry (the simulator's 10 s delivery timeout), or end a sim.idle() early (its 30 s default).
+ */
+export const BEYOND_TEST_TIMEOUT_MS = 300_000;
+
+/**
+ * 12:00 PDT on Wednesday 21 October 2026: where timing-sensitive tests freeze the clock, far from midnight in
+ * Los Angeles, whose calendar the simulator dates invoices by.
+ */
+export const FIXED_NOW = Date.parse("2026-10-21T19:00:00Z");
+
+/**
+ * Fake timers for a timing-sensitive test: call it before creating the simulator (its clock reads Date.now) and
+ * undo it with vi.useRealTimers() in an afterEach. Date is frozen at FIXED_NOW, so throttle windows, token
+ * lifetimes and Pacific-time dates move only when the test moves them (sim.clock.advance(), or
+ * vi.advanceTimersByTimeAsync() with `timers`). `timers` also fakes setTimeout and setInterval, for in-process
+ * tests that drive response latency, speed>0 processing or the snapshot timer by hand. setImmediate stays real:
+ * the scheduler runs speed-0 work on it and sim.idle() waits for that work. Tests that use real sockets fake
+ * Date only, so the timers inside fetch and node:http keep running.
+ */
+export function fakeTime(opts: { timers?: boolean } = {}): void {
+  vi.useFakeTimers({
+    now: FIXED_NOW,
+    toFake: opts.timers ? ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] : ["Date"],
+    shouldClearNativeTimers: true,
+  });
+}
 
 export const API = "https://api-m.sandbox.paypal.com";
 export const BUSINESS_EMAIL = "bulawanon.coop@example.org";
@@ -43,17 +74,22 @@ export const MEMBER_PAYOUTS: { memberNo: string; email: string; value: string }[
 
 /**
  * A fast simulator for tests. It runs as in local development (the default loopback publicBaseUrl) with
- * `allowLoopbackWebhooks`, so the throwaway receivers below (127.0.0.1, random ports) can subscribe; the
- * production policy (own origin only) is exercised in rail.test.ts and security.test.ts.
+ * `allowLoopbackWebhooks`, so the throwaway receivers below (127.0.0.1, ephemeral ports) can subscribe; the
+ * production policy (own origin only) is exercised in rail.test.ts and security.test.ts. Its delivery timeout
+ * and idle() deadline are BEYOND_TEST_TIMEOUT_MS.
  */
 export async function newSim(opts: SimulatorOptions = {}): Promise<Simulator> {
-  return createSimulator({
+  const sim = await createSimulator({
     speed: 0,
     logger: () => {},
     allowLoopbackWebhooks: true,
     strictProperties: true,
     ...opts,
+    delivery: { timeoutMs: BEYOND_TEST_TIMEOUT_MS, ...opts.delivery },
   });
+  const idle = sim.idle.bind(sim);
+  sim.idle = (timeoutMs = BEYOND_TEST_TIMEOUT_MS) => idle(timeoutMs);
+  return sim;
 }
 
 export interface Reply {

@@ -3,7 +3,7 @@
 // payout batch → PROCESSING → SUCCESS items, Rhea UNCLAIMED → cancel → RETURNED, balance in integer cents.
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { crc32 } from "node:zlib";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Simulator } from "../src/simulator.js";
 import {
   BUSINESS_EMAIL,
@@ -12,6 +12,7 @@ import {
   call,
   canonicalInvoice,
   type Delivery,
+  fakeTime,
   newSim,
   plusDays,
   ptToday,
@@ -35,6 +36,10 @@ describe("money loop (simulated rail)", () => {
   const senderBatchId = "2026A-7f3a91c2-r37";
 
   beforeAll(async () => {
+    // Date frozen for the whole loop: the invoice date it checks is today's in Los Angeles, and its search
+    // windows (an hour back, a minute ahead) hold however long a loaded machine takes. Deliveries use real
+    // sockets, so only Date is faked.
+    fakeTime();
     sim = await newSim();
     rx = await receiver();
     tok = await token(sim);
@@ -44,6 +49,7 @@ describe("money loop (simulated rail)", () => {
   afterAll(async () => {
     await sim.close();
     await rx.close();
+    vi.useRealTimers();
   });
 
   const typesSeen = () => rx.deliveries.map((d) => d.json.event_type as string);

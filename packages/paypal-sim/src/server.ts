@@ -12,16 +12,18 @@ export interface StartedServer {
 }
 
 /**
- * Starts the simulator on `host:port` (port 0 picks a free port). Unless `publicBaseUrl` is given, the
- * simulator's pay pages and cert URLs use the bound address. The server is the simulator itself, so its own
- * address and publicBaseUrl are never webhook targets (it has no /webhooks/paypal; add receivers with
- * `webhookOrigins`), and bound to a non-loopback host its admin API needs `adminToken`.
+ * Starts the simulator on `host:port`. Without `port` (or with 0) it binds a free ephemeral port, so callers
+ * such as tests never clash on a fixed one; `url` and `port` report what was bound. The CLI (src/bin/start.ts)
+ * passes SIM_PORT, 4010 by default. Unless `publicBaseUrl` is given, the simulator's pay pages and cert URLs
+ * use the bound address. The server is the simulator itself, so its own address and publicBaseUrl are never
+ * webhook targets (it has no /webhooks/paypal; add receivers with `webhookOrigins`), and bound to a
+ * non-loopback host its admin API needs `adminToken`.
  */
 export async function startServer(
   opts: SimulatorOptions & { port?: number; host?: string } = {},
 ): Promise<StartedServer> {
   const host = opts.host ?? "127.0.0.1";
-  const requestedPort = opts.port ?? 4010;
+  const requestedPort = opts.port ?? 0;
   let simulator: Simulator | undefined;
   const server = serve({
     fetch: (req, env) => {
