@@ -31,6 +31,8 @@ export interface Operation {
   path: string;
   request: string | null;
   responses: Record<string, string | null>;
+  /** Header parameters the operation declares, lower-cased (e.g. `paypal-request-id` on payouts.post). */
+  headers: string[];
 }
 
 export interface ValidationIssue {
@@ -274,6 +276,12 @@ export class Contract {
     const components = isObject(doc.components) ? doc.components : {};
     const schemas = isObject(components.schemas) ? components.schemas : {};
     const responses = isObject(components.responses) ? components.responses : {};
+    const parameters = isObject(components.parameters) ? components.parameters : {};
+    const headerNames = (list: Json | undefined): string[] =>
+      (Array.isArray(list) ? list : [])
+        .map((p) => (isObject(p) && typeof p.$ref === "string" ? parameters[refName(p.$ref)] : p))
+        .filter((p): p is JsonObject => isObject(p) && p.in === "header" && typeof p.name === "string")
+        .map((p) => String(p.name).toLowerCase());
     const converter = new SpecConverter(schemas);
     const definitions: Record<Mode, JsonObject> = { req: {}, res: {} };
     const names = new Set<string>(Object.keys(schemas));
@@ -302,6 +310,7 @@ export class Contract {
           path,
           request: null,
           responses: {},
+          headers: [...headerNames(item.parameters), ...headerNames(op.parameters)],
         };
         const reqBody = isObject(op.requestBody) ? op.requestBody : undefined;
         const reqSchema = reqBody ? schemaOf(reqBody.content) : undefined;

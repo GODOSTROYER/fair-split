@@ -2,18 +2,31 @@
 import type { Registry } from "./state.js";
 
 export interface RateLimitOptions {
-  /** Requests allowed per rolling minute per client (the sandbox blocks above 50 per IP). */
+  /** Requests allowed per rolling minute per client address (the sandbox blocks above 50 per IP). */
   perMinute: number;
-  /** How long a client stays blocked after exceeding the limit. */
+  /** How long an address stays blocked after exceeding the limit. */
   blockSeconds: number;
+  /** Most addresses tracked at once (default 10,000); the stalest are dropped first. */
+  maxKeys?: number;
 }
 
+/** Which POSTs honour `PayPal-Request-Id` (see SimulatorOptions.idempotency). */
+export type IdempotencyMode = "declared" | "all-posts";
+
 export interface SimulatorOptions {
-  /** Where browsers and webhook verifiers reach the simulator's own pages (/sim/...). */
+  /**
+   * The public base URL of whatever serves the simulator's pages (the host app, or the standalone server),
+   * WITHOUT `basePath`: pages live at `{publicBaseUrl}{basePath}/sim/...`. A publicBaseUrl that already ends
+   * in basePath is refused, because it would put the prefix into every cert and pay-page URL twice.
+   */
   publicBaseUrl?: string;
-  /** Base URL used for HATEOAS links inside webhook events (defaults to publicBaseUrl). */
+  /**
+   * Where the simulated REST API is reached, for the links inside webhook events. Default
+   * `{publicBaseUrl}{basePath}`; setupPayPalRail() uses PayPal's own `https://api.sandbox.paypal.com`,
+   * which the in-process interceptor answers.
+   */
   apiBaseUrl?: string;
-  /** A path prefix the simulator is mounted under (stripped before routing), e.g. "/paypal-sim". */
+  /** The path prefix the host app mounts the simulator under (stripped before routing), e.g. "/paypal-sim". */
   basePath?: string;
   /** Multiplier for processing delays: 1 ≈ real seconds, 0 = next tick (tests). */
   speed?: number;
@@ -30,21 +43,45 @@ export interface SimulatorOptions {
   /** A response that violates the vendored spec becomes a 500 (default true). */
   strict?: boolean;
   now?: () => number;
-  /** Used to POST webhook deliveries (default: global fetch). */
+  /** Used to POST webhook deliveries (default: global fetch). It is always called with `redirect: "manual"`. */
   deliveryFetch?: (url: string, init: RequestInit) => Promise<Response>;
+  /** `maxAttempts` counts the first delivery too: the default 26 is PayPal's first try plus 25 retries. */
   delivery?: { outOfOrder?: boolean; duplicate?: boolean; maxAttempts?: number; timeoutMs?: number };
   timing?: { batchProcessingS?: number; itemS?: number; batchCompleteS?: number };
   /** Payout fee per item in cents (register §2: the published US rate, US$0.25 per item). */
   payoutFeeCents?: number;
-  /** Optional receiving fee on invoices paid on the simulator's pay page (default 0 = none). */
+  /**
+   * Receiving fee on invoices paid on the simulator's pay page. Default: PayPal's published US rate for an
+   * invoice paid with PayPal, 3.49% + US$0.49 (349 bps + 49 cents); `{ percentBps: 0, fixedCents: 0 }` turns
+   * it off. Recorded payments (MARKED_AS_PAID) move no money, so they never carry a fee.
+   */
   invoiceFee?: { percentBps: number; fixedCents: number };
   /** Transaction Search reporting lag in seconds (default 0). */
   reportingLagSeconds?: number;
   /** Days before an UNCLAIMED item is returned automatically (default 30). */
   unclaimedReturnDays?: number;
   logger?: (message: string) => void;
-  /** When set, /sim/admin/* requires the header `x-sim-admin-token`. */
+  /**
+   * When set, /sim/admin/* requires the header `x-sim-admin-token` (compared in constant time). Without it
+   * the admin API fails closed: it answers loopback callers only, and only while publicBaseUrl is a loopback
+   * address. publicFetch never serves it.
+   */
   adminToken?: string;
+  /**
+   * Extra origins (`https://host[:port]`) webhooks may be delivered to. The origin of publicBaseUrl (the host
+   * app, whose `/webhooks/paypal` receives them) is always allowed; nothing else is.
+   */
+  webhookOrigins?: string[];
+  /** Dev only: also deliver webhooks to loopback hosts on any port. Refused unless publicBaseUrl is loopback. */
+  allowLoopbackWebhooks?: boolean;
+  /** Behind one trusted proxy: key the throttle on the right-most X-Forwarded-For entry (default: the socket). */
+  trustProxy?: boolean;
+  /**
+   * `declared` (default): replay `PayPal-Request-Id` only on operations whose vendored spec declares that
+   * header (Payouts `POST /v1/payments/payouts`); elsewhere the header is ignored, because PayPal's reference
+   * says not every API supports it. `all-posts`: replay on every bearer POST (the earlier, lenient behaviour).
+   */
+  idempotency?: IdempotencyMode;
 }
 
 function num(v: string | undefined): number | undefined {
@@ -63,7 +100,8 @@ function bool(v: string | undefined): boolean | undefined {
  * SIM_PUBLIC_URL, SIM_API_BASE_URL, SIM_BASE_PATH, SIM_SPEED, SIM_DATA_DIR, SIM_PERSIST,
  * SIM_RATE_LIMIT_PER_MIN (0 disables), SIM_RATE_LIMIT_BLOCK_S, SIM_LATENCY_MS ("120" or "80-250"),
  * SIM_STRICT, SIM_OUT_OF_ORDER, SIM_DUPLICATE_DELIVERY, SIM_PAYOUT_FEE_CENTS, SIM_REPORTING_LAG_S,
- * SIM_ACCOUNTS_FILE, SIM_ADMIN_TOKEN.
+ * SIM_ACCOUNTS_FILE, SIM_ADMIN_TOKEN, SIM_WEBHOOK_ORIGINS (comma-separated), SIM_ALLOW_LOOPBACK_WEBHOOKS,
+ * SIM_TRUST_PROXY, SIM_IDEMPOTENCY (declared | all-posts), SIM_INVOICE_FEE_BPS, SIM_INVOICE_FEE_CENTS.
  */
 export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): SimulatorOptions {
   const opts: SimulatorOptions = {};
@@ -96,6 +134,22 @@ export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): SimulatorO
   if (lag !== undefined) opts.reportingLagSeconds = lag;
   if (env.SIM_ACCOUNTS_FILE) opts.accountsFile = env.SIM_ACCOUNTS_FILE;
   if (env.SIM_ADMIN_TOKEN) opts.adminToken = env.SIM_ADMIN_TOKEN;
+  if (env.SIM_WEBHOOK_ORIGINS)
+    opts.webhookOrigins = env.SIM_WEBHOOK_ORIGINS.split(",")
+      .map((o) => o.trim())
+      .filter((o) => o !== "");
+  const loopback = bool(env.SIM_ALLOW_LOOPBACK_WEBHOOKS);
+  if (loopback !== undefined) opts.allowLoopbackWebhooks = loopback;
+  const trustProxy = bool(env.SIM_TRUST_PROXY);
+  if (trustProxy !== undefined) opts.trustProxy = trustProxy;
+  const idempotency = env.SIM_IDEMPOTENCY?.trim().toLowerCase();
+  if (idempotency === "declared" || idempotency === "all-posts") opts.idempotency = idempotency;
+  else if (idempotency)
+    throw new Error(`SIM_IDEMPOTENCY must be "declared" or "all-posts" (got "${env.SIM_IDEMPOTENCY}")`);
+  const feeBps = num(env.SIM_INVOICE_FEE_BPS);
+  const feeCents = num(env.SIM_INVOICE_FEE_CENTS);
+  if (feeBps !== undefined || feeCents !== undefined)
+    opts.invoiceFee = { percentBps: feeBps ?? 0, fixedCents: feeCents ?? 0 };
   return opts;
 }
 

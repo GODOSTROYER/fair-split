@@ -10,8 +10,9 @@ import { InvoicingEngine } from "./domain/invoicing.js";
 import { PayoutEngine } from "./domain/payouts.js";
 import { ReportingEngine } from "./domain/reporting.js";
 import { WebhookEngine } from "./domain/webhooks.js";
-import { buildApp } from "./http/app.js";
+import { buildApp, type SimEnv, type SimHandlers } from "./http/app.js";
 import { RateLimiter } from "./http/ratelimit.js";
+import { isLoopbackHostname, type WebhookTargetPolicy } from "./net.js";
 import {
   type Account,
   type App,
@@ -39,6 +40,7 @@ export function getContract(specDir: string = defaultSpecDir()): Contract {
 }
 
 export interface EffectiveOptions {
+  /** The host app's (or standalone server's) base URL, without basePath. */
   publicBaseUrl: string;
   apiBaseUrl: string;
   basePath: string;
@@ -58,10 +60,45 @@ export interface EffectiveOptions {
   unclaimedReturnDays: number;
   adminToken: string | null;
   initialDelivery: { outOfOrder: boolean; duplicate: boolean };
+  webhookTargets: WebhookTargetPolicy;
+  trustProxy: boolean;
+  idempotency: "declared" | "all-posts";
 }
+
+/** The default invoice receiving fee: PayPal's published US rate for invoices paid with PayPal (3.49% + US$0.49). */
+export const PUBLISHED_US_INVOICE_FEE = { percentBps: 349, fixedCents: 49 } as const;
 
 function trimSlash(s: string): string {
   return s.replace(/\/+$/, "");
+}
+
+function httpUrl(value: string, name: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an absolute http(s) URL (got "${value}")`);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    throw new Error(`${name} must be an absolute http(s) URL (got "${value}")`);
+  if (url.search !== "" || url.hash !== "") throw new Error(`${name} must not carry a query or fragment`);
+  return url;
+}
+
+/**
+ * publicBaseUrl and basePath have one meaning each: pages live at `{publicBaseUrl}{basePath}/sim/...`.
+ * A publicBaseUrl that already ends in basePath (the old README's `${PUBLIC_BASE_URL}/paypal-sim`) would put
+ * the prefix in every cert and pay-page URL twice, so it is refused rather than guessed at.
+ */
+function checkMount(publicBaseUrl: string, basePath: string): URL {
+  const url = httpUrl(publicBaseUrl, "publicBaseUrl");
+  const path = url.pathname.replace(/\/+$/, "");
+  if (basePath !== "" && (path === basePath || path.endsWith(basePath)))
+    throw new Error(
+      `publicBaseUrl must be the host app's base URL without basePath "${basePath}" (got "${publicBaseUrl}"); ` +
+        `pages are served at {publicBaseUrl}${basePath}/sim/...`,
+    );
+  return url;
 }
 
 export class Simulator {
@@ -77,6 +114,9 @@ export class Simulator {
   readonly invoicing: InvoicingEngine;
   readonly reporting: ReportingEngine;
   readonly app: Hono;
+  private readonly handlers: SimHandlers;
+  /** True while publicBaseUrl names this machine (local development). */
+  readonly localOnly: boolean;
   state: SimState;
   private readonly log: (message: string) => void;
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
@@ -84,12 +124,21 @@ export class Simulator {
   private closed = false;
 
   constructor(opts: SimulatorOptions = {}) {
-    const publicBaseUrl = trimSlash(opts.publicBaseUrl ?? "http://127.0.0.1:4010");
+    const basePath = opts.basePath ? `/${opts.basePath.replace(/^\/+|\/+$/g, "")}` : "";
+    const publicUrl = checkMount(trimSlash(opts.publicBaseUrl ?? "http://127.0.0.1:4010"), basePath);
+    const publicBaseUrl = trimSlash(publicUrl.href); // normalised: lower-case host, no default port
+    this.localOnly = isLoopbackHostname(publicUrl.hostname);
+    if (opts.allowLoopbackWebhooks && !this.localOnly)
+      throw new Error(
+        "allowLoopbackWebhooks is for local development only: publicBaseUrl must be a loopback URL",
+      );
+    const origins = new Set<string>([publicUrl.origin]);
+    for (const o of opts.webhookOrigins ?? []) origins.add(httpUrl(o, "a webhook origin").origin);
     const fetchImpl = opts.deliveryFetch ?? ((url: string, init: RequestInit) => globalThis.fetch(url, init));
     this.options = {
       publicBaseUrl,
-      apiBaseUrl: trimSlash(opts.apiBaseUrl ?? publicBaseUrl),
-      basePath: opts.basePath ? `/${opts.basePath.replace(/^\/+|\/+$/g, "")}` : "",
+      apiBaseUrl: trimSlash(opts.apiBaseUrl ?? `${publicBaseUrl}${basePath}`),
+      basePath,
       speed: opts.speed ?? 1,
       dataDir: opts.dataDir ?? null,
       persist: Boolean(opts.persist && opts.dataDir),
@@ -97,7 +146,7 @@ export class Simulator {
       latencyMs: opts.latencyMs ?? 0,
       strict: opts.strict ?? true,
       deliveryFetch: fetchImpl,
-      maxAttempts: opts.delivery?.maxAttempts ?? 25,
+      maxAttempts: opts.delivery?.maxAttempts ?? 26,
       deliveryTimeoutMs: opts.delivery?.timeoutMs ?? 10_000,
       timing: {
         batchProcessingS: opts.timing?.batchProcessingS ?? 1.5,
@@ -105,14 +154,17 @@ export class Simulator {
         batchCompleteS: opts.timing?.batchCompleteS ?? 0.5,
       },
       payoutFeeCents: opts.payoutFeeCents ?? 25,
-      invoiceFee: opts.invoiceFee ?? { percentBps: 0, fixedCents: 0 },
+      invoiceFee: opts.invoiceFee ?? { ...PUBLISHED_US_INVOICE_FEE },
       reportingLagSeconds: opts.reportingLagSeconds ?? 0,
       unclaimedReturnDays: opts.unclaimedReturnDays ?? 30,
-      adminToken: opts.adminToken ?? null,
+      adminToken: opts.adminToken ? opts.adminToken : null,
       initialDelivery: {
         outOfOrder: opts.delivery?.outOfOrder ?? false,
         duplicate: opts.delivery?.duplicate ?? false,
       },
+      webhookTargets: { origins, allowLoopback: opts.allowLoopbackWebhooks ?? false },
+      trustProxy: opts.trustProxy ?? false,
+      idempotency: opts.idempotency ?? "declared",
     };
     this.log = opts.logger ?? ((m) => console.log(`[paypal-sim] ${m}`));
     this.clock = createClock(opts.now);
@@ -126,7 +178,8 @@ export class Simulator {
     this.payouts = new PayoutEngine(this);
     this.invoicing = new InvoicingEngine(this);
     this.reporting = new ReportingEngine(this);
-    this.app = buildApp(this);
+    this.handlers = buildApp(this);
+    this.app = this.handlers.app;
     if (this.options.persist) this.loadSnapshot();
     this.scheduler.onIdle(() => this.webhooks.releaseHeld());
     if (this.options.speed > 0) {
@@ -135,22 +188,38 @@ export class Simulator {
     }
   }
 
-  /** Fetch-compatible handler: give it a Request, get PayPal's Response. */
-  readonly fetch = (request: Request, env?: unknown): Promise<Response> =>
-    Promise.resolve(this.app.fetch(request, env as never));
+  /**
+   * Everything: the PayPal REST routes, the public /sim pages and the fail-closed /sim/admin API. This is
+   * what the standalone server serves. Never mount it in a public app; mount `publicFetch` instead.
+   */
+  readonly fetch = (request: Request, env?: SimEnv): Promise<Response> =>
+    Promise.resolve(this.handlers.app.fetch(request, env as never));
+
+  /** The PayPal REST routes only (what the in-process interceptor answers for the sandbox hosts). */
+  readonly apiFetch = (request: Request, env?: SimEnv): Promise<Response> =>
+    Promise.resolve(this.handlers.api.fetch(request, env as never));
+
+  /**
+   * The only handler a host app should expose publicly, under `basePath`: the webhook certificate chain, the
+   * labelled invoice pages and the pay page, and /sim/health. No REST API, no admin.
+   */
+  readonly publicFetch = (request: Request): Promise<Response> =>
+    Promise.resolve(this.handlers.pages.fetch(request));
 
   // ── identity ──────────────────────────────────────────────────────────────────────────────────────
 
+  /** `{publicBaseUrl}{basePath}`: where the public /sim pages are reached. */
+  get pagesBaseUrl(): string {
+    return `${this.options.publicBaseUrl}${this.options.basePath}`;
+  }
+
   get certUrl(): string {
-    return `${this.options.publicBaseUrl}${this.options.basePath}/sim/certs/${this.signing.certId}.pem`;
+    return `${this.pagesBaseUrl}/sim/certs/${this.signing.certId}.pem`;
   }
 
   /** Allow-list pattern for `paypal-cert-url` in simulator mode (never matches PayPal's own hosts). */
   get certUrlPattern(): RegExp {
-    const base = `${this.options.publicBaseUrl}${this.options.basePath}`.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&",
-    );
+    const base = this.pagesBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`^${base}/sim/certs/SIMCERT-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8}\\.pem$`);
   }
 

@@ -40,7 +40,13 @@ export async function startServer(
   const port = (server.address() as AddressInfo).port;
   const shownHost = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
   const url = `http://${shownHost}:${port}`;
-  simulator = await createSimulator({ ...opts, publicBaseUrl: opts.publicBaseUrl ?? url });
+  try {
+    simulator = await createSimulator({ ...opts, publicBaseUrl: opts.publicBaseUrl ?? url });
+  } catch (err) {
+    // A refused configuration must not leave the port open.
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    throw err;
+  }
   const sim = simulator;
   return {
     url,

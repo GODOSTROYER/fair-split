@@ -48,6 +48,15 @@ function str(v: Json | undefined): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
+/** Receiving fee in cents: `percentBps` of the amount, rounded half up, plus the fixed fee (none on zero). */
+export function invoiceFeeCents(
+  amountCents: number,
+  fee: { percentBps: number; fixedCents: number },
+): number {
+  if (amountCents <= 0) return 0;
+  return Math.floor((amountCents * fee.percentBps + 5_000) / 10_000) + fee.fixedCents;
+}
+
 export class InvoicingEngine {
   constructor(private readonly sim: Simulator) {}
 
@@ -79,11 +88,11 @@ export class InvoicingEngine {
   }
 
   payPageUrl(id: string): string {
-    return `${this.sim.options.publicBaseUrl}${this.sim.options.basePath}/sim/invoice/${id}/pay`;
+    return `${this.sim.pagesBaseUrl}/sim/invoice/${id}/pay`;
   }
 
   private invoicerViewUrl(id: string): string {
-    return `${this.sim.options.publicBaseUrl}${this.sim.options.basePath}/sim/invoice/${id}`;
+    return `${this.sim.pagesBaseUrl}/sim/invoice/${id}`;
   }
 
   // ── amounts ──────────────────────────────────────────────────────────────────────────────────────
@@ -736,15 +745,20 @@ export class InvoicingEngine {
     const currency = str(obj(inv.detail).currency_code) ?? "USD";
     const due = toCents(str(obj(inv.due_amount).value) ?? "0") ?? 0;
     const recipient = obj(obj(arr(inv.primary_recipients)[0]).billing_info);
+    let chosen: Account | undefined;
+    if (payerKey !== undefined && payerKey !== "") {
+      chosen = this.sim.accountByKey(payerKey);
+      if (!chosen) throw new Error("unknown payer account");
+      if (chosen.key === rec.accountKey) throw new Error("an invoicer cannot pay its own invoice");
+    }
     const payer =
-      (payerKey ? this.sim.accountByKey(payerKey) : undefined) ??
+      chosen ??
       (str(recipient.email_address)
         ? this.sim.accountByEmail(str(recipient.email_address) as string)
         : undefined);
     const now = this.sim.clock.now();
     const transactionId = newTransactionId();
-    const fee = this.sim.options.invoiceFee;
-    const feeCents = Math.round((due * fee.percentBps) / 10_000) + (due > 0 ? fee.fixedCents : 0);
+    const feeCents = invoiceFeeCents(due, this.sim.options.invoiceFee);
     this.sim.post({
       accountKey: rec.accountKey,
       currency,

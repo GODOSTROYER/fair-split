@@ -4,6 +4,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { crc32 } from "node:zlib";
 import { SIMULATED_HEADER } from "../constants.js";
+import { checkWebhookTarget } from "../net.js";
 import type { Simulator } from "../simulator.js";
 import type { DeliveryRecord, EventRecord, Json, JsonObject, WebhookRecord } from "../state.js";
 import { newCorrelationId, newEventId, newTransmissionId } from "../util/ids.js";
@@ -41,11 +42,15 @@ export const EVENT_TYPES: { name: string; description: string }[] = [
 const KNOWN = new Set(EVENT_TYPES.map((e) => e.name));
 export const isKnownEventType = (name: string): boolean => name === "*" || KNOWN.has(name);
 
-/** PayPal retries a failed delivery up to 25 times over about three days. Seconds before attempt n+1. */
-const BACKOFF_S = [
-  5, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 3600, 7200, 7200, 10800, 10800, 10800, 10800, 14400, 14400,
-  14400, 14400, 14400, 14400, 14400,
-];
+/**
+ * PayPal "will reattempt delivery up to 25 times over the course of 3 days" after any non-2xx answer
+ * (developer.paypal.com/api/rest/webhooks). Seconds before retry n; the 25 waits add up to exactly three
+ * days (259,200 s), the last one closing the window. With the first attempt that is 26 attempts in all.
+ */
+export const RETRY_BACKOFF_S: readonly number[] = Object.freeze([
+  5, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 3600, 7200, 7200, 10800, 10800, 14400, 14400, 18000, 21600,
+  21600, 21600, 21600, 25200, 25200, 28570,
+]);
 
 /** The literal webhook ID PayPal uses to sign mock (simulate-event) deliveries. */
 export const MOCK_WEBHOOK_ID = "WEBHOOK_ID";
@@ -197,6 +202,15 @@ export class WebhookEngine {
     if (!d || d.status === "SUCCESS" || d.status === "FAILED") return;
     const event = this.sim.state.events[d.eventId];
     if (!event) return;
+    // Checked again on every attempt: a URL stored earlier (a snapshot, a changed policy) gets no POST.
+    const target = checkWebhookTarget(this.sim.options.webhookTargets, d.url);
+    if (!target.ok) {
+      d.status = "FAILED";
+      d.lastStatusCode = null;
+      d.lastError = `not delivered: ${target.description}`;
+      this.sim.markDirty();
+      return;
+    }
     if (d.attempts > 0) {
       // A retry is transmitted afresh: same transmission id, new transmission time and signature.
       d.time = isoSeconds(this.sim.clock.now());
@@ -208,14 +222,16 @@ export class WebhookEngine {
         method: "POST",
         headers: this.headersFor(d),
         body: event.body,
+        // A redirect is an answer like any other non-2xx: never followed, so it cannot point us elsewhere.
+        redirect: "manual",
         signal: AbortSignal.timeout(this.sim.options.deliveryTimeoutMs),
       });
       d.lastStatusCode = res.status;
       d.lastError = null;
       try {
-        await res.arrayBuffer();
+        await res.body?.cancel();
       } catch {
-        // ignore unread bodies
+        // the answer's body is never read
       }
       if (res.status >= 200 && res.status < 300) {
         d.status = "SUCCESS";
@@ -231,7 +247,7 @@ export class WebhookEngine {
       this.sim.markDirty();
       return;
     }
-    const wait = BACKOFF_S[Math.min(d.attempts - 1, BACKOFF_S.length - 1)] ?? 14400;
+    const wait = RETRY_BACKOFF_S[Math.min(d.attempts - 1, RETRY_BACKOFF_S.length - 1)] ?? 28570;
     this.sim.scheduler.schedule(wait, () => this.attempt(transmissionId));
     this.sim.markDirty();
   }

@@ -4,6 +4,8 @@
 //  • installSandboxInterceptor(): process-wide — wraps the global undici dispatcher (global fetch) and
 //    node:http/https request()/get() (axios, follow-redirects) for the sandbox hosts only. Live PayPal hosts
 //    and every other host pass through untouched.
+// Both answer with the simulator's REST routes only (Simulator.apiFetch): PayPal's API host has no /sim pages,
+// and every request counts as one client address ("in-process"), as all of a server's calls share one IP.
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from "node:http";
 import https from "node:https";
 import { syncBuiltinESMExports } from "node:module";
@@ -11,6 +13,7 @@ import type { AddressInfo } from "node:net";
 import { urlToHttpOptions } from "node:url";
 import { getRequestListener } from "@hono/node-server";
 import { SANDBOX_HOSTS } from "./constants.js";
+import { IN_PROCESS_ENV } from "./http/app.js";
 import type { Simulator } from "./simulator.js";
 
 /** Structural subset of undici's dispatch options. */
@@ -162,7 +165,7 @@ export function createSandboxDispatcher(
         headers,
         ...(body && method !== "GET" && method !== "HEAD" ? { body: new Uint8Array(body) } : {}),
       });
-      const response = await sim.fetch(request);
+      const response = await sim.apiFetch(request, IN_PROCESS_ENV);
       const payload = Buffer.from(await response.arrayBuffer());
       if (aborted) throw reason ?? new Error("aborted");
       if (modern) {
@@ -232,7 +235,7 @@ export async function installSandboxInterceptor(
   const hostSet = new Set(hosts);
 
   const server = http.createServer(
-    getRequestListener((req, env) => sim.fetch(req, env), { overrideGlobalObjects: false }),
+    getRequestListener((req) => sim.apiFetch(req, IN_PROCESS_ENV), { overrideGlobalObjects: false }),
   );
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

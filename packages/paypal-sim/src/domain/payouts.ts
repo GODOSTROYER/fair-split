@@ -2,7 +2,7 @@
 // sender_batch_id with a HATEOAS link to the original, insufficient funds, sandbox-only EMAIL/PAYPAL_ID),
 // asynchronous PENDING → PROCESSING → SUCCESS with per-item outcomes, cancel of UNCLAIMED items, fees and
 // the sender's balance.
-import { type ErrorDetail, v1Error } from "../errors.js";
+import { type ErrorDetail, SimHttpError, v1Error } from "../errors.js";
 import type { Simulator } from "../simulator.js";
 import type { Account, BatchRecord, ItemRecord, JsonObject } from "../state.js";
 import { newBatchId, newDebugId, newItemId, newTransactionId } from "../util/ids.js";
@@ -11,10 +11,27 @@ import { DAY_MS, isoSeconds } from "../util/time.js";
 
 const INFO = "https://developer.paypal.com/docs/api/payments.payouts-batch/#errors";
 
+/** The `information_link` of PayPal's published test-value sample (relative, as published). */
+export const TEST_VALUE_INFORMATION_LINK = "/api/payments.payouts-batch/v1/errors";
+
 /**
- * Create-payout test values from PayPal's "Test and go live" table (trigger: items[0]/note). Names come from
- * the table; the HTTP status of ERRPYO002 (403) and ERRPYO005 (422) follow PayPal's examples, the others are
- * the simulator's best reading and are labelled as such in the README.
+ * A test-value rejection in the shape of PayPal's one published sample (ERRPYO002 on the "Test and go live"
+ * page): exactly `name`, `message`, `debug_id` and a relative `information_link`; no `details`, no `links`.
+ */
+function testValueError(t: { status: number; name: string; message: string }, debugId: string): SimHttpError {
+  return new SimHttpError(t.status, {
+    name: t.name,
+    message: t.message,
+    debug_id: debugId,
+    information_link: TEST_VALUE_INFORMATION_LINK,
+  });
+}
+
+/**
+ * Create-payout test values from PayPal's "Test and go live" table (trigger: items[0]/note). The names come
+ * from that table and ERRPYO002's message from its sample. The page gives no HTTP status for any of them:
+ * every status below is the simulator's reading, and the README says so. POSPYO001 (a plain 201) needs no
+ * entry: any other note is processed normally.
  */
 export const CREATE_TEST_VALUES: Record<string, { status: number; name: string; message: string }> = {
   ERRPYO001: { status: 403, name: "SENDER_RESTRICTED", message: "Sender is restricted." },
@@ -146,10 +163,8 @@ export class PayoutEngine {
 
     // 1. PayPal's documented test values reject the whole POST synchronously.
     const testValue = str(first.note);
-    if (testValue && CREATE_TEST_VALUES[testValue]) {
-      const t = CREATE_TEST_VALUES[testValue];
-      throw this.err(t.status, t.name, t.message, ctx.debugId);
-    }
+    const t = testValue ? CREATE_TEST_VALUES[testValue] : undefined;
+    if (t) throw testValueError(t, ctx.debugId);
     if (str(first.sender_batch_id) === "ERRPYO013") {
       throw this.err(400, "VALIDATION_ERROR", "Invalid request - see details", ctx.debugId, [
         { field: "items[0].note", location: "body", issue: "Note is required for Venmo payouts (ERRPYO013)" },
@@ -628,7 +643,7 @@ export class PayoutEngine {
 
   cancelItem(ctx: PayoutCtx, id: string): Result {
     const test = CANCEL_TEST_VALUES[id];
-    if (test) throw this.err(test.status, test.name, test.message, ctx.debugId);
+    if (test) throw testValueError(test, ctx.debugId);
     this.sweepUnclaimed();
     const i = this.ownedItem(ctx, id);
     if (i.status === "RETURNED") {

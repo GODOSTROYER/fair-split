@@ -198,5 +198,22 @@ describe("configuration", () => {
       perMinute: 40,
       blockSeconds: 300,
     });
+    expect(
+      optionsFromEnv({
+        SIM_WEBHOOK_ORIGINS: "https://fs.example.org, http://localhost:8787,",
+        SIM_ALLOW_LOOPBACK_WEBHOOKS: "1",
+        SIM_TRUST_PROXY: "true",
+        SIM_IDEMPOTENCY: "all-posts",
+        SIM_INVOICE_FEE_BPS: "0",
+        SIM_INVOICE_FEE_CENTS: "0",
+      }),
+    ).toEqual({
+      webhookOrigins: ["https://fs.example.org", "http://localhost:8787"],
+      allowLoopbackWebhooks: true,
+      trustProxy: true,
+      idempotency: "all-posts",
+      invoiceFee: { percentBps: 0, fixedCents: 0 },
+    });
+    expect(() => optionsFromEnv({ SIM_IDEMPOTENCY: "sometimes" })).toThrow(/SIM_IDEMPOTENCY/);
   });
 });

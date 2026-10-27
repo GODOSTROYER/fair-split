@@ -103,7 +103,7 @@ describe("money loop (simulated rail)", () => {
     expect(got.json.status).toBe("UNPAID");
   });
 
-  it("adds an AUTO_CANCEL rule on a SPECIFIC_DATE (request id cr-{invoiceId})", async () => {
+  it("adds an AUTO_CANCEL rule on a SPECIFIC_DATE; a retry with request id cr-{invoiceId} is NOT replayed", async () => {
     const date = plusDays(ptToday(sim.clock.now()), 25);
     const body = {
       rules: [
@@ -121,18 +121,22 @@ describe("money loop (simulated rail)", () => {
     expect(res.status).toBe(201);
     expect(res.json.rules[0].conditional_rule_id).toMatch(/^CR-/);
     expect(res.json.rules[0].rule_expiry_terms.condition_rule_end_date).toBe(date);
+    // Invoicing v2 does not declare PayPal-Request-Id (only Payouts' POST does), so the header is ignored:
+    // the retry is a second create, refused because the invoice already has an AUTO_CANCEL rule. The app's
+    // own de-duplication (list the rules, adopt the existing one) is what makes the step idempotent.
     const again = await call(sim, "POST", `/v2/invoicing/invoices/${invoiceId}/conditional-rules`, {
       token: tok,
       body,
       headers: { "paypal-request-id": `cr-${invoiceId}` },
     });
-    expect(again.status).toBe(201);
-    expect(again.headers.get("paypal-idempotent-replay")).toBe("true");
-    expect(again.json.rules[0].conditional_rule_id).toBe(res.json.rules[0].conditional_rule_id);
+    expect(again.status).toBe(422);
+    expect(again.headers.get("paypal-idempotent-replay")).toBeNull();
+    expect(again.json.details[0].issue).toBe("CONDITIONAL_RULE_ALREADY_EXISTS");
     const listed = await call(sim, "GET", `/v2/invoicing/invoices/${invoiceId}/conditional-rules`, {
       token: tok,
     });
     expect(listed.json.rules).toHaveLength(1);
+    expect(listed.json.rules[0].conditional_rule_id).toBe(res.json.rules[0].conditional_rule_id);
   });
 
   it("records the payment and the invoice becomes MARKED_AS_PAID with nothing due", async () => {

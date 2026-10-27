@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { SCOPES } from "../constants.js";
 import { EVENT_TYPES, isKnownEventType } from "../domain/webhooks.js";
 import { type ApiFamily, oauthError, v1Error } from "../errors.js";
+import { checkWebhookTarget } from "../net.js";
 import type { Simulator } from "../simulator.js";
 import type { Account, Json, JsonObject, WebhookRecord } from "../state.js";
 import { newAccessToken, newLookupId, newNonce, newWebhookId } from "../util/ids.js";
@@ -110,12 +111,18 @@ function eventTypeNames(x: RouteCtx, value: Json | undefined): string[] {
   return [...new Set(names)];
 }
 
-function checkUrl(x: RouteCtx, url: unknown): string {
-  if (typeof url !== "string" || !/^https?:\/\/[^\s]+$/i.test(url))
+/**
+ * A webhook (or simulate-event) URL must pass the simulator's target policy (see net.ts). The refusal uses
+ * the body the sandbox returns for a bad webhook URL — VALIDATION_ERROR, issue "Not a valid webhook URL" —
+ * plus a description saying why the simulator refused it.
+ */
+function checkUrl(x: RouteCtx, url: unknown, field = "url"): string {
+  const verdict = checkWebhookTarget(x.sim.options.webhookTargets, url);
+  if (!verdict.ok)
     throw v1Error("webhooks", 400, "VALIDATION_ERROR", "Invalid data provided", x.debugId, [
-      { field: "url", location: "body", issue: "The webhook URL must be an absolute http(s) URL." },
+      { field, location: "body", issue: "Not a valid webhook URL", description: verdict.description },
     ]);
-  return url;
+  return url as string;
 }
 
 function ownedWebhook(x: RouteCtx, id: string): WebhookRecord {

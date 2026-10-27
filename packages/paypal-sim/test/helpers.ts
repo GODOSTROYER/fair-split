@@ -41,8 +41,13 @@ export const MEMBER_PAYOUTS: { memberNo: string; email: string; value: string }[
   { memberNo: "M-031", email: RHEA_EMAIL, value: "26.65" },
 ];
 
+/**
+ * A fast simulator for tests. It runs as in local development (the default loopback publicBaseUrl) with
+ * `allowLoopbackWebhooks`, so the throwaway receivers below (127.0.0.1, random ports) can subscribe; the
+ * production policy (own origin only) is exercised in rail.test.ts and security.test.ts.
+ */
 export async function newSim(opts: SimulatorOptions = {}): Promise<Simulator> {
-  return createSimulator({ speed: 0, logger: () => {}, ...opts });
+  return createSimulator({ speed: 0, logger: () => {}, allowLoopbackWebhooks: true, ...opts });
 }
 
 export interface Reply {
@@ -63,6 +68,8 @@ export async function call(
     raw?: string;
     headers?: Record<string, string>;
     base?: string;
+    /** Pretend the request arrived over a socket from this address (as @hono/node-server reports it). */
+    remote?: string;
   } = {},
 ): Promise<Reply> {
   const headers = new Headers(opts.headers ?? {});
@@ -75,6 +82,7 @@ export async function call(
   }
   const res = await sim.fetch(
     new Request(`${opts.base ?? API}${path}`, { method, headers, ...(body !== undefined ? { body } : {}) }),
+    opts.remote !== undefined ? { incoming: { socket: { remoteAddress: opts.remote } } } : undefined,
   );
   const text = await res.text();
   let json: unknown = null;
@@ -86,7 +94,7 @@ export async function call(
   return { status: res.status, headers: res.headers, json, text };
 }
 
-export async function token(sim: Simulator, app = "fs-dev"): Promise<string> {
+export async function token(sim: Simulator, app = "fs-dev", remote?: string): Promise<string> {
   const a = sim.registry.apps.find((x) => x.name === app);
   if (!a) throw new Error(`no app ${app}`);
   const basic = Buffer.from(`${a.client_id}:${a.client_secret}`).toString("base64");
@@ -96,6 +104,7 @@ export async function token(sim: Simulator, app = "fs-dev"): Promise<string> {
       headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded" },
       body: "grant_type=client_credentials",
     }),
+    remote !== undefined ? { incoming: { socket: { remoteAddress: remote } } } : undefined,
   );
   const json = (await res.json()) as { access_token: string };
   return json.access_token;
@@ -110,19 +119,40 @@ export interface Delivery {
 
 export interface Receiver {
   url: string;
+  /** `http://127.0.0.1:<port>` */
+  origin: string;
   deliveries: Delivery[];
   /** Status codes to answer with, consumed in order; then 200. */
   failures: number[];
+  /** Every request that reached the server, whatever it answered. */
+  hits: number;
+  /** When set, answers every request with a redirect to this URL. */
+  redirectTo?: string;
   close(): Promise<void>;
 }
 
 export async function receiver(): Promise<Receiver> {
   const deliveries: Delivery[] = [];
   const failures: number[] = [];
+  const state: Receiver = {
+    url: "",
+    origin: "",
+    deliveries,
+    failures,
+    hits: 0,
+    close: async () => {},
+  };
   const server: Server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
+      state.hits++;
+      if (state.redirectTo) {
+        res.statusCode = 307;
+        res.setHeader("location", state.redirectTo);
+        res.end();
+        return;
+      }
       const raw = Buffer.concat(chunks).toString("utf8");
       const status = failures.shift() ?? 200;
       if (status >= 200 && status < 300)
@@ -133,16 +163,14 @@ export async function receiver(): Promise<Receiver> {
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   const port = (server.address() as AddressInfo).port;
-  return {
-    url: `http://127.0.0.1:${port}/webhooks/paypal`,
-    deliveries,
-    failures,
-    close: () =>
-      new Promise<void>((r) => {
-        server.closeAllConnections();
-        server.close(() => r());
-      }),
-  };
+  state.origin = `http://127.0.0.1:${port}`;
+  state.url = `${state.origin}/webhooks/paypal`;
+  state.close = () =>
+    new Promise<void>((r) => {
+      server.closeAllConnections();
+      server.close(() => r());
+    });
+  return state;
 }
 
 export async function subscribe(

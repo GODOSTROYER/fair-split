@@ -259,7 +259,7 @@ describe("Invoicing v2", () => {
     await rx.close();
   });
 
-  it("pays on the simulator's pay page: PAID, PayPal-type payment, balance credited, T0000 in Transaction Search", async () => {
+  it("pays on the simulator's pay page: PAID, PayPal-type payment, balance credited less PayPal's published fee, T0000 in Transaction Search", async () => {
     const rx = await receiver();
     await subscribe(sim, tok, rx.url);
     const { id } = await create("FS-HOSTED");
@@ -284,7 +284,10 @@ describe("Invoicing v2", () => {
     const after = await call(sim, "GET", `/v2/invoicing/invoices/${id}`, { token: tok });
     expect(after.json.status).toBe("PAID");
     expect(after.json.payments.transactions[0]).toMatchObject({ type: "PAYPAL", method: "PAYPAL" });
-    expect(sim.balance("coop", "USD").available).toBe(10_000_000 + 433_350);
+    // PayPal's published US rate for an invoice paid with PayPal: 3.49% + US$0.49.
+    // 4333.50 × 3.49% = 151.239… → 151.24, + 0.49 = 151.73 withheld as the fee.
+    const fee = 15_173;
+    expect(sim.balance("coop", "USD").available).toBe(10_000_000 + 433_350 - fee);
     expect(sim.balance("lantern-bay", "USD").available).toBe(10_000_000 - 433_350);
     const again = await sim.fetch(
       new Request(payUrl, { method: "POST", headers: { accept: "application/json" } }),
@@ -299,11 +302,36 @@ describe("Invoicing v2", () => {
     );
     const info = search.json.transaction_details[0].transaction_info;
     expect(info.transaction_amount.value).toBe("4333.50");
+    expect(info.fee_amount.value).toBe("-151.73");
     expect(info.invoice_id).toBe("FS-HOSTED");
     expect(search.json.transaction_details[0].payer_info.email_address).toBe(PAYER_EMAIL);
     await sim.idle();
     expect(rx.deliveries.filter((d) => d.json.event_type === "INVOICING.INVOICE.PAID")).toHaveLength(1);
     await rx.close();
+  });
+
+  it("the public pay page only lets a real third party pay: never the invoicer, never an unknown account", async () => {
+    const { id } = await create("FS-PAYER");
+    await call(sim, "POST", `/v2/invoicing/invoices/${id}/send`, {
+      token: tok,
+      body: { send_to_recipient: false },
+    });
+    const pay = (payer: string) =>
+      sim.publicFetch(
+        new Request(`http://127.0.0.1:4010/sim/invoice/${id}/pay`, {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+          body: `payer=${payer}`,
+        }),
+      );
+    const self = await pay("coop");
+    expect(self.status).toBe(422);
+    expect(((await self.json()) as { error: string }).error).toMatch(/cannot pay its own invoice/);
+    expect((await pay("no-such-account")).status).toBe(422);
+    const before = sim.balance("coop", "USD").available;
+    expect(before).toBe(10_000_000);
+    const ok = await pay("lantern-bay");
+    expect(ok.status).toBe(200);
   });
 
   it("lists invoices newest first with paging links", async () => {
