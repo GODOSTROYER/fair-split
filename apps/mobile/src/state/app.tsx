@@ -3,7 +3,8 @@
  * the paired session, the API (live fs-api or labelled demo data), connectivity, and the judge stage's frame
  * preferences. No global store library. Role-specific state lives in the role's own provider (the clerk's outbox is
  * mounted by the clerk layout), so the shell never imports a slice's features. The one platform seam it calls is
- * `keyVault.forget()` (BOARD's `platform/key-vault`), when a phone is unpaired.
+ * `keyVault.forget()` (BOARD's `platform/key-vault`), whenever the pairing changes: unpaired, or paired again as
+ * anyone (a signing key never outlives the pairing it was made under).
  */
 import {
   createContext,
@@ -29,7 +30,13 @@ import { useOnline } from "../services/connectivity";
 import { createDemoApi, type DemoController, demoSession } from "../services/demo-api";
 import { DEMO_STAGES, type DemoStage } from "../services/demo-fixtures";
 import { DEFAULT_FRAME_PREFS, inFrame, startFrameBridge } from "../services/frame-bridge";
-import { DEMO_BEARER, demoWorkspaceAfterReset, type PairedSession, parseSession } from "../services/session";
+import {
+  demoWorkspaceAfterReset,
+  type PairedSession,
+  pairingChanged,
+  restoreSession,
+  sessionStores,
+} from "../services/session";
 import { themeFromQuery } from "../theme/theme";
 
 /** Preference keys (non-secret values in `prefs`; the device bearer only ever in `secrets`). */
@@ -67,7 +74,15 @@ export interface AppValue {
   listenFirst: boolean | null;
   setListenFirst(v: boolean): void;
   session: PairedSession | null;
-  /** Saves a paired session (device bearer → secure store; demo → preferences; frame → memory only). */
+  /**
+   * The session as it is at this instant, for a step that outlives a render (a signature under the fingerprint
+   * prompt, an upload): it checks it is still the pairing it started under before anything leaves the phone.
+   */
+  currentSession(): PairedSession | null;
+  /**
+   * Saves a paired session (device bearer → secure store; demo → preferences; frame → memory only) and clears every
+   * other stored one, so an earlier pairing is never restored in its place.
+   */
   setSession(s: PairedSession | null): void;
   /** Forgets the session (unpair). First-run choices stay. */
   signOut(): void;
@@ -101,6 +116,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const online = useOnline();
   const bearerRef = useRef<string | null>(null);
   bearerRef.current = session?.bearer ?? null;
+  const sessionRef = useRef<PairedSession | null>(null);
+  sessionRef.current = session;
   /** Judge resets seen by this frame (`fs.reset`); demo data starts a fresh workspace after each. */
   const resets = useRef(0);
 
@@ -148,7 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       // A stage frame waits for its `fs.token` instead of restoring a stored session.
       const now = new Date();
-      if (!inFrame) setSessionState(parseSession(sSecret, now) ?? parseSession(sDemo, now));
+      if (!inFrame) setSessionState(restoreSession(sSecret, sDemo, now));
       setReady(true);
     })();
     return () => {
@@ -199,14 +216,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
   const setSession = useCallback((s: PairedSession | null) => {
     setSessionState(s);
-    if (!s) {
-      void secrets.del(PREF.session);
-      void prefs.del(PREF.session);
-      return;
-    }
-    if (s.bearer === DEMO_BEARER) void prefs.set(PREF.session, JSON.stringify(s));
-    else if (s.kind === "device") void secrets.set(PREF.session, JSON.stringify(s));
-    // Web frame tokens (a pairing QR opened in a browser) stay in memory for the tab's life.
+    // One stored session at most: the new pairing's, in its own store; any earlier one, in either store, goes.
+    const { secret, plain } = sessionStores(s);
+    if (secret) void secrets.set(PREF.session, secret);
+    else void secrets.del(PREF.session);
+    if (plain) void prefs.set(PREF.session, plain);
+    else void prefs.del(PREF.session);
   }, []);
   // Unpairing also forgets this phone's signing key: a key never outlives the pairing it was registered under, and
   // the next pairing makes and registers a new one (the key IDs keep counting, so old signatures still verify).
@@ -214,6 +229,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSession(null);
     void keyVault.forget().catch(() => {});
   }, [setSession]);
+  // Paired again (by a QR, a stage frame's token or a judge reset), the same holds: the vault would refuse the old
+  // key under the new pairing anyway (`KeyVault.sign`), and here its secret leaves the phone at once.
+  const pairedAs = useRef<PairedSession | null>(null);
+  useEffect(() => {
+    const before = pairedAs.current;
+    pairedAs.current = session;
+    if (pairingChanged(before, session)) void keyVault.forget().catch(() => {});
+  }, [session]);
+  const currentSession = useCallback(() => sessionRef.current, []);
   const markSynced = useCallback(() => setLastSync(new Date().toISOString()), []);
 
   const value = useMemo<AppValue>(
@@ -228,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       listenFirst,
       setListenFirst,
       session,
+      currentSession,
       setSession,
       signOut,
       api,
@@ -249,6 +274,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       listenFirst,
       setListenFirst,
       session,
+      currentSession,
       setSession,
       signOut,
       api,

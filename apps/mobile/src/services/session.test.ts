@@ -12,6 +12,8 @@ import {
   pairingId,
   parseSession,
   pirmaHref,
+  restoreSession,
+  sessionStores,
   sessionValid,
   withFlags,
 } from "./session";
@@ -171,5 +173,28 @@ describe("pairings and identities (security review: what a phone keeps stays wit
     expect(pairingChanged(session, chair)).toBe(true);
     expect(pairingChanged(session, { ...session, workspaceId: "ws_judge_7" })).toBe(true);
     expect(pairingChanged(session, null)).toBe(true); // unpaired
+  });
+});
+
+describe("the stored session (security review: a phone restores only its latest pairing)", () => {
+  const demo: PairedSession = { ...session, kind: "frame", bearer: DEMO_BEARER, persona: "member:M-014" };
+  const frame: PairedSession = { ...session, kind: "frame", bearer: "frm_0123456789abcdef" };
+
+  it("session.stored-once: a pairing replaces every stored session; a frame token is kept nowhere", () => {
+    expect(sessionStores(session)).toEqual({ secret: JSON.stringify(session), plain: null });
+    expect(sessionStores(demo)).toEqual({ secret: null, plain: JSON.stringify(demo) });
+    expect(sessionStores(frame)).toEqual({ secret: null, plain: null });
+    expect(sessionStores(null)).toEqual({ secret: null, plain: null });
+  });
+
+  it("session.no-fallback: an expired or damaged device pairing never brings back an older stored session", () => {
+    const later = new Date("2026-12-30T00:00:00Z"); // the device token has expired by then
+    const lasting: PairedSession = { ...demo, expiresAt: "2027-01-30T00:00:00Z" };
+    expect(restoreSession(JSON.stringify(session), JSON.stringify(lasting), now)).toEqual(session);
+    expect(restoreSession(JSON.stringify(session), JSON.stringify(lasting), later)).toBeNull();
+    expect(restoreSession("{not json", JSON.stringify(lasting), now)).toBeNull();
+    // With no device pairing stored, the demo session (no secret) is the phone's.
+    expect(restoreSession(null, JSON.stringify(lasting), later)).toEqual(lasting);
+    expect(restoreSession(null, null, now)).toBeNull();
   });
 });

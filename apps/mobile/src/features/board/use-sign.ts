@@ -4,6 +4,10 @@
  * fresh payload for that batch, asks the gate again, then the one presence step and the signature, registers a new
  * key, and posts the approval. The accepted signature starts MM-5's phone half (`signed-2`, then `sealed` at +720 ms
  * with the seal's plunk, then `inked` at +960 ms); every failure springs the slab back with nothing signed.
+ *
+ * The key is the one made under this pairing (`pairingId`): the vault never signs with an earlier pairing's key, and
+ * each pairing registers its own. Nothing is signed without a paired session (never under a stand-in persona), and a
+ * signature started under one pairing stops, with nothing sent, once the phone is paired again or unpaired.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { format } from "../../_shims/domain";
@@ -12,11 +16,13 @@ import {
   type CosignFailure,
   type CosignResult,
   cosign,
+  createKeyRegistry,
   deviceKeyKindOf,
   type KeyMeta,
 } from "../../lib/signing";
 import { feedback } from "../../platform/feedback";
 import { keyVault } from "../../platform/key-vault";
+import { pairingId } from "../../services/session";
 import { useApp } from "../../state/app";
 import { announce } from "../../ui/a11y";
 import type { HoldState } from "../../ui/hold";
@@ -28,6 +34,7 @@ import {
   commitSignature,
   failureCue,
   flowReducer,
+  pairingRefusal,
   refusalFailure,
   SIGN_MOMENT_PHASE,
   signPhase,
@@ -35,8 +42,11 @@ import {
 } from "./sign-flow";
 import { useT } from "./use-t";
 
-/** Keys whose public half this app session has already handed to the server (registration is idempotent). */
-const registered = new Set<string>();
+/**
+ * Keys whose public half this app session has already handed to the server, per pairing (registration is
+ * idempotent; a key is never assumed registered under a pairing that did not register it).
+ */
+const registered = createKeyRegistry();
 
 const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
   offline: "M-BD-01.offline",
@@ -49,11 +59,9 @@ const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
   error: "M-BD-02.error",
 };
 
-const PERSONA = "board:ernesto";
-
 export function useSign() {
   const c = useCosign();
-  const { api, session, online } = useApp();
+  const { api, session, online, currentSession } = useApp();
   const tr = useT();
   const [flow, dispatch] = useReducer(flowReducer, "idle");
   /** Remounts the slab so it springs back to rest after a failed signature. */
@@ -62,7 +70,8 @@ export function useSign() {
   /** The key ID the next signature will use when no key is in hand (`fs-ernesto-a2` after a new key). */
   const [upcoming, setUpcoming] = useState<string | null>(null);
   const [presence, setPresence] = useState<BiometricClass | null | undefined>(undefined);
-  const persona = session?.persona ?? PERSONA;
+  const persona = session?.persona ?? null;
+  const pairing = session ? pairingId(session) : null;
   const joined = signPhase(c.status, c.key1, flow);
   // A phone with no screen lock is told before the hold, not after it (`presence` is null once probed).
   const phase = joined === "ready" && presence === null ? "no-lock" : joined;
@@ -71,9 +80,13 @@ export function useSign() {
   const { set: setMoment, phase: momentPhase } = mm5;
 
   const readKey = useCallback(async () => {
-    const [current, next] = await Promise.all([keyVault.current(), keyVault.upcomingKeyId(persona)]);
+    if (!persona || !pairing) return { current: null, next: null };
+    const [current, next] = await Promise.all([
+      keyVault.current(pairing),
+      keyVault.upcomingKeyId(persona, pairing),
+    ]);
     return { current, next };
-  }, [persona]);
+  }, [persona, pairing]);
 
   useEffect(() => {
     let alive = true;
@@ -135,13 +148,20 @@ export function useSign() {
   const commit = useCallback(async () => {
     dispatch({ type: "commit" });
     const dto = c.dto;
-    if (!dto) return fail("error");
+    // Signed only under a paired session's own pairing, never under a stand-in persona.
+    if (!dto || !persona || !pairing) return fail("error");
     const amount = format.usd(dto.totalCents);
+    // The pairing as it is at each step, read from the shell (not this render): paired again, nothing leaves.
+    const pairedNow = () => {
+      const s = currentSession();
+      return s ? pairingId(s) : null;
+    };
     let r: CosignResult;
     try {
       r = await commitSignature({
-        // I4 at the instant of the release: the gate reads the latest batch, not the one this slab was drawn with.
-        refusal: () => refusalFailure(c.commitRefusal()),
+        // I4 at the instant of the release: the gate reads the latest batch, not the one this slab was drawn with,
+        // and the pairing the signature started under.
+        refusal: () => pairingRefusal(pairing, pairedNow) ?? refusalFailure(c.commitRefusal()),
         payload: c.freshPayload,
         sign: (approval, expected, recheck) =>
           cosign(approval, expected, {
@@ -151,13 +171,13 @@ export function useSign() {
             sign: (message) =>
               keyVault.sign({
                 persona,
+                pairing,
                 message,
                 prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
                 detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
                 cancelLabel: tr("common.cancel"),
-                sessionTag: session ? `${session.workspaceId}:${session.pairedAt}` : undefined,
               }),
-            isRegistered: (id) => registered.has(id),
+            isRegistered: (id) => registered.has(pairing, id),
             register: async (k) => {
               const res = await api.registerDeviceKey({
                 keyId: k.keyId,
@@ -165,7 +185,7 @@ export function useSign() {
                 kind: deviceKeyKindOf(keyVault.kind),
                 biometricClass: k.biometricClass,
               });
-              if (res.ok) registered.add(k.keyId);
+              if (res.ok) registered.add(pairing, k.keyId);
               return res;
             },
             submit: (body) => api.postApproval(c.runSlug, body),
@@ -186,7 +206,7 @@ export function useSign() {
     });
     mm5.timers.at(TIMELINE["MM-5"].inkedAfterMs, () => dispatch({ type: "inked" }));
     announce(tr("M-BD-02.signed", { key: r.key.keyId }));
-  }, [api, c, fail, mm5, online, persona, session, tr]);
+  }, [api, c, currentSession, fail, mm5, online, persona, pairing, tr]);
 
   /** After a fix outside the app (a screen lock set) or a refused batch: back to a slab that can be held. */
   const retry = useCallback(() => {

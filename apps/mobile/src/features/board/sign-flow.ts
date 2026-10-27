@@ -207,6 +207,15 @@ export function refusalFailure(r: CommitRefusal | null): CosignFailure | null {
 }
 
 /**
+ * A signature belongs to the pairing it was started under (`pairingId`): once the phone is paired again (as anyone,
+ * the same officer included) or unpaired, the step stops with nothing signed, registered or sent, because anything
+ * that left the phone then would go under the new pairing's bearer. `current` reads the pairing as it is now.
+ */
+export function pairingRefusal(startedUnder: string, current: () => string | null): CosignFailure | null {
+  return current() === startedUnder ? null : "error";
+}
+
+/**
  * The sound and haptic a failed signature makes (S2.9 MM-5 "Mismatch: a clack, the Error haptic"): only a batch hash
  * or lines digest the phone refused clacks; a cancelled fingerprint or a dropped connection is quiet.
  */

@@ -8,6 +8,10 @@
  * `-a3` for each new key) in SecureStore on the phone, an ephemeral `fs-ernesto-demo-{6}` key in a judge's browser
  * (C-13). A signature is never stored or queued: offline, or when the approval cannot be sent, it is dropped and the
  * Chair signs again with a connection.
+ *
+ * A key belongs to the pairing it was made under (`pairingId`): a phone paired again, as anyone (the same officer, or
+ * the same name in another co-op or judge workspace), never signs with the earlier pairing's key. The vault forgets
+ * it and makes the next one inside the same presence step, and a key is registered again for each pairing.
  */
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
@@ -547,14 +551,18 @@ export function createSoftwareSigner(opts: {
 export interface VaultSignRequest {
   /** The paired persona (`board:ernesto`); the key is named after it. */
   persona: string;
+  /**
+   * The pairing this signature is made under (`pairingId`; a judge's session on the web). The key in hand signs only
+   * for the pairing it was made under: for any other (the phone paired again, even as the same officer, or a key kept
+   * from before keys were bound) it is forgotten first and the next key is made, in the same presence step.
+   */
+  pairing: string;
   message: Uint8Array;
   /** The OS prompt's title: "Pirmahi ang batch sa Season 2026-A". */
   prompt: string;
   /** The prompt's second line on Android: "8 ka bayad, US$368.39". */
   detail?: string;
   cancelLabel: string;
-  /** Web only: the judge session the demo key belongs to. A new session gets a new key (C-13). */
-  sessionTag?: string;
 }
 
 /**
@@ -564,12 +572,14 @@ export interface VaultSignRequest {
  */
 export interface KeyVault {
   readonly kind: "device" | "demo";
-  current(): Promise<KeyMeta | null>;
+  /** The key this pairing signs with, or null: none yet, or the key in hand belongs to another pairing. */
+  current(pairing: string): Promise<KeyMeta | null>;
   /**
-   * The key ID the next signature for this persona will use: the key in hand, or the one it will make (`-a2` after
-   * `-a1` was forgotten). Null where it cannot be known ahead (the demo key's random suffix).
+   * The key ID the next signature for this persona and pairing will use: the key in hand, or the one it will make
+   * (`-a2` after `-a1` was forgotten, or belonged to another pairing). Null where it cannot be known ahead (the demo
+   * key's random suffix).
    */
-  upcomingKeyId(persona: string): Promise<string | null>;
+  upcomingKeyId(persona: string, pairing: string): Promise<string | null>;
   /** The presence step the next signature asks for, or null when the phone has no screen lock. */
   presence(): Promise<BiometricClass | null>;
   sign(req: VaultSignRequest): Promise<KeySignOutcome>;
@@ -578,11 +588,11 @@ export interface KeyVault {
 
 /** The judge's browser key (C-13): ephemeral, in memory only, one per judge session, labelled wherever it shows. */
 export function createDemoVault(randomBytes: RandomBytes, now: () => Date = () => new Date()): KeyVault {
-  let held: { tag: string; meta: KeyMeta; signer: Signer } | null = null;
+  let held: { pairing: string; meta: KeyMeta; signer: Signer } | null = null;
   return {
     kind: "demo",
-    async current() {
-      return held?.meta ?? null;
+    async current(pairing) {
+      return held && held.pairing === pairing ? held.meta : null;
     },
     async upcomingKeyId() {
       return null;
@@ -591,17 +601,16 @@ export function createDemoVault(randomBytes: RandomBytes, now: () => Date = () =
       return "none";
     },
     async sign(req) {
-      const tag = req.sessionTag ?? "";
       let created = false;
       if (
         !held ||
-        held.tag !== tag ||
+        held.pairing !== req.pairing ||
         held.meta.keyId.split("-demo-")[0] !== `fs-${personaSlug(req.persona)}`
       ) {
         const keyId = demoKeyId(req.persona, randomBytes);
         const signer = createSoftwareSigner({ keyId, kind: "demo", randomBytes });
         held = {
-          tag,
+          pairing: req.pairing,
           signer,
           meta: {
             keyId,
@@ -673,11 +682,12 @@ function signWith(skHex: string, message: Uint8Array): string {
  * against the key it was made with.
  */
 export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
-  async function readMeta(): Promise<KeyMeta | null> {
+  /** The key in hand and the pairing it was made under (null: kept by a build from before keys were bound). */
+  async function readHeld(): Promise<{ meta: KeyMeta; pairing: string | null } | null> {
     const raw = await d.prefs.get(KEY_META);
     if (!raw) return null;
     try {
-      const m = JSON.parse(raw) as Partial<KeyMeta>;
+      const m = JSON.parse(raw) as Partial<KeyMeta> & { pairing?: unknown };
       if (
         typeof m.keyId !== "string" ||
         !deviceKeyParts(m.keyId) ||
@@ -687,10 +697,17 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
         return null;
       }
       const cls = m.biometricClass === "biometric-bound" ? "biometric-bound" : "pin-gated";
-      return { keyId: m.keyId, publicKeyHex: m.publicKeyHex, biometricClass: cls, createdAt: m.createdAt };
+      return {
+        meta: { keyId: m.keyId, publicKeyHex: m.publicKeyHex, biometricClass: cls, createdAt: m.createdAt },
+        pairing: typeof m.pairing === "string" && m.pairing ? m.pairing : null,
+      };
     } catch {
       return null;
     }
+  }
+
+  async function readMeta(): Promise<KeyMeta | null> {
+    return (await readHeld())?.meta ?? null;
   }
 
   async function lastGeneration(slug: string, meta: KeyMeta | null): Promise<number> {
@@ -719,20 +736,24 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
     await d.prefs.del(KEY_META);
   }
 
-  async function keep(meta: KeyMeta): Promise<void> {
+  async function keep(meta: KeyMeta, pairing: string): Promise<void> {
     await noteGeneration(meta.keyId);
-    await d.prefs.set(KEY_META, JSON.stringify(meta));
+    await d.prefs.set(KEY_META, JSON.stringify({ ...meta, pairing }));
   }
 
   return {
     kind: "device",
 
-    current: readMeta,
+    async current(pairing) {
+      const held = await readHeld();
+      return held && held.pairing === pairing ? held.meta : null;
+    },
 
-    async upcomingKeyId(persona) {
+    async upcomingKeyId(persona, pairing) {
       const slug = personaSlug(persona);
-      const meta = await readMeta();
-      if (meta && deviceKeyParts(meta.keyId)?.slug === slug) return meta.keyId;
+      const held = await readHeld();
+      const meta = held?.meta ?? null;
+      if (meta && held?.pairing === pairing && deviceKeyParts(meta.keyId)?.slug === slug) return meta.keyId;
       const next = (await lastGeneration(slug, meta)) + 1;
       return next > MAX_KEY_GENERATION ? null : deviceKeyId(persona, next);
     },
@@ -743,9 +764,11 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
       const cls = await d.presence();
       if (!cls) return { ok: false, reason: "no-lock" };
       const slug = personaSlug(req.persona);
-      let meta = await readMeta();
-      // A phone re-paired to another officer never signs with the previous officer's key.
-      if (meta && deviceKeyParts(meta.keyId)?.slug !== slug) {
+      const held = await readHeld();
+      let meta = held?.meta ?? null;
+      // A key belongs to the pairing it was made under: a phone paired again (to another officer, or to the same one,
+      // or the same name in another co-op), or a key kept from before keys were bound, never signs with it.
+      if (meta && (held?.pairing !== req.pairing || deviceKeyParts(meta.keyId)?.slug !== slug)) {
         await forgetKey(meta);
         meta = null;
       }
@@ -785,13 +808,13 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
           // Android asks for the fingerprint to store a bound key: that prompt is this signature's presence step.
           const signatureHex = bytesToHex(ed25519.sign(req.message, sk));
           await d.secrets.set(secretName(keyId), skHex, { bound: true, prompt: req.prompt });
-          await keep(fresh);
+          await keep(fresh, req.pairing);
           return { ok: true, key: fresh, signatureHex, created: true };
         }
         const failed = await d.askPresence(req.prompt, req.detail, req.cancelLabel);
         if (failed) return { ok: false, reason: failed };
         await d.secrets.set(secretName(keyId), skHex, { bound: false, prompt: req.prompt });
-        await keep(fresh);
+        await keep(fresh, req.pairing);
         return {
           ok: true,
           key: fresh,
@@ -807,6 +830,21 @@ export function createDeviceVault(d: DeviceVaultDeps): KeyVault {
 
     async forget() {
       await forgetKey(await readMeta());
+    },
+  };
+}
+
+/**
+ * Which keys this app session has handed to the server, per pairing: registration is idempotent, but a key made
+ * under one pairing is never assumed registered under the next (each pairing registers its own key).
+ */
+export function createKeyRegistry() {
+  const done = new Set<string>();
+  const slot = (pairing: string, keyId: string) => JSON.stringify([pairing, keyId]);
+  return {
+    has: (pairing: string, keyId: string) => done.has(slot(pairing, keyId)),
+    add: (pairing: string, keyId: string) => {
+      done.add(slot(pairing, keyId));
     },
   };
 }
@@ -842,9 +880,10 @@ export interface CosignDeps {
   register(key: KeyMeta): Promise<ApiResult<{ ok: true }>>;
   submit(body: ApprovalSubmission): Promise<ApiResult<{ accepted: true }>>;
   /**
-   * Asked just before the presence step and again before anything leaves the phone: why this attempt must stop now
-   * (the batch on screen changed, the request closed, the phone went offline), or null. The fingerprint prompt can
-   * stay up for a while; a signature made while the batch changed underneath it is dropped, never sent (I4).
+   * Asked just before the presence step, again before anything leaves the phone, and once more before the approval
+   * leaves after a key registration: why this attempt must stop now (the batch on screen changed, the request closed,
+   * the phone went offline or was paired again), or null. The fingerprint prompt can stay up for a while; a signature
+   * made while the batch changed underneath it is dropped, never sent (I4).
    */
   recheck?(): CosignFailure | null;
 }
@@ -879,6 +918,9 @@ export async function cosign(
     const reg = await deps.register(signed.key);
     if (!reg.ok)
       return { ok: false, state: offlineCode(reg) ? "offline" : "error", detail: `register:${reg.code}` };
+    // The registration took a round trip: ask once more before the approval itself leaves.
+    const registered = deps.recheck?.() ?? null;
+    if (registered) return { ok: false, state: registered, detail: "recheck" };
   }
   const submission: ApprovalSubmission = {
     role: check.payload.role,

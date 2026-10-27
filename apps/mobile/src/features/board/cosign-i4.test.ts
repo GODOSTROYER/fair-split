@@ -41,6 +41,7 @@ import {
   type FlowPhase,
   failureCue,
   flowReducer,
+  pairingRefusal,
   refusalFailure,
   signPhase,
   slabLive,
@@ -101,7 +102,13 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
   const vault = createDemoVault(rnd, () => NOW);
   const key = vi.fn(
     (message: Uint8Array): Promise<KeySignOutcome> =>
-      vault.sign({ persona: "board:ernesto", message, prompt: "p", cancelLabel: "c", sessionTag: "t" }),
+      vault.sign({
+        persona: "board:ernesto",
+        pairing: phone.pairing ?? "",
+        message,
+        prompt: "p",
+        cancelLabel: "c",
+      }),
   );
   const submit = vi.fn(
     async (_b: ApprovalSubmission): Promise<ApiResult<{ accepted: true }>> => ({
@@ -111,6 +118,8 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
   );
   const register = vi.fn(async (): Promise<ApiResult<{ ok: true }>> => ({ ok: true, value: { ok: true } }));
   const phone = {
+    /** The phone's pairing now (`pairingId`); null once unpaired. */
+    pairing: "pairing-ernesto-1" as string | null,
     key,
     submit,
     register,
@@ -134,9 +143,17 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
       return fetchPayload(plan.expected);
     },
     /** The release inside (or the dialog's confirm). `during` runs while the payload is in flight. */
-    commit(opts: { during?: () => Promise<void>; underPrompt?: () => Promise<void> } = {}) {
+    commit(
+      opts: {
+        during?: () => Promise<void>;
+        underPrompt?: () => Promise<void>;
+        whileRegistering?: () => Promise<void>;
+      } = {},
+    ) {
+      // As `useSign` does: the step belongs to the pairing it started under.
+      const startedUnder = phone.pairing ?? "";
       return commitSignature({
-        refusal: phone.refusal,
+        refusal: () => pairingRefusal(startedUnder, () => phone.pairing) ?? phone.refusal(),
         payload: async () => {
           const fresh = await phone.freshPayload();
           await opts.during?.();
@@ -153,7 +170,11 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
               return r;
             },
             isRegistered: () => false,
-            register,
+            register: async () => {
+              const r = await register();
+              await opts.whileRegistering?.();
+              return r;
+            },
             submit,
           }),
       });
@@ -301,6 +322,55 @@ describe("I4 at the instant of signing", () => {
     expect(r.submission.payload.batchSha256).not.toBe(opened);
     const signed = phone.key.mock.calls[0]?.[0];
     expect(signed).toEqual(approvalBytes(r.submission.payload));
+  });
+});
+
+describe("a phone paired again mid-signature (security review: a signature never outlives its pairing)", () => {
+  it("keys.repaired-while-fetching: paired again while the payload is in flight, nothing is signed", async () => {
+    const phone = phoneSide(consoleSide());
+    await phone.load();
+    const r = await phone.commit({
+      during: async () => {
+        phone.pairing = "pairing-analyn-1"; // the phone is paired to someone else
+      },
+    });
+    expect(r).toMatchObject({ ok: false, state: "error", detail: "changed" });
+    expect(phone.key).not.toHaveBeenCalled();
+    expect(phone.submit).not.toHaveBeenCalled();
+  });
+
+  it("keys.repaired-under-the-fingerprint: a signature made as the phone was paired again is dropped, never sent", async () => {
+    const phone = phoneSide(consoleSide());
+    await phone.load();
+    const r = await phone.commit({
+      underPrompt: async () => {
+        phone.pairing = "pairing-ernesto-2"; // even the same Chair, paired again: a new pairing
+      },
+    });
+    expect(r).toMatchObject({ ok: false, state: "error", detail: "recheck" });
+    expect(phone.key).toHaveBeenCalledOnce();
+    expect(phone.register).not.toHaveBeenCalled();
+    expect(phone.submit).not.toHaveBeenCalled();
+  });
+
+  it("keys.repaired-while-registering: unpaired while the new key is registered, the approval never leaves", async () => {
+    const phone = phoneSide(consoleSide());
+    await phone.load();
+    const r = await phone.commit({
+      whileRegistering: async () => {
+        phone.pairing = null;
+      },
+    });
+    expect(r).toMatchObject({ ok: false, state: "error", detail: "recheck" });
+    expect(phone.register).toHaveBeenCalledOnce();
+    expect(phone.submit).not.toHaveBeenCalled();
+  });
+
+  it("signs as usual while the pairing holds", async () => {
+    const phone = phoneSide(consoleSide());
+    await phone.load();
+    expect(await phone.commit()).toMatchObject({ ok: true });
+    expect(phone.submit).toHaveBeenCalledOnce();
   });
 });
 

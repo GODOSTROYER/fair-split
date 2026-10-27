@@ -109,6 +109,28 @@ export function parseSession(raw: string | null, now: Date): PairedSession | nul
 }
 
 /**
+ * Where a session is kept on this phone, as JSON: a device bearer only in the secure store, the demo session (it holds
+ * no secret) in plain preferences, a frame token nowhere (memory, for the tab's life). Whatever is null is cleared,
+ * so a phone keeps one stored pairing at most and an earlier one is never restored in place of the latest.
+ */
+export function sessionStores(s: PairedSession | null): { secret: string | null; plain: string | null } {
+  if (!s) return { secret: null, plain: null };
+  if (s.bearer === DEMO_BEARER) return { secret: null, plain: JSON.stringify(s) };
+  if (s.kind === "device") return { secret: JSON.stringify(s), plain: null };
+  return { secret: null, plain: null };
+}
+
+/**
+ * The session a phone restores at start: its device pairing when one is stored (none once it has expired or is
+ * unreadable: the phone pairs again), else the demo session. A device pairing that lapsed never brings back an older
+ * session stored beside it by an earlier build.
+ */
+export function restoreSession(secret: string | null, plain: string | null, now: Date): PairedSession | null {
+  if (secret) return parseSession(secret, now);
+  return parseSession(plain, now);
+}
+
+/**
  * Typed hrefs for every app route (the file paths under src/app). Register §4 writes the member routes as
  * `/(member)/bayad`; the tabs sit in a nested `(tabs)` group so Paminawa can be a modal over them, and the URL is the
  * register's either way (`/app/bayad`).

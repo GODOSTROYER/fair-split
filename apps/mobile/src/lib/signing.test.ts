@@ -45,6 +45,7 @@ import {
   cosign,
   createDemoVault,
   createDeviceVault,
+  createKeyRegistry,
   createSoftwareSigner,
   type DeviceVaultDeps,
   demoKeyId,
@@ -66,6 +67,9 @@ import {
 
 const rnd = (n: number) => new Uint8Array(randomBytes(n));
 const NOW = new Date("2026-10-29T10:20:00+08:00");
+/** Two pairings of this phone (`pairingId`): the Chair's, and the next one (paired again, by anyone). */
+const P1 = "pairing-ernesto-1";
+const P2 = "pairing-ernesto-2";
 
 const expected: ExpectedBatch = {
   runId,
@@ -564,8 +568,9 @@ describe("the phone's key vault", () => {
     return { vault: createDeviceVault(deps), deps, prefs, store };
   }
 
-  const req = (persona = "board:ernesto") => ({
+  const req = (persona = "board:ernesto", pairing = P1) => ({
     persona,
+    pairing,
     message: approvalBytes(payload()),
     prompt: "Pirmahi",
     cancelLabel: "Kanselahon",
@@ -573,7 +578,7 @@ describe("the phone's key vault", () => {
 
   it("makes fs-ernesto-a1 inside the first presence step, then signs with it", async () => {
     const { vault, deps } = phone();
-    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a1");
+    expect(await vault.upcomingKeyId("board:ernesto", P1)).toBe("fs-ernesto-a1");
     const first = await vault.sign(req());
     if (!first.ok) throw new Error(first.reason);
     expect(first).toMatchObject({
@@ -585,7 +590,7 @@ describe("the phone's key vault", () => {
     expect(again.created).toBe(false);
     expect(again.key).toEqual(first.key);
     expect(deps.askPresence).toHaveBeenCalledTimes(2); // one presence step per signature
-    expect(await vault.current()).toEqual(first.key);
+    expect(await vault.current(P1)).toEqual(first.key);
   });
 
   it("inv.i4.new-key-new-id: after forget() the next key is fs-ernesto-a2, registered as a new key", async () => {
@@ -615,8 +620,8 @@ describe("the phone's key vault", () => {
     const lost = await vault.sign(req());
     expect(lost).toEqual({ ok: false, reason: "invalidated" });
     await vault.forget();
-    expect(await vault.current()).toBeNull();
-    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a2");
+    expect(await vault.current(P1)).toBeNull();
+    expect(await vault.upcomingKeyId("board:ernesto", P1)).toBe("fs-ernesto-a2");
 
     const after = await cosign(approval({ nonce: "n_01JB7Q3X9M3" }), expected, deps(vault));
     if (!after.ok) throw new Error(after.detail);
@@ -631,7 +636,7 @@ describe("the phone's key vault", () => {
 
     // And the next one after that is -a3: the generation outlives every key it named.
     await vault.forget();
-    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a3");
+    expect(await vault.upcomingKeyId("board:ernesto", P1)).toBe("fs-ernesto-a3");
   });
 
   it("does not use up a key ID when the first presence step is cancelled", async () => {
@@ -639,7 +644,7 @@ describe("the phone's key vault", () => {
     deps.askPresence.mockResolvedValueOnce("cancelled");
     expect(await vault.sign(req())).toEqual({ ok: false, reason: "cancelled" });
     expect(store.map.size).toBe(0);
-    expect(await vault.current()).toBeNull();
+    expect(await vault.current(P1)).toBeNull();
     const r = await vault.sign(req());
     expect(r.ok && r.key.keyId).toBe("fs-ernesto-a1");
   });
@@ -669,13 +674,47 @@ describe("the phone's key vault", () => {
     expect(theresa.key.keyId).toBe("fs-matheresa-a1");
     expect(theresa.key.publicKeyHex).not.toBe(ernesto.key.publicKeyHex);
     // Ernesto's next key on this phone is still a new ID, never his old one with a new public key.
-    expect(await vault.upcomingKeyId("board:ernesto")).toBe("fs-ernesto-a2");
+    expect(await vault.upcomingKeyId("board:ernesto", P1)).toBe("fs-ernesto-a2");
+  });
+
+  it("keys.pairing-bound: paired again, even as the same officer, the phone never signs with the earlier pairing's key", async () => {
+    const { vault, deps, store } = phone();
+    const first = await vault.sign(req("board:ernesto", P1));
+    if (!first.ok) throw new Error(first.reason);
+    expect(first.key.keyId).toBe("fs-ernesto-a1");
+    // The phone is paired again (a new pairing of the same Chair, or of the same name in another co-op).
+    expect(await vault.current(P2)).toBeNull();
+    expect(await vault.upcomingKeyId("board:ernesto", P2)).toBe("fs-ernesto-a2");
+    const next = await vault.sign(req("board:ernesto", P2));
+    if (!next.ok) throw new Error(next.reason);
+    expect(next).toMatchObject({ created: true, key: { keyId: "fs-ernesto-a2" } });
+    expect(next.key.publicKeyHex).not.toBe(first.key.publicKeyHex);
+    expect(deps.askPresence).toHaveBeenCalledTimes(2); // one presence step each, the new key made inside it
+    // The earlier pairing's secret is gone from SecureStore, and its key is nobody's now.
+    expect(store.map.has("fs.boardKey.sk.fs-ernesto-a1")).toBe(false);
+    expect(await vault.current(P1)).toBeNull();
+    expect(await vault.current(P2)).toEqual(next.key);
+  });
+
+  it("keys.unbound-legacy: a key an earlier build kept without its pairing is never used: the next is made", async () => {
+    const { vault, prefs, store } = phone();
+    const old = await vault.sign(req());
+    if (!old.ok) throw new Error(old.reason);
+    // What the earlier build stored: the key's public half and class, no pairing.
+    const raw = await prefs.get("fs.boardKey.meta");
+    const { pairing: _bound, ...unbound } = JSON.parse(raw ?? "{}") as Record<string, unknown>;
+    expect(_bound).toBe(P1);
+    await prefs.set("fs.boardKey.meta", JSON.stringify(unbound));
+    expect(await vault.current(P1)).toBeNull();
+    const r = await vault.sign(req());
+    expect(r).toMatchObject({ ok: true, created: true, key: { keyId: "fs-ernesto-a2" } });
+    expect(store.map.has("fs.boardKey.sk.fs-ernesto-a1")).toBe(false);
   });
 
   it("makes no key past fs-ernesto-a9999, rather than reuse an ID or make one outside the registry's shape", async () => {
     const { vault, prefs, store } = phone();
     await prefs.set("fs.boardKey.gen.ernesto", String(MAX_KEY_GENERATION));
-    expect(await vault.upcomingKeyId("board:ernesto")).toBeNull();
+    expect(await vault.upcomingKeyId("board:ernesto", P1)).toBeNull();
     expect(await vault.sign(req())).toEqual({ ok: false, reason: "error" });
     expect(store.map.size).toBe(0);
   });
@@ -689,6 +728,7 @@ describe("demo key (C-13)", () => {
     expect(await vault.presence()).toBe("none");
     const r = await vault.sign({
       persona: "board:ernesto",
+      pairing: P1,
       message: new Uint8Array([1]),
       prompt: "p",
       cancelLabel: "c",
@@ -700,17 +740,34 @@ describe("demo key (C-13)", () => {
   it("keeps one key per judge session and makes a fresh one for the next session", async () => {
     const vault = createDemoVault(rnd, () => NOW);
     const req = { persona: "board:ernesto", message: new Uint8Array([1, 2]), prompt: "p", cancelLabel: "c" };
-    const a = await vault.sign({ ...req, sessionTag: "s1" });
-    const b = await vault.sign({ ...req, sessionTag: "s1" });
-    const c = await vault.sign({ ...req, sessionTag: "s2" });
+    const a = await vault.sign({ ...req, pairing: "s1" });
+    const b = await vault.sign({ ...req, pairing: "s1" });
+    const c = await vault.sign({ ...req, pairing: "s2" });
     if (!a.ok || !b.ok || !c.ok) throw new Error("expected signatures");
     expect(a.created).toBe(true);
     expect(b.created).toBe(false);
     expect(b.key.keyId).toBe(a.key.keyId);
     expect(c.created).toBe(true);
     expect(c.key.publicKeyHex).not.toBe(a.key.publicKeyHex);
+    // keys.pairing-bound (demo): the key in hand answers only for its own judge session.
+    expect(await vault.current("s1")).toBeNull();
+    expect(await vault.current("s2")).toEqual(c.key);
     await vault.forget();
-    expect(await vault.current()).toBeNull();
+    expect(await vault.current("s2")).toBeNull();
+  });
+});
+
+describe("key registrations (security review: a key is handed to the server per pairing)", () => {
+  it("keys.registered-per-pairing: a key registered under one pairing is registered again under the next", () => {
+    const registry = createKeyRegistry();
+    expect(registry.has(P1, "fs-ernesto-a1")).toBe(false);
+    registry.add(P1, "fs-ernesto-a1");
+    expect(registry.has(P1, "fs-ernesto-a1")).toBe(true);
+    expect(registry.has(P2, "fs-ernesto-a1")).toBe(false);
+    expect(registry.has(P1, "fs-ernesto-a2")).toBe(false);
+    // No two (pairing, key) pairs run into each other.
+    registry.add("a", "b|c");
+    expect(registry.has("a|b", "c")).toBe(false);
   });
 });
 
@@ -723,7 +780,7 @@ describe("cosign", () => {
       online: () => true,
       sign: vi.fn(
         (message: Uint8Array): Promise<KeySignOutcome> =>
-          vault.sign({ persona: "board:ernesto", message, prompt: "p", cancelLabel: "c", sessionTag: "t" }),
+          vault.sign({ persona: "board:ernesto", pairing: "t", message, prompt: "p", cancelLabel: "c" }),
       ),
       isRegistered: (id: string) => registered.has(id),
       register: vi.fn(async (k: { keyId: string }): Promise<ApiResult<{ ok: true }>> => {
@@ -825,7 +882,7 @@ describe("cosign", () => {
       recheck: () => (changed ? "mismatch" : null),
       sign: vi.fn(async (message: Uint8Array): Promise<KeySignOutcome> => {
         changed = true; // the batch changed while the prompt was up
-        return vault.sign({ persona: "board:ernesto", message, prompt: "p", cancelLabel: "c" });
+        return vault.sign({ persona: "board:ernesto", pairing: "t", message, prompt: "p", cancelLabel: "c" });
       }),
     });
     expect(await cosign(approval(), expected, late)).toEqual({
