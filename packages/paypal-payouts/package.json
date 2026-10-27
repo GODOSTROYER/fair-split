@@ -18,12 +18,13 @@
   },
   "dependencies": {
     "zod": "catalog:zod3",
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/domain": "workspace:*",
     "@fairsplit/paypal-core": "workspace:*"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "catalog:",
     "@types/node": "catalog:",
-    "canonicalize": "catalog:",
     "fast-check": "catalog:",
     "msw": "catalog:",
     "tsx": "catalog:",

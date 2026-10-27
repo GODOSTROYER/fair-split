@@ -608,6 +608,12 @@ importers:
 
   packages/paypal-payouts:
     dependencies:
+      "@fairsplit/contracts":
+        specifier: workspace:*
+        version: link:../contracts
+      "@fairsplit/domain":
+        specifier: workspace:*
+        version: link:../domain
       "@fairsplit/paypal-core":
         specifier: workspace:*
         version: link:../paypal-core
@@ -621,9 +627,6 @@ importers:
       "@types/node":
         specifier: "catalog:"
         version: 24.10.1
-      canonicalize:
-        specifier: "catalog:"
-        version: 5.1.0
       fast-check:
         specifier: "catalog:"
         version: 4.10.2
@@ -676,6 +679,12 @@ importers:
 
   packages/paypal-toolkit:
     dependencies:
+      "@fairsplit/contracts":
+        specifier: workspace:*
+        version: link:../contracts
+      "@fairsplit/domain":
+        specifier: workspace:*
+        version: link:../domain
       "@fairsplit/paypal-core":
         specifier: workspace:*
         version: link:../paypal-core
