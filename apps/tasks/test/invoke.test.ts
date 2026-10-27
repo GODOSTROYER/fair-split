@@ -116,7 +116,9 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
     expect([...(handler.mock.calls[0]?.[0].flags ?? [])]).toEqual(["paypal_live"]);
   });
 
-  // A PayPal-lane handler as WS-PPMONEY will write it: load the row's workspace, ask paypalLane.
+  // These two prove the wrapper's side of kill_paypal_live only: it does not refuse at entry, and it
+  // hands the fresh flags to a handler that applies paypalLane (written here, as WS-PPMONEY will).
+  // Whether a real PayPal handler replays or refuses is WS-PPMONEY's inv.i8 test, not these.
   const ppHandler =
     (kind: WorkspaceKind): TaskHandler =>
     async (inv) => {
@@ -125,7 +127,7 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
       return { status: "done", mode: lane === "replay" ? "replay" : "live" };
     };
 
-  it("inv.i8.kill-paypal-live-judge-replays: kill_paypal_live in a judge workspace plays the labelled replay, not a dead row", async () => {
+  it("entry.kill-paypal-live-reaches-handler: in a judge or showcase workspace the wrapper lets a paypalLane handler return its labelled replay", async () => {
     const readFlags = envFlags({ FS_KILL: "paypal_live" });
     for (const kind of ["judge", "showcase"] as const) {
       const rt = testRuntime(
@@ -142,7 +144,7 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
     }
   });
 
-  it("inv.i8.kill-paypal-live-real-refuses: kill_paypal_live in a real workspace refuses PayPal tasks", async () => {
+  it("entry.kill-paypal-live-handler-refusal-recorded: in a real workspace a paypalLane handler's KILL_SWITCH is recorded as a dead row", async () => {
     const rt = testRuntime(
       { ensureInvoice: ppHandler("real"), recordPayment: ppHandler("real"), settleBatch: ppHandler("real") },
       { readFlags: envFlags({ FS_KILL: "paypal_live" }) },

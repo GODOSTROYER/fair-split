@@ -5,11 +5,15 @@ import {
   type Blueprint,
   checkBuildFilters,
   checkDatabaseRoles,
+  checkIgnoredPaths,
   checkPolicy,
   checkSecrets,
   commandFiles,
   dependencyClosure,
+  globToRegExp,
   isSecretName,
+  isTestOrReadme,
+  matchesAny,
   OWNER_URL_KEY,
   PINNED_NODE_VERSION,
   PP_MODES,
@@ -17,13 +21,16 @@ import {
   pathsCoverFile,
   pinnedNodeVersion,
   REPO_ROOT,
+  RUNTIME_ASSETS,
   readBlueprint,
   readWorkspace,
   SECRETS_BY_SERVICE,
   type ServiceEntry,
   serviceRoots,
   startCommandSource,
+  trackedFiles,
   validateAgainstSchema,
+  watches,
 } from "../../../tools/lib/blueprint.js";
 
 const bp = readBlueprint();
@@ -293,6 +300,21 @@ describe("render.yaml: database roles (S3.4, register §7)", () => {
     );
     expect(problems).toMatch(/fs-api: FS_APP_DB_PASSWORD must be generated here/);
   });
+
+  it("fs-db accepts no external connection, so an owner URL read back from fs-api's environment is useless outside Render (ADR-0005)", () => {
+    expect(bp.databases?.find((d) => d.name === "fs-db")?.ipAllowList).toEqual([]);
+    expect(validateAgainstSchema(bp)).toEqual([]);
+    const RULE = "fs-db must set ipAllowList: [] (private network only; ADR-0005)";
+    const omitted = clone();
+    const db = omitted.databases?.find((d) => d.name === "fs-db");
+    if (db) delete db.ipAllowList;
+    expect(checkPolicy(omitted)).toContain(RULE);
+    const opened = clone();
+    for (const d of opened.databases ?? [])
+      d.ipAllowList = [{ source: "0.0.0.0/0", description: "anywhere" }];
+    expect(validateAgainstSchema(opened)).toEqual([]);
+    expect(checkPolicy(opened)).toContain(RULE);
+  });
 });
 
 describe("render.yaml: build filters", () => {
@@ -346,5 +368,133 @@ describe("render.yaml: build filters", () => {
   it("maps start commands to their sources", () => {
     expect(startCommandSource("node apps/tasks/dist/cron.js")).toBe("apps/tasks/src/cron.ts");
     expect(startCommandSource("pnpm start")).toBeUndefined();
+  });
+});
+
+describe("render.yaml: ignoredPaths never skip what a service reads at runtime", () => {
+  const PROMPT = "packages/ai/src/read/prompts/a.v1.md";
+
+  it("a commit that changes only a prompt, a migration or the seed snapshot redeploys fs-api and fs-tasks", () => {
+    expect(checkIgnoredPaths(bp)).toEqual([]);
+    for (const name of ["fs-api", "fs-tasks"])
+      for (const asset of RUNTIME_ASSETS)
+        expect(watches(svcIn(bp, name), asset), `${name}: ${asset}`).toBe(true);
+  });
+
+  it("no runtime asset path under packages/** is matched by any service's ignoredPaths", () => {
+    expect(RUNTIME_ASSETS.every((a) => a.startsWith("packages/"))).toBe(true);
+    for (const s of bp.services ?? [])
+      for (const asset of RUNTIME_ASSETS)
+        expect(matchesAny(s.buildFilter?.ignoredPaths ?? [], asset), `${s.name} ignores ${asset}`).toBe(
+          false,
+        );
+  });
+
+  it("tests and READMEs still don't redeploy anything", () => {
+    for (const file of [
+      "apps/tasks/README.md",
+      "apps/tasks/test/bundle.test.ts",
+      "packages/db/src/x.test.ts",
+    ])
+      for (const name of ["fs-api", "fs-tasks"])
+        expect(watches(svcIn(bp, name), file), `${name}: ${file}`).toBe(false);
+  });
+
+  it("the policy refuses the old `**/*.md` filter, and globs over migrations or the snapshot", () => {
+    const bad = clone();
+    svcIn(bad, "fs-tasks").buildFilter?.ignoredPaths?.push("**/*.md");
+    svcIn(bad, "fs-api").buildFilter?.ignoredPaths?.push("packages/db/migrations/**", "**/*.json");
+    const problems = checkPolicy(bad);
+    expect(problems).toContain(`fs-tasks: ignoredPaths skips ${PROMPT}, a file read at runtime`);
+    expect(problems).toContain(
+      "fs-api: ignoredPaths skips packages/db/migrations/0001_schema.sql, a file read at runtime",
+    );
+    expect(problems).toContain(
+      "fs-api: ignoredPaths skips packages/seed/snapshot/season-2026A.json, a file read at runtime",
+    );
+    expect(problems.some((p) => p.startsWith("fs-api:") && p.includes(PROMPT))).toBe(false);
+  });
+
+  it("inside a service's dependency closure, ignoredPaths may skip only tests and READMEs", () => {
+    const ws = new Map([
+      ["@fairsplit/tasks", { name: "@fairsplit/tasks", dir: "apps/tasks", deps: ["@fairsplit/ai"] }],
+      ["@fairsplit/ai", { name: "@fairsplit/ai", dir: "packages/ai", deps: [] }],
+    ]);
+    const files = [
+      "apps/tasks/README.md",
+      "apps/tasks/test/bundle.test.ts",
+      "packages/ai/README.md",
+      "packages/ai/src/read/prompts.ts",
+      "packages/ai/src/read/prompts/b.v1.md",
+      "packages/ai/src/read/schema.test.ts",
+      "packages/eval/src/run.ts",
+    ];
+    const listed: string[][] = [];
+    const list = (dirs: readonly string[]) => {
+      listed.push([...dirs]);
+      return files.filter((f) => dirs.some((d) => f.startsWith(`${d}/`)));
+    };
+    expect(checkIgnoredPaths(bp, ws, list)).toEqual([]);
+    expect(listed).toContainEqual(["apps/tasks", "packages/ai"]);
+    const bad = clone();
+    svcIn(bad, "fs-tasks").buildFilter?.ignoredPaths?.push("packages/ai/src/read/**");
+    expect(checkIgnoredPaths(bad, ws, list)).toEqual([
+      `fs-tasks: ignoredPaths skips ${PROMPT}, a file read at runtime`,
+      "fs-tasks: ignoredPaths skips packages/ai/src/read/prompts.ts, which is neither a test nor a README",
+      "fs-tasks: ignoredPaths skips packages/ai/src/read/prompts/b.v1.md, which is neither a test nor a README",
+    ]);
+  });
+
+  it("reads the committed tree from git (the closure of fs-tasks today)", () => {
+    const files = trackedFiles(["apps/tasks"]);
+    expect(files).toContain("apps/tasks/README.md");
+    expect(files).toContain("apps/tasks/tsdown.config.ts");
+    expect(files.every((f) => f.startsWith("apps/tasks/") && !f.includes("\\"))).toBe(true);
+    expect(trackedFiles([])).toEqual([]);
+  });
+
+  it("tells tests and READMEs from files a service runs or reads", () => {
+    for (const f of [
+      "apps/tasks/README.md",
+      "packages/ai/readme.md",
+      "apps/tasks/test/helpers.ts",
+      "packages/db/src/migrate.test.ts",
+      "packages/ui-web/src/x.spec.tsx",
+      "packages/paypal-core/src/webhook/__fixtures__/paypal-sandbox-cert-ab66f33d.pem",
+    ])
+      expect(isTestOrReadme(f), f).toBe(true);
+    for (const f of [
+      ...RUNTIME_ASSETS,
+      "packages/i18n/REVIEW.md",
+      "packages/seed/CONFLICTS.md",
+      "apps/tasks/src/index.ts",
+      "packages/testing/src/x.ts",
+      "packages/ai/src/read/latest.test.json",
+    ])
+      expect(isTestOrReadme(f), f).toBe(false);
+  });
+
+  it("matches globs the way Render's build filters do", () => {
+    const cases: [string, string, boolean][] = [
+      ["**/*.md", "README.md", true],
+      ["**/*.md", PROMPT, true],
+      ["**/README.md", PROMPT, false],
+      ["**/README.md", "apps/tasks/README.md", true],
+      ["**/test/**", "apps/tasks/test/bundle.test.ts", true],
+      ["**/test/**", "apps/tasks/testing/x.ts", false],
+      ["packages/**", "packages/db/migrations/0001_schema.sql", true],
+      ["packages/db/**", "packages/dbx/a.ts", false],
+      ["apps/*/src/*.ts", "apps/tasks/src/index.ts", true],
+      ["apps/*/src/*.ts", "apps/tasks/src/handoff/dispatcher.ts", false],
+      ["**/*.test.{ts,tsx}", "a/b.test.tsx", true],
+      ["**/*.test.{ts,tsx}", "a/b.test.js", false],
+      ["tools/cron-tick.mjs", "tools/cron-tick.mjs", true],
+      ["tools/cron-tick.mjs", "tools/cron-tick.mjsx", false],
+      ["a?c", "abc", true],
+      ["a?c", "a/c", false],
+    ];
+    for (const [glob, file, expected] of cases)
+      expect(matchesAny([glob], file), `${glob} ~ ${file}`).toBe(expected);
+    expect(() => globToRegExp("{a,b")).toThrow(/unclosed brace/);
   });
 });

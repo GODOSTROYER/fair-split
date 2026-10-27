@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { DbProbeResult } from "../src/db-probe.js";
 import { createInlineExecutor, INLINE_CONCURRENCY, Semaphore, type TaskExecutor } from "../src/executor.js";
 import type { TaskHandler } from "../src/handlers.js";
 import {
@@ -133,7 +134,7 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
     ).rejects.toThrow(/PP_DEV_MOCKS/);
   });
 
-  it("CLI connects as fs_app: credentials are swapped into DATABASE_URL before the run", async () => {
+  it("CLI connects as fs_app: credentials are swapped into DATABASE_URL before the run, and the role check probes that URL", async () => {
     const runtime = testRuntime({ reconcile: async () => ({ status: "done" }) });
     const env: NodeJS.ProcessEnv = {
       PP_ENV: "sandbox",
@@ -141,11 +142,41 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
       FS_DB_NAME: "fairsplit",
       FS_APP_DB_PASSWORD: "pw",
     };
+    const probeDb = vi.fn(
+      async (_url: string | undefined): Promise<DbProbeResult> => ({
+        configured: true,
+        reachable: true,
+        canCreateRole: false,
+        ledgerWritable: false,
+      }),
+    );
     await expect(
-      inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env }),
+      inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env, probeDb }),
     ).resolves.toBe(0);
     expect(new URL(env.DATABASE_URL ?? "").username).toBe("fs_app");
     expect(env.FS_APP_DB_PASSWORD).toBeUndefined();
+    expect(probeDb).toHaveBeenCalledTimes(1);
+    expect(probeDb.mock.calls[0]?.[0]).toBe(env.DATABASE_URL);
+  });
+
+  it("CLI refuses a role that can UPDATE ledger_entries before the task runs (S3.4): exit 2, BOOT_REFUSED", async () => {
+    const handler = vi.fn<TaskHandler>(async () => ({ status: "done" }));
+    const runtime = testRuntime({ reconcile: handler });
+    const env: NodeJS.ProcessEnv = {
+      PP_ENV: "sandbox",
+      DATABASE_URL: "postgres://owner@localhost/fairsplit",
+    };
+    const probeDb = async (): Promise<DbProbeResult> => ({
+      configured: true,
+      reachable: true,
+      canCreateRole: true,
+      ledgerWritable: true,
+    });
+    await expect(
+      inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env, probeDb }),
+    ).resolves.toBe(2);
+    expect(handler).not.toHaveBeenCalled();
+    expect(runtime.failed.map((f) => f.code)).toEqual(["BOOT_REFUSED"]);
   });
 });
 

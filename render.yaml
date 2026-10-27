@@ -24,10 +24,13 @@
 #     LOGIN, or resets its password, from FS_APP_DB_PASSWORD (generated below), so the first deploy
 #     needs no manual step.
 #   - No service declares DATABASE_URL. fs-api's boot builds fs_app's from DATABASE_OWNER_URL's host,
-#     port and database plus FS_APP_DB_PASSWORD, deletes the owner's URL from its environment, and
-#     refuses to start if its role can UPDATE ledger_entries (apps/tasks/src/db-env.ts is the reference).
+#     port and database plus FS_APP_DB_PASSWORD, deletes the owner's URL from process.env, and
+#     refuses to start if its role can UPDATE ledger_entries (apps/tasks/src/db-env.ts and app-role.ts
+#     are the reference). The value still sits in fs-api's initial environment (/proc/<pid>/environ),
+#     a residual risk ADR-0005 records; fs-db therefore accepts no external connection at all.
 #   - fs-tasks never receives the owner's credentials: it gets fs-db's host, port and database name
 #     and builds fs_app's URL at boot. fs-cron has no database access at all.
+#   This layout departs from the S3.14 snippet (DATABASE_URL on fs-api and fs-tasks): ADR-0005.
 #
 # PayPal rail (ADR-0002). PP_MODE=simulator runs PayPal's REST subset through the contract-faithful
 # simulator, labelled as a simulated rail; PP_MODE=sandbox uses the real sandbox once credentials
@@ -79,11 +82,13 @@ services:
         - pnpm-workspace.yaml
         - turbo.json
         - tsconfig.base.json
+      # Tests and READMEs only. Never `**/*.md`: the prompts (packages/ai/src/*/prompts/*.md) are
+      # runtime input, so a prompt-only commit must redeploy (checkIgnoredPaths in tools/lib/blueprint.ts).
       ignoredPaths:
         - "**/*.test.ts"
         - "**/*.test.tsx"
-        - "**/*.md"
         - "**/test/**"
+        - "**/README.md"
         - packages/eval/**
         - packages/test-kit/**
     envVars:
@@ -102,7 +107,8 @@ services:
         value: simulator
       - key: EXECUTOR
         value: workflow
-      # The owner's URL, for migrate only; fs-api's boot deletes it after building fs_app's DATABASE_URL.
+      # The owner's URL, for migrate only. fs-api's boot builds fs_app's DATABASE_URL and deletes this
+      # from process.env; /proc/<pid>/environ keeps it (ADR-0005), hence fs-db's empty ipAllowList.
       - key: DATABASE_OWNER_URL
         fromDatabase:
           name: fs-db
@@ -178,10 +184,12 @@ services:
         - pnpm-workspace.yaml
         - turbo.json
         - tsconfig.base.json
+      # The bundle reads packages/ai's prompts and packages/db's migrations from this checkout at
+      # runtime (apps/tasks/build/inline-import-meta.ts), so only tests and READMEs are skipped.
       ignoredPaths:
         - "**/*.test.ts"
-        - "**/*.md"
         - "**/test/**"
+        - "**/README.md"
     envVars:
       - key: NODE_VERSION
         value: "24.22.1"
@@ -257,3 +265,8 @@ databases:
     postgresMajorVersion: "18"
     databaseName: fairsplit
     user: fairsplit
+    # No external connections: "To block all external connections, set ipAllowList to an empty list"
+    # (render.com/docs/blueprint-spec). Every service reaches fs-db over the private network, so a
+    # credential that leaks from a process environment is useless outside it (ADR-0005). For psql,
+    # open a Shell on fs-api.
+    ipAllowList: []

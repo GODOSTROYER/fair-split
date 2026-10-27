@@ -77,6 +77,8 @@ export function createInlineExecutor(deps: {
   runtime: TaskRuntime;
   logger: Logger;
   concurrency?: number;
+  /** Runs before every task (InvokeContext.preflight); the inline CLI passes the S3.4 role check. */
+  preflight?: () => Promise<void>;
 }): InlineExecutor {
   const gate = new Semaphore(deps.concurrency ?? INLINE_CONCURRENCY);
   return {
@@ -94,6 +96,7 @@ export function createInlineExecutor(deps: {
           executor: "inline",
           signal: options?.signal,
           logger: deps.logger,
+          preflight: deps.preflight,
         });
         return { executor: "inline", outcome };
       } finally {

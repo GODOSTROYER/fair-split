@@ -22,31 +22,47 @@ database credentials) are tested references for WS-DATA and WS-API to lift into 
 TypeScript source and have no build step) and leaves npm dependencies external. `test/bundle.test.ts`
 runs the built `dist/index.js` under a fake Workflows host that speaks the SDK's socket protocol.
 
+**Files next to a package's source.** packages/ai loads its prompts with
+`new URL("./prompts/", import.meta.url)` and packages/db finds `../migrations` the same way. Rolldown
+leaves `import.meta` alone, so once inlined those would resolve under `dist/` (ENOENT, and every
+`./prompts/` folder would become the same one). `build/inline-import-meta.ts` therefore makes
+`import.meta.url`, `.filename`, `.dirname` and `.main` in every inlined module describe its source file,
+as Node does unbundled, and fails the build on any other use (`import.meta.resolve`, the bare object).
+The paths are relative to `dist/`, so the bundle runs inside the checkout it was built from, which is
+how Render runs it (the external npm dependencies need that checkout's `node_modules` too). The app's
+own modules keep the chunk's `import.meta`: the entries compare it with `process.argv[1]`. Because the
+prompts are read at deploy time, `render.yaml` never ignores `*.md` files; only tests and READMEs are
+skipped (`checkIgnoredPaths` in `tools/lib/blueprint.ts`).
+
 ## Task contract
 
 - Arguments are **outbox ids only** (S3.3), never payloads, so nothing can reach Workflows' 4 MB input cap.
 - **Entry guards** (`src/invoke.ts`, the one wrapper every executor uses):
-  1. validate the ids;
-  2. read the kill flags fresh (`FS_KILL` united with the workspace's `system_flags`, S3.11). Only
+  1. run the entry's role check (`src/app-role.ts`, S3.4), once per process, before its first task. A
+     role that can UPDATE `ledger_entries` refuses every task permanently (`BOOT_REFUSED`); a check that
+     cannot reach the database, or finds it unmigrated, fails the run and is asked again by the next;
+  2. validate the ids;
+  3. read the kill flags fresh (`FS_KILL` united with the workspace's `system_flags`, S3.11). Only
      `kill_payouts` refuses at entry: `postPayoutBatch`, `cancelUnclaimed` and `reroute`, while posted
      batches keep settling. A flag read that throws fails the run (fail closed);
-  3. call the handler with the flag set in `TaskInvocation.flags`. `kill_paypal_live` means a labelled
+  4. call the handler with the flag set in `TaskInvocation.flags`. `kill_paypal_live` means a labelled
      replay in Judge Mode and a refusal in a real workspace, which only the handler can tell apart:
      `paypalLane(flags, workspaceKind)`. `kill_ai_live` means replay only: `aiLane(flags)`.
 - A handler returns `{status: "done" | "skipped" | "failed", mode?: "live" | "replay"}`. `skipped` means
   the optimistic claim found the row already taken: the normal result of a duplicate dispatch.
 - **Permanent failures reach the outbox.** A `PermanentTaskError` (`NOT_WIRED`, `INVALID_INPUT`,
-  `KILL_SWITCH`, …) is written with `OutboxPort.markFailed(id, code, detail)` for each id, then returned
-  as `failed`. If that write fails, the run throws instead of reporting success. Transient errors are
-  rethrown.
+  `KILL_SWITCH`, `BOOT_REFUSED`, …) is written with `OutboxPort.markFailed(id, code, detail)` for each
+  id, then returned as `failed`. If that write fails, the run throws instead of reporting success.
+  Transient errors are rethrown.
 
 ## Retry model
 
 1. **Within one run** (Workflows lanes only): Render retries a thrown attempt as a new attempt of the
    same task run, twice, after 5 s and 10 s (`RENDER_RETRY`). The retry does useful work when the failed
-   attempt left the row claimable: it failed before the claim, the runner released the row, or the claim
-   is re-entrant for the same run (`OR (state='running' AND claimed_by=$taskRunId)`). Otherwise the
-   retry's claim exits `skipped`, which is safe.
+   attempt left the row claimable: it failed before the claim (boot, runtime, role check, database
+   reach: the row is still `dispatched`), or the runner gave the row back, as WS-DATA's runner does on
+   a handler failure (back to `queued` with backoff). Otherwise the retry's claim exits `skipped`,
+   which is safe.
 2. **Across runs:** the outbox re-queues the row and the dispatcher starts a **new** run. Render returns
    the first run for an idempotency key repeated within 24 h, so the key is scoped to the dispatch attempt
    (`renderIdempotencyKey(outboxIds, attempt)`), never the bare dedupe key.
@@ -54,10 +70,13 @@ runs the built `dist/index.js` under a fake Workflows host that speaks the SDK's
    or Render reports it `failed` or `canceled` before it was ever seen running, the task runs inline.
    The Workflows run is never cancelled: it may already hold the claim and be part-way through its
    effects, and the claim makes the late duplicate harmless.
-4. **Sweeper:** a row in `running` longer than `sweeperStuckAfterMs(task)` since its last claim (5 minutes,
-   or one attempt's timeout plus the longest retry wait plus a minute, whichever is longer) is re-queued;
-   it is `dead` after 8 attempts.
-   `test/retry-model.test.ts` drives the real wrappers through a fake Render that keeps both rules.
+4. **Sweeper** (S3.3, the same 5 minutes for every task): a row `dispatched` for 5 minutes without a
+   claim, or `running` for 5 minutes without a heartbeat, is re-queued; it is `dead` after 8 attempts.
+   The claim heartbeats while its handler runs (WS-DATA's runner, every 30 s), so a long attempt is
+   never swept; a timeout only bounds an attempt that hangs. A hung live read (`extract`, 300 s) is back
+   in the queue within 10 minutes (`hungAttemptRequeuedAfterMs`), a crashed one 5 minutes after its
+   last heartbeat. `test/retry-model.test.ts` drives the real wrappers through a fake Render that keeps
+   both rules.
 
 | Lane (`TASK_POLICY`) | Tasks                                                                                                                                                                   | With `EXECUTOR=workflow`                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -108,9 +127,16 @@ connection errors and 5xx twice and never follows a redirect with the secret.
    which `@fairsplit/db migrate` reads in the preDeployCommand (on Render it never reads `DATABASE_URL`).
    Migrate creates `fs_app` with LOGIN, or resets its password, from `FS_APP_DB_PASSWORD`, so the first
    deploy needs no manual step. No service declares `DATABASE_URL`: fs-api's boot builds fs_app's from the
-   owner URL's host, port and database and then deletes the owner URL (`useAppDatabaseUrl`, the reference
-   for WS-API); fs-tasks builds it from `FS_DB_HOST`, `FS_DB_PORT`, `FS_DB_NAME` and the shared password,
-   and never sees the owner's credentials. Both refuse to start on an ambiguous or half-set environment.
+   owner URL's host, port and database and then deletes the owner URL from `process.env`
+   (`useAppDatabaseUrl`, the reference for WS-API); fs-tasks builds it from `FS_DB_HOST`, `FS_DB_PORT`,
+   `FS_DB_NAME` and the shared password, and never sees the owner's credentials. Both refuse to start on
+   an ambiguous or half-set environment, and refuse to run a task as a role that can UPDATE
+   `ledger_entries`. This layout departs from the S3.14 snippet; ADR-0005 records why.
+   - **Residual risk (ADR-0005):** deleting the owner URL from `process.env` does not erase it from the
+     process's initial environment (`/proc/self/environ`), so code execution or a file read in fs-api
+     could still recover it. `fs-db` therefore sets `ipAllowList: []`: Render then refuses every
+     external connection, so a leaked owner URL works only from inside the private network. For `psql`,
+     open a Shell on fs-api in the Dashboard.
    - If S6 finds that workflows do not receive `fromService` values, copy fs-api's `FS_APP_DB_PASSWORD`
      to fs-tasks by hand; fs-tasks refuses to boot until it has one.
    - If S6 finds that the owner cannot `CREATE ROLE`, migrate fails the deploy. The S3.4 fallback (the
@@ -163,11 +189,15 @@ independently, and the entry logs `contractsDrift()` at boot once contracts expo
 
 - **WS-DATA:** `OutboxPort.markFailed` (idempotent); a `system_flags` `FlagSource`; the `CronSink`; adopt
   `src/handoff/` into `packages/outbox` with a dispatcher-incremented attempt counter for the Render key;
-  release a row on handler failure, or make the claim re-entrant for the same run; use
-  `sweeperStuckAfterMs`; keep migrate's `DATABASE_OWNER_URL` contract, which render.yaml relies on.
-- **WS-API:** at boot, apply `useAppDatabaseUrl` (fs_app's URL from `DATABASE_OWNER_URL`, owner URL
-  deleted) before anything reads the environment, then the S3.13 privilege check; serve
-  `/internal/cron/tick` as above; pass the fresh flags to `chooseExecutor`; read `FS_TASKS_SLUG`.
+  keep the runner's release on handler failure and the claim's heartbeat (the one 5-minute sweeper
+  threshold relies on it: `readRateCard` may run 10 minutes); keep migrate's `DATABASE_OWNER_URL`
+  contract, which render.yaml relies on. Once `@fairsplit/db` merges, fs-tasks' role check becomes its
+  `assertAppRole`.
+- **WS-API (a gate for the first fs-api deploy, ADR-0005):** call `useAppDatabaseUrl` at boot before
+  anything reads `DATABASE_URL` (render.yaml gives fs-api only `DATABASE_OWNER_URL`, so without it fs-api
+  has no database URL), then the S3.4 role check; serve `/internal/cron/tick` as above; pass the fresh
+  flags to `chooseExecutor`; read `FS_TASKS_SLUG`.
 - **WS-CORE:** confirm or replace `TASK_KEYS` at the IC-01 freeze.
-- **WS-QA:** run `tools/lint-render.ts` in CI; record `yaml` 2.9.1 and `ajv` 8.20.0 in `docs/versions.md`
-  (deps lane); add `.node-version` (`24.22.1`); amend register §8/S1 to tick List Balances on both REST apps.
+- **WS-QA:** run `tools/lint-render.ts` in CI; add `.node-version` (`24.22.1`); amend register §8/S1 to
+  tick List Balances on both REST apps. (`yaml` 2.9.1 and `ajv` 8.20.0 came through the deps lane,
+  `deps/ops-pins`, and are in `docs/versions.md`.)

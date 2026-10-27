@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { isTaskName, TASK_NAMES, type TaskName } from "../src/_shims/contracts.js";
+import { appRoleGate } from "../src/app-role.js";
+import type { DbProbeResult } from "../src/db-probe.js";
 import { createInlineExecutor } from "../src/executor.js";
 import {
   PermanentTaskError,
@@ -194,6 +196,74 @@ describe("registerWorkflowTasks (fs-tasks)", () => {
     // A transient error is rethrown so Render retries it; nothing is recorded against the row.
     await expect(extract?.(ctx(), OUTBOX_ID)).rejects.toThrow("529 overloaded");
     expect(rt.failed).toHaveLength(1);
+  });
+
+  it("S3.4: a role that can UPDATE ledger_entries refuses every task before its handler, recorded as BOOT_REFUSED", async () => {
+    const handler = vi.fn<TaskHandler>(async () => ({ status: "done" as const }));
+    const probe = vi.fn(
+      async (): Promise<DbProbeResult> => ({
+        configured: true,
+        reachable: true,
+        canCreateRole: true,
+        ledgerWritable: true,
+      }),
+    );
+    const rt = runtimeWith({ extract: handler, readRateCard: handler, warmCaches: handler });
+    const { register, calls } = recorder();
+    registerWorkflowTasks({
+      resolveRuntime: () => rt,
+      logger: silentLogger(),
+      register,
+      preflight: appRoleGate(probe),
+    });
+    for (const name of WORKFLOW_TASK_NAMES) {
+      const fn = calls.find((c) => c.options.name === name)?.func;
+      // A permanent outcome, not a throw: Render spends no retries on a role it cannot fix.
+      await expect(fn?.(ctx(), OUTBOX_ID)).resolves.toMatchObject({ status: "failed", code: "BOOT_REFUSED" });
+    }
+    expect(handler).not.toHaveBeenCalled();
+    expect(rt.failed.map((f) => [f.id, f.code])).toEqual(
+      WORKFLOW_TASK_NAMES.map(() => [OUTBOX_ID, "BOOT_REFUSED"]),
+    );
+    expect(probe).toHaveBeenCalledTimes(1);
+    // The diagnostics never run the check: opsPing still answers, so S6 can see the service.
+    await expect(
+      Promise.resolve(calls.find((c) => c.options.name === PING_TASK)?.func(ctx())),
+    ).resolves.toMatchObject({ pong: true });
+    expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  it("S3.4: a role check that cannot reach the database fails the attempt (Render retries it); fs_app then runs", async () => {
+    const handler = vi.fn<TaskHandler>(async () => ({ status: "done" as const }));
+    let reachable = false;
+    const probe = vi.fn(
+      async (): Promise<DbProbeResult> =>
+        reachable
+          ? { configured: true, reachable: true, canCreateRole: false, ledgerWritable: false }
+          : {
+              configured: true,
+              reachable: false,
+              canCreateRole: null,
+              ledgerWritable: null,
+              errorCode: "ETIMEDOUT",
+            },
+    );
+    const rt = runtimeWith({ extract: handler });
+    const { register, calls } = recorder();
+    registerWorkflowTasks({
+      resolveRuntime: () => rt,
+      logger: silentLogger(),
+      register,
+      preflight: appRoleGate(probe),
+    });
+    const extract = calls.find((c) => c.options.name === "extract")?.func;
+    await expect(extract?.(ctx(), OUTBOX_ID)).rejects.toThrow("database role check failed (ETIMEDOUT)");
+    expect(rt.failed).toEqual([]);
+    reachable = true;
+    await expect(extract?.(ctx(), OUTBOX_ID)).resolves.toEqual({ status: "done" });
+    await expect(extract?.(ctx(), OUTBOX_ID)).resolves.toEqual({ status: "done" });
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(probe).toHaveBeenCalledTimes(2);
   });
 
   it("unwired tasks fail permanently with NOT_WIRED", async () => {

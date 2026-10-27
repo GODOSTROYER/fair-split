@@ -3,6 +3,7 @@
 //     (vendored from https://render.com/schema/render.yaml.json, retrieved 2026-10-22,
 //     Last-Modified Thu, 22 Oct 2026 00:45:41 GMT; refresh with `tsx tools/spike-s6.ts --refresh-schema`);
 //  2. Fair Split's own deployment rules: register §6, approved S3.3, S3.4, S3.11, S3.13 and S3.14.
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,8 @@ export interface DatabaseEntry {
   region?: string;
   plan?: string;
   postgresMajorVersion?: string;
+  /** Omitted: Render accepts external connections from any IP. Empty: from none (private network only). */
+  ipAllowList?: { source: string; description?: string }[];
 }
 
 export interface Blueprint {
@@ -150,6 +153,127 @@ export function pathsCover(paths: readonly string[], dir: string): boolean {
 /** True when a buildFilter path list covers one file, exactly or through a `dir/**` glob. */
 export function pathsCoverFile(paths: readonly string[], file: string): boolean {
   return paths.includes(file) || pathsCover(paths, dirname(file).replaceAll("\\", "/"));
+}
+
+/**
+ * A build-filter glob as an anchored RegExp over repo-relative POSIX paths, with Render's syntax:
+ * `**` spans directories (`**` + `/` also matches none), `*` and `?` stay inside one segment, `{a,b}` is a choice.
+ */
+export function globToRegExp(glob: string): RegExp {
+  const source = (g: string): string => {
+    let re = "";
+    for (let i = 0; i < g.length; i++) {
+      const c = g[i] as string;
+      if (c === "*" && g[i + 1] === "*") {
+        const slash = g[i + 2] === "/";
+        re += slash ? "(?:.*/)?" : ".*";
+        i += slash ? 2 : 1;
+      } else if (c === "*") re += "[^/]*";
+      else if (c === "?") re += "[^/]";
+      else if (c === "{") {
+        const end = g.indexOf("}", i);
+        if (end === -1) throw new Error(`unclosed brace in glob ${glob}`);
+        re += `(?:${g
+          .slice(i + 1, end)
+          .split(",")
+          .map(source)
+          .join("|")})`;
+        i = end;
+      } else re += c.replace(/[.+^$()|[\]\\]/g, "\\$&");
+    }
+    return re;
+  };
+  return new RegExp(`^${source(glob)}$`);
+}
+
+const GLOBS = new Map<string, RegExp>();
+
+/** True when `file` (repo-relative, POSIX) matches one of `globs`. */
+export function matchesAny(globs: readonly string[], file: string): boolean {
+  return globs.some((g) => {
+    const re = GLOBS.get(g) ?? globToRegExp(g);
+    GLOBS.set(g, re);
+    return re.test(file);
+  });
+}
+
+/** True when a commit that changes only `file` deploys `service`: a `paths` glob matches it and no `ignoredPaths` glob does. */
+export function watches(service: ServiceEntry, file: string): boolean {
+  const filter = service.buildFilter;
+  return matchesAny(filter?.paths ?? [], file) && !matchesAny(filter?.ignoredPaths ?? [], file);
+}
+
+const TEST_DIRS: ReadonlySet<string> = new Set(["test", "tests", "__tests__", "__fixtures__", "__mocks__"]);
+
+/** Tests and READMEs: the only files a build filter may skip inside a service's dependency closure. */
+export function isTestOrReadme(file: string): boolean {
+  const parts = file.split("/");
+  const base = parts.at(-1) ?? "";
+  return (
+    /^readme\.md$/i.test(base) ||
+    /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(base) ||
+    parts.slice(0, -1).some((p) => TEST_DIRS.has(p))
+  );
+}
+
+/**
+ * Non-code files that packages read at runtime, one representative path per kind (most live on other
+ * workstreams' branches): the frozen prompts whose file name is `promptV` and whose sha256 the replay
+ * key and Proof cite (S4.2), the migrations fs-api's preDeployCommand runs, and the seed snapshot
+ * (IC-03). A commit that changes only one of them must redeploy every service that watches it.
+ */
+export const RUNTIME_ASSETS: readonly string[] = [
+  "packages/ai/src/read/prompts/a.v1.md",
+  "packages/ai/src/ratecard/prompts/ratecard.v1.md",
+  "packages/ai/src/classify/prompts/classify.v1.md",
+  "packages/db/migrations/0001_schema.sql",
+  "packages/db/migrations/meta/_journal.json",
+  "packages/seed/snapshot/season-2026A.json",
+];
+
+const TRACKED = new Map<string, string[]>();
+
+/** Files git tracks under `dirs` (repo-relative POSIX paths). */
+export function trackedFiles(dirs: readonly string[], root: string = REPO_ROOT): string[] {
+  if (dirs.length === 0) return [];
+  const key = `${root}\0${dirs.join("\0")}`;
+  const cached = TRACKED.get(key);
+  if (cached) return cached;
+  const out = execFileSync("git", ["ls-files", "-z", "--", ...dirs], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const files = out.split("\0").filter(Boolean);
+  TRACKED.set(key, files);
+  return files;
+}
+
+/**
+ * Build filters never skip what a service runs or reads. Render deploys only for commits that touch
+ * a watched file, so an ignored prompt, migration or snapshot leaves production on the old one while
+ * the eval, the replay cache and Proof already cite the new one.
+ *  1. No service ignores a RUNTIME_ASSETS path that its `paths` watch.
+ *  2. Inside a service's workspace dependency closure, `ignoredPaths` skips only tests and READMEs.
+ */
+export function checkIgnoredPaths(
+  bp: Blueprint,
+  workspace: Map<string, WorkspacePackage> = readWorkspace(),
+  listFiles: (dirs: readonly string[]) => readonly string[] = trackedFiles,
+): string[] {
+  const out: string[] = [];
+  for (const s of bp.services ?? []) {
+    const paths = s.buildFilter?.paths ?? [];
+    const ignored = s.buildFilter?.ignoredPaths ?? [];
+    if (ignored.length === 0) continue;
+    for (const asset of RUNTIME_ASSETS)
+      if (matchesAny(paths, asset) && matchesAny(ignored, asset))
+        out.push(`${s.name}: ignoredPaths skips ${asset}, a file read at runtime`);
+    for (const file of listFiles(dependencyClosure(serviceRoots(s), workspace)))
+      if (matchesAny(paths, file) && matchesAny(ignored, file) && !isTestOrReadme(file))
+        out.push(`${s.name}: ignoredPaths skips ${file}, which is neither a test nor a README`);
+  }
+  return out;
 }
 
 interface WorkspacePackage {
@@ -297,6 +421,10 @@ export function checkPolicy(bp: Blueprint, opts: { nodeVersion?: string } = {}):
   }
   if (db && (!db.plan || FREE_PLANS.has(db.plan))) out.push("fs-db must be on a paid plan");
   if (db && db.postgresMajorVersion !== "18") out.push("fs-db must be Postgres 18");
+  // ADR-0005: the owner's URL can be read back from fs-api's initial environment, so it must be
+  // useless outside Render's private network. Omitting the list would allow every IP.
+  if (db && !(Array.isArray(db.ipAllowList) && db.ipAllowList.length === 0))
+    out.push("fs-db must set ipAllowList: [] (private network only; ADR-0005)");
 
   const nodePin = opts.nodeVersion ?? pinnedNodeVersion();
   for (const s of services) {
@@ -312,7 +440,12 @@ export function checkPolicy(bp: Blueprint, opts: { nodeVersion?: string } = {}):
     if (envOf(byName.get(name), "PP_ENV")?.value !== "sandbox")
       out.push(`${name}: PP_ENV must be sandbox (boot check)`);
 
-  out.push(...checkSecrets(bp), ...checkDatabaseRoles(bp), ...checkBuildFilters(bp));
+  out.push(
+    ...checkSecrets(bp),
+    ...checkDatabaseRoles(bp),
+    ...checkBuildFilters(bp),
+    ...checkIgnoredPaths(bp),
+  );
   return out;
 }
 

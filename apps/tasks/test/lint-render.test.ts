@@ -46,6 +46,17 @@ describe("tools/lint-render (CI's render.yaml lint)", () => {
     expect(lines).toContain("render.yaml policy: FAIL");
   });
 
+  it("fails a build filter that skips the prompts: fs-tasks ignoring `**/*.md` again", () => {
+    const file = variant('        - "**/README.md"\n    envVars:', '        - "**/*.md"\n    envVars:');
+    const { schema, policy } = lintRender(file);
+    expect(schema).toEqual([]);
+    expect(policy).toEqual([
+      "fs-tasks: ignoredPaths skips packages/ai/src/read/prompts/a.v1.md, a file read at runtime",
+      "fs-tasks: ignoredPaths skips packages/ai/src/ratecard/prompts/ratecard.v1.md, a file read at runtime",
+      "fs-tasks: ignoredPaths skips packages/ai/src/classify/prompts/classify.v1.md, a file read at runtime",
+    ]);
+  });
+
   it("formats each section and parses its one flag strictly", () => {
     expect(formatLint({ schema: [], policy: ["x"] })).toEqual([
       "render.yaml schema: PASS",

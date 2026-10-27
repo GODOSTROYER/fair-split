@@ -3,12 +3,18 @@
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT } from "../../../tools/lib/blueprint.js";
 import { runUnderFakeHost } from "../../../tools/lib/fake-workflow-host.js";
-import { WORKFLOW_TASK_NAMES } from "../src/policy.js";
+import { TASK_POLICY, WORKFLOW_TASK_NAMES } from "../src/policy.js";
 import { DB_PING_TASK, PING_TASK } from "../src/workflow.js";
 import { OUTBOX_ID } from "./helpers.js";
 
 const entry = "apps/tasks/src/index.ts";
-const base = { entry, cwd: REPO_ROOT, nodeArgs: ["--import", "tsx"], env: { PP_ENV: "sandbox" } } as const;
+// DATABASE_URL is set (empty: no database) so a developer's own value never reaches the entry.
+const base = {
+  entry,
+  cwd: REPO_ROOT,
+  nodeArgs: ["--import", "tsx"],
+  env: { PP_ENV: "sandbox", DATABASE_URL: "" },
+} as const;
 
 describe("fs-tasks entry under the Workflows socket protocol", () => {
   it("register mode: announces the three Workflows tasks with Render retries, plus the diagnostics without", async () => {
@@ -17,7 +23,7 @@ describe("fs-tasks entry under the Workflows socket protocol", () => {
     expect(r.registered?.map((t) => t.name)).toEqual([...WORKFLOW_TASK_NAMES, PING_TASK, DB_PING_TASK]);
     expect(r.registered?.find((t) => t.name === "extract")?.options).toMatchObject({
       retry: { max_retries: 2, wait_duration_ms: 5_000, factor: 2 },
-      timeout_seconds: 900,
+      timeout_seconds: TASK_POLICY.extract.timeoutSeconds,
     });
     for (const t of r.registered ?? []) {
       const expected = (WORKFLOW_TASK_NAMES as readonly string[]).includes(t.name) ? 2 : 0;
@@ -58,6 +64,20 @@ describe("fs-tasks entry under the Workflows socket protocol", () => {
     const r = await runUnderFakeHost({ ...base, mode: "run", taskName: "warmCaches", input: [OUTBOX_ID] });
     expect(r.exitCode).toBe(0);
     expect(r.result).toMatchObject({ status: "failed", code: "NOT_WIRED" });
+  });
+
+  it("run mode: the S3.4 role check runs before the handler; a database it cannot reach fails the attempt so Render retries it", async () => {
+    const r = await runUnderFakeHost({
+      ...base,
+      env: { ...base.env, DATABASE_URL: "postgres://probe@127.0.0.1:1/x" },
+      mode: "run",
+      taskName: "warmCaches",
+      input: [OUTBOX_ID],
+    });
+    expect(r.callback).toEqual({
+      error: { details: expect.stringMatching(/database role check failed \(ECONNREFUSED\)/) },
+    });
+    expect(r.exitCode).not.toBe(0);
   });
 
   it.each(["postPayoutBatch", "judgeReset", "transferFunds"])(

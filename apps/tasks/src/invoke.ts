@@ -1,8 +1,9 @@
-// The one wrapper every executor goes through: validate ids, read the kill flags fresh, refuse what
-// they refuse at entry, call the injected handler with the flag set, time it, log it, and classify
-// failures. A permanent failure is written to `task_outbox` through the OutboxPort and returned as a
-// `failed` outcome; a transient one is rethrown, so Render retries it within the same run (Workflows
-// lanes, policy.ts) and, once those are spent, the outbox re-queues the row as a new attempt.
+// The one wrapper every executor goes through: run the entry's preflight (the S3.4 role check,
+// app-role.ts), validate ids, read the kill flags fresh, refuse what they refuse at entry, call the
+// injected handler with the flag set, time it, log it, and classify failures. A permanent failure is
+// written to `task_outbox` through the OutboxPort and returned as a `failed` outcome; a transient one
+// is rethrown, so Render retries it within the same run (Workflows lanes, policy.ts) and, once those
+// are spent, the outbox re-queues the row as a new attempt.
 import type { ExecutorKind, TaskName } from "./_shims/contracts.js";
 import { KillSwitchError, PermanentTaskError, type TaskHandlers, type TaskOutcome } from "./handlers.js";
 import { type FlagSource, refusingFlag } from "./kill.js";
@@ -55,6 +56,11 @@ export interface InvokeContext {
   readonly signal?: AbortSignal | undefined;
   readonly logger: Logger;
   readonly now?: () => number;
+  /**
+   * Runs first, before the ids, the flags or the handler. A PermanentTaskError it throws is recorded
+   * and returned like a handler's; anything else is rethrown. The entries pass `appRoleGate`.
+   */
+  readonly preflight?: (() => Promise<void>) | undefined;
 }
 
 export async function invokeTask(
@@ -67,6 +73,7 @@ export async function invokeTask(
   const started = now();
   const log = ctx.logger.child({ task: name, executor: ctx.executor, taskRunId: ctx.taskRunId });
   try {
+    await ctx.preflight?.();
     const ids = validateIds(rawIds);
     const flags = await runtime.readFlags(name, ids);
     const refused = refusingFlag(name, flags);

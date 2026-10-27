@@ -4,7 +4,7 @@
 // `startTask` for it fails with "not found" and the dispatcher falls back inline.
 // Registration is synchronous at import time (the SDK auto-starts its task server on the next tick
 // once RENDER_SDK_SOCKET_PATH is set); the runtime (handlers, outbox port, flag source) is resolved
-// lazily inside the first run.
+// lazily inside the first run, and the entry's preflight (the S3.4 role check) runs inside every one.
 import { task as sdkTask, type TaskContext, type TaskDefinition } from "@renderinc/sdk/workflows";
 import type { TaskName } from "./_shims/contracts.js";
 import { type DbProbeResult, probeDatabase } from "./db-probe.js";
@@ -45,6 +45,11 @@ export interface RegisterOptions {
   readonly register?: RegisterFn;
   /** Defaults to probing `DATABASE_URL`; tests inject a fake. */
   readonly probeDb?: () => Promise<DbProbeResult>;
+  /**
+   * Runs before every Workflows-lane task, inside the wrapper (InvokeContext.preflight). The entry
+   * passes the S3.4 role check (`appRoleGate`); the diagnostics never run it.
+   */
+  readonly preflight?: () => Promise<void>;
   /** Defaults to `process.env`; read on every ping, never cached. */
   readonly env?: NodeJS.ProcessEnv;
 }
@@ -84,6 +89,7 @@ export function registerWorkflowTasks(options: RegisterOptions): RegisteredWorkf
           executor: "workflow",
           taskRunId: ctx.metadata.taskRunId,
           logger: options.logger,
+          preflight: options.preflight,
         }),
     );
   }

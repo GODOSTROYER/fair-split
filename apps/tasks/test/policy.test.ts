@@ -4,14 +4,15 @@ import { chooseExecutor, parseExecutorKind } from "../src/handoff/dispatcher.js"
 import { renderIdempotencyKey } from "../src/handoff/idempotency.js";
 import type { KillFlag } from "../src/kill.js";
 import {
+  hungAttemptRequeuedAfterMs,
   NO_RENDER_RETRY,
   RENDER_RETRY,
   runsOnWorkflows,
   SWEEPER_MAX_ATTEMPTS,
   SWEEPER_STUCK_AFTER_MS,
-  sweeperStuckAfterMs,
   TASK_POLICY,
   tasksInLane,
+  WORKFLOW_TASK_NAMES,
 } from "../src/policy.js";
 import { OUTBOX_ID } from "./helpers.js";
 
@@ -56,14 +57,18 @@ describe("task policy", () => {
     expect(RENDER_RETRY.waitDurationMs * (1 + (RENDER_RETRY.backoffScaling ?? 1))).toBeLessThan(60_000);
   });
 
-  it("the sweeper never re-queues a healthy attempt: stuck-after covers each task's timeout", () => {
-    for (const name of TASK_NAMES) {
-      const stuck = sweeperStuckAfterMs(name);
-      expect(stuck, name).toBeGreaterThanOrEqual(SWEEPER_STUCK_AFTER_MS);
-      expect(stuck, name).toBeGreaterThan(TASK_POLICY[name].timeoutSeconds * 1_000);
-    }
-    expect(sweeperStuckAfterMs("processWebhook")).toBe(SWEEPER_STUCK_AFTER_MS);
-    expect(sweeperStuckAfterMs("extract")).toBe(900_000 + 10_000 + 60_000);
+  // S3.3's sweeper takes a `running` row only after 5 minutes without a heartbeat, the same for every
+  // task (no per-task threshold); a timeout bounds only an attempt that hangs.
+  it("a hung live read (extract, the hero path) is back in the queue within 10 minutes", () => {
+    expect(hungAttemptRequeuedAfterMs("extract")).toBe(300_000 + SWEEPER_STUCK_AFTER_MS);
+    expect(hungAttemptRequeuedAfterMs("extract")).toBeLessThanOrEqual(10 * 60_000);
+    // S4.9: a composite read is done within 45 s; the timeout leaves several times that.
+    expect(TASK_POLICY.extract.timeoutSeconds).toBeGreaterThanOrEqual(4 * 45);
+  });
+
+  it("no Workflows attempt can hold its row past a quarter of an hour", () => {
+    for (const name of WORKFLOW_TASK_NAMES)
+      expect(hungAttemptRequeuedAfterMs(name), name).toBeLessThanOrEqual(15 * 60_000);
   });
 
   it("the sweeper bounds a stuck task to 8 attempts, 5 minutes apart (S3.3)", () => {

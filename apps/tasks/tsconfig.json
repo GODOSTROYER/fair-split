@@ -2,11 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": "../.."
+    "rootDir": "../..",
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src",
     "test",
+    "build",
     "tsdown.config.ts",
     "vitest.config.ts",
     "../../tools/verify.ts",

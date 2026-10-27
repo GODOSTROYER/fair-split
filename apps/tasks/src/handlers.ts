@@ -4,7 +4,9 @@
 //
 // For a Render retry (a new attempt of the same taskRunId, Workflows lanes only) to do useful work,
 // a failed attempt must not leave the row claimed: release it on failure (WS-DATA's runner returns
-// it to `queued`) or make the claim re-entrant for the same run. See the retry model in policy.ts.
+// it to `queued`) or make the claim re-entrant for the same run. While the handler runs, the claim
+// heartbeats (WS-DATA's runner), because S3.3's sweeper takes a `running` row after 5 minutes without
+// one and a Workflows attempt may run longer. See the retry model in policy.ts.
 import type { ExecutorKind, TaskName } from "./_shims/contracts.js";
 import type { ActiveFlags } from "./kill.js";
 

@@ -6,7 +6,9 @@
 // - fs-api holds the owner's URL only as DATABASE_OWNER_URL, which `@fairsplit/db migrate` reads in
 //   the preDeployCommand (packages/db's env contract: on Render, migrate never uses DATABASE_URL),
 //   plus FS_APP_DB_PASSWORD (generated). Its boot builds fs_app's DATABASE_URL from the owner URL's
-//   host, port and database, then deletes the owner URL from the process environment.
+//   host, port and database, then deletes the owner URL from process.env. The process's initial
+//   environment (/proc/<pid>/environ) still holds it: ADR-0005 records that residual risk, and why
+//   fs-db accepts no external connection.
 // - fs-tasks never receives the owner's credentials: it gets fs-db's host, port and database name
 //   (`fromDatabase`) plus FS_APP_DB_PASSWORD (shared from fs-api), and builds fs_app's URL.
 // `useAppDatabaseUrl` does both. fs-api's boot is WS-API's code: this file is its tested reference
@@ -120,9 +122,10 @@ export function resolveAppDatabaseUrl(env: NodeJS.ProcessEnv): { url?: string; s
 }
 
 /**
- * Boot step: point DATABASE_URL at fs_app and drop every other database credential from this
- * process's environment, so no later code (or a child process) can reach the owner's. Throws
- * DbEnvError on a half-configured environment: the entry refuses to start rather than guess.
+ * Boot step: point DATABASE_URL at fs_app and drop every other database credential from process.env,
+ * so no library that reads the environment, and no child process, gets the owner's. It cannot erase
+ * the process's initial environment block (ADR-0005). Throws DbEnvError on a half-configured
+ * environment: the entry refuses to start rather than guess.
  */
 export function useAppDatabaseUrl(env: NodeJS.ProcessEnv = process.env): DbUrlSource {
   const { url, source } = resolveAppDatabaseUrl(env);
