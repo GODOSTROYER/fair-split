@@ -22,6 +22,8 @@ export type {
   CosignInput,
   CosignReason,
   CosignRule,
+  LinesDigestFn,
+  MemberLineHash,
   PayoutItemSpec,
 } from "./_shims/domain.js";
 export { type FairSplitPayoutBatch, fairSplitPayoutBatch, fairSplitPayoutItem } from "./fair-split-schema.js";

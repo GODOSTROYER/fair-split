@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import {
   type ApprovedLine,
   batchNote,
+  type MemberLineHash,
   type PayoutItemRow,
   type PayoutRunFacts,
   type PostingSnapshot,
@@ -17,7 +18,7 @@ import {
   senderItemId,
 } from "../../src/index.js";
 import { approve, CHAIR, type TestSigner, TREASURER } from "./approvals.js";
-import { referenceBatchDigest } from "./digest.js";
+import { referenceBatchDigest, referenceLinesDigest } from "./digest.js";
 import { SANDBOX } from "./msw.js";
 
 /** The service's clock in every test: approvals below expire 10 minutes after it. */
@@ -54,11 +55,35 @@ export const RUN_BASE = {
   rateCardSha256: RATE_CARD_SHA256,
 } as const;
 
+/** A member line's stored lineSha256; an edited line re-hashes to another (version 2, 3, …). */
+export const lineHash = (memberNo: string, version = 1): string =>
+  createHash("sha256").update(`member line ${memberNo} v${version}`).digest("hex");
+
+/**
+ * Every member line of the run as `{memberNo, lineSha256}`: M-001 … M-064, the eight PayPal lines
+ * above (HERO_LINES) and 56 cash lines (register §2: 64 of 64 explained).
+ */
+export const MEMBER_LINES: readonly MemberLineHash[] = Array.from({ length: 64 }, (_, i) => {
+  const memberNo = `M-${String(i + 1).padStart(3, "0")}`;
+  return { memberNo, lineSha256: lineHash(memberNo) };
+});
+
+/** M-045 is paid in cash at the bodega: off rail, so in no PayPal batch. */
+export const CASH_MEMBER = "M-045";
+
+/** IC-02 linesDigest of MEMBER_LINES: what both keys sign as `linesDigest`. */
+export const LINES_DIGEST = referenceLinesDigest(MEMBER_LINES);
+
+/** The member lines with `memberNo`'s line edited (re-hashed) after the keys signed. */
+export const withEditedLine = (memberNo: string, lines = MEMBER_LINES): MemberLineHash[] =>
+  lines.map((l) => (l.memberNo === memberNo ? { memberNo, lineSha256: lineHash(memberNo, 2) } : l));
+
 /** Run facts as the database holds them; R5 thresholds from BR 2026-04 (register §2). */
 export const RUN_FACTS: PayoutRunFacts = {
   ...RUN_BASE,
   seasonId: "0199f6a0-0000-7000-8000-00000002026a",
   cosign: { ruleId: "R5", batchOverCents: 30_000, lineOverCents: 15_000, anyOverride: true },
+  memberLines: MEMBER_LINES,
 };
 
 export const HERO_SENDER_BATCH_ID = senderBatchId(RUN_BASE);
@@ -98,16 +123,26 @@ export async function digestFor(
   );
 }
 
-/** Signed approvals of exactly these lines (the treasurer and, by default, the Chair). */
+/**
+ * Signed approvals of exactly these lines (the treasurer and, by default, the Chair), each binding
+ * the run's member lines as `linesDigest` (MEMBER_LINES unless `linesDigest` says otherwise).
+ */
 export async function approvalsFor(
   lines: readonly ApprovedLine[] = HERO_LINES,
-  options: { signers?: readonly TestSigner[]; rerouteNo?: number; exp?: string; run?: RunIds } = {},
+  options: {
+    signers?: readonly TestSigner[];
+    rerouteNo?: number;
+    exp?: string;
+    run?: RunIds;
+    linesDigest?: string;
+  } = {},
 ): Promise<SignedApproval[]> {
   const batch = {
     runId: options.run?.runId ?? RUN_FACTS.runId,
     seasonId: RUN_FACTS.seasonId,
     rateCardSha256: RUN_FACTS.rateCardSha256,
     batchSha256: await digestFor(lines, options.rerouteNo, options.run),
+    linesDigest: options.linesDigest ?? LINES_DIGEST,
     itemCount: lines.length,
     totalCents: Number(lines.reduce((s, l) => s + l.amountCents, 0n)),
   };

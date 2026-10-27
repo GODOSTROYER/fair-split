@@ -11,12 +11,14 @@ import { TREASURER } from "./support/approvals.js";
 import {
   approvalsFor,
   batchBody,
+  CASH_MEMBER,
   created,
   digestFor,
   duplicateBatch,
   HERO_LINES,
   HERO_SENDER_BATCH_ID,
   itemBody,
+  MEMBER_LINES,
   NOW,
   paypalError,
   RHEA_ITEM_ID,
@@ -24,6 +26,7 @@ import {
   RUN_FACTS,
   rerouteBatchId,
   rheaRow,
+  withEditedLine,
 } from "./support/fixtures.js";
 import { payPalLedger } from "./support/ledger.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
@@ -511,6 +514,7 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
                 supersedesItemId: RHEA_ITEM_ID,
               },
             ],
+            approvalNonces: ["legacy-x1-treasurer"],
             at: NOW.toISOString(),
           },
         });
@@ -545,6 +549,47 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
     expect(requests).toHaveLength(0);
     // A re-route's approvals are its own: refusing them voids nothing of the run's.
     expect(repo.types()).toEqual([]);
+  });
+
+  it("inv.i4.digest-is-payout: a re-route's signature binds the run's member lines as the database holds them now", async () => {
+    const LINE_CHANGED = "A line changed after it was signed. Nothing was sent.";
+    const { service, repo } = setup([returnedForReroute()]);
+    const overOtherLines = await approvalsFor([rheaLine()], {
+      signers: [TREASURER],
+      rerouteNo: 1,
+      linesDigest: "e".repeat(64),
+    });
+    await expect(service.reroute(await request({ approvals: overOtherLines }))).resolves.toMatchObject({
+      code: "DIGEST_MISMATCH",
+      reason: LINE_CHANGED,
+    });
+
+    // Signed over the lines as they were; then a cash line changed before the post.
+    const signed = await approvalsFor([rheaLine()], { signers: [TREASURER], rerouteNo: 1 });
+    repo.edit(RUN_FACTS.runId, { memberLines: withEditedLine(CASH_MEMBER) });
+    await expect(service.reroute(await request({ approvals: signed }))).resolves.toMatchObject({
+      code: "DIGEST_MISMATCH",
+      reason: LINE_CHANGED,
+    });
+
+    expect(repo.batches.size).toBe(0);
+    expect(requests).toHaveLength(0);
+    // A re-route's approvals are its own: refusing them voids nothing of the run's.
+    expect(repo.types()).toEqual([]);
+  });
+
+  it("refuses a re-route whose member has no line in the run: an invalid batch, nothing sent", async () => {
+    const repo = new MemoryPayoutsRepo({
+      items: [returnedForReroute()],
+      runs: [{ ...RUN_FACTS, memberLines: MEMBER_LINES.filter((l) => l.memberNo !== "M-031") }],
+    });
+    const { service } = makeService(repo);
+    await expect(service.reroute(await request())).resolves.toMatchObject({
+      kind: "refused",
+      code: "INVALID_BATCH",
+    });
+    expect(repo.events).toEqual([]);
+    expect(requests).toHaveLength(0);
   });
 
   it("inv.i6.human-gate: a re-route needs the treasurer's fresh signature", async () => {

@@ -48,11 +48,13 @@ export interface BatchFacts {
   seasonId: string;
   rateCardSha256: string;
   batchSha256: string;
+  /** IC-02 `linesDigest` over every member line of the run, cash lines included. */
+  linesDigest: string;
   itemCount: number;
   totalCents: number;
 }
 
-/** The register §8 payload for one signer, signed. */
+/** The register §8 payload, as the approved plan amends it with `linesDigest`, for one signer, signed. */
 export function approve(
   signer: TestSigner,
   batch: BatchFacts,
@@ -64,6 +66,7 @@ export function approve(
     seasonId: batch.seasonId,
     rateCardSha256: batch.rateCardSha256,
     batchSha256: batch.batchSha256,
+    linesDigest: batch.linesDigest,
     itemCount: batch.itemCount,
     totalCents: batch.totalCents,
     currency: "USD",

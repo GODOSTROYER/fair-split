@@ -19,22 +19,27 @@ import {
   STRANGER,
   TREASURER,
 } from "./support/approvals.js";
-import { referenceBatchDigest } from "./support/digest.js";
+import { referenceBatchDigest, referenceLinesDigest } from "./support/digest.js";
 import {
   approvalsFor,
   batchBody,
+  CASH_MEMBER,
   created,
   digestFor,
   duplicateBatch,
   EXP,
   HERO_LINES,
   HERO_SENDER_BATCH_ID,
+  LINES_DIGEST,
+  lineHash,
+  MEMBER_LINES,
   NOW,
   PAYOUT_BATCH_ID,
   paypalError,
   postingSnapshot,
   RATE_CARD_SHA256,
   RUN_FACTS,
+  withEditedLine,
 } from "./support/fixtures.js";
 import { fixedAuth, RealPayPalHttp, TEST_TOKEN } from "./support/http.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
@@ -684,7 +689,13 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
 
     it("refuses two approvals that share a nonce", async () => {
       const digest = await digestFor(HERO_LINES);
-      const batch = { ...RUN_FACTS, batchSha256: digest, itemCount: 8, totalCents: 36_839 };
+      const batch = {
+        ...RUN_FACTS,
+        batchSha256: digest,
+        linesDigest: LINES_DIGEST,
+        itemCount: 8,
+        totalCents: 36_839,
+      };
       const approvals = [TREASURER, CHAIR].map((s) =>
         approve(s, batch, { exp: EXP, nonce: "n-0457-reused" }),
       );
@@ -701,9 +712,20 @@ describe("PayoutsService.executeApproved: refusals send nothing", () => {
       ["another season", { seasonId: "0199f6a0-0000-7000-8000-00000002025b" }],
       ["another item count", { itemCount: 7 }],
       ["another total", { totalCents: 36_840 }],
+      [
+        "lines the database does not hold (a linesDigest over no stored lines)",
+        { linesDigest: "e".repeat(64) },
+      ],
+      ["no lines at all (an approval without linesDigest)", { linesDigest: undefined }],
     ])("refuses an approval signed for %s", async (_label, payload) => {
       const digest = await digestFor(HERO_LINES);
-      const batch = { ...RUN_FACTS, batchSha256: digest, itemCount: 8, totalCents: 36_839 };
+      const batch = {
+        ...RUN_FACTS,
+        batchSha256: digest,
+        linesDigest: LINES_DIGEST,
+        itemCount: 8,
+        totalCents: 36_839,
+      };
       const approvals = [
         approve(TREASURER, batch, { exp: EXP, payload }),
         approve(CHAIR, batch, { exp: EXP }),
@@ -775,6 +797,7 @@ describe("S3.6.4 step 3: a failed approval check voids the approvals and sends t
 
   it("inv.i4.digest-is-payout: 'Change one payout after both keys': refused, nothing sent, both keys voided", async () => {
     const signed = await approvalsFor(HERO_LINES);
+    const nonces = signed.map((a) => a.payload.nonce);
     const { service, repo } = await setup({ lines: edited(), approvals: signed });
 
     await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
@@ -784,17 +807,23 @@ describe("S3.6.4 step 3: a failed approval check voids the approvals and sends t
     });
 
     expect(requests).toHaveLength(0);
+    // The void names exactly the approvals the service checked, by their (UNIQUE) nonces.
     expect(repo.events).toEqual([
       {
         type: "voidApprovals",
         runId: RUN_ID,
+        nonces,
         code: "DIGEST_MISMATCH",
         reason: "The batch changed after it was signed. Nothing was sent.",
         at: NOW.toISOString(),
+        applied: true,
       },
     ]);
-    // Voided means gone: a retry finds no approval to post on, until both keys sign the new lines.
-    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "APPROVALS_MISSING" });
+    expect(repo.voidedNonces(RUN_ID)).toEqual(nonces);
+    expect(repo.runStates.get(RUN_ID)).toBe("IN_REVIEW");
+    // Voided means gone: the run is back IN_REVIEW, so a retry finds no approved batch to post,
+    // until both keys sign the new lines.
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ code: "INVALID_BATCH" });
     expect(requests).toHaveLength(0);
     expect(repo.batches.size).toBe(0);
   });
@@ -835,11 +864,117 @@ describe("S3.6.4 step 3: a failed approval check voids the approvals and sends t
   });
 });
 
+describe("inv.i4.digest-is-payout: both keys bind every member line (linesDigest), the cash lines too", () => {
+  const LINE_CHANGED = "A line changed after it was signed. Nothing was sent.";
+
+  it("'Change one cash line after both keys': refused, nothing written or sent, both keys voided", async () => {
+    // M-045 is paid at the bodega: in no PayPal item, so batchSha256 alone cannot see the change.
+    const signed = await approvalsFor(HERO_LINES);
+    const { service, repo } = await setup({ approvals: signed, memberLines: withEditedLine(CASH_MEMBER) });
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+      kind: "refused",
+      code: "DIGEST_MISMATCH",
+      reason: LINE_CHANGED,
+      senderBatchId: HERO_SENDER_BATCH_ID,
+    });
+
+    expect(requests).toHaveLength(0);
+    expect(repo.batches.size).toBe(0);
+    expect(repo.events).toEqual([
+      {
+        type: "voidApprovals",
+        runId: RUN_ID,
+        nonces: signed.map((a) => a.payload.nonce),
+        code: "DIGEST_MISMATCH",
+        reason: LINE_CHANGED,
+        at: NOW.toISOString(),
+        applied: true,
+      },
+    ]);
+    expect(repo.runStates.get(RUN_ID)).toBe("IN_REVIEW");
+  });
+
+  it.each([
+    ["a PayPal member's line re-hashed, its payout unchanged", withEditedLine("M-014")],
+    ["a cash line added", [...MEMBER_LINES, { memberNo: "M-065", lineSha256: lineHash("M-065") }]],
+    ["a cash line dropped", MEMBER_LINES.filter((l) => l.memberNo !== CASH_MEMBER)],
+    [
+      "two members' line hashes swapped",
+      MEMBER_LINES.map((l) =>
+        l.memberNo === "M-044"
+          ? { ...l, lineSha256: lineHash("M-045") }
+          : l.memberNo === "M-045"
+            ? { ...l, lineSha256: lineHash("M-044") }
+            : l,
+      ),
+    ],
+  ])("refuses %s after both keys signed", async (_label, memberLines) => {
+    const { service, repo } = await setup({ memberLines });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "refused",
+      code: "DIGEST_MISMATCH",
+      reason: LINE_CHANGED,
+    });
+    expect(requests).toHaveLength(0);
+    expect(repo.batches.size).toBe(0);
+    expect(repo.types()).toEqual(["voidApprovals"]);
+  });
+
+  it("recomputes linesDigest through the injected IC-02 function from every member line the database holds", async () => {
+    const linesDigest = vi.fn(referenceLinesDigest);
+    onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
+    const { service } = await setup(undefined, { linesDigest });
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({ kind: "created" });
+
+    expect(linesDigest).toHaveBeenCalledTimes(1);
+    // Exactly {memberNo, lineSha256} of all 64 lines (8 on PayPal, 56 cash), nothing else.
+    expect(linesDigest.mock.calls[0]?.[0]).toEqual(MEMBER_LINES);
+    expect(linesDigest.mock.results[0]?.value).toBe(LINES_DIGEST);
+  });
+
+  it.each([
+    ["no member lines", []],
+    ["a member line without its hash", MEMBER_LINES.map((l, i) => (i === 0 ? { ...l, lineSha256: "" } : l))],
+    [
+      "an uppercase line hash",
+      MEMBER_LINES.map((l, i) => (i === 3 ? { ...l, lineSha256: l.lineSha256.toUpperCase() } : l)),
+    ],
+    ["a member with two lines", [...MEMBER_LINES, { memberNo: "M-014", lineSha256: lineHash("M-014", 2) }]],
+    ["a PayPal line whose member has no member line", MEMBER_LINES.filter((l) => l.memberNo !== "M-031")],
+  ])("refuses %s as an invalid batch: nothing voided, written or sent", async (_label, memberLines) => {
+    const { service, repo } = await setup({ memberLines });
+    await expect(service.executeApproved(RUN_ID)).resolves.toMatchObject({
+      kind: "refused",
+      code: "INVALID_BATCH",
+    });
+    expect(requests).toHaveLength(0);
+    expect(repo.events).toEqual([]);
+    expect(repo.runStates.get(RUN_ID)).toBe("APPROVED");
+  });
+
+  it.each([
+    ["linesDigest", { linesDigest: () => "not a digest" }],
+    ["batchDigest", { batchDigest: async () => "" }],
+  ] as const)(
+    "an IC-02 %s that returns no sha256 is a fault: the post rejects, nothing voided, written or sent",
+    async (_label, extra) => {
+      const { service, repo } = await setup(undefined, extra);
+      await expect(service.executeApproved(RUN_ID)).rejects.toThrow(TypeError);
+      expect(requests).toHaveLength(0);
+      expect(repo.events).toEqual([]);
+      expect(repo.liveNonces(RUN_ID)).toHaveLength(2);
+    },
+  );
+});
+
 describe("PayoutsService wiring: the money guards are required", () => {
   const base = (): PayoutsServiceDeps => ({
     http: new RealPayPalHttp(),
     repo: new MemoryPayoutsRepo(),
     batchDigest: referenceBatchDigest,
+    linesDigest: referenceLinesDigest,
     verifyApprovalSignature: registeredKeyVerifier(),
     killSwitch: async () => false,
     limits: JUDGE_LIMITS,
@@ -847,6 +982,8 @@ describe("PayoutsService wiring: the money guards are required", () => {
 
   it.each([
     ["no kill switch", { killSwitch: undefined }],
+    ["no batch digest", { batchDigest: undefined }],
+    ["no lines digest", { linesDigest: undefined }],
     ["no signature check", { verifyApprovalSignature: undefined }],
     ["no limits", { limits: undefined }],
     ["no batch cap", { limits: { ...JUDGE_LIMITS, maxBatchTotalCents: undefined } }],

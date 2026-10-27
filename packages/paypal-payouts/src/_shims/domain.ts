@@ -7,6 +7,10 @@
  * never computes the digest itself, it only compares. (WS-CORE's draft returns a BatchDigest object
  * over number cents; the swap is `(run, items) => batchDigest(run, toNumberCents(items)).batchSha256`.)
  *
+ * IC-02 `linesDigest(lines)` (the approved plan's amendment to register §8): the sha256 of
+ * JCS([{memberNo, lineSha256}] sorted by memberNo) over every member line of the run, on and off
+ * rail. Injected the same way; WS-CORE's `linesDigest` has exactly this signature.
+ *
  * IC-02 `requiresChair(input, cosign)` (R5 of the ratified card), mirrored from WS-CORE's draft so the
  * service can tell, from database facts alone, whether the Chair must have co-signed (I6).
  */
@@ -29,6 +33,19 @@ export type BatchDigestFn = (
   run: BatchDigestRun,
   items: readonly PayoutItemSpec[],
 ) => string | Promise<string>;
+
+/** One member line of the run, on or off rail, as its stored hash. */
+export interface MemberLineHash {
+  memberNo: string;
+  /** The line's lineSha256 as the database holds it: 64 lowercase hex characters. */
+  lineSha256: string;
+}
+
+/**
+ * Returns the lowercase hex sha256 of the run's lines root. Pure; may be sync or async. Throws a
+ * RangeError for no lines or a member listed twice (the service never passes either).
+ */
+export type LinesDigestFn = (lines: readonly MemberLineHash[]) => string | Promise<string>;
 
 /** R5 of the ratified rate card: the Chair co-signs any batch over US$300, any line over US$150, any override. */
 export interface CosignRule {

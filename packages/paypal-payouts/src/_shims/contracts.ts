@@ -3,9 +3,9 @@
  *
  * Register §8 "Signed payload" and the IC-01 Actor, with the names and shapes of WS-CORE's draft
  * (`packages/contracts/src/domain.ts` and `entities.ts` on ws/core, not yet frozen), written as plain
- * types because this package is zod 3. Register §8: each approver signs
- * JCS{v, runId, seasonId, rateCardSha256, batchSha256, itemCount, totalCents, currency, role,
- * approverId, nonce, exp} with Ed25519.
+ * types because this package is zod 3. Register §8, as the approved plan amends it (00-plan.md,
+ * "Signed payload"): each approver signs JCS{v, runId, seasonId, rateCardSha256, batchSha256,
+ * linesDigest, itemCount, totalCents, currency, role, approverId, nonce, exp} with Ed25519.
  */
 
 export type ApprovalRole = "treasurer" | "chair";
@@ -15,7 +15,13 @@ export interface ApprovalPayload {
   runId: string;
   seasonId: string;
   rateCardSha256: string;
+  /** Binds the PayPal items (IC-02 `batchDigest`). */
   batchSha256: string;
+  /**
+   * Binds every member line of the run, on and off rail, so both keys cover the cash lines too:
+   * IC-02 `linesDigest`, sha256(JCS([{memberNo, lineSha256}] sorted by memberNo)).
+   */
+  linesDigest: string;
   itemCount: number;
   /** Integer US cents (JCS has no bigint). */
   totalCents: number;
