@@ -20,6 +20,8 @@ export const DB_ERROR_CODES = [
   "VERSION_MISMATCH",
   /** I2: a seed window may open only for a fresh showcase or judge workspace (subject: workspace id) */
   "SEED_REFUSED",
+  /** I5: runs, lines, holds, payout items and approvals leave only with their workspace's purge (subject: table) */
+  "DELETE_REFUSED",
 ] as const;
 export type DbErrorCode = (typeof DB_ERROR_CODES)[number];
 

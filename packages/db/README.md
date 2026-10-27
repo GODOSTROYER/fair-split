@@ -86,6 +86,9 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
 - **I5** payout items: `status_rank` must match the status and only rise; our cancel is stamped once, on an UNCLAIMED
   item, and RETURNED needs that stamp from an earlier statement.
 - **I4/I6** approvals: a signed approval never changes; it can be voided once (`approvals.void`, recorded in the ledger).
+- **No deletes** (0015): runs, lines, holds, payout items and approvals leave only with their workspace's purge.
+  `fs_app` has no DELETE or TRUNCATE on them, and triggers refuse every role (`FS409 DELETE_REFUSED:<table>`), so a
+  signed approval cannot be deleted to free its slot, nor an item deleted and re-inserted at a lower status.
 - **Kept rows**: `paypal_calls` (the limiter's window and 429 circuit), `webhook_events` (event-id dedupe) and
   `llm_calls` (the Claude spend meter) reference workspaces `ON DELETE SET NULL`, so a Judge purge or Reset cannot
   reopen the circuit or the day's budget; `fs_app` cannot delete them.
