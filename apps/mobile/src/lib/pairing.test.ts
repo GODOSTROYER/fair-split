@@ -2,7 +2,49 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHttpApi, type PairClaimRequest } from "../_shims/api-client";
-import { claimPairing, parsePairingInput } from "./pairing";
+import { claimPairing, displayCode, normalizeCode, parsePairingInput, pushRoute } from "./pairing";
+
+describe("pairing code", () => {
+  it("keeps six digits of whatever is typed or pasted", () => {
+    expect(normalizeCode("418 207")).toBe("418207");
+    expect(normalizeCode("418-2079999")).toBe("418207");
+    expect(normalizeCode("a1b2")).toBe("12");
+    expect(displayCode("418207")).toBe("418 207");
+    expect(displayCode("41")).toBe("41");
+  });
+});
+
+describe("pushRoute (a tapped notification)", () => {
+  it.each([
+    ["/pirma/2026A-r37", "/pirma/2026A-r37"],
+    ["/(board)/pirma/2026A-r1230001/sign", "/pirma/2026A-r1230001/sign"],
+    ["/pirma", "/pirma"],
+    ["/bayad", "/bayad"],
+    [{ url: "/(member)/(tabs)/bayad" }, "/bayad"],
+  ])("opens %j as %s", (data, route) => {
+    expect(pushRoute(data)).toBe(route);
+  });
+
+  it.each([
+    "https://evil.example/pirma/2026A-r37",
+    "//evil.example/pirma",
+    "/\\evil.example",
+    "javascript:alert(1)",
+    "/pirma/../../etc",
+    "/pirma/2026A-r37?next=https://evil.example",
+    "/pirma/%2e%2e",
+    "/pirma/not-a-slug",
+    "/pirma/2026A-r37/approve",
+    "/settings",
+    "/bayad/extra",
+    "",
+    null,
+    42,
+    { url: 7 },
+  ])("refuses %j", (data) => {
+    expect(pushRoute(data)).toBeNull();
+  });
+});
 
 const TOKEN = "pt_8fJ2kQ9xVb3mN7pL1sR4";
 
