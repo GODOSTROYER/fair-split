@@ -1,10 +1,14 @@
 // SSE routes (S3.7, IC-08). The two IC-01 streams plus the line stream S3.7 names:
-//   GET /v1/runs/:runSlug/events      runEvents       acting credential; the run must be in its workspace
-//   GET /v1/workspaces/:ws/events     workspaceEvents acting credential; :ws must be the credential's workspace
-//   GET /v1/lines/:lineId/events      (S3.7)          acting credential in the line's workspace, or that line's member link
+//   GET /v1/runs/:runSlug/events      runEvents       a run reader; the run must be in its workspace
+//   GET /v1/workspaces/:ws/events     workspaceEvents a run reader; :ws must be the credential's workspace
+//   GET /v1/lines/:lineId/events      (S3.7)          a run reader in the line's workspace, a member token for its
+//                                                     own member's line, or that line's member link
+// Run readers are the acting treasurer, board, clerk and judge (`STREAM_READERS`, the same roles as the runs
+// slice's `CAN.readRuns`): these streams carry member-level events (line.state, item.updated, hold.*, extract.*),
+// so a brand or member token, which reads no run, streams none of them. The role is checked before any lookup.
 // The public Proof stream (aggregate counters only) is the Proof slice's: it calls `deps.sse.open()` with
 // `publicCaps(c)` and its own projection.
-import { API_COMMANDS } from "@fairsplit/contracts";
+import { API_COMMANDS, type Role } from "@fairsplit/contracts";
 import { type Db, schema } from "@fairsplit/db";
 import { and, eq } from "drizzle-orm";
 import type { Credential } from "../credentials/verify/index.js";
@@ -12,12 +16,15 @@ import { clientIp, hashedClientIp } from "../lib/client-ip.js";
 import { commandSpec, type Mounter, toHonoPath } from "../lib/command.js";
 import type { AppContext } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
-import { requireActing, requireCredential } from "../middleware/credential.js";
+import { requireActing, requireCredential, requireRole } from "../middleware/credential.js";
 import { documentRoute } from "../openapi.js";
 import { parseLastEventId } from "./envelope.js";
 import type { SseLimits } from "./hub.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Who may stream a run, a workspace or any line of it (mirrors the runs slice's `CAN.readRuns`). */
+export const STREAM_READERS: readonly Role[] = ["treasurer", "board", "clerk", "judge"];
 const RUN_SLUG = /^\d{4}[A-Z]-r\d+$/;
 
 /** Stream caps for a credential: 2 per credential, and the judge session's 8 shared by all its tokens. */
@@ -55,11 +62,24 @@ export async function findRunId(db: Db, workspaceId: string, runSlug: string): P
   return row?.id ?? null;
 }
 
-export async function lineExists(db: Db, workspaceId: string, lineId: string): Promise<boolean> {
+/** True when the line is in the workspace (and, when `memberId` is given, is that member's line). */
+export async function lineExists(
+  db: Db,
+  workspaceId: string,
+  lineId: string,
+  memberId?: string,
+): Promise<boolean> {
+  const ml = schema.memberLines;
   const [row] = await db
-    .select({ id: schema.memberLines.id })
-    .from(schema.memberLines)
-    .where(and(eq(schema.memberLines.workspaceId, workspaceId), eq(schema.memberLines.id, lineId)))
+    .select({ id: ml.id })
+    .from(ml)
+    .where(
+      and(
+        eq(ml.workspaceId, workspaceId),
+        eq(ml.id, lineId),
+        ...(memberId === undefined ? [] : [eq(ml.memberId, memberId)]),
+      ),
+    )
     .limit(1);
   return !!row;
 }
@@ -72,6 +92,7 @@ export function mountSseRoutes(m: Mounter): void {
   m.app.get(toHonoPath(API_COMMANDS.runEvents.path), async (c) => {
     const ctx = c as AppContext;
     const cred = await requireActing(ctx);
+    requireRole(cred, STREAM_READERS);
     const runSlug = c.req.param("runSlug") ?? "";
     if (!RUN_SLUG.test(runSlug)) throw problem.notFound("No such run.");
     const deps = ctx.get("deps");
@@ -89,6 +110,7 @@ export function mountSseRoutes(m: Mounter): void {
   m.app.get(toHonoPath(API_COMMANDS.workspaceEvents.path), async (c) => {
     const ctx = c as AppContext;
     const cred = await requireActing(ctx);
+    requireRole(cred, STREAM_READERS);
     const ws = (c.req.param("ws") ?? "").toLowerCase();
     // The workspace comes from the credential; another workspace's id looks absent.
     if (!UUID.test(ws) || ws !== cred.workspaceId.toLowerCase()) throw problem.notFound("No such workspace.");
@@ -111,8 +133,16 @@ export function mountSseRoutes(m: Mounter): void {
     const deps = ctx.get("deps");
     if (cred.kind === "member_link") {
       if (cred.lineId.toLowerCase() !== lineId) throw problem.notFound("No such line.");
-    } else if (!(await lineExists(deps.db, cred.workspaceId, lineId))) {
-      throw problem.notFound("No such line in this workspace.");
+    } else if (cred.role === "member") {
+      // a member's own token (the app): its own member's line only; another line looks absent
+      if (!cred.memberId || !(await lineExists(deps.db, cred.workspaceId, lineId, cred.memberId))) {
+        throw problem.notFound("No such line.");
+      }
+    } else {
+      requireRole(cred, STREAM_READERS);
+      if (!(await lineExists(deps.db, cred.workspaceId, lineId))) {
+        throw problem.notFound("No such line in this workspace.");
+      }
     }
     return deps.sse.open(ctx, {
       scope: { workspaceId: cred.workspaceId, lineId },
@@ -129,13 +159,13 @@ export function mountSseRoutes(m: Mounter): void {
     request: null,
     response: null,
     success: [200],
-    errors: ["NOT_FOUND", "UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "RATE_LIMITED"],
+    errors: ["NOT_FOUND", "UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "FORBIDDEN", "RATE_LIMITED"],
     headers: ["Last-Event-ID"],
     tag: "events",
     sse: true,
     summary: "lineEvents",
     description:
-      "S3.7 line stream (one member's line): an acting credential in the line's workspace, or that line's member link (`fsm_…`). Server-sent IC-01 RunEvent envelopes.",
+      "S3.7 line stream (one member's line): a run reader (treasurer, board, clerk, judge) in the line's workspace, a member token for its own line, or that line's member link (`fsm_…`). Server-sent IC-01 RunEvent envelopes.",
     contract: false,
   });
 }
