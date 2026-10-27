@@ -206,7 +206,8 @@ function Statement({
       ? view.under.text
       : tr(view.under.key, view.under.args)
     : null;
-  const offline = !online && st.fromCache;
+  // Without a signal, what is on screen is the last copy, whether it came from this session or from the phone.
+  const offline = !online;
   const state = offline ? "offline" : view.capsule;
   const rows = historyRows(dto, st.track);
   const trace = traceState(mm7.phase);

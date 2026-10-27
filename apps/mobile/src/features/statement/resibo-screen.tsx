@@ -87,7 +87,8 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
   const step = plan.steps.find((s) => s.slot === "SOURCES");
   const sources = { mode: plan.mode, steps: step ? [{ ...step, index: 0 }] : [] };
   const review = useReviewForm(dto, st.recordReview);
-  const offline = !online && st.fromCache;
+  // Without a signal, what is on screen is the last copy, whether it came from this session or from the phone.
+  const offline = !online;
 
   const open = (serial: string) => {
     const node = refs.current[serial];
@@ -108,7 +109,7 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
             {tr("M-MB-02.subtitle")}
           </Txt>
         </View>
-        <LangBar testID="M-MB-02" />
+        <LangBar testID="M-MB-02" glossable={false} />
         <OfflineBar lastCopyAt={st.cachedAt} visible={offline} testID="M-MB-02.offline" />
 
         {dto.slips.length === 0 ? (

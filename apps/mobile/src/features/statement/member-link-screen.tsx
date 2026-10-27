@@ -22,7 +22,7 @@ export function MemberLinkScreen() {
     const expired = check.reason === "expired";
     return (
       <Screen testID="M-MB-01" state={expired ? "link-expired" : "link-invalid"} contentStyle={COLUMN}>
-        <LangBar testID="M-MB-01" />
+        <LangBar testID="M-MB-01" glossable={false} />
         <EmptyState
           glyph={expired ? "clock" : "info"}
           title={tr("M-MB-01.linkTitle")}

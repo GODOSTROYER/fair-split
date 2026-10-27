@@ -47,8 +47,11 @@ export function MachineChip({ testID }: { testID?: string }) {
   );
 }
 
-/** The member's language row, with the review chip and the English gloss switch when the language is not English. */
-export function LangBar({ testID }: { testID: string }) {
+/**
+ * The member's language row, with the review chip when the language is not English, and the English gloss switch on
+ * the screens that show statement sentences (`glossable`).
+ */
+export function LangBar({ testID, glossable = true }: { testID: string; glossable?: boolean }) {
   const { lang } = useApp();
   const { t } = useFs();
   const tr = useT();
@@ -60,7 +63,7 @@ export function LangBar({ testID }: { testID: string }) {
       {lang !== "en" ? (
         <View style={styles.row}>
           <MachineChip testID={`${testID}.machine`} />
-          {glossForced ? null : (
+          {glossForced || !glossable ? null : (
             <Pressable
               testID={`${testID}.gloss`}
               accessibilityRole="switch"

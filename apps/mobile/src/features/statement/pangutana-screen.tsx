@@ -41,7 +41,7 @@ export function PangutanaScreen() {
       <Txt kind="title1" accessibilityRole="header">
         {tr("M-MB-04.title")}
       </Txt>
-      <LangBar testID="M-MB-04" />
+      <LangBar testID="M-MB-04" glossable={false} />
 
       <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-04.who">
         <Txt kind="label" color="ink2" accessibilityRole="header">
