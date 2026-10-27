@@ -1,0 +1,517 @@
+// Loads PayPal's vendored OpenAPI 3.0 specs (plus two hand-written supplements), converts their component
+// schemas to JSON Schema draft-07 and validates simulator traffic with ajv. Two variants of every schema
+// are compiled: "req" (readOnly properties are not required) and "res" (writeOnly properties are not
+// required), which is how OpenAPI 3.0 defines readOnly/writeOnly in combination with `required`.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Ajv, type ErrorObject, type ValidateFunction } from "ajv";
+import addFormatsModule from "ajv-formats";
+
+export type SpecName = "invoicing" | "payouts" | "webhooks" | "reporting" | "conditional_rules" | "oauth";
+type Mode = "req" | "res";
+type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+type JsonObject = { [k: string]: Json };
+
+export const SPEC_FILES: Record<SpecName, string> = {
+  invoicing: "invoicing_v2.json",
+  payouts: "payments_payouts_batch_v1.json",
+  webhooks: "notifications_webhooks_v1.json",
+  reporting: "reporting_transactions_v1.json",
+  conditional_rules: "supplements/invoicing_conditional_rules.json",
+  oauth: "supplements/oauth2_token.json",
+};
+
+/** One documented operation: request schema definition and response definitions by status. */
+export interface Operation {
+  key: string;
+  spec: SpecName;
+  operationId: string;
+  method: string;
+  path: string;
+  request: string | null;
+  responses: Record<string, string | null>;
+  /** Header parameters the operation declares, lower-cased (e.g. `paypal-request-id` on payouts.post). */
+  headers: string[];
+}
+
+export interface ValidationIssue {
+  field: string;
+  value?: string;
+  location: "body" | "query" | "path";
+  issue: string;
+  description: string;
+}
+
+const NUMERIC_KEYWORDS = new Set([
+  "minLength",
+  "maxLength",
+  "minItems",
+  "maxItems",
+  "minimum",
+  "maximum",
+  "minProperties",
+  "maxProperties",
+]);
+const DROPPED_KEYWORDS = new Set([
+  "example",
+  "examples",
+  "xml",
+  "externalDocs",
+  "discriminator",
+  "deprecated",
+  "default",
+  "nullable",
+]);
+
+/** Java-style `(?i)` prefixes are not valid ECMAScript; expand them into per-letter character classes. */
+export function ecmaPattern(pattern: string): string {
+  if (!pattern.startsWith("(?i)")) return pattern;
+  let out = "";
+  let inClass = false;
+  const body = pattern.slice(4);
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i] as string;
+    if (ch === "\\") {
+      out += ch + (body[i + 1] ?? "");
+      i++;
+      continue;
+    }
+    if (ch === "[") inClass = true;
+    if (ch === "]") inClass = false;
+    if (!inClass && /[a-z]/i.test(ch)) out += `[${ch.toLowerCase()}${ch.toUpperCase()}]`;
+    else out += ch;
+  }
+  return out;
+}
+
+function refName(ref: string): string {
+  return ref.slice(ref.lastIndexOf("/") + 1);
+}
+
+function isObject(v: Json | undefined): v is JsonObject {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+class SpecConverter {
+  constructor(private readonly schemas: JsonObject) {}
+
+  private flag(prop: Json | undefined, key: "readOnly" | "writeOnly"): boolean {
+    if (!isObject(prop)) return false;
+    if (prop[key] === true) return true;
+    if (typeof prop.$ref === "string") {
+      const target = this.schemas[refName(prop.$ref)];
+      return isObject(target) && target[key] === true;
+    }
+    return false;
+  }
+
+  convert(node: Json, mode: Mode): Json {
+    if (Array.isArray(node)) return node.map((n) => this.convert(n, mode));
+    if (!isObject(node)) return node;
+    const out: JsonObject = {};
+    for (const [k, v] of Object.entries(node)) {
+      if (DROPPED_KEYWORDS.has(k) || k.startsWith("x-")) continue;
+      if (k === "$ref" && typeof v === "string") {
+        out.$ref = `#/definitions/${refName(v)}`;
+        continue;
+      }
+      if (NUMERIC_KEYWORDS.has(k) && typeof v === "string") {
+        out[k] = Number(v);
+        continue;
+      }
+      if (k === "pattern" && typeof v === "string") {
+        out.pattern = ecmaPattern(v);
+        continue;
+      }
+      if (k === "properties" && isObject(v)) {
+        const props: JsonObject = {};
+        for (const [pk, pv] of Object.entries(v)) props[pk] = this.convert(pv, mode);
+        out.properties = props;
+        continue;
+      }
+      out[k] = this.convert(v, mode);
+    }
+    if (node.nullable === true && typeof out.type === "string") out.type = [out.type, "null"];
+    if (Array.isArray(out.required) && isObject(node.properties)) {
+      const props = node.properties;
+      const hidden = mode === "req" ? "readOnly" : "writeOnly";
+      const kept = out.required.filter((n) => typeof n !== "string" || !this.flag(props[n], hidden));
+      if (kept.length > 0) out.required = kept;
+      else delete out.required;
+    }
+    return out;
+  }
+}
+
+/** Maps an ajv error to PayPal's documented `details[]` issue vocabulary. */
+export function toIssue(e: ErrorObject, location: ValidationIssue["location"] = "body"): ValidationIssue {
+  const base = e.instancePath === "" ? "" : e.instancePath;
+  const params = e.params as Record<string, unknown>;
+  switch (e.keyword) {
+    case "required":
+      return {
+        field: `${base}/${String(params.missingProperty)}`,
+        location,
+        issue: "MISSING_REQUIRED_PARAMETER",
+        description: "A required field is missing.",
+      };
+    case "maxLength":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_STRING_MAX_LENGTH",
+        description: `The value of a field is too long (maximum ${String(params.limit)}).`,
+      };
+    case "minLength":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_STRING_LENGTH",
+        description: `The value of a field is either too short or too long (minimum ${String(params.limit)}).`,
+      };
+    case "maxItems":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_ARRAY_MAX_ITEMS",
+        description: `The number of items in an array parameter is too large (maximum ${String(params.limit)}).`,
+      };
+    case "minItems":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_ARRAY_MIN_ITEMS",
+        description: `The number of items in an array parameter is too small (minimum ${String(params.limit)}).`,
+      };
+    case "maximum":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_INTEGER_MAX_VALUE",
+        description: `Value exceeds max value (${String(params.limit)}).`,
+      };
+    case "minimum":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_INTEGER_MIN_VALUE",
+        description: `Value less than minimum value (${String(params.limit)}).`,
+      };
+    case "enum":
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_PARAMETER_VALUE",
+        description: "The value of a field is invalid.",
+      };
+    default:
+      return {
+        field: base || "/",
+        location,
+        issue: "INVALID_PARAMETER_SYNTAX",
+        description: `The value of a field does not conform to the expected format (${e.keyword}).`,
+      };
+  }
+}
+
+export interface ContractOptions {
+  specDir: string;
+}
+
+/** Error-body schema per spec, used for every non-2xx response (op-specific issue enums are not exhaustive). */
+const ERROR_SCHEMA: Record<SpecName, (status: number, has: (n: string) => boolean) => string> = {
+  invoicing: (s, has) => (has(`error_${s}`) ? `error_${s}` : s >= 500 ? "error_500" : "__generic_error"),
+  reporting: (s, has) => (has(`error_${s}`) ? `error_${s}` : s >= 500 ? "error_500" : "__generic_error"),
+  payouts: () => "error",
+  webhooks: () => "error-2",
+  conditional_rules: () => "error",
+  oauth: () => "oauth_error",
+};
+
+/**
+ * Fields PayPal's real responses carry that its vendored schemas do not declare (`definition.property`).
+ * Only fields with published evidence belong here:
+ *  - Payouts links carry `encType: "application/json"` (PayPal's Payouts samples, e.g. "Show payout batch" on
+ *    developer.paypal.com/api/payouts/customize).
+ *  - A duplicate `sender_batch_id` error's `details[]` carry `link`, the HATEOAS link to the original batch
+ *    (the spec's own sender_batch_id description: the error "includes a HATEOAS link to the original payout").
+ */
+const PUBLISHED_BUT_UNDECLARED: Partial<Record<SpecName, Set<string>>> = {
+  payouts: new Set(["link_description.encType", "error_details-2.link"]),
+};
+
+const GENERIC_ERROR: JsonObject = {
+  type: "object",
+  required: ["name", "message", "debug_id"],
+  properties: { name: { type: "string" }, message: { type: "string" }, debug_id: { type: "string" } },
+};
+
+export class Contract {
+  private readonly ajv: Ajv;
+  private readonly ops = new Map<string, Operation>();
+  private readonly defs = new Map<SpecName, Set<string>>();
+  private readonly validators = new Map<string, ValidateFunction>();
+  /** The converted draft-07 definitions per `spec:mode`, for the undeclared-property walk. */
+  private readonly schemaDefs = new Map<string, JsonObject>();
+  private readonly seenRequests = new Set<string>();
+  private readonly seenResponses = new Map<string, Set<number>>();
+  readonly specs: Record<SpecName, { title: string; version: string }>;
+
+  constructor(opts: ContractOptions) {
+    this.ajv = new Ajv({ strict: false, allErrors: true, unicodeRegExp: false, validateFormats: true });
+    const addFormats = ((addFormatsModule as unknown as { default?: unknown }).default ??
+      addFormatsModule) as unknown as (ajv: Ajv) => Ajv;
+    addFormats(this.ajv);
+    for (const f of [
+      "ppaas_common_country_code_v2",
+      "ppaas_date_notime_v2",
+      "ppaas_date_time_v3",
+      "ppaas_common_email_address_v2",
+      "ppaas_common_language_v3",
+      "ppaas_common_percentage_v2",
+      "ppaas_common_currency_code_v2",
+      "ppaas_payer_id_v3",
+    ]) {
+      // PayPal-internal format names; every one of them is paired with a `pattern` in the spec.
+      this.ajv.addFormat(f, true);
+    }
+    const specs = {} as Record<SpecName, { title: string; version: string }>;
+    for (const [name, file] of Object.entries(SPEC_FILES) as [SpecName, string][]) {
+      const doc = JSON.parse(readFileSync(join(opts.specDir, file), "utf8")) as JsonObject;
+      const info = isObject(doc.info) ? doc.info : {};
+      specs[name] = { title: String(info.title ?? name), version: String(info.version ?? "?") };
+      this.load(name, doc);
+    }
+    this.specs = specs;
+  }
+
+  private load(spec: SpecName, doc: JsonObject): void {
+    const components = isObject(doc.components) ? doc.components : {};
+    const schemas = isObject(components.schemas) ? components.schemas : {};
+    const responses = isObject(components.responses) ? components.responses : {};
+    const parameters = isObject(components.parameters) ? components.parameters : {};
+    const headerNames = (list: Json | undefined): string[] =>
+      (Array.isArray(list) ? list : [])
+        .map((p) => (isObject(p) && typeof p.$ref === "string" ? parameters[refName(p.$ref)] : p))
+        .filter((p): p is JsonObject => isObject(p) && p.in === "header" && typeof p.name === "string")
+        .map((p) => String(p.name).toLowerCase());
+    const converter = new SpecConverter(schemas);
+    const definitions: Record<Mode, JsonObject> = { req: {}, res: {} };
+    const names = new Set<string>(Object.keys(schemas));
+    for (const mode of ["req", "res"] as const) {
+      for (const [n, s] of Object.entries(schemas)) definitions[mode][n] = converter.convert(s, mode);
+      definitions[mode].__generic_error = GENERIC_ERROR;
+    }
+    names.add("__generic_error");
+
+    const schemaOf = (content: Json | undefined): Json | undefined => {
+      if (!isObject(content)) return undefined;
+      const media = content["application/json"] ?? content["application/x-www-form-urlencoded"];
+      return isObject(media) ? media.schema : undefined;
+    };
+    const paths = isObject(doc.paths) ? doc.paths : {};
+    for (const [path, item] of Object.entries(paths)) {
+      if (!isObject(item)) continue;
+      for (const [method, op] of Object.entries(item)) {
+        if (!isObject(op) || typeof op.operationId !== "string") continue;
+        const key = `${spec}:${op.operationId}`;
+        const entry: Operation = {
+          key,
+          spec,
+          operationId: op.operationId,
+          method: method.toUpperCase(),
+          path,
+          request: null,
+          responses: {},
+          headers: [...headerNames(item.parameters), ...headerNames(op.parameters)],
+        };
+        const reqBody = isObject(op.requestBody) ? op.requestBody : undefined;
+        const reqSchema = reqBody ? schemaOf(reqBody.content) : undefined;
+        if (reqSchema !== undefined) {
+          const n = `__req:${op.operationId}`;
+          for (const mode of ["req", "res"] as const)
+            definitions[mode][n] = converter.convert(reqSchema as Json, "req");
+          names.add(n);
+          entry.request = n;
+        }
+        const resps = isObject(op.responses) ? op.responses : {};
+        for (const [status, r0] of Object.entries(resps)) {
+          let r = r0;
+          if (isObject(r) && typeof r.$ref === "string") r = responses[refName(r.$ref)] ?? r;
+          const rs = isObject(r) ? schemaOf(r.content) : undefined;
+          if (rs === undefined) {
+            entry.responses[status] = null;
+            continue;
+          }
+          const n = `__res:${op.operationId}:${status}`;
+          for (const mode of ["req", "res"] as const)
+            definitions[mode][n] = converter.convert(rs as Json, "res");
+          names.add(n);
+          entry.responses[status] = n;
+        }
+        this.ops.set(key, entry);
+      }
+    }
+    for (const mode of ["req", "res"] as const) {
+      this.ajv.addSchema({ $id: `fs-sim:${spec}:${mode}`, definitions: definitions[mode] });
+      this.schemaDefs.set(`${spec}:${mode}`, definitions[mode]);
+    }
+    this.defs.set(spec, names);
+  }
+
+  operations(): Operation[] {
+    return [...this.ops.values()];
+  }
+
+  op(key: string): Operation {
+    const o = this.ops.get(key);
+    if (!o) throw new Error(`unknown operation ${key}`);
+    return o;
+  }
+
+  has(spec: SpecName, def: string): boolean {
+    return this.defs.get(spec)?.has(def) ?? false;
+  }
+
+  private validator(spec: SpecName, mode: Mode, def: string): ValidateFunction {
+    const id = `fs-sim:${spec}:${mode}#/definitions/${def}`;
+    let v = this.validators.get(id);
+    if (!v) {
+      const got = this.ajv.getSchema(id);
+      if (!got) throw new Error(`no schema ${id}`);
+      v = got;
+      this.validators.set(id, v);
+    }
+    return v;
+  }
+
+  /** Validates a value against a named component schema (request or response flavour). */
+  check(spec: SpecName, def: string, value: unknown, mode: Mode = "res"): ValidationIssue[] {
+    const v = this.validator(spec, mode, def);
+    if (v(value)) return [];
+    return (v.errors ?? []).map((e) => toIssue(e));
+  }
+
+  validateRequest(key: string, body: unknown): ValidationIssue[] {
+    const o = this.op(key);
+    this.seenRequests.add(key);
+    if (!o.request) return [];
+    return this.check(o.spec, o.request, body, "req");
+  }
+
+  /**
+   * Validates a response body. 2xx bodies use the operation's documented schema (or `override`, for the
+   * documented `Prefer: return=minimal` link body); error bodies use the spec's error schema for that status.
+   */
+  validateResponse(key: string, status: number, body: unknown, override?: string): ValidationIssue[] {
+    const o = this.op(key);
+    let seen = this.seenResponses.get(key);
+    if (!seen) {
+      seen = new Set();
+      this.seenResponses.set(key, seen);
+    }
+    seen.add(status);
+    const def = this.responseDef(o, status, override);
+    if (!def) {
+      if (body === undefined || body === null || body === "") return [];
+      return [
+        {
+          field: "/",
+          location: "body",
+          issue: "UNDOCUMENTED_RESPONSE_BODY",
+          description: `No schema for ${status}`,
+        },
+      ];
+    }
+    return this.check(o.spec, def, body, "res");
+  }
+
+  private responseDef(o: Operation, status: number, override?: string): string | null | undefined {
+    if (override) return override;
+    if (status >= 400) return ERROR_SCHEMA[o.spec](status, (n) => this.has(o.spec, n));
+    return o.responses[String(status)] ?? (status === 204 ? null : o.responses.default);
+  }
+
+  /** Undeclared properties of a response body (see `undeclared`), against the schema validateResponse uses. */
+  undeclaredInResponse(key: string, status: number, body: unknown, override?: string): string[] {
+    const o = this.op(key);
+    const def = this.responseDef(o, status, override);
+    return def ? this.undeclared(o.spec, def, body, "res") : [];
+  }
+
+  /**
+   * JSON pointers of properties in `value` that the schema never declares. PayPal's schemas almost never say
+   * `additionalProperties: false`, so ajv accepts invented fields; this walk catches them. An object counts as
+   * open (anything goes) only when no applicable schema declares `properties` (a free-form object, such as an
+   * event's `resource`) or one of them allows additional properties. allOf, anyOf and oneOf branches pool their
+   * declared properties: a property is declared when any branch declares it.
+   */
+  undeclared(spec: SpecName, def: string, value: unknown, mode: Mode = "res"): string[] {
+    const defs = this.schemaDefs.get(`${spec}:${mode}`) ?? {};
+    const published = PUBLISHED_BUT_UNDECLARED[spec] ?? new Set<string>();
+    const out: string[] = [];
+    type Branch = { schema: JsonObject; name: string | null };
+    const resolve = (s: Json | undefined): Branch | null => {
+      let cur: Json | undefined = s;
+      let name: string | null = null;
+      for (let i = 0; i < 32 && isObject(cur) && typeof cur.$ref === "string"; i++) {
+        name = refName(cur.$ref);
+        cur = defs[name];
+      }
+      return isObject(cur) ? { schema: cur, name } : null;
+    };
+    const branches = (s: Json | undefined, acc: Branch[], depth: number): void => {
+      const r = resolve(s);
+      if (!r || depth > 32) return;
+      acc.push(r);
+      for (const k of ["allOf", "anyOf", "oneOf"]) {
+        const list = r.schema[k];
+        if (Array.isArray(list)) for (const sub of list) branches(sub, acc, depth + 1);
+      }
+    };
+    const walk = (schemas: Json[], v: unknown, path: string, depth: number): void => {
+      if (depth > 64) return;
+      const flat: Branch[] = [];
+      for (const s of schemas) branches(s, flat, 0);
+      if (flat.length === 0) return;
+      if (Array.isArray(v)) {
+        const items = flat
+          .map((f) => f.schema.items)
+          .filter((x): x is Json => x !== undefined && !Array.isArray(x));
+        if (items.length > 0) for (const [i, el] of v.entries()) walk(items, el, `${path}/${i}`, depth + 1);
+        return;
+      }
+      if (typeof v !== "object" || v === null) return;
+      const extra = flat
+        .map((f) => f.schema.additionalProperties)
+        .filter((a): a is JsonObject => isObject(a));
+      const open =
+        !flat.some((f) => isObject(f.schema.properties)) ||
+        flat.some((f) => f.schema.additionalProperties === true);
+      for (const [k, child] of Object.entries(v)) {
+        const declared = flat
+          .map((f) => (isObject(f.schema.properties) ? f.schema.properties[k] : undefined))
+          .filter((x): x is Json => x !== undefined);
+        const where = `${path}/${k}`;
+        if (declared.length > 0) walk(declared, child, where, depth + 1);
+        else if (extra.length > 0) walk(extra, child, where, depth + 1);
+        else if (!open && !flat.some((f) => f.name !== null && published.has(`${f.name}.${k}`)))
+          out.push(where);
+      }
+    };
+    walk([{ $ref: `#/definitions/${def}` }], value, "", 0);
+    return out;
+  }
+
+  coverage(): { requests: string[]; responses: Record<string, number[]> } {
+    const responses: Record<string, number[]> = {};
+    for (const [k, v] of this.seenResponses) responses[k] = [...v].sort();
+    return { requests: [...this.seenRequests].sort(), responses };
+  }
+}
+
+/** Resolves the package's spec directory from this module's location (src/contract → ../../spec). */
+export function defaultSpecDir(): string {
+  return fileURLToPath(new URL("../../spec/", import.meta.url));
+}

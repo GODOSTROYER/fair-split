@@ -1,0 +1,152 @@
+{
+  "$comment": "Seed registry for the Fair Split PayPal SIMULATOR. Every account, email and credential here is fictional and exists only inside the simulator (emails use the reserved example.org domain). None of these are PayPal accounts or PayPal credentials. Rhea Jumawan (M-031) deliberately has no account, so a payout to her address becomes UNCLAIMED.",
+  "accounts": [
+    {
+      "key": "coop",
+      "role": "invoicer_and_payout_sender",
+      "type": "BUSINESS",
+      "payer_id": "4QURLU3MEA8YK",
+      "email": "bulawanon.coop@example.org",
+      "business_name": "Bulawanon Kakaw Growers MPC (simulated)",
+      "given_name": "Analyn",
+      "surname": "Sumalinog",
+      "country_code": "US",
+      "balances": { "USD": "100000.00" }
+    },
+    {
+      "key": "lantern-bay",
+      "role": "payer",
+      "type": "PERSONAL",
+      "payer_id": "AER82GRF3DY4M",
+      "email": "lantern.bay.payables@example.org",
+      "business_name": "Lantern Bay Chocolate Co. (synthetic)",
+      "given_name": "Dana",
+      "surname": "Whitfield-Santos",
+      "country_code": "US",
+      "balances": { "USD": "100000.00" }
+    },
+    {
+      "key": "M-014",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-014",
+      "payer_id": "XBD7S6PWTUDQQ",
+      "email": "consolacion.bacus@example.org",
+      "given_name": "Consolacion",
+      "surname": "Bacus",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    },
+    {
+      "key": "M-007",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-007",
+      "payer_id": "HSBMSJDTMTKTY",
+      "email": "dionisio.lapinig@example.org",
+      "given_name": "Dionisio",
+      "surname": "Lapinig",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    },
+    {
+      "key": "M-060",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-060",
+      "payer_id": "3PM68AXN2C2AM",
+      "email": "arnel.sumampao@example.org",
+      "given_name": "Arnel",
+      "surname": "Sumampao",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    },
+    {
+      "key": "M-018",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-018",
+      "payer_id": "NPVF3YQ9XDHSB",
+      "email": "teodoro.pacana@example.org",
+      "given_name": "Teodoro",
+      "surname": "Pacana",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    },
+    {
+      "key": "M-039",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-039",
+      "payer_id": "CTH9RQTC97YXV",
+      "email": "jonathan.ripalda@example.org",
+      "given_name": "Jonathan",
+      "surname": "Ripalda",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    },
+    {
+      "key": "M-022",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-022",
+      "payer_id": "GXQ2KYS98WMZM",
+      "email": "pedro.ompad@example.org",
+      "given_name": "Pedro",
+      "surname": "Ompad",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    },
+    {
+      "key": "M-002",
+      "role": "payout_receiver",
+      "type": "PERSONAL",
+      "member_no": "M-002",
+      "payer_id": "VUXCVAKEAEJ89",
+      "email": "florencia.ybanez@example.org",
+      "given_name": "Florencia",
+      "surname": "Ybanez",
+      "country_code": "US",
+      "balances": { "USD": "0.00" }
+    }
+  ],
+  "apps": [
+    {
+      "name": "fs-dev",
+      "account": "coop",
+      "app_id": "APP-5YMA9L4E0MKQY9YFD",
+      "client_id": "SIM-fs-dev-client",
+      "client_secret": "sim-fs-dev-not-a-paypal-secret",
+      "scopes": [
+        "https://uri.paypal.com/services/invoicing",
+        "https://uri.paypal.com/payments/payouts",
+        "https://uri.paypal.com/services/applications/webhooks",
+        "https://uri.paypal.com/services/reporting/search/read",
+        "https://uri.paypal.com/services/reporting/balances/read",
+        "openid"
+      ]
+    },
+    {
+      "name": "fs-judge",
+      "account": "coop",
+      "app_id": "APP-2IM10JYUHDO0W6AJ2",
+      "client_id": "SIM-fs-judge-client",
+      "client_secret": "sim-fs-judge-not-a-paypal-secret",
+      "scopes": [
+        "https://uri.paypal.com/services/invoicing",
+        "https://uri.paypal.com/payments/payouts",
+        "https://uri.paypal.com/services/applications/webhooks",
+        "https://uri.paypal.com/services/reporting/search/read",
+        "https://uri.paypal.com/services/reporting/balances/read",
+        "openid"
+      ]
+    }
+  ],
+  "unregistered_receivers": [
+    {
+      "member_no": "M-031",
+      "email": "rhea.jumawan@example.org",
+      "note": "No simulator account on purpose: a payout to this address becomes UNCLAIMED (register C-07)."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+@fairsplit/paypal-sim — a simulator of the PayPal REST API subset used by Fair Split (not PayPal software).
+
+This package contains third-party material:
+
+  spec/invoicing_v2.json
+  spec/payments_payouts_batch_v1.json
+  spec/notifications_webhooks_v1.json
+  spec/reporting_transactions_v1.json
+
+  PayPal REST API OpenAPI specifications, copied unmodified from
+  https://github.com/paypal/paypal-rest-api-specifications
+  (commit 90e8041ffe02d80c452d2b476bedd59a8d219bdc), licensed under the Apache License,
+  Version 2.0. A copy of the licence is in spec/LICENSE. PayPal is a trademark of PayPal, Inc.;
+  this simulator is not affiliated with or endorsed by PayPal.
+
+Everything else in this package, including spec/supplements/*, is part of Fair Split.

@@ -1,0 +1,180 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Invoicing v2 conditional rules (Fair Split supplement, not a PayPal file)",
+    "version": "0.1.0",
+    "description": "Hand-written by Fair Split from the public Invoicing v2 reference (https://developer.paypal.com/api/invoicing/v2/, section Conditional Rules) because invoicing_v2.json 2.6 in github.com/paypal/paypal-rest-api-specifications does not include these operations. Field names, enums, lengths and patterns are transcribed; descriptions are omitted. Deviation: a response 'rules' array may be empty (the reference says minItems 1) so an invoice without rules can be listed."
+  },
+  "paths": {
+    "/v2/invoicing/invoices/{id}/conditional-rules": {
+      "post": {
+        "operationId": "conditional-rules.create",
+        "requestBody": {
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/conditional_rules_request" } } }
+        },
+        "responses": {
+          "201": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/conditional_rules" } } } },
+          "default": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } } }
+        }
+      },
+      "get": {
+        "operationId": "conditional-rules.list",
+        "responses": {
+          "200": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/conditional_rules" } } } },
+          "default": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } } }
+        }
+      }
+    },
+    "/v2/invoicing/invoices/{id}/conditional-rules/{conditional_rule_id}": {
+      "get": {
+        "operationId": "conditional-rules.get",
+        "responses": {
+          "200": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/rule" } } } },
+          "default": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } } }
+        }
+      },
+      "put": {
+        "operationId": "conditional-rules.update",
+        "requestBody": {
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/rule" } } }
+        },
+        "responses": {
+          "200": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/rule" } } } },
+          "default": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } } }
+        }
+      },
+      "delete": {
+        "operationId": "conditional-rules.delete",
+        "responses": {
+          "204": {},
+          "default": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "conditional_rules_request": {
+        "type": "object",
+        "required": ["rules"],
+        "properties": {
+          "rules": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "$ref": "#/components/schemas/rule" } }
+        }
+      },
+      "conditional_rules": {
+        "type": "object",
+        "properties": {
+          "rules": { "type": "array", "minItems": 0, "maxItems": 5, "items": { "$ref": "#/components/schemas/rule" } },
+          "links": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": { "$ref": "#/components/schemas/link_description" }
+          }
+        }
+      },
+      "rule": {
+        "type": "object",
+        "required": ["conditional_rule_type", "rule_expiry_terms"],
+        "properties": {
+          "conditional_rule_id": {
+            "type": "string",
+            "readOnly": true,
+            "minLength": 39,
+            "maxLength": 39,
+            "pattern": "^CR-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{8}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{12}$"
+          },
+          "conditional_rule_type": { "type": "string", "enum": ["EARLY_PAYMENT_DISCOUNT", "AUTO_CANCEL"] },
+          "conditional_rule_value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^(([0-9]+)|(([0-9]+)?[.][0-9]+))$"
+          },
+          "conditional_rule_value_type": { "type": "string", "enum": ["PERCENT", "AMOUNT"] },
+          "discount_id": { "type": "string", "minLength": 1, "maxLength": 22, "pattern": "^DISC-[A-Z0-9]+$" },
+          "discount_name": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^[a-zA-Z0-9 ]+$" },
+          "rule_expiry_terms": { "$ref": "#/components/schemas/rule_expiry_terms" },
+          "create_time": { "readOnly": true, "$ref": "#/components/schemas/date_time" },
+          "update_time": { "readOnly": true, "$ref": "#/components/schemas/date_time" },
+          "links": {
+            "type": "array",
+            "readOnly": true,
+            "minItems": 1,
+            "maxItems": 10,
+            "items": { "$ref": "#/components/schemas/link_description" }
+          }
+        }
+      },
+      "rule_expiry_terms": {
+        "type": "object",
+        "required": ["rule_expiry_condition"],
+        "properties": {
+          "rule_expiry_condition": {
+            "type": "string",
+            "enum": [
+              "THREE_DAYS_AFTER_ISSUE_DATE",
+              "SEVEN_DAYS_AFTER_ISSUE_DATE",
+              "FIFTEEN_DAYS_AFTER_ISSUE_DATE",
+              "THIRTY_DAYS_AFTER_ISSUE_DATE",
+              "ONE_DAY_AFTER_DUE_DATE",
+              "SEVEN_DAYS_AFTER_DUE_DATE",
+              "FIFTEEN_DAYS_AFTER_DUE_DATE",
+              "THIRTY_DAYS_AFTER_DUE_DATE",
+              "SPECIFIC_DATE"
+            ]
+          },
+          "condition_rule_end_date": { "$ref": "#/components/schemas/date_no_time" }
+        }
+      },
+      "date_no_time": {
+        "type": "string",
+        "minLength": 10,
+        "maxLength": 10,
+        "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$"
+      },
+      "date_time": {
+        "type": "string",
+        "minLength": 20,
+        "maxLength": 64,
+        "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])[T,t]([0-1][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)([.][0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$"
+      },
+      "link_description": {
+        "type": "object",
+        "required": ["href", "rel"],
+        "properties": {
+          "href": { "type": "string", "maxLength": 20000 },
+          "rel": { "type": "string", "maxLength": 100 },
+          "method": {
+            "type": "string",
+            "enum": ["CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+          }
+        }
+      },
+      "error": {
+        "type": "object",
+        "required": ["name", "message", "debug_id"],
+        "properties": {
+          "name": { "type": "string" },
+          "message": { "type": "string" },
+          "debug_id": { "type": "string" },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["issue"],
+              "properties": {
+                "field": { "type": "string" },
+                "value": { "type": "string" },
+                "location": { "type": "string", "enum": ["body", "path", "query"] },
+                "issue": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "links": { "type": "array", "items": { "$ref": "#/components/schemas/link_description" } }
+        }
+      }
+    }
+  }
+}
