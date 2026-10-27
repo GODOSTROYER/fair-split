@@ -181,6 +181,15 @@ describe("invoice (C-09)", () => {
     expect(getRun().quote.items.map((i) => i.unitAmountCents)).toEqual([288_750, 138_600, 6_000]);
     expect(getRun().quoteSha256).toBe(jcsSha256(getRun().quote));
   });
+
+  it("the seeded invoice has no due date: no payment term is ever sent (00-plan, S3.6.3); only AUTO_CANCEL", () => {
+    const inv = getRun().invoice;
+    expect(inv.invoiceDate).toBe("2026-10-29");
+    expect(inv.dueDate).toBeNull();
+    expect(inv.autoCancelOn).toBe("2026-11-23");
+    // No date in the snapshot reads as a due date the real invoice cannot have (NET_15 was 13 Nov).
+    expect(JSON.stringify(getSnapshot())).not.toContain("2026-11-13");
+  });
 });
 
 describe("evidence", () => {

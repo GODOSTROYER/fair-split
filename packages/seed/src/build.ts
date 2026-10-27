@@ -781,7 +781,8 @@ export function buildSnapshot(): Built {
         reference,
         note: invoiceMemo(SEASON.label, card.sha256, LOT.lotCode),
         invoiceDate: RUN.invoiceDate,
-        dueDate: format.addDays(RUN.invoiceDate, RUN.dueInDays),
+        // No payment term is ever sent (00-plan, S3.6.3): the invoice has no due date.
+        dueDate: null,
         autoCancelOn: format.addDays(RUN.invoiceDate, RUN.autoCancelInDays),
         status: "MARKED_AS_PAID",
         amountCents: quote.totalCents,

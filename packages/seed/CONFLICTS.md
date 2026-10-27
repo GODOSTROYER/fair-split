@@ -34,8 +34,10 @@ figures are kept exact.
 3. **Auto-cancel date.** C-27: invoice date + 25 days. S1/design showcase copy: "Auto-cancels
    30 Nov 2026" with the cash day on 30 Oct. A 30 Nov auto-cancel needs a 5 Nov invoice, which is
    after the cash day. **Decision:** the showcase run r37 is invoiced on 29 Oct 2026 (the hero
-   recording date), auto-cancel is computed as 23 Nov 2026, the due date is NET_15 (13 Nov) and
-   the cash day stays 30 Oct. S3 deviation 13 already treats "30 Nov" as copy.
+   recording date), auto-cancel is computed as 23 Nov 2026 and the cash day stays 30 Oct. S3
+   deviation 13 already treats "30 Nov" as copy. There is no due date: no payment term is ever sent
+   (00-plan, S3.6.3), so `run.invoice.dueDate` is null (kept, deprecated, for older readers) and
+   `autoCancelOn` is the only date Fair Split sets.
 
 4. **Serial range of the replay set.** S4.10 suggests starting serials at 0209; the register fixes
    0301–0563. **Decision:** register. A–L hold 0425–0471 plus the pink 0457 (B has the white 0457,

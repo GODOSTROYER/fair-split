@@ -120,9 +120,7 @@ export const RUN = {
   runSeq: 37,
   recordedOn: "2026-10-29",
   invoiceDate: "2026-10-29",
-  /** Payment term NET_15. */
-  dueInDays: 15,
-  /** C-27: auto-cancel = invoice date + 25 days. */
+  /** C-27: auto-cancel = invoice date + 25 days. No payment term or due date is ever sent. */
   autoCancelInDays: 25,
   cashDay: "2026-10-30",
   createdAt: "2026-10-29T01:00:00.000Z",
