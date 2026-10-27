@@ -1,11 +1,12 @@
 # Path ownership by workstream
 
 Source: decision register §11, refined by S5.2.3 (root hygiene files go to WS-QA; `docs/spikes`, `docs/gates`
-and `docs/adr` accept new files from anyone). CI reads the two tables below with `tools/check-ownership.mjs`,
-so keep their shape: one row per workstream, paths in backticks, comma-separated.
+and `docs/adr` accept new files from anyone). The ownership gate reads the two tables below with
+`tools/check-ownership.mjs`, so keep their shape: one row per workstream, paths in backticks, comma-separated.
 
 Path syntax: `*` matches inside one segment, `**` matches any depth, `{a,b}` is a choice. A path with no glob
-characters matches that file, or that directory and everything under it. In the **Except** column,
+characters matches that file, or that directory and everything under it. Matching ignores letter case, as Windows
+and macOS checkouts do, and a changed path that differs from another path in the tree only by case is refused. In the **Except** column,
 `*elsewhere*` means "every path another row owns".
 
 ## Workstreams
@@ -39,20 +40,45 @@ Notes:
 | ----------- | ---------------------------------------------------------------------------------------------- |
 | append-only | `docs/spikes/**`, `docs/gates/**`, `docs/adr/**`                                               |
 | deps-lane   | `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `docs/versions.md`, `package.json`, `**/package.json` |
-- **append-only:** any workstream may add a new file; CI rejects edits, renames and deletions of existing files.
+- **append-only:** any workstream may add a new file; the gate rejects edits, renames and deletions of existing
+  files.
 - **deps-lane:** a branch named `deps/<anything>` may touch only these paths (S5.2.3 rule 4).
 - **deps-lane exclusivity (S5.2.3 rule 4):** `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `docs/versions.md` belong to
   no workstream, so only a `deps/*` branch may touch them. A workstream that needs a new or bumped dependency asks for
   a deps PR; that PR adds the pin (at least 14 days old), records it in `docs/versions.md`, edits the consuming
-  `package.json` and commits the lockfile. Bootstrap exception: the one PR that introduces this file (its base has
-  no machine-readable `docs/ownership.md`) is WS-QA's bootstrap PR, which S5.2.3 rule 4 lets install the pinned stack.
+  `package.json` and commits the lockfile. WS-QA is no exception: `main` already has these rules, so no PR to it is
+  a bootstrap PR (see Branches).
+- **gate files:** `docs/ownership.md`, `tools/check-ownership.mjs` and `.github/workflows/ownership.yml` are the
+  gate itself. No branch, WS-QA's and the deps lane's included, may delete, rename or change the file type of one.
+  Any other change to one (only WS-QA owns them) fails the check until the merger reads exactly that version and
+  reruns the check with `--approve-gate-change <token>` (CONTRIBUTING.md, "Merging"; ADR-0006). Without this, one
+  merged PR could switch the gate off for every later PR.
 
 ## Branches
 
 A branch `ws/<id>` is checked as `WS-<ID>` (for example `ws/ppcore` → WS-PPCORE). `deps/*` is the deps lane.
-On a pull request any other branch name fails the check (`--strict`): every PR's paths are checked (register §11).
-Only a push to `main` itself skips it, because what lands there was already checked as a PR.
+Every PR to `main` is checked, and any other branch name fails (`--strict`; register §11). The workstream is the
+branch name: the gate keeps a workstream inside its own paths and stops it from widening its own row, but it does
+not authenticate who pushed (ADR-0006).
 
-A PR is judged by the rules on its **base**: CI runs the base commit's `tools/check-ownership.mjs` against the base
-commit's `docs/ownership.md`. Editing your own row, or the checker, in a PR therefore has no effect on that PR; the
-change applies to later PRs once the user merges it.
+A PR is judged by **main's** checker and **main's** rules. `.github/workflows/ownership.yml` runs on
+`pull_request_target`, so GitHub takes the workflow from the default branch; the job checks out `main`, fetches the
+PR's commits as data, and runs main's `tools/check-ownership.mjs` against main's `docs/ownership.md`. Editing your
+own row, the checker or the workflow in a PR therefore has no effect on that PR. The check fails closed: if `main`
+has no checker, if the rules cannot be read or parsed, or if git reports any error other than "the file is not in
+that commit", the PR fails. It never runs the PR's own copy, and it refuses PRs from forks. `ci.yml` runs no
+ownership check, because on `pull_request` GitHub runs the PR's own copy of `ci.yml`.
+
+The check judges the merge, not only the branch's diff: every path the branch changed since its merge base with
+`main`, every path the merged tree (`git merge-tree --write-tree`) changes on `main`, and every path the merge
+leaves conflicted. A branch with more than one merge base fails closed, because `git merge` then merges against a
+virtual base that no diff shows and can silently revert work already on `main`; merge `main`'s tip into the branch
+first, so that it is the only merge base.
+
+The merger runs the same check before every merge (CONTRIBUTING.md, "Merging"). While `main` has no ruleset, that
+run is the gate.
+
+Bootstrap, where WS-QA's PR is judged by its own `docs/ownership.md` (the copy in the judged commit) and may also
+touch the deps-lane files (S5.2.3 rule 4), applies only when the base has neither `docs/ownership.md` nor
+`tools/check-ownership.mjs`, which means a new repository. It cannot happen here: `main` has had the rules since
+the table landed, and a base that has the checker but not the rules fails closed.

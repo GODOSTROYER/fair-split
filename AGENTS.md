@@ -18,6 +18,9 @@ The source of truth is `docs/spec/`, read in this order of precedence:
 - **Dependency rule:** `contracts ← domain ← {seed, db} ← outbox ← {paypal-*, ai} ← {apps/api, apps/tasks}`.
   UI code imports only `contracts`, `api-client`, `tokens`, `motion`, `seal`, `i18n`, `ui-*`.
 - **Ownership:** only edit paths your workstream owns (`docs/ownership.md`). Shared contracts change only via ADR.
+  The ownership gate's files (`docs/ownership.md`, `tools/check-ownership.mjs`, `.github/workflows/ownership.yml`)
+  change only with the merger's approval: never pass `--approve-gate-change`; only the merger does, after reading
+  that exact diff (CONTRIBUTING.md, "Merging").
 - **Every change carries tests.** Name invariant tests `inv.iN.*`.
 
 ## Secrets (public repo)

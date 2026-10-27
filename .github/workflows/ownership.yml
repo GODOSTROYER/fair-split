@@ -1,0 +1,88 @@
+# The ownership gate (S5.2.4 rule 2, docs/ownership.md, ADR-0006).
+#
+# It runs on pull_request_target, so GitHub takes this workflow from the default branch, and the job checks out
+# the default branch: the checker and the rules that judge a PR are main's, never the PR's. A PR cannot edit,
+# skip or weaken the check that judges it, as it could a step in ci.yml (pull_request runs the PR's own copy).
+# The job never checks out, installs or runs the PR's code. It fetches the PR's commits as data, and only git
+# reads them (`git merge-base`, `git merge-tree --write-tree`, `git diff`, `git ls-tree`): the checker judges what
+# merging the PR into main would change, and fails closed when the two have more than one merge base. No step
+# runs pnpm or any file from the PR.
+#
+# This file is one of the gate's files (GATE_FILES in tools/check-ownership.mjs): no branch may delete, rename or
+# retype it, and a change to it lands only when the merger approves exactly that version, so a merged PR cannot
+# switch the gate off. Plan amendment 2 merges locally, so today the merger's own run of main's checker
+# (CONTRIBUTING.md, "Merging") is the gate; make this job a required check once main has a ruleset.
+name: ownership
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ownership-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: ownership gate (main's checker and rules)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout the default branch (trusted code only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 (2026-07-14)
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Fetch the PR's commits (data only, never checked out or run)
+        # The token goes to this one fetch as a header, so it is never written into .git/config.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          basic="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$basic"
+          git -c "http.extraheader=AUTHORIZATION: basic $basic" fetch --no-tags --no-recurse-submodules \
+            origin "+refs/pull/$PR_NUMBER/head:refs/remotes/pr/head"
+
+      - name: Ownership gate
+        # Every value from the PR (branch name, head commit, head repository) arrives through env and is quoted:
+        # nothing from the PR is ever pasted into this script.
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          if [ "$PR_HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::error::A fork's branch name says nothing about its workstream; open the PR from a branch of $GITHUB_REPOSITORY."
+            exit 1
+          fi
+          base="$(git rev-parse --verify 'HEAD^{commit}')"
+          if ! git cat-file -e "$PR_HEAD_SHA^{commit}" 2>/dev/null; then
+            echo "::error::PR head $PR_HEAD_SHA is not among the fetched commits (pushed over since?); failing closed."
+            exit 1
+          fi
+          entry="$(git ls-tree --full-tree "$base" -- tools/check-ownership.mjs)"
+          case "$entry" in
+            "100644 blob "* | "100755 blob "*) ;;
+            *)
+              echo "::error::$base has no tools/check-ownership.mjs as a regular file; failing closed (a PR's copy never runs)."
+              exit 1
+              ;;
+          esac
+          checker="$RUNNER_TEMP/check-ownership.main.mjs"
+          git cat-file blob "$base:tools/check-ownership.mjs" > "$checker"
+          node "$checker" --repo "$GITHUB_WORKSPACE" --branch "$PR_HEAD_REF" \
+            --base "$base" --head "$PR_HEAD_SHA" --ownership-ref "$base" --strict
