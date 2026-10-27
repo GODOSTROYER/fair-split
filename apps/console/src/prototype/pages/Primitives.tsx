@@ -82,10 +82,32 @@ const SLAB_FRAMES: readonly { readonly name: string; readonly note: string; read
   { name: "refusing", note: "bolted: shakes, never travels", frame: { state: "refusing" } },
 ];
 
+/** How long the simulated approval POST takes to come back refused. */
+const REFUSAL_MS = 900;
+
 function LiveSlabs() {
   const [round, setRound] = useState(0);
   const [log, setLog] = useState<string[]>([]);
+  const [refuseNext, setRefuseNext] = useState(false);
   const note = (text: string) => setLog((l) => [text, ...l].slice(0, 4));
+  /**
+   * The d3 slab's commit. With "refuse the next sign" on, it answers like the approval POST meeting MM-5's
+   * mismatch: a simulated 409 after a round trip. The slab waits busy, then springs back and can sign again.
+   */
+  const signApproval = () => {
+    if (!refuseNext) {
+      note("d3 signed: released inside the armed slab, or confirmed in the dialog");
+      return;
+    }
+    setRefuseNext(false);
+    note("d3 waiting for the answer (busy): no route can sign again");
+    return new Promise<void>((_, reject) => {
+      setTimeout(() => {
+        note("d3 refused (simulated 409, the batch changed): springs back, nothing was signed");
+        reject(new Error("409 BATCH_CHANGED (simulated)"));
+      }, REFUSAL_MS);
+    });
+  };
   return (
     <div className="prim-live">
       <div className="prim-live__row" key={round}>
@@ -124,7 +146,7 @@ function LiveSlabs() {
           size="l"
           width={420}
           testId="W-DP-01.live.d3"
-          onCommit={() => note("d3 signed: released inside the armed slab, or confirmed in the dialog")}
+          onCommit={signApproval}
           onHoldChange={(change) => note(HOLD_NOTES[change])}
           confirm={approveConfirm()}
         />
@@ -133,6 +155,15 @@ function LiveSlabs() {
         <button type="button" className="fs-flat" onClick={() => setRound((r) => r + 1)}>
           Reset the interactive slabs
         </button>
+        <label className="prim-live__refuse fs-t-caption">
+          <input
+            type="checkbox"
+            checked={refuseNext}
+            onChange={(e) => setRefuseNext(e.currentTarget.checked)}
+            data-testid="W-DP-01.live.refuse"
+          />
+          Refuse the next sign (a simulated 409: the batch changed)
+        </label>
         <ol className="prim-live__events fs-t-caption" aria-live="polite">
           {log.map((l, i) => (
             <li key={i}>{l}</li>
