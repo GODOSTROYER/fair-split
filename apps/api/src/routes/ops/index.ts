@@ -98,11 +98,11 @@ export default defineRouteFolder({
         path: "/v1/ops/keys/revoke",
         auth: "operator",
         name: "revokeKey",
-        summary: "Revoke an officer key (recorded on the chain; the reason is kept only as its hash)",
+        summary: "Revoke an officer key (recorded on the chain; the reason only as a salted commitment)",
         request: RevokeKeyRequest,
         response: RevokeKeyResponse,
       },
-      async (ctx) => revokeKey(ctx.deps.db, ctx.input, ctx.now()),
+      async (ctx) => revokeKey(ctx.deps.db, ctx.deps.credentials.keys, ctx.input, ctx.now()),
     );
   },
 });

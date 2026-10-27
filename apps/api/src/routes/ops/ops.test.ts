@@ -7,6 +7,7 @@ import { ed25519FromSeed, ed25519Sign, sha256Hex } from "@fairsplit/domain";
 import { getFigures, getProof, getRun } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { commitmentSalt, saltedSha256 } from "../../ledger/commitments.js";
 import { registrationBytes } from "../../ops/keys.js";
 import type { OpsMetrics } from "../../ops/metrics.js";
 import { latency, percentile } from "../../ops/metrics.js";
@@ -63,6 +64,13 @@ describe("GET /v1/ops/overview", () => {
   });
 
   it("a judge sees only their own workspace, re-verifies its chain, and reads no other tenant's errors", async () => {
+    await t.deps.db.insert(schema.taskOutbox).values({
+      workspaceId: null,
+      name: "reconcile",
+      args: {},
+      dedupeKey: "reconcile:ops-test",
+      state: "done",
+    });
     const judge = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: w.workspaceId }));
     const r = await t.json<OpsOverview>("/v1/ops/overview", { as: judge });
     expect(r.status).toBe(200);
@@ -87,6 +95,10 @@ describe("GET /v1/ops/overview", () => {
     const text = JSON.stringify(o);
     expect(text).not.toContain(otherWs);
     for (const it of getRun().items) expect(text).not.toContain(it.receiver);
+    // what is not this workspace's own says so: one PayPal budget for every service, the cron, this process's streams
+    expect(o.limiter.scope).toBe("system");
+    expect(o.outbox.lastCronTask).toMatchObject({ name: "reconcile", scope: "system" });
+    expect(o.sse.scope).toBe("process");
   });
 
   it("refuses: 401 without a credential, 403 for the clerk, a member link or the brand", async () => {
@@ -142,6 +154,21 @@ describe("GET /v1/ops/metrics", () => {
         provenance: "seeded",
       });
     }
+    // another tenant's delivery carrying one of this batch's resource keys (judge workspaces cloned from one
+    // replay share PayPal resource ids) is theirs: it counts for neither view of this workspace's batch
+    const first = must(events[0]);
+    await t.deps.db.insert(schema.webhookEvents).values({
+      workspaceId: otherWs,
+      paypalEventId: "WH-OTHER-TENANT-1",
+      eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+      resourceType: "payouts_item",
+      resourceKey: first.p.senderItemId,
+      verified: "self",
+      raw: "{}",
+      status: "applied",
+      receivedAt: new Date(posted.getTime() + 1_000),
+      provenance: "seeded",
+    });
     const r = await t.json<OpsMetrics>("/v1/ops/metrics", { as: operator });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     const ms = (at: string) => Date.parse(at) - posted.getTime();
@@ -163,6 +190,15 @@ describe("GET /v1/ops/metrics", () => {
     expect(r.body.latency.postToUnclaimed.samples).toBe(1);
     expect(r.body.latency.recordToInvoicePaid.samples).toBe(0);
     expect(r.body.runs).toMatchObject({ settled: 1 });
+    // the treasurer's view of this workspace measures the same deliveries, and only them
+    const treasurer = await t.credentials.frameToken({
+      workspaceId: w.workspaceId,
+      role: "treasurer",
+      persona: "analyn",
+    });
+    const own = await t.json<OpsMetrics>("/v1/ops/metrics", { as: t.credentials.bearer(treasurer) });
+    expect(own.body.view).toBe("workspace");
+    expect(own.body.latency).toEqual(r.body.latency);
     // a judge's view counts only their own workspace
     const judge = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: otherWs }));
     const mine = await t.json<OpsMetrics>("/v1/ops/metrics", { as: judge });
@@ -341,11 +377,18 @@ describe("treasurer web-key registration (POST /v1/ops/keys)", () => {
           eq(schema.ledgerEntries.kind, "key.revoked"),
         ),
       );
+    const salt = commitmentSalt(t.deps.credentials.keys, {
+      purpose: "key.revoked.reason",
+      workspaceId: w.workspaceId,
+      subjectId: "fs-analyn-w1",
+    });
     expect(entry?.payload).toEqual({
       keyId: "fs-analyn-w1",
       revokedAt: t.clock.now().toISOString(),
-      reasonSha256: sha256Hex(reason),
+      reasonSha256: saltedSha256(salt, reason),
     });
+    // never the bare hash a dictionary would open (the public Proof publishes the chain)
+    expect(JSON.stringify(entry?.payload)).not.toContain(sha256Hex(reason));
     const again = await t.json<{ revoked: boolean }>("/v1/ops/keys/revoke", {
       method: "POST",
       body: { workspaceId: w.workspaceId, keyId: "fs-analyn-w1", reason },

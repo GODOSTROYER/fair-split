@@ -1,6 +1,8 @@
 // /ops (W-OP-01, S3.15 "plain tables"): what is running and how healthy it is, read fresh from the database.
 // Never a secret, a token, a raw webhook body or a receiver. The operator sees every workspace; a judge (or an
-// officer) sees their own workspace only, and no other tenant's rows, errors or webhooks.
+// officer) sees their own workspace only, and no other tenant's rows, errors or webhooks. The few figures that
+// belong to no workspace say so in every view (`scope`): the PayPal limiter is one budget for every service, the
+// cron tasks are the system's, and the stream counts are this process's.
 //
 //   rail and ledger key · kill switches (env-forced and per workspace) · the PayPal limiter (40/20 a minute, the
 //   429 circuit) · outbox by state, its oldest wait, dead rows and the last cron task · webhooks by status, with
@@ -62,6 +64,8 @@ export const OpsOverview = z.strictObject({
     workspacesOn: z.record(z.string(), Count).nullable(),
   }),
   limiter: z.strictObject({
+    /** One PayPal budget for every service and workspace: its window, circuit and 429 count are system-wide. */
+    scope: z.literal("system"),
     inWindow: Count,
     backgroundInWindow: Count,
     perWindow: Count,
@@ -83,7 +87,8 @@ export const OpsOverview = z.strictObject({
         updatedAt: Iso,
       }),
     ),
-    lastCronTask: z.strictObject({ name: z.string(), at: Iso }).nullable(),
+    /** The system's cron (judgeReset, reconcile, warmCaches): no workspace's own. */
+    lastCronTask: z.strictObject({ name: z.string(), at: Iso, scope: z.literal("system") }).nullable(),
   }),
   webhooks: z.strictObject({
     byStatus: z.partialRecord(WebhookStatus, Count),
@@ -100,7 +105,8 @@ export const OpsOverview = z.strictObject({
     ),
   }),
   items: z.partialRecord(PayoutItemStatus, Count),
-  sse: z.strictObject({ open: Count, byLabel: z.record(z.string(), Count) }),
+  /** This process's open streams, every workspace's together. */
+  sse: z.strictObject({ scope: z.literal("process"), open: Count, byLabel: z.record(z.string(), Count) }),
   /** The outbox dispatcher in this process (inline executor) and the configured executor. */
   dispatcher: z.strictObject({ running: z.boolean(), executor: z.enum(["inline", "workflow", "worker"]) }),
   ledger: z.array(
@@ -337,6 +343,7 @@ export async function opsOverview(
     ledgerKey: describeLedgerKey(ledgerKeyOf(deps)),
     flags: { forcedByEnv: forced, workspace: workspaceFlags, workspacesOn },
     limiter: {
+      scope: "system",
       inWindow: limiter.inWindow,
       backgroundInWindow: limiter.backgroundInWindow,
       perWindow: limiter.limits.perWindow,
@@ -355,7 +362,7 @@ export async function opsOverview(
         lastError: view.kind === "operator" ? (d.lastError ?? null) : null,
         updatedAt: d.updatedAt.toISOString(),
       })),
-      lastCronTask: cron ? { name: cron.name, at: cron.at.toISOString() } : null,
+      lastCronTask: cron ? { name: cron.name, at: cron.at.toISOString(), scope: "system" } : null,
     },
     webhooks: {
       byStatus: counts(whByStatus),
@@ -370,7 +377,7 @@ export async function opsOverview(
       })),
     },
     items: counts(items),
-    sse: { open: sse.open, byLabel: sse.byLabel },
+    sse: { scope: "process", open: sse.open, byLabel: sse.byLabel },
     dispatcher: { running: deps.outbox?.started ?? false, executor: deps.env.executor.kind },
     ledger,
     claude: {

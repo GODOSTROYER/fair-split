@@ -2,6 +2,10 @@
 // → the first item event, → SUCCESS and → UNCLAIMED; plus the counts behind the quotas (posts in the last 24 h,
 // live runs). Durations are measured between our own clock readings (when we recorded the act, when the
 // verified delivery reached us), so they say how fast PayPal's notices land here, never PayPal's internals.
+//
+// A delivery counts for an act only when it was resolved to the act's own workspace: resource keys are not
+// unique across tenants (judge workspaces cloned from one replay share PayPal resource ids), so a key match
+// alone would mix another tenant's deliveries into these figures. The workspace view reads nothing else.
 import { type DbOrTx, schema } from "@fairsplit/db";
 import { format } from "@fairsplit/domain";
 import { and, eq, gte, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
@@ -60,7 +64,11 @@ export async function opsMetrics(db: DbOrTx, view: OpsView, now: Date): Promise<
   // record-payment → INVOICE.PAID (the invoice's PayPal id is the event's resource key)
   const inv = schema.invoices;
   const invoices = await db
-    .select({ paypalInvoiceId: inv.paypalInvoiceId, recordedAt: inv.paymentRecordedAt })
+    .select({
+      workspaceId: inv.workspaceId,
+      paypalInvoiceId: inv.paypalInvoiceId,
+      recordedAt: inv.paymentRecordedAt,
+    })
     .from(inv)
     .where(
       and(isNotNull(inv.paymentRecordedAt), isNotNull(inv.paypalInvoiceId), scope(inv.workspaceId, view)),
@@ -70,12 +78,18 @@ export async function opsMetrics(db: DbOrTx, view: OpsView, now: Date): Promise<
     invoiceIds.length === 0
       ? []
       : await db
-          .select({ key: we.resourceKey, at: we.receivedAt })
+          .select({ workspaceId: we.workspaceId, key: we.resourceKey, at: we.receivedAt })
           .from(we)
-          .where(and(eq(we.eventType, "INVOICING.INVOICE.PAID"), inArray(we.resourceKey, invoiceIds)));
+          .where(
+            and(
+              eq(we.eventType, "INVOICING.INVOICE.PAID"),
+              inArray(we.resourceKey, invoiceIds),
+              scope(we.workspaceId, view),
+            ),
+          );
   const recordToPaid = invoices.flatMap((i) => {
     const first = paidEvents
-      .filter((e) => e.key === i.paypalInvoiceId)
+      .filter((e) => e.key === i.paypalInvoiceId && e.workspaceId === i.workspaceId)
       .map((e) => e.at.getTime())
       .sort((a, b) => a - b)[0];
     return first !== undefined && i.recordedAt ? [first - i.recordedAt.getTime()] : [];
@@ -84,7 +98,7 @@ export async function opsMetrics(db: DbOrTx, view: OpsView, now: Date): Promise<
   // batch POST → item events (events resolve by sender_item_id or payout_item_id)
   const pb = schema.payoutBatches;
   const batches = await db
-    .select({ id: pb.id, submittedAt: pb.submittedAt })
+    .select({ id: pb.id, workspaceId: pb.workspaceId, submittedAt: pb.submittedAt })
     .from(pb)
     .where(scope(pb.workspaceId, view));
   const pi = schema.payoutItems;
@@ -92,12 +106,20 @@ export async function opsMetrics(db: DbOrTx, view: OpsView, now: Date): Promise<
     batches.length === 0
       ? []
       : await db
-          .select({ batchId: pi.batchId, senderItemId: pi.senderItemId, payoutItemId: pi.payoutItemId })
+          .select({
+            workspaceId: pi.workspaceId,
+            batchId: pi.batchId,
+            senderItemId: pi.senderItemId,
+            payoutItemId: pi.payoutItemId,
+          })
           .from(pi)
           .where(
-            inArray(
-              pi.batchId,
-              batches.map((b) => b.id),
+            and(
+              inArray(
+                pi.batchId,
+                batches.map((b) => b.id),
+              ),
+              scope(pi.workspaceId, view),
             ),
           );
   const keys = items.flatMap((i) => [i.senderItemId, ...(i.payoutItemId ? [i.payoutItemId] : [])]);
@@ -105,19 +127,29 @@ export async function opsMetrics(db: DbOrTx, view: OpsView, now: Date): Promise<
     keys.length === 0
       ? []
       : await db
-          .select({ key: we.resourceKey, type: we.eventType, at: we.receivedAt })
+          .select({ workspaceId: we.workspaceId, key: we.resourceKey, type: we.eventType, at: we.receivedAt })
           .from(we)
-          .where(and(inArray(we.resourceKey, keys), sql`${we.eventType} like 'PAYMENT.PAYOUTS-ITEM.%'`));
+          .where(
+            and(
+              inArray(we.resourceKey, keys),
+              sql`${we.eventType} like 'PAYMENT.PAYOUTS-ITEM.%'`,
+              scope(we.workspaceId, view),
+            ),
+          );
+  // a resource key names an item only within the item's own workspace
+  const keyOf = (workspaceId: string, key: string) => `${workspaceId}|${key}`;
   const batchOfKey = new Map<string, string>();
   for (const i of items) {
-    batchOfKey.set(i.senderItemId, i.batchId);
-    if (i.payoutItemId) batchOfKey.set(i.payoutItemId, i.batchId);
+    batchOfKey.set(keyOf(i.workspaceId, i.senderItemId), i.batchId);
+    if (i.payoutItemId) batchOfKey.set(keyOf(i.workspaceId, i.payoutItemId), i.batchId);
   }
   const first: number[] = [];
   const success: number[] = [];
   const unclaimed: number[] = [];
   for (const b of batches) {
-    const evs = itemEvents.filter((e) => e.key !== null && batchOfKey.get(e.key) === b.id);
+    const evs = itemEvents.filter(
+      (e) => e.key !== null && e.workspaceId !== null && batchOfKey.get(keyOf(e.workspaceId, e.key)) === b.id,
+    );
     if (evs.length === 0) continue;
     const t0 = b.submittedAt.getTime();
     first.push(Math.min(...evs.map((e) => e.at.getTime())) - t0);

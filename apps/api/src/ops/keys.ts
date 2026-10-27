@@ -6,11 +6,16 @@
 //
 // Never a seeded key (`-s{n}`), never a judge workspace (its keys are labelled browser demo keys), never a key
 // ID reused for another public key: a key ID is immutable once registered; register the next number instead.
+//
+// The operator's revocation reason is free text: the chain keeps only its salted commitment (`reasonSha256`,
+// ../ledger/commitments.ts), never a bare hash a dictionary would open on the public Proof.
 import { DeviceKeyId, Ed25519PublicKeyHex, IsoDateTime, OfficerKey, Uuid } from "@fairsplit/contracts";
 import { appendLedger, type Db, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
-import { ed25519Verify, jcsBytes, sha256Hex } from "@fairsplit/domain";
+import { ed25519Verify, jcsBytes } from "@fairsplit/domain";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
+import type { CredentialKeys } from "../credentials/verify/index.js";
+import { commitText } from "../ledger/commitments.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { approverIdOf, publicKeyHexOf, storedPublicKeyOf } from "../proof/keys.js";
 
@@ -182,6 +187,7 @@ export async function registerTreasurerKey(
 
 export async function revokeKey(
   db: Db,
+  keys: Pick<CredentialKeys, "hmacKey">,
   req: z.infer<typeof RevokeKeyRequest>,
   now: Date,
 ): Promise<z.infer<typeof RevokeKeyResponse>> {
@@ -222,9 +228,14 @@ export async function revokeKey(
           isNull(schema.deviceKeys.revokedAt),
         ),
       );
+    const reason = commitText(
+      keys,
+      { purpose: "key.revoked.reason", workspaceId, subjectId: row.keyId },
+      req.reason,
+    );
     await appendLedger(tx, scope, {
       kind: "key.revoked",
-      payload: { keyId: row.keyId, revokedAt: now.toISOString(), reasonSha256: sha256Hex(req.reason) },
+      payload: { keyId: row.keyId, revokedAt: now.toISOString(), reasonSha256: reason.sha256 },
       at: now,
     });
     return {
