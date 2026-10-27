@@ -86,6 +86,9 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
 - **I5** payout items: `status_rank` must match the status and only rise; our cancel is stamped once, on an UNCLAIMED
   item, and RETURNED needs that stamp from an earlier statement.
 - **I4/I6** approvals: a signed approval never changes; it can be voided once (`approvals.void`, recorded in the ledger).
+- **I6 keys** (S3.8, C-13): `device_keys.kind` is `app`, `web` or `web_demo` (a seeded key is never registered), and
+  one CHECK per kind holds `key_id` to that kind's shape, built from contracts' `DEVICE_KEY_ID_PATTERN_BY_KIND`
+  (0017): `fs-{p}-a{n}`, `fs-{p}-w{n}`, `fs-{p}-demo-{6}`. A judge's demo key never takes a real key's ID.
 - **No deletes** (0015): runs, lines, holds, payout items and approvals leave only with their workspace's purge.
   `fs_app` has no DELETE or TRUNCATE on them, and triggers refuse every role (`FS409 DELETE_REFUSED:<table>`), so a
   signed approval cannot be deleted to free its slot, nor an item deleted and re-inserted at a lower status.
