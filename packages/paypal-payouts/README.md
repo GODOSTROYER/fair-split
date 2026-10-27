@@ -27,7 +27,8 @@ await payouts.executeApproved(runId); // created | adopted | refused | rejected 
 await payouts.cancelUnclaimed(itemId, actor, "cash"); // or "reroute"; actor and intent required
 await payouts.reroute({ supersedesItemId, rerouteNo, receiver, approvals });
 agentPayoutToolSchemas(); // get_payout_batch, get_payout_item only (checked-in JSON Schema)
-await runAgentPayoutTool(http, name, input);
+// The session run's own payout_batch_ids and payout_item_ids, from the database; pages of at most 100.
+await runAgentPayoutTool({ http, payoutBatchIds, payoutItemIds }, name, input);
 ```
 
 `executeApproved(runId)` (register §8, S3 §S3.6.4) trusts nothing the caller hands in: kill switch →

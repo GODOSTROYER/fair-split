@@ -94,7 +94,9 @@ export {
 export {
   AGENT_PAYOUT_ACTIONS,
   AGENT_PAYOUT_METHODS,
+  AGENT_PAYOUT_PAGE_SIZE_MAX,
   type AgentPayoutMethod,
+  type AgentPayoutSession,
   type AgentPayoutToolSchema,
   ALL_PAYOUT_TOOLS_ENABLED,
   agentPayoutToolSchemas,
@@ -105,6 +107,7 @@ export {
   type PayoutMethod,
   PayoutsApiError,
   PayoutToolNotAllowedError,
+  PayoutToolRefusedError,
   payoutTools,
   runAgentPayoutTool,
   SERVER_ONLY_PAYOUT_METHODS,

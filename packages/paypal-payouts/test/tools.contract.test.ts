@@ -6,21 +6,33 @@ import { z } from "zod";
 import * as pkg from "../src/index.js";
 import {
   AGENT_PAYOUT_ACTIONS,
+  AGENT_PAYOUT_PAGE_SIZE_MAX,
+  type AgentPayoutSession,
   ALL_PAYOUT_TOOLS_ENABLED,
   agentPayoutToolSchemas,
   agentPayoutTools,
   isToolAllowed,
   PayoutsApiError,
   PayoutToolNotAllowedError,
+  PayoutToolRefusedError,
   payoutTools,
   runAgentPayoutTool,
   SERVER_ONLY_PAYOUT_METHODS,
 } from "../src/index.js";
-import { PAYOUT_BATCH_ID, paypalError } from "./support/fixtures.js";
+import { PAYOUT_BATCH_ID, paypalError, RHEA_ITEM_ID } from "./support/fixtures.js";
 import { RealPayPalHttp } from "./support/http.js";
 import { onGet, paypalJson, requests, useMsw } from "./support/msw.js";
 
 useMsw();
+
+/** Another run's batch and item on the one shared sandbox business account. */
+const OTHER_RUN_BATCH_ID = "7QWERTYUIOPAS";
+const OTHER_RUN_ITEM_ID = "9ZXCVBNMLKJHG";
+
+/** The hero run's agent session: its batch and Rhea's item, as the database holds them. */
+function heroSession(http = new RealPayPalHttp()): AgentPayoutSession & { http: RealPayPalHttp } {
+  return { http, payoutBatchIds: new Set([PAYOUT_BATCH_ID]), payoutItemIds: new Set([RHEA_ITEM_ID]) };
+}
 
 describe("PR #107 tool shape", () => {
   it("has the four tools with PR #107's methods, names and actions, in order", () => {
@@ -90,11 +102,11 @@ describe("allowlist contract: the agent cannot reach money-moving payout calls",
   it.each([...SERVER_ONLY_PAYOUT_METHODS, "record_payment_for_invoice", "create_invoice", "anything"])(
     "refuses %s through the agent path, sending nothing",
     async (tool) => {
-      const http = new RealPayPalHttp();
+      const session = heroSession();
       await expect(
-        runAgentPayoutTool(http, tool, { payout_item_id: "8AELMXH8UB2P8" }),
+        runAgentPayoutTool(session, tool, { payout_item_id: RHEA_ITEM_ID }),
       ).rejects.toBeInstanceOf(PayoutToolNotAllowedError);
-      expect(http.calls).toHaveLength(0);
+      expect(session.http.calls).toHaveLength(0);
     },
   );
 
@@ -111,7 +123,7 @@ describe("the agent's reads", () => {
     onGet("/v1/payments/payouts/:id", () =>
       paypalJson({ batch_header: { payout_batch_id: PAYOUT_BATCH_ID } }),
     );
-    const out = await runAgentPayoutTool(new RealPayPalHttp(), "get_payout_batch", {
+    const out = await runAgentPayoutTool(heroSession(), "get_payout_batch", {
       payout_batch_id: PAYOUT_BATCH_ID,
     });
     expect(out).toEqual({ batch_header: { payout_batch_id: PAYOUT_BATCH_ID } });
@@ -125,10 +137,49 @@ describe("the agent's reads", () => {
     onGet("/v1/payments/payouts-item/:id", () =>
       paypalJson(paypalError("INVALID_RESOURCE_ID", "Requested resource ID was not found."), 404, "dbg-404"),
     );
-    const error = await runAgentPayoutTool(new RealPayPalHttp(), "get_payout_item", {
-      payout_item_id: "8AELMXH8UB2P8",
+    const error = await runAgentPayoutTool(heroSession(), "get_payout_item", {
+      payout_item_id: RHEA_ITEM_ID,
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(PayoutsApiError);
     expect(error).toMatchObject({ status: 404, paypalName: "INVALID_RESOURCE_ID", debugId: "dbg-404" });
+  });
+});
+
+describe("the agent's reads are bound to its run (one sandbox account holds every run's payouts)", () => {
+  it.each([
+    ["another run's batch", "get_payout_batch", { payout_batch_id: OTHER_RUN_BATCH_ID }],
+    ["another run's item", "get_payout_item", { payout_item_id: OTHER_RUN_ITEM_ID }],
+    ["the run's item asked for as a batch", "get_payout_batch", { payout_batch_id: RHEA_ITEM_ID }],
+    [
+      "a page of 1,000 items",
+      "get_payout_batch",
+      { payout_batch_id: PAYOUT_BATCH_ID, page_size: AGENT_PAYOUT_PAGE_SIZE_MAX * 10 },
+    ],
+    ["a malformed id", "get_payout_item", { payout_item_id: "../payouts/ALL" }],
+  ])("refuses %s, sending nothing", async (_label, tool, args) => {
+    const session = heroSession();
+    const error = await runAgentPayoutTool(session, tool, args).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(PayoutToolRefusedError);
+    expect(session.http.calls).toHaveLength(0);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("reads the run's own batch at up to 100 items a page, and the run's own item", async () => {
+    onGet("/v1/payments/payouts/:id", () =>
+      paypalJson({ batch_header: { payout_batch_id: PAYOUT_BATCH_ID } }),
+    );
+    onGet("/v1/payments/payouts-item/:id", () => paypalJson({ payout_item_id: RHEA_ITEM_ID }));
+    const session = heroSession();
+    await runAgentPayoutTool(session, "get_payout_batch", {
+      payout_batch_id: PAYOUT_BATCH_ID,
+      page_size: AGENT_PAYOUT_PAGE_SIZE_MAX,
+    });
+    await expect(
+      runAgentPayoutTool(session, "get_payout_item", { payout_item_id: RHEA_ITEM_ID }),
+    ).resolves.toEqual({ payout_item_id: RHEA_ITEM_ID });
+    expect(requests.map((r) => `${r.url.pathname}${r.url.search}`)).toEqual([
+      `/v1/payments/payouts/${PAYOUT_BATCH_ID}?page=1&page_size=100&total_required=true`,
+      `/v1/payments/payouts-item/${RHEA_ITEM_ID}`,
+    ]);
   });
 });
