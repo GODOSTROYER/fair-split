@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" data-theme="adlaw">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Fair Split app (development stub)</title>
+    <style>
+      /* Development only (vite dev): stands in for the Expo web export that fs-api serves at /app. It answers
+         the IC-12 frame bridge so the stage can be exercised; it is labelled and never ships. */
+      :root {
+        --ground: #eeeeea;
+        --plate: #ffffff;
+        --rule: #d8d4cd;
+        --ink: #1c1511;
+        --ink2: #4e453e;
+        --ink3: #6f665e;
+        --pod: #c85a00;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        padding: 20px 16px 24px;
+        background: var(--ground);
+        color: var(--ink);
+        font: 450 14px/20px "FS Sans", system-ui, sans-serif;
+      }
+      .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border: 1px solid var(--ink);
+        font-size: 12px;
+        line-height: 16px;
+      }
+      h1 {
+        margin: 16px 0 4px;
+        font-size: 20px;
+        line-height: 26px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--ink2);
+      }
+      dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px 12px;
+        margin: 16px 0;
+        padding: 12px;
+        border: 1px solid var(--rule);
+        background: var(--plate);
+      }
+      dt {
+        color: var(--ink3);
+        font-size: 12px;
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      button {
+        display: block;
+        width: 100%;
+        min-height: 48px;
+        margin: 0 0 8px;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+        background: var(--plate);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 560;
+        text-align: left;
+        padding: 0 14px;
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 2px solid var(--pod);
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="tag">Development stub</span>
+    <h1>Fair Split app</h1>
+    <p>
+      fs-api serves the Expo web export here. In development this page answers the stage's frame bridge so the
+      stage can be tried; it is not the app.
+    </p>
+    <dl>
+      <dt>Persona</dt>
+      <dd id="persona">Waiting for a token (the first press starts a session)</dd>
+      <dt>Token</dt>
+      <dd id="token">None</dd>
+      <dt>Preferences</dt>
+      <dd id="prefs">Not received</dd>
+    </dl>
+    <button type="button" id="tick">Ask the stage to play a tick (fs.feedback)</button>
+    <button type="button" id="focus">Ask the stage to raise this phone (fs.focus)</button>
+    <button type="button" id="moment">Tell the stage MM-1 finished (fs.moment)</button>
+    <script>
+      (() => {
+        const origin = window.location.origin;
+        const parent = window.parent;
+        if (!parent || parent === window) return;
+        const send = (message) => parent.postMessage({ v: 1, ...message }, origin);
+        // Like the app's frame side: the iframe's name is the frameId, the persona is unknown until fs.token,
+        // and the build says this is the stand-in, so the stage keeps its preview over it.
+        const frameId = window.name || "frame";
+        let persona = null;
+        const screenFor = (scope) =>
+          scope?.startsWith("board:") ? "M-BD-01" : scope?.startsWith("clerk:") ? "M-CL-01" : "M-MB-01";
+        window.addEventListener("message", (event) => {
+          if (event.origin !== origin || event.source !== parent) return;
+          const m = event.data;
+          if (m?.v !== 1 || typeof m.t !== "string") return;
+          if (m.t === "fs.token") {
+            persona = m.persona;
+            document.getElementById("persona").textContent = m.persona;
+            document.getElementById("token").textContent = `Expires ${new Date(m.exp).toLocaleTimeString()}`;
+          } else if (m.t === "fs.prefs") {
+            document.getElementById("prefs").textContent =
+              `${m.tier} motion, sound ${m.sound ? "on" : "off"}, gloss ${m.gloss ? "on" : "off"}`;
+          } else if (m.t === "fs.reset") {
+            persona = null;
+            document.getElementById("persona").textContent = "Reset. Waiting for a token";
+            document.getElementById("token").textContent = "None";
+          }
+        });
+        document.getElementById("tick").addEventListener("click", () => send({ t: "fs.feedback", event: "row.printed" }));
+        document.getElementById("focus").addEventListener("click", () => send({ t: "fs.focus", screenId: screenFor(persona) }));
+        document.getElementById("moment").addEventListener("click", () => send({ t: "fs.moment", moment: "MM-1", phase: "done" }));
+        send({ t: "fs.ready", frameId, persona: null, build: "dev-stub" });
+      })();
+    </script>
+  </body>
+</html>

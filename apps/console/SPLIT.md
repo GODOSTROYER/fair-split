@@ -1,0 +1,198 @@
+# Console split: shell, wire, three slices
+
+The console (`apps/console`, WS-CONSOLE) is built in four steps. The **shell** (this commit) registers every web
+route, draws the Judge stage and its chrome in Tablea, and provides the data layer, the test kit and every
+dependency. The **wire** step merges `ws/api`, moves `src/data/` onto `@fairsplit/api-client` and creates the
+three slice worktrees. Then **season**, **runs** and **proof** build their screens in parallel.
+
+Read first: `docs/spec/00-plan.md` (wins), `docs/spec/01-design-direction.md`, register §1–§5, S1.5–S1.12, S2 (all)
+and `docs/adr/0002-simulated-paypal-sandbox-and-private-repo.md`.
+
+## Ownership
+
+| Slice  | Owns (and their tests)                                                                                                                                                                                                                                                                                                     |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| season | `src/screens/{W-JG-01,W-TR-01,W-TR-02,W-TR-03,W-TR-04}/**`, `src/features/{judge,season,ratecard,reading,byhand}/**`                                                                                                                                                                                                       |
+| runs   | `src/screens/{W-TR-05,W-TR-06,W-TR-07,W-TR-08,W-TR-09}/**`, `src/features/{split,holds,approve,fanout,print}/**`                                                                                                                                                                                                           |
+| proof  | `src/screens/{W-PF-01,W-BR-01,W-OP-01,W-TR-10}/**`, `src/features/{proof,brand,ops,shortcuts,datamode}/**`                                                                                                                                                                                                                 |
+| shared | everything else under `apps/console/**`: `package.json`, configs, `index.html`, `src/main.tsx`, `src/router.tsx`, `src/routes/**`, `src/routeTree.gen.ts`, `src/screens/contract.ts`, `src/stage/**`, `src/data/**`, `src/chrome/**`, `src/theme/**`, `src/lib/**`, `src/sound/**`, `src/test/**`, `SPLIT.md`, `README.md` |
+| WS-DS  | `src/prototype/**` and the `/prototype` routes: never edit them                                                                                                                                                                                                                                                            |
+
+**Shared is frozen** after the wire step. A slice never edits a shared file, `package.json` or the lockfile. Every
+dependency is installed (below); a route the register lacks is a request to the orchestrator, not an edit. If a
+slice needs a shared change, it reports it with the exact signature it needs and keeps a local version inside its
+own `features/` folder until the shell takes it.
+
+W-AU-01 (`/sign-in`) is final in the shell: real accounts are P2, and judges never log in.
+
+## Routes (frozen) and the screen contract
+
+Every route in `webRoutes` is registered and renders the component exported from `src/screens/<ID>/index.tsx`.
+The props are in `src/screens/contract.ts`; `src/screens/contract.test.ts` fails if an export goes missing.
+
+| Route                                     | Renders                                                                                                                                                                               | Surface |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `/` → `/judge`                            | redirect                                                                                                                                                                              | stage   |
+| `/judge`                                  | W-JG-01 `Screen` (+ `StageExtras`, always mounted in the stage)                                                                                                                       | stage   |
+| `/season/:seasonCode`                     | W-TR-01 `Screen({ seasonCode })`                                                                                                                                                      | stage   |
+| `/season/:seasonCode/rate-card`           | W-TR-02 `Screen({ seasonCode })`                                                                                                                                                      | stage   |
+| `/season/:seasonCode/reading?photo=B`     | W-TR-03 `Screen({ seasonCode, photo? })`                                                                                                                                              | stage   |
+| `/season/:seasonCode/by-hand/:slipNo`     | W-TR-04 `Screen({ seasonCode, slipNo })`                                                                                                                                              | stage   |
+| `/runs/:runSlug` → `/runs/:runSlug/split` | redirect                                                                                                                                                                              | stage   |
+| `/runs/:runSlug/split?hold=&member=`      | W-TR-05 `Screen({ runSlug, hold?, member? })`, then W-TR-06 `Screen({ runSlug, holdId })` while `?hold=` is set, else W-TR-09 `Screen({ runSlug, memberNo })` while `?member=` is set | stage   |
+| `/runs/:runSlug/approve`                  | W-TR-07 `Screen({ runSlug })`                                                                                                                                                         | stage   |
+| `/runs/:runSlug/fanout`                   | W-TR-08 `Screen({ runSlug })`                                                                                                                                                         | stage   |
+| `/runs/:runSlug/members/:memberNo/print`  | W-TR-09 `PrintScreen({ runSlug, memberNo })`                                                                                                                                          | Adlaw   |
+| `/proof/:runSlug`                         | W-PF-01 `Screen({ runSlug })`                                                                                                                                                         | Adlaw   |
+| `/b/:token`                               | W-BR-01 `Screen({ token })` (the signed brand link)                                                                                                                                   | Adlaw   |
+| `/ops`                                    | W-OP-01 `Screen()`                                                                                                                                                                    | Tablea  |
+| `/sign-in`                                | W-AU-01 (shell, final)                                                                                                                                                                | Tablea  |
+| `/s/:token`                               | hands over to `/app/s/:token`                                                                                                                                                         | —       |
+| `/prototype/**`                           | WS-DS                                                                                                                                                                                 | —       |
+| `?` anywhere                              | W-TR-10 `ShortcutSheet({ open, onOpenChange })`, mounted at the root                                                                                                                  | —       |
+
+Path params are checked against IC-01 (`SeasonLabel`, `RunSlug`, `SlipSerial`, `MemberNo`): a malformed path is a
+404. Search params the routes declare are validated (`?photo=` A–L or P01–P54, `?hold=` a label or ID, `?member=`);
+anything else is read with `useSearchParam(name)` from `src/lib/search-param.ts`, and the screen validates it.
+Navigate with `webRoutes.*` and `<AppLink href>` (a real anchor) or TanStack's `useNavigate` with the route paths.
+
+## What the shell gives you
+
+### Data (`src/data/`): TanStack Query over an adapter shaped like `API_COMMANDS`
+
+| API                                                 | Use                                                                                                                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useCommand(name, options?)`                        | A command as a mutation: `resolve.mutate({ params: { holdId }, body: { resolution } })`                                                                                 |
+| `useCommandQuery(name, input, options?)`            | A GET command as a query: `approvalPayload`, `proof`, `proofJson`, `proofExport`                                                                                        |
+| `useSnapshot()`                                     | The IC-03 season snapshot (members, slips, photos, rate card, figures, checkpoints, run)                                                                                |
+| `useRunView(runSlug)` + `useRunStream(runSlug)`     | The run's live `RunView`; the stream keeps it live (the stage already holds its run open)                                                                               |
+| `useStageRun()`                                     | `{ runSlug, view, inSession, snapshot }`: the stage's run (first view before the press)                                                                                 |
+| `useRunEvents(runSlug, (event, { replay }) => …)`   | Raw events; start a moment only when `!replay`, with `event.id` as evidence                                                                                             |
+| `useJudgeSession()`                                 | `{ status, session, error, start(), reset(), dismissError() }`                                                                                                          |
+| `usePaypalRail()`                                   | `"simulator"` or `"sandbox"`: label every PayPal value with it (I8)                                                                                                     |
+| `useDescribeContext()`, `describeEvent(event, ctx)` | Run-log rows in three lanes (W-TR-08's log, the ribbon)                                                                                                                 |
+| `run-view.ts` selectors                             | `openHolds`, `blockingHolds`, `holdCards`, `byHandHolds`, `itemCounts`, `atLeast`, `runStrip`, `checkpointFor`, `livePresence`, `lineAmountState`, `invoiceAmountState` |
+| `errors.ts`                                         | `ApiRequestError` (`.code`, `.status`, `.ratified()` for MM-4's hash), `TransportError`, `errorView(e)`, `ERROR_WORDS`                                                  |
+| `adapter.pending` (via `useAdapter()`)              | `snapshot`, `frameToken`, `resetSession`, `paypalRail`: reads the API lacks (reported)                                                                                  |
+
+State that moves arrives as `RunEvent`s and is reduced into the run's query data; mutations do not refetch. A
+command's result is not the state: the event that follows it is. The reducer is forward-only (I5).
+
+### Stage (`src/stage/`)
+
+| API                                                  | Use                                                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `useStage()` / `useOptionalStage()`                  | `{ layout, phone, raisePhone(p), lowerPhone(), selectPersona(p), director, next, autoplay, setAutoplay(s) }` |
+| `usePrefocus(ref, screenId, when?)`                  | Focus your step's control when the run pill names it (S1.6)                                                  |
+| `useNextStep()`                                      | The pill's step: `{ id, text, actor, screen, to, persona? }`                                                 |
+| `stage.director`                                     | `claim(moment, ms)` for focal moments (≤1.6 s wait, else reduced); `space("item" \| "row")`                  |
+| `stage.setAutoplay("autoplay" \| "paused" \| "off")` | "Play it for me" (season): the stage shows the state and its strip                                           |
+| FrameBridge (`bridge.ts`)                            | IC-12, stage side; frames named `member`, `chair`, `clerk`; only the stage plays sound                       |
+
+### Chrome (`src/chrome/`)
+
+| Component                                                                   | Use                                                                                                                            |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `<ScreenRoot id state labelledBy? as?>`                                     | Every screen's root: `data-testid="{ID}"`, `data-state` typed to S1's names                                                    |
+| `<StageDrawer label meta? onClose testId mode?>`                            | W-TR-06 and W-TR-09 render inside it: push or overlay per width, Esc closes                                                    |
+| `<CommandNotice error testId onRetry? retryLabel?>`                         | Any failed command, in the console's words, red only when PayPal is the actor                                                  |
+| `<PrintBed shape width? height? count? labels?>`                            | Loading: dashed beds at final size, never a shimmer                                                                            |
+| `<DataTable caption columns rows testId>`, `<Mirrored visual table testId>` | Data mode (D): every chart hidden from AT and mirrored as a table                                                              |
+| `<ChromePortal name>`                                                       | Fill a chrome slot: `pill.accessory` (Play it for me), `whatsReal.tryToBreak`, `stage.film`, `stage.overlay` (cursor, flights) |
+| `<AppLink href>`                                                            | A real anchor that navigates in the SPA                                                                                        |
+| `<Surface theme>`                                                           | Already applied by the routes (Adlaw for Proof and print)                                                                      |
+| `copy.ts`                                                                   | Stage words; `whatsReal()`, `TRY_TO_BREAK`, `STAGE_NOTICE`                                                                     |
+
+### Lib, sound, theme
+
+| API                                        | Use                                                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `format` (`lib/format.ts`)                 | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl` |
+| `useMoment(id, { focal?, mode? })`         | The phase machine: `play(act, { eventId })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps`                            |
+| `provenanceFooter(input)`                  | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                |
+| `useShortcut(spec)`, `useShortcuts()`      | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                     |
+| `useDataMode()`                            | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                        |
+| `useAnnounce()`                            | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                   |
+| `lib/verify.ts` (import lazily)            | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                   |
+| `lib/sha256.ts`                            | Synchronous SHA-256 (verify-core needs it sync)                                                                                 |
+| `useSound()`, `playFromFrame()`, `duck()`  | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                        |
+| `theme/grid.ts` (import only from W-TR-05) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid lazy                                    |
+
+## Rules every slice keeps
+
+- **Material grammar.** Machines print (flat pencil, tweens, never a button); people press (slabs: at most two per
+  screen, one d3); PayPal lands (jade flush, only on a verified item). Jade means money, canary a person's decision,
+  red only a PayPal failure. Corners 0 or 2. Only paper casts a shadow. No gradients, glass, glows, eyebrows, pill
+  badges, monospace or emoji. Tokens only (`var(--fs-*)`, the `fs-t-*` type classes); timings only from
+  `@fairsplit/motion` (the `--fs-dur-*`, `--fs-ease-*` and spring `linear()` variables in CSS).
+- **Motion is evidence.** State animates only on an SSE event, a 201/409 or a signature, passed to `play()` as
+  `eventId`. Replayed history never animates. No timers, count-ups or confetti.
+- **Hooks.** `data-testid="{screenId}.{element}"` (`tid(id, element)`), `data-state` on every stateful element,
+  `data-moment` and `data-moment-phase` on every moment root (from `useMoment().rootProps`), `data-amount-state` on
+  every amount (S2.2.1: pencil, you, ink, hollow, landed, attested).
+- **Words.** Status words come from the contracts label maps, never a raw state. Sentence case, no exclamation
+  marks, buttons name outcomes. Under the simulated rail nothing PayPal is "real", "live" or "verified".
+- **Every state renders**: empty, loading (print beds), error (`CommandNotice`), held, approved, posting, paid,
+  parked, cash due, with a reduced-motion variant that keeps every phase.
+- **Accessibility**: WCAG 2.2 AA; axe clean on every state; hold slabs keep their dialog route; visualisations
+  are `aria-hidden` and mirrored in `<Mirrored>` tables; focus is visible (pod ring).
+- **Budgets** (S2.11): route JS ≤300 KB gz; AG Grid only via `theme/grid.ts` in the split screen's chunk; Proof's
+  verify code only through a dynamic import of `lib/verify.ts`.
+
+## Tests
+
+Vitest 5 + Testing Library + msw 3 + axe-core 4.13.0, no network, no live API. Import the kit from `src/test`:
+
+```ts
+import {
+  renderConsole,
+  createTestWorld,
+  startMockServer,
+  expectNoAxeViolations,
+  tracedPhases,
+  momentPhase,
+  clearMomentTrace,
+  setViewport,
+  resizeTo,
+} from "../../test/index.js";
+
+const view = await renderConsole({
+  path: "/runs/2026A-r37/split?hold=H1",
+  motion: "reduced",
+  viewport: { width: 1920 },
+});
+const session = await view.startSession(); // the first press (createJudgeSession)
+act(() => view.world.markPaid(session.runSlug)); // drive the run: the world emits the events
+await screen.findByTestId("W-TR-06"); // then assert data-state, phases, amount states
+await expectNoAxeViolations(view.container);
+```
+
+- `createTestWorld()` is the contract-faithful mock API over the seed, instant pace: every command of
+  `API_COMMANDS`, the SSE replay, holds, two keys, the fan-out with Rhea parked and one repeated delivery. Its
+  helpers (`holdIdFor`, `byHandFieldId`, `lineIdFor`, `cosign`) reach IDs the UI would get from events.
+- `renderConsole` uses the in-memory adapter (fast); `startMockServer(world)` + `createTestHttpAdapter()` run the
+  same world over HTTP and SSE through msw (unhandled requests fail).
+- Slab presses: `fireEvent.keyDown(getByTestId("{testId}.face"), { key: "Enter" })` (ui-web's Slab).
+- Moments: assert `momentPhase(container, "MM-3")` and `tracedPhases("MM-3")` in `full` and `reduced`; phase names
+  only from `@fairsplit/motion`. Use `vi.useFakeTimers()` to step through acts.
+- Name invariant tests `inv.iN.*` (I1 to I8). Pure logic may stay in `*.test.ts`; components in `*.test.tsx`.
+- Run: `corepack pnpm --filter @fairsplit/console test` and `typecheck`; `corepack pnpm exec biome check apps/console`.
+
+## Dependencies (installed; slices add none)
+
+React 19.3, TanStack Router 1.170.45 and Query 5.104.5, Base UI 1.9.0, Motion 14.0.0, AG Grid Community and
+React 36.2.0, zod 4.6.7, eventsource-parser 4.1.2, @noble/curves 2.4.0, the `@fairsplit/*` packages (contracts,
+domain, seed, tokens, motion, seal, ui-web, i18n); for tests Vitest 5.0.5, Testing Library (react 16.3.3, dom
+10.4.2), jsdom 30.1.2, msw 3.0.3, axe-core 4.13.0, fast-check 4.10.2. No QR encoder and no `user-event` exist in
+the catalog: draw the co-sign QR from an API-provided matrix or request a pin through the deps lane.
+
+## Known gaps (reported to their owners)
+
+- IC-12 FrameBridge is not in `@fairsplit/contracts` yet: `src/stage/bridge.ts` holds the schemas, matched to
+  WS-APP's frame side, until WS-CORE adds them.
+- IC-01 lacks `SCREENS[id].states` and `AMOUNT_STATE`: `lib/screens.ts` and `run-view.ts` carry S1's and S2's lists.
+- API_COMMANDS lacks the season and run reads, the frame token, Reset and the PayPal mode: `adapter.pending`
+  serves them from the seed and the mock until WS-API ships them; the wire step maps them.
+- ui-web lacks SplitFan, FundingArc, RunStrip, RunLog, SlipViewer, FlightLayer, TwinCompare, ByHandField,
+  QRPairCard, VerifyPanel, PlotField, EvalWaffle, PrintStatement, Drawer and DigitSwap: build them in your
+  `features/` folder on ui-web's primitives and tokens.

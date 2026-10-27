@@ -1,0 +1,143 @@
+/* The surfaces outside the stage: Proof (Adlaw only, one 680 px reading column), the 80 mm print, /ops,
+   /sign-in, and the router's fallbacks. One theme per surface (S2.1): <Surface> sets it on <html> once. */
+
+.fsc-surface {
+  min-height: 100dvh;
+  background: var(--fs-ground);
+  color: var(--fs-ink);
+}
+
+/* ---------------------------------------------------------------- Proof (W-PF-01, W-BR-01) */
+
+.fsc-surface--proof {
+  padding: 48px var(--fs-proof-gutter) 72px;
+}
+
+.fsc-surface--proof > * {
+  max-width: var(--fs-proof-column);
+  margin-inline: auto;
+}
+
+.fsc-surface--proof .fsc-ph {
+  max-width: var(--fs-proof-column);
+}
+
+.fsc-surface--proof .fsc-ph__mark {
+  font-size: 2.5rem;
+  line-height: 2.5rem;
+}
+
+.fsc-surface--proof .fsc-ph__seal {
+  order: -1;
+}
+
+/* ---------------------------------------------------------------- the 80 mm statement (W-TR-09 print) */
+
+.fsc-surface--print {
+  padding: 40px 16px 64px;
+}
+
+.fsc-surface--print > * {
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  html,
+  body,
+  .fsc-surface--print {
+    min-height: 0;
+    padding: 0;
+    background: var(--fs-copy-white);
+    color: var(--fs-paper-ink);
+  }
+
+  body::before,
+  .fsc-surface--print .fsc-ph__head,
+  .fsc-surface--print .fsc-ph__note {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- /ops (W-OP-01), Tablea */
+
+.fsc-surface--ops {
+  padding: 24px 32px 56px;
+}
+
+.fsc-ops {
+  display: grid;
+  gap: 28px;
+  max-width: 1160px;
+  margin-inline: auto;
+}
+
+.fsc-ops > .fsc-wordmark {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+/* ---------------------------------------------------------------- /sign-in (W-AU-01) and fallbacks */
+
+.fsc-surface--centered {
+  display: grid;
+  place-items: center;
+  padding: 48px 24px;
+}
+
+.fsc-signin,
+.fsc-fallback {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 16px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.fsc-fallback {
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: 48px 24px;
+}
+
+.fsc-signin > .fsc-wordmark,
+.fsc-fallback > .fsc-wordmark {
+  margin-bottom: 24px;
+}
+
+.fsc-signin__body,
+.fsc-fallback__lede {
+  max-width: 56ch;
+  color: var(--fs-ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.fsc-fallback__meta {
+  color: var(--fs-ink-3);
+}
+
+.fsc-signin__links,
+.fsc-fallback__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-top: 8px;
+}
+
+.fsc-signin__links .fs-flat,
+.fsc-fallback__links .fs-flat {
+  text-decoration: none;
+}
+
+/* The member's link hands over to /app at once; this line shows only for that instant. */
+[data-testid="member-link"] {
+  min-height: 100dvh;
+}

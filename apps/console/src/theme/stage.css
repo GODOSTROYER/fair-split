@@ -1,0 +1,1123 @@
+/* The Judge stage (S1.6, design §6 J1) in Tablea: the bar, the console (rail, pill, screen), the phone,
+   the ribbon and the caption. Depth comes from value steps (ground, plate, plate-2) and 1 px rules; nothing
+   here casts a shadow, because only paper does. Layout follows S1.6's table: phone docked from 1680 px, a
+   rising tab from 1024, a phone visit below. */
+
+/* ---------------------------------------------------------------- frame */
+
+.fsc-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 600px;
+  overflow: hidden;
+  color: var(--fs-ink);
+}
+
+.fsc-stage__body {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.fsc-stage[data-layout="dock"] .fsc-stage__body {
+  grid-template-columns: minmax(0, 1fr) var(--fs-console-dock);
+}
+
+/* ---------------------------------------------------------------- top bar */
+
+.fsc-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px 24px;
+  min-height: 52px;
+  padding: 8px 16px 8px 24px;
+  border-bottom: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.fsc-bar .fsc-wordmark {
+  flex: none;
+  padding-right: 24px;
+  border-right: 1px solid var(--fs-rule);
+}
+
+.fsc-bar__story {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 112ch;
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.fsc-bar__lead {
+  color: var(--fs-ink);
+  font-weight: 560;
+}
+
+.fsc-bar__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.fsc-bar__mock {
+  margin-right: 8px;
+}
+
+.fsc-barlink {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink-2);
+  white-space: nowrap;
+}
+
+.fsc-barlink:hover,
+.fsc-barlink[aria-pressed="true"] {
+  color: var(--fs-ink);
+}
+
+.fsc-barlink:disabled {
+  color: var(--fs-ink-3);
+}
+
+.fsc-proofchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-left: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fsc-proofchip:hover {
+  border-color: var(--fs-ink-3);
+}
+
+/* The stage's own state (queued, resetting, start-failed, autoplay, paused, a switch that is off). */
+.fsc-notice {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.fsc-notice > .fs-glyph {
+  color: var(--fs-ink-2);
+}
+
+.fsc-notice[data-state="autoplay"] > .fs-glyph,
+.fsc-notice[data-state="ai-off"] > .fs-glyph {
+  color: var(--fs-pencil);
+}
+
+.fsc-notice__ref {
+  color: var(--fs-ink-3);
+}
+
+/* ---------------------------------------------------------------- console */
+
+.fsc-console {
+  display: grid;
+  grid-template-columns: var(--fs-console-rail) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.fsc-console[data-rail="collapsed"] {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.fsc-console__main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fsc-console__top {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-console__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.fsc-console__screen {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 28px 32px 56px;
+  scroll-padding-block: 24px;
+  overscroll-behavior: contain;
+}
+
+.fsc-console__drawer {
+  display: contents;
+}
+
+/* A drawer in push mode takes its 560 px from the screen instead of covering it (S1.6, 1280–1599 px). */
+.fsc-console__body:has(.fsc-drawer[data-mode="push"]) > .fsc-console__screen {
+  right: var(--fs-console-drawer);
+}
+
+/* ---------------------------------------------------------------- rail */
+
+.fsc-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 20px 12px 16px;
+  overflow-y: auto;
+  border-right: 1px solid var(--fs-rule);
+}
+
+.fsc-rail > .fsc-wordmark {
+  padding: 0 12px 20px;
+}
+
+.fsc-rail__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-rail__item {
+  appearance: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink-2);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: left;
+  text-decoration: none;
+}
+
+.fsc-rail__item:hover {
+  color: var(--fs-ink);
+}
+
+.fsc-rail__item[aria-current="page"] {
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsc-rail__item .fsc-kbd {
+  margin-left: auto;
+}
+
+.fsc-rail__foot {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.fsc-rail__acting {
+  padding: 12px 12px 6px;
+  border-top: 1px solid var(--fs-rule);
+  color: var(--fs-ink-3);
+}
+
+.fsc-rail__mark {
+  padding: 14px 12px 0;
+  color: var(--fs-ink-3);
+  font-family: var(--fs-font-mark);
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1.25rem;
+  font-variant-numeric: lining-nums;
+}
+
+/* Folded to glyphs below 1280 px: each label stays announced and shows beside its glyph on hover or focus. */
+.fsc-rail[data-collapsed] {
+  align-items: center;
+  padding: 16px 0;
+  overflow: visible;
+}
+
+.fsc-rail[data-collapsed] .fsc-rail__list,
+.fsc-rail[data-collapsed] .fsc-rail__foot {
+  justify-items: center;
+}
+
+.fsc-rail[data-collapsed] .fsc-rail__item {
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+.fsc-rail[data-collapsed] .fsc-rail__label {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  z-index: var(--fs-z-popover);
+  padding: 5px 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+  font-weight: 560;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-rail[data-collapsed] .fsc-rail__item:hover .fsc-rail__label,
+.fsc-rail[data-collapsed] .fsc-rail__item:focus-visible .fsc-rail__label {
+  opacity: 1;
+}
+
+.fsc-rail[data-collapsed] .fsc-rail__mark {
+  padding: 10px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+/* ---------------------------------------------------------------- run pill */
+
+.fsc-pill {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+}
+
+.fsc-pill__state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0 12px;
+  border-right: 1px solid var(--fs-rule);
+  color: var(--fs-ink-3);
+  white-space: nowrap;
+}
+
+.fsc-pill__next {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 16px 0 14px;
+  color: var(--fs-ink);
+  text-decoration: none;
+}
+
+.fsc-pill__next > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsc-pill__next:hover > span:last-child {
+  text-decoration: underline;
+  text-decoration-color: var(--fs-ink-3);
+  text-underline-offset: 3px;
+}
+
+/* Who moves the run next: canary when a person must decide, pencil while the machine reads, an open ring
+   while PayPal confirms, ink when it is done. A word always says the same thing beside it. */
+.fsc-pill__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--fs-canary);
+}
+
+.fsc-pill[data-actor="machine"] .fsc-pill__mark {
+  background: var(--fs-pencil);
+}
+
+.fsc-pill[data-actor="paypal"] .fsc-pill__mark {
+  border: 1.5px solid var(--fs-ink-2);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-pill[data-actor="done"] .fsc-pill__mark {
+  background: var(--fs-ink);
+}
+
+.fsc-pill__slot {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-left: 1px solid var(--fs-rule);
+}
+
+.fsc-pill__slot:empty {
+  display: none;
+}
+
+.fsc-pill__menu {
+  appearance: none;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  border: 0;
+  border-left: 1px solid var(--fs-rule);
+  background: transparent;
+  color: var(--fs-ink-2);
+}
+
+.fsc-pill__menu:hover,
+.fsc-pill__menu[data-popup-open] {
+  color: var(--fs-ink);
+  background: var(--fs-plate-2);
+}
+
+/* ---------------------------------------------------------------- connection */
+
+.fsc-banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+}
+
+/* ---------------------------------------------------------------- the drawer frame (W-TR-06, W-TR-09) */
+
+.fsc-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: var(--fs-z-scrim);
+  background: var(--fs-scrim);
+  transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
+}
+
+.fsc-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--fs-z-drawer);
+  display: flex;
+  flex-direction: column;
+  width: var(--fs-console-drawer);
+  max-width: 100%;
+  overflow: hidden auto;
+  border-left: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  overscroll-behavior: contain;
+  transition:
+    transform var(--fs-dur-drawer-in) var(--fs-ease-drawer),
+    opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
+}
+
+.fsc-drawer[data-mode="push-full"] {
+  left: 0;
+  width: auto;
+  border-left: 0;
+}
+
+@starting-style {
+  .fsc-drawer {
+    opacity: 0;
+    transform: translateX(calc(32px * var(--fs-motion, 1)));
+  }
+
+  .fsc-drawer-scrim {
+    opacity: 0;
+  }
+}
+
+.fsc-drawer__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 8px 12px 8px 24px;
+  border-bottom: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+}
+
+.fsc-drawer__meta {
+  color: var(--fs-ink-3);
+}
+
+.fsc-drawer__close {
+  min-height: 34px;
+  padding: 0 8px 0 10px;
+  border-color: transparent;
+}
+
+.fsc-drawer__close .fsc-kbd {
+  height: 18px;
+  min-width: 0;
+  padding: 0 5px;
+  font-size: 0.6875rem;
+}
+
+.fsc-drawer__body {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  padding: 24px;
+}
+
+/* ---------------------------------------------------------------- phone dock */
+
+.fsc-dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fsc-stage[data-layout="dock"] .fsc-dock {
+  overflow: hidden auto;
+  border-left: 1px solid var(--fs-rule);
+}
+
+.fsc-dock__panel {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  padding: 16px 20px 20px;
+}
+
+.fsc-dock__tabsroot {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.fsc-dock__tabs {
+  display: inline-flex;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-ground);
+}
+
+.fsc-dock__tab {
+  appearance: none;
+  min-height: 30px;
+  min-width: 72px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--fs-ink-2);
+}
+
+.fsc-dock__tab + .fsc-dock__tab {
+  border-left: 1px solid var(--fs-rule);
+}
+
+.fsc-dock__tab:hover {
+  color: var(--fs-ink);
+}
+
+.fsc-dock__tab[data-selected],
+.fsc-dock__tab[aria-selected="true"] {
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsc-dock__device {
+  position: relative;
+}
+
+.fsc-dock__frame {
+  transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+/* Docked at 1680 px and wider: the phone waits under a 56% ground scrim until it is the focus (S1.6). */
+.fsc-dock__scrim {
+  appearance: none;
+  position: absolute;
+  inset: -2px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 36px;
+  background: color-mix(in srgb, var(--fs-ground) 56%, transparent);
+  color: var(--fs-ink);
+}
+
+.fsc-dock__scrim-label {
+  padding: 8px 14px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+  transition: border-color var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-dock__scrim:hover .fsc-dock__scrim-label,
+.fsc-dock__scrim:focus-visible .fsc-dock__scrim-label {
+  border-color: var(--fs-ink-3);
+}
+
+.fsc-dock__scrim:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 1024–1679 px: a 64 px tab at the bottom right; it rises to the phone over a scrim on the console. */
+.fsc-stage[data-layout="tab"] .fsc-dock {
+  position: absolute;
+  inset: 0;
+  z-index: var(--fs-z-dock);
+  pointer-events: none;
+}
+
+.fsc-dock__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--fs-scrim);
+  pointer-events: auto;
+  transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
+}
+
+@starting-style {
+  .fsc-dock__backdrop {
+    opacity: 0;
+  }
+}
+
+.fsc-dock__handle {
+  appearance: none;
+  position: absolute;
+  right: 24px;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 400px;
+  height: 64px;
+  padding: 0 16px 0 12px;
+  border: 1px solid var(--fs-rule);
+  border-bottom: 0;
+  border-radius: var(--fs-radius-2) var(--fs-radius-2) 0 0;
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  text-align: left;
+  pointer-events: auto;
+}
+
+.fsc-dock__handle:hover {
+  background: var(--fs-plate-2);
+}
+
+.fsc-dock__handle-face {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink-2);
+}
+
+.fsc-dock__handle-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fsc-dock__handle-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsc-dock__handle-action {
+  color: var(--fs-ink-3);
+}
+
+.fsc-stage[data-layout="tab"] .fsc-dock__panel {
+  position: absolute;
+  right: 24px;
+  bottom: 64px;
+  z-index: 1;
+  width: 400px;
+  padding: 16px 10px 14px;
+  border: 1px solid var(--fs-rule);
+  border-bottom: 0;
+  background: var(--fs-plate);
+  pointer-events: auto;
+  transition:
+    transform var(--fs-spring-glide-dur) var(--fs-spring-glide),
+    visibility 0s linear;
+}
+
+.fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
+  visibility: hidden;
+  transform: translateY(calc(100% + 64px));
+  transition:
+    transform var(--fs-dur-drawer-out) var(--fs-ease-drawer),
+    visibility 0s linear var(--fs-dur-drawer-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fsc-stage[data-layout="tab"] .fsc-dock__panel,
+  .fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
+    transform: none;
+    transition:
+      opacity var(--fs-dur-reduced) linear,
+      visibility 0s linear var(--fs-dur-reduced);
+  }
+
+  .fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
+    opacity: 0;
+  }
+}
+
+/* The phone itself: the bezel is chrome and casts nothing; the screen is the app (Adlaw). */
+.fsc-dock .fs-phone__caption {
+  max-width: 34ch;
+}
+
+.fsc-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.fsc-frame[hidden] {
+  display: none;
+}
+
+.fsc-frame__app {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--fs-ground);
+}
+
+/* The preview a frame shows until the app answers: a still of that persona's screen, labelled. */
+.fsc-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--fs-ground);
+  color: var(--fs-ink);
+}
+
+.fsc-poster__screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 28px 20px 16px;
+  overflow: hidden;
+}
+
+.fsc-poster__statement {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 16px;
+}
+
+.fsc-poster__coop {
+  color: var(--fs-ink-2);
+}
+
+.fsc-poster__greet {
+  max-width: 22ch;
+}
+
+.fsc-poster__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+  color: var(--fs-ink-2);
+}
+
+.fsc-poster__note {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+  color: var(--fs-ink-2);
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: a different glyph from the notice strip's */
+.fsc-poster__note .fs-glyph {
+  margin-top: 1px;
+}
+
+/* ---------------------------------------------------------------- ribbon and caption */
+
+.fsc-ribbon {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.fsc-ribbon__lane {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 24px 12px;
+}
+
+.fsc-ribbon__lane + .fsc-ribbon__lane {
+  border-left: 1px solid var(--fs-rule);
+}
+
+.fsc-ribbon__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-3);
+}
+
+/* The lane's material: graphite for the machine, ink for people, an open ring for PayPal until a payment
+   it confirmed is the newest row, which is jade flush (design §2.2: jade only when PayPal confirms). */
+.fsc-ribbon__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--fs-pencil);
+}
+
+.fsc-ribbon__lane[data-lane="people"] .fsc-ribbon__mark {
+  background: var(--fs-ink);
+}
+
+.fsc-ribbon__lane[data-lane="paypal"] .fsc-ribbon__mark {
+  border: 1.5px solid var(--fs-ink-2);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-ribbon__lane[data-lane="paypal"][data-landed] .fsc-ribbon__mark {
+  border-color: var(--fs-jade-flush-border);
+  border-radius: 0;
+  background: var(--fs-jade);
+}
+
+.fsc-ribbon__row {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fsc-ribbon__row[data-print] {
+  animation: fs-wipe var(--fs-dur-print) linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fsc-ribbon__row[data-print] {
+    animation: fs-fade var(--fs-dur-reduced) linear;
+  }
+}
+
+.fsc-ribbon__words,
+.fsc-ribbon__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsc-ribbon__lane[data-lane="machine"] .fsc-ribbon__words {
+  color: var(--fs-pencil);
+}
+
+.fsc-ribbon__row[data-duplicate] .fsc-ribbon__words {
+  color: var(--fs-ink-2);
+}
+
+.fsc-ribbon__detail {
+  display: flex;
+  gap: 8px;
+  color: var(--fs-ink-3);
+}
+
+.fsc-ribbon__detail time {
+  flex: none;
+  color: var(--fs-ink-2);
+}
+
+.fsc-ribbon__detail > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fsc-ribbon__empty {
+  color: var(--fs-ink-3);
+}
+
+.fsc-stage__caption {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 24px;
+  padding: 6px 24px 8px;
+  color: var(--fs-ink-3);
+}
+
+.fsc-stage__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fs-z-flight);
+  pointer-events: none;
+}
+
+.fsc-stage__overlay:empty {
+  display: none;
+}
+
+/* The one-time sound question, beside the first press (S1.6). */
+.fsc-offer {
+  position: absolute;
+  bottom: 112px;
+  left: 24px;
+  z-index: var(--fs-z-snackbar);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 48px);
+  padding: 8px 12px 8px 14px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  transition:
+    opacity var(--fs-dur-popover) var(--fs-ease-out),
+    transform var(--fs-dur-popover) var(--fs-ease-out);
+}
+
+@starting-style {
+  .fsc-offer {
+    opacity: 0;
+    transform: translateY(calc(8px * var(--fs-motion, 1)));
+  }
+}
+
+.fsc-offer .fs-flat {
+  min-height: 32px;
+}
+
+/* Beside the console's screen, never over the rail. */
+.fsc-stage[data-rail="full"] .fsc-offer {
+  left: calc(var(--fs-console-rail) + 24px);
+}
+
+.fsc-stage[data-rail="collapsed"] .fsc-offer {
+  left: calc(64px + 24px);
+}
+
+/* ---------------------------------------------------------------- phone visit (under 1024 px) */
+
+.fsc-stage[data-layout="phone-visit"] {
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-stage__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: 32px 16px 40px;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-bar {
+  flex-wrap: wrap;
+  padding: 10px 16px;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-bar__story {
+  order: 3;
+  flex-basis: 100%;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-bar__actions {
+  margin-left: auto;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-bar .fsc-wordmark {
+  padding-right: 0;
+  border-right: 0;
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: layouts are exclusive; the tab rules never apply here */
+.fsc-stage[data-layout="phone-visit"] .fsc-dock__panel {
+  padding: 0;
+}
+
+.fsc-visit {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 560px;
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: the visit's own lockup, not the bar's */
+.fsc-visit > .fsc-wordmark {
+  display: none;
+}
+
+.fsc-visit__body {
+  color: var(--fs-ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.fsc-visit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.fsc-visit__copied {
+  color: var(--fs-ink-2);
+}
+
+.fsc-visit__film:empty {
+  display: none;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-stage__caption {
+  padding: 12px 16px 24px;
+}
+
+/* 1024–1679 px: the phone's tab sits over the bottom right of the screen and of any drawer, so both leave
+   room for it; the tab and its raised phone sit above drawers. */
+/* biome-ignore lint/style/noDescendingSpecificity: sets padding, which the push rule above never touches */
+.fsc-stage[data-layout="tab"] .fsc-console__screen,
+.fsc-stage[data-layout="tab"] .fsc-drawer__body {
+  padding-bottom: 104px;
+}
+
+.fsc-stage[data-layout="tab"] .fsc-dock {
+  z-index: calc(var(--fs-z-drawer) + 1);
+}
+
+@media (max-width: 1279px) {
+  .fsc-bar {
+    flex-wrap: wrap;
+    padding-left: 16px;
+  }
+
+  .fsc-bar .fsc-wordmark {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  /* The story keeps every word (it is the stage's honesty label) on its own row under the lockup. */
+  .fsc-bar__story {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .fsc-bar__actions {
+    margin-left: auto;
+  }
+
+  .fsc-ribbon__lane {
+    padding-inline: 16px;
+  }
+
+  .fsc-console__screen {
+    padding: 24px 24px 48px;
+  }
+}
+
+@media (max-width: 639px) {
+  .fsc-bar .fsc-wordmark {
+    flex-basis: 100%;
+  }
+
+  .fsc-bar__actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 6px 4px;
+    margin-left: 0;
+  }
+
+  .fsc-proofchip {
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,133 @@
+// The stage's own states (S1.6: queued, resetting, start-failed, autoplay, paused, ai-off, paypal-off) as one
+// strip under the top bar. Only one shows at a time, the most pressing first. Nothing here is an error
+// colour: the stage pacing itself, a reset or a paused switch is information, not failure.
+
+import { translate } from "@fairsplit/i18n";
+import { Glyph, type GlyphName } from "@fairsplit/ui-web";
+import { errorView } from "../data/errors.js";
+import type { JudgeSessionApi } from "../data/hooks.js";
+import type { RunView } from "../data/run-view.js";
+import type { AutoplayState } from "../stage/context.js";
+import { STAGE_NOTICE } from "./copy.js";
+
+export type NoticeState =
+  | "resetting"
+  | "start-failed"
+  | "autoplay"
+  | "paused"
+  | "queued"
+  | "ai-off"
+  | "paypal-off";
+
+export interface StageNoticeView {
+  readonly state: NoticeState;
+  readonly glyph: GlyphName;
+  readonly text: string;
+  readonly refs: readonly string[];
+  readonly retry: boolean;
+}
+
+/** Seconds a judge waits per place in the live lane (S1.6's "about 40 s"). An estimate, and worded as one. */
+export const QUEUE_SECONDS_PER_PLACE = 40;
+
+export interface StageNoticeInput {
+  readonly session: Pick<JudgeSessionApi, "status" | "session" | "error">;
+  readonly view: RunView | undefined;
+  readonly autoplay: AutoplayState;
+  readonly inSession: boolean;
+}
+
+/** The notice the stage shows, or null. Pure, so the stage's `data-state` follows it exactly. */
+export function stageNoticeFor({
+  session,
+  view,
+  autoplay,
+  inSession,
+}: StageNoticeInput): StageNoticeView | null {
+  const none: readonly string[] = [];
+  if (session.status === "resetting") {
+    return {
+      state: "resetting",
+      glyph: "ms:restart-alt",
+      text: STAGE_NOTICE.resetting,
+      refs: none,
+      retry: false,
+    };
+  }
+  if (session.status === "failed") {
+    const failure = session.error ? errorView(session.error) : null;
+    return {
+      state: "start-failed",
+      glyph: "ms:restart-alt",
+      text: failure ? `${STAGE_NOTICE.startFailed} ${failure.title}` : STAGE_NOTICE.startFailed,
+      refs: failure?.refs ?? none,
+      retry: true,
+    };
+  }
+  if (autoplay === "autoplay") {
+    return {
+      state: "autoplay",
+      glyph: "ms:play-arrow",
+      text: STAGE_NOTICE.autoplay,
+      refs: none,
+      retry: false,
+    };
+  }
+  if (autoplay === "paused") {
+    return { state: "paused", glyph: "ms:pause", text: STAGE_NOTICE.paused, refs: none, retry: false };
+  }
+  const place = session.session?.queuePosition ?? null;
+  if (inSession && place !== null && place > 0) {
+    const seconds = place * QUEUE_SECONDS_PER_PLACE;
+    return {
+      state: "queued",
+      glyph: "ms:schedule",
+      text: translate("en", "W-JG-01.state.queued", { seconds }),
+      refs: none,
+      retry: false,
+    };
+  }
+  if (inSession && view?.flags.kill_ai_live) {
+    return { state: "ai-off", glyph: "pencil", text: STAGE_NOTICE.aiOff, refs: none, retry: false };
+  }
+  if (inSession && (view?.flags.kill_paypal_live || view?.flags.kill_payouts)) {
+    return {
+      state: "paypal-off",
+      glyph: "rail",
+      text: view.flags.kill_paypal_live ? STAGE_NOTICE.paypalOff : STAGE_NOTICE.payoutsOff,
+      refs: none,
+      retry: false,
+    };
+  }
+  return null;
+}
+
+export function StageNotice({
+  notice,
+  onRetry,
+}: {
+  readonly notice: StageNoticeView;
+  readonly onRetry: () => void;
+}) {
+  return (
+    <p className="fsc-notice" role="status" data-state={notice.state} data-testid="W-JG-01.notice.state">
+      <Glyph name={notice.glyph} size={16} />
+      <span className="fsc-notice__text">{notice.text}</span>
+      {notice.refs.map((ref) => (
+        <span key={ref} className="fsc-notice__ref fs-t-hash">
+          {ref}
+        </span>
+      ))}
+      {notice.retry && (
+        <button
+          type="button"
+          className="fs-link fs-t-label"
+          onClick={onRetry}
+          data-testid="W-JG-01.notice.retry"
+        >
+          {STAGE_NOTICE.startRetry}
+        </button>
+      )}
+    </p>
+  );
+}

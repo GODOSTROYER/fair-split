@@ -1,0 +1,397 @@
+/* Screens not built yet, and every screen's loading state: dashed print beds at final size, never a shimmer
+   (S1.7 W-TR-03 `loading`). The figures a placeholder already knows print flat in their amount state
+   (S2.2.1): graphite for the engine's, an outline for money in flight, ink for what people decided. */
+
+/* ---------------------------------------------------------------- beds */
+
+.fsc-bed {
+  position: relative;
+  display: block;
+  border: 1px dashed var(--fs-rule);
+  border-radius: 0;
+}
+
+.fsc-bed__label {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  color: var(--fs-ink-3);
+  white-space: nowrap;
+}
+
+.fsc-bed--row {
+  height: var(--fs-console-row);
+  border-width: 0 0 1px;
+}
+
+.fsc-bed--line {
+  height: 14px;
+  width: 100%;
+}
+
+/* Lines of print vary in length the way text does, never as identical bars. */
+.fsc-bed--line:nth-of-type(3n + 2) {
+  width: 82%;
+}
+
+.fsc-bed--line:nth-of-type(3n) {
+  width: 64%;
+}
+
+.fsc-bed--block {
+  width: 100%;
+  min-height: 40px;
+}
+
+.fsc-bed--photo {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+}
+
+.fsc-bed--plate {
+  width: 100%;
+  min-height: 96px;
+}
+
+.fsc-bed--seal {
+  flex: none;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+}
+
+.fsc-bed--slab {
+  width: 240px;
+  height: 56px;
+}
+
+/* ---------------------------------------------------------------- the placeholder screen */
+
+.fsc-ph {
+  display: grid;
+  align-content: start;
+  gap: 28px;
+  max-width: 1160px;
+}
+
+.fsc-ph__head {
+  display: grid;
+  gap: 8px;
+  max-width: 72ch;
+}
+
+.fsc-ph__mark {
+  color: var(--fs-ink-2);
+}
+
+.fsc-ph__slug {
+  color: var(--fs-ink-3);
+}
+
+.fsc-ph__title {
+  color: var(--fs-ink);
+}
+
+.fsc-ph__lede {
+  max-width: 64ch;
+  color: var(--fs-ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.fsc-ph__pencil {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--fs-pencil);
+}
+
+.fsc-ph__pencil .fs-glyph {
+  margin-top: 2px;
+}
+
+.fsc-ph__facts {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.fsc-ph__facts dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 56px;
+  margin: 0;
+}
+
+.fsc-ph__fact {
+  display: grid;
+  gap: 6px;
+}
+
+.fsc-ph__fact dt {
+  color: var(--fs-ink-3);
+}
+
+.fsc-ph__fact dd {
+  margin: 0;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+/* S2.2.1's amount grammar, large: pencil is solid graphite; hollow is the outline of money in flight. */
+.fsc-ph__fact[data-amount-state="pencil"] dd,
+.fsc-ph__figure[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsc-ph__fact[data-amount-state="hollow"] dd {
+  color: transparent;
+  -webkit-text-stroke: var(--fs-hollow-stroke) var(--fs-ink);
+  font-family: var(--fs-font-hollow);
+}
+
+.fsc-ph__provenance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-3);
+}
+
+.fsc-ph__provenance::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--fs-pencil);
+}
+
+.fsc-ph__seal {
+  display: grid;
+  justify-items: start;
+}
+
+.fsc-ph__action {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.fsc-ph__note {
+  max-width: 72ch;
+  padding-top: 12px;
+  border-top: 1px dashed var(--fs-rule);
+  color: var(--fs-ink-3);
+}
+
+.fsc-ph--drawer {
+  gap: 20px;
+}
+
+.fsc-ph__beds {
+  display: grid;
+  gap: 12px;
+}
+
+.fsc-ph__beds .fsc-bed--line {
+  height: 12px;
+}
+
+.fsc-ph__figure {
+  margin-top: 4px;
+}
+
+/* The Approve column and Proof's hero are the only centred things in the console (design §2.4). */
+.fsc-ph--column {
+  justify-items: center;
+  max-width: var(--fs-console-approve);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.fsc-ph--column .fsc-ph__head,
+.fsc-ph--column .fsc-ph__lede {
+  justify-items: center;
+  margin-inline: auto;
+}
+
+.fsc-ph--column .fsc-ph__facts dl {
+  justify-content: center;
+}
+
+.fsc-ph--column .fsc-ph__provenance {
+  justify-content: center;
+}
+
+.fsc-ph--column .fsc-ph__seal {
+  justify-items: center;
+  order: -1;
+}
+
+.fsc-ph--column .fsc-ph__note {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- bed layouts, at final size */
+
+.fsc-beds {
+  display: grid;
+  gap: 24px;
+}
+
+.fsc-beds[data-layout="stage"] {
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 32px;
+  align-items: start;
+}
+
+.fsc-beds__sheet {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 18px 16px;
+}
+
+.fsc-beds__plates {
+  display: grid;
+  gap: 24px;
+}
+
+.fsc-beds__plates--wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fsc-beds__strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fsc-beds__strip .fsc-bed--line {
+  width: 100%;
+  height: 28px;
+}
+
+.fsc-beds[data-layout="plates"] {
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.fsc-bed--page {
+  aspect-ratio: 1 / 1.414;
+}
+
+.fsc-beds__rules {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.fsc-beds[data-layout="split"] {
+  grid-template-columns: 58fr 42fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.fsc-bed--bench {
+  aspect-ratio: 4 / 3;
+}
+
+.fsc-beds[data-layout="split"] .fsc-beds__rules {
+  gap: 0;
+}
+
+.fsc-beds[data-layout="focus"] {
+  max-width: 560px;
+  gap: 16px;
+}
+
+.fsc-bed--crop {
+  aspect-ratio: 8 / 3;
+}
+
+.fsc-beds__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-beds__grid {
+  display: grid;
+}
+
+.fsc-beds[data-layout="column"] {
+  justify-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.fsc-beds[data-layout="column"] > .fsc-bed--block,
+.fsc-beds[data-layout="column"] > .fsc-bed--line {
+  max-width: 480px;
+}
+
+.fsc-beds__keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.fsc-beds[data-layout="fan"] {
+  gap: 24px;
+}
+
+.fsc-bed--fan {
+  height: 320px;
+}
+
+.fsc-beds__lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+
+.fsc-beds__lanes > .fsc-bed + .fsc-bed {
+  border-left-width: 0;
+}
+
+.fsc-beds[data-layout="print"] {
+  justify-items: center;
+}
+
+.fsc-bed--receipt {
+  width: 80mm;
+  height: 420px;
+}
+
+.fsc-beds[data-layout="proof"] {
+  gap: 16px;
+}
+
+.fsc-beds__tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.fsc-beds[data-layout="form"] {
+  max-width: 420px;
+  gap: 12px;
+}
+
+@media (max-width: 1279px) {
+  .fsc-beds[data-layout="stage"],
+  .fsc-beds[data-layout="plates"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-beds__plates--wide,
+  .fsc-beds__tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

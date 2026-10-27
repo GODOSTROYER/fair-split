@@ -1,0 +1,157 @@
+/* The console's browser surfaces (Tablea by default, Adlaw on Proof and print): the parts no component draws,
+   themed from the --fs-* tokens so nothing ships with a browser default. Every value here is a token. */
+
+@layer base {
+  :root {
+    caret-color: var(--fs-ink);
+    accent-color: var(--fs-ink);
+  }
+
+  /* Programmatic focus targets (the screen, a drawer, a sheet) don't ring on click; keyboard focus still does. */
+  :where([tabindex="-1"]):focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  :where(a, button, [role="tab"], [role="menuitem"], [role="switch"]):focus-visible {
+    outline: var(--fs-focus-width) solid var(--fs-pod);
+    outline-offset: var(--fs-focus-offset);
+  }
+
+  :where(button) {
+    cursor: pointer;
+  }
+
+  :where(button:disabled, button[aria-disabled="true"]) {
+    cursor: default;
+  }
+
+  :where(p, li, dd, figcaption) {
+    text-wrap: pretty;
+  }
+
+  :where(h1, h2, h3) {
+    text-wrap: balance;
+  }
+
+  :where(time, .fs-t-figure, .fs-t-hash, .fs-t-amount-l, .fs-t-amount-hero) {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* A keyboard key: a small, square plate with a heavier lower rule. Never a slab, never pressable. */
+  .fsc-kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border: 1px solid var(--fs-rule);
+    border-bottom-width: 2px;
+    border-radius: var(--fs-radius-2);
+    background: var(--fs-plate);
+    color: var(--fs-ink-2);
+    font-family: var(--fs-font-ui);
+    font-stretch: 87.5%;
+    font-weight: 560;
+    font-size: 0.75rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* The lockup: "Fair Split:" in the slab cut, "co-op payroll" beneath it (inline when compact). */
+  .fsc-wordmark {
+    margin: 0;
+    color: var(--fs-ink);
+    font-family: var(--fs-font-ui);
+    font-stretch: 112.5%;
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1.25rem;
+    white-space: nowrap;
+  }
+
+  .fsc-wordmark__qualifier {
+    display: block;
+    color: var(--fs-ink-2);
+    font-stretch: 100%;
+    font-weight: 450;
+  }
+
+  .fsc-wordmark[data-compact] .fsc-wordmark__qualifier {
+    display: inline;
+  }
+
+  /* The first thing a keyboard reaches on the stage. */
+  .fsc-skip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: var(--fs-z-flight);
+    padding: 8px 12px;
+    background: var(--fs-ink);
+    color: var(--fs-ground);
+    font-weight: 560;
+    font-size: 0.8125rem;
+    line-height: 1rem;
+    text-decoration: none;
+    transform: translateY(calc(-100% - 16px));
+  }
+
+  .fsc-skip:focus-visible {
+    transform: none;
+  }
+
+  /* Switches in sheets (W-TR-10): a square track and thumb, the console's own geometry. */
+  .fsc-toggle {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--fs-ink);
+    text-align: left;
+  }
+
+  .fsc-toggle__track {
+    position: relative;
+    flex: none;
+    width: 34px;
+    height: 20px;
+    border: 1px solid var(--fs-ink-3);
+    border-radius: var(--fs-radius-2);
+    background: var(--fs-plate);
+  }
+
+  .fsc-toggle__thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    background: var(--fs-ink-3);
+    transition:
+      transform var(--fs-dur-press) var(--fs-ease-press),
+      background-color var(--fs-dur-press) var(--fs-ease-press);
+  }
+
+  .fsc-toggle[aria-checked="true"] .fsc-toggle__track {
+    border-color: var(--fs-ink);
+    background: var(--fs-ink);
+  }
+
+  .fsc-toggle[aria-checked="true"] .fsc-toggle__thumb {
+    background: var(--fs-ground);
+    transform: translateX(14px);
+  }
+
+  /* Reduced motion keeps the state and drops the travel. */
+  @media (prefers-reduced-motion: reduce) {
+    .fsc-toggle__thumb {
+      transition: none;
+    }
+  }
+}
