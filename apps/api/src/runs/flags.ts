@@ -21,7 +21,7 @@ import type { AppDeps } from "../lib/context.js";
 import { ApiProblem } from "../lib/problem.js";
 import { allow, CAN, personaId } from "./access.js";
 import { emit, factLedger, noteSha256 } from "./events.js";
-import { cause, moveLine, moveRun } from "./machine.js";
+import { cause, moveLine, moveRun, type RunRow } from "./machine.js";
 
 export interface KillFlags {
   killPayouts: boolean;
@@ -93,6 +93,31 @@ export async function flagDto(
   };
 }
 
+/**
+ * HALTs one run waiting on signatures or on its POST (S3.11 `kill_payouts`): its approvals voided, its lines
+ * unlocked, the run HALTED with the switch as its reason. The caller holds the run lock.
+ */
+export async function haltRun(
+  tx: DbOrTx,
+  scope: WorkspaceScope,
+  run: RunRow,
+  at: Date,
+  reason: SystemFlagName,
+): Promise<RunRow> {
+  await voidLiveApprovals(tx, scope, run.id, at, reason);
+  const halted = await moveRun(tx, scope, {
+    id: run.id,
+    from: run.state as PayRunState,
+    to: "HALTED",
+    version: run.version,
+    cause: cause("HALT", reason),
+    provenance: "live",
+    patch: { haltedReason: reason },
+  });
+  await unlockLines(tx, scope, run.id, "HALT");
+  return halted;
+}
+
 /** The effect of `kill_payouts` turning on: HALT runs waiting on signatures and void their approvals. */
 async function haltSigningRuns(tx: DbOrTx, scope: WorkspaceScope, at: Date): Promise<string[]> {
   const runs = await tx
@@ -101,17 +126,7 @@ async function haltSigningRuns(tx: DbOrTx, scope: WorkspaceScope, at: Date): Pro
     .where(and(eq(schema.payRuns.workspaceId, scope.workspaceId), inArray(schema.payRuns.state, HALTABLE)));
   const halted: string[] = [];
   for (const run of runs) {
-    await voidLiveApprovals(tx, scope, run.id, at, "kill_payouts");
-    await moveRun(tx, scope, {
-      id: run.id,
-      from: run.state as PayRunState,
-      to: "HALTED",
-      version: run.version,
-      cause: cause("HALT", "kill_payouts"),
-      provenance: "live",
-      patch: { haltedReason: "kill_payouts" },
-    });
-    await unlockLines(tx, scope, run.id, "HALT");
+    await haltRun(tx, scope, run, at, "kill_payouts");
     halted.push(run.id);
   }
   return halted;

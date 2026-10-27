@@ -2,7 +2,8 @@
 // co-signs when R5 asks for her (a batch over US$300, a line over US$150, any override).
 //
 //   approvalPayload  GET  the register §8 JCS payload for one role, built by code from the database batch,
-//                         with a fresh server nonce and exp = now + 30 min.
+//                         with a fresh server nonce and exp = now + 30 min. Refused (INVALID_TRANSITION,
+//                         details.unpayable), like submitApproval, while a PayPal member has no receiver.
 //   submitApproval   POST verifies, in the domain's order (`expectedSigner`, `checkApproval`): the key is the
 //                         registered, unrevoked device key for the role (never a seeded or presented key);
 //                         the credential holds that key (a judge signs only with a labelled demo key); the
@@ -81,6 +82,19 @@ function blockingProblem(batch: RunBatch): ApiProblem {
   });
 }
 
+/**
+ * S3.6.4 step 4: a member PayPal cannot be told about is a visible refusal, never a silent omission. Signing
+ * the batch without them would leave their line READY on-rail forever while the run settles (I3).
+ */
+function unpayableProblem(state: PayRunState, batch: RunBatch): ApiProblem {
+  const who = batch.unpayable.join(", ");
+  return refuse(
+    "INVALID_TRANSITION",
+    `No PayPal receiver is configured for ${who}: the batch would leave them unpaid. Nothing can be signed until the operator adds the address.`,
+    { runState: state, unpayable: batch.unpayable },
+  );
+}
+
 export function receiversOf(deps: Pick<AppDeps, "env">) {
   return receiverDirectory(deps.env.paypal);
 }
@@ -100,6 +114,7 @@ export const approvalPayloadHandler: CommandHandler<"approvalPayload"> = async (
       `The run is ${run.state}: nothing for the ${ROLE_NOUN[role]} to sign.`,
     );
   }
+  if (batch.unpayable.length > 0) throw unpayableProblem(run.state as PayRunState, batch);
   if (!batch.digest) {
     throw invalidTransition(
       run.state as PayRunState,
@@ -210,6 +225,7 @@ export const submitApprovalHandler: CommandHandler<"submitApproval"> = async (ct
             `The run is ${run.state}: the ${ROLE_NOUN[role]} cannot sign now.`,
           );
         }
+        if (batch.unpayable.length > 0) throw unpayableProblem(run.state as PayRunState, batch);
         if (!batch.digest) throw invalidTransition(run.state as PayRunState, "There is no batch to sign.");
 
         // 1. The signer is the registry's key for this role (never a presented or seeded key).
@@ -478,6 +494,7 @@ export async function batchView(deps: AppDeps, scope: WorkspaceScope, runSlug: s
     chairRequired: batch.chair.required,
     chairReasons: batch.chair.reasons,
     blocking: batch.blocking.map((h) => ({ id: h.id, label: h.code ?? h.kind })),
+    unpayable: batch.unpayable,
     rail: deps.paypal.label,
   };
 }

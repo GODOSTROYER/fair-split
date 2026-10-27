@@ -12,7 +12,7 @@ import { sendApprovalFor } from "../agent/tasks.js";
 import type { AppDeps } from "../lib/context.js";
 import { classifyPayPal, PayPalStepError } from "../money/errors.js";
 import { confirmFunding, ensureInvoiceSent, recordPaymentAndFund } from "../money/funding.js";
-import { payoutsServiceFor, sendBack } from "../money/payouts.js";
+import { payoutsServiceFor, refusedByKillSwitch, sendBack } from "../money/payouts.js";
 import { advanceRun, processWebhook, settleBatch } from "../money/settle.js";
 import { recomputeRun } from "./engine.js";
 import { ACTORS } from "./events.js";
@@ -108,7 +108,11 @@ export function runTasks(deps: AppDeps): TaskHandlers {
               retryAfterMs: 6 * 60_000,
             });
           }
-          if (outcome.code === "KILL_SWITCH_ON") return { outcome: "refused", code: outcome.code };
+          if (outcome.code === "KILL_SWITCH_ON") {
+            // HALT (kill_payouts), send back (kill_paypal_live), or wait (rows already written): never parked
+            const runState = await refusedByKillSwitch(deps, scope, args.runId, outcome);
+            return { outcome: "refused", code: outcome.code, runState };
+          }
           if (outcome.code === "ADOPT_FAILED") {
             deps.logger.error(
               { runId: args.runId, reason: outcome.reason },

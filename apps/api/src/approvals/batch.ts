@@ -1,7 +1,8 @@
 // The batch both keys sign and PayoutsService posts (I4: the approved digest is the payout). It is rebuilt
 // from the database every time it is needed (approval payload, each signature, the POST): the on-rail lines
 // that are READY (LOCKED once approved, SUBMITTED once written) with a positive net and no open hold
-// reserving them, each paid to its member's receiver, hashed with IC-02 `batchDigest`.
+// reserving them, each paid to its member's receiver, hashed with IC-02 `batchDigest`. A payable on-rail line
+// whose member has no receiver is listed in `unpayable`, and the approval routes refuse to sign around it.
 import type {
   BatchDigest,
   BatchItem,
@@ -37,7 +38,11 @@ export interface RunBatch {
   overrides: number;
   /** Open holds that block approval (BLOCKS_APPROVAL, OPEN or ASKED_CHAIR). */
   blocking: HoldRow[];
-  /** On-rail members left out because no receiver is known (sandbox mode only). */
+  /**
+   * On-rail members with a payable line but no known receiver (an address missing from PP_RECEIVERS), sorted.
+   * Never silently dropped: while this is non-empty nothing can be signed (S3.6.4 step 4, I3), and the
+   * batch view names them.
+   */
   unpayable: string[];
 }
 
@@ -98,6 +103,7 @@ export async function runBatch(
     });
   }
   items.sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : a.senderItemId > b.senderItemId ? 1 : 0));
+  unpayable.sort();
   const digest =
     items.length > 0
       ? batchDigest(

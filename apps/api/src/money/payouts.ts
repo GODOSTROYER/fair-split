@@ -6,7 +6,9 @@
 //
 // What the service does not do, this does, in the same transactions as its writes: APPROVED → POSTING with
 // the batch and item rows written SUBMITTED and the lines LOCKED → SUBMITTED (`payout.submitting` in the
-// ledger) before the POST; POSTED with items PENDING and lines PAYPAL_PENDING on the 201, and the first
+// ledger) before the POST, but only while the run is still the approval generation the service checked (its
+// approved digest is this batch, and every approval the check used is still live); POSTED with items PENDING
+// and lines PAYPAL_PENDING on the 201, and the first
 // settle GET queued (+25 s in Judge Mode, +90 s otherwise); DENIED with lines NEEDS_ACTION on a synchronous 4xx.
 import type {
   ApprovalPayload,
@@ -34,9 +36,9 @@ import { officerRegistry } from "../approvals/registry.js";
 import type { AppDeps } from "../lib/context.js";
 import { toInt } from "../runs/codes.js";
 import { ACTORS, factLedger, noteSha256, proofLedger } from "../runs/events.js";
-import { readKill, unlockLines, voidLiveApprovals } from "../runs/flags.js";
+import { haltRun, readKill, unlockLines, voidLiveApprovals } from "../runs/flags.js";
 import { canonicalOf, cardById, cosignRule, lockRun, seasonById } from "../runs/load.js";
-import { cause, moveLine, moveRun } from "../runs/machine.js";
+import { cause, moveLine, moveRun, type RunRow } from "../runs/machine.js";
 import { SETTLE_GET_DELAYS_MS } from "../webhooks/apply.js";
 import { PayPalStepError } from "./errors.js";
 import { applyItem } from "./items.js";
@@ -100,12 +102,22 @@ const BATCH_STATUS: Readonly<Record<string, PayoutBatchStatus>> = {
   CANCELLED: "CANCELED",
 };
 
+/** A refusal at the write boundary: nothing was written or sent, and a retry cannot change that. */
+const notThisGeneration = (message: string) =>
+  new PayPalStepError("INVALID_TRANSITION", message, { transient: false });
+
 /** The repository over the database, bound to one workspace. */
 export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRepository {
   const ws = scope.workspaceId;
   const receivers = receiverDirectory(deps.env.paypal);
   const provenance = deps.paypal.provenance;
   const db = deps.db;
+  /**
+   * The nonces of the approvals each `loadPosting` handed to the service's check, by run. `writeSubmitted`
+   * requires every one of them to be still live under the run lock (I4: the batch written is the one the
+   * live approvals signed, never a snapshot from before a send-back and a second approval).
+   */
+  const checked = new Map<string, string[]>();
 
   const facts = async (runId: string) => {
     const [run] = await db
@@ -187,17 +199,23 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRep
             eq(schema.payoutBatches.kind, "primary"),
           ),
         );
+      // writeSubmitted re-checks, under the run lock, that these approvals are still the live ones
+      checked.set(
+        runId,
+        approvals.map((a) => a.payload.nonce),
+      );
       return {
         ...f.facts,
-        lines: lines
-          .map(({ line, memberNo }) => ({
-            lineId: line.id,
-            memberNo,
-            receiver: receivers.receiverFor(memberNo) ?? "",
-            amountCents: BigInt(toInt(line.netCents)),
-            currency: "USD" as const,
-          }))
-          .filter((l) => l.receiver !== "" && l.amountCents > 0n),
+        // Every LOCKED (or SUBMITTED) on-rail line exactly as stored, never filtered: a line whose receiver
+        // has since disappeared reaches the service's line check and refuses the batch by member number
+        // (INVALID_BATCH), instead of silently shrinking the batch the officers signed (S3.6.4 step 4).
+        lines: lines.map(({ line, memberNo }) => ({
+          lineId: line.id,
+          memberNo,
+          receiver: receivers.receiverFor(memberNo) ?? "",
+          amountCents: BigInt(toInt(line.netCents)),
+          currency: "USD" as const,
+        })),
         approvals,
         overrides,
         submitted: batch ? { at: batch.submittedAt.toISOString(), batchSha256: batch.batchSha256 } : null,
@@ -227,7 +245,36 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRep
         const run = await lockRun(tx, scope, batch.runId);
         const at = new Date(batch.at);
         if (batch.kind === "primary") {
-          if (run.state !== "APPROVED") throw new Error(`run is ${run.state}, not APPROVED`);
+          // The snapshot was checked before this lock: the run must still be the approval generation it was
+          // checked against (I4). A send-back and a second approval in between would otherwise post the old
+          // snapshot under approvals that never signed it, or under approvals that were voided.
+          if (run.state !== "APPROVED") {
+            throw notThisGeneration(`The run is ${run.state}, no longer APPROVED; nothing was sent.`);
+          }
+          if (run.batchSha256 !== batch.batchSha256) {
+            throw notThisGeneration("The run was approved again over another batch; nothing was sent.");
+          }
+          const nonces = checked.get(batch.runId) ?? [];
+          const live =
+            nonces.length === 0
+              ? []
+              : await tx
+                  .select({ nonce: schema.approvals.nonce })
+                  .from(schema.approvals)
+                  .where(
+                    and(
+                      eq(schema.approvals.workspaceId, ws),
+                      eq(schema.approvals.runId, batch.runId),
+                      eq(schema.approvals.decision, "SIGNED"),
+                      isNull(schema.approvals.voidedAt),
+                      inArray(schema.approvals.nonce, nonces),
+                    ),
+                  );
+          if (nonces.length === 0 || live.length !== nonces.length) {
+            throw notThisGeneration(
+              "The approvals this batch was checked against were voided; nothing was sent.",
+            );
+          }
           await moveRun(tx, scope, {
             id: run.id,
             from: "APPROVED",
@@ -632,6 +679,8 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRep
 
 export interface ServiceOptions {
   sleep?: (ms: number) => Promise<void>;
+  /** Tests: wraps the repository, e.g. to let another request move the run between two of its calls. */
+  repo?: (base: PayoutsRepository) => PayoutsRepository;
 }
 
 /** The PayoutsService for one workspace, every guard wired. */
@@ -648,7 +697,7 @@ export async function payoutsServiceFor(
   return new PayoutsService({
     http: payoutsHttp(deps.paypal.core.http),
     auth: { invalidate: () => deps.paypal.core.auth.invalidate() },
-    repo: payoutsRepository(deps, scope),
+    repo: o.repo ? o.repo(payoutsRepository(deps, scope)) : payoutsRepository(deps, scope),
     batchDigest: (run, items) =>
       batchDigest(
         run,
@@ -697,32 +746,90 @@ export async function sendBack(
   return withWorkspaceTx(deps.db, scope, async (tx: Tx) => {
     const run = await lockRun(tx, scope, runId);
     if (run.state !== "APPROVED") return run.state as PayRunState;
-    const at = deps.clock.now();
-    await voidLiveApprovals(tx, scope, run.id, at, `refused:${outcome.code}`);
-    await unlockLines(tx, scope, run.id, "SEND_BACK");
-    await factLedger(
-      tx,
-      scope,
-      "payout.refused",
-      {
-        runId,
-        code: outcome.code,
-        senderBatchId: outcome.senderBatchId,
-        reasonSha256: noteSha256(outcome.reason),
-      },
-      { runId, at, actor: ACTORS.outbox },
-    );
-    const moved = await moveRun(tx, scope, {
-      id: run.id,
-      from: "APPROVED",
-      to: "IN_REVIEW",
-      version: run.version,
-      cause: cause("SEND_BACK", outcome.code),
-      provenance: "live",
-      actor: ACTORS.outbox,
-    });
-    return moved.state as PayRunState;
+    return sendBackLocked(tx, deps, scope, run, outcome);
   });
+}
+
+/** `payout.refused` in the ledger: why nothing was sent (the reason as a hash, S3.12). */
+async function recordRefusal(
+  tx: Tx,
+  scope: WorkspaceScope,
+  runId: string,
+  outcome: Extract<BatchOutcome, { kind: "refused" }>,
+  at: Date,
+): Promise<void> {
+  await factLedger(
+    tx,
+    scope,
+    "payout.refused",
+    {
+      runId,
+      code: outcome.code,
+      senderBatchId: outcome.senderBatchId,
+      reasonSha256: noteSha256(outcome.reason),
+    },
+    { runId, at, actor: ACTORS.outbox },
+  );
+}
+
+/** sendBack for an APPROVED run the caller already locked. */
+async function sendBackLocked(
+  tx: Tx,
+  deps: Deps,
+  scope: WorkspaceScope,
+  run: RunRow,
+  outcome: Extract<BatchOutcome, { kind: "refused" }>,
+): Promise<PayRunState> {
+  const at = deps.clock.now();
+  await voidLiveApprovals(tx, scope, run.id, at, `refused:${outcome.code}`);
+  await unlockLines(tx, scope, run.id, "SEND_BACK");
+  await recordRefusal(tx, scope, run.id, outcome, at);
+  const moved = await moveRun(tx, scope, {
+    id: run.id,
+    from: "APPROVED",
+    to: "IN_REVIEW",
+    version: run.version,
+    cause: cause("SEND_BACK", outcome.code),
+    provenance: "live",
+    actor: ACTORS.outbox,
+  });
+  return moved.state as PayRunState;
+}
+
+/**
+ * The kill switch refused the POST, read fresh before PayPal was called (S3.11). A switch flipped through
+ * setFlag already HALTed the run; one that never went through it (FS_KILL forced by env, or kill_paypal_live,
+ * which setFlag does not HALT for) must not leave the run APPROVED with LOCKED lines and live approvals and
+ * nothing to post it later:
+ *   - kill_payouts on (stored or forced): the run is HALTED, approvals voided, lines unlocked;
+ *   - kill_paypal_live alone ("refusal in real mode"): sent back like any refusal before the POST, so signing
+ *     again posts once the switch is off;
+ *   - rows already written (POSTING, PayPal's answer unknown): never abandoned; the outbox retries the POST and
+ *     it resumes with the same ids once the switch is off (thrown, transient).
+ */
+export async function refusedByKillSwitch(
+  deps: Deps,
+  scope: WorkspaceScope,
+  runId: string,
+  outcome: Extract<BatchOutcome, { kind: "refused" }>,
+): Promise<PayRunState> {
+  const state = await withWorkspaceTx(deps.db, scope, async (tx: Tx) => {
+    const run = await lockRun(tx, scope, runId);
+    if (run.state !== "APPROVED") return run.state as PayRunState;
+    const kill = await readKill(deps, scope.workspaceId, tx);
+    if (!kill.killPayouts) return sendBackLocked(tx, deps, scope, run, outcome);
+    const at = deps.clock.now();
+    await recordRefusal(tx, scope, run.id, outcome, at);
+    return (await haltRun(tx, scope, run, at, "kill_payouts")).state as PayRunState;
+  });
+  if (state === "POSTING") {
+    throw new PayPalStepError(
+      "KILL_SWITCH_ON",
+      "The batch is written but a kill switch is on; the POST resumes with the same ids once it is off.",
+      { transient: true, retryAfterMs: 60_000 },
+    );
+  }
+  return state;
 }
 
 export type { CancelIntent };

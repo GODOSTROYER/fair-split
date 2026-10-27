@@ -15,9 +15,26 @@ export interface RunsHarness {
   close(): Promise<void>;
 }
 
+/** PP_RECEIVERS on the sandbox rail: every PayPal member of the seed except Rhea (no PayPal account). */
+export const SANDBOX_RECEIVERS: Readonly<Record<string, string>> = {
+  "M-002": "m002@example.com",
+  "M-007": "m007@example.com",
+  "M-014": "m014@example.com",
+  "M-018": "m018@example.com",
+  "M-022": "m022@example.com",
+  "M-039": "m039@example.com",
+  "M-060": "m060@example.com",
+};
+
 /** Sandbox mode (msw answers PayPal) when PayPal handlers are given; the labelled simulator stub otherwise. */
 export async function startRuns(
-  o: { world?: SeedWorldOptions; paypal?: HttpHandler[]; clock?: string } = {},
+  o: {
+    world?: SeedWorldOptions;
+    paypal?: HttpHandler[];
+    clock?: string;
+    /** PP_RECEIVERS on the sandbox rail (default SANDBOX_RECEIVERS). */
+    receivers?: Readonly<Record<string, string>>;
+  } = {},
 ): Promise<RunsHarness> {
   const paypal = o.paypal ? createPayPalMock(o.paypal) : null;
   paypal?.start();
@@ -34,15 +51,7 @@ export async function startRuns(
             PP_WEBHOOK_ID: "WH-TEST",
             PP_BUSINESS_EMAIL: "coop-business@example.com",
             PP_PAYER_EMAIL: "lantern-bay@example.com",
-            PP_RECEIVERS: JSON.stringify({
-              "M-002": "m002@example.com",
-              "M-007": "m007@example.com",
-              "M-014": "m014@example.com",
-              "M-018": "m018@example.com",
-              "M-022": "m022@example.com",
-              "M-039": "m039@example.com",
-              "M-060": "m060@example.com",
-            }),
+            PP_RECEIVERS: JSON.stringify(o.receivers ?? SANDBOX_RECEIVERS),
             PP_UNCLAIMED_RECEIVER: "rhea-no-account@example.com",
           },
         }

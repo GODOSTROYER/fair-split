@@ -99,6 +99,8 @@ export const BatchView = z.strictObject({
   chairRequired: z.boolean(),
   chairReasons: z.array(z.string()),
   blocking: z.array(z.strictObject({ id: Uuid, label: z.string() })),
+  /** PayPal members with a payable line but no configured receiver: while any is listed, nothing can be signed. */
+  unpayable: z.array(z.string()),
   rail: z.enum(["simulated", "sandbox"]),
 });
 
