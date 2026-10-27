@@ -153,28 +153,31 @@
 /* ---------------------------------------------------------------- W-TR-03 the room */
 
 .fsc-read {
+  /* The photo's height: the window less the stage's bar and pill row (110), the screen's padding (28), this
+     page's title row and gap (54), the bench's heading row (40), the filmstrip under the photo (96) and a
+     breath above the ribbon and caption (107 + 12). */
+  --fsc-bench-h: max(260px, calc(100dvh - 447px));
   display: grid;
   align-content: start;
-  gap: 20px;
+  gap: 16px;
   max-width: 1320px;
 }
 
+/* The season's stencil and the room's name on one line: the evidence gets the height. */
 .fsc-read__head {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
 }
 
-.fsc-read__titles {
-  display: grid;
-  gap: 8px;
-}
-
-.fsc-read__titles h1 {
+.fsc-read__head h1 {
   margin: 0;
 }
 
 /* One status sentence, never a chain of thought. */
 .fsc-read__status {
+  --fsc-status-glyph: var(--fs-ink-2);
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -185,65 +188,135 @@
   line-height: 1.25rem;
 }
 
+/* While Claude reads, the sentence's mark is the pencil's. */
+.fsc-read__status[data-state="reading"] {
+  --fsc-status-glyph: var(--fs-pencil);
+}
+
 .fsc-read__status .fs-glyph {
   flex: none;
   margin-top: 2px;
-  color: var(--fs-ink-2);
+  color: var(--fsc-status-glyph);
 }
 
-.fsc-read__status[data-state="reading"] .fs-glyph {
-  color: var(--fs-pencil);
-}
-
-/* The bench on the left at the height the window leaves it; the status, the filmstrip and the beds beside it. */
+/* S1.7 and design §6 C3: the photo takes 58% of the room, the print beds 42%. The photo is fitted to the height
+   the window leaves it inside its column; the lacquer around it is where the crops fly from. */
 .fsc-read__body {
   position: relative;
   display: grid;
-  grid-template-columns: max-content minmax(380px, 1fr);
-  container-type: inline-size;
+  grid-template-columns: minmax(0, 58fr) minmax(0, 42fr);
   align-items: start;
   gap: 32px 40px;
 }
 
+.fsc-read__desk {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+
 .fsc-read__side {
+  container-type: inline-size;
   display: grid;
   align-content: start;
   gap: 18px;
   min-width: 0;
 }
 
+.fsc-read__progress {
+  margin: 0 0 0 auto;
+  color: var(--fs-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
 .fsc-read__footer {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 32px;
   padding-top: 14px;
   border-top: 1px solid var(--fs-rule);
   color: var(--fs-ink-3);
 }
 
-.fsc-read__footer .fs-glyph {
+.fsc-read__provenance {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.fsc-read__provenance .fs-glyph {
   color: var(--fs-pencil);
 }
 
-/* ---------------------------------------------------------------- the filmstrip */
-
-.fsc-film {
-  display: grid;
-  gap: 12px;
-  padding: 0 0 16px;
-  border-bottom: 1px solid var(--fs-rule);
+/* Mock data only: the replay of the recording, labelled as such. */
+.fsc-read__replay {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
 }
 
-.fsc-film__strip {
+.fsc-read__replay-note {
+  color: var(--fs-ink-3);
+}
+
+.fsc-read__replay .fs-link {
+  color: var(--fs-ink-2);
+}
+
+/* ---------------------------------------------------------------- one person-sized step (confirm, rescan) */
+
+.fsc-read__act {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-read__act-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-read__act-title .fs-glyph {
+  color: var(--fs-pencil);
+}
+
+.fsc-read__act-line {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--fs-pencil);
+}
+
+.fsc-read__act-press {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding-top: 4px;
+}
+
+/* ---------------------------------------------------------------- the filmstrip (under the photo) */
+
+.fsc-film {
   display: grid;
   gap: 10px;
 }
 
 .fsc-film__photos {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr)) minmax(0, 1.25fr);
   gap: 8px;
-  margin: 0;
+  max-width: 640px;
+  margin: 0 auto;
   padding: 0;
   list-style: none;
 }
@@ -303,18 +376,55 @@
   background: var(--fs-canary);
 }
 
-.fsc-film__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px 16px;
+/* The earlier set, behind one hatched "archived photo" tile at the end of the strip (OD-4). */
+.fsc-film__archive {
+  appearance: none;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fs-ink-3);
+  font: inherit;
+  text-align: center;
 }
 
-.fsc-film__progress {
-  margin: 0;
+.fsc-film__archive-tile {
+  display: grid;
+  place-items: center;
+  aspect-ratio: var(--fsc-photo-aspect, 0.73);
+  border: 1px solid var(--fs-rule);
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+}
+
+.fsc-film__archive-count {
+  padding: 0 3px;
+  background: var(--fs-plate);
   color: var(--fs-ink);
-  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fsc-film__archive:hover .fsc-film__archive-tile,
+.fsc-film__archive[aria-expanded="true"] .fsc-film__archive-tile {
+  border-color: var(--fs-ink-3);
+}
+
+.fsc-film__archive[aria-expanded="true"] {
+  color: var(--fs-ink);
+}
+
+.fsc-film__archive:focus-visible {
+  outline: none;
+}
+
+.fsc-film__archive:focus-visible .fsc-film__archive-tile {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: 3px;
 }
 
 .fsc-film__earlier {
@@ -369,8 +479,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
+  gap: 8px 20px;
 }
 
 .fsc-bench__title {
@@ -418,10 +527,12 @@
   text-align: center;
 }
 
+/* The whole photo fits the window: fitted by height inside its 58% column, centred on the lacquer. The paper's
+   own padding (6 a side) and the viewport's (2 a side) sit outside the photo's aspect. */
 .fsc-bench__viewport {
   display: block;
-  /* The whole photo fits the window: never taller than the stage leaves it, never wider than 56% of the room. */
-  width: clamp(300px, calc((100dvh - 400px) * var(--fsc-photo-aspect, 0.73)), 56cqi);
+  justify-self: center;
+  width: min(100%, calc((var(--fsc-bench-h) - 16px) * var(--fsc-photo-aspect, 0.73) + 16px));
   padding: 2px;
   outline-offset: 4px;
 }
@@ -565,6 +676,42 @@
   display: block;
   height: 22px;
   border: 1px dashed var(--fs-rule);
+}
+
+/* A narrow side column (the 42% of a 1280 px stage) keeps the member's name whole: tighter figure columns,
+   and the name may take a second line. */
+@container (max-width: 440px) {
+  .fsc-beds__table thead th:nth-child(1) {
+    width: 58px;
+  }
+
+  .fsc-beds__table thead th:nth-child(4) {
+    width: 46px;
+  }
+
+  .fsc-beds__table thead th:nth-child(5) {
+    width: 44px;
+  }
+
+  .fsc-beds__table thead th:nth-child(6) {
+    width: 28px;
+  }
+
+  .fsc-beds__member > :first-child {
+    white-space: normal;
+  }
+}
+
+/* A slip nothing could be read from: hatched, with its words (hatch is "unavailable", never colour alone). */
+.fsc-beds__illegible {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--fs-rule);
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-ground);
+  color: var(--fs-ink-2);
 }
 
 .fsc-beds__member {
@@ -751,7 +898,18 @@
   }
 }
 
+/* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
+@media (max-width: 1279px) {
+  .fsc-read {
+    --fsc-bench-h: max(240px, calc(100dvh - 479px));
+  }
+}
+
 @media (max-width: 1099px) {
+  .fsc-read {
+    --fsc-bench-h: 560px;
+  }
+
   .fsc-read__body {
     grid-template-columns: minmax(0, 1fr);
   }

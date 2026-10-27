@@ -1,6 +1,7 @@
-// The filmstrip (S1.7 W-TR-03): photos A to L of the recorded run, each ticked once all four of its slips are
-// read, the photo on the bench outlined. P01 to P54 sit collapsed under "Read earlier this season" as hatched
-// archived tiles with their read dates. Each photo is a real link (`?photo=`), so it can open in a new tab.
+// The filmstrip (S1.7 W-TR-03), under the photo on the bench: photos A to L of the recorded run as contact
+// prints, each ticked once all four of its slips are read, the photo on the bench outlined. P01 to P54 sit
+// collapsed behind the strip's last tile, OD-4's hatched "archived photo" tile, and open beneath it with their
+// read dates. Each photo is a real link (`?photo=`), so it can open in a new tab.
 
 import type { SnapshotPhoto } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
@@ -25,56 +26,56 @@ export interface FilmstripProps {
   readonly replay: readonly FilmPhoto[];
   readonly earlier: readonly SnapshotPhoto[];
   readonly active: string;
-  readonly progress: { readonly read: number; readonly total: number };
   readonly testId: string;
 }
 
-export function Filmstrip({ season, replay, earlier, active, progress, testId }: FilmstripProps) {
+export function Filmstrip({ season, replay, earlier, active, testId }: FilmstripProps) {
   const activeIsEarlier = earlier.some((p) => p.photoId === active);
   const [open, setOpen] = useState(activeIsEarlier);
   return (
     <nav className="fsc-film" aria-label={READING_COPY.filmstrip} data-testid={testId}>
-      <div className="fsc-film__strip">
-        <ol className="fsc-film__photos">
-          {replay.map(({ photo, slips, read, pending }) => (
-            <li key={photo.photoId} className="fsc-film__item">
-              <AppLink
-                href={webRoutes.reading(season, photo.photoId)}
-                className="fsc-film__link"
-                aria-current={photo.photoId === active ? "true" : undefined}
-                aria-label={READING_COPY.photoLink(photo.photoId, read, pending)}
-                data-read={read ? "" : undefined}
-                data-pending={pending ? "" : undefined}
-                data-testid={`${testId}.${photo.photoId}`}
-              >
-                <span className="fsc-film__thumb" aria-hidden>
-                  <PhotoMat slips={slips} detail="thumb" />
-                </span>
-                <span className="fsc-film__label fs-t-caption" aria-hidden>
-                  {photo.photoId}
-                  {read && !pending && <Glyph name="ms:check" size={12} />}
-                  {pending && <span className="fsc-film__pending" />}
-                </span>
-              </AppLink>
-            </li>
-          ))}
-        </ol>
-        <div className="fsc-film__meta">
-          <p className="fs-t-label fsc-film__progress" data-testid={`${testId}.progress`}>
-            {READING_COPY.progress(progress.read, progress.total)}
-          </p>
+      <ol className="fsc-film__photos">
+        {replay.map(({ photo, slips, read, pending }) => (
+          <li key={photo.photoId} className="fsc-film__item">
+            <AppLink
+              href={webRoutes.reading(season, photo.photoId)}
+              className="fsc-film__link"
+              aria-current={photo.photoId === active ? "true" : undefined}
+              aria-label={READING_COPY.photoLink(photo.photoId, read, pending)}
+              data-read={read ? "" : undefined}
+              data-pending={pending ? "" : undefined}
+              data-testid={`${testId}.${photo.photoId}`}
+            >
+              <span className="fsc-film__thumb" aria-hidden>
+                <PhotoMat slips={slips} detail="thumb" />
+              </span>
+              <span className="fsc-film__label fs-t-caption" aria-hidden>
+                {photo.photoId}
+                {read && !pending && <Glyph name="ms:check" size={12} />}
+                {pending && <span className="fsc-film__pending" />}
+              </span>
+            </AppLink>
+          </li>
+        ))}
+        <li className="fsc-film__item fsc-film__item--archive">
           <button
             type="button"
-            className="fs-link fs-t-caption"
+            className="fsc-film__archive"
             aria-expanded={open}
             aria-controls={`${testId}-earlier`}
+            aria-label={READING_COPY.earlier(earlier.length)}
             onClick={() => setOpen((o) => !o)}
             data-testid={`${testId}.earlierToggle`}
           >
-            {open ? READING_COPY.earlierHide : READING_COPY.earlier(earlier.length)}
+            <span className="fsc-film__archive-tile" aria-hidden>
+              <span className="fsc-film__archive-count">{earlier.length}</span>
+            </span>
+            <span className="fsc-film__label fs-t-caption" aria-hidden>
+              {READING_COPY.earlierShort}
+            </span>
           </button>
-        </div>
-      </div>
+        </li>
+      </ol>
       {open && (
         <ol id={`${testId}-earlier`} className="fsc-film__earlier" data-testid={`${testId}.earlier`}>
           {earlier.map((photo) => {

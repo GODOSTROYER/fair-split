@@ -1,11 +1,12 @@
-// The reading bench (S1.7 W-TR-03): the photo on the lacquer at 58% of the room, with zoom about the pointer,
-// "+" and "−" buttons and arrow keys (WCAG 2.5.7), and the reading band (a 1 px chalk line over a 6% wash)
-// that slides to the line each row is read from (MM-2 "band"; it jumps under reduced motion). Each slip's
-// net-kilos box carries an anchor, so a flight starts exactly where the crop is, zoomed or not.
+// The reading bench (S1.7 W-TR-03): the photo on the lacquer in the room's 58% column, fitted to the height the
+// stage leaves it, with zoom about the pointer, "+" and "−" buttons and arrow keys (WCAG 2.5.7), and the
+// reading band (a 1 px chalk line over a 6% wash) that slides to the line each row is read from (MM-2 "band";
+// it jumps under reduced motion). Each slip's net-kilos box carries an anchor, so a flight starts exactly where
+// the crop is, zoomed or not.
 
 import type { SnapshotPhoto } from "@fairsplit/contracts";
 import { type MotionMode, Paper } from "@fairsplit/ui-web";
-import { type KeyboardEvent, type PointerEvent, useState } from "react";
+import { type KeyboardEvent, type PointerEvent, type ReactNode, useState } from "react";
 import { READING_COPY } from "./copy.js";
 import { PhotoMat } from "./PhotoMat.js";
 import {
@@ -65,9 +66,11 @@ export interface BenchProps {
   readonly onZoom: (zoom: BenchZoom) => void;
   readonly mode: MotionMode;
   readonly testId: string;
+  /** Printed at the end of the bench's heading row (the reading's progress). */
+  readonly aside?: ReactNode;
 }
 
-export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId }: BenchProps) {
+export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId, aside }: BenchProps) {
   const [tracking, setTracking] = useState(false);
   const bandSlip = band ? slips.find((s) => s.slip.serial === band) : undefined;
   const outlined = outline ? slips.find((s) => s.slip.serial === outline) : undefined;
@@ -169,6 +172,7 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId 
             {READING_COPY.zoomFit}
           </button>
         </fieldset>
+        {aside}
       </header>
       <div
         className="fsc-bench__viewport"

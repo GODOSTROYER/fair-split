@@ -1,13 +1,24 @@
 // W-TR-03 the reading room: dashed beds before the reading, then MM-2 "Paper prints itself" for every live
 // `extract.row` of the recorded run (full and reduced motion reach the same phases), the bench following the
-// photo being read, the quarantined instruction as a notice, slip 0462 sent to a person, J/K/Space/Enter, and
-// axe on every state. The mock emits no rows yet, so the recorded run's rows are fed into the run's stream.
+// photo being read, the quarantined instruction as a notice, slip 0462 sent to a person, the zoom's read
+// confirmed with one tap, a blurred photo sent back to the clerk, J/K/Space/Enter, the 58/42 room, the
+// mock-only replay of the recording, and axe on every state. The mock emits no rows yet, so the recorded run's
+// rows (and the two states it never reaches) are fed into the run's stream.
 
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { TREASURER } from "../../data/mock/driver.js";
-import { clearMomentTrace, expectNoAxeViolations, momentPhase, tracedPhases } from "../../test/index.js";
+import {
+  clearMomentTrace,
+  expectNoAxeViolations,
+  momentPhase,
+  seedSnapshot,
+  tracedPhases,
+} from "../../test/index.js";
 import { renderSeason, rowsFor, type SeasonRender } from "../season/testing.js";
+import { REPLAY_GAP_MS, replayTiming } from "./replay.js";
+import { replayRows } from "./replay-fixture.js";
+import { illegibleRows, rowEvents, zoomAgreedRow } from "./state-fixtures.js";
 
 // These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
 // wait longer than the kit's defaults rather than fail on load.
@@ -33,6 +44,10 @@ async function readingRun(motion: "full" | "reduced" = "full", path = READING): 
 }
 
 describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
+  afterEach(() => {
+    replayTiming.gapMs = REPLAY_GAP_MS;
+  });
+
   it("waits on the desk before the invoice is paid: dashed beds, photos A to L, no row", async () => {
     const r = await renderSeason({ path: READING });
     const root = await screen.findByTestId("W-TR-03");
@@ -152,6 +167,125 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
       fireEvent.click(screen.getByTestId("W-TR-03.bench.zoomIn"));
     });
     expect(screen.getByTestId("W-TR-03.bench.scale").textContent).toBe("1.6×");
+    r.unmount();
+  });
+
+  it("lays the room out 58/42: the photo and its filmstrip on the left, the status, beds and keys on the right", async () => {
+    const r = await renderSeason({ path: `${READING}?photo=B` });
+    await screen.findByTestId("W-TR-03");
+    const desk = screen.getByTestId("W-TR-03.desk");
+    const side = screen.getByTestId("W-TR-03.side");
+    expect(desk.contains(screen.getByTestId("W-TR-03.bench"))).toBe(true);
+    expect(desk.contains(screen.getByTestId("W-TR-03.film"))).toBe(true);
+    expect(side.contains(screen.getByTestId("W-TR-03.film"))).toBe(false);
+    expect(side.contains(screen.getByTestId("W-TR-03.status"))).toBe(true);
+    expect(side.contains(screen.getByTestId("W-TR-03.beds"))).toBe(true);
+    // The filmstrip sits under the photo, in reading order too.
+    const bench = screen.getByTestId("W-TR-03.bench");
+    expect(bench.compareDocumentPosition(screen.getByTestId("W-TR-03.film"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    r.unmount();
+  });
+
+  it("confirm-one: the zoom's read agrees with one reading; one tap confirms it in Analyn's ink", async () => {
+    const r = await renderSeason({ path: `${READING}?photo=J` });
+    await r.startSession();
+    act(() => {
+      r.world.markPaid();
+    });
+    await waitFor(() => expect(screen.getByTestId("W-TR-03").dataset.state).toBe("low-confidence"));
+    const snapshot = seedSnapshot();
+    const rest = replayRows(snapshot).filter((row) => row.photoId === "J" && row.serial !== "0462");
+    act(() => r.stream.inject(rowEvents([...rest, zoomAgreedRow(snapshot)])));
+    await waitFor(() => expect(screen.getByTestId("W-TR-03").dataset.state).toBe("confirm-one"));
+    expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(
+      /Slip 0462: Claude's zoom read agrees with one of the two readings\./,
+    );
+    expect(screen.getByTestId("W-TR-03.beds.zoom.0462").dataset.amountState).toBe("you");
+    const slab = screen.getByTestId("W-TR-03.confirm.confirm");
+    expect(slab.textContent).toMatch(/Confirm 64\.80/);
+    expect(slab.dataset.state).toBe("rest");
+    expect(screen.getByTestId("W-TR-03").querySelectorAll(".fs-slab").length).toBeLessThanOrEqual(2);
+    await expectNoAxeViolations(r.container);
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId("W-TR-03.confirm.confirm.face"), { key: "Enter" });
+    });
+    const confirmed = await screen.findByTestId("W-TR-03.beds.confirmed.0462");
+    expect(confirmed.dataset.amountState).toBe("ink");
+    expect(confirmed.textContent).toMatch(/AS/);
+    expect(confirmed.textContent).toMatch(/64\.50/);
+    expect(r.world.holds().find((h) => h.kind === "LOW_CONFIDENCE")?.resolution?.kind).toBe(
+      "CONFIRM_AS_READ",
+    );
+    await waitFor(() => expect(screen.queryByTestId("W-TR-03.confirm")).toBeNull());
+    await expectNoAxeViolations(r.container);
+    r.unmount();
+  });
+
+  it("blurred: photo E is too blurred to read; 'Request rescan' says it can't reach Jessie yet", async () => {
+    const r = await readingRun("full", `${READING}?photo=E`);
+    act(() => r.stream.inject(rowEvents(illegibleRows(seedSnapshot(), "E"))));
+    await waitFor(() => expect(screen.getByTestId("W-TR-03").dataset.state).toBe("blurred"));
+    expect(screen.getByTestId("W-TR-03.status").textContent).toBe(
+      "Photo E is too blurred to read. Ask Jessie to rescan.",
+    );
+    for (const row of illegibleRows(seedSnapshot(), "E")) {
+      expect(screen.getByTestId(`W-TR-03.beds.illegible.${row.serial}`).textContent).toBe(
+        "Too blurred to read",
+      );
+    }
+    const slab = screen.getByTestId("W-TR-03.rescan.rescan");
+    expect(slab.textContent).toMatch(/Request rescan/);
+    expect(slab.dataset.state).toBe("unavailable");
+    expect(screen.getByTestId("W-TR-03.rescan").textContent).toMatch(
+      /Rescan requests reach Jessie's phone once the server has a route for them\. Nothing was sent\./,
+    );
+    await expectNoAxeViolations(r.container);
+    r.unmount();
+  });
+
+  it("on the mock, replays the recorded reading through the live handler: MM-2 plays, labelled mock data", async () => {
+    // Slower than the recording's 240 ms, so the first row's act completes before the next row replaces it.
+    replayTiming.gapMs = 2500;
+    const r = await renderSeason({ path: READING });
+    await screen.findByTestId("W-TR-03");
+    const replay = screen.getByTestId("W-TR-03.replay");
+    expect(replay.dataset.state).toBe("idle");
+    expect(replay.textContent).toMatch(/Mock data: the mock API sends no rows/);
+    clearMomentTrace();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-TR-03.replay.toggle"));
+    });
+    expect(screen.getByTestId("W-TR-03.replay").dataset.state).toBe("running");
+    expect(screen.getByTestId("W-TR-03").dataset.state).toBe("reading");
+    await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 10_000 });
+    expect(tracedPhases("MM-2").slice(0, 7)).toEqual([
+      "band",
+      "lift",
+      "flight",
+      "resolve",
+      "print",
+      "ring",
+      "landed",
+    ]);
+    expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).not.toBe("waiting");
+    expect(screen.getByTestId("W-TR-03.replay").textContent).toMatch(
+      /Replaying the \d+ \w{3} recording here: \d+ of 48 rows\. Mock data\./,
+    );
+    await expectNoAxeViolations(r.container);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-TR-03.replay.toggle"));
+    });
+    expect(screen.getByTestId("W-TR-03.replay").dataset.state).toBe("idle");
+    expect(screen.getByTestId("W-TR-03").dataset.state).toBe("loading");
+    r.unmount();
+  });
+
+  it("never offers the replay against fs-api", async () => {
+    const r = await renderSeason({ path: READING, source: "http" });
+    await screen.findByTestId("W-TR-03");
+    expect(screen.queryByTestId("W-TR-03.replay")).toBeNull();
     r.unmount();
   });
 

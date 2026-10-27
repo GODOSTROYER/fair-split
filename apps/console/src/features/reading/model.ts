@@ -35,6 +35,21 @@ export type ReadingScreenState =
 
 type RowFields = RunEventOf<"extract.row">["payload"]["fields"];
 
+/**
+ * S4.2 agreement, row 6: after the zoom (AI-3), a clear read that equals one of the two readings scores 0.80,
+ * under auto-accept (0.85), and one tap from a person confirms it. Below it a person types (row 7, 0.40).
+ */
+export const CONFIRM_ONE_TAP = 0.8;
+
+/** A field the zoom settled on one of the two readings: a person confirms it with one tap (S1.7 `confirm-one`). */
+export interface ZoomAgreed {
+  readonly field: SlipFieldName;
+  /** The value the zoom read, which agrees with read A or read B. */
+  readonly value: string;
+  /** The two reads merged, "?" where they differ ("4?.20"). */
+  readonly display: string;
+}
+
 export interface ReadingRow {
   readonly serial: string;
   readonly photoId: string;
@@ -53,6 +68,15 @@ export interface ReadingRow {
   readonly pending: readonly SlipFieldName[];
   /** A person typed a value (W-TR-04): it prints in ink with their stamp. */
   readonly entered: { readonly by: string; readonly at: string; readonly value: string } | null;
+  /** A field the zoom read settled, waiting for one tap (none once confirmed or entered). */
+  readonly zoomAgreed: ZoomAgreed | null;
+  /** A person confirmed the zoom's read (the slip's hold resolved CONFIRM_AS_READ): ink with their stamp. */
+  readonly confirmed: { readonly by: string; readonly at: string; readonly value: string } | null;
+  /**
+   * Nothing on the slip could be read: every field came back illegible (S4.2 row 1, score 0 and no value),
+   * which is what a blurred photo returns.
+   */
+  readonly illegible: boolean;
   readonly source: "event" | "seed";
   readonly eventId: string | null;
   readonly quarantined: boolean;
@@ -107,6 +131,42 @@ export function byHandHoldFor(view: RunView, snapshot: SeasonSnapshot, serial: s
   return Object.values(view.holds).find((h) => h.kind === "LOW_CONFIDENCE" && keys.has(h.key));
 }
 
+/**
+ * The hold a one-tap confirmation resolves: the slip's by-hand hold, else the run's own LOW_CONFIDENCE hold on
+ * the slip's member (S4.2: every field under 0.85 raises one; IC-01's `hold.raised` names the member, not
+ * the field). Undefined when the run has raised none: then nothing can take the tap.
+ */
+export function confirmHoldFor(
+  view: RunView,
+  snapshot: SeasonSnapshot,
+  serial: string,
+  memberNo: string | null,
+): RunHold | undefined {
+  const named = byHandHoldFor(view, snapshot, serial);
+  if (named) return named;
+  if (!memberNo) return undefined;
+  const seeded = new Set(snapshot.holds.filter((h) => h.kind === "LOW_CONFIDENCE").map((h) => h.key));
+  return Object.values(view.holds).find(
+    (h) => h.kind === "LOW_CONFIDENCE" && h.memberNo === memberNo && !seeded.has(h.key),
+  );
+}
+
+/** A zoom read that agrees with one of the two readings and waits for a person (S4.2 row 6). */
+export function zoomAgreedField(fields: RowFields): ZoomAgreed | null {
+  for (const [name, f] of Object.entries(fields) as [SlipFieldName, RowFields[string]][]) {
+    if (f.decidedBy !== "zoom" || f.value === null) continue;
+    if (f.score < CONFIRM_ONE_TAP || f.score >= AUTO_ACCEPT) continue;
+    return { field: name, value: f.value, display: f.display };
+  }
+  return null;
+}
+
+/** Every field the reads returned is illegible (score 0, no value): the slip could not be read at all. */
+export function illegibleFields(fields: RowFields): boolean {
+  const all = Object.values(fields);
+  return all.length > 0 && all.every((f) => f.value === null && f.score === 0);
+}
+
 /** Scores the reading reported for a slip's fields that went to a person (the engine's read checkpoint). */
 export function pendingScores(
   snapshot: SeasonSnapshot,
@@ -150,6 +210,8 @@ function fieldText(fields: RowFields, name: SlipFieldName, fallback: string): st
   const f = fields[name];
   if (!f) return fallback;
   if (f.score >= AUTO_ACCEPT || f.decidedBy === "person") return f.value ?? f.display;
+  // The zoom's agreed read is the value the tap would confirm.
+  if (f.decidedBy === "zoom" && f.value !== null && f.score >= CONFIRM_ONE_TAP) return f.value;
   return f.display || (f.value ?? fallback);
 }
 
@@ -188,6 +250,13 @@ export function rowsForPhoto({ view, snapshot, photo }: RowsInput): (ReadingRow 
         .filter(([, f]) => f.score < AUTO_ACCEPT && f.decidedBy !== "person")
         .map(([name]) => name);
       const memberNo = event.memberNo ?? null;
+      const agreed = zoomAgreedField(event.fields);
+      const hold = agreed && view ? confirmHoldFor(view, snapshot, slip.serial, memberNo) : undefined;
+      const confirmed =
+        agreed && hold?.state === "RESOLVED" && hold.resolution === "CONFIRM_AS_READ"
+          ? { by: hold.resolvedBy ?? "", at: hold.resolvedAt ?? "", value: agreed.value }
+          : null;
+      const decided = entered !== null || confirmed !== null;
       return {
         serial: slip.serial,
         photoId: photo.photoId,
@@ -199,8 +268,11 @@ export function rowsForPhoto({ view, snapshot, photo }: RowsInput): (ReadingRow 
         mcPct: fieldText(event.fields, "mc_pct", slip.boxes["9"]),
         grade: fieldText(event.fields, "grade", slip.boxes["12"]),
         score: scores.length > 0 ? Math.min(...scores) : null,
-        pending: entered ? [] : pending,
+        pending: decided ? [] : pending,
         entered,
+        zoomAgreed: decided ? null : agreed,
+        confirmed,
+        illegible: illegibleFields(event.fields),
         source: "event",
         eventId: event.eventId,
         quarantined: quarantine.has(slip.serial),
@@ -242,11 +314,24 @@ function seededRow(input: {
     score: minScore,
     pending,
     entered,
+    zoomAgreed: null,
+    confirmed: null,
+    illegible: false,
     source: "seed",
     eventId: null,
     quarantined: quarantine.has(slip.serial),
     twinPhoto,
   };
+}
+
+/** Every slip in the photo is in and none could be read: the photo is too blurred (S1.7 `blurred`). */
+export function photoIsBlurred(rows: readonly (ReadingRow | null)[]): boolean {
+  return rows.length > 0 && rows.every((r) => r?.illegible === true);
+}
+
+/** The first row waiting for a one-tap confirmation of the zoom's read, if any. */
+export function confirmRow(rows: readonly (ReadingRow | null)[]): ReadingRow | null {
+  return rows.find((r): r is ReadingRow => r !== null && r.zoomAgreed !== null) ?? null;
 }
 
 /** Rows read so far in a photo (a photo is ticked on the filmstrip once all four are in). */
@@ -340,6 +425,10 @@ export function statusSentence({
   if (reading && done === 0 && readingPhoto && readingPhoto !== id) {
     return `Photo ${id} waits its turn. Claude is reading photo ${readingPhoto}.`;
   }
+  if (photoIsBlurred(rows)) {
+    const clerk = snapshot.officers.find((o) => o.role === "CLERK")?.shortName ?? "the clerk";
+    return `Photo ${id} is too blurred to read. Ask ${clerk} to rescan.`;
+  }
   const parts: string[] = [
     reading && done < rows.length
       ? `Reading photo ${id}: ${rows.length} slips.`
@@ -353,7 +442,9 @@ export function statusSentence({
       parts.push(`Slip ${row.serial} here is the pink copy of the one in photo ${row.twinPhoto}.`);
     }
     if (row.quarantined) parts.push(quarantineNotice(snapshot, row.serial));
-    if (row.pending.length > 0) {
+    if (row.zoomAgreed) {
+      parts.push(`Slip ${row.serial}: Claude's zoom read agrees with one of the two readings.`);
+    } else if (row.pending.length > 0) {
       const slip = snapshot.slips.find((s) => s.serial === row.serial);
       parts.push(
         slip?.artifacts.includes("WATER_STAIN")
@@ -387,7 +478,9 @@ export function readingState({
   if (photo.set === "EARLIER") return aiPaused ? "live-paused" : "read";
   if (!started) return "loading";
   if (reading && rows.some((r) => r === null)) return "reading";
+  if (photoIsBlurred(rows)) return "blurred";
   if (rows.some((r) => r?.quarantined)) return "quarantined";
+  if (rows.some((r) => r?.zoomAgreed)) return "confirm-one";
   if (rows.some((r) => r !== null && r.pending.length > 0)) return "low-confidence";
   if (rows.every((r) => r === null)) return reading ? "reading" : "loading";
   return aiPaused ? "live-paused" : "read";

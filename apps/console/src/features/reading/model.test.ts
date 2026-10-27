@@ -10,9 +10,11 @@ import { applyRunEvents, firstView, sessionView } from "../../data/run-view.js";
 import { flightKeyframes, flightPath, LIFT_SCALE, maxFlights, ROW_AT } from "./mm2.js";
 import {
   benchPhoto,
+  confirmRow,
   earlierPhotos,
   hasStarted,
   photoById,
+  photoIsBlurred,
   photoIsRead,
   readingState,
   replayPhotos,
@@ -20,7 +22,9 @@ import {
   rowsForPhoto,
   statusSentence,
 } from "./model.js";
+import { recordedEvents, replayView } from "./replay.js";
 import { extractRowEvent, quarantineEvent, replayRows } from "./replay-fixture.js";
+import { illegibleRows, zoomAgreedRow } from "./state-fixtures.js";
 
 const snapshot = getSnapshot();
 const session = sessionView(snapshot, { runSlug: snapshot.run.runSlug, runId: snapshot.run.id });
@@ -126,6 +130,156 @@ describe("rows on the bench", () => {
   });
 });
 
+describe("one tap for the zoom's read, and a rescan for a blurred photo (S1.7)", () => {
+  const photoJ = photoById(snapshot, "J");
+  const photoE = photoById(snapshot, "E");
+  const lowConfidence = snapshot.holds.find((h) => h.kind === "LOW_CONFIDENCE" && h.serials.includes("0462"));
+  const raised = (): RunEvent =>
+    ({
+      ...stamp(),
+      actor: { kind: "engine", id: "engine", impersonatedBy: null },
+      provenance: "seeded",
+      type: "hold.raised",
+      payload: {
+        holdId: "hold-0462",
+        label: "Slip 0462 by hand",
+        key: lowConfidence?.key ?? "",
+        kind: "LOW_CONFIDENCE",
+        gate: "BLOCKS_APPROVAL",
+        memberNo: "M-060",
+        lineId: null,
+      },
+    }) as RunEvent;
+  const confirmedEvent = (): RunEvent =>
+    ({
+      ...stamp(),
+      actor: { kind: "human", id: "AS", impersonatedBy: null },
+      provenance: "live",
+      type: "hold.resolved",
+      payload: {
+        holdId: "hold-0462",
+        label: "Slip 0462 by hand",
+        state: "RESOLVED",
+        resolution: "CONFIRM_AS_READ",
+        resolvedBy: "AS",
+      },
+    }) as RunEvent;
+  const zoomRead = () => {
+    const rest = rows.filter((r) => r.photoId === "J" && r.serial !== "0462");
+    return applyRunEvents(reading, [
+      ...rest.map((r) => extractRowEvent(r, stamp())),
+      extractRowEvent(zoomAgreedRow(snapshot), stamp()),
+      raised(),
+    ]);
+  };
+
+  it("confirm-one: the zoom's read agrees with one of the two readings, and waits for one tap", () => {
+    if (!photoJ) throw new Error("no photo J");
+    const printed = rowsForPhoto({ view: zoomRead(), snapshot, photo: photoJ });
+    const row = printed.find((r) => r?.serial === "0462");
+    expect(row?.zoomAgreed).toEqual({ field: "gross_kg", value: "64.80", display: "6?.80" });
+    expect(row?.netKg).toBe("64.50");
+    expect(confirmRow(printed)?.serial).toBe("0462");
+    expect(
+      readingState({
+        photo: photoJ,
+        started: true,
+        reading: false,
+        rows: printed,
+        offline: false,
+        aiPaused: false,
+      }),
+    ).toBe("confirm-one");
+    expect(
+      statusSentence({ photo: photoJ, rows: printed, reading: false, started: true, snapshot }),
+    ).toContain("Slip 0462: Claude's zoom read agrees with one of the two readings.");
+  });
+
+  it("the tap is the person's: once the hold reads CONFIRM_AS_READ the value is ink with their stamp", () => {
+    if (!photoJ) throw new Error("no photo J");
+    const view = applyRunEvents(zoomRead(), [confirmedEvent()]);
+    const printed = rowsForPhoto({ view, snapshot, photo: photoJ });
+    const row = printed.find((r) => r?.serial === "0462");
+    expect(row?.zoomAgreed).toBeNull();
+    expect(row?.confirmed).toMatchObject({ by: "AS", value: "64.80" });
+    expect(row?.pending).toEqual([]);
+    expect(
+      readingState({
+        photo: photoJ,
+        started: true,
+        reading: false,
+        rows: printed,
+        offline: false,
+        aiPaused: false,
+      }),
+    ).toBe("read");
+  });
+
+  it("a zoom that failed (row 7, 0.40) is not a tap: a person types it", () => {
+    if (!photoJ) throw new Error("no photo J");
+    const failed = zoomAgreedRow(snapshot);
+    const fields = Object.fromEntries(
+      Object.entries(failed.payload.fields).map(([k, f]) => [
+        k,
+        f.decidedBy === "zoom" ? { ...f, score: 0.4, value: null } : f,
+      ]),
+    );
+    const view = applyRunEvents(reading, [
+      extractRowEvent({ ...failed, payload: { ...failed.payload, fields } }, stamp()),
+    ]);
+    const row = rowsForPhoto({ view, snapshot, photo: photoJ }).find((r) => r?.serial === "0462");
+    expect(row?.zoomAgreed).toBeNull();
+    expect(row?.pending).toContain("gross_kg");
+  });
+
+  it("blurred: every slip of photo E came back illegible, so the clerk is asked to rescan", () => {
+    if (!photoE) throw new Error("no photo E");
+    const view = applyRunEvents(
+      reading,
+      illegibleRows(snapshot, "E").map((r) => extractRowEvent(r, stamp())),
+    );
+    const printed = rowsForPhoto({ view, snapshot, photo: photoE });
+    expect(printed.every((r) => r?.illegible === true)).toBe(true);
+    expect(photoIsBlurred(printed)).toBe(true);
+    expect(
+      readingState({
+        photo: photoE,
+        started: true,
+        reading: false,
+        rows: printed,
+        offline: false,
+        aiPaused: false,
+      }),
+    ).toBe("blurred");
+    expect(statusSentence({ photo: photoE, rows: printed, reading: false, started: true, snapshot })).toBe(
+      "Photo E is too blurred to read. Ask Jessie to rescan.",
+    );
+  });
+
+  it("one illegible slip is not a blurred photo: it goes to a person like any doubtful field", () => {
+    if (!photoE) throw new Error("no photo E");
+    const [first] = illegibleRows(snapshot, "E");
+    const rest = rows.filter((r) => r.photoId === "E").slice(1);
+    if (!first) throw new Error("no rows in E");
+    const view = applyRunEvents(
+      reading,
+      [first, ...rest].map((r) => extractRowEvent(r, stamp())),
+    );
+    const printed = rowsForPhoto({ view, snapshot, photo: photoE });
+    expect(photoIsBlurred(printed)).toBe(false);
+    expect(
+      readingState({
+        photo: photoE,
+        started: true,
+        reading: false,
+        rows: printed,
+        offline: false,
+        aiPaused: false,
+      }),
+    ).toBe("low-confidence");
+  });
+});
+
 describe("the room's state and its bench", () => {
   it("is loading before the reading, reading while it runs, read after", () => {
     const photo = photoById(snapshot, "A");
@@ -182,6 +336,45 @@ describe("the room's state and its bench", () => {
     expect(benchPhoto(snapshot, withRows(["A", "B"]), undefined)?.photoId).toBe("B");
     expect(benchPhoto(snapshot, withRows(["A", "B"]), "K")?.photoId).toBe("K");
     expect(replayPhotos(snapshot)).toHaveLength(12);
+  });
+});
+
+describe("the mock-only replay of the recording", () => {
+  it("replays the 48 rows in order, slip 0449's quarantine right after its row, every event a labelled replay", () => {
+    const events = recordedEvents(snapshot, "Rtest", () => "2026-10-29T02:00:00.000Z");
+    const kinds = events.map((e) => e.type);
+    expect(kinds.filter((k) => k === "extract.row")).toHaveLength(48);
+    expect(kinds.filter((k) => k === "extract.quarantined")).toHaveLength(1);
+    const q = kinds.indexOf("extract.quarantined");
+    const before = events[q - 1];
+    expect(before?.type === "extract.row" && before.payload.serial).toBe("0449");
+    for (const e of events) {
+      expect(e.provenance).toBe("replay");
+      expect(e.actor.kind).toBe("agent");
+    }
+    const ids = events.map((e) => e.id);
+    expect([...ids].sort()).toEqual(ids);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("shows only what it has replayed so far, reading while it runs and the run's own state after", () => {
+    const live = applyRunEvents(session, [
+      runState("INVOICED", "FUNDED"),
+      runState("FUNDED", "EXTRACTING"),
+      runState("EXTRACTING", "COMPUTED"),
+    ]);
+    const events = recordedEvents(snapshot, "Rtest", () => "2026-10-29T02:00:00.000Z");
+    const running = replayView(live, events.slice(0, 4), true);
+    expect(running.state).toBe("EXTRACTING");
+    expect(running.rows).toHaveLength(4);
+    const photo = photoById(snapshot, "B");
+    if (!photo) throw new Error("no photo B");
+    expect(rowsForPhoto({ view: running, snapshot, photo }).every((r) => r === null)).toBe(true);
+    const done = replayView(live, events, false);
+    expect(done.state).toBe("COMPUTED");
+    expect(done.rows).toHaveLength(48);
+    expect(done.quarantined).toHaveLength(1);
+    expect(live.rows).toHaveLength(0);
   });
 });
 

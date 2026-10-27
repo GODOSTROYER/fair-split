@@ -15,6 +15,7 @@ import { createMockAdapter } from "../../data/mock/index.js";
 import { createDataRuntime } from "../../data/provider.js";
 import { createQueryClient } from "../../data/query.js";
 import type { JudgeSession } from "../../data/session.js";
+import type { DataSource } from "../../lib/env.js";
 import { createConsoleRouter } from "../../router.js";
 import { createTestWorld, seedSnapshot, setViewport, type TestWorld } from "../../test/index.js";
 import { type EventStamp, extractRowEvent, quarantineEvent, replayRows } from "../reading/replay-fixture.js";
@@ -84,12 +85,18 @@ export async function renderSeason(
     readonly motion?: MotionPreference;
     readonly world?: TestWorld;
     readonly width?: number;
+    /** Label the adapter as another data source (the same mock world answers): "http" stands in for fs-api. */
+    readonly source?: DataSource;
   } = { path: "/judge" },
 ): Promise<SeasonRender> {
   setViewport(options.width ?? 1470, 956);
   const world = options.world ?? createTestWorld();
   const base = createMockAdapter(world.mock, { snapshot: async () => seedSnapshot() });
-  const { adapter, stream } = injectable(base);
+  const injected = injectable(base);
+  const stream = injected.stream;
+  const adapter: DataAdapter = options.source
+    ? { ...injected.adapter, source: options.source }
+    : injected.adapter;
   const client = createQueryClient();
   client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false } });
   const runtime = createDataRuntime(adapter, client);

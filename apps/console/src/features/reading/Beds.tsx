@@ -1,10 +1,12 @@
 // The print beds (S1.7 W-TR-03): one row per slip of the photo on the bench, at 42% of the room. A row prints in
 // pencil when its `extract.row` lands (MM-2 "print", then "ring"); until then its bed waits, dashed, at its
-// final size. A field below 0.85 prints as a "You" cell that routes to W-TR-04; a value a person entered prints
-// in ink with their stamp. J and K move between rows while the table has focus, Space opens the slip's crop on
-// the bench, Enter takes a doubtful field to a person.
+// final size. A field below 0.85 prints as a "You" cell that routes to W-TR-04, unless the zoom's read agrees
+// with one of the two readings: then it waits in the room for one tap (`confirm-one`). A value a person entered
+// or confirmed prints in ink with their stamp. A slip nothing could be read from lies hatched, with its words.
+// J and K move between rows while the table has focus, Space opens the slip's crop on the bench, Enter takes a
+// doubtful field to a person.
 
-import { webRoutes } from "@fairsplit/contracts";
+import { type SnapshotOfficer, webRoutes } from "@fairsplit/contracts";
 import { Glyph, InkStamp, Print } from "@fairsplit/ui-web";
 import { type CSSProperties, type KeyboardEvent, type RefObject, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -49,6 +51,24 @@ function RingMark({ score, landing }: { readonly score: number; readonly landing
   );
 }
 
+/** A value a person entered or confirmed: ink, with their stamp (S2.2.1 `ink`). */
+function InkValue({
+  stamp,
+  value,
+  testId,
+}: {
+  readonly stamp: { readonly initials: string; readonly name: string; readonly at: string } | null;
+  readonly value: string;
+  readonly testId?: string | undefined;
+}) {
+  return (
+    <span className="fsc-beds__entered" data-amount-state="ink" data-testid={testId}>
+      {stamp && <InkStamp stamp={stamp} />}
+      <span className="fs-t-figure">{value}</span>
+    </span>
+  );
+}
+
 export interface BedsProps {
   readonly season: string;
   readonly photoId: string;
@@ -64,6 +84,8 @@ export interface BedsProps {
   readonly onByHand: (serial: string) => void;
   readonly tableRef: RefObject<HTMLTableElement | null>;
   readonly started: boolean;
+  /** Whose stamp a confirmation carries (by the initials the hold was resolved with). */
+  readonly officers: readonly SnapshotOfficer[];
   readonly treasurer: { readonly initials: string; readonly name: string; readonly shortName: string } | null;
   /** The quarantine notice for a slip (S1.7 `quarantined`). */
   readonly notice: (serial: string) => string;
@@ -92,6 +114,7 @@ export function Beds({
   onByHand,
   tableRef,
   started,
+  officers,
   treasurer,
   notice,
   testId,
@@ -104,10 +127,14 @@ export function Beds({
       onOpenCrop(serial);
       return;
     }
-    if (event.key === "Enter" && row && row.pending.length > 0) {
+    if (event.key === "Enter" && row && row.pending.length > 0 && !row.zoomAgreed && !row.illegible) {
       event.preventDefault();
       onByHand(serial);
     }
+  };
+  const stampFor = (by: string, at: string) => {
+    const officer = officers.find((o) => o.initials === by) ?? treasurer;
+    return officer ? { initials: officer.initials, name: officer.name, at: at ? format.time(at) : "" } : null;
   };
   const focusable = active ?? slips[0]?.slip.serial ?? null;
   return (
@@ -173,6 +200,15 @@ export function Beds({
                     <span className="fsc-beds__dash" aria-hidden />
                     <span className="fs-sr">{READING_COPY.waiting}</span>
                   </td>
+                ) : row.illegible ? (
+                  <td
+                    colSpan={5}
+                    className="fsc-beds__bed"
+                    data-flight-target={serial}
+                    data-testid={`${testId}.illegible.${serial}`}
+                  >
+                    <span className="fsc-beds__illegible fs-t-caption">{READING_COPY.illegible}</span>
+                  </td>
                 ) : (
                   <>
                     <td className="fsc-beds__member">
@@ -180,18 +216,30 @@ export function Beds({
                       {row.memberNo && <span className="fsc-beds__no fs-t-caption">{row.memberNo}</span>}
                     </td>
                     <td className="fsc-beds__net" data-numeric="" data-flight-target={serial}>
-                      {row.entered ? (
-                        <span className="fsc-beds__entered" data-amount-state="ink">
-                          {treasurer && (
-                            <InkStamp
-                              stamp={{
-                                initials: treasurer.initials,
-                                name: treasurer.name,
-                                at: format.time(row.entered.at),
-                              }}
-                            />
-                          )}
-                          <span className="fs-t-figure">{row.entered.value}</span>
+                      {row.entered || row.confirmed ? (
+                        <InkValue
+                          stamp={
+                            row.entered
+                              ? stampFor(row.entered.by, row.entered.at)
+                              : row.confirmed
+                                ? stampFor(row.confirmed.by, row.confirmed.at)
+                                : null
+                          }
+                          value={row.entered?.value ?? row.netKg}
+                          testId={row.confirmed ? `${testId}.confirmed.${serial}` : undefined}
+                        />
+                      ) : row.zoomAgreed ? (
+                        <span
+                          className="fsc-beds__you"
+                          data-amount-state="you"
+                          data-testid={`${testId}.zoom.${serial}`}
+                        >
+                          <Print
+                            value={row.netKg}
+                            provenance="claude"
+                            state="pencil"
+                            confidence={row.score ?? 0}
+                          />
                         </span>
                       ) : row.pending.length > 0 ? (
                         <AppLink

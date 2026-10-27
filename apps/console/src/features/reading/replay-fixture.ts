@@ -2,8 +2,9 @@
 // packages/ai's reader emits them: one row per slip of the replay set (photos A to L, 48 slips), each field with
 // the value the two reads agreed on, the agreement score and who decided it. Slip 0462's stained gross and net
 // go to a person (0.40); slip 0449's margin note is quarantined. api-client's mock does not emit these yet
-// (reported to WS-API); the season slice's tests feed them into the run's stream through this builder, and the
-// mock can take it as it is. Test support only: no screen imports it.
+// (escalated to WS-API: the mock can take this builder as it is); until it does, the season slice's tests feed
+// them into the run's stream, and the reading room's mock-only replay (./replay.ts) plays them on the page.
+// Nothing reads them against fs-api.
 
 import type { RunEvent, RunEventOf, SeasonSnapshot, SlipFieldName } from "@fairsplit/contracts";
 import { type PhotoSlip, POSITIONS, photoSlips, stainedReading } from "./slip.js";
