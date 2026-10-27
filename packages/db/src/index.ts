@@ -9,6 +9,7 @@ export * from "./flags.js";
 export * from "./idempotency.js";
 export { createUuidv7Generator, isUuidv7, uuidv7, uuidv7Timestamp } from "./ids/uuidv7.js";
 export * from "./json.js";
+export * from "./judge-pool.js";
 export * from "./ledger.js";
 export * from "./limiter.js";
 export * from "./migrate.js";

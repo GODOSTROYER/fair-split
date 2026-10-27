@@ -47,6 +47,7 @@ await db.transaction(async (tx) => {
 | `readFlags`, `isKilled`, `setFlag`                                             | Kill switches, read fresh; `FS_KILL=payouts,paypal_live,ai_live` (or `all`) forces them on. A flip writes the ledger and emits `flag.changed`.                                                                                                                                  |
 | `claimIdempotencyKey` & co.                                                    | `new` (with the claimer's `{key, token}`) / `replay` / `in_flight` / `mismatch` (422 `IDEMPOTENCY_KEY_REUSED`), 24 h. `complete(db, scope, claim, res)` / `release(db, scope, claim)` act only for the holder of a key still in flight and return false otherwise.              |
 | `createWebhookTransmissionStore(db)`, `purgeExpiredTransmissions(db, now)`     | paypal-core's `TransmissionStore` on `webhook_transmissions`: a verified transmission id is claimed once until it expires, judged by the app's `now` (claim's third argument), never the database clock. `claim(id, expiresAt, now, claimToken)` stores the token; `release(id, claimToken)` deletes only that claim's record (any record without a token). The hourly purge takes an app time too. |
+| `claimJudgeWorkspace(db, {workspaceId?})`, `JUDGE_SESSION_TTL_MS`             | Claims a pooled judge workspace for a session: the oldest unclaimed one (`FOR NO KEY UPDATE SKIP LOCKED`) or a just-cloned `workspaceId`, stamping `claimed_at = now()`, `expires_at = now() + 24 h` by the database clock. `null` when the pool is empty. |
 | `asDbError(e)`                                                                 | Maps trigger errors to `FairSplitDbError {code, subject, httpStatus}` — e.g. `RATE_CARD_RATIFIED` with the card sha256 for MM-4's 409.                                                                                                                                          |
 
 `lines.followItem({itemId})` moves a line to the state its payout item's status maps to, in the caller's transaction:
@@ -71,8 +72,12 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
   those for every role unless `fs_purge_workspace()` is purging an expired judge workspace. The purge holds an owner-only
   ticket for (workspace, transaction) that the SECURITY DEFINER guards check; no setting the app can change opens them.
   `fs_app` cannot DELETE workspaces, and a workspace's id, kind and creation time never change. Its `expires_at` only
-  moves later: never earlier, never back to NULL and never into the past (0009), so nothing the app writes brings a
-  purge forward. A judge's Reset ends the session; the hourly purge takes the workspace once it has expired.
+  moves later: never earlier, never back to NULL, and always more than a minute ahead of the database's wall clock; a
+  claim (NULL → value) lasts at least 24 h from the claim by the database clock (0009, 0013). The purge takes only an
+  expiry strictly past, so nothing the app writes brings a purge forward. Claim with `claimJudgeWorkspace(db)` (oldest
+  pooled judge workspace, `SKIP LOCKED`, `expires_at = now() + 24 h`); an expiry computed from the app's clock is
+  refused whenever that clock lags. A judge's Reset ends the session; the hourly purge takes the workspace once it has
+  expired.
 - **Ledger**: an entry must extend `ledger_heads` (seq + 1, prev hash) or it is refused (`LEDGER_FORK`); heads move only by appending.
 - **I5** runs, lines and holds: a state change must be an edge of its machine (`fs_private.state_edges`, the same
   tables as the transition policy) and must set `version = version + 1`; version never moves otherwise
