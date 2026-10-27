@@ -28,7 +28,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { approveConfirm, en } from "../content.js";
-import { BATCH_SHA256, SEASON, TOTALS } from "../fixture.js";
+import { BATCH_SHA256, PEOPLE, SEASON, TOTALS } from "../fixture.js";
 import { money, usd } from "../format.js";
 import { PageTitle, Section, useProtoSearch } from "../Shell.js";
 import type { StudyMomentId } from "../search.js";
@@ -496,7 +496,7 @@ function TwoKeysFrame({
                   frame={phoneSlab}
                 />
                 <p className="fs-t-caption mo-muted">
-                  {keys >= 2 ? m("M-BD-02.signed", { key: "fs-ernesto-a1" }) : m("M-BD-02.hint")}
+                  {keys >= 2 ? m("M-BD-02.signed", { key: PEOPLE.chair.keyId }) : m("M-BD-02.hint")}
                 </p>
                 <p className="fs-t-caption mo-muted">{m("M-BD-02.demo")}</p>
               </div>

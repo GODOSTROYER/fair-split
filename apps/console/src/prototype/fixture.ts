@@ -14,9 +14,25 @@ export const COOP = {
   women: 26,
 } as const;
 
+/**
+ * Key IDs as core's seed has them (S3.8 deviation 7, `fs-{persona}-{a|w}{n}`): the treasurer signs with her
+ * non-extractable WebCrypto key (kind web), the Chair with his app key behind biometrics (kind app).
+ */
 export const PEOPLE = {
-  treasurer: { name: "Analyn R. Sumalinog", short: "Analyn", initials: "AS", role: "Treasurer" },
-  chair: { name: "Ernesto P. Cabahug", short: "Ernesto", initials: "EC", role: "Chairperson" },
+  treasurer: {
+    name: "Analyn R. Sumalinog",
+    short: "Analyn",
+    initials: "AS",
+    role: "Treasurer",
+    keyId: "fs-analyn-w1",
+  },
+  chair: {
+    name: "Ernesto P. Cabahug",
+    short: "Ernesto",
+    initials: "EC",
+    role: "Chairperson",
+    keyId: "fs-ernesto-a1",
+  },
   secretary: { name: "Ma. Theresa L. Gumapac", initials: "TG", role: "Secretary" },
   clerk: { name: "Jessie D. Dumaguing", initials: "JD", role: "Clerk" },
   payer: { company: "Lantern Bay Chocolate Co.", city: "Oakland", contact: "Dana Whitfield-Santos" },
