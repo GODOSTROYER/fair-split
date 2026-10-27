@@ -1,18 +1,54 @@
 /**
- * The clerk's offline outbox (M-CL-01, M-CK-02). Every scanned page becomes one capture with a UUIDv7 id that is
- * also its Idempotency-Key, and a sha256 that is unique on this phone. Captures wait in SQLite until the phone is
- * online, then upload one at a time. A retry is always the same request, so nothing is ever filed twice.
+ * The clerk's offline outbox (M-CL-01 Scan and outbox). Every capture, a scanned weigh-slip page or the photo of a
+ * member's signed "Nadawat" box on cash day, gets a UUIDv7 id that is also its Idempotency-Key, and a sha256 that is
+ * unique on this phone and travels as its Content-Digest. Captures wait in SQLite until the phone is online, then
+ * upload one at a time: cash receipts first (they change a member's line), then pages, oldest first. A retry is
+ * always the same request, so nothing is filed twice, and nothing is ever dropped: a capture the co-op refuses waits
+ * for a person ("Ipadala karon").
  *
- * Pure: the store, uploader, clock, id source and network check are injected, so the same engine runs on
- * expo-sqlite (Android), in memory (web frames) and under Vitest (node:sqlite).
+ * Once the co-op has a capture its state only moves forward (I5): `uploaded` never returns to the queue, and `read`
+ * (`capture.synced`) is final, whichever of the 201 and the event arrives first.
+ *
+ * Pure: the store, uploader, clock, id source, network check and file deleter are injected, so the same engine runs
+ * on expo-sqlite (Android), in memory (web frames) and under Vitest (node:sqlite).
  */
-import { retryDelayMs } from "./backoff";
+import { nextAttemptAt } from "./backoff";
 
 export type CaptureState = "queued" | "uploading" | "uploaded" | "read" | "failed";
-export type CaptureSource = "scanner" | "camera" | "sample";
+/** The system document scanner, the camera fallback, the phone's photos, a web file, or a labelled sample. */
+export type CaptureSource = "scanner" | "camera" | "library" | "file" | "sample";
+/** A weigh-slip page, or the photo of a member's signed "Nadawat" box (cash day). */
+export type CaptureKind = "slip" | "nadawat";
+
+export const CAPTURE_STATES = ["queued", "uploading", "uploaded", "read", "failed"] as const;
+export const CAPTURE_SOURCES = ["scanner", "camera", "library", "file", "sample"] as const;
+
+/** queued and failed share the bottom rung; nothing that reached the co-op goes back down (I5). */
+export const CAPTURE_STATE_RANK: Readonly<Record<CaptureState, number>> = {
+  queued: 0,
+  failed: 0,
+  uploading: 1,
+  uploaded: 2,
+  read: 3,
+};
+
+/** What a cash receipt attests: which line, how much (cents and the run's recorded rate, I1), and who pressed. */
+export interface NadawatMeta {
+  lineId: string;
+  memberNo: string;
+  /** The member's name as the cash list showed it, so the row reads right while offline. */
+  memberName: string;
+  cents: number;
+  phpPerUsd: string;
+  /** Initials for the ink stamp ("JD"). */
+  attestedBy: string;
+}
 
 export interface CaptureRecord {
+  /** UUIDv7: the Idempotency-Key of every attempt. */
   id: string;
+  kind: CaptureKind;
+  /** Lowercase hex sha256 of the exact bytes uploaded: the Content-Digest, and unique on this phone. */
   sha256: string;
   fileUri: string;
   thumbUri: string | null;
@@ -23,10 +59,12 @@ export interface CaptureRecord {
   station: string;
   memberHint: string | null;
   source: CaptureSource;
+  nadawat: NadawatMeta | null;
   createdAt: number;
   state: CaptureState;
   attempts: number;
   nextAttemptAt: number;
+  /** A short code ("503", "NETWORK", "UNAUTHENTICATED"): screens word it, they never show it raw. */
   lastError: string | null;
   progress: number;
   documentId: string | null;
@@ -36,7 +74,24 @@ export interface CaptureRecord {
   uploadedAt: number | null;
 }
 
-export type NewCapture = Pick<
+/** The fields that change after a capture is filed; its bytes, kind and attestation never do. */
+export type CapturePatch = Partial<
+  Pick<
+    CaptureRecord,
+    | "state"
+    | "attempts"
+    | "nextAttemptAt"
+    | "lastError"
+    | "progress"
+    | "documentId"
+    | "duplicateOf"
+    | "rowsRead"
+    | "serial"
+    | "uploadedAt"
+  >
+>;
+
+type NewCaptureBase = Pick<
   CaptureRecord,
   | "sha256"
   | "fileUri"
@@ -50,21 +105,28 @@ export type NewCapture = Pick<
   | "source"
 >;
 
+export type NewCapture = NewCaptureBase &
+  ({ kind?: "slip"; nadawat?: null } | { kind: "nadawat"; nadawat: NadawatMeta });
+
 export interface OutboxStore {
   init(): Promise<void>;
-  /** Inserts unless a capture with the same sha256 exists. */
+  /** Inserts unless a capture with the same sha256 (or a receipt for the same line) exists. */
   insert(rec: CaptureRecord): Promise<"inserted" | "duplicate">;
   get(id: string): Promise<CaptureRecord | null>;
   findBySha(sha256: string): Promise<CaptureRecord | null>;
+  /** The cash receipt already filed for a member line, if any (one per line). */
+  findNadawat(lineId: string): Promise<CaptureRecord | null>;
   /** Newest first. */
   list(): Promise<CaptureRecord[]>;
-  /** Queued or failed captures whose next attempt is due, oldest first. */
+  /** Queued or failed captures whose next attempt is due: cash receipts first, then oldest first. */
   due(now: number, limit: number): Promise<CaptureRecord[]>;
-  update(id: string, patch: Partial<Omit<CaptureRecord, "id" | "sha256">>): Promise<void>;
+  update(id: string, patch: CapturePatch): Promise<void>;
   /** Compare-and-set: applies `patch` only while the row is in one of `from`. */
-  transition(id: string, from: readonly CaptureState[], patch: Partial<CaptureRecord>): Promise<boolean>;
+  transition(id: string, from: readonly CaptureState[], patch: CapturePatch): Promise<boolean>;
   /** Puts interrupted uploads back in the queue (the Idempotency-Key makes re-sending safe). */
   requeueInterrupted(): Promise<number>;
+  /** Deletes uploaded or read captures filed before `before`, returning them so their files can go too. */
+  removeSettled(before: number): Promise<CaptureRecord[]>;
 }
 
 export type UploadOutcome =
@@ -75,9 +137,9 @@ export type UploadOutcome =
       rowsRead: number | null;
       serial: string | null;
     }
-  /** Network loss, 5xx, 429: try again later with the same id. */
-  | { kind: "retry"; error: string }
-  /** The server refused the request itself (4xx): only a person can send it again. */
+  /** Network loss, a captive portal, 408, 429, 5xx: try again later with the same id. */
+  | { kind: "retry"; error: string; retryAfterMs?: number | null }
+  /** The co-op refused the request itself (4xx): only a person can send it again. */
   | { kind: "reject"; error: string };
 
 export type Uploader = (rec: CaptureRecord, onProgress: (fraction: number) => void) => Promise<UploadOutcome>;
@@ -89,13 +151,18 @@ export interface OutboxDeps {
   newId: () => string;
   isOnline: () => boolean;
   onChange?: () => void;
+  /** Deletes a pruned capture's file (best effort; a failure is never an error). */
+  deleteFile?: (uri: string) => void | Promise<void>;
   /** Progress writes are throttled to keep SQLite quiet on cheap phones. */
   progressStep?: number;
 }
 
 export type AddResult =
   | { outcome: "queued"; record: CaptureRecord }
-  | { outcome: "duplicate-file"; existing: CaptureRecord };
+  /** The same bytes were filed before: "Napadala na sa 09:12." */
+  | { outcome: "duplicate-file"; existing: CaptureRecord }
+  /** This member line already has a cash receipt on this phone. */
+  | { outcome: "already-attested"; existing: CaptureRecord };
 
 export interface SyncReport {
   attempted: number;
@@ -108,25 +175,73 @@ export interface SyncReport {
 /** Never retried automatically; "Ipadala karon" (send now) clears it. */
 export const MANUAL_ONLY = Number.MAX_SAFE_INTEGER;
 
+/** Settled captures stay on the phone for a month (the "Earlier" list), then their files are deleted. */
+export const KEEP_SETTLED_MS = 30 * 24 * 3600_000;
+
+/** One drain never loops forever, whatever a misbehaving store returns. */
+const MAX_PASS = 10_000;
+
+const SHA256_RE = /^[0-9a-f]{64}$/;
+const RATE_RE = /^\d+(\.\d{1,2})?$/;
+
+/** Rejects a capture the engine could never upload honestly (a bad digest, a negative size, an unbound receipt). */
+export function assertNewCapture(input: NewCapture): void {
+  if (!SHA256_RE.test(input.sha256)) throw new RangeError("sha256 must be 64 lowercase hex characters");
+  if (!Number.isInteger(input.bytes) || input.bytes < 0) throw new RangeError("bytes must be a whole number");
+  if (!(CAPTURE_SOURCES as readonly string[]).includes(input.source)) {
+    throw new RangeError(`Unknown capture source: ${input.source}`);
+  }
+  if (!input.fileUri) throw new RangeError("A capture needs its file");
+  if (input.kind === "nadawat") {
+    const n = input.nadawat;
+    if (!n?.lineId || !n.memberNo || !n.attestedBy) throw new RangeError("A cash receipt names its line");
+    if (!Number.isInteger(n.cents) || n.cents < 0) throw new RangeError("Money is integer cents");
+    if (!RATE_RE.test(n.phpPerUsd)) throw new RangeError(`Bad rate: ${n.phpPerUsd}`);
+  }
+}
+
 export class Outbox {
   private running: Promise<SyncReport> | null = null;
   private again = false;
+  private disposed = false;
 
   constructor(private readonly deps: OutboxDeps) {}
 
-  async init(): Promise<void> {
+  /** Opens the store, requeues uploads a killed app left behind, and prunes old settled captures. */
+  async init(opts: { keepSettledMs?: number } = {}): Promise<void> {
     await this.deps.store.init();
-    const n = await this.deps.store.requeueInterrupted();
-    if (n) this.deps.onChange?.();
+    const requeued = await this.deps.store.requeueInterrupted();
+    const pruned = await this.prune(opts.keepSettledMs ?? KEEP_SETTLED_MS);
+    if (requeued || pruned) this.changed();
   }
 
-  /** Files a scanned page. The same bytes twice give "Already sent at 09:12" instead of a second capture. */
+  /**
+   * Files a capture on the phone, signal or not. The same bytes twice give "Already sent at 09:12" instead of a
+   * second capture, and a member line takes one cash receipt.
+   */
   async add(input: NewCapture): Promise<AddResult> {
-    const existing = await this.deps.store.findBySha(input.sha256);
+    assertNewCapture(input);
+    const { store } = this.deps;
+    if (input.kind === "nadawat") {
+      const prior = await store.findNadawat(input.nadawat.lineId);
+      if (prior) return { outcome: "already-attested", existing: prior };
+    }
+    const existing = await store.findBySha(input.sha256);
     if (existing) return { outcome: "duplicate-file", existing };
     const now = this.deps.now();
     const record: CaptureRecord = {
-      ...input,
+      sha256: input.sha256,
+      fileUri: input.fileUri,
+      thumbUri: input.thumbUri,
+      mime: input.mime,
+      bytes: input.bytes,
+      width: input.width,
+      height: input.height,
+      station: input.station,
+      memberHint: input.memberHint,
+      source: input.source,
+      kind: input.kind ?? "slip",
+      nadawat: input.kind === "nadawat" ? { ...input.nadawat } : null,
       id: this.deps.newId(),
       createdAt: now,
       state: "queued",
@@ -140,12 +255,15 @@ export class Outbox {
       serial: null,
       uploadedAt: null,
     };
-    const inserted = await this.deps.store.insert(record);
-    if (inserted === "duplicate") {
-      const again = await this.deps.store.findBySha(input.sha256);
-      if (again) return { outcome: "duplicate-file", existing: again };
+    if ((await store.insert(record)) === "duplicate") {
+      // Lost a race with a concurrent add of the same page, or of a receipt for the same line.
+      const same = await store.findBySha(input.sha256);
+      if (same) return { outcome: "duplicate-file", existing: same };
+      const line = input.kind === "nadawat" ? await store.findNadawat(input.nadawat.lineId) : null;
+      if (line) return { outcome: "already-attested", existing: line };
+      throw new Error("The outbox refused a capture it could not find");
     }
-    this.deps.onChange?.();
+    this.changed();
     return { outcome: "queued", record };
   }
 
@@ -165,13 +283,8 @@ export class Outbox {
       };
       do {
         this.again = false;
-        const r = await this.drain();
-        total.attempted += r.attempted;
-        total.uploaded += r.uploaded;
-        total.retrying += r.retrying;
-        total.rejected += r.rejected;
-        total.skippedOffline ||= r.skippedOffline;
-      } while (this.again);
+        await this.drain(total);
+      } while (this.again && !this.disposed);
       return total;
     })();
     this.running = run.finally(() => {
@@ -180,89 +293,122 @@ export class Outbox {
     return this.running;
   }
 
-  /** "Ipadala karon": makes a failed capture due now and syncs. */
+  /** "Ipadala karon": makes one waiting or refused capture due now, then syncs. */
   async sendNow(id: string): Promise<SyncReport> {
-    await this.deps.store.transition(id, ["failed", "queued"], { nextAttemptAt: this.deps.now() });
-    this.deps.onChange?.();
+    if (await this.deps.store.transition(id, ["failed", "queued"], { nextAttemptAt: this.deps.now() })) {
+      this.changed();
+    }
     return this.sync();
   }
 
-  /** `capture.synced` from the server: the slip has been read. */
-  async markRead(id: string, info: { documentId: string; rowsRead?: number | null; serial?: string | null }) {
-    const ok = await this.deps.store.transition(id, ["uploaded", "read", "uploading", "queued", "failed"], {
-      state: "read",
-      documentId: info.documentId,
-      rowsRead: info.rowsRead ?? null,
-      serial: info.serial ?? null,
-    });
-    if (ok) this.deps.onChange?.();
-    return ok;
+  /** "Ipadala tanan karon": every waiting or refused capture becomes due now. */
+  async sendAll(): Promise<SyncReport> {
+    const now = this.deps.now();
+    let n = 0;
+    for (const r of await this.deps.store.list()) {
+      if ((r.state === "failed" || r.state === "queued") && r.nextAttemptAt > now) {
+        if (await this.deps.store.transition(r.id, ["failed", "queued"], { nextAttemptAt: now })) n++;
+      }
+    }
+    if (n) this.changed();
+    return this.sync();
+  }
+
+  /**
+   * `capture.synced`: the co-op has read the page ("4 ka linya nabasa"). Applies once; a redelivered event, a
+   * capture from another phone, or a cash receipt changes nothing.
+   */
+  async markRead(
+    id: string,
+    info: { documentId: string; rowsRead?: number | null; serial?: string | null },
+  ): Promise<boolean> {
+    const { store } = this.deps;
+    for (let i = 0; i < 3; i++) {
+      const cur = await store.get(id);
+      if (cur?.kind !== "slip" || cur.state === "read") return false;
+      const ok = await store.transition(id, [cur.state], {
+        state: "read",
+        documentId: info.documentId,
+        rowsRead: info.rowsRead ?? cur.rowsRead,
+        serial: info.serial ?? cur.serial,
+        uploadedAt: cur.uploadedAt ?? this.deps.now(),
+        lastError: null,
+        progress: 1,
+      });
+      if (ok) {
+        this.changed();
+        return true;
+      }
+    }
+    return false;
   }
 
   list(): Promise<CaptureRecord[]> {
     return this.deps.store.list();
   }
 
-  private async drain(): Promise<SyncReport> {
-    const report: SyncReport = { attempted: 0, uploaded: 0, retrying: 0, rejected: 0, skippedOffline: false };
-    const { store, uploader, now } = this.deps;
-    for (;;) {
+  /** Deletes settled captures older than `keepMs` and their files. Returns how many went. */
+  async prune(keepMs: number = KEEP_SETTLED_MS): Promise<number> {
+    const removed = await this.deps.store.removeSettled(this.deps.now() - keepMs);
+    for (const r of removed) {
+      for (const uri of new Set([r.fileUri, r.thumbUri])) {
+        if (!uri) continue;
+        try {
+          await this.deps.deleteFile?.(uri);
+        } catch {
+          // A file the OS already removed is not an error.
+        }
+      }
+    }
+    return removed.length;
+  }
+
+  /** Stops syncing and change notifications (the clerk signed out, or the provider unmounted). */
+  dispose(): void {
+    this.disposed = true;
+  }
+
+  private changed(): void {
+    if (!this.disposed) this.deps.onChange?.();
+  }
+
+  private async drain(report: SyncReport): Promise<void> {
+    const { store, now } = this.deps;
+    for (let pass = 0; pass < MAX_PASS; pass++) {
+      if (this.disposed) return;
       if (!this.deps.isOnline()) {
         report.skippedOffline = true;
-        return report;
+        return;
       }
       const [next] = await store.due(now(), 1);
-      if (!next) return report;
+      if (!next) return;
       const claimed = await store.transition(next.id, ["queued", "failed"], {
         state: "uploading",
         progress: 0,
       });
       if (!claimed) continue;
       report.attempted++;
-      this.deps.onChange?.();
-      const step = this.deps.progressStep ?? 0.1;
-      let lastReported = 0;
-      let outcome: UploadOutcome;
-      try {
-        outcome = await uploader({ ...next, state: "uploading" }, (p) => {
-          if (p - lastReported >= step || p >= 1) {
-            lastReported = p;
-            void store
-              .update(next.id, { progress: Math.min(1, Math.max(0, p)) })
-              .then(() => this.deps.onChange?.());
-          }
-        });
-      } catch (e) {
-        outcome = { kind: "retry", error: e instanceof Error ? e.message : String(e) };
-      }
+      this.changed();
+      const outcome = await this.upload({ ...next, state: "uploading", progress: 0 });
       const attempts = next.attempts + 1;
+      const at = now();
       if (outcome.kind === "ok") {
-        await store.update(next.id, {
-          state: outcome.rowsRead !== null ? "read" : "uploaded",
-          attempts,
-          progress: 1,
-          lastError: null,
-          documentId: outcome.documentId,
-          duplicateOf: outcome.duplicateOf,
-          rowsRead: outcome.rowsRead,
-          serial: outcome.serial,
-          uploadedAt: now(),
-        });
+        await this.settle(next.id, attempts, at, outcome);
         report.uploaded++;
       } else if (outcome.kind === "retry") {
-        await store.update(next.id, {
+        await store.transition(next.id, ["uploading"], {
           state: "failed",
           attempts,
           progress: 0,
           lastError: outcome.error,
-          nextAttemptAt: now() + retryDelayMs(attempts),
+          nextAttemptAt: nextAttemptAt(at, attempts, outcome.retryAfterMs),
         });
         report.retrying++;
-        this.deps.onChange?.();
-        // Stop this pass: the network or the server is struggling, and the backoff decides when to return.
-        return report;
+        this.changed();
+        // The network or the co-op is struggling: stop this pass, and let the backoff decide when to return.
+        return;
       } else {
-        await store.update(next.id, {
+        await store.transition(next.id, ["uploading"], {
           state: "failed",
           attempts,
           progress: 0,
@@ -271,20 +417,139 @@ export class Outbox {
         });
         report.rejected++;
       }
-      this.deps.onChange?.();
+      this.changed();
+    }
+  }
+
+  /** Runs the uploader; progress is clamped, never goes backwards, and is written in order before the outcome. */
+  private async upload(rec: CaptureRecord): Promise<UploadOutcome> {
+    const { store } = this.deps;
+    const step = this.deps.progressStep ?? 0.1;
+    let last = 0;
+    let writes: Promise<void> = Promise.resolve();
+    let outcome: UploadOutcome;
+    try {
+      outcome = await this.deps.uploader(rec, (p) => {
+        const f = Math.min(1, Math.max(0, Number.isFinite(p) ? p : 0));
+        if (f <= last || (f - last < step && f < 1)) return;
+        last = f;
+        writes = writes
+          .then(() => store.transition(rec.id, ["uploading"], { progress: f }))
+          .then(
+            (ok) => {
+              if (ok) this.changed();
+            },
+            () => {},
+          );
+      });
+    } catch (e) {
+      outcome = { kind: "retry", error: e instanceof Error ? e.message : String(e) };
+    }
+    await writes;
+    return outcome;
+  }
+
+  /** The 201: uploaded, or read when the response already carries rows. Never moves a capture backwards. */
+  private async settle(
+    id: string,
+    attempts: number,
+    at: number,
+    o: Extract<UploadOutcome, { kind: "ok" }>,
+  ): Promise<void> {
+    const { store } = this.deps;
+    const target: CaptureState = o.rowsRead !== null ? "read" : "uploaded";
+    for (let i = 0; i < 3; i++) {
+      const cur = await store.get(id);
+      if (!cur) return;
+      if (CAPTURE_STATE_RANK[cur.state] >= CAPTURE_STATE_RANK[target]) {
+        // capture.synced got here first: keep its state and rows, and add what the 201 knows.
+        await store.update(id, {
+          attempts,
+          progress: 1,
+          lastError: null,
+          documentId: cur.documentId ?? o.documentId,
+          duplicateOf: cur.duplicateOf ?? o.duplicateOf,
+          uploadedAt: cur.uploadedAt ?? at,
+        });
+        return;
+      }
+      const ok = await store.transition(id, [cur.state], {
+        state: target,
+        attempts,
+        progress: 1,
+        lastError: null,
+        documentId: o.documentId,
+        duplicateOf: o.duplicateOf,
+        rowsRead: o.rowsRead ?? cur.rowsRead,
+        serial: o.serial ?? cur.serial,
+        uploadedAt: at,
+        nextAttemptAt: at,
+      });
+      if (ok) return;
     }
   }
 }
 
-/** Counts for the scan screen's offline line ("3 ka resibo natipigan sa telepono"). */
-export function summarise(records: readonly CaptureRecord[]) {
-  let waiting = 0;
-  let sent = 0;
-  let failed = 0;
+/* ------------------------------------------------------------------ pure views over the records */
+
+export interface OutboxSummary {
+  total: number;
+  /** Waiting for signal or for their turn. */
+  queued: number;
+  uploading: number;
+  /** Failed and retrying on their own. */
+  retrying: number;
+  /** Refused by the co-op: waiting for a person. */
+  refused: number;
+  uploaded: number;
+  read: number;
+  /** Everything not yet at the co-op ("3 ka resibo natipigan sa telepono"). */
+  onPhone: number;
+  /** Everything the co-op has. */
+  sent: number;
+}
+
+export function summarise(records: readonly CaptureRecord[]): OutboxSummary {
+  const s: OutboxSummary = {
+    total: records.length,
+    queued: 0,
+    uploading: 0,
+    retrying: 0,
+    refused: 0,
+    uploaded: 0,
+    read: 0,
+    onPhone: 0,
+    sent: 0,
+  };
   for (const r of records) {
-    if (r.state === "queued" || r.state === "uploading") waiting++;
-    else if (r.state === "failed") failed++;
-    else sent++;
+    if (r.state === "failed") {
+      if (r.nextAttemptAt === MANUAL_ONLY) s.refused++;
+      else s.retrying++;
+    } else s[r.state]++;
   }
-  return { total: records.length, waiting, sent, failed, onPhone: waiting + failed };
+  s.onPhone = s.queued + s.uploading + s.retrying + s.refused;
+  s.sent = s.uploaded + s.read;
+  return s;
+}
+
+/** When the next automatic retry is due (to wake the outbox exactly then), or null if none is waiting. */
+export function nextWakeAt(records: readonly CaptureRecord[], now: number): number | null {
+  let at: number | null = null;
+  for (const r of records) {
+    if (r.state !== "failed" || r.nextAttemptAt === MANUAL_ONLY || r.nextAttemptAt <= now) continue;
+    if (at === null || r.nextAttemptAt < at) at = r.nextAttemptAt;
+  }
+  return at;
+}
+
+/** The co-op keeps Philippine time (UTC+8, no daylight saving): "today" never depends on the phone's zone. */
+const MANILA_OFFSET_MS = 8 * 3600_000;
+const DAY_MS = 24 * 3600_000;
+
+export function manilaDay(ms: number): number {
+  return Math.floor((ms + MANILA_OFFSET_MS) / DAY_MS);
+}
+
+export function isSameManilaDay(a: number, b: number): boolean {
+  return manilaDay(a) === manilaDay(b);
 }
