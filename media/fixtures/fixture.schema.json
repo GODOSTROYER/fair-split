@@ -1777,6 +1777,10 @@
                     },
                     "evidence": {
                       "type": "string"
+                    },
+                    "leakAccepted": {
+                      "type": "string",
+                      "minLength": 1
                     }
                   },
                   "required": [

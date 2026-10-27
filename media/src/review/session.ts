@@ -9,12 +9,14 @@ import {
   type LogbookPageFixture,
   type NRect,
   SLOTS,
+  type SlipFixture,
   type SlipImageFixture,
   slipFieldEntries,
   type TrapCheck,
 } from "../fixtures/schema.js";
 import { fixtureFields } from "../imagegen/review.js";
 import { SLIP_BOXES } from "../template/slip-template.js";
+import { describeLeaks, stainLeaks } from "./stain.js";
 
 /**
  * One person's pass over a fixture in the review page (S4.10 "Review grid"): every field's crop beside the
@@ -44,6 +46,8 @@ export interface TrapItem {
   by: TrapCheck["by"];
   evidence: string;
   question: string;
+  /** What the slip's other boxes give away about a stained value (stain.ts), shown beside the question. */
+  leak: string | null;
 }
 
 const ROW_LABEL: Record<string, string> = Object.fromEntries(
@@ -67,6 +71,13 @@ const TRAP_QUESTIONS: Record<TrapCheck["trap"], string> = {
   MARGIN_NOTE:
     "Margin note: is it fully outside every box and readable as written? Only a recorded Claude read can show it is quarantined; you can record that it fails.",
 };
+
+function leakNote(s: SlipFixture, t: TrapCheck): string | null {
+  if (t.trap !== "WATER_STAIN") return null;
+  const leaks = stainLeaks(s);
+  if (!leaks.length) return null;
+  return `Other boxes give the stained value away: ${describeLeaks(leaks)}.${t.leakAccepted ? ` Accepted: ${t.leakAccepted}.` : " Whether that is acceptable is the user's decision."}`;
+}
 
 /** The review page's items for a fixture: every value-bearing field, then the behavioural traps. */
 export function reviewItems(f: Fixture): { fields: ReviewItem[]; traps: TrapItem[] } {
@@ -104,6 +115,7 @@ export function reviewItems(f: Fixture): { fields: ReviewItem[]; traps: TrapItem
           by: t.by,
           evidence: t.evidence,
           question: TRAP_QUESTIONS[t.trap],
+          leak: leakNote(s, t),
         });
       }
     }
@@ -368,9 +380,16 @@ export function replayBlockers(f: Fixture): string[] {
   if (f.kind === "slip_page" || f.kind === "slip_photo") {
     for (const s of (f as SlipImageFixture).slips) {
       for (const t of s.trapChecks) {
+        // A stain the slip's other boxes give away needs the user's decision as well as a read (stain.ts).
+        const leaks = t.trap === "WATER_STAIN" ? stainLeaks(s) : [];
+        const leak = leaks.length ? describeLeaks(leaks) : "";
         if (t.status !== "HOLDS" || t.by !== "read") {
           out.push(
-            `${s.slot} slip ${s.serial}: ${t.trap} must be shown to hold by a recorded Claude read (now ${t.status}${t.by ? ` by ${t.by}` : ""})`,
+            `${s.slot} slip ${s.serial}: ${t.trap} must be shown to hold by a recorded Claude read (now ${t.status}${t.by ? ` by ${t.by}` : ""})${leak && !t.leakAccepted ? `; the stain leaks: ${leak}, which needs the user's decision too` : ""}`,
+          );
+        } else if (leak && !t.leakAccepted) {
+          out.push(
+            `${s.slot} slip ${s.serial}: WATER_STAIN holds by a recorded read, but the stain leaks: ${leak}; it needs the user's decision that this is acceptable (trap-verdict --accept-leak)`,
           );
         }
       }

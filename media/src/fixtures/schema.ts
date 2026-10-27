@@ -121,9 +121,17 @@ export const TrapCheck = z
     by: z.enum(["agent", "human", "read"]).nullable(),
     at: z.string().nullable(),
     evidence: z.string(),
+    /**
+     * WATER_STAIN only: the user's recorded decision that it is acceptable for other boxes to give the
+     * stained value away (review/stain.ts; slip 0462's box 11). Without it a leaking stain never holds.
+     */
+    leakAccepted: z.string().min(1).optional(),
   })
   .refine((t) => (t.status === "UNVERIFIED") === (t.by === null), {
     message: "an UNVERIFIED trap has no checker; a checked one names it",
+  })
+  .refine((t) => t.leakAccepted === undefined || t.trap === "WATER_STAIN", {
+    message: "only a WATER_STAIN check records a decision about a leaking stain",
   })
   .refine((t) => t.status !== "HOLDS" || t.by === "read", {
     message: "only a recorded read can show that a trap holds; a look can show only that it failed",

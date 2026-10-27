@@ -41,6 +41,7 @@ import {
   type SessionRef,
   type TerminalIo,
 } from "../review/confirm.js";
+import { judgeReadReport } from "../review/evidence.js";
 import { startReviewServer } from "../review/server.js";
 import {
   findConfirmableSession,
@@ -91,7 +92,10 @@ const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All outpu
   imagegen review <id> --reviewer "<name>" [--port N]  a person checks every crop on 127.0.0.1, then confirms
   imagegen mark <id> --status human-reviewed --reviewer "<name>" [--session review/sessions/<file>.json]
                                         confirm at your own terminal; it stands on your saved review session
-  imagegen trap-verdict <id> <slot> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence <recorded read>
+  imagegen trap-verdict <id> <slot> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED
+                --evidence packages/eval/report/<report>.json [--accept-leak "<the user's decision>"]
+                                        a WS-READ eval report that read this slip of this master; a stain
+                                        other boxes give away holds only with the user's decision
   imagegen replay-check <id...>         what still stops an image from joining a replay set
   imagegen labels                       write eval/labels/{case}.json (person-checked fixtures) and
                                         eval/provisional/{case}.json (agent-checked) from checked fixtures
@@ -189,6 +193,7 @@ export async function main(
   argv: readonly string[],
   mediaRoot = MEDIA_ROOT,
   io: TerminalIo = processTerminal(),
+  repoRoot = REPO_ROOT,
 ): Promise<number> {
   const { positionals, values } = parseArgs({
     args: [...argv],
@@ -204,6 +209,7 @@ export async function main(
       reviewer: { type: "string" },
       note: { type: "string" },
       evidence: { type: "string" },
+      "accept-leak": { type: "string" },
       session: { type: "string" },
       port: { type: "string" },
       force: { type: "boolean" },
@@ -598,12 +604,13 @@ export async function main(
         !values.evidence
       ) {
         console.error(
-          "usage: imagegen trap-verdict <id> <TL|TR|BL|BR|ONLY> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence <recorded read> [--note <text>]",
+          'usage: imagegen trap-verdict <id> <TL|TR|BL|BR|ONLY> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence packages/eval/report/<report>.json [--accept-leak "<the user\'s decision>"] [--note <text>]',
         );
         return 1;
       }
-      const evidence = resolve(values.evidence);
-      const fromRoot = relative(REPO_ROOT, evidence);
+      // A relative path is repo-relative (pnpm runs this from media/, not from where you typed it).
+      const evidence = isAbsolute(values.evidence) ? values.evidence : resolve(repoRoot, values.evidence);
+      const fromRoot = relative(repoRoot, evidence);
       const rel = fromRoot.split("\\").join("/");
       // On Windows a path on another drive comes back absolute, not as "../…".
       if (!fromRoot || fromRoot.startsWith("..") || isAbsolute(fromRoot) || !existsSync(evidence)) {
@@ -612,27 +619,49 @@ export async function main(
         );
         return 1;
       }
-      const bytes = await readFile(evidence);
-      if (!bytes.length) {
-        console.error("trap-verdict: the evidence file is empty");
-        return 1;
-      }
       const f = await readFixture(mediaRoot, id);
       if (!f || (f.kind !== "slip_page" && f.kind !== "slip_photo")) {
         console.error(`${id}: no slip fixture`);
         return 1;
       }
-      recordReadVerdict(f as SlipImageFixture, {
+      const entry = (await store.read()).assets[id];
+      if (!entry?.master || entry.master.sha256 !== f.image.sha256) {
+        console.error(
+          `trap-verdict: fixtures/${id}.json does not describe the current master; redraft it first`,
+        );
+        return 1;
+      }
+      const bytes = await readFile(evidence);
+      const judged = judgeReadReport({
+        file: rel,
+        bytes,
+        fixtureId: id,
         slot: slot as Slot,
-        trap: trap as TrapCheck["trap"],
         status,
-        evidenceFile: rel,
-        evidenceSha256: sha256(bytes),
-        ...(values.note ? { note: values.note } : {}),
-        at: new Date().toISOString(),
+        masterSha256: f.image.sha256,
+        masterMadeAt: entry.attempts.find((a) => a.outcome === "accepted")?.startedAt ?? null,
       });
+      if (!judged.ok) {
+        console.error(`trap-verdict: ${judged.why}`);
+        return 1;
+      }
+      try {
+        recordReadVerdict(f as SlipImageFixture, {
+          slot: slot as Slot,
+          trap: trap as TrapCheck["trap"],
+          status,
+          evidenceFile: rel,
+          evidenceSha256: sha256(bytes),
+          note: [judged.note, values.note].filter(Boolean).join("; "),
+          ...(values["accept-leak"] ? { leakAccepted: values["accept-leak"] } : {}),
+          at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error(`trap-verdict: ${(e as Error).message}`);
+        return 1;
+      }
       await writeFixture(mediaRoot, f);
-      console.log(`${id} ${slot} ${trap}: ${status} by a recorded read (${rel})`);
+      console.log(`${id} ${slot} ${trap}: ${status} by a recorded read (${rel}; ${judged.note})`);
       return 0;
     }
     case "replay-check": {

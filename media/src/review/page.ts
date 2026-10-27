@@ -170,7 +170,12 @@ function trap(t: TrapItem): string {
   const read = t.by === "read" ? ` A recorded read already says <b>${esc(t.status)}</b>.` : "";
   return `<div class="trap" data-slot="${esc(t.slot)}" data-trap="${esc(t.trap)}">
   <div class="title">${esc(t.slot === "ONLY" ? "" : `${t.slot} · `)}${esc(t.trap)}</div>
-  <p>${esc(t.question)}${read}</p>
+  <p>${esc(t.question)}${read}</p>${
+    t.leak
+      ? `
+  <p class="bad">${esc(t.leak)}</p>`
+      : ""
+  }
   <label><input type="radio" name="trap-${esc(t.slot)}-${esc(t.trap)}" value="UNVERIFIED"${t.status === "FAILED" ? "" : " checked"}> renders as intended (still needs a recorded read)</label>
   <label><input type="radio" name="trap-${esc(t.slot)}-${esc(t.trap)}" value="FAILED"${t.status === "FAILED" ? " checked" : ""}> fails${t.status === "FAILED" && t.by !== "read" ? ` (recorded by ${esc(t.by ?? "")}: change it only if you disagree)` : ""}</label>
   <textarea aria-label="What you saw" placeholder="What you saw (optional)">${esc(t.evidence)}</textarea>

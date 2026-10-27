@@ -10,7 +10,6 @@ import { emptyManifest } from "../src/imagegen/manifest.js";
 import { applyObservations, fixtureFields } from "../src/imagegen/review.js";
 import type { TerminalIo } from "../src/review/confirm.js";
 import { applySubmission, sessionPath } from "../src/review/session.js";
-import { REPO_ROOT } from "../src/util/env.js";
 import { entry, slipPageFixture } from "./support.js";
 
 const AT = "2026-10-22T12:00:00.000Z";
@@ -148,19 +147,13 @@ describe("imagegen CLI guards", () => {
     expect(logs.join("\n")).toMatch(/interactive terminal/);
   });
 
-  it("trap-verdict needs a recorded read inside the repo and pins its hash", async () => {
-    const root = media([slipPageFixture("spike-0462", SLIP_0462)]);
-    const outside = join(mkdtempSync(join(tmpdir(), "fs-ev-")), "read.json");
-    writeFileSync(outside, "{}");
-    expect(
-      await main(
-        ["trap-verdict", "spike-0462", "ONLY", "WATER_STAIN", "--status", "HOLDS", "--evidence", outside],
-        root,
-        agentShell,
-      ),
-    ).toBe(1);
-    expect(
-      await main(
+  it("trap-verdict rests only on a WS-READ eval report that read this slip, and a leaking stain needs the user's decision", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "fs-repo-"));
+    const f = slipPageFixture("spike-0462", SLIP_0462);
+    applyObservations(f, { allFieldsChecked: true, observed: [], mismatches: [], traps: [] }, AT);
+    const root = media([f]);
+    const verdict = (evidence: string, ...extra: string[]) =>
+      main(
         [
           "trap-verdict",
           "spike-0462",
@@ -169,19 +162,75 @@ describe("imagegen CLI guards", () => {
           "--status",
           "HOLDS",
           "--evidence",
-          join(REPO_ROOT, "package.json"),
+          evidence,
+          ...extra,
         ],
         root,
         agentShell,
-      ),
-    ).toBe(0);
-    expect(readFixture(root, "spike-0462").slips[0]?.trapChecks[0]).toMatchObject({
+        repo,
+      );
+    // Any non-empty file in the repo used to pass as "the recorded read": a README is not one.
+    writeFileSync(join(repo, "README.md"), "# readme");
+    expect(await verdict("README.md")).toBe(1);
+    expect(logs.join("\n")).toMatch(/must be a WS-READ eval report under packages\/eval\/report\//);
+    const outside = join(mkdtempSync(join(tmpdir(), "fs-ev-")), "read.json");
+    writeFileSync(outside, "{}");
+    expect(await verdict(outside)).toBe(1);
+    expect(logs.join("\n")).toMatch(/inside the repo/);
+    // A live report that read this slip after its master was made, and passed it...
+    const rel = "packages/eval/report/history/2026-10-24T02-00-00-000Z-live-dev.json";
+    mkdirSync(join(repo, "packages", "eval", "report", "history"), { recursive: true });
+    writeFileSync(
+      join(repo, rel),
+      JSON.stringify({
+        v: 1,
+        generated_at: "2026-10-24T02:00:00.000Z",
+        mode: "live",
+        set: "dev",
+        cases: [{ id: "spike-0462#ONLY", kind: "slip", pass: true, reasons: [] }],
+      }),
+    );
+    // ...still cannot make the stain hold while box 11 gives its value away,
+    expect(await verdict(rel)).toBe(1);
+    expect(logs.join("\n")).toMatch(/the stain leaks: box 6 "6\?\.80" is 64\.80 from boxes 11, 10, 7/);
+    expect(readFixture(root, "spike-0462").slips[0]?.trapChecks[0]).toMatchObject({ status: "UNVERIFIED" });
+    // until the user's decision is recorded with it; the report is pinned by sha256.
+    expect(await verdict(rel, "--accept-leak", "user, 24 Oct: box 11 stays readable")).toBe(0);
+    const check = readFixture(root, "spike-0462").slips[0]?.trapChecks[0];
+    expect(check).toMatchObject({
       status: "HOLDS",
       by: "read",
+      leakAccepted: "user, 24 Oct: box 11 stays readable",
     });
-    expect(readFixture(root, "spike-0462").slips[0]?.trapChecks[0]?.evidence).toMatch(
-      /^package\.json sha256:[0-9a-f]{16}$/,
+    expect(check?.evidence).toMatch(
+      /^packages\/eval\/report\/history\/2026-10-24T02-00-00-000Z-live-dev\.json sha256:[0-9a-f]{16}; READ live\/dev report of 2026-10-24T02:00:00\.000Z: spike-0462#ONLY pass$/,
     );
+  });
+
+  it("trap-verdict refuses a report made before the current master existed", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "fs-repo-"));
+    const root = media([slipPageFixture("spike-0462", SLIP_0462)]);
+    const rel = "packages/eval/report/latest.json";
+    mkdirSync(join(repo, "packages", "eval", "report"), { recursive: true });
+    writeFileSync(
+      join(repo, rel),
+      JSON.stringify({
+        v: 1,
+        generated_at: "2026-10-21T00:00:00.000Z",
+        mode: "replay",
+        set: "dev",
+        cases: [{ id: "spike-0462#ONLY", kind: "slip", pass: false, reasons: ["row not exact"] }],
+      }),
+    );
+    expect(
+      await main(
+        ["trap-verdict", "spike-0462", "ONLY", "WATER_STAIN", "--status", "FAILED", "--evidence", rel],
+        root,
+        agentShell,
+        repo,
+      ),
+    ).toBe(1);
+    expect(logs.join("\n")).toMatch(/predates this master/);
   });
 
   it("replay-check lists what still stops an image", async () => {

@@ -66,9 +66,20 @@ shape, and `line_no` is the logbook's `line` column.
   white original with the same serial in the same image group, `{fixture}#{slot}`; a `WHITE_ORIGINAL` never
   carries it (schema-enforced). Two renders of one slip in different groups are never marked.
 - **Traps.** `WATER_STAIN` and `MARGIN_NOTE` carry a `trapChecks` entry. A look (agent or person) can record
-  that a trap renders or that it **failed**; only `imagegen trap-verdict … --evidence <recorded read>` (a
-  WS-READ recording or eval report, pinned by sha256) can say it **holds**. `imagegen replay-check` refuses any
-  image for a replay set until it is human-reviewed and every trap holds by a recorded read.
+  that a trap renders or that it **failed**; only `imagegen trap-verdict … --evidence <report>` can say it
+  **holds**. The evidence must be a WS-READ eval report under `packages/eval/report/` (`latest.json` or
+  `history/*.json`; only a report scores both reads against the label, a recording is one call and names no
+  slip): it must hold this slip's cell `{fixture id}#{slot}`, agree with the verdict (`pass: true` for HOLDS,
+  `false` for FAILED) and be generated after the exec that made the current master (READ's v1 report names
+  no image hash; a cell's `image_sha256`, once READ adds it, must be the master's). It is pinned by sha256. A
+  WATER_STAIN holds only if the fixture sends every stained field to a person (`expect: HUMAN`).
+- **Leaking stains.** `stainLeaks` works out a stained kilo value from the readable boxes with S4.2's row
+  checks (gross − tare = net, net − mc_less = payable, ±10 g). On the 0462 flat, box 11 (64.50), box 10
+  (0.00) and box 7 (0.30) give away gross 64.80 and net 64.50. Such a stain reaches HOLDS only with the
+  user's decision recorded beside the read (`--accept-leak "<who, when, what>"`, stored as `leakAccepted`),
+  or once the stain covers those boxes too. The review page shows the leak beside the stain question, and
+  `imagegen replay-check` refuses any image for a replay set until it is human-reviewed (with its review
+  session), every trap holds by a recorded read, and every leaking stain has that decision.
 - **Labels.** `imagegen labels` writes one label per checked fixture of an eval group (the S3 hero flats and
   the logbook page; S4.8 `dev`), and removes it when the fixture is a draft again. The label's shape is exactly
   what WS-READ's strict loader (`packages/eval/src/labels.ts`) parses, no key more; `test/contract.ic11-labels
@@ -87,7 +98,7 @@ corepack pnpm --filter @fairsplit/media imagegen budget                         
 corepack pnpm --filter @fairsplit/media imagegen fixture <id...|all> [--force]  # draft fixtures + crop sheets
 corepack pnpm --filter @fairsplit/media imagegen apply-review review/<file>.json # an agent's recorded check
 corepack pnpm --filter @fairsplit/media imagegen review <id> --reviewer "<you>" # a person, at the terminal
-corepack pnpm --filter @fairsplit/media imagegen trap-verdict spike-0462 ONLY WATER_STAIN --status HOLDS --evidence <read>
+corepack pnpm --filter @fairsplit/media imagegen trap-verdict spike-0462 ONLY WATER_STAIN --status HOLDS --evidence packages/eval/report/history/<run>.json [--accept-leak "<decision>"]
 corepack pnpm --filter @fairsplit/media imagegen replay-check <id...>
 corepack pnpm --filter @fairsplit/media imagegen labels | schema | migrate | list
 corepack pnpm --filter @fairsplit/media imagegen exec <prompt.md> --orientation landscape  # prompt file in, image out
@@ -177,8 +188,11 @@ until the user listens to voice Sulafat (OD-2) and records the daily limit.
    (`--labels <repo>/media/eval/provisional`), and its result is provisional (plan amendment 3: label checks
    never block a gate).
 2. **Slip 0462's stain.** Box 11 Bayranan (64.50) is legible on both checked 0462 renders, so the stain hides
-   the digit but not the value. Should the stain also cover box 11 (or boxes 10 and 11)? The C4 copy names only gross and
-   net. Until a real Claude A/B read scores 0462's gross and net below 0.85, no A–L photo with 0462 is accepted.
+   the digit but not the value. Should the stain also cover box 11 (or boxes 10 and 11)? The C4 copy names only
+   gross and net. Until a real Claude A/B read scores 0462's gross and net below 0.85, no A–L photo with 0462 is
+   accepted; and until you decide, `trap-verdict` refuses HOLDS on any 0462 render (the leak is computed from
+   the fixture, so it covers photo J as well). If box 11 stays readable, the verdict carries your decision
+   (`--accept-leak`); if it is stained too, 0462 is regenerated and nothing leaks.
 3. **S10.** Read the free-tier daily limit for `gemini-3.8-flash-tts` and `gemini-3.8-flash-lite-tts` at
    https://aistudio.google.com/rate-limit and run `tts set-limit <model> <n> --source "AI Studio, <date>"`; then
    listen to `audio/M-014/{ceb,fil,en}` and choose the voice (OD-2).
@@ -196,6 +210,12 @@ until the user listens to voice Sulafat (OD-2) and records the daily limit.
    Codex edit of the white (`-i`).
 3. With OD-3: code composes A–L from checked flats on Codex mats; fixtures come from the placement transforms.
    Without it: one exec per photo, `fixture`, an agent check, then the user's `review`.
-4. Before acceptance: a recorded Claude read must show 0462's stain holds (`trap-verdict`), and 0449's note is
-   quarantined; `replay-check` lists anything still missing.
-5. Statements: 11 requests in the plan's order, paced ≤ 3 a minute, inside the recorded daily limit.
+4. Before acceptance: a recorded Claude read must show 0462's stain holds (`trap-verdict`, with your box-11
+   decision), and 0449's note is quarantined; `replay-check` lists anything still missing.
+5. **Gap against S4.10's review grid (tied to OD-3).** S4.10 has the reviewer click each slip's four corners,
+   project the template's boxes onto the photo and drag a box into place. The review page shows one crop per
+   field from `grid-detect` only, and a wrong crop can only be marked (the fixture goes back to a redraft).
+   That is enough for the flat S3 slips, which the detector draws and an agent checked crop by crop. For A–L:
+   with OD-3, fixtures come from the placement transforms and need no correction tool; without OD-3, build
+   corner-click correction (four corners, projected boxes, drag to fix) before 27 Oct.
+6. Statements: 11 requests in the plan's order, paced ≤ 3 a minute, inside the recorded daily limit.

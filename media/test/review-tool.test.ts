@@ -135,6 +135,7 @@ describe("review session (S4.10 review grid): a person's readings become the fix
       status: "HOLDS",
       evidenceFile: "packages/eval/report/latest.json",
       evidenceSha256: "f".repeat(64),
+      leakAccepted: "user, 24 Oct: box 11 stays readable",
       at: AT,
     });
     applySubmission(read, { ...answers(read), traps: sub.traps }, META);
@@ -226,17 +227,20 @@ describe("replay acceptance (S4.10: heroes must behave as specified)", () => {
     const f = slipPageFixture("spike-0462", SLIP_0462);
     applySubmission(f, answers(f), META);
     f.review.status = "human-reviewed";
+    // 0462's box 11 gives the stained value away, so the user's decision is needed besides the read.
     expect(replayBlockers(f).join(" ")).toMatch(
-      /WATER_STAIN must be shown to hold by a recorded Claude read/,
+      /WATER_STAIN must be shown to hold by a recorded Claude read \(now UNVERIFIED\); the stain leaks: box 6/,
     );
-    recordReadVerdict(f, {
+    const verdict = {
       slot: "ONLY",
       trap: "WATER_STAIN",
       status: "HOLDS",
       evidenceFile: "packages/eval/report/latest.json",
       evidenceSha256: "a".repeat(64),
       at: AT,
-    });
+    } as const;
+    expect(() => recordReadVerdict(f, verdict)).toThrow(/the stain leaks/);
+    recordReadVerdict(f, { ...verdict, leakAccepted: "user, 24 Oct: box 11 stays readable" });
     expect(replayBlockers(f)).toEqual([]);
     expect(f.slips[0]?.trapChecks[0]?.evidence).toBe(
       "packages/eval/report/latest.json sha256:aaaaaaaaaaaaaaaa",
@@ -283,6 +287,21 @@ describe("review page", () => {
     expect(page).toContain("Synthetic sample");
     expect(page).toContain("&lt;b&gt;t&lt;/b&gt;");
     expect(page).not.toMatch(/<script src=/);
+  });
+
+  it("shows the person what 0462's other boxes give away beside the stain question", () => {
+    const { fields, traps } = reviewItems(slipPageFixture("spike-0462", SLIP_0462));
+    expect(traps[0]?.leak).toMatch(/box 6 "6\?\.80" is 64\.80 from boxes 11, 10, 7.*the user's decision/);
+    const page = renderReviewPage({
+      id: "spike-0462",
+      title: "t",
+      reviewer: "A",
+      token: "tok",
+      items: fields,
+      traps,
+    });
+    expect(page).toContain("box 6 &quot;6?.80&quot; is 64.80 from boxes 11, 10, 7");
+    expect(reviewItems(slipPageFixture("spike-0403", SLIP_0403)).traps).toEqual([]);
   });
 });
 
