@@ -6,12 +6,16 @@ owns.
 
 ## Expo changes every SDK; check the installed version, not memory
 
-- `expo` is pinned to 58.0.17. Read the installed `.d.ts` files in `node_modules` or the versioned docs at
+- `expo` is pinned to 58.0.20. Read the installed `.d.ts` files in `node_modules` or the versioned docs at
   `https://docs.expo.dev/versions/v58.0.0/` before using an Expo or React Native API.
 - Dependencies are exact `catalog:` pins in `pnpm-workspace.yaml`, taken from `node_modules/expo/bundledNativeModules.json`
   for native modules; `corepack pnpm --filter @fairsplit/mobile check:expo` (`npx expo install --check`) must stay
   clean. Never run `npx expo install <pkg>` (it writes a range). Slices add no dependencies: everything they need is
   installed (`SPLIT.md`).
+- The online check follows Expo's newest SDK 58 patches, so it can start failing with no change here (27 Oct 2026:
+  seven pins one patch behind; 28 Oct: five more). Only the shell bumps them, in the catalog, between slice rounds; the
+  lockfile change must be version bumps of Expo's own packages only (no new package names; `noxcturnal` is Expo's,
+  under `@expo/metro-config`), and typecheck, tests and the web export rerun.
 - `android/` and `ios/` are generated (Continuous Native Generation). Configure native behaviour in `app.config.ts`
   and config plugins only.
 
