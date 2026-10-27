@@ -55,7 +55,39 @@ describe("W-TR-01 season", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-01.funded")).toBeTruthy();
     expect(screen.getByTestId("W-TR-01.strip.FUNDED").dataset.state).toBe("lit");
     expect(screen.getByTestId("W-TR-01.strip.READ").dataset.state).toBe("lit");
+    // Funded is PayPal's: once the invoice reads back as paid it lands jade, the strip's only jade.
+    const landed = screen.getByTestId("W-TR-01.strip").querySelectorAll("[data-landed]");
+    expect([...landed].map((el) => (el as HTMLElement).dataset.stage)).toEqual(["FUNDED"]);
     await expectNoAxeViolations(view.container);
+  });
+
+  it("draws the run strip in the product's own material: stencilled words on a plate, no checkboxes", async () => {
+    await renderConsole({ path: SEASON });
+    const strip = await screen.findByTestId("W-TR-01.strip");
+    const stages = [...strip.querySelectorAll<HTMLElement>(":scope > li")];
+    expect(stages.map((s) => s.dataset.stage)).toEqual([
+      "RATIFIED",
+      "FUNDED",
+      "READ",
+      "CHECKED",
+      "APPROVED",
+      "PAID",
+    ]);
+    expect(stages.map((s) => s.querySelector(".fsc-strip__word")?.textContent)).toEqual([
+      "Ratified",
+      "Funded",
+      "Read",
+      "Checked",
+      "Approved",
+      "Paid",
+    ]);
+    // Ratified carries its date by the bolt; the next stage says so; the rest wait as print beds.
+    expect(screen.getByTestId("W-TR-01.strip.RATIFIED").textContent).toMatch(/^Ratified14 Mar, done$/);
+    expect(screen.getByTestId("W-TR-01.strip.FUNDED").textContent).toBe("FundedNext, next");
+    expect(strip.querySelector("[data-landed]")).toBeNull();
+    expect(
+      strip.querySelector('input[type="checkbox"], [role="checkbox"], .fs-glyph[data-glyph="ms:check"]'),
+    ).toBeNull();
   });
 
   it("says so when the browser is offline", async () => {

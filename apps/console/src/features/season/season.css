@@ -89,73 +89,103 @@
 
 /* ---------------------------------------------------------------- the run strip */
 
+/* One flat plate, stencilled like a sack, with a V notch cut into its top and bottom edge between each stage
+   and the next: the sequence reads as a tally, not a checklist. */
 .fsc-strip {
+  --fsc-notch: 7px;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--fs-plate);
 }
 
+/* Every stage's word on one line across the plate; a stage's note (its date, or "Next") hangs beneath it. */
 .fsc-strip__stage {
   position: relative;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  padding: 12px 12px 12px 0;
-  color: var(--fs-ink-3);
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+  min-height: 76px;
+  padding: 16px 18px 12px;
+  color: var(--fs-ink);
 }
 
-/* One rule runs the length of the sequence, through each stage's mark. */
-.fsc-strip__stage::before {
+.fsc-strip__stage + .fsc-strip__stage {
+  box-shadow: inset 1px 0 0 var(--fs-rule);
+}
+
+.fsc-strip__stage + .fsc-strip__stage::before,
+.fsc-strip__stage + .fsc-strip__stage::after {
   content: "";
   position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--fs-rule);
+  z-index: 1;
+  left: calc(var(--fsc-notch) * -1);
+  width: 0;
+  height: 0;
+  border-right: var(--fsc-notch) solid transparent;
+  border-left: var(--fsc-notch) solid transparent;
 }
 
-.fsc-strip__stage[data-state="lit"]::before {
-  background: var(--fs-ink-3);
+.fsc-strip__stage + .fsc-strip__stage::before {
+  top: 0;
+  border-top: var(--fsc-notch) solid var(--fs-ground);
 }
 
-.fsc-strip__mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid var(--fs-rule);
-  background: var(--fs-ground);
-  color: var(--fs-ground);
+.fsc-strip__stage + .fsc-strip__stage::after {
+  bottom: 0;
+  border-bottom: var(--fsc-notch) solid var(--fs-ground);
 }
 
-.fsc-strip__label {
-  position: relative;
-  justify-self: start;
-  padding: 0 8px 0 2px;
-  background: var(--fs-ground);
+/* The stage's word in the sack stencil. Printed: solid ink. Not yet: a dashed print bed, the word faint in it. */
+.fsc-strip__word {
+  display: inline-block;
+  padding: 4px 7px 3px;
+  border: 1px dashed transparent;
+  font-family: var(--fs-font-mark);
+  font-weight: 800;
+  font-size: 1.375rem;
+  line-height: 1.375rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.fsc-strip__stage[data-state="lit"] {
-  color: var(--fs-ink);
+.fsc-strip__stage[data-state="lit"] .fsc-strip__word {
+  padding-inline: 0;
 }
 
-.fsc-strip__stage[data-state="lit"] .fsc-strip__mark {
-  border-color: var(--fs-ink);
-  background: var(--fs-ink);
+.fsc-strip__stage[data-state="unlit"] .fsc-strip__word {
+  border-color: var(--fs-rule);
+  color: var(--fs-pencil-faint);
 }
 
-.fsc-strip__stage[data-state="current"] {
-  color: var(--fs-ink);
+/* Next: the bed waits, ruled in ink, the word in pencil. */
+.fsc-strip__stage[data-state="current"] .fsc-strip__word {
+  border-color: var(--fs-ink-3);
+  color: var(--fs-pencil);
 }
 
-.fsc-strip__stage[data-state="current"] .fsc-strip__mark {
-  border-color: var(--fs-ink);
+.fsc-strip__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-strip__note .fs-glyph {
+  color: var(--fs-steel-line);
+}
+
+/* Funded is PayPal's to say: once the invoice reads back as paid its word lands flush jade, the strip's only
+   jade. */
+.fsc-strip__stage[data-landed] .fsc-strip__word {
+  padding-inline: 7px;
+  border: 1px solid var(--fs-jade-flush-border);
+  background: var(--fs-jade);
+  color: var(--fs-on-jade);
 }
 
 /* ---------------------------------------------------------------- invoice, arc and pool (MM-S) */
@@ -181,6 +211,113 @@
 .fsc-fund[data-layout="row"] > .fsc-fund__pool {
   grid-row: 1;
   grid-column: 2;
+}
+
+/* The Judge stage's desk: the invoice on the left; on the right the pool as one strip and, under it, the paper
+   the invoice pays out over, so the slips lie in the first screen beside the money. */
+.fsc-fund[data-layout="desk"] {
+  grid-template-columns: minmax(480px, 5fr) minmax(0, 7fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 48px;
+  row-gap: 24px;
+}
+
+.fsc-fund[data-layout="desk"] > .fsc-fund__invoice {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+}
+
+.fsc-fund[data-layout="desk"] > .fsc-fund__pool {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.fsc-fund__desk {
+  grid-row: 2;
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* The pool as a strip: its total and its three parts on one line. */
+.fsc-fund__pool[data-variant="strip"] {
+  container-type: inline-size;
+  gap: 10px;
+  padding: 14px 20px 16px;
+}
+
+.fsc-fund__share {
+  margin-left: 4px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 32px;
+}
+
+.fsc-fund__parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0 0 3px;
+}
+
+.fsc-fund__part {
+  display: grid;
+  gap: 2px;
+}
+
+.fsc-fund__part dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fs-ink-2);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.fsc-fund__part .fs-glyph {
+  color: var(--fs-ink-3);
+}
+
+.fsc-fund__part dd {
+  margin: 0;
+}
+
+/* Disbursement pays the payouts' costs and is never shared: set apart by a rule. */
+.fsc-fund__part[data-aside] {
+  padding-left: 24px;
+  border-left: 1px solid var(--fs-rule);
+}
+
+/* A narrow strip keeps one band: the parts stack as three short lines beside the total. */
+@container (max-width: 600px) {
+  .fsc-fund__strip {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .fsc-fund__parts {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+  }
+
+  .fsc-fund__part {
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  .fsc-fund__part[data-aside] {
+    padding: 2px 0 0;
+    border-top: 1px solid var(--fs-rule);
+    border-left: 0;
+  }
 }
 
 .fsc-fund__plate {
@@ -504,6 +641,12 @@
   gap: 14px 12px;
 }
 
+/* As many prints a row as fit at a size whose slips still read as slips. */
+.fsc-contact[data-columns="fit"] {
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 18px 16px;
+}
+
 .fsc-contact__link {
   display: grid;
   gap: 8px;
@@ -729,8 +872,28 @@
     grid-column: 1;
   }
 
+  .fsc-fund[data-layout="desk"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  .fsc-fund[data-layout="desk"] > :is(.fsc-fund__invoice, .fsc-fund__pool, .fsc-fund__desk) {
+    grid-row: auto;
+    grid-column: 1;
+  }
+
   .fsc-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Two rows of three: the fourth stage starts a row, so it has no notch on its left. */
+  .fsc-strip__stage:nth-child(4) {
+    box-shadow: none;
+  }
+
+  .fsc-strip__stage:nth-child(4)::before,
+  .fsc-strip__stage:nth-child(4)::after {
+    display: none;
   }
 
   .fsc-contact[data-columns="6"] {

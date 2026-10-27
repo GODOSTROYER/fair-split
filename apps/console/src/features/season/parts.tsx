@@ -60,7 +60,13 @@ const STRIP_KEYS = {
   PAID: "W-TR-01.strip.paid",
 } as const satisfies Record<RunStripStage, string>;
 
-/** Six stages; each lights only when its condition holds. The first unlit one is where the run is. */
+/**
+ * The run strip: six stages in their true sequence, stencilled on one plate like the marks on the co-op's jute
+ * sacks, with a notch cut between each stage and the next. A stage that has not happened is a dashed print bed
+ * with its word faint inside, waiting to print; the first of them is next. A stage that has happened prints in
+ * ink. Funded is the one PayPal decides: it lands flush jade, and only once the invoice has read back as paid.
+ * Each stage lights only when register §7's condition holds.
+ */
 export function RunStrip({
   stages,
   ratifiedOn,
@@ -72,26 +78,35 @@ export function RunStrip({
 }) {
   const t = useT();
   const current = stages.find((s) => !s.lit)?.id ?? null;
+  const ratified = format.dateShort(ratifiedOn);
   return (
     <ol className="fsc-strip" aria-label={SEASON_COPY.strip} data-testid={testId}>
       {stages.map((stage) => {
         const state = stage.lit ? "lit" : stage.id === current ? "current" : "unlit";
+        // The word alone in the stencil; the ratification date prints beneath it, by the bolt.
+        const word =
+          stage.id === "RATIFIED" ? t(STRIP_KEYS.RATIFIED, { date: "" }).trim() : t(STRIP_KEYS[stage.id]);
+        const landed = stage.lit && stage.id === "FUNDED";
         return (
           <li
             key={stage.id}
             className="fsc-strip__stage"
             data-state={state}
+            data-stage={stage.id}
+            data-landed={landed ? "" : undefined}
             data-testid={`${testId}.${stage.id}`}
           >
-            <span className="fsc-strip__mark" aria-hidden>
-              {stage.lit && <Glyph name="ms:check" size={14} />}
-            </span>
-            <span className="fsc-strip__label fs-t-label">
-              {t(
-                STRIP_KEYS[stage.id],
-                stage.id === "RATIFIED" ? { date: format.dateShort(ratifiedOn) } : undefined,
-              )}
-            </span>
+            <span className="fsc-strip__word">{word}</span>
+            {stage.id === "RATIFIED" ? (
+              <span className="fsc-strip__note fs-t-caption">
+                <Glyph name="bolt" size={12} />
+                {ratified}
+              </span>
+            ) : state === "current" ? (
+              <span className="fsc-strip__note fs-t-caption" aria-hidden>
+                {SEASON_COPY.stripNextWord}
+              </span>
+            ) : null}
             <span className="fs-sr">
               {`, ${state === "lit" ? SEASON_COPY.stripDone : state === "current" ? SEASON_COPY.stripNext : SEASON_COPY.stripLater}`}
             </span>
@@ -102,7 +117,10 @@ export function RunStrip({
   );
 }
 
-/** The replay set (A–L) as a contact sheet of paper on the lacquer; each photo opens in the reading room. */
+/**
+ * The replay set (A–L) as a contact sheet of paper on the lacquer; each photo opens in the reading room. `fit`
+ * lays as many prints a row as the space holds at a readable size (the Judge stage's desk).
+ */
 export function ContactSheet({
   snapshot,
   photos,
@@ -116,7 +134,7 @@ export function ContactSheet({
   readonly readPhotos?: ReadonlySet<string>;
   readonly hrefFor: (photoId: string) => string;
   readonly testId: string;
-  readonly columns?: 4 | 6 | 12;
+  readonly columns?: 4 | 6 | 12 | "fit";
 }) {
   return (
     <ul className="fsc-contact" data-columns={columns} data-testid={testId}>

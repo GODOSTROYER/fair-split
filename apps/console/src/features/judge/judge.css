@@ -50,11 +50,11 @@
   color: var(--fs-ink-2);
 }
 
+/* The paper, beside the invoice under the pool's strip: it starts inside the first screen at every stage size. */
 .fsc-first__desk {
   display: grid;
-  gap: 16px;
-  padding-top: 24px;
-  border-top: 1px solid var(--fs-rule);
+  align-content: start;
+  gap: 14px;
 }
 
 .fsc-first__desk-head {

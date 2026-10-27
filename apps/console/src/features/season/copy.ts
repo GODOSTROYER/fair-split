@@ -20,6 +20,7 @@ export const SEASON_COPY = {
   strip: "Run stages",
   stripDone: "done",
   stripNext: "next",
+  stripNextWord: "Next",
   stripLater: "not yet",
   pool: "The pool",
   poolShare: (members: number) => `What ${members} members share`,
@@ -93,8 +94,11 @@ export const FIRST_VIEW_COPY = {
   openNext: "Go to the next step",
   rules: "The rules, bolted before the first slip",
   openCard: "Open the rate card",
+  titleFunded: (season: string) => `Season ${season} is funded.`,
   desk: "The slips on the desk",
-  deskNote: (count: number) =>
-    `${count} photos, four slips each, in Jessie's blue block capitals. Claude reads them once the money is in.`,
+  deskNote: (count: number, funded: boolean) =>
+    funded
+      ? `${count} photos, four slips each, in Jessie's blue block capitals. Claude's reading of them replays now; each photo ticks once its slips are read.`
+      : `${count} photos, four slips each, in Jessie's blue block capitals. Claude reads them once the money is in.`,
   stamp: (name: string) => `Pressed by ${name}`,
 } as const;

@@ -1,9 +1,10 @@
-// W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0): "Season 2026-A is ready to pay." The
-// twelve replay photos lie on the lacquer as a paper contact sheet, the bolted BR 2026-04 plate carries its
-// hash, and the invoice plate holds Claude's recorded draft in pencil with US$4,333.50 hollow. Nothing here
-// calls the API: the snapshot and the first view are built locally (S3.9). The single d2 slab is the first
-// press: it starts the judge session, then records Lantern Bay's payment; MM-S plays when the invoice reads
-// back as paid, on the event, never on the press.
+// W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0): "Season 2026-A is ready to pay." It
+// leads with paper on lacquer (design §1, signature 1): the twelve replay photos lie as a contact sheet beside
+// the invoice plate, under the pool's one-line strip, with the evidence shadow, inside the first screen. The
+// bolted BR 2026-04 plate carries its hash, and the invoice plate holds Claude's recorded draft in pencil with
+// US$4,333.50 hollow. Nothing here calls the API: the snapshot and the first view are built locally (S3.9).
+// The single d2 slab is the first press: it starts the judge session, then records Lantern Bay's payment; MM-S
+// plays when the invoice reads back as paid, on the event, never on the press, and the title says it's funded.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { Glyph, InkStamp, Slab, useT } from "@fairsplit/ui-web";
@@ -183,8 +184,8 @@ function Desk() {
       <header className="fsc-first__head">
         <div className="fsc-first__titles">
           <SeasonMark snapshot={snapshot} testId="W-JG-01.mark" />
-          <h1 id="fsc-first-title" className="fs-t-title-1 fsc-first__title">
-            {t("W-JG-01.ready", { season })}
+          <h1 id="fsc-first-title" className="fs-t-title-1 fsc-first__title" data-testid="W-JG-01.title">
+            {funded ? FIRST_VIEW_COPY.titleFunded(season) : t("W-JG-01.ready", { season })}
           </h1>
           <p className="fsc-first__lede">
             {FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
@@ -203,29 +204,32 @@ function Desk() {
         view={view}
         moment={moment}
         rail={rail}
-        layout="row"
+        layout="desk"
         screen="W-JG-01"
         totalRole="amount-hero"
         action={action}
         compact
+        desk={
+          <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
+            <header className="fsc-first__desk-head">
+              <h2 id="fsc-first-desk" className="fsc-section-title fs-t-label">
+                {FIRST_VIEW_COPY.desk}
+              </h2>
+              <p className="fs-t-caption fsc-first__desk-note">
+                {FIRST_VIEW_COPY.deskNote(photos.length, funded)}
+              </p>
+            </header>
+            <ContactSheet
+              snapshot={snapshot}
+              photos={photos}
+              readPhotos={readPhotos}
+              hrefFor={(photo) => webRoutes.reading(season, photo)}
+              testId="W-JG-01.photos"
+              columns="fit"
+            />
+          </section>
+        }
       />
-
-      <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
-        <header className="fsc-first__desk-head">
-          <h2 id="fsc-first-desk" className="fsc-section-title fs-t-label">
-            {FIRST_VIEW_COPY.desk}
-          </h2>
-          <p className="fs-t-caption fsc-first__desk-note">{FIRST_VIEW_COPY.deskNote(photos.length)}</p>
-        </header>
-        <ContactSheet
-          snapshot={snapshot}
-          photos={photos}
-          readPhotos={readPhotos}
-          hrefFor={(photo) => webRoutes.reading(season, photo)}
-          testId="W-JG-01.photos"
-          columns={6}
-        />
-      </section>
     </ScreenRoot>
   );
 }
