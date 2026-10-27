@@ -252,7 +252,8 @@ describe("capture view", () => {
 });
 
 describe("the clerk's site: station, treasurer and stamp from data", () => {
-  const live = (over: Partial<PairedSession> & Record<string, unknown> = {}): PairedSession =>
+  // Plain records: a persisted session may carry a malformed field (`station: 7`) that `PairedSession` itself forbids.
+  const live = (over: Record<string, unknown> = {}): PairedSession =>
     ({
       kind: "device",
       bearer: "dev_token_for_tests",

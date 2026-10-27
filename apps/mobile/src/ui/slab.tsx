@@ -11,6 +11,11 @@
  * acts; leaving, a cancel, blur or backgrounding disarms ("Nothing was signed."). Enter, a virtual click, the visible
  * "Can't hold?" link, or TalkBack on the phone open the ConfirmDialog instead, so no action depends on timing alone.
  * Reduced motion: no travel, a stepped bar with a percentage, colour only.
+ *
+ * A hold slab that turns unavailable while it is held or its dialog is open (the batch changed, the request closed)
+ * disarms, closes the dialog and acts on nothing it receives afterwards (I4, I6). An owner that refuses the commit
+ * (`onCommit` returns or resolves to `false`, or throws) gets the slab back at rest, ready to be held again. The focus
+ * ring shows for keyboard focus only.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -37,9 +42,13 @@ import type { SlabState } from "../_shims/contracts";
 import { radius, slabDepth, space, target } from "../_shims/tokens.native";
 import { feedback } from "../platform/feedback";
 import { useFs } from "../theme/theme";
+import { focusRingVisible, focusVisibleOf, type InputModality, trackInputModality } from "./focus-ring";
 import { Glyph, type GlyphName } from "./glyph";
 import {
+  type CommitOutcome,
+  commitKept,
   commits,
+  guardUnavailable,
   type HoldEvent,
   type HoldState,
   holdReducer,
@@ -48,6 +57,7 @@ import {
   pageRect,
   releasePoint,
   routeFor,
+  settleUnavailable,
   slabStateFor,
 } from "./hold";
 import { spring, tween } from "./motion";
@@ -68,7 +78,11 @@ export interface SlabProps {
   unavailableReason?: string;
   /** The full spoken label: what it does and, for money, how much. */
   srLabel: string;
-  onCommit(): void | Promise<void>;
+  /**
+   * The commit. A hold slab treats a return (or resolution) of `false`, or a throw, as "nothing was committed" (a
+   * refused signature) and springs back to rest so it can be held again; anything else keeps it committed.
+   */
+  onCommit(): CommitOutcome;
   testID: string;
   icon?: GlyphName;
   /** Face height: 56 dp primary (default); `target.hero` (64) for Paminawa and Pirmahi. */
@@ -214,11 +228,30 @@ const WEB_PRESS: ViewStyle =
       } as ViewStyle)
     : {};
 
+/** The page's last input (keys or pointers), tracked from the first slab on; null off the web. */
+let readModality: (() => InputModality | null) | null = null;
+function lastInput(): InputModality | null {
+  if (Platform.OS !== "web" || typeof window === "undefined") return null;
+  readModality ??= trackInputModality(window);
+  return readModality();
+}
+
+/** The web focus ring, for keyboard focus only (`:focus-visible`, else the last input): a click or tap never rings. */
 function useFocus() {
   const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    lastInput(); // start listening before the first press, so a mouse focus is known as one
+  }, []);
   return {
-    focused: Platform.OS === "web" && focused,
-    onFocus: () => setFocused(true),
+    focused,
+    onFocus: (e?: { currentTarget?: unknown; target?: unknown }) =>
+      setFocused(
+        focusRingVisible({
+          web: Platform.OS === "web",
+          focusVisible: focusVisibleOf(e?.currentTarget ?? e?.target),
+          lastInput: lastInput(),
+        }),
+      ),
     onBlur: () => setFocused(false),
   };
 }
@@ -325,6 +358,16 @@ function HoldSlab(p: SlabProps & { hold: number }) {
   const node = useRef<ViewInstance>(null);
   const focus = useFocus();
   const { onCommit, onHoldState, hold } = p;
+  /** Read by `dispatch` at event time, so a hold that outlives the change from live to unavailable acts on nothing. */
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const clearTimers = useCallback(() => {
     for (const x of timers.current) clearTimeout(x);
@@ -340,7 +383,10 @@ function HoldSlab(p: SlabProps & { hold: number }) {
   );
 
   const dispatch = useCallback(
-    (e: HoldEvent) => {
+    (event: HoldEvent) => {
+      // Unavailable (I4, I6): a release or a reached hold time disarms, a dialog confirm cancels, a press does nothing.
+      const e = flushRef.current ? guardUnavailable(event) : event;
+      if (!e) return;
       const before = hsRef.current;
       const after = holdReducer(before, e);
       if (after === before) return;
@@ -381,7 +427,14 @@ function HoldSlab(p: SlabProps & { hold: number }) {
         progress.set(motion.reduced ? 0 : withTiming(0, tween("retract")));
         move(0, "rebound");
       }
-      if (commits(before, after)) void onCommit();
+      if (commits(before, after)) {
+        void commitKept(onCommit).then((kept) => {
+          // The owner refused (nothing was signed): spring back to rest, ready to be held again.
+          if (!kept && mounted.current && hsRef.current === "committed") {
+            dispatchRef.current({ type: "reset" });
+          }
+        });
+      }
     },
     [clearTimers, d, hold, motion.reduced, move, onCommit, onHoldState, progress, travel],
   );
@@ -389,6 +442,13 @@ function HoldSlab(p: SlabProps & { hold: number }) {
   dispatchRef.current = dispatch;
 
   useEffect(() => () => clearTimers(), [clearTimers]);
+
+  // Turning unavailable mid-hold ends the hold and closes the dialog: nothing in progress may still act.
+  useEffect(() => {
+    if (!flush) return;
+    const settle = settleUnavailable(hsRef.current);
+    if (settle) dispatchRef.current(settle);
+  }, [flush]);
 
   useEffect(() => {
     if (p.committed && hsRef.current !== "committed") {
@@ -523,7 +583,7 @@ function HoldSlab(p: SlabProps & { hold: number }) {
           </Txt>
         </View>
       ) : null}
-      {hs === "released-early" ? (
+      {hs === "released-early" && !flush ? (
         <Txt kind="caption" color="ink2" style={styles.below} accessibilityLiveRegion="polite">
           {p.holdUntilLabel ?? tr("slab.holdUntil")}
         </Txt>

@@ -54,13 +54,51 @@ shared paths; leaving them in one slice would have let that slice change another
 The clerk's outbox lifecycle also left the shell: it is `features/clerk/outbox-provider.tsx`, mounted by
 `app/(clerk)/_layout.tsx`, read with `useOutbox()`.
 
-### The only two seams
+### The only three seams
 
 Code that crosses a boundary. The owner may change everything behind these names, but not the names or signatures.
 1. `state/use-push.ts` (BOARD): `usePushRegistration(): PushRegistration | null`. The root layout calls it once.
 2. MEMBER exports `BoardBayadScreen` from `features/statement/board-bayad-screen.tsx` and `PangutanaScreen` from
    `features/statement/pangutana-screen.tsx`; BOARD's `app/(board)/bayad.tsx` and `pangutana.tsx` re-export them
    (register §4: the board's Bayad and Pangutana tabs reuse the member screens).
+3. `platform/key-vault.ts` (BOARD): `keyVault.forget(): Promise<void>`. The shell's `signOut()` calls it, so a signing
+   key never outlives its pairing (added at the first integration, on BOARD's request).
+
+### Changes the first integration made to the shell (27–28 Oct)
+
+- Flags for the whole visit (`?demo= &stage= &line= &motion= &tier= &theme= &fsTrace=`) travel with every redirect:
+  the index, the shared `/bayad` and `/pangutana` (member ↔ board) and the Pirma index (`carriedFlags`, `withFlags` in
+  `services/session.ts`). The shell and the statement's `?line=` preview read them from the URL the app was opened
+  with (`bootQuery`, `bootSearch` in `platform/query`), so `?motion=reduced` holds after a redirect and a reload keeps
+  the demo.
+- The index sends a board phone to its Pirma tab (`homeHref(role, null)`); it never guesses a run.
+- `PairedSession` may carry `station` and `treasurerName` (kept by `parseSession`); `PairClaimResponse` may send them.
+- `api.postReviewRequest(body, { idempotencyKey })` sends the `Idempotency-Key` header.
+- `SCREEN_STATES["M-MB-04"]` gains `loading` and `error`.
+- `Slab`: `onCommit` returns a `CommitOutcome`; `false` (or a rejection, or a throw) springs a hold slab back to rest
+  with nothing committed. A slab that turns unavailable mid-hold disarms, closes its dialog and ignores the release
+  (`guardUnavailable`, `settleUnavailable` in `ui/hold.ts`). The focus ring shows for keyboard focus only
+  (`ui/focus-ring.ts`).
+- `focusFirst` draws no focus ring around the landing block (browsers ringed the hero amount on load).
+- `AmountDisplay` sets ₱ in the system font inside the SVG amount (`pesoRuns` in `ui/figures.ts`); `StatusChip` words
+  wrap; `NavBar` reads a tab's `tabBarAccessibilityLabel`, and the clerk layout puts the Outbox badge there
+  ("Outbox, 3 sa telepono").
+- Demo data: each judge reset (`fs.reset`) is a fresh demo workspace; history times always read in order.
+- `scripts/serve-web.mjs` serves `index.html` for every `/app/s/*` path, dots included (`scripts/web-routes.mjs`,
+  tested); `scripts/smoke-web.mjs` walks every route of register §4 in the export.
+- Expo pins follow `npx expo install --check` (expo 58.0.20 on 28 Oct); pnpm 11 recorded the patches younger than its
+  release-age floor under `minimumReleaseAgeExclude`.
+
+### Asked for, and left for the owning workstream
+
+These need a contract or an endpoint the app does not own; the slices already work around each one.
+- IC-01 (WS-CORE): a `rescan.requested` event `{photo, captureId, requestedBy}`. The clerk reads it on its own side.
+- IC-08 (WS-API): `GET /v1/clerk/cash-day` and `POST /v1/lines/:lineId/cash-receipt`; until then they live in
+  `features/clerk/cash-port.ts` (a 404 or 501 means "no cash list").
+- WS-API: the open co-sign request (or its run slug in the pairing answer or the push), `linesDigest` lines in
+  `CosignRequestDTO`, a localisable `CosignHold` summary, and the Chair's agreement to an override.
+- WS-API: the statement's co-op Grade 1 total, the clerk per slip, mention offsets for audio clips, the Committee's
+  reply, slip photos; whether to issue the dot-free member link (`body~sig`).
 
 ## 2. The shell's APIs
 
@@ -185,6 +223,7 @@ corepack pnpm exec biome check . # from the repo root: corepack pnpm exec biome 
 corepack pnpm check:expo         # npx expo install --check
 corepack pnpm build              # web export → dist/, base path /app
 corepack pnpm serve:web          # http://localhost:8087/app/ (?demo=member|board|clerk&stage=…)
+corepack pnpm smoke:web          # after build: every register §4 route in Chromium at 412×915 (--shots <dir>)
 ```
 
 ## 5. Spec decisions the slices inherit

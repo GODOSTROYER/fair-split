@@ -1,4 +1,6 @@
 import { Redirect, Tabs, useSegments } from "expo-router";
+import { bootSearch } from "../../platform/query";
+import { carriedFlags, withFlags } from "../../services/session";
 import { useApp } from "../../state/app";
 import { NavBar } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
@@ -13,9 +15,10 @@ export default function BoardTabs() {
   const t = useT();
   const segments = useSegments() as string[];
   const leaf = segments.at(-1);
-  // /bayad and /pangutana are shared with members (register §4); send a member phone to its own copy.
+  // /bayad and /pangutana are shared with members (register §4); send a member phone to its own copy, with the
+  // visit's flags (`?demo=&stage=&line=`…), so a reload or a shared address still shows the same thing.
   if (session?.role === "member" && (leaf === "bayad" || leaf === "pangutana")) {
-    return <Redirect href={`/(member)/(tabs)/${leaf}`} />;
+    return <Redirect href={withFlags(`/(member)/(tabs)/${leaf}`, carriedFlags(bootSearch()))} />;
   }
   if (session?.role !== "board") return <Redirect href="/" />;
   const signing = segments.includes("sign");

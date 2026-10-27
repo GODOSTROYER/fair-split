@@ -2,3 +2,11 @@
 export function webQuery(_name: string): string | null {
   return null;
 }
+
+export function bootQuery(_name: string): string | null {
+  return null;
+}
+
+export function bootSearch(): string {
+  return "";
+}

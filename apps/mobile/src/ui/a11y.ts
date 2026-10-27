@@ -17,8 +17,12 @@ export function focusFirst(ref: RefObject<ViewInstance | null>, delayMs = 400): 
       const el = node as unknown as {
         focus?: (o?: { preventScroll?: boolean }) => void;
         setAttribute?: (k: string, v: string) => void;
+        style?: { outline?: string };
       };
       el.setAttribute?.("tabindex", "-1");
+      // A landing point for the screen reader, not a control: browsers ring a scripted focus on page load, which
+      // drew a black frame around the hero amount. Controls keep their own focus ring; Tab moves on from here.
+      if (el.style) el.style.outline = "none";
       el.focus?.({ preventScroll: true });
       return;
     }

@@ -23,7 +23,7 @@ import {
 } from "../../lib/item-status";
 import { mergeTrack } from "../../lib/statement";
 import { prefs } from "../../platform/kv";
-import { webQuery } from "../../platform/query";
+import { bootQuery } from "../../platform/query";
 import { useApp } from "../../state/app";
 import { previewLine } from "./preview";
 import { parseReview, type ReviewRecord, reviewPrefKey, serializeReview } from "./review";
@@ -86,8 +86,8 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   const cacheKey = linkToken
     ? `fs.statement.link.${linkLineId ?? "unknown"}`
     : `fs.statement.cache.${session?.persona ?? "member"}`;
-  // Read once: the index redirect drops the query string right after the first render.
-  const [linePreview] = useState(() => webQuery("line"));
+  // A flag for the whole visit, read from the address the app was opened with (redirects may rewrite the address).
+  const [linePreview] = useState(() => bootQuery("line"));
   const preview = demo ? linePreview : null;
 
   const load = useCallback(async (): Promise<void> => {

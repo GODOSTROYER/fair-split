@@ -313,7 +313,7 @@ export const SCREEN_STATES = {
   ],
   "M-MB-02": ["loading", "list", "empty", "offline", "error"],
   "M-MB-03": ["loading", "paused", "playing", "device-voice", "filipino-audio", "text-only", "offline"],
-  "M-MB-04": ["none", "composing", "sending", "sent", "answered", "failed", "offline"],
+  "M-MB-04": ["loading", "error", "none", "composing", "sending", "sent", "answered", "failed", "offline"],
   "M-CL-01": [
     "ready",
     "scanning",

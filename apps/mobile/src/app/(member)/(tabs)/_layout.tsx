@@ -1,4 +1,6 @@
 import { Redirect, Tabs, useSegments } from "expo-router";
+import { bootSearch } from "../../../platform/query";
+import { carriedFlags, withFlags } from "../../../services/session";
 import { useApp } from "../../../state/app";
 import { NavBar } from "../../../ui/chrome";
 import { Glyph } from "../../../ui/glyph";
@@ -9,9 +11,9 @@ export default function MemberTabs() {
   const { session } = useApp();
   const t = useT();
   const leaf = useSegments().at(-1);
-  // /bayad and /pangutana are shared with the board (register §4); send a board phone to its own copy.
+  // /bayad and /pangutana are shared with the board (register §4); send a board phone to its own copy, flags kept.
   if (session?.role === "board" && (leaf === "bayad" || leaf === "pangutana")) {
-    return <Redirect href={`/(board)/${leaf}`} />;
+    return <Redirect href={withFlags(`/(board)/${leaf}`, carriedFlags(bootSearch()))} />;
   }
   if (session?.role !== "member") return <Redirect href="/" />;
   return (

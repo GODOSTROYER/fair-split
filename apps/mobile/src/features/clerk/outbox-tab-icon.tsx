@@ -1,7 +1,7 @@
 /**
  * The Outbox tab's icon, with a count of what is still on the phone (Material 3 navigation badge). A capture the
- * co-op refused turns the badge canary: a person must look. The tab's own label stays "Outbox"; the count is drawn
- * here because the shell's navigation bar announces the title only (the screens announce the counts).
+ * co-op refused turns the badge canary: a person must look. The tab's own label stays "Outbox"; a screen reader hears
+ * the count through the tab's `tabBarAccessibilityLabel` ("Outbox, 3 on this phone", set by the clerk layout).
  */
 import { type ColorValue, StyleSheet, View } from "react-native";
 import { summarise } from "../../lib/outbox";

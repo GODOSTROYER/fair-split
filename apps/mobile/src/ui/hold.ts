@@ -159,3 +159,45 @@ export function isCancelEvent(e: unknown): boolean {
   const type = e && typeof e === "object" ? (e as { type?: unknown }).type : undefined;
   return type === "pointercancel" || type === "touchcancel" || type === "selectionchange" || type === "blur";
 }
+
+/**
+ * A slab that turned unavailable (the batch changed, the request closed) while it was held or its dialog was open
+ * (I4, I6): nothing it receives afterwards may act. A release or a reached hold time disarms it, a dialog confirm
+ * becomes a cancel, and a new press or activation does nothing (null). Cancels and resets pass through.
+ */
+export function guardUnavailable(event: HoldEvent): HoldEvent | null {
+  switch (event.type) {
+    case "press":
+    case "activate":
+      return null;
+    case "complete":
+    case "release":
+      return { type: "cancel" };
+    case "dialog-confirm":
+      return { type: "dialog-cancel" };
+    default:
+      return event;
+  }
+}
+
+/** What ends a hold in progress the moment its slab turns unavailable: the hold disarms, the dialog closes. */
+export function settleUnavailable(state: HoldState): HoldEvent | null {
+  if (state === "holding" || state === "armed") return { type: "cancel" };
+  if (state === "confirm") return { type: "dialog-cancel" };
+  return null;
+}
+
+/** What an `onCommit` may return: nothing or `true` (committed), `false` (refused), or a promise of either. */
+export type CommitOutcome = void | boolean | Promise<void> | Promise<boolean>;
+
+/**
+ * Whether a commit the owner was handed went through: `onCommit` returning (or resolving to) `false`, or throwing,
+ * means nothing was committed, and the slab springs back to rest so it can be held again.
+ */
+export async function commitKept(run: () => CommitOutcome): Promise<boolean> {
+  try {
+    return (await run()) !== false;
+  } catch {
+    return false;
+  }
+}

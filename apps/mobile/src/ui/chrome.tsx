@@ -16,7 +16,11 @@ import { useFs } from "../theme/theme";
 import { DemoLabel } from "./primitives";
 import { Txt } from "./text";
 
-/** M3 navigation bar: icon in a pill indicator over its label; 48 dp targets; the system Back stays the system's. */
+/**
+ * M3 navigation bar: icon in a pill indicator over its label; 48 dp targets; the system Back stays the system's. A
+ * tab's `tabBarAccessibilityLabel` (its title plus a badge's count: "Outbox, 3 on this phone") is what a screen
+ * reader hears; without one it hears the title.
+ */
 export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const { t } = useFs();
   const insets = useSafeAreaInsets();
@@ -49,7 +53,7 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
             onPress={onPress}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}
-            accessibilityLabel={label}
+            accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
             testID={`tab.${route.name.replace(/[^a-z]/gi, "")}`}
             dataSet={{ state: focused ? "selected" : "idle" }}
             style={styles.item}

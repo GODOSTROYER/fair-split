@@ -43,6 +43,10 @@ export interface PairClaimResponse {
   memberNo?: string;
   displayName: string;
   lang?: Lang;
+  /** A clerk phone's station, when the co-op names one (kept in `PairedSession.station`). */
+  station?: string;
+  /** The treasurer's first name for copy like "Gihangyo ni Analyn…" (kept in `PairedSession.treasurerName`). */
+  treasurerName?: string;
 }
 
 export interface StatementSlip {
@@ -202,11 +206,18 @@ export interface FairSplitApi {
     body: { role: ApprovalRole; reason: string },
   ): Promise<ApiResult<{ ok: true }>>;
   registerDeviceKey(body: DeviceKeyRegistration): Promise<ApiResult<{ ok: true }>>;
-  postReviewRequest(body: {
-    lineId: string;
-    slip?: string;
-    note?: string;
-  }): Promise<ApiResult<{ id: string }>>;
+  /**
+   * A member's re-check request. `idempotencyKey` (a UUIDv7 per composed request, reused by every retry) goes out as
+   * the `Idempotency-Key` header, so a retry after a lost answer never files a second request (architecture §6.7).
+   */
+  postReviewRequest(
+    body: {
+      lineId: string;
+      slip?: string;
+      note?: string;
+    },
+    opts?: { idempotencyKey?: string },
+  ): Promise<ApiResult<{ id: string }>>;
   postPresence(body: { view: string }): Promise<ApiResult<{ ok: true }>>;
   registerPushToken(body: { token: string; platform: string }): Promise<ApiResult<{ ok: true }>>;
   /** Absolute URL for native background uploads (expo-file-system `File.upload`). */
@@ -291,7 +302,13 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
     declineApproval: (slug, body) =>
       call<{ ok: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals/decline`, body),
     registerDeviceKey: (body) => call<{ ok: true }>("POST", "/v1/device-keys", body), // shim-defined
-    postReviewRequest: (body) => call<{ id: string }>("POST", "/v1/review-requests", body),
+    postReviewRequest: (body, o) =>
+      call<{ id: string }>(
+        "POST",
+        "/v1/review-requests",
+        body,
+        o?.idempotencyKey ? { "Idempotency-Key": o.idempotencyKey } : undefined,
+      ),
     postPresence: (body) => call<{ ok: true }>("POST", "/v1/presence", body),
     registerPushToken: (body) => call<{ ok: true }>("POST", "/v1/push-tokens", body), // shim-defined
     captureUrl: () => `${origin}/v1/captures`,

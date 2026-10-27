@@ -54,33 +54,40 @@ const ITEM_STATUS: Readonly<Record<DemoStage, ItemStatus | null>> = {
   "cash-received": "RETURNED",
 };
 
-export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt?: string }): StatementDTO {
-  const { stage, now } = opts;
-  const sentAt = opts.sentAt ?? now;
-  const itemStatus = ITEM_STATUS[stage];
-  const history: StatementHistoryEntry[] = [];
-  if (stage !== "checking") {
-    history.push({
-      kind: "approved",
-      at: minutesBefore(sentAt, 2),
-      by: [people.treasurer.initials, people.chair.initials],
-    });
-    history.push({ kind: "sent", at: sentAt });
-  }
-  if (stage === "paid") history.push({ kind: "paid", at: now });
+/**
+ * The line's history at a demo stage. What happened after the send is timed back from `now`; the send keeps its own
+ * time unless that would put it after PayPal's answer (a link that jumps straight to `cash-due` was "sent" just now,
+ * but PayPal parked the item six minutes ago), in which case it moves back to that answer. So the history always reads
+ * in order, and the approval stays two minutes before the send it belongs to.
+ */
+function demoHistory(stage: DemoStage, now: string, sentAt: string): StatementHistoryEntry[] {
+  if (stage === "checking") return [];
+  const after: StatementHistoryEntry[] = [];
+  if (stage === "paid") after.push({ kind: "paid", at: now });
   if (stage === "unclaimed" || stage === "cash-due" || stage === "cash-received") {
-    history.push({ kind: "unclaimed", at: stage === "unclaimed" ? now : minutesBefore(now, 6) });
+    after.push({ kind: "unclaimed", at: stage === "unclaimed" ? now : minutesBefore(now, 6) });
   }
   if (stage === "cash-due" || stage === "cash-received") {
-    history.push({
+    after.push({
       kind: "cash-due",
       at: stage === "cash-due" ? now : minutesBefore(now, 3),
       by: [people.treasurer.initials],
     });
   }
-  if (stage === "cash-received") {
-    history.push({ kind: "received", at: now, by: [people.clerk.initials] });
-  }
+  if (stage === "cash-received") after.push({ kind: "received", at: now, by: [people.clerk.initials] });
+  const latest = after[0]?.at ?? now;
+  const sent = Date.parse(sentAt) > Date.parse(latest) ? latest : sentAt;
+  return [
+    { kind: "approved", at: minutesBefore(sent, 2), by: [people.treasurer.initials, people.chair.initials] },
+    { kind: "sent", at: sent },
+    ...after,
+  ];
+}
+
+export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt?: string }): StatementDTO {
+  const { stage, now } = opts;
+  const itemStatus = ITEM_STATUS[stage];
+  const history = demoHistory(stage, now, opts.sentAt ?? now);
   return {
     lineId: "line_2026A_r37_M-014",
     runId,

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { MOMENTS, type MomentId, type MomentPhase } from "../_shims/moments";
-import { webQuery } from "../platform/query";
+import { bootQuery } from "../platform/query";
 import { stage } from "../services/frame-bridge";
 
 export { isPhase, MOMENTS, type MomentId, type MomentPhase } from "../_shims/moments";
@@ -28,7 +28,7 @@ interface TraceEntry {
   t: number;
 }
 
-const tracing = (typeof __DEV__ !== "undefined" && __DEV__) || webQuery("fsTrace") === "1";
+const tracing = (typeof __DEV__ !== "undefined" && __DEV__) || bootQuery("fsTrace") === "1";
 
 function trace(m: string, phase: string): void {
   if (!tracing) return;

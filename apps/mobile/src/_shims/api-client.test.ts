@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { base64, contentDigestHeader, SSE_BACKOFF_MS, scopePath, subscribeSse } from "./api-client";
+import {
+  base64,
+  contentDigestHeader,
+  createHttpApi,
+  SSE_BACKOFF_MS,
+  scopePath,
+  subscribeSse,
+} from "./api-client";
 import type { RunEvent } from "./contracts";
 
 describe("Content-Digest (RFC 9530)", () => {
@@ -136,5 +143,51 @@ describe("SSE scopes (S3.7)", () => {
     expect(scopePath("line:a/b")).toBe("/v1/lines/a%2Fb/events");
     expect(() => scopePath("member:M-014")).toThrow(RangeError);
     expect(() => scopePath("run:")).toThrow(RangeError);
+  });
+});
+
+describe("re-check requests carry their Idempotency-Key (inv.i7)", () => {
+  function recordingApi() {
+    const sent: { url: string; headers: Record<string, string>; body: unknown }[] = [];
+    const api = createHttpApi({
+      origin: "https://fs-api.test/",
+      getBearer: () => "fst_member_token_for_tests",
+      fetch: (async (url: string, init?: RequestInit) => {
+        sent.push({
+          url,
+          headers: { ...(init?.headers as Record<string, string>) },
+          body: JSON.parse(String(init?.body)),
+        });
+        return new Response(JSON.stringify({ id: "rr_1" }), { status: 201 });
+      }) as unknown as typeof fetch,
+    });
+    return { api, sent };
+  }
+
+  it("sends the key as the header, and the same key on a retry", async () => {
+    const { api, sent } = recordingApi();
+    const key = "0192f0e4-6a3b-7c2d-9e1f-a1b2c3d4e5f6";
+    const body = { lineId: "line_2026A_r37_M-014", slip: "0403", note: "Kulang ug 2 kg" };
+    expect(await api.postReviewRequest(body, { idempotencyKey: key })).toEqual({
+      ok: true,
+      value: { id: "rr_1" },
+    });
+    await api.postReviewRequest(body, { idempotencyKey: key });
+    expect(sent).toHaveLength(2);
+    expect(sent[0]?.url).toBe("https://fs-api.test/v1/review-requests");
+    expect(sent[0]?.headers).toMatchObject({
+      "Idempotency-Key": key,
+      "Content-Type": "application/json",
+      Authorization: "Bearer fst_member_token_for_tests",
+    });
+    expect(sent[1]?.headers["Idempotency-Key"]).toBe(key);
+    expect(sent[0]?.body).toEqual(body);
+  });
+
+  it("sends no Idempotency-Key header when the caller has none", async () => {
+    const { api, sent } = recordingApi();
+    await api.postReviewRequest({ lineId: "line_2026A_r37_M-014" });
+    await api.postReviewRequest({ lineId: "line_2026A_r37_M-014" }, { idempotencyKey: "" });
+    expect(sent.map((s) => "Idempotency-Key" in s.headers)).toEqual([false, false]);
   });
 });

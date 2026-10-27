@@ -9,7 +9,8 @@ import { StyleSheet, View } from "react-native";
 import { runSlug as seedRun } from "../../_shims/seed";
 import { space } from "../../_shims/tokens.native";
 import { prefs } from "../../platform/kv";
-import { pirmaHref } from "../../services/session";
+import { bootSearch } from "../../platform/query";
+import { carriedFlags, pirmaHref, withFlags } from "../../services/session";
 import { useApp } from "../../state/app";
 import { Screen } from "../../ui/chrome";
 import { Banner, Button } from "../../ui/primitives";
@@ -52,7 +53,10 @@ export function PirmaIndexScreen() {
     };
   }, [api, ws, round]);
 
-  if (target?.kind === "open") return <Redirect href={pirmaHref(target.runSlug)} />;
+  // The visit's flags (`?demo=board`…) go along, so a reload of the request still shows the same request.
+  if (target?.kind === "open") {
+    return <Redirect href={withFlags(pirmaHref(target.runSlug), carriedFlags(bootSearch()))} />;
+  }
 
   const retry = (
     <Button

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { figureRuns, figures, isFigure } from "./figures";
+import { figureRuns, figures, isFigure, pesoRuns } from "./figures";
 
 const figs = (text: string) =>
   figures(text)
@@ -64,5 +64,34 @@ describe("figures in UI copy (design §2.3: money in the figure face inside pros
     expect(runs.filter(isFigure).map((r) => r.text)).toEqual(["0403", "0419", "0436", "0467"]);
     expect(runs.some((r) => r.text.includes(" ug ") && !r.value)).toBe(true);
     expect(runs.map((r) => r.text).join("")).toBe("Gikan kini sa inyong resibo 0403, 0419, 0436 ug 0467.");
+  });
+});
+
+describe("₱ in the platform face inside a drawn amount (S2.3: neither cut has ₱)", () => {
+  it("splits a cash amount so only the ₱ changes face, and joins back to the same text", () => {
+    expect(pesoRuns("₱7,990.00")).toEqual([
+      { text: "₱", peso: true },
+      { text: "7,990.00", peso: false },
+    ]);
+    expect(pesoRuns("mga ₱4,028 ug ₱12")).toEqual([
+      { text: "mga ", peso: false },
+      { text: "₱", peso: true },
+      { text: "4,028 ug ", peso: false },
+      { text: "₱", peso: true },
+      { text: "12", peso: false },
+    ]);
+    for (const text of ["₱7,990.00", "US$64.45", "₱₱1", "", "₱"]) {
+      expect(
+        pesoRuns(text)
+          .map((r) => r.text)
+          .join(""),
+      ).toBe(text);
+    }
+  });
+
+  it("leaves a dollar amount as one run, and never makes an empty run", () => {
+    expect(pesoRuns("US$64.45")).toEqual([{ text: "US$64.45", peso: false }]);
+    expect(pesoRuns("")).toEqual([]);
+    expect(pesoRuns("₱₱1").every((r) => r.text.length > 0)).toBe(true);
   });
 });

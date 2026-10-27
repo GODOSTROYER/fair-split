@@ -279,7 +279,8 @@ export function StatusChip({
     >
       {tone === "cash" ? <Hatch /> : null}
       {glyph ? <Glyph name={glyph} size={16} color={look.fg} /> : null}
-      <Txt kind="label" style={{ color: look.fg }}>
+      {/* The words wrap inside the chip (long Cebuano status words, 200% text); they are never cut off. */}
+      <Txt kind="label" style={[styles.statusWords, { color: look.fg }]}>
         {label}
       </Txt>
     </View>
@@ -402,13 +403,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    maxWidth: "100%",
     gap: space.s4,
     minHeight: 28,
     paddingHorizontal: space.s8,
+    paddingVertical: space.s4,
     borderWidth: 1,
     borderRadius: radius.plate,
     overflow: "hidden",
   },
+  statusWords: { flexShrink: 1 },
   rule: {
     flexDirection: "row",
     alignItems: "center",

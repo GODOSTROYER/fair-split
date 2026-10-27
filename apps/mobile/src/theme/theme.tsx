@@ -10,7 +10,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useState
 import { AccessibilityInfo, Platform, type TextStyle } from "react-native";
 import { FIGURE_VARIANT, fontFamily } from "../_shims/fonts";
 import { type FsTokens, type ThemeName, themes } from "../_shims/tokens.native";
-import { webQuery } from "../platform/query";
+import { bootQuery } from "../platform/query";
 
 const MONEY: TextStyle["fontVariant"] = [...FIGURE_VARIANT];
 
@@ -65,7 +65,7 @@ const FsContext = createContext<FsContextValue>({
 
 /** S2.8: low when totalMemory ≤ 3.3e9 bytes (nominal 2–3 GB phones); no web heuristic beyond `?tier=low`. */
 function detectLowTier(): boolean {
-  if (webQuery("tier") === "low") return true;
+  if (bootQuery("tier") === "low") return true;
   if (Platform.OS === "web") return false;
   return Device.totalMemory !== null && Device.totalMemory <= 3.3e9;
 }
@@ -103,7 +103,8 @@ function useMotionPrefs(override: MotionOverride | undefined): MotionPrefs {
       b.remove();
     };
   }, []);
-  const query = webQuery("motion");
+  // Read from the URL the app was opened with: the index redirect drops the query right after the first render.
+  const query = bootQuery("motion");
   const reduced =
     query === "reduced" ? true : query === "full" ? false : (override?.reduced ?? false) || systemReduced;
   const low = lowDevice || (override?.low ?? false);
@@ -131,6 +132,6 @@ export function useFs(): FsContextValue {
 
 /** Stage frames may pass `?theme=adlaw|tablea` (S3.8: a frame reads only `?theme=&tier=` from its URL). */
 export function themeFromQuery(): ThemeName | null {
-  const q = webQuery("theme");
+  const q = bootQuery("theme");
   return q === "adlaw" || q === "tablea" ? q : null;
 }

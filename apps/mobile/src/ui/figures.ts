@@ -54,3 +54,30 @@ export function figureRuns(segments: readonly Segment[]): Segment[] {
 export function isFigure(s: Segment): boolean {
   return s.value && /\d/.test(s.text);
 }
+
+export interface PesoRun {
+  text: string;
+  /** True for a ₱ sign, which is set in the platform's own face (neither app face has the glyph, S2.3). */
+  peso: boolean;
+}
+
+/**
+ * Splits already formatted money into runs so a drawn amount can set each ₱ in the system font and every other
+ * character in the amount face ("₱7,990.00" → "₱", "7,990.00"). `Txt` does the same for text; SVG amounts need the
+ * runs as `TSpan`s. Joining the runs gives back the text exactly.
+ */
+export function pesoRuns(text: string): PesoRun[] {
+  const out: PesoRun[] = [];
+  let run = "";
+  for (const ch of text) {
+    if (ch !== "₱") {
+      run += ch;
+      continue;
+    }
+    if (run) out.push({ text: run, peso: false });
+    run = "";
+    out.push({ text: ch, peso: true });
+  }
+  if (run) out.push({ text: run, peso: false });
+  return out;
+}

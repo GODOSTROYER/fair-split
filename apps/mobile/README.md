@@ -24,7 +24,13 @@ corepack pnpm --filter @fairsplit/mobile serve:web  # serves dist at http://loca
 corepack pnpm --filter @fairsplit/mobile check:expo # npx expo install --check
 corepack pnpm --filter @fairsplit/mobile typecheck
 corepack pnpm --filter @fairsplit/mobile test       # Vitest: shell, outbox, signing, pairing, statement, statuses
+corepack pnpm --filter @fairsplit/mobile smoke:web  # after build: walks every route in Chromium at 412×915
 ```
+
+`smoke:web` starts its own server, opens every app route of register §4 (first run, the three roles, `/pair?t=`,
+`/s/:token`) and fails on a missing screen root, an unsettled or wrong `data-state`, a page or console error, or a
+focus ring on a screen's first focus; `--shots <dir>` saves screenshots. Playwright is not a dependency of the app:
+it uses `playwright-core` when installed, or the folder in `PLAYWRIGHT_CORE`.
 
 Demo links (no fs-api): `/app/?demo=member&stage=sent`, `?demo=board`, `?demo=clerk`; stages are `checking`, `sent`,
 `paid`, `unclaimed`, `cash-due` and `cash-received`. Add `?motion=reduced` for the reduced-motion renderer and

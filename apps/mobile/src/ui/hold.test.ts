@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  commitKept,
   commits,
+  guardUnavailable,
   type HoldEvent,
   type HoldState,
   holdReducer,
@@ -11,6 +13,7 @@ import {
   quarterAt,
   releasePoint,
   routeFor,
+  settleUnavailable,
   slabStateFor,
 } from "./hold";
 
@@ -156,5 +159,85 @@ describe("web release geometry", () => {
     expect(slabStateFor("committed")).toBe("committed");
     expect(slabStateFor("released-early")).toBe("rest");
     expect(slabStateFor("confirm")).toBe("rest");
+  });
+});
+
+describe("a slab that turns unavailable mid-hold acts on nothing (I4, I6)", () => {
+  /** The slab's dispatch while unavailable: every event goes through the guard first. */
+  function runUnavailable(events: HoldEvent[], from: HoldState) {
+    let s = from;
+    const settle = settleUnavailable(s);
+    if (settle) s = holdReducer(s, settle);
+    let commitsSeen = 0;
+    for (const e of events) {
+      const g = guardUnavailable(e);
+      if (!g) continue;
+      const next = holdReducer(s, g);
+      if (commits(s, next)) commitsSeen++;
+      s = next;
+    }
+    return { state: s, commits: commitsSeen };
+  }
+
+  it("inv.i6.unavailable-armed: an armed slab disarms, and the release inside signs nothing", () => {
+    expect(runUnavailable([{ type: "release", inside: true }], "armed")).toEqual({
+      state: "disarmed",
+      commits: 0,
+    });
+  });
+
+  it("inv.i6.unavailable-holding: a hold reaching its time after the change does not arm", () => {
+    expect(runUnavailable([{ type: "complete" }, { type: "release", inside: true }], "holding")).toEqual({
+      state: "released-early",
+      commits: 0,
+    });
+  });
+
+  it("inv.i4.unavailable-dialog: the open dialog closes, and its confirm signs nothing", () => {
+    expect(runUnavailable([{ type: "dialog-confirm" }], "confirm")).toEqual({ state: "rest", commits: 0 });
+  });
+
+  it("ignores a new press, hold or Enter until the slab is live again", () => {
+    const all: HoldEvent[] = [
+      { type: "press" },
+      { type: "complete" },
+      { type: "activate" },
+      { type: "dialog-confirm" },
+      { type: "release", inside: true },
+    ];
+    for (const from of ["rest", "released-early", "disarmed"] as const) {
+      expect(runUnavailable(all, from).commits).toBe(0);
+    }
+    expect(settleUnavailable("rest")).toBeNull();
+    expect(settleUnavailable("committed")).toBeNull();
+    expect(guardUnavailable({ type: "reset" })).toEqual({ type: "reset" });
+    expect(guardUnavailable({ type: "cancel" })).toEqual({ type: "cancel" });
+  });
+});
+
+describe("a commit the owner refuses springs the slab back", () => {
+  it("keeps the commit unless onCommit returns false or throws", async () => {
+    expect(await commitKept(() => undefined)).toBe(true);
+    expect(await commitKept(async () => undefined)).toBe(true);
+    expect(await commitKept(() => true)).toBe(true);
+    expect(await commitKept(() => false)).toBe(false);
+    expect(await commitKept(async () => false)).toBe(false);
+    expect(
+      await commitKept(() => {
+        throw new Error("key store");
+      }),
+    ).toBe(false);
+    expect(await commitKept(() => Promise.reject<boolean>(new Error("network")))).toBe(false);
+  });
+
+  it("returns a refused commit to rest, from where it can be held again", () => {
+    const committed = holdReducer("armed", { type: "release", inside: true });
+    expect(committed).toBe("committed");
+    const back = holdReducer(committed, { type: "reset" });
+    expect(back).toBe("rest");
+    expect(run([{ type: "press" }, { type: "complete" }, { type: "release", inside: true }], back)).toEqual({
+      state: "committed",
+      commits: 1,
+    });
   });
 });

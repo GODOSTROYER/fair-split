@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "build": "node scripts/export-web.mjs",
     "serve:web": "node scripts/serve-web.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
     "check:expo": "expo install --check",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"

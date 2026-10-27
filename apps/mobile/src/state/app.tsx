@@ -2,7 +2,8 @@
  * The shell's state, one provider for every role: language and theme, first run, the member's read-or-listen choice,
  * the paired session, the API (live fs-api or labelled demo data), connectivity, and the judge stage's frame
  * preferences. No global store library. Role-specific state lives in the role's own provider (the clerk's outbox is
- * mounted by the clerk layout), so the shell never imports a slice.
+ * mounted by the clerk layout), so the shell never imports a slice's features. The one platform seam it calls is
+ * `keyVault.forget()` (BOARD's `platform/key-vault`), when a phone is unpaired.
  */
 import {
   createContext,
@@ -18,8 +19,9 @@ import { createHttpApi, type FairSplitApi } from "../_shims/api-client";
 import type { FramePrefs, Lang } from "../_shims/contracts";
 import { LANGS } from "../_shims/contracts";
 import type { ThemeName } from "../_shims/tokens.native";
+import { keyVault } from "../platform/key-vault";
 import { prefs, secrets } from "../platform/kv";
-import { webQuery } from "../platform/query";
+import { bootQuery } from "../platform/query";
 import { randomBytes } from "../platform/random";
 import { streamingFetch } from "../platform/streaming-fetch";
 import { apiOrigin, BUILD } from "../services/build";
@@ -27,7 +29,7 @@ import { useOnline } from "../services/connectivity";
 import { createDemoApi, type DemoController, demoSession } from "../services/demo-api";
 import { DEMO_STAGES, type DemoStage } from "../services/demo-fixtures";
 import { DEFAULT_FRAME_PREFS, inFrame, startFrameBridge } from "../services/frame-bridge";
-import { DEMO_BEARER, type PairedSession, parseSession } from "../services/session";
+import { DEMO_BEARER, demoWorkspaceAfterReset, type PairedSession, parseSession } from "../services/session";
 import { themeFromQuery } from "../theme/theme";
 
 /** Preference keys (non-secret values in `prefs`; the device bearer only ever in `secrets`). */
@@ -99,6 +101,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const online = useOnline();
   const bearerRef = useRef<string | null>(null);
   bearerRef.current = session?.bearer ?? null;
+  /** Judge resets seen by this frame (`fs.reset`); demo data starts a fresh workspace after each. */
+  const resets = useRef(0);
 
   const { api, demo } = useMemo(() => {
     const origin = apiOrigin();
@@ -133,11 +137,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (lf === "1" || lf === "0") setListenFirstState(lf === "1");
       // Labelled demo links for review and the stage frames before fs-api exists:
       // ?demo=member|board|clerk&stage=checking|sent|paid|unclaimed|cash-due|cash-received
-      const demoRole = demo ? webQuery("demo") : null;
+      const demoRole = demo ? bootQuery("demo") : null;
       if (demo && (demoRole === "member" || demoRole === "board" || demoRole === "clerk")) {
         setSessionState(demoSession(demoRole, new Date()));
         setOnboarded(true);
-        const stage = webQuery("stage");
+        const stage = bootQuery("stage");
         if (isDemoStage(stage)) demo.advance(stage);
         setReady(true);
         return;
@@ -158,11 +162,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       startFrameBridge(
         {
           onSession: (s) => {
-            setSessionState(s); // memory only: a frame token is never stored
+            // Memory only: a frame token is never stored. On demo data each reset is a fresh workspace, so nothing
+            // the last judge filed on this phone (the clerk's outbox) reappears; live workspaces come from fs-api.
+            setSessionState(
+              demo ? { ...s, workspaceId: demoWorkspaceAfterReset(s.workspaceId, resets.current) } : s,
+            );
             setOnboarded(true);
           },
           onPrefs: setFramePrefs,
           onReset: () => {
+            resets.current += 1;
             setSessionState(null);
             demo?.advance("checking");
           },
@@ -199,7 +208,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     else if (s.kind === "device") void secrets.set(PREF.session, JSON.stringify(s));
     // Web frame tokens (a pairing QR opened in a browser) stay in memory for the tab's life.
   }, []);
-  const signOut = useCallback(() => setSession(null), [setSession]);
+  // Unpairing also forgets this phone's signing key: a key never outlives the pairing it was registered under, and
+  // the next pairing makes and registers a new one (the key IDs keep counting, so old signatures still verify).
+  const signOut = useCallback(() => {
+    setSession(null);
+    void keyVault.forget().catch(() => {});
+  }, [setSession]);
   const markSynced = useCallback(() => setLastSync(new Date().toISOString()), []);
 
   const value = useMemo<AppValue>(

@@ -1,10 +1,12 @@
 // Serves dist/ the way fs-api will: the Expo web export under /app with an SPA fallback, and the member link
-// /s/:token redirected to /app/s/:token (register §4). Local verification only; production serving lives in apps/api.
+// /s/:token redirected to /app/s/:token (register §4); web-routes.mjs decides what each path gets. Local verification
+// only; production serving lives in apps/api.
 // Usage: node scripts/serve-web.mjs [--port 8087]
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { routeRequest } from "./web-routes.mjs";
 
 const root = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
 const base = "/app";
@@ -54,7 +56,13 @@ function stream(res, file, headers) {
 }
 
 function fileFor(pathname) {
-  const rel = normalize(decodeURIComponent(pathname.slice(base.length))).replace(/^([/\\])+/, "");
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname.slice(base.length));
+  } catch {
+    return null; // a malformed escape names no file
+  }
+  const rel = normalize(decoded).replace(/^([/\\])+/, "");
   const full = join(root, rel);
   if (full !== root && !full.startsWith(root + sep)) return null; // path traversal
   return existsSync(full) && statSync(full).isFile() ? full : null;
@@ -63,14 +71,17 @@ function fileFor(pathname) {
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   const { pathname } = url;
-  if (pathname === "/" || pathname === "") return send(res, 302, { Location: `${base}/` });
-  const member = /^\/s\/([^/]+)\/?$/.exec(pathname);
-  if (member) return send(res, 302, { Location: `${base}/s/${member[1]}` });
-  if (pathname !== base && !pathname.startsWith(`${base}/`)) {
-    return send(res, 404, { "Content-Type": "text/plain" }, "Not found");
-  }
-  const file = fileFor(pathname);
-  if (file) {
+  let file = null;
+  const route = routeRequest(pathname, {
+    base,
+    isFile: (p) => {
+      file = fileFor(p);
+      return file !== null;
+    },
+  });
+  if (route.kind === "redirect") return send(res, 302, { Location: route.location });
+  if (route.kind === "not-found") return send(res, 404, { "Content-Type": "text/plain" }, "Not found");
+  if (route.kind === "file" && file) {
     const immutable = pathname.includes("/_expo/static/") || pathname.includes("/assets/");
     return stream(res, file, {
       "Content-Type": types[extname(file)] ?? "application/octet-stream",
@@ -78,8 +89,6 @@ const server = createServer((req, res) => {
       "X-Content-Type-Options": "nosniff",
     });
   }
-  // Asset-looking paths that do not exist are real 404s; everything else is a client route.
-  if (extname(pathname)) return send(res, 404, { "Content-Type": "text/plain" }, "Not found");
   return stream(res, join(root, "index.html"), {
     "Content-Type": types[".html"],
     "Cache-Control": "no-cache",

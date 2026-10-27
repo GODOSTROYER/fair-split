@@ -141,6 +141,12 @@ describe("contracts shim: screens, states and the amount grammar", () => {
     expect(SLAB_STATES).toContain("armed");
   });
 
+  it("gives every member screen that reads her line a loading and an error state", () => {
+    for (const id of ["M-MB-01", "M-MB-02", "M-MB-04"] as const) {
+      expect(SCREEN_STATES[id]).toEqual(expect.arrayContaining(["loading", "error"]));
+    }
+  });
+
   it("maps every line state to an amount state (S2.2.1)", () => {
     for (const s of LINE_STATES) expect(AMOUNT_STATES).toContain(AMOUNT_STATE[s]);
     expect(AMOUNT_STATE.PAID).toBe("landed");
