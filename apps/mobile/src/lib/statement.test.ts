@@ -13,11 +13,14 @@ import {
   fillSentence,
   glossPairs,
   hasDigit,
+  legacyStatementCacheKeys,
   lineApproved,
   MONEY_SLOTS,
   mergeTrack,
+  readFailureOf,
   sentenceFor,
   spokenSerial,
+  statementCacheKey,
   statementSentences,
   statementValues,
 } from "./statement";
@@ -349,5 +352,64 @@ describe("the phone's own voice (register §9: device speech, labelled)", () => 
       ),
     ).toBeNull();
     expect(chooseVoice("fil", [])).toBeNull();
+  });
+});
+
+describe("the copy kept on this phone (security review: a statement is read back only by whom it belongs to)", () => {
+  /** A member link as fs-api signs it (`body.sig`); the phone cannot check the signature. */
+  const link = (lineId: string, exp: string, sigByte: number) =>
+    `${Buffer.from(JSON.stringify({ exp, lineId })).toString("base64url")}.${Buffer.alloc(64, sigByte).toString("base64url")}`;
+  const LINE = "line_2026A_r37_M-014";
+
+  it("statement.cache-own: a member's copy is kept under who she is (workspace and persona), none without a pairing", () => {
+    expect(statementCacheKey({ identity: "a1b2c3d4e5f60718", linkToken: null })).toBe(
+      "fs.statement.v2.member.a1b2c3d4e5f60718",
+    );
+    expect(statementCacheKey({ identity: null, linkToken: null })).toBeNull();
+  });
+
+  it("statement.cache-link: a link's copy is kept under the link itself, never under the line it claims", () => {
+    const real = link(LINE, "2026-11-29T00:00:00Z", 7);
+    const forged = link(LINE, "2099-01-01T00:00:00Z", 9); // the same line, a token fs-api never signed
+    const k = statementCacheKey({ identity: null, linkToken: real });
+    expect(k).toMatch(/^fs\.statement\.v2\.link\.[0-9a-f]{32}$/);
+    expect(statementCacheKey({ identity: "a1b2c3d4e5f60718", linkToken: real })).toBe(k); // any phone, same link
+    expect(statementCacheKey({ identity: null, linkToken: forged })).not.toBe(k);
+    expect(k).not.toContain(LINE);
+  });
+
+  it("statement.cache-fallback: the kept copy shows only while the server is unreachable or struggling", () => {
+    expect(readFailureOf({ code: "NETWORK" })).toBe("offline"); // no answer at all
+    expect(readFailureOf({ code: "INTERNAL", status: 500 })).toBe("offline");
+    expect(readFailureOf({ code: "NETWORK", status: 503 })).toBe("offline");
+    expect(readFailureOf({ code: "RATE_LIMITED", status: 429 })).toBe("offline");
+    expect(readFailureOf({ code: "NETWORK", status: 408 })).toBe("offline");
+    // The credential itself was refused: an expired, revoked or forged link, a pairing the co-op no longer knows.
+    for (const [code, status] of [
+      ["UNAUTHENTICATED", 401],
+      ["FRAME_TOKEN_EXPIRED", 401],
+      ["FORBIDDEN", 403],
+      ["NETWORK", 403],
+      ["NOT_FOUND", 404],
+      ["PAIRING_TOKEN_INVALID", 410],
+      ["SIGNATURE_INVALID", 422],
+    ] as const) {
+      expect(readFailureOf({ code, status })).toBe("refused");
+    }
+    expect(readFailureOf({ code: "VALIDATION_FAILED", status: 400 })).toBe("failed");
+  });
+
+  it("statement.cache-legacy: names the copies an earlier build kept under a persona or a claimed line", () => {
+    expect(legacyStatementCacheKeys({ persona: "member:M-014", linkLineId: null })).toEqual([
+      "fs.statement.cache.member:M-014",
+      "fs.statement.cache.member",
+    ]);
+    expect(legacyStatementCacheKeys({ persona: null, linkLineId: LINE })).toEqual([
+      `fs.statement.link.${LINE}`,
+      "fs.statement.link.unknown",
+    ]);
+    // None of them is ever a key the phone keeps a copy under now.
+    const now = statementCacheKey({ identity: "a1b2c3d4e5f60718", linkToken: null });
+    expect(legacyStatementCacheKeys({ persona: "member:M-014", linkLineId: LINE })).not.toContain(now);
   });
 });

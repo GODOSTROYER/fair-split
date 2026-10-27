@@ -23,12 +23,16 @@ import {
   serializeReview,
 } from "./review";
 
+/** Who is paired (`identityKey`): the member, and the same line number in another workspace. */
+const SCOPE = "a1b2c3d4e5f60718";
+const OTHER = "0f1e2d3c4b5a6978";
+
 describe("Ipasusi pag-usab: the request this phone remembers", () => {
   it("round-trips the record, never the note", () => {
     const r = { id: "rr_1", at: "2026-10-30T02:00:00Z", slip: "0403" };
     expect(parseReview(serializeReview(r))).toEqual(r);
     expect(serializeReview(r)).not.toContain("note");
-    expect(reviewPrefKey("line_2026A_r37_M-014")).toBe("fs.review.line_2026A_r37_M-014");
+    expect(reviewPrefKey(SCOPE, "line_2026A_r37_M-014")).toBe(`fs.review.${SCOPE}:line_2026A_r37_M-014`);
   });
 
   it("treats anything malformed as no request", () => {
@@ -108,9 +112,9 @@ describe("inv.i7.review-idempotency: each composed request is filed once", () =>
     const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
     const { post, calls } = scripted(lost, lost, ok("rr_1"));
     const body = reviewBody(lineId, "0403", "Ang kilo sa 0403");
-    expect(await send(body, post)).toMatchObject({ ok: false, code: "NETWORK" });
-    expect(await send(body, post)).toMatchObject({ ok: false });
-    const done = await send(body, post);
+    expect(await send(body, post, SCOPE)).toMatchObject({ ok: false, code: "NETWORK" });
+    expect(await send(body, post, SCOPE)).toMatchObject({ ok: false });
+    const done = await send(body, post, SCOPE);
     expect(done).toMatchObject({ ok: true, id: "rr_1" });
     expect(calls).toHaveLength(3);
     expect(new Set(calls.map((c) => c.key)).size).toBe(1);
@@ -118,7 +122,7 @@ describe("inv.i7.review-idempotency: each composed request is filed once", () =>
     expect(done?.key).toBe(calls[0]?.key);
     // Accepted: the next request is a new one.
     const next = scripted(ok("rr_2"));
-    await send(reviewBody(lineId, null, ""), next.post);
+    await send(reviewBody(lineId, null, ""), next.post, SCOPE);
     expect(next.calls[0]?.key).not.toBe(calls[0]?.key);
   });
 
@@ -127,14 +131,14 @@ describe("inv.i7.review-idempotency: each composed request is filed once", () =>
     const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
     const { post, calls } = scripted(ok("rr_1"));
     const body = reviewBody(lineId, null, "");
-    const first = send(body, post);
-    const second = send(body, post);
+    const first = send(body, post, SCOPE);
+    const second = send(body, post, SCOPE);
     expect(first).not.toBeNull();
     expect(second).toBeNull();
     await first;
     expect(calls).toHaveLength(1);
     // Once it settles, the phone can send again.
-    const third = send(body, scripted(ok("rr_2")).post);
+    const third = send(body, scripted(ok("rr_2")).post, SCOPE);
     expect(third).not.toBeNull();
     await third;
   });
@@ -143,9 +147,9 @@ describe("inv.i7.review-idempotency: each composed request is filed once", () =>
     const { kv } = memoryKv();
     const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
     const { post, calls } = scripted(lost, lost, lost);
-    await send(reviewBody(lineId, "0403", "Ang kilo"), post);
-    await send(reviewBody(lineId, "0403", "  Ang   kilo "), post); // the same note as sent
-    await send(reviewBody(lineId, "0419", "Ang kilo"), post);
+    await send(reviewBody(lineId, "0403", "Ang kilo"), post, SCOPE);
+    await send(reviewBody(lineId, "0403", "  Ang   kilo "), post, SCOPE); // the same note as sent
+    await send(reviewBody(lineId, "0419", "Ang kilo"), post, SCOPE);
     expect(calls[1]?.key).toBe(calls[0]?.key);
     expect(calls[2]?.key).not.toBe(calls[0]?.key);
   });
@@ -154,15 +158,15 @@ describe("inv.i7.review-idempotency: each composed request is filed once", () =>
     const { m, kv } = memoryKv();
     const body = reviewBody(lineId, "0403", "Ang kilo sa 0403 kulang");
     const before = scripted(lost);
-    await createReviewSender({ mint, store: pendingReviewStore(kv) })(body, before.post);
-    const saved = m.get(pendingReviewPrefKey(lineId)) ?? "";
+    await createReviewSender({ mint, store: pendingReviewStore(kv) })(body, before.post, SCOPE);
+    const saved = m.get(pendingReviewPrefKey(SCOPE, lineId)) ?? "";
     expect(parsePendingReview(saved)).toEqual({ key: before.calls[0]?.key, digest: reviewDigest(body) });
     expect(saved).not.toContain("kulang");
     // A new sender (the app restarted) finds the same key for the same request, and forgets it once accepted.
     const after = scripted(ok("rr_1"));
-    await createReviewSender({ mint, store: pendingReviewStore(kv) })(body, after.post);
+    await createReviewSender({ mint, store: pendingReviewStore(kv) })(body, after.post, SCOPE);
     expect(after.calls[0]?.key).toBe(before.calls[0]?.key);
-    expect(m.has(pendingReviewPrefKey(lineId))).toBe(false);
+    expect(m.has(pendingReviewPrefKey(SCOPE, lineId))).toBe(false);
   });
 
   it("starts over when the server holds another body under the key, and fails safe when the post throws", async () => {
@@ -170,13 +174,33 @@ describe("inv.i7.review-idempotency: each composed request is filed once", () =>
     const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
     const body = reviewBody(lineId, null, "x");
     const reused = scripted({ ok: false, code: "IDEMPOTENCY_KEY_REUSED", status: 422 }, ok("rr_9"));
-    expect(await send(body, reused.post)).toMatchObject({ ok: false, code: "IDEMPOTENCY_KEY_REUSED" });
-    await send(body, reused.post);
+    expect(await send(body, reused.post, SCOPE)).toMatchObject({ ok: false, code: "IDEMPOTENCY_KEY_REUSED" });
+    await send(body, reused.post, SCOPE);
     expect(reused.calls[1]?.key).not.toBe(reused.calls[0]?.key);
     const throws: PostReview = async () => {
       throw new Error("socket closed");
     };
-    expect(await send(body, throws)).toMatchObject({ ok: false, code: "NETWORK" });
+    expect(await send(body, throws, SCOPE)).toMatchObject({ ok: false, code: "NETWORK" });
+  });
+
+  it("review.scoped: what one paired member composed is never sent, nor shown as sent, for anyone else", async () => {
+    const { m, kv } = memoryKv();
+    const send = createReviewSender({ mint, store: pendingReviewStore(kv) });
+    const body = reviewBody(lineId, "0403", "Ang kilo");
+    const first = scripted(lost);
+    await send(body, first.post, SCOPE); // the answer was lost: her key waits, under her
+    const other = scripted(lost);
+    await send(body, other.post, OTHER); // the same line number, someone else paired
+    expect(other.calls[0]?.key).not.toBe(first.calls[0]?.key);
+    expect(m.has(pendingReviewPrefKey(SCOPE, lineId))).toBe(true);
+    expect(m.has(pendingReviewPrefKey(OTHER, lineId))).toBe(true);
+    expect(reviewPrefKey(SCOPE, lineId)).not.toBe(reviewPrefKey(OTHER, lineId));
+    // Paired as her again: her request is still the same one, under its own key.
+    const again = scripted(ok("rr_1"));
+    await send(body, again.post, SCOPE);
+    expect(again.calls[0]?.key).toBe(first.calls[0]?.key);
+    // Keys never run into each other across scopes and lines.
+    expect(pendingReviewPrefKey("a.b", "c")).not.toBe(pendingReviewPrefKey("a", "b.c"));
   });
 
   it("sends the body fs-api reads: the line, the slip if one was picked, the note as sent", () => {

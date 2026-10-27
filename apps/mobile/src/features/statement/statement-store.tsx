@@ -2,7 +2,9 @@
  * The member's statement, held once for every member screen (Bayad, Resibo, Pangutana and the Paminawa modal share
  * one read and one live subscription; `app/(member)/_layout.tsx` mounts the provider).
  *
- * - Read once, cached on this phone for offline ("Katapusang kopya, 10:21"), refreshed when the signal returns.
+ * - Read once, cached on this phone for offline ("Katapusang kopya, 10:21"), refreshed when the signal returns. The
+ *   copy is kept under whom it belongs to (the paired member's identity, or the link itself: `statementCacheKey`),
+ *   shown only while fs-api cannot be reached, and dropped when fs-api refuses the pairing or the link.
  * - Kept current by `item.updated` on the member's own `line:<lineId>` stream (C-05): statuses only move forward,
  *   duplicates and stale events change nothing (I5, `reduceItemEvent`), and a fresh read never moves the item back
  *   (`mergeTrack`). A `line.state` event (the line moved to the bodega) re-reads the statement.
@@ -21,9 +23,10 @@ import {
   type ItemTrack,
   reduceItemEvent,
 } from "../../lib/item-status";
-import { mergeTrack } from "../../lib/statement";
+import { legacyStatementCacheKeys, mergeTrack, readFailureOf, statementCacheKey } from "../../lib/statement";
 import { prefs } from "../../platform/kv";
 import { bootQuery } from "../../platform/query";
+import { identityKey } from "../../services/session";
 import { useApp } from "../../state/app";
 import { previewLine } from "./preview";
 import { parseReview, type ReviewRecord, reviewPrefKey, serializeReview } from "./review";
@@ -82,10 +85,11 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   const loading = useRef(false);
   const again = useRef(false);
 
-  // One phone may be paired to a different member later, and a link view must never overwrite her own copy.
-  const cacheKey = linkToken
-    ? `fs.statement.link.${linkLineId ?? "unknown"}`
-    : `fs.statement.cache.${session?.persona ?? "member"}`;
+  // One phone may be paired to a different member later (or to the same member number in another co-op), and a link
+  // view must never overwrite her own copy nor open another link's: each copy is kept under whom it belongs to.
+  const identity = session ? identityKey(session) : null;
+  const cacheKey = statementCacheKey({ identity, linkToken });
+  const persona = session?.persona ?? null;
   // A flag for the whole visit, read from the address the app was opened with (redirects may rewrite the address).
   const [linePreview] = useState(() => bootQuery("line"));
   const preview = demo ? linePreview : null;
@@ -113,13 +117,25 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
         setCachedAt(at);
         setTrack((t) => mergeTrack(t, fresh.item));
         markSynced();
-        void prefs.set(cacheKey, JSON.stringify({ at, dto: fresh }));
+        if (cacheKey) void prefs.set(cacheKey, JSON.stringify({ at, dto: fresh }));
         return;
       }
-      // A read failed: keep what is on screen, or fall back to this phone's last copy.
+      const failure = readFailureOf(r);
+      if (failure === "refused") {
+        // fs-api refused the pairing or the link (expired, revoked, never signed): what this phone kept for it is
+        // neither shown nor kept, and what is on screen goes too.
+        if (cacheKey) void prefs.del(cacheKey);
+        setDto(null);
+        setFromCache(false);
+        setCachedAt(null);
+        setRefreshFailed(true);
+        setStatus("error");
+        return;
+      }
+      // A read failed: keep what is on screen, or, while fs-api is out of reach, fall back to this phone's last copy.
       setRefreshFailed(true);
       if (dtoRef.current) return;
-      const cached = parseCache(await prefs.get(cacheKey));
+      const cached = failure === "offline" && cacheKey ? parseCache(await prefs.get(cacheKey)) : null;
       if (cached) {
         setDto(cached.dto);
         setCachedAt(cached.at);
@@ -142,6 +158,16 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
     void load();
   }, [load]);
 
+  // Copies an earlier build kept under a persona or a link's claimed line: nothing reads them now, so they go.
+  useEffect(() => {
+    if (!enabled) return;
+    const old = legacyStatementCacheKeys({
+      persona: linkToken ? null : persona,
+      linkLineId: linkToken ? (linkLineId ?? "unknown") : null,
+    });
+    for (const k of old) void prefs.del(k);
+  }, [enabled, linkToken, linkLineId, persona]);
+
   // Demo controls change the line; re-read so the history and dates follow (the item status already came by event).
   // Starting the demo over also forgets the demo's re-check request.
   useEffect(() => {
@@ -149,11 +175,11 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
     return demo.subscribe(() => {
       if (demo.stage() === "checking" && dtoRef.current) {
         setReview(null);
-        void prefs.del(reviewPrefKey(dtoRef.current.lineId));
+        if (identity) void prefs.del(reviewPrefKey(identity, dtoRef.current.lineId));
       }
       void load();
     });
-  }, [demo, enabled, load]);
+  }, [demo, enabled, identity, load]);
 
   // The signal came back: replace the offline copy.
   useEffect(() => {
@@ -188,23 +214,27 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
     });
   }, [api, live, lineId, senderItemId, load]);
 
-  // This phone's re-check request for the line.
+  // The paired member's own re-check request for the line (a link view, read only, has none).
   useEffect(() => {
-    if (!lineId || !enabled) return;
+    if (!lineId || !enabled || linkToken || !identity) {
+      setReview(null);
+      return;
+    }
     let alive = true;
-    void prefs.get(reviewPrefKey(lineId)).then((raw) => {
+    void prefs.get(reviewPrefKey(identity, lineId)).then((raw) => {
       if (alive) setReview(parseReview(raw));
     });
     return () => {
       alive = false;
     };
-  }, [lineId, enabled]);
+  }, [lineId, enabled, linkToken, identity]);
   const recordReview = useCallback(
     (r: ReviewRecord) => {
       setReview(r);
-      if (lineId) void prefs.set(reviewPrefKey(lineId), serializeReview(r));
+      if (lineId && identity && !linkToken)
+        void prefs.set(reviewPrefKey(identity, lineId), serializeReview(r));
     },
-    [lineId],
+    [lineId, identity, linkToken],
   );
 
   useEffect(() => {

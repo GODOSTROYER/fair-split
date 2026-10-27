@@ -21,7 +21,15 @@ export interface ReviewRecord {
 /** Notes are short: one or two sentences for the Committee. */
 export const NOTE_MAX = 280;
 
-export const reviewPrefKey = (lineId: string) => `fs.review.${lineId}`;
+/**
+ * Where a request's record and pending key are kept: under who sent it (`scope`: `identityKey`, her workspace and
+ * persona) and the line, so a phone paired to someone else, or to the same line number in another co-op or judge
+ * workspace, never shows her request as sent nor reuses her key. Both parts are encoded, so no two run together.
+ */
+const reviewSlot = (scope: string, lineId: string) =>
+  `${encodeURIComponent(scope)}:${encodeURIComponent(lineId)}`;
+
+export const reviewPrefKey = (scope: string, lineId: string) => `fs.review.${reviewSlot(scope, lineId)}`;
 
 export function parseReview(raw: string | null): ReviewRecord | null {
   if (!raw) return null;
@@ -121,7 +129,8 @@ export interface PendingReview {
   digest: string;
 }
 
-export const pendingReviewPrefKey = (lineId: string) => `fs.review.pending.${lineId}`;
+export const pendingReviewPrefKey = (scope: string, lineId: string) =>
+  `fs.review.pending.${reviewSlot(scope, lineId)}`;
 
 const DIGEST_RE = /^[0-9a-f]{64}$/;
 
@@ -141,11 +150,14 @@ export function serializePendingReview(p: PendingReview): string {
   return JSON.stringify({ key: p.key, digest: p.digest });
 }
 
-/** Where pending keys survive a restart: this phone's preferences (the key and a digest, never the note). */
+/**
+ * Where pending keys survive a restart: this phone's preferences (the key and a digest, never the note), per sender
+ * (`scope`) and line.
+ */
 export interface PendingReviewStore {
-  get(lineId: string): Promise<PendingReview | null>;
-  set(lineId: string, p: PendingReview): Promise<void>;
-  del(lineId: string): Promise<void>;
+  get(scope: string, lineId: string): Promise<PendingReview | null>;
+  set(scope: string, lineId: string, p: PendingReview): Promise<void>;
+  del(scope: string, lineId: string): Promise<void>;
 }
 
 /** A pending-key store over a string key-value store (`prefs` on the phone, a Map in tests). */
@@ -155,9 +167,9 @@ export function pendingReviewStore(kv: {
   del(key: string): Promise<void>;
 }): PendingReviewStore {
   return {
-    get: async (lineId) => parsePendingReview(await kv.get(pendingReviewPrefKey(lineId))),
-    set: (lineId, p) => kv.set(pendingReviewPrefKey(lineId), serializePendingReview(p)),
-    del: (lineId) => kv.del(pendingReviewPrefKey(lineId)),
+    get: async (scope, lineId) => parsePendingReview(await kv.get(pendingReviewPrefKey(scope, lineId))),
+    set: (scope, lineId, p) => kv.set(pendingReviewPrefKey(scope, lineId), serializePendingReview(p)),
+    del: (scope, lineId) => kv.del(pendingReviewPrefKey(scope, lineId)),
   };
 }
 
@@ -170,31 +182,33 @@ export type ReviewSendResult =
  * until the Committee's inbox accepts that request: if the server filed it but the answer was lost, "Try again" is
  * the same request, never a second one. A changed slip or note is a new request with a new key (the server refuses
  * a different body under an old key). One send at a time on this phone, shared by the statement's sheet and the
- * Pangutana tab: a commit while another is in flight (two taps in one frame) sends nothing and returns null.
+ * Pangutana tab: a commit while another is in flight (two taps in one frame) sends nothing and returns null. Keys are
+ * kept per sender (`scope`, the paired member's `identityKey`): one member's pending key never files another's.
  */
 export function createReviewSender(deps: { mint: () => string; store: PendingReviewStore }) {
   const memory = new Map<string, PendingReview>();
   let inFlight = false;
 
-  async function attempt(body: ReviewBody, post: PostReview): Promise<ReviewSendResult> {
+  async function attempt(body: ReviewBody, post: PostReview, scope: string): Promise<ReviewSendResult> {
     let key: string | null = null;
+    const slot = reviewSlot(scope, body.lineId);
     try {
       const digest = reviewDigest(body);
-      const held = memory.get(body.lineId) ?? (await deps.store.get(body.lineId));
+      const held = memory.get(slot) ?? (await deps.store.get(scope, body.lineId));
       const pending = held?.digest === digest ? held : { key: deps.mint(), digest };
       key = pending.key;
-      memory.set(body.lineId, pending);
-      if (pending !== held) await deps.store.set(body.lineId, pending);
+      memory.set(slot, pending);
+      if (pending !== held) await deps.store.set(scope, body.lineId, pending);
       const r = await post(body, { idempotencyKey: pending.key });
       if (r.ok) {
-        memory.delete(body.lineId);
-        await deps.store.del(body.lineId);
+        memory.delete(slot);
+        await deps.store.del(scope, body.lineId);
         return { ok: true, id: r.value.id, key: pending.key };
       }
       if (r.code === "IDEMPOTENCY_KEY_REUSED") {
         // The server holds another body under this key: the next try is a new request.
-        memory.delete(body.lineId);
-        await deps.store.del(body.lineId);
+        memory.delete(slot);
+        await deps.store.del(scope, body.lineId);
       }
       return { ok: false, key, code: r.code };
     } catch {
@@ -202,10 +216,10 @@ export function createReviewSender(deps: { mint: () => string; store: PendingRev
     }
   }
 
-  return function send(body: ReviewBody, post: PostReview): Promise<ReviewSendResult> | null {
+  return function send(body: ReviewBody, post: PostReview, scope: string): Promise<ReviewSendResult> | null {
     if (inFlight) return null;
     inFlight = true;
-    return attempt(body, post).finally(() => {
+    return attempt(body, post, scope).finally(() => {
       inFlight = false;
     });
   };

@@ -23,6 +23,7 @@ import {
   demoCashPort,
   demoCashStory,
   demoLineId,
+  dropsCashList,
   httpCashPort,
   parseCashDay,
 } from "./cash-port";
@@ -324,6 +325,13 @@ describe("the live cash list (msw)", () => {
     expect(await port.load()).toMatchObject({ kind: "error", code: "BAD_RESPONSE" });
     reply = () => HttpResponse.error();
     expect(await port.load()).toEqual({ kind: "error", code: "NETWORK" });
+  });
+
+  it("cash.refused-pairing: a list the co-op gave this phone is dropped, never shown, once it refuses the pairing", () => {
+    expect(dropsCashList("UNAUTHENTICATED")).toBe(true); // 401 or 403: the pairing, not the network
+    for (const code of ["NETWORK", "SERVER", "RATE_LIMITED", "BAD_RESPONSE"] as const) {
+      expect(dropsCashList(code)).toBe(false); // an offline bodega keeps its last list
+    }
   });
 
   it("parses only what it can trust", () => {

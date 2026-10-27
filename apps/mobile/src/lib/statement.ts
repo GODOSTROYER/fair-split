@@ -489,3 +489,55 @@ export function chooseVoice(
   }
   return null;
 }
+
+/* ------------------------------------------------------------------ the copy kept on this phone */
+
+/**
+ * Where this phone keeps a statement's offline copy ("Katapusang kopya, 10:21"). A member's own read is kept under
+ * who she is (`identity`: `identityKey`, her workspace and persona), so a phone paired to someone else, or to the
+ * same member number in another co-op or judge workspace, never reads it. A link view (`/s/:token`) is kept under the
+ * link itself, a fingerprint of the token as fs-api signed it, never under the line the token claims: the phone
+ * cannot check those claims, so another token naming the same line (forged, or reissued) never opens this copy.
+ * Null: nothing is kept (no pairing and no link).
+ */
+export function statementCacheKey(o: { identity: string | null; linkToken: string | null }): string | null {
+  if (o.linkToken) {
+    return `fs.statement.v2.link.${sha256Hex(`fair-split-statement-link:${o.linkToken}`).slice(0, 32)}`;
+  }
+  return o.identity ? `fs.statement.v2.member.${o.identity}` : null;
+}
+
+/**
+ * The keys an earlier build kept copies under (the persona alone, or the line a link claims), which nothing reads any
+ * more: removed when a statement opens, so a member's figures do not linger on a shared phone.
+ */
+export function legacyStatementCacheKeys(o: { persona: string | null; linkLineId: string | null }): string[] {
+  if (o.linkLineId !== null) return [`fs.statement.link.${o.linkLineId}`, "fs.statement.link.unknown"];
+  return [...(o.persona ? [`fs.statement.cache.${o.persona}`] : []), "fs.statement.cache.member"];
+}
+
+/** Codes that refuse the credential itself (a pairing or a link), whatever status carries them. */
+const REFUSED_CODES: ReadonlySet<string> = new Set([
+  "UNAUTHENTICATED",
+  "FRAME_TOKEN_EXPIRED",
+  "FORBIDDEN",
+  "NOT_FOUND",
+  "PAIRING_TOKEN_INVALID",
+  "SIGNATURE_INVALID",
+]);
+
+/**
+ * Why a statement read failed, as far as the copy on this phone is concerned:
+ * - `offline`: no answer (no signal, DNS, a reset socket) or a struggling server (5xx, 408, 429): show the copy;
+ * - `refused`: the pairing or the link was refused (401, 403, 404, 410, or such a code): never show it, and drop it;
+ * - `failed`: any other refusal: show the error, keep the copy for when the server answers.
+ */
+export type ReadFailure = "offline" | "refused" | "failed";
+
+export function readFailureOf(r: { code: string; status?: number }): ReadFailure {
+  const s = r.status;
+  if (s === undefined) return "offline";
+  if (s >= 500 || s === 408 || s === 429) return "offline";
+  if (s === 401 || s === 403 || s === 404 || s === 410 || REFUSED_CODES.has(r.code)) return "refused";
+  return "failed";
+}

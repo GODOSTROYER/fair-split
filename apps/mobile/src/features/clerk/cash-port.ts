@@ -23,6 +23,14 @@ export const CASH_DAY_PATH = "/v1/clerk/cash-day";
 /** Why the list could not be had; the screen words each (a pairing problem is not "try again"). */
 export type CashLoadError = "NETWORK" | "SERVER" | "RATE_LIMITED" | "UNAUTHENTICATED" | "BAD_RESPONSE";
 
+/**
+ * The co-op refused this phone's pairing (401, 403): the list it gave a pairing it no longer accepts is neither shown
+ * nor kept (nor attested from). Every other failure leaves an offline bodega its last list.
+ */
+export function dropsCashList(code: CashLoadError): boolean {
+  return code === "UNAUTHENTICATED";
+}
+
 export type CashLoad =
   | { kind: "list"; day: CashDayDTO }
   /** The co-op has no cash list for this phone right now. */

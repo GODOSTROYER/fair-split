@@ -29,6 +29,7 @@ import {
   type DemoCashPort,
   demoCashPort,
   demoLineId,
+  dropsCashList,
   httpCashPort,
   parseCashDay,
 } from "./cash-port";
@@ -121,6 +122,14 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
           setStale(false);
           setError(null);
           setStatus("none");
+          if (cacheKey) void prefs.del(cacheKey);
+        } else if (dropsCashList(r.code)) {
+          // The co-op refused this pairing: the list an earlier answer gave is not shown, kept, or attested from.
+          setDay(null);
+          setFetchedAt(null);
+          setStale(false);
+          setError(r.code);
+          setStatus("error");
           if (cacheKey) void prefs.del(cacheKey);
         } else {
           setError(r.code);

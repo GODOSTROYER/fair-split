@@ -15,6 +15,7 @@ import { radius, space } from "../../_shims/tokens.native";
 import { uuidv7 } from "../../lib/uuidv7";
 import { prefs } from "../../platform/kv";
 import { randomBytes } from "../../platform/random";
+import { identityKey } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Banner, Chip, InkStamp } from "../../ui/primitives";
@@ -39,15 +40,17 @@ const sendReview = createReviewSender({
 
 /** The form's state; `record` keeps the request this phone sent (the statement store's `recordReview`). */
 export function useReviewForm(dto: StatementDTO | null, record: (r: ReviewRecord) => void) {
-  const { api } = useApp();
+  const { api, session } = useApp();
+  // Her pending key is kept under who she is: a phone paired to someone else never files her request.
+  const scope = session ? identityKey(session) : null;
   const [slip, setSlip] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [phase, setPhase] = useState<ReviewPhase>("idle");
   const send = useCallback(async () => {
-    if (!dto) return;
+    if (!dto || !scope) return;
     // Until the shell's client sends the Idempotency-Key header it ignores the key; the request is the same.
     const post: PostReview = api.postReviewRequest.bind(api);
-    const attempt = sendReview(reviewBody(dto.lineId, slip, note), post);
+    const attempt = sendReview(reviewBody(dto.lineId, slip, note), post, scope);
     if (!attempt) return; // a request is already on its way: this commit sends nothing
     setPhase("sending");
     const r = await attempt;
@@ -58,7 +61,7 @@ export function useReviewForm(dto: StatementDTO | null, record: (r: ReviewRecord
       return;
     }
     setPhase("failed");
-  }, [api, dto, note, record, slip]);
+  }, [api, dto, note, record, scope, slip]);
   return { slip, setSlip, note, setNote, phase, send, composing: note.trim().length > 0 || slip !== null };
 }
 
