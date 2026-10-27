@@ -777,6 +777,36 @@ describe("extract: injection screen and quarantine (AI-4)", () => {
     ]);
   });
 
+  it("one read's box cannot rule an overlap out: read B puts the note over box 6, read A in the margin, and the row is held", async () => {
+    const over = { x1: 520, y1: 600, x2: 880, y2: 640 }; // the gross_kg cell
+    const a = extraction([row()], [{ kind: "INSTRUCTION_LIKE_TEXT", box: margin, verbatim: note }]);
+    const b = extraction([row()], [{ kind: "INSTRUCTION_LIKE_TEXT", box: over, verbatim: note }]);
+    script({ A: a, B: b, screen: { suspected: false } });
+    const r = await extract(
+      {
+        docId: "doc-7q",
+        kind: "slip_page",
+        bytes: await plainPage(),
+        fixture: pageFixture(),
+        validation: ctx,
+      },
+      deps(),
+    );
+    // One text, so one quarantine event; both boxes are hatched; the hold follows either box.
+    expect(r.quarantined).toHaveLength(1);
+    expect(r.quarantinedBoxes).toEqual([margin, over]);
+    expect(r.holds).toEqual([
+      {
+        kind: "SUSPECTED_INJECTION",
+        gate: "BLOCKS_APPROVAL",
+        docId: "doc-7q",
+        row: 0,
+        field: "gross_kg",
+        reason: "Instruction-like text overlaps slip data",
+      },
+    ]);
+  });
+
   it("without a reviewed rectangle an overlap cannot be ruled out: deductions quarantined, the row reserved", async () => {
     const doc = extraction(
       [row({}, { deductions: [field("Hauling P96.75", DEDUCTION_RECTS[0] as never)] })],

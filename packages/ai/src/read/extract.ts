@@ -908,7 +908,9 @@ export interface LocatedInjections {
  * A SUSPECTED_INJECTION hold is drafted when the text overlaps a reviewed field rectangle or deduction
  * line (RESERVES_LINE; BLOCKS_APPROVAL for a kilo field), or when a deduction line repeats the text,
  * whole or in part (`repeatsInstruction`): that line is quarantined and reserved wherever it is, and
- * its text never reaches the classifier.
+ * its text never reaches the classifier. The overlap test takes the box of every report of the text,
+ * so a hold is ruled out only when both reads place the text off the slip's data (the text's box can
+ * only come from a read; a slip's own margin note, 0449's, holds nothing: C-16).
  * Model field boxes never decide: where no reviewed rectangle exists (no fixture, a row the fixture
  * does not place, a line or field without its rectangle), or where the text has no box that places it
  * on the page, an overlap cannot be ruled out, so the line fails closed: its deductions are
@@ -966,8 +968,12 @@ export function locateInjections(
       for (const d of r.deductions) d.quarantined = true;
       book.reserve(r.row, "RESERVES_LINE", undefined, placed ? UNPLACED_REASON : UNLOCATED_REASON);
     }
-    if (!placed) continue;
-    // Every reviewed slip the text touches: is it over that slip's data?
+  }
+  // Every box either read gave instruction-like text (B's report of A's note included, though it is
+  // not a second text): is it over a reviewed slip's data? A box only ever adds a hold here, so one
+  // read's misplaced box cannot rule an overlap out on its own; both reads would have to misplace it.
+  for (const x of instructions) {
+    if (!placesText(x.box, size)) continue;
     slots.forEach((slot, i) => {
       if (!overlaps(slot.rect, x.box)) return;
       for (const r of rows) {
