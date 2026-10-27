@@ -344,13 +344,18 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
   };
 }
 
+/** The deterministic test key pair registerKey stores for one key id in one workspace. */
+export function testKeyPair(workspaceId: string, keyId: string, seed?: string) {
+  return ed25519FromSeed(sha256Hex(seed ?? `runs-slice test key ${keyId} ${workspaceId}`));
+}
+
 /** A registered officer device key (`device_keys`), with its private half for the test to sign with. */
 export async function registerKey(
   db: Db,
   workspaceId: string,
   k: { keyId: string; persona: string; kind?: "app" | "web_demo"; seed?: string; revokedAt?: Date | null },
 ) {
-  const pair = ed25519FromSeed(sha256Hex(k.seed ?? `runs-slice test key ${k.keyId} ${workspaceId}`));
+  const pair = testKeyPair(workspaceId, k.keyId, k.seed);
   await db.insert(schema.deviceKeys).values({
     workspaceId,
     keyId: k.keyId,

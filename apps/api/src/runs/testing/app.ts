@@ -5,7 +5,7 @@ import { approvalBytes, ed25519Sign } from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
 import type { HttpHandler } from "msw";
 import { createPayPalMock, createTestApp, type PayPalMock, type TestApp } from "../../test/index.js";
-import { registerKey, type SeedWorld, type SeedWorldOptions, seedWorld } from "./world.js";
+import { registerKey, type SeedWorld, type SeedWorldOptions, seedWorld, testKeyPair } from "./world.js";
 
 export interface RunsHarness {
   t: TestApp;
@@ -94,12 +94,24 @@ export async function resolveAll(h: RunsHarness): Promise<void> {
   await api.resolveHold({ params: { holdId: id("H3") }, body: { resolution: "RETURN_AS_CREDIT" } });
 }
 
-/** Both officers register a device key and sign the batch: the run is APPROVED with its POST queued. */
+/**
+ * Both officers sign the batch (registering their device keys the first time): the run is APPROVED with its
+ * POST queued. Signing again after a send-back reuses the keys already on file.
+ */
 export async function signBoth(h: RunsHarness) {
   const db = h.t.pg?.app.db;
-  if (!db) throw new Error("signBoth needs Postgres");
-  const analyn = await registerKey(db, h.world.workspaceId, { keyId: "fs-analyn-a1", persona: "analyn" });
-  const ernesto = await registerKey(db, h.world.workspaceId, { keyId: "fs-ernesto-a1", persona: "ernesto" });
+  const owner = h.t.pg?.owner.db;
+  if (!db || !owner) throw new Error("signBoth needs Postgres");
+  const ws = h.world.workspaceId;
+  const officerKey = async (keyId: string, persona: string) => {
+    const [onFile] = await owner
+      .select({ id: schema.deviceKeys.id })
+      .from(schema.deviceKeys)
+      .where(and(eq(schema.deviceKeys.workspaceId, ws), eq(schema.deviceKeys.keyId, keyId)));
+    return onFile ? testKeyPair(ws, keyId) : registerKey(db, ws, { keyId, persona });
+  };
+  const analyn = await officerKey("fs-analyn-a1", "analyn");
+  const ernesto = await officerKey("fs-ernesto-a1", "ernesto");
   const runSlug = h.world.runSlug;
   const t = (
     await h.t
