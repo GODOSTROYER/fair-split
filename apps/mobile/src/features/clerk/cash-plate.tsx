@@ -2,6 +2,9 @@
  * Cash at the bodega (M-CL-01, cash day): who is due and who has received, with exact pesos at the run's rate
  * ("₱7,990.00", never an estimate) and the member's own status words. Hatching marks cash, always with the word.
  * The list counts people, never pesos (pesos are never summed). A due row opens the "Nadawat" receipt.
+ *
+ * The plate exists only when there is a list to show, or one that could not be fetched: a co-op with no cash list
+ * for this phone shows no plate, and none flashes up while the first answer is on its way.
  */
 import { useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
@@ -14,7 +17,6 @@ import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { Glyph } from "../../ui/glyph";
 import { Banner, Button, Hatch, InkStamp, Rule } from "../../ui/primitives";
-import { Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { type LocalReceipt, memberStatusOf, type RosterEntry, rosterCounts, searchRoster } from "./cash-day";
 import type { CashHandle } from "./cash-provider";
@@ -35,11 +37,14 @@ export const LOCAL_WORD: Readonly<Record<Exclude<LocalReceipt, "none">, ClerkKey
 export function CashPlate({ cash, onOpen }: { cash: CashHandle; onOpen(entry: RosterEntry): void }) {
   const { t } = useFs();
   const tr = useT();
-  const { lang } = useApp();
+  const { lang, online } = useApp();
   const [query, setQuery] = useState("");
   const { day, entries } = cash;
   const counts = rosterCounts(entries);
   const shown = query ? searchRoster(entries, query) : entries;
+
+  if (!day && cash.status !== "error") return null;
+  const repair = cash.error === "UNAUTHENTICATED";
 
   return (
     <View
@@ -68,28 +73,28 @@ export function CashPlate({ cash, onOpen }: { cash: CashHandle; onOpen(entry: Ro
         ) : null}
         {cash.stale && day && cash.fetchedAt ? (
           <View style={styles.stale}>
-            <Glyph name="wifiOff" size={16} color={t.color.ink2} />
+            <Glyph name={online ? "clock" : "wifiOff"} size={16} color={t.color.ink2} />
             <Txt kind="caption" color="ink2" testID="M-CL-01.cash.stale">
-              {tr("M-CL-01.cash.stale", { time: format.time(new Date(cash.fetchedAt).toISOString()) })}
+              {tr(online ? "M-CL-01.cash.lastList" : "M-CL-01.cash.stale", {
+                time: format.time(new Date(cash.fetchedAt).toISOString()),
+              })}
             </Txt>
           </View>
         ) : null}
       </View>
 
-      {cash.status === "loading" && !day ? (
-        <View style={styles.pad} accessibilityLabel={tr("M-CL-01.cash.loading")}>
-          <Skeleton lines={2} />
-        </View>
-      ) : null}
-
       {cash.status === "error" && !day ? (
         <View style={styles.pad}>
           <Banner
-            icon="info"
+            icon={repair ? "qr" : "info"}
             testID="M-CL-01.cash.error"
-            action={<Button variant="text" label={tr("common.tryAgain")} onPress={cash.reload} />}
+            action={
+              repair ? undefined : (
+                <Button variant="text" label={tr("common.tryAgain")} onPress={cash.reload} />
+              )
+            }
           >
-            <Txt kind="body">{tr("M-CL-01.cash.loadError")}</Txt>
+            <Txt kind="body">{tr(repair ? "M-CL-01.cash.loadAuth" : "M-CL-01.cash.loadError")}</Txt>
           </Banner>
         </View>
       ) : null}

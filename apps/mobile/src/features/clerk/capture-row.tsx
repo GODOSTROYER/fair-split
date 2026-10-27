@@ -1,9 +1,11 @@
 /**
  * One capture, on the Scan screen's recent list and in the Outbox: the paper, what it is (its serial once read, or
- * the member for a cash receipt), where it is in words, a second line when it helps, and its ring. A capture
- * waiting on a retry or on a person offers "Ipadala karon".
+ * the member for a cash receipt), where it is in words, a second line when it helps, and its ring. A capture waiting
+ * on a retry, or refused for a reason a resend can fix, offers "Ipadala karon"; a refused one can also be removed
+ * from the phone ("Tangtanga", after a confirm). A refusal no resend can fix offers only the removal: its words say
+ * what to file instead.
  *
- * The words are one element for TalkBack ("Resibo 0403. 4 ka linya nabasa. 412 KB, 09:12."); the button stays its
+ * The words are one element for TalkBack ("Resibo 0403. 4 ka linya nabasa. 412 KB, 09:12."); the buttons stay their
  * own. Progress is not a live region: the outbox announces one summary when uploads land.
  */
 import { StyleSheet, View } from "react-native";
@@ -13,7 +15,7 @@ import type { CaptureRecord } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
 import { Button, InkStamp } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
-import { canSendNow, hintOf, metaOf, ringOf, statusOf, titleOf } from "./capture-view";
+import { canRemove, canSendNow, hintOf, metaOf, ringOf, statusOf, titleOf } from "./capture-view";
 import { Paper } from "./paper";
 import { CaptureRing } from "./ring";
 import { useCompact } from "./use-compact";
@@ -23,14 +25,20 @@ export function CaptureRow({
   r,
   now,
   online,
+  treasurer,
   onSendNow,
+  onRemove,
   testID,
   paper = 64,
 }: {
   r: CaptureRecord;
   now: number;
   online: boolean;
+  /** The treasurer's name for refusal copy, from the pairing or the co-op; null says "the treasurer". */
+  treasurer: string | null;
   onSendNow?: () => void;
+  /** Asks to remove a refused capture (the screen confirms first). */
+  onRemove?: () => void;
   testID: string;
   paper?: number;
 }) {
@@ -38,7 +46,7 @@ export function CaptureRow({
   const tr = useT();
   const compact = useCompact();
   const title = titleOf(r);
-  const status = statusOf(r, now, online);
+  const status = statusOf(r, now, online, treasurer);
   const hint = hintOf(r);
   const titleText = tr(title.key, title.args);
   const statusText = tr(status.key, status.args);
@@ -51,6 +59,8 @@ export function CaptureRow({
   ]
     .filter(Boolean)
     .join(", ");
+  const send = onSendNow && canSendNow(r);
+  const remove = onRemove && canRemove(r);
   return (
     <View testID={testID} dataSet={{ captureState: r.state, kind: r.kind }} style={styles.row}>
       <Paper uri={r.thumbUri ?? r.fileUri} width={compact ? 40 : paper} height={compact ? 40 : paper} />
@@ -82,16 +92,29 @@ export function CaptureRow({
             {metaText}
           </Txt>
         </View>
-        {onSendNow && canSendNow(r) ? (
-          <Button
-            variant="text"
-            icon="forward"
-            label={tr("M-CL-02.sendNow")}
-            accessibilityLabel={tr("M-CL-02.sendNowSr", { title: titleText })}
-            onPress={onSendNow}
-            style={styles.sendNow}
-            testID={`${testID}.send-now`}
-          />
+        {send || remove ? (
+          <View style={styles.actions}>
+            {send ? (
+              <Button
+                variant="text"
+                icon="forward"
+                label={tr("M-CL-02.sendNow")}
+                accessibilityLabel={tr("M-CL-02.sendNowSr", { title: titleText })}
+                onPress={onSendNow}
+                testID={`${testID}.send-now`}
+              />
+            ) : null}
+            {remove ? (
+              <Button
+                variant="text"
+                icon="close"
+                label={tr("M-CL-02.remove")}
+                accessibilityLabel={tr("M-CL-02.removeSr", { title: titleText })}
+                onPress={onRemove}
+                testID={`${testID}.remove`}
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
       <CaptureRing tone={ringOf(r)} progress={r.progress} size={compact ? 28 : 36} />
@@ -109,5 +132,5 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, gap: space.s4 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: space.s8 },
-  sendNow: { alignSelf: "flex-start", marginLeft: -space.s8 },
+  actions: { flexDirection: "row", flexWrap: "wrap", columnGap: space.s8, marginLeft: -space.s8 },
 });

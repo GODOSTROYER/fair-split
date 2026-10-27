@@ -275,6 +275,40 @@ describe("capture upload over HTTP (msw)", () => {
     expect(JSON.stringify(seen[0])).not.toContain("Merlyn");
   });
 
+  it("sends a refused page again under a new key once the phone is paired again", async () => {
+    const now = { t: NOW };
+    const outbox = engine(now);
+    await outbox.init();
+    const added = await outbox.add(capture(8));
+    if (added.outcome !== "queued") throw new Error("expected queued");
+    // fs-api stores its answer under the key (S3.10): the same key would get this 401 back for a day.
+    answer = () => HttpResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
+    expect(await outbox.sync()).toMatchObject({ rejected: 1 });
+    answer = () =>
+      HttpResponse.json(
+        { documentId: "doc-78", exactDuplicateOf: null, rowsRead: null, serial: null },
+        { status: 201 },
+      );
+    now.t += 60_000;
+    expect(await outbox.afterPairing()).toMatchObject({ uploaded: 1 });
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.key).toBe(added.record.id);
+    expect(seen[1]?.key).not.toBe(added.record.id);
+    expect(seen[1]?.key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    // The same bytes and the same capture: only the request is new.
+    expect(seen[1]?.digest).toBe(seen[0]?.digest);
+    expect(seen[1]?.meta).toEqual(seen[0]?.meta);
+    expect((await outbox.list())[0]).toMatchObject({ state: "uploaded", documentId: "doc-78" });
+  });
+
+  it("files without a station when the pairing names none", async () => {
+    const outbox = engine({ t: NOW });
+    await outbox.init();
+    await outbox.add(capture(9, { station: "" }));
+    await outbox.sync();
+    expect(seen[0]?.meta).toMatchObject({ station: null });
+  });
+
   it("waits as long as a 429's Retry-After asks", async () => {
     const now = { t: NOW };
     const outbox = engine(now);

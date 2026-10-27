@@ -2,8 +2,9 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { format } from "../../_shims/domain";
-import { fx } from "../../_shims/seed";
+import { cashDayIso, fx } from "../../_shims/seed";
 import { type CaptureRecord, MANUAL_ONLY } from "../../lib/outbox";
+import { buildDemoStatement, DEMO_STAGES, type DemoStage } from "../../services/demo-fixtures";
 import {
   type CashLineDTO,
   initialsOf,
@@ -18,12 +19,14 @@ import {
 } from "./cash-day";
 import {
   CASH_DAY_PATH,
-  cashDayToday,
+  demoCashOpen,
   demoCashPort,
+  demoCashStory,
   demoLineId,
   httpCashPort,
   parseCashDay,
 } from "./cash-port";
+import { DEMO_STATION } from "./clerk-site";
 
 const NOW = Date.parse("2026-10-30T02:00:00Z"); // 10:00 in Calinan, cash day
 
@@ -163,52 +166,90 @@ describe("finding a member", () => {
     expect(searchRoster(roster, "")).toHaveLength(2);
   });
 
-  it("stamps with the clerk's initials", () => {
+  it("stamps with the clerk's initials, and never with a placeholder", () => {
     expect(initialsOf("Jessie D. Dumaguing")).toBe("JD");
     expect(initialsOf("  analyn   r. sumalinog ")).toBe("AS");
     expect(initialsOf("Jessie")).toBe("J");
-    expect(initialsOf("")).toBe("?");
+    expect(initialsOf("")).toBeNull();
+    expect(initialsOf(" 42 . ")).toBeNull();
   });
 });
 
 describe("the demo cash list", () => {
-  it("holds the named cash members, exact pesos at the run rate, and today as cash day", async () => {
-    const port = demoCashPort({ now: () => NOW, stage: () => "checking" });
+  /** What the clerk frame shows at a stage: member, the member's own status, and whether receipts can be filed. */
+  async function at(stage: DemoStage) {
+    const port = demoCashPort({ stage: () => stage });
     const r = await port.load();
-    if (!r.ok) throw new Error("demo failed");
-    expect(r.value.cashDay).toBe("2026-10-30T08:00:00+08:00");
-    expect(isCashDayOpen(r.value.cashDay, NOW)).toBe(true);
-    expect(r.value.provenance).toBe("seeded");
-    expect(r.value.lines.map((l) => [l.memberNo, l.lineState, l.movedFromPayPal])).toEqual([
-      ["M-053", "OFF_RAIL_DUE", false],
-      ["M-031", "OFF_RAIL_DUE", true],
-    ]);
-    const merlyn = r.value.lines[0];
-    expect(merlyn && format.cashPesos(merlyn.cents, r.value.phpPerUsd)).toBe("₱7,990.00"); // register §2
-    expect(r.value.phpPerUsd).toBe(fx.phpPerUsd);
+    if (r.kind !== "list") throw new Error("the demo always has a list");
+    const roster = mergeRoster(r.day.lines, []);
+    return {
+      day: r.day,
+      open: port.isOpen(r.day, NOW),
+      lines: roster.map((e) => [e.line.memberNo, memberStatusOf(e), e.line.movedFromPayPal] as const),
+    };
+  }
+
+  it("keeps the cash day the member's statement shows (30 Oct), whatever today is", async () => {
+    for (const stage of DEMO_STAGES) {
+      const { day } = await at(stage);
+      expect(day.cashDay).toBe(cashDayIso);
+      expect(day.cashDay).toBe(buildDemoStatement({ stage, now: new Date(NOW).toISOString() }).cashDay);
+      expect(day.provenance).toBe("seeded");
+      expect(day.phpPerUsd).toBe(fx.phpPerUsd);
+    }
+    expect(cashDayIso).toBe("2026-10-30T08:00:00+08:00");
   });
 
-  it("follows the demo's storyline for the hero line, and records receipts", async () => {
-    let stage: "cash-due" | "cash-received" = "cash-due";
-    const port = demoCashPort({ now: () => NOW, stage: () => stage });
-    const due = await port.load();
-    expect(due.ok && due.value.lines.map((l) => l.memberNo)).toEqual(["M-053", "M-031", "M-014"]);
+  it("follows the demo's story: still checking before both keys, due once approved, the bodega's day after", async () => {
+    expect(await at("checking")).toMatchObject({ open: false, lines: [["M-053", "HELD", false]] });
+    for (const stage of ["sent", "paid", "unclaimed"] as const) {
+      // Approved, but cash day is not here yet: the receipt is hatched "Available on cash day, 30 Oct".
+      expect(await at(stage)).toMatchObject({ open: false, lines: [["M-053", "OFF_RAIL_DUE", false]] });
+    }
+    expect(await at("cash-due")).toMatchObject({
+      open: true,
+      lines: [
+        ["M-014", "OFF_RAIL_DUE", true],
+        ["M-031", "OFF_RAIL_DUE", true],
+        ["M-053", "OFF_RAIL_DUE", false],
+      ],
+    });
+    expect((await at("cash-received")).lines).toContainEqual(["M-014", "OFF_RAIL_PAID", true]);
+    expect(demoCashOpen(null)).toBe(false);
+    expect(demoCashStory(null)).toEqual(demoCashStory("checking"));
+  });
+
+  it("gives Merlyn her exact pesos at the run rate (register §2), and names the demo station and treasurer", async () => {
+    const { day } = await at("sent");
+    const merlyn = day.lines[0];
+    expect(merlyn && format.cashPesos(merlyn.cents, day.phpPerUsd)).toBe("₱7,990.00");
+    expect(day.station).toBe(DEMO_STATION);
+    expect(day.treasurer).toEqual({ first: "Analyn" });
+  });
+
+  it("records this phone's receipts once the line is at the bodega, first record wins", async () => {
+    let stage: DemoStage = "checking";
+    const port = demoCashPort({ stage: () => stage });
     port.record(demoLineId("M-053"), NOW, "JD");
-    port.record(demoLineId("M-053"), NOW + 5, "XX"); // first record wins
+    const held = await port.load();
+    expect(held.kind === "list" && held.day.lines[0]?.lineState).toBe("READY"); // a held line is never "received"
+    stage = "cash-due";
+    port.record(demoLineId("M-053"), NOW + 5, "XX");
+    port.record(demoLineId("M-014"), NOW + 7, "JD");
     stage = "cash-received";
     const after = await port.load();
-    if (!after.ok) throw new Error("demo failed");
-    expect(after.value.lines.find((l) => l.memberNo === "M-053")).toMatchObject({
+    if (after.kind !== "list") throw new Error("the demo always has a list");
+    expect(after.day.lines.find((l) => l.memberNo === "M-053")).toMatchObject({
       lineState: "OFF_RAIL_PAID",
       receivedBy: "JD",
       receivedAt: new Date(NOW).toISOString(),
     });
-    expect(after.value.lines.find((l) => l.memberNo === "M-014")).toMatchObject({
+    expect(after.day.lines.find((l) => l.memberNo === "M-014")).toMatchObject({
       lineState: "OFF_RAIL_PAID",
       receivedBy: "JD",
+      receivedAt: new Date(NOW + 7).toISOString(), // the clerk's own time, kept after the story moves on
     });
     expect(demoLineId("M-014")).toBe("line_2026A_r37_M-014");
-    expect(cashDayToday(Date.parse("2026-10-30T17:00:00Z"))).toBe("2026-10-31T08:00:00+08:00");
   });
 });
 
@@ -240,6 +281,8 @@ describe("the live cash list (msw)", () => {
         cashDay: "2026-10-30T08:00:00+08:00",
         phpPerUsd: "62.50",
         provenance: "live",
+        station: " Bodega ",
+        treasurer: { first: "Analyn" },
         lines: [
           line("M-053", { name: "Merlyn Ponce", cents: 12784 }),
           { ...line("M-999"), cents: 12.5 },
@@ -249,18 +292,37 @@ describe("the live cash list (msw)", () => {
       });
     const r = await port.load();
     expect(auth).toBe("Bearer dev_token_for_tests");
-    expect(r.ok && r.value.lines.map((l) => l.memberNo)).toEqual(["M-053"]);
+    if (r.kind !== "list") throw new Error(`expected a list, got ${r.kind}`);
+    expect(r.day.lines.map((l) => l.memberNo)).toEqual(["M-053"]);
+    expect(r.day).toMatchObject({ station: "Bodega", treasurer: { first: "Analyn" } });
+    expect(port.isOpen(r.day, NOW)).toBe(true);
+    expect(port.isOpen(r.day, Date.parse("2026-10-29T12:00:00Z"))).toBe(false);
   });
 
-  it("maps failures to codes the screen can word", async () => {
+  it("reads no list (404, 501, 204) as nothing to pay at the bodega, never as a failure", async () => {
+    for (const status of [404, 501, 204, 405, 410]) {
+      reply = () => new HttpResponse(null, { status });
+      expect(await port.load()).toEqual({ kind: "none" });
+    }
+    reply = () => HttpResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 });
+    expect(await port.load()).toEqual({ kind: "none" });
+  });
+
+  it("words real failures: the network, the server, the rate limit, a pairing, a captive portal", async () => {
+    reply = () => new HttpResponse(null, { status: 503 });
+    expect(await port.load()).toEqual({ kind: "error", code: "SERVER", status: 503 });
     reply = () => new HttpResponse(null, { status: 401 });
-    expect(await port.load()).toEqual({ ok: false, code: "UNAUTHENTICATED", status: 401 });
+    expect(await port.load()).toEqual({ kind: "error", code: "UNAUTHENTICATED", status: 401 });
+    reply = () => new HttpResponse(null, { status: 403 });
+    expect(await port.load()).toEqual({ kind: "error", code: "UNAUTHENTICATED", status: 403 });
     reply = () => new HttpResponse(null, { status: 429 });
-    expect(await port.load()).toEqual({ ok: false, code: "RATE_LIMITED", status: 429 });
+    expect(await port.load()).toEqual({ kind: "error", code: "RATE_LIMITED", status: 429 });
     reply = () => new HttpResponse("<html>portal</html>", { status: 200 });
-    expect(await port.load()).toMatchObject({ ok: false, code: "NETWORK" });
+    expect(await port.load()).toMatchObject({ kind: "error", code: "BAD_RESPONSE" });
     reply = () => HttpResponse.json({ runSlug: "x", cashDay: "nope", phpPerUsd: "62.50", lines: [] });
-    expect(await port.load()).toMatchObject({ ok: false, code: "NETWORK" });
+    expect(await port.load()).toMatchObject({ kind: "error", code: "BAD_RESPONSE" });
+    reply = () => HttpResponse.error();
+    expect(await port.load()).toEqual({ kind: "error", code: "NETWORK" });
   });
 
   it("parses only what it can trust", () => {
@@ -272,6 +334,18 @@ describe("the live cash list (msw)", () => {
     ).toMatchObject({
       provenance: "live",
       lines: [],
+      station: null,
+      treasurer: null,
     });
+    expect(
+      parseCashDay({
+        runSlug: "r",
+        cashDay: "2026-10-30",
+        phpPerUsd: "62.50",
+        lines: [],
+        station: "  ",
+        treasurer: { first: "" },
+      }),
+    ).toMatchObject({ station: null, treasurer: null });
   });
 });

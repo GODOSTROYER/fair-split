@@ -3,8 +3,9 @@
  * member's signed "Nadawat" box on cash day, gets a UUIDv7 id that is also its Idempotency-Key, and a sha256 that is
  * unique on this phone and travels as its Content-Digest. Captures wait in SQLite until the phone is online, then
  * upload one at a time: cash receipts first (they change a member's line), then pages, oldest first. A retry is
- * always the same request, so nothing is filed twice, and nothing is ever dropped: a capture the co-op refuses waits
- * for a person ("Ipadala karon").
+ * always the same request, so nothing is filed twice, and nothing is dropped behind the clerk's back: a capture the
+ * co-op refuses waits for a person, who sends it again ("Ipadala karon", under a new key when the old one can only
+ * replay the refusal), files it again (a new scan, a new receipt for the line), or removes it from the phone.
  *
  * Once the co-op has a capture its state only moves forward (I5): `uploaded` never returns to the queue, and `read`
  * (`capture.synced`) is final, whichever of the 201 and the event arrives first.
@@ -127,6 +128,13 @@ export interface OutboxStore {
   requeueInterrupted(): Promise<number>;
   /** Deletes uploaded or read captures filed before `before`, returning them so their files can go too. */
   removeSettled(before: number): Promise<CaptureRecord[]>;
+  /** Deletes a capture only while the co-op's refusal holds it (`isRefused`), returning it so its files can go. */
+  removeRefused(id: string): Promise<CaptureRecord | null>;
+  /**
+   * Compare-and-set on a refusal: gives a refused capture a new id (its next Idempotency-Key) and applies `patch`.
+   * False when the capture is gone or no longer refused.
+   */
+  rekeyRefused(id: string, newId: string, patch: CapturePatch): Promise<boolean>;
 }
 
 export type UploadOutcome =
@@ -158,10 +166,11 @@ export interface OutboxDeps {
 }
 
 export type AddResult =
-  | { outcome: "queued"; record: CaptureRecord }
+  /** Filed. `replaced` is the refused capture this filing took the place of (the same page, or the same line). */
+  | { outcome: "queued"; record: CaptureRecord; replaced: CaptureRecord | null }
   /** The same bytes were filed before: "Napadala na sa 09:12." */
   | { outcome: "duplicate-file"; existing: CaptureRecord }
-  /** This member line already has a cash receipt on this phone. */
+  /** This member line already has a cash receipt on this phone, and the co-op has not refused it. */
   | { outcome: "already-attested"; existing: CaptureRecord };
 
 export interface SyncReport {
@@ -172,8 +181,53 @@ export interface SyncReport {
   skippedOffline: boolean;
 }
 
-/** Never retried automatically; "Ipadala karon" (send now) clears it. */
+/** Never retried automatically: a refusal waits for a person (`resendOf` says what a resend can be). */
 export const MANUAL_ONLY = Number.MAX_SAFE_INTEGER;
+
+/* ------------------------------------------------------------------ refusals */
+
+/** The co-op refused the request itself (a 4xx): the capture waits for a person, never for a timer. */
+export function isRefused(r: Pick<CaptureRecord, "state" | "nextAttemptAt">): boolean {
+  return r.state === "failed" && r.nextAttemptAt === MANUAL_ONLY;
+}
+
+/** Refusals of the phone's pairing: once it is paired again, the same capture can go, under a new key. */
+export const AUTH_REFUSALS: readonly string[] = ["UNAUTHENTICATED", "FORBIDDEN"];
+
+/**
+ * Refusals no resend can fix: the photo is gone from the phone or too large, Judge Mode takes samples only, or the
+ * member line is no longer the one a receipt attests (`LINE_*`). The clerk scans or attests again instead, and
+ * removes this one.
+ */
+export const FINAL_REFUSALS: readonly string[] = [
+  "FILE_MISSING",
+  "TOO_LARGE",
+  "SAMPLES_ONLY",
+  "JUDGE_SAMPLES_ONLY",
+];
+
+export function isFinalRefusal(code: string | null): boolean {
+  return code !== null && (FINAL_REFUSALS.includes(code) || code.startsWith("LINE_"));
+}
+
+export type Resend =
+  /** Waiting for its turn or its retry timer: sent again as the same request, under the same key (inv.i7). */
+  | "same-key"
+  /**
+   * Refused. fs-api keeps the stored answer to an Idempotency-Key for 24 h (S3.10), so the same key could only get
+   * the same refusal back; a resend is a new request under a new key. Nothing was filed under the old one, and the
+   * Content-Digest still lets the co-op spot the same bytes.
+   */
+  | "new-key"
+  /** On its way or settled, or refused for a reason no resend can fix. */
+  | "none";
+
+export function resendOf(r: Pick<CaptureRecord, "state" | "nextAttemptAt" | "lastError">): Resend {
+  if (r.state === "queued") return "same-key";
+  if (r.state !== "failed") return "none";
+  if (!isRefused(r)) return "same-key";
+  return isFinalRefusal(r.lastError) ? "none" : "new-key";
+}
 
 /** Settled captures stay on the phone for a month (the "Earlier" list), then their files are deleted. */
 export const KEEP_SETTLED_MS = 30 * 24 * 3600_000;
@@ -217,17 +271,26 @@ export class Outbox {
 
   /**
    * Files a capture on the phone, signal or not. The same bytes twice give "Already sent at 09:12" instead of a
-   * second capture, and a member line takes one cash receipt.
+   * second capture, and a member line takes one cash receipt. A refused capture is the exception: filing the same
+   * page again, or a new receipt for the same line, takes its place under a new id (a person's fresh act; the
+   * refusal dead-ends nowhere).
    */
   async add(input: NewCapture): Promise<AddResult> {
     assertNewCapture(input);
     const { store } = this.deps;
+    let replaces: CaptureRecord | null = null;
     if (input.kind === "nadawat") {
       const prior = await store.findNadawat(input.nadawat.lineId);
-      if (prior) return { outcome: "already-attested", existing: prior };
+      if (prior && !isRefused(prior)) return { outcome: "already-attested", existing: prior };
+      replaces = prior;
     }
     const existing = await store.findBySha(input.sha256);
-    if (existing) return { outcome: "duplicate-file", existing };
+    if (existing && existing.id !== replaces?.id) {
+      // Only a refused page is filed over by its own bytes; a photo already filed for anything else stays a duplicate.
+      const refile = !replaces && existing.kind === "slip" && input.kind !== "nadawat" && isRefused(existing);
+      if (!refile) return { outcome: "duplicate-file", existing };
+      replaces = existing;
+    }
     const now = this.deps.now();
     const record: CaptureRecord = {
       sha256: input.sha256,
@@ -255,6 +318,19 @@ export class Outbox {
       serial: null,
       uploadedAt: null,
     };
+    let replaced: CaptureRecord | null = null;
+    if (replaces) {
+      replaced = await store.removeRefused(replaces.id);
+      if (!replaced) {
+        // Someone sent it again meanwhile ("Ipadala karon"): it is on its way, so this filing is the duplicate.
+        const fresh = await store.get(replaces.id);
+        if (fresh) {
+          return fresh.kind === "nadawat"
+            ? { outcome: "already-attested", existing: fresh }
+            : { outcome: "duplicate-file", existing: fresh };
+        }
+      }
+    }
     if ((await store.insert(record)) === "duplicate") {
       // Lost a race with a concurrent add of the same page, or of a receipt for the same line.
       const same = await store.findBySha(input.sha256);
@@ -263,8 +339,10 @@ export class Outbox {
       if (line) return { outcome: "already-attested", existing: line };
       throw new Error("The outbox refused a capture it could not find");
     }
+    // The refused copy's photo goes with it, unless the new filing is the very same file.
+    if (replaced) await this.deleteFiles(replaced, [record.fileUri, record.thumbUri]);
     this.changed();
-    return { outcome: "queued", record };
+    return { outcome: "queued", record, replaced };
   }
 
   /** Single-flight: concurrent calls share one run, and a call during a run schedules one more pass. */
@@ -293,25 +371,47 @@ export class Outbox {
     return this.running;
   }
 
-  /** "Ipadala karon": makes one waiting or refused capture due now, then syncs. */
+  /**
+   * "Ipadala karon": one capture goes now. A retry keeps its key; a refusal a resend can fix goes under a new key;
+   * a refusal no resend can fix stays where it is (the screen offers "Tangtanga" instead).
+   */
   async sendNow(id: string): Promise<SyncReport> {
-    if (await this.deps.store.transition(id, ["failed", "queued"], { nextAttemptAt: this.deps.now() })) {
-      this.changed();
-    }
+    const r = await this.deps.store.get(id);
+    if (r && (await this.resend(r))) this.changed();
     return this.sync();
   }
 
-  /** "Ipadala tanan karon": every waiting or refused capture becomes due now. */
+  /** "Ipadala tanan karon": every capture `sendNow` would send. */
   async sendAll(): Promise<SyncReport> {
-    const now = this.deps.now();
+    let n = 0;
+    for (const r of await this.deps.store.list()) if (await this.resend(r)) n++;
+    if (n) this.changed();
+    return this.sync();
+  }
+
+  /**
+   * The phone was paired again: every capture the co-op refused for the old pairing goes out again by itself, each
+   * under a new key (the old key's stored answer is the refusal).
+   */
+  async afterPairing(): Promise<SyncReport> {
     let n = 0;
     for (const r of await this.deps.store.list()) {
-      if ((r.state === "failed" || r.state === "queued") && r.nextAttemptAt > now) {
-        if (await this.deps.store.transition(r.id, ["failed", "queued"], { nextAttemptAt: now })) n++;
-      }
+      if (isRefused(r) && AUTH_REFUSALS.includes(r.lastError ?? "") && (await this.rekey(r.id))) n++;
     }
     if (n) this.changed();
     return this.sync();
+  }
+
+  /**
+   * "Tangtanga sa telepono": removes a capture the co-op refused, and its photo. Only a refusal can be removed: a
+   * capture still on its way, or already at the co-op, never leaves this way.
+   */
+  async discard(id: string): Promise<boolean> {
+    const removed = await this.deps.store.removeRefused(id);
+    if (!removed) return false;
+    await this.deleteFiles(removed);
+    this.changed();
+    return true;
   }
 
   /**
@@ -350,16 +450,7 @@ export class Outbox {
   /** Deletes settled captures older than `keepMs` and their files. Returns how many went. */
   async prune(keepMs: number = KEEP_SETTLED_MS): Promise<number> {
     const removed = await this.deps.store.removeSettled(this.deps.now() - keepMs);
-    for (const r of removed) {
-      for (const uri of new Set([r.fileUri, r.thumbUri])) {
-        if (!uri) continue;
-        try {
-          await this.deps.deleteFile?.(uri);
-        } catch {
-          // A file the OS already removed is not an error.
-        }
-      }
-    }
+    for (const r of removed) await this.deleteFiles(r);
     return removed.length;
   }
 
@@ -370,6 +461,39 @@ export class Outbox {
 
   private changed(): void {
     if (!this.disposed) this.deps.onChange?.();
+  }
+
+  /** Makes one capture due now, as `resendOf` allows. True when something changed. */
+  private async resend(r: CaptureRecord): Promise<boolean> {
+    const how = resendOf(r);
+    if (how === "new-key") return this.rekey(r.id);
+    if (how === "none") return false;
+    const now = this.deps.now();
+    if (r.nextAttemptAt <= now) return false;
+    return this.deps.store.transition(r.id, ["failed", "queued"], { nextAttemptAt: now });
+  }
+
+  /** A refused capture becomes a new request: a new id (its Idempotency-Key), back in the queue, due now. */
+  private rekey(id: string): Promise<boolean> {
+    return this.deps.store.rekeyRefused(id, this.deps.newId(), {
+      state: "queued",
+      attempts: 0,
+      nextAttemptAt: this.deps.now(),
+      lastError: null,
+      progress: 0,
+    });
+  }
+
+  /** Best effort: a file the OS already removed is not an error, and a file still in use (`keep`) stays. */
+  private async deleteFiles(r: CaptureRecord, keep: readonly (string | null)[] = []): Promise<void> {
+    for (const uri of new Set([r.fileUri, r.thumbUri])) {
+      if (!uri || keep.includes(uri)) continue;
+      try {
+        await this.deps.deleteFile?.(uri);
+      } catch {
+        // Already gone.
+      }
+    }
   }
 
   private async drain(report: SyncReport): Promise<void> {

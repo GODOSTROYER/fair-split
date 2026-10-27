@@ -3,6 +3,9 @@
  * rather than polling, cached on the phone so an offline bodega still shows the last list ("Katapusang listahan,
  * 10:21"), and merged with the receipts this phone has filed. A receipt is filed through the same offline outbox as
  * a slip: the photo of the signed "Nadawat" box and the clerk's stamp travel together, or not at all.
+ *
+ * A co-op with no cash list for this phone (no cash day on the run, or a server without the route) shows no cash
+ * plate at all; only a list that could not be fetched says so.
  */
 import {
   createContext,
@@ -14,14 +17,14 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ApiErrorCode } from "../../_shims/contracts";
 import { heroLine } from "../../_shims/seed";
 import type { AddResult } from "../../lib/outbox";
 import { prefs } from "../../platform/kv";
 import type { ProcessedPage } from "../../platform/scanner";
 import { useApp } from "../../state/app";
-import { type CashDayDTO, isCashDayOpen, mergeRoster, type RosterEntry } from "./cash-day";
+import { type CashDayDTO, mergeRoster, type RosterEntry } from "./cash-day";
 import {
+  type CashLoadError,
   type CashPort,
   type DemoCashPort,
   demoCashPort,
@@ -34,23 +37,27 @@ import { storeKey } from "./persisted-store";
 import { originOf } from "./upload-protocol";
 
 export interface CashHandle {
-  status: "loading" | "ready" | "error";
+  /**
+   * loading: nothing known yet; ready: a list is on screen (perhaps the last copy); none: the co-op has no cash list
+   * for this phone; error: no list, and the last attempt to get one did not finish.
+   */
+  status: "loading" | "ready" | "none" | "error";
   day: CashDayDTO | null;
   entries: RosterEntry[];
-  /** Cash day has begun in Calinan; before it, receipts cannot be filed. */
+  /** Receipts can be filed (cash day has begun in Calinan, or the demo's story is at the bodega). */
   open: boolean;
   /** When the list on screen came from the co-op. */
   fetchedAt: number | null;
-  /** The list on screen is the last copy (offline, or the last refresh failed). */
+  /** The list on screen is the last copy (offline, or the last refresh did not finish). */
   stale: boolean;
-  error: ApiErrorCode | null;
+  error: CashLoadError | null;
   reload(): void;
   /** Files the receipt for one line: the photo of the signed box and the clerk's stamp, together. */
   attest(
     entry: RosterEntry,
     page: ProcessedPage,
     attestedBy: string,
-    station: string,
+    station: string | null,
   ): Promise<AddResult | null>;
 }
 
@@ -71,7 +78,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
   const [day, setDay] = useState<CashDayDTO | null>(null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [status, setStatus] = useState<CashHandle["status"]>("loading");
-  const [error, setError] = useState<ApiErrorCode | null>(null);
+  const [error, setError] = useState<CashLoadError | null>(null);
   const [stale, setStale] = useState(false);
   const bearerRef = useRef<string | null>(null);
   bearerRef.current = session?.bearer ?? null;
@@ -81,7 +88,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
   const port = useMemo<CashPort | DemoCashPort>(
     () =>
       api.mode === "demo"
-        ? demoCashPort({ now: () => Date.now(), stage: () => demo?.stage() ?? null })
+        ? demoCashPort({ stage: () => demo?.stage() ?? null })
         : httpCashPort({ origin: originOf(api.captureUrl()), getBearer: () => bearerRef.current }),
     [api, demo],
   );
@@ -99,14 +106,22 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
       do {
         reloadAgain.current = false;
         const r = await port.load();
-        if (r.ok) {
+        if (r.kind === "list") {
           const at = Date.now();
-          setDay(r.value);
+          setDay(r.day);
           setFetchedAt(at);
           setStale(false);
           setError(null);
           setStatus("ready");
-          if (cacheKey) void prefs.set(cacheKey, JSON.stringify({ day: r.value, at } satisfies Cached));
+          if (cacheKey) void prefs.set(cacheKey, JSON.stringify({ day: r.day, at } satisfies Cached));
+        } else if (r.kind === "none") {
+          // Nothing to pay at the bodega now: an earlier list is no longer the co-op's either.
+          setDay(null);
+          setFetchedAt(null);
+          setStale(false);
+          setError(null);
+          setStatus("none");
+          if (cacheKey) void prefs.del(cacheKey);
         } else {
           setError(r.code);
           setStale(true);
@@ -138,7 +153,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
             setDay((d) => d ?? cached);
             setFetchedAt((f) => f ?? (c.at as number));
             setStale(true);
-            setStatus("ready");
+            setStatus((s) => (s === "loading" ? "ready" : s));
           }
         } catch {
           // A damaged cache is ignored; the co-op's list replaces it.
@@ -158,7 +173,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
     wasOnline.current = online;
   }, [online, load]);
 
-  // Line events and this phone's own receipts reaching the co-op.
+  // Line events, this phone's receipts reaching the co-op, and receipts it refused (the list may be out of date).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const soon = () => {
@@ -172,7 +187,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
       }
       const receipts = e.records.filter((r) => r.kind === "nadawat" && r.nadawat);
       if (!receipts.length) return;
-      if ("record" in port) {
+      if (e.type === "settled" && "record" in port) {
         for (const r of receipts) {
           if (!r.nadawat) continue;
           port.record(r.nadawat.lineId, r.createdAt, r.nadawat.attestedBy);
@@ -194,7 +209,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
 
   const attest = useCallback<CashHandle["attest"]>(
     async (entry, page, attestedBy, station) => {
-      if (!outbox || !day) return null;
+      if (!outbox || !day || !attestedBy) return null;
       const res = await outbox.add({
         kind: "nadawat",
         nadawat: {
@@ -212,7 +227,7 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
         bytes: page.bytes,
         width: page.width,
         height: page.height,
-        station,
+        station: station ?? "",
         memberHint: entry.line.memberNo,
         source: page.source,
       });
@@ -228,14 +243,14 @@ export function CashDayProvider({ children }: { children: ReactNode }) {
       status,
       day,
       entries,
-      open: day ? isCashDayOpen(day.cashDay, Date.now()) : false,
+      open: day ? port.isOpen(day, Date.now()) : false,
       fetchedAt,
       stale: stale || (!online && day !== null),
       error,
       reload: () => void load(),
       attest,
     }),
-    [status, day, entries, fetchedAt, stale, online, error, load, attest],
+    [status, day, entries, port, fetchedAt, stale, online, error, load, attest],
   );
   return <CashContext.Provider value={value}>{children}</CashContext.Provider>;
 }

@@ -13,6 +13,8 @@ import {
   type CapturePatch,
   type CaptureRecord,
   type CaptureState,
+  isRefused,
+  MANUAL_ONLY,
   type NadawatMeta,
   type OutboxStore,
 } from "./outbox";
@@ -234,6 +236,9 @@ function setClause(patch: CapturePatch): { sql: string; params: SqlParam[] } {
 /** Cash receipts first (they change a member's line), then the oldest page. */
 const DUE_ORDER = "CASE kind WHEN 'nadawat' THEN 0 ELSE 1 END, created_at ASC, id ASC";
 
+/** The co-op's refusal holds the row (`isRefused`); its one parameter is `MANUAL_ONLY`. */
+const REFUSED = "state = 'failed' AND next_attempt_at = ?";
+
 export class SqliteOutboxStore implements OutboxStore {
   constructor(private readonly db: SqlDriver) {}
 
@@ -354,6 +359,25 @@ ${stamp}`);
     }
     return rows.map(fromRow);
   }
+
+  async removeRefused(id: string) {
+    const [row] = await this.db.all<Row>(`SELECT * FROM captures WHERE id = ? AND ${REFUSED}`, [
+      id,
+      MANUAL_ONLY,
+    ]);
+    if (!row) return null;
+    const r = await this.db.run(`DELETE FROM captures WHERE id = ? AND ${REFUSED}`, [id, MANUAL_ONLY]);
+    return r.changes === 1 ? fromRow(row) : null;
+  }
+
+  async rekeyRefused(id: string, newId: string, patch: CapturePatch) {
+    const { sql, params } = setClause(patch);
+    const r = await this.db.run(
+      `UPDATE captures SET id = ?${sql ? `, ${sql}` : ""} WHERE id = ? AND ${REFUSED}`,
+      [newId, ...params, id, MANUAL_ONLY],
+    );
+    return r.changes === 1;
+  }
 }
 
 const clone = (r: CaptureRecord): CaptureRecord => ({ ...r, nadawat: r.nadawat ? { ...r.nadawat } : null });
@@ -441,6 +465,21 @@ export class MemoryOutboxStore implements OutboxStore {
       }
     }
     return out;
+  }
+
+  async removeRefused(id: string) {
+    const r = this.rows.get(id);
+    if (!r || !isRefused(r)) return null;
+    this.rows.delete(id);
+    return clone(r);
+  }
+
+  async rekeyRefused(id: string, newId: string, patch: CapturePatch) {
+    const r = this.rows.get(id);
+    if (!r || !isRefused(r) || this.rows.has(newId)) return false;
+    this.rows.delete(id);
+    this.rows.set(newId, { ...r, ...defined(patch), id: newId });
+    return true;
   }
 }
 

@@ -49,6 +49,7 @@ export function uploadRequest(rec: CaptureRecord, origin: string, bearer: string
     "Content-Digest": contentDigestHeader(rec.sha256),
   };
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  // A phone whose pairing names no station files with none (stored as ""), and the co-op knows the device.
   if (rec.kind === "nadawat" && rec.nadawat) {
     const n = rec.nadawat;
     // Names stay off the wire: the co-op knows its members; the receipt binds the line, the amount and the stamp.
@@ -58,14 +59,14 @@ export function uploadRequest(rec: CaptureRecord, origin: string, bearer: string
       cents: n.cents,
       phpPerUsd: n.phpPerUsd,
       attestedBy: n.attestedBy,
-      station: rec.station,
+      station: rec.station || null,
       bytes: rec.bytes,
     });
     return { url: `${base}${cashReceiptPath(n.lineId)}`, method: "POST", headers };
   }
   headers["X-Capture-Meta"] = headerJson({
     capturedAt: at,
-    station: rec.station,
+    station: rec.station || null,
     memberHint: rec.memberHint,
     bytes: rec.bytes,
     source: rec.source,

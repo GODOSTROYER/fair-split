@@ -91,6 +91,25 @@ export class PersistedOutboxStore implements OutboxStore {
     return removed;
   }
 
+  async removeRefused(id: string) {
+    const removed = await this.mem.removeRefused(id);
+    if (removed) await this.write(() => this.sink.remove([id]));
+    return removed;
+  }
+
+  /**
+   * The new key is written before the old one is removed: a tab closed in between reloads the refused copy (the
+   * first by id), never nothing.
+   */
+  async rekeyRefused(id: string, newId: string, patch: CapturePatch) {
+    const ok = await this.mem.rekeyRefused(id, newId, patch);
+    if (ok) {
+      await this.flush(newId);
+      await this.write(() => this.sink.remove([id]));
+    }
+    return ok;
+  }
+
   private async flush(id: string) {
     const r = await this.mem.get(id);
     if (r) await this.write(() => this.sink.put(r));

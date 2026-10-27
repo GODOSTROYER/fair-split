@@ -2,7 +2,8 @@
  * M-CL-02 Outbox (design K1 "the outbox: thumbnail, serial, member hint, file size and a progress ring per slip"):
  * everything this phone has filed, in the order things happen. What is still on the phone comes first, in the
  * order it will go (cash receipts first, then oldest first); then what reached the co-op today; then earlier.
- * Each capture says where it is in words, and one waiting on a retry or a person offers "Ipadala karon".
+ * Each capture says where it is in words. One waiting on a retry, or refused for a reason a resend can fix, offers
+ * "Ipadala karon"; a refused one can be removed from the phone, after a confirm.
  */
 import { router } from "expo-router";
 import { Fragment } from "react";
@@ -13,22 +14,28 @@ import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen, TopBar } from "../../ui/chrome";
+import { Snackbar, useSnackbar } from "../../ui/overlay";
 import { Banner, Button, Rule, SectionTitle } from "../../ui/primitives";
 import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { CaptureRow } from "./capture-row";
-import { sectionsOf } from "./capture-view";
+import { sectionsOf, sendableCount } from "./capture-view";
 import type { ClerkKey } from "./messages";
 import { pluralKey } from "./messages";
 import { useOutbox } from "./outbox-provider";
+import { useRemoveCapture } from "./remove-capture";
 import { outboxScreenState } from "./screen-state";
 import { useNow } from "./use-now";
+import { useClerkSite } from "./use-site";
 import { useT } from "./use-t";
 
 export function OutboxScreen() {
   const { online } = useApp();
   const tr = useT();
   const outbox = useOutbox();
+  const site = useClerkSite();
+  const snack = useSnackbar();
+  const remove = useRemoveCapture({ onRemoved: snack.show, testID: "M-CL-02.remove" });
   const { records } = outbox;
   const now = useNow(
     records.some((r) => r.state === "uploading" || (r.state === "failed" && r.nextAttemptAt !== MANUAL_ONLY)),
@@ -36,7 +43,14 @@ export function OutboxScreen() {
   const sections = sectionsOf(records, now);
   const sum = summarise(records);
   const state = outboxScreenState({ online, records });
-  const waiting = sum.retrying + sum.refused;
+  const sendable = sendableCount(records);
+  const rows = {
+    now,
+    online,
+    treasurer: site.treasurer,
+    onSendNow: outbox.sendNow,
+    onRemove: remove.ask,
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -78,7 +92,7 @@ export function OutboxScreen() {
                 ? tr("M-CL-02.summary", { phone: sections.phone.length, sent: sections.today.length })
                 : tr("M-CL-02.summaryClear", { sent: sections.today.length })}
             </Txt>
-            {online && waiting ? (
+            {online && sendable ? (
               <Button
                 variant="tonal"
                 icon="forward"
@@ -99,65 +113,57 @@ export function OutboxScreen() {
           </Banner>
         ) : null}
 
-        <Section
-          title="M-CL-02.sectionPhone"
-          rows={sections.phone}
-          now={now}
-          online={online}
-          onSendNow={outbox.sendNow}
-          testID="M-CL-02.phone"
-        />
-        <Section
-          title="M-CL-02.sectionToday"
-          rows={sections.today}
-          now={now}
-          online={online}
-          onSendNow={outbox.sendNow}
-          testID="M-CL-02.today"
-        />
+        <Section title="M-CL-02.sectionPhone" records={sections.phone} testID="M-CL-02.phone" {...rows} />
+        <Section title="M-CL-02.sectionToday" records={sections.today} testID="M-CL-02.today" {...rows} />
         <Section
           title="M-CL-02.sectionEarlier"
-          rows={sections.earlier}
-          now={now}
-          online={online}
-          onSendNow={outbox.sendNow}
+          records={sections.earlier}
           testID="M-CL-02.earlier"
+          {...rows}
         />
       </Screen>
+      <Snackbar msg={snack.msg} />
+      {remove.dialog}
     </View>
   );
 }
 
 function Section({
   title,
-  rows,
+  records,
   now,
   online,
+  treasurer,
   onSendNow,
+  onRemove,
   testID,
 }: {
   title: ClerkKey;
-  rows: readonly CaptureRecord[];
+  records: readonly CaptureRecord[];
   now: number;
   online: boolean;
+  treasurer: string | null;
   onSendNow(id: string): void;
+  onRemove(r: CaptureRecord): void;
   testID: string;
 }) {
   const { t } = useFs();
   const tr = useT();
-  if (rows.length === 0) return null;
+  if (records.length === 0) return null;
   return (
     <View testID={testID}>
       <SectionTitle>{tr(title)}</SectionTitle>
       <View style={[styles.plate, { backgroundColor: t.color.plate }]}>
-        {rows.map((r, i) => (
+        {records.map((r, i) => (
           <Fragment key={r.id}>
             {i > 0 ? <Rule /> : null}
             <CaptureRow
               r={r}
               now={now}
               online={online}
+              treasurer={treasurer}
               onSendNow={() => onSendNow(r.id)}
+              onRemove={() => onRemove(r)}
               testID={`M-CL-02.row.${r.id}`}
             />
           </Fragment>

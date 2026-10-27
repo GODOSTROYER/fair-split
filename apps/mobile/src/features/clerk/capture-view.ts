@@ -1,19 +1,22 @@
 /**
  * What the clerk sees for each capture, derived from its record and nothing else: the ring, the status words, a
- * second line when one helps (why the co-op refused it, a Wi-Fi asking for a login, who read it), the day's tally,
- * and the outbox's sections. Every state has a glyph-bearing ring and a word, never colour alone; a refusal is a
- * decision for a person (canary), never red (red is only ever a PayPal failure).
+ * second line when one helps (why the co-op refused it, a Wi-Fi asking for a login, who read it), what the clerk
+ * can do about it (send it now, or remove a refusal), the day's tally, and the outbox's sections. Every state has a
+ * glyph-bearing ring and a word, never colour alone; a refusal is a decision for a person (canary), never red (red
+ * is only ever a PayPal failure).
  *
  * Pure (tested in Node): words are message keys with arguments; screens translate them.
  */
 import { format } from "../../_shims/domain";
 import type { MessageArgs } from "../../_shims/i18n";
-import { people } from "../../_shims/seed";
 import {
+  AUTH_REFUSALS,
   type CaptureRecord,
+  isRefused,
   isSameManilaDay,
   MANUAL_ONLY,
   type OutboxSummary,
+  resendOf,
   summarise,
 } from "../../lib/outbox";
 import { type ClerkKey, pluralKey } from "./messages";
@@ -54,26 +57,46 @@ export function titleOf(r: CaptureRecord): Omit<Line, "tone"> {
   return { key: "M-CL-02.notRead" };
 }
 
-const AUTH = new Set(["UNAUTHENTICATED", "FORBIDDEN"]);
 const SAMPLES_ONLY = new Set(["SAMPLES_ONLY", "JUDGE_SAMPLES_ONLY"]);
-const LINE = new Set(["LINE_NOT_DUE", "LINE_ALREADY_RECEIVED", "LINE_HELD"]);
 
-/** Why the co-op refused a capture, in words the clerk can act on. */
-export function refusalOf(r: CaptureRecord): Line {
+const refusal = (key: ClerkKey, args?: MessageArgs): Line => ({ key, args, tone: "canaryText" });
+
+/**
+ * Why the co-op refused a capture, in words the clerk can act on. `treasurer` is the name the clerk knows her by,
+ * from the pairing or the co-op (never the seed on a live phone); without one the copy says "the treasurer".
+ */
+export function refusalOf(r: CaptureRecord, treasurer: string | null): Line {
   const code = r.lastError ?? "";
-  const treasurer = people.treasurer.first;
-  if (AUTH.has(code)) return { key: "M-CL-02.refusedAuth", tone: "canaryText" };
-  if (code === LOCAL_ERROR.fileMissing) return { key: "M-CL-02.refusedMissing", tone: "canaryText" };
-  if (code === "TOO_LARGE") return { key: "M-CL-02.refusedTooLarge", tone: "canaryText" };
-  if (SAMPLES_ONLY.has(code)) return { key: "M-CL-02.refusedSamplesOnly", tone: "canaryText" };
-  if (r.kind === "nadawat" && LINE.has(code)) {
-    return { key: "M-CL-02.refusedLine", args: { treasurer }, tone: "canaryText" };
+  const receipt = r.kind === "nadawat";
+  if (AUTH_REFUSALS.includes(code)) return refusal("M-CL-02.refusedAuth");
+  if (code === LOCAL_ERROR.fileMissing) {
+    return refusal(receipt ? "M-CL-02.refusedMissingReceipt" : "M-CL-02.refusedMissing");
   }
-  return { key: "M-CL-02.refused", args: { code: code || "?", treasurer }, tone: "canaryText" };
+  if (code === "TOO_LARGE")
+    return refusal(receipt ? "M-CL-02.refusedTooLargeReceipt" : "M-CL-02.refusedTooLarge");
+  if (SAMPLES_ONLY.has(code)) return refusal("M-CL-02.refusedSamplesOnly");
+  if (receipt && code === "LINE_ALREADY_RECEIVED") return refusal("M-CL-02.refusedReceived");
+  if (receipt && code.startsWith("LINE_")) {
+    return treasurer ? refusal("M-CL-02.refusedLine", { treasurer }) : refusal("M-CL-02.refusedLineAnon");
+  }
+  return treasurer
+    ? refusal("M-CL-02.refused", { code: code || "?", treasurer })
+    : refusal("M-CL-02.refusedAnon", { code: code || "?" });
+}
+
+/**
+ * The same, for the Nadawat sheet, under its own lead ("The co-op didn't accept the receipt from 09:12."): a code
+ * with no words of its own reads as advice there, so the sheet never says "didn't accept" twice.
+ */
+export function receiptAdviceOf(r: CaptureRecord, treasurer: string | null): Line {
+  const line = refusalOf(r, treasurer);
+  if (line.key === "M-CL-02.refused") return refusal("M-CL-01.nadawat.refusedTry", line.args);
+  if (line.key === "M-CL-02.refusedAnon") return refusal("M-CL-01.nadawat.refusedTryAnon", line.args);
+  return line;
 }
 
 /** The status words under a capture, at `now` (the retry countdown is live). */
-export function statusOf(r: CaptureRecord, now: number, online: boolean): Line {
+export function statusOf(r: CaptureRecord, now: number, online: boolean, treasurer: string | null): Line {
   switch (r.state) {
     case "queued":
       return { key: online ? "M-CL-02.queued" : "M-CL-02.queuedOffline", tone: "ink2" };
@@ -94,7 +117,7 @@ export function statusOf(r: CaptureRecord, now: number, online: boolean): Line {
         tone: "pencil",
       };
     case "failed": {
-      if (r.nextAttemptAt === MANUAL_ONLY) return refusalOf(r);
+      if (isRefused(r)) return refusalOf(r, treasurer);
       if (!online) return { key: "M-CL-02.retryOffline", tone: "ink2" };
       const wait = r.nextAttemptAt - now;
       if (wait <= 0) return { key: "M-CL-02.retryNow", tone: "ink2" };
@@ -118,9 +141,23 @@ export function metaOf(r: CaptureRecord): MessageArgs {
   return { size: format.bytes(r.bytes), time: format.time(iso(r.createdAt)) };
 }
 
-/** Only a capture that is waiting on a retry or a person can be sent now. */
+/**
+ * "Ipadala karon" is offered to a capture waiting on a retry, or refused for a reason a resend can fix (under a new
+ * key: the old one would only replay the refusal). A photo that is gone or too large, a sample-only Judge Mode, or a
+ * line that moved on are never offered it: the clerk files again, and removes the refusal.
+ */
 export function canSendNow(r: CaptureRecord): boolean {
-  return r.state === "failed";
+  return r.state === "failed" && resendOf(r) !== "none";
+}
+
+/** "Tangtanga": only a capture the co-op refused can be removed from the phone, never one on its way or delivered. */
+export function canRemove(r: CaptureRecord): boolean {
+  return isRefused(r);
+}
+
+/** How many captures "Ipadala tanan karon" would send (it is hidden when none). */
+export function sendableCount(records: readonly CaptureRecord[]): number {
+  return records.filter(canSendNow).length;
 }
 
 /* ------------------------------------------------------------------ the day's tally (M-CL-01) */
@@ -175,6 +212,18 @@ export function sectionsOf(records: readonly CaptureRecord[], now: number): Sect
   s.today.sort(newest);
   s.earlier.sort(newest);
   return s;
+}
+
+/** Captures the co-op refused since the previous list (a refused receipt sends the cash list to refresh). */
+export function refusedSince(
+  prev: readonly CaptureRecord[],
+  next: readonly CaptureRecord[],
+): CaptureRecord[] {
+  const before = new Map(prev.map((r) => [r.id, r]));
+  return next.filter((r) => {
+    const was = before.get(r.id);
+    return was !== undefined && isRefused(r) && !isRefused(was);
+  });
 }
 
 /** Captures that reached the co-op (or were read) since the previous list: for one polite announcement. */

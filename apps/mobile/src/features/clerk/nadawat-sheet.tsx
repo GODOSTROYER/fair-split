@@ -6,14 +6,19 @@
  * The amount is hollow while the cash is due and turns to solid ink under the clerk's stamp once attested (the
  * amount grammar's `attested`; never jade, which is PayPal's). The receipt files through the offline outbox, and
  * the sheet says where it is: on the phone, sending, or recorded by the co-op. Before cash day, for a line still
- * being checked, or without the photo, the slab is hatched with the reason; it is never greyed out.
+ * being checked, without the clerk's name on the pairing, or without the photo, the slab is hatched with the reason;
+ * it is never greyed out.
+ *
+ * A receipt the co-op refused never dead-ends the counter: the sheet says why, before the photo step, offers to send
+ * it again when a resend can work, and the three steps file a new receipt in its place.
  */
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { format } from "../../_shims/domain";
-import { people } from "../../_shims/seed";
+import type { MessageArgs } from "../../_shims/i18n";
 import { radius, space, target } from "../../_shims/tokens.native";
+import type { AddResult, CaptureRecord } from "../../lib/outbox";
 import {
   deleteCaptureFile,
   documentScannerAvailable,
@@ -30,38 +35,41 @@ import { AmountDisplay } from "../../ui/amount";
 import { Glyph, type GlyphName } from "../../ui/glyph";
 import { reducedFade, spring, tween } from "../../ui/motion";
 import { Sheet } from "../../ui/overlay";
-import { Button, InkStamp } from "../../ui/primitives";
+import { Banner, Button, InkStamp } from "../../ui/primitives";
 import { Slab } from "../../ui/slab";
 import { Txt } from "../../ui/text";
 import { CameraCapture } from "./camera-capture";
+import { canSendNow, receiptAdviceOf, refusalOf } from "./capture-view";
 import type { RosterEntry } from "./cash-day";
 import { LOCAL_WORD } from "./cash-plate";
 import type { CashHandle } from "./cash-provider";
+import type { ClerkSite } from "./clerk-site";
+import type { ClerkKey } from "./messages";
+import { useOutbox } from "./outbox-provider";
 import { Paper } from "./paper";
 import { sampleNadawat } from "./samples";
 import { useCompact } from "./use-compact";
 import { useT } from "./use-t";
 
+const clock = (ms: number) => format.time(new Date(ms).toISOString());
+
 export function NadawatSheet({
   entry,
   cash,
-  initials,
-  station,
+  site,
   samples,
   samplesOnly,
   onClose,
-  onMessage,
 }: {
   entry: RosterEntry | null;
   cash: CashHandle;
-  initials: string;
-  station: string;
+  /** The clerk's initials and station, and the treasurer's name, from the pairing or the co-op. */
+  site: ClerkSite;
   /** Demo and Judge Mode: a drawn, labelled photo of the signed box can stand in for the camera. */
   samples: boolean;
   /** Judge Mode on a live fs-api: only the sample is accepted. */
   samplesOnly: boolean;
   onClose(): void;
-  onMessage(text: string): void;
 }) {
   const tr = useT();
   return (
@@ -71,11 +79,9 @@ export function NadawatSheet({
           key={entry.line.lineId}
           entry={entry}
           cash={cash}
-          initials={initials}
-          station={station}
+          site={site}
           samples={samples}
           samplesOnly={samplesOnly}
-          onMessage={onMessage}
         />
       ) : (
         <Txt kind="body" color="ink2">
@@ -89,31 +95,31 @@ export function NadawatSheet({
 function Receipt({
   entry,
   cash,
-  initials,
-  station,
+  site,
   samples,
   samplesOnly,
-  onMessage,
 }: {
   entry: RosterEntry;
   cash: CashHandle;
-  initials: string;
-  station: string;
+  site: ClerkSite;
   samples: boolean;
   samplesOnly: boolean;
-  onMessage(text: string): void;
 }) {
   const { motion } = useFs();
   const tr = useT();
   const { lang } = useApp();
+  const { records } = useOutbox();
   const day = cash.day;
   const [photo, setPhoto] = useState<ProcessedPage | null>(null);
   const [taking, setTaking] = useState(false);
   const [camera, setCamera] = useState(false);
   const [committing, setCommitting] = useState(false);
-  const [photoFailed, setPhotoFailed] = useState(false);
+  /** What the last photo or "Markahi nga nadawat" came to, when it did not file a receipt. */
+  const [notice, setNotice] = useState<{ key: ClerkKey; args?: MessageArgs } | null>(null);
   const photoRef = useRef<ProcessedPage | null>(null);
   photoRef.current = photo;
+  const recordsRef = useRef(records);
+  recordsRef.current = records;
 
   const received = entry.status === "received";
   const fill = useSharedValue(received ? 1 : 0);
@@ -135,37 +141,24 @@ function Receipt({
     transform: [{ scale: motion.reduced ? 1 : 1.35 - 0.35 * stamp.get() }],
   }));
 
-  // A photo taken but never attested is not kept.
-  useEffect(
-    () => () => {
-      const p = photoRef.current;
-      if (p) {
-        deleteCaptureFile(p.uri);
-        if (p.thumbUri !== p.uri) deleteCaptureFile(p.thumbUri);
-      }
-    },
-    [],
-  );
+  // A photo taken but never attested is not kept (unless the outbox holds the same file).
+  useEffect(() => () => discardPhoto(photoRef.current, recordsRef.current), []);
 
   if (!day) return null;
   const pesos = format.cashPesos(entry.line.cents, day.phpPerUsd);
   const spoken = format.cashSpoken(entry.line.cents, day.phpPerUsd);
+  const refused = !received && entry.local === "refused" ? entry.receipt : null;
 
   const keepPhoto = (res: ScanResult) => {
     if (res.kind !== "pages" || res.pages.length === 0) {
-      if (res.kind === "error") setPhotoFailed(true);
+      if (res.kind === "error") setNotice({ key: "M-CL-01.nadawat.photoFailed" });
       return;
     }
     const [first, ...extra] = res.pages;
-    const keep = new Set([first?.uri, first?.thumbUri]);
-    // Only what is being replaced goes: the same sample picked twice shares one file with the new photo.
-    const drop = (p: ProcessedPage | null) => {
-      if (!p) return;
-      for (const uri of new Set([p.uri, p.thumbUri])) if (!keep.has(uri)) deleteCaptureFile(uri);
-    };
-    for (const p of extra) drop(p);
-    drop(photoRef.current);
-    setPhotoFailed(false);
+    const keep = [first?.uri, first?.thumbUri].filter((u): u is string => !!u);
+    for (const p of extra) discardPhoto(p, records, keep);
+    discardPhoto(photoRef.current, records, keep);
+    setNotice(null);
     setPhoto(first ?? null);
   };
 
@@ -187,7 +180,7 @@ function Receipt({
     try {
       keepPhoto({ kind: "pages", pages: [await processPage(uri, "camera")] });
     } catch {
-      setPhotoFailed(true);
+      setNotice({ key: "M-CL-01.nadawat.photoFailed" });
     } finally {
       setTaking(false);
     }
@@ -200,30 +193,35 @@ function Receipt({
     try {
       keepPhoto({ kind: "pages", pages: [await sampleImagePage(sampleNadawat(entry.line, day.phpPerUsd))] });
     } catch {
-      setPhotoFailed(true);
+      setNotice({ key: "M-CL-01.nadawat.photoFailed" });
     } finally {
       setTaking(false);
     }
   };
 
   const commit = async () => {
-    if (!photo || committing) return;
+    if (!photo || committing || !site.initials) return;
     setCommitting(true);
+    let res: AddResult | null = null;
     try {
-      const res = await cash.attest(entry, photo, initials, station);
-      if (res?.outcome === "queued") {
-        setPhoto(null); // the outbox owns the photo now
-      } else if (res?.outcome === "already-attested") {
-        onMessage(
-          tr("M-CL-01.nadawat.alreadyOnPhone", {
-            time: format.time(new Date(res.existing.createdAt).toISOString()),
-          }),
-        );
-      } else {
-        setPhotoFailed(true);
-      }
+      res = await cash.attest(entry, photo, site.initials, site.station);
+    } catch {
+      res = null;
     } finally {
       setCommitting(false);
+    }
+    if (!res) {
+      setNotice({ key: "M-CL-01.nadawat.photoFailed" });
+    } else if (res.outcome === "queued") {
+      setNotice(null);
+      setPhoto(null); // the outbox owns the photo now
+    } else if (res.outcome === "already-attested") {
+      setNotice({ key: "M-CL-01.nadawat.alreadyOnPhone", args: { time: clock(res.existing.createdAt) } });
+    } else {
+      // The same photo is already filed (for another member, or as a slip): this member's box needs its own.
+      discardPhoto(photo, records);
+      setPhoto(null);
+      setNotice({ key: "M-CL-01.nadawat.samePhoto", args: { time: clock(res.existing.createdAt) } });
     }
   };
 
@@ -232,9 +230,11 @@ function Receipt({
       ? tr("M-CL-01.nadawat.held")
       : !cash.open
         ? tr("M-CL-01.cash.notYet", { date: format.dayMonth(day.cashDay, lang) })
-        : !photo
-          ? tr("M-CL-01.nadawat.needPhoto")
-          : undefined;
+        : !site.initials
+          ? tr("M-CL-01.nadawat.noInitials")
+          : !photo
+            ? tr("M-CL-01.nadawat.needPhoto")
+            : undefined;
 
   return (
     <View style={styles.body} dataSet={{ cashState: entry.status, receipt: entry.local }}>
@@ -264,8 +264,10 @@ function Receipt({
         {tr("M-CL-01.nadawat.from", { usd: format.usd(entry.line.cents), rate: `₱${day.phpPerUsd}` })}
       </Txt>
 
+      {refused ? <Refused receipt={refused} treasurer={site.treasurer} /> : null}
+
       {received ? (
-        <Done entry={entry} />
+        <Done entry={entry} treasurer={site.treasurer} />
       ) : (
         <View style={styles.steps}>
           <Step n={1} glyph="thumb" done={photo !== null}>
@@ -319,9 +321,14 @@ function Receipt({
                 ) : null}
               </View>
             )}
-            {photoFailed ? (
-              <Txt kind="caption" color="canaryText">
-                {tr("M-CL-01.nadawat.photoFailed")}
+            {notice ? (
+              <Txt
+                kind="caption"
+                color="canaryText"
+                accessibilityLiveRegion="polite"
+                testID="M-CL-01.nadawat.notice"
+              >
+                {tr(notice.key, notice.args)}
               </Txt>
             ) : null}
           </Step>
@@ -360,10 +367,59 @@ function Receipt({
   );
 }
 
+/**
+ * Deletes a photo the sheet took, except a file something else still uses: the same sample picked again shares one
+ * file with it (`keep`), and a receipt in the outbox (a refused one, say) may hold the very same file.
+ */
+function discardPhoto(
+  p: ProcessedPage | null,
+  records: readonly CaptureRecord[],
+  keep: readonly string[] = [],
+): void {
+  if (!p) return;
+  for (const uri of new Set([p.uri, p.thumbUri])) {
+    const inUse = keep.includes(uri) || records.some((r) => r.fileUri === uri || r.thumbUri === uri);
+    if (!inUse) deleteCaptureFile(uri);
+  }
+}
+
+/**
+ * The receipt this phone filed for the line, refused by the co-op: why, in words the clerk can act on, before the
+ * photo step. When a resend can work (a new pairing, a passing refusal) it goes again from here, the same photo
+ * under a new key; otherwise, or as well, the steps below file a new receipt in its place.
+ */
+function Refused({ receipt, treasurer }: { receipt: CaptureRecord; treasurer: string | null }) {
+  const tr = useT();
+  const { sendNow } = useOutbox();
+  const advice = receiptAdviceOf(receipt, treasurer);
+  const resend = canSendNow(receipt);
+  return (
+    <Banner tone="decide" icon="info" testID="M-CL-01.nadawat.refused">
+      <Txt kind="bodyStrong">{tr("M-CL-01.nadawat.refusedLead", { time: clock(receipt.createdAt) })}</Txt>
+      <Txt kind="body">{tr(advice.key, advice.args)}</Txt>
+      {resend ? (
+        <View style={styles.refusedActions}>
+          <Button
+            variant="tonal"
+            icon="forward"
+            label={tr("M-CL-01.nadawat.sendAgain")}
+            onPress={() => sendNow(receipt.id)}
+            testID="M-CL-01.nadawat.send-again"
+          />
+          <Txt kind="caption" color="ink2">
+            {tr("M-CL-01.nadawat.orNew")}
+          </Txt>
+        </View>
+      ) : null}
+    </Banner>
+  );
+}
+
 /** After the receipt: when, by whom, and where the record is now. */
-function Done({ entry }: { entry: RosterEntry }) {
+function Done({ entry, treasurer }: { entry: RosterEntry; treasurer: string | null }) {
   const { t } = useFs();
   const tr = useT();
+  const refusal = entry.local === "refused" && entry.receipt ? refusalOf(entry.receipt, treasurer) : null;
   const where =
     entry.local === "on-phone"
       ? tr("M-CL-01.nadawat.doneOnPhone")
@@ -371,22 +427,20 @@ function Done({ entry }: { entry: RosterEntry }) {
         ? tr(LOCAL_WORD.sending)
         : entry.local === "sent"
           ? tr("M-CL-01.nadawat.doneSent")
-          : entry.local === "refused"
-            ? tr("M-CL-01.nadawat.doneRefused", { treasurer: people.treasurer.first })
+          : refusal
+            ? tr(refusal.key, refusal.args)
             : null;
   const photo = entry.receipt?.thumbUri ?? entry.receipt?.fileUri ?? null;
   return (
     <View style={[styles.done, { borderColor: t.color.rule }]} testID="M-CL-01.nadawat.done">
       <View style={{ flex: 1, gap: space.s4 }}>
         {entry.receivedAt ? (
-          <Txt kind="bodyStrong">
-            {tr("M-CL-01.nadawat.done", { time: format.time(new Date(entry.receivedAt).toISOString()) })}
-          </Txt>
+          <Txt kind="bodyStrong">{tr("M-CL-01.nadawat.done", { time: clock(entry.receivedAt) })}</Txt>
         ) : null}
         {where ? (
           <Txt
             kind="body"
-            style={{ color: entry.local === "refused" ? t.color.canaryText : t.color.ink2 }}
+            style={{ color: refusal ? t.color.canaryText : t.color.ink2 }}
             accessibilityLiveRegion="polite"
           >
             {where}
@@ -461,6 +515,7 @@ const styles = StyleSheet.create({
   stepGlyph: { paddingTop: 2 },
   photoRow: { flexDirection: "row", alignItems: "flex-end", gap: space.s12 },
   photoActions: { alignItems: "flex-start", gap: space.s4 },
+  refusedActions: { alignItems: "flex-start", gap: space.s4, marginTop: space.s4 },
   done: {
     flexDirection: "row",
     alignItems: "center",

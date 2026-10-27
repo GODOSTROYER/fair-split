@@ -13,7 +13,6 @@ import { defineMessages, type MessageArgs, type MessageKey, same, translateIn } 
 export const messages = defineMessages({
   /* ---------------------------------------------------------------- M-CL-01 Scan */
   "M-CL-01.title": same("Scan"),
-  "M-CL-01.station": same("Purok 2 pickup"),
   "M-CL-01.stationSr": {
     ceb: "Estasyon: {station}",
     fil: "Istasyon: {station}",
@@ -80,6 +79,33 @@ export const messages = defineMessages({
     ceb: "Tanan napadala na sa co-op.",
     fil: "Naipadala na lahat sa co-op.",
     en: "Everything has reached the co-op.",
+  },
+
+  /* A rescan request from the console's reading room (design K1, S1.9). */
+  "M-CL-01.rescanAsked": {
+    ceb: "Gihangyo ni {name} nga i-scan pag-usab ang photo {photo}.",
+    fil: "Hiniling ni {name} na i-scan muli ang photo {photo}.",
+    en: "{name} asked you to scan photo {photo} again.",
+  },
+  "M-CL-01.rescanAskedAnon": {
+    ceb: "Gihangyo sa treasurer nga i-scan pag-usab ang photo {photo}.",
+    fil: "Hiniling ng treasurer na i-scan muli ang photo {photo}.",
+    en: "The treasurer asked you to scan photo {photo} again.",
+  },
+  "M-CL-01.rescanUntil": {
+    ceb: "Mawala kini inig matipig na ang bag-ong scan.",
+    fil: "Mawawala ito kapag naitabi na ang bagong scan.",
+    en: "This stays until the new scan is saved.",
+  },
+  "M-CL-01.rescanPhotoSr": {
+    ceb: "Ang photo {photo}, na-scan sa {time}",
+    fil: "Ang photo {photo}, na-scan noong {time}",
+    en: "Photo {photo}, scanned at {time}",
+  },
+  "M-CL-01.rescanSr": {
+    ceb: "I-scan pag-usab ang photo {photo}",
+    fil: "I-scan muli ang photo {photo}",
+    en: "Scan photo {photo} again",
   },
   "M-CL-01.ready": {
     ceb: "Andam. Ang matag resibo matipig una sa telepono.",
@@ -283,10 +309,20 @@ export const messages = defineMessages({
     fil: "Hindi nakuha ang listahan ng cash.",
     en: "Couldn't get the cash list.",
   },
+  "M-CL-01.cash.loadAuth": {
+    ceb: "Dili makuha ang listahan sa cash. Ipares pag-usab kini nga telepono sa treasurer.",
+    fil: "Hindi makuha ang listahan ng cash. Ipares muli ang teleponong ito sa treasurer.",
+    en: "Can't get the cash list. Pair this phone with the treasurer again.",
+  },
   "M-CL-01.cash.stale": {
     ceb: "Walay signal. Katapusang listahan, {time}.",
     fil: "Walang signal. Huling listahan, {time}.",
     en: "No signal. Last list, {time}.",
+  },
+  "M-CL-01.cash.lastList": {
+    ceb: "Katapusang listahan, {time}.",
+    fil: "Huling listahan, {time}.",
+    en: "Last list, {time}.",
   },
   "M-CL-01.cash.movedFromPayPal": {
     ceb: "Gikan sa PayPal",
@@ -399,10 +435,36 @@ export const messages = defineMessages({
     fil: "Naitala sa co-op.",
     en: "Recorded by the co-op.",
   },
-  "M-CL-01.nadawat.doneRefused": {
-    ceb: "Wala madawat sa co-op. Adto kang Treasurer {treasurer}.",
-    fil: "Hindi natanggap ng co-op. Lumapit kay Treasurer {treasurer}.",
-    en: "The co-op didn't accept it. See Treasurer {treasurer}.",
+  "M-CL-01.nadawat.refusedLead": {
+    ceb: "Wala madawat sa co-op ang resibo sa {time}.",
+    fil: "Hindi tinanggap ng co-op ang resibo noong {time}.",
+    en: "The co-op didn't accept the receipt from {time}.",
+  },
+  "M-CL-01.nadawat.refusedTry": {
+    ceb: "Kodigo {code}. Ipadala pag-usab, o adto kang Treasurer {treasurer}.",
+    fil: "Code {code}. Ipadala muli, o lumapit kay Treasurer {treasurer}.",
+    en: "Code {code}. Send it again, or see Treasurer {treasurer}.",
+  },
+  "M-CL-01.nadawat.refusedTryAnon": {
+    ceb: "Kodigo {code}. Ipadala pag-usab, o adto sa treasurer.",
+    fil: "Code {code}. Ipadala muli, o lumapit sa treasurer.",
+    en: "Code {code}. Send it again, or see the treasurer.",
+  },
+  "M-CL-01.nadawat.sendAgain": { ceb: "Ipadala pag-usab", fil: "Ipadala muli", en: "Send it again" },
+  "M-CL-01.nadawat.orNew": {
+    ceb: "O paghimo og bag-ong resibo sa mga lakang sa ubos.",
+    fil: "O gumawa ng bagong resibo sa mga hakbang sa ibaba.",
+    en: "Or file a new receipt with the steps below.",
+  },
+  "M-CL-01.nadawat.samePhoto": {
+    ceb: "Natipigan na kini nga litrato sa {time}. Kuhai og bag-ong litrato ang kahon niini nga miyembro.",
+    fil: "Naitabi na ang litratong ito noong {time}. Kunan ng bagong litrato ang kahon ng miyembrong ito.",
+    en: "This photo was already filed at {time}. Take a new photo of this member's box.",
+  },
+  "M-CL-01.nadawat.noInitials": {
+    ceb: "Walay imong ngalan ang pagpares niini nga telepono, busa walay marka ang resibo. Ipares pag-usab sa treasurer.",
+    fil: "Walang pangalan mo ang pagpares ng teleponong ito, kaya walang tatak ang resibo. Ipares muli sa treasurer.",
+    en: "This phone was paired without your name, so a receipt would carry no stamp. Pair it with the treasurer again.",
   },
   "M-CL-01.nadawat.stamp": {
     ceb: "Gimarkahan ni {initials}",
@@ -509,6 +571,11 @@ export const messages = defineMessages({
     fil: "Hindi natanggap ng co-op ({code}). Ipadala muli, o lumapit kay Treasurer {treasurer}.",
     en: "The co-op didn't accept it ({code}). Send it again, or see Treasurer {treasurer}.",
   },
+  "M-CL-02.refusedAnon": {
+    ceb: "Wala madawat sa co-op ({code}). Ipadala pag-usab, o adto sa treasurer.",
+    fil: "Hindi natanggap ng co-op ({code}). Ipadala muli, o lumapit sa treasurer.",
+    en: "The co-op didn't accept it ({code}). Send it again, or see the treasurer.",
+  },
   "M-CL-02.refusedAuth": {
     ceb: "Ipares pag-usab kini nga telepono sa treasurer, dayon ipadala.",
     fil: "Ipares muli ang teleponong ito sa treasurer, saka ipadala.",
@@ -519,26 +586,78 @@ export const messages = defineMessages({
     fil: "Nawala ang litrato sa telepono. I-scan muli ang resibo.",
     en: "The photo is gone from this phone. Scan the slip again.",
   },
+  "M-CL-02.refusedMissingReceipt": {
+    ceb: "Nawala ang litrato sa telepono. Kuhai pag-usab og litrato ang kahon nga Nadawat.",
+    fil: "Nawala ang litrato sa telepono. Kunan muli ng litrato ang kahong Nadawat.",
+    en: "The photo is gone from this phone. Photograph the Nadawat box again.",
+  },
   "M-CL-02.refusedTooLarge": {
     ceb: "Dako kaayo ang litrato. I-scan pag-usab.",
     fil: "Masyadong malaki ang litrato. I-scan muli.",
     en: "The photo is too large. Scan it again.",
   },
+  "M-CL-02.refusedTooLargeReceipt": {
+    ceb: "Dako kaayo ang litrato. Kuhai pag-usab og litrato ang kahon nga Nadawat.",
+    fil: "Masyadong malaki ang litrato. Kunan muli ng litrato ang kahong Nadawat.",
+    en: "The photo is too large. Photograph the Nadawat box again.",
+  },
   "M-CL-02.refusedSamplesOnly": {
-    ceb: "Sample nga resibo lang ang madawat sa Judge Mode.",
-    fil: "Sample na resibo lang ang tinatanggap sa Judge Mode.",
-    en: "Judge Mode accepts sample slips only.",
+    ceb: "Sample lang ang madawat sa Judge Mode.",
+    fil: "Sample lang ang tinatanggap sa Judge Mode.",
+    en: "Judge Mode accepts samples only.",
   },
   "M-CL-02.refusedLine": {
     ceb: "Dili na andam sa bodega kini nga linya. Adto kang Treasurer {treasurer}.",
     fil: "Hindi na handa sa bodega ang linyang ito. Lumapit kay Treasurer {treasurer}.",
     en: "This line is no longer ready at the bodega. See Treasurer {treasurer}.",
   },
+  "M-CL-02.refusedLineAnon": {
+    ceb: "Dili na andam sa bodega kini nga linya. Adto sa treasurer.",
+    fil: "Hindi na handa sa bodega ang linyang ito. Lumapit sa treasurer.",
+    en: "This line is no longer ready at the bodega. See the treasurer.",
+  },
+  "M-CL-02.refusedReceived": {
+    ceb: "Narekord na sa co-op kini nga cash. Tangtanga kini nga kopya sa telepono.",
+    fil: "Naitala na ng co-op ang cash na ito. Alisin ang kopyang ito sa telepono.",
+    en: "The co-op already recorded this cash. Remove this copy from the phone.",
+  },
   "M-CL-02.sendNow": { ceb: "Ipadala karon", fil: "Ipadala ngayon", en: "Send now" },
   "M-CL-02.sendNowSr": {
     ceb: "Ipadala karon: {title}",
     fil: "Ipadala ngayon: {title}",
     en: "Send now: {title}",
+  },
+  "M-CL-02.remove": { ceb: "Tangtanga", fil: "Alisin", en: "Remove" },
+  "M-CL-02.removeSr": {
+    ceb: "Tangtanga sa telepono: {title}",
+    fil: "Alisin sa telepono: {title}",
+    en: "Remove from this phone: {title}",
+  },
+  "M-CL-02.removeTitle": {
+    ceb: "Tangtangon kini sa telepono?",
+    fil: "Alisin ito sa telepono?",
+    en: "Remove from this phone?",
+  },
+  "M-CL-02.removeSlip": {
+    ceb: "Wala kini madawat sa co-op. Mapapas ang litrato niini sa telepono; i-scan pag-usab ang resibo kon kinahanglan pa.",
+    fil: "Hindi ito natanggap ng co-op. Mabubura ang litrato nito sa telepono; i-scan muli ang resibo kung kailangan pa.",
+    en: "The co-op never accepted this slip. Its photo is deleted from this phone; scan the slip again if it is still needed.",
+  },
+  "M-CL-02.removeReceipt": {
+    ceb: "Wala kini madawat sa co-op. Mapapas ang litrato niini, ug si {name} makita pag-usab nga andam sa bodega hangtod adunay bag-ong resibo.",
+    fil: "Hindi ito natanggap ng co-op. Mabubura ang litrato nito, at makikita muli si {name} na handa sa bodega hanggang may bagong resibo.",
+    en: "The co-op never accepted this receipt. Its photo is deleted, and {name} shows as ready at the bodega again until a new receipt is filed.",
+  },
+  "M-CL-02.removeConfirm": {
+    ceb: "Tangtanga sa telepono",
+    fil: "Alisin sa telepono",
+    en: "Remove from this phone",
+  },
+  "M-CL-02.keepIt": { ceb: "Ayaw tangtanga", fil: "Huwag alisin", en: "Keep it" },
+  "M-CL-02.removed": {
+    ceb: "Natangtang na sa telepono.",
+    fil: "Naalis na sa telepono.",
+    en: "Removed from this phone.",
   },
   "M-CL-02.notRead": { ceb: "Wala pa mabasa", fil: "Hindi pa nababasa", en: "Not read yet" },
   "M-CL-02.serial": same("Resibo {serial}"),

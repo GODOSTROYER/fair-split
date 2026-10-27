@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import { nodeSqlite } from "../test/node-sqlite";
 import { retryDelayMs } from "./backoff";
 import {
+  AUTH_REFUSALS,
   assertNewCapture,
   CAPTURE_STATE_RANK,
   type CaptureRecord,
+  FINAL_REFUSALS,
+  isFinalRefusal,
+  isRefused,
   isSameManilaDay,
   KEEP_SETTLED_MS,
   MANUAL_ONLY,
@@ -15,6 +19,7 @@ import {
   nextWakeAt,
   Outbox,
   type OutboxStore,
+  resendOf,
   summarise,
   type Uploader,
   type UploadOutcome,
@@ -286,7 +291,7 @@ describe.each(stores)("outbox on %s", (_name, makeStore) => {
     expect(await run).toMatchObject({ attempted: 2, uploaded: 2 });
   });
 
-  it("parks a refused capture until a person sends it again", async () => {
+  it("parks a refused capture until a person sends it again, under a new key", async () => {
     const h = harness(makeStore(), [{ kind: "reject", error: "IDEMPOTENCY_KEY_REUSED" }]);
     await h.outbox.init();
     const rec = queued(await h.outbox.add(page(SHA_A)));
@@ -299,8 +304,138 @@ describe.each(stores)("outbox on %s", (_name, makeStore) => {
     expect(h.calls).toHaveLength(1);
 
     await h.outbox.sendNow(rec.id);
-    expect((await only(h)).state).toBe("uploaded");
+    const sent = await only(h);
+    expect(sent).toMatchObject({ state: "uploaded", sha256: SHA_A, createdAt: rec.createdAt, attempts: 1 });
     expect(h.calls).toHaveLength(2);
+    // fs-api would replay its stored refusal for the old key (S3.10): the resend is a new request.
+    expect(h.calls[1]?.id).not.toBe(rec.id);
+    expect(sent.id).toBe(h.calls[1]?.id);
+    expect(sent.id).toMatch(UUIDV7_RE);
+    expect(await h.store.get(rec.id)).toBeNull();
+  });
+
+  it("inv.i7.resend: a retry keeps its key; only a refusal a resend can fix gets a new one", async () => {
+    const h = harness(makeStore(), [
+      { kind: "retry", error: "503" },
+      { kind: "reject", error: "UNAUTHENTICATED" },
+      ok(),
+    ]);
+    await h.outbox.init();
+    const rec = queued(await h.outbox.add(page(SHA_A)));
+    await h.outbox.sync(); // 503: backing off
+    await h.outbox.sendNow(rec.id); // the person does not wait for the timer: same request, same key
+    expect(h.calls.map((c) => c.id)).toEqual([rec.id, rec.id]);
+    const refused = await only(h);
+    expect(refused).toMatchObject({ id: rec.id, lastError: "UNAUTHENTICATED", nextAttemptAt: MANUAL_ONLY });
+    await h.outbox.sendNow(rec.id);
+    expect(h.calls).toHaveLength(3);
+    expect(h.calls[2]?.id).not.toBe(rec.id);
+    expect(h.calls[2]?.attempt).toBe(1); // a new request starts its own count
+    expect(await only(h)).toMatchObject({ state: "uploaded", id: h.calls[2]?.id });
+  });
+
+  it("never resends a refusal no resend can fix; the clerk files again or removes it", async () => {
+    const codes = [...FINAL_REFUSALS, "LINE_NOT_DUE", "LINE_HELD"];
+    const h = harness(
+      makeStore(),
+      codes.map((error) => ({ kind: "reject", error })),
+    );
+    await h.outbox.init();
+    for (const [i] of codes.entries()) {
+      await h.outbox.add(page(String.fromCharCode(97 + i).repeat(64)));
+      h.advance(10);
+    }
+    await h.outbox.sync();
+    expect(summarise(await h.outbox.list())).toMatchObject({ refused: codes.length });
+    for (const r of await h.outbox.list()) await h.outbox.sendNow(r.id);
+    await h.outbox.sendAll();
+    await h.outbox.afterPairing();
+    expect(h.calls).toHaveLength(codes.length); // not one of them went again
+    expect(summarise(await h.outbox.list())).toMatchObject({ refused: codes.length });
+  });
+
+  it("sends everything waiting at once: refused and backing-off captures alike", async () => {
+    const h = harness(makeStore(), [
+      { kind: "reject", error: "UNAUTHENTICATED" },
+      ok(),
+      { kind: "retry", error: "NETWORK" },
+    ]);
+    await h.outbox.init();
+    await h.outbox.add(page(SHA_A));
+    h.advance(10);
+    await h.outbox.add(page(SHA_B));
+    await h.outbox.sync(); // A refused, B uploaded
+    h.advance(10);
+    await h.outbox.add(page(SHA_C));
+    await h.outbox.sync(); // C backing off
+    expect(summarise(await h.outbox.list())).toMatchObject({ refused: 1, retrying: 1, uploaded: 1 });
+    const report = await h.outbox.sendAll();
+    expect(report).toMatchObject({ uploaded: 2 });
+    expect(summarise(await h.outbox.list())).toMatchObject({ onPhone: 0, uploaded: 3 });
+  });
+
+  it("sends what the old pairing had refused once the phone is paired again, and nothing else", async () => {
+    const h = harness(makeStore(), [
+      { kind: "reject", error: "UNAUTHENTICATED" },
+      { kind: "reject", error: "422" },
+      { kind: "reject", error: "FORBIDDEN" },
+    ]);
+    await h.outbox.init();
+    for (const sha of [SHA_A, SHA_B, SHA_C]) {
+      await h.outbox.add(page(sha));
+      h.advance(10);
+    }
+    await h.outbox.sync();
+    expect(summarise(await h.outbox.list())).toMatchObject({ refused: 3 });
+    expect(await h.outbox.afterPairing()).toMatchObject({ attempted: 2, uploaded: 2 });
+    const list = await h.outbox.list();
+    expect(list.find((r) => r.sha256 === SHA_B)).toMatchObject({ lastError: "422" }); // waits for a person
+    expect(
+      list
+        .filter((r) => r.state === "uploaded")
+        .map((r) => r.sha256)
+        .sort(),
+    ).toEqual([SHA_A, SHA_C]);
+  });
+
+  it("removes a capture from the phone only while the co-op's refusal holds it", async () => {
+    const h = harness(makeStore(), [{ kind: "reject", error: "TOO_LARGE" }, ok()]);
+    await h.outbox.init();
+    h.setOnline(false);
+    const big = queued(await h.outbox.add(page(SHA_A)));
+    h.advance(10);
+    const fine = queued(await h.outbox.add(page(SHA_B)));
+    expect(await h.outbox.discard(big.id)).toBe(false); // waiting on the phone: never removed this way
+    h.setOnline(true);
+    await h.outbox.sync(); // A refused, B at the co-op
+    h.setOnline(false);
+    h.advance(10);
+    const waiting = queued(await h.outbox.add(page(SHA_C)));
+    const before = h.changes();
+    expect(await h.outbox.discard(fine.id)).toBe(false); // at the co-op
+    expect(await h.outbox.discard(waiting.id)).toBe(false); // on its way
+    expect(await h.outbox.discard(big.id)).toBe(true);
+    expect(await h.outbox.discard(big.id)).toBe(false); // already gone
+    expect(h.changes()).toBe(before + 1);
+    expect((await h.outbox.list()).map((r) => r.id).sort()).toEqual([fine.id, waiting.id].sort());
+    expect(h.deleted).toEqual([big.fileUri, big.thumbUri]);
+    expect(summarise(await h.outbox.list())).toMatchObject({ refused: 0, onPhone: 1, uploaded: 1 });
+  });
+
+  it("files a refused page again over its own bytes, under a new id", async () => {
+    const h = harness(makeStore(), [{ kind: "reject", error: "FILE_MISSING" }]);
+    await h.outbox.init();
+    const lost = queued(await h.outbox.add(page(SHA_A)));
+    await h.outbox.sync();
+    h.advance(1000);
+    const again = await h.outbox.add(page(SHA_A, { fileUri: "file:///captures/picked-again.jpg" }));
+    expect(again.outcome).toBe("queued");
+    if (again.outcome !== "queued") return;
+    expect(again.replaced?.id).toBe(lost.id);
+    expect(again.record.id).not.toBe(lost.id);
+    expect(await h.outbox.list()).toHaveLength(1);
+    // A receipt is never filed over a refused page that happens to share its bytes.
+    expect((await h.outbox.add(receipt(SHA_A))).outcome).toBe("duplicate-file");
   });
 
   it("sends everything waiting at once: refused and backing-off captures alike", async () => {
@@ -432,6 +567,58 @@ describe.each(stores)("outbox on %s", (_name, makeStore) => {
       expect(h.calls.map((c) => c.sha)).toEqual([SHA_C, SHA_A, SHA_B]);
     });
 
+    it("a refused receipt never dead-ends the line: attesting it again files a new receipt", async () => {
+      const h = harness(makeStore(), [{ kind: "reject", error: "AMOUNT_CHANGED" }]);
+      await h.outbox.init();
+      const first = queued(await h.outbox.add(receipt(SHA_A)));
+      await h.outbox.sync();
+      expect(await h.store.findNadawat(MERLYN.lineId)).toMatchObject({ id: first.id, state: "failed" });
+
+      h.advance(60_000);
+      const fresh = { ...MERLYN, cents: 12_800, phpPerUsd: "62.40" }; // the co-op's current figures
+      const again = await h.outbox.add(receipt(SHA_B, fresh));
+      expect(again.outcome).toBe("queued");
+      if (again.outcome !== "queued") return;
+      expect(again.record).toMatchObject({ state: "queued", nadawat: fresh, createdAt: h.now() });
+      expect(again.record.id).not.toBe(first.id);
+      expect(again.replaced).toMatchObject({ id: first.id, lastError: "AMOUNT_CHANGED" });
+      expect(await h.outbox.list()).toHaveLength(1);
+      expect(h.deleted).toEqual([first.fileUri, first.thumbUri]); // the refused photo goes with it
+
+      await h.outbox.sync();
+      expect(await only(h)).toMatchObject({ id: again.record.id, state: "uploaded", nadawat: fresh });
+      expect(h.calls.map((c) => c.id)).toEqual([first.id, again.record.id]);
+    });
+
+    it("attesting again with the very same photo keeps its file", async () => {
+      const h = harness(makeStore(), [{ kind: "reject", error: "UNAUTHENTICATED" }]);
+      await h.outbox.init();
+      const first = queued(await h.outbox.add(receipt(SHA_A)));
+      await h.outbox.sync();
+      const again = await h.outbox.add(receipt(SHA_A));
+      expect(again).toMatchObject({ outcome: "queued", replaced: { id: first.id } });
+      expect(h.deleted).toEqual([]);
+    });
+
+    it("a receipt on its way or recorded is never replaced", async () => {
+      const h = harness(makeStore());
+      await h.outbox.init();
+      const first = queued(await h.outbox.add(receipt(SHA_A)));
+      expect(await h.outbox.add(receipt(SHA_B))).toMatchObject({
+        outcome: "already-attested",
+        existing: { id: first.id },
+      });
+      await h.outbox.sync();
+      expect(await h.outbox.add(receipt(SHA_C))).toMatchObject({ outcome: "already-attested" });
+      // The same photo for another member is the same file, never a second receipt.
+      expect(await h.outbox.add(receipt(SHA_A, { ...MERLYN, lineId: "line_2026A_r37_M-031" }))).toMatchObject(
+        {
+          outcome: "duplicate-file",
+          existing: { id: first.id },
+        },
+      );
+    });
+
     it("keeps the attestation through the store, and is never marked read", async () => {
       const h = harness(makeStore());
       await h.outbox.init();
@@ -488,6 +675,36 @@ describe("assertNewCapture", () => {
     expect(() => assertNewCapture(receipt(SHA_A, { ...MERLYN, lineId: "" }))).toThrow(/line/);
     expect(() => assertNewCapture(page(SHA_A))).not.toThrow();
     expect(() => assertNewCapture(receipt(SHA_A))).not.toThrow();
+  });
+});
+
+describe("refusals", () => {
+  const r = (state: CaptureRecord["state"], nextAttemptAt: number, lastError: string | null = null) => ({
+    state,
+    nextAttemptAt,
+    lastError,
+  });
+
+  it("say what a resend can be: the same request, a new one, or none", () => {
+    expect(resendOf(r("queued", T0))).toBe("same-key");
+    expect(resendOf(r("failed", T0 + 1, "503"))).toBe("same-key");
+    expect(resendOf(r("failed", MANUAL_ONLY, "UNAUTHENTICATED"))).toBe("new-key");
+    expect(resendOf(r("failed", MANUAL_ONLY, "422"))).toBe("new-key");
+    expect(resendOf(r("failed", MANUAL_ONLY, null))).toBe("new-key");
+    for (const code of [...FINAL_REFUSALS, "LINE_NOT_DUE", "LINE_ALREADY_RECEIVED"]) {
+      expect(resendOf(r("failed", MANUAL_ONLY, code))).toBe("none");
+    }
+    for (const state of ["uploading", "uploaded", "read"] as const)
+      expect(resendOf(r(state, T0))).toBe("none");
+  });
+
+  it("are only ever the co-op's own answers, and pairing refusals are never final", () => {
+    expect(isRefused(r("failed", MANUAL_ONLY))).toBe(true);
+    expect(isRefused(r("failed", T0))).toBe(false);
+    expect(isRefused(r("queued", MANUAL_ONLY))).toBe(false);
+    expect(AUTH_REFUSALS.some(isFinalRefusal)).toBe(false);
+    expect(isFinalRefusal(null)).toBe(false);
+    expect(isFinalRefusal("LINE_HELD")).toBe(true);
   });
 });
 
@@ -606,6 +823,8 @@ type Op =
   | { op: "advance"; ms: number }
   | { op: "sendNow"; pick: number }
   | { op: "sendAll" }
+  | { op: "repaired" }
+  | { op: "discard"; pick: number }
   | { op: "read"; pick: number }
   | { op: "crash" };
 
@@ -618,6 +837,8 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   fc.record({ op: fc.constant("advance" as const), ms: fc.integer({ min: 0, max: 400_000 }) }),
   fc.record({ op: fc.constant("sendNow" as const), pick: fc.nat(10) }),
   fc.constant({ op: "sendAll" as const }),
+  fc.constant({ op: "repaired" as const }),
+  fc.record({ op: fc.constant("discard" as const), pick: fc.nat(10) }),
   fc.record({ op: fc.constant("read" as const), pick: fc.nat(10) }),
   fc.constant({ op: "crash" as const }),
 );
@@ -628,11 +849,16 @@ const outcomeArb: fc.Arbitrary<UploadOutcome | "throw"> = fc.oneof(
   fc.constant({ kind: "retry" as const, error: "NETWORK" }),
   fc.constant({ kind: "retry" as const, error: "429", retryAfterMs: 120_000 }),
   fc.constant({ kind: "reject" as const, error: "422" }),
+  fc.constant({ kind: "reject" as const, error: "UNAUTHENTICATED" }),
+  fc.constant({ kind: "reject" as const, error: "TOO_LARGE" }),
   fc.constant("throw" as const),
 );
 
+/** Operations in which a person may give a refused capture a new key: a resend, re-pairing, or filing it again. */
+const REKEYING: ReadonlySet<Op["op"]> = new Set(["sendNow", "sendAll", "repaired", "add"]);
+
 describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) => {
-  it("keeps every filed capture exactly once, with one key, and never moves a settled one back", async () => {
+  it("keeps every capture until the co-op has it or a person removes a refusal, one key per request", async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.array(opArb, { minLength: 1, maxLength: 40 }),
@@ -642,10 +868,29 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
           let now = T0;
           let online = true;
           let seq = 0;
+          let op: Op["op"] = "sync";
           const script = [...outcomes];
           const uploadedOk = new Set<string>();
-          const keyOf = new Map<string, string>(); // sha → id
+          const refusedWith = new Map<string, string>(); // id → the co-op's refusal code
+          const keyOf = new Map<string, string>(); // sha → the id it is filed under now
+          const retired = new Set<string>(); // keys a refusal used up: never sent again
           const bestRank = new Map<string, number>();
+
+          /** A capture's key changes only when a person acts on a refusal that allows it (never by a timer). */
+          const adopt = (sha: string, id: string) => {
+            const prev = keyOf.get(sha);
+            if (prev === id) return;
+            if (prev !== undefined) {
+              expect(REKEYING.has(op)).toBe(true);
+              const code = refusedWith.get(prev);
+              expect(code).toBeDefined();
+              if (op !== "add") expect(isFinalRefusal(code ?? null)).toBe(false);
+              if (op === "repaired") expect(AUTH_REFUSALS).toContain(code);
+              retired.add(prev);
+            }
+            keyOf.set(sha, id);
+          };
+
           const make = () =>
             new Outbox({
               store,
@@ -654,17 +899,20 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
               isOnline: () => online,
               uploader: async (rec, onProgress) => {
                 expect(uploadedOk.has(rec.id)).toBe(false); // never re-sent after the co-op said yes
-                expect(keyOf.get(rec.sha256)).toBe(rec.id); // the same Idempotency-Key, always
+                expect(retired.has(rec.id)).toBe(false); // a refused key is never sent again
+                adopt(rec.sha256, rec.id); // otherwise the same Idempotency-Key, every retry
                 onProgress(0.5);
                 const o = script.shift() ?? ok();
                 if (o === "throw") throw new Error("boom");
                 if (o.kind === "ok") uploadedOk.add(rec.id);
+                if (o.kind === "reject") refusedWith.set(rec.id, o.error);
                 return o;
               },
             });
           let outbox = make();
           await outbox.init();
           for (const step of ops) {
+            op = step.op;
             const records = await outbox.list();
             const pick = (i: number) => records[i % Math.max(1, records.length)];
             switch (step.op) {
@@ -675,7 +923,10 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
                     ? receipt(sha, { ...MERLYN, lineId: `line-${step.sha}` })
                     : page(sha, { source: "camera" }),
                 );
-                if (r.outcome === "queued") keyOf.set(sha, r.record.id);
+                if (r.outcome === "queued") {
+                  if (r.replaced) expect(isRefused(r.replaced)).toBe(true); // only a refusal is filed over
+                  adopt(sha, r.record.id);
+                }
                 break;
               }
               case "sync":
@@ -695,6 +946,17 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
               case "sendAll":
                 await outbox.sendAll();
                 break;
+              case "repaired":
+                await outbox.afterPairing();
+                break;
+              case "discard": {
+                const r = pick(step.pick);
+                if (r && (await outbox.discard(r.id))) {
+                  expect(isRefused(r)).toBe(true); // only a refusal leaves the phone this way
+                  keyOf.delete(r.sha256);
+                }
+                break;
+              }
               case "read": {
                 const r = pick(step.pick);
                 if (r) await outbox.markRead(r.id, { documentId: "doc", rowsRead: 1 });
@@ -707,7 +969,8 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
                 break;
             }
             const after = await outbox.list();
-            // Never lost, never duplicated: one row per filed sha, under the id it was filed with.
+            for (const r of after) adopt(r.sha256, r.id); // a re-key that has not been sent yet
+            // Never lost, never duplicated: one row per filed sha, under its current key.
             expect(new Set(after.map((r) => r.sha256))).toEqual(new Set(keyOf.keys()));
             expect(after).toHaveLength(keyOf.size);
             for (const r of after) {
@@ -721,7 +984,7 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
           }
         },
       ),
-      { numRuns: 60 },
+      { numRuns: 80 },
     );
   });
 });

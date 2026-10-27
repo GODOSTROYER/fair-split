@@ -101,6 +101,39 @@ describe("the web outbox store", () => {
     expect(m.rows.size).toBe(0);
   });
 
+  it("writes a resend's new key and a removal through to the sink", async () => {
+    const m = memorySink();
+    const now = { t: T0 };
+    const store = new PersistedOutboxStore(m.sink);
+    let seq = 0;
+    let answer: "reject" | "ok" = "reject";
+    const outbox = new Outbox({
+      store,
+      uploader: async () =>
+        answer === "reject"
+          ? { kind: "reject", error: "UNAUTHENTICATED" }
+          : { kind: "ok", documentId: "doc", duplicateOf: null, rowsRead: null, serial: null },
+      now: () => now.t,
+      newId: () => uuidv7(now.t + seq++, (n) => new Uint8Array(n).fill(seq)),
+      isOnline: () => true,
+    });
+    await outbox.init();
+    const a = await outbox.add(page("a"));
+    const b = await outbox.add(page("b"));
+    if (a.outcome !== "queued" || b.outcome !== "queued") throw new Error("expected queued");
+    await outbox.sync(); // both refused
+    answer = "ok";
+    now.t += 1000;
+    await outbox.sendNow(a.record.id);
+    expect(m.rows.has(a.record.id)).toBe(false);
+    const [resent] = [...m.rows.values()].filter((r) => r.sha256 === "a".repeat(64));
+    expect(resent).toMatchObject({ state: "uploaded" });
+    expect(resent?.id).not.toBe(a.record.id);
+
+    expect(await outbox.discard(b.record.id)).toBe(true);
+    expect([...m.rows.values()].map((r) => r.sha256[0])).toEqual(["a"]);
+  });
+
   it("keeps working in memory when the browser refuses storage, and says so", async () => {
     const m = memorySink();
     m.refuse(true);

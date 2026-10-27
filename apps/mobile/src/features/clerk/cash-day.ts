@@ -34,6 +34,10 @@ export interface CashDayDTO {
   phpPerUsd: string;
   provenance: Provenance;
   lines: CashLineDTO[];
+  /** The station this phone pays out at ("Purok 2 pickup"), when the co-op names one. */
+  station: string | null;
+  /** The co-op's treasurer as the clerk knows her ("Analyn"), for "See Treasurer Analyn". */
+  treasurer: { first: string } | null;
 }
 
 /** due: hand it over; received: done; blocked: still being checked or moved to the next run (never hand over). */
@@ -158,13 +162,16 @@ export function searchRoster(entries: readonly RosterEntry[], query: string): Ro
   return entries.filter((e) => matchesMember(e.line, query));
 }
 
-/** "Jessie D. Dumaguing" → "JD": the ink stamp on every receipt this phone files. */
-export function initialsOf(name: string): string {
+/**
+ * "Jessie D. Dumaguing" → "JD": the ink stamp on every receipt this phone files. Null when the name has no letters:
+ * a stamp is a person's mark, never a placeholder, so no receipt is filed without one.
+ */
+export function initialsOf(name: string): string | null {
   const words = name
     .split(/\s+/)
     .map((w) => w.replace(/[^\p{L}]/gu, ""))
     .filter(Boolean);
-  if (words.length === 0) return "?";
+  if (words.length === 0) return null;
   const first = words[0]?.[0] ?? "";
   const last = words.length > 1 ? (words[words.length - 1]?.[0] ?? "") : "";
   return `${first}${last}`.toUpperCase();

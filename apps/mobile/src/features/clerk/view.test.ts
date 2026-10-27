@@ -3,19 +3,25 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 import { describe, expect, it } from "vitest";
 import { SCREEN_STATES } from "../../_shims/contracts";
 import { type CaptureRecord, MANUAL_ONLY } from "../../lib/outbox";
+import type { PairedSession } from "../../services/session";
 import {
+  canRemove,
   canSendNow,
   hintOf,
   metaOf,
+  receiptAdviceOf,
   refusalOf,
+  refusedSince,
   ringOf,
   sectionsOf,
+  sendableCount,
   settledSince,
   statusOf,
   tallyOf,
   titleOf,
 } from "./capture-view";
-import { messages } from "./messages";
+import { clerkSite, DEMO_STATION, sessionText } from "./clerk-site";
+import { type ClerkKey, messages, t } from "./messages";
 import { DARK_BYTES_PER_PIXEL, MIN_LONG_EDGE, qualityIssue } from "./quality";
 import { nextSampleSerial, SAMPLE_SERIALS, sampleBySha, sampleNadawat, sampleSlip } from "./samples";
 import { outboxScreenState, type ScanEvent, scanScreenState } from "./screen-state";
@@ -74,43 +80,87 @@ describe("capture view", () => {
     for (const [over, ring, key] of cases) {
       const r = rec(over);
       expect(ringOf(r)).toBe(ring);
-      const s = statusOf(r, NOW, true);
+      const s = statusOf(r, NOW, true, "Analyn");
       expect(s.key).toBe(key);
       expect(known(s.key)).toBe(true);
     }
-    expect(statusOf(rec({ state: "uploading", progress: 0.456 }), NOW, true).args).toEqual({ pct: 46 });
+    expect(statusOf(rec({ state: "uploading", progress: 0.456 }), NOW, true, "Analyn").args).toEqual({
+      pct: 46,
+    });
   });
 
   it("counts down the retry live, in seconds then minutes, and says when signal is the wait", () => {
     const r = rec({ state: "failed", nextAttemptAt: NOW + 40_000, lastError: "503" });
-    expect(statusOf(r, NOW, true)).toMatchObject({ key: "M-CL-02.retryIn", args: { s: 40 } });
-    expect(statusOf(r, NOW + 39_001, true)).toMatchObject({ key: "M-CL-02.retryIn", args: { s: 1 } });
-    expect(statusOf(r, NOW + 40_000, true).key).toBe("M-CL-02.retryNow");
-    expect(statusOf(rec({ state: "failed", nextAttemptAt: NOW + 300_000 }), NOW, true)).toMatchObject({
+    expect(statusOf(r, NOW, true, "Analyn")).toMatchObject({ key: "M-CL-02.retryIn", args: { s: 40 } });
+    expect(statusOf(r, NOW + 39_001, true, "Analyn")).toMatchObject({
+      key: "M-CL-02.retryIn",
+      args: { s: 1 },
+    });
+    expect(statusOf(r, NOW + 40_000, true, "Analyn").key).toBe("M-CL-02.retryNow");
+    expect(
+      statusOf(rec({ state: "failed", nextAttemptAt: NOW + 300_000 }), NOW, true, "Analyn"),
+    ).toMatchObject({
       key: "M-CL-02.retryInMin",
       args: { m: 5 },
     });
-    expect(statusOf(r, NOW, false).key).toBe("M-CL-02.retryOffline");
-    expect(statusOf(rec({ state: "queued" }), NOW, false).key).toBe("M-CL-02.queuedOffline");
+    expect(statusOf(r, NOW, false, "Analyn").key).toBe("M-CL-02.retryOffline");
+    expect(statusOf(rec({ state: "queued" }), NOW, false, null).key).toBe("M-CL-02.queuedOffline");
   });
 
   it("words each refusal so the clerk knows what to do, in canary, never red", () => {
-    const why = (lastError: string, kind: CaptureRecord["kind"] = "slip") =>
-      refusalOf(rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError, kind }));
+    const why = (
+      lastError: string,
+      kind: CaptureRecord["kind"] = "slip",
+      treasurer: string | null = "Analyn",
+    ) => refusalOf(rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError, kind }), treasurer);
     expect(why("UNAUTHENTICATED").key).toBe("M-CL-02.refusedAuth");
     expect(why("FORBIDDEN").key).toBe("M-CL-02.refusedAuth");
     expect(why("FILE_MISSING").key).toBe("M-CL-02.refusedMissing");
+    expect(why("FILE_MISSING", "nadawat").key).toBe("M-CL-02.refusedMissingReceipt");
     expect(why("TOO_LARGE").key).toBe("M-CL-02.refusedTooLarge");
+    expect(why("TOO_LARGE", "nadawat").key).toBe("M-CL-02.refusedTooLargeReceipt");
     expect(why("JUDGE_SAMPLES_ONLY").key).toBe("M-CL-02.refusedSamplesOnly");
+    expect(why("LINE_ALREADY_RECEIVED", "nadawat").key).toBe("M-CL-02.refusedReceived");
     expect(why("LINE_NOT_DUE", "nadawat")).toMatchObject({
       key: "M-CL-02.refusedLine",
       args: { treasurer: "Analyn" },
     });
     expect(why("LINE_NOT_DUE", "slip")).toMatchObject({
       key: "M-CL-02.refused",
-      args: { code: "LINE_NOT_DUE" },
+      args: { code: "LINE_NOT_DUE", treasurer: "Analyn" },
     });
     for (const code of ["UNAUTHENTICATED", "FILE_MISSING", "422"]) expect(why(code).tone).toBe("canaryText");
+    // Every refusal that names the treasurer has a twin for a co-op that has not named her.
+    for (const key of ["M-CL-02.refusedLine", "M-CL-02.refused"]) expect(known(`${key}Anon`)).toBe(true);
+  });
+
+  it("never names a treasurer the co-op did not name", () => {
+    const refused = (lastError: string, kind: CaptureRecord["kind"] = "slip") =>
+      rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError, kind });
+    expect(refusalOf(refused("422"), null)).toEqual({
+      key: "M-CL-02.refusedAnon",
+      args: { code: "422" },
+      tone: "canaryText",
+    });
+    expect(refusalOf(refused("LINE_HELD", "nadawat"), null).key).toBe("M-CL-02.refusedLineAnon");
+    expect(refusalOf(refused(""), null).args).toEqual({ code: "?" });
+    expect(statusOf(refused("409"), NOW, true, null).key).toBe("M-CL-02.refusedAnon");
+  });
+
+  it("gives the receipt sheet advice under its own lead, never 'didn't accept' twice", () => {
+    const receipt = (lastError: string) =>
+      rec({ kind: "nadawat", state: "failed", nextAttemptAt: MANUAL_ONLY, lastError });
+    expect(receiptAdviceOf(receipt("422"), "Analyn")).toEqual({
+      key: "M-CL-01.nadawat.refusedTry",
+      args: { code: "422", treasurer: "Analyn" },
+      tone: "canaryText",
+    });
+    expect(receiptAdviceOf(receipt("422"), null).key).toBe("M-CL-01.nadawat.refusedTryAnon");
+    expect(receiptAdviceOf(receipt("UNAUTHENTICATED"), null).key).toBe("M-CL-02.refusedAuth");
+    expect(receiptAdviceOf(receipt("FILE_MISSING"), null).key).toBe("M-CL-02.refusedMissingReceipt");
+    for (const k of ["M-CL-01.nadawat.refusedTry", "M-CL-01.nadawat.refusedTryAnon"]) {
+      expect(t("en", k as ClerkKey, { code: "422", treasurer: "Analyn" })).not.toMatch(/accept/);
+    }
   });
 
   it("titles a page by its serial once read, and a receipt by the member", () => {
@@ -128,7 +178,7 @@ describe("capture view", () => {
       },
     });
     expect(titleOf(receipt)).toEqual({ key: "M-CL-02.nadawat", args: { name: "Merlyn Ponce" } });
-    expect(statusOf({ ...receipt, state: "uploaded", uploadedAt: NOW }, NOW, true).key).toBe(
+    expect(statusOf({ ...receipt, state: "uploaded", uploadedAt: NOW }, NOW, true, "Analyn").key).toBe(
       "M-CL-02.recorded",
     );
   });
@@ -146,12 +196,109 @@ describe("capture view", () => {
     expect(metaOf(rec({ bytes: 412_000, createdAt: NOW }))).toEqual({ size: "412 KB", time: "10:00" });
   });
 
-  it("offers Send now only to a capture waiting on a retry or a person", () => {
-    expect(canSendNow(rec({ state: "failed", nextAttemptAt: MANUAL_ONLY }))).toBe(true);
-    expect(canSendNow(rec({ state: "failed", nextAttemptAt: NOW + 1 }))).toBe(true);
+  it("offers Send now to a retry and to a refusal a resend can fix, never to one it cannot", () => {
+    const refused = (lastError: string | null) =>
+      rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError });
+    expect(canSendNow(rec({ state: "failed", nextAttemptAt: NOW + 1, lastError: "503" }))).toBe(true);
+    for (const code of ["UNAUTHENTICATED", "FORBIDDEN", "422", "IDEMPOTENCY_KEY_REUSED", null]) {
+      expect(canSendNow(refused(code))).toBe(true);
+    }
+    for (const code of [
+      "FILE_MISSING",
+      "TOO_LARGE",
+      "SAMPLES_ONLY",
+      "JUDGE_SAMPLES_ONLY",
+      "LINE_NOT_DUE",
+      "LINE_HELD",
+      "LINE_ALREADY_RECEIVED",
+    ]) {
+      expect(canSendNow(refused(code))).toBe(false);
+    }
     for (const state of ["queued", "uploading", "uploaded", "read"] as const) {
       expect(canSendNow(rec({ state }))).toBe(false);
     }
+  });
+
+  it("offers removal only for a refusal, and counts what Send all would send", () => {
+    const refusedFinal = rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "TOO_LARGE" });
+    const refusedAuth = rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "UNAUTHENTICATED" });
+    const retrying = rec({ state: "failed", nextAttemptAt: NOW + 1 });
+    expect(canRemove(refusedFinal)).toBe(true);
+    expect(canRemove(refusedAuth)).toBe(true);
+    for (const r of [
+      retrying,
+      rec({ state: "queued" }),
+      rec({ state: "uploaded" }),
+      rec({ state: "read" }),
+    ]) {
+      expect(canRemove(r)).toBe(false);
+    }
+    expect(sendableCount([refusedFinal, refusedAuth, retrying, rec({ state: "queued" })])).toBe(2);
+    expect(sendableCount([refusedFinal])).toBe(0); // "Ipadala tanan karon" is hidden
+  });
+
+  it("notices captures the co-op just refused, once", () => {
+    const a = rec({ state: "uploading" });
+    const b = rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "422" });
+    const c = rec({ state: "uploading" });
+    const next = [
+      { ...a, state: "failed" as const, nextAttemptAt: MANUAL_ONLY, lastError: "LINE_NOT_DUE" },
+      b, // was already refused
+      { ...c, state: "failed" as const, nextAttemptAt: NOW + 20_000 }, // a retry, not a refusal
+      rec({ state: "failed", nextAttemptAt: MANUAL_ONLY }), // new to the list
+    ];
+    expect(refusedSince([a, b, c], next).map((r) => r.id)).toEqual([a.id]);
+  });
+});
+
+describe("the clerk's site: station, treasurer and stamp from data", () => {
+  const live = (over: Partial<PairedSession> & Record<string, unknown> = {}): PairedSession =>
+    ({
+      kind: "device",
+      bearer: "dev_token_for_tests",
+      expiresAt: "2026-11-30T00:00:00Z",
+      workspaceId: "ws_live",
+      persona: "clerk:x",
+      role: "clerk",
+      memberNo: null,
+      displayName: "Rosalie T. Ompoc",
+      lang: null,
+      pairedAt: "2026-10-27T00:00:00Z",
+      ...over,
+    }) as PairedSession;
+
+  it("takes the pairing first, then the co-op's cash-day answer", () => {
+    expect(
+      clerkSite({
+        session: live({ station: " Purok 4 pickup ", treasurerName: "Lorna" }),
+        demo: false,
+        day: { station: "Bodega", treasurer: { first: "Analyn" } },
+      }),
+    ).toEqual({ station: "Purok 4 pickup", treasurer: "Lorna", initials: "RO" });
+    expect(
+      clerkSite({ session: live(), demo: false, day: { station: "Bodega", treasurer: { first: "Analyn" } } }),
+    ).toEqual({ station: "Bodega", treasurer: "Analyn", initials: "RO" });
+  });
+
+  it("never falls back to the seed on a live phone: no station chip, 'the treasurer', and no stamp without a name", () => {
+    expect(clerkSite({ session: live({ displayName: "" }), demo: false, day: null })).toEqual({
+      station: null,
+      treasurer: null,
+      initials: null,
+    });
+    expect(clerkSite({ session: null, demo: false, day: null }).initials).toBeNull();
+    expect(sessionText(live({ station: 7 }), "station")).toBeNull();
+    expect(sessionText(live({ treasurerName: "  " }), "treasurerName")).toBeNull();
+  });
+
+  it("uses the seed's people and the spec's station on demo data only", () => {
+    expect(clerkSite({ session: live({ displayName: "" }), demo: true, day: null })).toEqual({
+      station: DEMO_STATION,
+      treasurer: "Analyn",
+      initials: "JD",
+    });
+    // A demo session still prefers what it carries.
+    expect(clerkSite({ session: live(), demo: true, day: null }).initials).toBe("RO");
   });
 });
 
