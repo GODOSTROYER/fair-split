@@ -25,6 +25,7 @@ import {
   rememberPayload,
   rememberRequest,
   requestExpired,
+  requestScope,
   requestStatus,
   sameAsOpened,
   sealKeysFor,
@@ -313,5 +314,16 @@ describe("a resolved hold in the Chair's language", () => {
     expect(holdNote("ceb", { gloss: false, expanded: false })).toBe("hidden");
     expect(holdNote("ceb", { gloss: false, expanded: true })).toBe("note");
     expect(holdNote("fil", { gloss: true, expanded: false })).toBe("note");
+  });
+});
+
+describe("whose review it is (security review: an opened batch belongs to the officer who opened it)", () => {
+  it("cosign.scope: another officer paired, or the same name in another workspace, starts the request over", () => {
+    const ernesto = "a1b2c3d4e5f60718"; // identityKey of the Chair's pairing
+    expect(requestScope("2026A-r37", ernesto)).toBe(requestScope("2026A-r37", ernesto)); // a new token: the same
+    expect(requestScope("2026A-r37", ernesto)).not.toBe(requestScope("2026A-r37", "0f1e2d3c4b5a6978"));
+    expect(requestScope("2026A-r37", ernesto)).not.toBe(requestScope("2026A-r37", null));
+    expect(requestScope("2026A-r37", ernesto)).not.toBe(requestScope("2026A-r38", ernesto));
+    expect(requestScope("a|b", "c")).not.toBe(requestScope("a", "b|c"));
   });
 });

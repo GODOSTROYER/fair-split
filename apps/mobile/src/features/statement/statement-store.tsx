@@ -90,6 +90,25 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   const identity = session ? identityKey(session) : null;
   const cacheKey = statementCacheKey({ identity, linkToken });
   const persona = session?.persona ?? null;
+  // Paired as someone else, or another link opened: nothing read for the last one stays on screen while this one
+  // loads (or fails to). `cacheKey` names whose statement this is.
+  const [readFor, setReadFor] = useState(cacheKey);
+  if (readFor !== cacheKey) {
+    setReadFor(cacheKey);
+    setDto(null);
+    setStatus("loading");
+    setFromCache(false);
+    setCachedAt(null);
+    setRefreshFailed(false);
+    setTrack(EMPTY_TRACK);
+    setPaid(null);
+    setReview(null);
+  }
+  /** Whose statement this is at this instant: a read that answers for someone else (paired again meanwhile) is dropped. */
+  const readForRef = useRef(cacheKey);
+  readForRef.current = cacheKey;
+  /** The latest `load`, so a read queued behind one in flight reads for whoever is paired by then. */
+  const latestLoad = useRef<() => Promise<void>>(async () => {});
   // A flag for the whole visit, read from the address the app was opened with (redirects may rewrite the address).
   const [linePreview] = useState(() => bootQuery("line"));
   const preview = demo ? linePreview : null;
@@ -106,6 +125,8 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
     if (!dtoRef.current) setStatus("loading");
     try {
       const r = linkToken ? await api.getStatementByLink(linkToken) : await api.getStatement();
+      // Paired as someone else (or another link opened) while this read was in flight: not this statement.
+      if (readForRef.current !== cacheKey) return;
       if (r.ok) {
         // Demo previews patch labelled demo data only (`?line=`); live statements are never touched.
         const fresh = preview ? previewLine(r.value, preview) : r.value;
@@ -136,6 +157,7 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       setRefreshFailed(true);
       if (dtoRef.current) return;
       const cached = failure === "offline" && cacheKey ? parseCache(await prefs.get(cacheKey)) : null;
+      if (readForRef.current !== cacheKey) return;
       if (cached) {
         setDto(cached.dto);
         setCachedAt(cached.at);
@@ -149,10 +171,11 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       loading.current = false;
       if (again.current) {
         again.current = false;
-        void load();
+        void latestLoad.current();
       }
     }
   }, [api, cacheKey, enabled, linkToken, markSynced, preview]);
+  latestLoad.current = load;
 
   useEffect(() => {
     void load();

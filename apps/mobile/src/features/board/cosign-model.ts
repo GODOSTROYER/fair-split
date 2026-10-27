@@ -313,3 +313,12 @@ export function presenceView(runSlug: string, holdId: string | null): string {
 export function compactLayout(width: number, height: number, fontScale: number): boolean {
   return width < 320 || height < 560 || fontScale >= 1.5;
 }
+
+/**
+ * Whose review a request's memory is (the batch opened, the payload fetched, I4 "the batch the Chair opened"): the
+ * run and the officer paired (`identityKey`). The provider starts over for anyone else paired on this phone, or the
+ * same name in another workspace; a new token for the same officer keeps what he opened.
+ */
+export function requestScope(runSlug: string, identity: string | null): string {
+  return JSON.stringify([runSlug, identity]);
+}
