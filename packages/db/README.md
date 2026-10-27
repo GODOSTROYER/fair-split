@@ -68,8 +68,12 @@ WS-API's, and calls these in its own transactions):
 - `lines.hashes(db, runId)`: every member line of the run, on and off rail, as `{memberNo, lineSha256}` by member
   number (`memberLines` for `loadPosting` and `loadRun`; a null hash stays null for the service to refuse).
 
-Both writes lock the run row before reading approvals, so even a writer that skips the workspace lock cannot slip a
-void or a new approval between the check and the commit.
+Both writes lock the run row, then the approvals they read, so even a writer that skips the workspace lock cannot
+slip a new approval or a void between the check and the commit. An approval being inserted key-share-locks its run
+row (the foreign key check) until it commits: the run-row lock waits for it, and `voidChecked` then counts it. A void
+in flight holds its approval's row: `beginPosting`'s share lock and `voidChecked`'s update lock on the approvals wait
+for it, then find the approval voided. `posting-cas.test.ts` commits each such held write only once the server shows
+the call blocked on it (`pg_blocking_pids`, never a timer), and removing any one of these three locks fails its test.
 
 Lifecycle columns are guarded (I5): `repos(scope).*.update` cannot write a run's or line's `state`/`version`, a hold's
 state or resolution, an item's `status`, rank or cancel stamp, or any column of an approval — a compile error, and

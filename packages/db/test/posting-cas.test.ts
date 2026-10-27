@@ -5,10 +5,10 @@
  * WS-API's adapter, which calls these inside its own transactions.
  */
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RunState } from "../src/_shims/contracts.js";
-import type { Tx } from "../src/client.js";
+import type { DbOrTx, Tx } from "../src/client.js";
 import { type Repos, repos } from "../src/repos/index.js";
 import { approvals, ledgerEntries, memberLines, payRuns, runEvents } from "../src/schema/index.js";
 import { type FixtureWorkspace, fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
@@ -57,9 +57,10 @@ async function sign(
   runId: string,
   role: "treasurer" | "board",
   batchSha256 = DIGEST,
+  db: DbOrTx = t.app.db,
 ): Promise<Signed> {
   const nonce = randomUUID();
-  const [a] = await t.app.db
+  const [a] = await db
     .insert(approvals)
     .values({
       workspaceId: ws.workspaceId,
@@ -111,31 +112,95 @@ async function reapprove(r: Repos, runId: string): Promise<void> {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function backendPid(tx: Tx): Promise<number> {
+  const [row] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+  return row?.pid ?? 0;
+}
+
 /**
  * Runs `write` in a transaction that takes no workspace lock and stays open, its row locks held, until `commit()`:
- * a writer that skips the lock order, caught between its write and its commit.
+ * a writer that skips the lock order, caught between its write and its commit. `pid` is its backend.
  */
-async function holdOpen(write: (tx: Tx) => Promise<void>): Promise<{ commit: () => Promise<void> }> {
-  let release = () => {};
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let ready = () => {};
-  const written = new Promise<void>((resolve) => {
-    ready = resolve;
-  });
+async function holdOpen(
+  write: (tx: Tx) => Promise<unknown>,
+): Promise<{ pid: number; commit: () => Promise<void> }> {
+  const gate = deferred<void>();
+  const written = deferred<number>();
   const done = t.app.db.transaction(async (tx) => {
+    const pid = await backendPid(tx);
     await write(tx);
-    ready();
-    await gate;
+    written.resolve(pid);
+    await gate.promise;
   });
-  await Promise.race([written, done]);
+  done.catch((e: unknown) => written.reject(e));
+  const pid = await written.promise;
   return {
+    pid,
     commit: async () => {
-      release();
+      gate.resolve();
       await done;
     },
   };
+}
+
+/**
+ * Holds `write` open (holdOpen), starts `call` in a transaction of its own (the port's adapter calls these inside
+ * its transactions), and commits the write only once the server shows `call`'s backend blocked on a lock the write
+ * holds (`pg_blocking_pids`), or `call` has finished without waiting. Never a timer: a call whose pooled connection
+ * is still opening when a sleep ends would only run after the commit, and pass whether or not it locks anything.
+ * `waited` says which happened.
+ */
+async function behindHeldWrite<R>(
+  write: (tx: Tx) => Promise<unknown>,
+  call: (tx: Tx) => Promise<R>,
+): Promise<{ waited: boolean; result: R }> {
+  const held = await holdOpen(write);
+  const callPid = deferred<number>();
+  let settled = false;
+  const result = t.app.db.transaction(async (tx) => {
+    callPid.resolve(await backendPid(tx));
+    return call(tx);
+  });
+  result.then(
+    () => {
+      settled = true;
+    },
+    (e: unknown) => {
+      settled = true;
+      callPid.reject(e);
+    },
+  );
+  let waited = false;
+  try {
+    const waiter = await callPid.promise;
+    const deadline = Date.now() + 10_000;
+    for (;;) {
+      const [row] = await t.owner.sql<{ blocked: boolean }[]>`
+        select ${held.pid}::int = any(pg_blocking_pids(${waiter}::int)) as blocked`;
+      if (row?.blocked) {
+        waited = true;
+        break;
+      }
+      if (settled) break;
+      if (Date.now() > deadline) {
+        throw new Error(`backend ${waiter} neither waited for backend ${held.pid} nor finished`);
+      }
+      await sleep(10);
+    }
+  } finally {
+    await held.commit();
+  }
+  return { waited, result: await result };
 }
 
 const posting = (runId: string, nonces: readonly string[], batchSha256 = DIGEST) => ({
@@ -290,28 +355,42 @@ describe("inv.i6.void-cas: approvals.voidChecked voids the approvals a check nam
   it("waits for an approval still being inserted for the run (no workspace lock), then counts it", async () => {
     const { ws, runId, r } = await approvedRun();
     const t1 = await sign(ws, runId, "treasurer");
-    const held = await holdOpen(async (tx) => {
-      await tx.insert(approvals).values({
-        workspaceId: ws.workspaceId,
-        runId,
-        role: "board",
-        decision: "SIGNED",
-        approverId: "board:ernesto",
-        keyId: "fs-ernesto-a1",
-        payloadJcs: '{"v":1}',
-        signature: "c2lnbmF0dXJl",
-        batchSha256: DIGEST,
-        nonce: randomUUID(),
-        exp: new Date(Date.now() + 30 * 60_000),
-        provenance: "live",
-      });
-    });
-    const voiding = r.approvals.voidChecked(t.app.db, checkedVoid(runId, [t1.nonce]));
-    await sleep(150);
-    await held.commit();
-    expect(await voiding).toEqual({ ok: false, reason: "UNNAMED_APPROVAL", current: "APPROVED" });
+    // the insert's foreign key holds a key-share lock on the run row until it commits: the void's run-row lock
+    // waits for it, so the void reads the approvals only once the new one is there to count
+    const { waited, result } = await behindHeldWrite(
+      (tx) => sign(ws, runId, "board", DIGEST, tx),
+      (tx) => r.approvals.voidChecked(tx, checkedVoid(runId, [t1.nonce])),
+    );
+    expect(waited).toBe(true);
+    expect(result).toEqual({ ok: false, reason: "UNNAMED_APPROVAL", current: "APPROVED" });
     expect(await liveNonces(runId)).toHaveLength(2);
     expect((await runRow(runId))?.state).toBe("APPROVED");
+    expect(await voidEntries(ws.workspaceId)).toHaveLength(0);
+  });
+
+  it("waits for a void still in flight on a live approval (no workspace lock), then voids only the rest", async () => {
+    const { ws, runId, r } = await approvedRun();
+    const [t1, b1] = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")];
+    const lineEdited = new Date(Date.now() - 60_000);
+    // the other void holds b1's row: the void's lock on the live approvals waits for it, then finds b1 voided
+    const { waited, result } = await behindHeldWrite(
+      (tx) =>
+        tx
+          .update(approvals)
+          .set({ voidedAt: lineEdited, voidReason: "LINE_EDITED" })
+          .where(eq(approvals.id, b1.id)),
+      (tx) => r.approvals.voidChecked(tx, checkedVoid(runId, [t1.nonce, b1.nonce])),
+    );
+    expect(waited).toBe(true);
+    if (!result.ok) throw new Error(`expected the void to apply, got ${result.reason}`);
+    expect(result.voided.map((a) => a.id)).toEqual([t1.id]);
+    expect(result.row.state).toBe("IN_REVIEW");
+    const [b] = await t.owner.db.select().from(approvals).where(eq(approvals.id, b1.id));
+    expect(b).toMatchObject({ voidedAt: lineEdited, voidReason: "LINE_EDITED" });
+    expect(await liveNonces(runId)).toEqual([]);
+    const entries = await voidEntries(ws.workspaceId);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.payload).toMatchObject({ runId, approvalIds: [t1.id], reason: "DIGEST_MISMATCH" });
   });
 
   it("a void reason is a code, never free text", async () => {
@@ -400,16 +479,17 @@ describe("inv.i6.posting-cas: runs.beginPosting moves APPROVED → POSTING only 
   it("waits for a void still in flight on a named approval (no workspace lock), then refuses", async () => {
     const { ws, runId, r } = await approvedRun();
     const [t1, b1] = [await sign(ws, runId, "treasurer"), await sign(ws, runId, "board")];
-    const held = await holdOpen(async (tx) => {
-      await tx
-        .update(approvals)
-        .set({ voidedAt: new Date(), voidReason: "LINE_EDITED" })
-        .where(eq(approvals.id, b1.id));
-    });
-    const starting = r.runs.beginPosting(t.app.db, posting(runId, [t1.nonce, b1.nonce]));
-    await sleep(150);
-    await held.commit();
-    expect(await starting).toEqual({ ok: false, reason: "APPROVALS_STALE", current: "APPROVED" });
+    // the void holds b1's row: the post's share lock on the approvals it names waits for it, then finds b1 voided
+    const { waited, result } = await behindHeldWrite(
+      (tx) =>
+        tx
+          .update(approvals)
+          .set({ voidedAt: new Date(), voidReason: "LINE_EDITED" })
+          .where(eq(approvals.id, b1.id)),
+      (tx) => r.runs.beginPosting(tx, posting(runId, [t1.nonce, b1.nonce])),
+    );
+    expect(waited).toBe(true);
+    expect(result).toEqual({ ok: false, reason: "APPROVALS_STALE", current: "APPROVED" });
     expect((await runRow(runId))?.state).toBe("APPROVED");
   });
 

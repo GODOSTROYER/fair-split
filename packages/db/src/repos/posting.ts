@@ -11,8 +11,9 @@
  *
  * Both writes take the workspace lock, then the run row FOR UPDATE, before reading approvals: a concurrent
  * transition, void or post on the run waits for them, and so does any approval being inserted for the run (its
- * foreign key check takes a key-share lock on the run row). A decision taken here is therefore still true when it
- * commits.
+ * foreign key check takes a key-share lock on the run row). They then lock the approvals they read, so a void that
+ * skips the run row and updates an approval directly is waited for too. A decision taken here is therefore still
+ * true when it commits.
  */
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Provenance } from "../_shims/contracts.js";
