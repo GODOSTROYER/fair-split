@@ -11,6 +11,7 @@ import {
   Verdict,
 } from "@fairsplit/contracts";
 import { z } from "zod";
+import { BALANCE_SOURCES, REPLAY_REASONS } from "./quota.js";
 import { TAMPER_KINDS } from "./tamper.js";
 
 export const QuotaView = z.strictObject({
@@ -24,27 +25,20 @@ export const QuotaView = z.strictObject({
   publicUsed: z.int().nonnegative(),
   coded: z.boolean(),
   balance: z.strictObject({
-    cents: z.int(),
-    /** "opening_estimate" until a balance reading exists: the UI says "estimate". */
-    source: z.enum(["reading", "opening_estimate"]),
+    /** Null when no fresh reading exists on the sandbox rail (PayPal steps replay: balance_unknown). */
+    cents: z.int().nullable(),
+    /**
+     * reading: the latest balance reading minus the live posts since; simulator_opening: the simulator's
+     * opening US$100,000 minus every simulated post (the UI says "estimate"); unknown: no fresh reading.
+     */
+    source: z.enum(BALANCE_SOURCES),
     at: IsoDateTime.nullable(),
   }),
 });
 
 export const RailView = z.strictObject({
   mode: z.enum(["live", "replay"]),
-  reason: z
-    .enum([
-      "kill_switch",
-      "simulator_not_running",
-      "circuit_open",
-      "balance_low",
-      "daily_cap",
-      "hourly_cap",
-      "session_cap",
-      "public_share",
-    ])
-    .nullable(),
+  reason: z.enum(REPLAY_REASONS).nullable(),
   label: z.string(),
   rail: z.enum(["simulated", "sandbox"]),
   quota: QuotaView,
@@ -137,6 +131,14 @@ export const CredentialView = z.strictObject({
   brand: z.string().nullable(),
   runSlug: RunSlug.nullable(),
   expiresAt: IsoDateTime,
+});
+
+/** The operator pairs an officer's phone in a live workspace it names (outside Judge Mode, S3.8). */
+export const OpsPairingRequest = z.strictObject({
+  workspaceId: Uuid,
+  persona: z.string().min(1).max(32),
+  role: Role,
+  memberNo: MemberNo.optional(),
 });
 
 export const MemberLinkRequest = z.strictObject({ lineId: Uuid });

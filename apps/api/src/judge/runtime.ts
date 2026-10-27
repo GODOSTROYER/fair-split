@@ -16,12 +16,23 @@ export const JUDGE_RATE_RULES = {
   pairingCreate: { name: "pairingCreate", limit: 20, windowMs: 600_000 },
   /** Every 6-digit claim attempt, all clients together: guessing a live code stays hopeless. */
   pairingCode6Global: { name: "pairingCode6Global", limit: 60, windowMs: 60_000 },
+  /** The real guard against guessing: 5 a minute per hashed IP (a scrypt check each). */
   opsLoginPerIp: { name: "opsLoginPerIp", limit: 5, windowMs: 60_000 },
-  opsLoginGlobal: { name: "opsLoginGlobal", limit: 30, windowMs: 60_000 },
+  /**
+   * Only a backstop on scrypt work (about 5 checks a second at most): far above what a crowd of guessers
+   * at 5 a minute each can use up quickly, so they cannot lock the operator out of /ops.
+   */
+  opsLoginGlobal: { name: "opsLoginGlobal", limit: 300, windowMs: 60_000 },
   judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000 },
   tamper: { name: "judgeTamper", limit: 10, windowMs: 600_000 },
   links: { name: "linkIssue", limit: 60, windowMs: 600_000 },
+  /** Brand links are the operator's: a handful per brand conversation. */
+  brandLinks: { name: "brandLinkIssue", limit: 20, windowMs: 600_000 },
+  /** The operator pairing officers' phones outside Judge Mode. */
+  opsPairing: { name: "opsPairing", limit: 20, windowMs: 600_000 },
   keys: { name: "judgeKeys", limit: 10, windowMs: 600_000 },
+  /** The public "What's real" view: per hashed IP (the view itself is cached for 2 s). */
+  publicLane: { name: "judgeLaneView", limit: 60, windowMs: 60_000 },
 } as const satisfies Record<string, RateRule>;
 
 /** S3.7: presence events at most one per 5 s per persona, expiring after 25 s. */
@@ -55,9 +66,18 @@ export class PresenceTracker {
   }
 }
 
+/** How long the public "What's real" view is served from memory (money decisions always read fresh). */
+export const PUBLIC_VIEW_TTL_MS = 2_000;
+const PUBLIC_VIEW_MAX_KEYS = 1_000;
+
 export interface JudgeRuntime {
   readonly lane: LiveLane;
   readonly presence: PresenceTracker;
+  /**
+   * A public, read-only view computed at most once per `PUBLIC_VIEW_TTL_MS` per key (concurrent callers
+   * share one computation). Never for a decision: `judgeRail` and `beginLiveStep` always read fresh.
+   */
+  cachedView<T>(key: string, nowMs: number, compute: () => Promise<T>): Promise<T>;
   /** Starts a pool refill in the background unless one is running (errors are logged, never thrown). */
   refillSoon(target?: number): void;
   /** Resolves when no background refill is running (tests, shutdown). */
@@ -76,9 +96,21 @@ export function judgeRuntime(deps: AppDeps): JudgeRuntime {
   if (rt) return rt;
   let refilling: Promise<void> | null = null;
   let clones = 0;
+  const views = new Map<string, { at: number; value: Promise<unknown> }>();
   rt = {
     lane: new LiveLane(deps.clock),
     presence: new PresenceTracker(),
+    cachedView<T>(key: string, nowMs: number, compute: () => Promise<T>): Promise<T> {
+      const hit = views.get(key);
+      if (hit && nowMs - hit.at < PUBLIC_VIEW_TTL_MS && nowMs >= hit.at) return hit.value as Promise<T>;
+      if (views.size >= PUBLIC_VIEW_MAX_KEYS) views.clear();
+      const value = compute();
+      views.set(key, { at: nowMs, value });
+      value.catch(() => {
+        if (views.get(key)?.value === value) views.delete(key);
+      });
+      return value;
+    },
     refillSoon(target = POOL_TARGET) {
       if (refilling) return;
       refilling = (async () => {

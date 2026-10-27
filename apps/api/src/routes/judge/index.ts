@@ -5,14 +5,15 @@
 // IC-01 commands here: createJudgeSession, presence.
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { PayRunState } from "@fairsplit/contracts";
-import { appendLedger, schema, workspaceScope } from "@fairsplit/db";
-import { and, eq, sql } from "drizzle-orm";
+import { appendLedger, withWorkspaceTx, workspaceScope } from "@fairsplit/db";
+import { sql } from "drizzle-orm";
 import { readJudgeCookie } from "../../credentials/issue/judge-cookie.js";
+import { refuseReplayOfSecret } from "../../credentials/issue/secrets.js";
 import type { JudgeSessionCredential } from "../../credentials/verify/index.js";
 import { DemoKeyRequest, DemoKeyResponse, registerDemoKey } from "../../judge/keys.js";
 import { retireStalePool } from "../../judge/pool.js";
 import { recordPresence } from "../../judge/presence.js";
-import { judgeRail, type RailDecision } from "../../judge/quota.js";
+import { judgeRail, type RailDecision, recordJudgeCode } from "../../judge/quota.js";
 import { runJudgeReset } from "../../judge/reset-task.js";
 import { JUDGE_RATE_RULES, judgeRuntime } from "../../judge/runtime.js";
 import {
@@ -54,6 +55,8 @@ export default defineRouteFolder({
   folder: "judge",
   commands: {
     createJudgeSession: async (ctx) => {
+      // the answer carries a console token: never stored for an Idempotency-Key replay (resume is the retry)
+      refuseReplayOfSecret(ctx.header);
       const started = await startJudgeSession(ctx.c, ctx.deps);
       return reply(started.status, started.body);
     },
@@ -108,16 +111,26 @@ export default defineRouteFolder({
         auth: "public",
         name: "lane",
         summary: "The live lane and today's live-payout quota (\"What's real\")",
+        description:
+          "Public and unauthenticated, so it is throttled per hashed IP and served from a 2 s cache; the decisions that move money never read this view.",
         response: PublicLaneView,
+        errors: ["RATE_LIMITED"],
       },
       async (ctx) => {
-        const cookie = readJudgeCookie(ctx.c, ctx.deps);
+        const deps = ctx.deps;
+        const ip = hashedClientIp(deps.credentials.keys, clientIp(ctx.c.req.raw.headers), ctx.now());
+        const limit = deps.rateLimits.take(JUDGE_RATE_RULES.publicLane, ip);
+        if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
+        const cookie = readJudgeCookie(ctx.c, deps);
         const sid = cookie.status === "ok" ? cookie.sid : null;
         const ws =
           ctx.credential && ctx.credential.kind !== "operator" ? ctx.credential.workspaceId : NO_WORKSPACE;
-        const rail = await judgeRail(ctx.deps, { workspaceId: ws, sessionId: sid, step: "session" });
-        const view = judgeRuntime(ctx.deps).lane.view();
-        return { lane: { depth: view.depth, holderStep: view.holder?.step ?? null }, rail: railView(rail) };
+        const rt = judgeRuntime(deps);
+        return rt.cachedView(`lane|${ws}|${sid ?? ""}`, deps.clock.nowMs(), async () => {
+          const rail = await judgeRail(deps, { workspaceId: ws, sessionId: sid, step: "session" });
+          const view = rt.lane.view();
+          return { lane: { depth: view.depth, holderStep: view.holder?.step ?? null }, rail: railView(rail) };
+        });
       },
     );
 
@@ -187,26 +200,21 @@ export default defineRouteFolder({
         if (!timingSafeEqual(got, Buffer.from(want, "hex"))) {
           throw problem.forbidden("That judge code is not valid.");
         }
-        const le = schema.ledgerEntries;
-        const [already] = await deps.db
-          .select({ id: le.id })
-          .from(le)
-          .where(
-            and(eq(le.kind, "judge.code.accepted"), sql`${le.payload}->>'sessionId' = ${cred.sessionId}`),
-          )
-          .limit(1);
-        if (!already) {
-          const scope = workspaceScope({
-            workspaceId: cred.workspaceId,
-            actor: { kind: "human", id: "judge", impersonatedBy: `judge_session:${cred.sessionId}` },
-            via: "session",
-          });
-          await appendLedger(deps.db, scope, {
+        // The unlock lives in the judge quota ledger (system rows), so it follows the session across Resets
+        // and the purge of its workspaces; the workspace's own ledger attributes the moment it was entered.
+        const scope = workspaceScope({
+          workspaceId: cred.workspaceId,
+          actor: { kind: "human", id: "judge", impersonatedBy: `judge_session:${cred.sessionId}` },
+          via: "session",
+        });
+        await withWorkspaceTx(deps.db, scope, async (tx) => {
+          if (!(await recordJudgeCode(tx, { sessionId: cred.sessionId, at: ctx.now() }))) return;
+          await appendLedger(tx, scope, {
             kind: "judge.code.accepted",
             payload: { sessionId: cred.sessionId },
             at: ctx.now(),
           });
-        }
+        });
         return { ok: true as const, bucket: "judge_code" as const };
       },
     );
@@ -217,7 +225,8 @@ export default defineRouteFolder({
         path: "/v1/judge/keys",
         auth: "frame_or_session",
         name: "registerDemoKey",
-        summary: "Register this frame's browser demo signing key (fs-{persona}-w{n}, labelled Demo key)",
+        summary:
+          "Register this frame's browser demo signing key (fs-{persona}-w{6 random digits}, labelled Demo key; one key, one signer)",
         request: DemoKeyRequest,
         response: DemoKeyResponse,
         success: [201],

@@ -1,13 +1,16 @@
-// The judge workspace pool (S3.9). A first press claims a pooled workspace (`FOR UPDATE SKIP LOCKED`, so
-// two judges never share one) or, when the pool is empty, clones one on the spot. Pooled workspaces are
+// The judge workspace pool (S3.9). A first press claims a pooled workspace (a non-blocking workspace lock,
+// then a compare-and-set on its row, so two judges never share one) or, when the pool is empty, clones one
+// on the spot. Pooled workspaces are
 // unclaimed (`claimed_at` and `expires_at` null) and carry the seed fingerprint in their name, so a deploy
 // with a new seed retires the old ones instead of handing them out. A claimed workspace lives 24 h.
 //
 // Purge (hourly `judgeReset`): `fs_purge_workspace()` deletes an expired judge workspace and everything in
 // it. It already refuses while money is in flight (a POSTING run, a non-terminal item). We also wait while
 // the workspace's PayPal calls are inside the limiter's window or circuit (7 minutes: the purge cascade
-// would delete the `paypal_calls` rows the limiter counts) and while its batches still count toward the
-// rolling 24 h live-post quota (the cascade would hand that quota back early).
+// would delete the `paypal_calls` rows the limiter counts) and while its batches are inside the rolling
+// 24 h window. The quota and the spend no longer depend on that wait (they live in the judge quota ledger,
+// system rows the cascade never touches); it remains as the safety net for a post made outside the
+// protocol. Expiry here is the database clock's, exactly as `fs_purge_workspace()` decides it.
 import { asDbError, type Db, schema, type Tx, uuidv7 } from "@fairsplit/db";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { JUDGE_COOKIE_TTL_MS } from "../credentials/verify/index.js";
@@ -57,26 +60,38 @@ export async function cloneWorkspace(
   return id;
 }
 
+/** How many free pooled workspaces one claim looks at before it clones instead. */
+const CLAIM_CANDIDATES = 8;
+
 /**
- * Claims one pooled workspace of the current seed for 24 h, or returns null when none is free. Two
- * concurrent claims never get the same row (SKIP LOCKED) and never wait on each other.
+ * Claims one pooled workspace of the current seed for 24 h, or returns null when none is free. Lock order
+ * (db/tx.ts): the workspace lock before its row. Candidates are read without a lock; each is tried with a
+ * NON-blocking workspace lock (held to commit, as the session start needs it next), then claimed with a
+ * compare-and-set on the row. So two concurrent claims never get the same workspace and never wait on each
+ * other, and a workspace whose lock someone holds is skipped, not waited on.
  */
 export async function claimPooledWorkspace(tx: Tx, now: Date, expiresAt: Date): Promise<string | null> {
   const w = schema.workspaces;
-  const [free] = await tx
+  const free = and(eq(w.kind, "judge"), isNull(w.claimedAt), isNull(w.expiresAt), eq(w.name, poolName()));
+  const candidates = await tx
     .select({ id: w.id })
     .from(w)
-    .where(and(eq(w.kind, "judge"), isNull(w.claimedAt), isNull(w.expiresAt), eq(w.name, poolName())))
+    .where(free)
     .orderBy(w.createdAt)
-    .limit(1)
-    .for("update", { skipLocked: true });
-  if (!free) return null;
-  const [claimed] = await tx
-    .update(w)
-    .set({ claimedAt: now, expiresAt })
-    .where(and(eq(w.id, free.id), isNull(w.claimedAt)))
-    .returning({ id: w.id });
-  return claimed?.id ?? null;
+    .limit(CLAIM_CANDIDATES);
+  for (const { id } of candidates) {
+    const [lock] = (await tx.execute(
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${`fs:ws-log:${id}`}, 0)) as locked`,
+    )) as unknown as { locked: boolean }[];
+    if (!lock?.locked) continue;
+    const [claimed] = await tx
+      .update(w)
+      .set({ claimedAt: now, expiresAt })
+      .where(and(eq(w.id, id), free))
+      .returning({ id: w.id });
+    if (claimed) return claimed.id;
+  }
+  return null;
 }
 
 /** Unclaimed workspaces of the current seed. */

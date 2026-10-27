@@ -12,7 +12,7 @@
 import { TASKS, TaskArgs } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
 import { enqueue, type TaskContext } from "@fairsplit/outbox";
-import { and, asc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { POOL_TARGET, poolSize, purgeExpiredJudgeWorkspaces, refillPool, retireStalePool } from "./pool.js";
 
@@ -40,20 +40,28 @@ async function enqueueCancels(
 ): Promise<number> {
   const pi = schema.payoutItems;
   const w = schema.workspaces;
+  // Parked since: the item.updated event that moved it to UNCLAIMED (the line's events are indexed), else
+  // when the item was written. Never updated_at: a webhook re-delivery or a settle GET touches the row and
+  // would restart the 15 minutes.
+  const parkedSince = sql`coalesce((
+    select min(e.at) from run_events e
+     where e.line_id = ${pi.lineId} and e.workspace_id = ${pi.workspaceId} and e.type = 'item.updated'
+       and e.payload->>'payoutItemId' = ${pi.payoutItemId} and e.payload->>'to' = 'UNCLAIMED'
+  ), ${pi.createdAt})`;
   const conditions = [
     eq(w.kind, "judge"),
     eq(pi.status, "UNCLAIMED"),
     isNull(pi.cancelRequestedAt),
     sql`${pi.payoutItemId} is not null`,
     ...(where.workspaceId ? [eq(pi.workspaceId, where.workspaceId)] : []),
-    ...(where.parkedBefore ? [lt(pi.updatedAt, where.parkedBefore)] : []),
+    ...(where.parkedBefore ? [sql`${parkedSince} < ${where.parkedBefore.toISOString()}::timestamptz`] : []),
   ];
   const parked = await deps.db
     .select({ workspaceId: pi.workspaceId, payoutItemId: pi.payoutItemId })
     .from(pi)
     .innerJoin(w, eq(w.id, pi.workspaceId))
     .where(and(...conditions))
-    .orderBy(asc(pi.updatedAt))
+    .orderBy(asc(parkedSince))
     .limit(limit);
   if (parked.length === 0) return 0;
   let n = 0;

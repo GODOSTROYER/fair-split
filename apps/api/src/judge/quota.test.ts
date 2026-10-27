@@ -2,10 +2,12 @@ import { decide } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { settlementOf } from "./live-step.js";
 import {
   dailyLivePostCap,
   daysLeft,
   decideRail,
+  isQuotaReplay,
   JUDGE_QUOTA,
   type JudgeStep,
   type QuotaFacts,
@@ -20,7 +22,7 @@ function facts(o: Partial<QuotaFacts> = {}): QuotaFacts {
     killPaypalLive: false,
     simulatorStub: false,
     circuitOpenUntil: null,
-    balance: { cents: JUDGE_QUOTA.openingBalanceCents, source: "reading", at: NOW },
+    balance: { cents: JUDGE_QUOTA.simulatorOpeningCents, source: "reading", at: NOW, spentCents: 0 },
     posts24h: 0,
     postsThisHour: 0,
     sessionPosts24h: 0,
@@ -77,7 +79,8 @@ describe("live or replay", () => {
       [{ killPaypalLive: true }, "kill_switch"],
       [{ simulatorStub: true }, "simulator_not_running"],
       [{ circuitOpenUntil: new Date(NOW.getTime() + 60_000) }, "circuit_open"],
-      [{ balance: { cents: 999_999, source: "reading", at: NOW } }, "balance_low"],
+      [{ balance: { cents: null, source: "unknown", at: null, spentCents: 0 } }, "balance_unknown"],
+      [{ balance: { cents: 999_999, source: "reading", at: NOW, spentCents: 0 } }, "balance_low"],
       [{ posts24h: 6 }, "daily_cap"],
       [{ postsThisHour: 3 }, "hourly_cap"],
       [{ sessionPosts24h: 3 }, "session_cap"],
@@ -106,7 +109,7 @@ describe("live or replay", () => {
     expect(decideRail(facts({ killPaypalLive: true }), NOW, "cancel", "sandbox").mode).toBe("replay");
   });
 
-  it("property (monotone): more posts, a lower balance or a switch turned on never turns a replay live", () => {
+  it("property (monotone): more posts, a lower or unknown balance, or a switch turned on never turns a replay live", () => {
     const steps: JudgeStep[] = ["session", "invoice", "fund", "post", "cancel", "resend"];
     fc.assert(
       fc.property(
@@ -115,12 +118,18 @@ describe("live or replay", () => {
           postsThisHour: fc.nat(5),
           sessionPosts24h: fc.nat(5),
           publicPosts24h: fc.nat(20),
-          cents: fc.integer({ min: 0, max: 20_000_000 }),
+          cents: fc.option(fc.integer({ min: 0, max: 20_000_000 }), { nil: null }),
           kill: fc.boolean(),
           stub: fc.boolean(),
           coded: fc.boolean(),
         }),
-        fc.record({ posts: fc.nat(5), less: fc.nat(5_000_000), kill: fc.boolean(), stub: fc.boolean() }),
+        fc.record({
+          posts: fc.nat(5),
+          less: fc.nat(5_000_000),
+          forget: fc.boolean(),
+          kill: fc.boolean(),
+          stub: fc.boolean(),
+        }),
         fc.constantFrom(...steps),
         (a, worse, step) => {
           const base = facts({
@@ -128,18 +137,26 @@ describe("live or replay", () => {
             postsThisHour: a.postsThisHour,
             sessionPosts24h: a.sessionPosts24h,
             publicPosts24h: a.publicPosts24h,
-            balance: { cents: a.cents, source: "reading", at: NOW },
+            balance:
+              a.cents === null
+                ? { cents: null, source: "unknown", at: null, spentCents: 0 }
+                : { cents: a.cents, source: "reading", at: NOW, spentCents: 0 },
             killPaypalLive: a.kill,
             simulatorStub: a.stub,
             coded: a.coded,
           });
-          const harder = {
+          // losing the reading (unknown) is the worst a balance can get
+          const cents = base.balance.cents === null || worse.forget ? null : base.balance.cents - worse.less;
+          const harder: QuotaFacts = {
             ...base,
             posts24h: base.posts24h + worse.posts,
             postsThisHour: base.postsThisHour + worse.posts,
             sessionPosts24h: base.sessionPosts24h + worse.posts,
             publicPosts24h: base.publicPosts24h + worse.posts,
-            balance: { ...base.balance, cents: base.balance.cents - worse.less },
+            balance:
+              cents === null
+                ? { cents: null, source: "unknown", at: null, spentCents: 0 }
+                : { ...base.balance, cents },
             killPaypalLive: base.killPaypalLive || worse.kill,
             simulatorStub: base.simulatorStub || worse.stub,
           };
@@ -149,6 +166,68 @@ describe("live or replay", () => {
         },
       ),
     );
+  });
+
+  it("a run holding a reservation is past the quota reasons, never past a switch, the simulator or the circuit", () => {
+    const quota: Partial<QuotaFacts>[] = [
+      { balance: { cents: null, source: "unknown", at: null, spentCents: 0 } },
+      { balance: { cents: 1, source: "reading", at: NOW, spentCents: 0 } },
+      { posts24h: 99 },
+      { postsThisHour: 3 },
+      { sessionPosts24h: 3 },
+      { publicPosts24h: 99 },
+    ];
+    for (const f of quota) expect(isQuotaReplay(decideRail(facts(f), NOW, "post", "sandbox"))).toBe(true);
+    const switches: Partial<QuotaFacts>[] = [
+      { killPaypalLive: true },
+      { simulatorStub: true },
+      { circuitOpenUntil: new Date(NOW.getTime() + 1) },
+    ];
+    for (const f of switches) {
+      expect(isQuotaReplay(decideRail(facts(f), NOW, "post", "sandbox"))).toBe(false);
+    }
+    expect(isQuotaReplay(decideRail(facts(), NOW, "post", "sandbox"))).toBe(false);
+  });
+});
+
+describe("settling a live post from PayoutsService's outcome", () => {
+  const base = { senderBatchId: "2026A-7f3a91c2-r470001" };
+  const created = { ...base, payoutBatchId: "B1", batchStatus: "PENDING", batchSha256: "a".repeat(64) };
+  const extra = { requestId: "r", debugId: null, attempts: 1, verifiedBy: null };
+
+  it("posted when PayPal created or already holds the batch; denied on a synchronous 4xx; free when nothing was sent", () => {
+    expect(settlementOf({ kind: "created", ...created, ...extra })).toBe("posted");
+    expect(settlementOf({ kind: "adopted", ...created, ...extra })).toBe("posted");
+    // PayPal says the batch exists but it does not re-hash: money may have moved, so the slot stays spent
+    expect(settlementOf({ kind: "refused", code: "ADOPT_FAILED", reason: "x", ...base })).toBe("posted");
+    expect(
+      settlementOf({
+        kind: "rejected",
+        ...base,
+        status: 422,
+        name: "INSUFFICIENT_FUNDS",
+        message: "x",
+        debugId: null,
+      }),
+    ).toBe("denied");
+    for (const code of ["DIGEST_MISMATCH", "APPROVALS_MISSING", "KILL_SWITCH_ON", "SANDBOX_GUARD"] as const) {
+      expect(settlementOf({ kind: "refused", code, reason: "x", ...base }), code).toBe("not_posted");
+    }
+  });
+
+  it("stays open (the retry resumes the same batch) when unresolved, circuit-paced, or never answered", () => {
+    expect(settlementOf({ kind: "refused", code: "CIRCUIT_OPEN", reason: "x", ...base })).toBeNull();
+    expect(
+      settlementOf({
+        kind: "unresolved",
+        ...base,
+        attempts: 4,
+        lastStatus: 503,
+        debugId: null,
+        reason: "RETRIES_EXHAUSTED",
+      }),
+    ).toBeNull();
+    expect(settlementOf(undefined)).toBeNull();
   });
 });
 

@@ -8,8 +8,10 @@
 //       no PayPal call is made, and nothing is sent.
 //   change_payout  armed before the second key: once both keys are in and just before the POST, one
 //       payout changes by one cent behind the signatures' back. `PayoutsService.executeApproved` re-hashes
-//       the batch from the database (I4), refuses, sends nothing and voids both approvals. The run slice's
-//       `postPayoutBatch` calls `applyArmedTamper()` first; arming and applying are both ledger entries.
+//       the batch from the database (I4), refuses and sends nothing; the run slice voids both approvals.
+//       The run slice's `postPayoutBatch` runs the post inside `withArmedTamper()`, which commits the
+//       change on its own before the post and undoes it (compare-and-set) after a refusal, so no line is
+//       ever left drifted from what code computed. Arming, applying and undoing are all ledger entries.
 import type { PolicyCtx, ToolCall } from "@fairsplit/contracts";
 import { PAY_RUN_RANK, type PayRunState, type PolicyName, type Verdict } from "@fairsplit/contracts";
 import {
@@ -35,6 +37,7 @@ import {
   seasonLabelOf,
   sha256Hex,
 } from "@fairsplit/domain";
+import type { BatchOutcome } from "@fairsplit/paypal-payouts";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { JudgeSessionCredential } from "../credentials/verify/index.js";
@@ -235,38 +238,76 @@ export async function tamperDraft(
 
 const ARMED = "judge.tamper.armed";
 const APPLIED = "judge.tamper.applied";
+const REVERTED = "judge.tamper.reverted";
+const ESCAPED = "judge.tamper.escaped";
 
-async function tamperEntries(db: DbOrTx, workspaceId: string, runId: string) {
+/** What an applied change left behind: the values it wrote, so the undo is a compare-and-set. */
+interface AppliedChange {
+  lineId: string;
+  itemId: string | null;
+  deltaCents: number;
+  /** The line's net and credits, and the item's amount, as the change left them (decimal cents). */
+  lineNetCents: string;
+  lineCreditsCents: string;
+  itemAmountCents: string | null;
+}
+
+interface TamperState {
+  /** Armed and not yet applied: the next post applies it. */
+  armed: boolean;
+  /** Applied by a post that has not finished: undone (or declared escaped) before anything else. */
+  pending: AppliedChange | null;
+}
+
+/**
+ * The run's change_payout story from its own ledger entries, in order: every arming is used by one
+ * application, and every application is closed by one undo (or, if the batch ever reached PayPal, one
+ * escape). Counting them keeps arming, applying and undoing idempotent and re-armable.
+ */
+async function tamperState(db: DbOrTx, workspaceId: string, runId: string): Promise<TamperState> {
   const le = schema.ledgerEntries;
   const rows = await db
-    .select({ kind: le.kind })
+    .select({ kind: le.kind, payload: le.payload })
     .from(le)
-    .where(and(eq(le.workspaceId, workspaceId), eq(le.runId, runId), inArray(le.kind, [ARMED, APPLIED])));
-  return { armed: rows.some((r) => r.kind === ARMED), applied: rows.some((r) => r.kind === APPLIED) };
+    .where(
+      and(
+        eq(le.workspaceId, workspaceId),
+        eq(le.runId, runId),
+        inArray(le.kind, [ARMED, APPLIED, REVERTED, ESCAPED]),
+      ),
+    )
+    .orderBy(asc(le.seq));
+  const count = (k: string) => rows.filter((r) => r.kind === k).length;
+  const applied = rows.filter((r) => r.kind === APPLIED);
+  const closed = count(REVERTED) + count(ESCAPED);
+  const last = applied.at(-1)?.payload as Partial<AppliedChange> | undefined;
+  const pending =
+    applied.length > closed && last?.lineId
+      ? {
+          lineId: last.lineId,
+          itemId: last.itemId ?? null,
+          deltaCents: last.deltaCents ?? 1,
+          lineNetCents: String(last.lineNetCents ?? ""),
+          lineCreditsCents: String(last.lineCreditsCents ?? ""),
+          itemAmountCents: last.itemAmountCents ?? null,
+        }
+      : null;
+  return { armed: count(ARMED) > applied.length, pending };
 }
 
 /** Whether a change_payout tamper is armed (and not yet applied) for this run. */
 export async function tamperArmed(db: DbOrTx, workspaceId: string, runId: string): Promise<boolean> {
-  const t = await tamperEntries(db, workspaceId, runId);
-  return t.armed && !t.applied;
+  return (await tamperState(db, workspaceId, runId)).armed;
 }
 
-/** Arms "change one payout after both keys": allowed only before the second key. Idempotent. */
+/**
+ * Arms "change one payout after both keys": allowed only before the second key, idempotent while armed,
+ * 409 while an applied change is still being undone. After a refused post was undone (and the run is
+ * back before the second key), it can be armed again.
+ */
 export async function armChangePayout(deps: AppDeps, cred: JudgeSessionCredential): Promise<TamperOutcome> {
   const now = deps.clock.now();
   const run = await currentRun(deps, cred.workspaceId);
-  const base = {
-    kind: "change_payout" as const,
-    label: TAMPER_LABEL.change_payout,
-    simulated: true as const,
-    runSlug: run.runSlug,
-    verdict: null,
-    decidedBy: [],
-    reasons: [],
-    armed: true,
-    paypalCalls: 0 as const,
-    modelCalls: 0 as const,
-  };
   await withWorkspaceTx(deps.db, cred.workspaceId, async (tx) => {
     const [row] = await tx
       .select({ state: schema.payRuns.state })
@@ -274,7 +315,14 @@ export async function armChangePayout(deps: AppDeps, cred: JudgeSessionCredentia
       .where(eq(schema.payRuns.id, run.id))
       .for("update");
     const state = (row?.state ?? run.state) as PayRunState;
-    const t = await tamperEntries(tx, cred.workspaceId, run.id);
+    const t = await tamperState(tx, cred.workspaceId, run.id);
+    if (t.pending) {
+      throw new ApiProblem(
+        "INVALID_TRANSITION",
+        "The armed change is being applied to this run's post right now.",
+        { details: { runState: state } },
+      );
+    }
     if (t.armed) return; // already armed (before the second key): it stands
     if (PAY_RUN_RANK[state] >= PAY_RUN_RANK.APPROVED) {
       throw new ApiProblem(
@@ -292,49 +340,181 @@ export async function armChangePayout(deps: AppDeps, cred: JudgeSessionCredentia
       at: now,
     });
   });
-  return base;
+  return {
+    kind: "change_payout",
+    label: TAMPER_LABEL.change_payout,
+    simulated: true,
+    runSlug: run.runSlug,
+    verdict: null,
+    decidedBy: [],
+    reasons: [],
+    armed: true,
+    paypalCalls: 0,
+    modelCalls: 0,
+  };
+}
+
+async function isJudge(db: DbOrTx, workspaceId: string): Promise<boolean> {
+  const [w] = await db
+    .select({ kind: schema.workspaces.kind })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId));
+  return w?.kind === "judge";
 }
 
 /**
- * For the run slice's `postPayoutBatch`, inside its transaction and before `executeApproved`: when a judge
- * armed "change one payout", moves one on-rail line (and its payout item, if written) up by one cent,
- * without voiding anything, exactly as an insider editing the database would. Only in judge workspaces;
- * recorded in the ledger. `executeApproved` must then refuse (I4).
+ * Applies an armed "change one payout": moves one on-rail line (and its SUBMITTED payout item, if written)
+ * up by one cent, voiding nothing, exactly as an insider editing the database would, and records it with
+ * the values it wrote. Judge workspaces only. Prefer `withArmedTamper`, which commits this on its own,
+ * runs the post, and undoes it; called directly, commit it before `executeApproved` and undo it after.
  */
 export async function applyArmedTamper(
-  tx: DbOrTx,
+  db: DbOrTx,
   scope: WorkspaceScope,
   runId: string,
-  at: Date = new Date(),
+  at: Date,
 ): Promise<{ applied: false } | { applied: true; lineId: string; itemId: string | null }> {
   const ws = scope.workspaceId;
-  const [w] = await tx
-    .select({ kind: schema.workspaces.kind })
-    .from(schema.workspaces)
-    .where(eq(schema.workspaces.id, ws));
-  if (w?.kind !== "judge") return { applied: false };
-  if (!(await tamperArmed(tx, ws, runId))) return { applied: false };
-  const ml = schema.memberLines;
-  const [line] = await tx
-    .select({ id: ml.id })
-    .from(ml)
-    .where(and(eq(ml.workspaceId, ws), eq(ml.runId, runId), eq(ml.rail, "ON")))
-    .orderBy(asc(ml.id))
-    .limit(1);
-  if (!line) return { applied: false };
-  await tx.execute(sql`
-    update member_lines set credits_cents = credits_cents + 1, net_cents = net_cents + 1
-     where workspace_id = ${ws} and id = ${line.id}`);
-  const items = (await tx.execute(sql`
-    update payout_items set amount_cents = amount_cents + 1
-     where workspace_id = ${ws} and line_id = ${line.id} and status = 'SUBMITTED'
-     returning id`)) as unknown as { id: string }[];
-  const itemId = items[0]?.id ?? null;
-  await appendLedger(tx, scope, {
-    kind: APPLIED,
-    payload: { runId, lineId: line.id, itemId, deltaCents: 1, simulated: true },
-    runId,
-    at,
+  if (!(await isJudge(db, ws))) return { applied: false };
+  // lock order (db/tx.ts): the workspace lock before the line and item rows
+  return withWorkspaceTx(db, scope, async (tx) => {
+    const t = await tamperState(tx, ws, runId);
+    if (!t.armed || t.pending) return { applied: false };
+    const ml = schema.memberLines;
+    const [line] = await tx
+      .select({ id: ml.id })
+      .from(ml)
+      .where(and(eq(ml.workspaceId, ws), eq(ml.runId, runId), eq(ml.rail, "ON")))
+      .orderBy(asc(ml.id))
+      .limit(1);
+    if (!line) return { applied: false };
+    const [moved] = (await tx.execute(sql`
+      update member_lines set credits_cents = credits_cents + 1, net_cents = net_cents + 1
+       where workspace_id = ${ws} and id = ${line.id}
+       returning net_cents::text as net, credits_cents::text as credits`)) as unknown as {
+      net: string;
+      credits: string;
+    }[];
+    const [item] = (await tx.execute(sql`
+      update payout_items set amount_cents = amount_cents + 1
+       where workspace_id = ${ws} and line_id = ${line.id} and status = 'SUBMITTED'
+       returning id, amount_cents::text as amount`)) as unknown as { id: string; amount: string }[];
+    const change: AppliedChange = {
+      lineId: line.id,
+      itemId: item?.id ?? null,
+      deltaCents: 1,
+      lineNetCents: moved?.net ?? "",
+      lineCreditsCents: moved?.credits ?? "",
+      itemAmountCents: item?.amount ?? null,
+    };
+    await appendLedger(tx, scope, {
+      kind: APPLIED,
+      payload: { runId, ...change, simulated: true },
+      runId,
+      at,
+    });
+    return { applied: true, lineId: line.id, itemId: change.itemId };
   });
-  return { applied: true, lineId: line.id, itemId };
+}
+
+/**
+ * Undoes an applied change that is still open, compare-and-set: the line (and item) go back by the delta
+ * only while they still hold exactly what the change wrote, so a line code has recomputed since is never
+ * touched. Records `judge.tamper.reverted` with the reason and whether anything was restored. Idempotent.
+ */
+export async function revertAppliedTamper(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  runId: string,
+  o: { at: Date; reason: string },
+): Promise<{ reverted: false } | { reverted: true; restored: boolean; lineId: string }> {
+  const ws = scope.workspaceId;
+  return withWorkspaceTx(db, scope, async (tx) => {
+    const t = await tamperState(tx, ws, runId);
+    const c = t.pending;
+    if (!c) return { reverted: false };
+    const line = (await tx.execute(sql`
+      update member_lines
+         set credits_cents = credits_cents - ${c.deltaCents}, net_cents = net_cents - ${c.deltaCents}
+       where workspace_id = ${ws} and id = ${c.lineId}
+         and net_cents::text = ${c.lineNetCents} and credits_cents::text = ${c.lineCreditsCents}
+       returning id`)) as unknown as { id: string }[];
+    if (c.itemId && c.itemAmountCents !== null) {
+      await tx.execute(sql`
+        update payout_items set amount_cents = amount_cents - ${c.deltaCents}
+         where workspace_id = ${ws} and id = ${c.itemId} and amount_cents::text = ${c.itemAmountCents}`);
+    }
+    const restored = line.length === 1;
+    await appendLedger(tx, scope, {
+      kind: REVERTED,
+      payload: {
+        runId,
+        lineId: c.lineId,
+        itemId: c.itemId,
+        deltaCents: c.deltaCents,
+        restored,
+        reason: o.reason,
+        simulated: true,
+      },
+      runId,
+      at: o.at,
+    });
+    return { reverted: true, restored, lineId: c.lineId };
+  });
+}
+
+/**
+ * The run slice's post, with "change one payout after both keys" around it (I4 at this boundary):
+ *   1. a change an earlier attempt applied and never closed is undone first (a crash never leaves the
+ *      line drifted, and a change is never applied twice);
+ *   2. an armed change is applied and COMMITTED on its own, so `executeApproved` re-reads it from the
+ *      database and a rollback of the post can never take the change (or its ledger entry) with it;
+ *   3. the post runs; when it sent nothing (refused before PayPal, or threw) the change is undone, so the
+ *      line is what code computed and the batch hashes back to what both keys signed. If a changed batch
+ *      ever reached PayPal (created, adopted, unresolved, or even rejected: I4 broken), the database keeps
+ *      what was sent and `judge.tamper.escaped` says so, loudly.
+ */
+export async function withArmedTamper(
+  deps: Pick<AppDeps, "db" | "clock" | "logger">,
+  o: { scope: WorkspaceScope; runId: string },
+  post: () => Promise<BatchOutcome>,
+): Promise<BatchOutcome> {
+  const { scope, runId } = o;
+  if (!(await isJudge(deps.db, scope.workspaceId))) return post();
+  await revertAppliedTamper(deps.db, scope, runId, { at: deps.clock.now(), reason: "recovered" });
+  const applied = await applyArmedTamper(deps.db, scope, runId, deps.clock.now());
+  if (!applied.applied) return post();
+  let outcome: BatchOutcome;
+  try {
+    outcome = await post();
+  } catch (err) {
+    await revertAppliedTamper(deps.db, scope, runId, { at: deps.clock.now(), reason: "post_failed" });
+    throw err;
+  }
+  if (outcome.kind === "refused") {
+    await revertAppliedTamper(deps.db, scope, runId, {
+      at: deps.clock.now(),
+      reason: `refused:${outcome.code}`,
+    });
+    return outcome;
+  }
+  deps.logger.error(
+    { workspaceId: scope.workspaceId, runId, outcome: outcome.kind },
+    "I4: a batch carrying the armed one-cent change was not refused",
+  );
+  await withWorkspaceTx(deps.db, scope, (tx) =>
+    appendLedger(tx, scope, {
+      kind: ESCAPED,
+      payload: {
+        runId,
+        lineId: applied.lineId,
+        itemId: applied.itemId,
+        outcome: outcome.kind,
+        simulated: true,
+      },
+      runId,
+      at: deps.clock.now(),
+    }),
+  );
+  return outcome;
 }

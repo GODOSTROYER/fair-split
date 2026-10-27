@@ -1,20 +1,28 @@
 // Judge slice on embedded Postgres: the world clone, the pool, sessions (start, resume, throttles, QUEUED),
 // Reset, presence, the "Try to break it" controls, the judge code, demo keys and the judgeReset task.
 import { createHash, sign as edSign, generateKeyPairSync } from "node:crypto";
-import { ApiError, CreateJudgeSessionResponse, LedgerPayloads, RunEvent, TASKS } from "@fairsplit/contracts";
-import { asDbError, schema, systemScope, verifyChain } from "@fairsplit/db";
+import {
+  ApiError,
+  CreateJudgeSessionResponse,
+  DeviceKeyId,
+  LedgerPayloads,
+  RunEvent,
+  TASKS,
+} from "@fairsplit/contracts";
+import { asDbError, schema, verifyChain } from "@fairsplit/db";
 import { jcs } from "@fairsplit/domain";
 import { getMembers, getPhotos, getSlips, getSnapshot } from "@fairsplit/seed";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { JUDGE_COOKIE } from "../credentials/verify/index.js";
 import { hashedClientIp } from "../lib/client-ip.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 import { demoKeyStatement } from "./keys.js";
 import { claimPooledWorkspace, poolName, poolSize, purgeExpiredJudgeWorkspaces, refillPool } from "./pool.js";
+import { recordBalanceReading } from "./quota.js";
 import { runJudgeReset } from "./reset-task.js";
 import { judgeRuntime, MAX_CONCURRENT_CLONES } from "./runtime.js";
-import { applyArmedTamper, tamperArmed } from "./tamper.js";
+import { tamperArmed } from "./tamper.js";
 import { openingLedger } from "./world.js";
 
 let t: TestApp;
@@ -153,6 +161,31 @@ describe("the judge world (a clone of the seed)", () => {
     expect(b).toBeTruthy();
     expect(a).not.toBe(b);
     expect(await poolSize(t.deps.db)).toBe(before - 2);
+  });
+
+  it("claims in lock order (workspace lock, then row): a pooled workspace whose lock is held is skipped, never waited on", async () => {
+    await refillPool(t.deps.db, 2);
+    const w = schema.workspaces;
+    const free = await t.deps.db
+      .select({ id: w.id })
+      .from(w)
+      .where(and(eq(w.kind, "judge"), isNull(w.claimedAt), isNull(w.expiresAt), eq(w.name, poolName())))
+      .orderBy(w.createdAt)
+      .limit(2);
+    expect(free).toHaveLength(2);
+    // another transaction holds the oldest one's workspace lock (db/tx.ts: taken before any row lock)
+    const holder = await ownerSql().reserve();
+    await holder`select pg_advisory_lock(hashtextextended(${`fs:ws-log:${free[0]?.id}`}, 0))`;
+    try {
+      const now = t.clock.now();
+      const claimed = await t.deps.db.transaction((tx) =>
+        claimPooledWorkspace(tx, now, new Date(now.getTime() + 60_000)),
+      );
+      expect(claimed).toBe(free[1]?.id);
+    } finally {
+      await holder`select pg_advisory_unlock_all()`;
+      holder.release();
+    }
   });
 });
 
@@ -516,55 +549,6 @@ describe("Try to break it", () => {
     expect(ApiError.parse(refused.body).code).toBe("INVALID_TRANSITION");
   });
 
-  it("inv.i4.digest: an armed tamper moves one on-rail payout by exactly one cent behind the signatures", async () => {
-    const s = await startSession({ ip: "203.0.113.93" });
-    await t.json(`/v1/judge/sessions/${s.body.sessionId}/tamper`, {
-      method: "POST",
-      body: { kind: "change_payout" },
-      as: judge(s.cookie),
-    });
-    const ws = s.body.workspaceId;
-    const [member] = await t.deps.db
-      .select({ id: schema.members.id })
-      .from(schema.members)
-      .where(and(eq(schema.members.workspaceId, ws), eq(schema.members.memberNo, "M-014")));
-    const db = owner();
-    const [line] = await db
-      .insert(schema.memberLines)
-      .values({
-        workspaceId: ws,
-        runId: s.body.runId,
-        memberId: member?.id as string,
-        state: "LOCKED",
-        rail: "ON",
-        currency: "USD",
-        verifiedG: 1000n,
-        grade1G: 1000n,
-        premiumCents: 3000n,
-        bonusCents: 1500n,
-        deductionsCents: 131n,
-        creditsCents: 0n,
-        netCents: 4369n,
-        deductions: [],
-        provenance: "replay",
-      })
-      .returning({ id: schema.memberLines.id });
-    const out = await t.deps.db.transaction((tx) =>
-      applyArmedTamper(tx, systemScope(ws), s.body.runId, t.clock.now()),
-    );
-    expect(out).toMatchObject({ applied: true, lineId: line?.id });
-    const [after] = await t.deps.db
-      .select({ net: schema.memberLines.netCents, credits: schema.memberLines.creditsCents })
-      .from(schema.memberLines)
-      .where(eq(schema.memberLines.id, line?.id as string));
-    expect(after).toEqual({ net: 4370n, credits: 1n });
-    // applied once only
-    expect(await tamperArmed(t.deps.db, ws, s.body.runId)).toBe(false);
-    const again = await t.deps.db.transaction((tx) => applyArmedTamper(tx, systemScope(ws), s.body.runId));
-    expect(again).toEqual({ applied: false });
-    expect(await verifyChain(t.deps.db, ws)).toMatchObject({ ok: true });
-  });
-
   it("refuses an unknown kind (400) and another session (403)", async () => {
     const a = await startSession({ ip: "203.0.113.94" });
     const b = await startSession({ ip: "203.0.113.95" });
@@ -609,7 +593,8 @@ describe("the judge session view, the lane and the judge code", () => {
       rail: "simulated",
       label: "Replay: the PayPal simulator is not running",
     });
-    expect(r.body.rail.quota.balance.source).toBe("opening_estimate");
+    // no balance reading yet: the simulator's opening balance, labelled as such (the UI says "estimate")
+    expect(r.body.rail.quota.balance.source).toBe("simulator_opening");
     expect(r.body.lane.position).toBeNull();
     expect(r.body.tamper.changePayoutArmed).toBe(false);
     expect(Date.parse(r.body.sessionExpiresAt) - t.clock.nowMs()).toBe(24 * 3_600_000);
@@ -621,6 +606,34 @@ describe("the judge session view, the lane and the judge code", () => {
     const pub = await t.json<{ rail: { mode: string } }>("/v1/judge/lane");
     expect(pub.status).toBe(200);
     expect(pub.body.rail.mode).toBe("replay");
+  });
+
+  it("GET /v1/judge/lane is throttled per network and serves its public view from a 2 s cache", async () => {
+    const app = await createTestApp({ db: "postgres", clock: new Date() });
+    try {
+      type Lane = { rail: { quota: { balance: { source: string } } } };
+      const ip = { "true-client-ip": "198.51.100.77" };
+      const source = async () =>
+        (await app.json<Lane>("/v1/judge/lane", { headers: ip })).body.rail.quota.balance.source;
+      expect(await source()).toBe("simulator_opening");
+      await recordBalanceReading(app.deps.db, {
+        rail: "simulated",
+        availableCents: 100_000_000,
+        asOf: app.clock.now(),
+        source: "searchBalances",
+      });
+      expect(await source()).toBe("simulator_opening"); // the same view, from the cache
+      app.clock.advance(2_001);
+      expect(await source()).toBe("reading");
+      for (let i = 0; i < 57; i++) await app.json("/v1/judge/lane", { headers: ip });
+      const limited = await app.json<ApiError>("/v1/judge/lane", { headers: ip });
+      expect(limited.status).toBe(429);
+      expect(ApiError.parse(limited.body).code).toBe("RATE_LIMITED");
+      const elsewhere = await app.json("/v1/judge/lane", { headers: { "true-client-ip": "198.51.100.78" } });
+      expect(elsewhere.status).toBe(200);
+    } finally {
+      await app.close();
+    }
   });
 
   it("unlocks the judge-code bucket with the right code only (403 otherwise, 429 when guessing)", async () => {
@@ -648,6 +661,27 @@ describe("the judge session view, the lane and the judge code", () => {
         await app.json("/v1/judge/code", { method: "POST", body: { code: "x" }, as });
       const limited = await app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code }, as });
       expect(limited.status).toBe(429);
+
+      // the unlock belongs to the session, not its workspace: a Reset and the purge never drop it
+      const s0 = CreateJudgeSessionResponse.parse(r0.body);
+      await app.json(`/v1/judge/sessions/${s0.sessionId}/reset`, { method: "POST", body: {}, as });
+      const ownerSql = app.pg?.owner.sql;
+      if (!ownerSql) throw new Error("no database");
+      await ownerSql`update workspaces set expires_at = now() - interval '1 minute' where id = ${s0.workspaceId}`;
+      await app.deps.db.execute(sql`select fs_purge_workspace(${s0.workspaceId}::uuid)`);
+      const r1 = await app.json<SessionBody>("/v1/judge/sessions", {
+        method: "POST",
+        body: {},
+        headers: { cookie: `${JUDGE_COOKIE.name}=${cookie}` },
+      });
+      expect(r1.status).toBe(201);
+      const s1 = CreateJudgeSessionResponse.parse(r1.body);
+      expect(s1.sessionId).toBe(s0.sessionId);
+      expect(s1.workspaceId).not.toBe(s0.workspaceId);
+      const after = await app.json<{ rail: { quota: { coded: boolean } } }>("/v1/judge/session", {
+        as: app.credentials.judge(cookieFrom(r1.headers.get("set-cookie"))),
+      });
+      expect(after.body.rail.quota.coded).toBe(true);
     } finally {
       await app.close();
     }
@@ -655,35 +689,61 @@ describe("the judge session view, the lane and the judge code", () => {
 });
 
 describe("demo signing keys", () => {
-  it("registers a frame's browser key as fs-{persona}-w{n} with proof of possession and a key.registered entry", async () => {
-    const s = await startSession({ ip: "203.0.113.110" });
+  /** A frame token for `persona` in the session, and a browser key's signed registration as that signer. */
+  async function frameFor(s: Started, persona: string) {
     const frame = await t.json<{ token: string }>(`/v1/judge/sessions/${s.body.sessionId}/frames`, {
       method: "POST",
-      body: { persona: "board:ernesto" },
+      body: { persona },
       as: judge(s.cookie),
     });
     expect(frame.status).toBe(201);
+    return t.credentials.bearer(frame.body.token);
+  }
+  function browserKey() {
     const { publicKey, privateKey } = generateKeyPairSync("ed25519");
     const raw = publicKey.export({ format: "jwk" }).x as string;
-    const publicKeyHex = Buffer.from(raw, "base64url").toString("hex");
+    return { publicKeyHex: Buffer.from(raw, "base64url").toString("hex"), privateKey };
+  }
+  function registration(
+    s: Started,
+    approverId: string,
+    key: ReturnType<typeof browserKey>,
+  ): { publicKeyHex: string; signatureHex: string } {
     const statement = jcs(
-      demoKeyStatement({ workspaceId: s.body.workspaceId, approverId: "board:ernesto", publicKeyHex }),
+      demoKeyStatement({ workspaceId: s.body.workspaceId, approverId, publicKeyHex: key.publicKeyHex }),
     );
-    const signatureHex = edSign(null, Buffer.from(statement), privateKey).toString("hex");
-    const as = t.credentials.bearer(frame.body.token);
-    const r = await t.json<{ keyId: string; approverId: string; kind: string }>("/v1/judge/keys", {
-      method: "POST",
-      body: { publicKeyHex, signatureHex },
-      as,
-    });
+    return {
+      publicKeyHex: key.publicKeyHex,
+      signatureHex: edSign(null, Buffer.from(statement), key.privateKey).toString("hex"),
+    };
+  }
+
+  it("registers a frame's browser key as fs-{persona}-w{6 digits} with proof of possession and a key.registered entry", async () => {
+    const s = await startSession({ ip: "203.0.113.110" });
+    const as = await frameFor(s, "board:ernesto");
+    const key = browserKey();
+    const body = registration(s, "board:ernesto", key);
+    const r = await t.json<{ keyId: string; approverId: string; kind: string; label: string }>(
+      "/v1/judge/keys",
+      {
+        method: "POST",
+        body,
+        as,
+      },
+    );
     expect(r.status).toBe(201);
-    expect(r.body).toMatchObject({ keyId: "fs-ernesto-w1", approverId: "board:ernesto", kind: "web_demo" });
-    const again = await t.json<{ keyId: string }>("/v1/judge/keys", {
-      method: "POST",
-      body: { publicKeyHex, signatureHex },
-      as,
+    expect(r.body).toMatchObject({
+      approverId: "board:ernesto",
+      kind: "web_demo",
+      label: "Demo key (this browser only)",
     });
-    expect(again.body.keyId).toBe("fs-ernesto-w1");
+    // C-13: a demo key id is the persona plus six random digits, a valid DeviceKeyId that no real key
+    // (fs-ernesto-a1, fs-analyn-w1: small numbers) can ever share, in keys.json or on Proof
+    expect(r.body.keyId).toMatch(/^fs-ernesto-w[1-9]\d{5}$/);
+    expect(DeviceKeyId.safeParse(r.body.keyId).success).toBe(true);
+    const keyId = r.body.keyId;
+    const again = await t.json<{ keyId: string }>("/v1/judge/keys", { method: "POST", body, as });
+    expect(again.body.keyId).toBe(keyId); // the same key registered twice: idempotent
     const entry = await t.deps.db
       .select({ payload: schema.ledgerEntries.payload })
       .from(schema.ledgerEntries)
@@ -695,27 +755,76 @@ describe("demo signing keys", () => {
       );
     expect(entry).toHaveLength(1);
     expect(LedgerPayloads["key.registered"].parse(entry[0]?.payload)).toMatchObject({
-      keyId: "fs-ernesto-w1",
+      keyId,
       persona: "board:ernesto",
       kind: "web_demo",
-      publicKeyHex,
+      publicKeyHex: key.publicKeyHex,
     });
     // a forged registration (signed by another key) is refused
-    const other = generateKeyPairSync("ed25519").privateKey;
-    const forged = edSign(null, Buffer.from(statement), other).toString("hex");
-    const bad = await t.json<ApiError>("/v1/judge/keys", {
-      method: "POST",
-      body: { publicKeyHex, signatureHex: forged },
-      as,
-    });
+    const forged = registration(s, "board:ernesto", { ...browserKey(), publicKeyHex: key.publicKeyHex });
+    const bad = await t.json<ApiError>("/v1/judge/keys", { method: "POST", body: forged, as });
     expect(bad.status).toBe(400);
     // the judge cookie itself and a clerk cannot hold a signing key
-    const cookieTry = await t.json<ApiError>("/v1/judge/keys", {
-      method: "POST",
-      body: { publicKeyHex, signatureHex },
-      as: judge(s.cookie),
-    });
+    const cookieTry = await t.json<ApiError>("/v1/judge/keys", { method: "POST", body, as: judge(s.cookie) });
     expect(cookieTry.status).toBe(403);
+  });
+
+  it("one key, one signer: a browser key already signing as the Chair cannot also sign as the treasurer (403)", async () => {
+    const s = await startSession({ ip: "203.0.113.111" });
+    const chair = await frameFor(s, "board:ernesto");
+    const treasurer = await frameFor(s, "treasurer:analyn");
+    const key = browserKey();
+    const first = await t.json<{ keyId: string }>("/v1/judge/keys", {
+      method: "POST",
+      body: registration(s, "board:ernesto", key),
+      as: chair,
+    });
+    expect(first.status).toBe(201);
+    // the second registration is properly signed for the treasurer: only the key's reuse is wrong
+    const second = await t.json<ApiError>("/v1/judge/keys", {
+      method: "POST",
+      body: registration(s, "treasurer:analyn", key),
+      as: treasurer,
+    });
+    expect(second.status).toBe(403);
+    expect(ApiError.parse(second.body).code).toBe("FORBIDDEN");
+    const rows = await t.deps.db
+      .select({ keyId: schema.deviceKeys.keyId })
+      .from(schema.deviceKeys)
+      .where(eq(schema.deviceKeys.workspaceId, s.body.workspaceId));
+    expect(rows.map((r) => r.keyId)).toEqual([first.body.keyId]);
+    // the treasurer's own, distinct key is welcome
+    const own = await t.json<{ keyId: string }>("/v1/judge/keys", {
+      method: "POST",
+      body: registration(s, "treasurer:analyn", browserKey()),
+      as: treasurer,
+    });
+    expect(own.status).toBe(201);
+    expect(own.body.keyId).toMatch(/^fs-analyn-w[1-9]\d{5}$/);
+  });
+
+  it("a real officer key (any workspace) is never registered again as a demo key", async () => {
+    const s = await startSession({ ip: "203.0.113.112" });
+    const treasurer = await frameFor(s, "treasurer:analyn");
+    const key = browserKey();
+    // the showcase treasurer's real key, registered from /ops
+    const show = await t.fixture({ kind: "showcase" });
+    await owner()
+      .insert(schema.deviceKeys)
+      .values({
+        workspaceId: show.workspaceId,
+        keyId: "fs-analyn-w1",
+        persona: "analyn",
+        publicKey: Buffer.from(key.publicKeyHex, "hex").toString("base64url"),
+        kind: "app",
+        platform: "web",
+      });
+    const r = await t.json<ApiError>("/v1/judge/keys", {
+      method: "POST",
+      body: registration(s, "treasurer:analyn", key),
+      as: treasurer,
+    });
+    expect(r.status).toBe(403);
   });
 });
 
@@ -724,30 +833,7 @@ describe("judgeReset (task)", () => {
     const s = await startSession({ ip: "203.0.113.120" });
     const ws = s.body.workspaceId;
     const db = owner();
-    const [member] = await db
-      .select({ id: schema.members.id })
-      .from(schema.members)
-      .where(and(eq(schema.members.workspaceId, ws), eq(schema.members.memberNo, "M-031")));
-    const [line] = await db
-      .insert(schema.memberLines)
-      .values({
-        workspaceId: ws,
-        runId: s.body.runId,
-        memberId: member?.id as string,
-        state: "UNCLAIMED",
-        rail: "ON",
-        currency: "USD",
-        verifiedG: 1000n,
-        grade1G: 0n,
-        premiumCents: 2665n,
-        bonusCents: 0n,
-        deductionsCents: 0n,
-        creditsCents: 0n,
-        netCents: 2665n,
-        deductions: [],
-        provenance: "replay",
-      })
-      .returning({ id: schema.memberLines.id });
+    const minutesAgo = (m: number) => new Date(t.clock.nowMs() - m * 60_000);
     const [batch] = await db
       .insert(schema.payoutBatches)
       .values({
@@ -758,45 +844,112 @@ describe("judgeReset (task)", () => {
         batchSha256: "b".repeat(64),
         kind: "primary",
         status: "SUCCESS",
-        itemCount: 1,
-        totalCents: 2665n,
+        itemCount: 3,
+        totalCents: 7995n,
         currency: "USD",
         provenance: "replay",
         submittedAt: new Date(t.clock.nowMs() - 2 * 86_400_000),
       })
       .returning({ id: schema.payoutBatches.id });
-    await db.insert(schema.payoutItems).values({
-      workspaceId: ws,
-      batchId: batch?.id as string,
-      lineId: line?.id as string,
-      senderItemId: `${s.body.runSlug.split("-")[1]}-M-031`,
-      payoutItemId: "TESTITEM0000001",
-      receiver: "m031@example.com",
-      amountCents: 2665n,
-      currency: "USD",
-      status: "UNCLAIMED",
-      statusRank: 30,
-      provenance: "replay",
-      // parked 20 minutes ago (set at insert: the touch trigger rewrites updated_at on UPDATE)
-      updatedAt: new Date(t.clock.nowMs() - 20 * 60_000),
-    });
+    /** An UNCLAIMED item: written `createdMin` ago, last touched `touchedMin` ago, UNCLAIMED since `parkedMin` ago. */
+    async function parked(
+      memberNo: string,
+      payoutItemId: string,
+      o: { createdMin: number; touchedMin: number; parkedMin?: number },
+    ) {
+      const [member] = await db
+        .select({ id: schema.members.id })
+        .from(schema.members)
+        .where(and(eq(schema.members.workspaceId, ws), eq(schema.members.memberNo, memberNo)));
+      const [line] = await db
+        .insert(schema.memberLines)
+        .values({
+          workspaceId: ws,
+          runId: s.body.runId,
+          memberId: member?.id as string,
+          state: "UNCLAIMED",
+          rail: "ON",
+          currency: "USD",
+          verifiedG: 1000n,
+          grade1G: 0n,
+          premiumCents: 2665n,
+          bonusCents: 0n,
+          deductionsCents: 0n,
+          creditsCents: 0n,
+          netCents: 2665n,
+          deductions: [],
+          provenance: "replay",
+        })
+        .returning({ id: schema.memberLines.id });
+      const senderItemId = `${s.body.runSlug.split("-")[1]}-${memberNo}`;
+      const [item] = await db
+        .insert(schema.payoutItems)
+        .values({
+          workspaceId: ws,
+          batchId: batch?.id as string,
+          lineId: line?.id as string,
+          senderItemId,
+          payoutItemId,
+          receiver: `${memberNo.toLowerCase()}@example.com`,
+          amountCents: 2665n,
+          currency: "USD",
+          status: "UNCLAIMED",
+          statusRank: 30,
+          provenance: "replay",
+          createdAt: minutesAgo(o.createdMin),
+          // set at insert: the touch trigger rewrites updated_at on UPDATE (a webhook re-delivery does that)
+          updatedAt: minutesAgo(o.touchedMin),
+        })
+        .returning({ id: schema.payoutItems.id });
+      if (o.parkedMin !== undefined) {
+        // the item.updated event the webhook wrote when the item became UNCLAIMED
+        await db.insert(schema.runEvents).values({
+          workspaceId: ws,
+          runId: s.body.runId,
+          lineId: line?.id as string,
+          type: "item.updated",
+          at: minutesAgo(o.parkedMin),
+          actorKind: "paypal",
+          actorId: "paypal",
+          provenance: "replay",
+          payload: {
+            itemId: item?.id,
+            senderItemId,
+            memberNo,
+            payoutItemId,
+            from: "PENDING",
+            to: "UNCLAIMED",
+            rank: 30,
+            source: "webhook",
+            eventId: null,
+          },
+        });
+      }
+    }
+    await parked("M-031", "TESTITEM0000001", { createdMin: 20, touchedMin: 20 });
+    // a webhook re-delivery touched it a minute ago: it has still been parked for 20 minutes
+    await parked("M-014", "TESTITEM0000002", { createdMin: 22, touchedMin: 1, parkedMin: 20 });
+    // written half an hour ago, but UNCLAIMED only for 5 minutes: not yet
+    await parked("M-002", "TESTITEM0000003", { createdMin: 30, touchedMin: 5, parkedMin: 5 });
+
     const report = await runJudgeReset(t.deps, { trigger: "cron", workspaceId: null, slot: "test-cron-1" });
     expect(report.trigger).toBe("cron");
-    expect(report.cancelsEnqueued).toBe(1);
+    expect(report.cancelsEnqueued).toBe(2);
     const cancels = (await t.deps.db.execute(sql`
-      select args, workspace_id, dedupe_key from task_outbox where name = 'cancelUnclaimed'`)) as unknown as {
+      select args, workspace_id, dedupe_key from task_outbox where name = 'cancelUnclaimed'
+       order by dedupe_key`)) as unknown as {
       args: { payoutItemId: string; afterCancel: string };
       workspace_id: string;
       dedupe_key: string;
     }[];
-    expect(cancels).toEqual([
-      {
-        args: { payoutItemId: "TESTITEM0000001", afterCancel: "cash" },
+    expect(cancels).toEqual(
+      ["TESTITEM0000001", "TESTITEM0000002"].map((id) => ({
+        args: { payoutItemId: id, afterCancel: "cash" },
         workspace_id: ws,
-        dedupe_key: "cancel:TESTITEM0000001",
-      },
-    ]);
-    // a second pass does not enqueue it again (dedupe key)
+        dedupe_key: `cancel:${id}`,
+      })),
+    );
+    // a second pass does not enqueue them again (dedupe key)
     const second = await runJudgeReset(t.deps, { trigger: "cron", workspaceId: null, slot: "test-cron-2" });
     expect(second.cancelsEnqueued).toBe(0);
     expect(await poolSize(t.deps.db)).toBeGreaterThanOrEqual(3);

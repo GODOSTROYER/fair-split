@@ -1,13 +1,22 @@
-// Demo signing keys (S3.8 "Judge sessions create session-only fs-{persona}-w{n} keys, labelled 'Demo key'";
-// plan C-13). The Chair's and the treasurer's stage frames each make a WebCrypto Ed25519 key in the judge's
-// browser and register its public half here, proving possession by signing the registration itself. The
-// key is a `web_demo` row of `device_keys` (approvals verify against that registry, never a bundled key)
-// and a `key.registered` ledger entry before it ever signs, so Proof plate 5 finds it and reads "Sample".
+// Demo signing keys (S3.8 "Judge sessions create session-only … keys, labelled 'Demo key'"; plan C-13).
+// The Chair's and the treasurer's stage frames each make a WebCrypto Ed25519 key in the judge's browser and
+// register its public half here, proving possession by signing the registration itself. The key is a
+// `web_demo` row of `device_keys` (approvals verify against that registry, never a bundled key) and a
+// `key.registered` ledger entry before it ever signs, so Proof plate 5 finds it and reads "Sample".
 // Only in judge workspaces: a real officer key is registered from /ops (or the app), never here.
+//
+// Two rules keep "two people, two keys" true:
+//   - one key, one signer: a public key already registered in this workspace (for any persona), or as a
+//     real officer key in any workspace, is refused. PayoutsService compares key ids, so one browser key
+//     registered as both the treasurer and the Chair would otherwise sign both approvals;
+//   - a demo key's id is `fs-{persona}-w{6 random digits}`: C-13's `fs-{persona}-demo-{6}` in the form the
+//     DeviceKeyId format (`fs-{persona}-{a|w}{n}`) accepts. Real keys are numbered from 1 (fs-ernesto-a1,
+//     fs-analyn-w1), so a demo key can never share an id with one, in keys.json or on Proof.
+import { randomInt } from "node:crypto";
 import { DeviceKeyId, Ed25519PublicKeyHex } from "@fairsplit/contracts";
 import { appendLedger, isUniqueViolation, schema, withWorkspaceTx } from "@fairsplit/db";
 import { ed25519Verify, jcs } from "@fairsplit/domain";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { type ActingCredential, scopeOf } from "../credentials/verify/index.js";
 import type { AppDeps } from "../lib/context.js";
@@ -16,6 +25,14 @@ import { isJudgeWorkspace } from "./quota.js";
 
 /** Who signs a pay run: the treasurer always, the Chair above the card's thresholds (R5). */
 export const SIGNING_ROLES = ["treasurer", "board"] as const;
+
+/** A demo key's number: six digits, never a small number a real key uses. */
+const DEMO_KEY_NUMBER = { min: 100_000, max: 1_000_000 } as const;
+
+/** `fs-{persona}-w{6 random digits}` (see the header). */
+export function demoKeyId(persona: string): string {
+  return `fs-${persona}-w${randomInt(DEMO_KEY_NUMBER.min, DEMO_KEY_NUMBER.max)}`;
+}
 
 export const DemoKeyRequest = z.strictObject({
   publicKeyHex: Ed25519PublicKeyHex,
@@ -70,20 +87,37 @@ export async function registerDemoKey(
   }
   const scope = scopeOf(cred);
   if (!scope) throw problem.forbidden();
-  const prefix = `fs-${cred.persona}-w`;
+  const raw = Buffer.from(input.publicKeyHex, "hex").toString("base64url");
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      // the workspace lock serialises every registration of this workspace, so the check below holds
       const keyId = await withWorkspaceTx(deps.db, scope, async (tx) => {
         const dk = schema.deviceKeys;
-        const taken = await tx
-          .select({ keyId: dk.keyId, publicKey: dk.publicKey })
+        const holders = await tx
+          .select({
+            keyId: dk.keyId,
+            workspaceId: dk.workspaceId,
+            persona: dk.persona,
+            kind: dk.kind,
+            revokedAt: dk.revokedAt,
+          })
           .from(dk)
-          .where(and(eq(dk.workspaceId, cred.workspaceId), like(dk.keyId, `${prefix}%`)));
-        const raw = Buffer.from(input.publicKeyHex, "hex").toString("base64url");
-        const same = taken.find((t) => t.publicKey === raw);
-        if (same) return same.keyId; // the same key registered twice: idempotent
-        const n = 1 + taken.reduce((max, t) => Math.max(max, Number(t.keyId.slice(prefix.length)) || 0), 0);
-        const id = `${prefix}${n}`;
+          .where(
+            and(eq(dk.publicKey, raw), or(eq(dk.workspaceId, cred.workspaceId), ne(dk.kind, "web_demo"))),
+          );
+        const own = holders.find(
+          (h) =>
+            h.workspaceId === cred.workspaceId &&
+            h.kind === "web_demo" &&
+            h.persona === cred.persona &&
+            h.keyId.startsWith(`fs-${cred.persona}-w`) &&
+            h.revokedAt === null,
+        );
+        if (own && holders.length === 1) return own.keyId; // the same key registered twice: idempotent
+        if (holders.length > 0) {
+          throw problem.forbidden("This browser key already signs for someone else: one key, one signer.");
+        }
+        const id = demoKeyId(cred.persona);
         await tx.insert(dk).values({
           workspaceId: cred.workspaceId,
           keyId: id,
@@ -107,6 +141,7 @@ export async function registerDemoKey(
         publicKeyHex: input.publicKeyHex,
       };
     } catch (err) {
+      // two registrations drew the same six digits (one in 900,000): draw again
       if (!isUniqueViolation(err) || attempt === 2) throw err;
     }
   }
