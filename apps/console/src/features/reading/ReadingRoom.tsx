@@ -287,8 +287,7 @@ export function ReadingRoom({
       ? READING_COPY.earlierFooter(format.date(photo.readOn))
       : READING_COPY.footer(CLAUDE_MODEL, recorded);
   const toConfirm = state === "confirm-one" ? confirmRow(rows) : null;
-  const confirmHold =
-    toConfirm && view ? confirmHoldFor(view, snapshot, toConfirm.serial, toConfirm.memberNo) : undefined;
+  const confirmHold = toConfirm && view ? confirmHoldFor(view, snapshot, toConfirm.serial) : undefined;
 
   const startReplay = () => {
     // The replay follows the reading from photo A, as the recorded run did: a pinned photo lets go.

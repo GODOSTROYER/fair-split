@@ -10,6 +10,7 @@ import { applyRunEvents, firstView, sessionView } from "../../data/run-view.js";
 import { flightKeyframes, flightPath, LIFT_SCALE, maxFlights, ROW_AT } from "./mm2.js";
 import {
   benchPhoto,
+  confirmHoldFor,
   confirmRow,
   earlierPhotos,
   hasStarted,
@@ -193,6 +194,35 @@ describe("one tap for the zoom's read, and a rescan for a blurred photo (S1.7)",
     expect(
       statusSentence({ photo: photoJ, rows: printed, reading: false, started: true, snapshot }),
     ).toContain("Slip 0462: Claude's zoom read agrees with one of the two readings.");
+  });
+
+  it("a hold that names only the member never takes the tap: it could be another of her slips", () => {
+    if (!photoJ) throw new Error("no photo J");
+    const rest = rows.filter((r) => r.photoId === "J" && r.serial !== "0462");
+    const other = (): RunEvent =>
+      ({
+        ...stamp(),
+        actor: { kind: "engine", id: "engine", impersonatedBy: null },
+        provenance: "live",
+        type: "hold.raised",
+        payload: {
+          holdId: "hold-other-slip",
+          label: "Another slip of M-060",
+          key: "LOW_CONFIDENCE:row-not-this-slip",
+          kind: "LOW_CONFIDENCE",
+          gate: "BLOCKS_APPROVAL",
+          memberNo: "M-060",
+          lineId: null,
+        },
+      }) as RunEvent;
+    const view = applyRunEvents(reading, [
+      ...rest.map((r) => extractRowEvent(r, stamp())),
+      extractRowEvent(zoomAgreedRow(snapshot), stamp()),
+      other(),
+    ]);
+    expect(confirmHoldFor(view, snapshot, "0462")).toBeUndefined();
+    const printed = rowsForPhoto({ view, snapshot, photo: photoJ });
+    expect(printed.find((r) => r?.serial === "0462")?.confirmed).toBeNull();
   });
 
   it("the tap is the person's: once the hold reads CONFIRM_AS_READ the value is ink with their stamp", () => {

@@ -132,23 +132,13 @@ export function byHandHoldFor(view: RunView, snapshot: SeasonSnapshot, serial: s
 }
 
 /**
- * The hold a one-tap confirmation resolves: the slip's by-hand hold, else the run's own LOW_CONFIDENCE hold on
- * the slip's member (S4.2: every field under 0.85 raises one; IC-01's `hold.raised` names the member, not
- * the field). Undefined when the run has raised none: then nothing can take the tap.
+ * The hold a one-tap confirmation resolves: only a hold whose key names this slip (the seed's by-hand hold,
+ * matched by key). A run hold that names only the member is never taken, because a member can have several
+ * slips and the tap would resolve a reading the person never saw. Such holds are resolved on their own hold
+ * card instead. Undefined when no hold names the slip: then nothing can take the tap.
  */
-export function confirmHoldFor(
-  view: RunView,
-  snapshot: SeasonSnapshot,
-  serial: string,
-  memberNo: string | null,
-): RunHold | undefined {
-  const named = byHandHoldFor(view, snapshot, serial);
-  if (named) return named;
-  if (!memberNo) return undefined;
-  const seeded = new Set(snapshot.holds.filter((h) => h.kind === "LOW_CONFIDENCE").map((h) => h.key));
-  return Object.values(view.holds).find(
-    (h) => h.kind === "LOW_CONFIDENCE" && h.memberNo === memberNo && !seeded.has(h.key),
-  );
+export function confirmHoldFor(view: RunView, snapshot: SeasonSnapshot, serial: string): RunHold | undefined {
+  return byHandHoldFor(view, snapshot, serial);
 }
 
 /** A zoom read that agrees with one of the two readings and waits for a person (S4.2 row 6). */
@@ -251,7 +241,7 @@ export function rowsForPhoto({ view, snapshot, photo }: RowsInput): (ReadingRow 
         .map(([name]) => name);
       const memberNo = event.memberNo ?? null;
       const agreed = zoomAgreedField(event.fields);
-      const hold = agreed && view ? confirmHoldFor(view, snapshot, slip.serial, memberNo) : undefined;
+      const hold = agreed && view ? confirmHoldFor(view, snapshot, slip.serial) : undefined;
       const confirmed =
         agreed && hold?.state === "RESOLVED" && hold.resolution === "CONFIRM_AS_READ"
           ? { by: hold.resolvedBy ?? "", at: hold.resolvedAt ?? "", value: agreed.value }
