@@ -116,6 +116,7 @@ describe("POST /webhooks/paypal under 1,000 forged deliveries", () => {
         clientId: "fs-test-client",
         clientSecret: ["fs", "test", "secret"].join("-"),
         devMocks: false,
+        knownCertIds: [],
       },
       limiter: createMemoryLimiter({ now }),
       fetch: host.fetch,

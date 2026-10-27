@@ -1,5 +1,6 @@
 import { HttpResponse, http } from "msw/http";
 import { beforeEach, describe, expect, it } from "vitest";
+import { loadPayPalConfig } from "./config.js";
 import { createPayPalCore } from "./core.js";
 import { PayPalScopeError } from "./errors.js";
 import { createMemoryLimiter } from "./limiter.js";
@@ -38,7 +39,7 @@ beforeEach(() => {
 
 const core = (records: PayPalCallRecord[] = [], devMocks = false) =>
   createPayPalCore({
-    config: { clientId: TEST_CLIENT_ID, clientSecret: TEST_CLIENT_SECRET, devMocks },
+    config: { clientId: TEST_CLIENT_ID, clientSecret: TEST_CLIENT_SECRET, devMocks, knownCertIds: [] },
     limiter: createMemoryLimiter(),
     recorder: { record: (r) => void records.push(r) },
     sleep: recordingSleep().sleep,
@@ -94,7 +95,12 @@ describe("createPayPalCore", () => {
     const records: PayPalCallRecord[] = [];
     const limiter = createMemoryLimiter();
     const c = createPayPalCore({
-      config: { clientId: TEST_CLIENT_ID, clientSecret: TEST_CLIENT_SECRET, devMocks: false },
+      config: {
+        clientId: TEST_CLIENT_ID,
+        clientSecret: TEST_CLIENT_SECRET,
+        devMocks: false,
+        knownCertIds: [],
+      },
       limiter,
       recorder: { record: (r) => void records.push(r) },
       webhookTrustAnchors: [pki.ca.pem],
@@ -125,6 +131,27 @@ describe("createPayPalCore", () => {
     });
     expect(c.verifier.health().knownCertIds).toBe(3);
     expect(core().verifier.health().knownCertIds).toBe(0);
+  });
+
+  // Verifier follow-up (regress, minor): with knownCertIds optional, a composition root that builds the
+  // config itself (WS-API's mode.ts) compiled, pinned nothing, and skipped PP_CERT_ALLOW's boot check,
+  // so the CERT_FETCH_THROTTLED alert's advice ("pin the ids in PP_CERT_ALLOW") would have done nothing.
+  it("requires the PP_CERT_ALLOW pins: loadPayPalConfig's output carries them, and a config without them does not compile", () => {
+    const config = loadPayPalConfig({
+      PP_ENV: "sandbox",
+      PP_CLIENT_ID: TEST_CLIENT_ID,
+      PP_CLIENT_SECRET: TEST_CLIENT_SECRET,
+      PP_WEBHOOK_ID: "WH1",
+      PP_CERT_ALLOW: "CERT-360caa42-fca2a594-bf9ab596 CERT-360caa42-fca2a594-0e1c0de5",
+    });
+    const pinned = createPayPalCore({ config, limiter: createMemoryLimiter() });
+    expect(pinned.verifier.health().knownCertIds).toBe(2);
+    const unpinned = createPayPalCore({
+      // @ts-expect-error knownCertIds is required: pass loadPayPalConfig(process.env), or [] on purpose
+      config: { clientId: TEST_CLIENT_ID, clientSecret: TEST_CLIENT_SECRET, devMocks: false },
+      limiter: createMemoryLimiter(),
+    });
+    expect(unpinned.verifier.health().knownCertIds).toBe(0);
   });
 
   it("passes the dev-mocks switch through to the verifier", async () => {

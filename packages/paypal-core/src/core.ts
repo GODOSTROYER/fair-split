@@ -22,9 +22,13 @@ import {
 } from "./webhook/verify.js";
 
 export interface PayPalCoreOptions {
-  /** `knownCertIds` (PP_CERT_ALLOW) is pinned in the verifier together with `webhookKnownCertIds`. */
-  config: Pick<PayPalRuntimeConfig, "clientId" | "clientSecret" | "devMocks"> &
-    Partial<Pick<PayPalRuntimeConfig, "knownCertIds">>;
+  /**
+   * Pass `loadPayPalConfig(process.env)`: it checks PP_* at boot (sandbox only, dev mocks refused on
+   * Render) and carries `knownCertIds`, the PP_CERT_ALLOW pins, which the verifier pins together with
+   * `webhookKnownCertIds`. `knownCertIds` is required so that a config built some other way cannot
+   * drop the pins without saying so: pass `[]` to pin nothing on purpose.
+   */
+  config: Pick<PayPalRuntimeConfig, "clientId" | "clientSecret" | "devMocks" | "knownCertIds">;
   limiter: PayPalLimiter;
   recorder?: PayPalCallRecorder;
   logger?: LoggerLike;
@@ -80,9 +84,9 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...shared,
   });
   const postback = createPostbackVerifier(http);
-  const knownCertIds = [
-    ...new Set([...(options.config.knownCertIds ?? []), ...(options.webhookKnownCertIds ?? [])]),
-  ];
+  // `?? []` only for plain-JS callers: the type makes TypeScript callers say what they pin.
+  const pins = [...(options.config.knownCertIds ?? []), ...(options.webhookKnownCertIds ?? [])];
+  const knownCertIds = [...new Set(pins)];
   const verifier = createPayPalWebhookVerifier({
     devMocks: options.config.devMocks,
     postback,

@@ -222,6 +222,12 @@ check would restart a healthy process); show them on `/ops`.
   and `now` (the app clock), and report `handler.health()`. In `insertWebhookEvent`, persist
   `row.delivery` as it is, into `webhook_events.delivery` (not only its `rejectReason` into `error`), and
   hand the stored `delivery` back to `webhookApplyRule` in processWebhook: that is what MM-1 runs on.
+  Build the core with `createPayPalCore({ config: loadPayPalConfig(process.env), … })`: it checks PP_* at
+  boot (sandbox only, `PP_CERT_ALLOW` well formed, dev mocks refused on Render) and carries
+  `knownCertIds`, the `PP_CERT_ALLOW` pins. `config.knownCertIds` is required, so a config built another
+  way must say what it pins (`[]` pins nothing); otherwise the `CERT_FETCH_THROTTLED` alert's advice
+  ("pin the ids in `PP_CERT_ALLOW`") would do nothing.
+- **For WS-OPS:** list `PP_CERT_ALLOW` (`sync: false`) for `fs-api` in `render.yaml`.
 - Until WS-API scaffolds `apps/api`, the webhook route is typechecked by `tsconfig.consumers.json` and
   tested by the `api-webhooks` vitest project here.
 
