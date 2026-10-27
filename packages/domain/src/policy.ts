@@ -363,7 +363,11 @@ export const invoiceEqualsQuote: Policy = (call, ctx) => {
     let labels: string[] | undefined;
     if (Array.isArray(items) && items.length === ctx.expected.quote.items.length) {
       const names = items.map((it) => (isRecord(it) ? it.name : undefined));
-      const problem = itemLabelProblem(names);
+      // Each label names its own line, in the quote's line order (I1, S4.4 checkLabels).
+      const problem = itemLabelProblem(
+        names,
+        ctx.expected.quote.items.map((it) => it.key),
+      );
       if (problem) return deny(problem);
       labels = names as string[];
     }

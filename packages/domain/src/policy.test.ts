@@ -101,6 +101,53 @@ const call = (name: string, args: unknown = {}): ToolCall => ({ name, args });
 const reasonOf = (d: ReturnType<typeof decide>, p: PolicyName) =>
   d.results.find((r) => r.policy === p)?.reason;
 
+/** Each quote line's own word, written out here, independently of the checker's vocabulary. */
+const LINE_WORD = [/\bpremiums?\b/, /\bbonus(?:es)?\b/, /\bdisbursements?\b/] as const;
+const NUMBERISH =
+  /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand|million|[ivxlcdm]{2,}|[olisz]+)\b/;
+const CONTACT_OR_CHARGE =
+  /\b(?:at|dot|com|www|https?|e?mail|call|wire|zelle|venmo|refund|credit|discount|shipping|tax|paid)\b/;
+
+/** What any allowed label must be, whatever the checker says: a safe name for line `i`, nothing else. */
+function expectSafeLabel(name: string, i: number) {
+  const folded = name.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  expect(name.length, name).toBeLessThanOrEqual(40);
+  expect(name, name).toMatch(/^[A-Za-z][A-Za-z ,'()-]*$/);
+  expect(name.trim(), name).toBe(name);
+  expect(name, name).not.toMatch(/ {2}/);
+  expect(folded, name).toMatch(LINE_WORD[i] as RegExp);
+  for (const [k, re] of LINE_WORD.entries()) if (k !== i) expect(folded, name).not.toMatch(re);
+  expect(folded, name).not.toMatch(NUMBERISH);
+  expect(folded, name).not.toMatch(CONTACT_OR_CHARGE);
+}
+
+/** Label-like strings: words from a small pool, including ones the vocabulary refuses. */
+const labelLike = fc
+  .array(
+    fc.constantFrom(
+      "Premium",
+      "premium",
+      "Bonus",
+      "Quality",
+      "Disbursement",
+      "costs",
+      "Season",
+      "one",
+      "at",
+      "dot",
+      "LX",
+      "lO",
+      "Refund",
+      "Acme",
+      "fees",
+      "PayPal",
+      "(lot)",
+      "members'",
+    ),
+    { minLength: 1, maxLength: 4 },
+  )
+  .map((ws) => ws.join(" "));
+
 describe("the canonical invoice (I1: code builds every field PayPal sees)", () => {
   it("canonicalInvoice builds exactly S3.6.3's create arguments: no dates, no payment term, nothing extra", () => {
     expect(canonicalInvoice(EXPECTED)).toEqual(CANONICAL);
@@ -116,19 +163,25 @@ describe("the canonical invoice (I1: code builds every field PayPal sees)", () =
       ].sort(),
     );
     expect(JSON.stringify(canonicalInvoice(EXPECTED))).not.toMatch(/date|payment_term/);
-    const labelled = canonicalInvoice(EXPECTED, ["Season premium", "Grade one bonus", "PayPal fees (est)"]);
+    const labelled = canonicalInvoice(EXPECTED, [
+      "Season premium",
+      "Top grade quality bonus",
+      "PayPal payout disbursement fees",
+    ]);
     expect(labelled.items.map((i) => i.name)).toEqual([
       "Season premium",
-      "Grade one bonus",
-      "PayPal fees (est)",
+      "Top grade quality bonus",
+      "PayPal payout disbursement fees",
     ]);
     expect(labelled.items.map((i) => i.unit_amount)).toEqual(CANONICAL.items.map((i) => i.unit_amount));
     expect(() => canonicalInvoice(EXPECTED, ["Premium 2026", "Bonus", "Fees"])).toThrow(RangeError);
   });
 
-  it("item labels are at most 40 letters, spaces and ,'()- with no digits, and distinct", () => {
+  it("item labels are at most 40 letters, single spaces and ,'()- with no digits, each naming its own line", () => {
     expect(itemLabelProblem(["Premium", "Quality bonus", "Disbursement costs"])).toBeNull();
-    expect(itemLabelProblem(["Members' premium (lot)", "Bonus, grade one", "Pay-out costs"])).toBeNull();
+    expect(
+      itemLabelProblem(["Members' premium (lot)", "Bonus, top grade", "Pay-out disbursement costs"]),
+    ).toBeNull();
     for (const bad of [
       "Premium 2026",
       "Premium US$4",
@@ -141,10 +194,16 @@ describe("the canonical invoice (I1: code builds every field PayPal sees)", () =
       "x".repeat(41),
       "Prémium",
       "Premium / bonus",
+      "Premium  costs",
+      "Premium ",
     ]) {
-      expect(itemLabelProblem([bad, "Bonus", "Costs"]), bad).not.toBeNull();
+      // The other two labels are valid, so the refusal is item 1's own.
+      expect(itemLabelProblem([bad, "Quality bonus", "Disbursement costs"]), bad).toMatch(/^Item 1's label/);
     }
-    expect(itemLabelProblem(["Premium", "premium", "Costs"])).toMatch(/distinct/);
+    // Labels are distinct by construction: each must name its own line and no other.
+    expect(itemLabelProblem(["Premium", "premium", "Disbursement costs"])).toBe(
+      "Item 2's label names the premium line, not its own",
+    );
     expect(itemLabelProblem(["Premium", "Bonus"])).toMatch(/three/);
   });
 
@@ -185,7 +244,7 @@ describe("inv.i1.whole-body: invoiceEqualsQuote compares the whole body with the
     });
     const labelled = draft();
     labelled.items.forEach((it, i) => {
-      it.name = ["Season premium", "Grade one bonus", "Disbursement and handling"][i];
+      it.name = ["Season premium", "Top grade quality bonus", "Disbursement and handling"][i];
     });
     expect(decide(call("create_invoice", labelled), ctx()).verdict).toBe("ALLOW");
   });
@@ -360,18 +419,26 @@ describe("inv.i1.whole-body: invoiceEqualsQuote compares the whole body with the
       }),
       { numRuns: 300 },
     );
+    let allowed = 0;
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 2 }), fc.string({ maxLength: 45 }), (i, name) => {
-        const d = draft();
-        (d.items[i] as Draft["items"][number]).name = name;
-        const labels = d.items.map((x) => x.name as string);
-        const r = decide(call("create_invoice", d), ctx());
-        expect(r.results.find((x) => x.policy === "invoiceEqualsQuote")?.verdict).toBe(
-          itemLabelProblem(labels) === null ? "ALLOW" : "DENY",
-        );
-      }),
-      { numRuns: 300 },
+      fc.property(
+        fc.integer({ min: 0, max: 2 }),
+        fc.oneof(fc.string({ maxLength: 45 }), labelLike),
+        (i, name) => {
+          const d = draft();
+          (d.items[i] as Draft["items"][number]).name = name;
+          const r = decide(call("create_invoice", d), ctx());
+          // Independent of the checker: an allowed label is a safe name for its own line.
+          if (r.results.find((x) => x.policy === "invoiceEqualsQuote")?.verdict === "ALLOW") {
+            allowed++;
+            expectSafeLabel(name, i);
+          }
+        },
+      ),
+      { numRuns: 600 },
     );
+    // Not vacuous: label-like strings do reach ALLOW.
+    expect(allowed).toBeGreaterThan(0);
   });
 });
 
@@ -603,10 +670,10 @@ describe("inv.i1.exact: invoiceEqualsQuote allows only the exact bytes code buil
           const v = decide(call("create_invoice", body), context);
           const isLabel = leaf.path[0] === "items" && leaf.path[2] === "name";
           if (isLabel) {
-            const labels = body.items.map((x) => x.name);
-            expect(v.results.find((r) => r.policy === "invoiceEqualsQuote")?.verdict).toBe(
-              itemLabelProblem(labels) === null ? "ALLOW" : "DENY",
-            );
+            // Independent of the checker: if the edited label is allowed, it still safely names its line.
+            if (v.results.find((r) => r.policy === "invoiceEqualsQuote")?.verdict === "ALLOW") {
+              expectSafeLabel(mutated, leaf.path[1] as number);
+            }
           } else {
             expect(v.verdict).toBe("DENY");
             expect(v.decidedBy).toContain("invoiceEqualsQuote");
@@ -620,7 +687,7 @@ describe("inv.i1.exact: invoiceEqualsQuote allows only the exact bytes code buil
 
 describe("inv.i1.executor-body: the money executor sends the body code built, never the model's args", () => {
   const RULE_EXPECTED = { ...EXPECTED, invoiceId: INVOICE_ID, invoiceDate: INVOICE_DATE };
-  const LABELS = ["Season premium", "Grade one bonus", "Disbursement and handling"] as const;
+  const LABELS = ["Season premium", "Top grade quality bonus", "Disbursement and handling"] as const;
 
   it("canonicalInvoiceCall builds each invoice call's body from the run alone (plus the checked labels)", () => {
     expect(canonicalInvoiceCall("create_invoice", EXPECTED)).toEqual({
