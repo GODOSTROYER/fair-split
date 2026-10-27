@@ -167,6 +167,16 @@ describe("the room's state and its bench", () => {
     ).toMatch(/^Photo P01 was read on \d+ \w{3} 2026\./);
   });
 
+  it("says a pinned photo waits its turn while another photo is being read", () => {
+    const view = withRows(["A"]);
+    const photo = photoById(snapshot, "C");
+    if (!photo) throw new Error("no photo C");
+    const printed = rowsForPhoto({ view, snapshot, photo });
+    expect(
+      statusSentence({ photo, rows: printed, reading: true, started: true, snapshot, readingPhoto: "A" }),
+    ).toBe("Photo C waits its turn. Claude is reading photo A.");
+  });
+
   it("follows the reading while nothing is pinned, and keeps the photo the URL names", () => {
     expect(benchPhoto(snapshot, firstView(snapshot), undefined)?.photoId).toBe("A");
     expect(benchPhoto(snapshot, withRows(["A", "B"]), undefined)?.photoId).toBe("B");

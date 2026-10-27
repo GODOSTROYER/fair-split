@@ -307,6 +307,8 @@ export interface StatusInput {
   readonly reading: boolean;
   readonly started: boolean;
   readonly snapshot: SeasonSnapshot;
+  /** The photo the newest row came from, while another photo is on the bench. */
+  readonly readingPhoto?: string | null;
 }
 
 /** The words for a quarantined slip: the seed's notice when it has one. */
@@ -318,7 +320,14 @@ export function quarantineNotice(snapshot: SeasonSnapshot, serial: string): stri
 }
 
 /** One status sentence, never a chain of thought (S1.7). Every clause is derived from the photo's data. */
-export function statusSentence({ photo, rows, reading, started, snapshot }: StatusInput): string {
+export function statusSentence({
+  photo,
+  rows,
+  reading,
+  started,
+  snapshot,
+  readingPhoto = null,
+}: StatusInput): string {
   const id = photo.photoId;
   if (photo.set === "EARLIER") {
     const when = photo.readOn ? format.date(photo.readOn) : "earlier this season";
@@ -328,6 +337,9 @@ export function statusSentence({ photo, rows, reading, started, snapshot }: Stat
     return `Photo ${id} waits on the desk. Claude's reading replays once Lantern Bay's invoice is paid.`;
   }
   const done = readCount(rows);
+  if (reading && done === 0 && readingPhoto && readingPhoto !== id) {
+    return `Photo ${id} waits its turn. Claude is reading photo ${readingPhoto}.`;
+  }
   const parts: string[] = [
     reading && done < rows.length
       ? `Reading photo ${id}: ${rows.length} slips.`

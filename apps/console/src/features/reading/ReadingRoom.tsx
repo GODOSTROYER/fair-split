@@ -30,6 +30,7 @@ import {
   earlierPhotos,
   hasStarted,
   isReading,
+  latestRowPhoto,
   photoOfDoc,
   quarantineNotice,
   readCount,
@@ -230,7 +231,14 @@ export function ReadingRoom({
     offline,
     aiPaused: view?.flags.kill_ai_live === true,
   });
-  const sentence = statusSentence({ photo, rows, reading, started, snapshot });
+  const sentence = statusSentence({
+    photo,
+    rows,
+    reading,
+    started,
+    snapshot,
+    readingPhoto: latestRowPhoto(view, snapshot),
+  });
   const film = replayPhotos(snapshot).map((p) => {
     const r = rowsForPhoto({ view, snapshot, photo: p });
     return {
