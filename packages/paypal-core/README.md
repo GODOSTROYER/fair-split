@@ -98,7 +98,9 @@ so the bearer token cannot be sent anywhere else.
    never a record a concurrent copy holds. A release that fails is retried once, then raised as
    `TRANSMISSION_RELEASE_FAILED` in `health()`.
    UNVERIFIED until spike S5: whether PayPal's retries after a non-2xx carry new transmission headers;
-   if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event.
+   if they reuse the first ones, retries later than 5 minutes are refused and catch-up recovers the event:
+   each pass starts where the last finished pass ended (`completedThrough`, minus 10 minutes), never at
+   the newest applied event, so a refused event older than one applied after it is still listed.
 6. The webhook route never asks for the badge postback: processWebhook calls `confirmWebhookByPostback`
    (`apps/api/src/webhooks/postback.ts`) after the 200, from the transmission headers kept in the row.
    A delivery's only in-request PayPal calls are a certificate fetch (step 2: at most 3 in any hour,
@@ -227,7 +229,10 @@ check would restart a healthy process); show them on `/ops`.
   `knownCertIds`, the `PP_CERT_ALLOW` pins. `config.knownCertIds` is required, so a config built another
   way must say what it pins (`[]` pins nothing); otherwise the `CERT_FETCH_THROTTLED` alert's advice
   ("pin the ids in `PP_CERT_ALLOW`") would do nothing.
-- **For WS-OPS:** list `PP_CERT_ALLOW` (`sync: false`) for `fs-api` in `render.yaml`.
+- **For WS-OPS:** list `PP_CERT_ALLOW` (`sync: false`) for `fs-api` in `render.yaml`. In
+  `reconcile{catchup}`, persist both `resume` (until a pass returns null) and `completedThrough` (when a
+  pass returns one) and pass them back to `catchUpWebhookEvents`: a pass without `completedThrough`
+  starts from the newest applied event, and a webhook refused for good before it is never listed.
 - Until WS-API scaffolds `apps/api`, the webhook route is typechecked by `tsconfig.consumers.json` and
   tested by the `api-webhooks` vitest project here.
 
@@ -238,7 +243,8 @@ check would restart a healthy process); show them on `/ops`.
 - `processWebhook` (resolution, re-GET, state transitions); its postback step exists
   (`confirmWebhookByPostback`) and the rules it must follow are code (`apply.ts`: `webhookApplyRule`,
   `corroborateWithSettleGet`, `openForSettleGets`). Catch-up exists (`apps/api/src/webhooks/catchup.ts`, rows labelled
-  `fetched`); WS-OPS schedules it in `reconcile{catchup}` and persists `resume` between passes.
+  `fetched`); WS-OPS schedules it in `reconcile{catchup}` and persists `resume` and `completedThrough`
+  between passes.
 
 ## `tools/setup-webhooks.ts`
 
