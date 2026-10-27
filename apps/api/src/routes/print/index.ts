@@ -55,7 +55,7 @@ export default defineRouteFolder({
         name: "memberPrint",
         summary: "80 mm print data for one member's line",
         description:
-          "What the thermal print carries (W-TR-09): exact pesos at the run's recorded rate for cash lines, the rate line, the ReceiptBar, slips, the rate-card hash, the batch seal, a QR to a freshly signed member link (a reprint rotates it) and the Nadawat box. `?lang=` (default: the member's registry language).",
+          "What the thermal print carries (W-TR-09): exact pesos at the run's recorded rate for cash lines, the rate line, the ReceiptBar, slips, the rate-card hash, the batch seal, a QR to the member's signed, read-only link for this line, and the Nadawat box. Printing never adds a credential: every print of a line on one day (Asia/Manila) carries the same link, which expires 30 days after that day began (or with its workspace, if sooner); once that link is revoked, the day's next one is printed. `?lang=` (default: the member's registry language).",
         params: { memberNo: MemberNo },
         request: z.strictObject({ lang: Lang.optional() }),
         response: PrintSlip,
