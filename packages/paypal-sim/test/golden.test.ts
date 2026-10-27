@@ -238,7 +238,7 @@ describe("PayPal-Request-Id is honoured only where PayPal's spec declares it", (
 });
 
 describe("honesty markers that survive storage", () => {
-  it("every minted resource ID carries SIM inside PayPal's format; PayPal's documented IDs do not", async () => {
+  it("inv.i8.sim-id-markers: every minted resource ID carries SIM inside PayPal's format; PayPal's documented IDs do not", async () => {
     const sim = await newSim();
     const rx = await receiver();
     const tok = await token(sim);

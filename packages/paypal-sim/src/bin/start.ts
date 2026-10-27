@@ -27,11 +27,15 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   console.log(`  client ids: ${apps} (secrets in packages/paypal-sim/data/accounts.json)`);
   console.log(`  webhook cert: ${sim.certUrl}`);
   const targets = sim.options.webhookTargets;
+  const receivers = [
+    ...targets.origins,
+    ...(targets.allowLoopback ? ["loopback hosts on other ports (dev)"] : []),
+  ];
   console.log(
-    `  webhooks delivered only to: ${[...targets.origins].join(", ")}${targets.allowLoopback ? " and loopback hosts (dev)" : ""}`,
+    `  webhooks delivered only to: ${receivers.length > 0 ? receivers.join(", ") : "nowhere yet (add --webhook-origin / SIM_WEBHOOK_ORIGINS)"}; never to this server`,
   );
   console.log(
-    `  admin API: ${sim.options.adminToken ? "x-sim-admin-token required" : sim.localOnly ? "loopback callers only (no SIM_ADMIN_TOKEN)" : "disabled (set SIM_ADMIN_TOKEN)"}`,
+    `  admin API: ${sim.options.adminToken ? "x-sim-admin-token required" : sim.localOnly ? "loopback sockets only (no SIM_ADMIN_TOKEN)" : "disabled (set SIM_ADMIN_TOKEN)"}`,
   );
   const stop = async () => {
     await started.close();

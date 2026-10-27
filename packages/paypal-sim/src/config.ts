@@ -68,18 +68,29 @@ export interface SimulatorOptions {
   unclaimedReturnDays?: number;
   logger?: (message: string) => void;
   /**
-   * When set, /sim/admin/* requires the header `x-sim-admin-token` (compared in constant time). Without it
-   * the admin API fails closed: it answers loopback callers only, and only while publicBaseUrl is a loopback
-   * address. publicFetch never serves it.
+   * When set, /sim/admin/* requires the header `x-sim-admin-token` from every caller (compared in constant
+   * time). Without it the admin API fails closed: it answers only a caller whose socket address is known and
+   * loopback (or code in this process), and only while the simulator is local (see `standalone`). publicFetch
+   * never serves it, and no webhook delivery ever reaches it.
    */
   adminToken?: string;
   /**
    * Extra origins (`https://host[:port]`) webhooks may be delivered to. The origin of publicBaseUrl (the host
-   * app, whose `/webhooks/paypal` receives them) is always allowed; nothing else is.
+   * app, whose `/webhooks/paypal` receives them) is allowed too, except when the simulator serves that origin
+   * itself (`standalone`). The simulator's own /sim pages, and any server it answers in full, never are.
    */
   webhookOrigins?: string[];
-  /** Dev only: also deliver webhooks to loopback hosts on any port. Refused unless publicBaseUrl is loopback. */
+  /**
+   * Dev only: also deliver webhooks to loopback hosts on any port (never the simulator's own). Refused unless
+   * publicBaseUrl is loopback and, for the standalone server, it binds a loopback address.
+   */
   allowLoopbackWebhooks?: boolean;
+  /**
+   * Set by startServer(): this simulator answers HTTP itself, bound to `host` and reached at `url`. That
+   * address and publicBaseUrl then lead to the simulator, so neither is ever a webhook target; and bound to a
+   * non-loopback host, the admin API needs `adminToken`.
+   */
+  standalone?: { url: string; host: string };
   /** Behind one trusted proxy: key the throttle on the right-most X-Forwarded-For entry (default: the socket). */
   trustProxy?: boolean;
   /**

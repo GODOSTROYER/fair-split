@@ -68,12 +68,15 @@ export function originOf(sim: Simulator, c: Context): string {
 
 /**
  * The address the throttle counts against, as the sandbox counts per IP: the socket's remote address, or one
- * shared key for in-process callers. X-Forwarded-For is client-controlled and ignored unless `trustProxy`
- * says exactly one trusted proxy appends it; then its right-most entry is the address that proxy saw.
+ * shared key for in-process callers (recognised only by the IN_PROCESS marker). A caller whose socket address
+ * is unknown (a handler that passes no Node env) shares a key of its own, so it can never spend the
+ * in-process budget the app's own PayPal calls run on. X-Forwarded-For is client-controlled and ignored
+ * unless `trustProxy` says exactly one trusted proxy appends it; then its right-most entry is the address
+ * that proxy saw.
  */
 export function clientAddress(sim: Simulator, c: Ctx): string {
   const env = c.env as SimEnv | undefined;
-  if (env?.[IN_PROCESS]) return "in-process";
+  if (env?.[IN_PROCESS] === true) return "in-process";
   if (sim.options.trustProxy) {
     const hops = (c.req.header("x-forwarded-for") ?? "")
       .split(",")
@@ -83,7 +86,7 @@ export function clientAddress(sim: Simulator, c: Ctx): string {
     if (last) return `ip:${normalizeIp(last)}`;
   }
   const socket = env?.incoming?.socket?.remoteAddress;
-  return socket ? `ip:${normalizeIp(socket)}` : "in-process";
+  return socket ? `ip:${normalizeIp(socket)}` : "unknown-socket";
 }
 
 function simHeaders(debugId?: string): Headers {
@@ -130,25 +133,45 @@ function sameSecret(given: string, expected: string): boolean {
 }
 
 /**
- * The admin gate, fail-closed. With SIM_ADMIN_TOKEN: the `x-sim-admin-token` header must match (constant
- * time). Without it: refused outright unless publicBaseUrl is a loopback URL; and then only for a loopback
- * socket, a loopback Host (DNS-rebinding guard) and, when a browser sends one, a loopback Origin (CSRF guard).
+ * Headers every webhook delivery carries — PayPal's transmission headers and the simulator's marker — and
+ * no admin client sends. A delivery never runs an admin action, whatever URL its webhook was registered with
+ * and whichever simulator on this machine sent it.
+ */
+const DELIVERY_HEADERS = ["paypal-transmission-id", "paypal-transmission-sig", SIMULATED_HEADER] as const;
+
+/**
+ * The admin gate, fail-closed.
+ * - A webhook delivery (DELIVERY_HEADERS) is always refused.
+ * - With SIM_ADMIN_TOKEN: every caller's `x-sim-admin-token` header must match (constant time).
+ * - Without it: code in this process, recognised only by the IN_PROCESS marker (a symbol no HTTP adapter
+ *   sets; such code holds the simulator anyway), is admitted. Anyone else is refused unless the simulator is
+ *   local only (a loopback publicBaseUrl and, for the standalone server, a loopback bind address), and then
+ *   admitted only from a socket whose address is known and loopback — an unknown socket is never assumed to
+ *   be local — with a loopback Host (DNS-rebinding guard) and, when a browser sends one, a loopback Origin
+ *   (CSRF guard).
  */
 export function adminRefusal(sim: Simulator, c: Ctx): { status: 401 | 403; error: string } | null {
+  if (DELIVERY_HEADERS.some((h) => c.req.raw.headers.has(h)))
+    return { status: 403, error: "Webhook deliveries never reach the admin API." };
   const token = sim.options.adminToken;
   if (token !== null)
     return sameSecret(c.req.header("x-sim-admin-token") ?? "", token)
       ? null
       : { status: 401, error: "admin token required (x-sim-admin-token)" };
+  const env = c.env as SimEnv | undefined;
+  if (env?.[IN_PROCESS] === true) return null;
   if (!sim.localOnly)
     return {
       status: 403,
       error:
-        "The simulator admin API is disabled: publicBaseUrl is not a loopback URL and SIM_ADMIN_TOKEN is not set.",
+        "The simulator admin API is disabled: SIM_ADMIN_TOKEN is not set and the simulator is not local only (a loopback publicBaseUrl and, for the standalone server, a loopback bind address).",
     };
-  const remote = (c.env as SimEnv | undefined)?.incoming?.socket?.remoteAddress;
-  if (remote !== undefined && !isLoopbackIp(remote))
-    return { status: 403, error: "Without SIM_ADMIN_TOKEN the admin API answers loopback callers only." };
+  const remote = env?.incoming?.socket?.remoteAddress;
+  if (typeof remote !== "string" || !isLoopbackIp(remote))
+    return {
+      status: 403,
+      error: `Without SIM_ADMIN_TOKEN the admin API answers loopback callers only; this caller's socket address is ${typeof remote === "string" ? "not loopback" : "unknown"}.`,
+    };
   if (!isLoopbackHostname(new URL(c.req.url).hostname))
     return { status: 403, error: "Without SIM_ADMIN_TOKEN the admin API answers loopback host names only." };
   const origin = c.req.header("origin");
@@ -413,23 +436,34 @@ function publicPages(sim: Simulator): Hono<{ Bindings: SimEnv }> {
     const id = c.req.param("id");
     const wantsJson = (c.req.header("accept") ?? "").includes("application/json");
     const form = new URLSearchParams(await c.req.text());
+    const refuse = (message: string): Response =>
+      wantsJson
+        ? json(422, { error: message, simulated: true })
+        : html(422, `<!doctype html><title>Cannot pay</title><p>${escapeHtml(message)}</p>`);
+    // PayPal never lets a visitor choose whose account pays: the invoice's billing recipient does.
+    if (form.has("payer") || new URL(c.req.url).searchParams.has("payer"))
+      return refuse("The pay page takes no payer: the invoice's billing recipient pays.");
     try {
-      const rec = sim.invoicing.payOnPage(id, form.get("payer") ?? undefined);
-      if (wantsJson) return json(200, { id, status: String(rec.invoice.status), simulated: true });
+      const { record } = sim.invoicing.payOnPage(id);
+      if (wantsJson) return json(200, { id, status: String(record.invoice.status), simulated: true });
       return html(
         200,
-        renderPayPage(rec, { payable: false, action: "", message: "Paid (simulated PayPal payment)." }),
+        renderPayPage(record, { payable: false, action: "", message: "Paid (simulated PayPal payment)." }),
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (wantsJson) return json(422, { error: message, simulated: true });
-      return html(422, `<!doctype html><title>Cannot pay</title><p>${escapeHtml(message)}</p>`);
+      return refuse(err instanceof Error ? err.message : String(err));
     }
   });
   return pages;
 }
 
-/** Judge Mode reset, toggles and clock — never public: see adminRefusal. */
+/** An admin request's JSON body when it is an object; anything else (none, unparsable, an array) reads as {}. */
+async function objectBody(c: Ctx): Promise<JsonObject> {
+  const parsed = (await c.req.json().catch(() => null)) as Json | null;
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+}
+
+/** Judge Mode reset, toggles, clock and payment as a named account — never public: see adminRefusal. */
 function adminRoutes(sim: Simulator): Hono<{ Bindings: SimEnv }> {
   const admin = new Hono<{ Bindings: SimEnv }>();
   admin.use("/sim/admin/*", async (c, next) => {
@@ -476,13 +510,13 @@ function adminRoutes(sim: Simulator): Hono<{ Bindings: SimEnv }> {
     return json(200, { ok: true, persisted: sim.options.persist });
   });
   admin.post("/sim/admin/delivery", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as JsonObject;
+    const body = await objectBody(c);
     if (typeof body.out_of_order === "boolean") sim.state.delivery.outOfOrder = body.out_of_order;
     if (typeof body.duplicate === "boolean") sim.state.delivery.duplicate = body.duplicate;
     return json(200, { ok: true, delivery: { ...sim.state.delivery } });
   });
   admin.post("/sim/admin/clock", async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as JsonObject;
+    const body = await objectBody(c);
     if (typeof body.advance_seconds === "number") sim.clock.advance(body.advance_seconds * 1000);
     sim.sweep();
     return json(200, { ok: true, now: new Date(sim.clock.now()).toISOString() });
@@ -490,6 +524,27 @@ function adminRoutes(sim: Simulator): Hono<{ Bindings: SimEnv }> {
   admin.post("/sim/admin/deny-next-batch", () => {
     sim.state.denyNextBatch = true;
     return json(200, { ok: true });
+  });
+  // Pays an invoice as a named simulator account (`{"payer": "<account key>"}`) instead of its billing
+  // recipient: the one place a payer can be chosen, behind the gate. The same rules hold: never the
+  // invoicer, never an unknown account, never a balance below zero.
+  admin.post("/sim/admin/invoice/:id/pay", async (c) => {
+    const id = c.req.param("id");
+    const body = await objectBody(c);
+    if (body.payer !== undefined && typeof body.payer !== "string")
+      return json(422, { error: "payer must be a simulator account key", simulated: true });
+    try {
+      const paid =
+        body.payer === undefined ? sim.invoicing.payOnPage(id) : sim.invoicing.payAs(id, body.payer);
+      return json(200, {
+        id,
+        status: String(paid.record.invoice.status),
+        payer: paid.payerKey,
+        simulated: true,
+      });
+    } catch (err) {
+      return json(422, { error: err instanceof Error ? err.message : String(err), simulated: true });
+    }
   });
   return admin;
 }

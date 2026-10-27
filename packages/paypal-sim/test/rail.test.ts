@@ -182,7 +182,7 @@ describe("simulator rail mounted in a host app (README wiring)", () => {
     return { status: res.status, headers: res.headers, json: (text ? JSON.parse(text) : null) as any };
   };
 
-  it("labels the rail: provenance simulated_rail and ADR-0002's wording", () => {
+  it("inv.i8.rail-provenance: labels the rail: provenance simulated_rail and ADR-0002's wording", () => {
     expect(rail.mode).toBe("simulator");
     expect(rail.provenance).toBe("simulated_rail");
     expect(rail.label).toBe(SIMULATED_RAIL_LABEL);
@@ -224,6 +224,18 @@ describe("simulator rail mounted in a host app (README wiring)", () => {
     const page = await fetch(payUrl);
     expect(page.status).toBe(200);
     expect(await page.text()).toContain("Simulated PayPal sandbox");
+
+    // Through the mount a visitor cannot name the payer (STATE SECURITY, payerKey): the billing recipient pays.
+    const usd = (key: string) => sim().balance(key, "USD").available;
+    const form = { "content-type": "application/x-www-form-urlencoded", accept: "application/json" };
+    const named = await fetch(payUrl, { method: "POST", headers: form, body: "payer=M-007" });
+    expect(named.status).toBe(422);
+    expect(usd("M-007")).toBe(0);
+    expect(usd("lantern-bay")).toBe(10_000_000);
+    const paid = await fetch(payUrl, { method: "POST", headers: form, body: "" });
+    expect(paid.status).toBe(200);
+    expect(usd("lantern-bay")).toBe(10_000_000 - 433_350);
+    expect(usd("M-007")).toBe(0);
   });
 
   it("delivers a signed webhook to the host app that verifies with the cert fetched from paypal-cert-url", async () => {

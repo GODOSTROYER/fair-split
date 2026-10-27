@@ -3,9 +3,10 @@
 //                                               [--public-url https://…] [--fresh]
 //                                               [--webhook-origin http://localhost:8787]… [--allow-loopback-webhooks]
 // --fresh ignores the saved snapshot (keys stay). --webhook-origin (repeatable) adds an origin webhooks may be
-// delivered to (the server's own origin is always allowed). Options map onto the SIM_* variables documented in
+// delivered to (the server itself never is one). Options map onto the SIM_* variables documented in
 // packages/paypal-sim/README.md; flags win over the environment. The admin token is read from SIM_ADMIN_TOKEN
-// only, never from a flag, so it does not show up in process listings.
+// only, never from a flag, so it does not show up in process listings; bound to a non-loopback --host, the
+// admin API answers only with it.
 // (The repo root has no "type": "module", so this file is CommonJS and loads the ESM package dynamically.)
 
 const USAGE =

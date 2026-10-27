@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { IN_PROCESS_ENV } from "../src/http/app.js";
 import type { Simulator } from "../src/simulator.js";
 import { call, newSim, token } from "./helpers.js";
 
@@ -107,6 +108,22 @@ describe("sandbox-style throttle (per client address, like the sandbox's per-IP 
     expect((await via("198.51.100.10")).status).toBe(429);
     expect((await via("198.51.100.11")).status).toBe(200);
     await proxied.close();
+  });
+
+  it("gives callers whose socket address is unknown their own budget, never the in-process one (STATE 27 Oct 17:0x)", async () => {
+    sim = await newSim({ rateLimit: { perMinute: 2, blockSeconds: 60 } });
+    const path = "https://api-m.sandbox.paypal.com/v1/notifications/webhooks";
+    const unknown = () => sim.fetch(new Request(path)).then((r) => r.status); // e.g. a host app passing no env
+    const inProcess = () => sim.apiFetch(new Request(path), IN_PROCESS_ENV).then((r) => r.status); // the interceptor
+    expect([await unknown(), await unknown(), await unknown()]).toEqual([401, 401, 429]);
+    // The app's own PayPal calls keep their budget.
+    expect([await inProcess(), await inProcess()]).toEqual([401, 401]);
+    expect(await inProcess()).toBe(429);
+    expect(
+      await sim
+        .fetch(new Request(path), { incoming: { socket: { remoteAddress: "127.0.0.1" } } })
+        .then((r) => r.status),
+    ).toBe(401);
   });
 
   it("keeps the address table bounded when callers rotate addresses", async () => {

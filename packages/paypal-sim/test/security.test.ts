@@ -1,9 +1,18 @@
-// The two automated security findings on ws/ppsim (STATE.md, MEDIUM ×2) and the review's public-mount blocker:
+// The automated security findings on ws/ppsim (STATE.md) and the review's public-mount blocker:
 //  (1) SSRF: webhook create/patch and simulate-event accepted any http(s) URL, so the simulator would POST
 //      anywhere, internal addresses included;
-//  (2) the /sim/admin/* gate was fail-open when no admin token was configured.
+//  (2) the /sim/admin/* gate was fail-open when no admin token was configured, and (27 Oct 17:0x) still was
+//      when the caller's socket address was unknown: the Host header alone decided;
+//  (3) self-SSRF: the standalone server's own origin was an allowed webhook target, so a non-loopback peer
+//      could have the simulator deliver into its own /sim/admin and run admin actions on itself.
 // Every test here fails against the code before the fix.
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { getRequestListener } from "@hono/node-server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { IN_PROCESS_ENV, type SimEnv } from "../src/http/app.js";
+import { checkWebhookTarget } from "../src/net.js";
+import { startServer } from "../src/server.js";
 import { createSimulator, type Simulator } from "../src/simulator.js";
 import { call, canonicalInvoice, newSim, type Receiver, receiver, subscribe, token } from "./helpers.js";
 
@@ -222,6 +231,118 @@ describe("the admin API fails closed (finding 2)", () => {
     expect(sim.state.denyNextBatch).toBe(true);
   });
 
+  it("refuses a caller whose socket address is unknown, whatever its Host says (STATE 27 Oct 17:0x)", async () => {
+    const sim = await newSim(); // loopback publicBaseUrl, no token
+    open.push(sim);
+    const tok = await token(sim);
+    await call(sim, "POST", "/v2/invoicing/invoices", { token: tok, body: canonicalInvoice("FS-UNKNOWN") });
+    const status = (method: string, url: string, env?: SimEnv) =>
+      sim.fetch(new Request(url, { method }), env).then((r) => r.status);
+    // No env (a host app wiring `(c) => sim.fetch(c.req.raw)`, a Bun or Deno handler), or one without a socket.
+    const unknown: (SimEnv | undefined)[] = [undefined, {}, { incoming: {} }, { incoming: { socket: {} } }];
+    for (const env of unknown) {
+      expect(await status("POST", "http://localhost:4010/sim/admin/deny-next-batch", env)).toBe(403);
+      expect(await status("POST", "http://127.0.0.1:4010/sim/admin/reset", env)).toBe(403);
+      expect(await status("GET", "http://[::1]:4010/sim/admin/accounts", env)).toBe(403);
+    }
+    expect(sim.state.denyNextBatch).toBe(false);
+    expect(Object.keys(sim.state.invoices)).toHaveLength(1);
+  });
+
+  it("refuses an unknown socket over real HTTP too: a loopback server that forwards to sim.fetch without its env", async () => {
+    const sim = await newSim();
+    open.push(sim);
+    const tok = await token(sim);
+    await call(sim, "POST", "/v2/invoicing/invoices", { token: tok, body: canonicalInvoice("FS-FORWARD") });
+    const host = createServer(getRequestListener((req) => sim.fetch(req), { overrideGlobalObjects: false }));
+    await new Promise<void>((r) => host.listen(0, "127.0.0.1", () => r()));
+    try {
+      const origin = `http://127.0.0.1:${(host.address() as AddressInfo).port}`;
+      expect((await fetch(`${origin}/sim/admin/reset`, { method: "POST" })).status).toBe(403);
+      expect((await fetch(`${origin}/sim/admin/accounts`)).status).toBe(403);
+      expect(Object.keys(sim.state.invoices)).toHaveLength(1);
+    } finally {
+      host.closeAllConnections();
+      await new Promise<void>((r) => host.close(() => r()));
+    }
+  });
+
+  it("admits a known loopback socket or the in-process marker; with SIM_ADMIN_TOKEN every caller needs the token", async () => {
+    const sim = await newSim();
+    open.push(sim);
+    const post = (env?: SimEnv) =>
+      sim
+        .fetch(new Request("http://localhost:4010/sim/admin/deny-next-batch", { method: "POST" }), env)
+        .then((r) => r.status);
+    for (const remote of ["192.168.1.20", "0.0.0.0", "::", "", "localhost"])
+      expect(await post({ incoming: { socket: { remoteAddress: remote } } }), remote).toBe(403);
+    expect(sim.state.denyNextBatch).toBe(false);
+    expect(await post(IN_PROCESS_ENV)).toBe(200); // set only by code in this process, never by an HTTP adapter
+    expect(sim.state.denyNextBatch).toBe(true);
+
+    const secret = "test-admin-token-in-process-0001";
+    const guarded = await newSim({ adminToken: secret });
+    open.push(guarded);
+    const state = (env: SimEnv | undefined, headers: Record<string, string> = {}) =>
+      guarded
+        .fetch(new Request("http://localhost:4010/sim/admin/state", { headers }), env)
+        .then((r) => r.status);
+    expect(await state(IN_PROCESS_ENV)).toBe(401);
+    expect(await state({ incoming: { socket: { remoteAddress: "127.0.0.1" } } })).toBe(401);
+    safeCompares.count = 0;
+    expect(await state(undefined, { "x-sim-admin-token": secret })).toBe(200);
+    expect(safeCompares.count).toBeGreaterThan(0);
+  });
+
+  it("never admits a webhook delivery: PayPal's transmission headers or the simulator's marker are refused", async () => {
+    const sim = await newSim();
+    open.push(sim);
+    const loopback: SimEnv = { incoming: { socket: { remoteAddress: "127.0.0.1" } } };
+    const markers: Record<string, string>[] = [
+      { "paypal-transmission-id": "6f3e0c80-0000-0000-0000-000000000000" },
+      { "paypal-transmission-sig": "c2lnbmF0dXJl" },
+      { "x-fairsplit-simulated": "true" },
+    ];
+    for (const headers of markers) {
+      const res = await sim.fetch(
+        new Request("http://127.0.0.1:4010/sim/admin/deny-next-batch", { method: "POST", headers }),
+        loopback,
+      );
+      expect(res.status, JSON.stringify(headers)).toBe(403);
+    }
+    expect(sim.state.denyNextBatch).toBe(false);
+  });
+
+  it("bound to a non-loopback address, the standalone server's admin needs SIM_ADMIN_TOKEN, and loopback webhooks are refused", async () => {
+    // What startServer({ host: "0.0.0.0" }) passes, without binding a public interface in a test.
+    const exposed = { url: "http://127.0.0.1:4010", host: "0.0.0.0" };
+    const sim = await createSimulator({ ...quiet, standalone: exposed });
+    open.push(sim);
+    const res = await sim.fetch(
+      new Request("http://127.0.0.1:4010/sim/admin/deny-next-batch", { method: "POST" }),
+      {
+        incoming: { socket: { remoteAddress: "127.0.0.1" } },
+      },
+    );
+    expect(res.status).toBe(403);
+    expect(sim.state.denyNextBatch).toBe(false);
+    await expect(
+      createSimulator({ ...quiet, standalone: exposed, allowLoopbackWebhooks: true }),
+    ).rejects.toThrow(/local development only/);
+    const withToken = await createSimulator({
+      ...quiet,
+      standalone: exposed,
+      adminToken: "exposed-admin-token-01",
+    });
+    open.push(withToken);
+    const ok = await withToken.fetch(
+      new Request("http://127.0.0.1:4010/sim/admin/state", {
+        headers: { "x-sim-admin-token": "exposed-admin-token-01" },
+      }),
+    );
+    expect(ok.status).toBe(200);
+  });
+
   it("publicFetch never serves admin or REST routes", async () => {
     const sim = await createSimulator({
       ...quiet,
@@ -248,5 +369,195 @@ describe("the admin API fails closed (finding 2)", () => {
     expect(reset.status).toBe(404);
     expect(Object.keys(sim.state.tokens)).toHaveLength(0);
     expect((await sim.publicFetch(new Request(sim.certUrl))).status).toBe(200);
+  });
+});
+
+describe("self-SSRF: webhooks never reach the simulator's own admin or pages (finding 3)", () => {
+  const LAN: SimEnv = { incoming: { socket: { remoteAddress: "192.168.1.20" } } };
+  const closers: (() => Promise<void>)[] = [];
+  afterEach(async () => {
+    for (const close of closers.splice(0)) await close();
+  });
+
+  /** A caller on another machine: every request arrives from a LAN address, as the verifier's probe sent them. */
+  const peerOf =
+    (sim: Simulator, base: string) => async (method: string, path: string, body?: unknown, tok?: string) => {
+      const res = await sim.fetch(
+        new Request(`${base}${path}`, {
+          method,
+          headers: {
+            ...(tok ? { authorization: `Bearer ${tok}` } : {}),
+            ...(body !== undefined ? { "content-type": "application/json" } : {}),
+          },
+          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        }),
+        LAN,
+      );
+      const text = await res.text();
+      // biome-ignore lint/suspicious/noExplicitAny: test convenience for JSON bodies
+      return { status: res.status, json: (text.startsWith("{") ? JSON.parse(text) : null) as any };
+    };
+
+  it("a non-loopback peer cannot aim a webhook (create, PATCH, simulate-event, stored) at the standalone server itself", async () => {
+    const rx = await receiver(); // a receiver the operator allowed with --webhook-origin
+    const server = await startServer({ host: "127.0.0.1", port: 0, ...quiet, webhookOrigins: [rx.origin] });
+    closers.push(
+      () => server.close(),
+      () => rx.close(),
+    );
+    const sim = server.simulator;
+    const peer = peerOf(sim, server.url);
+    expect((await peer("POST", "/sim/admin/deny-next-batch")).status).toBe(403); // direct admin: refused
+    const tok = await token(sim, "fs-dev", "192.168.1.20"); // the committed simulator credentials
+    expect((await peer("POST", "/v2/invoicing/invoices", canonicalInvoice("FS-SELF-1"), tok)).status).toBe(
+      201,
+    );
+
+    const port = server.port;
+    const self = [
+      `${server.url}/sim/admin/deny-next-batch`,
+      `${server.url}/sim/admin/reset`,
+      `http://localhost:${port}/sim/admin/reset`,
+      `http://[::1]:${port}/sim/admin/reset`,
+      `http://[::ffff:127.0.0.1]:${port}/sim/admin/reset`,
+      `${server.url}/s%69m/admin/reset`,
+      `${server.url}/webhooks/paypal`, // the standalone server is the simulator, not a receiver
+    ];
+    for (const url of self) {
+      const created = await peer(
+        "POST",
+        "/v1/notifications/webhooks",
+        { url, event_types: [{ name: "*" }] },
+        tok,
+      );
+      expect(created.status, url).toBe(400);
+      expect(created.json?.details?.[0]?.issue, url).toBe("Not a valid webhook URL");
+      const mock = await peer(
+        "POST",
+        "/v1/notifications/simulate-event",
+        { url, event_type: "INVOICING.INVOICE.PAID" },
+        tok,
+      );
+      expect(mock.status, url).toBe(400);
+    }
+    const hook = await peer(
+      "POST",
+      "/v1/notifications/webhooks",
+      { url: rx.url, event_types: [{ name: "*" }] },
+      tok,
+    );
+    expect(hook.status).toBe(201);
+    const patched = await peer(
+      "PATCH",
+      `/v1/notifications/webhooks/${hook.json.id}`,
+      [{ op: "replace", path: "/url", value: `${server.url}/sim/admin/reset` }],
+      tok,
+    );
+    expect(patched.status).toBe(400);
+
+    // A target stored before this policy (an old snapshot) gets no POST: every attempt re-checks it.
+    const clientId = sim.registry.apps[0]?.client_id as string;
+    sim.state.webhooks.SIMLEGACYSELF0001 = {
+      id: "SIMLEGACYSELF0001",
+      clientId,
+      url: `${server.url}/sim/admin/deny-next-batch`,
+      eventTypes: ["*"],
+      createdAt: sim.clock.now(),
+    };
+    expect((await peer("POST", "/v2/invoicing/invoices", canonicalInvoice("FS-SELF-2"), tok)).status).toBe(
+      201,
+    );
+    await sim.idle();
+    const legacy = Object.values(sim.state.deliveries).filter((d) => d.webhookId === "SIMLEGACYSELF0001");
+    expect(legacy.length).toBeGreaterThan(0);
+    for (const d of legacy) expect(d).toMatchObject({ status: "FAILED", attempts: 0 });
+    expect(sim.state.denyNextBatch).toBe(false);
+    expect(Object.keys(sim.state.invoices)).toHaveLength(2);
+    expect(Object.keys(sim.state.webhooks)).toContain(hook.json.id);
+    expect(rx.deliveries.length).toBeGreaterThan(0); // the allowed receiver still gets its events
+  });
+
+  it("with --allow-loopback-webhooks the standalone server still refuses its own port, not other loopback receivers", async () => {
+    const rx = await receiver();
+    const server = await startServer({ host: "127.0.0.1", port: 0, ...quiet, allowLoopbackWebhooks: true });
+    closers.push(
+      () => server.close(),
+      () => rx.close(),
+    );
+    const peer = peerOf(server.simulator, server.url);
+    const tok = await token(server.simulator, "fs-dev", "192.168.1.20");
+    for (const url of [
+      `${server.url}/sim/admin/reset`,
+      `http://localhost:${server.port}/sim/admin/reset`,
+      `http://127.0.0.1:${server.port}/webhooks/paypal`,
+    ]) {
+      const res = await peer(
+        "POST",
+        "/v1/notifications/webhooks",
+        { url, event_types: [{ name: "*" }] },
+        tok,
+      );
+      expect(res.status, url).toBe(400);
+    }
+    const ok = await peer(
+      "POST",
+      "/v1/notifications/webhooks",
+      { url: rx.url, event_types: [{ name: "*" }] },
+      tok,
+    );
+    expect(ok.status).toBe(201);
+  });
+
+  it("on the host app's origin, the simulator's own /sim pages are never targets (decoded, any case); /webhooks/paypal is", async () => {
+    const sim = await createSimulator({ ...quiet, publicBaseUrl: PUBLIC, basePath: "/paypal-sim" });
+    closers.push(() => sim.close());
+    const tok = await token(sim);
+    const hook = (url: string) =>
+      call(sim, "POST", "/v1/notifications/webhooks", {
+        token: tok,
+        body: { url, event_types: [{ name: "INVOICING.INVOICE.PAID" }] },
+      }).then((r) => `${r.status} ${r.json?.details?.[0]?.description ?? ""}`);
+    const ownPages = "400 The simulator never delivers webhooks to its own /sim pages.";
+    for (const url of [
+      `${PUBLIC}/paypal-sim/sim/invoice/INV2-SIMA-AAAA-BBBB-CCCC/pay`,
+      `${PUBLIC}/paypal-sim/sim/admin/reset`,
+      `${PUBLIC}/PAYPAL-SIM/SIM/admin/reset`,
+      `${PUBLIC}/paypal-sim/s%69m/admin/reset`,
+      `${PUBLIC}/paypal-sim/%2573im/admin/reset`,
+      `${PUBLIC}/paypal-sim//sim/health`,
+      `${PUBLIC}/paypal-sim%2Fsim/admin/reset`,
+      `${PUBLIC}/webhooks/..%2F..%2Fpaypal-sim/sim/admin/reset`,
+      `${PUBLIC}/sim/admin/reset`,
+    ])
+      expect(await hook(url), url).toBe(ownPages);
+    expect(await hook(`${PUBLIC}/webhooks/paypal`)).toBe("201 ");
+    expect(await hook(`${PUBLIC}/paypal-simulated/sim`)).toBe("201 "); // a different path, not the mount
+    // A stored URL skips request validation (whose uri format refuses a stray %), so the delivery-time check
+    // must decode around one, as Hono's router does.
+    const stored = checkWebhookTarget(
+      sim.options.webhookTargets,
+      `${PUBLIC}/paypal-sim/s%69m/admin/invoice/x%/pay`,
+    );
+    expect(stored).toEqual({
+      ok: false,
+      description: "The simulator never delivers webhooks to its own /sim pages.",
+    });
+  });
+
+  it("another simulator's delivery into this one's admin is refused by the gate itself (defence in depth)", async () => {
+    const target = await startServer({ host: "127.0.0.1", port: 0, ...quiet });
+    // A second simulator in dev mode may deliver to any loopback port, so its policy cannot know the target.
+    const other = await newSim({ delivery: { maxAttempts: 1 } });
+    closers.push(
+      () => target.close(),
+      () => other.close(),
+    );
+    const tok = await token(other);
+    await subscribe(other, tok, `${target.url}/sim/admin/deny-next-batch`, ["INVOICING.INVOICE.CREATED"]);
+    await call(other, "POST", "/v2/invoicing/invoices", { token: tok, body: canonicalInvoice("FS-CROSS") });
+    await other.idle();
+    const d = Object.values(other.state.deliveries)[0];
+    expect(d).toMatchObject({ status: "FAILED", attempts: 1, lastStatusCode: 403 });
+    expect(target.simulator.state.denyNextBatch).toBe(false);
   });
 });

@@ -12,7 +12,7 @@ import { ReportingEngine } from "./domain/reporting.js";
 import { WebhookEngine } from "./domain/webhooks.js";
 import { buildApp, type SimEnv, type SimHandlers } from "./http/app.js";
 import { RateLimiter } from "./http/ratelimit.js";
-import { isLoopbackHostname, type WebhookTargetPolicy } from "./net.js";
+import { isLoopbackHostname, serverRef, type WebhookTargetPolicy } from "./net.js";
 import {
   type Account,
   type App,
@@ -116,7 +116,10 @@ export class Simulator {
   readonly reporting: ReportingEngine;
   readonly app: Hono;
   private readonly handlers: SimHandlers;
-  /** True while publicBaseUrl names this machine (local development). */
+  /**
+   * True while the simulator is local development only: publicBaseUrl names this machine and, for the
+   * standalone server, it binds a loopback address. Without SIM_ADMIN_TOKEN the admin API answers only then.
+   */
   readonly localOnly: boolean;
   state: SimState;
   private readonly log: (message: string) => void;
@@ -128,13 +131,26 @@ export class Simulator {
     const basePath = opts.basePath ? `/${opts.basePath.replace(/^\/+|\/+$/g, "")}` : "";
     const publicUrl = checkMount(trimSlash(opts.publicBaseUrl ?? "http://127.0.0.1:4010"), basePath);
     const publicBaseUrl = trimSlash(publicUrl.href); // normalised: lower-case host, no default port
-    this.localOnly = isLoopbackHostname(publicUrl.hostname);
+    const standalone = opts.standalone
+      ? { url: httpUrl(opts.standalone.url, "standalone.url"), host: opts.standalone.host }
+      : null;
+    this.localOnly =
+      isLoopbackHostname(publicUrl.hostname) && (standalone === null || isLoopbackHostname(standalone.host));
     if (opts.allowLoopbackWebhooks && !this.localOnly)
       throw new Error(
-        "allowLoopbackWebhooks is for local development only: publicBaseUrl must be a loopback URL",
+        `allowLoopbackWebhooks is for local development only: publicBaseUrl must be a loopback URL${standalone ? " and the server must bind a loopback address" : ""}`,
       );
-    const origins = new Set<string>([publicUrl.origin]);
+    // The standalone server answers publicBaseUrl itself, so that origin is the simulator, not a receiver.
+    const origins = new Set<string>(standalone ? [] : [publicUrl.origin]);
     for (const o of opts.webhookOrigins ?? []) origins.add(httpUrl(o, "a webhook origin").origin);
+    const publicServer = serverRef(publicUrl);
+    const webhookTargets: WebhookTargetPolicy = {
+      origins,
+      allowLoopback: opts.allowLoopbackWebhooks ?? false,
+      selfServers: standalone ? [publicServer, serverRef(standalone.url)] : [],
+      // The composed app answers its pages under basePath and at its root.
+      selfPages: { server: publicServer, prefixes: [...new Set([`${basePath}/sim`.toLowerCase(), "/sim"])] },
+    };
     const fetchImpl = opts.deliveryFetch ?? ((url: string, init: RequestInit) => globalThis.fetch(url, init));
     this.options = {
       publicBaseUrl,
@@ -164,7 +180,7 @@ export class Simulator {
         outOfOrder: opts.delivery?.outOfOrder ?? false,
         duplicate: opts.delivery?.duplicate ?? false,
       },
-      webhookTargets: { origins, allowLoopback: opts.allowLoopbackWebhooks ?? false },
+      webhookTargets,
       trustProxy: opts.trustProxy ?? false,
       idempotency: opts.idempotency ?? "declared",
     };

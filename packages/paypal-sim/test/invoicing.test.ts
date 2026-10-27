@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { SimEnv } from "../src/http/app.js";
 import type { Simulator } from "../src/simulator.js";
 import { DAY_MS } from "../src/util/time.js";
 import {
+  BUSINESS_EMAIL,
   call,
   canonicalInvoice,
   newSim,
@@ -310,28 +312,163 @@ describe("Invoicing v2", () => {
     await rx.close();
   });
 
-  it("the public pay page only lets a real third party pay: never the invoicer, never an unknown account", async () => {
-    const { id } = await create("FS-PAYER");
-    await call(sim, "POST", `/v2/invoicing/invoices/${id}/send`, {
-      token: tok,
-      body: { send_to_recipient: false },
+  // STATE.md ws/ppsim SECURITY (27 Oct, invoicing.ts payerKey): the public pay page took a `payer` form field
+  // and debited any account but the invoicer, with no funds check. PayPal never lets a visitor choose whose
+  // account pays; the invoice's billing recipient does.
+  describe("the pay page's payer is the invoice's billing recipient, never one the visitor names", () => {
+    const usd = (key: string) => sim.balance(key, "USD").available;
+    /** Everything a payment could move: the ledger, Transaction Search's rows and every balance. */
+    const money = () => ({
+      ledger: sim.state.ledger.length,
+      transactions: sim.state.transactions.length,
+      balances: Object.fromEntries(sim.registry.accounts.map((a) => [a.key, usd(a.key)])),
     });
-    const pay = (payer: string) =>
+    const sent = async (invoiceNumber: string, billedTo = PAYER_EMAIL): Promise<string> => {
+      const body = canonicalInvoice(invoiceNumber);
+      const [first] = body.primary_recipients as { billing_info: { email_address: string } }[];
+      if (!first) throw new Error("no recipient");
+      first.billing_info.email_address = billedTo;
+      const res = await call(sim, "POST", "/v2/invoicing/invoices", { token: tok, body });
+      expect(res.status).toBe(201);
+      const id = String(res.json.href).split("/").pop() as string;
+      await call(sim, "POST", `/v2/invoicing/invoices/${id}/send`, {
+        token: tok,
+        body: { send_to_recipient: false },
+      });
+      return id;
+    };
+    /** POSTs the pay page the way a host app's /paypal-sim mount hands it to publicFetch. */
+    const publicPay = (id: string, form = "", query = "", asJson = true) =>
       sim.publicFetch(
-        new Request(`http://127.0.0.1:4010/sim/invoice/${id}/pay`, {
+        new Request(`http://127.0.0.1:4010/sim/invoice/${id}/pay${query}`, {
           method: "POST",
-          headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
-          body: `payer=${payer}`,
+          headers: {
+            ...(asJson ? { accept: "application/json" } : {}),
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: form,
         }),
       );
-    const self = await pay("coop");
-    expect(self.status).toBe(422);
-    expect(((await self.json()) as { error: string }).error).toMatch(/cannot pay its own invoice/);
-    expect((await pay("no-such-account")).status).toBe(422);
-    const before = sim.balance("coop", "USD").available;
-    expect(before).toBe(10_000_000);
-    const ok = await pay("lantern-bay");
-    expect(ok.status).toBe(200);
+    const errorOf = async (res: Response) => ((await res.json()) as { error: string }).error;
+    const statusOf = async (id: string) =>
+      (await call(sim, "GET", `/v2/invoicing/invoices/${id}`, { token: tok })).json.status as string;
+
+    it("refuses every payer a visitor names (another account, the recipient's own key, the invoicer, unknown) with 422, moving nothing", async () => {
+      const id = await sent("FS-PAYER-NAMED");
+      const before = money();
+      for (const form of [
+        "payer=M-007",
+        "payer=lantern-bay",
+        "payer=coop",
+        "payer=no-such-account",
+        "payer=",
+      ]) {
+        const res = await publicPay(id, form);
+        expect(res.status, form).toBe(422);
+        expect(await errorOf(res), form).toMatch(/payer/);
+      }
+      expect((await publicPay(id, "", "?payer=M-007")).status).toBe(422);
+      const page = await publicPay(id, "payer=M-007", "", false); // the HTML form post
+      expect(page.status).toBe(422);
+      expect(await page.text()).toContain("Cannot pay");
+      expect(money()).toEqual(before);
+      expect(await statusOf(id)).toBe("UNPAID");
+    });
+
+    it("with no payer named, the billing recipient pays: Lantern Bay is debited and named in Transaction Search", async () => {
+      const id = await sent("FS-PAYER-RECIPIENT");
+      expect((await publicPay(id)).status).toBe(200);
+      expect(await statusOf(id)).toBe("PAID");
+      expect(usd("lantern-bay")).toBe(10_000_000 - 433_350);
+      expect(usd("coop")).toBe(10_000_000 + 433_350 - 15_173);
+      for (const member of ["M-007", "M-014"]) expect(usd(member), member).toBe(0);
+      expect(sim.state.transactions.at(-1)).toMatchObject({
+        eventCode: "T0000",
+        counterpartyKey: "lantern-bay",
+        counterpartyEmail: PAYER_EMAIL,
+      });
+    });
+
+    it("an invoice billed to an address with no simulator account is paid by an external payer: no simulator account is debited", async () => {
+      const id = await sent("FS-PAYER-EXTERNAL", "accounts.payable@example.net");
+      const before = money();
+      expect((await publicPay(id)).status).toBe(200);
+      for (const [key, cents] of Object.entries(before.balances))
+        if (key !== "coop") expect(usd(key), key).toBe(cents);
+      expect(sim.state.transactions.at(-1)).toMatchObject({
+        counterpartyKey: null,
+        counterpartyEmail: "accounts.payable@example.net",
+      });
+    });
+
+    it("refuses a billing recipient whose simulated balance is short of the amount due, and one who is the invoicer", async () => {
+      const short = await sent("FS-PAYER-SHORT", "consolacion.bacus@example.org"); // M-014 holds US$0.00
+      const own = await sent("FS-PAYER-OWN", BUSINESS_EMAIL);
+      const before = money();
+      const res = await publicPay(short);
+      expect(res.status).toBe(422);
+      expect(await errorOf(res)).toMatch(/balance/);
+      const self = await publicPay(own);
+      expect(self.status).toBe(422);
+      expect(await errorOf(self)).toMatch(/cannot pay its own invoice/);
+      expect(money()).toEqual(before);
+      expect(await statusOf(short)).toBe("UNPAID");
+    });
+
+    it("a named payer is honoured only through the admin API behind its gate (or in process), never below zero", async () => {
+      const id = await sent("FS-PAYER-ADMIN");
+      const path = `/sim/admin/invoice/${id}/pay`;
+      const admin = (payer: string, env?: SimEnv) =>
+        sim.fetch(
+          new Request(`http://127.0.0.1:4010${path}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ payer }),
+          }),
+          env,
+        );
+      const loopback: SimEnv = { incoming: { socket: { remoteAddress: "127.0.0.1" } } };
+      const before = money();
+      // Not served by the public mount at all; refused by the gate for an unknown or a LAN socket.
+      const viaMount = await sim.publicFetch(
+        new Request(`http://127.0.0.1:4010${path}`, {
+          method: "POST",
+          body: JSON.stringify({ payer: "M-007" }),
+        }),
+      );
+      expect(viaMount.status).toBe(404);
+      expect((await admin("M-007")).status).toBe(403);
+      expect((await admin("M-007", { incoming: { socket: { remoteAddress: "192.168.1.20" } } })).status).toBe(
+        403,
+      );
+      // Past the gate the same rules hold: never the invoicer, never an unknown account, never below zero.
+      expect((await admin("coop", loopback)).status).toBe(422);
+      expect((await admin("no-such-account", loopback)).status).toBe(422);
+      const broke = await admin("M-007", loopback); // US$0.00
+      expect(broke.status).toBe(422);
+      expect(await errorOf(broke)).toMatch(/balance/);
+      expect(() => sim.invoicing.payAs(id, "M-007")).toThrow(/balance/);
+      expect(money()).toEqual(before);
+      expect(await statusOf(id)).toBe("UNPAID");
+      // Funded by a test-only ledger entry, M-007 can pay through the gate; Lantern Bay is untouched.
+      sim.post({
+        accountKey: "M-007",
+        currency: "USD",
+        availableCents: 500_000,
+        withheldCents: 0,
+        kind: "test.fund",
+        ref: "test",
+      });
+      const ok = await admin("M-007", loopback);
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toMatchObject({ id, status: "PAID", payer: "M-007", simulated: true });
+      expect(usd("M-007")).toBe(500_000 - 433_350);
+      expect(usd("lantern-bay")).toBe(10_000_000);
+      expect(sim.state.transactions.at(-1)).toMatchObject({
+        counterpartyKey: "M-007",
+        counterpartyEmail: "dionisio.lapinig@example.org",
+      });
+    });
   });
 
   it("lists invoices newest first with paging links", async () => {

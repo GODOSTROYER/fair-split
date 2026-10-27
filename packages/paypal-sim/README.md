@@ -33,11 +33,11 @@ The real sandbox stays one environment variable away: `PP_MODE=sandbox` turns th
 | OAuth 2.0         | `POST /v1/oauth2/token` (client credentials, Basic auth; per-client tokens with scopes, `expires_in` 32400; bad credentials → 401 `invalid_client`)                                                                                                                                                                                                           |
 | Invoicing v2      | create (draft; minimal `self` link, or the invoice with `Prefer: return=representation`), get, list, `search-invoices`, full update, delete (draft/scheduled), send (`send_to_recipient:false` → UNPAID, a future `invoice_date` → 202 SCHEDULED), remind, cancel, record payment (→ MARKED_AS_PAID), delete external payment, `generate-next-invoice-number` |
 | Conditional rules | `POST/GET /v2/invoicing/invoices/{id}/conditional-rules`, `GET/PUT/DELETE …/conditional-rules/{rule_id}`; AUTO_CANCEL with `SPECIFIC_DATE` cancels an unpaid invoice (status AUTO_CANCELLED) after that merchant-time date                                                                                                                                    |
-| Pay page          | `recipient_view_url` → `GET /sim/invoice/{id}/pay` (a plain, clearly labelled page, no credentials asked); `POST` pays it → PAID, a PayPal-type payment, balance credited less PayPal's published fee                                                                                                                                                         |
+| Pay page          | `recipient_view_url` → `GET /sim/invoice/{id}/pay` (a plain, clearly labelled page, no credentials asked); `POST` pays it as the invoice's billing recipient (below) → PAID, a PayPal-type payment, balance credited less PayPal's published fee                                                                                                              |
 | Payouts v1        | `POST /v1/payments/payouts`, `GET /v1/payments/payouts/{id}` (paging, `fields=batch_header`), `GET /v1/payments/payouts-item/{id}`, `POST /v1/payments/payouts-item/{id}/cancel` (UNCLAIMED → RETURNED only)                                                                                                                                                  |
 | Reporting         | `GET /v1/reporting/transactions` (Transaction Search over simulator activity), `GET /v1/reporting/balances`                                                                                                                                                                                                                                                   |
 | Webhooks v1       | webhooks create/list/get/patch/delete, `…/{id}/event-types`, `webhooks-event-types`, `webhooks-lookup` CRUD, `verify-webhook-signature`, `webhooks-events` list (with `start_time`, `end_time`, `event_type`, `transaction_id`), get, `…/resend`, `simulate-event`                                                                                            |
-| Simulator-only    | public: `GET /sim/health`, `GET /sim/certs/{id}.pem`, `GET /sim/invoice/{id}`, `GET/POST /sim/invoice/{id}/pay`; admin (fail-closed, below): `GET /sim/admin/state`, `…/accounts`, `…/deliveries`, `POST /sim/admin/reset`, `…/snapshot`, `…/delivery`, `…/clock`, `…/deny-next-batch`                                                                        |
+| Simulator-only    | public: `GET /sim/health`, `GET /sim/certs/{id}.pem`, `GET /sim/invoice/{id}`, `GET/POST /sim/invoice/{id}/pay`; admin (fail-closed, below): `GET /sim/admin/state`, `…/accounts`, `…/deliveries`, `POST /sim/admin/reset`, `…/snapshot`, `…/delivery`, `…/clock`, `…/deny-next-batch`, `…/invoice/{id}/pay`                                                  |
 
 ### Behaviour worth knowing
 
@@ -65,6 +65,14 @@ The real sandbox stays one environment variable away: `PP_MODE=sandbox` turns th
   Balances are kept in integer cents in a ledger; payouts debit the co-op and returns credit it back. A recorded
   payment (MARKED_AS_PAID) moves no money inside PayPal, so it carries no fee and creates no transaction — exactly
   what the reconciliation spec expects. Seeded balances: co-op and Lantern Bay US$100,000.00 each.
+- **Who pays on the pay page.** As on PayPal, a visitor never chooses whose account pays: the invoice's billing
+  recipient does — the simulator account whose email is `primary_recipients[0].billing_info.email_address`
+  (Lantern Bay for Fair Split's invoices), or, when no account has that email, an external payer whose money
+  the simulator does not hold, so nothing is debited. A `payer` field (form or query) is refused with 422, as is
+  a payer whose simulated balance is short of the amount due (no balance goes below zero) and an invoice billed
+  to the invoicer itself. Paying as another named account is an admin action, behind the admin gate:
+  `POST /sim/admin/invoice/{id}/pay {"payer": "<account key>"}` (in process: `sim.invoicing.payAs(id, key)`),
+  under the same rules.
 - **Transaction Search.** Payout items appear as `T0001` (status `S`, or `P` while unclaimed, `V` once returned),
   returns as `T1115`, pay-page invoice payments as `T0000` with `invoice_id` = invoice number. `custom_field`
   carries the `sender_item_id`. `SIM_REPORTING_LAG_S` imitates PayPal's reporting lag (default 0).
@@ -80,9 +88,10 @@ The real sandbox stays one environment variable away: `PP_MODE=sandbox` turns th
 - **Throttle and latency.** 50 requests a minute per client address, like the sandbox's per-IP block, then `429
   RATE_LIMIT_REACHED` for 5 minutes (`SIM_RATE_LIMIT_PER_MIN`, `SIM_RATE_LIMIT_BLOCK_S`; 0 disables). The address is
   the socket's; in-process calls (the interceptor) share one address, as all of a server's calls share one IP, so
-  both REST apps on one server share one budget. `X-Forwarded-For` is ignored unless `SIM_TRUST_PROXY=1` (exactly
-  one trusted proxy; then its right-most entry counts). The counter table is capped (10,000 addresses).
-  `SIM_LATENCY_MS` adds a fixed or ranged delay to every API response.
+  both REST apps on one server share one budget. Callers whose socket address is unknown (a handler that passes
+  no Node env) share a budget of their own, so they can never use up the in-process one. `X-Forwarded-For` is
+  ignored unless `SIM_TRUST_PROXY=1` (exactly one trusted proxy; then its right-most entry counts). The counter
+  table is capped (10,000 addresses). `SIM_LATENCY_MS` adds a fixed or ranged delay to every API response.
 
 ## Webhooks, signed like PayPal
 
@@ -111,7 +120,15 @@ headers: `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmiss
   `{field: "url", issue: "Not a valid webhook URL"}`, plus a `description` saying why). Like PayPal it refuses plain
   `http` except for loopback hosts; URLs with credentials are refused. Each attempt re-checks the target, redirects
   are never followed (a 3xx is a failed attempt) and answers are never read. `SIM_ALLOW_LOOPBACK_WEBHOOKS=1` (local
-  development only; refused unless `publicBaseUrl` is loopback) also allows loopback hosts on any port.
+  development only; refused unless `publicBaseUrl` is loopback and, for the standalone server, it binds a loopback
+  address) also allows loopback hosts on any port.
+- **Never to itself.** Whatever the allow-list says, the simulator never delivers to a server it answers in full —
+  the standalone server's own address (any loopback name on its port) and its `publicBaseUrl`, which is why the
+  standalone server's own origin is not on its allow-list — nor to its own `/sim` pages on the host app
+  (`{basePath}/sim/…` and `/sim/…`, compared after percent-decoding, dot-segment removal and case-folding). A
+  webhook therefore cannot be aimed at `/sim/admin/*` or the pay page; and should another simulator on the same
+  machine deliver there, the admin gate refuses any request carrying PayPal's transmission headers or
+  `x-fairsplit-simulated`.
 - **Delivery.** Non-2xx answers are retried as PayPal documents — "up to 25 times over the course of 3 days": 25
   waits from 5 s growing to about 8 h that add up to exactly 259,200 s (`RETRY_BACKOFF_S`), so 26 attempts in all,
   scaled by `SIM_SPEED`. `POST …/webhooks-events/{id}/resend` sends the same event bytes under a new transmission
@@ -150,8 +167,9 @@ headers: `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmiss
   payloads per endpoint, duplicate-batch adoption, `PayPal-Request-Id` replay and serialisation where declared,
   ERRPYO002/005, signatures verified with `node:crypto` against the served certificate, postback SUCCESS/FAILURE,
   retries, duplicate and out-of-order delivery, resend, the 429 block and its lock-out and spoofing cases, the
-  webhook target policy and the admin gate (`test/security.test.ts`), `setupPayPalRail()` mounted in a real host
-  app with a webhook verified end to end (`test/rail.test.ts`), persistence and reset, the X.509 writer, and
+  webhook target policy, self-delivery and the admin gate (`test/security.test.ts`), who may pay on the pay page
+  (`test/invoicing.test.ts`), `setupPayPalRail()` mounted in a real host app with a webhook verified end to end
+  (`test/rail.test.ts`), persistence and reset, the X.509 writer, and
   **`@paypal/agent-toolkit` 1.11.0** (`create_invoice`, `get_invoice`, `send_invoice`,
   `create_conditional_rules_for_invoice`, `record_payment_for_invoice`, `search_invoicing`, its own token fetch)
   plus **`@paypal/paypal-server-sdk` 2.5.0** `TransactionSearchController` running unmodified through the
@@ -168,10 +186,12 @@ corepack pnpm exec tsx tools/paypal-sim.ts --port 4010 --speed 1 [--public-url h
 ```
 
 Point a client at `http://127.0.0.1:4010` instead of `https://api-m.sandbox.paypal.com`; HATEOAS links follow the
-host you called (and honour `X-Forwarded-Proto/Host`, e.g. behind a tunnel). Webhooks go only to the server's own
-origin unless you add your receiver's origin (`--webhook-origin`, `SIM_WEBHOOK_ORIGINS`). State is snapshotted to
-`packages/paypal-sim/.data/state.json`; `POST /sim/admin/reset` restores the seeded world. The standalone server
-serves everything, admin included: keep it on loopback, or set `SIM_ADMIN_TOKEN` before exposing it.
+host you called (and honour `X-Forwarded-Proto/Host`, e.g. behind a tunnel). Webhooks go only to the origins you
+add for your receiver (`--webhook-origin`, `SIM_WEBHOOK_ORIGINS`), never to the server itself (it is the simulator;
+it has no `/webhooks/paypal`). State is snapshotted to `packages/paypal-sim/.data/state.json`;
+`POST /sim/admin/reset` restores the seeded world. The standalone server serves everything, admin included: keep
+it on loopback, or set `SIM_ADMIN_TOKEN` before exposing it — bound to a non-loopback address (`--host 0.0.0.0`)
+it refuses admin without the token, and refuses `--allow-loopback-webhooks`.
 
 **In process** (no port for API calls):
 
@@ -216,10 +236,16 @@ and pay pages, health — and is **the only one a host app may mount publicly**.
 | `SIM_INVOICE_FEE_BPS`, `SIM_INVOICE_FEE_CENTS`     | `349`, `49`                | Pay-page receiving fee (PayPal's published US rate); `0`, `0` turns it off    |
 | `SIM_ACCOUNTS_FILE`, `SIM_ADMIN_TOKEN`             | `data/accounts.json`, none | Seed registry; admin token (below)                                            |
 
-**Admin API (fail-closed).** With `SIM_ADMIN_TOKEN` set, `/sim/admin/*` needs the header `x-sim-admin-token`,
-compared in constant time. Without it, admin is refused outright (403) unless `publicBaseUrl` is a loopback URL,
-and then answers only callers whose socket is loopback, whose `Host` is a loopback name (a DNS-rebinding guard)
-and whose `Origin`, if a browser sent one, is loopback too (a CSRF guard). `publicFetch` never serves admin.
+**Admin API (fail-closed).** With `SIM_ADMIN_TOKEN` set, `/sim/admin/*` needs the header `x-sim-admin-token` from
+every caller, compared in constant time. Without it, admin is refused outright (403) unless the simulator is local
+only — `publicBaseUrl` is a loopback URL and, for the standalone server, it binds a loopback address — and then
+answers only a caller whose socket address is known and loopback (as `@hono/node-server` reports it; a handler
+that passes no socket — Bun, Deno, a host app forwarding `c.req.raw` to `sim.fetch` — is refused, never assumed to
+be local), whose `Host` is a loopback name (a DNS-rebinding guard) and whose `Origin`, if a browser sent one, is
+loopback too (a CSRF guard). Code in this process is recognised only by the package's own in-process marker, a
+symbol no HTTP adapter sets; it can equally call `sim.reset()` and the other methods directly. A request carrying
+PayPal's transmission headers or `x-fairsplit-simulated` — a webhook delivery — is always refused. `publicFetch`
+never serves admin.
 
 ## Accounts (all fictional, simulator-only)
 
@@ -262,7 +288,7 @@ if (rail.publicFetch) app.all("/paypal-sim/*", (c) => rail.publicFetch!(c.req.ra
   host, `/v1/notifications/certs/CERT-…`) must take this simulator-mode branch, since the simulator's certificate is
   never on a PayPal host.
 - Webhooks: register `{PUBLIC_BASE_URL}/webhooks/paypal` (`tools/setup-webhooks.ts` against the simulator). That
-  origin is allowed by default; no other is.
+  origin is allowed by default, except the simulator's own pages under `/paypal-sim/sim`; no other origin is.
 - `PP_MODE=sandbox`: `setupPayPalRail` returns `{ mode: "sandbox", provenance: "live", simulator: null,
   publicFetch: null, certUrlPattern: null }` and changes nothing; the existing `PP_ENV=sandbox` boot guard and
   PayPal cert pattern apply.

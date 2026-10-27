@@ -17,6 +17,12 @@ export interface InvoiceCtx {
 
 type Result = { status: number; body?: Json; responseSchema?: string };
 
+/** A pay-page payment: the invoice, and the simulator account that paid (null for an external payer). */
+export interface PagePayment {
+  record: InvoiceRecord;
+  payerKey: string | null;
+}
+
 const PAYABLE = new Set(["SENT", "UNPAID", "PARTIALLY_PAID"]);
 const RULE_EDITABLE = new Set(["DRAFT", "SENT", "UNPAID", "SCHEDULED", "PARTIALLY_PAID"]);
 const ISSUE_DATE_CONDITIONS = new Set([
@@ -734,8 +740,26 @@ export class InvoicingEngine {
     return { status: 204 };
   }
 
-  /** The simulator's pay page: the payer settles the full amount due with a (simulated) PayPal payment. */
-  payOnPage(id: string, payerKey?: string): InvoiceRecord {
+  /**
+   * The simulator's public pay page: the invoice's billing recipient settles the full amount due with a
+   * (simulated) PayPal payment. Nobody chooses the payer here, as nobody can on PayPal: it is the account
+   * whose email is `primary_recipients[0].billing_info.email_address`, or, when no simulator account has that
+   * email, an external payer whose money the simulator does not hold (nothing is debited).
+   */
+  payOnPage(id: string): PagePayment {
+    return this.settle(id, undefined);
+  }
+
+  /**
+   * Pays as the named simulator account instead of the billing recipient. Only the admin API (behind its
+   * gate) and in-process code reach this; the public pay page never does.
+   */
+  payAs(id: string, payerKey: string): PagePayment {
+    return this.settle(id, payerKey);
+  }
+
+  /** Either way: never the invoicer, never an unknown account, never a payer balance below zero. */
+  private settle(id: string, payerKey: string | undefined): PagePayment {
     this.sweepAutoCancel();
     const rec = this.sim.state.invoices[id];
     if (!rec || rec.deleted) throw new Error("invoice not found");
@@ -745,17 +769,18 @@ export class InvoicingEngine {
     const currency = str(obj(inv.detail).currency_code) ?? "USD";
     const due = toCents(str(obj(inv.due_amount).value) ?? "0") ?? 0;
     const recipient = obj(obj(arr(inv.primary_recipients)[0]).billing_info);
-    let chosen: Account | undefined;
-    if (payerKey !== undefined && payerKey !== "") {
-      chosen = this.sim.accountByKey(payerKey);
-      if (!chosen) throw new Error("unknown payer account");
-      if (chosen.key === rec.accountKey) throw new Error("an invoicer cannot pay its own invoice");
+    const billedTo = str(recipient.email_address);
+    let payer: Account | undefined;
+    if (payerKey !== undefined) {
+      payer = this.sim.accountByKey(payerKey);
+      if (!payer) throw new Error("unknown payer account");
+    } else if (billedTo !== undefined) {
+      payer = this.sim.accountByEmail(billedTo);
     }
-    const payer =
-      chosen ??
-      (str(recipient.email_address)
-        ? this.sim.accountByEmail(str(recipient.email_address) as string)
-        : undefined);
+    if (payer?.key === rec.accountKey) throw new Error("an invoicer cannot pay its own invoice");
+    if (payer && this.sim.balance(payer.key, currency).available < due)
+      throw new Error("the payer's simulated PayPal balance does not cover the amount due");
+    // Everything is checked: from here on the payment is posted in full.
     const now = this.sim.clock.now();
     const transactionId = newTransactionId();
     const feeCents = invoiceFeeCents(due, this.sim.options.invoiceFee);
@@ -788,7 +813,7 @@ export class InvoicingEngine {
       amountCents: due,
       feeCents: -feeCents,
       counterpartyKey: payer?.key ?? null,
-      counterpartyEmail: payer?.email ?? str(recipient.email_address) ?? null,
+      counterpartyEmail: payer?.email ?? billedTo ?? null,
       note: null,
       subject: null,
       invoiceNumber: str(obj(inv.detail).invoice_number) ?? null,
@@ -802,7 +827,7 @@ export class InvoicingEngine {
       amount: money(currency, due),
     };
     this.applyPayment(rec, txn, currency, false);
-    return rec;
+    return { record: rec, payerKey: payer?.key ?? null };
   }
 
   // ── conditional rules ────────────────────────────────────────────────────────────────────────────
