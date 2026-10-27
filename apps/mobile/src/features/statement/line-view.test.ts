@@ -104,7 +104,8 @@ describe("the statement for each demo stage (S1.9 states)", () => {
   it("PayPal failures are red and name PayPal; a reversal stays hollow (S2.2.1)", () => {
     const failed = view(previewLine(at("sent"), "NEEDS_ACTION"), "en");
     expect(failed.tone).toBe("failure");
-    expect(t("en", failed.detail?.key ?? "M-MB-01.needsAction", failed.detail?.args)).toContain("PayPal");
+    expect(failed.word).toBe("PayPal didn't complete it");
+    expect(t("en", failed.detail?.key ?? "M-MB-01.needsAction", failed.detail?.args)).toContain("Analyn");
     const reversed = view(previewLine(at("paid"), "REVERSED"));
     expect(reversed.amountState).toBe("hollow");
   });
@@ -144,6 +145,26 @@ describe("history in her words", () => {
     expect(rows.map((r) => r.kind)).toEqual(["approved", "sent", "unclaimed", "cash-due", "received"]);
     expect(rows.find((r) => r.kind === "unclaimed")?.mark).toBe("canary");
     expect(rows.find((r) => r.kind === "received")).toMatchObject({ mark: "stamps", by: ["JD"] });
+  });
+
+  it("tells the story in the order it happened, even when the clocks disagree", () => {
+    const dto: StatementDTO = {
+      ...at("cash-received"),
+      history: [
+        { kind: "received", at: "2026-10-30T01:00:00Z", by: ["JD"] },
+        { kind: "unclaimed", at: "2026-10-29T23:00:00Z" },
+        { kind: "approved", at: "2026-10-30T02:00:00Z", by: ["AS", "EC"] },
+        { kind: "cash-due", at: "2026-10-29T23:30:00Z", by: ["AS"] },
+        { kind: "sent", at: "2026-10-30T02:05:00Z" },
+      ],
+    };
+    expect(historyRows(dto, EMPTY_TRACK).map((r) => r.kind)).toEqual([
+      "approved",
+      "sent",
+      "unclaimed",
+      "cash-due",
+      "received",
+    ]);
   });
 
   it("names the two officers who closed the seal", () => {

@@ -3,7 +3,9 @@
  * line, valid 30 days. The server signs `{lineId, exp}` with STATEMENT_SIGNING_KEY and verifies it when the app asks
  * for the statement; the phone only reads the claims to explain an expired or broken link without a round trip.
  *
- * Token shape (shim-defined until WS-API fixes it): `base64url(JCS{lineId, exp}) "." base64url(signature)`.
+ * Token shape (shim-defined until WS-API fixes it): `base64url(JCS{lineId, exp}) "." base64url(signature)`. A `~` is
+ * read as the separator too: static hosts that treat a dot in the last path segment as a file extension (and answer
+ * 404 for `/app/s/abc.def`) can be given the dot-free form; both characters lie outside the base64url alphabet.
  */
 
 export type MemberLinkCheck =
@@ -31,7 +33,7 @@ function decodeBase64Url(s: string): Uint8Array | null {
 
 export function readMemberLink(token: string, now: Date): MemberLinkCheck {
   if (token.length > 2048) return { ok: false, reason: "malformed" };
-  const [body, sig, extra] = token.split(".");
+  const [body, sig, extra] = token.split(/[.~]/);
   if (!body || !sig || extra !== undefined) return { ok: false, reason: "malformed" };
   const bytes = decodeBase64Url(body);
   const sigBytes = decodeBase64Url(sig);

@@ -223,7 +223,7 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
               disabled={!playable}
               accessibilityRole={playable ? "button" : "text"}
               accessibilityHint={playable ? tr("M-MB-03.playFrom") : undefined}
-              accessibilityState={{ selected: current }}
+              aria-selected={current}
               testID={`M-MB-03.sentence.${i}`}
               dataSet={{ state: current ? "current" : "idle" }}
               style={({ pressed }) => [styles.sentence, pressed && { backgroundColor: t.color.pencilWash }]}
@@ -261,7 +261,7 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
             testID="M-MB-03.play"
             accessibilityRole="button"
             accessibilityLabel={playingNow ? tr("M-MB-03.pause") : tr("M-MB-03.play")}
-            accessibilityState={{ disabled: !playable }}
+            aria-disabled={!playable}
             disabled={!playable}
             dataSet={{ state: playingNow ? "playing" : playable ? "ready" : "unavailable" }}
             onPress={() => (playingNow ? player.pause() : player.play())}
@@ -284,7 +284,8 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
                 testID="M-MB-03.slow"
                 accessibilityRole="switch"
                 accessibilityLabel={`${tr("M-MB-03.slow")}, ${tr("M-MB-03.slowValue")}`}
-                accessibilityState={{ checked: state.rate === SLOW_RATE, disabled: !playable }}
+                aria-checked={state.rate === SLOW_RATE}
+                aria-disabled={!playable}
                 disabled={!playable}
                 dataSet={{ state: state.rate === SLOW_RATE ? "on" : "off" }}
                 onPress={() => player.slow(state.rate !== SLOW_RATE)}

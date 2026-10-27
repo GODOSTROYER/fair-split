@@ -65,7 +65,7 @@ export function LangBar({ testID }: { testID: string }) {
               testID={`${testID}.gloss`}
               accessibilityRole="switch"
               accessibilityLabel={tr("M-MB-01.glossHint")}
-              accessibilityState={{ checked: gloss }}
+              aria-checked={gloss}
               dataSet={{ state: gloss ? "on" : "off" }}
               onPress={() => setGloss(!gloss)}
               hitSlop={6}

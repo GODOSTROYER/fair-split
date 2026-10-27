@@ -71,9 +71,6 @@ export function BoardBayadScreen() {
         {tr("M-MB-01.season", { code: run.seasonCode })}
       </Txt>
       <View style={[styles.card, { backgroundColor: t.color.plate }]}>
-        <Txt kind="label" color="ink2">
-          {tr("M-MB-01.runItems")}
-        </Txt>
         <Txt kind="amountL" accessibilityLabel={format.amountSpoken(run.totalCents)}>
           {format.usd(run.totalCents)}
         </Txt>

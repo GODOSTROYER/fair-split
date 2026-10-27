@@ -66,7 +66,11 @@ function fresh(paid: PaidSignal | null): paid is PaidSignal {
   return now - paid.receivedAt < T.freshForMs && !(age > T.freshForMs);
 }
 
-export function useBayadNa(capsule: CapsuleState, paid: PaidSignal | null): Mm1 {
+/**
+ * MM-1's phases and values. `focused`: the statement is the screen she is looking at; a confirmation that lands
+ * while she is on another tab (or listening) plays when she comes back, if that is within 120 s.
+ */
+export function useBayadNa(capsule: CapsuleState, paid: PaidSignal | null, focused = true): Mm1 {
   const { motion } = useFs();
   const isPaid = capsule === "paid";
   const mm1 = useMoment("MM-1", isPaid ? "done" : "pending");
@@ -89,6 +93,7 @@ export function useBayadNa(capsule: CapsuleState, paid: PaidSignal | null): Mm1 
       rest("pending");
       return;
     }
+    if (fresh(paid) && !focused && !playing.current) return;
     if (fresh(paid) && start(paid.eventId, "press")) {
       PLAYED.add(paid.eventId);
       playing.current = true;
@@ -129,7 +134,22 @@ export function useBayadNa(capsule: CapsuleState, paid: PaidSignal | null): Mm1 
     }
     invite.set(0);
     rest("done");
-  }, [isPaid, paid, motion.reduced, motion.low, press, flood, fill, swap, invite, set, start, rest, timers]);
+  }, [
+    isPaid,
+    paid,
+    focused,
+    motion.reduced,
+    motion.low,
+    press,
+    flood,
+    fill,
+    swap,
+    invite,
+    set,
+    start,
+    rest,
+    timers,
+  ]);
 
   return { phase: mm1.phase, rootProps: mm1.rootProps, press, flood, fill, swap, invite };
 }

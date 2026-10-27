@@ -86,7 +86,9 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   const cacheKey = linkToken
     ? `fs.statement.link.${linkLineId ?? "unknown"}`
     : `fs.statement.cache.${session?.persona ?? "member"}`;
-  const preview = demo ? webQuery("line") : null;
+  // Read once: the index redirect drops the query string right after the first render.
+  const [linePreview] = useState(() => webQuery("line"));
+  const preview = demo ? linePreview : null;
 
   const load = useCallback(async (): Promise<void> => {
     if (!enabled) return;
@@ -139,9 +141,16 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   }, [load]);
 
   // Demo controls change the line; re-read so the history and dates follow (the item status already came by event).
+  // Starting the demo over also forgets the demo's re-check request.
   useEffect(() => {
     if (!demo || !enabled) return;
-    return demo.subscribe(() => void load());
+    return demo.subscribe(() => {
+      if (demo.stage() === "checking" && dtoRef.current) {
+        setReview(null);
+        void prefs.del(reviewPrefKey(dtoRef.current.lineId));
+      }
+      void load();
+    });
   }, [demo, enabled, load]);
 
   // The signal came back: replace the offline copy.

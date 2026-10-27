@@ -84,7 +84,7 @@ function Row({
         accessibilityRole="button"
         accessibilityLabel={srLabel}
         accessibilityHint={tr("M-MB-01.tapHint")}
-        accessibilityState={{ expanded: !!open }}
+        aria-expanded={!!open}
         onPress={() => onPress(id)}
         style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.color.pencilWash }]}
       >

@@ -4,7 +4,14 @@
  * Paminawa's voice names a slip, its paper rises 8 dp (`settle`) and is framed in ink for 1.2 s (S1.9 M-MB-03).
  */
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { type LayoutChangeEvent, Pressable, StyleSheet, View, type ViewInstance } from "react-native";
+import {
+  type LayoutChangeEvent,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ViewInstance,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -74,9 +81,13 @@ export function SlipTiles({
 }) {
   const tr = useT();
   const { t } = useFs();
-  const [width, setWidth] = useState(0);
+  // Until the row is measured, assume it spans the window less the screen's and the card's gutters, so the slips
+  // are on screen (and to a screen reader) from the first frame; the measurement then refines the size.
+  const dims = useWindowDimensions();
+  const [measured, setMeasured] = useState(0);
+  const width = measured || Math.max(0, dims.width - space.s16 * 4);
   const refs = useRef<Record<string, ViewInstance | null>>({});
-  const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
+  const onLayout = (e: LayoutChangeEvent) => setMeasured(e.nativeEvent.layout.width);
   const n = Math.max(1, Math.min(columns, slips.length));
   const tile = width > 0 ? Math.min(MAX_TILE, Math.floor((width - space.s8 * (n - 1)) / n)) : 0;
 

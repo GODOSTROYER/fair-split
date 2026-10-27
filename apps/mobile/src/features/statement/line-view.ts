@@ -111,7 +111,7 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
       case "returned":
         return { key: "M-MB-01.returned", args: { name } };
       case "paypal-held":
-        return { key: "M-MB-01.paypalHeld" };
+        return { key: "M-MB-01.paypalHeld", args: { name } };
       case "needs-action":
         return { key: "M-MB-01.needsAction", args: { name } };
       case "reversed":
@@ -172,17 +172,37 @@ const HISTORY_MARK: Readonly<Record<StatementHistoryEntry["kind"], HistoryMark>>
 };
 
 /**
- * Her line's history, oldest first, in her words. A PayPal confirmation that arrived by event before the server's
- * history caught up is shown too, at the event's time.
+ * The order a line's history happens in. Statuses only move forward (I5), so this is also the causal order; a
+ * clock that disagrees (two servers, a replayed event) never reorders the story.
+ */
+const HISTORY_ORDER: Readonly<Record<StatementHistoryEntry["kind"], number>> = {
+  held: 0,
+  approved: 1,
+  sent: 2,
+  unclaimed: 3,
+  paid: 4,
+  "cash-due": 5,
+  received: 6,
+};
+
+/**
+ * Her line's history in the order it happened, in her words. A PayPal confirmation that arrived by event before the
+ * server's history caught up is shown too, at the event's time.
  */
 export function historyRows(dto: StatementDTO, track: ItemTrack): HistoryRow[] {
   const entries: StatementHistoryEntry[] = [...dto.history];
   if (track.status === "SUCCESS" && track.updatedAt && !entries.some((h) => h.kind === "paid")) {
     entries.push({ kind: "paid", at: track.updatedAt });
   }
+  const time = (iso: string) => {
+    const t = Date.parse(iso);
+    return Number.isNaN(t) ? 0 : t;
+  };
   return entries
-    .map((h, i) => ({ h, i, t: Date.parse(h.at) }))
-    .sort((a, b) => (a.t === b.t || Number.isNaN(a.t - b.t) ? a.i - b.i : a.t - b.t))
+    .map((h, i) => ({ h, i }))
+    .sort(
+      (a, b) => HISTORY_ORDER[a.h.kind] - HISTORY_ORDER[b.h.kind] || time(a.h.at) - time(b.h.at) || a.i - b.i,
+    )
     .map(({ h }) => ({
       kind: h.kind,
       at: h.at,

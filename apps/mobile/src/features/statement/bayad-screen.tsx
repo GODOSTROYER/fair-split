@@ -11,7 +11,7 @@
  * - "Paminawon una": the reading opens and starts by itself once per launch, never under TalkBack.
  * - The `/s/:token` link shows the same statement read only (no demo controls, no re-check, no autoplay).
  */
-import { type Href, router } from "expo-router";
+import { type Href, router, useIsFocused } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Platform, StyleSheet, View, type ViewInstance } from "react-native";
 import type { StatementDTO } from "../../_shims/api-client";
@@ -143,7 +143,8 @@ function Statement({
   const { t } = useFs();
   const tr = useT();
   const st = useStatement();
-  const mm1 = useBayadNa(view.capsule, st.paid);
+  const focused = useIsFocused();
+  const mm1 = useBayadNa(view.capsule, st.paid, focused);
   const mm7 = useMoment("MM-7", "rest");
   const [open, setOpen] = useState<{ id: TraceId; state: ExpandState } | null>(null);
   const [zoom, setZoom] = useState<{ serial: string; at: TapPoint } | null>(null);
