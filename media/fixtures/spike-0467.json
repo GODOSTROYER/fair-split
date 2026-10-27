@@ -1,0 +1,268 @@
+{
+  "v": 2,
+  "id": "spike-0467",
+  "group": "s3-hero",
+  "synthetic": true,
+  "image": {
+    "master": "masters/spike-0467.jpg",
+    "display": "slips/spike-0467.webp",
+    "width": 1199,
+    "height": 1312,
+    "sha256": "e1968ab5dd66e9474f1e030bc6502f14a2366a18090976751606fb5f31e148fd"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands; values and crops checked: The five S3 hero flats rendered on 22 Oct (one codex exec each, prompt p2, all accepted on the first exec): every field and the margin note checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and on the full image, character by character against the content spec, and every crop rectangle checked.",
+    "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+    "reviewedAt": "2026-10-22T12:40:00.000Z",
+    "notes": [
+      "Values checked: Claude (WS-MEDIA agent), visual check; the user's label review is still required, 2026-10-22T12:40:00.000Z"
+    ],
+    "cropIssues": []
+  },
+  "kind": "slip_page",
+  "template": "slip-v1",
+  "slips": [
+    {
+      "slot": "ONLY",
+      "serial": "0467",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.0738,
+          0.0537
+        ],
+        [
+          0.8795,
+          0.056
+        ],
+        [
+          0.9045,
+          0.9364
+        ],
+        [
+          0.0588,
+          0.9364
+        ]
+      ],
+      "rect": {
+        "x1": 0.0588,
+        "y1": 0.0537,
+        "x2": 0.9045,
+        "y2": 0.9364
+      },
+      "fields": {
+        "serial": {
+          "x1": 0.7344,
+          "y1": 0.0779,
+          "x2": 0.8591,
+          "y2": 0.1042,
+          "value": "0467",
+          "requested": "0467",
+          "visible": "0467",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.3984,
+          "y1": 0.2217,
+          "x2": 0.8468,
+          "y2": 0.2544,
+          "value": "7/7/26",
+          "requested": "7/7/26",
+          "visible": "7/7/26",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.3983,
+          "y1": 0.2554,
+          "x2": 0.8472,
+          "y2": 0.2887,
+          "value": "M-014",
+          "requested": "M-014",
+          "visible": "M-014",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3981,
+          "y1": 0.2911,
+          "x2": 0.8476,
+          "y2": 0.3249,
+          "value": "CONSOLACION BACUS",
+          "requested": "CONSOLACION BACUS",
+          "visible": "CONSOLACION BACUS",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "plot_no": {
+          "x1": 0.398,
+          "y1": 0.3273,
+          "x2": 0.8479,
+          "y2": 0.3607,
+          "value": "P-014-A",
+          "requested": "P-014-A",
+          "visible": "P-014-A",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "sacks": {
+          "x1": 0.3979,
+          "y1": 0.3623,
+          "x2": 0.8483,
+          "y2": 0.3971,
+          "value": "1 PP",
+          "requested": "1 PP",
+          "visible": "1 PP",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "gross_kg": {
+          "x1": 0.3978,
+          "y1": 0.3994,
+          "x2": 0.8487,
+          "y2": 0.4333,
+          "value": "37.80",
+          "requested": "37.80",
+          "visible": "37.80",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "tare_kg": {
+          "x1": 0.3977,
+          "y1": 0.4356,
+          "x2": 0.8491,
+          "y2": 0.4712,
+          "value": "0.30",
+          "requested": "0.30",
+          "visible": "0.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.3976,
+          "y1": 0.4736,
+          "x2": 0.8495,
+          "y2": 0.5078,
+          "value": "37.50",
+          "requested": "37.50",
+          "visible": "37.50",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "mc_pct": {
+          "x1": 0.3975,
+          "y1": 0.5102,
+          "x2": 0.8499,
+          "y2": 0.5449,
+          "value": "7.0",
+          "requested": "7.0",
+          "visible": "7.0",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "mc_less_kg": {
+          "x1": 0.3973,
+          "y1": 0.5474,
+          "x2": 0.8503,
+          "y2": 0.5832,
+          "value": "0.00",
+          "requested": "0.00",
+          "visible": "0.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "payable_kg": {
+          "x1": 0.3972,
+          "y1": 0.5858,
+          "x2": 0.8507,
+          "y2": 0.6208,
+          "value": "37.50",
+          "requested": "37.50",
+          "visible": "37.50",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.3971,
+          "y1": 0.6235,
+          "x2": 0.8511,
+          "y2": 0.6597,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "clerk_initials": {
+          "x1": 0.515,
+          "y1": 0.748,
+          "x2": 0.8568,
+          "y2": 0.8497,
+          "value": "JD",
+          "requested": "JD",
+          "visible": "JD",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      },
+      "deductions": [
+        {
+          "x1": 0.397,
+          "y1": 0.6617,
+          "x2": 0.8516,
+          "y2": 0.6983,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        {
+          "x1": 0.3969,
+          "y1": 0.7002,
+          "x2": 0.8519,
+          "y2": 0.7339,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      ],
+      "signature": {
+        "x1": 0.1064,
+        "y1": 0.7495,
+        "x2": 0.5004,
+        "y2": 0.8503,
+        "value": "SIGNED",
+        "requested": "SIGNED",
+        "visible": "SIGNED",
+        "legibility": "CLEAR",
+        "expect": "AUTO",
+        "checkedBy": "agent"
+      },
+      "anomalies": [],
+      "traps": [],
+      "trapChecks": [],
+      "duplicateOf": null
+    }
+  ]
+}

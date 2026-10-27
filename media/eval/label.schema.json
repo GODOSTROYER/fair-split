@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fairsplit:ic-11:eval-label:v1",
+  "title": "Fair Split eval label (IC-11), v1",
+  "description": "One eval case: what is visibly written on a synthetic Codex image (C-24). eval/labels/{case}.json holds person-checked labels (the scored truth); eval/provisional/{case}.json holds agent-checked ones, provisional until a person reviews them. Review status and the synthetic flag live in the fixture.",
+  "type": "object",
+  "properties": {
+    "case": {
+      "type": "string",
+      "minLength": 1
+    },
+    "set": {
+      "type": "string",
+      "enum": [
+        "test",
+        "dev"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "slip_photo",
+        "slip_page",
+        "logbook_page",
+        "rate_card_page"
+      ]
+    },
+    "image": {
+      "type": "string"
+    },
+    "fixture": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "slips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slot": {
+            "type": "string"
+          },
+          "serial": {
+            "type": "string"
+          },
+          "copy": {
+            "type": "string",
+            "enum": [
+              "WHITE_ORIGINAL",
+              "PINK_DUPLICATE",
+              "YELLOW_TRIPLICATE",
+              "LOGBOOK_LINE"
+            ]
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "serial",
+                "line_no",
+                "date",
+                "member_no",
+                "member_name",
+                "plot_no",
+                "sacks",
+                "gross_kg",
+                "tare_kg",
+                "net_kg",
+                "mc_pct",
+                "mc_less_kg",
+                "payable_kg",
+                "grade",
+                "clerk_initials"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "string"
+                },
+                "expect": {
+                  "type": "string",
+                  "enum": [
+                    "AUTO",
+                    "HUMAN",
+                    "EITHER"
+                  ]
+                }
+              },
+              "required": [
+                "value",
+                "visible",
+                "expect"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "deductions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "visible": {
+                  "type": "string"
+                },
+                "rule": {
+                  "type": "string"
+                },
+                "expect": {
+                  "type": "string",
+                  "enum": [
+                    "AUTO",
+                    "HUMAN",
+                    "EITHER"
+                  ]
+                }
+              },
+              "required": [
+                "visible",
+                "rule",
+                "expect"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "traps": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "DUPLICATE",
+                "NEAR_DUPLICATE",
+                "NO_RULE",
+                "RULED_DEDUCTION",
+                "RATE_MISMATCH",
+                "LOW_CONFIDENCE",
+                "OVERWRITTEN",
+                "ARITHMETIC",
+                "INJECTION",
+                "IMPLAUSIBLE_YIELD",
+                "ROTATED",
+                "BLURRED"
+              ]
+            }
+          },
+          "duplicate_of": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "injection": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "fil",
+                      "ceb"
+                    ]
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "lang",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "slot",
+          "serial",
+          "copy",
+          "fields",
+          "deductions",
+          "traps",
+          "duplicate_of",
+          "injection"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rate_card": {
+      "type": "null"
+    },
+    "reviewer": {
+      "type": "string"
+    },
+    "reviewed_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "case",
+    "set",
+    "kind",
+    "image",
+    "fixture",
+    "slips",
+    "rate_card",
+    "reviewer",
+    "reviewed_at"
+  ],
+  "additionalProperties": false
+}

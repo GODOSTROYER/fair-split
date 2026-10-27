@@ -1,0 +1,128 @@
+{
+  "document": "BR 2026-04",
+  "resolution_no": "2026-04",
+  "ratified_on": "2026-03-14",
+  "synthetic": true,
+  "label": "Synthetic sample",
+  "description": "Text layer for the image-only BR 2026-04 scans: the exact printed text, standing in for a scanner's OCR layer (S4.3). Claude reads only the images; this file is used to check quotes.",
+  "pages": [
+    {
+      "page": 1,
+      "image": "docs/br-2026-04-p1.webp",
+      "lines": [
+        "BULAWANON KAKAW GROWERS MULTI-PURPOSE COOPERATIVE",
+        "Calinan, Davao City",
+        "OFFICE OF THE BOARD OF DIRECTORS",
+        "BOARD RESOLUTION NO. 2026-04",
+        "Series of 2026",
+        "ADOPTING SCHEDULE A, THE RATE CARD FOR SHARING THE BUYER PREMIUM AND QUALITY BONUS FOR SEASON 2026-A",
+        "WHEREAS, the General Assembly, at its meeting of 28 February 2026, approved that the premium and the quality bonus paid by the buyer, Lantern Bay Chocolate Co., for dried fermented cacao delivered in Season 2026-A (1 April to 31 August 2026) be shared among the members who deliver;",
+        "WHEREAS, the General Assembly directed the Board of Directors to fix the rules of sharing, and the only deductions that may be made, before the first delivery of the season;",
+        "NOW, THEREFORE, on motion duly seconded, the Board RESOLVED, as it hereby RESOLVES, to adopt Schedule A, attached as page 2, as the rate card for Season 2026-A, binding on the Treasurer for every payout of the season.",
+        "RATIFIED this 14th day of March 2026 at Calinan, Davao City.",
+        "CERTIFIED CORRECT:",
+        "MA. THERESA L. GUMAPAC",
+        "Secretary",
+        "ATTESTED:",
+        "ERNESTO P. CABAHUG",
+        "Chairperson",
+        "Page 1 of 2",
+        "SPECIMEN · SYNTHETIC DEMO DOCUMENT · NOT A RECORD"
+      ],
+      "text": "BULAWANON KAKAW GROWERS MULTI-PURPOSE COOPERATIVE\nCalinan, Davao City\nOFFICE OF THE BOARD OF DIRECTORS\nBOARD RESOLUTION NO. 2026-04\nSeries of 2026\nADOPTING SCHEDULE A, THE RATE CARD FOR SHARING THE BUYER PREMIUM AND QUALITY BONUS FOR SEASON 2026-A\nWHEREAS, the General Assembly, at its meeting of 28 February 2026, approved that the premium and the quality bonus paid by the buyer, Lantern Bay Chocolate Co., for dried fermented cacao delivered in Season 2026-A (1 April to 31 August 2026) be shared among the members who deliver;\nWHEREAS, the General Assembly directed the Board of Directors to fix the rules of sharing, and the only deductions that may be made, before the first delivery of the season;\nNOW, THEREFORE, on motion duly seconded, the Board RESOLVED, as it hereby RESOLVES, to adopt Schedule A, attached as page 2, as the rate card for Season 2026-A, binding on the Treasurer for every payout of the season.\nRATIFIED this 14th day of March 2026 at Calinan, Davao City.\nCERTIFIED CORRECT:\nMA. THERESA L. GUMAPAC\nSecretary\nATTESTED:\nERNESTO P. CABAHUG\nChairperson\nPage 1 of 2\nSPECIMEN · SYNTHETIC DEMO DOCUMENT · NOT A RECORD"
+    },
+    {
+      "page": 2,
+      "image": "docs/br-2026-04-p2.webp",
+      "lines": [
+        "BOARD RESOLUTION NO. 2026-04 · SCHEDULE A",
+        "RATE CARD, SEASON 2026-A (1 April to 31 August 2026)",
+        "R0  Premium ug bonus (Premium and quality bonus)",
+        "The premium paid by the buyer shall be shared among members in proportion to verified kilos delivered. No deduction of any kind shall be made from the premium. The quality bonus shall be shared in proportion to verified Grade 1 kilos.",
+        "R1  CBU (Capital build-up)",
+        "Capital build-up (CBU): 5% of the member's quality bonus, until the member's paid-up CBU reaches ₱5,000.",
+        "R2  Hakot (Hauling)",
+        "Hauling: ₱1.50 per kilo of net weight for deliveries collected at a purok pickup point.",
+        "R3  Utang (Loan)",
+        "Loan repayment: only with a signed Authority to Deduct on file, and not more than 50% of the member's quality bonus.",
+        "R4  Bale (Cash advance)",
+        "Cash advance: only against a numbered voucher, and not more than 30% of the member's quality bonus.",
+        "R5  Pirma sa Chairperson (Co-signature)",
+        "The Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold.",
+        "R6  Mga utlanan (Limits)",
+        "Verified kilos must agree with kilos shipped within ±2.0%. A member's season kilos may not exceed 1.6 kg per registered tree. Any reading below 0.85 confidence shall be confirmed by a person.",
+        "Sirado nga lista (Closed list)",
+        "No deduction other than those in this Schedule shall be applied to any member payout. This Schedule shall not be amended during Season 2026-A.",
+        "CERTIFIED CORRECT:",
+        "MA. THERESA L. GUMAPAC",
+        "Secretary",
+        "ATTESTED:",
+        "ERNESTO P. CABAHUG",
+        "Chairperson",
+        "Page 2 of 2",
+        "SPECIMEN · SYNTHETIC DEMO DOCUMENT · NOT A RECORD"
+      ],
+      "text": "BOARD RESOLUTION NO. 2026-04 · SCHEDULE A\nRATE CARD, SEASON 2026-A (1 April to 31 August 2026)\nR0  Premium ug bonus (Premium and quality bonus)\nThe premium paid by the buyer shall be shared among members in proportion to verified kilos delivered. No deduction of any kind shall be made from the premium. The quality bonus shall be shared in proportion to verified Grade 1 kilos.\nR1  CBU (Capital build-up)\nCapital build-up (CBU): 5% of the member's quality bonus, until the member's paid-up CBU reaches ₱5,000.\nR2  Hakot (Hauling)\nHauling: ₱1.50 per kilo of net weight for deliveries collected at a purok pickup point.\nR3  Utang (Loan)\nLoan repayment: only with a signed Authority to Deduct on file, and not more than 50% of the member's quality bonus.\nR4  Bale (Cash advance)\nCash advance: only against a numbered voucher, and not more than 30% of the member's quality bonus.\nR5  Pirma sa Chairperson (Co-signature)\nThe Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold.\nR6  Mga utlanan (Limits)\nVerified kilos must agree with kilos shipped within ±2.0%. A member's season kilos may not exceed 1.6 kg per registered tree. Any reading below 0.85 confidence shall be confirmed by a person.\nSirado nga lista (Closed list)\nNo deduction other than those in this Schedule shall be applied to any member payout. This Schedule shall not be amended during Season 2026-A.\nCERTIFIED CORRECT:\nMA. THERESA L. GUMAPAC\nSecretary\nATTESTED:\nERNESTO P. CABAHUG\nChairperson\nPage 2 of 2\nSPECIMEN · SYNTHETIC DEMO DOCUMENT · NOT A RECORD"
+    }
+  ],
+  "clauses": [
+    {
+      "rule_id": "R0",
+      "page": 2,
+      "heading": "R0  Premium ug bonus (Premium and quality bonus)",
+      "quote": "The premium paid by the buyer shall be shared among members in proportion to verified kilos delivered. No deduction of any kind shall be made from the premium. The quality bonus shall be shared in proportion to verified Grade 1 kilos."
+    },
+    {
+      "rule_id": "R1",
+      "page": 2,
+      "heading": "R1  CBU (Capital build-up)",
+      "quote": "Capital build-up (CBU): 5% of the member's quality bonus, until the member's paid-up CBU reaches ₱5,000."
+    },
+    {
+      "rule_id": "R2",
+      "page": 2,
+      "heading": "R2  Hakot (Hauling)",
+      "quote": "Hauling: ₱1.50 per kilo of net weight for deliveries collected at a purok pickup point."
+    },
+    {
+      "rule_id": "R3",
+      "page": 2,
+      "heading": "R3  Utang (Loan)",
+      "quote": "Loan repayment: only with a signed Authority to Deduct on file, and not more than 50% of the member's quality bonus."
+    },
+    {
+      "rule_id": "R4",
+      "page": 2,
+      "heading": "R4  Bale (Cash advance)",
+      "quote": "Cash advance: only against a numbered voucher, and not more than 30% of the member's quality bonus."
+    },
+    {
+      "rule_id": "R5",
+      "page": 2,
+      "heading": "R5  Pirma sa Chairperson (Co-signature)",
+      "quote": "The Chairperson shall co-sign any payout batch over US$300, any member line over US$150, and any override of a hold."
+    },
+    {
+      "rule_id": "R6",
+      "page": 2,
+      "heading": "R6  Mga utlanan (Limits)",
+      "quote": "Verified kilos must agree with kilos shipped within ±2.0%. A member's season kilos may not exceed 1.6 kg per registered tree. Any reading below 0.85 confidence shall be confirmed by a person."
+    },
+    {
+      "rule_id": "CLOSED",
+      "page": 2,
+      "heading": "Sirado nga lista (Closed list)",
+      "quote": "No deduction other than those in this Schedule shall be applied to any member payout. This Schedule shall not be amended during Season 2026-A."
+    }
+  ],
+  "verification": {
+    "status": "agent-checked",
+    "by": "Claude (WS-MEDIA agent)",
+    "at": "2026-10-22T08:30:00.000Z",
+    "notes": [
+      "Every line of both pages compared with the generated scans at full resolution (Codex outputs sha256 dbd4641b… and ded93f5a…, mastered to masters/br-2026-04-p1.jpg and -p2.jpg): verbatim, including ₱, %, ± and US$.",
+      "S4.3 asks for human-verified page text: the user's check is still required."
+    ]
+  },
+  "nativeReview": "Cebuano headings pending native review (OD-2)"
+}

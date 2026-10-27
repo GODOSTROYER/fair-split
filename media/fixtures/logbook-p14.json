@@ -1,0 +1,1117 @@
+{
+  "v": 2,
+  "id": "logbook-p14",
+  "group": "docs",
+  "synthetic": true,
+  "image": {
+    "master": "masters/logbook-p14.jpg",
+    "display": "docs/logbook-p14.webp",
+    "width": 1199,
+    "height": 1312,
+    "sha256": "1f118aba8a71be8df2621b7111454c6fa0ed77ee12cb827ee38a3863fe2dfcd8"
+  },
+  "review": {
+    "status": "agent-checked",
+    "method": "ledger grid-detect v1 (page quad, rectified, snapped to ruled lines); values and crops checked: Every field of each accepted master checked on the crop sheet (fixture rectangles, raw/review/{id}.sheet.png) and the overlay, and the stained or doubtful cells again on 6x crops of the full-resolution master. A value counts as visible when a careful reader can make it out; a faint ghost counts. BR pages: every printed line compared with docs/BR-2026-04.text.json, and every clause rectangle checked.",
+    "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+    "reviewedAt": "2026-10-22T12:20:00.000Z",
+    "notes": [
+      "Values checked: Claude (WS-MEDIA agent), visual check; the user's label review is still required, 2026-10-22T12:20:00.000Z"
+    ],
+    "cropIssues": []
+  },
+  "kind": "logbook_page",
+  "page": 14,
+  "columns": [
+    "line",
+    "date",
+    "serial",
+    "member_no",
+    "member_name",
+    "net_kg",
+    "grade",
+    "remarks"
+  ],
+  "lines": [
+    {
+      "line": 1,
+      "rect": {
+        "x1": 0.0768,
+        "y1": 0.2138,
+        "x2": 0.9342,
+        "y2": 0.2721
+      },
+      "serial": "0456",
+      "cells": {
+        "line": {
+          "x1": 0.0787,
+          "y1": 0.2156,
+          "x2": 0.1178,
+          "y2": 0.2625,
+          "value": "1",
+          "requested": "1",
+          "visible": "1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1212,
+          "y1": 0.216,
+          "x2": 0.2053,
+          "y2": 0.2634,
+          "value": "07/14",
+          "requested": "07/14",
+          "visible": "07/14",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2087,
+          "y1": 0.2169,
+          "x2": 0.2815,
+          "y2": 0.2641,
+          "value": "0456",
+          "requested": "0456",
+          "visible": "0456",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.285,
+          "y1": 0.2177,
+          "x2": 0.3919,
+          "y2": 0.2652,
+          "value": "M-039",
+          "requested": "M-039",
+          "visible": "M-039",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3956,
+          "y1": 0.2187,
+          "x2": 0.574,
+          "y2": 0.2669,
+          "value": "J. RIPALDA",
+          "requested": "J. RIPALDA",
+          "visible": "J. RIPALDA",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5777,
+          "y1": 0.2205,
+          "x2": 0.6758,
+          "y2": 0.2679,
+          "value": "35.20",
+          "requested": "35.20",
+          "visible": "35.20",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6794,
+          "y1": 0.2216,
+          "x2": 0.7495,
+          "y2": 0.2686,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.753,
+          "y1": 0.2223,
+          "x2": 0.9323,
+          "y2": 0.2704,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 2,
+      "rect": {
+        "x1": 0.077,
+        "y1": 0.2639,
+        "x2": 0.9346,
+        "y2": 0.3223
+      },
+      "serial": "0457",
+      "cells": {
+        "line": {
+          "x1": 0.079,
+          "y1": 0.2657,
+          "x2": 0.1173,
+          "y2": 0.3131,
+          "value": "2",
+          "requested": "2",
+          "visible": "2",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1207,
+          "y1": 0.2661,
+          "x2": 0.2048,
+          "y2": 0.3139,
+          "value": "07/14",
+          "requested": "07/14",
+          "visible": "07/14",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2082,
+          "y1": 0.2669,
+          "x2": 0.2811,
+          "y2": 0.3146,
+          "value": "0457",
+          "requested": "0457",
+          "visible": "0457",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2846,
+          "y1": 0.2676,
+          "x2": 0.3917,
+          "y2": 0.3156,
+          "value": "M-007",
+          "requested": "M-007",
+          "visible": "M-007",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3954,
+          "y1": 0.2687,
+          "x2": 0.5741,
+          "y2": 0.3173,
+          "value": "D. LAPINIG",
+          "requested": "D. LAPINIG",
+          "visible": "D. LAPINIG",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5778,
+          "y1": 0.2704,
+          "x2": 0.6761,
+          "y2": 0.3182,
+          "value": "42.00",
+          "requested": "42.00",
+          "visible": "42.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6796,
+          "y1": 0.2714,
+          "x2": 0.7498,
+          "y2": 0.3189,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7533,
+          "y1": 0.2721,
+          "x2": 0.9327,
+          "y2": 0.3206,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 3,
+      "rect": {
+        "x1": 0.0773,
+        "y1": 0.3145,
+        "x2": 0.935,
+        "y2": 0.3721
+      },
+      "serial": "0458",
+      "cells": {
+        "line": {
+          "x1": 0.0792,
+          "y1": 0.3162,
+          "x2": 0.1167,
+          "y2": 0.3647,
+          "value": "3",
+          "requested": "3",
+          "visible": "3",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1201,
+          "y1": 0.3166,
+          "x2": 0.2043,
+          "y2": 0.3653,
+          "value": "07/14",
+          "requested": "07/14",
+          "visible": "07/14",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2077,
+          "y1": 0.3174,
+          "x2": 0.2808,
+          "y2": 0.3658,
+          "value": "0458",
+          "requested": "0458",
+          "visible": "0458",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2843,
+          "y1": 0.3181,
+          "x2": 0.3915,
+          "y2": 0.3666,
+          "value": "M-018",
+          "requested": "M-018",
+          "visible": "M-018",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3952,
+          "y1": 0.3191,
+          "x2": 0.5742,
+          "y2": 0.3679,
+          "value": "T. PACAÑA",
+          "requested": "T. PACAÑA",
+          "visible": "T. PACAÑA",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5779,
+          "y1": 0.3208,
+          "x2": 0.6763,
+          "y2": 0.3686,
+          "value": "60.80",
+          "requested": "60.80",
+          "visible": "60.80",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6799,
+          "y1": 0.3217,
+          "x2": 0.7501,
+          "y2": 0.3691,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7536,
+          "y1": 0.3224,
+          "x2": 0.9331,
+          "y2": 0.3703,
+          "value": "MULTA GA ₱200",
+          "requested": "MULTA GA ₱200",
+          "visible": "MULTA GA ₱200",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 4,
+      "rect": {
+        "x1": 0.0776,
+        "y1": 0.3662,
+        "x2": 0.9354,
+        "y2": 0.4223
+      },
+      "serial": "0459",
+      "cells": {
+        "line": {
+          "x1": 0.0795,
+          "y1": 0.368,
+          "x2": 0.1162,
+          "y2": 0.4168,
+          "value": "4",
+          "requested": "4",
+          "visible": "4",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1196,
+          "y1": 0.3682,
+          "x2": 0.2038,
+          "y2": 0.4172,
+          "value": "07/14",
+          "requested": "07/14",
+          "visible": "07/14",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2072,
+          "y1": 0.3688,
+          "x2": 0.2804,
+          "y2": 0.4176,
+          "value": "0459",
+          "requested": "0459",
+          "visible": "0459",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2839,
+          "y1": 0.3694,
+          "x2": 0.3914,
+          "y2": 0.4181,
+          "value": "M-053",
+          "requested": "M-053",
+          "visible": "M-053",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.395,
+          "y1": 0.3701,
+          "x2": 0.5743,
+          "y2": 0.4189,
+          "value": "M. PONCE",
+          "requested": "M. PONCE",
+          "visible": "M. PONCE",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.578,
+          "y1": 0.3714,
+          "x2": 0.6766,
+          "y2": 0.4194,
+          "value": "51.70",
+          "requested": "51.70",
+          "visible": "51.70",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6801,
+          "y1": 0.3721,
+          "x2": 0.7504,
+          "y2": 0.4197,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7539,
+          "y1": 0.3726,
+          "x2": 0.9335,
+          "y2": 0.4206,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 5,
+      "rect": {
+        "x1": 0.0778,
+        "y1": 0.4184,
+        "x2": 0.9358,
+        "y2": 0.4733
+      },
+      "serial": "0460",
+      "cells": {
+        "line": {
+          "x1": 0.0798,
+          "y1": 0.4202,
+          "x2": 0.1156,
+          "y2": 0.4689,
+          "value": "5",
+          "requested": "5",
+          "visible": "5",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.119,
+          "y1": 0.4204,
+          "x2": 0.2033,
+          "y2": 0.4692,
+          "value": "07/15",
+          "requested": "07/15",
+          "visible": "07/15",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2067,
+          "y1": 0.4208,
+          "x2": 0.28,
+          "y2": 0.4695,
+          "value": "0460",
+          "requested": "0460",
+          "visible": "0460",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2836,
+          "y1": 0.4211,
+          "x2": 0.3912,
+          "y2": 0.4698,
+          "value": "M-022",
+          "requested": "M-022",
+          "visible": "M-022",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3948,
+          "y1": 0.4216,
+          "x2": 0.5744,
+          "y2": 0.4704,
+          "value": "P. OMPAD",
+          "requested": "P. OMPAD",
+          "visible": "P. OMPAD",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5781,
+          "y1": 0.4224,
+          "x2": 0.6769,
+          "y2": 0.4708,
+          "value": "30.40",
+          "requested": "30.40",
+          "visible": "30.40",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6804,
+          "y1": 0.4229,
+          "x2": 0.7507,
+          "y2": 0.471,
+          "value": "G2",
+          "requested": "G2",
+          "visible": "G2",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7542,
+          "y1": 0.4232,
+          "x2": 0.9339,
+          "y2": 0.4716,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 6,
+      "rect": {
+        "x1": 0.0781,
+        "y1": 0.4706,
+        "x2": 0.9363,
+        "y2": 0.5268
+      },
+      "serial": "0461",
+      "cells": {
+        "line": {
+          "x1": 0.0801,
+          "y1": 0.4724,
+          "x2": 0.1151,
+          "y2": 0.5228,
+          "value": "6",
+          "requested": "6",
+          "visible": "6",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1184,
+          "y1": 0.4725,
+          "x2": 0.2028,
+          "y2": 0.5231,
+          "value": "07/15",
+          "requested": "07/15",
+          "visible": "07/15",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2062,
+          "y1": 0.4728,
+          "x2": 0.2797,
+          "y2": 0.5233,
+          "value": "0461",
+          "requested": "0461",
+          "visible": "0461",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2832,
+          "y1": 0.473,
+          "x2": 0.391,
+          "y2": 0.5236,
+          "value": "M-002",
+          "requested": "M-002",
+          "visible": "M-002",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3946,
+          "y1": 0.4733,
+          "x2": 0.5745,
+          "y2": 0.5241,
+          "value": "F. YBAÑEZ",
+          "requested": "F. YBAÑEZ",
+          "visible": "F. YBAÑEZ",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5782,
+          "y1": 0.4739,
+          "x2": 0.6771,
+          "y2": 0.5244,
+          "value": "24.60",
+          "requested": "24.60",
+          "visible": "24.60",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6807,
+          "y1": 0.4743,
+          "x2": 0.751,
+          "y2": 0.5246,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7545,
+          "y1": 0.4745,
+          "x2": 0.9344,
+          "y2": 0.5251,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 7,
+      "rect": {
+        "x1": 0.0784,
+        "y1": 0.5245,
+        "x2": 0.9367,
+        "y2": 0.5807
+      },
+      "serial": "0462",
+      "cells": {
+        "line": {
+          "x1": 0.0804,
+          "y1": 0.5263,
+          "x2": 0.1145,
+          "y2": 0.5787,
+          "value": "7",
+          "requested": "7",
+          "visible": "7",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1178,
+          "y1": 0.5264,
+          "x2": 0.2022,
+          "y2": 0.5787,
+          "value": "07/15",
+          "requested": "07/15",
+          "visible": "07/15",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2056,
+          "y1": 0.5266,
+          "x2": 0.2793,
+          "y2": 0.5787,
+          "value": "0462",
+          "requested": "0462",
+          "visible": "0462",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2828,
+          "y1": 0.5268,
+          "x2": 0.3907,
+          "y2": 0.5788,
+          "value": "M-060",
+          "requested": "M-060",
+          "visible": "M-060",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3944,
+          "y1": 0.5271,
+          "x2": 0.5746,
+          "y2": 0.5789,
+          "value": "A. SUMAMPAO",
+          "requested": "A. SUMAMPAO",
+          "visible": "A. SUMAMPAO",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5783,
+          "y1": 0.5276,
+          "x2": 0.6774,
+          "y2": 0.5789,
+          "value": "64.50",
+          "requested": "64.50",
+          "visible": "64.50",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6809,
+          "y1": 0.5279,
+          "x2": 0.7513,
+          "y2": 0.5789,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7548,
+          "y1": 0.5281,
+          "x2": 0.9348,
+          "y2": 0.579,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 8,
+      "rect": {
+        "x1": 0.0787,
+        "y1": 0.5804,
+        "x2": 0.9371,
+        "y2": 0.6346
+      },
+      "serial": "0463",
+      "cells": {
+        "line": {
+          "x1": 0.0807,
+          "y1": 0.5822,
+          "x2": 0.1139,
+          "y2": 0.6328,
+          "value": "8",
+          "requested": "8",
+          "visible": "8",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1172,
+          "y1": 0.5822,
+          "x2": 0.2017,
+          "y2": 0.6328,
+          "value": "07/15",
+          "requested": "07/15",
+          "visible": "07/15",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2051,
+          "y1": 0.5823,
+          "x2": 0.2789,
+          "y2": 0.6327,
+          "value": "0463",
+          "requested": "0463",
+          "visible": "0463",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2824,
+          "y1": 0.5823,
+          "x2": 0.3905,
+          "y2": 0.6326,
+          "value": "M-031",
+          "requested": "M-031",
+          "visible": "M-031",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3942,
+          "y1": 0.5823,
+          "x2": 0.5747,
+          "y2": 0.6325,
+          "value": "R. JUMAWAN",
+          "requested": "R. JUMAWAN",
+          "visible": "R. JUMAWAN",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5785,
+          "y1": 0.5824,
+          "x2": 0.6777,
+          "y2": 0.6323,
+          "value": "28.90",
+          "requested": "28.90",
+          "visible": "28.90",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6812,
+          "y1": 0.5824,
+          "x2": 0.7516,
+          "y2": 0.6322,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7551,
+          "y1": 0.5824,
+          "x2": 0.9352,
+          "y2": 0.6321,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 9,
+      "rect": {
+        "x1": 0.079,
+        "y1": 0.6337,
+        "x2": 0.9376,
+        "y2": 0.6898
+      },
+      "serial": "0464",
+      "cells": {
+        "line": {
+          "x1": 0.0809,
+          "y1": 0.6363,
+          "x2": 0.1133,
+          "y2": 0.688,
+          "value": "9",
+          "requested": "9",
+          "visible": "9",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.1166,
+          "y1": 0.6362,
+          "x2": 0.2012,
+          "y2": 0.6879,
+          "value": "07/16",
+          "requested": "07/16",
+          "visible": "07/16",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.2046,
+          "y1": 0.6361,
+          "x2": 0.2785,
+          "y2": 0.6876,
+          "value": "0464",
+          "requested": "0464",
+          "visible": "0464",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2821,
+          "y1": 0.636,
+          "x2": 0.3903,
+          "y2": 0.6873,
+          "value": "M-053",
+          "requested": "M-053",
+          "visible": "M-053",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.394,
+          "y1": 0.6358,
+          "x2": 0.5748,
+          "y2": 0.6869,
+          "value": "M. PONCE",
+          "requested": "M. PONCE",
+          "visible": "M. PONCE",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5786,
+          "y1": 0.6357,
+          "x2": 0.6779,
+          "y2": 0.6863,
+          "value": "48.30",
+          "requested": "48.30",
+          "visible": "48.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6815,
+          "y1": 0.6356,
+          "x2": 0.7519,
+          "y2": 0.686,
+          "value": "G2",
+          "requested": "G2",
+          "visible": "G2",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7554,
+          "y1": 0.6354,
+          "x2": 0.9357,
+          "y2": 0.6857,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    },
+    {
+      "line": 10,
+      "rect": {
+        "x1": 0.0793,
+        "y1": 0.6868,
+        "x2": 0.938,
+        "y2": 0.7451
+      },
+      "serial": "0465",
+      "cells": {
+        "line": {
+          "x1": 0.0812,
+          "y1": 0.6915,
+          "x2": 0.1127,
+          "y2": 0.7433,
+          "value": "10",
+          "requested": "10",
+          "visible": "10",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.116,
+          "y1": 0.6912,
+          "x2": 0.2006,
+          "y2": 0.7431,
+          "value": "07/16",
+          "requested": "07/16",
+          "visible": "07/16",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "serial": {
+          "x1": 0.204,
+          "y1": 0.6909,
+          "x2": 0.2781,
+          "y2": 0.7426,
+          "value": "0465",
+          "requested": "0465",
+          "visible": "0465",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.2817,
+          "y1": 0.6905,
+          "x2": 0.3901,
+          "y2": 0.7421,
+          "value": "M-039",
+          "requested": "M-039",
+          "visible": "M-039",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.3938,
+          "y1": 0.6898,
+          "x2": 0.575,
+          "y2": 0.7415,
+          "value": "J. RIPALDA",
+          "requested": "J. RIPALDA",
+          "visible": "J. RIPALDA",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.5787,
+          "y1": 0.6895,
+          "x2": 0.6782,
+          "y2": 0.7404,
+          "value": "26.10",
+          "requested": "26.10",
+          "visible": "26.10",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.6818,
+          "y1": 0.6892,
+          "x2": 0.7523,
+          "y2": 0.7398,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "remarks": {
+          "x1": 0.7557,
+          "y1": 0.6886,
+          "x2": 0.9361,
+          "y2": 0.7394,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      }
+    }
+  ]
+}
