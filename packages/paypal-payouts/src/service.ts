@@ -268,21 +268,33 @@ export interface PayoutsRepository {
   loadRun(runId: string): Promise<PayoutRunFacts | null>;
   /**
    * Writes the batch row and every item row as SUBMITTED (and moves the lines LOCKED → SUBMITTED)
-   * in one transaction, BEFORE the POST. Idempotent on sender_batch_id / sender_item_id;
-   * `supersedes_item_id` is UNIQUE, so one returned item is re-routed by one item only.
+   * in one transaction, BEFORE the POST, and returns the mark of the rows stored under
+   * `batch.senderBatchId` once it commits. Rows already stored under that sender_batch_id are never
+   * overwritten or merged: the call writes nothing and returns THEIR mark, and the service posts
+   * only if that mark carries the digest it is about to send (two re-routes of one item racing to two
+   * receivers share the ids; the loser must not post its receiver under the winner's rows).
+   * `supersedes_item_id` is UNIQUE, so one returned item is re-routed by one item only: a second
+   * superseding item fails the transaction, nothing is written and the call rejects.
    */
-  writeSubmitted(batch: SubmittedBatch): Promise<void>;
-  /** A 201, or an adopted "already exists". */
+  writeSubmitted(batch: SubmittedBatch): Promise<SubmittedMark>;
+  /**
+   * A 201, or an adopted "already exists": moves the rows stored under `senderBatchId` WITH
+   * `batchSha256` to POSTED (compare-and-set; idempotent once POSTED). Unless the rows under that id
+   * carry exactly that digest, they are not the batch that was posted: the call writes nothing and
+   * rejects (HALT and alert).
+   */
   markPosted(posted: {
     senderBatchId: string;
+    batchSha256: string;
     payoutBatchId: string;
     batchStatus: string | null;
     outcome: "created" | "adopted";
     debugId: string | null;
   }): Promise<void>;
-  /** A synchronous 4xx: nothing was created. */
+  /** A synchronous 4xx: nothing was created. Compare-and-set on the digest, as markPosted. */
   markRejected(rejected: {
     senderBatchId: string;
+    batchSha256: string;
     status: number;
     name: string;
     message: string;
@@ -368,11 +380,19 @@ export interface PayoutsServiceDeps {
   priority?: CallPriority;
 }
 
+/** What makes a re-route's ids `{senderBatchId}-x{n}-{memberNo}` / `r{runSeq}x{n}-{memberNo}`. */
+interface RerouteOf {
+  n: number;
+  memberNo: string;
+  /** The RETURNED payout_item_id the new item supersedes. */
+  supersedesItemId: string;
+}
+
 interface PostSpec {
   facts: PayoutRunFacts;
   kind: "primary" | "reroute";
-  rerouteNo?: number;
-  supersedesItemId: string | null;
+  /** Null for the run's primary batch. */
+  reroute: RerouteOf | null;
   lines: readonly ApprovedLine[];
   approvals: readonly SignedApproval[];
   overrides: number;
@@ -399,6 +419,16 @@ const refused = (code: RefusalCode, reason: string, senderBatchId: string | null
 });
 
 const CHANGED = "The batch changed after it was signed. Nothing was sent.";
+
+/** The rows stored under our sender_batch_id carry another digest: another call's batch, not ours. */
+function storedElsewhere(kind: PostSpec["kind"]): Refusal {
+  return kind === "reroute"
+    ? {
+        code: "ALREADY_REROUTED",
+        reason: "Another re-route of this item was written first. Nothing was sent.",
+      }
+    : { code: "DIGEST_MISMATCH", reason: CHANGED };
+}
 
 type Failure = PayPalFailure;
 
@@ -558,7 +588,7 @@ export class PayoutsService {
     return this.#post({
       facts: snapshot,
       kind: "primary",
-      supersedesItemId: null,
+      reroute: null,
       lines: snapshot.lines,
       approvals: snapshot.approvals,
       overrides: snapshot.overrides,
@@ -567,10 +597,12 @@ export class PayoutsService {
   }
 
   /**
-   * A one-item batch `{senderBatchId}-x{n}` paying a RETURNED item's line again. Only an item we
-   * cancelled for a re-route qualifies (a cash cancel sent the line to the bodega), its amount is
-   * read from the database, and each returned item is re-routed at most once: a retry resumes the
-   * same ids, so a second, different batch can never pay the member twice (I3).
+   * A one-item batch `{senderBatchId}-x{n}-{memberNo}` paying a RETURNED item's line again. Only an
+   * item we cancelled for a re-route qualifies (a cash cancel sent the line to the bodega), its amount
+   * is read from the database, and each returned item is re-routed at most once: a retry resumes the
+   * same ids, so a second, different batch can never pay the member twice (I3). Two re-routes of one
+   * item racing (to two receivers) share those ids; the write is judged on the stored digest, so only
+   * one is ever posted.
    */
   async reroute(request: RerouteRequest): Promise<BatchOutcome> {
     if (await this.#killSwitch()) return refused("KILL_SWITCH_ON", "Payouts are paused by the co-op", null);
@@ -608,7 +640,7 @@ export class PayoutsService {
     let ids: { senderBatchId: string; senderItemId: string };
     try {
       ids = {
-        senderBatchId: makeSenderBatchId({ ...facts, rerouteNo: n }),
+        senderBatchId: makeSenderBatchId({ ...facts, rerouteNo: n, memberNo: row.memberNo }),
         senderItemId: makeSenderItemId({ runSeq: facts.runSeq, memberNo: row.memberNo, rerouteNo: n }),
       };
     } catch (error) {
@@ -638,8 +670,7 @@ export class PayoutsService {
     return this.#post({
       facts,
       kind: "reroute",
-      rerouteNo: n,
-      supersedesItemId,
+      reroute: { n, memberNo: row.memberNo, supersedesItemId },
       lines: [
         {
           lineId: row.lineId,
@@ -661,7 +692,11 @@ export class PayoutsService {
     let items: SubmittedItem[];
     try {
       assertSha256(facts.rateCardSha256, "rateCardSha256");
-      senderBatchId = makeSenderBatchId({ ...facts, rerouteNo: spec.rerouteNo });
+      senderBatchId = makeSenderBatchId({
+        ...facts,
+        rerouteNo: spec.reroute?.n,
+        memberNo: spec.reroute?.memberNo,
+      });
       items = spec.lines
         .map((line) => ({
           lineId: line.lineId,
@@ -669,12 +704,12 @@ export class PayoutsService {
           senderItemId: makeSenderItemId({
             runSeq: facts.runSeq,
             memberNo: line.memberNo,
-            rerouteNo: spec.rerouteNo,
+            rerouteNo: spec.reroute?.n,
           }),
           receiver: line.receiver,
           amountCents: line.amountCents,
           currency: line.currency,
-          supersedesItemId: spec.supersedesItemId,
+          supersedesItemId: spec.reroute?.supersedesItemId ?? null,
         }))
         .sort((a, b) => (a.senderItemId < b.senderItemId ? -1 : a.senderItemId > b.senderItemId ? 1 : 0));
     } catch (error) {
@@ -721,10 +756,10 @@ export class PayoutsService {
     if (!spec.submitted) {
       // A new batch: the daily cap and the balance are read, and its rows written, in one turn of
       // the queue, so two posts racing for the last slot cannot both pass on the same count.
-      const spend = await this.#exclusive(async () => {
+      const stop = await this.#exclusive(async (): Promise<Refusal | null> => {
         const over = await this.#spendGuard(totalCents, at);
         if (over) return over;
-        await this.#repo.writeSubmitted({
+        const stored = await this.#repo.writeSubmitted({
           runId: facts.runId,
           kind: spec.kind,
           senderBatchId,
@@ -736,9 +771,11 @@ export class PayoutsService {
           items,
           at: at.toISOString(),
         });
-        return null;
+        // I4 at the write: post only under rows that carry this very digest. Rows another call wrote
+        // under the same ids first (a re-route of the same item to another receiver) are theirs.
+        return stored?.batchSha256 === digest ? null : storedElsewhere(spec.kind);
       });
-      if (spend) return refused(spend.code, spend.reason, senderBatchId);
+      if (stop) return refused(stop.code, stop.reason, senderBatchId);
     }
     return this.#send(body, { run, senderBatchId, requestId, digest });
   }
@@ -918,8 +955,10 @@ export class PayoutsService {
           PAYOUT_BATCH_ID_REGEX.test(id) &&
           (echoed === undefined || echoed === ctx.senderBatchId)
         ) {
+          // Compare-and-set: only the rows that carry the digest just posted become POSTED.
           await this.#repo.markPosted({
             senderBatchId: ctx.senderBatchId,
+            batchSha256: ctx.digest,
             payoutBatchId: id,
             batchStatus: header?.batch_status ?? null,
             outcome: "created",
@@ -976,6 +1015,7 @@ export class PayoutsService {
         if (!isRetryable(result)) {
           await this.#repo.markRejected({
             senderBatchId: ctx.senderBatchId,
+            batchSha256: ctx.digest,
             status: result.status,
             name: result.name,
             message: result.message,
@@ -1096,6 +1136,7 @@ export class PayoutsService {
 
     await this.#repo.markPosted({
       senderBatchId: ctx.senderBatchId,
+      batchSha256: ctx.digest,
       payoutBatchId,
       batchStatus: header.batch_status ?? null,
       outcome: "adopted",

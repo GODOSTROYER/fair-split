@@ -208,6 +208,40 @@ describe("PayoutsService.executeApproved(runId): the approved digest is the payo
     expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
   });
 
+  it("inv.i4.digest-is-payout: posts only under rows that carry its digest; another call's rows send nothing", async () => {
+    const { service, repo } = await setup();
+    const write = repo.writeSubmitted.bind(repo);
+    repo.writeSubmitted = async (batch) => {
+      // Another call wrote its own rows under this sender_batch_id after this one read the run.
+      await write({ ...batch, batchSha256: await digestFor(HERO_LINES.slice(1)) });
+      return write(batch);
+    };
+    onPost("/v1/payments/payouts", () => paypalJson(created(), 201));
+
+    await expect(service.executeApproved(RUN_ID)).resolves.toEqual({
+      kind: "refused",
+      code: "DIGEST_MISMATCH",
+      reason: "The batch changed after it was signed. Nothing was sent.",
+      senderBatchId: HERO_SENDER_BATCH_ID,
+    });
+    expect(posts()).toHaveLength(0);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+  });
+
+  it("inv.i4.digest-is-payout: the 201 marks POSTED only rows that still carry the digest it posted", async () => {
+    const { service, repo } = await setup();
+    onPost("/v1/payments/payouts", () => {
+      // The rows under our id were rewritten between the write and PayPal's answer.
+      const row = repo.batches.get(HERO_SENDER_BATCH_ID);
+      if (row) row.batch = { ...row.batch, batchSha256: "0".repeat(64) };
+      return paypalJson(created(), 201);
+    });
+
+    await expect(service.executeApproved(RUN_ID)).rejects.toThrow(/holds another batch/);
+    expect(repo.batches.get(HERO_SENDER_BATCH_ID)?.status).toBe("SUBMITTED");
+    expect(repo.types()).toEqual(["writeSubmitted"]);
+  });
+
   it("resumes an unresolved post with the same ids, checking the approvals as of the write", async () => {
     const digest = await digestFor(HERO_LINES);
     const { service, repo } = await setup();

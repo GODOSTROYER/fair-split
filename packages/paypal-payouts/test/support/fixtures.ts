@@ -69,13 +69,23 @@ export interface RunIds {
   runSeq: number;
 }
 
-/** The digest the treasurer and the Chair sign for a set of lines (reference IC-02). */
+/** A re-route's sender_batch_id in the hero run (or `run`): `{base}-x{n}-{memberNo}`. */
+export const rerouteBatchId = (memberNo: string, rerouteNo: number, run: RunIds = RUN_BASE): string =>
+  senderBatchId({ ...RUN_BASE, ...run, rerouteNo, memberNo });
+
+/**
+ * The digest the treasurer and the Chair sign for a set of lines (reference IC-02). With `rerouteNo`
+ * the lines are a re-route's one line, and its member names the batch.
+ */
 export async function digestFor(
   lines: readonly ApprovedLine[],
   rerouteNo?: number,
   run: RunIds = RUN_BASE,
 ): Promise<string> {
-  const sbid = senderBatchId({ ...RUN_BASE, ...run, rerouteNo });
+  const sbid =
+    rerouteNo === undefined
+      ? senderBatchId({ ...RUN_BASE, ...run })
+      : rerouteBatchId((lines[0] as ApprovedLine).memberNo, rerouteNo, run);
   const items = lines.map((l) => ({
     senderItemId: senderItemId({ runSeq: run.runSeq, memberNo: l.memberNo, rerouteNo }),
     receiver: l.receiver,

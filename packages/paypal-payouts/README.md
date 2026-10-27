@@ -68,9 +68,20 @@ The client also owns the 401: it drops the stale shared token and resends once, 
 reaches the service is final (`unresolved AUTH_FAILED`). The tests run the service on the real client
 over msw (`test/support/http.ts`); `test/service.ic05.test.ts` also drives it into each local refusal.
 
-`reroute` pays a RETURNED item's line again as `{sender_batch_id}-x{n}` / `r{runSeq}x{n}-{memberNo}`,
-only after our own cancel with intent `reroute`, for the amount the database holds, at most once per
-returned item (`n` is the returned item's own n + 1; a retry resumes the same ids).
+`reroute` pays a RETURNED item's line again as `{sender_batch_id}-x{n}-{memberNo}` /
+`r{runSeq}x{n}-{memberNo}`, only after our own cancel with intent `reroute`, for the amount the database
+holds, at most once per returned item (`n` is the returned item's own n + 1; a retry resumes the same
+ids). The member is in the batch id because `n` counts one item's re-routes: under a bare `-x{n}` two
+members' first re-routes of one run would share `-x1`, and PayPal, which keeps a sender_batch_id unique
+for 30 days, would answer the second with the first's batch. This extends register §8's "a re-route
+adds `-x{n}`" (the security review asked for it; it needs the register amended).
+
+**The rows are the batch** (I4 at the write). `writeSubmitted` never overwrites or merges the rows under
+a sender_batch_id; it returns the mark of the rows stored there, and the service posts only if that mark
+carries the digest it is about to send. Two re-routes of one item racing to two receivers share the ids:
+the second write gets the first's digest and is `refused ALREADY_REROUTED`, so PayPal pays the receiver
+the database holds. `supersedes_item_id` is UNIQUE, so a write that would add a second re-route of one
+item fails and sends nothing. `markPosted` and `markRejected` are compare-and-set on the digest posted.
 
 `createPayoutBatch` and `cancelUnclaimedPayoutItem` are not exported: money moves only through the
 service. IC-05 types come from `@fairsplit/paypal-core`; shims in `src/_shims/` still stand in for

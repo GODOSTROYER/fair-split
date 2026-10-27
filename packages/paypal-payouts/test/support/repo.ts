@@ -1,10 +1,15 @@
-import type {
-  PayoutItemRow,
-  PayoutRunFacts,
-  PayoutsRepository,
-  PostingSnapshot,
-  SubmittedBatch,
-  SupersedingItem,
+import {
+  batchNote,
+  type PayoutItemRow,
+  type PayoutRunFacts,
+  type PayoutsRepository,
+  type PostingSnapshot,
+  payPalRequestId,
+  type SubmittedBatch,
+  type SubmittedMark,
+  type SupersedingItem,
+  senderBatchId,
+  senderItemId,
 } from "../../src/index.js";
 
 export type RepoEvent =
@@ -23,8 +28,9 @@ type BatchRow = {
 /**
  * In-memory IC-04 double that logs every write in order. Reads (loadPosting, loadRun, findItem,
  * findSupersedingItem) are not logged, so `events` lists exactly what a post or a cancel wrote. Like
- * the real store, it reports a written batch back as `submitted` and enforces UNIQUE
- * supersedes_item_id.
+ * the real store, it reports a written batch back as `submitted`, never overwrites the rows under a
+ * sender_batch_id (a second write returns their mark), marks POSTED or REJECTED only the rows that
+ * carry the given digest, and enforces UNIQUE supersedes_item_id.
  */
 export class MemoryPayoutsRepo implements PayoutsRepository {
   readonly events: RepoEvent[] = [];
@@ -40,8 +46,35 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
     for (const p of seed.postings ?? []) {
       this.postings.set(p.runId, p);
       this.runs.set(p.runId, p);
+      if (p.submitted) this.#seedSubmitted(p, p.submitted);
     }
     for (const r of seed.runs ?? []) this.runs.set(r.runId, r);
+  }
+
+  /** The rows an earlier attempt wrote for a seeded snapshot that says so (not logged). */
+  #seedSubmitted(p: PostingSnapshot, mark: SubmittedMark): void {
+    const sbid = senderBatchId(p);
+    const items = p.lines.map((line) => ({
+      ...line,
+      senderItemId: senderItemId({ runSeq: p.runSeq, memberNo: line.memberNo }),
+      supersedesItemId: null,
+    }));
+    this.batches.set(sbid, {
+      status: "SUBMITTED",
+      payoutBatchId: null,
+      batch: {
+        runId: p.runId,
+        kind: "primary",
+        senderBatchId: sbid,
+        requestId: payPalRequestId(sbid),
+        batchSha256: mark.batchSha256,
+        note: batchNote(p.seasonCode, mark.batchSha256),
+        totalCents: items.reduce((sum, item) => sum + item.amountCents, 0n),
+        currency: "USD",
+        items,
+        at: mark.at,
+      },
+    });
   }
 
   async loadPosting(runId: string): Promise<PostingSnapshot | null> {
@@ -59,37 +92,50 @@ export class MemoryPayoutsRepo implements PayoutsRepository {
     return this.runs.get(runId) ?? null;
   }
 
-  async writeSubmitted(batch: SubmittedBatch): Promise<void> {
+  async writeSubmitted(batch: SubmittedBatch): Promise<SubmittedMark> {
     this.events.push({ type: "writeSubmitted", batch });
-    if (this.batches.has(batch.senderBatchId)) return; // idempotent on sender_batch_id
+    const stored = this.batches.get(batch.senderBatchId);
+    // Never overwritten or merged: the rows already under this sender_batch_id answer for it.
+    if (stored) return { at: stored.batch.at, batchSha256: stored.batch.batchSha256 };
     for (const item of batch.items) {
       if (item.supersedesItemId && (await this.findSupersedingItem(item.supersedesItemId))) {
         throw new Error(`UNIQUE violation: supersedes_item_id ${item.supersedesItemId}`);
       }
     }
     this.batches.set(batch.senderBatchId, { status: "SUBMITTED", batch, payoutBatchId: null });
+    return { at: batch.at, batchSha256: batch.batchSha256 };
+  }
+
+  /** UPDATE … WHERE sender_batch_id = $1 AND batch_sha256 = $2; no such row writes nothing and rejects. */
+  #compareAndSet(senderBatchId: string, batchSha256: string): BatchRow {
+    const row = this.batches.get(senderBatchId);
+    if (!row) throw new Error(`${senderBatchId} holds no batch`);
+    if (row.batch.batchSha256 !== batchSha256) {
+      throw new Error(`${senderBatchId} holds another batch (${row.batch.batchSha256.slice(0, 8)})`);
+    }
+    return row;
   }
 
   async markPosted(p: Parameters<PayoutsRepository["markPosted"]>[0]): Promise<void> {
+    const row = this.#compareAndSet(p.senderBatchId, p.batchSha256);
     this.events.push({
       type: "markPosted",
       senderBatchId: p.senderBatchId,
       payoutBatchId: p.payoutBatchId,
       outcome: p.outcome,
     });
-    const row = this.batches.get(p.senderBatchId);
-    if (row) Object.assign(row, { status: "POSTED", payoutBatchId: p.payoutBatchId });
+    Object.assign(row, { status: "POSTED", payoutBatchId: p.payoutBatchId });
   }
 
   async markRejected(r: Parameters<PayoutsRepository["markRejected"]>[0]): Promise<void> {
+    const row = this.#compareAndSet(r.senderBatchId, r.batchSha256);
     this.events.push({
       type: "markRejected",
       senderBatchId: r.senderBatchId,
       status: r.status,
       name: r.name,
     });
-    const row = this.batches.get(r.senderBatchId);
-    if (row) row.status = "REJECTED";
+    row.status = "REJECTED";
   }
 
   async findItem(payoutItemId: string): Promise<PayoutItemRow | null> {

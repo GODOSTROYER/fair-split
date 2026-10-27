@@ -47,17 +47,34 @@ export function rc8(rateCardSha256: string): string {
   return rateCardSha256.slice(0, 8);
 }
 
-/** `{season}-{rc8}-r{runSeq}`, e.g. `2026A-7f3a91c2-r37`; a re-route adds `-x{n}`. */
+/**
+ * `{season}-{rc8}-r{runSeq}`, e.g. `2026A-7f3a91c2-r37`. A re-route adds `-x{n}-{memberNo}`, e.g.
+ * `2026A-7f3a91c2-r37-x1-M-031`: n counts that member's re-routes only, so without the member two
+ * members' first re-routes of one run would share `-x1`, and PayPal would answer the second with
+ * the first's batch ("already exists"). The member makes every re-route's id its own, as its
+ * sender_item_id `r{runSeq}x{n}-{memberNo}` already is.
+ */
 export function senderBatchId(spec: {
   seasonCode: string;
   rateCardSha256: string;
   runSeq: number;
   rerouteNo?: number;
+  /** The re-routed item's member; required with `rerouteNo`, refused without it. */
+  memberNo?: string;
 }): string {
   checkRunSeq(spec.runSeq);
   checkReroute(spec.rerouteNo);
+  check(
+    (spec.rerouteNo === undefined) === (spec.memberNo === undefined),
+    "A re-route's sender_batch_id names its member; a primary batch's names none",
+  );
   const base = `${seasonIdCode(spec.seasonCode)}-${rc8(spec.rateCardSha256)}-r${spec.runSeq}`;
-  const id = spec.rerouteNo === undefined ? base : `${base}-x${spec.rerouteNo}`;
+  let id = base;
+  if (spec.rerouteNo !== undefined) {
+    const memberNo = spec.memberNo as string;
+    check(MEMBER_NO.test(memberNo), `Not a member number: ${JSON.stringify(memberNo)}`);
+    id = `${base}-x${spec.rerouteNo}-${memberNo}`;
+  }
   check(id.length <= SENDER_BATCH_ID_MAX, "sender_batch_id too long");
   return id;
 }
