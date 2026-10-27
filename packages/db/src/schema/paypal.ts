@@ -180,13 +180,15 @@ export const webhookEvents = pgTable(
  * The replay record behind paypal-core's `TransmissionStore` (src/webhook-transmissions.ts): a verified delivery's
  * transmission id is accepted once, until `expires_at` (transmission time + 6 min). Global, like the event-id dedupe:
  * a delivery reaches us before it names a workspace. Expiry is judged by the app's clock (an app-supplied `now`),
- * never the database's now().
+ * never the database's now(). `claim_token` is the verifier's token for the claim that wrote the record (a fresh UUID
+ * per claim, null when none was given): a release with a token deletes only that claim's record.
  */
 export const webhookTransmissions = pgTable(
   "webhook_transmissions",
   {
     transmissionId: text("transmission_id").primaryKey(),
     expiresAt: tstz("expires_at").notNull(),
+    claimToken: uuid("claim_token"),
   },
   (t) => [
     check("webhook_transmissions_id_ck", sql`${t.transmissionId} ~ '^[A-Za-z0-9_-]{1,64}$'`),

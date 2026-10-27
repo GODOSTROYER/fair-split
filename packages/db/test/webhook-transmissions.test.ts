@@ -4,7 +4,12 @@
  * the app's clock, so the store compares a record's expiry with the `now` the verifier passes (claim(id, expiresAt,
  * now)), never with the database's now(): a database clock running ahead would expire a live id early and let a
  * replayed copy through (paypal-core README, "For WS-DATA").
+ *
+ * Each claim carries the verifier's own token (claim(id, expiresAt, now, claimToken)), stored with the record, and
+ * release(id, claimToken) forgets the record only when that claim made it: a claim that reported an error may still
+ * have committed, so the verifier releases it, and that release must never delete a record a concurrent copy holds.
  */
+import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { webhookTransmissions } from "../src/schema/index.js";
@@ -38,6 +43,23 @@ async function expiryOf(id: string): Promise<number | null> {
     .from(webhookTransmissions)
     .where(eq(webhookTransmissions.transmissionId, id));
   return row ? row.expiresAt.getTime() : null;
+}
+
+async function tokenOf(id: string): Promise<string | null | undefined> {
+  const [row] = await t.owner.db
+    .select({ claimToken: webhookTransmissions.claimToken })
+    .from(webhookTransmissions)
+    .where(eq(webhookTransmissions.transmissionId, id));
+  return row?.claimToken;
+}
+
+/**
+ * paypal-core's `TransmissionStore` as ws/ppcore defines it (src/webhook/transmission.ts). @fairsplit/db sits below
+ * the paypal-* packages and cannot import it, so the shape is restated here and the store must satisfy it.
+ */
+interface PayPalCoreTransmissionStore {
+  claim(transmissionId: string, expiresAt: number, now?: number, claimToken?: string): Promise<boolean>;
+  release(transmissionId: string, claimToken?: string): Promise<void>;
 }
 
 describe("webhook transmission ids are accepted once (TransmissionStore.claim)", () => {
@@ -103,6 +125,81 @@ describe("webhook transmission ids are accepted once (TransmissionStore.claim)",
           t.app.sql`insert into webhook_transmissions (transmission_id, expires_at) values ('a b', now())`,
       ),
     ).toBe("23514");
+  });
+});
+
+describe("a release forgets only its own claim's record (claim tokens)", () => {
+  it("the store is paypal-core's TransmissionStore, claim token and all", () => {
+    const asCore: PayPalCoreTransmissionStore = store;
+    expect(typeof asCore.release).toBe("function");
+  });
+
+  it("release(id, token) deletes the record its claim made, and a copy's token deletes nothing", async () => {
+    const id = tid();
+    const now = Date.now();
+    const mine = randomUUID();
+    expect(await store.claim(id, now + 6 * MIN, now, mine)).toBe(true);
+    expect(await tokenOf(id)).toBe(mine);
+    // a concurrent copy was refused (false); its error path releases with its own token: the record stays
+    const copy = randomUUID();
+    expect(await store.claim(id, now + 6 * MIN, now + 10, copy)).toBe(false);
+    expect(await tokenOf(id)).toBe(mine);
+    await store.release(id, copy);
+    expect(await expiryOf(id)).toBe(now + 6 * MIN);
+    // the claim that made it releases it (its reply was lost, so the verifier forgets the id for PayPal's retry)
+    await store.release(id, mine);
+    expect(await expiryOf(id)).toBeNull();
+    expect(await store.claim(id, now + 6 * MIN, now + 20, randomUUID())).toBe(true);
+  });
+
+  it("an old claim's late release cannot delete the record that took over after it expired", async () => {
+    const id = tid();
+    const t0 = Date.now();
+    const first = randomUUID();
+    const second = randomUUID();
+    expect(await store.claim(id, t0 + 6 * MIN, t0, first)).toBe(true);
+    // expired at t0 + 6 min: a new delivery takes the id over under its own token
+    expect(await store.claim(id, t0 + 12 * MIN, t0 + 6 * MIN, second)).toBe(true);
+    expect(await tokenOf(id)).toBe(second);
+    await store.release(id, first);
+    expect(await expiryOf(id)).toBe(t0 + 12 * MIN);
+    // so a replay of the second delivery is still refused
+    expect(await store.claim(id, t0 + 13 * MIN, t0 + 7 * MIN, randomUUID())).toBe(false);
+    await store.release(id, second);
+    expect(await expiryOf(id)).toBeNull();
+  });
+
+  it("concurrent claims and the losers' releases leave exactly the winner's record", async () => {
+    const id = tid();
+    const now = Date.now();
+    const tokens = Array.from({ length: 6 }, () => randomUUID());
+    const won = await Promise.all(tokens.map((tok) => store.claim(id, now + 6 * MIN, now, tok)));
+    expect(won.filter(Boolean)).toHaveLength(1);
+    const winner = tokens[won.indexOf(true)];
+    await Promise.all(tokens.filter((tok) => tok !== winner).map((tok) => store.release(id, tok)));
+    expect(await tokenOf(id)).toBe(winner);
+    expect(await store.claim(id, now + 6 * MIN, now + 1, randomUUID())).toBe(false);
+  });
+
+  it("without a token, a release forgets whoever recorded the id (the route's release after a failed insert)", async () => {
+    const id = tid();
+    const now = Date.now();
+    expect(await store.claim(id, now + 6 * MIN, now, randomUUID())).toBe(true);
+    await store.release(id);
+    expect(await expiryOf(id)).toBeNull();
+    // a claim without a token stores none, and a tokened release never matches it
+    expect(await store.claim(id, now + 6 * MIN, now + 1)).toBe(true);
+    expect(await tokenOf(id)).toBeNull();
+    await store.release(id, randomUUID());
+    expect(await expiryOf(id)).toBe(now + 6 * MIN);
+  });
+
+  it("a malformed token is refused before the database sees it", async () => {
+    const now = Date.now();
+    for (const bad of ["", "not-a-uuid", `${randomUUID()}x`, "'; drop table webhook_transmissions; --"]) {
+      await expect(store.claim(tid(), now + 6 * MIN, now, bad)).rejects.toThrow(TypeError);
+      await expect(store.release(tid(), bad)).rejects.toThrow(TypeError);
+    }
   });
 });
 

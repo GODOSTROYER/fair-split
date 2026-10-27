@@ -85,6 +85,13 @@
       "when": 1792684558295,
       "tag": "0011_webhook_transmissions",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793099542381,
+      "tag": "0012_webhook_transmission_claim_token",
+      "breakpoints": true
     }
   ]
 }
