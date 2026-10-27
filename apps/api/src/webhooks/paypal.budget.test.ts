@@ -1,7 +1,8 @@
 // Finding 2 (security review, MEDIUM) at the route: unauthenticated requests cannot spend the
 // certificate-fetch budget a genuine delivery needs, a delivery that cannot be checked now is a
-// retryable 503 (PayPal retries), and 1,000 forged deliveries cost at most 3 certificate fetches and
-// no other PayPal call (plan, Verification).
+// retryable 503 (PayPal retries), and with every known certificate loaded, 1,000 forged deliveries cost
+// at most 3 certificate fetches and no other PayPal call (plan, Verification). The bound holds whatever
+// is pinned (known ids not loaded yet draw on fetches held back out of the 3): verify.budget.test.ts.
 
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import {
@@ -106,7 +107,7 @@ const request = (s: { body: string; headers: Record<string, string> }, clientIp:
 });
 
 describe("POST /webhooks/paypal under 1,000 forged deliveries", () => {
-  it("costs at most 3 certificate fetches and no other PayPal call; PayPal's own deliveries still land", async () => {
+  it("with PayPal's certificate loaded, costs at most 3 certificate fetches and no other PayPal call; PayPal's own deliveries still land", async () => {
     let t = Date.now();
     const now = () => t;
     const host = paypalHost({ [GENUINE_CERT]: leaf.pem, [ROTATED_CERT]: leaf.pem });
@@ -115,6 +116,7 @@ describe("POST /webhooks/paypal under 1,000 forged deliveries", () => {
         clientId: "fs-test-client",
         clientSecret: ["fs", "test", "secret"].join("-"),
         devMocks: false,
+        knownCertIds: [],
       },
       limiter: createMemoryLimiter({ now }),
       fetch: host.fetch,
