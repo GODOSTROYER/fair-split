@@ -1,10 +1,11 @@
-# ADR-0005: Working copy on the local Z: drive
+# ADR-0008: Working copy on the local Z: drive
 
 - **Status:** Accepted (user, on merge)
 - **Date:** 22 Oct 2026 (IST)
 - **Author:** WS-QA
 - **Touches:** register §1 (Repo row), architecture §18 (Windows development), S5.2.3 rule 1 (worktree paths)
-- **Number:** first written as 0003; renumbered before merge because `ws/read` holds ADR-0003
+- **Number:** first written as 0003, then 0005; renumbered before merge because ADR-0003 (`ws/read`), ADR-0005
+  (`ws/ops`) and ADR-0007 (`ws/ppmoney`) are on `main`
 
 ## Context
 

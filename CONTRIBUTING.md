@@ -26,7 +26,7 @@ corepack pnpm deps:check
 ```
 
 On Windows, use a local NTFS drive (never a mapped drive), enable long paths and run
-`git config core.longpaths true` ([ADR-0005](docs/adr/0005-working-copy-on-local-z-drive.md)).
+`git config core.longpaths true` ([ADR-0008](docs/adr/0008-working-copy-on-local-z-drive.md)).
 
 ## Workstreams, branches and ownership
 

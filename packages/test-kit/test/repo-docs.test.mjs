@@ -1,4 +1,5 @@
 // Repo hygiene checks owned by WS-QA: one decision register, every catalog pin recorded, ADRs numbered.
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -168,17 +169,55 @@ describe("repo docs", () => {
   });
 
   it("ADR numbers that other branches hold are not taken here", () => {
-    // Numbers held outside this branch. Before taking a number, check main and every in-flight branch.
+    // Numbers held outside this branch. Before taking a number, check main and every in-flight branch (the next
+    // test reads them all when git is there; this list is the floor for a clone without them).
     const held = {
       "0001": "plan-errata",
       "0002": "simulated-paypal-sandbox-and-private-repo",
-      "0003": "ai-replay-identity-rate-card-term-key-and-slip-hash", // ws/read
+      "0003": "ai-replay-identity-rate-card-term-key-and-slip-hash", // ws/read, on main
+      "0005": "database-credentials-on-render", // ws/ops, on main
+      "0007": "member-scoped-re-route-sender-batch-id", // ws/ppmoney, on main
     };
     for (const f of readdirSync(resolve(root, "docs/adr"))) {
       const slug = held[f.slice(0, 4)];
       if (slug) expect(f).toBe(`${f.slice(0, 4)}-${slug}.md`);
     }
-    expect(read("CONTRIBUTING.md")).toContain("docs/adr/0005-working-copy-on-local-z-drive.md");
+    expect(read("CONTRIBUTING.md")).toContain("docs/adr/0008-working-copy-on-local-z-drive.md");
+  });
+
+  it("the ADRs this branch adds take numbers that no other branch holds", { timeout: 60_000 }, () => {
+    // ADR-0006 decision 7: take the next number free on main and on every in-flight branch. Reads every local and
+    // remote-tracking branch this clone has. Only this branch's own ADRs are checked (those its merge base with
+    // main lacks), so on main nothing is, and another branch's clash fails that branch, not this one.
+    const out = (...args) => {
+      const r = spawnSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+      return r.status === 0 ? r.stdout : null;
+    };
+    if (out("rev-parse", "--git-dir") === null) return; // not a git checkout: the fixed list above still holds
+    const adr = /^(\d{4})-[a-z0-9-]+\.md$/;
+    const lines = (text) => (text ?? "").split("\n").filter(Boolean);
+    const mainRef = ["refs/heads/main", "refs/remotes/origin/main"].find(
+      (ref) => out("rev-parse", "--verify", "--quiet", ref) !== null,
+    );
+    const forkPoint = mainRef ? out("merge-base", "HEAD", mainRef)?.trim() : undefined;
+    const inherited = new Set(forkPoint ? lines(out("ls-tree", "--name-only", `${forkPoint}:docs/adr`)) : []);
+    const added = readdirSync(resolve(root, "docs/adr")).filter((f) => adr.test(f) && !inherited.has(f));
+    const current = out("symbolic-ref", "-q", "HEAD")?.trim();
+    const listed = out("for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes");
+    expect(listed).not.toBeNull();
+    const refs = lines(listed).filter((ref) => ref !== current && !ref.endsWith("/HEAD"));
+    const clashes = [];
+    for (const ref of refs) {
+      for (const theirs of lines(out("ls-tree", "--name-only", `${ref}:docs/adr`)).filter((f) =>
+        adr.test(f),
+      )) {
+        for (const mine of added) {
+          if (mine.slice(0, 4) === theirs.slice(0, 4) && mine !== theirs)
+            clashes.push(`${mine} vs ${ref}:${theirs}`);
+        }
+      }
+    }
+    expect(clashes).toEqual([]);
   });
 
   it("ADRs are NNNN-title.md with unique numbers, and none on main is left 'Proposed'", () => {
