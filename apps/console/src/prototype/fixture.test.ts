@@ -9,6 +9,7 @@ import {
   lineAfter,
   lineWithDuplicate,
   MEMBERS,
+  PEOPLE,
   RATE_CARD_SHA256,
   RATE_CARD_TEXT,
   SENDER_BATCH_ID,
@@ -106,5 +107,12 @@ describe("prototype fixture vs register §2", () => {
     expect(usdSpoken(6445)).toBe("sixty-four dollars and forty-five cents");
     expect(usdSpoken(36_839)).toBe("three hundred sixty-eight dollars and thirty-nine cents");
     expect(kg(97_806)).toBe("9,780.6 kg");
+  });
+
+  it("the officers sign with core's key IDs: the treasurer's web key fs-analyn-w1, the Chair's app key fs-ernesto-a1", () => {
+    // S3.8 deviation 7 and packages/seed OFFICERS: `fs-{persona}-{a|w}{n}`, and Analyn's real key is her
+    // non-extractable WebCrypto key (kind web), never an app key `fs-analyn-a1`.
+    expect(PEOPLE.treasurer.keyId).toBe("fs-analyn-w1");
+    expect(PEOPLE.chair.keyId).toBe("fs-ernesto-a1");
   });
 });

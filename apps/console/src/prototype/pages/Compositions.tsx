@@ -538,7 +538,7 @@ const CHAIN = [
   },
   {
     title: "W-PF-01.plate.keys",
-    detail: `fs-analyn-a1, fs-ernesto-a1, batch ${hashPrefix(BATCH_SHA256, 4)}`,
+    detail: `${PEOPLE.treasurer.keyId}, ${PEOPLE.chair.keyId}, batch ${hashPrefix(BATCH_SHA256, 4)}`,
     check: "W-PF-01.check.signatures",
   },
   {
