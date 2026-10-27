@@ -1,14 +1,18 @@
 // W-TR-04 by hand: slip 0462's stained digit. Before the reading the field waits; after it, one keystroke fills
-// the mask, the live line checks the logbook, Enter commits, and the value prints in the treasurer's ink when
-// the server's field.entered arrives (MM-2 by-hand → entered → done). "Use logbook line 7", a mismatch with its
-// reason, skipping, and a slip that needs nothing by hand. Axe on every state.
+// the mask, the live line checks the logbook's lines 5 to 9, Enter commits, and the value prints in the
+// treasurer's ink when the server's live field.entered arrives, which plays MM-2's by-hand act (by-hand →
+// entered → done) in full and reduced motion. The entry goes to the session run's own field: the mock names it
+// (as its browser build does, through window.__fsMock); with nothing to name it, the slab says why and nothing
+// is posted. "Use logbook line 7", a mismatch with its reason, skipping, and a slip that needs nothing by hand.
+// Axe on every state.
 
 import { act, configure, fireEvent, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearMomentTrace,
   expectNoAxeViolations,
   momentPhase,
+  type RenderedConsole,
   renderConsole,
   tracedPhases,
 } from "../../test/index.js";
@@ -19,8 +23,19 @@ configure({ asyncUtilTimeout: 6000 });
 
 const BY_HAND = "/season/2026-A/by-hand/0462";
 
-async function readRun(motion: "full" | "reduced" = "full") {
+/** What the mock's browser build hands the page (src/data/mock/browser.ts): its world, the session run. */
+function exposeMockWorld(view: RenderedConsole) {
+  window.__fsMock = {
+    mock: view.world.mock,
+    transport: "memory",
+    driver: view.world,
+    cosign: () => undefined,
+  };
+}
+
+async function readRun(motion: "full" | "reduced" = "full", { mock = true } = {}) {
   const view = await renderConsole({ path: BY_HAND, motion });
+  if (mock) exposeMockWorld(view);
   await view.startSession();
   act(() => {
     view.world.markPaid();
@@ -34,6 +49,11 @@ function typeDigit(digit: string) {
 }
 
 describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
+  afterEach(() => {
+    delete window.__fsMock;
+    vi.restoreAllMocks();
+  });
+
   it("waits for the reading: the crop and the logbook show, the field and the slab do not take a value yet", async () => {
     const view = await renderConsole({ path: BY_HAND });
     const root = await screen.findByTestId("W-TR-04");
@@ -47,6 +67,24 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-04.crop")).toBeTruthy();
     expect(screen.getByTestId("W-TR-04.logbook")).toBeTruthy();
     await expectNoAxeViolations(view.container);
+  });
+
+  it("crops the logbook to lines 5 to 9 under the slip: line 7 carries the band, as the second witness", async () => {
+    await renderConsole({ path: BY_HAND });
+    const logbook = await screen.findByTestId("W-TR-04.logbook");
+    const svg = logbook.querySelector("svg");
+    expect(svg?.dataset.lines).toBe("5-9");
+    const lines = [...logbook.querySelectorAll<SVGGElement>("[data-line]")].map((g) => g.dataset.line);
+    expect(lines).toEqual(["5", "6", "7", "8", "9"]);
+    expect(logbook.querySelector("[data-band]")?.getAttribute("data-line")).toBe("7");
+    expect(screen.getByText("Logbook page 14, lines 5 to 9: the second witness")).toBeTruthy();
+    // The crop sits above the logbook; the prompt, the field and the slab beside them.
+    const evidence = screen.getByTestId("W-TR-04.evidence");
+    expect(evidence.contains(screen.getByTestId("W-TR-04.crop"))).toBe(true);
+    expect(evidence.contains(logbook)).toBe(true);
+    const entry = screen.getByTestId("W-TR-04.entry");
+    expect(entry.contains(screen.getByTestId("W-TR-04.prompt"))).toBe(true);
+    expect(entry.contains(screen.getByTestId("W-TR-04.commit"))).toBe(true);
   });
 
   it("one keystroke fills the hidden digit; the logbook agrees; Enter commits it in Analyn's ink (MM-2)", async () => {
@@ -73,6 +111,68 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-04.stamp").textContent).toBe("AS");
     expect(view.world.fields().find((f) => f.field === "gross_kg")?.finalValue).toBe("64.80");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
+    await expectNoAxeViolations(view.container);
+  });
+
+  it("reduced motion plays the same by-hand act on the live field.entered, every phase kept", async () => {
+    const view = await readRun("reduced");
+    clearMomentTrace();
+    typeDigit("4");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId("W-TR-04.input"), { key: "Enter" });
+    });
+    await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
+    await waitFor(() => expect(momentPhase(view.container, "MM-2")).toBe("done"));
+    expect(tracedPhases("MM-2")).toEqual(["by-hand", "entered", "done"]);
+  });
+
+  it("the press alone moves no phase: the act waits for the server's event", async () => {
+    const view = await readRun();
+    clearMomentTrace();
+    typeDigit("4");
+    const enter = vi.spyOn(view.adapter, "call").mockImplementation(() => new Promise(() => undefined));
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId("W-TR-04.input"), { key: "Enter" });
+    });
+    expect(enter).toHaveBeenCalledWith("enterField", {
+      params: { fieldId: view.world.fieldId("gross_kg") },
+      body: { value: "64.80" },
+    });
+    expect(momentPhase(view.container, "MM-2")).toBe("idle");
+    expect(tracedPhases("MM-2")).toEqual([]);
+  });
+
+  it("an entry made before the page opened is history: done, still, no act", async () => {
+    const view = await renderConsole({ path: "/judge" });
+    exposeMockWorld(view);
+    await view.startSession();
+    act(() => {
+      view.world.markPaid();
+      view.world.enterByHand("64.80");
+    });
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
+    clearMomentTrace();
+    await view.navigate(BY_HAND);
+    await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
+    await waitFor(() => expect(momentPhase(view.container, "MM-2")).toBe("done"));
+    expect(tracedPhases("MM-2")).toEqual(["done"]);
+  });
+
+  it("with nothing to name the session's field (fs-api today), the slab says why and nothing is posted", async () => {
+    const view = await readRun("full", { mock: false });
+    const call = vi.spyOn(view.adapter, "call");
+    typeDigit("4");
+    expect(screen.getByTestId("W-TR-04").dataset.state).toBe("match");
+    const slab = screen.getByTestId("W-TR-04.commit");
+    expect(slab.dataset.state).toBe("unavailable");
+    expect(screen.getByTestId("W-TR-04.entry").textContent).toMatch(
+      /This step isn't wired on the server yet: it doesn't say which field on slip 0462 takes the entry\./,
+    );
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId("W-TR-04.input"), { key: "Enter" });
+    });
+    expect(call.mock.calls.some(([name]) => name === "enterField")).toBe(false);
+    expect(view.world.fields().find((f) => f.field === "gross_kg")?.finalValue).toBeNull();
     await expectNoAxeViolations(view.container);
   });
 

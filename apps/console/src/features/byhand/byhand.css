@@ -1,17 +1,24 @@
-/* W-TR-04 By hand: one field at a time. The slip's crop and the logbook page are paper (the only shadows); the
+/* W-TR-04 By hand: one field at a time. The slip's crop and the logbook strip are paper (the only shadows); the
    field is a 48 px condensed entry whose hidden digit sits in a canary cell (a person must decide), and the
-   committed value prints in ink with the treasurer's stamp. Every value is a --fs-* token. */
+   committed value prints in ink with the treasurer's stamp. Every value is a --fs-* token.
+
+   The two witnesses fit the window: the crop over the logbook's lines 5 to 9 take the height the stage leaves
+   between the title and its ribbon, so the stained digit, logbook line 7, the field and the slab are all in view
+   at 1470 × 956 and at 1280 × 800 without a scroll. */
 
 .fsc-hand {
+  /* Above the screen: the bar and the run pill's row (110) and the screen's padding (28); the title block (62)
+     and its gap (20); below: the ribbon and the caption (107) and a breath (12). */
+  --fsc-hand-room: calc(100dvh - 339px);
   display: grid;
   align-content: start;
-  gap: 28px;
+  gap: 20px;
   max-width: 1240px;
 }
 
 .fsc-hand__head {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .fsc-hand__head h1 {
@@ -22,7 +29,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  max-width: 70ch;
+  max-width: 62ch;
   margin: 0;
   color: var(--fs-ink);
   font-size: 0.9375rem;
@@ -41,14 +48,17 @@
 
 .fsc-hand__body {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(320px, 5fr);
+  grid-template-columns: auto minmax(320px, 1fr);
   align-items: start;
-  gap: 32px 56px;
+  gap: 32px 48px;
 }
 
+/* The crop over the logbook strip, at the width whose stacked height fills the room: two captions and paddings
+   (80) plus the crop (1.776 : 1) and the strip (1.764 : 1), so height = 80 + 1.13 × width. */
 .fsc-hand__evidence {
   display: grid;
-  gap: 24px;
+  gap: 16px;
+  width: clamp(300px, calc((var(--fsc-hand-room) - 80px) * 0.885), 560px);
 }
 
 .fsc-hand__figure {
@@ -58,7 +68,6 @@
 }
 
 .fsc-hand__crop {
-  max-width: 560px;
   padding: 10px;
 }
 
@@ -72,7 +81,6 @@
 }
 
 .fsc-hand__logbook {
-  max-width: 560px;
   padding: 8px;
   transform: rotate(-0.3deg);
 }
@@ -124,6 +132,10 @@
   display: grid;
   align-content: start;
   gap: 12px;
+}
+
+.fsc-hand__entry > .fsc-hand__prompt {
+  margin-bottom: 8px;
 }
 
 .fsc-hand__label {
@@ -292,9 +304,21 @@
   border-radius: var(--fs-radius-2);
 }
 
+/* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
+@media (max-width: 1279px) {
+  .fsc-hand {
+    --fsc-hand-room: calc(100dvh - 371px);
+  }
+}
+
 @media (max-width: 1099px) {
   .fsc-hand__body {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-hand__evidence {
+    width: auto;
+    max-width: 560px;
   }
 
   .fsc-hand__entry {

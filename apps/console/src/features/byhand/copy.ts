@@ -12,7 +12,8 @@ export const BY_HAND_COPY = {
   openReading: "Open it in the reading room",
   crop: "The slip, three times its size in the photo",
   cropAlt: (serial: string) => `Slip ${serial}: gross, tare and net, under a water stain`,
-  logbook: (page: number) => `Logbook page ${page}, the second witness`,
+  logbook: (page: number, from: number, to: number) =>
+    `Logbook page ${page}, lines ${from} to ${to}: the second witness`,
   logbookAlt: (page: number, line: number, net: string) =>
     `Logbook page ${page}, line ${line}: ${net} kg net, in the clerk's hand`,
   inputLabel: (serial: string) => `Gross kilos on slip ${serial}`,
@@ -35,6 +36,8 @@ export const BY_HAND_COPY = {
   checkBoth: "Check the slip and the logbook first.",
   notRead: (serial: string) =>
     `Slip ${serial} hasn't been read in this run yet. Its row prints in the reading room first.`,
+  noField: (serial: string) =>
+    `This step isn't wired on the server yet: it doesn't say which field on slip ${serial} takes the entry. Nothing changed.`,
   readFirst: "Watch the reading room",
   anywayOpen: "Enter anyway with a reason",
   reasonLabel: "Why the slip is right and the logbook isn't",

@@ -1,9 +1,10 @@
 // W-TR-04 By hand (S1.7, design §6 C4): one field at a time. The slip's crop at three times its photo size, the
-// logbook page beneath as a second witness, and one 48 px condensed field that shows "6▢.80" with the slot
-// selected, so one keystroke fills it. As she types: "64.80 − 0.30 tare = 64.50 net. Matches logbook page 14,
-// line 7." "Use logbook line 7" fills the digit from the logbook's net plus the tare. The commit is a d2 slab
-// (or Enter); the value prints in ink with her AS stamp when the server's `field.entered` arrives (MM-2
-// "by-hand" → "entered" → "done"). Doubt becomes the treasurer's ink.
+// logbook page's lines around the slip beneath it as a second witness, and one 48 px condensed field that shows
+// "6▢.80" with the slot selected, so one keystroke fills it. As she types: "64.80 − 0.30 tare = 64.50 net.
+// Matches logbook page 14, line 7." "Use logbook line 7" fills the digit from the logbook's net plus the tare.
+// The commit is a d2 slab (or Enter); the value prints in ink with her AS stamp when the server's live
+// `field.entered` arrives, and that event plays MM-2's by-hand act (by-hand → entered → done). The crop, line 7,
+// the field and the slab all sit above the stage's ribbon. Doubt becomes the treasurer's ink.
 
 import { type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { Glyph, InkStamp, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
@@ -11,18 +12,18 @@ import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useId, us
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
-import { useAdapter, useCommand, useRunEvents, useStageRun } from "../../data/hooks.js";
+import { useCommand, useRunEvents, useStageRun } from "../../data/hooks.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
-import { BY_HAND_AT } from "../reading/mm2.js";
 import { byHandHoldFor } from "../reading/model.js";
 import { SlipPaper } from "../reading/SlipPaper.js";
 import { boxFor } from "../reading/slip.js";
 import { SeasonMark } from "../season/parts.js";
 import { BY_HAND_COPY } from "./copy.js";
 import { resolveFieldId } from "./field-id.js";
-import { LogbookPaper } from "./LogbookPaper.js";
+import { LogbookPaper, logbookWindow } from "./LogbookPaper.js";
+import { mockWorldFields } from "./mock-fields.js";
 import {
   type ByHandState,
   byHandField,
@@ -90,16 +91,12 @@ function ByHandField({
   readonly field: NonNullable<ReturnType<typeof byHandField>>;
 }) {
   const mode = useMotionMode();
-  const adapter = useAdapter();
   const { runSlug, view, inSession } = useStageRun();
   const moment = useMoment("MM-2");
   // A failed entry puts the slab back at rest (remounted), so she can press again.
   const [attempt, setAttempt] = useState(0);
   const enter = useCommand("enterField", {
-    onError: () => {
-      moment.reset();
-      setAttempt((a) => a + 1);
-    },
+    onError: () => setAttempt((a) => a + 1),
   });
   const next = useNextStep();
   const input = useRef<HTMLInputElement>(null);
@@ -124,28 +121,23 @@ function ByHandField({
     Object.values(view?.fields ?? {}).find((f) => f.serial === serial && f.field === field.field) ?? null;
   const committed = entered !== null || hold?.resolution === "ENTERED_BY_HAND";
   const ready = inSession && hold !== undefined && hold.state === "OPEN";
-  const fieldId = resolveFieldId({ view, snapshot, serial, field: field.field, source: adapter.source });
+  // The session run's own field, never the showcase's (./field-id.ts); none until something names it.
+  const fieldId = resolveFieldId({ view, snapshot, serial, field: field.field, fields: mockWorldFields() });
   const p = preview(value, tare, witness);
   const state: ByHandState = byHandState({ committed, skipped, value, preview: p });
 
-  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // MM-2's by-hand act: the press is the person's (the slab plays its own plunk), the ink is the server's.
+  // MM-2's by-hand act plays on the server's live `field.entered`, with that event as its evidence: the press
+  // is the person's (local), the ink is the server's. A repeat of the same event plays nothing.
+  const liveEntry = useRef(false);
   useRunEvents(inSession ? runSlug : null, (event, meta) => {
     if (meta.replay || event.type !== "field.entered" || event.payload.serial !== serial) return;
-    moment.enter("entered");
-    const id = setTimeout(() => moment.enter("done"), BY_HAND_AT.done - BY_HAND_AT.entered);
-    doneTimer.current = id;
+    liveEntry.current = true;
+    moment.play("by-hand", { eventId: event.id, kind: "sse" });
   });
-  useEffect(
-    () => () => {
-      if (doneTimer.current) clearTimeout(doneTimer.current);
-    },
-    [],
-  );
-  // A field already entered before this page opened shows done, still.
+  // A field entered before this page opened is history: it shows done, still, and plays nothing.
   const { phase, enter: enterPhase } = moment;
   useEffect(() => {
-    if (committed && phase === "idle") enterPhase("done");
+    if (committed && phase === "idle" && !liveEntry.current) enterPhase("done");
   }, [committed, phase, enterPhase]);
 
   usePrefocus(input, "W-TR-04", ready && !committed);
@@ -164,7 +156,6 @@ function ByHandField({
 
   const commit = () => {
     if (!fieldId || !isComplete(value) || enter.isPending) return;
-    moment.enter("by-hand");
     setPressedAt(new Date().toISOString());
     enter.mutate({ params: { fieldId }, body: { value } });
   };
@@ -172,9 +163,9 @@ function ByHandField({
   const mismatch = p?.matches === false;
   let unavailable: string | undefined;
   if (!ready) unavailable = BY_HAND_COPY.notRead(serial);
+  else if (!fieldId) unavailable = BY_HAND_COPY.noField(serial);
   else if (!isComplete(value)) unavailable = whole ? BY_HAND_COPY.needValue : BY_HAND_COPY.needDigit;
   else if (mismatch && !(anyway && reason.trim().length >= 3)) unavailable = BY_HAND_COPY.checkBoth;
-  else if (!fieldId) unavailable = BY_HAND_COPY.notRead(serial);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -240,22 +231,21 @@ function ByHandField({
       ? BY_HAND_COPY.enterAnyway(value)
       : BY_HAND_COPY.enter(isComplete(value) ? value : field.reading.replace("?", SLOT));
   const crop = cropBox();
+  // The logbook's lines around the slip's own (5 to 9 for line 7): enough ledger to trust, small enough that
+  // the crop, the witness line, the field and the slab all fit above the stage's ribbon.
+  const lines = witness ? logbookWindow(witness.page, witness.lineNo) : null;
 
   return (
     <ScreenRoot id="W-TR-04" state={state} labelledBy="fsc-hand-title" className="fsc-hand">
       <header className="fsc-hand__head">
-        <SeasonMark snapshot={snapshot} testId="W-TR-04.mark" />
+        <SeasonMark snapshot={snapshot} testId="W-TR-04.mark" coop={false} />
         <h1 id="fsc-hand-title" className="fs-t-title-1">
           {BY_HAND_COPY.title(serial)}
         </h1>
-        <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
-          <Glyph name="pencil" size={16} />
-          <span>{prompt}</span>
-        </p>
       </header>
 
       <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
-        <div className="fsc-hand__evidence">
+        <div className="fsc-hand__evidence" data-testid="W-TR-04.evidence">
           <figure className="fsc-hand__figure">
             <figcaption className="fs-t-caption fsc-hand__muted">{BY_HAND_COPY.crop}</figcaption>
             <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
@@ -267,23 +257,27 @@ function ByHandField({
               </div>
             </Paper>
           </figure>
-          {witness && (
+          {witness && lines && (
             <figure className="fsc-hand__figure">
               <figcaption className="fs-t-caption fsc-hand__muted">
-                {BY_HAND_COPY.logbook(witness.page.page)}
+                {BY_HAND_COPY.logbook(witness.page.page, lines.from, lines.to)}
               </figcaption>
               <Paper
                 alt={BY_HAND_COPY.logbookAlt(witness.page.page, witness.lineNo, witness.netKgText)}
                 className="fsc-hand__logbook"
                 testId="W-TR-04.logbook"
               >
-                <LogbookPaper page={witness.page} highlight={witness.lineNo} />
+                <LogbookPaper page={witness.page} highlight={witness.lineNo} lines={lines} />
               </Paper>
             </figure>
           )}
         </div>
 
         <section className="fsc-hand__entry" aria-labelledby={`${inputId}-label`} data-testid="W-TR-04.entry">
+          <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
+            <Glyph name="pencil" size={16} />
+            <span>{prompt}</span>
+          </p>
           {committed ? (
             <div className="fsc-hand__committed" data-testid="W-TR-04.committed">
               <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">

@@ -5,7 +5,6 @@
 import { EASE, FLIGHTS, type MotionMode, TIMELINES, TWEENS } from "@fairsplit/motion";
 
 const rowAct = TIMELINES["MM-2"].acts.find((a) => a.id === "row");
-const byHandAct = TIMELINES["MM-2"].acts.find((a) => a.id === "by-hand");
 
 function at(phase: string, steps = rowAct?.full ?? []): number {
   return steps.find((s) => s.phase === phase)?.at ?? 0;
@@ -20,12 +19,6 @@ export const ROW_AT = {
   print: at("print"),
   ring: at("ring"),
   landed: at("landed"),
-} as const;
-
-/** The by-hand act (W-TR-04): the press, then the value in ink. */
-export const BY_HAND_AT = {
-  entered: at("entered", byHandAct?.full),
-  done: at("done", byHandAct?.full),
 } as const;
 
 const resolveStep = rowAct?.full.find((s) => s.phase === "resolve");

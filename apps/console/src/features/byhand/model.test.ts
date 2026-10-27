@@ -1,10 +1,12 @@
 // W-TR-04's model: slip 0462's mask, the kilos preview against the logbook's second witness, "Use logbook line
-// 7", and the field ID the console resolves for the entry.
+// 7", and the field ID the console resolves for the entry (the session run's own, or none).
 
-import { mockId } from "@fairsplit/api-client/msw";
+import type { RunEvent } from "@fairsplit/contracts";
 import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
-import { mockFieldId, resolveFieldId } from "./field-id.js";
+import { applyRunEvents, sessionView } from "../../data/run-view.js";
+import { createTestWorld } from "../../test/index.js";
+import { resolveFieldId } from "./field-id.js";
 import {
   byHandField,
   byHandState,
@@ -81,13 +83,63 @@ describe("slip 0462 by hand", () => {
 });
 
 describe("the entry's field ID", () => {
-  it("derives api-client's deterministic mock ID exactly", () => {
-    expect(mockFieldId("field:0462:gross_kg")).toBe(mockId("field:0462:gross_kg"));
+  const base = { view: undefined, snapshot, serial: "0462", field: "gross_kg" as const };
+  const showcaseIds = (): string[] => {
+    const ids: string[] = [];
+    for (const hold of Object.values(snapshot.checkpoints).flatMap((c) => c.holds)) {
+      const fields = hold.params.fields;
+      if (!Array.isArray(fields)) continue;
+      for (const f of fields) {
+        const id = (f as { fieldId?: unknown } | null)?.fieldId;
+        if (typeof id === "string") ids.push(id);
+      }
+    }
+    return ids;
+  };
+
+  it("takes the session run's own field from a read of its fields", () => {
+    const world = createTestWorld();
+    const id = resolveFieldId({ ...base, fields: world.fields() });
+    expect(id).toBe(world.fieldId("gross_kg"));
+    expect(resolveFieldId({ ...base, field: "net_kg", fields: world.fields() })).toBe(
+      world.fieldId("net_kg"),
+    );
   });
 
-  it("prefers a field.entered the run streamed, then the mock's, then the engine's own ID", () => {
-    const base = { view: undefined, snapshot, serial: "0462", field: "gross_kg" as const };
-    expect(resolveFieldId({ ...base, source: "mock" })).toBe(mockId("field:0462:gross_kg"));
-    expect(resolveFieldId({ ...base, source: "http" })).toBe("field-0462-gross_kg");
+  it("prefers a field.entered the run already streamed for the slip", () => {
+    const view = applyRunEvents(
+      sessionView(snapshot, { runSlug: snapshot.run.runSlug, runId: snapshot.run.id }),
+      [
+        {
+          id: "900",
+          ws: "ws",
+          runId: snapshot.run.id,
+          at: "2026-10-29T02:00:00.000Z",
+          actor: { kind: "human", id: "AS", impersonatedBy: null },
+          provenance: "live",
+          type: "field.entered",
+          payload: {
+            fieldId: "the-session-field",
+            docId: "doc",
+            serial: "0462",
+            field: "gross_kg",
+            value: "64.80",
+            derived: { net_kg: "64.50" },
+            enteredBy: "AS",
+          },
+        } as RunEvent,
+      ],
+    );
+    expect(resolveFieldId({ ...base, view, fields: null })).toBe("the-session-field");
+  });
+
+  it("names no field when nothing has said which one, and never one of the showcase's", () => {
+    const showcase = showcaseIds();
+    expect(showcase.length).toBeGreaterThan(0);
+    expect(resolveFieldId({ ...base, fields: null })).toBeNull();
+    expect(resolveFieldId({ ...base, fields: [] })).toBeNull();
+    const fromRead = resolveFieldId({ ...base, fields: createTestWorld().fields() });
+    expect(fromRead).not.toBeNull();
+    expect(showcase).not.toContain(fromRead);
   });
 });
