@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import {
   type ApprovalRole,
   GENESIS_PREV_HASH,
@@ -41,6 +40,11 @@ import { hashRateCard } from "./ratecard.js";
 import { type Ed25519KeyPair, ed25519FromSeed, ed25519Sign } from "./sig.js";
 import { attestedEntries, verifyChainWith } from "./verify-core.js";
 
+/** This package's sources as text, read through the bundler: the domain package does no file IO. */
+const DOMAIN_SOURCES = import.meta.glob<string>("./*.ts", { query: "?raw", import: "default", eager: true });
+/** The only packages the browser verifier may reach. */
+const BROWSER_SAFE: ReadonlySet<string> = new Set(["@fairsplit/contracts", "canonicalize", "ts-pattern"]);
+
 const plain = (kind: string, payload: LedgerFact["payload"], at = T("02:00:00")): LedgerFact => ({
   kind,
   actorKind: "engine",
@@ -73,26 +77,44 @@ describe("ledger hash chain (architecture §12)", () => {
     expect(verifyLedger([])).toEqual({ ok: true, brokenAtSeq: null });
   });
 
-  it("the browser verifier (`@fairsplit/domain/verify`) imports no node built-ins", () => {
+  it("the browser verifier (`@fairsplit/domain/verify`) reaches only browser-safe modules", () => {
+    // Every import form, static or dynamic: `from "x"`, `import "x"`, `import("x")`, `require("x")`.
+    const specifiers = (src: string) =>
+      [...src.matchAll(/\b(?:from|import)\s*\(?\s*["']([^"']+)["']|\brequire\s*\(\s*["']([^"']+)["']/g)].map(
+        (m) => (m[1] ?? m[2]) as string,
+      );
+    for (const [src, want] of [
+      ['import { readFileSync } from "node:fs";', "node:fs"],
+      ['import "fs";', "fs"],
+      ['const c = await import("crypto");', "crypto"],
+      ['export * from "node:os";', "node:os"],
+      ['const h = require("http");', "http"],
+      ['import type { X } from\n  "./x.js";', "./x.js"],
+    ] as const) {
+      expect(specifiers(src), src).toEqual([want]);
+    }
     const seen = new Set<string>();
+    const external = new Set<string>();
     const visit = (file: string) => {
       if (seen.has(file)) return;
       seen.add(file);
-      const src = readFileSync(new URL(file, import.meta.url), "utf8");
-      expect(src, file).not.toMatch(/from\s+["']node:/);
-      for (const m of src.matchAll(/from\s+["']\.\/([^"']+)\.js["']/g)) visit(`./${m[1]}.ts`);
+      const src = DOMAIN_SOURCES[file];
+      expect(typeof src, `${file} is a domain source`).toBe("string");
+      for (const spec of specifiers(src as string)) {
+        expect(spec.startsWith("../"), `${file} reaches outside the package: ${spec}`).toBe(false);
+        if (spec.startsWith("./")) visit(spec.replace(/\.js$/, ".ts"));
+        else external.add(spec);
+      }
     };
     visit("./verify-core.ts");
-    expect([...seen].sort()).toEqual(
-      [
-        "./digest-input.ts",
-        "./fsm.ts",
-        "./ids.ts",
-        "./jcs.ts",
-        "./sample-keys.ts",
-        "./verify-core.ts",
-      ].sort(),
-    );
+    // An allowlist, not a list of built-ins: anything else (node:*, a bare "crypto" or "fs") fails.
+    expect(
+      [...external].filter((spec) => !BROWSER_SAFE.has(spec)),
+      "non-browser imports",
+    ).toEqual([]);
+    expect(seen.has("./sample-keys.ts") && seen.has("./jcs.ts")).toBe(true);
+    // The check has teeth: a module that reads files is caught.
+    expect([...specifiers(DOMAIN_SOURCES["./canon.ts"] ?? "")].some((s) => !BROWSER_SAFE.has(s))).toBe(true);
   });
 
   it("reads only entries whose payload has the contract's shape", () => {
