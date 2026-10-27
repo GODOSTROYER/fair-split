@@ -595,7 +595,7 @@
 .fsc-read__body[data-motion="reduced"]
   .fsc-beds__row[data-state="landing"]
   :is(.fsc-beds__member, .fsc-beds__net, td.fsc-beds__print) {
-  animation-name: fs-fade;
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) var(--fsc-print-at) both;
 }
 
 .fsc-beds__you {
