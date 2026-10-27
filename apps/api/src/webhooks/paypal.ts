@@ -16,7 +16,9 @@
 //   4. Return 200 at once. Everything else happens in processWebhook, including the once-per-run
 //      postback that upgrades `verified` to 'postback' (./postback.ts) from the transmission headers
 //      kept in the row's `delivery`.
-//   Bad signature, stale or replayed transmission → 400 and a 'rejected' row (raw truncated to 8 KB),
+//   Bad signature, stale or replayed transmission → 400 and a 'rejected' row that keeps hashes only
+//   (S3.4, review resolution 18): the body's sha256 and size, never the body (a replayed copy of a
+//   genuine delivery carries receivers and amounts), and PayPal's five headers clipped to 256 characters;
 //   rate-limited over a sliding hour: at most 10 rows per client address (IPv6 by /64) and 100 overall
 //   in any 60 minutes (S3: at most 100 rejects an hour; E-18), so a burst across the top of the hour
 //   cannot store twice the cap. The rest are only counted, in `handler.health()` (no body, no address),
@@ -73,8 +75,11 @@ export {
 
 /** PayPal webhook events are a few KB; anything over 64 KB is refused before verification (plan). */
 export const MAX_WEBHOOK_BODY_BYTES = CORE_MAX_WEBHOOK_BODY_BYTES;
-/** Rejected bodies are kept for forensics, truncated. */
-export const MAX_REJECTED_RAW_BYTES = 8 * 1024;
+/**
+ * A rejected row keeps PayPal's five transmission headers clipped to this many characters (S3.4: "five
+ * PayPal headers (≤ 256 chars)"); its body only as a hash (`rejectedRaw`).
+ */
+export const MAX_REJECTED_HEADER_CHARS = 256;
 /** Upper bound on verification (a cold certificate fetch is capped at 5 s, an expired-cert postback at 6 s). */
 export const VERIFY_TIMEOUT_MS = 20_000;
 
@@ -133,6 +138,7 @@ export interface WebhookEventInsert {
   /** How it was authenticated; `fetched` rows come from the catch-up listing; null when rejected. */
   verified: WebhookVerifiedLabel | null;
   status: Extract<WebhookEventStatus, "received" | "rejected">;
+  /** The body exactly as received; for a 'rejected' row only its hash and size (`rejectedRaw`). */
   raw: string;
   /**
    * PROPOSED column (WS-DATA): transmission headers, reject reason, certificate warning. Null for fetched
@@ -233,6 +239,16 @@ const decode = (bytes: Uint8Array) =>
 
 const clip = (value: string | null, max: number): string | null =>
   value === null ? null : value.slice(0, max);
+
+const sha256Hex = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+/**
+ * The `raw` of a 'rejected' row: the body's sha256 and size, as S3.4's `webhook_rejects` keeps them
+ * (`raw_sha256`, `bytes`), never the body itself. Enough to match a capture or a repeat, nothing to leak.
+ */
+export function rejectedRaw(rawBody: Uint8Array): string {
+  return JSON.stringify({ raw_sha256: sha256Hex(rawBody), bytes: rawBody.byteLength });
+}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -403,19 +419,24 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
   const log = deps.logger;
   const rejectedRows = rejectedRowGate(rejectedRowLimitsOf(deps.rejectedRowLimits), deps.now ?? Date.now);
 
-  /** PayPal's (public) transmission headers, clipped, as kept in `delivery`. */
+  /**
+   * PayPal's (public) transmission headers, clipped, as kept in `delivery`. An accepted row keeps the
+   * whole signature (processWebhook's postback replays it); a rejected one at most 256 characters each.
+   */
   function deliveryOf(
     headers: HeadersLike,
     verification: VerifyOutcome,
     transmissionId: string | null,
     rejectReason: string | null,
   ): WebhookDelivery {
+    const cap = (value: string | null, max: number) =>
+      clip(value, rejectReason === null ? max : Math.min(max, MAX_REJECTED_HEADER_CHARS));
     return {
       transmissionId,
-      transmissionTime: clip(readHeader(headers, "paypal-transmission-time"), 64),
-      transmissionSig: clip(readHeader(headers, "paypal-transmission-sig"), 2048),
-      certUrl: clip(verification.certUrl ?? readHeader(headers, "paypal-cert-url"), 500),
-      authAlgo: clip(readHeader(headers, "paypal-auth-algo"), 40),
+      transmissionTime: cap(readHeader(headers, "paypal-transmission-time"), 64),
+      transmissionSig: cap(readHeader(headers, "paypal-transmission-sig"), 2048),
+      certUrl: cap(verification.certUrl ?? readHeader(headers, "paypal-cert-url"), 500),
+      authAlgo: cap(readHeader(headers, "paypal-auth-algo"), 40),
       rejectReason,
       certWarning: verification.certWarning,
     };
@@ -429,12 +450,7 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
   ) {
     try {
       const inserted = await deps.transaction((tx) =>
-        deps.insertWebhookEvent(tx, {
-          ...row,
-          raw: decode(raw.subarray(0, MAX_REJECTED_RAW_BYTES)),
-          status: "rejected",
-          verified: null,
-        }),
+        deps.insertWebhookEvent(tx, { ...row, raw: rejectedRaw(raw), status: "rejected", verified: null }),
       );
       if (!inserted) giveBack(); // identical junk, already on file
     } catch (err) {
@@ -535,7 +551,7 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
         "paypal webhook rejected",
       );
       // Identical junk dedupes on its body hash; a real transmission id keys the row otherwise.
-      const rejectionKey = `rejected:${transmissionId ?? `sha256-${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`}`;
+      const rejectionKey = `rejected:${transmissionId ?? `sha256-${sha256Hex(rawBody).slice(0, 32)}`}`;
       await storeRejected(
         rawBody,
         {

@@ -166,7 +166,10 @@ describe("rejected rows are rate-limited", () => {
       expect([...statuses]).toEqual([400]);
       expect(db.rejectedRows().length).toBeLessThanOrEqual(N + M);
       expect(db.rejectedRows()).toHaveLength(kept);
-      expect(db.rejectedRows().every((r) => r.raw.length <= 8 * 1024)).toBe(true);
+      // Hashes only (S3.4): the 8 KB of padding in each forged body is never stored.
+      expect(
+        db.rejectedRows().every((r) => /^\{"raw_sha256":"[0-9a-f]{64}","bytes":\d+\}$/.test(r.raw)),
+      ).toBe(true);
       expect(paypalCallsSinceBoot()).toBe(0);
       const health = handler.health();
       expect(health.rejectedRows).toMatchObject({

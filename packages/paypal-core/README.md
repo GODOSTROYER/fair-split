@@ -116,10 +116,13 @@ so the bearer token cannot be sent anywhere else.
    row whose `delivery` is missing or lacks the `certWarning` key (`DELIVERY_NOT_RECORDED`) change state
    only after a fresh GET. Only an explicit `certWarning: null` lets a SUCCEEDED apply at once, so
    **MM-1 needs `delivery` stored as written, null keys included** (shim-swap notes below).
-8. Rejections (forged, stale, replayed, malformed): 400 and a `rejected` `webhook_events` row (body
-   truncated to 8 KB), **rate-limited over a sliding hour**: at most 10 rows per client address (IPv6 by
-   /64; no address = one shared count) and 100 overall in any 60 minutes (`DEFAULT_REJECTED_ROW_LIMITS`;
-   S3 "≤ 100 rows an hour", E-18 "at most 100 stored rejects"). A row counts for an hour after it was
+8. Rejections (forged, stale, replayed, malformed): 400 and a `rejected` `webhook_events` row that keeps
+   **hashes only** (S3.4, review resolution 18): `raw` is `{"raw_sha256","bytes"}`, never the body (a
+   replayed copy of a genuine delivery carries receivers and amounts), and PayPal's five headers are
+   clipped to 256 characters (`MAX_REJECTED_HEADER_CHARS`). Rows are **rate-limited over a sliding
+   hour**: at most 10 rows per client address (IPv6 by /64; no address = one shared count) and 100
+   overall in any 60 minutes (`DEFAULT_REJECTED_ROW_LIMITS`; S3 "≤ 100 rows an hour", E-18 "at most 100
+   stored rejects"). A row counts for an hour after it was
    stored, whatever the clock hour, so a burst across the top of the hour cannot store twice the cap.
    The rest are only counted in `handler.health()` (counters for the last hour, never a body or an
    address) and logged at most once an hour. A rejection that writes no row (identical junk, failed
@@ -148,6 +151,12 @@ check would restart a healthy process); show them on `/ops`.
    signs with an expired certificate (or its expired key leaked); forged and replayed copies cost none.
    Proposed S3.6.7 line: "expired-certificate confirmations: at most 20 an hour (normally none)".
    Certificate fetches stay within S3.6.7's "at most 3 an hour", pins included (step 2).
+3. **Rejects live in `webhook_events` (status `rejected`), not in S3.4's `webhook_rejects`.** They keep
+   what S3.4 lists for that table (body hash and size, five headers of at most 256 characters; no IP
+   hash, because no address is stored at all), at most 100 an hour. But WS-DATA's `webhook_events` is
+   not purgeable by the app (0005 revokes DELETE), so S3.9's 7-day purge cannot reach them (at most
+   about 100 rows of under 2 KB an hour). Proposed: WS-DATA adds `webhook_rejects` with the 7-day purge
+   (or purges `status = 'rejected'` rows), and the route writes rejects there.
 
 ## Spike results
 

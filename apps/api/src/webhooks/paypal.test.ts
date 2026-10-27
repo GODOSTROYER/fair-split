@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createPayPalWebhookVerifier, type PostbackFn, type VerifyOutcome } from "@fairsplit/paypal-core";
 import {
   createTestPki,
@@ -18,7 +19,7 @@ import {
   createPayPalWebhookHandler,
   type DuplicateDelivery,
   honoPayPalWebhook,
-  MAX_REJECTED_RAW_BYTES,
+  MAX_REJECTED_HEADER_CHARS,
   MAX_WEBHOOK_BODY_BYTES,
   type PayPalWebhookDeps,
   prewarmWebhookCertificates,
@@ -328,7 +329,10 @@ describe("POST /webhooks/paypal handler", () => {
     expect(outbox).toEqual([]);
   });
 
-  it("keeps only the first 8 KB of a rejected body", async () => {
+  // Verifier follow-up (regress, minor): S3.4, S3.6.5 and review resolution 18 keep rejects "as hashes
+  // only" (raw_sha256, bytes, five PayPal headers of at most 256 characters). The route stored up to 8 KB
+  // of every forged body, plus a 2,048-character signature, in rows the app cannot delete.
+  it("keeps no rejected body: only its sha256 and size (S3.4: rejects stored as hashes only)", async () => {
     const { handler, committed } = setup();
     const junk = JSON.stringify({ event_type: "X", pad: "x".repeat(20_000) });
     const res = await handler({
@@ -337,9 +341,60 @@ describe("POST /webhooks/paypal handler", () => {
     });
     expect(res).toMatchObject({ status: 400, reason: "MISSING_HEADER" });
     const row = committed.get("rejected:t-junk");
-    expect(row?.raw.length).toBe(MAX_REJECTED_RAW_BYTES);
+    expect(JSON.parse(row?.raw ?? "null")).toEqual({
+      raw_sha256: createHash("sha256").update(junk).digest("hex"),
+      bytes: Buffer.byteLength(junk),
+    });
+    expect(row?.raw).not.toContain("xxx");
     expect(row?.eventType).toBe("X");
     expect(row?.delivery?.rejectReason).toBe("MISSING_HEADER:paypal-transmission-time");
+  });
+
+  it("a replayed copy of a genuine delivery leaves none of its contents (receiver, amount) in the rejected row", async () => {
+    const { handler, committed } = setup();
+    const first = sign();
+    expect((await handler(request(first))).outcome).toBe("accepted");
+    expect((await handler(request(first))).reason).toBe("TRANSMISSION_REPLAYED");
+    const row = committed.get(`rejected:${first.headers["paypal-transmission-id"]}`);
+    expect(row?.status).toBe("rejected");
+    for (const secret of ["member@example.test", "1.00", "r37-M-014", "5KX9"]) {
+      expect(JSON.stringify(row)).not.toContain(secret);
+    }
+    expect(JSON.parse(row?.raw ?? "null")).toEqual({
+      raw_sha256: createHash("sha256").update(first.body).digest("hex"),
+      bytes: Buffer.byteLength(first.body),
+    });
+  });
+
+  it("clips the five PayPal headers of a rejected row to 256 characters; an accepted row keeps the whole signature", async () => {
+    expect(MAX_REJECTED_HEADER_CHARS).toBe(256);
+    const { handler, committed } = setup();
+    const s = sign();
+    const long = "A".repeat(4_000);
+    const res = await handler({
+      rawBody: Buffer.from(s.body),
+      headers: {
+        ...s.headers,
+        "paypal-transmission-sig": `${s.headers["paypal-transmission-sig"]}${long}`,
+        "paypal-auth-algo": `SHA256withRSA${long}`,
+        "paypal-transmission-time": `${s.headers["paypal-transmission-time"]}${long}`,
+        "paypal-cert-url": `${s.headers["paypal-cert-url"]}${long}`,
+      },
+    });
+    expect(res.status).toBe(400);
+    const row = committed.get(`rejected:${s.headers["paypal-transmission-id"]}`);
+    const d = row?.delivery;
+    expect(d).toBeDefined();
+    for (const value of [d?.transmissionSig, d?.authAlgo, d?.transmissionTime, d?.certUrl]) {
+      expect(value?.length ?? 0).toBeGreaterThan(0);
+      expect(value?.length ?? 0).toBeLessThanOrEqual(256);
+    }
+    // An accepted row needs the whole signature: processWebhook's postback replays it to PayPal.
+    const ok = sign();
+    expect((await handler(request(ok))).outcome).toBe("accepted");
+    const stored = [...committed.values()].find((r) => r.status === "received");
+    expect(stored?.delivery?.transmissionSig).toBe(ok.headers["paypal-transmission-sig"]);
+    expect((stored?.delivery?.transmissionSig ?? "").length).toBeGreaterThan(256);
   });
 
   it("never uses an odd transmission id as a key: junk dedupes on its body hash instead", async () => {
