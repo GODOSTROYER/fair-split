@@ -412,6 +412,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.1
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -596,6 +599,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.10.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
