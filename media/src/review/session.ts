@@ -152,6 +152,11 @@ export interface SessionRecord {
 
 export class SubmissionError extends Error {}
 
+/** Where a session is kept, relative to the media root: `review/sessions/{fixture}.{yyyymmddThhmmss}.json`. */
+export function sessionPath(fixtureId: string, submittedAt: string): string {
+  return `review/sessions/${fixtureId}.${submittedAt.replace(/[-:]/g, "").slice(0, 15)}.json`;
+}
+
 /**
  * Applies a complete submission to the fixture (every field must be answered). Fields become
  * `checkedBy: "human"`; wrong crops send the fixture back to draft. The fixture is not marked

@@ -1,8 +1,8 @@
-import { open, rm, stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { z } from "zod";
 import { MEDIA_ROOT } from "../util/env.js";
 import { readJsonOr, writeJson } from "../util/json.js";
+import { withFileLock } from "../util/lock.js";
 
 /** The only image generator this project uses (C-24, AI-11). */
 export const GENERATOR = "gpt-image-2 via Codex built-in image_gen";
@@ -118,37 +118,6 @@ export async function saveManifest(m: Manifest, path = MANIFEST_PATH): Promise<v
     assets: Object.fromEntries(Object.entries(m.assets).sort(([a], [b]) => a.localeCompare(b))),
   };
   await writeJson(path, Manifest.parse(sorted));
-}
-
-/**
- * Cross-process lock: an exclusive-create lock file next to the target. A lock older than `staleMs` is
- * treated as abandoned (a crashed run) and removed.
- */
-export async function withFileLock<T>(target: string, fn: () => Promise<T>, staleMs = 60_000): Promise<T> {
-  const lock = `${target}.lock`;
-  const deadline = Date.now() + 60_000;
-  for (;;) {
-    try {
-      const h = await open(lock, "wx");
-      await h.close();
-      break;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      try {
-        const s = await stat(lock);
-        if (Date.now() - s.mtimeMs > staleMs) await rm(lock, { force: true });
-      } catch {
-        /* the holder released it between our calls */
-      }
-      if (Date.now() > deadline) throw new Error(`timed out waiting for ${lock}`);
-      await new Promise((r) => setTimeout(r, 25 + Math.random() * 50));
-    }
-  }
-  try {
-    return await fn();
-  } finally {
-    await rm(lock, { force: true });
-  }
 }
 
 /**

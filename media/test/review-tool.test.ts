@@ -368,4 +368,77 @@ describe("review server (127.0.0.1 only, per-session token)", () => {
       await server.close();
     }
   });
+
+  it("saves one of two submissions sent at once and refuses the other: one fixture write, one session", async () => {
+    const { root, f } = await mediaWithFixture();
+    let writes = 0;
+    const server = await startReviewServer({
+      mediaRoot: root,
+      fixtureId: "spike-0403",
+      reviewer: "Analyn",
+      now: () => new Date(AT),
+      afterWrite: async () => void writes++,
+    });
+    const port = Number(new URL(server.url).port);
+    try {
+      const headers = { "content-type": "application/json", "x-review-token": server.token };
+      const body = JSON.stringify(answers(f));
+      const both = await Promise.all([
+        call(port, "/submit", { method: "POST", headers, body }),
+        call(port, "/submit", { method: "POST", headers, body }),
+      ]);
+      expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
+      expect(writes).toBe(1);
+      expect(readdirSync(join(root, "review", "sessions"))).toHaveLength(1);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("a failing after-save step neither unsaves the readings nor leaves the terminal waiting", async () => {
+    const { root, f } = await mediaWithFixture();
+    const server = await startReviewServer({
+      mediaRoot: root,
+      fixtureId: "spike-0403",
+      reviewer: "Analyn",
+      afterWrite: async () => {
+        throw new Error("label refresh failed");
+      },
+    });
+    const port = Number(new URL(server.url).port);
+    try {
+      const headers = { "content-type": "application/json", "x-review-token": server.token };
+      const ok = await call(port, "/submit", { method: "POST", headers, body: JSON.stringify(answers(f)) });
+      expect(ok.status).toBe(200);
+      expect(JSON.parse(ok.body).message).toMatch(/label refresh failed/);
+      const { sessionFile } = await server.submitted;
+      expect(readdirSync(join(root, "review", "sessions"))).toEqual([sessionFile.split(/[\\/]/).pop()]);
+      const again = await call(port, "/submit", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(answers(f)),
+      });
+      expect(again.status).toBe(409);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("lets a person correct and resend a submission that was refused", async () => {
+    const { root, f } = await mediaWithFixture();
+    const server = await startReviewServer({ mediaRoot: root, fixtureId: "spike-0403", reviewer: "Analyn" });
+    const port = Number(new URL(server.url).port);
+    try {
+      const headers = { "content-type": "application/json", "x-review-token": server.token };
+      const partial = answers(f);
+      partial.fields = partial.fields.slice(1);
+      expect(
+        (await call(port, "/submit", { method: "POST", headers, body: JSON.stringify(partial) })).status,
+      ).toBe(400);
+      const ok = await call(port, "/submit", { method: "POST", headers, body: JSON.stringify(answers(f)) });
+      expect(ok.status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
 });

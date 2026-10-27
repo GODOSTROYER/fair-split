@@ -12,6 +12,7 @@ import {
   reviewItems,
   type SessionRecord,
   SubmissionError,
+  sessionPath,
 } from "./session.js";
 
 /**
@@ -111,7 +112,10 @@ export async function startReviewServer(opts: ReviewServerOptions): Promise<Revi
   const { fields: items, traps } = reviewItems(fixture);
   const token = randomBytes(16).toString("hex");
   const startedAt = now().toISOString();
-  let done = false;
+  // One submission at a time, claimed before the first await: a second request arriving while the first is
+  // read, checked and written gets 409 instead of writing the fixture and a session file twice. A refused
+  // submission releases the claim, so the person can correct it and send again.
+  let state: "open" | "saving" | "saved" = "open";
   let resolveSubmitted: (r: SubmitResult) => void = () => undefined;
   const submitted = new Promise<SubmitResult>((r) => {
     resolveSubmitted = r;
@@ -153,10 +157,15 @@ export async function startReviewServer(opts: ReviewServerOptions): Promise<Revi
         );
       }
       if (req.method === "POST" && url.pathname === "/submit") {
-        if (done) return sendJson(res, 409, { error: "this session is already saved" });
+        if (state !== "open") {
+          return sendJson(res, 409, {
+            error: state === "saved" ? "this session is already saved" : "another submission is being saved",
+          });
+        }
         if (!String(req.headers["content-type"] ?? "").startsWith("application/json")) {
           return sendJson(res, 415, { error: "expected application/json" });
         }
+        state = "saving";
         try {
           const body = JSON.parse(await readBody(req)) as unknown;
           const fresh = Fixture.parse(await readJson(fixturePath));
@@ -169,21 +178,31 @@ export async function startReviewServer(opts: ReviewServerOptions): Promise<Revi
             submittedAt,
           });
           const written = Fixture.parse(fresh);
-          await writeJson(fixturePath, written);
-          const stamp = submittedAt.replace(/[-:]/g, "").slice(0, 15);
-          const sessionFile = join(opts.mediaRoot, "review", "sessions", `${fixture.id}.${stamp}.json`);
+          // The session record first: it is the evidence, the fixture the effect. A failure between the
+          // two leaves an orphan record no fixture names (reviewProof), never readings without a record.
+          const sessionFile = join(opts.mediaRoot, sessionPath(fixture.id, submittedAt));
           await writeJson(sessionFile, session);
-          await opts.afterWrite?.(written);
-          done = true;
+          await writeJson(fixturePath, written);
+          state = "saved";
+          // An after-save step (a label refresh) cannot unsave the readings or leave the terminal waiting.
+          let followUp = "";
+          try {
+            await opts.afterWrite?.(written);
+          } catch (e) {
+            followUp = ` The step after saving failed (${(e as Error).message.slice(0, 200)}); run \`imagegen labels\`.`;
+          }
           const crops = written.review.cropIssues.length;
           sendJson(res, 200, {
             ok: true,
-            message: crops
-              ? `Saved. ${crops} crop(s) marked wrong: they will be redrafted, so the fixture stays a draft. You can close this tab.`
-              : "Saved. Go back to the terminal to confirm the review; you can close this tab.",
+            message:
+              (crops
+                ? `Saved. ${crops} crop(s) marked wrong: they will be redrafted, so the fixture stays a draft. You can close this tab.`
+                : "Saved. Go back to the terminal to confirm the review; you can close this tab.") + followUp,
           });
           resolveSubmitted({ fixture: written, session, sessionFile });
         } catch (e) {
+          // Refused or failed before the fixture was written: the person can correct it and send again.
+          if (state === "saving") state = "open";
           const status = e instanceof SubmissionError || e instanceof SyntaxError ? 400 : 500;
           sendJson(res, status, { error: (e as Error).message.slice(0, 500) });
         }

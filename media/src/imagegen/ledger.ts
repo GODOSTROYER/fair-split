@@ -1,8 +1,8 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readJsonOr, writeJson } from "../util/json.js";
+import { withFileLock } from "../util/lock.js";
 import { codexHome } from "./codex.js";
-import { withFileLock } from "./manifest.js";
 
 /**
  * The Codex budget (plan, "Synthetic assets": at most 12 execs per 5 hours). Built-in image_gen spends Codex
