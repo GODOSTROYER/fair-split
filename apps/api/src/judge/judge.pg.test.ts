@@ -977,18 +977,24 @@ describe("presence on the run stream (MM-5)", () => {
       body: { persona: "board:ernesto" },
       as: judge(s.cookie),
     });
-    const { response, reader } = await t.sse(`/v1/runs/${s.body.runSlug}/events`, {
-      as: t.credentials.bearer(s.body.consoleToken),
-    });
-    expect(response.status).toBe(200);
-    const arrived = reader.next(10_000);
+    // Resume from the last event id the console saw, as the client does: the stream replays anything the
+    // live subscription could have missed, so this never races the subscription.
+    const [last] = (await t.deps.db.execute(sql`
+      select coalesce(max(id), 0)::bigint as id from run_events where workspace_id = ${s.body.workspaceId}`)) as unknown as {
+      id: string;
+    }[];
     const beat = await t.json("/v1/presence", {
       method: "POST",
       body: { view: "M-BD-01" },
       as: t.credentials.bearer(chair.body.token),
     });
     expect(beat.status).toBe(200);
-    const msg = await arrived;
+    const { response, reader } = await t.sse(`/v1/runs/${s.body.runSlug}/events`, {
+      as: t.credentials.bearer(s.body.consoleToken),
+      headers: { "last-event-id": String(last?.id ?? 0) },
+    });
+    expect(response.status).toBe(200);
+    const msg = await reader.next(10_000);
     expect(msg.event).toBe("presence");
     const event = RunEvent.parse(JSON.parse(msg.data));
     expect(event).toMatchObject({
