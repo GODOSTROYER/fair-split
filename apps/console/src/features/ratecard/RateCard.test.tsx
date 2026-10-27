@@ -4,7 +4,7 @@
 // a proposal for next season that is not in force. Axe on every state.
 
 import { feedback } from "@fairsplit/ui-web";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   clearMomentTrace,
@@ -13,6 +13,10 @@ import {
   renderConsole,
   tracedPhases,
 } from "../../test/index.js";
+
+// These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
+// wait longer than the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
 
 const RATE_CARD = "/season/2026-A/rate-card";
 
@@ -27,11 +31,11 @@ async function refuse(motion: "full" | "reduced") {
   await act(async () => {
     fireEvent.click(screen.getByTestId("W-TR-02.addCommit.face"));
   });
-  await waitFor(() => expect(momentPhase(view.container, "MM-4")).toBe("done"), { timeout: 4000 });
+  await waitFor(() => expect(momentPhase(view.container, "MM-4")).toBe("done"), { timeout: 8000 });
   return { view, clacks };
 }
 
-describe("W-TR-02 rate card", () => {
+describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
   it("prints Schedule A from the ratified card, bolted under its hash; a rule points at its clause", async () => {
     const view = await renderConsole({ path: RATE_CARD });
     const root = await screen.findByTestId("W-TR-02");

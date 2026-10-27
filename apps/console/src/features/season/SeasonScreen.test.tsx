@@ -2,7 +2,7 @@
 // pool, and BEAT-PAID (MM-S) when the invoice reads back as paid: the arc, the pool landing, "Funded" in jade.
 // Offline says so. A season the seed does not hold is a plain refusal, not a broken screen.
 
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, configure, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearMomentTrace,
@@ -12,9 +12,13 @@ import {
   tracedPhases,
 } from "../../test/index.js";
 
+// These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
+// wait longer than the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
+
 const SEASON = "/season/2026-A";
 
-describe("W-TR-01 season", () => {
+describe("W-TR-01 season", { timeout: 60_000 }, () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -44,7 +48,7 @@ describe("W-TR-01 season", () => {
       view.world.markPaid();
     });
     await waitFor(() => expect(screen.getByTestId("W-TR-01").dataset.state).toBe("funded"));
-    await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 4000 });
+    await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 8000 });
     expect(tracedPhases("MM-S")).toEqual(["arc", "funded"]);
     expect(screen.getByTestId("W-TR-01.state").textContent).toBe("Marked as paid in sandbox.");
     expect(screen.getByTestId("W-TR-01.pool.premium").dataset.amountState).toBe("landed");

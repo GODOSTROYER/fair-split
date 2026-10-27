@@ -2,7 +2,7 @@
 // calls; the first press starts the session and MM-S plays on the invoice's event (full and reduced); a refusal
 // reads in the console's words; autoplay presses with a visible cursor and stops before the keys.
 
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearMomentTrace,
@@ -15,13 +15,17 @@ import {
 import { autoplayTiming } from "./Autoplay.js";
 import { AUTOPLAY_COPY, AUTOPLAY_STEP_MS } from "./autoplay-plan.js";
 
+// These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
+// wait longer than the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
+
 async function press(testId: string) {
   await act(async () => {
     fireEvent.keyDown(screen.getByTestId(`${testId}.face`), { key: "Enter" });
   });
 }
 
-describe("W-JG-01 first view", () => {
+describe("W-JG-01 first view", { timeout: 60_000 }, () => {
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
     const view = await renderConsole({ path: "/judge" });
     const call = vi.spyOn(view.adapter, "call");
@@ -52,7 +56,7 @@ describe("W-JG-01 first view", () => {
     clearMomentTrace();
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 4000 });
+    await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 8000 });
     expect(tracedPhases("MM-S")).toEqual(["arc", "funded"]);
     expect(screen.getByTestId("W-JG-01").dataset.state).toBe("session");
     expect(screen.getByTestId("W-JG-01.invoice.amount").dataset.amountState).toBe("landed");
@@ -70,7 +74,7 @@ describe("W-JG-01 first view", () => {
     const view = await renderConsole({ path: "/judge", motion: "reduced" });
     clearMomentTrace();
     await press("W-JG-01.markPaid");
-    await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 4000 });
+    await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 8000 });
     expect(tracedPhases("MM-S")).toEqual(["arc", "funded"]);
   });
 
@@ -85,7 +89,7 @@ describe("W-JG-01 first view", () => {
   });
 });
 
-describe("Play it for me", () => {
+describe("Play it for me", { timeout: 60_000 }, () => {
   afterEach(() => {
     autoplayTiming.stepMs = AUTOPLAY_STEP_MS;
   });

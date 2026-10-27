@@ -3,11 +3,15 @@
 // photo being read, the quarantined instruction as a notice, slip 0462 sent to a person, J/K/Space/Enter, and
 // axe on every state. The mock emits no rows yet, so the recorded run's rows are fed into the run's stream.
 
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TREASURER } from "../../data/mock/driver.js";
 import { clearMomentTrace, expectNoAxeViolations, momentPhase, tracedPhases } from "../../test/index.js";
 import { renderSeason, rowsFor, type SeasonRender } from "../season/testing.js";
+
+// These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
+// wait longer than the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
 
 const READING = "/season/2026-A/reading";
 
@@ -28,7 +32,7 @@ async function readingRun(motion: "full" | "reduced" = "full", path = READING): 
   return r;
 }
 
-describe("W-TR-03 reading room", () => {
+describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
   it("waits on the desk before the invoice is paid: dashed beds, photos A to L, no row", async () => {
     const r = await renderSeason({ path: READING });
     const root = await screen.findByTestId("W-TR-03");
@@ -48,7 +52,7 @@ describe("W-TR-03 reading room", () => {
     clearMomentTrace();
     act(() => r.stream.inject(rowsFor(["A"])));
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("landing");
-    await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 6000 });
+    await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 10_000 });
     const phases = tracedPhases("MM-2");
     expect(phases.slice(-7)).toEqual(["band", "lift", "flight", "resolve", "print", "ring", "landed"]);
     await waitFor(() => expect(screen.getByTestId("W-TR-03.beds.row.0428").dataset.state).toBe("printed"), {
@@ -67,7 +71,7 @@ describe("W-TR-03 reading room", () => {
     const r = await readingRun("reduced");
     clearMomentTrace();
     act(() => r.stream.inject(rowsFor(["A"])));
-    await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 6000 });
+    await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 10_000 });
     expect(tracedPhases("MM-2").slice(-7)).toEqual([
       "band",
       "lift",

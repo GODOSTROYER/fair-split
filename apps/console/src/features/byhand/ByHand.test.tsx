@@ -3,7 +3,7 @@
 // the server's field.entered arrives (MM-2 by-hand → entered → done). "Use logbook line 7", a mismatch with its
 // reason, skipping, and a slip that needs nothing by hand. Axe on every state.
 
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   clearMomentTrace,
@@ -12,6 +12,10 @@ import {
   renderConsole,
   tracedPhases,
 } from "../../test/index.js";
+
+// These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
+// wait longer than the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
 
 const BY_HAND = "/season/2026-A/by-hand/0462";
 
@@ -29,7 +33,7 @@ function typeDigit(digit: string) {
   fireEvent.keyDown(screen.getByTestId("W-TR-04.input"), { key: digit });
 }
 
-describe("W-TR-04 by hand", () => {
+describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
   it("waits for the reading: the crop and the logbook show, the field and the slab do not take a value yet", async () => {
     const view = await renderConsole({ path: BY_HAND });
     const root = await screen.findByTestId("W-TR-04");

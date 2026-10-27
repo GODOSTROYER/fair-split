@@ -138,7 +138,7 @@ export function ContactSheet({
               aria-label={SEASON_COPY.photoLabel(photo.photoId, serials, read)}
               data-testid={`${testId}.${photo.photoId}`}
             >
-              <span className="fsc-contact__paper">
+              <span className="fsc-contact__paper" aria-hidden>
                 <PhotoMat slips={slips} detail="thumb" />
               </span>
               <span className="fsc-contact__caption fs-t-caption" aria-hidden>
