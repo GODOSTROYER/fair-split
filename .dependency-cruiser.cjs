@@ -152,6 +152,13 @@ const PENDING_API_TESTS = existsSync(join("apps", "api", "package.json"))
   ? NEVER
   : "^apps/api/src/webhooks/[^/]+\\.test\\.ts$";
 
+/**
+ * Code that never runs in a server or an app: tests (*.test.*, *.spec.*, anything under a test/, tests/ or
+ * __tests__/ folder) and developer CLIs (*.cli.*, such as apps/api's OpenAPI printer, which builds the app from
+ * the test fakes).
+ */
+const NOT_RUNTIME = ["\\.(test|spec|cli)\\.[cm]?[jt]sx?$", "(^|/)(test|tests|__tests__)/"];
+
 const layerRules = Object.entries(SERVER_ALLOWED).map(([pkg, allowed]) => ({
   name: `layer-${pkg}`,
   comment: `packages/${pkg} may import only: ${allowed.join(", ") || "(no workspace packages)"} (register section 6)`,
@@ -297,10 +304,23 @@ module.exports = {
       to: { path: "^packages/test-kit/" },
     },
     {
+      name: "no-runtime-imports-of-tests",
+      comment:
+        "Runtime code never imports test code or a developer CLI: a *.test.ts re-export would carry msw " +
+        "(allowed undeclared in apps/api's webhook tests until apps/api/package.json exists), a test fake or " +
+        "any other test-only package into it",
+      severity: "error",
+      from: { path: "^(packages|apps)/", pathNot: NOT_RUNTIME },
+      to: { path: NOT_RUNTIME },
+    },
+    {
       name: "no-circular",
       comment:
         "No runtime import cycles. A cycle that passes through an `import type` is ignored: with " +
-        "verbatimModuleSyntax those imports are erased, so no module waits on another at load time",
+        "verbatimModuleSyntax those imports are erased, so no module waits on another at load time. " +
+        "dependency-cruiser also calls `import { type X }` and `export { type X } from` type-only, but " +
+        "TypeScript keeps those as runtime imports; Biome's useImportType and useExportType (errors in " +
+        "biome.json) rewrite them to `import type` and `export type`, so a type-only edge here is always erased",
       severity: "error",
       from: {},
       to: { circular: true, viaOnly: { dependencyTypesNot: ["type-only"] } },

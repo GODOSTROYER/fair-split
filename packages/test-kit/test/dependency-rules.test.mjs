@@ -4,12 +4,14 @@
 // zod 4 nested under the packages that declare catalog:zod.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const depcruiseBin = resolve(repoRoot, "node_modules/dependency-cruiser/bin/dependency-cruiser.mjs");
+const biomeBin = resolve(repoRoot, "node_modules/@biomejs/biome/bin/biome");
 const config = resolve(repoRoot, ".dependency-cruiser.cjs");
 
 /** Runs dependency-cruiser over `targets` with cwd `root`; returns the JSON result. */
@@ -25,6 +27,24 @@ function cruise(root, targets) {
 
 const pkgJson = (name, extra = {}) =>
   JSON.stringify({ name, version: "0.0.0", private: true, type: "module", ...extra }, null, 2);
+
+/** Two runtime cycles whose type edge is written inline, plus their `import type` / `export type` forms. */
+const INLINE_TYPE_CYCLES = {
+  "inline-import-a.ts":
+    'import { type B } from "./inline-import-b.js";\nexport type A = { b?: B };\nexport const a = 1;\n',
+  "inline-import-b.ts":
+    'import { a } from "./inline-import-a.js";\nexport type B = { a: typeof a };\nexport const b = a;\n',
+  "inline-export-a.ts": 'export { type B } from "./inline-export-b.js";\nexport const a = 1;\n',
+  "inline-export-b.ts":
+    'import { a } from "./inline-export-a.js";\nexport type B = { a: typeof a };\nexport const b = a;\n',
+};
+const ERASED_TYPE_EDGES = {
+  "erased-import-a.ts":
+    'import type { B } from "./erased-import-b.js";\nexport type A = { b?: B };\nexport const a = 1;\n',
+  "erased-export-a.ts": 'export type { B } from "./erased-import-b.js";\nexport const c = 1;\n',
+  "erased-import-b.ts":
+    'import { a } from "./erased-import-a.js";\nexport type B = { a: typeof a };\nexport const b = a;\n',
+};
 
 let fx;
 let violations;
@@ -129,6 +149,17 @@ beforeAll(() => {
   put("apps/api/src/webhooks/plant-msw.test.ts", 'import "msw";\nexport {};\n');
   put("apps/api/src/webhooks/plant-other.test.ts", 'import "canonicalize";\nexport {};\n');
   put("apps/api/src/webhooks/plant-runtime.ts", 'import "msw";\nexport {};\n');
+  // ...and runtime code must not reach msw (or any test code) through a test file's re-export.
+  put("apps/api/src/webhooks/plant-reexport.test.ts", 'export * from "msw";\n');
+  put("apps/api/src/webhooks/plant-route.ts", 'export * from "./plant-reexport.test.js";\n');
+  // Clean controls: a test importing a test helper, and a developer CLI building from test fakes.
+  put("apps/api/src/test/fakes.ts", "export const fake = 1;\n");
+  put(
+    "apps/api/src/webhooks/plant-helper.test.ts",
+    'import { fake } from "../test/fakes.js";\nexport { fake };\n',
+  );
+  put("apps/api/src/print.cli.ts", 'import { fake } from "./test/fakes.js";\nexport { fake };\n');
+  put("apps/api/src/plant-uses-cli.ts", 'import { fake } from "./print.cli.js";\nexport { fake };\n');
 
   // Cycles: a runtime one (planted) and one that passes through an `import type` (clean).
   put("packages/db/src/cycle-a.ts", 'import { b } from "./cycle-b.js";\nexport const a = () => b;\n');
@@ -138,6 +169,9 @@ beforeAll(() => {
     'import type { B } from "./type-b.js";\nexport type A = { b?: B };\nexport const a = 1;\n',
   );
   put("packages/db/src/type-b.ts", 'import { a } from "./type-a.js";\nexport type B = { a: typeof a };\n');
+  // Runtime cycles that dependency-cruiser calls type-only: TypeScript keeps `import { type B }` as
+  // `import {} from` and `export { type B } from` as `export {} from`. Biome refuses both (see below).
+  for (const [name, text] of Object.entries(INLINE_TYPE_CYCLES)) put(`packages/db/src/${name}`, text);
 
   violations = cruise(fx, ["{apps,packages,tools,e2e}"]).summary.violations;
 }, 120_000);
@@ -188,11 +222,31 @@ describe("dependency-cruiser rules fire on planted violations", () => {
     expect(rulesFor("packages/db/src/type-b.ts")).toEqual([]);
   });
 
+  it("no-circular cannot see a cycle whose type edge is written inline, so Biome refuses that form", () => {
+    // dependency-cruiser labels `import { type B }` and `export { type B } from` type-only, although TypeScript
+    // keeps both as runtime imports. The Biome test below proves those forms cannot reach the tree.
+    for (const f of Object.keys(INLINE_TYPE_CYCLES)) expect(rulesFor(`packages/db/src/${f}`), f).toEqual([]);
+  });
+
   it("apps/api without a package.json: its webhook tests may import msw undeclared, and nothing else", () => {
     expect(rulesFor("apps/api/src/webhooks/plant-msw.test.ts")).toEqual([]);
     const other = "apps/api/src/webhooks/plant-other.test.ts";
     expect(hits("no-undeclared-deps-until-apps-api-package", other)).toHaveLength(1);
     expect(hits("no-undeclared-deps", "apps/api/src/webhooks/plant-runtime.ts")).toHaveLength(1);
+  });
+
+  it("no-runtime-imports-of-tests: runtime code reaching msw through a test's re-export, or importing a CLI", () => {
+    expect(hits("no-runtime-imports-of-tests", "apps/api/src/webhooks/plant-route.ts")).toHaveLength(1);
+    expect(hits("no-runtime-imports-of-tests", "apps/api/src/plant-uses-cli.ts")).toHaveLength(1);
+    // Clean: the re-exporting test itself (the msw allowance), a test helper import, a CLI using test fakes.
+    for (const f of [
+      "apps/api/src/webhooks/plant-reexport.test.ts",
+      "apps/api/src/webhooks/plant-helper.test.ts",
+      "apps/api/src/test/fakes.ts",
+      "apps/api/src/print.cli.ts",
+    ]) {
+      expect(rulesFor(f), f).toEqual([]);
+    }
   });
 
   it("clean controls stay clean", () => {
@@ -218,6 +272,33 @@ describe("the apps/api msw allowance", () => {
     const msw = after.filter((v) => v.from === "apps/api/src/webhooks/plant-msw.test.ts");
     expect(msw.map((v) => v.rule.name)).toEqual(["no-undeclared-deps"]);
   }, 120_000);
+});
+
+describe("Biome keeps every edge that dependency-cruiser calls type-only erased", () => {
+  it("errors on `import { type X }` and `export { type X } from`, and accepts `import type` / `export type`", () => {
+    // Outside the repo: biome.json ignores node_modules, where the depcruise fixture lives.
+    const dir = mkdtempSync(join(tmpdir(), "fs-biome-type-edges-"));
+    try {
+      copyFileSync(resolve(repoRoot, "biome.json"), join(dir, "biome.json"));
+      for (const [name, text] of Object.entries({ ...INLINE_TYPE_CYCLES, ...ERASED_TYPE_EDGES })) {
+        writeFileSync(join(dir, name), text);
+      }
+      const r = spawnSync(
+        process.execPath,
+        [biomeBin, "lint", "--reporter=json", "--colors=off", "--config-path", dir, dir],
+        { cwd: dir, encoding: "utf8" },
+      );
+      const report = JSON.parse(r.stdout.slice(r.stdout.indexOf("{")));
+      const found = report.diagnostics.map((d) => [d.category, d.severity, basename(d.location.path)]).sort();
+      expect(found).toEqual([
+        ["lint/style/useExportType", "error", "inline-export-a.ts"],
+        ["lint/style/useImportType", "error", "inline-import-a.ts"],
+      ]);
+      expect(r.status).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describe("the real tree", () => {
