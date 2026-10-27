@@ -394,11 +394,19 @@ export async function fund(
   return reading.state as PayRunState;
 }
 
-/** recordPayment task / Judge "Mark paid": record_payment_for_invoice, then a fresh GET, then FUND. */
+/**
+ * recordPayment task / Judge "Mark paid": record_payment_for_invoice, then a fresh GET, then FUND.
+ *
+ * S3.10 "Record payment: a retry GETs first". `retry` is set when an earlier attempt may have reached PayPal (this
+ * outbox row ran before, or an earlier press's row did): `payment_recorded_at` is written only after PayPal
+ * answers, so a crash or a lost answer in between leaves it empty although the payment exists. The retry reads
+ * the invoice first and records nothing when it is already MARKED_AS_PAID or PAID, funding from that GET.
+ */
 export async function recordPaymentAndFund(
   deps: Deps,
   scope: WorkspaceScope,
   runId: string,
+  o: { retry?: boolean } = {},
 ): Promise<FundOutcome> {
   const provenance = deps.paypal.provenance;
   const tk = toolkitFor(deps, { workspaceId: scope.workspaceId });
@@ -431,16 +439,42 @@ export async function recordPaymentAndFund(
       runState: run.state as PayRunState,
     };
   }
-  if (!row.paymentRecordedAt) {
-    await recordPayment(tk, row.paypalInvoiceId, Number(row.amountCents));
-    await withWorkspaceTx(deps.db, scope, (tx) =>
+  const markRecorded = () =>
+    withWorkspaceTx(deps.db, scope, (tx) =>
       tx
         .update(schema.invoices)
         .set({ paymentRecordedAt: deps.clock.now() })
         .where(eq(schema.invoices.id, row.id)),
     );
+  if (!row.paymentRecordedAt) {
+    if (o.retry) {
+      const seen = await getInvoice(tk, row.paypalInvoiceId);
+      if (seen.status === "MARKED_AS_PAID" || seen.status === "PAID") {
+        // MARKED_AS_PAID: the earlier attempt's record reached PayPal. PAID: the brand paid; nothing to record.
+        if (seen.status === "MARKED_AS_PAID") await markRecorded();
+        return fundFrom(deps, scope, runId, seen, { provenance });
+      }
+    }
+    await recordPayment(tk, row.paypalInvoiceId, Number(row.amountCents));
+    await markRecorded();
   }
   return confirmFunding(deps, scope, runId, { provenance, tkOverride: tk });
+}
+
+/** FUND from a fresh GET's snapshot (I8: a payment we recorded is the simulated rail). */
+async function fundFrom(
+  deps: Deps,
+  scope: WorkspaceScope,
+  runId: string,
+  snapshot: InvoiceSnapshot,
+  o: { provenance?: Provenance },
+): Promise<FundOutcome> {
+  const provenance: Provenance =
+    snapshot.status === "MARKED_AS_PAID" ? "simulated_rail" : (o.provenance ?? deps.paypal.provenance);
+  const runState = await withWorkspaceTx(deps.db, scope, (tx) =>
+    fund(tx, scope, runId, snapshot, { provenance, at: deps.clock.now() }),
+  );
+  return { funded: isFunded(snapshot), snapshot, runState };
 }
 
 /** ensureInvoice{target: FUNDED} (the PAID webhook or the 60 s fallback): one GET, then FUND if it says so. */
@@ -460,12 +494,6 @@ export async function confirmFunding(
       transient: false,
     });
   }
-  const snapshot = await getInvoice(tk, row.paypalInvoiceId);
   // I8: a payment recorded by us is the simulated rail; PayPal's own PAID carries the rail's provenance.
-  const provenance: Provenance =
-    snapshot.status === "MARKED_AS_PAID" ? "simulated_rail" : (o.provenance ?? deps.paypal.provenance);
-  const runState = await withWorkspaceTx(deps.db, scope, (tx) =>
-    fund(tx, scope, runId, snapshot, { provenance, at: deps.clock.now() }),
-  );
-  return { funded: isFunded(snapshot), snapshot, runState };
+  return fundFrom(deps, scope, runId, await getInvoice(tk, row.paypalInvoiceId), o);
 }

@@ -6,9 +6,9 @@
 // window) is reported as QUEUED with when it runs again. Nothing here bypasses the outbox: a crash between
 // the commit and the run leaves a queued row the dispatcher finishes.
 import type { TaskName } from "@fairsplit/contracts";
-import { schema, type Tx } from "@fairsplit/db";
+import { type DbOrTx, schema, type Tx } from "@fairsplit/db";
 import { type EnqueueOptions, enqueue } from "@fairsplit/outbox";
-import { eq, like, or } from "drizzle-orm";
+import { and, eq, like, ne, or } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem } from "../lib/problem.js";
 import type { StepCode } from "../money/errors.js";
@@ -51,6 +51,25 @@ export async function enqueuePress(
   if (live) return live.id;
   const key = rows.length === 0 ? dedupeKey : `${dedupeKey}:r${rows.length}`;
   return (await enqueue(tx, name, args, key, opts)).id;
+}
+
+/**
+ * Whether a press may already have reached PayPal before this run of its task: this outbox row ran before
+ * (the outbox retries it), or an earlier attempt row of the same press exists (`{key}`, `{key}:r{n}`).
+ */
+export async function earlierAttempt(
+  db: DbOrTx,
+  dedupeKey: string,
+  run: { outboxId: string; attempt: number },
+): Promise<boolean> {
+  if (run.attempt > 1) return true;
+  const t = schema.taskOutbox;
+  const [other] = await db
+    .select({ id: t.id })
+    .from(t)
+    .where(and(or(eq(t.dedupeKey, dedupeKey), like(t.dedupeKey, `${dedupeKey}:r%`)), ne(t.id, run.outboxId)))
+    .limit(1);
+  return other !== undefined;
 }
 
 /** Runs an enqueued row in this process and returns its report (null when it finished elsewhere). */

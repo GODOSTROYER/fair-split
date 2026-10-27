@@ -3,7 +3,7 @@
 // failure a retry can fix is thrown (the outbox retries with backoff); PayPal's own refusal is recorded and
 // the task completes. When a person's press runs the task inline, the handler leaves a report for it
 // (runs/now.ts).
-import { type PayRunState, TaskArgs } from "@fairsplit/contracts";
+import { type PayRunState, TASKS, TaskArgs } from "@fairsplit/contracts";
 import { type Actor, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
 import type { TaskContext, TaskHandler, TaskHandlers } from "@fairsplit/outbox";
 import { PayoutsApiError } from "@fairsplit/paypal-payouts";
@@ -19,7 +19,7 @@ import { ACTORS } from "./events.js";
 import { readKill } from "./flags.js";
 import { lockRun } from "./load.js";
 import { cause, moveLine, moveRun } from "./machine.js";
-import { report } from "./now.js";
+import { earlierAttempt, report } from "./now.js";
 
 function scopeOf(ctx: TaskContext, actor: Actor = ACTORS.outbox) {
   if (!ctx.workspaceId) throw new Error(`${ctx.name} needs the workspace of its outbox row`);
@@ -76,7 +76,9 @@ export function runTasks(deps: AppDeps): TaskHandlers {
           transient: false,
         });
       }
-      const out = await recordPaymentAndFund(deps, scope, args.runId);
+      // S3.10: a retry GETs first (an earlier attempt may have recorded the payment and lost the answer)
+      const retry = await earlierAttempt(deps.db, TASKS.recordPayment.dedupeKey(args), ctx);
+      const out = await recordPaymentAndFund(deps, scope, args.runId, { retry });
       return { funded: out.funded, runState: out.runState, invoiceStatus: out.snapshot.status };
     }),
 

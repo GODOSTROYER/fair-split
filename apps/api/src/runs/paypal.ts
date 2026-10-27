@@ -1,4 +1,5 @@
-// The person-pressed PayPal steps (IC-01): `markPaid` (Judge Mode funding on the simulated rail, MM-S) and
+// The person-pressed PayPal steps (IC-01): `markPaid` (Judge Mode funding on the simulated rail, MM-S; refused
+// in a real or showcase workspace on the sandbox rail, where the brand pays the hosted page) and
 // `payCash` (Rhea's parked item moved to the bodega, MM-6), plus the P1 re-route (`resend`). Each writes its
 // outbox task in the transaction that checks the state (I7) and runs it inline (runs/now.ts) so the answer says
 // what PayPal said; nothing here calls PayPal inside a transaction.
@@ -23,6 +24,18 @@ export const markPaidHandler: CommandHandler<"markPaid"> = async (ctx) => {
   const { deps, scope } = ctx;
   const at = ctx.now();
   const found = await runBySlug(deps.db, scope, ctx.params.runSlug);
+  // S3.6.3: "Mark paid" is Judge Mode's funding (or anything on the simulated rail). On the sandbox rail a real
+  // or showcase run is funded by the brand paying PayPal's hosted page, never by the treasurer's press alone.
+  const [workspace] = await deps.db
+    .select({ kind: schema.workspaces.kind })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, scope.workspaceId));
+  if (workspace?.kind !== "judge" && deps.paypal.mode !== "simulator") {
+    throw invalidTransition(
+      found.state as PayRunState,
+      "Mark paid is Judge Mode's simulated funding; this run is funded when the brand pays the invoice on PayPal.",
+    );
+  }
   const outboxId = await withWorkspaceTx(deps.db, scope, async (tx) => {
     const run = await lockRun(tx, scope, found.id);
     if (run.state !== "INVOICED") {
