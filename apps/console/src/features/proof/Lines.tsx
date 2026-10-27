@@ -4,6 +4,12 @@
 // slips zooms into the slip the kilos were read from; Back (or Escape) returns. Every act starts from the
 // person's own press, which is its evidence. "+"/"−" and the arrow keys zoom and pan the slip without a drag
 // (WCAG 2.5.7). The brand's view adds names and masked receivers (C-23).
+//
+// Proof is read on phones first. At 560 px and below the table folds to three columns (the rail under the
+// member, the status under the net), so the peso to tap is on screen without a sideways scroll; the brand's view
+// always folds its names and receivers under the member, since seven columns never fit the 680 px column. The
+// trace spans every visible column and is pinned to the scroller's window (proof.css), so it never crops, even
+// if a table ever scrolls sideways.
 
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
 import { spring } from "@fairsplit/motion/web";
@@ -12,6 +18,7 @@ import { animate, type MotionValue, motion, useMotionValue, useTransform } from 
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
+import { useViewportWidth } from "../../stage/layout.js";
 import { LINES_COPY } from "./copy.js";
 import { amountStateOf, itemsByMember, type LineStates, lineStateOf, type ProofItemView } from "./model.js";
 import { SlipCrop, slipAlt } from "./SlipCrop.js";
@@ -40,6 +47,9 @@ const ZOOM_MIN = 1;
 const ZOOM_MAX = 2.4;
 const ZOOM_STEP = 0.35;
 const PAN_STEP = 24;
+
+/** At this viewport width and below the lines fold to three columns (the five need about 545 px). */
+export const LINES_FOLD_PX = 560;
 
 type Trace = { readonly memberNo: string; readonly serial: string | null } | null;
 
@@ -144,7 +154,10 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
   };
 
   const traceState = !trace ? "closed" : trace.serial ? "slip" : "line";
-  const columns = names ? 7 : 5;
+  // The brand's seven columns never fit Proof's 680 px column, so its names and receivers always fold.
+  const narrow = useViewportWidth() <= LINES_FOLD_PX;
+  const fold = narrow || names !== null;
+  const columns = fold ? 3 : 5;
 
   return (
     <section
@@ -162,22 +175,28 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
       }}
     >
       <p className="pf-lines__hint">{LINES_COPY.hint}</p>
-      <div className="pf-table-wrap">
-        <table className="pf-table pf-lines__table">
+      <div className="pf-table-wrap" data-testid="W-PF-01.lines.scroller">
+        <table
+          className="pf-table pf-lines__table"
+          data-fold={fold ? "" : undefined}
+          data-testid="W-PF-01.lines.table"
+        >
           <caption className="fs-sr">{LINES_COPY.caption}</caption>
           <thead>
             <tr>
-              <th scope="col">Member</th>
-              {names && <th scope="col">Name</th>}
-              {names && <th scope="col">PayPal receiver</th>}
+              <th scope="col">
+                Member
+                {fold && <span className="fs-sr">{names ? ", name, receiver and rail" : " and rail"}</span>}
+              </th>
               <th scope="col" data-numeric="">
                 Verified
               </th>
-              <th scope="col">Rail</th>
+              {!fold && <th scope="col">Rail</th>}
               <th scope="col" data-numeric="">
                 Net
+                {fold && <span className="fs-sr"> and status</span>}
               </th>
-              <th scope="col">Status</th>
+              {!fold && <th scope="col">Status</th>}
             </tr>
           </thead>
           <tbody>
@@ -192,6 +211,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                   state={state}
                   label={names?.get(line.memberNo)}
                   names={names !== null}
+                  fold={fold}
                   columns={columns}
                   open={isOpen}
                   traceId={traceId}
@@ -203,6 +223,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                       className="pf-trace"
                       id={traceId}
                       style={{ opacity: expand, clipPath: unfold }}
+                      data-pin="scroller"
                       data-testid="W-PF-01.trace"
                     >
                       <motion.div style={{ opacity: receiptOpacity }} className="pf-trace__receipt">
@@ -433,11 +454,26 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
   );
 }
 
+/** A masked receiver may wrap after its "@" in a narrow cell ("m***@" over "members…"), never mid-name first. */
+function breakAfterAt(receiver: string): ReactNode {
+  const at = receiver.indexOf("@");
+  if (at < 0) return receiver;
+  return (
+    <>
+      {receiver.slice(0, at + 1)}
+      <wbr />
+      {receiver.slice(at + 1)}
+    </>
+  );
+}
+
 interface LineRowsProps {
   readonly line: ProofLine;
   readonly state: MemberLineState;
   readonly label: MemberLabel | undefined;
   readonly names: boolean;
+  /** Three columns for a phone: the rail under the member, the status under the net. */
+  readonly fold: boolean;
   readonly columns: number;
   readonly open: boolean;
   readonly traceId: string;
@@ -451,6 +487,7 @@ function LineRows({
   state,
   label,
   names,
+  fold,
   columns,
   open,
   traceId,
@@ -460,41 +497,64 @@ function LineRows({
 }: LineRowsProps) {
   const amountState = amountStateOf(state);
   const cash = line.rail === "CASH" || state === "OFF_RAIL_DUE" || state === "OFF_RAIL_PAID";
+  const rail = (
+    <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
+      <span>{cash ? "Cash" : "PayPal"}</span>
+    </span>
+  );
+  const status = <StatusChip state={state} surface="console" />;
+  const peso = (
+    <button
+      type="button"
+      className="pf-peso"
+      aria-expanded={open}
+      aria-controls={open ? traceId : undefined}
+      aria-label={`${format.money(line.netCents)} for ${line.memberNo}: ${open ? "close" : "see where it comes from"}`}
+      onClick={onOpen}
+      data-testid={`W-PF-01.peso.${line.memberNo}`}
+    >
+      {open && <motion.span className="pf-peso__frame" style={{ opacity: frame }} aria-hidden />}
+      <span className="fs-t-figure" data-amount-state={amountState}>
+        {format.money(line.netCents)}
+      </span>
+    </button>
+  );
   return (
     <>
       <tr data-state={state} data-open={open ? "" : undefined} data-testid={`W-PF-01.line.${line.memberNo}`}>
-        <th scope="row" className="fs-t-figure">
-          {line.memberNo}
-        </th>
-        {names && <td>{label?.name ?? ""}</td>}
-        {names && <td className="pf-table__receiver">{label?.receiverMasked ?? "Cash"}</td>}
+        {fold ? (
+          <th scope="row">
+            <div className="pf-line__who">
+              <span className="fs-t-figure">{line.memberNo}</span>
+              {names && <span className="pf-line__name">{label?.name ?? ""}</span>}
+              {names && label?.receiverMasked && (
+                <span className="pf-table__receiver pf-line__receiver">
+                  {breakAfterAt(label.receiverMasked)}
+                </span>
+              )}
+              {rail}
+            </div>
+          </th>
+        ) : (
+          <th scope="row" className="fs-t-figure">
+            {line.memberNo}
+          </th>
+        )}
         <td data-numeric="" className="fs-t-figure">
           {format.kg(line.canonical.verifiedG)}
         </td>
-        <td>
-          <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
-            <span>{cash ? "Cash" : "PayPal"}</span>
-          </span>
-        </td>
+        {!fold && <td>{rail}</td>}
         <td data-numeric="">
-          <button
-            type="button"
-            className="pf-peso"
-            aria-expanded={open}
-            aria-controls={open ? traceId : undefined}
-            aria-label={`${format.money(line.netCents)} for ${line.memberNo}: ${open ? "close" : "see where it comes from"}`}
-            onClick={onOpen}
-            data-testid={`W-PF-01.peso.${line.memberNo}`}
-          >
-            {open && <motion.span className="pf-peso__frame" style={{ opacity: frame }} aria-hidden />}
-            <span className="fs-t-figure" data-amount-state={amountState}>
-              {format.money(line.netCents)}
-            </span>
-          </button>
+          {fold ? (
+            <div className="pf-line__net">
+              {peso}
+              {status}
+            </div>
+          ) : (
+            peso
+          )}
         </td>
-        <td>
-          <StatusChip state={state} surface="console" />
-        </td>
+        {!fold && <td>{status}</td>}
       </tr>
       {open && (
         <tr className="pf-lines__trace-row">

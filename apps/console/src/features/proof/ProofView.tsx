@@ -24,6 +24,12 @@ import { PLATES } from "./verify.js";
 /** W-PF-01's `data-state` (S1.8): none, progress, verified, failed; plus the shell's loading and error. */
 export type ProofState = "loading" | "error" | "none" | "progress" | "verified" | "failed";
 
+/**
+ * The route's state. "Verified" is earned, never assumed: a person pressed Verify, every check in this browser
+ * came back "Matches" against keys that are not samples, and PayPal has finished with the run (S1.8). Until then
+ * the page is "progress", including a settled run nobody has checked yet and a check that read "Sample" or
+ * checked five plates of six ("partial"). `data-verify` carries the check's own state for both.
+ */
 export function proofState(
   page: Pick<ProofPage, "phase" | "progress">,
   verification: Verification,
@@ -31,7 +37,8 @@ export function proofState(
   if (page.phase !== "ready") return page.phase;
   const v = verification.state;
   if (v.kind === "done" && v.outcome.verdict === "failed") return "failed";
-  return isSettled(page.progress) ? "verified" : "progress";
+  if (v.kind === "done" && v.outcome.verdict === "verified" && isSettled(page.progress)) return "verified";
+  return "progress";
 }
 
 /** The browser check's own state, on the page root as `data-verify` (S1.8's states describe the run's record). */

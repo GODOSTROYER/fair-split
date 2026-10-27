@@ -179,6 +179,7 @@ export function healthRows(
     return rows;
   }
   if (ready.kind !== "ok") {
+    // Readiness nobody reported is unknown, never ready: it counts against the page (opsDegraded).
     rows.push({
       key: "ready",
       check: "Readiness (/readyz)",
@@ -188,13 +189,15 @@ export function healthRows(
           : ready.kind === "refused"
             ? "Needs the operator"
             : "Not ready",
-      tone: ready.kind === "down" ? "attention" : "quiet",
+      tone: "attention",
       detail:
         ready.kind === "not-served"
-          ? "This API serves no readiness report yet."
+          ? "This API serves no readiness report yet, so this page can't call it ready."
           : ready.kind === "down"
-            ? "The API says it isn't ready. Its checks come with the operator's read."
-            : "",
+            ? ready.status
+              ? `The API answered ${ready.status}: it isn't ready.`
+              : "The API didn't answer."
+            : "Readiness is the operator's read here.",
     });
     return rows;
   }
@@ -260,14 +263,70 @@ export function healthRows(
   return rows;
 }
 
-/** /ops is degraded when liveness is down or readiness says not ready; reads not served yet don't count. */
+export type OpsHealthState = "loading" | "ready" | "degraded";
+
+export interface OpsVerdict {
+  readonly state: OpsHealthState;
+  /** One sentence for the masthead: the page's state, and why when it isn't ready. */
+  readonly words: string;
+}
+
+/**
+ * W-OP-01's state. Ready needs both reads to answer well: liveness up and readiness "ready". Anything else is
+ * degraded, a readiness report this API doesn't serve included (unknown is not ready).
+ */
+export function opsVerdict(
+  live: ReadOutcome<Healthz> | undefined,
+  ready: ReadOutcome<Readyz> | undefined,
+): OpsVerdict {
+  if (!live || !ready) return { state: "loading", words: "Checking health." };
+  if (live.kind !== "ok") {
+    return {
+      state: "degraded",
+      words:
+        live.kind === "not-served"
+          ? "Degraded: this API serves no liveness check."
+          : live.kind === "refused"
+            ? "Degraded: liveness is the operator's read here."
+            : "Degraded: the API is down.",
+    };
+  }
+  if (live.data.status !== "ok") return { state: "degraded", words: "Degraded: the API says it's down." };
+  if (ready.kind !== "ok") {
+    return {
+      state: "degraded",
+      words:
+        ready.kind === "not-served"
+          ? "Degraded: readiness isn't reported by this API yet, so nothing here can be called ready."
+          : ready.kind === "refused"
+            ? "Degraded: readiness is the operator's read here."
+            : "Degraded: the API isn't ready.",
+    };
+  }
+  if (ready.data.status !== "ready") {
+    const failing = Object.entries(ready.data.checks)
+      .filter(([, v]) => typeof v === "object" && v !== null && "ok" in v && v.ok === false)
+      .map(([k]) => CHECK_WORDS[k] ?? k);
+    return {
+      state: "degraded",
+      words: `Degraded: not ready${failing.length > 0 ? ` (${failing.join(", ")})` : ""}.`,
+    };
+  }
+  return { state: "ready", words: "Ready: the API is up and every readiness check passes." };
+}
+
+const CHECK_WORDS: Readonly<Record<string, string>> = {
+  db: "database",
+  listen: "live updates",
+  dispatcher: "outbox dispatcher",
+};
+
+/** /ops is degraded unless liveness is up and readiness answers "ready" (see opsVerdict). */
 export function opsDegraded(
   live: ReadOutcome<Healthz> | undefined,
   ready: ReadOutcome<Readyz> | undefined,
 ): boolean {
-  if (live?.kind === "down" || (live?.kind === "ok" && live.data.status !== "ok")) return true;
-  if (ready?.kind === "down") return true;
-  return ready?.kind === "ok" && ready.data.status !== "ready";
+  return opsVerdict(live, ready).state === "degraded";
 }
 
 // ------------------------------------------------------------------------------------------------ kill switches

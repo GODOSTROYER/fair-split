@@ -1,17 +1,21 @@
 // W-OP-01 /ops (S3.15): plain tables on stock primitives, Tablea. Health from /healthz and /readyz, the three kill
-// switches, PayPal's notices with how each was checked, the outbox, and the treasurer's browser key. Read-only for
-// judges: switches change from the treasurer's console or by the operator. Reads the API's ops slice hasn't shipped
-// say so plainly; nothing polls (a person asks again with "Check again").
+// switches, PayPal (scopes, the limiter against 40 and 20 with the circuit and shared-IP 429s, webhook latency, the
+// last reconciliation, estimated against observed balance), PayPal's notices with how each was checked, the outbox,
+// Claude (spend per lane, the eval report), quotas, and the treasurer's browser key. Read-only for judges: only the
+// operator's session makes or registers the key, and switches change from the treasurer's console or by the
+// operator. A read the API hasn't shipped says so and names its route; nothing polls (a person asks again).
 
+import type { PublishedKeys } from "@fairsplit/contracts";
 import { Glyph, type GlyphName, Slab } from "@fairsplit/ui-web";
 import { type ReactNode, useId, useMemo } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { PrintBed } from "../../chrome/PrintBed.js";
 import { Wordmark } from "../../chrome/Wordmark.js";
 import { useJudgeSession, useRunStream, useRunView, useSnapshot } from "../../data/hooks.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { davaoShort } from "../proof/davao.js";
-import { fingerprint } from "./keystore.js";
+import { fingerprint, TREASURER_KEY_ID } from "./keystore.js";
 import {
   FLAG_WORDS,
   type FlagRow,
@@ -21,15 +25,42 @@ import {
   type NoticeRow,
   noticesFromEvents,
   noticesFromLedger,
+  OPS_PATHS,
+  type OpsVerdict,
   type OutboxRead,
   outboxSummary,
   type ReadOutcome,
 } from "./opsModel.js";
-import { type KeyPhase, type TreasurerKey, useHealth, useOutbox } from "./useOps.js";
+import {
+  balanceRows,
+  claudeRows,
+  evalCaption,
+  evalRows,
+  latencyRows,
+  limiterRows,
+  type OpsRow,
+  quotaRows,
+  reconciliationRows,
+  registryKeyOf,
+  SECTION_PATHS,
+  scopeRows,
+} from "./sections.js";
+import {
+  type KeyPhase,
+  type SectionOutcomes,
+  type TreasurerKey,
+  useHealth,
+  useOpsRefresh,
+  useOutbox,
+  usePublishedKeys,
+  useSections,
+} from "./useOps.js";
 
 export const OPS_COPY = {
   title: "Ops",
-  lede: "Health, the kill switches, PayPal's notices, the outbox and the treasurer's key. Read-only for judges.",
+  lede: "Health, the kill switches, PayPal, the outbox, Claude, quotas and the treasurer's key. Read-only for judges.",
+  operator: "Operator",
+  readOnly: "Read-only",
   checkedAt: (time: string) => `Checked at ${time}, Davao time.`,
   checking: "Checking.",
   again: "Check again",
@@ -38,19 +69,43 @@ export const OPS_COPY = {
   switchesNote:
     "Read-only here. The treasurer pauses payouts from the console; the operator changes the rest. Every change is written to the ledger.",
   forced: "Forced on by FS_KILL",
+  paypal: "PayPal",
+  scopes: "Scopes",
+  scopesNote: "The OAuth scopes PayPal granted this app, against the ones its steps need.",
+  limiter: "Limiter and circuit",
+  limiterNote:
+    "Every service shares one limiter: 40 PayPal calls a minute, 20 of them background. A 429 opens a 6-minute circuit.",
+  latency: "Webhook latency",
+  latencyNote: "From our own step to PayPal's notice, at the median and the 95th percentile.",
+  reconciliation: "Last reconciliation",
+  reconciliationNote: "Our record against PayPal's own, matched by transaction ID.",
+  balance: "Balance",
+  balanceNote: "Estimated against observed. PayPal has no balance API, so the estimate is labelled as one.",
   notices: "PayPal's notices",
   noticesSession: "This judge session's run, as its live stream delivers them.",
   noticesSeason: (run: string) => `The season's run ${run}, from its hash chain.`,
   noticesEmpty: "No PayPal notices yet. They arrive once the batch is posted.",
   outbox: "Outbox",
-  outboxNotServed:
-    "The outbox read isn't served by this API yet. It comes with the ops slice (GET /v1/ops/outbox).",
-  outboxRefused: "Only the operator reads the outbox. It needs the operator's sign-in.",
-  outboxDown: "The outbox didn't load.",
   outboxEmpty: "Nothing in the outbox.",
+  claude: "Claude",
+  spend: "Spend today",
+  spendNote: "Each lane against its daily cap (UTC). A capped lane plays its labelled recording.",
+  eval: "Eval",
+  evalNote: "The reading eval's last report, against the bars it has to meet.",
+  quotas: "Quotas",
+  quotasNote:
+    "Live runs are rationed to stay inside PayPal's limits. Over quota is a labelled replay, never a block.",
   key: "Treasurer's browser key",
   keyLede:
-    "Analyn signs with fs-analyn-w1, an Ed25519 key made in this browser that can't be copied out. The operator registers its public half once.",
+    "Analyn signs with fs-analyn-w1, an Ed25519 key made in her browser that can't be copied out. The operator registers its public half once.",
+  keyLedeReadOnly:
+    "Analyn signs with fs-analyn-w1, an Ed25519 key made in her browser that can't be copied out. Below is the key as Fair Split publishes it.",
+  keyWho:
+    "Read-only here. The operator registers this key once, from the treasurer's browser, signed in at /ops/login.",
+  notServed: (route: string) => `Not served yet (GET ${route}).`,
+  refused: "Only the operator reads this. It needs the operator's sign-in.",
+  down: (status: number | null) =>
+    `Didn't load. ${status ? `The API answered ${status}.` : "The API didn't answer."}`,
 } as const;
 
 const TONE_GLYPH: Readonly<Record<HealthTone, GlyphName>> = {
@@ -60,27 +115,63 @@ const TONE_GLYPH: Readonly<Record<HealthTone, GlyphName>> = {
   quiet: "ms:schedule",
 };
 
+const VERDICT_GLYPH: Readonly<Record<OpsVerdict["state"], GlyphName>> = {
+  loading: "ms:schedule",
+  ready: "ms:check",
+  degraded: "ms:help",
+};
+
 function Section({
   title,
   testId,
   children,
   aside,
+  note,
+  level = "h2",
 }: {
   readonly title: string;
   readonly testId: string;
   readonly children: ReactNode;
   readonly aside?: ReactNode;
+  readonly note?: string;
+  readonly level?: "h2" | "h3";
 }) {
   const id = useId();
+  const Heading = level;
   return (
     <section className="op-section" aria-labelledby={id} data-testid={testId}>
       <header className="op-section__head">
-        <h2 id={id} className="op-section__title">
+        <Heading
+          id={id}
+          className={level === "h2" ? "op-section__title" : "op-section__title op-section__title--sub"}
+        >
           {title}
-        </h2>
+        </Heading>
         {aside}
       </header>
+      {note && <p className="op-note">{note}</p>}
       {children}
+    </section>
+  );
+}
+
+/** A heading over a grid of smaller sections (h3s): PayPal's figures, Claude's. */
+function Group({
+  title,
+  testId,
+  children,
+}: {
+  readonly title: string;
+  readonly testId: string;
+  readonly children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section className="op-group" aria-labelledby={id} data-testid={testId}>
+      <h2 id={id} className="op-section__title">
+        {title}
+      </h2>
+      <div className="op-grid">{children}</div>
     </section>
   );
 }
@@ -90,14 +181,114 @@ function when(at: string | null): string {
   return davaoShort(at);
 }
 
+/** How a read ended, in words: print beds while it's out, the route when it isn't served, else the data. */
+function ReadBody<T>({
+  outcome,
+  route,
+  testId,
+  children,
+}: {
+  readonly outcome: ReadOutcome<T> | undefined;
+  readonly route: string;
+  readonly testId: string;
+  readonly children: (data: T) => ReactNode;
+}) {
+  if (!outcome) {
+    return (
+      <div className="op-beds" data-testid={`${testId}.loading`}>
+        <PrintBed shape="row" count={2} height={38} />
+      </div>
+    );
+  }
+  if (outcome.kind === "not-served") {
+    return (
+      <p className="op-empty" data-testid={`${testId}.not-served`}>
+        <Glyph name="ms:schedule" size={16} />
+        {OPS_COPY.notServed(route)}
+      </p>
+    );
+  }
+  if (outcome.kind === "refused") {
+    return (
+      <p className="op-empty" data-testid={`${testId}.refused`}>
+        <Glyph name="ms:lock" size={16} />
+        {OPS_COPY.refused}
+      </p>
+    );
+  }
+  if (outcome.kind === "down") {
+    return (
+      <p className="op-empty" data-testid={`${testId}.down`}>
+        <Glyph name="ms:help" size={16} />
+        {OPS_COPY.down(outcome.status)}
+      </p>
+    );
+  }
+  return <>{children(outcome.data)}</>;
+}
+
+/** Rows in words: what, its value with a glyph and a tone (money in its amount state, no glyph), and why. */
+function RowsTable({
+  rows,
+  caption,
+  head,
+  testId,
+}: {
+  readonly rows: readonly OpsRow[];
+  readonly caption: string;
+  readonly head: readonly [string, string, string];
+  readonly testId: string;
+}) {
+  return (
+    <table className="op-table op-table--framed" data-testid={testId}>
+      <caption className="fs-sr">{caption}</caption>
+      <thead>
+        <tr>
+          {head.map((h) => (
+            <th scope="col" key={h}>
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key} data-state={r.tone} data-testid={`${testId}.${r.key}`}>
+            <th scope="row">{r.label}</th>
+            <td>
+              {r.amountState ? (
+                <span className="op-num op-amount" data-amount-state={r.amountState}>
+                  {r.value}
+                </span>
+              ) : (
+                <span className="op-status" data-tone={r.tone}>
+                  <Glyph name={TONE_GLYPH[r.tone]} size={16} />
+                  {r.value}
+                </span>
+              )}
+            </td>
+            <td className="op-table__detail">{r.detail}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export interface OpsPageProps {
   readonly rail: PaypalRail;
   readonly treasurerKey: TreasurerKey;
+  /** The operator's session (S3.8); everyone else reads. */
+  readonly operator: boolean;
+  readonly verdict: OpsVerdict;
 }
 
-export function OpsPage({ rail, treasurerKey }: OpsPageProps) {
+export function OpsPage({ rail, treasurerKey, operator, verdict }: OpsPageProps) {
   const health = useHealth();
   const outbox = useOutbox();
+  const sections = useSections();
+  const registry = usePublishedKeys();
+  const { checking, refresh } = useOpsRefresh();
   const snapshot = useSnapshot().data;
   const session = useJudgeSession().session;
   const sessionRun = session?.runSlug ?? null;
@@ -126,22 +317,31 @@ export function OpsPage({ rail, treasurerKey }: OpsPageProps) {
             <Glyph name="rail" size={16} />
             {railWords}
           </span>
+          <span
+            className="op-chip"
+            data-testid="W-OP-01.access"
+            data-access={operator ? "operator" : "read-only"}
+          >
+            <Glyph name={operator ? "ms:fingerprint" : "ms:visibility"} size={16} />
+            {operator ? OPS_COPY.operator : OPS_COPY.readOnly}
+          </span>
         </div>
         <p className="op-mast__lede">{OPS_COPY.lede}</p>
+        <p className="op-verdict" data-state={verdict.state} data-testid="W-OP-01.verdict">
+          <Glyph name={VERDICT_GLYPH[verdict.state]} size={18} />
+          {verdict.words}
+        </p>
         <p className="op-mast__checked" data-testid="W-OP-01.checked">
           <span>
-            {health.checking || !health.checkedAt
+            {checking || !health.checkedAt
               ? OPS_COPY.checking
               : OPS_COPY.checkedAt(format.time(new Date(health.checkedAt).toISOString()))}
           </span>
           <button
             type="button"
             className="fs-flat"
-            onClick={() => {
-              health.refresh();
-              void outbox.refetch();
-            }}
-            disabled={health.checking}
+            onClick={refresh}
+            disabled={checking}
             data-testid="W-OP-01.refresh"
           >
             <Glyph name="ms:restart-alt" size={18} />
@@ -151,35 +351,41 @@ export function OpsPage({ rail, treasurerKey }: OpsPageProps) {
       </header>
 
       <Section title={OPS_COPY.health} testId="W-OP-01.health">
-        <table className="op-table">
-          <caption className="fs-sr">Health checks: liveness, readiness and what readiness reports</caption>
-          <thead>
-            <tr>
-              <th scope="col">Check</th>
-              <th scope="col">Status</th>
-              <th scope="col">Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} data-state={r.tone} data-testid={`W-OP-01.health.${r.key}`}>
-                <th scope="row">{r.check}</th>
-                <td>
-                  <span className="op-status" data-tone={r.tone}>
-                    <Glyph name={TONE_GLYPH[r.tone]} size={16} />
-                    {r.status}
-                  </span>
-                </td>
-                <td className="op-table__detail">{r.detail}</td>
+        {verdict.state === "loading" ? (
+          <div className="op-beds" data-testid="W-OP-01.loading" aria-busy="true">
+            <span className="fs-sr">Checking health.</span>
+            <PrintBed shape="row" count={2} height={38} labels={["Liveness", "Readiness"]} />
+          </div>
+        ) : (
+          <table className="op-table op-table--framed">
+            <caption className="fs-sr">Health checks: liveness, readiness and what readiness reports</caption>
+            <thead>
+              <tr>
+                <th scope="col">Check</th>
+                <th scope="col">Status</th>
+                <th scope="col">Detail</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} data-state={r.tone} data-testid={`W-OP-01.health.${r.key}`}>
+                  <th scope="row">{r.check}</th>
+                  <td>
+                    <span className="op-status" data-tone={r.tone}>
+                      <Glyph name={TONE_GLYPH[r.tone]} size={16} />
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="op-table__detail">{r.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Section>
 
-      <Section title={OPS_COPY.switches} testId="W-OP-01.switches">
-        <p className="op-note">{OPS_COPY.switchesNote}</p>
-        <table className="op-table">
+      <Section title={OPS_COPY.switches} testId="W-OP-01.switches" note={OPS_COPY.switchesNote}>
+        <table className="op-table op-table--framed">
           <caption className="fs-sr">The three kill switches, their state and what each does</caption>
           <thead>
             <tr>
@@ -196,6 +402,10 @@ export function OpsPage({ rail, treasurerKey }: OpsPageProps) {
           </tbody>
         </table>
       </Section>
+
+      <Group title={OPS_COPY.paypal} testId="W-OP-01.paypal">
+        <PaypalSections sections={sections} />
+      </Group>
 
       <Section
         title={OPS_COPY.notices}
@@ -245,13 +455,151 @@ export function OpsPage({ rail, treasurerKey }: OpsPageProps) {
       </Section>
 
       <Section title={OPS_COPY.outbox} testId="W-OP-01.outbox">
-        <OutboxBlock outcome={outbox.data} />
+        <ReadBody outcome={outbox.data} route={OPS_PATHS.outbox} testId="W-OP-01.outbox">
+          {(data) => <OutboxTable data={data} />}
+        </ReadBody>
+      </Section>
+
+      <Group title={OPS_COPY.claude} testId="W-OP-01.claude-group">
+        <Section title={OPS_COPY.spend} testId="W-OP-01.claude" note={OPS_COPY.spendNote} level="h3">
+          <ReadBody outcome={sections.claude} route={SECTION_PATHS.claude} testId="W-OP-01.claude">
+            {(data) => (
+              <RowsTable
+                rows={claudeRows(data)}
+                caption={`Claude spend per lane on ${data.day} (UTC), against each lane's cap`}
+                head={["Lane", "Spent", "Detail"]}
+                testId="W-OP-01.claude.table"
+              />
+            )}
+          </ReadBody>
+        </Section>
+        <Section title={OPS_COPY.eval} testId="W-OP-01.eval" note={OPS_COPY.evalNote} level="h3">
+          <ReadBody outcome={sections.eval} route={SECTION_PATHS.eval} testId="W-OP-01.eval">
+            {(report) => (
+              <>
+                <p className="op-note" data-testid="W-OP-01.eval.caption">
+                  {evalCaption(report)}
+                </p>
+                <RowsTable
+                  rows={evalRows(report)}
+                  caption="The eval's measures against their bars"
+                  head={["Measure", "Result", "Bar"]}
+                  testId="W-OP-01.eval.table"
+                />
+              </>
+            )}
+          </ReadBody>
+        </Section>
+      </Group>
+
+      <Section title={OPS_COPY.quotas} testId="W-OP-01.quotas" note={OPS_COPY.quotasNote}>
+        <ReadBody outcome={sections.quotas} route={SECTION_PATHS.quotas} testId="W-OP-01.quotas">
+          {(data) => (
+            <RowsTable
+              rows={quotaRows(data)}
+              caption="Live-run quotas, used against their limits"
+              head={["Quota", "Used", "Detail"]}
+              testId="W-OP-01.quotas.table"
+            />
+          )}
+        </ReadBody>
       </Section>
 
       <Section title={OPS_COPY.key} testId="W-OP-01.key">
-        <KeyPanel treasurerKey={treasurerKey} />
+        <KeyPanel treasurerKey={treasurerKey} operator={operator} registry={registry} />
       </Section>
     </div>
+  );
+}
+
+function PaypalSections({ sections }: { readonly sections: SectionOutcomes }) {
+  return (
+    <>
+      <Section title={OPS_COPY.scopes} testId="W-OP-01.scopes" note={OPS_COPY.scopesNote} level="h3">
+        <ReadBody outcome={sections.scopes} route={SECTION_PATHS.scopes} testId="W-OP-01.scopes">
+          {(data) => (
+            <RowsTable
+              rows={scopeRows(data)}
+              caption="PayPal OAuth scopes, needed and granted"
+              head={["Scope", "Status", "Detail"]}
+              testId="W-OP-01.scopes.table"
+            />
+          )}
+        </ReadBody>
+      </Section>
+      <Section title={OPS_COPY.limiter} testId="W-OP-01.limiter" note={OPS_COPY.limiterNote} level="h3">
+        <ReadBody outcome={sections.limiter} route={SECTION_PATHS.limiter} testId="W-OP-01.limiter">
+          {(data) => (
+            <RowsTable
+              rows={limiterRows(data)}
+              caption="The PayPal limiter's window against 40 and 20, the circuit, and shared-IP 429s"
+              head={["Measure", "Now", "Detail"]}
+              testId="W-OP-01.limiter.table"
+            />
+          )}
+        </ReadBody>
+      </Section>
+      <Section title={OPS_COPY.latency} testId="W-OP-01.latency" note={OPS_COPY.latencyNote} level="h3">
+        <ReadBody outcome={sections.latency} route={SECTION_PATHS.latency} testId="W-OP-01.latency">
+          {(data) => (
+            <table className="op-table op-table--framed" data-testid="W-OP-01.latency.table">
+              <caption className="fs-sr">Webhook latency at p50 and p95, with the number of samples</caption>
+              <thead>
+                <tr>
+                  <th scope="col">From, to</th>
+                  <th scope="col">p50</th>
+                  <th scope="col">p95</th>
+                  <th scope="col">Samples</th>
+                </tr>
+              </thead>
+              <tbody>
+                {latencyRows(data).map((r) => (
+                  <tr key={r.key} data-testid={`W-OP-01.latency.table.${r.key}`}>
+                    <th scope="row">{r.label}</th>
+                    <td className="op-num">{r.p50}</td>
+                    <td className="op-num">{r.p95}</td>
+                    <td className="op-num">{r.samples}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </ReadBody>
+      </Section>
+      <Section
+        title={OPS_COPY.reconciliation}
+        testId="W-OP-01.reconciliation"
+        note={OPS_COPY.reconciliationNote}
+        level="h3"
+      >
+        <ReadBody
+          outcome={sections.reconciliation}
+          route={SECTION_PATHS.reconciliation}
+          testId="W-OP-01.reconciliation"
+        >
+          {(data) => (
+            <RowsTable
+              rows={reconciliationRows(data)}
+              caption="The last reconciliation with PayPal"
+              head={["Measure", "Result", "Detail"]}
+              testId="W-OP-01.reconciliation.table"
+            />
+          )}
+        </ReadBody>
+      </Section>
+      <Section title={OPS_COPY.balance} testId="W-OP-01.balance" note={OPS_COPY.balanceNote} level="h3">
+        <ReadBody outcome={sections.balance} route={SECTION_PATHS.balance} testId="W-OP-01.balance">
+          {(data) => (
+            <RowsTable
+              rows={balanceRows(data)}
+              caption="The PayPal balance, estimated against observed"
+              head={["Figure", "Amount", "Detail"]}
+              testId="W-OP-01.balance.table"
+            />
+          )}
+        </ReadBody>
+      </Section>
+    </>
   );
 }
 
@@ -274,42 +622,16 @@ function FlagLine({ row }: { readonly row: FlagRow }) {
   );
 }
 
-function OutboxBlock({ outcome }: { readonly outcome: ReadOutcome<OutboxRead> | undefined }) {
-  if (!outcome) return <p className="op-empty">{OPS_COPY.checking}</p>;
-  if (outcome.kind === "not-served") {
-    return (
-      <p className="op-empty" data-testid="W-OP-01.outbox.not-served">
-        <Glyph name="ms:schedule" size={16} />
-        {OPS_COPY.outboxNotServed}
-      </p>
-    );
-  }
-  if (outcome.kind === "refused") {
-    return (
-      <p className="op-empty" data-testid="W-OP-01.outbox.refused">
-        <Glyph name="ms:lock" size={16} />
-        {OPS_COPY.outboxRefused}
-      </p>
-    );
-  }
-  if (outcome.kind === "down") {
-    return (
-      <p className="op-empty" data-testid="W-OP-01.outbox.down">
-        <Glyph name="ms:help" size={16} />
-        {OPS_COPY.outboxDown}
-        {outcome.status ? ` The API answered ${outcome.status}.` : ""}
-      </p>
-    );
-  }
-  const rows = outcome.data.rows;
+function OutboxTable({ data }: { readonly data: OutboxRead }) {
+  const rows = data.rows;
   const s = outboxSummary(rows);
   if (rows.length === 0) return <p className="op-empty">{OPS_COPY.outboxEmpty}</p>;
   return (
     <>
       <p className="op-note" data-testid="W-OP-01.outbox.summary">
         {s.queued} queued, {s.running} running, {s.dead} dead, {s.done} done
-        {outcome.data.executor ? `. Executor ${outcome.data.executor}` : ""}
-        {outcome.data.lastTickAt ? `. Last cron tick ${when(outcome.data.lastTickAt)}` : ""}.
+        {data.executor ? `. Executor ${data.executor}` : ""}
+        {data.lastTickAt ? `. Last cron tick ${when(data.lastTickAt)}` : ""}.
       </p>
       <div className="op-scroll">
         <table className="op-table" data-testid="W-OP-01.outbox.table">
@@ -354,7 +676,75 @@ const KEY_WORDS: Readonly<Record<KeyPhase["kind"], string>> = {
   failed: "The key step failed. Nothing was registered.",
 };
 
-export function KeyPanel({ treasurerKey }: { readonly treasurerKey: TreasurerKey }) {
+/** The key as Fair Split publishes it (Proof checks signatures against exactly this), in words. */
+function registryWords(registry: ReadOutcome<PublishedKeys> | undefined): {
+  readonly state: string;
+  readonly words: string;
+  readonly publicKeyHex: string | null;
+} {
+  if (!registry) return { state: "checking", words: OPS_COPY.checking, publicKeyHex: null };
+  if (registry.kind === "not-served") {
+    return { state: "not-served", words: OPS_COPY.notServed(SECTION_PATHS.keys), publicKeyHex: null };
+  }
+  if (registry.kind === "refused") return { state: "refused", words: OPS_COPY.refused, publicKeyHex: null };
+  if (registry.kind === "down")
+    return { state: "down", words: OPS_COPY.down(registry.status), publicKeyHex: null };
+  const key = registryKeyOf(registry.data, TREASURER_KEY_ID);
+  const words =
+    key.state === "registered"
+      ? "Registered. Proof checks Analyn's signatures against it."
+      : key.state === "revoked"
+        ? `Revoked${key.revokedAt ? ` ${when(key.revokedAt)}` : ""}. It signs nothing more.`
+        : "Not registered yet.";
+  return { state: key.state, words, publicKeyHex: key.publicKeyHex };
+}
+
+export interface KeyPanelProps {
+  readonly treasurerKey: TreasurerKey;
+  /** Only the operator's session sees the make and register slabs. */
+  readonly operator: boolean;
+  /** The keys Fair Split publishes (`/.well-known/fairsplit-keys.json`). */
+  readonly registry: ReadOutcome<PublishedKeys> | undefined;
+}
+
+export function KeyPanel({ treasurerKey, operator, registry }: KeyPanelProps) {
+  const published = registryWords(registry);
+  if (!operator) {
+    // A judge (anyone but the operator) reads the key as the server publishes it; nothing here makes a key.
+    return (
+      <div
+        className="op-key"
+        data-testid="W-OP-01.key.panel"
+        data-access="read-only"
+        data-state={published.state}
+      >
+        <p className="op-note">{OPS_COPY.keyLedeReadOnly}</p>
+        <dl className="op-facts">
+          <div>
+            <dt>Key</dt>
+            <dd className="op-num">{TREASURER_KEY_ID}</dd>
+          </div>
+          <div>
+            <dt>With Fair Split</dt>
+            <dd data-testid="W-OP-01.key.status">{published.words}</dd>
+          </div>
+          {published.publicKeyHex && (
+            <div>
+              <dt>Fingerprint</dt>
+              <dd className="op-num" data-testid="W-OP-01.key.fingerprint">
+                {fingerprint(published.publicKeyHex)}
+              </dd>
+            </div>
+          )}
+        </dl>
+        <p className="op-key__who" data-testid="W-OP-01.key.who">
+          <Glyph name="ms:lock" size={16} />
+          {OPS_COPY.keyWho}
+        </p>
+      </div>
+    );
+  }
+
   const { phase, durable, make, register } = treasurerKey;
   const key = "key" in phase ? phase.key : null;
   const canRegister =
@@ -364,16 +754,20 @@ export function KeyPanel({ treasurerKey }: { readonly treasurerKey: TreasurerKey
       phase.kind === "refused" ||
       phase.kind === "failed");
   return (
-    <div className="op-key" data-testid="W-OP-01.key.panel" data-state={phase.kind}>
+    <div className="op-key" data-testid="W-OP-01.key.panel" data-access="operator" data-state={phase.kind}>
       <p className="op-note">{OPS_COPY.keyLede}</p>
       <dl className="op-facts">
         <div>
           <dt>Key</dt>
-          <dd className="op-num">fs-analyn-w1</dd>
+          <dd className="op-num">{TREASURER_KEY_ID}</dd>
         </div>
         <div>
-          <dt>Status</dt>
+          <dt>This browser</dt>
           <dd data-testid="W-OP-01.key.status">{KEY_WORDS[phase.kind]}</dd>
+        </div>
+        <div>
+          <dt>With Fair Split</dt>
+          <dd data-testid="W-OP-01.key.published">{published.words}</dd>
         </div>
         {key && (
           <>

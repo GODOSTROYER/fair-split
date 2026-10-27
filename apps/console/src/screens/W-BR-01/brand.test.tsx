@@ -1,11 +1,14 @@
 // W-BR-01 Proof with the brand header, entered by `/b/:token`: the token is the brand tier's credential for one
 // read and never reaches the page; names and masked receivers show on screen, complete receivers only in the
-// export; states unpaid (a judge's run before funding), progress (through to its final count), and error when the
-// link is refused.
+// export; states loading (print beds), unpaid (a judge's run before funding), progress (through to its final
+// count), mismatch (a tampered record: proof and export withheld), and error when the link is refused.
 
 import { INVOICE_STATUS_LABELS, pickLabel } from "@fairsplit/contracts";
+import { getSnapshot } from "@fairsplit/seed";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { gate, withHandlers } from "../../features/proof/test-world.js";
 import { createTestWorld, expectNoAxeViolations, renderConsole } from "../../test/index.js";
 
 const TOKEN = "brand-token-sample-0001";
@@ -72,6 +75,54 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     const json = JSON.parse((await blobs[1]?.text()) ?? "{}") as { kind: string; paypalRail: string };
     expect(json.kind).toBe("fairsplit.proof.brand-export");
     expect(json.paypalRail).toBe("simulated");
+  });
+
+  it("loading: print beds until the brand tier's bundle arrives", async () => {
+    const held = gate();
+    const world = withHandlers(createTestWorld(), [
+      http.get("*/v1/proof/:runSlug/export", async () => {
+        await held.opened;
+      }),
+    ]);
+    const view = await renderConsole({ path: PATH, world });
+    const root = await screen.findByTestId("W-BR-01");
+    expect(root.dataset.state).toBe("loading");
+    const loading = screen.getByTestId("W-BR-01.loading");
+    expect(loading.getAttribute("aria-busy")).toBe("true");
+    expect(loading.querySelectorAll("[data-bed]").length).toBeGreaterThanOrEqual(2);
+    await expectNoAxeViolations(view.container);
+
+    held.release();
+    await waitFor(() => expect(root.dataset.state).toBe("progress"));
+    expect(screen.queryByTestId("W-BR-01.loading")).toBeNull();
+  });
+
+  it("mismatch: a record edited after signing fails Verify, and the proof and the export are withheld", async () => {
+    const bundle = structuredClone(getSnapshot().proof);
+    const line = bundle.lines.find((l) => l.memberNo === "M-014");
+    if (!line) throw new Error("the seed has M-014");
+    line.netCents += 1;
+    line.canonical.netCents += 1;
+    const world = withHandlers(createTestWorld(), [
+      http.get("*/v1/proof/:runSlug/export", () =>
+        HttpResponse.json({ bundle, provenance: "seeded", redacted: false }),
+      ),
+    ]);
+    const { view, root } = await openBrand({ world });
+    expect(root.dataset.state).toBe("progress");
+    expect(screen.getByTestId("W-BR-01.export.csv")).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByTestId("W-PF-01.verify.face"), { key: "Enter" });
+    await waitFor(() => expect(root.dataset.state).toBe("mismatch"), { timeout: 10_000 });
+    expect(screen.getByTestId("W-BR-01.header").dataset.state).toBe("mismatch");
+    expect(screen.getByTestId("W-BR-01.export.withheld").textContent).toBe(
+      "Proof withheld: the record doesn't match its signatures. Exports wait until it does.",
+    );
+    expect(screen.queryByTestId("W-BR-01.export.csv")).toBeNull();
+    expect(screen.queryByTestId("W-BR-01.export.json")).toBeNull();
+    expect(screen.getByTestId("W-PF-01.withheld").textContent).toContain("Plate 4");
+    expect(screen.getByTestId("W-PF-01.figures.withheld")).toBeTruthy();
+    await expectNoAxeViolations(view.container);
   });
 
   it("error: a refused link says so and points to the public Proof", async () => {

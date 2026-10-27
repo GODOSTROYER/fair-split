@@ -13,6 +13,7 @@ import {
   noticesFromEvents,
   noticesFromLedger,
   opsDegraded,
+  opsVerdict,
   outboxSummary,
   type ReadOutcome,
   type Readyz,
@@ -60,13 +61,40 @@ describe("health rows", () => {
     at: 1,
   };
 
-  it("says liveness and readiness in words, rail included", () => {
+  it("says liveness and readiness in words, rail included, and never calls unreported readiness ready", () => {
     const rows = healthRows(live, { kind: "not-served", at: 1 });
     expect(rows[0]).toMatchObject({ check: "Liveness (/healthz)", status: "Up", tone: "ok" });
     expect(rows[0]?.detail).toContain("up 2 h 3 min");
     expect(rows[0]?.detail).toContain("Simulated PayPal sandbox");
-    expect(rows[1]).toMatchObject({ status: "Not served yet", tone: "quiet" });
-    expect(opsDegraded(live, { kind: "not-served", at: 1 })).toBe(false);
+    expect(rows[1]).toMatchObject({ status: "Not served yet", tone: "attention" });
+    expect(rows[1]?.detail).toContain("can't call it ready");
+    expect(opsDegraded(live, { kind: "not-served", at: 1 })).toBe(true);
+    expect(opsVerdict(live, { kind: "not-served", at: 1 })).toEqual({
+      state: "degraded",
+      words: "Degraded: readiness isn't reported by this API yet, so nothing here can be called ready.",
+    });
+  });
+
+  it("is loading until both reads answer, and ready only when liveness is up and readiness says ready", () => {
+    expect(opsVerdict(undefined, undefined).state).toBe("loading");
+    expect(opsVerdict(live, undefined).state).toBe("loading");
+    const ready: ReadOutcome<Readyz> = {
+      kind: "ok",
+      at: 1,
+      data: { status: "ready", rail: "simulated", checks: { db: { ok: true, role: "login" } } },
+    };
+    expect(opsVerdict(live, ready)).toEqual({
+      state: "ready",
+      words: "Ready: the API is up and every readiness check passes.",
+    });
+    expect(opsVerdict({ kind: "down", status: 503, at: 1 }, ready)).toEqual({
+      state: "degraded",
+      words: "Degraded: the API is down.",
+    });
+    expect(opsVerdict(live, { kind: "down", status: 503, at: 1 }).words).toBe(
+      "Degraded: the API isn't ready.",
+    );
+    expect(opsVerdict(live, { kind: "refused", at: 1 }).state).toBe("degraded");
   });
 
   it("lists readiness checks, and only a PayPal failure reads as PayPal's", () => {
@@ -96,7 +124,8 @@ describe("health rows", () => {
     });
     expect(rows.find((r) => r.key === "paypal-token")).toMatchObject({ status: "Failing", tone: "paypal" });
     expect(opsDegraded(live, ready)).toBe(true);
-    expect(opsDegraded({ kind: "down", status: 503, at: 1 }, undefined)).toBe(true);
+    expect(opsVerdict(live, ready).words).toBe("Degraded: not ready (live updates).");
+    expect(opsDegraded({ kind: "down", status: 503, at: 1 }, { kind: "not-served", at: 1 })).toBe(true);
   });
 });
 

@@ -1,7 +1,8 @@
 // /ops reads (W-OP-01): each read ends in a ReadOutcome and never throws, so a route the API hasn't shipped reads
 // "not served yet" instead of breaking the page. Nothing polls: the page reads once, and again when a person asks.
 
-import { useQuery } from "@tanstack/react-query";
+import { PublishedKeys } from "@fairsplit/contracts";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { z } from "zod";
 import { useAdapter } from "../../data/hooks.js";
@@ -16,11 +17,26 @@ import {
   TREASURER_KEY_ID,
 } from "./keystore.js";
 import { classifyFailure, Healthz, OPS_PATHS, OutboxRead, type ReadOutcome, Readyz } from "./opsModel.js";
+import {
+  BalanceRead,
+  ClaudeRead,
+  EvalRead,
+  LatencyRead,
+  LimiterRead,
+  OpsSession,
+  QuotasRead,
+  ReconciliationRead,
+  ScopesRead,
+  SECTION_PATHS,
+} from "./sections.js";
 
-function useOpsRead<S extends z.ZodType>(name: string, path: string, schema: S) {
+/** Every /ops read lives under this query key, so "Check again" asks each of them once more. */
+const OPS_KEY = "ops";
+
+export function useOpsRead<S extends z.ZodType>(name: string, path: string, schema: S) {
   const adapter = useAdapter();
   return useQuery<ReadOutcome<z.output<S>>>({
-    queryKey: ["ops", name],
+    queryKey: [OPS_KEY, name],
     queryFn: async () => {
       try {
         const data = await adapter.api.request({ path, schema, name });
@@ -34,26 +50,72 @@ function useOpsRead<S extends z.ZodType>(name: string, path: string, schema: S) 
   });
 }
 
+/** "Check again": every /ops read, once, on a person's press (nothing polls). */
+export function useOpsRefresh() {
+  const client = useQueryClient();
+  const checking = useIsFetching({ queryKey: [OPS_KEY] }) > 0;
+  const refresh = useCallback(() => {
+    void client.invalidateQueries({ queryKey: [OPS_KEY] });
+  }, [client]);
+  return { checking, refresh };
+}
+
 export function useHealth() {
   const live = useOpsRead("healthz", OPS_PATHS.healthz, Healthz);
   const ready = useOpsRead("readyz", OPS_PATHS.readyz, Readyz);
-  const refetchLive = live.refetch;
-  const refetchReady = ready.refetch;
-  const refresh = useCallback(() => {
-    void refetchLive();
-    void refetchReady();
-  }, [refetchLive, refetchReady]);
   return {
     live: live.data,
     ready: ready.data,
-    checking: live.isFetching || ready.isFetching,
     checkedAt: Math.max(live.dataUpdatedAt, ready.dataUpdatedAt) || null,
-    refresh,
   };
 }
 
 export function useOutbox() {
   return useOpsRead("outbox", OPS_PATHS.outbox, OutboxRead);
+}
+
+/**
+ * Who is reading /ops. Only the operator's session (the `fs_ops` cookie from /ops/login, S3.8) makes or
+ * registers the treasurer key; a judge, or anyone the API doesn't name as the operator, reads it. Until the API
+ * serves the read, nobody is the operator here.
+ */
+export function useOperator(): {
+  readonly operator: boolean;
+  readonly outcome: ReadOutcome<OpsSession> | undefined;
+} {
+  const read = useOpsRead("session", SECTION_PATHS.session, OpsSession);
+  const outcome = read.data;
+  return { operator: outcome?.kind === "ok" && outcome.data.role === "operator", outcome };
+}
+
+/** The keys Fair Split publishes (Proof's trust anchors): whether fs-analyn-w1 is registered, for anyone. */
+export function usePublishedKeys() {
+  return useOpsRead("keys", SECTION_PATHS.keys, PublishedKeys).data;
+}
+
+export interface SectionOutcomes {
+  readonly scopes: ReadOutcome<ScopesRead> | undefined;
+  readonly limiter: ReadOutcome<LimiterRead> | undefined;
+  readonly latency: ReadOutcome<LatencyRead> | undefined;
+  readonly claude: ReadOutcome<ClaudeRead> | undefined;
+  readonly eval: ReadOutcome<EvalRead> | undefined;
+  readonly reconciliation: ReadOutcome<ReconciliationRead> | undefined;
+  readonly balance: ReadOutcome<BalanceRead> | undefined;
+  readonly quotas: ReadOutcome<QuotasRead> | undefined;
+}
+
+/** S3.15's sections, each read once from its own route. */
+export function useSections(): SectionOutcomes {
+  return {
+    scopes: useOpsRead("scopes", SECTION_PATHS.scopes, ScopesRead).data,
+    limiter: useOpsRead("limiter", SECTION_PATHS.limiter, LimiterRead).data,
+    latency: useOpsRead("latency", SECTION_PATHS.latency, LatencyRead).data,
+    claude: useOpsRead("claude", SECTION_PATHS.claude, ClaudeRead).data,
+    eval: useOpsRead("eval", SECTION_PATHS.eval, EvalRead).data,
+    reconciliation: useOpsRead("reconciliation", SECTION_PATHS.reconciliation, ReconciliationRead).data,
+    balance: useOpsRead("balance", SECTION_PATHS.balance, BalanceRead).data,
+    quotas: useOpsRead("quotas", SECTION_PATHS.quotas, QuotasRead).data,
+  };
 }
 
 // ------------------------------------------------------------------------------------------------ the treasurer's key
@@ -84,18 +146,35 @@ export interface TreasurerKeyOptions {
   /** Injected in tests: the store and WebCrypto underneath. */
   readonly store?: KeyStore;
   readonly subtle?: SubtleCrypto;
+  /**
+   * The operator's session only (default true). Off, nothing touches WebCrypto or IndexedDB in this browser and
+   * make and register do nothing: a judge never makes a key named fs-analyn-w1 in their own browser.
+   */
+  readonly enabled?: boolean;
 }
 
 export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey {
   const adapter = useAdapter();
-  const storeRef = useRef<KeyStore>(options.store ?? openKeyStore());
+  const enabled = options.enabled ?? true;
+  const storeRef = useRef<KeyStore | null>(options.store ?? null);
   const subtle = options.subtle ?? globalThis.crypto?.subtle;
   const [phase, setPhase] = useState<KeyPhase>({ kind: "checking" });
-  const [durable, setDurable] = useState(storeRef.current.durable);
+  const [durable, setDurable] = useState(options.store?.durable ?? true);
   const alive = useRef(true);
+  // The key store opens only for the operator, on first use.
+  const store = useCallback((): KeyStore => {
+    storeRef.current ??= openKeyStore();
+    return storeRef.current;
+  }, []);
 
   useEffect(() => {
     alive.current = true;
+    if (!enabled) {
+      return () => {
+        alive.current = false;
+      };
+    }
+    setDurable(store().durable);
     void (async () => {
       const supported = await ed25519Supported(subtle);
       if (!alive.current) return;
@@ -105,7 +184,7 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
       }
       let found: StoredKey | null = null;
       try {
-        found = await storeRef.current.get(TREASURER_KEY_ID);
+        found = await store().get(TREASURER_KEY_ID);
       } catch {
         // IndexedDB refused (a private window): keep the key for this page only.
         storeRef.current = memoryKeyStore();
@@ -123,15 +202,16 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
     return () => {
       alive.current = false;
     };
-  }, [subtle]);
+  }, [subtle, enabled, store]);
 
   const make = useCallback(() => {
+    if (!enabled) return;
     setPhase({ kind: "making" });
     void (async () => {
       try {
         const key = await makeKey(TREASURER_KEY_ID, TREASURER_APPROVER, undefined, subtle);
         try {
-          await storeRef.current.put(key);
+          await store().put(key);
         } catch {
           storeRef.current = memoryKeyStore();
           await storeRef.current.put(key);
@@ -142,7 +222,7 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
         if (alive.current) setPhase({ kind: "failed", key: null, error });
       }
     })();
-  }, [subtle]);
+  }, [subtle, enabled, store]);
 
   // The register press reads the phase it was pressed in (a ref, so the request is sent once, never from an updater).
   const phaseRef = useRef(phase);
@@ -151,6 +231,7 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
   const register = useCallback(() => {
     const current = phaseRef.current;
     if (
+      !enabled ||
       !("key" in current) ||
       !current.key ||
       current.kind === "registering" ||
@@ -173,7 +254,9 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
           name: "registerKey",
         });
         const registered: StoredKey = { ...key, registeredAt: new Date().toISOString() };
-        await storeRef.current.put(registered).catch(() => undefined);
+        await store()
+          .put(registered)
+          .catch(() => undefined);
         if (alive.current) setPhase({ kind: "registered", key: registered });
       } catch (error) {
         const outcome = classifyFailure(error, adapter.source, Date.now());
@@ -183,7 +266,7 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
         else setPhase({ kind: "failed", key, error });
       }
     })();
-  }, [adapter]);
+  }, [adapter, enabled, store]);
 
   return useMemo(() => ({ phase, durable, make, register }), [phase, durable, make, register]);
 }

@@ -712,9 +712,50 @@
   line-height: 1.25rem;
 }
 
-/* The lines table grows with the page (no nested scroll), so a traced line unfolds in place. */
+/* The lines table grows with the page (no nested scroll), so a traced line unfolds in place. The scroller is a
+   size container, so MM-7's trace can be exactly as wide as the part of the table a reader sees. */
 .pf-lines .pf-table-wrap {
   overflow-y: visible;
+  container-type: inline-size;
+}
+
+/* A phone (Lines.tsx folds at 560 px): the rail sits under the member and the status under the net, so three
+   columns fit and the peso to tap is on screen. */
+.pf-lines__table[data-fold] tr:not(.pf-lines__trace-row) > :is(th, td) {
+  padding: 10px 8px;
+  vertical-align: top;
+}
+
+.pf-lines__table[data-fold] tbody th {
+  white-space: normal;
+}
+
+.pf-line__who {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.pf-line__name {
+  font-weight: 560;
+}
+
+.pf-line__receiver {
+  font-weight: 450;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  overflow-wrap: break-word;
+}
+
+/* The PayPal word lines up with the member ID above it; the cash tag keeps its hatched box. */
+.pf-line__who .pf-rail[data-rail="paypal"] {
+  padding-inline: 0;
+}
+
+.pf-line__net {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
 }
 
 .pf-peso {
@@ -753,7 +794,13 @@
   white-space: normal;
 }
 
+/* MM-7's trace is pinned to the reader's window onto the table: as wide as the scroller shows and stuck to its
+   left edge, so the receipt's net and the slip stay on screen even while a wide table scrolls sideways. */
 .pf-trace {
+  position: sticky;
+  left: 0;
+  box-sizing: border-box;
+  width: 100cqi;
   display: grid;
   gap: 16px;
   padding: 18px 16px 14px;
@@ -1321,5 +1368,18 @@
 
   .pf-keys__role {
     grid-row: auto;
+  }
+}
+
+/* A phone: an open plate gives up its indent and spans the column under its node, so the lines and the trace get
+   the whole width; the rule runs on behind it. */
+@media (max-width: 480px) {
+  .pf-plate__body {
+    grid-column: 1 / -1;
+    padding: 12px;
+  }
+
+  .pf-trace {
+    padding: 16px 12px 12px;
   }
 }

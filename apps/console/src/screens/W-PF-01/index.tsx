@@ -1,7 +1,8 @@
 // W-PF-01 Proof (`/proof/:runSlug`; public, Adlaw only, one 680 px column). Members appear by ID only, never by
 // name (C-23, RA 10173). Everything on the page is computed from the served bundle and re-checked in this browser
 // on a person's press ("Verify in your browser", verify-core against the published keys). The route's data-state
-// follows the run's record (none, progress, verified, failed); the browser check's own state is `data-verify`.
+// is none, progress, verified or failed: "verified" only once a press here matched every plate against keys that
+// are not samples on a run PayPal has finished; the browser check's own state (idle, sample, ...) is `data-verify`.
 
 import { useMotionMode } from "@fairsplit/ui-web";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";

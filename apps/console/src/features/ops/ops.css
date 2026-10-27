@@ -1,5 +1,6 @@
 /* W-OP-01 /ops on Tablea: plain tables on stock primitives (S3.15). Dense, ruled, figures tabular; status always
-   a glyph and a word. Red only for a PayPal failure; nothing here is jade, because nothing here is money. */
+   a glyph and a word. Red only for a PayPal failure; nothing here is jade, because no figure here is money PayPal
+   confirmed (the balance is an estimate in pencil and a person's reading in ink). */
 
 .op-root {
   display: block;
@@ -12,6 +13,12 @@
   gap: 40px;
   max-width: 1160px;
   margin-inline: auto;
+}
+
+/* No section may widen the page past its gutter: a wide table scrolls or wraps inside its own box. */
+.op > *,
+.op-grid > * {
+  min-width: 0;
 }
 
 .op-mast {
@@ -41,6 +48,32 @@
   color: var(--fs-ink-2);
   font-size: 0.875rem;
   line-height: 1.375rem;
+}
+
+/* The page's state in one sentence: ready, or degraded and why. A glyph and words, never a colour alone. */
+.op-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 70ch;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.op-verdict .fs-glyph {
+  flex: none;
+  margin-top: 2px;
+}
+
+.op-verdict[data-state="degraded"] {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.op-verdict[data-state="loading"] {
+  color: var(--fs-ink-3);
 }
 
 .op-mast__checked {
@@ -92,6 +125,35 @@
   line-height: 1.5rem;
 }
 
+.op-section__title--sub {
+  font-weight: 620;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+/* A heading over smaller sections, two abreast where the page is wide enough. */
+.op-group {
+  display: grid;
+  gap: 16px;
+}
+
+.op-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+  align-items: start;
+  gap: 32px 40px;
+}
+
+/* Print beds while a read is out: dashed, at the size the rows will land. */
+.op-beds {
+  display: grid;
+  gap: 6px;
+}
+
+.op-beds .fsc-bed {
+  width: 100%;
+}
+
 .op-section__aside,
 .op-note {
   color: var(--fs-ink-2);
@@ -130,7 +192,7 @@
   line-height: 1.25rem;
 }
 
-.op-section > .op-table {
+.op-table--framed {
   border: 1px solid var(--fs-rule);
 }
 
@@ -185,6 +247,19 @@
   font-stretch: 87.5%;
   font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
+}
+
+/* Money on /ops is never jade: nothing here is money PayPal confirmed. An estimate prints in pencil. */
+.op-amount {
+  font-weight: 600;
+}
+
+.op-amount[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.op-amount[data-amount-state="ink"] {
+  color: var(--fs-ink);
 }
 
 .op-status,
@@ -263,6 +338,21 @@
   margin: 0;
 }
 
+.op-key__who {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.op-key__who .fs-glyph {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fs-ink-3);
+}
+
 .op-key__actions {
   display: flex;
   flex-wrap: wrap;
@@ -274,6 +364,13 @@
   .op-table th,
   .op-table td {
     padding: 8px;
+  }
+
+  /* On a phone a status or a heading may take two lines, so a four-column table still fits inside the gutter. */
+  .op-status,
+  .op-switch,
+  .op-table thead th {
+    white-space: normal;
   }
 
   .op-facts > div {
