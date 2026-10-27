@@ -49,9 +49,11 @@ await runAgentToolkitTool({ run, invoices }, name, input, { treasurerApproval })
 - **I1: the agent's only words are the three item labels** (the plan: "Item names: Claude's recorded
   labels"; S4.4 `canonicalInvoice(quote, labels)`). A label is 1–40 characters, a letter first, then
   letters, spaces and `,'()-` (S4.4 `checkLabels`, so no digit, link, e-mail or phone), the three are
-  distinct, and none spells a number in English words ("Four thousand dollars"), which `checkLabels`
-  alone lets through. `withItemLabels(plan, labels)` builds the arguments; every amount is the code's.
-  The checkpoint keeps the labels, so a recreated invoice reads as the first did.
+  distinct, none spells a number ("Four thousand dollars", Cebuano "Upat ka libo", Filipino "Dalawang
+  daan", Spanish "Cuatro mil", a Roman numeral "XIV"), which `checkLabels` alone lets through, and none
+  names another line (no "Quality bonus" on the premium line). `withItemLabels(plan, labels)` builds the
+  arguments; every amount is the code's. The checkpoint keeps the labels, so a recreated invoice reads
+  as the first did.
 - **The agent's path.** `runAgentToolkitTool` is bound to one run and calls the same steps (`create`,
   `send`, `ensureRule`, `fetch`), never raw `tk()`. A draft is compared as the model wrote it (so a key the
   toolkit's zod would strip still counts) and must equal the code-built invoice but for the labels. Calls

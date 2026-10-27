@@ -172,6 +172,44 @@ describe("register §8 invoice fields", () => {
     expect(planFor({ ...HERO_QUOTE, items })).toThrow(/label/);
   });
 
+  it.each([
+    ["Cebuano", "Upat ka libo"],
+    ["Cebuano hundreds", "Duha ka gatos"],
+    ["Cebuano tens", "Kap-atan nga premium"],
+    ["Filipino, with the linker", "Dalawang daang premium"],
+    ["Filipino teens", "Labimpito"],
+    ["Filipino tens", "Dalawampu't isa"],
+    ["Filipino thousands", "Sanlibong premium"],
+    ["Spanish", "Cuatro mil"],
+    ["Filipino Spanish", "Singkwenta"],
+    ["a Roman numeral", "Premium XIV"],
+    ["a two-letter Roman numeral", "Premium (XL)"],
+  ])("inv.i1.no-model-numbers: refuses an item label that spells a number in %s", (_label, name) => {
+    expect(isInvoiceItemLabel(name)).toBe(false);
+    const items = HERO_QUOTE.items.map((i) => (i.key === "PREMIUM" ? { ...i, name } : i));
+    expect(planFor({ ...HERO_QUOTE, items })).toThrow(/number/);
+  });
+
+  it("keeps words that only look like numbers: a grade letter, an English 'once', Tagalog 'una' (first)", () => {
+    for (const name of ["Grade C premium", "Bonus paid once", "Unang bayad", "Mix of grades", "Civil costs"])
+      expect(isInvoiceItemLabel(name)).toBe(true);
+  });
+
+  it("refuses a label that names another quote line ('Quality bonus' on the premium line)", () => {
+    expect(itemLabelsProblem(["Quality bonus", "Premium", "Disbursement costs"])).toMatch(
+      /item 1: a label may not name another line/,
+    );
+    expect(itemLabelsProblem(["Fairtrade premium", "Bean quality bonus", "Premium costs"])).toMatch(
+      /item 3: a label may not name another line \("premium"\)/,
+    );
+    expect(itemLabelsProblem(["Premium", "Audit fees", "Disbursement costs"])).toMatch(/item 2/);
+    const swapped = HERO_QUOTE.items.map((i, n, all) => ({
+      ...i,
+      name: (all[(n + 1) % 3] as typeof i).name,
+    }));
+    expect(planFor({ ...HERO_QUOTE, items: swapped })).toThrow(/another line/);
+  });
+
   it("accepts register §8 labels: letters, spaces and ,'()-, a letter first, no number words", () => {
     for (const name of [
       "Premium",

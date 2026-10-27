@@ -32,19 +32,62 @@ export const INVOICE_ITEM_KEYS: readonly QuoteItemKey[] = ["PREMIUM", "BONUS", "
 export const INVOICE_ITEM_LABEL = /^[A-Za-z][A-Za-z ,'()-]{0,39}$/;
 
 /**
- * English number words. Letters alone can still spell an amount ("Four thousand dollars"), so I1 also
- * refuses these at the money edge. Ordinals ("Second payment") and fractions carry no amount and pass.
+ * Number words. Letters alone can still spell an amount ("Four thousand dollars", "Upat ka libo"), so
+ * I1 also refuses these at the money edge, in the languages of the co-op, the brand and its statements:
+ * English, Filipino (with the linker: "dalawang daan"), Cebuano ("duha ka gatos") and Spanish with its
+ * Filipino spellings ("singkwenta"). Ordinals ("Second payment", Tagalog "una") and fractions carry no
+ * amount and pass. So do the few that are everyday English ("paid once", "dose", "dyes"): an amount
+ * spelled with them still needs a word listed here ("once mil", "dose mil").
  */
-const NUMBER_WORD =
-  /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fourty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|trillions?|dozens?)\b/i;
+const NUMBER_WORDS = [
+  // English
+  "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen",
+  "sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fourty|fifty|sixty|seventy|eighty|ninety",
+  "hundreds?|thousands?|millions?|billions?|trillions?|dozens?",
+  // Filipino, with the linker -ng / -g ("isang libo", "dalawang daan"); the teens are labin-/labim-/labing-
+  "(?:isa|dalawa|tatlo|apat|lima|anim|pito|walo|siyam|sampu|dalawampu|tatlumpu|apatnapu|limampu|animnapu",
+  "pitumpu|walumpu|siyamnapu|daan|raan|sandaan|libo|sanlibo|milyon)(?:ng|g)?|labi(?:ng|n|m)[a-z-]*",
+  // Cebuano ("upat ka libo")
+  "duha|tulo|upat|unom|napulo|kawhaan|katloan|kap-atan|kalim-an|kan-uman|kapitoan|kawaloan|kasiyaman",
+  "gatos|sangatos|baynte|traynta",
+  // Spanish, and its Filipino spellings
+  "uno|dos|tres|cuatro|kwatro|cinco|singko|seis|sais|siete|siyete|ocho|otso|nueve|nuwebe|diez|diyes",
+  "onse|doce|trece|trese|catorce|katorse|quince|kinse|veinte|beinte|bente|treinta|trenta|cuarenta",
+  "kwarenta|cincuenta|singkwenta|sesenta|setenta|ochenta|otsenta|noventa|nobenta|cien|cientos?|siyento",
+  "quinientos|mil|millon|millones",
+].join("|");
+const NUMBER_WORD = new RegExp(`\\b(?:${NUMBER_WORDS})\\b`, "i");
+
+/**
+ * A Roman numeral of two or more capitals ("XIV", "XL"): it spells an amount just as "fourteen" does. A
+ * lone capital ("Grade C") and a lowercase word ("mix") are letters, not numerals.
+ */
+const ROMAN_NUMERAL = /^M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$/;
+
+function romanNumeral(label: string): string | null {
+  for (const token of label.split(/[^A-Za-z]+/)) {
+    if (token.length >= 2 && ROMAN_NUMERAL.test(token)) return token;
+  }
+  return null;
+}
+
+/**
+ * The words that name each quote line. A label may not use another line's ("Quality bonus" on the
+ * premium line would bill the brand's premium under the bonus's name).
+ */
+const LINE_WORDS: Readonly<Record<QuoteItemKey, RegExp>> = {
+  PREMIUM: /\bpremiums?\b/i,
+  BONUS: /\b(?:bonus(?:es)?|quality)\b/i,
+  DISBURSEMENT: /\b(?:disbursements?|costs?|fees?|expenses?)\b/i,
+};
 
 /** Why `label` is not a register §8 item label, or null. */
 function itemLabelProblem(label: unknown): string | null {
   if (typeof label !== "string" || label.trim() !== label || !INVOICE_ITEM_LABEL.test(label)) {
     return "a label is 1-40 letters, spaces and ,'()-, starting with a letter";
   }
-  const word = NUMBER_WORD.exec(label);
-  return word ? `a label may not spell a number ("${word[0]}")` : null;
+  const word = NUMBER_WORD.exec(label)?.[0] ?? romanNumeral(label);
+  return word ? `a label may not spell a number ("${word}")` : null;
 }
 
 /** True when `name` is a register §8 item label (letters only, no number words). */
@@ -53,9 +96,9 @@ export function isInvoiceItemLabel(name: unknown): name is string {
 }
 
 /**
- * Why `labels` cannot name the invoice's three lines, or null: one label per quote line, each a
- * register §8 label, all distinct (ignoring case). The same check covers the agent's labels and the
- * quote's own names.
+ * Why `labels` cannot name the invoice's three lines, or null: one label per quote line, in quote
+ * order, each a register §8 label, all distinct (ignoring case), and none naming another line. The
+ * same check covers the agent's labels, the quote's own names and an invoice offered for adoption.
  */
 export function itemLabelsProblem(labels: readonly unknown[]): string | null {
   if (labels.length !== INVOICE_ITEM_KEYS.length) return "there must be three labels, one per quote line";
@@ -64,7 +107,15 @@ export function itemLabelsProblem(labels: readonly unknown[]): string | null {
     if (problem) return `item ${i + 1}: ${problem}`;
   }
   const folded = new Set(labels.map((l) => (l as string).toLowerCase()));
-  return folded.size === labels.length ? null : "the three labels must be distinct";
+  if (folded.size !== labels.length) return "the three labels must be distinct";
+  for (const [i, label] of (labels as readonly string[]).entries()) {
+    for (const other of INVOICE_ITEM_KEYS) {
+      if (other === INVOICE_ITEM_KEYS[i]) continue;
+      const named = LINE_WORDS[other].exec(label);
+      if (named) return `item ${i + 1}: a label may not name another line ("${named[0].toLowerCase()}")`;
+    }
+  }
+  return null;
 }
 
 /**
