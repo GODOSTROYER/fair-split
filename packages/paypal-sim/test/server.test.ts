@@ -175,6 +175,20 @@ describe("mounting under a base path with an admin token", () => {
   });
 });
 
+describe("ports", () => {
+  it("binds an ephemeral port unless one is given, and reports the port it bound", async () => {
+    const server = await startServer({ speed: 0, logger: () => {} });
+    try {
+      expect(server.port).toBeGreaterThan(0);
+      expect(server.url).toBe(`http://127.0.0.1:${server.port}`);
+      expect(server.simulator.certUrl.startsWith(`${server.url}/sim/certs/`)).toBe(true);
+      expect((await fetch(`${server.url}/sim/health`)).status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
+});
+
 describe("configuration", () => {
   it("reads PP_MODE (simulator by default) and SIM_* variables", () => {
     expect(resolvePayPalMode({})).toBe("simulator");
