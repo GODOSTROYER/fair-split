@@ -1,0 +1,1 @@
+ALTER TABLE "webhook_transmissions" ADD COLUMN "claim_token" uuid;
