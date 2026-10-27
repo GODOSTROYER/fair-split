@@ -1,12 +1,13 @@
 // The Proof page's metrics and its public stream, on the seed's showcase run: every figure equals the register's
 // (IC-03, read from @fairsplit/seed), and the public stream carries aggregate counters only, forward-only.
-import { type ApiError, PAYOUT_ITEM_RANK } from "@fairsplit/contracts";
-import { appendEvent } from "@fairsplit/db";
-import { format } from "@fairsplit/domain";
+import { type ApiError, PAYOUT_ITEM_RANK, type PayoutItemStatus } from "@fairsplit/contracts";
+import { appendEvent, schema } from "@fairsplit/db";
+import { format, senderItemId } from "@fairsplit/domain";
 import { getFigures, getLines, getRun } from "@fairsplit/seed";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ProofMetrics } from "../../proof/metrics.js";
-import { PROOF_PROGRESS_EVENT, ProofProgress } from "../../proof/stream.js";
+import { foldProgress, PROOF_PROGRESS_EVENT, ProofProgress } from "../../proof/stream.js";
 import { attestCash, loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
 
@@ -108,6 +109,26 @@ describe("GET /v1/proof/:runSlug/events (public, aggregates only)", () => {
         eventId: "WH-STALE",
       },
     });
+    // a re-route item lives in its own batch: like /metrics, the public counters never count it (nothing sent)
+    const reroute = senderItemId(getRun().runSeq, rhea.memberNo, 1);
+    await appendEvent(t.deps.db, {
+      workspaceId: w.workspaceId,
+      runId: w.runId,
+      type: "item.updated",
+      actor: { kind: "paypal", id: "paypal:webhook" },
+      provenance: "seeded",
+      payload: {
+        itemId: "y",
+        senderItemId: reroute,
+        memberNo: rhea.memberNo,
+        payoutItemId: "REROUTE-1",
+        from: "SUBMITTED",
+        to: "SUCCESS",
+        rank: PAYOUT_ITEM_RANK.SUCCESS,
+        source: "webhook",
+        eventId: "WH-REROUTE",
+      },
+    });
     await appendEvent(t.deps.db, {
       workspaceId: w.workspaceId,
       runId: w.runId,
@@ -155,5 +176,61 @@ describe("GET /v1/proof/:runSlug/events (public, aggregates only)", () => {
   it("NOT_FOUND for an unknown run", async () => {
     const r = await t.request("/v1/proof/2026A-r31337/events", { headers: { accept: "text/event-stream" } });
     expect(r.status).toBe(404);
+  });
+
+  it("NOT_FOUND (PROOF_NOT_READY) before the batch is posted: nobody watches an unposted run live", async () => {
+    const fx = await t.fixture({ withRun: true, runState: "IN_REVIEW" });
+    const [run] = await t.deps.db
+      .select({ slug: schema.payRuns.runSlug })
+      .from(schema.payRuns)
+      .where(eq(schema.payRuns.id, must(fx.runId)));
+    const r = await t.request(`/v1/proof/${must(run).slug}/events`, {
+      headers: { accept: "text/event-stream" },
+    });
+    expect(r.status).toBe(404);
+    expect(await r.json()).toMatchObject({
+      code: "NOT_FOUND",
+      details: { reason: "PROOF_NOT_READY", runState: "IN_REVIEW" },
+    });
+  });
+
+  it("RATE_LIMITED: opening the stream spends a public-read slot of the caller's hashed IP", async () => {
+    const headers = { "true-client-ip": "198.51.100.77" };
+    for (let i = 0; i < 120; i++) {
+      expect((await t.request("/v1/proof/2026A-r999998/metrics", { headers })).status).toBe(404);
+    }
+    const r = await t.request(`/v1/proof/${w.runSlug}/events`, {
+      headers: { ...headers, accept: "text/event-stream" },
+    });
+    expect(r.status).toBe(429);
+    expect(((await r.json()) as ApiError).code).toBe("RATE_LIMITED");
+  });
+});
+
+describe("foldProgress", () => {
+  const primary = () =>
+    new Map<string, PayoutItemStatus>(getRun().items.map((i) => [i.senderItemId, "SUBMITTED"]));
+  const item = (id: string, to: PayoutItemStatus) => ({
+    type: "item.updated" as const,
+    payload: { senderItemId: id, to },
+  });
+
+  it("counts only the primary batch's items, as /metrics does; a re-route item moves nothing", () => {
+    const state: Parameters<typeof foldProgress>[0] = { runState: "POSTED", items: primary() };
+    const reroute = senderItemId(getRun().runSeq, must(getRun().items[0]).memberNo, 1);
+    expect(foldProgress(state, item(reroute, "SUCCESS"))).toBe(false);
+    expect(state.items.size).toBe(getRun().items.length);
+    expect(state.items.has(reroute)).toBe(false);
+  });
+
+  it("inv.i5.forward-only: a primary item only moves up in rank, a run only forward", () => {
+    const state: Parameters<typeof foldProgress>[0] = { runState: "POSTED", items: primary() };
+    const id = must(getRun().items[0]).senderItemId;
+    expect(foldProgress(state, item(id, "SUCCESS"))).toBe(true);
+    expect(foldProgress(state, item(id, "PENDING"))).toBe(false);
+    expect(state.items.get(id)).toBe("SUCCESS");
+    expect(foldProgress(state, { type: "run.state", payload: { to: "SETTLED" } })).toBe(true);
+    expect(foldProgress(state, { type: "run.state", payload: { to: "POSTED" } })).toBe(false);
+    expect(state.runState).toBe("SETTLED");
   });
 });

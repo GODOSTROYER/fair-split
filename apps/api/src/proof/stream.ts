@@ -2,9 +2,13 @@
 // carries only aggregate counters ("3 of 8 confirmed") and the run's state, never a member, item or receiver:
 // the payloads of the underlying `item.updated` events never leave the server.
 //
+// Like every public Proof read it exists only once the batch is posted (404 PROOF_NOT_READY before: nobody
+// watches an unposted run move through review live) and it spends one of the caller's public-read slots.
+//
 // Each stream starts from the database's current counts and folds forward-only updates onto them (an item
 // status only moves to a higher rank, a run only forward), so a replay from Last-Event-ID can never move a
-// counter backwards. Clients read the starting picture from `/v1/proof/:runSlug/metrics` (`progress`).
+// counter backwards. The counters are the primary batch's, exactly as `/v1/proof/:runSlug/metrics` (`progress`)
+// reports them, which is where clients read the starting picture.
 import {
   PAY_RUN_RANK,
   PAYOUT_ITEM_RANK,
@@ -22,7 +26,8 @@ import type { AppContext, AppEnv } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
 import { parseLastEventId } from "../sse/envelope.js";
 import { publicCaps } from "../sse/routes.js";
-import { findRunBySlug } from "./bundle.js";
+import { findRunBySlug, notReady, proofReady } from "./bundle.js";
+import { takePublicRead } from "./limits.js";
 import { documentRawRoute, RUN_SLUG_PARAM } from "./openapi.js";
 
 export const PROOF_STREAM_PATH = "/v1/proof/:runSlug/events";
@@ -94,7 +99,12 @@ export async function currentItemStatuses(
   return out;
 }
 
-/** Folds one stored event onto the counters; returns whether anything moved. */
+/**
+ * Folds one stored event onto the counters; returns whether anything moved. `state.items` is the primary batch,
+ * read when the stream opened: the batch and all its items are written SUBMITTED with the POSTING transition,
+ * before the Proof (and so this stream) exists. An item outside it is a re-route's (`r{seq}x{n}-M-…`, its own
+ * batch), which the public counters never count, like `/metrics`.
+ */
 export function foldProgress(
   state: { runState: PayRunState; items: Map<string, PayoutItemStatus> },
   e: Pick<StoredRunEvent, "type" | "payload">,
@@ -109,8 +119,8 @@ export function foldProgress(
     const id = typeof e.payload.senderItemId === "string" ? e.payload.senderItemId : null;
     const to = PayoutItemStatusSchema.safeParse(e.payload.to);
     if (!id || !to.success) return false;
-    const cur = state.items.get(id) ?? "SUBMITTED";
-    if (state.items.has(id) && PAYOUT_ITEM_RANK[to.data] <= PAYOUT_ITEM_RANK[cur]) return false;
+    const cur = state.items.get(id);
+    if (cur === undefined || PAYOUT_ITEM_RANK[to.data] <= PAYOUT_ITEM_RANK[cur]) return false;
     state.items.set(id, to.data);
     return true;
   }
@@ -124,7 +134,7 @@ export function mountProofStream(app: OpenAPIHono<AppEnv>): void {
     tag: "proof",
     summary: 'The public Proof stream: aggregate progress only ("3 of 8 confirmed")',
     description:
-      "Server-sent events named `proof.progress`, each the run's state and its item counts, moved forward only (an item never to a lower rank, a run never back). Never an item, a member or a receiver. Anonymous; at most 3 streams per hashed IP. Resume with Last-Event-ID; read the starting picture from `/v1/proof/{runSlug}/metrics` (`progress`).",
+      "Server-sent events named `proof.progress`, each the run's state and its primary batch's item counts, moved forward only (an item never to a lower rank, a run never back). Never an item, a member or a receiver. Anonymous; published once the batch is posted (404 `PROOF_NOT_READY` before); at most 3 streams per hashed IP, each opening spending one public Proof read. Resume with Last-Event-ID; read the starting picture from `/v1/proof/{runSlug}/metrics` (`progress`).",
     auth: "none",
     contentType: "text/event-stream",
     body: ProofProgress,
@@ -138,10 +148,12 @@ export function mountProofStream(app: OpenAPIHono<AppEnv>): void {
   app.get(toHonoPath(PROOF_STREAM_PATH), async (c) => {
     const ctx = c as AppContext;
     const runSlug = c.req.param("runSlug") ?? "";
+    takePublicRead(ctx);
     if (!RunSlug.safeParse(runSlug).success) throw problem.notFound("No such pay run.");
     const deps = ctx.get("deps");
     const run = await findRunBySlug(deps.db, runSlug, deps.clock.now());
     if (!run) throw problem.notFound("No such pay run.");
+    if (!proofReady(run)) notReady(run);
     const state = { runState: run.state, items: await currentItemStatuses(deps.db, run.workspaceId, run.id) };
     return deps.sse.open(ctx, {
       scope: { workspaceId: run.workspaceId, runId: run.id },
