@@ -24,8 +24,8 @@ import { problem } from "../lib/problem.js";
 import {
   findRunBySlug,
   foldItemEvents,
-  loadProofFacts,
-  notReady,
+  loadRunFacts,
+  type ProofFacts,
   type ProofRun,
   proofReady,
   readSnapshot,
@@ -60,7 +60,14 @@ export const BrandView = z.strictObject({
     statusWords: z.string(),
     amount: MoneyDTO,
     reference: z.string(),
+    /**
+     * W-PF-02 `unpaid`: PayPal's payer view of the invoice ("Pay invoice in PayPal"). The sandbox sends no
+     * email, so this is the brand's way in. Null once paid (or before the invoice exists).
+     */
+    payerViewUrl: z.url().nullable(),
   }),
+  /** True from the batch's POST on: the Proof (six plates) exists. Before that the view shows the invoice. */
+  proofReady: z.boolean(),
   totals: z.strictObject({
     members: z.int().nonnegative(),
     net: MoneyDTO,
@@ -97,7 +104,6 @@ export async function brandRun(
   if (!run || run.workspaceId !== credential.workspaceId) {
     throw problem.notFound("No such pay run for this link.");
   }
-  if (!proofReady(run)) notReady(run);
   return run;
 }
 
@@ -128,11 +134,8 @@ interface MemberRow {
   plots: { code: string; trees: number; areaHa: string | null; lat: string | null; lon: string | null }[];
 }
 
-async function brandRows(
-  db: DbOrTx,
-  run: ProofRun,
-): Promise<{ rows: MemberRow[]; facts: Awaited<ReturnType<typeof loadProofFacts>> }> {
-  const facts = await loadProofFacts(db, run);
+async function brandRows(db: DbOrTx, run: ProofRun): Promise<{ rows: MemberRow[]; facts: ProofFacts }> {
+  const facts = await loadRunFacts(db, run);
   const ws = run.workspaceId;
   const ml = schema.memberLines;
   const lines = await db
@@ -234,6 +237,19 @@ async function brandRows(
 }
 
 /** The brand view, read from one snapshot. */
+/** Invoice statuses in which the brand still has something to pay. */
+const UNPAID = new Set(["SENT", "UNPAID", "PARTIALLY_PAID", "SCHEDULED"]);
+
+/** Only an https link (or the sandbox simulator's http one) is ever handed out as the payer view. */
+function safeUrl(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function brandView(db: DbOrTx, run: ProofRun): Promise<BrandView> {
   return readSnapshot(db, (tx) => readBrandView(tx, run));
 }
@@ -245,6 +261,7 @@ async function readBrandView(db: DbOrTx, run: ProofRun): Promise<BrandView> {
       invoiceNumber: schema.invoices.invoiceNumber,
       status: schema.invoices.status,
       amountCents: schema.invoices.amountCents,
+      payerViewUrl: schema.invoices.payerViewUrl,
     })
     .from(schema.invoices)
     .where(and(eq(schema.invoices.workspaceId, run.workspaceId), eq(schema.invoices.runId, run.id)))
@@ -275,7 +292,9 @@ async function readBrandView(db: DbOrTx, run: ProofRun): Promise<BrandView> {
       statusWords: INVOICE_STATUS_LABELS[status]?.en ?? status,
       amount: format.moneyDTO(Number(inv?.amountCents ?? 0)),
       reference: invoiceReference(run.rateCardSha256),
+      payerViewUrl: UNPAID.has(status) && inv?.payerViewUrl ? safeUrl(inv.payerViewUrl) : null,
     },
+    proofReady: proofReady(run),
     totals: {
       members: rows.length,
       net: format.moneyDTO(sum(rows)),

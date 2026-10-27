@@ -23,6 +23,7 @@ import { problem } from "../lib/problem.js";
 import { parseLastEventId } from "../sse/envelope.js";
 import { publicCaps } from "../sse/routes.js";
 import { findRunBySlug } from "./bundle.js";
+import { documentRawRoute, RUN_SLUG_PARAM } from "./openapi.js";
 
 export const PROOF_STREAM_PATH = "/v1/proof/:runSlug/events";
 export const PROOF_PROGRESS_EVENT = "proof.progress";
@@ -117,6 +118,23 @@ export function foldProgress(
 }
 
 export function mountProofStream(app: OpenAPIHono<AppEnv>): void {
+  documentRawRoute(app, {
+    path: "/v1/proof/{runSlug}/events",
+    operationId: "proof.events",
+    tag: "proof",
+    summary: 'The public Proof stream: aggregate progress only ("3 of 8 confirmed")',
+    description:
+      "Server-sent events named `proof.progress`, each the run's state and its item counts, moved forward only (an item never to a lower rank, a run never back). Never an item, a member or a receiver. Anonymous; at most 3 streams per hashed IP. Resume with Last-Event-ID; read the starting picture from `/v1/proof/{runSlug}/metrics` (`progress`).",
+    auth: "none",
+    contentType: "text/event-stream",
+    body: ProofProgress,
+    params: [RUN_SLUG_PARAM],
+    headers: [{ name: "Last-Event-ID", description: "Resume after this event id (SSE replay)" }],
+    errors: [
+      { status: 404, codes: ["NOT_FOUND"] },
+      { status: 429, codes: ["RATE_LIMITED"] },
+    ],
+  });
   app.get(toHonoPath(PROOF_STREAM_PATH), async (c) => {
     const ctx = c as AppContext;
     const runSlug = c.req.param("runSlug") ?? "";

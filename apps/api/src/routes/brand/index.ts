@@ -11,6 +11,7 @@ import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
 import { credentialResult } from "../../middleware/credential.js";
 import { BrandView, brandCsv, brandRun, brandView } from "../../proof/brand.js";
+import { documentRawRoute, RUN_SLUG_PARAM } from "../../proof/openapi.js";
 
 export const BRAND_EXPORT_PATH = "/v1/brand/:runSlug/export.csv";
 
@@ -42,6 +43,23 @@ export default defineRouteFolder({
       },
     );
 
+    documentRawRoute(r.app, {
+      path: "/v1/brand/{runSlug}/export.csv",
+      operationId: "brand.exportCsv",
+      tag: "brand",
+      summary: "The brand's CSV export: names, full receivers, hashes and plots, one row per member line",
+      description:
+        "The only place names, full receivers and plot coordinates appear (C-23, under the data-sharing agreement). UTF-8 with a byte-order mark; text cells a spreadsheet would run as a formula are neutralised. Same readers as the brand view.",
+      auth: "public",
+      contentType: "text/csv",
+      body: { type: "string" },
+      params: [RUN_SLUG_PARAM],
+      errors: [
+        { status: 401, codes: ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED"] },
+        { status: 403, codes: ["FORBIDDEN"] },
+        { status: 404, codes: ["NOT_FOUND"] },
+      ],
+    });
     r.app.get(toHonoPath(BRAND_EXPORT_PATH), async (c) => {
       const ctx = c as AppContext;
       const runSlug = c.req.param("runSlug") ?? "";

@@ -39,7 +39,9 @@ describe("GET /v1/brand/:runSlug", () => {
     expect(v.invoice).toMatchObject({
       invoiceNumber: `FS-${w.runSlug}`,
       statusWords: "Marked as paid in sandbox",
+      payerViewUrl: null,
     });
+    expect(v.proofReady).toBe(true);
     const m014 = must(v.members.find((m) => m.memberNo === "M-014"));
     const member = must(getMembers().find((m) => m.memberNo === "M-014"));
     expect(m014).toMatchObject({
@@ -50,6 +52,40 @@ describe("GET /v1/brand/:runSlug", () => {
     const text = JSON.stringify(v);
     for (const it of getRun().items) expect(text).not.toContain(it.receiver);
     expect(v.exportPath).toBe(`/v1/brand/${w.runSlug}/export.csv`);
+  });
+
+  it("before posting it is the invoice (W-PF-02 unpaid): the payer view link, no Proof yet", async () => {
+    const fx = await t.fixture({ withRun: true, runState: "INVOICED" });
+    const runId = must(fx.runId);
+    await t.deps.db.insert(schema.invoices).values({
+      workspaceId: fx.workspaceId,
+      runId,
+      paypalInvoiceId: "INV2-TEST-UNPAID",
+      invoiceNumber: "FS-UNPAID-TEST",
+      status: "UNPAID",
+      amountCents: 1000n,
+      dueCents: 1000n,
+      currency: "USD",
+      payerViewUrl: "https://www.sandbox.paypal.com/invoice/p/#INV2-TEST-UNPAID",
+      provenance: "simulated_rail",
+    });
+    const [run] = await t.deps.db
+      .select({ slug: schema.payRuns.runSlug })
+      .from(schema.payRuns)
+      .where(eq(schema.payRuns.id, runId));
+    const brand = t.credentials.brandLink({ workspaceId: fx.workspaceId });
+    const r = await t.json<BrandView>(`/v1/brand/${must(run).slug}`, { as: t.credentials.bearer(brand) });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body).toMatchObject({
+      proofReady: false,
+      invoice: {
+        status: "UNPAID",
+        statusWords: "Waiting for payment",
+        payerViewUrl: "https://www.sandbox.paypal.com/invoice/p/#INV2-TEST-UNPAID",
+      },
+      members: [],
+    });
+    expect((await t.json(`/v1/proof/${must(run).slug}`)).status).toBe(404);
   });
 
   it("the brand persona, the treasurer and a judge read it in their own workspace", async () => {

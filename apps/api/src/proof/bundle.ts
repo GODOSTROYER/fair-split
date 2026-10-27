@@ -255,12 +255,22 @@ export function loadProofFacts(db: DbOrTx, run: ProofRun): Promise<ProofFacts> {
   return readSnapshot(db, (tx) => readFacts(tx, run));
 }
 
-async function readFacts(db: DbOrTx, run: ProofRun): Promise<ProofFacts> {
+/**
+ * A run's facts at any state (the brand view before posting): no items before the batch exists, and pools of
+ * zero while nothing can be quoted yet. Never signs anything.
+ */
+export function loadRunFacts(db: DbOrTx, run: ProofRun): Promise<ProofFacts> {
+  return readSnapshot(db, (tx) => readFacts(tx, run, false));
+}
+
+async function readFacts(db: DbOrTx, run: ProofRun, strict = true): Promise<ProofFacts> {
   const ledger = await readWorkspaceLedger(db, run.workspaceId);
-  const invoice = await readInvoice(db, run);
+  const invoice = await readInvoiceOrNull(db, run, strict);
   const lines = await readLines(db, run);
-  const batch = await readItems(db, run, ledger);
-  const pools = await readPools(db, run, ledger);
+  const batch = await readItems(db, run, ledger, strict);
+  const pools = strict
+    ? await readPools(db, run, ledger)
+    : await readPools(db, run, ledger).catch(() => ({ premiumPoolCents: 0, bonusPoolCents: 0 }));
   return {
     run,
     lines: lines.facts,
@@ -270,10 +280,19 @@ async function readFacts(db: DbOrTx, run: ProofRun): Promise<ProofFacts> {
     ledger,
     provenance: weakestProvenance([
       run.provenance,
-      ...(invoice.provenance ? [invoice.provenance] : []),
+      ...(invoice?.provenance ? [invoice.provenance] : []),
       ...batch.provenances,
     ]),
   };
+}
+
+async function readInvoiceOrNull(db: DbOrTx, run: ProofRun, strict: boolean) {
+  try {
+    return await readInvoice(db, run);
+  } catch (err) {
+    if (strict) throw err;
+    return null;
+  }
 }
 
 /** Builds the full (unredacted) bundle for a posted run, from one snapshot, and signs its checkpoint. */
@@ -784,6 +803,7 @@ async function readItems(
   db: DbOrTx,
   run: ProofRun,
   ledger: readonly LedgerEntry[] | null,
+  strict = true,
 ): Promise<{
   senderBatchId: string;
   batchSha256: string;
@@ -805,7 +825,10 @@ async function readItems(
     .limit(1);
   const senderBatchId = batch?.senderBatchId ?? run.senderBatchId;
   const batchSha256 = batch?.batchSha256 ?? run.batchSha256;
-  if (!senderBatchId || !batchSha256) notReady(run);
+  if (!senderBatchId || !batchSha256) {
+    if (strict) notReady(run);
+    return { senderBatchId: "", batchSha256: "", items: [], facts: [], provenances: [] };
+  }
   if (!batch) {
     return { senderBatchId, batchSha256, items: [], facts: [], provenances: [] };
   }

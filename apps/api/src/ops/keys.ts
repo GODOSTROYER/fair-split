@@ -9,7 +9,7 @@
 import { DeviceKeyId, Ed25519PublicKeyHex, IsoDateTime, OfficerKey, Uuid } from "@fairsplit/contracts";
 import { appendLedger, type Db, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
 import { ed25519Verify, jcsBytes, sha256Hex } from "@fairsplit/domain";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { approverIdOf, publicKeyHexOf, storedPublicKeyOf } from "../proof/keys.js";
@@ -214,7 +214,14 @@ export async function revokeKey(
     await tx
       .update(schema.deviceKeys)
       .set({ revokedAt: now })
-      .where(and(eq(schema.deviceKeys.workspaceId, workspaceId), eq(schema.deviceKeys.id, row.id)));
+      // compare-and-set: only a key that is still live is revoked (the workspace lock serialises callers)
+      .where(
+        and(
+          eq(schema.deviceKeys.workspaceId, workspaceId),
+          eq(schema.deviceKeys.id, row.id),
+          isNull(schema.deviceKeys.revokedAt),
+        ),
+      );
     await appendLedger(tx, scope, {
       kind: "key.revoked",
       payload: { keyId: row.keyId, revokedAt: now.toISOString(), reasonSha256: sha256Hex(req.reason) },

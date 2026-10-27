@@ -14,6 +14,7 @@ import { getPhotos } from "@fairsplit/seed";
 import { z } from "zod";
 import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
+import { documentRawRoute } from "../../proof/openapi.js";
 import { readableStatement } from "../../statements/access.js";
 import { staticDirs } from "../../static.js";
 
@@ -105,6 +106,21 @@ export default defineRouteFolder({
   folder: "media",
   commands: {},
   routes: (r) => {
+    documentRawRoute(r.app, {
+      path: "/media/archived/{file}",
+      operationId: "media.archivedTile",
+      tag: "media",
+      summary: "OD-4's hatched archived-photo tile for P01–P54, with its read date in words",
+      description:
+        "Those photos are never generated (the plan's OD-4); the tile says so. Immutable; drawn from the seed's photo register.",
+      auth: "none",
+      contentType: "image/svg+xml",
+      body: { type: "string" },
+      params: [
+        { name: "file", schema: { type: "string", pattern: "^P\\d{2}\\.svg$", examples: ["P07.svg"] } },
+      ],
+      errors: [{ status: 404, codes: ["NOT_FOUND"] }],
+    });
     r.app.get("/media/archived/:file", (c) => {
       const m = ARCHIVED_RE.exec(c.req.param("file") ?? "");
       const photoId = m?.[1];
