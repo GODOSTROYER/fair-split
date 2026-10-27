@@ -70,6 +70,15 @@ const VALID_BODIES: Partial<Record<ApiCommandName, unknown>> = {
   setFlag: { flag: "kill_payouts", on: true },
 };
 
+/** The commands a slice has filled in; every other non-SSE command still answers the shell's 501 placeholder. */
+const FILLED_IN: ReadonlySet<string> = new Set(
+  ROUTE_FOLDER_MODULES.flatMap((mod) =>
+    Object.entries(mod.commands as Record<string, unknown>)
+      .filter(([, handler]) => !isNotImplemented(handler))
+      .map(([name]) => name),
+  ),
+);
+
 describe("route registry", () => {
   let t: TestApp;
   let token: string;
@@ -103,17 +112,28 @@ describe("route registry", () => {
     }
   });
 
-  it("reports which commands are filled in (all 501 in the shell)", () => {
-    const pending = t.app.registry.commands.filter((c) => !c.implemented).map((c) => c.name);
-    const sse = t.app.registry.commands.filter((c) => c.slice === "shell").map((c) => c.name);
+  it("reports every IC-01 command once, and which ones a slice has filled in", () => {
+    const statuses = t.app.registry.commands;
+    expect(statuses.map((c) => c.name).sort()).toEqual(Object.keys(API_COMMANDS).sort());
+    const sse = statuses.filter((c) => c.slice === "shell").map((c) => c.name);
     expect(sse.sort()).toEqual(["runEvents", "workspaceEvents"]);
-    expect(pending.length + sse.length).toBe(Object.keys(API_COMMANDS).length);
+    for (const c of statuses) {
+      if (c.slice === "shell") {
+        expect(c.implemented, c.name).toBe(true);
+        continue;
+      }
+      expect(c.slice, c.name).toBe(ROUTE_FOLDERS[c.folder as RouteFolder]);
+      expect(c.implemented, c.name).toBe(FILLED_IN.has(c.name));
+    }
   });
 
   for (const name of Object.keys(API_COMMANDS) as ApiCommandName[]) {
     const cmd = API_COMMANDS[name];
     if ("sse" in cmd && cmd.sse) continue;
-    it(`${cmd.method} ${cmd.path} (${name}) is routed and answers 501 NOT_IMPLEMENTED as an ApiError`, async () => {
+    const send = async () => {
+      expect(cmd.method === "GET" || VALID_BODIES[name] !== undefined, `${name} needs a sample body`).toBe(
+        true,
+      );
       const text = JSON.stringify(VALID_BODIES[name] ?? {});
       const init =
         cmd.method === "POST"
@@ -126,10 +146,28 @@ describe("route registry", () => {
             }
           : {};
       const as = cmd.auth === "frame_or_session" ? { as: t.credentials.bearer(token) } : {};
-      const r = await t.json<ApiError>(urlOf(name), { ...init, ...as });
-      expect(cmd.method === "GET" || VALID_BODIES[name] !== undefined, `${name} needs a sample body`).toBe(
-        true,
-      );
+      return t.json<ApiError>(urlOf(name), { ...init, ...as });
+    };
+
+    if (FILLED_IN.has(name)) {
+      it(`${cmd.method} ${cmd.path} (${name}) is routed to its slice's handler, never the 501 placeholder`, async () => {
+        const r = await send();
+        expect(r.status, JSON.stringify(r.body)).not.toBe(501);
+        if (r.status < 400) return; // the shell already checked the body against the contract's response schema
+        // this app has no database, so a handler that needs one fails: as an ApiError, from its own route
+        const body = ApiError.parse(r.body);
+        expect(body.status).toBe(r.status);
+        expect(body.details?.reason).not.toBe("NOT_IMPLEMENTED");
+        expect(
+          r.status === 404 && body.message.startsWith("No route for"),
+          "the command's route is mounted",
+        ).toBe(false);
+      });
+      continue;
+    }
+
+    it(`${cmd.method} ${cmd.path} (${name}) is routed and answers 501 NOT_IMPLEMENTED as an ApiError`, async () => {
+      const r = await send();
       expect(r.status, JSON.stringify(r.body)).toBe(501);
       const body = ApiError.parse(r.body);
       expect(body).toMatchObject({
@@ -171,14 +209,28 @@ describe("route registry", () => {
       });
       expect(r.headers.get("x-fs-rail"), name).toBe("simulated");
     }
-    const api = t.client(token);
-    const r = await api.result("markPaid", { params: { runSlug: "2026A-r37" } });
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(isNotImplementedError(r.error)).toBe(true);
-    expect(r.error).toBeInstanceOf(ApiClientError);
-    expect((r.error as ApiClientError).rail).toBe("simulated");
-    expect((r.error as ApiClientError).details).toMatchObject({ command: "markPaid", slice: "runs" });
+    // the placeholder seen through the typed client, on a stand-in runs folder (still true once RUNS fills it in)
+    const stub = await createTestApp({
+      folders: [
+        defineRouteFolder({
+          folder: "runs",
+          commands: { markPaid: notImplemented, setFlag: notImplemented },
+        }),
+      ],
+    });
+    try {
+      stub.credentials.registerWorkspace(ws);
+      const api = stub.client(await stub.credentials.frameToken({ workspaceId: ws }));
+      const r = await api.result("markPaid", { params: { runSlug: "2026A-r37" } });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(isNotImplementedError(r.error)).toBe(true);
+      expect(r.error).toBeInstanceOf(ApiClientError);
+      expect((r.error as ApiClientError).rail).toBe("simulated");
+      expect((r.error as ApiClientError).details).toMatchObject({ command: "markPaid", slice: "runs" });
+    } finally {
+      await stub.close();
+    }
   });
 
   it("refuses a folder that handles another folder's command, and a task claimed twice", () => {
