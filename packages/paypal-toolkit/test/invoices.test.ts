@@ -13,6 +13,7 @@ import {
   type InvoicesDeps,
   invoiceMemo,
   invoiceMoneyExtras,
+  invoiceSendApproval,
   PayPalToolkit,
   RECORD_PAYMENT_NOTE,
   ToolkitError,
@@ -280,8 +281,25 @@ describe("Invoices.ensureForRun: create → send → payable GET → AUTO_CANCEL
     ["no note", { status: "DRAFT", note: null }],
     ["another total", { status: "DRAFT", total: "4333.51" }],
     ["no total", { status: "DRAFT", total: null }],
+    ["no currency", { status: "DRAFT", currency: null }],
+    ["another currency", { status: "DRAFT", currency: "PHP" }],
     ["another invoicer", { status: "DRAFT", invoicer: "someone-else@example.test" }],
     ["another payer", { status: "DRAFT", recipient: "attacker@example.test" }],
+    ["no recipient", { status: "DRAFT", recipients: [] }],
+    [
+      "a recipient without an e-mail",
+      { status: "DRAFT", recipients: [{ billing_info: { business_name: PAYER.businessName } }] },
+    ],
+    [
+      "a second recipient",
+      {
+        status: "DRAFT",
+        recipients: [
+          { billing_info: { business_name: PAYER.businessName, email_address: PAYER.email } },
+          { billing_info: { email_address: "attacker@example.test" } },
+        ],
+      },
+    ],
     [
       "other lines with the same total",
       {
@@ -672,6 +690,39 @@ describe("Invoices.ensureForRun: a SCHEDULED invoice is deleted and recreated on
     expect(callLog()).not.toContain(`DELETE /v2/invoicing/invoices/${SECOND_ID}`);
   });
 
+  it("an approval of the deleted SCHEDULED invoice does not send its replacement: it waits for the treasurer", async () => {
+    twoInvoices("UNPAID");
+    const { invoices, repo } = setup();
+    const approved = (invoiceId: string) =>
+      invoiceSendApproval({
+        approverId: "persona:analyn",
+        approvedAt: NOW.toISOString(),
+        invoiceNumber: "FS-2026A-r37",
+        invoiceId,
+      });
+
+    const out = await invoices.ensureForRun(heroRun({ sendApproval: approved(INVOICE_ID) }));
+
+    expect(out).toMatchObject({ status: "PENDING_APPROVAL", invoiceId: SECOND_ID, recreated: true });
+    expect(callLog()).toEqual([
+      "POST /v2/invoicing/invoices",
+      `POST /v2/invoicing/invoices/${INVOICE_ID}/send`,
+      `GET /v2/invoicing/invoices/${INVOICE_ID}`,
+      `DELETE /v2/invoicing/invoices/${INVOICE_ID}`,
+      "POST /v2/invoicing/invoices",
+    ]);
+    expect(repo.rows.get(RUN.runId)).toMatchObject({ invoiceId: SECOND_ID, sentAt: null });
+
+    // Analyn approves the recreated invoice: it is sent, checked and gets its rule.
+    const sent = await invoices.ensureForRun(heroRun({ sendApproval: approved(SECOND_ID) }));
+    expect(sent).toMatchObject({ status: "SENT", invoiceId: SECOND_ID });
+    expect(callLog().slice(5)).toEqual([
+      `POST /v2/invoicing/invoices/${SECOND_ID}/send`,
+      `GET /v2/invoicing/invoices/${SECOND_ID}`,
+      `POST /v2/invoicing/invoices/${SECOND_ID}/conditional-rules`,
+    ]);
+  });
+
   it("a retry halts too, once the one recreate is spent", async () => {
     twoInvoices("SCHEDULED");
     const { invoices } = setup();
@@ -752,11 +803,13 @@ describe("Invoices.ensureForRun: a SCHEDULED invoice is deleted and recreated on
 
 describe("Invoices steps one at a time (the agent's create, send, rule and read)", () => {
   const created = { invoiceId: INVOICE_ID, invoiceNumber: "FS-2026A-r37", itemLabels: QUOTE_NAMES };
-  const approval = {
+  /** The agent's send needs an approval bound to the invoice and the exact send. */
+  const approval = invoiceSendApproval({
     approverId: "persona:analyn",
     approvedAt: NOW.toISOString(),
     invoiceNumber: "FS-2026A-r37",
-  };
+    invoiceId: INVOICE_ID,
+  });
 
   it("create() creates and checkpoints, never sends, and is a no-op once the run holds its invoice", async () => {
     onPost("/v2/invoicing/invoices", () => paypalJson(createdLink(), 201));
@@ -827,6 +880,25 @@ describe("Invoices steps one at a time (the agent's create, send, rule and read)
     );
     await expect(invoices.send(RUN, null)).rejects.toBeInstanceOf(InvoiceApprovalError);
     expect(requests).toHaveLength(0);
+  });
+
+  it("inv.i6.human-gate: send() refuses an approval that is not bound to this invoice and this send", async () => {
+    const { invoices, repo } = setup({ [RUN.runId]: created });
+    const numberOnly = {
+      approverId: "persona:analyn",
+      approvedAt: NOW.toISOString(),
+      invoiceNumber: "FS-2026A-r37",
+    };
+    for (const unbound of [
+      numberOnly,
+      { ...approval, sendArgsSha256: null },
+      { ...approval, invoiceId: SECOND_ID },
+      invoiceSendApproval({ ...numberOnly, invoiceId: SECOND_ID }),
+    ]) {
+      await expect(invoices.send(RUN, unbound)).rejects.toBeInstanceOf(InvoiceApprovalError);
+    }
+    expect(requests).toHaveLength(0);
+    expect(repo.saves).toHaveLength(0);
   });
 
   it("send() leaves a SCHEDULED invoice to the server chain: the agent path never deletes", async () => {

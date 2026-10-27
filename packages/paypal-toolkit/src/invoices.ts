@@ -22,6 +22,7 @@ import {
   type InvoiceRun,
   itemLabelsProblem,
   reconcileAgentDraft,
+  sendInvoiceArgs,
   type TreasurerApproval,
   withItemLabels,
 } from "./invoice-plan.js";
@@ -606,8 +607,13 @@ export class Invoices {
         await reload();
       }
       if (!cp.sentAt) {
-        if (!run.sendApproval) return result("PENDING_APPROVAL");
-        await this.#sendStep(run.runId, plan, cp, run.sendApproval, call);
+        const approval = run.sendApproval;
+        if (!approval) return result("PENDING_APPROVAL");
+        // An approval of the SCHEDULED invoice this chain deleted does not send its replacement: the
+        // recreated invoice waits for the treasurer's approval of it, unsent.
+        if (approval.invoiceId != null && approval.invoiceId === cp.scheduledInvoiceId)
+          return result("PENDING_APPROVAL");
+        await this.#sendStep(run.runId, plan, cp, approval, call, { bound: false });
         await reload();
       }
       if (!cp.payableAt) {
@@ -627,9 +633,10 @@ export class Invoices {
   }
 
   /**
-   * The send step alone (the agent's send_invoice): only with an approval naming this invoice, then
-   * the payable GET. A SCHEDULED invoice is left for the server chain to recreate (it throws
-   * InvoiceNotPayableError); the agent never deletes an invoice.
+   * The send step alone (the agent's send_invoice): only with an approval bound to this invoice (its
+   * PayPal id and `sendArgsSha256` of the exact send), then the payable GET. A SCHEDULED invoice is
+   * left for the server chain to recreate (it throws InvoiceNotPayableError); the agent never deletes
+   * an invoice.
    */
   async send(
     run: InvoiceRun,
@@ -646,7 +653,7 @@ export class Invoices {
       throw new InvoiceApprovalError(`Sending ${plan.invoiceNumber} needs the treasurer's approval`);
     const { call, calls } = this.#caller(options.priority);
     if (!cp.sentAt && approval) {
-      await this.#sendStep(run.runId, plan, cp, approval, call);
+      await this.#sendStep(run.runId, plan, cp, approval, call, { bound: true });
       cp = await this.checkpoint(run.runId);
     }
     await this.#readInvoice(run.runId, cp, call, { recover: false });
@@ -711,11 +718,17 @@ export class Invoices {
     cp: InvoiceCheckpoint,
     approval: TreasurerApproval,
     call: Call,
+    options: { bound: boolean },
   ): Promise<void> {
     const invoiceId = cp.invoiceId as string;
-    if (!approvalCovers(approval, { invoiceNumber: plan.invoiceNumber, invoiceId })) {
+    if (!approvalCovers(approval, { invoiceNumber: plan.invoiceNumber, invoiceId }, options)) {
+      const named = approval?.invoiceId
+        ? ` (${approval.invoiceId})`
+        : options.bound
+          ? " (no invoice id)"
+          : "";
       throw new InvoiceApprovalError(
-        `The treasurer's approval names ${approval?.invoiceNumber ?? "nothing"}${approval?.invoiceId ? ` (${approval.invoiceId})` : ""}, not ${plan.invoiceNumber} (${invoiceId})`,
+        `The treasurer's approval names ${approval?.invoiceNumber ?? "nothing"}${named}, not this send of ${plan.invoiceNumber} (${invoiceId})`,
       );
     }
     const payerViewUrl = await this.#send(invoiceId, call);
@@ -886,9 +899,7 @@ export class Invoices {
 
   async #send(invoiceId: string, call: Call): Promise<string | null> {
     try {
-      return payerViewUrlFromSend(
-        await call<unknown>("send_invoice", { invoice_id: invoiceId, send_to_recipient: false }),
-      );
+      return payerViewUrlFromSend(await call<unknown>("send_invoice", sendInvoiceArgs(invoiceId)));
     } catch (error) {
       if (!(error instanceof ToolkitError)) throw error;
       // S3.10: a send that may have happened is checked with a GET (SCHEDULED counts as sent: the

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   AUTO_CANCEL_AFTER_DAYS,
@@ -13,6 +14,7 @@ import {
   type InvoiceQuote,
   invoiceMemo,
   invoiceNumberFor,
+  invoiceSendApproval,
   isInvoiceItemLabel,
   itemLabelsProblem,
   ppDate,
@@ -20,6 +22,8 @@ import {
   reconcileAgentDraft,
   runSlug,
   seasonIdCode,
+  sendArgsSha256,
+  sendInvoiceArgs,
   withItemLabels,
 } from "../src/index.js";
 import {
@@ -242,22 +246,48 @@ describe("sendNeedsTreasurer: an approval sends exactly one invoice", () => {
   const approval = { approverId: "persona:analyn", approvedAt: "2026-11-05T02:00:00.000Z" };
   const invoice = { invoiceNumber: "FS-2026A-r37", invoiceId: "INV2-Z56S-5LLA-Q52L-CPZ5" };
 
-  it("covers the invoice it names, by number and, when given, by PayPal id", () => {
+  const bound = invoiceSendApproval({
+    ...approval,
+    invoiceNumber: "FS-2026A-r37",
+    invoiceId: invoice.invoiceId,
+  });
+
+  it("binds the exact send: sha256 of the JCS of {invoice_id, send_to_recipient: false}, nothing else sent", () => {
+    expect(sendInvoiceArgs(invoice.invoiceId)).toEqual({
+      invoice_id: invoice.invoiceId,
+      send_to_recipient: false,
+    });
+    const jcs = `{"invoice_id":"${invoice.invoiceId}","send_to_recipient":false}`;
+    expect(sendArgsSha256(invoice.invoiceId)).toBe(createHash("sha256").update(jcs).digest("hex"));
+    expect(bound).toEqual({
+      ...approval,
+      invoiceNumber: "FS-2026A-r37",
+      invoiceId: invoice.invoiceId,
+      sendArgsSha256: sendArgsSha256(invoice.invoiceId),
+    });
+  });
+
+  it("covers the invoice it is bound to, and by number alone only for the server chain", () => {
+    expect(approvalCovers(bound, invoice)).toBe(true);
+    expect(approvalCovers(bound, invoice, { bound: true })).toBe(true);
+    // Given before the invoice existed (Judge Mode's first press): the server chain only.
     expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37" }, invoice)).toBe(true);
-    expect(
-      approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37", invoiceId: invoice.invoiceId }, invoice),
-    ).toBe(true);
+    expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37" }, invoice, { bound: true })).toBe(
+      false,
+    );
   });
 
   it("covers nothing else", () => {
     expect(approvalCovers(null, invoice)).toBe(false);
     expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r36" }, invoice)).toBe(false);
-    expect(
-      approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37", invoiceId: "INV2-OTHER" }, invoice),
-    ).toBe(false);
-    expect(approvalCovers({ ...approval, approverId: "", invoiceNumber: "FS-2026A-r37" }, invoice)).toBe(
-      false,
-    );
+    expect(approvalCovers({ ...bound, invoiceId: "INV2-OTHER" }, invoice)).toBe(false);
+    expect(approvalCovers({ ...bound, approverId: "" }, invoice)).toBe(false);
+    // An id without the hash of its send, or the hash without the id, binds nothing.
+    expect(approvalCovers({ ...bound, sendArgsSha256: null }, invoice)).toBe(false);
+    expect(approvalCovers({ ...bound, invoiceId: null }, invoice)).toBe(false);
+    expect(approvalCovers({ ...bound, sendArgsSha256: sendArgsSha256("INV2-OTHER") }, invoice)).toBe(false);
+    // A bound approval never covers an invoice whose id is not known yet.
+    expect(approvalCovers(bound, { ...invoice, invoiceId: null })).toBe(false);
   });
 });
 

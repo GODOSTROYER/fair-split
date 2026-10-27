@@ -7,8 +7,9 @@
 //     invoice but for the three item labels, the agent's only words (I1); a run that already holds
 //     its invoice is not created again.
 //   - send_invoice sends only this run's invoice, never e-mailed, and only with the treasurer's
-//     approval of that very invoice; without one it parks as PENDING_APPROVAL. The payable GET
-//     follows; a SCHEDULED invoice is left for the server chain, which recreates it once.
+//     approval bound to that very invoice (its PayPal id and sendArgsSha256 of the exact send);
+//     without one it parks as PENDING_APPROVAL. The payable GET follows; a SCHEDULED invoice is left
+//     for the server chain, which recreates it once.
 //   - create_conditional_rules_for_invoice is AUTO_CANCEL on a SPECIFIC_DATE equal to PayPal's
 //     invoice date + 25 days (C-27), after today and within 30 days, under request id cr-{invoiceId}.
 //   - get_invoice reads this run's invoice only.
@@ -195,9 +196,15 @@ export async function runAgentToolkitTool(
       const approval = options.treasurerApproval ?? null;
       if (!cp.sentAt) {
         if (!approval) return { status: "PENDING_APPROVAL", method: tool, invoiceId };
+        // Bound to the target: the approval names this invoice's PayPal id and the hash of the exact
+        // send (sendArgsSha256), so an approval of another invoice, or of a send with other
+        // arguments, sends nothing.
         const { invoiceNumber } = await invoices.plan(run);
-        if (!approvalCovers(approval, { invoiceNumber, invoiceId })) {
-          throw new AgentToolRefusedError(tool, "the treasurer's approval names another invoice");
+        if (!approvalCovers(approval, { invoiceNumber, invoiceId }, { bound: true })) {
+          throw new AgentToolRefusedError(
+            tool,
+            "the treasurer's approval is not bound to this invoice and this send",
+          );
         }
       }
       const sent = await invoices.send(run, approval, callOptions).catch(asRefusal(tool));

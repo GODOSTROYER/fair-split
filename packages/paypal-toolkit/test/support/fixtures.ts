@@ -106,6 +106,10 @@ export function invoiceBody(
     invoiceDate?: string | null;
     invoicer?: string;
     recipient?: string;
+    /** Replaces primary_recipients wholesale (none, two, one without an e-mail…). */
+    recipients?: unknown[];
+    /** null leaves the currency out of the detail and the amount. */
+    currency?: string | null;
     items?: ItemBody[];
     /** detail.terms_and_conditions: payer-visible free text the code never sends. */
     terms?: string;
@@ -119,12 +123,14 @@ export function invoiceBody(
   const note = overrides.note === undefined ? HERO_MEMO : overrides.note;
   const total = overrides.total === undefined ? "4333.50" : overrides.total;
   const invoiceDate = overrides.invoiceDate === undefined ? "2026-11-05" : overrides.invoiceDate;
+  const currency = overrides.currency === undefined ? "USD" : overrides.currency;
+  const currencyCode = currency === null ? {} : { currency_code: currency };
   return {
     id,
     status: overrides.status ?? "SENT",
     detail: {
       ...(reference === null ? {} : { reference }),
-      currency_code: "USD",
+      ...currencyCode,
       invoice_number: overrides.number ?? "FS-2026A-r37",
       ...(invoiceDate === null ? {} : { invoice_date: invoiceDate }),
       ...(note === null ? {} : { note }),
@@ -137,7 +143,7 @@ export function invoiceBody(
       },
     },
     invoicer: { email_address: overrides.invoicer ?? BUSINESS_EMAIL },
-    primary_recipients: [
+    primary_recipients: overrides.recipients ?? [
       {
         billing_info: {
           business_name: PAYER.businessName,
@@ -161,9 +167,9 @@ export function invoiceBody(
     },
     amount:
       total === null
-        ? { currency_code: "USD" }
+        ? { ...currencyCode }
         : {
-            currency_code: "USD",
+            ...currencyCode,
             value: total,
             breakdown: {
               item_total: { currency_code: "USD", value: total },

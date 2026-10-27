@@ -6,6 +6,7 @@
 // labels"; S4.4 `canonicalInvoice(quote, labels)`), which can spell no number, link or address (I1).
 // The note is the memo, exactly.
 
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { InvoiceQuote, QuoteItemKey } from "./_shims/domain.js";
 import { addDays, parseIsoDate } from "./dates.js";
@@ -67,27 +68,72 @@ export function itemLabelsProblem(labels: readonly unknown[]): string | null {
 }
 
 /**
+ * The only send_invoice arguments Fair Split ever sends (register §8): never e-mailed by PayPal, and
+ * no subject, note or additional recipient, so no agent text reaches the brand through a send.
+ */
+export function sendInvoiceArgs(invoiceId: string): { invoice_id: string; send_to_recipient: false } {
+  return { invoice_id: invoiceId, send_to_recipient: false };
+}
+
+/**
+ * sha256 (lowercase hex) of the JCS of `sendInvoiceArgs(invoiceId)`: the exact send a treasurer
+ * approval binds. Both members are JSON primitives, so JSON.stringify of the key-sorted object is its
+ * JCS (RFC 8785).
+ */
+export function sendArgsSha256(invoiceId: string): string {
+  const args = sendInvoiceArgs(invoiceId);
+  const sorted = Object.fromEntries(Object.entries(args).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  return createHash("sha256").update(JSON.stringify(sorted), "utf8").digest("hex");
+}
+
+/**
  * sendNeedsTreasurer: Analyn's approval (or Judge-as-Treasurer, labelled) to send ONE invoice. It
- * names the run's invoice number, known before the invoice exists, and PayPal's invoice id when it
- * was given for an invoice that already exists. It never sends any other invoice.
+ * names the run's invoice number. Given for an invoice that already exists (always so for the
+ * agent's send_invoice), it is bound to that invoice: PayPal's invoice id and `sendArgsSha256` of the
+ * exact send. Only the server chain may hold an approval given before the invoice existed, which
+ * names the number alone. It never sends any other invoice.
  */
 export interface TreasurerApproval {
   approverId: string;
   approvedAt: string;
   /** `FS-{runSlug}` of the invoice this approval sends. */
   invoiceNumber: string;
-  /** PayPal's id of that invoice, when known at approval time; then it must match too. */
+  /** PayPal's id of that invoice, when it existed at approval time; then it must match. */
   invoiceId?: string | null;
+  /** `sendArgsSha256(invoiceId)`: carried with `invoiceId`, never without it. */
+  sendArgsSha256?: string | null;
 }
 
-/** True only when the approval names exactly this invoice. */
+/** The treasurer's approval of sending one existing invoice, bound to it and to the exact send. */
+export function invoiceSendApproval(approval: {
+  approverId: string;
+  approvedAt: string;
+  invoiceNumber: string;
+  invoiceId: string;
+}): TreasurerApproval {
+  return { ...approval, sendArgsSha256: sendArgsSha256(approval.invoiceId) };
+}
+
+/**
+ * True only when the approval names exactly this invoice. An invoice id and a send hash come together
+ * and must both match this invoice's; `bound` (the agent's send) requires them. Without `bound`, an
+ * approval given before the invoice existed may name its number alone.
+ */
 export function approvalCovers(
   approval: TreasurerApproval | null | undefined,
   invoice: { invoiceNumber: string; invoiceId: string | null },
+  options: { bound?: boolean } = {},
 ): boolean {
   if (!approval || typeof approval.approverId !== "string" || approval.approverId.length === 0) return false;
   if (approval.invoiceNumber !== invoice.invoiceNumber) return false;
-  return approval.invoiceId == null || approval.invoiceId === invoice.invoiceId;
+  const named = approval.invoiceId != null;
+  if (named !== (approval.sendArgsSha256 != null)) return false;
+  if (!named) return options.bound !== true;
+  return (
+    invoice.invoiceId !== null &&
+    approval.invoiceId === invoice.invoiceId &&
+    approval.sendArgsSha256 === sendArgsSha256(invoice.invoiceId)
+  );
 }
 
 export interface InvoicePayer {

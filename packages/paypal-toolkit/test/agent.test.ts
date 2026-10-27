@@ -1,15 +1,19 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
   type AgentInvoiceSession,
   AgentToolNotAllowedError,
   AgentToolRefusedError,
+  autoCancelRuleArgs,
   buildInvoicePlan,
   conditionalRuleRequestId,
   type InvoiceCheckpoint,
   InvoiceNotPayableError,
   Invoices,
+  invoiceSendApproval,
   PayPalToolkit,
   runAgentToolkitTool,
+  sendArgsSha256,
   type Tk,
   type TreasurerApproval,
   withItemLabels,
@@ -32,11 +36,14 @@ useMsw();
 
 const NOW = new Date("2026-11-05T02:00:00.000Z");
 const RUN = heroRun({ sendApproval: null });
-const APPROVAL: TreasurerApproval = {
+/** Analyn's approval of sending the run's invoice, bound to its PayPal id and to the exact send. */
+const APPROVAL: TreasurerApproval = invoiceSendApproval({
   approverId: "persona:analyn",
   approvedAt: "2026-11-05T02:00:00.000Z",
   invoiceNumber: "FS-2026A-r37",
-};
+  invoiceId: INVOICE_ID,
+});
+const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 /** Claude's three item labels: the only words the agent adds to the invoice (S4.4 create_run_invoice). */
 const LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout and audit costs"] as const;
 /** Created, not yet sent: PayPal's date is not read yet. */
@@ -312,9 +319,36 @@ describe("runAgentToolkitTool: send_invoice (sendNeedsTreasurer)", () => {
       { invoice_id: INVOICE_ID },
       { ...APPROVAL, invoiceId: "INV2-AAAA-BBBB-CCCC-DDDD" },
     ],
+    [
+      "an approval naming the invoice number only (not bound to the invoice)",
+      CREATED,
+      { invoice_id: INVOICE_ID },
+      { approverId: "persona:analyn", approvedAt: APPROVAL.approvedAt, invoiceNumber: "FS-2026A-r37" },
+    ],
+    [
+      "an approval naming the invoice id but not the send",
+      CREATED,
+      { invoice_id: INVOICE_ID },
+      { ...APPROVAL, sendArgsSha256: null },
+    ],
+    [
+      "an approval of another invoice's send",
+      CREATED,
+      { invoice_id: INVOICE_ID },
+      { ...APPROVAL, sendArgsSha256: sendArgsSha256("INV2-AAAA-BBBB-CCCC-DDDD") },
+    ],
+    [
+      "an approval of a send with other arguments (e-mailed by PayPal)",
+      CREATED,
+      { invoice_id: INVOICE_ID },
+      {
+        ...APPROVAL,
+        sendArgsSha256: sha256(JSON.stringify({ invoice_id: INVOICE_ID, send_to_recipient: true })),
+      },
+    ],
     ["an approval without an approver", CREATED, { invoice_id: INVOICE_ID }, { ...APPROVAL, approverId: "" }],
     ["no invoice yet", null, { invoice_id: INVOICE_ID }, APPROVAL],
-  ])("refuses a send with %s, and sends nothing", async (_label, seed, args, approval) => {
+  ])("inv.i6.human-gate: refuses a send with %s, and sends nothing", async (_label, seed, args, approval) => {
     const { session: s } = session(seed);
     const error = await refusal(
       runAgentToolkitTool(s, "send_invoice", args, { treasurerApproval: approval }),
@@ -348,6 +382,20 @@ describe("runAgentToolkitTool: create_conditional_rules_for_invoice", () => {
       runAgentToolkitTool(s, "create_conditional_rules_for_invoice", autoCancel("2026-12-01")),
     ).rejects.toBeInstanceOf(AgentToolRefusedError);
     expect(requests).toHaveLength(1);
+  });
+
+  it("sends the rule code builds from the run's checkpoint, never the agent's arguments", async () => {
+    // The agent may only ask for the one rule the server would set; PayPal receives the code's copy:
+    // the checkpoint's invoice id, and the date PayPal gave the invoice + 25 days (C-27).
+    onPost("/v2/invoicing/invoices/:id/conditional-rules", () => paypalEmpty());
+    const { session: s } = session(PAYABLE);
+    const asked = autoCancel();
+    const terms = asked.rules[0]?.rule_expiry_terms as Record<string, unknown>;
+    terms.note = "Pay now or lose the premium";
+    await runAgentToolkitTool(s, "create_conditional_rules_for_invoice", asked);
+    const { rules } = autoCancelRuleArgs(INVOICE_ID, "2026-11-30");
+    expect(callLog()).toEqual([`POST /v2/invoicing/invoices/${INVOICE_ID}/conditional-rules`]);
+    expect(requests[0]?.body).toEqual({ rules });
   });
 
   it("reads PayPal's invoice date first when the run does not hold it yet", async () => {

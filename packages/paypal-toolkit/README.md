@@ -27,10 +27,16 @@ await runAgentToolkitTool({ run, invoices }, name, input, { treasurerApproval })
      deep-equal to the canonical body for the labels it carries (number, reference, the memo, total,
      invoicer, recipient, the three lines' amounts under three distinct valid labels, no descriptions or
      terms, no tip, partial payment, shipping, tax or discount, an adoptable status), else HALT.
-  2. `send_invoice` with `send_to_recipient: false`, only with a `TreasurerApproval` naming this invoice
-     (`FS-{runSlug}`, and PayPal's id when known).
+  2. `send_invoice` with exactly `sendInvoiceArgs(invoiceId)` (`send_to_recipient: false`, no subject,
+     note or extra recipient), only with a `TreasurerApproval` naming this invoice. An approval given for
+     an invoice that exists is bound to it: `invoiceSendApproval({approverId, approvedAt, invoiceNumber,
+     invoiceId})` adds `sendArgsSha256` (sha256 of the JCS of that exact send), and the id and the hash
+     must both match. The agent's `send_invoice` (and `Invoices.send`) accept only a bound approval; the
+     server chain may also hold one given before the invoice existed, naming `FS-{runSlug}` alone.
   3. A payable GET: SENT, UNPAID, SHARED or later. It stores the date PayPal gave the invoice. SCHEDULED is
-     deleted and recreated once; a second SCHEDULED, or any other status, is `InvoiceNotPayableError`.
+     deleted and recreated once; a second SCHEDULED, or any other status, is `InvoiceNotPayableError`. An
+     approval bound to the deleted invoice does not send its replacement: the chain stops at
+     `PENDING_APPROVAL` with the new invoice's id until the treasurer approves that one.
   4. AUTO_CANCEL with SPECIFIC_DATE on PayPal's invoice date + 25 days (C-27), after PayPal's today
      (`ppDate`, America/Los_Angeles) and within 30 days, under `PayPal-Request-Id: cr-{invoiceId}`.
 
@@ -49,8 +55,11 @@ await runAgentToolkitTool({ run, invoices }, name, input, { treasurerApproval })
 - **The agent's path.** `runAgentToolkitTool` is bound to one run and calls the same steps (`create`,
   `send`, `ensureRule`, `fetch`), never raw `tk()`. A draft is compared as the model wrote it (so a key the
   toolkit's zod would strip still counts) and must equal the code-built invoice but for the labels. Calls
-  about any other invoice, other approvals and other rule dates are refused before anything is sent. The
-  agent never deletes an invoice: a SCHEDULED one is left for the server chain.
+  about any other invoice, approvals not bound to this invoice and this send, and other rule dates are
+  refused before anything is sent. The rule PayPal receives is `autoCancelRuleArgs(invoiceId, date)`
+  with the date PayPal gave the invoice plus 25 days, built from the checkpoint; the agent's rule
+  arguments only have to agree with it. The agent never deletes an invoice: a SCHEDULED one is left for
+  the server chain.
 - **Labels (I8, ADR-0002).** `ppMode` is required: on the simulator every result and funding check is
   `simulated_rail`; on the sandbox a recorded payment (MARKED_AS_PAID) still is, and the rest is `live`.
 - **IC-05** comes from `@fairsplit/paypal-core` (WS-PPCORE's `PayPalAuth`, of which `tk()` needs only

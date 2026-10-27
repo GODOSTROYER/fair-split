@@ -29,6 +29,10 @@ no forced `tool_choice`. Server-side fallbacks were left off on purpose, so the 
 INVOICE.PAID; whether PayPal accepts the rule after send (if not, set `ruleBeforeSend: true`); the
 payment term PayPal applies when `create_invoice` sends none (the toolkit has no `payment_term`
 field); whether the axios interceptor sees `paypal-debug-id` on real sandbox responses (it does
-under msw). Spike S4 (Payouts: 201, UNCLAIMED → cancel → RETURNED, ERRPYO005/ERRPYO002) also waits for S1.
+under msw); and whether `delete_invoice` on a SCHEDULED invoice frees its `invoice_number`, which the
+chain's one recreate reuses (`FS-{runSlug}`; S3.6.3 says the number "becomes reusable", unverified). If
+it does not, the recreate fails on a duplicate number and the adoption search finds the deleted invoice:
+record what PayPal returns. Spike S4 (Payouts: 201, UNCLAIMED → cancel → RETURNED, ERRPYO005/ERRPYO002)
+also waits for S1.
 
 Results append to `.cache/spikes/*.jsonl` (gitignored); without `--live` the scripts print the last run.
