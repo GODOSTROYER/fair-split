@@ -38,6 +38,7 @@ import { readKill, unlockLines, voidLiveApprovals } from "../runs/flags.js";
 import { canonicalOf, cardById, cosignRule, lockRun, seasonById } from "../runs/load.js";
 import { cause, moveLine, moveRun } from "../runs/machine.js";
 import { SETTLE_GET_DELAYS_MS } from "../webhooks/apply.js";
+import { PayPalStepError } from "./errors.js";
 import { applyItem } from "./items.js";
 import { receiverDirectory } from "./receivers.js";
 
@@ -210,10 +211,19 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRep
     async writeSubmitted(batch) {
       await withWorkspaceTx(db, scope, async (tx) => {
         const [exists] = await tx
-          .select({ id: schema.payoutBatches.id })
+          .select({ id: schema.payoutBatches.id, batchSha256: schema.payoutBatches.batchSha256 })
           .from(schema.payoutBatches)
           .where(eq(schema.payoutBatches.senderBatchId, batch.senderBatchId));
-        if (exists) return;
+        if (exists) {
+          // The same batch again (a resumed post) is a no-op. Another batch under this id would be paid
+          // under someone else's rows: refuse (a second item of one run re-routed as `-x{n}` collides).
+          if (exists.batchSha256 === batch.batchSha256) return;
+          throw new PayPalStepError(
+            "INVALID_TRANSITION",
+            `${batch.senderBatchId} already names another batch; nothing was sent.`,
+            { transient: false },
+          );
+        }
         const run = await lockRun(tx, scope, batch.runId);
         const at = new Date(batch.at);
         if (batch.kind === "primary") {
@@ -278,7 +288,24 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRep
             .select({ state: schema.memberLines.state, version: schema.memberLines.version })
             .from(schema.memberLines)
             .where(and(eq(schema.memberLines.workspaceId, ws), eq(schema.memberLines.id, item.lineId)));
-          const from = line?.state;
+          let from = line?.state;
+          let version = line?.version ?? 0;
+          if (line && from === "RETURNED" && batch.kind === "reroute") {
+            // A re-route attempt starts here (fsm: RETURNED → REROUTED → SUBMITTED, attempt n + 1).
+            const moved = await moveLine(tx, scope, {
+              id: item.lineId,
+              memberNo: item.memberNo,
+              runId: batch.runId,
+              from: "RETURNED",
+              to: "REROUTED",
+              version,
+              cause: cause("REROUTE", item.supersedesItemId),
+              provenance: "live",
+              actor: ACTORS.outbox,
+            });
+            from = "REROUTED";
+            version = moved.version;
+          }
           if (line && (from === "LOCKED" || from === "REROUTED")) {
             await moveLine(tx, scope, {
               id: item.lineId,
@@ -286,7 +313,7 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): PayoutsRep
               runId: batch.runId,
               from,
               to: "SUBMITTED",
-              version: line.version,
+              version,
               cause: cause("POST", item.senderItemId),
               provenance,
               actor: ACTORS.outbox,

@@ -4,7 +4,6 @@
 // writes its task in the transaction that records the press (I7) and runs it inline.
 import { InvoiceStatus, PayRunState, RunSlug, TASKS } from "@fairsplit/contracts";
 import { schema, type WorkspaceScope, withWorkspaceTx } from "@fairsplit/db";
-import { enqueue } from "@fairsplit/outbox";
 import { like, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { ActingCredential } from "../credentials/verify/index.js";
@@ -13,7 +12,7 @@ import { ApiProblem, problem } from "../lib/problem.js";
 import { allow, CAN } from "./access.js";
 import { factLedger } from "./events.js";
 import { invalidTransition, invoiceOfRun, lockRun, runById, runBySlug } from "./load.js";
-import { reportProblem, runNow } from "./now.js";
+import { enqueuePress, reportProblem, runNow } from "./now.js";
 
 export const InvoicePressResponse = z.strictObject({
   runSlug: RunSlug,
@@ -85,11 +84,9 @@ export async function startInvoicing(
     }
     await factLedger(tx, scope, "invoice.requested", { runId: run.id }, { runId: run.id, at });
     const args = { target: "SENT" as const, runId: run.id };
-    return (
-      await enqueue(tx, "ensureInvoice", args, TASKS.ensureInvoice.dedupeKey(args), {
-        workspaceId: scope.workspaceId,
-      })
-    ).id;
+    return enqueuePress(tx, "ensureInvoice", args, TASKS.ensureInvoice.dedupeKey(args), {
+      workspaceId: scope.workspaceId,
+    });
   });
   return runAndAnswer(deps, scope, found.id, outboxId);
 }
@@ -122,11 +119,9 @@ export async function approveSend(
       { runId: run.id, at },
     );
     const args = { target: "SENT" as const, runId: run.id };
-    return (
-      await enqueue(tx, "ensureInvoice", args, `${TASKS.ensureInvoice.dedupeKey(args)}:approved`, {
-        workspaceId: scope.workspaceId,
-      })
-    ).id;
+    return enqueuePress(tx, "ensureInvoice", args, `${TASKS.ensureInvoice.dedupeKey(args)}:approved`, {
+      workspaceId: scope.workspaceId,
+    });
   });
   return runAndAnswer(deps, scope, found.id, outboxId);
 }
@@ -158,11 +153,9 @@ export async function fundingCheck(
       .from(schema.taskOutbox)
       .where(like(schema.taskOutbox.dedupeKey, `fund:${inv.paypalInvoiceId}:%`));
     const args = { target: "FUNDED" as const, runId: run.id, invoiceId: inv.paypalInvoiceId, n: count + 1 };
-    return (
-      await enqueue(tx, "ensureInvoice", args, TASKS.ensureInvoice.dedupeKey(args), {
-        workspaceId: scope.workspaceId,
-      })
-    ).id;
+    return enqueuePress(tx, "ensureInvoice", args, TASKS.ensureInvoice.dedupeKey(args), {
+      workspaceId: scope.workspaceId,
+    });
   });
   return runAndAnswer(deps, scope, found.id, outboxId);
 }

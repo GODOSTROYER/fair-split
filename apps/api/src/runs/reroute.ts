@@ -38,8 +38,7 @@ import { lineDto } from "./dto.js";
 import { ACTORS, factLedger } from "./events.js";
 import { assertNotKilled } from "./flags.js";
 import { canonicalOf, cardById, casGuard, cosignRule, lockRun, seasonById } from "./load.js";
-import { cause, moveLine } from "./machine.js";
-import { report, reportProblem, runNow, type TaskReport } from "./now.js";
+import { enqueuePress, report, reportProblem, runNow, type TaskReport } from "./now.js";
 
 interface RerouteNote {
   reroute: { lineId: string; n: number; receiver: string; payoutItemId: string };
@@ -113,6 +112,16 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
         const n = (parsed?.rerouteN ?? 0) + 1;
         const sbid = senderBatchId(season.code, run.rateCardSha256, run.runSeq, n);
         const sid = senderItemId(run.runSeq, memberNo, n);
+        // The register's re-route id is per run (`{senderBatchId}-x{n}`) while n is per item: a second item of
+        // this run re-routed as the same -x{n} would collide with the first. Refuse before anything is cancelled.
+        const [taken] = await tx
+          .select({ id: schema.payoutBatches.id })
+          .from(schema.payoutBatches)
+          .where(eq(schema.payoutBatches.senderBatchId, sbid));
+        if (taken)
+          throw invalid(`${sbid} already re-routes another item of this run.`, {
+            reason: "REROUTE_ID_TAKEN",
+          });
         const amount = toInt(item.amountCents);
         const digest = batchDigest(
           { runId: run.id, senderBatchId: sbid, rateCardSha256: run.rateCardSha256 },
@@ -226,11 +235,9 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
         let cancelId: string | null = null;
         if (state === "UNCLAIMED") {
           const args = { payoutItemId: item.payoutItemId, afterCancel: "reroute" as const };
-          cancelId = (
-            await enqueue(tx, "cancelUnclaimed", args, TASKS.cancelUnclaimed.dedupeKey(args), {
-              workspaceId: scope.workspaceId,
-            })
-          ).id;
+          cancelId = await enqueuePress(tx, "cancelUnclaimed", args, TASKS.cancelUnclaimed.dedupeKey(args), {
+            workspaceId: scope.workspaceId,
+          });
         }
         const rargs = { lineId: line.id, n };
         const rerouteId = (
@@ -311,17 +318,9 @@ export function rerouteTasks(deps: AppDeps): TaskHandlers {
               ),
             )
             .for("update");
-          if (found?.line.state === "RETURNED") {
-            await moveLine(tx, scope, {
-              id: found.line.id,
-              memberNo: found.memberNo,
-              runId: found.line.runId,
-              from: "RETURNED",
-              to: "REROUTED",
-              version: found.line.version,
-              cause: cause("REROUTE", note.reroute.payoutItemId),
-              provenance: "live",
-              actor: ACTORS.outbox,
+          if (found?.line.state !== "RETURNED") {
+            throw new PayPalStepError("INVALID_TRANSITION", "Only a returned line can be re-routed.", {
+              transient: false,
             });
           }
           const approval: SignedApproval = {

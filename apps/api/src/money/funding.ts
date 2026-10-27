@@ -223,32 +223,40 @@ export async function ensureInvoiceSent(
     });
   }
 
-  // 3. the payable check: a fresh GET (status, PayPal's invoice date, the payer's link)
-  const got = await getInvoice(tk, id);
-  if (!got.rawStatus || !PAYABLE.has(got.rawStatus)) {
-    throw new PayPalStepError(
-      "PAYPAL_REJECTED",
-      `The invoice is ${got.rawStatus ?? "in an unknown state"}, not payable.`,
-      {
-        transient: false,
-      },
-    );
+  // 3. the payable check: a fresh GET (status, PayPal's invoice date, the payer's link), unless a GET after
+  //    the send already checkpointed both (the agent's send step does)
+  const [known] = await deps.db
+    .select({ status: schema.invoices.status, invoiceDate: schema.invoices.createdAtPaypal })
+    .from(schema.invoices)
+    .where(and(eq(schema.invoices.workspaceId, scope.workspaceId), eq(schema.invoices.runId, runId)));
+  let invoiceDate = known?.invoiceDate ? known.invoiceDate.toISOString().slice(0, 10) : null;
+  if (!known || !invoiceDate || !PAYABLE.has(known.status)) {
+    const got = await getInvoice(tk, id);
+    if (!got.rawStatus || !PAYABLE.has(got.rawStatus)) {
+      throw new PayPalStepError(
+        "PAYPAL_REJECTED",
+        `The invoice is ${got.rawStatus ?? "in an unknown state"}, not payable.`,
+        { transient: false },
+      );
+    }
+    const date = got.invoiceDate ?? today();
+    invoiceDate = date;
+    await withWorkspaceTx(deps.db, scope, async (tx) => {
+      const run = await runById(tx, scope, runId);
+      const row = await invoiceRow(tx, scope, runId);
+      if (!row) return;
+      await tx
+        .update(schema.invoices)
+        .set({
+          createdAtPaypal: new Date(`${date}T00:00:00.000Z`),
+          payerViewUrl: got.payerViewUrl ?? row.payerViewUrl,
+        })
+        .where(eq(schema.invoices.id, row.id));
+      if (got.status)
+        await invoiceState(tx, scope, run, row, got.status, got.dueCents ?? 0, provenance, ACTORS.paypalGet);
+    });
   }
-  const invoiceDate = got.invoiceDate ?? today();
-  await withWorkspaceTx(deps.db, scope, async (tx) => {
-    const run = await runById(tx, scope, runId);
-    const row = await invoiceRow(tx, scope, runId);
-    if (!row) return;
-    await tx
-      .update(schema.invoices)
-      .set({
-        createdAtPaypal: new Date(`${invoiceDate}T00:00:00.000Z`),
-        payerViewUrl: got.payerViewUrl ?? row.payerViewUrl,
-      })
-      .where(eq(schema.invoices.id, row.id));
-    if (got.status)
-      await invoiceState(tx, scope, run, row, got.status, got.dueCents ?? 0, provenance, ACTORS.paypalGet);
-  });
+  const payableOn = invoiceDate;
 
   // 4. AUTO_CANCEL at PayPal's invoice date + 25 days
   w = await withWorkspaceTx(deps.db, scope, async (tx) =>
@@ -260,11 +268,11 @@ export async function ensureInvoiceSent(
     .where(and(eq(schema.invoices.workspaceId, scope.workspaceId), eq(schema.invoices.runId, runId)));
   if (!cp?.ruleCreatedAt) {
     const { decision } = await step("create_conditional_rules_for_invoice", (x) =>
-      autoCancelRuleArgs(id, autoCancelDate(x.expected.invoiceDate ?? invoiceDate)),
+      autoCancelRuleArgs(id, autoCancelDate(x.expected.invoiceDate ?? payableOn)),
     );
     if (decision.verdict === "DENY")
       return { state: "DENIED_BY_POLICY", invoiceId: id, reason: decision.decidedBy.join(", ") };
-    const on = await addAutoCancelRule(tk, id, invoiceDate);
+    const on = await addAutoCancelRule(tk, id, payableOn);
     await withWorkspaceTx(deps.db, scope, async (tx) => {
       await tx
         .update(schema.invoices)

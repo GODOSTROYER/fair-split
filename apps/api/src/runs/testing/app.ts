@@ -1,8 +1,11 @@
 // Test setup for the RUNS slice: a Postgres-backed app with the outbox runtime wired (no background
 // dispatcher, so every task runs inline and deterministically), the seeded world, and one token per persona.
+import { schema } from "@fairsplit/db";
+import { approvalBytes, ed25519Sign } from "@fairsplit/domain";
+import { and, eq } from "drizzle-orm";
 import type { HttpHandler } from "msw";
 import { createPayPalMock, createTestApp, type PayPalMock, type TestApp } from "../../test/index.js";
-import { type SeedWorld, type SeedWorldOptions, seedWorld } from "./world.js";
+import { registerKey, type SeedWorld, type SeedWorldOptions, seedWorld } from "./world.js";
 
 export interface RunsHarness {
   t: TestApp;
@@ -89,4 +92,51 @@ export async function resolveAll(h: RunsHarness): Promise<void> {
     body: { resolution: "REGISTER_PLOT", plot: { plotNo: "P-053-B", areaHa: "0.60", trees: 330 } },
   });
   await api.resolveHold({ params: { holdId: id("H3") }, body: { resolution: "RETURN_AS_CREDIT" } });
+}
+
+/** Both officers register a device key and sign the batch: the run is APPROVED with its POST queued. */
+export async function signBoth(h: RunsHarness) {
+  const db = h.t.pg?.app.db;
+  if (!db) throw new Error("signBoth needs Postgres");
+  const analyn = await registerKey(db, h.world.workspaceId, { keyId: "fs-analyn-a1", persona: "analyn" });
+  const ernesto = await registerKey(db, h.world.workspaceId, { keyId: "fs-ernesto-a1", persona: "ernesto" });
+  const runSlug = h.world.runSlug;
+  const t = (
+    await h.t
+      .client(h.tokens.treasurer)
+      .approvalPayload({ params: { runSlug }, query: { role: "treasurer" } })
+  ).payload;
+  await h.t.client(h.tokens.treasurer).submitApproval({
+    params: { runSlug },
+    body: {
+      role: "treasurer",
+      keyId: "fs-analyn-a1",
+      signature: ed25519Sign(analyn.privateKey, approvalBytes(t)),
+      payload: t,
+    },
+  });
+  const c = (
+    await h.t.client(h.tokens.chair).approvalPayload({ params: { runSlug }, query: { role: "chair" } })
+  ).payload;
+  await h.t.client(h.tokens.chair).submitApproval({
+    params: { runSlug },
+    body: {
+      role: "chair",
+      keyId: "fs-ernesto-a1",
+      signature: ed25519Sign(ernesto.privateKey, approvalBytes(c)),
+      payload: c,
+    },
+  });
+  return { batchSha256: t.batchSha256, keys: { analyn, ernesto } };
+}
+
+/** Runs every queued outbox row of one task in this workspace, inline. */
+export async function runQueued(h: RunsHarness, name: string): Promise<number> {
+  const rows = await h.t.deps.db
+    .select({ id: schema.taskOutbox.id, state: schema.taskOutbox.state })
+    .from(schema.taskOutbox)
+    .where(and(eq(schema.taskOutbox.workspaceId, h.world.workspaceId), eq(schema.taskOutbox.name, name)));
+  const queued = rows.filter((r) => r.state === "queued");
+  for (const r of queued) await h.t.deps.outbox?.runTask(r.id);
+  return queued.length;
 }

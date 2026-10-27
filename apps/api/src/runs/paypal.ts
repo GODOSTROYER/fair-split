@@ -4,7 +4,6 @@
 // what PayPal said; nothing here calls PayPal inside a transaction.
 import { type MemberLineState, type PayRunState, TASKS } from "@fairsplit/contracts";
 import { schema, withWorkspaceTx } from "@fairsplit/db";
-import { enqueue } from "@fairsplit/outbox";
 import { and, desc, eq } from "drizzle-orm";
 import type { CommandHandler } from "../lib/command.js";
 import { ApiProblem, problem } from "../lib/problem.js";
@@ -15,7 +14,7 @@ import { factLedger } from "./events.js";
 import { assertNotKilled } from "./flags.js";
 import { casGuard, invalidTransition, invoiceOfRun, lockRun, runById, runBySlug } from "./load.js";
 import { cause, moveLine } from "./machine.js";
-import { reportProblem, runNow } from "./now.js";
+import { enqueuePress, reportProblem, runNow } from "./now.js";
 
 // ---------------------------------------------------------------- markPaid
 
@@ -45,11 +44,9 @@ export const markPaidHandler: CommandHandler<"markPaid"> = async (ctx) => {
       { runId: run.id, at },
     );
     const args = { runId: run.id, invoiceId: invoice.paypalInvoiceId };
-    return (
-      await enqueue(tx, "recordPayment", args, TASKS.recordPayment.dedupeKey(args), {
-        workspaceId: scope.workspaceId,
-      })
-    ).id;
+    return enqueuePress(tx, "recordPayment", args, TASKS.recordPayment.dedupeKey(args), {
+      workspaceId: scope.workspaceId,
+    });
   });
   const report = await runNow(deps, outboxId);
   if (report && !report.ok) throw reportProblem(report);
@@ -133,10 +130,16 @@ export const payCashHandler: CommandHandler<"payCash"> = async (ctx) => {
             { runId: run.id, at },
           );
           const args = { payoutItemId: item.payoutItemId, afterCancel: "cash" as const };
-          const queued = await enqueue(tx, "cancelUnclaimed", args, TASKS.cancelUnclaimed.dedupeKey(args), {
-            workspaceId: scope.workspaceId,
-          });
-          return { kind: "cancel", outboxId: queued.id };
+          const outboxId = await enqueuePress(
+            tx,
+            "cancelUnclaimed",
+            args,
+            TASKS.cancelUnclaimed.dedupeKey(args),
+            {
+              workspaceId: scope.workspaceId,
+            },
+          );
+          return { kind: "cancel", outboxId };
         }
         const cashReady =
           state === "READY" && line.rail === "OFF" && CASH_DUE_FROM_RUN.includes(run.state as PayRunState);
