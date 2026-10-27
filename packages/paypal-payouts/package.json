@@ -12,15 +12,22 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "spike:s2-payouts": "tsx spikes/s2-payout-read-schemas.ts",
+    "gen:read-schemas": "tsx scripts/gen-read-schemas.ts"
   },
   "dependencies": {
     "zod": "catalog:zod3",
     "@fairsplit/paypal-core": "workspace:*"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@types/node": "catalog:",
+    "canonicalize": "catalog:",
+    "fast-check": "catalog:",
+    "msw": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@types/node": "catalog:"
+    "vitest": "catalog:"
   }
 }

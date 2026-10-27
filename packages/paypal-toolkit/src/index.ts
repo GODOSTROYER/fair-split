@@ -1,2 +1,121 @@
-// @fairsplit/paypal-toolkit: The only importer of @paypal/agent-toolkit: allowlist, schemas, tk() runner (zod 3).
-export {};
+// @fairsplit/paypal-toolkit: the only importer of @paypal/agent-toolkit (1.11.0, zod 3).
+// Graft G1: tool JSON Schemas come from the toolkit's /openai export; every execution, agent or
+// deterministic, goes through the toolkit's PayPalAPI (from /mcp) on our injected token.
+
+// IC-05 as WS-PPCORE built it, re-exported so callers wire tk() from one import.
+export type {
+  CallPriority,
+  CallPurpose,
+  LimiterDecision,
+  PayPalAuth,
+  PayPalLimiter,
+  PayPalToken,
+} from "@fairsplit/paypal-core";
+export type { Provenance } from "./_shims/contracts.js";
+export type { InvoiceQuote, InvoiceQuoteItem, QuoteItemKey } from "./_shims/domain.js";
+export {
+  AGENT_ACTIONS,
+  AGENT_TOOL_METHODS,
+  type AgentToolMethod,
+  isAgentToolMethod,
+  isToolkitMethod,
+  MONEY_MOVING_TOOLKIT_METHODS,
+  SERVER_ACTIONS,
+  SERVER_ONLY_METHODS,
+  type ServerOnlyMethod,
+  TOOLKIT_METHODS,
+  type ToolkitMethod,
+  TREASURER_APPROVAL_METHODS,
+} from "./actions.js";
+export {
+  type AgentInvoiceSession,
+  type AgentToolkitCallOptions,
+  type AgentToolkitResult,
+  AgentToolNotAllowedError,
+  AgentToolRefusedError,
+  runAgentToolkitTool,
+} from "./agent.js";
+export { ppDate } from "./dates.js";
+export {
+  AUTO_CANCEL_AFTER_DAYS,
+  AUTO_CANCEL_MAX_DAYS_AHEAD,
+  approvalCovers,
+  autoCancelDate,
+  autoCancelRuleArgs,
+  autoCancelWindowError,
+  buildInvoicePlan,
+  type CreateInvoiceArgs,
+  type CreateInvoiceItem,
+  conditionalRuleRequestId,
+  type DraftReconciliation,
+  INVOICE_ITEM_KEYS,
+  INVOICE_ITEM_LABEL,
+  type InvoicePayer,
+  type InvoicePlan,
+  InvoicePlanError,
+  type InvoiceRun,
+  invoiceMemo,
+  invoiceNumberFor,
+  invoiceSendApproval,
+  isInvoiceItemLabel,
+  itemLabelsProblem,
+  rateCardReference,
+  reconcileAgentDraft,
+  runSlug,
+  seasonIdCode,
+  sendArgsSha256,
+  sendInvoiceArgs,
+  type TreasurerApproval,
+  withItemLabels,
+} from "./invoice-plan.js";
+export {
+  type CreateStepResult,
+  EMPTY_INVOICE_CHECKPOINT,
+  type EnsureInvoiceOptions,
+  type EnsureInvoiceResult,
+  type FundingCheck,
+  InvoiceAdoptError,
+  InvoiceApprovalError,
+  type InvoiceCheckpoint,
+  InvoiceDraftRejectedError,
+  InvoiceNotPayableError,
+  type InvoiceRepository,
+  InvoiceRuleDateError,
+  InvoiceStateError,
+  Invoices,
+  type InvoicesDeps,
+  invoiceIdFromCreate,
+  invoiceMoneyExtras,
+  type PayPalMode,
+  payerViewUrlFromSend,
+  RECORD_PAYMENT_NOTE,
+  type RecordPaymentResult,
+  type RuleStepResult,
+  type SendStepResult,
+} from "./invoices.js";
+export { centsToValue, readValueCents, valueToCents } from "./money.js";
+export {
+  type AgentToolSchema,
+  agentToolSchemas,
+  assertToolkitAllowlists,
+  PINNED_TOOLKIT_VERSION,
+  ToolkitAllowlistError,
+  toolkitActionKeys,
+  toolkitVersion,
+  toolkitZodSchemas,
+} from "./schemas.js";
+export {
+  createTk,
+  DEFAULT_TIMEOUT_MS,
+  PayPalToolkit,
+  type Tk,
+  type TkOptions,
+  TOOLKIT_SOURCE,
+  ToolkitArgsError,
+  type ToolkitCallRecord,
+  type ToolkitDeps,
+  ToolkitError,
+  ToolkitLimitedError,
+  type ToolkitLimiter,
+  ToolkitMethodError,
+} from "./tk.js";
