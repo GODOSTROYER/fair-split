@@ -6,7 +6,13 @@
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { format } from "../../_shims/domain";
-import { type BiometricClass, type CosignFailure, cosign, type KeyMeta } from "../../lib/signing";
+import {
+  type BiometricClass,
+  type CosignFailure,
+  type CosignResult,
+  cosign,
+  type KeyMeta,
+} from "../../lib/signing";
 import { feedback } from "../../platform/feedback";
 import { keyVault } from "../../platform/key-vault";
 import { useApp } from "../../state/app";
@@ -97,34 +103,40 @@ export function useSign() {
     dispatch({ type: "commit" });
     const dto = c.dto;
     if (!dto) return fail("error");
-    const fresh = await c.freshPayload();
-    if (!fresh.ok) return fail(fresh.reason);
     const amount = format.usd(dto.totalCents);
-    const r = await cosign(fresh.payload, fresh.expected, {
-      now: () => new Date(),
-      online: () => online,
-      sign: (message) =>
-        keyVault.sign({
-          persona: session?.persona ?? "board:ernesto",
-          message,
-          prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
-          detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
-          cancelLabel: tr("common.cancel"),
-          sessionTag: session ? `${session.workspaceId}:${session.pairedAt}` : undefined,
-        }),
-      isRegistered: (id) => registered.has(id),
-      register: async (k) => {
-        const res = await api.registerDeviceKey({
-          keyId: k.keyId,
-          publicKey: k.publicKeyHex,
-          kind: keyVault.kind === "demo" ? "web_demo" : "app",
-          biometricClass: k.biometricClass,
-        });
-        if (res.ok) registered.add(k.keyId);
-        return res;
-      },
-      submit: (body) => api.postApproval(c.runSlug, body),
-    });
+    let r: CosignResult;
+    try {
+      const fresh = await c.freshPayload();
+      if (!fresh.ok) return fail(fresh.reason);
+      r = await cosign(fresh.payload, fresh.expected, {
+        now: () => new Date(),
+        online: () => online,
+        sign: (message) =>
+          keyVault.sign({
+            persona: session?.persona ?? "board:ernesto",
+            message,
+            prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
+            detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
+            cancelLabel: tr("common.cancel"),
+            sessionTag: session ? `${session.workspaceId}:${session.pairedAt}` : undefined,
+          }),
+        isRegistered: (id) => registered.has(id),
+        register: async (k) => {
+          const res = await api.registerDeviceKey({
+            keyId: k.keyId,
+            publicKey: k.publicKeyHex,
+            kind: keyVault.kind === "demo" ? "web_demo" : "app",
+            biometricClass: k.biometricClass,
+          });
+          if (res.ok) registered.add(k.keyId);
+          return res;
+        },
+        submit: (body) => api.postApproval(c.runSlug, body),
+      });
+    } catch {
+      // A key store or a network layer that throws is a failed attempt like any other: nothing was sent.
+      return fail("error");
+    }
     if (!r.ok) return fail(r.state);
     setKey(r.key);
     dispatch({ type: "result", ok: true });
