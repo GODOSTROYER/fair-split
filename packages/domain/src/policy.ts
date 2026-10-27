@@ -350,44 +350,50 @@ export const allowlist: Policy = (call) =>
 export const phaseGate: Policy = (call, ctx) => {
   const s = ctx.runState;
   const a = obj(call.args);
-  return match(call.name)
-    .when(
-      (n) => reads.has(n),
-      () => ALLOW,
-    )
-    .with("get_invoice", () => (rankOf(s) >= rankOf("QUOTED") ? ALLOW : deny("no invoice before QUOTED")))
-    .with("create_invoice", () =>
-      s !== "QUOTED"
-        ? deny("create_invoice only in QUOTED")
-        : ctx.invoiceExists
-          ? deny("the invoice already exists")
-          : ALLOW,
-    )
-    .with("create_conditional_rules_for_invoice", () =>
-      s === "QUOTED" && ctx.invoiceExists ? ALLOW : deny("the AUTO_CANCEL rule needs the invoice, in QUOTED"),
-    )
-    .with("send_invoice", () =>
-      s === "QUOTED" && ctx.invoiceExists ? ALLOW : deny("send_invoice needs the invoice, in QUOTED"),
-    )
-    .with("propose_resolution", () => {
-      if (s !== "IN_REVIEW") return deny("propose_resolution only in IN_REVIEW");
-      const holdId = str(a.hold_id);
-      const hold = ctx.holds.find((h) => h.holdId === holdId);
-      return hold && hold.state === "OPEN" ? ALLOW : deny("the hold is not open");
-    })
-    .with("request_payout_batch", () => {
-      if (s !== "IN_REVIEW") return deny("request_payout_batch only in IN_REVIEW");
-      const blocking = ctx.holds.some(
-        (h) => (h.state === "OPEN" || h.state === "ASKED_CHAIR") && h.gate === "BLOCKS_APPROVAL",
-      );
-      return blocking ? deny("a hold still blocks approval") : ALLOW;
-    })
-    .with(P.union("get_payout_batch", "get_payout_item"), () =>
-      (rankOf(s) >= rankOf("POSTED") && rankOf(s) < 99) || s === "DENIED"
-        ? ALLOW
-        : deny("payout reads only after the batch is posted"),
-    )
-    .otherwise(() => deny("no phase allows this tool"));
+  return (
+    match(call.name)
+      .when(
+        (n) => reads.has(n),
+        () => ALLOW,
+      )
+      .with("get_invoice", () => (rankOf(s) >= rankOf("QUOTED") ? ALLOW : deny("no invoice before QUOTED")))
+      .with("create_invoice", () =>
+        s !== "QUOTED"
+          ? deny("create_invoice only in QUOTED")
+          : ctx.invoiceExists
+            ? deny("the invoice already exists")
+            : ALLOW,
+      )
+      // S4 purposes: DRAFT_INVOICE runs in QUOTED, and tools 11 (the rule) and 13 also in INVOICED,
+      // since S3.6.3 adds the rule after the send and the payable GET.
+      .with("create_conditional_rules_for_invoice", () =>
+        (s === "QUOTED" || s === "INVOICED") && ctx.invoiceExists
+          ? ALLOW
+          : deny("the AUTO_CANCEL rule needs the invoice, in QUOTED or INVOICED"),
+      )
+      .with("send_invoice", () =>
+        s === "QUOTED" && ctx.invoiceExists ? ALLOW : deny("send_invoice needs the invoice, in QUOTED"),
+      )
+      .with("propose_resolution", () => {
+        if (s !== "IN_REVIEW") return deny("propose_resolution only in IN_REVIEW");
+        const holdId = str(a.hold_id);
+        const hold = ctx.holds.find((h) => h.holdId === holdId);
+        return hold && hold.state === "OPEN" ? ALLOW : deny("the hold is not open");
+      })
+      .with("request_payout_batch", () => {
+        if (s !== "IN_REVIEW") return deny("request_payout_batch only in IN_REVIEW");
+        const blocking = ctx.holds.some(
+          (h) => (h.state === "OPEN" || h.state === "ASKED_CHAIR") && h.gate === "BLOCKS_APPROVAL",
+        );
+        return blocking ? deny("a hold still blocks approval") : ALLOW;
+      })
+      .with(P.union("get_payout_batch", "get_payout_item"), () =>
+        (rankOf(s) >= rankOf("POSTED") && rankOf(s) < 99) || s === "DENIED"
+          ? ALLOW
+          : deny("payout reads only after the batch is posted"),
+      )
+      .otherwise(() => deny("no phase allows this tool"))
+  );
 };
 
 export const budgetCap: Policy = (_call, ctx) => {

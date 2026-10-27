@@ -1126,6 +1126,40 @@ describe("policy lattice: decide(call, ctx) = max verdict (register §9)", () =>
     expect(decide(call("get_payout_item", { id: "x" }), ctx({ runState: "SETTLING" })).verdict).toBe("ALLOW");
   });
 
+  it("S4 purposes: the AUTO_CANCEL rule (tool 11) is allowed in QUOTED and INVOICED, still only the canonical one", () => {
+    // S3.6.3 adds the rule after the send and the payable GET, and INVOICE_SENT moves QUOTED -> INVOICED.
+    const rule = call("create_conditional_rules_for_invoice", RULE("2026-11-23"));
+    for (const runState of ["QUOTED", "INVOICED"] as const) {
+      expect(decide(rule, ruleCtx({}, { runState })).verdict, runState).toBe("ALLOW");
+      const other = call("create_conditional_rules_for_invoice", RULE("2026-11-24"));
+      expect(decide(other, ruleCtx({}, { runState })).decidedBy, runState).toContain("invoiceEqualsQuote");
+    }
+    for (const runState of ["DRAFT", "FUNDED", "IN_REVIEW", "POSTED"] as const) {
+      expect(decide(rule, ruleCtx({}, { runState })).decidedBy, runState).toContain("phaseGate");
+    }
+    expect(decide(rule, ruleCtx({}, { runState: "INVOICED", invoiceExists: false })).decidedBy).toContain(
+      "phaseGate",
+    );
+    // The send (tool 12) stays QUOTED only.
+    const send = call("send_invoice", { invoice_id: INVOICE_ID, send_to_recipient: false });
+    expect(decide(send, ruleCtx({}, { runState: "INVOICED" })).decidedBy).toContain("phaseGate");
+  });
+
+  it("an IDN (punycode) business or brand address is read like any other ASCII address", () => {
+    const business = "coop@kalinaw.xn--p1ai";
+    const payer = "buyer@lantern.xn--80asehdb";
+    const expected = {
+      businessEmail: business,
+      payer: { email: payer, businessName: PAYER_NAME },
+      brandAllowlist: [payer],
+    };
+    const body = canonicalInvoice({ ...EXPECTED, ...expected });
+    expect(decide(call("create_invoice", body), ctx({}, expected))).toMatchObject({
+      verdict: "ALLOW",
+      decidedBy: [],
+    });
+  });
+
   it("kill switches, sandbox-only, allowlist and budget", () => {
     expect(
       decide(
