@@ -35,6 +35,7 @@ import { useRescans } from "./rescan-provider";
 import { ReviewSheet } from "./review-sheet";
 import { SamplesPlate } from "./samples-plate";
 import { scanScreenState } from "./screen-state";
+import { useTakeOver } from "./take-over";
 import { TodayTally } from "./tally";
 import { useCaptureFlow } from "./use-capture";
 import { useCompact } from "./use-compact";
@@ -55,6 +56,7 @@ export function ScanScreen() {
   const site = useClerkSite();
   const rescans = useRescans();
   const remove = useRemoveCapture({ onRemoved: snack.show, testID: "M-CL-01.remove" });
+  const take = useTakeOver({ onTaken: snack.show, testID: "M-CL-01.take-over" });
   const [openLine, setOpenLine] = useState<string | null>(null);
   const compact = useCompact();
   const { station } = site;
@@ -62,7 +64,7 @@ export function ScanScreen() {
   const samplesOnly = api.mode === "live" && frame.inFrame;
   const showSamples = api.mode === "demo" || frame.inFrame;
   const flow = useCaptureFlow({ station: station ?? "", samplesOnly, show: snack.show });
-  const { records } = outbox;
+  const { records, me } = outbox;
   const now = useNow(
     records.some((r) => r.state === "uploading" || (r.state === "failed" && r.nextAttemptAt !== MANUAL_ONLY)),
   );
@@ -139,7 +141,7 @@ export function ScanScreen() {
           onRetry={outbox.reopen}
         />
 
-        <TodayTally records={records} now={now} />
+        <TodayTally records={records} now={now} me={me} />
 
         {cashFirst ? cashPlate : null}
 
@@ -156,7 +158,9 @@ export function ScanScreen() {
                     online={online}
                     treasurer={site.treasurer}
                     paper={56}
+                    me={me}
                     onSendNow={() => outbox.sendNow(r.id)}
+                    onTakeOver={() => take.ask(r)}
                     onRemove={() => remove.ask(r)}
                     testID={`M-CL-01.recent.${r.id}`}
                   />
@@ -197,6 +201,7 @@ export function ScanScreen() {
         onClose={() => setOpenLine(null)}
       />
       {remove.dialog}
+      {take.dialog}
       {hasCameraFallback ? (
         <CameraCapture
           visible={flow.camera}

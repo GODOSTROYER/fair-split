@@ -10,8 +10,15 @@
  * Once the co-op has a capture its state only moves forward (I5): `uploaded` never returns to the queue, and `read`
  * (`capture.synced`) is final, whichever of the 201 and the event arrives first.
  *
- * Pure: the store, uploader, clock, id source, network check and file deleter are injected, so the same engine runs
- * on expo-sqlite (Android), in memory (web frames) and under Vitest (node:sqlite).
+ * Every capture keeps who filed it (`filedBy`: the clerk this phone was paired as, and that pairing), because the
+ * co-op files an upload under whoever's pairing sends it. Only the clerk who filed a capture sends it by itself: a
+ * phone paired again as another clerk leaves the first clerk's captures waiting, re-pairing resends only what an
+ * expired token refused, and a capture filed by someone else (or before the phone kept who filed it) goes only when
+ * a person who has seen who filed it takes it over (security review: re-pairing never hands one clerk's captures to
+ * another).
+ *
+ * Pure: the store, uploader, clock, id source, network check, paired clerk and file deleter are injected, so the same
+ * engine runs on expo-sqlite (Android), in memory (web frames) and under Vitest (node:sqlite).
  */
 import { nextAttemptAt } from "./backoff";
 
@@ -45,6 +52,37 @@ export interface NadawatMeta {
   attestedBy: string;
 }
 
+/** The clerk a capture was filed by: whom the co-op will file it under. */
+export interface Filer {
+  /** The pairing's persona (`clerk:jessie`): the co-op attributes an upload to the pairing that sends it. */
+  persona: string;
+  /** The clerk's name as the pairing gave it, so a row can say who filed it while offline ("" when none). */
+  name: string;
+  /**
+   * The pairing the capture was filed under, as `pairingId` names it (never the bearer). A clerk phone holds no
+   * signing key, so its pairing is its device credential: this is the device key ID of the record.
+   */
+  pairing: string;
+}
+
+/** A filer as stored, or null for anything that is not a whole one (a record from before filers were kept). */
+export function filerOrNull(v: unknown): Filer | null {
+  if (!v || typeof v !== "object") return null;
+  const { persona, name, pairing } = v as Record<string, unknown>;
+  if (typeof persona !== "string" || !persona || typeof name !== "string" || typeof pairing !== "string") {
+    return null;
+  }
+  return { persona, name, pairing };
+}
+
+/**
+ * True when the clerk paired as `persona` filed `r`. The same clerk paired again (a new token) is the same filer;
+ * no paired clerk, and a capture whose filer is unknown, match nothing.
+ */
+export function isFiledBy(r: Pick<CaptureRecord, "filedBy">, persona: string | null): boolean {
+  return persona !== null && r.filedBy !== null && r.filedBy.persona === persona;
+}
+
 export interface CaptureRecord {
   /** UUIDv7: the Idempotency-Key of every attempt. */
   id: string;
@@ -61,6 +99,12 @@ export interface CaptureRecord {
   memberHint: string | null;
   source: CaptureSource;
   nadawat: NadawatMeta | null;
+  /**
+   * The clerk paired when it was filed (or who took it over since). Null when nobody can say: filed with no clerk
+   * paired, or before this phone kept filers (schema version 2 and the web store's earlier rows). Only this clerk's
+   * pairing sends it by itself.
+   */
+  filedBy: Filer | null;
   createdAt: number;
   state: CaptureState;
   attempts: number;
@@ -75,7 +119,10 @@ export interface CaptureRecord {
   uploadedAt: number | null;
 }
 
-/** The fields that change after a capture is filed; its bytes, kind and attestation never do. */
+/**
+ * The fields that change after a capture is filed; its bytes, kind and attestation never do. `filedBy` changes only
+ * when a person takes the capture over (`Outbox.takeOver`).
+ */
 export type CapturePatch = Partial<
   Pick<
     CaptureRecord,
@@ -89,6 +136,7 @@ export type CapturePatch = Partial<
     | "rowsRead"
     | "serial"
     | "uploadedAt"
+    | "filedBy"
   >
 >;
 
@@ -119,8 +167,11 @@ export interface OutboxStore {
   findNadawat(lineId: string): Promise<CaptureRecord | null>;
   /** Newest first. */
   list(): Promise<CaptureRecord[]>;
-  /** Queued or failed captures whose next attempt is due: cash receipts first, then oldest first. */
-  due(now: number, limit: number): Promise<CaptureRecord[]>;
+  /**
+   * Queued or failed captures the clerk paired as `filedBy` (a persona) filed, whose next attempt is due: cash
+   * receipts first, then oldest first. A capture anyone else filed, or whose filer is unknown, is never due.
+   */
+  due(now: number, limit: number, filedBy: string): Promise<CaptureRecord[]>;
   update(id: string, patch: CapturePatch): Promise<void>;
   /** Compare-and-set: applies `patch` only while the row is in one of `from`. */
   transition(id: string, from: readonly CaptureState[], patch: CapturePatch): Promise<boolean>;
@@ -148,7 +199,12 @@ export type UploadOutcome =
   /** Network loss, a captive portal, 408, 429, 5xx: try again later with the same id. */
   | { kind: "retry"; error: string; retryAfterMs?: number | null }
   /** The co-op refused the request itself (4xx): only a person can send it again. */
-  | { kind: "reject"; error: string };
+  | { kind: "reject"; error: string }
+  /**
+   * Nothing was sent: when the request was about to leave, the phone was no longer paired as the clerk who filed the
+   * capture. It goes back exactly as it was and waits for that clerk, or for a person to take it over.
+   */
+  | { kind: "held" };
 
 export type Uploader = (rec: CaptureRecord, onProgress: (fraction: number) => void) => Promise<UploadOutcome>;
 
@@ -158,6 +214,11 @@ export interface OutboxDeps {
   now: () => number;
   newId: () => string;
   isOnline: () => boolean;
+  /**
+   * The clerk this phone is paired as now, or null. Each capture is filed under it, and only the captures it filed go
+   * out by themselves.
+   */
+  filer: () => Filer | null;
   onChange?: () => void;
   /** Deletes a pruned capture's file (best effort; a failure is never an error). */
   deleteFile?: (uri: string) => void | Promise<void>;
@@ -191,8 +252,17 @@ export function isRefused(r: Pick<CaptureRecord, "state" | "nextAttemptAt">): bo
   return r.state === "failed" && r.nextAttemptAt === MANUAL_ONLY;
 }
 
-/** Refusals of the phone's pairing: once it is paired again, the same capture can go, under a new key. */
-export const AUTH_REFUSALS: readonly string[] = ["UNAUTHENTICATED", "FORBIDDEN"];
+/**
+ * The pairing's token had expired (a device token, or a judge frame's): the same clerk pairing again is all a resend
+ * needs, so `afterPairing` sends these again by itself, for that clerk only.
+ */
+export const EXPIRED_TOKEN_REFUSALS: readonly string[] = ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED"];
+
+/**
+ * Refusals of the phone's pairing: an expired token, or a pairing the co-op will not accept for this (FORBIDDEN).
+ * Their words say "pair again, then send"; a FORBIDDEN refusal is never sent again by itself, only by a person.
+ */
+export const AUTH_REFUSALS: readonly string[] = [...EXPIRED_TOKEN_REFUSALS, "FORBIDDEN"];
 
 /**
  * Refusals no resend can fix: the photo is gone from the phone or too large, Judge Mode takes samples only, or the
@@ -270,10 +340,10 @@ export class Outbox {
   }
 
   /**
-   * Files a capture on the phone, signal or not. The same bytes twice give "Already sent at 09:12" instead of a
-   * second capture, and a member line takes one cash receipt. A refused capture is the exception: filing the same
-   * page again, or a new receipt for the same line, takes its place under a new id (a person's fresh act; the
-   * refusal dead-ends nowhere).
+   * Files a capture on the phone, signal or not, under the clerk paired now. The same bytes twice give "Already sent
+   * at 09:12" instead of a second capture, and a member line takes one cash receipt. A refused capture is the
+   * exception: filing the same page again, or a new receipt for the same line, takes its place under a new id (a
+   * person's fresh act, so it is filed by whoever made it; the refusal dead-ends nowhere).
    */
   async add(input: NewCapture): Promise<AddResult> {
     assertNewCapture(input);
@@ -292,6 +362,7 @@ export class Outbox {
       replaces = existing;
     }
     const now = this.deps.now();
+    const filer = this.deps.filer();
     const record: CaptureRecord = {
       sha256: input.sha256,
       fileUri: input.fileUri,
@@ -305,6 +376,7 @@ export class Outbox {
       source: input.source,
       kind: input.kind ?? "slip",
       nadawat: input.kind === "nadawat" ? { ...input.nadawat } : null,
+      filedBy: filer ? { ...filer } : null,
       id: this.deps.newId(),
       createdAt: now,
       state: "queued",
@@ -372,33 +444,80 @@ export class Outbox {
   }
 
   /**
-   * "Ipadala karon": one capture goes now. A retry keeps its key; a refusal a resend can fix goes under a new key;
-   * a refusal no resend can fix stays where it is (the screen offers "Tangtanga" instead).
+   * "Ipadala karon": one of the paired clerk's own captures goes now. A retry keeps its key; a refusal a resend can
+   * fix goes under a new key; a refusal no resend can fix stays where it is (the screen offers "Tangtanga" instead).
+   * A capture someone else filed is left as it is: it goes only through `takeOver`, which says who filed it.
    */
   async sendNow(id: string): Promise<SyncReport> {
     const r = await this.deps.store.get(id);
-    if (r && (await this.resend(r))) this.changed();
+    if (r && isFiledBy(r, this.me()) && (await this.resend(r))) this.changed();
     return this.sync();
   }
 
-  /** "Ipadala tanan karon": every capture `sendNow` would send. */
+  /** "Ipadala tanan karon": every capture `sendNow` would send, so only the paired clerk's own. */
   async sendAll(): Promise<SyncReport> {
+    const me = this.me();
     let n = 0;
-    for (const r of await this.deps.store.list()) if (await this.resend(r)) n++;
+    for (const r of await this.deps.store.list()) if (isFiledBy(r, me) && (await this.resend(r))) n++;
     if (n) this.changed();
     return this.sync();
   }
 
   /**
-   * The phone was paired again: every capture the co-op refused for the old pairing goes out again by itself, each
-   * under a new key (the old key's stored answer is the refusal).
+   * The phone was paired again. What the co-op refused because the old pairing's token had expired goes out again
+   * by itself, each under a new key (the old key's stored answer is the refusal), but only when the clerk paired now
+   * is the clerk who filed it. A FORBIDDEN refusal, another clerk's capture, and one whose filer is unknown wait for
+   * a person; that clerk's other waiting captures simply go with the next pass.
    */
   async afterPairing(): Promise<SyncReport> {
+    const me = this.me();
     let n = 0;
-    for (const r of await this.deps.store.list()) {
-      if (isRefused(r) && AUTH_REFUSALS.includes(r.lastError ?? "") && (await this.rekey(r.id))) n++;
+    if (me) {
+      for (const r of await this.deps.store.list()) {
+        if (!isRefused(r) || !isFiledBy(r, me) || !EXPIRED_TOKEN_REFUSALS.includes(r.lastError ?? ""))
+          continue;
+        if (await this.rekey(r.id)) n++;
+      }
     }
     if (n) this.changed();
+    return this.sync();
+  }
+
+  /**
+   * "Ipadala isip ako": the paired clerk takes over a capture someone else filed on this phone (or one filed before
+   * the phone kept who filed it), after the screen showed who did: `seen` is the persona it showed, null for
+   * unknown, and nothing changes if that is no longer the capture's filer. From then on it is filed by this clerk
+   * and goes under this pairing: a refusal a resend can fix as a new request (a new key), a capture still waiting
+   * under its own key (so if the first clerk's attempt did reach the co-op, the co-op answers with that filing).
+   * Null when nothing changed: no clerk is paired, the capture is gone, already this clerk's, on its way or at the
+   * co-op, filed by someone other than `seen`, or refused for a reason no resend can fix.
+   */
+  async takeOver(id: string, seen: string | null): Promise<SyncReport | null> {
+    const filer = this.deps.filer();
+    if (!filer) return null;
+    const { store } = this.deps;
+    const r = await store.get(id);
+    if (!r || isFiledBy(r, filer.persona) || (r.filedBy?.persona ?? null) !== seen) return null;
+    const how = resendOf(r);
+    if (how === "none") return null;
+    const filedBy = { ...filer };
+    const now = this.deps.now();
+    const ok =
+      how === "new-key"
+        ? await store.rekeyRefused(r.id, this.deps.newId(), {
+            state: "queued",
+            attempts: 0,
+            nextAttemptAt: now,
+            lastError: null,
+            progress: 0,
+            filedBy,
+          })
+        : await store.transition(r.id, ["queued", "failed"], {
+            filedBy,
+            nextAttemptAt: Math.min(r.nextAttemptAt, now),
+          });
+    if (!ok) return null;
+    this.changed();
     return this.sync();
   }
 
@@ -463,6 +582,11 @@ export class Outbox {
     if (!this.disposed) this.deps.onChange?.();
   }
 
+  /** The persona of the clerk paired now, or null. */
+  private me(): string | null {
+    return this.deps.filer()?.persona ?? null;
+  }
+
   /** Makes one capture due now, as `resendOf` allows. True when something changed. */
   private async resend(r: CaptureRecord): Promise<boolean> {
     const how = resendOf(r);
@@ -504,16 +628,27 @@ export class Outbox {
         report.skippedOffline = true;
         return;
       }
-      const [next] = await store.due(now(), 1);
+      // Nothing goes out as nobody, and only the paired clerk's own captures go out by themselves.
+      const me = this.me();
+      if (!me) return;
+      const [next] = await store.due(now(), 1, me);
       if (!next) return;
+      // A store that ignored the filer never gets another clerk's capture past this point.
+      if (!isFiledBy(next, me)) return;
       const claimed = await store.transition(next.id, ["queued", "failed"], {
         state: "uploading",
         progress: 0,
       });
       if (!claimed) continue;
-      report.attempted++;
       this.changed();
       const outcome = await this.upload({ ...next, state: "uploading", progress: 0 });
+      if (outcome.kind === "held") {
+        // Paired again before the request left: nothing was sent, so the capture is put back exactly as it was.
+        await store.transition(next.id, ["uploading"], { state: next.state, progress: next.progress });
+        this.changed();
+        return;
+      }
+      report.attempted++;
       const attempts = next.attempts + 1;
       const at = now();
       if (outcome.kind === "ok") {
@@ -656,10 +791,18 @@ export function summarise(records: readonly CaptureRecord[]): OutboxSummary {
   return s;
 }
 
-/** When the next automatic retry is due (to wake the outbox exactly then), or null if none is waiting. */
-export function nextWakeAt(records: readonly CaptureRecord[], now: number): number | null {
+/**
+ * When the next automatic retry is due (to wake the outbox exactly then), or null if none is waiting. With `me`
+ * (the paired clerk's persona), only that clerk's captures count: nothing else is retried by itself.
+ */
+export function nextWakeAt(
+  records: readonly CaptureRecord[],
+  now: number,
+  me?: string | null,
+): number | null {
   let at: number | null = null;
   for (const r of records) {
+    if (me !== undefined && !isFiledBy(r, me)) continue;
     if (r.state !== "failed" || r.nextAttemptAt === MANUAL_ONLY || r.nextAttemptAt <= now) continue;
     if (at === null || r.nextAttemptAt < at) at = r.nextAttemptAt;
   }

@@ -2,12 +2,16 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { describe, expect, it } from "vitest";
 import { SCREEN_STATES } from "../../_shims/contracts";
-import { type CaptureRecord, MANUAL_ONLY } from "../../lib/outbox";
-import type { PairedSession } from "../../services/session";
+import { type CaptureRecord, type Filer, MANUAL_ONLY } from "../../lib/outbox";
+import { type PairedSession, pairingId } from "../../services/session";
 import {
   canRemove,
   canSendNow,
+  canTakeOver,
+  filedNoteOf,
+  filerName,
   hintOf,
+  type Line,
   metaOf,
   receiptAdviceOf,
   refusalOf,
@@ -20,7 +24,7 @@ import {
   tallyOf,
   titleOf,
 } from "./capture-view";
-import { clerkSite, DEMO_STATION, sessionText } from "./clerk-site";
+import { clerkBearerFor, clerkFiler, clerkSite, DEMO_STATION, sessionText } from "./clerk-site";
 import { type ClerkKey, messages, t } from "./messages";
 import { DARK_BYTES_PER_PIXEL, MIN_LONG_EDGE, qualityIssue } from "./quality";
 import { nextSampleSerial, SAMPLE_SERIALS, sampleBySha, sampleNadawat, sampleSlip } from "./samples";
@@ -28,6 +32,11 @@ import { outboxScreenState, type ScanEvent, scanScreenState } from "./screen-sta
 
 const NOW = Date.parse("2026-10-27T02:00:00Z"); // 10:00 in Calinan
 let n = 0;
+
+/** The clerk this phone is paired as in these tests, and another clerk of the same co-op. */
+const ME = "clerk:jessie";
+const JESSIE: Filer = { persona: ME, name: "Jessie Dela Cruz", pairing: "pairing-jessie-1" };
+const MARIA: Filer = { persona: "clerk:maria", name: "Maria Santos", pairing: "pairing-maria-1" };
 
 function rec(over: Partial<CaptureRecord> = {}): CaptureRecord {
   n++;
@@ -45,6 +54,7 @@ function rec(over: Partial<CaptureRecord> = {}): CaptureRecord {
     memberHint: null,
     source: "scanner",
     nadawat: null,
+    filedBy: JESSIE,
     createdAt: NOW - 60_000,
     state: "queued",
     attempts: 0,
@@ -199,9 +209,9 @@ describe("capture view", () => {
   it("offers Send now to a retry and to a refusal a resend can fix, never to one it cannot", () => {
     const refused = (lastError: string | null) =>
       rec({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError });
-    expect(canSendNow(rec({ state: "failed", nextAttemptAt: NOW + 1, lastError: "503" }))).toBe(true);
+    expect(canSendNow(rec({ state: "failed", nextAttemptAt: NOW + 1, lastError: "503" }), ME)).toBe(true);
     for (const code of ["UNAUTHENTICATED", "FORBIDDEN", "422", "IDEMPOTENCY_KEY_REUSED", null]) {
-      expect(canSendNow(refused(code))).toBe(true);
+      expect(canSendNow(refused(code), ME)).toBe(true);
     }
     for (const code of [
       "FILE_MISSING",
@@ -212,10 +222,10 @@ describe("capture view", () => {
       "LINE_HELD",
       "LINE_ALREADY_RECEIVED",
     ]) {
-      expect(canSendNow(refused(code))).toBe(false);
+      expect(canSendNow(refused(code), ME)).toBe(false);
     }
     for (const state of ["queued", "uploading", "uploaded", "read"] as const) {
-      expect(canSendNow(rec({ state }))).toBe(false);
+      expect(canSendNow(rec({ state }), ME)).toBe(false);
     }
   });
 
@@ -233,8 +243,8 @@ describe("capture view", () => {
     ]) {
       expect(canRemove(r)).toBe(false);
     }
-    expect(sendableCount([refusedFinal, refusedAuth, retrying, rec({ state: "queued" })])).toBe(2);
-    expect(sendableCount([refusedFinal])).toBe(0); // "Ipadala tanan karon" is hidden
+    expect(sendableCount([refusedFinal, refusedAuth, retrying, rec({ state: "queued" })], ME)).toBe(2);
+    expect(sendableCount([refusedFinal], ME)).toBe(0); // "Ipadala tanan karon" is hidden
   });
 
   it("notices captures the co-op just refused, once", () => {
@@ -248,6 +258,125 @@ describe("capture view", () => {
       rec({ state: "failed", nextAttemptAt: MANUAL_ONLY }), // new to the list
     ];
     expect(refusedSince([a, b, c], next).map((r) => r.id)).toEqual([a.id]);
+  });
+});
+
+describe("captures another clerk filed (security review: shown as theirs, sent only by a person's act)", () => {
+  const mine = (over: Partial<CaptureRecord> = {}) => rec({ filedBy: JESSIE, ...over });
+  const marias = (over: Partial<CaptureRecord> = {}) => rec({ filedBy: MARIA, ...over });
+  const unknown = (over: Partial<CaptureRecord> = {}) => rec({ filedBy: null, ...over });
+  const en = (l: Line | null) => (l ? t("en", l.key, l.args) : null);
+
+  it("filer.view-actions: Send now and Send all only for the paired clerk's own; another's offers Send as mine", () => {
+    const refusedMaria = marias({
+      state: "failed",
+      nextAttemptAt: MANUAL_ONLY,
+      lastError: "UNAUTHENTICATED",
+    });
+    const forbiddenMaria = marias({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "FORBIDDEN" });
+    const retryingMaria = marias({ state: "failed", nextAttemptAt: NOW + 1, lastError: "503" });
+    const queuedUnknown = unknown({ state: "queued" });
+    const finalMaria = marias({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "TOO_LARGE" });
+    for (const r of [refusedMaria, forbiddenMaria, retryingMaria, queuedUnknown, finalMaria]) {
+      expect(canSendNow(r, ME)).toBe(false);
+    }
+    for (const r of [refusedMaria, forbiddenMaria, retryingMaria, queuedUnknown]) {
+      expect(canTakeOver(r, ME)).toBe(true);
+    }
+    expect(canTakeOver(finalMaria, ME)).toBe(false); // nothing a resend can fix: only removal
+    expect(canRemove(finalMaria)).toBe(true);
+    // Nobody paired: nothing is offered as anyone's.
+    expect(canTakeOver(queuedUnknown, null)).toBe(false);
+    expect(canSendNow(mine({ state: "failed", nextAttemptAt: NOW + 1 }), null)).toBe(false);
+    // The paired clerk's own, and anything on its way or at the co-op: no takeover.
+    for (const r of [
+      mine({ state: "queued" }),
+      mine({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "UNAUTHENTICATED" }),
+      marias({ state: "uploading" }),
+      marias({ state: "uploaded" }),
+      marias({ state: "read" }),
+    ]) {
+      expect(canTakeOver(r, ME)).toBe(false);
+    }
+    const ownRefusal = mine({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "422" });
+    expect(sendableCount([refusedMaria, retryingMaria, queuedUnknown, ownRefusal], ME)).toBe(1);
+  });
+
+  it("filer.view-words: says who filed it and what it waits for, in canary, before anyone acts", () => {
+    const waiting = marias({ state: "queued" });
+    expect(statusOf(waiting, NOW, true, "Analyn", ME)).toMatchObject({
+      key: "M-CL-02.waitsFor",
+      args: { name: "Maria Santos" },
+      tone: "canaryText",
+    });
+    expect(en(statusOf(waiting, NOW, true, "Analyn", ME))).toBe(
+      "Goes out when Maria Santos pairs this phone again",
+    );
+    expect(en(filedNoteOf(waiting, ME))).toBe("Filed on this phone by Maria Santos.");
+    const backingOff = marias({ state: "failed", nextAttemptAt: NOW + 40_000, lastError: "503" });
+    expect(statusOf(backingOff, NOW, true, null, ME).key).toBe("M-CL-02.waitsFor"); // never "Retrying in 40 s"
+    // A refusal keeps the co-op's reason as its status; who filed it is the line under it.
+    const refused = marias({ state: "failed", nextAttemptAt: MANUAL_ONLY, lastError: "UNAUTHENTICATED" });
+    expect(statusOf(refused, NOW, true, null, ME).key).toBe("M-CL-02.refusedAuth");
+    expect(filedNoteOf(refused, ME)?.key).toBe("M-CL-02.filedBy");
+    // Nobody can say who filed it.
+    expect(statusOf(unknown({ state: "queued" }), NOW, true, null, ME).key).toBe("M-CL-02.waitsUnknown");
+    expect(en(filedNoteOf(unknown({ state: "queued" }), ME))).toBe(
+      "Filed before this phone kept who filed it.",
+    );
+    // The paired clerk's own, and anything at the co-op: no note, and the usual words.
+    expect(filedNoteOf(mine({ state: "queued" }), ME)).toBeNull();
+    expect(statusOf(mine({ state: "queued" }), NOW, true, null, ME).key).toBe("M-CL-02.queued");
+    expect(filedNoteOf(marias({ state: "uploaded" }), ME)).toBeNull();
+    // A judge frame's pairing names nobody: the persona stands in, never an empty name.
+    expect(filerName({ persona: "clerk:maria", name: " ", pairing: "p" })).toBe("Maria");
+    expect(filerName(MARIA)).toBe("Maria Santos");
+    // The ring says a person decides, never "waiting its turn".
+    expect(ringOf(waiting, ME)).toBe("refused");
+    expect(ringOf(mine({ state: "queued" }), ME)).toBe("waiting");
+    expect(tallyOf([waiting], NOW, 24, ME).rings[0]?.tone).toBe("refused");
+  });
+});
+
+describe("the clerk paired now, as the outbox files and sends (security review)", () => {
+  const clerk = (over: Partial<PairedSession> = {}): PairedSession => ({
+    kind: "device",
+    bearer: "dev_token_for_tests",
+    expiresAt: "2026-11-30T00:00:00Z",
+    workspaceId: "ws_live",
+    persona: "clerk:rosalie",
+    role: "clerk",
+    memberNo: null,
+    displayName: "Rosalie T. Ompoc",
+    lang: null,
+    pairedAt: "2026-10-27T00:00:00Z",
+    ...over,
+  });
+
+  it("filer.from-session: files under the clerk's persona, name and pairing; nothing for another role or co-op", () => {
+    const s = clerk();
+    expect(clerkFiler(s, "ws_live")).toEqual({
+      persona: "clerk:rosalie",
+      name: "Rosalie T. Ompoc",
+      pairing: pairingId(s),
+    });
+    expect(clerkFiler(s, "ws_other")).toBeNull();
+    expect(clerkFiler(clerk({ role: "member", persona: "member:M-014" }), "ws_live")).toBeNull();
+    expect(clerkFiler(null, "ws_live")).toBeNull();
+    expect(clerkFiler(s, null)).toBeNull();
+    expect(clerkFiler(clerk({ displayName: "  " }), "ws_live")?.name).toBe("");
+    // The pairing is never the bearer.
+    expect(JSON.stringify(clerkFiler(s, "ws_live"))).not.toContain(s.bearer);
+  });
+
+  it("filer.bearer: hands out the bearer only for the paired clerk's own captures", () => {
+    const s = clerk();
+    expect(clerkBearerFor(s, "ws_live", "clerk:rosalie")).toBe("dev_token_for_tests");
+    expect(clerkBearerFor(s, "ws_live", "clerk:jessie")).toBeNull();
+    expect(clerkBearerFor(s, "ws_live", null)).toBeNull();
+    expect(clerkBearerFor(s, "ws_other", "clerk:rosalie")).toBeNull();
+    expect(clerkBearerFor(null, "ws_live", "clerk:rosalie")).toBeNull();
+    expect(clerkBearerFor(clerk({ bearer: "" }), "ws_live", "clerk:rosalie")).toBeNull();
   });
 });
 

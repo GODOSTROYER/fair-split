@@ -5,6 +5,8 @@
  * A phone becomes a session three ways: a pairing QR or 6-digit code (`device` bearer on the APK, a 2-hour `frame`
  * token on the web), a judge stage frame (IC-12 `fs.token`), or a labelled demo link (`?demo=member|board|clerk`).
  */
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import type { Href } from "expo-router";
 import type { AppRole, Lang } from "../_shims/contracts";
 
@@ -30,6 +32,39 @@ export interface PairedSession {
 
 /** The demo session's bearer: it holds no secret, so it may persist in plain preferences. */
 export const DEMO_BEARER = "demo-session";
+
+/** A short, key-safe fingerprint of `parts` (JSON, so no two field lists ever run into each other). */
+function fingerprint(domain: string, parts: readonly string[]): string {
+  return bytesToHex(sha256(utf8ToBytes(JSON.stringify([domain, ...parts])))).slice(0, 16);
+}
+
+/**
+ * The pairing a session came from, named without its secret: a fingerprint of the workspace, the persona and when
+ * this phone paired. A restored session keeps it; pairing again, even as the same person with a new token, makes a
+ * new one. What belongs to one pairing only (the board's signing key, the pairing a capture was filed under) is
+ * bound to it.
+ */
+export function pairingId(s: Pick<PairedSession, "workspaceId" | "persona" | "pairedAt">): string {
+  return fingerprint("fair-split-pairing", [s.workspaceId, s.persona, s.pairedAt]);
+}
+
+/**
+ * Who a session is, across pairings: a fingerprint of the workspace and the persona. What this phone keeps for a
+ * person (a statement's offline copy, a re-check request) is kept under it, so a phone paired to someone else, or to
+ * the same persona in another co-op or judge workspace, never reads it.
+ */
+export function identityKey(s: Pick<PairedSession, "workspaceId" | "persona">): string {
+  return fingerprint("fair-split-identity", [s.workspaceId, s.persona]);
+}
+
+/** True when `next` is not the pairing `prev` was: the phone was paired again (as anyone), or unpaired. */
+export function pairingChanged(
+  prev: Pick<PairedSession, "workspaceId" | "persona" | "pairedAt"> | null,
+  next: Pick<PairedSession, "workspaceId" | "persona" | "pairedAt"> | null,
+): boolean {
+  if (!prev) return false;
+  return !next || pairingId(prev) !== pairingId(next);
+}
 
 /** A session is usable until it expires; frame tokens last 2 hours, device tokens longer. */
 export function sessionValid(s: Pick<PairedSession, "expiresAt"> | null, now: Date): boolean {

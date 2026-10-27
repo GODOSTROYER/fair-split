@@ -6,7 +6,10 @@ import {
   demoWorkspaceAfterReset,
   HREF,
   homeHref,
+  identityKey,
   type PairedSession,
+  pairingChanged,
+  pairingId,
   parseSession,
   pirmaHref,
   sessionValid,
@@ -128,5 +131,45 @@ describe("demo workspaces after a judge reset", () => {
     const after = [1, 2, 3].map((n) => demoWorkspaceAfterReset("ws_demo_local", n));
     expect(new Set(after).size).toBe(3);
     expect(after.every((w) => w !== "ws_demo_local" && w.startsWith("ws_demo_local"))).toBe(true);
+  });
+});
+
+describe("pairings and identities (security review: what a phone keeps stays with whom it belongs to)", () => {
+  it("session.pairing-id: names a pairing without its bearer; the same after a restart, new after pairing again", () => {
+    const id = pairingId(session);
+    expect(id).toMatch(/^[0-9a-f]{16}$/);
+    const restored = parseSession(JSON.stringify(session), now);
+    if (!restored) throw new Error("expected the session back");
+    expect(pairingId(restored)).toBe(id);
+    const sameButBearer: PairedSession = { ...session, bearer: "fsd_another_token" };
+    expect(pairingId(sameButBearer)).toBe(id); // never derived from the secret
+    expect(pairingId({ ...session, pairedAt: "2026-10-29T03:00:00Z" })).not.toBe(id); // paired again
+    expect(pairingId({ ...session, workspaceId: "ws_judge_7" })).not.toBe(id);
+    expect(pairingId({ ...session, persona: "member:M-031" })).not.toBe(id);
+  });
+
+  it("session.identity-key: the same person across pairings; another persona or workspace is someone else", () => {
+    const k = identityKey(session);
+    expect(k).toMatch(/^[0-9a-f]{16}$/);
+    const pairedAgain: PairedSession = { ...session, pairedAt: "2026-10-29T03:00:00Z", bearer: "fsd_new" };
+    expect(identityKey(pairedAgain)).toBe(k);
+    expect(identityKey({ ...session, workspaceId: "ws_judge_7" })).not.toBe(k);
+    expect(identityKey({ ...session, persona: "member:M-031" })).not.toBe(k);
+    // Fields never run into each other: ("a|b", "c") is not ("a", "b|c").
+    expect(identityKey({ workspaceId: "a|b", persona: "c" })).not.toBe(
+      identityKey({ workspaceId: "a", persona: "b|c" }),
+    );
+    expect(k).not.toBe(pairingId(session));
+  });
+
+  it("session.pairing-changed: pairing again or unpairing changes it; a restart or the first pairing does not", () => {
+    expect(pairingChanged(null, session)).toBe(false); // first pairing: nothing of an earlier one to drop
+    expect(pairingChanged(null, null)).toBe(false);
+    expect(pairingChanged(session, { ...session })).toBe(false); // restored after a restart
+    expect(pairingChanged(session, { ...session, pairedAt: "2026-10-29T03:00:00Z" })).toBe(true);
+    const chair: PairedSession = { ...session, persona: "board:ernesto", role: "board" };
+    expect(pairingChanged(session, chair)).toBe(true);
+    expect(pairingChanged(session, { ...session, workspaceId: "ws_judge_7" })).toBe(true);
+    expect(pairingChanged(session, null)).toBe(true); // unpaired
   });
 });

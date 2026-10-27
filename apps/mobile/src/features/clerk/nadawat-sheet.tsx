@@ -385,14 +385,15 @@ function discardPhoto(
 
 /**
  * The receipt this phone filed for the line, refused by the co-op: why, in words the clerk can act on, before the
- * photo step. When a resend can work (a new pairing, a passing refusal) it goes again from here, the same photo
- * under a new key; otherwise, or as well, the steps below file a new receipt in its place.
+ * photo step. When a resend can work (a new pairing, a passing refusal) and this clerk filed it, it goes again from
+ * here, the same photo under a new key; otherwise, or as well, the steps below file a new receipt in its place (a
+ * receipt another clerk filed is theirs to resend: this clerk attests anew, or takes it over from the Outbox).
  */
 function Refused({ receipt, treasurer }: { receipt: CaptureRecord; treasurer: string | null }) {
   const tr = useT();
-  const { sendNow } = useOutbox();
+  const { sendNow, me } = useOutbox();
   const advice = receiptAdviceOf(receipt, treasurer);
-  const resend = canSendNow(receipt);
+  const resend = canSendNow(receipt, me);
   return (
     <Banner tone="decide" icon="info" testID="M-CL-01.nadawat.refused">
       <Txt kind="bodyStrong">{tr("M-CL-01.nadawat.refusedLead", { time: clock(receipt.createdAt) })}</Txt>

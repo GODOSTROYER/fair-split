@@ -2,11 +2,15 @@
  * Web frames and a phone's browser: uploads with XMLHttpRequest, whose upload events give the ring real progress,
  * and falls back to fetch where there is none (Node, under Vitest). The request comes from the shared protocol, so
  * it is byte-for-byte what the APK sends. An upload with no progress for 45 s is abandoned and retried later with
- * the same Idempotency-Key, so one stalled link can never block the queue behind it.
+ * the same Idempotency-Key, so one stalled link can never block the queue behind it. A capture goes only with the
+ * bearer of the clerk who filed it (`bearerFor`), read as the request is built: paired as anyone else by then, it is
+ * held, and nothing leaves.
  */
 import type { FairSplitApi } from "../_shims/api-client";
 import {
+  type BearerFor,
   type HeaderLookup,
+  heldUnlessFiler,
   interpretUpload,
   LOCAL_ERROR,
   originOf,
@@ -19,12 +23,12 @@ import { demoUploader } from "./uploader-demo";
 
 export interface UploaderDeps {
   api: FairSplitApi;
-  getBearer: () => string | null;
+  bearerFor: BearerFor;
   now?: () => number;
 }
 
 export function createUploader(deps: UploaderDeps): Uploader {
-  if (deps.api.mode === "demo") return demoUploader();
+  if (deps.api.mode === "demo") return heldUnlessFiler(demoUploader(), deps.bearerFor);
   const now = deps.now ?? Date.now;
   const origin = originOf(deps.api.captureUrl());
   return async (rec, onProgress) => {
@@ -36,7 +40,10 @@ export function createUploader(deps: UploaderDeps): Uploader {
     } catch {
       return { kind: "reject", error: LOCAL_ERROR.fileMissing };
     }
-    const req = uploadRequest(rec, origin, deps.getBearer());
+    // Last, right before the request is built: only the pairing of the clerk who filed it may carry it.
+    const bearer = deps.bearerFor(rec.filedBy?.persona ?? null);
+    if (!bearer) return { kind: "held" };
+    const req = uploadRequest(rec, origin, bearer);
     return typeof XMLHttpRequest === "function"
       ? sendXhr(req, body, rec.kind, onProgress, now)
       : sendFetch(req, body, rec.kind, onProgress, now);

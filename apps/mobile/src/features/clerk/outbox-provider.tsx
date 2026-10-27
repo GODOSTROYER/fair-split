@@ -2,9 +2,14 @@
  * The clerk's offline outbox (M-CL-01), opened for the paired workspace when a clerk phone is in use. It recovers
  * uploads a killed app left behind, and syncs when the phone comes online, returns to the foreground, a retry falls
  * due (to the second, so the countdown the clerk reads is the one the outbox keeps) and once a minute while the app
- * is open. `capture.synced` marks a page read; other run events go on to the cash list and the rescan requests. When
- * the phone is paired again, what the co-op refused for the old pairing goes out by itself under new keys. Mounted
- * by the clerk layout and read with `useOutbox()`.
+ * is open. `capture.synced` marks a page read; other run events go on to the cash list and the rescan requests.
+ *
+ * Every capture is filed under the clerk paired now (`clerkFiler`), and only that clerk's pairing sends it: the
+ * uploader gets a bearer only for the paired clerk's own captures (`clerkBearerFor`, read as each request is built).
+ * When the phone is paired again as the same clerk, what an expired token had refused goes out by itself under new
+ * keys; paired as another clerk, the first clerk's captures wait, each saying who filed it, until that clerk pairs
+ * again or a person sends one as theirs ("Ipadala isip ako", `takeOver`). Mounted by the clerk layout and read with
+ * `useOutbox()`.
  *
  * Demo mode labels everything "Demo data"; there, a sample slip is "read" a moment after it lands (one row, its own
  * serial), the way fs-api's reader answers, so the whole lifecycle can be seen without a server. A real photo in
@@ -32,6 +37,7 @@ import { onConnectivity } from "../../services/connectivity";
 import { useApp } from "../../state/app";
 import { announce } from "../../ui/a11y";
 import { refusedSince, settledSince } from "./capture-view";
+import { clerkBearerFor, clerkFiler } from "./clerk-site";
 import { pluralKey } from "./messages";
 import { sampleBySha } from "./samples";
 import { useT } from "./use-t";
@@ -46,10 +52,17 @@ export interface OutboxHandle {
   outbox: Outbox | null;
   /** Newest first. */
   records: CaptureRecord[];
+  /** The persona of the clerk paired now (null: none): rows compare each capture's filer with it. */
+  me: string | null;
   /** Tries to open the outbox again after an error. */
   reopen(): void;
   sendNow(id: string): void;
   sendAll(): void;
+  /**
+   * "Ipadala isip ako", after the confirm that named who filed it (`seen`: that persona, null for unknown): the
+   * capture becomes this clerk's and goes under this pairing. False when nothing changed.
+   */
+  takeOver(id: string, seen: string | null): Promise<boolean>;
   /** Removes a refused capture from the phone; false when it is no longer refused (or no longer here). */
   discard(id: string): Promise<boolean>;
   /**
@@ -72,9 +85,11 @@ const OPENING: OutboxHandle = {
   status: "opening",
   outbox: null,
   records: [],
+  me: null,
   reopen: () => {},
   sendNow: () => {},
   sendAll: () => {},
+  takeOver: async () => false,
   discard: async () => false,
   subscribe: () => () => {},
 };
@@ -90,12 +105,14 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
   const [attempt, setAttempt] = useState(0);
   const onlineRef = useRef(online);
   onlineRef.current = online;
-  const bearerRef = useRef<string | null>(null);
-  bearerRef.current = session?.bearer ?? null;
+  // One session object for both who is paired and the bearer, so the two are always read together.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const trRef = useRef(tr);
   trRef.current = tr;
   const listeners = useRef(new Set<(e: ClerkEvent) => void>());
   const workspaceId = session?.role === "clerk" ? session.workspaceId : null;
+  const me = clerkFiler(session, workspaceId)?.persona ?? null;
 
   useEffect(() => {
     if (!workspaceId) {
@@ -119,7 +136,11 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
     const scheduleWake = (records: readonly CaptureRecord[]) => {
       if (wake) clearTimeout(wake);
       wake = null;
-      const at = nextWakeAt(records, Date.now());
+      const at = nextWakeAt(
+        records,
+        Date.now(),
+        clerkFiler(sessionRef.current, workspaceId)?.persona ?? null,
+      );
       if (at !== null) wake = setTimeout(() => void ob?.sync(), Math.max(0, at - Date.now()) + 50);
     };
 
@@ -186,10 +207,14 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
         if (!alive) return;
         ob = new Outbox({
           store,
-          uploader: createUploader({ api, getBearer: () => bearerRef.current }),
+          uploader: createUploader({
+            api,
+            bearerFor: (filedBy) => clerkBearerFor(sessionRef.current, workspaceId, filedBy),
+          }),
           now: () => Date.now(),
           newId: () => uuidv7(Date.now(), randomBytes),
           isOnline: () => onlineRef.current,
+          filer: () => clerkFiler(sessionRef.current, workspaceId),
           onChange: () => void refresh(),
           deleteFile: deleteCaptureFile,
         });
@@ -239,7 +264,8 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
   }, []);
   const { outbox } = state;
 
-  // Paired again with the same co-op (a new bearer): what the old pairing had refused goes out under new keys.
+  // Paired again with the same co-op (a new bearer): the outbox resends what an expired token refused, for the clerk
+  // paired now only; another clerk's captures wait for their filer or a person (`Outbox.afterPairing`).
   const bearer = session?.bearer ?? null;
   const pairing = useRef({ bearer, workspaceId });
   useEffect(() => {
@@ -253,13 +279,15 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
   const value = useMemo<OutboxHandle>(
     () => ({
       ...state,
+      me,
       reopen,
       subscribe,
       sendNow: (id) => void outbox?.sendNow(id),
       sendAll: () => void outbox?.sendAll(),
+      takeOver: async (id, seen) => (outbox ? (await outbox.takeOver(id, seen)) !== null : false),
       discard: async (id) => (outbox ? outbox.discard(id) : false),
     }),
-    [state, outbox, reopen, subscribe],
+    [state, me, outbox, reopen, subscribe],
   );
   return <OutboxContext.Provider value={value}>{children}</OutboxContext.Provider>;
 }

@@ -11,7 +11,8 @@
  * Pure (tested in Node).
  */
 import { people } from "../../_shims/seed";
-import type { PairedSession } from "../../services/session";
+import type { Filer } from "../../lib/outbox";
+import { type PairedSession, pairingId } from "../../services/session";
 import { type CashDayDTO, initialsOf } from "./cash-day";
 
 /** The spec's example station (S1 M-CK-01, design K1): shown on demo data only. */
@@ -49,4 +50,27 @@ export function clerkSite(input: {
     // `||`: a pairing may carry an empty name, which is no name.
     initials: initialsOf(session?.displayName || "") ?? (demo ? initialsOf(people.clerk.name) : null),
   };
+}
+
+/**
+ * The clerk paired now, as the outbox files captures under it: the persona the co-op attributes uploads to, the name
+ * the pairing gave (rows say who filed what), and the pairing itself. Null unless this is a clerk pairing of the
+ * outbox's own workspace.
+ */
+export function clerkFiler(session: PairedSession | null, workspaceId: string | null): Filer | null {
+  if (session?.role !== "clerk" || !workspaceId || session.workspaceId !== workspaceId) return null;
+  return { persona: session.persona, name: session.displayName.trim(), pairing: pairingId(session) };
+}
+
+/**
+ * The bearer a capture filed by `filedBy` may go with (`BearerFor`): this pairing's, only while it is that clerk's
+ * own pairing of the workspace. Read from one session object, so the persona checked is the bearer's.
+ */
+export function clerkBearerFor(
+  session: PairedSession | null,
+  workspaceId: string | null,
+  filedBy: string | null,
+): string | null {
+  const f = clerkFiler(session, workspaceId);
+  return f && filedBy !== null && f.persona === filedBy && session?.bearer ? session.bearer : null;
 }

@@ -659,6 +659,70 @@ export const messages = defineMessages({
     fil: "Naalis na sa telepono.",
     en: "Removed from this phone.",
   },
+  /* Captures another clerk filed on this phone, or filed before it kept who filed them (security review). */
+  "M-CL-02.waitsFor": {
+    ceb: "Mapadala kini inig ipares pag-usab ni {name} niining telepono",
+    fil: "Maipapadala ito kapag ipinares muli ni {name} ang teleponong ito",
+    en: "Goes out when {name} pairs this phone again",
+  },
+  "M-CL-02.waitsUnknown": {
+    ceb: "Mapadala lang kini kon ipadala nimo isip imo",
+    fil: "Maipapadala lang ito kapag ipinadala mo bilang iyo",
+    en: "Goes out only if you send it as yours",
+  },
+  "M-CL-02.filedBy": {
+    ceb: "Gi-file ni {name} niining telepono.",
+    fil: "Ipinasa ni {name} sa teleponong ito.",
+    en: "Filed on this phone by {name}.",
+  },
+  "M-CL-02.filedByUnknown": {
+    ceb: "Gi-file sa wala pa gitipigi sa telepono kinsa ang nag-file.",
+    fil: "Ipinasa bago itinala ng telepono kung sino ang nagpasa.",
+    en: "Filed before this phone kept who filed it.",
+  },
+  "M-CL-02.takeOver": { ceb: "Ipadala isip ako", fil: "Ipadala bilang akin", en: "Send as mine" },
+  "M-CL-02.takeOverSr": {
+    ceb: "Ipadala isip ako: {title}, gi-file ni {name}",
+    fil: "Ipadala bilang akin: {title}, ipinasa ni {name}",
+    en: "Send as mine: {title}, filed by {name}",
+  },
+  "M-CL-02.takeOverUnknownSr": {
+    ceb: "Ipadala isip ako: {title}, wala mailhi kinsa ang nag-file",
+    fil: "Ipadala bilang akin: {title}, hindi alam kung sino ang nagpasa",
+    en: "Send as mine: {title}, filer not known",
+  },
+  "M-CL-02.takeOverTitle": {
+    ceb: "Ipadala isip imo?",
+    fil: "Ipadala bilang iyo?",
+    en: "Send it as yours?",
+  },
+  "M-CL-02.takeOverBody": {
+    ceb: "Si {name} ang nag-file niini niining telepono sa {time}. Kon ipadala nimo karon, marekord kini sa co-op ubos sa imong pagpares, dili kang {name}.",
+    fil: "Si {name} ang nagpasa nito sa teleponong ito noong {time}. Kapag ipinadala mo ngayon, itatala ito ng co-op sa ilalim ng iyong pagpares, hindi kay {name}.",
+    en: "{name} filed this on this phone at {time}. Sent now, the co-op records it under your pairing, not {name}'s.",
+  },
+  "M-CL-02.takeOverBodyUnknown": {
+    ceb: "Gi-file kini niining telepono sa {time}, sa wala pa kini gitipigi kinsa ang nag-file. Kon ipadala nimo karon, marekord kini sa co-op ubos sa imong pagpares.",
+    fil: "Ipinasa ito sa teleponong ito noong {time}, bago nito itinala kung sino ang nagpasa. Kapag ipinadala mo ngayon, itatala ito ng co-op sa ilalim ng iyong pagpares.",
+    en: "This was filed on this phone at {time}, before it kept who filed it. Sent now, the co-op records it under your pairing.",
+  },
+  "M-CL-02.takeOverConfirm": { ceb: "Ipadala isip ako", fil: "Ipadala bilang akin", en: "Send as mine" },
+  "M-CL-02.takeOverCancel": { ceb: "Dili sa karon", fil: "Hindi muna", en: "Not now" },
+  "M-CL-02.takenOver": {
+    ceb: "Mapadala kini ubos sa imong pagpares.",
+    fil: "Maipapadala ito sa ilalim ng iyong pagpares.",
+    en: "It goes out under your pairing.",
+  },
+  "M-CL-02.removeOther": {
+    ceb: "Si {name} ang nag-file niini.",
+    fil: "Si {name} ang nagpasa nito.",
+    en: "{name} filed it.",
+  },
+  "M-CL-02.removeUnknown": {
+    ceb: "Wala matipig kinsa ang nag-file niini.",
+    fil: "Hindi naitala kung sino ang nagpasa nito.",
+    en: "Who filed it was not kept.",
+  },
   "M-CL-02.notRead": { ceb: "Wala pa mabasa", fil: "Hindi pa nababasa", en: "Not read yet" },
   "M-CL-02.serial": same("Resibo {serial}"),
   "M-CL-02.nadawat": {

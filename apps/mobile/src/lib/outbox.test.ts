@@ -7,7 +7,11 @@ import {
   assertNewCapture,
   CAPTURE_STATE_RANK,
   type CaptureRecord,
+  EXPIRED_TOKEN_REFUSALS,
   FINAL_REFUSALS,
+  type Filer,
+  filerOrNull,
+  isFiledBy,
   isFinalRefusal,
   isRefused,
   isSameManilaDay,
@@ -32,6 +36,13 @@ const SHA_B = "b".repeat(64);
 const SHA_C = "c".repeat(64);
 const SHA_D = "d".repeat(64);
 const T0 = Date.parse("2026-10-27T01:00:00Z"); // 09:00 in Calinan
+
+/** The clerk this phone is paired as in most tests. */
+const JESSIE: Filer = { persona: "clerk:jessie", name: "Jessie Dela Cruz", pairing: "pairing-jessie-1" };
+/** The same clerk, paired again (her token had expired): a new pairing, the same persona. */
+const JESSIE_AGAIN: Filer = { ...JESSIE, pairing: "pairing-jessie-2" };
+/** Another clerk of the same co-op, paired on the same phone. */
+const MARIA: Filer = { persona: "clerk:maria", name: "Maria Santos", pairing: "pairing-maria-1" };
 
 function page(sha: string, over: Partial<NewCapture> = {}): NewCapture {
   return {
@@ -74,27 +85,37 @@ const ok = (over: Partial<Extract<UploadOutcome, { kind: "ok" }>> = {}): UploadO
 interface Harness {
   outbox: Outbox;
   store: OutboxStore;
-  calls: { id: string; sha: string; attempt: number }[];
+  /** Every upload: its key, bytes and attempt, who filed it, and who the phone was paired as when it went. */
+  calls: { id: string; sha: string; attempt: number; filedBy: string | null; as: string | null }[];
   deleted: string[];
   changes: () => number;
   advance(ms: number): void;
   setOnline(v: boolean): void;
+  /** The phone is paired as `f` from now on (null: not paired). */
+  pairAs(f: Filer | null): void;
   now(): number;
 }
 
 function harness(
   store: OutboxStore,
   script: (UploadOutcome | ((rec: CaptureRecord) => Promise<UploadOutcome>))[] = [],
-  opts: { progress?: number[] } = {},
+  opts: { progress?: number[]; filer?: Filer | null } = {},
 ): Harness {
   let now = T0;
   let online = true;
   let seq = 0;
   let changes = 0;
+  let filer: Filer | null = opts.filer === undefined ? JESSIE : opts.filer;
   const calls: Harness["calls"] = [];
   const deleted: string[] = [];
   const uploader: Uploader = async (rec, onProgress) => {
-    calls.push({ id: rec.id, sha: rec.sha256, attempt: rec.attempts + 1 });
+    calls.push({
+      id: rec.id,
+      sha: rec.sha256,
+      attempt: rec.attempts + 1,
+      filedBy: rec.filedBy?.persona ?? null,
+      as: filer?.persona ?? null,
+    });
     for (const p of opts.progress ?? [0.5, 1]) onProgress(p);
     const next = script.shift();
     if (typeof next === "function") return next(rec);
@@ -106,6 +127,7 @@ function harness(
     now: () => now,
     newId: () => uuidv7(now + seq++, (n) => new Uint8Array(n).fill(seq & 0xff)),
     isOnline: () => online,
+    filer: () => filer,
     onChange: () => {
       changes++;
     },
@@ -125,7 +147,40 @@ function harness(
     setOnline: (v) => {
       online = v;
     },
+    pairAs: (f) => {
+      filer = f;
+    },
     now: () => now,
+  };
+}
+
+/** A whole stored capture, as a store holds it (`over` sets anything, a missing filer included). */
+function stored(over: Partial<CaptureRecord> & Pick<CaptureRecord, "id" | "sha256">): CaptureRecord {
+  return {
+    kind: "slip",
+    fileUri: `file:///captures/${over.sha256.slice(0, 6)}.jpg`,
+    thumbUri: null,
+    mime: "image/jpeg",
+    bytes: 412_000,
+    width: 1600,
+    height: 1200,
+    station: "Purok 2 pickup",
+    memberHint: null,
+    source: "scanner",
+    nadawat: null,
+    filedBy: JESSIE,
+    createdAt: T0,
+    state: "queued",
+    attempts: 0,
+    nextAttemptAt: T0,
+    lastError: null,
+    progress: 0,
+    documentId: null,
+    duplicateOf: null,
+    rowsRead: null,
+    serial: null,
+    uploadedAt: null,
+    ...over,
   };
 }
 
@@ -374,11 +429,91 @@ describe.each(stores)("outbox on %s", (_name, makeStore) => {
     expect(summarise(await h.outbox.list())).toMatchObject({ onPhone: 0, uploaded: 3 });
   });
 
-  it("sends what the old pairing had refused once the phone is paired again, and nothing else", async () => {
+  /* -------------------------------------------- the clerk who filed it (security review, ws/app SECURITY (1)) */
+
+  it("filer.stamped: every capture keeps the clerk paired when it was filed, through the store", async () => {
+    const h = harness(makeStore());
+    await h.outbox.init();
+    const a = queued(await h.outbox.add(page(SHA_A)));
+    expect(a.filedBy).toEqual(JESSIE);
+    expect((await h.store.get(a.id))?.filedBy).toEqual(JESSIE);
+    h.pairAs(null);
+    // Nobody paired: the capture is kept (never lost), but it is nobody's, so it waits for a person.
+    const b = queued(await h.outbox.add(page(SHA_B)));
+    expect(b.filedBy).toBeNull();
+    expect(await h.outbox.sync()).toMatchObject({ attempted: 0 });
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("filer.persona-mismatch: paired again as another clerk, nothing the first clerk filed goes out by itself", async () => {
     const h = harness(makeStore(), [
       { kind: "reject", error: "UNAUTHENTICATED" },
+      { kind: "retry", error: "NETWORK" },
+    ]);
+    await h.outbox.init();
+    await h.outbox.add(page(SHA_A)); // refused: Jessie's token had expired
+    h.advance(10);
+    await h.outbox.add(page(SHA_B)); // backing off after a network loss
+    await h.outbox.sync();
+    h.setOnline(false);
+    h.advance(10);
+    await h.outbox.add(page(SHA_C)); // never sent
+    h.setOnline(true);
+    expect(h.calls).toHaveLength(2);
+
+    // Maria pairs this phone: re-pairing, timers, "Ipadala karon" and "Ipadala tanan" all leave Jessie's captures be.
+    h.pairAs(MARIA);
+    expect(await h.outbox.afterPairing()).toMatchObject({ attempted: 0 });
+    // No wake-up is scheduled for Jessie's backing-off capture while Maria is paired.
+    expect(nextWakeAt(await h.outbox.list(), h.now())).not.toBeNull();
+    expect(nextWakeAt(await h.outbox.list(), h.now(), MARIA.persona)).toBeNull();
+    h.advance(24 * 3600_000);
+    expect(await h.outbox.sync()).toMatchObject({ attempted: 0 });
+    await h.outbox.sendAll();
+    for (const r of await h.outbox.list()) await h.outbox.sendNow(r.id);
+    expect(h.calls).toHaveLength(2);
+    const held = await h.outbox.list();
+    expect(held.map((r) => r.filedBy?.persona)).toEqual([JESSIE.persona, JESSIE.persona, JESSIE.persona]);
+    expect(held.find((r) => r.sha256 === SHA_A)).toMatchObject({
+      lastError: "UNAUTHENTICATED",
+      nextAttemptAt: MANUAL_ONLY,
+    });
+    expect(held.find((r) => r.sha256 === SHA_C)).toMatchObject({ state: "queued", attempts: 0 });
+
+    // Maria's own captures go as usual, under her name.
+    await h.outbox.add(page(SHA_D));
+    await h.outbox.sync();
+    expect(h.calls.at(-1)).toMatchObject({ sha: SHA_D, filedBy: MARIA.persona, as: MARIA.persona });
+
+    // Jessie pairs again: what she filed goes by itself, under her own pairing (her refusal under a new key).
+    h.pairAs(JESSIE_AGAIN);
+    expect(await h.outbox.afterPairing()).toMatchObject({ attempted: 3, uploaded: 3 });
+    expect(h.calls.slice(3).map((c) => c.sha)).toEqual([SHA_A, SHA_B, SHA_C]);
+    // Every upload went out under the pairing of the clerk who filed it, never another's.
+    for (const c of h.calls) expect(c.as).toBe(c.filedBy);
+  });
+
+  it("filer.forbidden: paired again as the same clerk, a FORBIDDEN refusal never goes by itself; her own act can", async () => {
+    const h = harness(makeStore(), [{ kind: "reject", error: "FORBIDDEN" }]);
+    await h.outbox.init();
+    const rec = queued(await h.outbox.add(page(SHA_A)));
+    await h.outbox.sync();
+    h.pairAs(JESSIE_AGAIN);
+    expect(await h.outbox.afterPairing()).toMatchObject({ attempted: 0 });
+    expect(h.calls).toHaveLength(1);
+    expect(await only(h)).toMatchObject({ id: rec.id, lastError: "FORBIDDEN", nextAttemptAt: MANUAL_ONLY });
+    // "Ipadala karon" on her own capture (the row says she filed it): a person's act, as a new request.
+    await h.outbox.sendNow(rec.id);
+    expect(h.calls).toHaveLength(2);
+    expect(h.calls[1]).toMatchObject({ sha: SHA_A, as: JESSIE.persona });
+    expect(h.calls[1]?.id).not.toBe(rec.id);
+  });
+
+  it("filer.expired-token: paired again as the same clerk, her expired-token refusals go by themselves, each under a new key", async () => {
+    const h = harness(makeStore(), [
+      { kind: "reject", error: "UNAUTHENTICATED" },
+      { kind: "reject", error: "FRAME_TOKEN_EXPIRED" },
       { kind: "reject", error: "422" },
-      { kind: "reject", error: "FORBIDDEN" },
     ]);
     await h.outbox.init();
     for (const sha of [SHA_A, SHA_B, SHA_C]) {
@@ -386,16 +521,152 @@ describe.each(stores)("outbox on %s", (_name, makeStore) => {
       h.advance(10);
     }
     await h.outbox.sync();
-    expect(summarise(await h.outbox.list())).toMatchObject({ refused: 3 });
+    const refused = await h.outbox.list();
+    expect(summarise(refused)).toMatchObject({ refused: 3 });
+    h.pairAs(JESSIE_AGAIN);
     expect(await h.outbox.afterPairing()).toMatchObject({ attempted: 2, uploaded: 2 });
     const list = await h.outbox.list();
-    expect(list.find((r) => r.sha256 === SHA_B)).toMatchObject({ lastError: "422" }); // waits for a person
-    expect(
-      list
-        .filter((r) => r.state === "uploaded")
-        .map((r) => r.sha256)
-        .sort(),
-    ).toEqual([SHA_A, SHA_C]);
+    expect(list.find((r) => r.sha256 === SHA_C)).toMatchObject({ lastError: "422" }); // waits for a person
+    const sent = list.filter((r) => r.state === "uploaded");
+    expect(sent.map((r) => r.sha256).sort()).toEqual([SHA_A, SHA_B]);
+    // New requests (the old keys could only replay the refusal), still filed by her.
+    for (const r of sent) {
+      expect(refused.some((x) => x.id === r.id)).toBe(false);
+      expect(r.filedBy).toEqual(JESSIE);
+    }
+    expect(h.calls.slice(3).every((c) => c.as === JESSIE.persona)).toBe(true);
+  });
+
+  it("filer.unknown: a capture kept from before the phone noted who filed it never goes by itself", async () => {
+    const store = makeStore();
+    // As the schema migration leaves them (see "sqlite schema"): no filer.
+    await store.init();
+    await store.insert(stored({ id: "0190f0f0-0000-7000-8000-0000000000a1", sha256: SHA_A, filedBy: null }));
+    await store.insert(
+      stored({
+        id: "0190f0f0-0000-7000-8000-0000000000a2",
+        sha256: SHA_B,
+        filedBy: null,
+        createdAt: T0 + 10,
+        state: "failed",
+        attempts: 1,
+        nextAttemptAt: MANUAL_ONLY,
+        lastError: "UNAUTHENTICATED",
+      }),
+    );
+    const h = harness(store);
+    await h.outbox.init();
+    await h.outbox.afterPairing();
+    h.advance(24 * 3600_000);
+    await h.outbox.sync();
+    await h.outbox.sendAll();
+    for (const r of await h.outbox.list()) await h.outbox.sendNow(r.id);
+    expect(h.calls).toHaveLength(0);
+    expect(summarise(await h.outbox.list())).toMatchObject({ onPhone: 2, queued: 1, refused: 1 });
+
+    // A person's act, after the screen said nobody knows who filed it: it goes as hers.
+    expect(await h.outbox.takeOver("0190f0f0-0000-7000-8000-0000000000a1", MARIA.persona)).toBeNull();
+    expect(await h.outbox.takeOver("0190f0f0-0000-7000-8000-0000000000a1", null)).toMatchObject({
+      uploaded: 1,
+    });
+    expect(h.calls).toEqual([
+      expect.objectContaining({ sha: SHA_A, filedBy: JESSIE.persona, as: JESSIE.persona }),
+    ]);
+    expect(await h.outbox.takeOver("0190f0f0-0000-7000-8000-0000000000a2", null)).toMatchObject({
+      uploaded: 1,
+    });
+    expect(h.calls[1]).toMatchObject({ sha: SHA_B, as: JESSIE.persona });
+    expect(h.calls[1]?.id).not.toBe("0190f0f0-0000-7000-8000-0000000000a2"); // a refusal goes as a new request
+  });
+
+  it("filer.take-over: another clerk's capture goes only by a person's act, after seeing who filed it", async () => {
+    const h = harness(makeStore(), [
+      { kind: "reject", error: "UNAUTHENTICATED" },
+      { kind: "retry", error: "NETWORK" },
+      ok(),
+      { kind: "reject", error: "TOO_LARGE" },
+    ]);
+    await h.outbox.init();
+    const refused = queued(await h.outbox.add(page(SHA_A)));
+    h.advance(10);
+    const sent = queued(await h.outbox.add(page(SHA_B)));
+    await h.outbox.sync(); // A refused, B backing off
+    h.advance(10);
+    const tooLarge = queued(await h.outbox.add(page(SHA_C)));
+    h.advance(retryDelayMs(1));
+    await h.outbox.sync(); // B reaches the co-op, C is refused for good
+    expect(h.calls.map((c) => c.sha)).toEqual([SHA_A, SHA_B, SHA_B, SHA_C]);
+    const before = h.calls.length;
+
+    h.pairAs(MARIA);
+    // Not who the screen showed, not on the phone any more, already hers, or nothing a resend can fix: no change.
+    expect(await h.outbox.takeOver(refused.id, "clerk:someone-else")).toBeNull();
+    expect(await h.outbox.takeOver(sent.id, JESSIE.persona)).toBeNull(); // the co-op has it
+    expect(await h.outbox.takeOver(tooLarge.id, JESSIE.persona)).toBeNull();
+    expect(h.calls).toHaveLength(before);
+
+    // A refusal goes as a new request, filed now by the clerk who sent it.
+    expect(await h.outbox.takeOver(refused.id, JESSIE.persona)).toMatchObject({ uploaded: 1 });
+    const taken = (await h.outbox.list()).find((r) => r.sha256 === SHA_A);
+    expect(taken).toMatchObject({ state: "uploaded", filedBy: MARIA });
+    expect(taken?.id).not.toBe(refused.id);
+    expect(h.calls.at(-1)).toMatchObject({ sha: SHA_A, filedBy: MARIA.persona, as: MARIA.persona });
+    expect(await h.outbox.takeOver(taken?.id ?? "", JESSIE.persona)).toBeNull();
+  });
+
+  it("filer.take-over-keeps-key: a capture still waiting keeps its Idempotency-Key when another clerk takes it", async () => {
+    const h = harness(makeStore(), [{ kind: "retry", error: "NETWORK" }]);
+    await h.outbox.init();
+    const rec = queued(await h.outbox.add(page(SHA_A)));
+    await h.outbox.sync(); // the answer was lost: the co-op may already have it from Jessie
+    h.pairAs(MARIA);
+    expect(await h.outbox.takeOver(rec.id, JESSIE.persona)).toMatchObject({ uploaded: 1 });
+    // The same request: if Jessie's attempt reached the co-op, it answers with that filing (inv.i7).
+    expect(h.calls.map((c) => c.id)).toEqual([rec.id, rec.id]);
+    expect(h.calls[1]).toMatchObject({ as: MARIA.persona, attempt: 2 });
+  });
+
+  it("filer.held-upload: a capture the uploader holds back (paired again mid-pass) goes back exactly as it was", async () => {
+    const h = harness(makeStore(), [{ kind: "retry", error: "NETWORK" }, { kind: "held" }]);
+    await h.outbox.init();
+    const rec = queued(await h.outbox.add(page(SHA_A)));
+    await h.outbox.sync();
+    const before = await only(h);
+    expect(before).toMatchObject({ state: "failed", attempts: 1, lastError: "NETWORK" });
+    h.advance(retryDelayMs(1));
+    expect(await h.outbox.sync()).toMatchObject({ attempted: 0, uploaded: 0, retrying: 0, rejected: 0 });
+    expect(await only(h)).toEqual(before);
+    expect(h.calls.map((c) => c.id)).toEqual([rec.id, rec.id]);
+  });
+
+  it("filer.store-due: the store hands out only the named clerk's due captures, never an unknown filer's", async () => {
+    const store = makeStore();
+    await store.init();
+    const ids = ["0190f0f0-0000-7000-8000-0000000000d1", "0190f0f0-0000-7000-8000-0000000000d2"];
+    await store.insert(stored({ id: ids[0] as string, sha256: SHA_A, filedBy: JESSIE }));
+    await store.insert(stored({ id: ids[1] as string, sha256: SHA_B, filedBy: MARIA, createdAt: T0 + 1 }));
+    await store.insert(stored({ id: "0190f0f0-0000-7000-8000-0000000000d3", sha256: SHA_C, filedBy: null }));
+    expect((await store.due(T0, 10, JESSIE.persona)).map((r) => r.id)).toEqual([ids[0]]);
+    expect((await store.due(T0, 10, MARIA.persona)).map((r) => r.id)).toEqual([ids[1]]);
+    expect(await store.due(T0, 10, "clerk:nobody")).toEqual([]);
+    expect(await store.due(T0, 10, "")).toEqual([]);
+    // A takeover moves a capture to the clerk who took it, and the filer survives the store whole.
+    expect(await store.transition(ids[0] as string, ["queued"], { filedBy: MARIA })).toBe(true);
+    expect((await store.due(T0, 10, MARIA.persona)).map((r) => r.id)).toEqual(ids);
+    expect((await store.get(ids[0] as string))?.filedBy).toEqual(MARIA);
+  });
+
+  it("filer.store-guard: a store that ignores the filer never gets another clerk's capture to the uploader", async () => {
+    const store = makeStore();
+    const due = store.due.bind(store);
+    store.due = (now, limit) => due(now, limit, JESSIE.persona); // a store that forgets to filter
+    const h = harness(store);
+    await h.outbox.init();
+    await h.outbox.add(page(SHA_A));
+    h.pairAs(MARIA);
+    expect(await h.outbox.sync()).toMatchObject({ attempted: 0 });
+    expect(h.calls).toHaveLength(0);
+    expect((await only(h)).state).toBe("queued");
   });
 
   it("removes a capture from the phone only while the co-op's refusal holds it", async () => {
@@ -706,6 +977,43 @@ describe("refusals", () => {
     expect(isFinalRefusal(null)).toBe(false);
     expect(isFinalRefusal("LINE_HELD")).toBe(true);
   });
+
+  it("only an expired token is fixed by pairing again; FORBIDDEN never is", () => {
+    expect(EXPIRED_TOKEN_REFUSALS).toEqual(["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED"]);
+    expect(EXPIRED_TOKEN_REFUSALS).not.toContain("FORBIDDEN");
+    for (const code of EXPIRED_TOKEN_REFUSALS) expect(AUTH_REFUSALS).toContain(code);
+    expect(AUTH_REFUSALS).toContain("FORBIDDEN");
+  });
+});
+
+describe("filers", () => {
+  it("match by persona: the same clerk paired again is the same filer; nobody and unknown match nothing", () => {
+    expect(isFiledBy({ filedBy: JESSIE }, JESSIE_AGAIN.persona)).toBe(true);
+    expect(isFiledBy({ filedBy: JESSIE }, MARIA.persona)).toBe(false);
+    expect(isFiledBy({ filedBy: JESSIE }, null)).toBe(false);
+    expect(isFiledBy({ filedBy: null }, JESSIE.persona)).toBe(false);
+    expect(isFiledBy({ filedBy: null }, null)).toBe(false);
+  });
+
+  it("read back only when whole: anything else is an unknown filer", () => {
+    expect(filerOrNull(JESSIE)).toEqual(JESSIE);
+    expect(filerOrNull({ ...JESSIE, extra: 1 })).toEqual(JESSIE);
+    for (const bad of [
+      undefined,
+      null,
+      "clerk:jessie",
+      {},
+      { ...JESSIE, persona: "" },
+      { ...JESSIE, name: 3 },
+    ]) {
+      expect(filerOrNull(bad)).toBeNull();
+    }
+    expect(filerOrNull({ persona: "clerk:jessie", name: "", pairing: "p" })).toEqual({
+      persona: "clerk:jessie",
+      name: "",
+      pairing: "p",
+    });
+  });
 });
 
 describe("summaries", () => {
@@ -777,7 +1085,7 @@ describe("sqlite schema", () => {
     ).rejects.toThrow(/CHECK/);
   });
 
-  it("migrates the first build's table to version 2 without losing a capture", async () => {
+  it(`migrates the first build's table to version ${OUTBOX_SCHEMA_VERSION} without losing a capture`, async () => {
     const db = nodeSqlite();
     await db.exec(`CREATE TABLE captures (
       id TEXT PRIMARY KEY NOT NULL, sha256 TEXT NOT NULL UNIQUE, file_uri TEXT NOT NULL, thumb_uri TEXT,
@@ -805,12 +1113,107 @@ describe("sqlite schema", () => {
       state: "queued", // the interrupted upload is back in the queue
       attempts: 2,
       lastError: "503",
+      filedBy: null, // nobody can say who filed it: it waits for a person
     });
-    // Version 2 features work on the migrated table.
+    // Version 2 and 3 features work on the migrated table.
     expect((await h.outbox.add(page(SHA_A, { source: "library" }))).outcome).toBe("queued");
     expect((await h.outbox.add(receipt(SHA_B))).outcome).toBe("queued");
     await h.outbox.init(); // idempotent
     expect(await h.outbox.list()).toHaveLength(3);
+    const [v] = await db.all<{ user_version: number }>("PRAGMA user_version", []);
+    expect(v?.user_version).toBe(OUTBOX_SCHEMA_VERSION);
+  });
+
+  it("filer.migrated: a version 2 table keeps every capture, each with an unknown filer that waits for a person", async () => {
+    const db = nodeSqlite();
+    // Version 2 exactly as the second build created it (cash receipts, no filer).
+    await db.exec(`CREATE TABLE captures (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'slip' CHECK (kind IN ('slip','nadawat')),
+      sha256 TEXT NOT NULL UNIQUE CHECK (length(sha256) = 64),
+      file_uri TEXT NOT NULL, thumb_uri TEXT, mime TEXT NOT NULL, bytes INTEGER NOT NULL CHECK (bytes >= 0),
+      width INTEGER, height INTEGER, station TEXT NOT NULL, member_hint TEXT,
+      source TEXT NOT NULL CHECK (source IN ('scanner','camera','library','file','sample')),
+      line_id TEXT, member_no TEXT, member_name TEXT, cents INTEGER, php_per_usd TEXT, attested_by TEXT,
+      created_at INTEGER NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('queued','uploading','uploaded','read','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at INTEGER NOT NULL, last_error TEXT,
+      progress REAL NOT NULL DEFAULT 0, document_id TEXT, duplicate_of TEXT, rows_read INTEGER, serial TEXT,
+      uploaded_at INTEGER,
+      CHECK (kind = 'slip' OR (line_id IS NOT NULL AND member_no IS NOT NULL AND cents IS NOT NULL
+        AND php_per_usd IS NOT NULL AND attested_by IS NOT NULL)));
+      CREATE INDEX captures_due ON captures (state, next_attempt_at);
+      CREATE UNIQUE INDEX captures_nadawat_line ON captures (line_id) WHERE kind = 'nadawat';
+      PRAGMA user_version = 2;`);
+    const insert = `INSERT INTO captures (id, kind, sha256, file_uri, mime, bytes, station, source, line_id, member_no,
+      member_name, cents, php_per_usd, attested_by, created_at, state, attempts, next_attempt_at, last_error)
+      VALUES (?, ?, ?, 'file:///old.jpg', 'image/jpeg', 9, 'Purok 2 pickup', 'scanner', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    // A page refused when its clerk's token expired, and a cash receipt still waiting.
+    await db.run(insert, [
+      "0190f0f0-0000-7000-8000-0000000000b1",
+      "slip",
+      SHA_A,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      T0,
+      "failed",
+      1,
+      MANUAL_ONLY,
+      "UNAUTHENTICATED",
+    ]);
+    await db.run(insert, [
+      "0190f0f0-0000-7000-8000-0000000000b2",
+      "nadawat",
+      SHA_B,
+      MERLYN.lineId,
+      MERLYN.memberNo,
+      MERLYN.memberName,
+      MERLYN.cents,
+      MERLYN.phpPerUsd,
+      MERLYN.attestedBy,
+      T0 + 10,
+      "queued",
+      0,
+      T0,
+      null,
+    ]);
+    const store = new SqliteOutboxStore(db);
+    const h = harness(store);
+    await h.outbox.init();
+    const [v] = await db.all<{ user_version: number }>("PRAGMA user_version", []);
+    expect(v?.user_version).toBe(OUTBOX_SCHEMA_VERSION);
+    const list = await h.outbox.list();
+    expect(list).toHaveLength(2);
+    expect(list.find((r) => r.sha256 === SHA_A)).toMatchObject({
+      state: "failed",
+      lastError: "UNAUTHENTICATED",
+      filedBy: null,
+    });
+    expect(list.find((r) => r.sha256 === SHA_B)).toMatchObject({
+      kind: "nadawat",
+      nadawat: MERLYN,
+      state: "queued",
+      filedBy: null,
+    });
+
+    // Unknown is nobody: neither re-pairing, the queue, nor "Ipadala tanan" sends them.
+    await h.outbox.afterPairing();
+    await h.outbox.sync();
+    await h.outbox.sendAll();
+    expect(h.calls).toHaveLength(0);
+
+    // A person takes them over after the screen said who filed them was not kept.
+    expect(await h.outbox.takeOver("0190f0f0-0000-7000-8000-0000000000b2", null)).toMatchObject({
+      uploaded: 1,
+    });
+    expect(h.calls[0]).toMatchObject({ sha: SHA_B, filedBy: JESSIE.persona, as: JESSIE.persona });
+    expect((await h.store.findNadawat(MERLYN.lineId))?.filedBy).toEqual(JESSIE);
+    await h.outbox.init(); // idempotent on the migrated table
+    expect(await h.outbox.list()).toHaveLength(2);
   });
 });
 
@@ -823,12 +1226,15 @@ type Op =
   | { op: "advance"; ms: number }
   | { op: "sendNow"; pick: number }
   | { op: "sendAll" }
-  | { op: "repaired" }
+  /** The phone is paired again (Jessie, Jessie with a new token, Maria, or nobody), then the outbox is told so. */
+  | { op: "pairAs"; who: number }
+  | { op: "takeOver"; pick: number }
   | { op: "discard"; pick: number }
   | { op: "read"; pick: number }
   | { op: "crash" };
 
 const SHAS = Array.from({ length: 6 }, (_, i) => String.fromCharCode(97 + i).repeat(64));
+const PAIRINGS: readonly (Filer | null)[] = [JESSIE, JESSIE_AGAIN, MARIA, null];
 
 const opArb: fc.Arbitrary<Op> = fc.oneof(
   fc.record({ op: fc.constant("add" as const), sha: fc.nat(5), nadawat: fc.boolean() }),
@@ -837,7 +1243,8 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   fc.record({ op: fc.constant("advance" as const), ms: fc.integer({ min: 0, max: 400_000 }) }),
   fc.record({ op: fc.constant("sendNow" as const), pick: fc.nat(10) }),
   fc.constant({ op: "sendAll" as const }),
-  fc.constant({ op: "repaired" as const }),
+  fc.record({ op: fc.constant("pairAs" as const), who: fc.nat(PAIRINGS.length - 1) }),
+  fc.record({ op: fc.constant("takeOver" as const), pick: fc.nat(10) }),
   fc.record({ op: fc.constant("discard" as const), pick: fc.nat(10) }),
   fc.record({ op: fc.constant("read" as const), pick: fc.nat(10) }),
   fc.constant({ op: "crash" as const }),
@@ -850,12 +1257,17 @@ const outcomeArb: fc.Arbitrary<UploadOutcome | "throw"> = fc.oneof(
   fc.constant({ kind: "retry" as const, error: "429", retryAfterMs: 120_000 }),
   fc.constant({ kind: "reject" as const, error: "422" }),
   fc.constant({ kind: "reject" as const, error: "UNAUTHENTICATED" }),
+  fc.constant({ kind: "reject" as const, error: "FORBIDDEN" }),
   fc.constant({ kind: "reject" as const, error: "TOO_LARGE" }),
+  fc.constant({ kind: "held" as const }),
   fc.constant("throw" as const),
 );
 
-/** Operations in which a person may give a refused capture a new key: a resend, re-pairing, or filing it again. */
-const REKEYING: ReadonlySet<Op["op"]> = new Set(["sendNow", "sendAll", "repaired", "add"]);
+/**
+ * Operations in which a refused capture may get a new key: a person's resend, re-pairing (only for the clerk who
+ * filed it, and only after an expired token), a takeover, or filing it again.
+ */
+const REKEYING: ReadonlySet<Op["op"]> = new Set(["sendNow", "sendAll", "pairAs", "takeOver", "add"]);
 
 describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) => {
   it("keeps every capture until the co-op has it or a person removes a refusal, one key per request", async () => {
@@ -869,12 +1281,15 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
           let online = true;
           let seq = 0;
           let op: Op["op"] = "sync";
+          let filer: Filer | null = JESSIE;
           const script = [...outcomes];
           const uploadedOk = new Set<string>();
           const refusedWith = new Map<string, string>(); // id → the co-op's refusal code
           const keyOf = new Map<string, string>(); // sha → the id it is filed under now
           const retired = new Set<string>(); // keys a refusal used up: never sent again
           const bestRank = new Map<string, number>();
+          /** Uploads that would have left under a pairing other than the filer's (asserted after each step). */
+          const misattributed: string[] = [];
 
           /** A capture's key changes only when a person acts on a refusal that allows it (never by a timer). */
           const adopt = (sha: string, id: string) => {
@@ -885,7 +1300,7 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
               const code = refusedWith.get(prev);
               expect(code).toBeDefined();
               if (op !== "add") expect(isFinalRefusal(code ?? null)).toBe(false);
-              if (op === "repaired") expect(AUTH_REFUSALS).toContain(code);
+              if (op === "pairAs") expect(EXPIRED_TOKEN_REFUSALS).toContain(code);
               retired.add(prev);
             }
             keyOf.set(sha, id);
@@ -897,7 +1312,10 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
               now: () => now,
               newId: () => uuidv7(now + seq++, (n) => new Uint8Array(n).fill(seq & 0xff)),
               isOnline: () => online,
+              filer: () => filer,
               uploader: async (rec, onProgress) => {
+                // The security property: nothing leaves under a pairing other than that of the clerk who filed it.
+                if (!filer || rec.filedBy?.persona !== filer.persona) misattributed.push(rec.id);
                 expect(uploadedOk.has(rec.id)).toBe(false); // never re-sent after the co-op said yes
                 expect(retired.has(rec.id)).toBe(false); // a refused key is never sent again
                 adopt(rec.sha256, rec.id); // otherwise the same Idempotency-Key, every retry
@@ -946,9 +1364,16 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
               case "sendAll":
                 await outbox.sendAll();
                 break;
-              case "repaired":
+              case "pairAs":
+                filer = PAIRINGS[step.who] ?? null;
                 await outbox.afterPairing();
                 break;
+              case "takeOver": {
+                // The person confirms after the screen showed who filed it.
+                const r = pick(step.pick);
+                if (r) await outbox.takeOver(r.id, r.filedBy?.persona ?? null);
+                break;
+              }
               case "discard": {
                 const r = pick(step.pick);
                 if (r && (await outbox.discard(r.id))) {
@@ -968,6 +1393,7 @@ describe.each(stores)("inv.i7.never-lost on %s (property)", (_name, makeStore) =
                 await outbox.init({ keepSettledMs: Number.MAX_SAFE_INTEGER });
                 break;
             }
+            expect(misattributed).toEqual([]);
             const after = await outbox.list();
             for (const r of after) adopt(r.sha256, r.id); // a re-key that has not been sent yet
             // Never lost, never duplicated: one row per filed sha, under its current key.

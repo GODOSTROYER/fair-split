@@ -3,7 +3,9 @@
  * everything this phone has filed, in the order things happen. What is still on the phone comes first, in the
  * order it will go (cash receipts first, then oldest first); then what reached the co-op today; then earlier.
  * Each capture says where it is in words. One waiting on a retry, or refused for a reason a resend can fix, offers
- * "Ipadala karon"; a refused one can be removed from the phone, after a confirm.
+ * "Ipadala karon"; a refused one can be removed from the phone, after a confirm. A capture another clerk filed on
+ * this phone says whose it is and offers "Ipadala isip ako", after a confirm that names them; "Ipadala tanan karon"
+ * sends only this clerk's own.
  */
 import { router } from "expo-router";
 import { Fragment } from "react";
@@ -25,6 +27,7 @@ import { pluralKey } from "./messages";
 import { useOutbox } from "./outbox-provider";
 import { useRemoveCapture } from "./remove-capture";
 import { outboxScreenState } from "./screen-state";
+import { useTakeOver } from "./take-over";
 import { useNow } from "./use-now";
 import { useClerkSite } from "./use-site";
 import { useT } from "./use-t";
@@ -36,19 +39,22 @@ export function OutboxScreen() {
   const site = useClerkSite();
   const snack = useSnackbar();
   const remove = useRemoveCapture({ onRemoved: snack.show, testID: "M-CL-02.remove" });
-  const { records } = outbox;
+  const take = useTakeOver({ onTaken: snack.show, testID: "M-CL-02.take-over" });
+  const { records, me } = outbox;
   const now = useNow(
     records.some((r) => r.state === "uploading" || (r.state === "failed" && r.nextAttemptAt !== MANUAL_ONLY)),
   );
   const sections = sectionsOf(records, now);
   const sum = summarise(records);
   const state = outboxScreenState({ online, records });
-  const sendable = sendableCount(records);
+  const sendable = sendableCount(records, me);
   const rows = {
     now,
     online,
     treasurer: site.treasurer,
+    me,
     onSendNow: outbox.sendNow,
+    onTakeOver: take.ask,
     onRemove: remove.ask,
   };
 
@@ -124,6 +130,7 @@ export function OutboxScreen() {
       </Screen>
       <Snackbar msg={snack.msg} />
       {remove.dialog}
+      {take.dialog}
     </View>
   );
 }
@@ -134,7 +141,9 @@ function Section({
   now,
   online,
   treasurer,
+  me,
   onSendNow,
+  onTakeOver,
   onRemove,
   testID,
 }: {
@@ -143,7 +152,9 @@ function Section({
   now: number;
   online: boolean;
   treasurer: string | null;
+  me: string | null;
   onSendNow(id: string): void;
+  onTakeOver(r: CaptureRecord): void;
   onRemove(r: CaptureRecord): void;
   testID: string;
 }) {
@@ -162,7 +173,9 @@ function Section({
               now={now}
               online={online}
               treasurer={treasurer}
+              me={me}
               onSendNow={() => onSendNow(r.id)}
+              onTakeOver={() => onTakeOver(r)}
               onRemove={() => onRemove(r)}
               testID={`M-CL-02.row.${r.id}`}
             />

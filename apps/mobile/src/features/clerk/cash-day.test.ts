@@ -59,6 +59,7 @@ function receipt(lineId: string, over: Partial<CaptureRecord> = {}): CaptureReco
     memberHint: null,
     source: "camera",
     nadawat: { lineId, memberNo: "M-x", memberName: "x", cents: 1, phpPerUsd: "62.50", attestedBy: "JD" },
+    filedBy: { persona: "clerk:jessie", name: "Jessie Dela Cruz", pairing: "pairing-jessie-1" },
     createdAt: NOW - 1000,
     state: "queued",
     attempts: 0,

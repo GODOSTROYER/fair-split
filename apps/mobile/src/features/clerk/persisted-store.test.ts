@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type CaptureRecord, type NewCapture, Outbox } from "../../lib/outbox";
+import { type CaptureRecord, type Filer, type NewCapture, Outbox } from "../../lib/outbox";
 import { uuidv7 } from "../../lib/uuidv7";
 import { PersistedOutboxStore, type RecordSink, storeKey } from "./persisted-store";
 
 const T0 = Date.parse("2026-10-27T01:00:00Z");
+const JESSIE: Filer = { persona: "clerk:jessie", name: "Jessie Dela Cruz", pairing: "pairing-jessie-1" };
 
 /** An in-memory stand-in for IndexedDB that can be told to refuse writes. */
 function memorySink() {
@@ -51,6 +52,7 @@ function engine(sink: RecordSink, now: { t: number }, online: { v: boolean }) {
     now: () => now.t,
     newId: () => uuidv7(now.t + seq++, (n) => new Uint8Array(n).fill(seq)),
     isOnline: () => online.v,
+    filer: () => JESSIE,
   });
   return { store, outbox };
 }
@@ -116,6 +118,7 @@ describe("the web outbox store", () => {
       now: () => now.t,
       newId: () => uuidv7(now.t + seq++, (n) => new Uint8Array(n).fill(seq)),
       isOnline: () => true,
+      filer: () => JESSIE,
     });
     await outbox.init();
     const a = await outbox.add(page("a"));
@@ -142,6 +145,76 @@ describe("the web outbox store", () => {
     expect((await a.outbox.add(page("a"))).outcome).toBe("queued");
     expect(await a.outbox.sync()).toMatchObject({ uploaded: 1 });
     expect(a.store.durable).toBe(false);
+  });
+
+  it("filer.migrated-web: a capture the previous build saved (no filer) comes back unknown and waits for a person", async () => {
+    const m = memorySink();
+    const now = { t: T0 };
+    // What the previous build wrote to IndexedDB: a whole record, with no `filedBy` at all.
+    const { filedBy: _none, ...old } = {
+      id: "0190f0f0-0000-7000-8000-0000000000c1",
+      kind: "slip",
+      sha256: "a".repeat(64),
+      fileUri: "data:image/jpeg;base64,a",
+      thumbUri: null,
+      mime: "image/jpeg",
+      bytes: 10,
+      width: 1600,
+      height: 1200,
+      station: "Purok 2 pickup",
+      memberHint: null,
+      source: "file",
+      nadawat: null,
+      filedBy: null,
+      createdAt: T0,
+      state: "failed",
+      attempts: 1,
+      nextAttemptAt: Number.MAX_SAFE_INTEGER,
+      lastError: "UNAUTHENTICATED",
+      progress: 0,
+      documentId: null,
+      duplicateOf: null,
+      rowsRead: null,
+      serial: null,
+      uploadedAt: null,
+    } satisfies CaptureRecord;
+    m.rows.set(old.id, old as unknown as CaptureRecord);
+    // So would a damaged filer: anything that is not a whole one is unknown.
+    m.rows.set("0190f0f0-0000-7000-8000-0000000000c2", {
+      ...old,
+      id: "0190f0f0-0000-7000-8000-0000000000c2",
+      sha256: "b".repeat(64),
+      state: "queued",
+      nextAttemptAt: T0,
+      lastError: null,
+      filedBy: { persona: 7 },
+    } as unknown as CaptureRecord);
+    let sent = 0;
+    const outbox = new Outbox({
+      store: new PersistedOutboxStore(m.sink),
+      uploader: async () => {
+        sent++;
+        return { kind: "ok", documentId: "doc", duplicateOf: null, rowsRead: null, serial: null };
+      },
+      now: () => now.t,
+      newId: () => uuidv7(now.t, (n) => new Uint8Array(n).fill(9)),
+      isOnline: () => true,
+      filer: () => JESSIE,
+    });
+    await outbox.init();
+    expect((await outbox.list()).map((r) => r.filedBy)).toEqual([null, null]);
+    await outbox.afterPairing();
+    await outbox.sync();
+    await outbox.sendAll();
+    expect(sent).toBe(0);
+    expect(await outbox.takeOver("0190f0f0-0000-7000-8000-0000000000c2", null)).toMatchObject({
+      uploaded: 1,
+    });
+    expect(sent).toBe(1);
+    expect(m.rows.get("0190f0f0-0000-7000-8000-0000000000c2")).toMatchObject({
+      state: "uploaded",
+      filedBy: JESSIE,
+    });
   });
 
   it("keys each workspace's outbox apart, safely for a file name", () => {

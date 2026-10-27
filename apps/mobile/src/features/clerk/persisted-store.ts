@@ -4,7 +4,9 @@
  * capture. If the browser refuses storage (private browsing, quota), captures keep working for the tab's life.
  *
  * Captures are kept per workspace (`storeKey`): a phone paired to another co-op, or a fresh judge session, starts
- * with its own outbox, and nothing filed for one workspace is ever uploaded with another's credentials.
+ * with its own outbox, and nothing filed for one workspace is ever uploaded with another's credentials. Within a
+ * workspace each capture keeps its filer; a row an earlier build wrote has none (or a damaged one), and the memory
+ * store reads that as unknown, so it waits for a person.
  *
  * Pure (tested in Node with an in-memory sink).
  */
@@ -63,8 +65,8 @@ export class PersistedOutboxStore implements OutboxStore {
     return this.mem.list();
   }
 
-  due(now: number, limit: number) {
-    return this.mem.due(now, limit);
+  due(now: number, limit: number, filedBy: string) {
+    return this.mem.due(now, limit, filedBy);
   }
 
   async update(id: string, patch: CapturePatch) {

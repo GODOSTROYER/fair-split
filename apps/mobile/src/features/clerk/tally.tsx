@@ -16,10 +16,19 @@ import { useT } from "./use-t";
 
 const RING = 28;
 
-export function TodayTally({ records, now }: { records: readonly CaptureRecord[]; now: number }) {
+export function TodayTally({
+  records,
+  now,
+  me,
+}: {
+  records: readonly CaptureRecord[];
+  now: number;
+  /** The persona of the clerk paired now: another clerk's slip rings as a decision for a person. */
+  me: string | null;
+}) {
   const { t } = useFs();
   const tr = useT();
-  const tally = tallyOf(records, now);
+  const tally = tallyOf(records, now, undefined, me);
   const { total, sent, onPhone } = tally.counts;
   const sentence =
     total === 0

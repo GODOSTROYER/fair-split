@@ -5,6 +5,10 @@
  * glyph-bearing ring and a word, never colour alone; a refusal is a decision for a person (canary), never red (red
  * is only ever a PayPal failure).
  *
+ * `me` is the persona of the clerk paired now. A capture someone else filed on this phone (or one filed before it
+ * kept who filed it) says so before anyone acts, waits for its filer, and offers only "Ipadala isip ako" (a person's
+ * takeover, after a confirm that names the filer) or, if refused, removal: never "Ipadala karon" or "Ipadala tanan".
+ *
  * Pure (tested in Node): words are message keys with arguments; screens translate them.
  */
 import { format } from "../../_shims/domain";
@@ -12,6 +16,8 @@ import type { MessageArgs } from "../../_shims/i18n";
 import {
   AUTH_REFUSALS,
   type CaptureRecord,
+  type Filer,
+  isFiledBy,
   isRefused,
   isSameManilaDay,
   MANUAL_ONLY,
@@ -25,7 +31,25 @@ import { LOCAL_ERROR } from "./upload-protocol";
 /** waiting (on the phone), sending, sent, read (rows came back), retrying (on its own), refused (needs a person). */
 export type RingTone = "waiting" | "sending" | "sent" | "read" | "retrying" | "refused";
 
-export function ringOf(r: CaptureRecord): RingTone {
+/**
+ * Still on the phone (waiting, backing off or refused) and not filed by the clerk paired now (`me`): it never goes
+ * by itself under this pairing.
+ */
+export function isOthers(r: Pick<CaptureRecord, "state" | "filedBy">, me: string | null): boolean {
+  return (r.state === "queued" || r.state === "failed") && !isFiledBy(r, me);
+}
+
+/** The filer's name as the row says it: the pairing's name, or the persona's own word when the pairing gave none. */
+export function filerName(f: Filer): string {
+  const name = f.name.trim();
+  if (name) return name;
+  const word = f.persona.split(":").pop() ?? "";
+  return word ? word.charAt(0).toUpperCase() + word.slice(1) : f.persona;
+}
+
+/** With `me`, a capture another clerk filed is a decision for a person (canary), never "waiting its turn". */
+export function ringOf(r: CaptureRecord, me?: string | null): RingTone {
+  if (me !== undefined && isOthers(r, me)) return "refused";
   switch (r.state) {
     case "queued":
       return "waiting";
@@ -95,8 +119,22 @@ export function receiptAdviceOf(r: CaptureRecord, treasurer: string | null): Lin
   return line;
 }
 
-/** The status words under a capture, at `now` (the retry countdown is live). */
-export function statusOf(r: CaptureRecord, now: number, online: boolean, treasurer: string | null): Line {
+/**
+ * The status words under a capture, at `now` (the retry countdown is live). With `me`, a capture another clerk filed
+ * says what it waits for instead of a countdown that will not run for this pairing (a refusal keeps its reason).
+ */
+export function statusOf(
+  r: CaptureRecord,
+  now: number,
+  online: boolean,
+  treasurer: string | null,
+  me?: string | null,
+): Line {
+  if (me !== undefined && isOthers(r, me) && !isRefused(r)) {
+    return r.filedBy
+      ? { key: "M-CL-02.waitsFor", args: { name: filerName(r.filedBy) }, tone: "canaryText" }
+      : { key: "M-CL-02.waitsUnknown", tone: "canaryText" };
+  }
   switch (r.state) {
     case "queued":
       return { key: online ? "M-CL-02.queued" : "M-CL-02.queuedOffline", tone: "ink2" };
@@ -137,17 +175,37 @@ export function hintOf(r: CaptureRecord): Line | null {
   return null;
 }
 
+/**
+ * Who filed a capture that is still on the phone and is not the paired clerk's own: always shown, so the clerk knows
+ * whose work it is before sending it as theirs or removing it. Null for the clerk's own, and once the co-op has it.
+ */
+export function filedNoteOf(r: CaptureRecord, me: string | null): Line | null {
+  if (!isOthers(r, me)) return null;
+  return r.filedBy
+    ? { key: "M-CL-02.filedBy", args: { name: filerName(r.filedBy) }, tone: "ink2" }
+    : { key: "M-CL-02.filedByUnknown", tone: "ink2" };
+}
+
 export function metaOf(r: CaptureRecord): MessageArgs {
   return { size: format.bytes(r.bytes), time: format.time(iso(r.createdAt)) };
 }
 
 /**
- * "Ipadala karon" is offered to a capture waiting on a retry, or refused for a reason a resend can fix (under a new
- * key: the old one would only replay the refusal). A photo that is gone or too large, a sample-only Judge Mode, or a
- * line that moved on are never offered it: the clerk files again, and removes the refusal.
+ * "Ipadala karon" is offered to the paired clerk's own capture waiting on a retry, or refused for a reason a resend
+ * can fix (under a new key: the old one would only replay the refusal). A photo that is gone or too large, a
+ * sample-only Judge Mode, or a line that moved on are never offered it: the clerk files again, and removes the
+ * refusal. Another clerk's capture is offered `canTakeOver` instead.
  */
-export function canSendNow(r: CaptureRecord): boolean {
-  return r.state === "failed" && resendOf(r) !== "none";
+export function canSendNow(r: CaptureRecord, me: string | null): boolean {
+  return isFiledBy(r, me) && r.state === "failed" && resendOf(r) !== "none";
+}
+
+/**
+ * "Ipadala isip ako" is offered to a capture someone else filed on this phone (or one whose filer is unknown) that a
+ * send could still deliver; never with nobody paired, and never for what the co-op already has.
+ */
+export function canTakeOver(r: CaptureRecord, me: string | null): boolean {
+  return me !== null && isOthers(r, me) && resendOf(r) !== "none";
 }
 
 /** "Tangtanga": only a capture the co-op refused can be removed from the phone, never one on its way or delivered. */
@@ -155,9 +213,9 @@ export function canRemove(r: CaptureRecord): boolean {
   return isRefused(r);
 }
 
-/** How many captures "Ipadala tanan karon" would send (it is hidden when none). */
-export function sendableCount(records: readonly CaptureRecord[]): number {
-  return records.filter(canSendNow).length;
+/** How many captures "Ipadala tanan karon" would send: the paired clerk's own only (it is hidden when none). */
+export function sendableCount(records: readonly CaptureRecord[], me: string | null): number {
+  return records.filter((r) => canSendNow(r, me)).length;
 }
 
 /* ------------------------------------------------------------------ the day's tally (M-CL-01) */
@@ -176,13 +234,13 @@ export interface Tally {
   counts: OutboxSummary;
 }
 
-export function tallyOf(records: readonly CaptureRecord[], now: number, max = 24): Tally {
+export function tallyOf(records: readonly CaptureRecord[], now: number, max = 24, me?: string | null): Tally {
   const today = records
     .filter((r) => r.kind === "slip" && isSameManilaDay(r.createdAt, now))
     .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
   const shown = today.slice(Math.max(0, today.length - max));
   return {
-    rings: shown.map((r) => ({ id: r.id, tone: ringOf(r), progress: r.progress })),
+    rings: shown.map((r) => ({ id: r.id, tone: ringOf(r, me), progress: r.progress })),
     hidden: today.length - shown.length,
     counts: summarise(today),
   };

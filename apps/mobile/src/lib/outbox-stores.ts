@@ -4,8 +4,9 @@
  * - `MemoryOutboxStore` for the web frames, whose captures are Judge Mode samples or demo photos.
  *
  * The SQLite schema is versioned with `PRAGMA user_version`. Version 2 adds cash receipts ("Nadawat" photos) and the
- * library and file sources; a phone still on the first build's table is migrated in one transaction, keeping every
- * capture (a capture is never lost, not even to an upgrade).
+ * library and file sources; version 3 adds who filed each capture (`filed_by`, `filed_by_name`, `filed_pairing`). A
+ * phone on an earlier table is migrated in one transaction, keeping every capture (a capture is never lost, not even
+ * to an upgrade); captures from before version 3 keep no filer, so nobody's pairing sends them by itself.
  */
 import {
   CAPTURE_SOURCES,
@@ -13,6 +14,8 @@ import {
   type CapturePatch,
   type CaptureRecord,
   type CaptureState,
+  type Filer,
+  filerOrNull,
   isRefused,
   MANUAL_ONLY,
   type NadawatMeta,
@@ -27,12 +30,15 @@ export interface SqlDriver {
   all<T>(sql: string, params: readonly SqlParam[]): Promise<T[]>;
 }
 
-export const OUTBOX_SCHEMA_VERSION = 2;
+export const OUTBOX_SCHEMA_VERSION = 3;
 
 const list = (xs: readonly string[]) => xs.map((x) => `'${x}'`).join(",");
 
-/** Version 2: one row per capture; a cash receipt carries its line, amount, rate and attester (one per line). */
-export const OUTBOX_TABLE_V2 = (name: string) => `
+/**
+ * Version 3: one row per capture; a cash receipt carries its line, amount, rate and attester (one per line); every
+ * capture filed since carries its filer (persona, name, pairing), all three or none.
+ */
+export const OUTBOX_TABLE = (name: string) => `
 CREATE TABLE ${name} (
   id TEXT PRIMARY KEY NOT NULL,
   kind TEXT NOT NULL DEFAULT 'slip' CHECK (kind IN ('slip','nadawat')),
@@ -63,9 +69,19 @@ CREATE TABLE ${name} (
   rows_read INTEGER,
   serial TEXT,
   uploaded_at INTEGER,
+  filed_by TEXT,
+  filed_by_name TEXT,
+  filed_pairing TEXT,
   CHECK (kind = 'slip' OR (line_id IS NOT NULL AND member_no IS NOT NULL AND cents IS NOT NULL
-    AND php_per_usd IS NOT NULL AND attested_by IS NOT NULL))
+    AND php_per_usd IS NOT NULL AND attested_by IS NOT NULL)),
+  CHECK ((filed_by IS NULL) = (filed_by_name IS NULL) AND (filed_by IS NULL) = (filed_pairing IS NULL))
 );`;
+
+/** Version 2 to 3: the filer columns, empty (unknown) for every capture already on the phone. */
+const FILER_COLUMNS = `
+ALTER TABLE captures ADD COLUMN filed_by TEXT;
+ALTER TABLE captures ADD COLUMN filed_by_name TEXT;
+ALTER TABLE captures ADD COLUMN filed_pairing TEXT;`;
 
 const INDEXES = `
 CREATE INDEX IF NOT EXISTS captures_due ON captures (state, next_attempt_at);
@@ -127,10 +143,17 @@ interface Row {
   rows_read: number | null;
   serial: string | null;
   uploaded_at: number | null;
+  /** Null on rows from before version 3 (unknown filer). */
+  filed_by: string | null;
+  filed_by_name: string | null;
+  filed_pairing: string | null;
 }
 
-/** Patchable fields → columns. Bytes, kind and attestation are written once, on insert. */
-const PATCH_COLUMNS: Readonly<Record<keyof CapturePatch, keyof Row>> = {
+/**
+ * Patchable fields → columns. Bytes, kind and attestation are written once, on insert; `filedBy` (three columns) is
+ * written by `setClause` itself.
+ */
+const PATCH_COLUMNS: Readonly<Record<Exclude<keyof CapturePatch, "filedBy">, keyof Row>> = {
   state: "state",
   attempts: "attempts",
   nextAttemptAt: "next_attempt_at",
@@ -144,6 +167,14 @@ const PATCH_COLUMNS: Readonly<Record<keyof CapturePatch, keyof Row>> = {
 };
 
 const num = (v: number | bigint | null): number | null => (v === null ? null : Number(v));
+
+function filerFromRow(r: Pick<Row, "filed_by" | "filed_by_name" | "filed_pairing">): Filer | null {
+  return filerOrNull({ persona: r.filed_by, name: r.filed_by_name, pairing: r.filed_pairing });
+}
+
+function filerColumns(f: Filer | null): Pick<Row, "filed_by" | "filed_by_name" | "filed_pairing"> {
+  return { filed_by: f?.persona ?? null, filed_by_name: f?.name ?? null, filed_pairing: f?.pairing ?? null };
+}
 
 function fromRow(r: Row): CaptureRecord {
   const nadawat: NadawatMeta | null =
@@ -171,6 +202,7 @@ function fromRow(r: Row): CaptureRecord {
     memberHint: r.member_hint,
     source: r.source,
     nadawat,
+    filedBy: filerFromRow(r),
     createdAt: Number(r.created_at),
     state: r.state,
     attempts: Number(r.attempts),
@@ -217,6 +249,7 @@ function toRow(rec: CaptureRecord): Row {
     rows_read: rec.rowsRead,
     serial: rec.serial,
     uploaded_at: rec.uploadedAt,
+    ...filerColumns(rec.filedBy),
   };
 }
 
@@ -225,7 +258,14 @@ function setClause(patch: CapturePatch): { sql: string; params: SqlParam[] } {
   const params: SqlParam[] = [];
   for (const [k, v] of Object.entries(patch)) {
     if (v === undefined) continue;
-    const col = PATCH_COLUMNS[k as keyof CapturePatch];
+    if (k === "filedBy") {
+      for (const [col, value] of Object.entries(filerColumns(filerOrNull(v)))) {
+        parts.push(`${col} = ?`);
+        params.push(value);
+      }
+      continue;
+    }
+    const col = PATCH_COLUMNS[k as Exclude<keyof CapturePatch, "filedBy">];
     if (!col) throw new RangeError(`Not a patchable capture field: ${k}`);
     parts.push(`${col} = ?`);
     params.push(v as SqlParam);
@@ -246,19 +286,21 @@ export class SqliteOutboxStore implements OutboxStore {
     const [v] = await this.db.all<{ user_version: number }>("PRAGMA user_version", []);
     if (Number(v?.user_version ?? 0) >= OUTBOX_SCHEMA_VERSION) return;
     const cols = await this.db.all<{ name: string }>("PRAGMA table_info(captures)", []);
+    const has = (name: string) => cols.some((c) => c.name === name);
     const stamp = `PRAGMA user_version = ${OUTBOX_SCHEMA_VERSION};`;
     if (cols.length === 0) {
-      await this.transaction(`${OUTBOX_TABLE_V2("captures")}\n${INDEXES}\n${stamp}`);
-    } else if (cols.some((c) => c.name === "kind")) {
-      await this.transaction(`${INDEXES}\n${stamp}`);
+      await this.transaction(`${OUTBOX_TABLE("captures")}\n${INDEXES}\n${stamp}`);
+    } else if (has("kind")) {
+      // Version 2 (or a version 3 table whose stamp was lost): add the filer columns it lacks; old rows keep none.
+      await this.transaction(`${has("filed_by") ? "" : FILER_COLUMNS}\n${INDEXES}\n${stamp}`);
     } else {
-      // The first build's table (no `kind`): rebuild it as version 2, keeping every row as a slip.
+      // The first build's table (no `kind`): rebuild it as version 3, keeping every row as a slip with no filer.
       const copy = V1_COLUMNS.join(", ");
-      await this.transaction(`DROP TABLE IF EXISTS captures_v2;
-${OUTBOX_TABLE_V2("captures_v2")}
-INSERT INTO captures_v2 (${copy}, kind) SELECT ${copy}, 'slip' FROM captures;
+      await this.transaction(`DROP TABLE IF EXISTS captures_v3;
+${OUTBOX_TABLE("captures_v3")}
+INSERT INTO captures_v3 (${copy}, kind) SELECT ${copy}, 'slip' FROM captures;
 DROP TABLE captures;
-ALTER TABLE captures_v2 RENAME TO captures;
+ALTER TABLE captures_v3 RENAME TO captures;
 ${INDEXES}
 ${stamp}`);
     }
@@ -314,11 +356,12 @@ ${stamp}`);
     return rows.map(fromRow);
   }
 
-  async due(now: number, limit: number) {
+  async due(now: number, limit: number, filedBy: string) {
+    // `filed_by = ?` is never true for an unknown (NULL) filer: such a capture is never due by itself.
     const rows = await this.db.all<Row>(
-      `SELECT * FROM captures WHERE state IN ('queued','failed') AND next_attempt_at <= ?
+      `SELECT * FROM captures WHERE state IN ('queued','failed') AND next_attempt_at <= ? AND filed_by = ?
        ORDER BY ${DUE_ORDER} LIMIT ?`,
-      [now, limit],
+      [now, filedBy, limit],
     );
     return rows.map(fromRow);
   }
@@ -380,7 +423,12 @@ ${stamp}`);
   }
 }
 
-const clone = (r: CaptureRecord): CaptureRecord => ({ ...r, nadawat: r.nadawat ? { ...r.nadawat } : null });
+/** A copy the caller cannot change underneath the store; a filer that is not a whole one is unknown (null). */
+const clone = (r: CaptureRecord): CaptureRecord => ({
+  ...r,
+  nadawat: r.nadawat ? { ...r.nadawat } : null,
+  filedBy: filerOrNull(r.filedBy),
+});
 
 function dueRank(r: CaptureRecord): number {
   return r.kind === "nadawat" ? 0 : 1;
@@ -425,9 +473,15 @@ export class MemoryOutboxStore implements OutboxStore {
       .map(clone);
   }
 
-  async due(now: number, limit: number) {
+  async due(now: number, limit: number, filedBy: string) {
     return [...this.rows.values()]
-      .filter((r) => (r.state === "queued" || r.state === "failed") && r.nextAttemptAt <= now)
+      .filter(
+        (r) =>
+          (r.state === "queued" || r.state === "failed") &&
+          r.nextAttemptAt <= now &&
+          r.filedBy !== null &&
+          r.filedBy.persona === filedBy,
+      )
       .sort((a, b) => dueRank(a) - dueRank(b) || a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
       .slice(0, limit)
       .map(clone);
@@ -435,13 +489,13 @@ export class MemoryOutboxStore implements OutboxStore {
 
   async update(id: string, patch: CapturePatch) {
     const r = this.rows.get(id);
-    if (r) this.rows.set(id, { ...r, ...defined(patch) });
+    if (r) this.rows.set(id, clone({ ...r, ...defined(patch) }));
   }
 
   async transition(id: string, from: readonly CaptureState[], patch: CapturePatch) {
     const r = this.rows.get(id);
     if (!r || !from.includes(r.state) || from.length === 0) return false;
-    this.rows.set(id, { ...r, ...defined(patch) });
+    this.rows.set(id, clone({ ...r, ...defined(patch) }));
     return true;
   }
 
@@ -478,7 +532,7 @@ export class MemoryOutboxStore implements OutboxStore {
     const r = this.rows.get(id);
     if (!r || !isRefused(r) || this.rows.has(newId)) return false;
     this.rows.delete(id);
-    this.rows.set(newId, { ...r, ...defined(patch), id: newId });
+    this.rows.set(newId, clone({ ...r, ...defined(patch), id: newId }));
     return true;
   }
 }
@@ -488,6 +542,10 @@ function defined(patch: CapturePatch): CapturePatch {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(patch)) {
     if (v === undefined) continue;
+    if (k === "filedBy") {
+      out[k] = filerOrNull(v); // kept as the SQL store keeps it: whole, or unknown
+      continue;
+    }
     if (!(k in PATCH_COLUMNS)) throw new RangeError(`Not a patchable capture field: ${k}`);
     out[k] = v;
   }

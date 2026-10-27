@@ -3,7 +3,8 @@
  * the member for a cash receipt), where it is in words, a second line when it helps, and its ring. A capture waiting
  * on a retry, or refused for a reason a resend can fix, offers "Ipadala karon"; a refused one can also be removed
  * from the phone ("Tangtanga", after a confirm). A refusal no resend can fix offers only the removal: its words say
- * what to file instead.
+ * what to file instead. A capture another clerk filed on this phone (or one filed before it kept who filed it) says
+ * whose it is, waits for that clerk, and offers "Ipadala isip ako" instead, which confirms by name first.
  *
  * The words are one element for TalkBack ("Resibo 0403. 4 ka linya nabasa. 412 KB, 09:12."); the buttons stay their
  * own. Progress is not a live region: the outbox announces one summary when uploads land.
@@ -15,7 +16,18 @@ import type { CaptureRecord } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
 import { Button, InkStamp } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
-import { canRemove, canSendNow, hintOf, metaOf, ringOf, statusOf, titleOf } from "./capture-view";
+import {
+  canRemove,
+  canSendNow,
+  canTakeOver,
+  filedNoteOf,
+  filerName,
+  hintOf,
+  metaOf,
+  ringOf,
+  statusOf,
+  titleOf,
+} from "./capture-view";
 import { Paper } from "./paper";
 import { CaptureRing } from "./ring";
 import { useCompact } from "./use-compact";
@@ -26,7 +38,9 @@ export function CaptureRow({
   now,
   online,
   treasurer,
+  me,
   onSendNow,
+  onTakeOver,
   onRemove,
   testID,
   paper = 64,
@@ -36,7 +50,11 @@ export function CaptureRow({
   online: boolean;
   /** The treasurer's name for refusal copy, from the pairing or the co-op; null says "the treasurer". */
   treasurer: string | null;
+  /** The persona of the clerk paired now: a capture filed by anyone else says so and is never sent by a tap. */
+  me: string | null;
   onSendNow?: () => void;
+  /** Asks to send another clerk's capture as this clerk's own (the screen confirms first, naming the filer). */
+  onTakeOver?: () => void;
   /** Asks to remove a refused capture (the screen confirms first). */
   onRemove?: () => void;
   testID: string;
@@ -46,11 +64,13 @@ export function CaptureRow({
   const tr = useT();
   const compact = useCompact();
   const title = titleOf(r);
-  const status = statusOf(r, now, online, treasurer);
+  const status = statusOf(r, now, online, treasurer, me);
   const hint = hintOf(r);
+  const filed = filedNoteOf(r, me);
   const titleText = tr(title.key, title.args);
   const statusText = tr(status.key, status.args);
   const hintText = hint ? tr(hint.key, hint.args) : null;
+  const filedText = filed ? tr(filed.key, filed.args) : null;
   const n = r.nadawat;
   const metaText = [
     r.source === "sample" ? tr("common.syntheticSample") : null,
@@ -59,7 +79,8 @@ export function CaptureRow({
   ]
     .filter(Boolean)
     .join(", ");
-  const send = onSendNow && canSendNow(r);
+  const send = onSendNow && canSendNow(r, me);
+  const take = onTakeOver && canTakeOver(r, me);
   const remove = onRemove && canRemove(r);
   return (
     <View testID={testID} dataSet={{ captureState: r.state, kind: r.kind }} style={styles.row}>
@@ -69,7 +90,7 @@ export function CaptureRow({
           accessible
           accessibilityLabel={tr("M-CL-02.rowSr", {
             title: titleText,
-            status: [statusText, hintText].filter(Boolean).join(". "),
+            status: [statusText, filedText, hintText].filter(Boolean).join(". "),
             meta: metaText,
           })}
           style={{ gap: space.s2 }}
@@ -83,6 +104,11 @@ export function CaptureRow({
           <Txt kind="label" style={{ color: t.color[status.tone] }} testID={`${testID}.status`}>
             {statusText}
           </Txt>
+          {filedText && filed ? (
+            <Txt kind="caption" style={{ color: t.color[filed.tone] }} testID={`${testID}.filed-by`}>
+              {filedText}
+            </Txt>
+          ) : null}
           {hintText && hint ? (
             <Txt kind="caption" style={{ color: t.color[hint.tone] }}>
               {hintText}
@@ -92,8 +118,22 @@ export function CaptureRow({
             {metaText}
           </Txt>
         </View>
-        {send || remove ? (
+        {send || take || remove ? (
           <View style={styles.actions}>
+            {take ? (
+              <Button
+                variant="text"
+                icon="people"
+                label={tr("M-CL-02.takeOver")}
+                accessibilityLabel={
+                  r.filedBy
+                    ? tr("M-CL-02.takeOverSr", { title: titleText, name: filerName(r.filedBy) })
+                    : tr("M-CL-02.takeOverUnknownSr", { title: titleText })
+                }
+                onPress={onTakeOver}
+                testID={`${testID}.take-over`}
+              />
+            ) : null}
             {send ? (
               <Button
                 variant="text"
@@ -117,7 +157,7 @@ export function CaptureRow({
           </View>
         ) : null}
       </View>
-      <CaptureRing tone={ringOf(r)} progress={r.progress} size={compact ? 28 : 36} />
+      <CaptureRing tone={ringOf(r, me)} progress={r.progress} size={compact ? 28 : 36} />
     </View>
   );
 }

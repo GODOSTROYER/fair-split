@@ -12,7 +12,19 @@
  */
 import { contentDigestHeader } from "../../_shims/api-client";
 import { parseRetryAfter } from "../../lib/backoff";
-import type { CaptureKind, CaptureRecord, UploadOutcome } from "../../lib/outbox";
+import type { CaptureKind, CaptureRecord, Uploader, UploadOutcome } from "../../lib/outbox";
+
+/**
+ * The bearer a capture may go with: the current pairing's, only while the phone is paired as the clerk who filed
+ * it (`filedBy`, a persona; null when nobody can say who). Null otherwise, and the capture is held, never sent.
+ */
+export type BearerFor = (filedBy: string | null) => string | null;
+
+/** Wraps an uploader that needs no bearer (demo data) in the same rule: another clerk's capture is held. */
+export function heldUnlessFiler(upload: Uploader, bearerFor: BearerFor): Uploader {
+  return (rec, onProgress) =>
+    bearerFor(rec.filedBy?.persona ?? null) ? upload(rec, onProgress) : Promise.resolve({ kind: "held" });
+}
 
 export const CAPTURES_PATH = "/v1/captures";
 

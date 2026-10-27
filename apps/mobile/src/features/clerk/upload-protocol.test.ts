@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { contentDigestHeader, type FairSplitApi } from "../../_shims/api-client";
-import { MANUAL_ONLY, type NadawatMeta, type NewCapture, Outbox } from "../../lib/outbox";
+import { type Filer, MANUAL_ONLY, type NadawatMeta, type NewCapture, Outbox } from "../../lib/outbox";
 import { MemoryOutboxStore } from "../../lib/outbox-stores";
 import { uuidv7 } from "../../lib/uuidv7";
 import { createUploader } from "../../platform/uploader.web";
@@ -12,6 +12,7 @@ import {
   cashReceiptPath,
   headerJson,
   headerLookup,
+  heldUnlessFiler,
   interpretUpload,
   originOf,
   uploadRequest,
@@ -20,6 +21,8 @@ import {
 const ORIGIN = "https://fs-api.test";
 const NOW = Date.parse("2026-10-30T01:00:00Z");
 const none = () => null;
+const JESSIE: Filer = { persona: "clerk:jessie", name: "Jessie Dela Cruz", pairing: "pairing-jessie-1" };
+const MARIA: Filer = { persona: "clerk:maria", name: "Maria Santos", pairing: "pairing-maria-1" };
 
 /* ------------------------------------------------------------------ reading answers */
 
@@ -97,6 +100,24 @@ describe("uploadRequest", () => {
   it("derives the origin from the published capture URL", () => {
     expect(originOf(`${ORIGIN}/v1/captures`)).toBe(ORIGIN);
     expect(cashReceiptPath("line/1 2")).toBe("/v1/lines/line%2F1%202/cash-receipt");
+  });
+});
+
+describe("heldUnlessFiler (demo data has no bearer, and the same rule)", () => {
+  it("filer.demo-held: lets an upload through only for the clerk who filed it", async () => {
+    const sent: string[] = [];
+    const upload = heldUnlessFiler(
+      async (rec) => {
+        sent.push(rec.id);
+        return { kind: "ok", documentId: "demo", duplicateOf: null, rowsRead: null, serial: null };
+      },
+      (filedBy) => (filedBy === JESSIE.persona ? "demo-session" : null),
+    );
+    const rec = (id: string, filedBy: Filer | null) => ({ id, filedBy }) as Parameters<typeof upload>[0];
+    expect(await upload(rec("a", JESSIE), () => {})).toMatchObject({ kind: "ok" });
+    expect(await upload(rec("b", MARIA), () => {})).toEqual({ kind: "held" });
+    expect(await upload(rec("c", null), () => {})).toEqual({ kind: "held" });
+    expect(sent).toEqual(["a"]);
   });
 });
 
@@ -192,13 +213,23 @@ function capture(seed: number, over: Partial<NewCapture> = {}): NewCapture {
   } as NewCapture;
 }
 
-function engine(now: { t: number }) {
+/**
+ * The phone as the clerk screens run it: `paired` is who the pairing is now, read by the outbox (`filer`) and by the
+ * uploader (`bearerFor`: the bearer only for that clerk's own captures), as the outbox provider wires them.
+ */
+function engine(now: { t: number }, paired: { filer: Filer | null } = { filer: JESSIE }) {
   return new Outbox({
     store: new MemoryOutboxStore(),
-    uploader: createUploader({ api, getBearer: () => "dev_token_for_tests", now: () => now.t }),
+    uploader: createUploader({
+      api,
+      bearerFor: (filedBy) =>
+        paired.filer && filedBy === paired.filer.persona ? `dev_token_for_${paired.filer.pairing}` : null,
+      now: () => now.t,
+    }),
     now: () => now.t,
     newId: () => uuidv7(now.t, (n) => new Uint8Array(n).fill(7)),
     isOnline: () => true,
+    filer: () => paired.filer,
   });
 }
 
@@ -229,7 +260,7 @@ describe("capture upload over HTTP (msw)", () => {
         path: "/v1/captures",
         key: added.record.id,
         digest: contentDigestHeader(added.record.sha256),
-        auth: "Bearer dev_token_for_tests",
+        auth: "Bearer dev_token_for_pairing-jessie-1",
         type: "image/jpeg",
         bodySha: added.record.sha256,
       });
@@ -277,7 +308,8 @@ describe("capture upload over HTTP (msw)", () => {
 
   it("sends a refused page again under a new key once the phone is paired again", async () => {
     const now = { t: NOW };
-    const outbox = engine(now);
+    const paired = { filer: JESSIE as Filer | null };
+    const outbox = engine(now, paired);
     await outbox.init();
     const added = await outbox.add(capture(8));
     if (added.outcome !== "queued") throw new Error("expected queued");
@@ -290,8 +322,13 @@ describe("capture upload over HTTP (msw)", () => {
         { status: 201 },
       );
     now.t += 60_000;
+    paired.filer = { ...JESSIE, pairing: "pairing-jessie-2" }; // the same clerk, paired again
     expect(await outbox.afterPairing()).toMatchObject({ uploaded: 1 });
     expect(seen).toHaveLength(2);
+    expect(seen.map((s) => s.auth)).toEqual([
+      "Bearer dev_token_for_pairing-jessie-1",
+      "Bearer dev_token_for_pairing-jessie-2",
+    ]);
     expect(seen[0]?.key).toBe(added.record.id);
     expect(seen[1]?.key).not.toBe(added.record.id);
     expect(seen[1]?.key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -299,6 +336,65 @@ describe("capture upload over HTTP (msw)", () => {
     expect(seen[1]?.digest).toBe(seen[0]?.digest);
     expect(seen[1]?.meta).toEqual(seen[0]?.meta);
     expect((await outbox.list())[0]).toMatchObject({ state: "uploaded", documentId: "doc-78" });
+  });
+
+  it("filer.on-the-wire: paired again as another clerk, the first clerk's refused page never leaves the phone", async () => {
+    const now = { t: NOW };
+    const paired = { filer: JESSIE as Filer | null };
+    const outbox = engine(now, paired);
+    await outbox.init();
+    const added = await outbox.add(capture(10));
+    if (added.outcome !== "queued") throw new Error("expected queued");
+    answer = () => HttpResponse.json({ error: { code: "UNAUTHENTICATED" } }, { status: 401 });
+    await outbox.sync();
+    answer = () =>
+      HttpResponse.json(
+        { documentId: "doc-79", exactDuplicateOf: null, rowsRead: null, serial: null },
+        { status: 201 },
+      );
+    paired.filer = MARIA;
+    await outbox.afterPairing();
+    await outbox.sendAll();
+    await outbox.sendNow(added.record.id);
+    expect(seen).toHaveLength(1);
+    expect((await outbox.list())[0]).toMatchObject({
+      id: added.record.id,
+      lastError: "UNAUTHENTICATED",
+      filedBy: JESSIE,
+    });
+  });
+
+  it("filer.held-at-send: the pairing changes before the request leaves: nothing is sent, the capture waits as it was", async () => {
+    const now = { t: NOW };
+    // The outbox still believes Jessie is paired; the uploader reads the pairing as the request is built.
+    let atSend: Filer | null = JESSIE;
+    const outbox = new Outbox({
+      store: new MemoryOutboxStore(),
+      uploader: createUploader({
+        api,
+        bearerFor: (filedBy) => (atSend && filedBy === atSend.persona ? "dev_token_for_tests" : null),
+        now: () => now.t,
+      }),
+      now: () => now.t,
+      newId: () => uuidv7(now.t, (n) => new Uint8Array(n).fill(7)),
+      isOnline: () => true,
+      filer: () => JESSIE,
+    });
+    await outbox.init();
+    await outbox.add(capture(11));
+    atSend = MARIA;
+    expect(await outbox.sync()).toMatchObject({ attempted: 0, uploaded: 0, retrying: 0, rejected: 0 });
+    expect(seen).toHaveLength(0);
+    expect((await outbox.list())[0]).toMatchObject({
+      state: "queued",
+      attempts: 0,
+      lastError: null,
+      progress: 0,
+    });
+    // Nobody paired at all: it never leaves either.
+    atSend = null;
+    expect(await outbox.sync()).toMatchObject({ attempted: 0 });
+    expect(seen).toHaveLength(0);
   });
 
   it("files without a station when the pairing names none", async () => {
@@ -360,6 +456,7 @@ describe("capture upload over HTTP (msw)", () => {
       ...capture(7),
       kind: "slip" as const,
       nadawat: null,
+      filedBy: JESSIE,
       id: "0190f0f0-0000-7000-8000-000000000001",
       createdAt: NOW,
       state: "queued" as const,
