@@ -1,9 +1,10 @@
-# ADR-0003: Working copy on the local Z: drive
+# ADR-0005: Working copy on the local Z: drive
 
 - **Status:** Accepted (user, on merge)
 - **Date:** 22 Oct 2026 (IST)
 - **Author:** WS-QA
 - **Touches:** register §1 (Repo row), architecture §18 (Windows development), S5.2.3 rule 1 (worktree paths)
+- **Number:** first written as 0003; renumbered before merge because `ws/read` holds ADR-0003
 
 ## Context
 

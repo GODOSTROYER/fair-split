@@ -11,7 +11,7 @@ on:
   # Nightly full-history secret scan. gitleaks-action scans only the pushed commits on push and only the PR's
   # commits on pull_request; it scans the whole history only on schedule and workflow_dispatch.
   schedule:
-    - cron: "43 20 * * *" # 20:43 UTC = 02:13 IST, after the daily merge train
+    - cron: "43 20 * * *" # 20:43 UTC = 02:13 IST, after the day's merges
 
 permissions:
   contents: read
@@ -97,40 +97,9 @@ jobs:
       - name: Dependency rule (dependency-cruiser)
         run: pnpm deps:check
 
-      - name: Ownership path check (docs/ownership.md, judged by the base's rules)
-        # Branch comes from GITHUB_HEAD_REF on PRs and GITHUB_REF_NAME on pushes. Every PR is checked
-        # (--strict fails a branch that is not ws/<id> or deps/*); only main itself (push, manual run) is skipped.
-        # Once the base has tools/check-ownership.mjs, the base's checker always runs (with the base's rules),
-        # so a PR cannot widen its own row or weaken the checker. The head copy runs only when git confirms
-        # the base has no checker at all: `git ls-tree` exits 0 and prints nothing. Any other git error, or a
-        # checker that is not a regular file, fails the step instead of falling back to the PR's copy.
-        env:
-          BASE_SHA: ${{ steps.base.outputs.sha }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF_NAME" = "main" ]; then
-            echo "main itself (push or manual run): already checked as a PR; skipped."
-            exit 0
-          fi
-          if ! entry="$(git ls-tree --full-tree "$BASE_SHA" -- tools/check-ownership.mjs)"; then
-            echo "::error::Cannot list tools/check-ownership.mjs in base $BASE_SHA; failing closed."
-            exit 1
-          fi
-          case "$entry" in
-            "")
-              echo "::warning::Base $BASE_SHA has no tools/check-ownership.mjs (the PR that adds it); using the head copy."
-              checker="tools/check-ownership.mjs"
-              ;;
-            "100644 blob "* | "100755 blob "*)
-              checker="$RUNNER_TEMP/check-ownership.base.mjs"
-              git cat-file blob "$BASE_SHA:tools/check-ownership.mjs" > "$checker"
-              ;;
-            *)
-              echo "::error::Base $BASE_SHA has tools/check-ownership.mjs, but not as a regular file; failing closed."
-              exit 1
-              ;;
-          esac
-          node "$checker" --repo "$GITHUB_WORKSPACE" --base "$BASE_SHA" --ownership-ref "$BASE_SHA" --strict
+      # No ownership step here: on pull_request GitHub runs the PR's own copy of this file, so a step here could
+      # be edited away by the PR it judges. The gate is ownership.yml (pull_request_target, from main) and the
+      # merger's run of main's checker (CONTRIBUTING.md, "Merging"); ADR-0006.
 
       - name: secretlint (whole tree)
         run: pnpm secrets:scan
@@ -148,6 +117,11 @@ jobs:
     name: gitleaks (commit range; full history nightly and on manual run)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # On pull_request the action lists the PR's commits (GET /repos/{owner}/{repo}/pulls/{n}/commits), which in a
+    # private repository needs pull-requests: read; without it the 403 fails the job on every PR.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)

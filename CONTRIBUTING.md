@@ -26,20 +26,24 @@ corepack pnpm deps:check
 ```
 
 On Windows, use a local NTFS drive (never a mapped drive), enable long paths and run
-`git config core.longpaths true` ([ADR-0003](docs/adr/0003-working-copy-on-local-z-drive.md)).
+`git config core.longpaths true` ([ADR-0005](docs/adr/0005-working-copy-on-local-z-drive.md)).
 
 ## Workstreams, branches and ownership
 
 - One branch per workstream: `ws/<id>` (for example `ws/core`). Dependency-only changes go on `deps/<name>`.
-- A PR touches only the paths its workstream owns in [`docs/ownership.md`](docs/ownership.md). CI checks this:
+- A PR touches only the paths its workstream owns in [`docs/ownership.md`](docs/ownership.md). Check before you
+  push:
 
   ```sh
   node tools/check-ownership.mjs --branch ws/<id> --base origin/main
   ```
 
-- CI runs the check on every PR with the **base** commit's checker and rules, and fails a branch that is not
-  `ws/<id>` or `deps/<topic>`. No branch, WS-QA's included, may delete or rename `docs/ownership.md` or
-  `tools/check-ownership.mjs`.
+- On GitHub, `.github/workflows/ownership.yml` judges every PR to `main` with **main's** checker and rules
+  (`pull_request_target`), and fails a branch that is not `ws/<id>` or `deps/<topic>`. `ci.yml` runs no ownership
+  check: on `pull_request` it is the PR's own copy.
+- The gate's files are `docs/ownership.md`, `tools/check-ownership.mjs` and `.github/workflows/ownership.yml`. No
+  branch, WS-QA's included, may delete, rename or retype them, and a change to one lands only after the merger
+  approves that exact version (see Merging; [ADR-0006](docs/adr/0006-ownership-gate-runs-from-main.md)).
 - `docs/spikes/`, `docs/gates/` and `docs/adr/` accept new files from anyone; existing files there are never edited.
 - Frozen contracts (IC-01 to IC-11) change only through an ADR (`docs/adr/0000-template.md`) that the user accepts.
   The user accepts an ADR by merging its PR, so an ADR is committed with status `Accepted (user, on merge)`;
@@ -65,4 +69,23 @@ On Windows, use a local NTFS drive (never a mapped drive), enable long paths and
 - Conventional commits (`feat(test-kit): …`, `fix(domain): …`, `docs: …`).
 - The pre-commit hook runs secretlint, `tools/guard-env.mjs` and Biome. Fix with
   `corepack pnpm exec biome check --write <paths>`. Never use `--no-verify`.
-- Fill in the PR template. PRs land by rebase-merge in the daily merge train (S5.2.4).
+- Fill in the PR template. The orchestrator merges (below); there is no merge queue or daily train.
+
+## Merging
+
+The orchestrator merges each branch into `main` (plan amendment 2,
+[ADR-0006](docs/adr/0006-ownership-gate-runs-from-main.md)). Before it merges `ws/<id>`, it runs **main's** checker,
+never the branch's, against main's rules:
+
+```sh
+git show main:tools/check-ownership.mjs > "$TMPDIR/check-ownership.main.mjs"
+node "$TMPDIR/check-ownership.main.mjs" --repo . --branch ws/<id> --base main --head ws/<id> --strict
+```
+
+If the branch changes one of the gate's files, the check fails and prints a token. The merger reads that diff
+(`git diff main...ws/<id> -- docs/ownership.md tools/check-ownership.mjs .github/workflows/ownership.yml`) and,
+only if it is right, reruns the same command with `--approve-gate-change <token>`. The token covers exactly those
+versions of the files, so any later edit needs a new review. Workstream agents never pass this flag.
+
+Then the merger checks the merged result: `corepack pnpm typecheck`, `corepack pnpm test`,
+`corepack pnpm deps:check` and `corepack pnpm exec biome ci .`.

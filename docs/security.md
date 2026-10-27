@@ -18,6 +18,15 @@ written as if public. Secrets live only in the gitignored `.env`, Render env var
 
 `--no-verify` is forbidden. A hook that blocks a commit is fixed, never bypassed.
 
+## GitHub settings before the first secret
+
+- Environments `sandbox-smoke` and `eval-live`: Settings → Environments → the environment → Deployment branches
+  and tags → Selected branches and tags → `main` only. A manual run can start any branch's copy of a workflow, so
+  the smoke job also refuses every ref but `main` itself (`.github/workflows/sandbox-smoke.yml`).
+- The ownership gate (`.github/workflows/ownership.yml`) runs on `pull_request_target` with `contents: read`. It
+  checks out `main` and only reads the PR's commits with git. Never add a step there that installs, builds or runs
+  the PR's code: that code would run with the base repository's token (ADR-0006).
+
 ## Leak playbook
 
 Follow the steps in this order. Rotating comes first because history rewriting does not un-leak anything:

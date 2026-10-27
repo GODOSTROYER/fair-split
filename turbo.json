@@ -20,14 +20,7 @@
     "@fairsplit/test-kit#test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/docs/**",
-        "$TURBO_ROOT$/tools/**",
-        "$TURBO_ROOT$/.github/**",
-        "$TURBO_ROOT$/README.md",
-        "$TURBO_ROOT$/pnpm-workspace.yaml"
-      ]
+      "cache": false
     }
   }
 }

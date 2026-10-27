@@ -6,6 +6,8 @@
 
 - [ ] Branch is `ws/<id>` (or `deps/<name>` for a dependency-only PR) and every path is owned (`docs/ownership.md`)
 - [ ] Shared contracts unchanged, or an approved ADR is linked
+- [ ] The ownership gate's files are unchanged, or the PR says why the merger should approve the change
+  (ADR-0006)
 
 ## Checks
 

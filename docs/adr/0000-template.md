@@ -25,7 +25,7 @@ The change, stated so a subagent can apply it without asking.
 ## Consequences
 
 - Affected consumers (workstreams and packages) and what each must change.
-- Migration and the order it lands in the merge train.
+- Migration and the order it lands on `main`.
 - Tests that prove it (`inv.iN.*` when an invariant is involved).
 - What gets worse, and what we accept.
 

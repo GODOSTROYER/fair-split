@@ -26,6 +26,16 @@ describe("repo docs", () => {
     }
   });
 
+  it("an ADR records where the repo departs from the register's 'Changes' line, which WS-QA cannot edit", () => {
+    const register = read("docs/spec/00-decision-register.md");
+    const adrs = readdirSync(resolve(root, "docs/adr")).map((f) => read(`docs/adr/${f}`));
+    const amending = (quote) =>
+      adrs.find((text) => text.includes(quote) && /Register text this ADR amends/.test(text));
+    for (const quote of ["`docs/adr/NNN-title.md`", "`docs/decision-register.md`"]) {
+      if (register.includes(quote)) expect(amending(quote), quote).toBeDefined();
+    }
+  });
+
   it("docs/versions.md records every catalog pin at its exact version", () => {
     const versions = read("docs/versions.md");
     const pins = catalogPins(read("pnpm-workspace.yaml"));
@@ -48,19 +58,62 @@ describe("repo docs", () => {
   });
 
   it("every workflow pins actions by full commit SHA", () => {
-    for (const wf of [".github/workflows/ci.yml", ".github/workflows/sandbox-smoke.yml"]) {
+    const workflows = readdirSync(resolve(root, ".github/workflows")).filter((f) => /\.ya?ml$/.test(f));
+    expect(workflows).toEqual(expect.arrayContaining(["ci.yml", "ownership.yml", "sandbox-smoke.yml"]));
+    for (const wf of workflows.map((f) => `.github/workflows/${f}`)) {
       const uses = [...read(wf).matchAll(/uses:\s*(\S+)/g)].map((m) => m[1]);
       expect(uses.length).toBeGreaterThan(0);
       for (const u of uses) expect(u, `${wf}: ${u}`).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
     }
   });
 
-  it("CI checks ownership on every PR with the base's checker and rules", () => {
+  it("the docs describe the gate that runs: ownership.yml from main, plus the merger's run of main's checker", () => {
+    expect(read(".github/workflows/ci.yml")).not.toMatch(/check-ownership/);
+    const contributing = read("CONTRIBUTING.md");
+    expect(contributing).toMatch(/^## Merging$/m);
+    expect(contributing).toContain(
+      'git show main:tools/check-ownership.mjs > "$TMPDIR/check-ownership.main.mjs"',
+    );
+    expect(contributing).toMatch(/--branch ws\/<id> --base main --head ws\/<id> --strict/);
+    expect(contributing).toContain("--approve-gate-change <token>");
+    expect(read("AGENTS.md")).toContain("never pass `--approve-gate-change`");
+    const rules = read("docs/ownership.md");
+    for (const f of ["docs/ownership.md", "tools/check-ownership.mjs", ".github/workflows/ownership.yml"]) {
+      expect(rules).toContain(`\`${f}\``);
+    }
+    expect(rules).toContain("`pull_request_target`");
+    // The workstream is the branch name; the docs say so instead of implying an access-control boundary.
+    expect(rules).toMatch(/does\s+not authenticate who pushed/);
+    expect(rules).not.toMatch(/CI runs the PR's own copy|base commit's `tools\/check-ownership\.mjs`/);
+  });
+
+  it("no merge queue: CI has no merge_group trigger and nothing describes a merge train (ADR-0006)", () => {
+    for (const f of [".github/workflows/ci.yml", ".github/workflows/sandbox-smoke.yml"]) {
+      expect(read(f), f).not.toMatch(/merge_group|merge train/);
+    }
+    for (const f of ["CONTRIBUTING.md", "docs/adr/0000-template.md"]) {
+      expect(read(f), f).not.toMatch(/merge train/);
+    }
+    expect(read("docs/adr/0006-ownership-gate-runs-from-main.md")).toMatch(
+      /CI does not trigger on `merge_group`/,
+    );
+  });
+
+  it("gitleaks can list a PR's commits in this private repository (pull-requests: read)", () => {
     const ci = read(".github/workflows/ci.yml");
-    expect(ci).toMatch(/git ls-tree --full-tree "\$BASE_SHA" -- tools\/check-ownership\.mjs/);
-    expect(ci).toMatch(/git cat-file blob "\$BASE_SHA:tools\/check-ownership\.mjs" > "\$checker"/);
-    expect(ci).not.toMatch(/cat-file -e "\$BASE_SHA:tools/);
-    expect(ci).toMatch(/--ownership-ref "\$BASE_SHA" --strict/);
+    const job = ci.slice(ci.indexOf("\n  gitleaks:\n"));
+    expect(job).toMatch(/\n {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n/);
+    expect(job).not.toMatch(/:\s*write\b/);
+  });
+
+  it("test-kit's tests never replay from turbo's cache: they read files across the whole repository", () => {
+    const turbo = JSON.parse(read("turbo.json"));
+    expect(turbo.tasks["@fairsplit/test-kit#test"].cache).toBe(false);
+  });
+
+  it("Biome errors on inline type-only imports and exports (see dependency-rules.test.mjs)", () => {
+    const style = JSON.parse(read("biome.json")).linter.rules.style;
+    expect(style).toMatchObject({ useImportType: "error", useExportType: "error" });
   });
 
   it("gitleaks also runs on a schedule, the only automatic trigger on which it scans full history", () => {
@@ -78,6 +131,20 @@ describe("repo docs", () => {
     }
   });
 
+  it("the smoke job runs only on main, whichever branch a manual run starts from", () => {
+    const wf = read(".github/workflows/sandbox-smoke.yml");
+    const ifs = [...wf.matchAll(/^ {4}if: (.+)$/gm)].map((m) => m[1]);
+    expect(ifs).toEqual([
+      expect.stringMatching(
+        /^\$\{\{ github\.ref == 'refs\/heads\/main' && vars\.SANDBOX_SMOKE_ENABLED == 'true' \}\}$/,
+      ),
+    ]);
+    expect(wf).not.toMatch(/public repo's logs/);
+    expect(read("docs/security.md")).toMatch(
+      /`sandbox-smoke` and `eval-live`[\s\S]*Deployment branches[\s\S]*`main` only/,
+    );
+  });
+
   it("test-kit uses only reserved email domains (RFC 2606 / RFC 6761)", () => {
     const email = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
     const reserved = /(^|\.)(example\.(com|org|net)|invalid|test|localhost)$/i;
@@ -91,6 +158,20 @@ describe("repo docs", () => {
         expect(domain, `${f}: ${address}`).toMatch(reserved);
       }
     }
+  });
+
+  it("ADR numbers that other branches hold are not taken here", () => {
+    // Numbers held outside this branch. Before taking a number, check main and every in-flight branch.
+    const held = {
+      "0001": "plan-errata",
+      "0002": "simulated-paypal-sandbox-and-private-repo",
+      "0003": "ai-replay-identity-rate-card-term-key-and-slip-hash", // ws/read
+    };
+    for (const f of readdirSync(resolve(root, "docs/adr"))) {
+      const slug = held[f.slice(0, 4)];
+      if (slug) expect(f).toBe(`${f.slice(0, 4)}-${slug}.md`);
+    }
+    expect(read("CONTRIBUTING.md")).toContain("docs/adr/0005-working-copy-on-local-z-drive.md");
   });
 
   it("ADRs are NNNN-title.md with unique numbers, and none on main is left 'Proposed'", () => {
