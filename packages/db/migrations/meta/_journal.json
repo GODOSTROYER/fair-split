@@ -113,6 +113,13 @@
       "when": 1793100256802,
       "tag": "0015_fs_no_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793100684558,
+      "tag": "0016_fs_prune_kept_rows",
+      "breakpoints": true
     }
   ]
 }

@@ -7,10 +7,17 @@
  * - `llm_calls` is the ClaudeGateway's spend meter (judge_read is capped per day).
  *
  * All three reference workspaces ON DELETE SET NULL, and fs_app may not delete them.
+ *
+ * Retention (review minor, 0005: nothing pruned them, so they grew without bound): the owner-side
+ * fs_prune_kept_rows() (migrations/0016, `pruneKeptRows`), which fs_app may call from the cron, drops paypal_calls
+ * older than a day at least (the limiter needs 60 s, the circuit 6 minutes, /ops a day), resolved webhook events
+ * older than 30 days at least (the event-id dedupe outlasts PayPal's 3 days of retries, resends and catch-up),
+ * rejected ones after 7 days (S3.9), and never a received (unprocessed) event or an llm_calls row (the replay store).
  */
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createLimiter } from "../src/limiter.js";
+import { KEPT_ROWS_FLOORS, pruneKeptRows } from "../src/retention.js";
 import { llmCalls, paypalCalls, webhookEvents, workspaces } from "../src/schema/index.js";
 import { fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
 import { sqlState } from "./helpers.js";
@@ -132,5 +139,121 @@ describe("fs_app cannot erase them either", () => {
     const g = await limiter.take(live);
     if (!g.ok) throw new Error("expected a grant");
     await limiter.record(g.callId, { status: 201, ms: 300 });
+  });
+});
+
+describe("retention: fs_prune_kept_rows keeps what the limiter, the dedupe and the replay store need", () => {
+  const DAY = 86_400_000;
+  /** a paypal_calls row granted `ago` ms ago */
+  const callAt = async (ago: number, status = 200) => {
+    const [row] = await t.owner.db
+      .insert(paypalCalls)
+      .values({
+        purpose: "seed",
+        priority: "live",
+        status,
+        at: sql`clock_timestamp() - make_interval(secs => ${ago / 1000})`,
+        respondedAt: sql`clock_timestamp() - make_interval(secs => ${ago / 1000})`,
+      })
+      .returning({ id: paypalCalls.id });
+    return row?.id ?? "";
+  };
+  let n = 0;
+  /** a webhook_events row received `ago` ms ago */
+  const eventAt = async (ago: number, status: "received" | "applied" | "orphan" | "rejected") => {
+    const id = `WH-RETAIN-${++n}-${Date.now()}`;
+    await t.owner.db.insert(webhookEvents).values({
+      paypalEventId: id,
+      eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+      verified: status === "rejected" ? null : "self",
+      raw: "{}",
+      status,
+      receivedAt: sql`now() - make_interval(secs => ${ago / 1000})`,
+      createdAt: sql`now() - make_interval(secs => ${ago / 1000})`,
+      provenance: "live",
+    });
+    return id;
+  };
+  const callExists = async (id: string) =>
+    (await t.owner.db.select().from(paypalCalls).where(eq(paypalCalls.id, id))).length === 1;
+  const eventExists = async (id: string) =>
+    (await t.owner.db.select().from(webhookEvents).where(eq(webhookEvents.paypalEventId, id))).length === 1;
+
+  it("uses the floors the limiter and the dedupe need", () => {
+    expect(KEPT_ROWS_FLOORS).toEqual({
+      paypalCallsHours: 24,
+      webhookEventsHours: 30 * 24,
+      rejectedEventsHours: 24,
+    });
+  });
+
+  it("fs_app prunes old paypal_calls through it but never the last day, so the window and the 429 circuit survive", async () => {
+    const fresh429 = await callAt(60_000, 429);
+    const hourOld = await callAt(3_600_000);
+    const twoDays = await callAt(2 * DAY);
+    const old = await callAt(31 * DAY);
+    // defaults: 30 days
+    expect((await pruneKeptRows(t.app.db)).paypalCalls).toBe(1);
+    expect(await callExists(old)).toBe(false);
+    expect(await callExists(twoDays)).toBe(true);
+    // asking for one minute is held at the one-day floor
+    expect((await pruneKeptRows(t.app.db, { paypalCallsHours: 1 / 60 })).paypalCalls).toBe(1);
+    expect(await callExists(twoDays)).toBe(false);
+    expect(await callExists(hourOld)).toBe(true);
+    expect(await callExists(fresh429)).toBe(true);
+    expect(await createLimiter(t.app.db).take(live)).toMatchObject({ ok: false, reason: "CIRCUIT_OPEN" });
+    // and the SQL function holds the floor for a raw caller too
+    const [raw] = await t.app.sql<{ pruned_calls: string }[]>`
+      select pruned_calls::text from fs_prune_kept_rows(interval '0 seconds', interval '0 seconds', interval '0 seconds')`;
+    expect(raw?.pruned_calls).toBe("0");
+    expect(await callExists(hourOld)).toBe(true);
+  });
+
+  it("webhook events: resolved ones go after 30 days at least, rejected ones after 7 days, received ones never", async () => {
+    const received = await eventAt(400 * DAY, "received");
+    const applied40 = await eventAt(40 * DAY, "applied");
+    const orphan40 = await eventAt(40 * DAY, "orphan");
+    const applied20 = await eventAt(20 * DAY, "applied");
+    const rejected8 = await eventAt(8 * DAY, "rejected");
+    const rejected2 = await eventAt(2 * DAY, "rejected");
+    const r = await pruneKeptRows(t.app.db, { webhookEventsHours: 1 }); // held at the 30-day floor
+    expect(r).toMatchObject({ webhookEvents: 2, rejectedEvents: 1 });
+    expect(await eventExists(received)).toBe(true);
+    expect(await eventExists(applied40)).toBe(false);
+    expect(await eventExists(orphan40)).toBe(false);
+    expect(await eventExists(applied20)).toBe(true);
+    expect(await eventExists(rejected8)).toBe(false);
+    expect(await eventExists(rejected2)).toBe(true);
+    expect((await pruneKeptRows(t.app.db, { rejectedEventsHours: 1 })).rejectedEvents).toBe(1);
+    expect(await eventExists(rejected2)).toBe(false);
+  });
+
+  it("never prunes llm_calls, the Judge replay store", async () => {
+    await t.owner.db.insert(llmCalls).values({
+      cacheKey: "c".repeat(64),
+      purpose: "read_slip",
+      budgetKey: "daily",
+      model: "claude-opus-5-5",
+      effort: "low",
+      promptV: "read.v1",
+      costMicros: 1n,
+      provenance: "live",
+      createdAt: sql`now() - interval '400 days'`,
+    });
+    await pruneKeptRows(t.app.db);
+    const [row] = await t.owner.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(llmCalls)
+      .where(eq(llmCalls.cacheKey, "c".repeat(64)));
+    expect(row?.n).toBe(1);
+  });
+
+  it("is the only way fs_app removes them: PUBLIC cannot call it and fs_app still cannot DELETE", async () => {
+    const [grants] = await t.owner.sql<{ app: boolean; pub: boolean }[]>`
+      select has_function_privilege('fs_app', 'fs_prune_kept_rows(interval, interval, interval)', 'EXECUTE') as app,
+             exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                      where p.proname = 'fs_prune_kept_rows' and a.grantee = 0 and a.privilege_type = 'EXECUTE') as pub`;
+    expect(grants).toEqual({ app: true, pub: false });
+    expect(await sqlState(() => t.app.sql`delete from webhook_events`)).toBe("42501");
   });
 });

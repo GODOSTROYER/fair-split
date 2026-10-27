@@ -14,6 +14,7 @@ export * from "./ledger.js";
 export * from "./limiter.js";
 export * from "./migrate.js";
 export * from "./repos/index.js";
+export * from "./retention.js";
 export * from "./roles.js";
 export * as schema from "./schema/index.js";
 export * from "./scope.js";

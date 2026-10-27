@@ -91,7 +91,10 @@ state or resolution, an item's `status`, rank or cancel stamp, or any column of 
   signed approval cannot be deleted to free its slot, nor an item deleted and re-inserted at a lower status.
 - **Kept rows**: `paypal_calls` (the limiter's window and 429 circuit), `webhook_events` (event-id dedupe) and
   `llm_calls` (the Claude spend meter) reference workspaces `ON DELETE SET NULL`, so a Judge purge or Reset cannot
-  reopen the circuit or the day's budget; `fs_app` cannot delete them.
+  reopen the circuit or the day's budget; `fs_app` cannot delete them. They leave only through the owner-side
+  `fs_prune_kept_rows()` (0016; `pruneKeptRows(db)` from the cron): PayPal calls after 30 days (never under a day),
+  resolved webhook events after 30 days (never sooner: the dedupe), rejected ones after 7 days; unprocessed events and
+  `llm_calls` (the replay store) never.
 - **Tenancy**: every intra-workspace reference is a composite `(workspace_id, x_id)` foreign key.
 - **I3/I1/I8 at rest**: `member_lines.net = premium + bonus − deductions + credits`; `holds.claude_line` has no digit;
   data rows carry `provenance` (NOT NULL, no default).
