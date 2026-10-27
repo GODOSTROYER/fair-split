@@ -69,6 +69,9 @@ On Windows, use a local NTFS drive (never a mapped drive), enable long paths and
 - Conventional commits (`feat(test-kit): …`, `fix(domain): …`, `docs: …`).
 - The pre-commit hook runs secretlint, `tools/guard-env.mjs` and Biome. Fix with
   `corepack pnpm exec biome check --write <paths>`. Never use `--no-verify`.
+- `biome ci .` skips generated folders: `.turbo` (turbo's task cache), `dist`, `coverage`, `.expo`, `node_modules`
+  and the other folders `.gitignore` lists, and also `docs/spec`. A new generated folder goes into both
+  `.gitignore` and `biome.json`; test-kit's `biome-ignores.test.mjs` fails until they agree.
 - Fill in the PR template. The orchestrator merges (below); there is no merge queue or daily train.
 
 ## Merging
