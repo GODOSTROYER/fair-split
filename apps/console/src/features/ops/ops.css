@@ -1,0 +1,283 @@
+/* W-OP-01 /ops on Tablea: plain tables on stock primitives (S3.15). Dense, ruled, figures tabular; status always
+   a glyph and a word. Red only for a PayPal failure; nothing here is jade, because nothing here is money. */
+
+.op-root {
+  display: block;
+  color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+}
+
+.op {
+  display: grid;
+  gap: 40px;
+  max-width: 1160px;
+  margin-inline: auto;
+}
+
+.op-mast {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.op-mast__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+
+.op-mast__title {
+  font-weight: 660;
+  font-size: 1.75rem;
+  line-height: 2.125rem;
+  letter-spacing: -0.01em;
+}
+
+.op-mast__lede {
+  max-width: 70ch;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+.op-mast__checked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  color: var(--fs-ink-3);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.op-mast__checked .fs-flat:disabled {
+  border-style: dashed;
+  color: var(--fs-ink-3);
+  cursor: default;
+}
+
+.op-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+  color: var(--fs-ink-2);
+  font-weight: 560;
+  font-size: 0.75rem;
+}
+
+.op-section {
+  display: grid;
+  gap: 12px;
+}
+
+.op-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.op-section__title {
+  font-weight: 640;
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+}
+
+.op-section__aside,
+.op-note {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.op-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px dashed var(--fs-rule);
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.op-empty .fs-glyph {
+  flex: none;
+  color: var(--fs-ink-3);
+}
+
+.op-scroll {
+  max-width: 100%;
+  max-height: 28rem;
+  overflow: auto;
+  border: 1px solid var(--fs-rule);
+}
+
+.op-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--fs-plate);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.op-section > .op-table {
+  border: 1px solid var(--fs-rule);
+}
+
+.op-table th,
+.op-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--fs-rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.op-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+  font-weight: 560;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.op-table tbody th {
+  font-weight: 560;
+}
+
+.op-table tr[data-duplicate] > * {
+  color: var(--fs-ink-3);
+}
+
+.op-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.op-table__detail {
+  color: var(--fs-ink-2);
+}
+
+.op-table__event {
+  display: grid;
+  gap: 2px;
+}
+
+.op-table__id {
+  color: var(--fs-ink-3);
+  font-stretch: 75%;
+  font-weight: 520;
+  font-variant-numeric: tabular-nums;
+}
+
+.op-num {
+  font-stretch: 87.5%;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.op-status,
+.op-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.op-status[data-tone="ok"] {
+  color: var(--fs-ink);
+}
+
+/* Attention is said in words and a glyph, at full ink with an underline: pod is only for focus and the needle. */
+.op-status[data-tone="attention"] {
+  color: var(--fs-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.op-status[data-tone="paypal"] {
+  color: var(--fs-red);
+}
+
+.op-status[data-tone="quiet"] {
+  color: var(--fs-ink-3);
+}
+
+/* A switch that is on is a person's decision in force: canary, with its word. */
+.op-switch[data-on] {
+  padding: 1px 8px 1px 6px;
+  background: var(--fs-canary);
+  color: var(--fs-on-canary);
+}
+
+.op-switch:not([data-on]) {
+  color: var(--fs-ink-2);
+}
+
+.op-key {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+  padding: 20px;
+  border: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.op-facts {
+  display: grid;
+  margin: 0;
+}
+
+.op-facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--fs-rule);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.op-facts > div:last-child {
+  border-bottom: 0;
+}
+
+.op-facts dt {
+  color: var(--fs-ink-2);
+}
+
+.op-facts dd {
+  margin: 0;
+}
+
+.op-key__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+@media (max-width: 720px) {
+  .op-table th,
+  .op-table td {
+    padding: 8px;
+  }
+
+  .op-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

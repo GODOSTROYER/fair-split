@@ -1,19 +1,24 @@
-// W-OP-01 Ops: SHELL PLACEHOLDER, replaced by the proof slice (SPLIT.md). Read-only for judges.
+// W-OP-01 /ops: health, the outbox, PayPal's notices, the kill switches and the treasurer's key registration
+// (S3.15). Read-only for judges. `data-state` is "ready" or "degraded" (liveness down or readiness not ready), and
+// "loading" until the first health read answers.
 
-import { ScreenPlaceholder } from "../../chrome/ScreenPlaceholder.js";
-import { Wordmark } from "../../chrome/Wordmark.js";
+import { ScreenRoot } from "../../chrome/ScreenRoot.js";
+import { usePaypalRail } from "../../data/hooks.js";
+import { OpsPage } from "../../features/ops/OpsPage.js";
+import { opsDegraded } from "../../features/ops/opsModel.js";
+import { useHealth, useTreasurerKey } from "../../features/ops/useOps.js";
 import type { OpsScreenProps } from "../contract.js";
+import "../../features/ops/ops.css";
 
 export function Screen(_props: OpsScreenProps) {
+  const rail = usePaypalRail() ?? "simulator";
+  const health = useHealth();
+  const treasurerKey = useTreasurerKey();
+  const state =
+    health.live === undefined ? "loading" : opsDegraded(health.live, health.ready) ? "degraded" : "ready";
   return (
-    <div className="fsc-ops">
-      <Wordmark />
-      <ScreenPlaceholder
-        id="W-OP-01"
-        title="Ops"
-        lede="Health checks, the outbox, PayPal's notices and the three kill switches, with the treasurer's key registration. Read-only for judges."
-        beds="ops"
-      />
-    </div>
+    <ScreenRoot id="W-OP-01" state={state} as="main" labelledBy="W-OP-01-title" className="op-root">
+      <OpsPage rail={rail} treasurerKey={treasurerKey} />
+    </ScreenRoot>
   );
 }
