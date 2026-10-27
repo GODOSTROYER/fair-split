@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import type { AssetSpec } from "../content/types.js";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
-import type { Manifest, ManifestStore } from "./manifest.js";
+import { currentMasterAttempt, type Manifest, type ManifestStore } from "./manifest.js";
 import { displayPath } from "./pipeline.js";
 
 /**
@@ -28,7 +28,7 @@ export function planMigration(m: Manifest, assets: readonly AssetSpec[]): Migrat
     const step: MigrationStep = { id: a.id };
     const want = displayPath(a);
     if (e.display && e.display.file !== want) step.display = { from: e.display.file, to: want };
-    const accepted = e.attempts.find((x) => x.outcome === "accepted");
+    const accepted = currentMasterAttempt(e);
     if (accepted && (e.prompt.file !== accepted.promptFile || e.prompt.sha256 !== accepted.promptSha256)) {
       step.prompt = { from: e.prompt.file, to: accepted.promptFile, sha256: accepted.promptSha256 };
     }

@@ -1,5 +1,5 @@
-import { type SlipImageFixture, type Slot, slipFieldEntries, type TrapCheck } from "../fixtures/schema.js";
-import { describeLeaks, stainLeaks } from "./stain.js";
+import type { SlipImageFixture, Slot, TrapCheck } from "../fixtures/schema.js";
+import { describeLeaks, stainLeaks, unroutedStain } from "./stain.js";
 
 /**
  * A recorded Claude read's verdict on a behavioural trap (S3, S4.10 "heroes must also behave as
@@ -7,7 +7,8 @@ import { describeLeaks, stainLeaks } from "./stain.js";
  * them (C-17); MARGIN_NOTE holds when the note is quarantined (C-16). Only this can set `HOLDS`: a look by
  * an agent or a person can show a trap renders, or that it fails, but not how a reader treats it. The
  * evidence is the WS-READ eval report the verdict comes from (`review/evidence.ts` checks it read this
- * slip), pinned by its sha256.
+ * slip). Its path and sha256 are kept as fields (`evidenceFile`, `evidenceSha256`), so `replay-check` can
+ * re-read the report and re-run those checks instead of trusting the verdict.
  */
 export interface ReadVerdict {
   slot: Slot;
@@ -33,12 +34,11 @@ export function recordReadVerdict<F extends SlipImageFixture>(f: F, v: ReadVerdi
   if (decision && v.trap !== "WATER_STAIN") throw new Error(`${where}: only a water stain can leak`);
   if (v.status === "HOLDS" && v.trap === "WATER_STAIN") {
     // A passing read shows the stain holds only if the label sends every stained field to a person.
-    for (const e of slipFieldEntries(slip)) {
-      if (e.field.requested.includes("?") && e.field.expect !== "HUMAN") {
-        throw new Error(
-          `${where}: ${e.path.replace(/^fields\./, "")} is ${e.field.expect}, not HUMAN, in this fixture, so a passing read does not show the stain holds`,
-        );
-      }
+    const unrouted = unroutedStain(slip);
+    if (unrouted.length) {
+      throw new Error(
+        `${where}: ${unrouted.join(", ")} in this fixture, so a passing read does not show the stain holds`,
+      );
     }
     const leaks = stainLeaks(slip);
     if (leaks.length && !decision) {
@@ -52,6 +52,8 @@ export function recordReadVerdict<F extends SlipImageFixture>(f: F, v: ReadVerdi
     by: "read",
     at: v.at,
     evidence: `${v.evidenceFile} sha256:${v.evidenceSha256.slice(0, 16)}${v.note ? `; ${v.note}` : ""}`,
+    evidenceFile: v.evidenceFile,
+    evidenceSha256: v.evidenceSha256,
     ...(decision ? { leakAccepted: decision } : {}),
   });
   return f;

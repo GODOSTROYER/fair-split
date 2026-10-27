@@ -16,7 +16,7 @@ import {
   sessionMismatches,
   sessionPath,
 } from "../src/review/session.js";
-import { SHA_B, slipPageFixture } from "./support.js";
+import { entry, SHA_B, slipPageFixture } from "./support.js";
 
 /**
  * The terminal gate on `human-reviewed` guards against accidents (an agent's pipe, CI), not against
@@ -179,10 +179,11 @@ describe("reviewProof: a human-reviewed fixture names a confirmed session of its
   it("joins the replay check: an unproven review keeps the image out of a replay set", async () => {
     const root = mediaRoot();
     const { fixture } = await confirmed(root);
-    expect(await replayReadiness(root, fixture)).toEqual([]);
+    const ctx = { mediaRoot: root, repoRoot: root, entry: entry("spike-0403") };
+    expect(await replayReadiness(fixture, ctx)).toEqual([]);
     const edited = structuredClone(fixture) as SlipImageFixture;
     only(edited).fields.sacks.visible = "9 PP";
-    expect((await replayReadiness(root, edited)).join(" ")).toMatch(/review session .* does not match/);
+    expect((await replayReadiness(edited, ctx)).join(" ")).toMatch(/review session .* does not match/);
   });
 
   it("finds the latest matching session a reviewer saved, and none for another reviewer", async () => {

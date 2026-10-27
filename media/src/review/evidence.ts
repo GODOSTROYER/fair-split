@@ -1,5 +1,8 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import type { Slot } from "../fixtures/schema.js";
+import { sha256 } from "../util/hash.js";
 
 /**
  * What a trap verdict may rest on (verify:media minor: `--evidence` used to accept any non-empty file in
@@ -12,6 +15,11 @@ import type { Slot } from "../fixtures/schema.js";
  * agree with the verdict, and be generated after the exec that made the current master: READ's v1 report
  * names no image hash, so time is what ties it to these pixels. A cell that carries `image_sha256` (not in
  * READ's report yet; asked for downstream) must name this master.
+ *
+ * `trap-verdict` runs these checks when it records a verdict and pins the report by sha256;
+ * `replay-check` runs them again on the pinned file ({@link recheckReadEvidence}), the way a person's review
+ * is re-checked against its saved session, so a verdict written or edited by hand gets no image into a
+ * replay set.
  */
 
 /** Where WS-READ writes eval reports (`report/latest.json`, `report/history/*.json`), repo-relative. */
@@ -53,14 +61,27 @@ export interface EvidenceInput {
 
 export type EvidenceJudgement = { ok: true; note: string } | { ok: false; why: string };
 
+/**
+ * Why a path is not where WS-READ keeps eval reports (null when it is): repo-relative under
+ * {@link READ_REPORT_DIR}, forward slashes only, no `.` or `..` segment, a `.json` file.
+ */
+function reportPathProblem(file: string): string | null {
+  const segments = file.split("/");
+  const ok =
+    file.startsWith(READ_REPORT_DIR) &&
+    file.endsWith(".json") &&
+    !file.includes("\\") &&
+    !segments.some((s) => s === "" || s === "." || s === "..");
+  return ok
+    ? null
+    : `the evidence must be a WS-READ eval report under ${READ_REPORT_DIR} (latest.json or history/*.json): only a report scores both reads of a slip against its label; ${file} is not one`;
+}
+
 /** Whether a file is a WS-READ eval report that read this slip of this master and agrees with the verdict. */
 export function judgeReadReport(e: EvidenceInput): EvidenceJudgement {
   const no = (why: string): EvidenceJudgement => ({ ok: false, why });
-  if (!e.file.startsWith(READ_REPORT_DIR) || !e.file.endsWith(".json") || e.file.split("/").includes("..")) {
-    return no(
-      `the evidence must be a WS-READ eval report under ${READ_REPORT_DIR} (latest.json or history/*.json): only a report scores both reads of a slip against its label; ${e.file} is not one`,
-    );
-  }
+  const misplaced = reportPathProblem(e.file);
+  if (misplaced) return no(misplaced);
   let raw: unknown;
   try {
     raw = JSON.parse(Buffer.from(e.bytes).toString("utf8"));
@@ -103,4 +124,52 @@ export function judgeReadReport(e: EvidenceInput): EvidenceJudgement {
     ok: true,
     note: `READ ${report.mode}/${report.set} report of ${report.generated_at}: ${id} ${cell.pass ? "pass" : `fail (${reasons})`}${cell.image_sha256 ? ", image pinned by sha256" : ""}`,
   };
+}
+
+/** A recorded verdict's pin, re-checked at replay time against the repo it was recorded in. */
+export interface PinnedRead extends Omit<EvidenceInput, "file" | "bytes"> {
+  /** The checkout whose `packages/eval/report/` the pin names. */
+  repoRoot: string;
+  /** The verdict's `evidenceFile` (repo-relative) and `evidenceSha256`. */
+  file: string;
+  sha256: string;
+}
+
+/**
+ * Re-runs a recorded verdict's checks on the report it pinned: the file is still where WS-READ keeps
+ * reports, still exists and still hashes to the pin (a READ re-run rewrites `latest.json`; a hand edit
+ * changes anything), and {@link judgeReadReport} still finds this slip read, the verdict agreed with, and the
+ * report made after the exec behind the current master. A failure reads after "rests on":
+ * `<file>, which does not exist`, `<file>: the report fails …`.
+ */
+export async function recheckReadEvidence(p: PinnedRead): Promise<EvidenceJudgement> {
+  const no = (why: string): EvidenceJudgement => ({ ok: false, why: `${p.file}${why}` });
+  const misplaced = reportPathProblem(p.file);
+  if (misplaced) return no(`: ${misplaced}`);
+  let bytes: Uint8Array;
+  try {
+    bytes = await readFile(join(p.repoRoot, p.file));
+  } catch (e) {
+    return no(
+      (e as NodeJS.ErrnoException).code === "ENOENT"
+        ? ", which does not exist"
+        : `, which cannot be read (${(e as Error).message})`,
+    );
+  }
+  const now = sha256(bytes);
+  if (now !== p.sha256) {
+    return no(
+      `, which no longer hashes to the sha256 the verdict pinned (pinned ${p.sha256.slice(0, 12)}…, now ${now.slice(0, 12)}…): the report changed after the verdict was recorded`,
+    );
+  }
+  const judged = judgeReadReport({
+    file: p.file,
+    bytes,
+    fixtureId: p.fixtureId,
+    slot: p.slot,
+    status: p.status,
+    masterSha256: p.masterSha256,
+    masterMadeAt: p.masterMadeAt,
+  });
+  return judged.ok ? judged : no(`: ${judged.why}`);
 }

@@ -89,9 +89,17 @@ describe("duplicateOf: only the copy points at its original, inside one group (S
     Object.assign(check, {
       by: "read",
       evidence: "packages/eval/report/latest.json sha256:0123456789abcdef",
+      evidenceFile: "packages/eval/report/latest.json",
+      evidenceSha256: SHA_A,
     });
     expect(SlipImageFixture.safeParse(f).success).toBe(true);
-    Object.assign(check, { status: "FAILED", by: "agent" });
+    // A look records what it saw; only a read pins a report.
+    Object.assign(check, {
+      status: "FAILED",
+      by: "agent",
+      evidenceFile: undefined,
+      evidenceSha256: undefined,
+    });
     expect(SlipImageFixture.safeParse(f).success).toBe(true);
   });
 });

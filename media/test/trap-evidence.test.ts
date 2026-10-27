@@ -57,6 +57,46 @@ describe("stain leaks: boxes that give a stained value away (S4.2 row checks)", 
     slip.fields.mc_less_kg.legibility = "ILLEGIBLE";
     expect(stainLeaks(slip)).toEqual([]);
   });
+
+  it("treats a stained box a reviewer recorded as illegible or blank as fully hidden: boxes 11, 10 and 7 still give it away", () => {
+    for (const legibility of ["ILLEGIBLE", "ABSENT"] as const) {
+      const slip = slipOf(committed("spike-0462"));
+      for (const k of ["gross_kg", "net_kg"] as const) {
+        Object.assign(slip.fields[k], { legibility, visible: legibility === "ABSENT" ? "" : "??.??" });
+      }
+      const leaks = stainLeaks(slip);
+      expect(
+        leaks.map((l) => [l.field, l.derived, l.boxes]),
+        legibility,
+      ).toEqual([
+        ["gross_kg", "64.80", [11, 10, 7]],
+        ["net_kg", "64.50", [11, 10]],
+      ]);
+      expect(describeLeaks(leaks)).toMatch(
+        new RegExp(`box 6 \\(${legibility.toLowerCase()}\\) is 64\\.80 from boxes 11, 10, 7`),
+      );
+      // Stained over box 11 as well, nothing readable is left to work them out from.
+      slip.fields.payable_kg.visible = "6?.50";
+      expect(stainLeaks(slip), legibility).toEqual([]);
+    }
+  });
+
+  it("decides which boxes are stained from the request, so a stained box typed as no number at all is fully hidden too", () => {
+    const slip = slipOf(committed("spike-0462"));
+    Object.assign(slip.fields.gross_kg, { legibility: "SMUDGED", visible: "" });
+    const leaks = stainLeaks(slip);
+    expect(leaks.map((l) => [l.field, l.concealed, l.derived])).toEqual([
+      ["gross_kg", "fully", "64.80"],
+      ["net_kg", "partly", "64.50"],
+    ]);
+    expect(describeLeaks(leaks)).toMatch(
+      /^box 6 "" is 64\.80 from boxes 11, 10, 7; box 8 "6\?\.50" is 64\.50/,
+    );
+    // An unstained box that reads as no number is simply unknown: it hides no stain.
+    const plain = slipOf(committed("spike-0462"));
+    Object.assign(plain.fields.tare_kg, { legibility: "SMUDGED", visible: "" });
+    expect(stainLeaks(plain).map((l) => l.field)).toEqual(["net_kg"]);
+  });
 });
 
 describe("a stain that leaks cannot hold without the user's decision", () => {
@@ -92,6 +132,18 @@ describe("a stain that leaks cannot hold without the user's decision", () => {
       leakAccepted: "user, 24 Oct: box 11 stays readable",
     });
     expect(SlipImageFixture.safeParse(f).success).toBe(true);
+  });
+
+  it("refuses HOLDS, and replay-check names the leak, when a person recorded the stained boxes as illegible", () => {
+    const f = agentChecked();
+    for (const k of ["gross_kg", "net_kg"] as const) {
+      Object.assign(slipOf(f).fields[k], { legibility: "ILLEGIBLE", expect: "HUMAN", checkedBy: "human" });
+    }
+    expect(() => recordReadVerdict(f, { ...verdict, status: "HOLDS" })).toThrow(
+      /stain leaks: box 6 \(illegible\) is 64\.80 from boxes 11, 10, 7[\s\S]*--accept-leak/,
+    );
+    expect(slipOf(f).trapChecks[0]).toMatchObject({ status: "UNVERIFIED", by: null });
+    expect(replayBlockers(f).join(" ")).toMatch(/the stain leaks: box 6 \(illegible\) is 64\.80/);
   });
 
   it("a failed read needs no decision", () => {

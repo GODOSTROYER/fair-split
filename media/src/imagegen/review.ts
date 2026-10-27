@@ -11,7 +11,7 @@ import {
   type SlipImageFixture,
   slipFieldEntries,
 } from "../fixtures/schema.js";
-import type { FieldMatch, ManifestStore } from "./manifest.js";
+import { currentMasterAttempt, type FieldMatch, type ManifestStore } from "./manifest.js";
 
 /**
  * A recorded visual check of generated images by an agent (media/review/*.json). For each image,
@@ -242,8 +242,9 @@ export async function applyReview(
       const e = m.assets[img.asset];
       if (!e) continue;
       const fm = fieldMatchOf(img);
-      const accepted = e.attempts.find((a) => a.outcome === "accepted");
-      if (e.master && accepted?.output?.sha256.startsWith(img.sha256Prefix)) {
+      // Only a check of the current master's pixels describes it; one of a replaced master measures that
+      // image, which is a trial now, below.
+      if (e.master && currentMasterAttempt(e)?.output?.sha256.startsWith(img.sha256Prefix)) {
         e.review = {
           status: "agent-checked",
           reviewer: review.reviewer,

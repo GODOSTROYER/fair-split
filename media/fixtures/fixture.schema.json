@@ -1778,6 +1778,14 @@
                     "evidence": {
                       "type": "string"
                     },
+                    "evidenceFile": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "evidenceSha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
                     "leakAccepted": {
                       "type": "string",
                       "minLength": 1

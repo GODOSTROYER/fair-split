@@ -14,9 +14,11 @@ import {
   slipFieldEntries,
   type TrapCheck,
 } from "../fixtures/schema.js";
+import { type AssetEntry, currentMasterAttempt } from "../imagegen/manifest.js";
 import { fixtureFields } from "../imagegen/review.js";
 import { SLIP_BOXES } from "../template/slip-template.js";
-import { describeLeaks, stainLeaks } from "./stain.js";
+import { recheckReadEvidence } from "./evidence.js";
+import { describeLeaks, stainLeaks, unroutedStain } from "./stain.js";
 
 /**
  * One person's pass over a fixture in the review page (S4.10 "Review grid"): every field's crop beside the
@@ -365,31 +367,106 @@ export function humanReviewBlockers(f: Fixture): string[] {
   return out;
 }
 
-/**
- * Everything that stops an image from joining a replay set: {@link replayBlockers} plus the check that a
- * person's review really stands behind the fixture ({@link reviewProof}).
- */
-export async function replayReadiness(mediaRoot: string, f: Fixture): Promise<string[]> {
-  return [...replayBlockers(f), ...(await reviewProof(mediaRoot, f))];
+/** What `replay-check` needs besides the fixture. */
+export interface ReplayContext {
+  mediaRoot: string;
+  /** The checkout whose `packages/eval/report/` a recorded read's `evidenceFile` names. */
+  repoRoot: string;
+  /** The asset's manifest entry: its current master, and the exec that made it. */
+  entry: AssetEntry | undefined;
 }
 
-/** Why a fixture's image cannot join a replay set yet (empty when it can): A–L acceptance (S4.10). */
+/**
+ * Everything that stops an image from joining a replay set: the fixture must describe the asset's current
+ * master, {@link replayBlockers} (review status, traps, leaks), every recorded read must still stand on the
+ * report it pinned ({@link readEvidenceBlockers}), and a person's review must really stand behind the
+ * fixture ({@link reviewProof}). The last two re-check records instead of trusting what the fixture says.
+ */
+export async function replayReadiness(f: Fixture, ctx: ReplayContext): Promise<string[]> {
+  return [
+    ...masterBlockers(f, ctx.entry),
+    ...replayBlockers(f),
+    ...(await readEvidenceBlockers(f, ctx)),
+    ...(await reviewProof(ctx.mediaRoot, f)),
+  ];
+}
+
+/** Why the fixture does not describe the asset's current master (empty when it does). */
+function masterBlockers(f: Fixture, entry: AssetEntry | undefined): string[] {
+  if (!entry) return [`there is no manifest entry for ${f.id}, so nothing says which exec made its image`];
+  if (!entry.master) return [`the manifest records no master for ${f.id}`];
+  if (entry.master.sha256 === f.image.sha256) return [];
+  return [
+    `fixtures/${f.id}.json describes other pixels (sha256 ${f.image.sha256.slice(0, 12)}…) than the current master (${entry.master.sha256.slice(0, 12)}…): redraft it (imagegen fixture ${f.id} --force)`,
+  ];
+}
+
+/**
+ * Re-runs `trap-verdict`'s checks on every HOLDS a recorded read gave (review/evidence.ts): the report it
+ * pinned is still there, still hashes to the pin, read this slip and passed it, and was made after the exec
+ * behind the current master. A verdict on a fixture of other pixels is left to {@link masterBlockers}.
+ */
+async function readEvidenceBlockers(f: Fixture, ctx: ReplayContext): Promise<string[]> {
+  if (f.kind !== "slip_page" && f.kind !== "slip_photo") return [];
+  if (!ctx.entry?.master || ctx.entry.master.sha256 !== f.image.sha256) return [];
+  const masterMadeAt = currentMasterAttempt(ctx.entry)?.startedAt ?? null;
+  const out: string[] = [];
+  for (const s of (f as SlipImageFixture).slips) {
+    for (const t of s.trapChecks) {
+      // A HOLDS that pins nothing is named by replayBlockers.
+      if (t.status !== "HOLDS" || t.by !== "read" || !t.evidenceFile || !t.evidenceSha256) continue;
+      const judged = await recheckReadEvidence({
+        repoRoot: ctx.repoRoot,
+        file: t.evidenceFile,
+        sha256: t.evidenceSha256,
+        fixtureId: f.id,
+        slot: s.slot,
+        status: "HOLDS",
+        masterSha256: f.image.sha256,
+        masterMadeAt,
+      });
+      if (!judged.ok) out.push(`${s.slot} slip ${s.serial}: ${t.trap} HOLDS rests on ${judged.why}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * Why a fixture's image cannot join a replay set yet, from the fixture alone (empty when it can): A–L
+ * acceptance (S4.10). Every behavioural trap holds by a recorded read that pins its report; a stain holds
+ * only while its label sends every stained field to a person, and a leaking stain only with the user's
+ * decision. {@link replayReadiness} adds the checks that need the manifest and the files.
+ */
 export function replayBlockers(f: Fixture): string[] {
   const out: string[] = [];
   if (f.review.status !== "human-reviewed") out.push(`fixture is ${f.review.status}, not human-reviewed`);
   if (f.kind === "slip_page" || f.kind === "slip_photo") {
     for (const s of (f as SlipImageFixture).slips) {
+      const where = `${s.slot} slip ${s.serial}`;
       for (const t of s.trapChecks) {
         // A stain the slip's other boxes give away needs the user's decision as well as a read (stain.ts).
         const leaks = t.trap === "WATER_STAIN" ? stainLeaks(s) : [];
         const leak = leaks.length ? describeLeaks(leaks) : "";
         if (t.status !== "HOLDS" || t.by !== "read") {
           out.push(
-            `${s.slot} slip ${s.serial}: ${t.trap} must be shown to hold by a recorded Claude read (now ${t.status}${t.by ? ` by ${t.by}` : ""})${leak && !t.leakAccepted ? `; the stain leaks: ${leak}, which needs the user's decision too` : ""}`,
+            `${where}: ${t.trap} must be shown to hold by a recorded Claude read (now ${t.status}${t.by ? ` by ${t.by}` : ""})${leak && !t.leakAccepted ? `; the stain leaks: ${leak}, which needs the user's decision too` : ""}`,
           );
-        } else if (leak && !t.leakAccepted) {
+          continue;
+        }
+        if (!t.evidenceFile || !t.evidenceSha256) {
           out.push(
-            `${s.slot} slip ${s.serial}: WATER_STAIN holds by a recorded read, but the stain leaks: ${leak}; it needs the user's decision that this is acceptable (trap-verdict --accept-leak)`,
+            `${where}: ${t.trap} HOLDS pins no WS-READ report (evidenceFile, evidenceSha256), so nothing shows a read made it; record it with imagegen trap-verdict`,
+          );
+        }
+        const unrouted = t.trap === "WATER_STAIN" ? unroutedStain(s) : [];
+        if (unrouted.length) {
+          out.push(
+            `${where}: WATER_STAIN holds by a recorded read, but ${unrouted.join(", ")} in this fixture now, so a passing read does not show the stain holds; record the verdict again on a read of this label`,
+          );
+        }
+        if (leak && !t.leakAccepted) {
+          out.push(
+            `${where}: WATER_STAIN holds by a recorded read, but the stain leaks: ${leak}; it needs the user's decision that this is acceptable (trap-verdict --accept-leak)`,
           );
         }
       }

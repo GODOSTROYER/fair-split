@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { z } from "zod";
 import { textLayerDocument } from "../content/br-2026-04.js";
 import { EVAL_DEV_GROUPS, findAsset, SPIKE_ASSETS } from "../content/spike.js";
 import type { AssetSpec } from "../content/types.js";
@@ -41,7 +42,7 @@ import {
   type SessionRef,
   type TerminalIo,
 } from "../review/confirm.js";
-import { judgeReadReport } from "../review/evidence.js";
+import { judgeReadReport, READ_REPORT_DIR } from "../review/evidence.js";
 import { startReviewServer } from "../review/server.js";
 import {
   findConfirmableSession,
@@ -57,7 +58,7 @@ import { readJsonOr, writeJson } from "../util/json.js";
 import { codexVersion, findGeneratedImages, runCodexExec } from "./codex.js";
 import { execPrompt, parseExpectation } from "./exec.js";
 import { CODEX_LEDGER_ENV, CODEX_LEDGER_FILE, CodexBudgetError, codexLedgerFor } from "./ledger.js";
-import { ManifestStore, mediaRelative } from "./manifest.js";
+import { currentMasterAttempt, ManifestStore, mediaRelative } from "./manifest.js";
 import { applyMigration, planMigration } from "./migrate.js";
 import {
   adoptAttempt,
@@ -79,7 +80,8 @@ const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All outpu
   imagegen prompt <id...>               render prompts to media/prompts/ without generating
   imagegen gen <id...|all> [--force] [--replace-reviewed] [--max-attempts 2] [--concurrency 3] [--effort low]
                                         an asset that has a master is skipped unless --force names it;
-                                        a person-reviewed master also needs --replace-reviewed
+                                        a person-reviewed master also needs --replace-reviewed; the
+                                        replaced master's attempt becomes a trial (gen, adopt, promote)
   imagegen exec <prompt-file> [--name <slug>] [--orientation portrait|landscape|any] [--size WxH]
                 [--min-long-edge 1024] [--aspect 1.0-2.0|any] [--image <in.png> ...] [--out <file in media/raw/>]
                 [--max-attempts 2] [--effort low]   prompt file in, verified image out (media/raw/exec/)
@@ -94,9 +96,11 @@ const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All outpu
                                         confirm at your own terminal; it stands on your saved review session
   imagegen trap-verdict <id> <slot> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED
                 --evidence packages/eval/report/<report>.json [--accept-leak "<the user's decision>"]
-                                        a WS-READ eval report that read this slip of this master; a stain
-                                        other boxes give away holds only with the user's decision
-  imagegen replay-check <id...>         what still stops an image from joining a replay set
+                                        a WS-READ eval report that read this slip of this master, pinned by
+                                        path and sha256; a stain other boxes give away holds only with the
+                                        user's decision
+  imagegen replay-check <id...>         what still stops an image from joining a replay set (re-reads the
+                                        report each verdict pinned and each review's saved session)
   imagegen labels                       write eval/labels/{case}.json (person-checked fixtures) and
                                         eval/provisional/{case}.json (agent-checked) from checked fixtures
 
@@ -181,6 +185,13 @@ function sheetItems(f: Fixture): { overlay: LabelledRect[]; sheet: SheetItem[] }
     return { overlay: lines.map((l) => ({ rect: l.rect, label: `line ${l.line}` })), sheet };
   }
   return { overlay: sheet.map((x) => ({ rect: x.rect, label: x.title.split(".").pop() ?? "" })), sheet };
+}
+
+/** The first problem a schema found (with its path), or an error's message. */
+function problemOf(e: unknown): string {
+  if (!(e instanceof z.ZodError)) return (e as Error).message;
+  const issue = e.issues[0];
+  return issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : e.message;
 }
 
 function printPlanMessages(plan: ReturnType<typeof planGeneration>): void {
@@ -639,7 +650,7 @@ export async function main(
         slot: slot as Slot,
         status,
         masterSha256: f.image.sha256,
-        masterMadeAt: entry.attempts.find((a) => a.outcome === "accepted")?.startedAt ?? null,
+        masterMadeAt: currentMasterAttempt(entry)?.startedAt ?? null,
       });
       if (!judged.ok) {
         console.error(`trap-verdict: ${judged.why}`);
@@ -662,13 +673,25 @@ export async function main(
       }
       await writeFixture(mediaRoot, f);
       console.log(`${id} ${slot} ${trap}: ${status} by a recorded read (${rel}; ${judged.note})`);
+      if (rel === `${READ_REPORT_DIR}latest.json`) {
+        console.log(
+          `note: replay-check re-reads ${rel} and checks it still hashes to this verdict's pin; every READ run rewrites latest.json, so pin its history/ copy to keep the verdict standing`,
+        );
+      }
       return 0;
     }
     case "replay-check": {
+      const m = await store.read();
       let blocked = 0;
       for (const id of ids) {
-        const f = await readFixture(mediaRoot, id);
-        const why = f ? await replayReadiness(mediaRoot, f) : ["no fixture"];
+        let why: string[];
+        try {
+          const f = await readFixture(mediaRoot, id);
+          why = f ? await replayReadiness(f, { mediaRoot, repoRoot, entry: m.assets[id] }) : ["no fixture"];
+        } catch (e) {
+          // A hand edit the schema refuses (a HOLDS that pins no report, say) is a reason, not a crash.
+          why = [`fixtures/${id}.json is not a valid fixture: ${problemOf(e)}`];
+        }
         if (why.length) blocked++;
         console.log(
           why.length ? `${id}: not ready\n  - ${why.join("\n  - ")}` : `${id}: ready for a replay set`,

@@ -1,5 +1,5 @@
 import type { AssetSpec } from "../content/types.js";
-import type { Manifest } from "./manifest.js";
+import { currentMasterAttempt, type Manifest } from "./manifest.js";
 
 /** A fixture's review state, as `gen` sees it (null when the asset has no fixture yet). */
 export type FixtureStatus = "draft" | "agent-checked" | "human-reviewed" | null;
@@ -48,7 +48,7 @@ export function planGeneration(
       plan.run.push(a);
       continue;
     }
-    const accepted = e.attempts.find((x) => x.outcome === "accepted");
+    const accepted = currentMasterAttempt(e);
     if (!req.force) {
       plan.skipped.push({
         id: a.id,

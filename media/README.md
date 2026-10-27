@@ -71,15 +71,23 @@ shape, and `line_no` is the logbook's `line` column.
   `history/*.json`; only a report scores both reads against the label, a recording is one call and names no
   slip): it must hold this slip's cell `{fixture id}#{slot}`, agree with the verdict (`pass: true` for HOLDS,
   `false` for FAILED) and be generated after the exec that made the current master (READ's v1 report names
-  no image hash; a cell's `image_sha256`, once READ adds it, must be the master's). It is pinned by sha256. A
-  WATER_STAIN holds only if the fixture sends every stained field to a person (`expect: HUMAN`).
+  no image hash; a cell's `image_sha256`, once READ adds it, must be the master's). The verdict keeps the
+  report's path and sha256 as fields (`evidenceFile`, `evidenceSha256`: required on a read, refused on a
+  look), and `replay-check` runs the same checks again on that file: it must still exist, still hash to the
+  pin, still pass this slip and still postdate the current master's exec. A HOLDS written or edited by hand
+  gets no image into a replay set, just as a hand-stamped review does not. Pin a `history/` report: every
+  READ run rewrites `latest.json`, which breaks its pin. A WATER_STAIN holds only while the fixture sends
+  every stained field to a person (`expect: HUMAN`), checked at the verdict and again at `replay-check`.
 - **Leaking stains.** `stainLeaks` works out a stained kilo value from the readable boxes with S4.2's row
   checks (gross − tare = net, net − mc_less = payable, ±10 g). On the 0462 flat, box 11 (64.50), box 10
-  (0.00) and box 7 (0.30) give away gross 64.80 and net 64.50. Such a stain reaches HOLDS only with the
-  user's decision recorded beside the read (`--accept-leak "<who, when, what>"`, stored as `leakAccepted`),
-  or once the stain covers those boxes too. The review page shows the leak beside the stain question, and
-  `imagegen replay-check` refuses any image for a replay set until it is human-reviewed (with its review
-  session), every trap holds by a recorded read, and every leaking stain has that decision.
+  (0.00) and box 7 (0.30) give away gross 64.80 and net 64.50. Which boxes are stained comes from the
+  prompt's request (or a "?" a reviewer saw), not from the reviewer's wording: a stained box recorded
+  ILLEGIBLE or ABSENT, or typed as no number at all, counts as fully hidden and leaks just the same. Such a
+  stain reaches HOLDS only with the user's decision recorded beside the read (`--accept-leak "<who, when,
+  what>"`, stored as `leakAccepted`), or once the stain covers those boxes too. The review page shows the
+  leak beside the stain question, and `imagegen replay-check` refuses any image for a replay set until its
+  fixture describes the current master, it is human-reviewed (with its review session), every trap holds by
+  a recorded read whose pinned report still stands, and every leaking stain has that decision.
 - **Labels.** `imagegen labels` writes one label per checked fixture of an eval group (the S3 hero flats and
   the logbook page; S4.8 `dev`), and removes it when the fixture is a draft again. The label's shape is exactly
   what WS-READ's strict loader (`packages/eval/src/labels.ts`) parses, no key more; `test/contract.ic11-labels
@@ -119,7 +127,13 @@ parallel checkouts never get 12 each. Every read also counts the checkout's own 
 `media/.codex-ledger.json` and `prompts/attempts.jsonl`), an exec found in two records once, so execs spent
 before the shared file existed still count; `imagegen budget` prints the path. `gen` never replaces an
 accepted master unless `--force` names it (`--force` never applies to `all`), and a master whose fixture a
-person reviewed also needs `--replace-reviewed`. The manifest's `prompt` always points at the immutable
+person reviewed also needs `--replace-reviewed`. A new master (`gen --force`, `adopt --as accept`,
+`promote`) supersedes the attempt of the master it replaces: that attempt becomes a trial (`trial_ok`,
+"superseded by attempt N", raw file kept), so the manifest names exactly one accepted attempt, the exec
+behind the current master (schema-enforced; `currentMasterAttempt`). READ reports are dated against that
+exec, a check file updates the master's fixture only when it names that exec's image (a check of the
+replaced image goes to its trial), and `migrate` keeps the prompt on that exec's. The manifest's `prompt`
+always points at the immutable
 `prompts/history/{id}.{sha8}.md` that made the current master; trials leave it alone. After generating, run
 `corepack pnpm exec biome check --write media` (generated JSON and prompts are excluded by `media/biome.json`).
 
@@ -192,7 +206,9 @@ until the user listens to voice Sulafat (OD-2) and records the daily limit.
    gross and net. Until a real Claude A/B read scores 0462's gross and net below 0.85, no A–L photo with 0462 is
    accepted; and until you decide, `trap-verdict` refuses HOLDS on any 0462 render (the leak is computed from
    the fixture, so it covers photo J as well). If box 11 stays readable, the verdict carries your decision
-   (`--accept-leak`); if it is stained too, 0462 is regenerated and nothing leaks.
+   (`--accept-leak`); if it is stained too, 0462 is regenerated (`gen spike-0462 --force`: the old master
+   stays on record as a trial, and reports and checks of it no longer count for the new one) and nothing
+   leaks.
 3. **S10.** Read the free-tier daily limit for `gemini-3.8-flash-tts` and `gemini-3.8-flash-lite-tts` at
    https://aistudio.google.com/rate-limit and run `tts set-limit <model> <n> --source "AI Studio, <date>"`; then
    listen to `audio/M-014/{ceb,fil,en}` and choose the voice (OD-2).

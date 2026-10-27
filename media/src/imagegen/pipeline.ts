@@ -114,7 +114,8 @@ function newEntry(
 /**
  * Generates one asset: one `codex exec` per attempt, output found by thread id, verified, copied out of
  * `$CODEX_HOME`, then turned into the committed master and display files. Every attempt is recorded,
- * accepted or not, so the manifest shows how many execs an image took.
+ * accepted or not, so the manifest shows how many execs an image took. A new master (`gen --force`)
+ * supersedes the attempt of the master it replaces, so the manifest names one accepted attempt.
  */
 export async function generateAsset(
   asset: AssetSpec,
@@ -227,6 +228,8 @@ export async function generateAsset(
     }
     await record(asset, deps, history, promptSha256, attempts, (e) => {
       if (purpose === "accept" && master && display) {
+        // `record` has numbered the attempt by now (under the manifest lock).
+        supersedeMasters(e, attempt.n, "a new master from imagegen gen --force");
         e.master = { ...master, file: mediaRelative(master.file, deps.mediaRoot) };
         e.display = { ...display, file: mediaRelative(display.file, deps.mediaRoot) };
         e.review = {
@@ -253,7 +256,8 @@ export async function generateAsset(
 /**
  * Re-verifies an earlier attempt's own output (found again through its thread folder) under the current
  * acceptance rules, and adopts it as the master or as a trial without another exec. Used when a check was
- * too strict: the attempt keeps its number and the manifest notes why its outcome changed.
+ * too strict: the attempt keeps its number and the manifest notes why its outcome changed. Adopted as the
+ * master, it supersedes the attempt of the master it replaces.
  */
 export async function adoptAttempt(
   asset: AssetSpec,
@@ -310,6 +314,7 @@ export async function adoptAttempt(
     const e = m.assets[asset.id];
     const a = e?.attempts.find((x) => x.n === attemptN);
     if (!e || !a) return;
+    if (as === "accept") supersedeMasters(e, attemptN, "adopted as the master (imagegen adopt)");
     a.outcome = as === "accept" ? "accepted" : "trial_ok";
     a.reason = note;
     a.raw = rawRel;
@@ -364,15 +369,7 @@ export async function promoteAttempt(asset: AssetSpec, deps: PipelineDeps, attem
   await deps.store.update((m) => {
     const e = m.assets[asset.id];
     if (!e) return;
-    for (const a of e.attempts) {
-      if (a.outcome === "accepted" && a.n !== attemptN) {
-        a.outcome = "trial_ok";
-        a.reason = `superseded by attempt ${attemptN}: ${why}`;
-        if (a.raw && a.output && !e.trials.some((t) => t.sha256 === a.output?.sha256)) {
-          e.trials.push({ raw: a.raw, sha256: a.output.sha256, fieldMatch: null });
-        }
-      }
-    }
+    supersedeMasters(e, attemptN, why);
     const a = e.attempts.find((x) => x.n === attemptN);
     if (a) {
       a.outcome = "accepted";
@@ -399,6 +396,23 @@ export async function promoteAttempt(asset: AssetSpec, deps: PipelineDeps, attem
     };
   });
   (deps.log ?? (() => undefined))(`[${asset.id}] attempt ${attemptN} promoted to master`);
+}
+
+/**
+ * Makes attempt `n` the only accepted attempt before it becomes the master (gen, adopt and promote all
+ * call this). Every other accepted attempt made a master that `n` replaces: it becomes a successful trial
+ * (`trial_ok`, "superseded by attempt n"), listed in `trials` with its raw file and the value check its image
+ * had as the master. Nothing is deleted. Call it before the entry's review is reset for the new master.
+ */
+function supersedeMasters(e: AssetEntry, n: number, why: string): void {
+  for (const a of e.attempts) {
+    if (a.outcome !== "accepted" || a.n === n) continue;
+    a.outcome = "trial_ok";
+    a.reason = `superseded by attempt ${n}: ${why}`;
+    if (a.raw && a.output && !e.trials.some((t) => t.sha256 === a.output?.sha256)) {
+      e.trials.push({ raw: a.raw, sha256: a.output.sha256, fieldMatch: e.review.fieldMatch });
+    }
+  }
 }
 
 /**

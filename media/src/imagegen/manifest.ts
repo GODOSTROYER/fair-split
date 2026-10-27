@@ -62,34 +62,61 @@ export const Review = z.object({
 });
 export type Review = z.infer<typeof Review>;
 
-export const AssetEntry = z.object({
-  id: z.string(),
-  kind: z.enum(["slip_photo", "slip_page", "rate_card_page", "logbook_page"]),
-  title: z.string(),
-  /** I8: nothing simulated goes unlabelled. Every generated asset is synthetic and says so. */
-  synthetic: z.literal(true),
-  label: z.literal(SYNTHETIC_LABEL),
-  pipeline: z.enum(["direct", "edit"]),
-  generator: z.literal(GENERATOR),
-  codexCli: z.string(),
-  promptVersion: z.string(),
-  prompt: z.object({ file: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
-  source: z.union([
-    z.object({ kind: z.literal("provisional"), note: z.string() }),
-    z.object({ kind: z.literal("seed"), snapshotSha256: z.string() }),
-    z.object({ kind: z.literal("text-layer"), file: z.string() }),
-  ]),
-  editOf: z.string().optional(),
-  attempts: z.array(Attempt),
-  master: Derived.nullable(),
-  display: Derived.nullable(),
-  fixture: z.string().nullable(),
-  review: Review,
-  trials: z
-    .array(z.object({ raw: z.string(), sha256: z.string(), fieldMatch: FieldMatch.nullable() }))
-    .default([]),
-});
+export const AssetEntry = z
+  .object({
+    id: z.string(),
+    kind: z.enum(["slip_photo", "slip_page", "rate_card_page", "logbook_page"]),
+    title: z.string(),
+    /** I8: nothing simulated goes unlabelled. Every generated asset is synthetic and says so. */
+    synthetic: z.literal(true),
+    label: z.literal(SYNTHETIC_LABEL),
+    pipeline: z.enum(["direct", "edit"]),
+    generator: z.literal(GENERATOR),
+    codexCli: z.string(),
+    promptVersion: z.string(),
+    prompt: z.object({ file: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
+    source: z.union([
+      z.object({ kind: z.literal("provisional"), note: z.string() }),
+      z.object({ kind: z.literal("seed"), snapshotSha256: z.string() }),
+      z.object({ kind: z.literal("text-layer"), file: z.string() }),
+    ]),
+    editOf: z.string().optional(),
+    attempts: z.array(Attempt),
+    master: Derived.nullable(),
+    display: Derived.nullable(),
+    fixture: z.string().nullable(),
+    review: Review,
+    trials: z
+      .array(z.object({ raw: z.string(), sha256: z.string(), fieldMatch: FieldMatch.nullable() }))
+      .default([]),
+  })
+  .superRefine((e, ctx) => {
+    // The accepted attempt is the master's provenance (see currentMasterAttempt): exactly one per master.
+    const accepted = e.attempts.filter((a) => a.outcome === "accepted").map((a) => a.n);
+    const message =
+      accepted.length > 1
+        ? `only one accepted attempt, the one that made the master: attempts ${accepted.join(", ")} are all accepted (a new master supersedes the attempt of the one it replaces)`
+        : e.master && accepted.length === 0
+          ? "a master needs the one accepted attempt that made it"
+          : !e.master && accepted.length === 1
+            ? `attempt ${accepted[0]} is accepted, but the entry has no master`
+            : null;
+    if (message) ctx.addIssue({ code: "custom", path: ["attempts"], message });
+  });
 export type AssetEntry = z.infer<typeof AssetEntry>;
+
+/**
+ * The attempt that made the entry's current master, or null without one. A new master (`gen --force`,
+ * `adopt`, `promote`) supersedes the attempt of the master it replaces, so an entry with a master names
+ * exactly one accepted attempt (schema-enforced). Every lookup of "the master's exec" goes through here:
+ * its start time dates WS-READ reports (`trap-verdict`, `replay-check`), its output's sha256 is what a check
+ * file names (`apply-review`), and its prompt is the entry's prompt (`migrate`).
+ */
+export function currentMasterAttempt(e: Pick<AssetEntry, "master" | "attempts">): Attempt | null {
+  if (!e.master) return null;
+  const accepted = e.attempts.filter((a) => a.outcome === "accepted");
+  return accepted.length === 1 ? (accepted[0] ?? null) : null;
+}
 
 export const Manifest = z.object({
   v: z.literal(1),

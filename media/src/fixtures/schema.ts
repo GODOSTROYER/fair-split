@@ -120,7 +120,18 @@ export const TrapCheck = z
     status: z.enum(["UNVERIFIED", "HOLDS", "FAILED"]),
     by: z.enum(["agent", "human", "read"]).nullable(),
     at: z.string().nullable(),
+    /** For people: what was seen, or for a read the report, its sha256 prefix and what it scored. */
     evidence: z.string(),
+    /**
+     * A recorded read only (`by: "read"`): the WS-READ eval report the verdict rests on, repo-relative
+     * (`packages/eval/report/…`), and its sha256 when the verdict was recorded. `replay-check` re-reads the
+     * file and re-runs the verdict's checks on it (review/evidence.ts), so a verdict is never taken on trust.
+     */
+    evidenceFile: z.string().min(1).optional(),
+    evidenceSha256: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
     /**
      * WATER_STAIN only: the user's recorded decision that it is acceptable for other boxes to give the
      * stained value away (review/stain.ts; slip 0462's box 11). Without it a leaking stain never holds.
@@ -135,6 +146,14 @@ export const TrapCheck = z
   })
   .refine((t) => t.status !== "HOLDS" || t.by === "read", {
     message: "only a recorded read can show that a trap holds; a look can show only that it failed",
+  })
+  .refine((t) => t.by !== "read" || (t.evidenceFile !== undefined && t.evidenceSha256 !== undefined), {
+    message:
+      "a recorded read names the report it rests on and that report's sha256 (evidenceFile, evidenceSha256); record it with imagegen trap-verdict",
+  })
+  .refine((t) => t.by === "read" || (t.evidenceFile === undefined && t.evidenceSha256 === undefined), {
+    message:
+      "only a recorded read pins a report (evidenceFile, evidenceSha256); a look says what it saw in evidence",
   });
 export type TrapCheck = z.infer<typeof TrapCheck>;
 
