@@ -46,6 +46,19 @@ export {
 export * as format from "./format.js";
 export * from "./http.js";
 export {
+  JUDGE_ROUTES,
+  type JudgeRouteMethods,
+  type JudgeRouteName,
+  judgeRoutes,
+  REPLAY_REASONS,
+  type ReplayReason,
+  type RouteArgs,
+  type RouteData,
+  type RouteSpec,
+  TAMPER_KINDS,
+  type TamperKind,
+} from "./routes.js";
+export {
   type SseHandlers,
   type SseOptions,
   type SseRawMessage,

@@ -48,6 +48,31 @@ format.money(payload.totalCents); // "US$368.39": both keys sign this batch
   errors and rail handling; `api.url(name, params, query)` builds links (e.g. `/v1/proof/2026A-r37.json`).
 - Cookies: `credentials: "same-origin"` by default, so the judge cookie (`fs_js`) rides along.
 
+### Judge and auth routes (outside IC-01)
+
+`judgeRoutes(api)` gives one typed method per route in `JUDGE_ROUTES`, parsed with the route's schema and
+refused with the same typed errors:
+
+```ts
+import { createApiClient, judgeRoutes } from "@fairsplit/api-client";
+const judge = judgeRoutes(createApiClient()); // the Judge stage: same origin, the judge cookie rides along
+const { rail, lane, tamper } = await judge.judgeSession(); // live or replay (and why), queue, armed tamper
+const phone = await judge.frameToken({ params: { sid }, body: { persona: "board:ernesto" } }); // IC-12, never a URL
+await judge.tamper({ params: { sid }, body: { kind: "change_payout" } }); // "Try to break it", labelled
+await judge.resetJudgeSession({ params: { sid } });
+```
+
+| Route                                                                   | Who                          |
+| ----------------------------------------------------------------------- | ---------------------------- |
+| `judgeSession`, `judgeCode`, `registerDemoKey`                          | any acting credential        |
+| `judgeLane`, `whoami`                                                   | public (whoami: any)         |
+| `resetJudgeSession`, `tamper`, `frameToken`                             | the judge cookie of `:sid`   |
+| `issueMemberLink`, `revokeMemberLink`                                   | treasurer (or the judge)     |
+| `opsLogin`, `opsLogout`; `opsPairing`, `issueBrandLink` (operator only) | `/ops` (the `fs_ops` cookie) |
+
+The schemas mirror the server's route definitions; apps/api's `client-routes` test compares every one with the
+route the server mounts (method, path, auth, success statuses, both schemas as JSON Schema), so drift fails CI.
+
 ## Failures are typed
 
 | Class               | When                                                                                    | Useful fields                                                                                                                                                     |
@@ -137,6 +162,12 @@ delay; `auth: "lenient"` accepts anonymous calls; `now` injects a clock; `world.
 Read state with `world.run`, `holds()`, `hold(idOrLabel)`, `lines()`, `line(idOrMemberNo)`, `fields()`,
 `approvals()`, `flags()`, `events()`. IDs are deterministic (`mockId("hold:DUPLICATE_SLIP:0457")`), and
 `MOCK_CONSOLE_TOKEN` / `MOCK_WORKSPACE_ID` are fixed, so URLs survive a reload.
+
+The judge and auth routes (`JUDGE_ROUTES`) are mocked too, from the same world: the session status and public
+lane, Reset (back to `invoiced`), the labelled tampers (a draft tamper is DENY, the 1-cent change arms once),
+`judgeCode` (option `judgeCode`, default `judge-code`), demo keys, frame tokens that then act as their persona,
+`/ops` sign-in (option `operatorPassword`, default `operator`) with operator pairing and brand links, `whoami`, and
+member links that stop working once revoked. `world.mintToken(kind, { persona, role })` mints a token directly.
 
 Everything the mock returns is synthetic and labelled: provenance `seeded`, PayPal-derived values
 `simulated_rail`.

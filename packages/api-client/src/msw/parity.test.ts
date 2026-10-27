@@ -17,6 +17,7 @@ import { contentDigest } from "../bytes.js";
 import { createApiClient } from "../client.js";
 import { ApiClientError, ContractError } from "../errors.js";
 import { errorCodesOf, isSseCommand, JSON_COMMAND_NAMES, SSE_PATHS } from "../http.js";
+import { JUDGE_ROUTES } from "../routes.js";
 import { createMockApi, MOCK_ALLOWED_RESOLUTIONS, urlPattern } from "./index.js";
 
 const BASE = "http://localhost:8787";
@@ -97,10 +98,20 @@ const VALID: Partial<Record<ApiCommandName, { body?: unknown; query?: unknown }>
 };
 
 describe("msw handlers: parity with API_COMMANDS", () => {
-  it("serve every JSON command once, at its exact method and path, plus the four streams", () => {
+  it("serve every JSON command once, at its exact method and path, plus the four streams and the judge routes", () => {
     const json = (Object.keys(API_COMMANDS) as ApiCommandName[]).filter((n) => !isSseCommand(n));
     expect([...JSON_COMMAND_NAMES].sort()).toEqual(json.sort());
-    expect(mock.handlers).toHaveLength(json.length + Object.keys(SSE_PATHS).length);
+    expect(mock.handlers).toHaveLength(
+      json.length + Object.keys(SSE_PATHS).length + Object.keys(JUDGE_ROUTES).length,
+    );
+    // a judge or auth route never shadows a command (and the other way round)
+    for (const route of Object.values(JUDGE_ROUTES)) {
+      const url = `${BASE}${route.path.replace(":sid", "0192f8a0-0000-7000-8000-0000000000ff")}`;
+      const shadowed = json.filter(
+        (n) => API_COMMANDS[n].method === route.method && urlPattern(API_COMMANDS[n].path, BASE).test(url),
+      );
+      expect(shadowed, `${route.method} ${route.path}`).toEqual([]);
+    }
     for (const name of json) {
       const cmd = API_COMMANDS[name];
       const url = `${BASE}${apiPath(cmd.path, SAMPLE())}`;

@@ -38,6 +38,10 @@ export interface MockHandlerOptions {
   latency?: number | "real";
   /** "required" (default): frame_or_session commands answer 401 without a bearer token or judge cookie. */
   auth?: "required" | "lenient";
+  /** The judge code `POST /v1/judge/code` accepts (default "judge-code"). */
+  judgeCode?: string;
+  /** The operator password `POST /v1/ops/login` accepts (default "operator"). */
+  operatorPassword?: string;
 }
 
 const UUID = z.uuid();
@@ -66,7 +70,7 @@ function problemBody(p: MockProblem, requestId: string): Record<string, unknown>
   };
 }
 
-function baseHeaders(world: MockWorld, requestId: string): Record<string, string> {
+export function baseHeaders(world: MockWorld, requestId: string): Record<string, string> {
   return {
     [HEADER.requestId]: requestId,
     [HEADER.rail]: world.rail,
@@ -74,7 +78,7 @@ function baseHeaders(world: MockWorld, requestId: string): Record<string, string
   };
 }
 
-function problemResponse(world: MockWorld, p: MockProblem, requestId: string): Response {
+export function problemResponse(world: MockWorld, p: MockProblem, requestId: string): Response {
   const headers: Record<string, string> = baseHeaders(world, requestId);
   if (p.extra.retryAfterMs !== undefined) {
     headers[HEADER.retryAfter] = String(Math.max(1, Math.ceil(p.extra.retryAfterMs / 1000)));
@@ -92,7 +96,7 @@ function hasJudgeCookie(request: Request): boolean {
 }
 
 /** The caller: a token the world minted, any well-formed token (as the judge), the judge cookie, or none. */
-function callerOf(world: MockWorld, request: Request): MockCaller | null {
+export function callerOf(world: MockWorld, request: Request): MockCaller | null {
   const token = bearerOf(request);
   if (token) {
     return world.callerOf(token) ?? { token, persona: "judge", role: "judge" };
@@ -101,11 +105,14 @@ function callerOf(world: MockWorld, request: Request): MockCaller | null {
   return null;
 }
 
-function validationProblem(message: string, issues: { path: string; message: string; code: string }[]) {
+export function validationProblem(
+  message: string,
+  issues: { path: string; message: string; code: string }[],
+) {
   return new MockProblem("VALIDATION_FAILED", message, { details: { issues } });
 }
 
-function checkParams(path: string, params: Record<string, string>): void {
+export function checkParams(path: string, params: Record<string, string>): void {
   const issues: { path: string; message: string; code: string }[] = [];
   for (const [name, value] of Object.entries(params)) {
     const ok = name === "runSlug" ? RunSlug.safeParse(value).success : UUID.safeParse(value).success;
