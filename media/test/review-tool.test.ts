@@ -16,6 +16,7 @@ import {
   replayBlockers,
   reviewItems,
   SubmissionError,
+  sessionPath,
 } from "../src/review/session.js";
 import { recordReadVerdict } from "../src/review/verdict.js";
 import { slipPageFixture } from "./support.js";
@@ -177,34 +178,45 @@ describe("review session (S4.10 review grid): a person's readings become the fix
 });
 
 describe("human-reviewed needs the person at a terminal (register §11, C-24)", () => {
+  /** A fixture after a person's pass in the review page, and the session the server saved for it. */
   function reviewedByPerson() {
     const f = slipPageFixture("spike-0403", SLIP_0403);
-    applySubmission(f, answers(f), META);
-    return f;
+    const record = applySubmission(f, answers(f), META);
+    return { f, session: { path: sessionPath(f.id, AT), record } };
   }
 
-  it("refuses without an interactive terminal: an agent cannot set it", async () => {
-    await expect(confirmHumanReview(reviewedByPerson(), "Analyn", tty("spike-0403", false))).rejects.toThrow(
+  it("refuses without an interactive terminal (a guard against an agent's pipe or CI, not a guarantee)", async () => {
+    const { f, session } = reviewedByPerson();
+    await expect(confirmHumanReview(f, "Analyn", tty("spike-0403", false), session)).rejects.toThrow(
       /interactive terminal/,
     );
   });
 
   it("refuses a blanket stamp: every field must carry the person's own reading", async () => {
+    const { session } = reviewedByPerson();
     const f = slipPageFixture("spike-0403", SLIP_0403);
     applyObservations(f, { allFieldsChecked: true, observed: [], mismatches: [], traps: [] }, AT);
-    await expect(confirmHumanReview(f, "Analyn", tty("spike-0403"))).rejects.toThrow(
+    await expect(confirmHumanReview(f, "Analyn", tty("spike-0403"), session)).rejects.toThrow(
       /not checked by a person/,
     );
   });
 
-  it("refuses unless the person types the fixture id, and then records them", async () => {
-    await expect(confirmHumanReview(reviewedByPerson(), "Analyn", tty("yes"))).rejects.toBeInstanceOf(
+  it("refuses unless the person types the fixture id, and then records them and their session", async () => {
+    const first = reviewedByPerson();
+    await expect(confirmHumanReview(first.f, "Analyn", tty("yes"), first.session)).rejects.toBeInstanceOf(
       ConfirmationError,
     );
     const io = tty("spike-0403");
-    const done = await confirmHumanReview(reviewedByPerson(), "Analyn", io, () => new Date(AT));
-    expect(done.review).toMatchObject({ status: "human-reviewed", reviewer: "Analyn", reviewedAt: AT });
-    expect(Fixture.safeParse(done).success).toBe(true);
+    const { f, session } = reviewedByPerson();
+    const done = await confirmHumanReview(f, "Analyn", io, session, () => new Date(AT));
+    expect(done.fixture.review).toMatchObject({
+      status: "human-reviewed",
+      reviewer: "Analyn",
+      reviewedAt: AT,
+      session: "review/sessions/spike-0403.20261023T050000.json",
+    });
+    expect(done.session.confirmedAt).toBe(AT);
+    expect(Fixture.safeParse(done.fixture).success).toBe(true);
     expect(io.said.join(" ")).toMatch(/looked at every crop/);
   });
 });

@@ -286,6 +286,7 @@ export async function applyReview(
     ];
     if (img.cropIssues.length) {
       f.review.status = "draft";
+      f.review.session = null;
       f.review.cropIssues = [...new Set([...f.review.cropIssues, ...img.cropIssues])];
     }
     const allChecked = [...fixtureFields(f).values()].every((x) => x.legibility !== "UNVERIFIED");

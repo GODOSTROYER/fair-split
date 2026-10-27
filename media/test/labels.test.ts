@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,7 +16,7 @@ import {
 } from "../src/content/spike.js";
 import type { SlipPageAsset, SlipSpec } from "../src/content/types.js";
 import { type Fixture, Fixture as FixtureSchema } from "../src/fixtures/schema.js";
-import { applyObservations } from "../src/imagegen/review.js";
+import { applyObservations, fixtureFields } from "../src/imagegen/review.js";
 import { buildLabel, labelStatus, ruleForRemark } from "../src/labels/build.js";
 import { CaseLabel, LABEL_STATUSES } from "../src/labels/schema.js";
 import {
@@ -27,6 +27,8 @@ import {
   syncLabels,
   writeLabelSchema,
 } from "../src/labels/sync.js";
+import { confirmHumanReview } from "../src/review/confirm.js";
+import { applySubmission, reviewProof, sessionPath } from "../src/review/session.js";
 import { MEDIA_ROOT } from "../src/util/env.js";
 import { slipPageFixture } from "./support.js";
 
@@ -42,6 +44,26 @@ function asset(id: string, slip: SlipSpec): SlipPageAsset {
     group: GROUP_S3_HERO,
     slip,
   };
+}
+
+/** A fixture a person reviewed in the review page and confirmed at the terminal; its session saved in `root`. */
+async function confirmedByPerson(root: string, id: string, slip: SlipSpec): Promise<Fixture> {
+  const f = slipPageFixture(id, slip);
+  const answers = {
+    fields: [...fixtureFields(f)].map(([path, x]) => ({
+      path,
+      visible: x.visible,
+      legibility: x.visible === "" ? ("ABSENT" as const) : ("CLEAR" as const),
+      expect: x.expect,
+    })),
+  };
+  const record = applySubmission(f, answers, { reviewer: "Analyn", startedAt: AT, submittedAt: AT });
+  const path = sessionPath(id, AT);
+  const person = { interactive: true, ask: async () => id, say: () => undefined };
+  const done = await confirmHumanReview(f, "Analyn", person, { path, record });
+  mkdirSync(join(root, "review", "sessions"), { recursive: true });
+  writeFileSync(join(root, path), JSON.stringify(done.session));
+  return done.fixture;
 }
 
 /** A fixture an agent has checked: every field shows what was asked. */
@@ -126,27 +148,35 @@ describe("eval labels (IC-11 media/eval/{labels,provisional}/{case}.json, S4.10 
 
     // Only an agent has checked it: provisional, and nothing in the folder the eval scores by default.
     // The four-slip spike re-renders the S3 flats, so it is never an eval case beside them.
-    expect(await sync()).toEqual({ written: [], provisional: ["spike-0403"], removed: [] });
+    expect(await sync()).toEqual({ written: [], provisional: ["spike-0403"], removed: [], unproven: {} });
     expect(listing(PROVISIONAL_DIR)).toEqual(["spike-0403.json"]);
     expect(listing(LABELS_DIR)).toEqual([]);
 
-    // A person reviewed it: the label moves to eval/labels/, and leaves eval/provisional/.
-    const reviewed = checked("spike-0403", SLIP_0403);
-    reviewed.review = { ...reviewed.review, status: "human-reviewed", reviewer: "Analyn", reviewedAt: AT };
-    fixtures.set("spike-0403", reviewed);
-    expect(await sync()).toEqual({ written: ["spike-0403"], provisional: [], removed: [] });
+    // Stamped human-reviewed by hand, with no saved session behind it: still provisional, and it says why.
+    const stamped = checked("spike-0403", SLIP_0403);
+    stamped.review = { ...stamped.review, status: "human-reviewed", reviewer: "Analyn", reviewedAt: AT };
+    fixtures.set("spike-0403", stamped);
+    const refused = await sync();
+    expect(refused).toMatchObject({ written: [], provisional: ["spike-0403"] });
+    expect(refused.unproven["spike-0403"]).toEqual(["it is human-reviewed but names no review session"]);
+    expect(listing(LABELS_DIR)).toEqual([]);
+
+    // A person reviewed it in the review page and confirmed it at the terminal: the label moves to
+    // eval/labels/, and leaves eval/provisional/.
+    fixtures.set("spike-0403", await confirmedByPerson(dir, "spike-0403", SLIP_0403));
+    expect(await sync()).toEqual({ written: ["spike-0403"], provisional: [], removed: [], unproven: {} });
     expect(listing(LABELS_DIR)).toEqual(["spike-0403.json"]);
     expect(listing(PROVISIONAL_DIR)).toEqual([]);
 
     // Re-checked by an agent only (a replaced master): back to provisional, out of the scored folder.
     fixtures.set("spike-0403", checked("spike-0403", SLIP_0403));
-    expect(await sync()).toEqual({ written: [], provisional: ["spike-0403"], removed: [] });
+    expect(await sync()).toEqual({ written: [], provisional: ["spike-0403"], removed: [], unproven: {} });
     expect(listing(LABELS_DIR)).toEqual([]);
     expect(listing(PROVISIONAL_DIR)).toEqual(["spike-0403.json"]);
 
     // A draft again: no label anywhere.
     fixtures.set("spike-0403", slipPageFixture("spike-0403", SLIP_0403));
-    expect(await sync()).toEqual({ written: [], provisional: [], removed: ["spike-0403"] });
+    expect(await sync()).toEqual({ written: [], provisional: [], removed: ["spike-0403"], unproven: {} });
     expect(listing(LABELS_DIR)).toEqual([]);
     expect(listing(PROVISIONAL_DIR)).toEqual([]);
 
@@ -171,13 +201,15 @@ describe("committed labels", () => {
     label: CaseLabel.parse(JSON.parse(readFileSync(f.path, "utf8"))),
   }));
 
-  it("sit in the folder their fixture's review names, on a synthetic fixture of the same master (inv.i8.labels-eval)", () => {
+  it("sit in the folder their fixture's review names, on a synthetic fixture of the same master (inv.i8.labels-eval)", async () => {
     expect(labels.length).toBeGreaterThan(0);
     for (const { status, label: l } of labels) {
       const fx = FixtureSchema.parse(
         JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", `${l.case}.json`), "utf8")),
       );
       expect(fx.review.status, `${l.case} is in ${labelDir(status)}`).toBe(status);
+      // A scored label stands on a person's confirmed review session of this very image.
+      if (status === "human-reviewed") expect(await reviewProof(MEDIA_ROOT, fx), l.case).toEqual([]);
       expect(fx.synthetic).toBe(true);
       expect(l.fixture).toBe(`fixtures/${l.case}.json`);
       expect(fx.image.master).toBe(l.image);
@@ -191,10 +223,17 @@ describe("committed labels", () => {
 
   it("are exactly what `imagegen labels` writes from the committed fixtures: none stale, none missing", async () => {
     const out = mkdtempSync(join(tmpdir(), "fs-labels-fresh-"));
-    await syncLabels(out, SPIKE_ASSETS, EVAL_DEV_GROUPS, async (id) => {
-      const path = join(MEDIA_ROOT, "fixtures", `${id}.json`);
-      return existsSync(path) ? FixtureSchema.parse(JSON.parse(readFileSync(path, "utf8"))) : null;
-    });
+    await syncLabels(
+      out,
+      SPIKE_ASSETS,
+      EVAL_DEV_GROUPS,
+      async (id) => {
+        const path = join(MEDIA_ROOT, "fixtures", `${id}.json`);
+        return existsSync(path) ? FixtureSchema.parse(JSON.parse(readFileSync(path, "utf8"))) : null;
+      },
+      // The review sessions behind the committed fixtures live in media/, not in the scratch folder.
+      { proof: (f) => reviewProof(MEDIA_ROOT, f) },
+    );
     const jsonFiles = (root: string, d: string) =>
       existsSync(join(root, d))
         ? readdirSync(join(root, d))

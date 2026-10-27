@@ -195,6 +195,9 @@ export const ImageRef = z.object({
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
 });
 
+/** A review session file, relative to the media root: what `review.session` holds. */
+export const SESSION_FILE = /^review\/sessions\/[\w.-]+\.json$/;
+
 export const FixtureReview = z
   .object({
     status: z.enum(["draft", "agent-checked", "human-reviewed"]),
@@ -205,10 +208,22 @@ export const FixtureReview = z
     notes: z.array(z.string()),
     /** Fields whose crop a reviewer marked wrong; they must be redrafted before the fixture is reviewed. */
     cropIssues: z.array(z.string()),
+    /**
+     * The saved review session (`review/sessions/{id}.{stamp}.json`, relative to the media root) whose
+     * readings a person confirmed at the terminal; set with `human-reviewed`, cleared when new readings
+     * or a redraft replace them. `reviewProof` checks that it exists, was confirmed, and is of this image
+     * by this reviewer with these readings: the terminal gate guards against accidents, the record is
+     * what can be checked.
+     */
+    session: z.string().regex(SESSION_FILE).nullable().default(null),
   })
   .refine((r) => r.status === "draft" || r.cropIssues.length === 0, {
     message: "a fixture with wrong crops stays a draft until they are redrafted",
     path: ["cropIssues"],
+  })
+  .refine((r) => r.status !== "human-reviewed" || r.session !== null, {
+    message: "a human-reviewed fixture names the review session a person confirmed",
+    path: ["session"],
   });
 export type FixtureReview = z.infer<typeof FixtureReview>;
 

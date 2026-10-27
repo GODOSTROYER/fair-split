@@ -7,9 +7,9 @@ import { Fixture, type SlipImageFixture } from "../src/fixtures/schema.js";
 import { main } from "../src/imagegen/cli.js";
 import { CODEX_LEDGER_ENV, codexLedgerFor } from "../src/imagegen/ledger.js";
 import { emptyManifest } from "../src/imagegen/manifest.js";
-import { applyObservations } from "../src/imagegen/review.js";
+import { applyObservations, fixtureFields } from "../src/imagegen/review.js";
 import type { TerminalIo } from "../src/review/confirm.js";
-import { applySubmission } from "../src/review/session.js";
+import { applySubmission, sessionPath } from "../src/review/session.js";
 import { REPO_ROOT } from "../src/util/env.js";
 import { entry, slipPageFixture } from "./support.js";
 
@@ -40,6 +40,18 @@ function personChecked(): Fixture {
   const f = slipPageFixture("spike-0403", SLIP_0403);
   applyObservations(f, { allFieldsChecked: true, observed: [], mismatches: [], traps: [] }, AT);
   return f;
+}
+
+/** What a person typed for every field in the review page: what each field shows. */
+function personsAnswers(f: Fixture) {
+  return {
+    fields: [...fixtureFields(f)].map(([path, x]) => ({
+      path,
+      visible: x.visible,
+      legibility: x.visible === "" ? ("ABSENT" as const) : ("CLEAR" as const),
+      expect: x.expect,
+    })),
+  };
 }
 
 const readFixture = (root: string, id: string) =>
@@ -94,28 +106,36 @@ describe("imagegen CLI guards", () => {
       await main(["mark", "spike-0403", "--status", "human-reviewed", "--reviewer", "Analyn"], root, person),
     ).toBe(1);
     expect(readFixture(root, "spike-0403").review.status).toBe("draft");
-    // After the person's own pass in the review page, the terminal confirmation marks it.
+    // After the person's own pass in the review page, the terminal confirmation marks it, standing on the
+    // session the review page saved: without that record there is nothing to confirm.
     const g = slipPageFixture("spike-0403", SLIP_0403);
-    applySubmission(
-      g,
-      {
-        fields: [...(await import("../src/imagegen/review.js")).fixtureFields(g)].map(([path, x]) => ({
-          path,
-          visible: x.visible,
-          legibility: x.visible === "" ? "ABSENT" : "CLEAR",
-          expect: x.expect,
-        })),
-      },
-      { reviewer: "Analyn", startedAt: AT, submittedAt: AT },
-    );
+    const record = applySubmission(g, personsAnswers(g), {
+      reviewer: "Analyn",
+      startedAt: AT,
+      submittedAt: AT,
+    });
     const root2 = media([g]);
+    expect(
+      await main(["mark", "spike-0403", "--status", "human-reviewed", "--reviewer", "Analyn"], root2, person),
+    ).toBe(1);
+    expect(logs.join("\n")).toMatch(/no saved review session by Analyn holds the readings/);
+    const path = sessionPath("spike-0403", AT);
+    mkdirSync(join(root2, "review", "sessions"), { recursive: true });
+    writeFileSync(join(root2, path), JSON.stringify(record));
+    // Another reviewer cannot confirm Analyn's readings.
+    expect(
+      await main(["mark", "spike-0403", "--status", "human-reviewed", "--reviewer", "Rhea"], root2, person),
+    ).toBe(1);
     expect(
       await main(["mark", "spike-0403", "--status", "human-reviewed", "--reviewer", "Analyn"], root2, person),
     ).toBe(0);
     expect(readFixture(root2, "spike-0403").review).toMatchObject({
       status: "human-reviewed",
       reviewer: "Analyn",
+      session: path,
     });
+    expect(JSON.parse(readFileSync(join(root2, path), "utf8")).confirmedAt).not.toBeNull();
+    expect(await main(["replay-check", "spike-0403"], root2, person)).toBe(0);
     // A redraft would send that review back to draft, so it needs --replace-reviewed too.
     expect(await main(["fixture", "spike-0403", "--force"], root2, person)).toBe(2);
     expect(logs.join("\n")).toMatch(/needs --replace-reviewed/);
@@ -168,6 +188,24 @@ describe("imagegen CLI guards", () => {
     const root = media([slipPageFixture("spike-0462", SLIP_0462)]);
     expect(await main(["replay-check", "spike-0462"], root, agentShell)).toBe(2);
     expect(logs.join("\n")).toMatch(/not human-reviewed[\s\S]*WATER_STAIN must be shown to hold/);
+  });
+
+  it("replay-check refuses a human-reviewed fixture that no saved, confirmed session stands behind", async () => {
+    const f = slipPageFixture("spike-0403", SLIP_0403);
+    applySubmission(f, personsAnswers(f), { reviewer: "Analyn", startedAt: AT, submittedAt: AT });
+    // Stamped by hand: schema-valid, but the session it names was never saved.
+    f.review = {
+      ...f.review,
+      status: "human-reviewed",
+      reviewer: "Analyn",
+      reviewedAt: AT,
+      session: sessionPath(f.id, AT),
+    };
+    const root = media([Fixture.parse(f)]);
+    expect(await main(["replay-check", "spike-0403"], root, agentShell)).toBe(2);
+    expect(logs.join("\n")).toContain(
+      "review/sessions/spike-0403.20261022T120000.json, which does not exist",
+    );
   });
 
   it("budget reads the one machine-wide Codex ledger, whichever checkout runs it", async () => {

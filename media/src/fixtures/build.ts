@@ -52,7 +52,7 @@ export const DETECTOR =
   "grid-detect v1: paper quads, rectified; every ruled line fitted on its own from two strips or bands";
 
 export function draftReview(method = DETECTOR, notes: string[] = []): FixtureReview {
-  return { status: "draft", method, reviewer: null, reviewedAt: null, notes, cropIssues: [] };
+  return { status: "draft", method, reviewer: null, reviewedAt: null, notes, cropIssues: [], session: null };
 }
 
 function imageRef(entry: AssetEntry) {

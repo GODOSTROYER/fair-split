@@ -25,6 +25,7 @@ import {
   fixtureJsonSchema,
   type LogbookPageFixture,
   type RateCardPageFixture,
+  SESSION_FILE,
   SLOTS,
   type SlipImageFixture,
   type Slot,
@@ -37,10 +38,16 @@ import {
   confirmHumanReview,
   processTerminal,
   requireInteractive,
+  type SessionRef,
   type TerminalIo,
 } from "../review/confirm.js";
 import { startReviewServer } from "../review/server.js";
-import { humanReviewBlockers, replayBlockers } from "../review/session.js";
+import {
+  findConfirmableSession,
+  humanReviewBlockers,
+  loadSession,
+  replayReadiness,
+} from "../review/session.js";
 import { recordReadVerdict } from "../review/verdict.js";
 import { templateDocument } from "../template/slip-template.js";
 import { MEDIA_ROOT, REPO_ROOT } from "../util/env.js";
@@ -49,7 +56,7 @@ import { readJsonOr, writeJson } from "../util/json.js";
 import { codexVersion, findGeneratedImages, runCodexExec } from "./codex.js";
 import { execPrompt, parseExpectation } from "./exec.js";
 import { CODEX_LEDGER_ENV, CODEX_LEDGER_FILE, CodexBudgetError, codexLedgerFor } from "./ledger.js";
-import { ManifestStore } from "./manifest.js";
+import { ManifestStore, mediaRelative } from "./manifest.js";
 import { applyMigration, planMigration } from "./migrate.js";
 import {
   adoptAttempt,
@@ -82,7 +89,8 @@ const USAGE = `tools/imagegen.ts — one Codex image per exec (AI-11). All outpu
   imagegen fixture <id...|all> [--force] [--replace-reviewed]   draft crop fixtures + overlay and crop sheet
   imagegen apply-review <review.json>   record an agent's visual check (manifest counts, fixture values)
   imagegen review <id> --reviewer "<name>" [--port N]  a person checks every crop on 127.0.0.1, then confirms
-  imagegen mark <id> --status human-reviewed --reviewer "<name>"   confirm at your own terminal
+  imagegen mark <id> --status human-reviewed --reviewer "<name>" [--session review/sessions/<file>.json]
+                                        confirm at your own terminal; it stands on your saved review session
   imagegen trap-verdict <id> <slot> <WATER_STAIN|MARGIN_NOTE> --status HOLDS|FAILED --evidence <recorded read>
   imagegen replay-check <id...>         what still stops an image from joining a replay set
   imagegen labels                       write eval/labels/{case}.json (person-checked fixtures) and
@@ -142,6 +150,11 @@ async function refreshLabels(mediaRoot: string): Promise<void> {
     );
   }
   if (r.removed.length) console.log(`labels: removed ${r.removed.join(", ")} (fixture back to draft)`);
+  for (const [id, why] of Object.entries(r.unproven)) {
+    console.error(
+      `labels: ${id} says human-reviewed, but its review session does not stand behind it (${why.join("; ")}); its label stays in eval/provisional/`,
+    );
+  }
 }
 
 /** The overlay and crop sheet for checking a fixture: every crop beside what the prompt asked for. */
@@ -191,6 +204,7 @@ export async function main(
       reviewer: { type: "string" },
       note: { type: "string" },
       evidence: { type: "string" },
+      session: { type: "string" },
       port: { type: "string" },
       force: { type: "boolean" },
       "replace-reviewed": { type: "boolean" },
@@ -493,7 +507,7 @@ export async function main(
         console.error(`review: ${(e as Error).message}`);
         return 1;
       }
-      const reviewer = values.reviewer;
+      const reviewer = values.reviewer.trim();
       const server = await startReviewServer({
         mediaRoot,
         fixtureId: id,
@@ -503,15 +517,18 @@ export async function main(
       });
       io.say(`Open ${server.url} in your browser (this machine only). Waiting for you to save the review...`);
       try {
-        const { fixture, sessionFile } = await server.submitted;
-        io.say(`Saved your readings to fixtures/${id}.json and ${relative(mediaRoot, sessionFile)}.`);
+        const { fixture, session, sessionFile } = await server.submitted;
+        const path = mediaRelative(sessionFile, mediaRoot);
+        io.say(`Saved your readings to fixtures/${id}.json and ${path}.`);
         const blockers = humanReviewBlockers(fixture);
         if (blockers.length) {
           io.say(`Not marked human-reviewed yet: ${blockers.join("; ")}`);
         } else {
-          const done = await confirmHumanReview(fixture, reviewer, io);
-          await writeFixture(mediaRoot, done);
-          io.say(`${id}: human-reviewed by ${reviewer}.`);
+          const done = await confirmHumanReview(fixture, reviewer, io, { path, record: session });
+          // The confirmation goes on the session record first, then the fixture names it.
+          await writeJson(sessionFile, done.session);
+          await writeFixture(mediaRoot, done.fixture);
+          io.say(`${id}: human-reviewed by ${reviewer} (${path}).`);
         }
       } catch (e) {
         if (!(e instanceof ConfirmationError)) throw e;
@@ -524,9 +541,10 @@ export async function main(
     }
     case "mark": {
       const [id] = ids;
-      if (!id || values.status !== "human-reviewed" || !values.reviewer) {
+      const reviewer = values.reviewer?.trim();
+      if (!id || values.status !== "human-reviewed" || !reviewer) {
         console.error(
-          'usage: imagegen mark <id> --status human-reviewed --reviewer "<name>"  (agent-checked comes only from imagegen apply-review)',
+          'usage: imagegen mark <id> --status human-reviewed --reviewer "<name>" [--session review/sessions/<file>.json]  (agent-checked comes only from imagegen apply-review)',
         );
         return 1;
       }
@@ -536,13 +554,36 @@ export async function main(
         return 1;
       }
       try {
-        await writeFixture(mediaRoot, await confirmHumanReview(f, values.reviewer, io));
+        requireInteractive(io);
+        // The confirmation stands on a saved session of this image by this reviewer, holding these readings.
+        let ref: SessionRef | null;
+        if (values.session) {
+          const path = values.session.split("\\").join("/");
+          if (!SESSION_FILE.test(path)) {
+            throw new ConfirmationError(
+              `--session names a file under review/sessions/, relative to media/: ${path}`,
+            );
+          }
+          const record = await loadSession(mediaRoot, path);
+          if (typeof record === "string") throw new ConfirmationError(record);
+          ref = { path, record };
+        } else {
+          ref = await findConfirmableSession(mediaRoot, f, reviewer);
+        }
+        if (!ref) {
+          throw new ConfirmationError(
+            `no saved review session by ${reviewer} holds the readings of fixtures/${id}.json; run imagegen review ${id} --reviewer "${reviewer}"`,
+          );
+        }
+        const done = await confirmHumanReview(f, reviewer, io, ref);
+        await writeJson(join(mediaRoot, ref.path), done.session);
+        await writeFixture(mediaRoot, done.fixture);
+        console.log(`${id}: fixture marked human-reviewed by ${reviewer} (${ref.path})`);
       } catch (e) {
         if (!(e instanceof ConfirmationError)) throw e;
         console.error(`mark: ${e.message}`);
         return 1;
       }
-      console.log(`${id}: fixture marked human-reviewed by ${values.reviewer}`);
       await refreshLabels(mediaRoot);
       return 0;
     }
@@ -598,7 +639,7 @@ export async function main(
       let blocked = 0;
       for (const id of ids) {
         const f = await readFixture(mediaRoot, id);
-        const why = f ? replayBlockers(f) : ["no fixture"];
+        const why = f ? await replayReadiness(mediaRoot, f) : ["no fixture"];
         if (why.length) blocked++;
         console.log(
           why.length ? `${id}: not ready\n  - ${why.join("\n  - ")}` : `${id}: ready for a replay set`,

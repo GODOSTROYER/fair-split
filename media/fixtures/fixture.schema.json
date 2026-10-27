@@ -89,6 +89,18 @@
               "items": {
                 "type": "string"
               }
+            },
+            "session": {
+              "default": null,
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^review\\/sessions\\/[\\w.-]+\\.json$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -1905,6 +1917,18 @@
               "items": {
                 "type": "string"
               }
+            },
+            "session": {
+              "default": null,
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^review\\/sessions\\/[\\w.-]+\\.json$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -2081,6 +2105,18 @@
               "items": {
                 "type": "string"
               }
+            },
+            "session": {
+              "default": null,
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^review\\/sessions\\/[\\w.-]+\\.json$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [

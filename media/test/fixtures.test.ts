@@ -27,6 +27,7 @@ import {
   slipFieldEntries,
 } from "../src/fixtures/schema.js";
 import { Manifest } from "../src/imagegen/manifest.js";
+import { reviewProof } from "../src/review/session.js";
 import { SLIP_FIELDS, type SlipField } from "../src/template/slip-template.js";
 import { MEDIA_ROOT } from "../src/util/env.js";
 
@@ -215,6 +216,15 @@ describe("committed fixtures (IC-11)", () => {
           expect(cy).toBeLessThan(Math.max(...ys) + 0.01);
         }
       }
+    }
+  });
+
+  it("that say human-reviewed name a confirmed review session of their own image, by their reviewer, with their readings", async () => {
+    for (const f of files) {
+      const fx = Fixture.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", f), "utf8")));
+      // No fixture is person-reviewed yet (the user's review is pending); this holds the line once one is.
+      expect(await reviewProof(MEDIA_ROOT, fx), f).toEqual([]);
+      if (fx.review.status === "human-reviewed") expect(fx.review.session, f).toMatch(/^review\/sessions\//);
     }
   });
 

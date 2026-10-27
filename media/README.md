@@ -52,7 +52,16 @@ shape, and `line_no` is the logbook's `line` column.
   overwrites a person's reading.
 - **Review states.** `draft` → `agent-checked` (every field and crop checked, from a committed check file) →
   `human-reviewed` (every field read by a person in the review page, then confirmed at an interactive
-  terminal; an agent's shell cannot do this step). A crop marked wrong sends the fixture back to draft.
+  terminal). A crop marked wrong sends the fixture back to draft; new readings on a reviewed fixture send it
+  back to `agent-checked` until they are confirmed.
+- **What stands behind `human-reviewed`.** The terminal gate guards against accidents (a pipe, CI, an
+  agent's ordinary shell), not against anything that can drive a real terminal or edit JSON. What can be
+  checked is the record: a human-reviewed fixture names the saved session it was confirmed from
+  (`review.session`, `review/sessions/{id}.{stamp}.json`), and `reviewProof` requires that session to exist,
+  carry its terminal confirmation, be of the same image (sha256) by the same reviewer, and hold exactly the
+  fixture's readings. `replay-check`, `imagegen labels` (an unproven label stays in `eval/provisional/`) and
+  the committed-fixture test all run it, so a hand stamp or a hand edit shows up; git history shows who
+  committed the session.
 - **Duplicates.** `duplicateOf` (labels: `duplicate_of`) is set only on the non-original copy, pointing at the
   white original with the same serial in the same image group, `{fixture}#{slot}`; a `WHITE_ORIGINAL` never
   carries it (schema-enforced). Two renders of one slip in different groups are never marked.

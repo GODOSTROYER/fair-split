@@ -1,3 +1,5 @@
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import {
   Expect,
@@ -136,25 +138,124 @@ export const ReviewSubmission = z.object({
 });
 export type ReviewSubmission = z.input<typeof ReviewSubmission>;
 
-export interface SessionRecord {
-  v: 1;
-  fixture: string;
-  imageSha256: string;
-  reviewer: string;
-  startedAt: string;
-  submittedAt: string;
-  fields: z.output<typeof ReviewSubmission>["fields"];
-  traps: z.output<typeof ReviewSubmission>["traps"];
-  note: string;
+/** A saved review session (`media/review/sessions/{fixture}.{stamp}.json`): one person's pass over one image. */
+export const SessionRecord = z.object({
+  v: z.literal(1),
+  fixture: z.string().min(1),
+  /** The image the person looked at: the fixture's master. */
+  imageSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  reviewer: z.string().min(1),
+  startedAt: z.string(),
+  submittedAt: z.string(),
+  fields: ReviewSubmission.shape.fields,
+  traps: z.array(ReviewSubmission.shape.traps.unwrap().element),
+  note: z.string(),
   /** Set when the person confirmed `human-reviewed` at the terminal. */
-  confirmedAt: string | null;
-}
+  confirmedAt: z.string().nullable(),
+});
+export type SessionRecord = z.output<typeof SessionRecord>;
 
 export class SubmissionError extends Error {}
 
+const SESSIONS_DIR = "review/sessions";
+
 /** Where a session is kept, relative to the media root: `review/sessions/{fixture}.{yyyymmddThhmmss}.json`. */
 export function sessionPath(fixtureId: string, submittedAt: string): string {
-  return `review/sessions/${fixtureId}.${submittedAt.replace(/[-:]/g, "").slice(0, 15)}.json`;
+  return `${SESSIONS_DIR}/${fixtureId}.${submittedAt.replace(/[-:]/g, "").slice(0, 15)}.json`;
+}
+
+/**
+ * Why a saved session cannot stand behind the fixture's readings as `reviewer`'s review (empty when it
+ * can): it must be a session of this fixture, of the same pixels, saved by that reviewer, and hold every
+ * reading the fixture has, each checked by a person, with no crop marked wrong.
+ */
+export function sessionMismatches(f: Fixture, s: SessionRecord, reviewer: string): string[] {
+  const out: string[] = [];
+  if (s.fixture !== f.id) out.push(`it is a session of ${s.fixture}, not ${f.id}`);
+  if (s.imageSha256 !== f.image.sha256) {
+    out.push(
+      `it reviewed other pixels (sha256 ${s.imageSha256.slice(0, 12)}…; the fixture's image is ${f.image.sha256.slice(0, 12)}…)`,
+    );
+  }
+  if (s.reviewer.trim() !== reviewer.trim()) out.push(`it was saved by ${s.reviewer}, not ${reviewer}`);
+  const answered = new Map(s.fields.map((x) => [x.path, x]));
+  const differ: string[] = [];
+  for (const [path, field] of fixtureFields(f)) {
+    const a = answered.get(path);
+    const same =
+      a !== undefined &&
+      field.checkedBy === "human" &&
+      a.visible === field.visible &&
+      a.legibility === field.legibility &&
+      a.expect === field.expect;
+    if (!same) differ.push(path);
+  }
+  if (differ.length) {
+    out.push(`${differ.length} reading(s) differ from it (first: ${differ.slice(0, 3).join(", ")})`);
+  }
+  const wrong = s.fields.filter((x) => x.cropWrong).map((x) => x.path);
+  if (wrong.length) out.push(`it marked crops wrong (${wrong.slice(0, 3).join(", ")})`);
+  return out;
+}
+
+/** Reads and parses a saved session (`path` relative to the media root), or says why it cannot. */
+export async function loadSession(mediaRoot: string, path: string): Promise<SessionRecord | string> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(join(mediaRoot, path), "utf8"));
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ENOENT"
+      ? `it names ${path}, which does not exist`
+      : `${path} cannot be read: ${(e as Error).message}`;
+  }
+  const parsed = SessionRecord.safeParse(raw);
+  return parsed.success
+    ? parsed.data
+    : `${path} is not a review session (${parsed.error.issues[0]?.message ?? "invalid"})`;
+}
+
+/**
+ * Whether a person's review stands behind a `human-reviewed` fixture (empty when it does, or when nobody
+ * claims one): the fixture names a saved session, confirmed at the terminal, of this image, by the
+ * fixture's reviewer, holding exactly the fixture's readings. The terminal gate only guards against
+ * accidents (an agent's pipe, CI); this record is what can be checked, so a hand-stamped or hand-edited
+ * fixture shows up here, in `replay-check` and in `imagegen labels` (its label stays provisional).
+ */
+export async function reviewProof(mediaRoot: string, f: Fixture): Promise<string[]> {
+  if (f.review.status !== "human-reviewed") return [];
+  const path = f.review.session;
+  if (!path) return ["it is human-reviewed but names no review session"];
+  const s = await loadSession(mediaRoot, path);
+  if (typeof s === "string") return [s];
+  const out = sessionMismatches(f, s, f.review.reviewer ?? "").map(
+    (m) => `review session ${path} does not match: ${m}`,
+  );
+  if (s.confirmedAt === null) out.push(`review session ${path} was never confirmed at the terminal`);
+  return out;
+}
+
+/** The latest saved session by `reviewer` that holds the fixture's readings (for `imagegen mark`). */
+export async function findConfirmableSession(
+  mediaRoot: string,
+  f: Fixture,
+  reviewer: string,
+): Promise<{ path: string; record: SessionRecord } | null> {
+  let names: string[];
+  try {
+    names = await readdir(join(mediaRoot, SESSIONS_DIR));
+  } catch {
+    return null;
+  }
+  const found: { path: string; record: SessionRecord }[] = [];
+  for (const name of names) {
+    if (!name.startsWith(`${f.id}.`) || !name.endsWith(".json")) continue;
+    const path = `${SESSIONS_DIR}/${name}`;
+    const s = await loadSession(mediaRoot, path);
+    if (typeof s !== "string" && sessionMismatches(f, s, reviewer).length === 0)
+      found.push({ path, record: s });
+  }
+  found.sort((a, b) => b.record.submittedAt.localeCompare(a.record.submittedAt));
+  return found[0] ?? null;
 }
 
 /**
@@ -222,6 +323,9 @@ export function applySubmission(
   const crops = sub.fields.filter((x) => x.cropWrong).map((x) => x.path);
   f.review.cropIssues = crops;
   if (crops.length) f.review.status = "draft";
+  // A confirmation covers the readings it confirmed: new readings wait for a new one at the terminal.
+  else if (f.review.status === "human-reviewed") f.review.status = "agent-checked";
+  f.review.session = null;
   if (sub.note) f.review.notes.push(`Review note (${meta.reviewer}, ${meta.submittedAt}): ${sub.note}`);
   return {
     v: 1,
@@ -247,6 +351,14 @@ export function humanReviewBlockers(f: Fixture): string[] {
       `${notHuman.length} field(s) not checked by a person in \`imagegen review\` (first: ${notHuman.slice(0, 3).join(", ")})`,
     );
   return out;
+}
+
+/**
+ * Everything that stops an image from joining a replay set: {@link replayBlockers} plus the check that a
+ * person's review really stands behind the fixture ({@link reviewProof}).
+ */
+export async function replayReadiness(mediaRoot: string, f: Fixture): Promise<string[]> {
+  return [...replayBlockers(f), ...(await reviewProof(mediaRoot, f))];
 }
 
 /** Why a fixture's image cannot join a replay set yet (empty when it can): A–L acceptance (S4.10). */
