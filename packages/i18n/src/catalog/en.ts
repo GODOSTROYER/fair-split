@@ -173,10 +173,11 @@ export const en = {
   "W-TR-01.invoice.waiting": "Sent to Lantern Bay. Waiting for payment.",
   "W-TR-02.bolted": "sha256 {hash}, sealed {date} by {card}",
   "W-TR-02.R0": "Premium is paid by verified kilos and is never deducted.",
-  "W-TR-02.R1": "CBU: 5% of the bonus until ₱5,000 is paid up.",
-  "W-TR-02.R2": "Hauling: ₱1.50 a kg for purok pickups.",
-  "W-TR-02.R3": "Loan: only with a signed Authority to Deduct, up to 50% of the bonus.",
-  "W-TR-02.R4": "Advance: only with a voucher, up to 30% of the bonus.",
+  // The ratified card's terms arrive as arguments: the copy never restates a figure the card can change.
+  "W-TR-02.R1": "CBU: {share}% of the bonus until {cap} is paid up.",
+  "W-TR-02.R2": "Hauling: {rate} a kg for purok pickups.",
+  "W-TR-02.R3": "Loan: only with a signed Authority to Deduct, up to {share}% of the bonus.",
+  "W-TR-02.R4": "Advance: only with a voucher, up to {share}% of the bonus.",
 
   // ---------------------------------------------------------------- W-TR-05 Split review
   "W-TR-05.title": "Split review",

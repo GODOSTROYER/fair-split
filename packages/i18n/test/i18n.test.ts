@@ -69,6 +69,31 @@ describe("catalogs", () => {
     }
   });
 
+  it("no message carries a money or kilo literal: every amount arrives as an argument (S5 lint)", () => {
+    const literal = /(?:₱|\$)\s?\d|\d\s?(?:kg|PHP|USD)\b/i;
+    for (const lang of LANGS) {
+      for (const [key, message] of Object.entries(CATALOGS[lang])) {
+        expect(message, `${lang} ${key}`).not.toMatch(literal);
+      }
+    }
+  });
+
+  it("rate-card rules print the ratified card's terms from arguments", () => {
+    for (const rule of ["R0", "R1", "R2", "R3", "R4"] as const) {
+      expect(CATALOGS.en[`W-TR-02.${rule}`], rule).not.toMatch(/\d/);
+    }
+    expect(translate("en", "W-TR-02.R1", { share: 5, cap: "₱5,000" })).toBe(
+      "CBU: 5% of the bonus until ₱5,000 is paid up.",
+    );
+    expect(translate("en", "W-TR-02.R2", { rate: "₱1.50" })).toBe("Hauling: ₱1.50 a kg for purok pickups.");
+    expect(translate("en", "W-TR-02.R3", { share: 50 })).toBe(
+      "Loan: only with a signed Authority to Deduct, up to 50% of the bonus.",
+    );
+    expect(translate("en", "W-TR-02.R4", { share: 30 })).toBe(
+      "Advance: only with a voucher, up to 30% of the bonus.",
+    );
+  });
+
   it("the hold slab speaks the Chair's language on his phone (S1 M-BD-02)", () => {
     const phoneWords = [
       "slab.release",

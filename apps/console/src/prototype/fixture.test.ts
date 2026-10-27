@@ -10,10 +10,12 @@ import {
   lineWithDuplicate,
   MEMBERS,
   RATE_CARD_SHA256,
+  RATE_CARD_TEXT,
   SENDER_BATCH_ID,
+  TERMS,
   TOTALS,
 } from "./fixture.js";
-import { kg, phpEstimate, usd, usdSpoken } from "./format.js";
+import { kg, php, phpEstimate, usd, usdSpoken } from "./format.js";
 import { sha256Hex } from "./hash.js";
 
 describe("prototype fixture vs register §2", () => {
@@ -77,7 +79,28 @@ describe("prototype fixture vs register §2", () => {
     expect(SENDER_BATCH_ID).toBe(`2026A-${RATE_CARD_SHA256.slice(0, 8)}-r37`);
   });
 
+  it("BR 2026-04's terms write the card's canonical text exactly as ratified, so its hash holds", () => {
+    const { rules } = JSON.parse(RATE_CARD_TEXT) as { rules: { id: string; text: string }[] };
+    expect(rules).toEqual([
+      { id: "R0", text: "Premium is paid by verified kilos and is never deducted." },
+      { id: "R1", text: "CBU: 5% of the bonus until 5000 PHP is paid up." },
+      { id: "R2", text: "Hauling: 1.50 PHP a kg for purok pickups." },
+      { id: "R3", text: "Loan: only with a signed Authority to Deduct, up to 50% of the bonus." },
+      { id: "R4", text: "Advance: only with a voucher, up to 30% of the bonus." },
+    ]);
+    expect(TERMS).toEqual({
+      cbuSharePct: 5,
+      cbuCapCentavos: 500_000,
+      haulingCentavosPerKg: 150,
+      loanSharePct: 50,
+      advanceSharePct: 30,
+    });
+  });
+
   it("formats money, kilos and spoken amounts like format.* will", () => {
+    expect(php(500_000)).toBe("₱5,000");
+    expect(php(150)).toBe("₱1.50");
+    expect(php(9_120)).toBe("₱91.20");
     expect(usd(433_350)).toBe("US$4,333.50");
     expect(usd(-109)).toBe("−US$1.09");
     expect(usdSpoken(6445)).toBe("sixty-four dollars and forty-five cents");

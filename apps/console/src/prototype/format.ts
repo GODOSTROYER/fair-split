@@ -20,6 +20,12 @@ export function plain(cents: number): string {
   return cents < 0 ? `−${text}` : text;
 }
 
+/** Pesos as the rate card states them, in centavos: 500000 → "₱5,000", 150 → "₱1.50". Never an estimate. */
+export function php(centavos: number): string {
+  const whole = `₱${group(Math.floor(centavos / 100))}`;
+  return centavos % 100 === 0 ? whole : `${whole}.${String(centavos % 100).padStart(2, "0")}`;
+}
+
 /** The peso estimate at the run's reference rate (₱62.50), rounded to the peso. Peso figures are never summed. */
 export function phpEstimate(cents: number, rate = 62.5): string {
   return `₱${group(Math.round((cents / 100) * rate))}`;

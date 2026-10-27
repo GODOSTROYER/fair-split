@@ -50,6 +50,23 @@ export const RULES = {
   autoAccept: 0.85,
 } as const;
 
+/**
+ * Schedule A's terms in BR 2026-04, as the Board ratified them. The derived lines, the card's canonical text and
+ * the plate's copy all read them here; the copy itself never restates a figure.
+ */
+export const TERMS = {
+  /** R1: CBU takes this share of the bonus... */
+  cbuSharePct: 5,
+  /** ...until the member's capital build-up reaches this, in centavos. */
+  cbuCapCentavos: 500_000,
+  /** R2: hauling for purok pickups, per kg, in centavos. */
+  haulingCentavosPerKg: 150,
+  /** R3: a loan deduction never takes more than this share of the bonus. */
+  loanSharePct: 50,
+  /** R4: nor does an advance. */
+  advanceSharePct: 30,
+} as const;
+
 /** Register §2: the invoice and the pool. */
 export const INVOICE = {
   premiumCents: 288_750,
@@ -240,8 +257,8 @@ const halfUp = (x: number) => Math.floor(x + 0.5 + 1e-9);
 function split(m: MemberSource, kgTenths: number, gradeOneTenths: number, totalKg: number, totalG1: number) {
   const premium = halfUp((INVOICE.premiumCents * kgTenths) / totalKg);
   const bonus = halfUp((INVOICE.bonusCents * gradeOneTenths) / totalG1);
-  const cbu = m.cbu ? halfUp(bonus * 0.05) : 0;
-  const loan = m.loanCapped ? Math.floor(bonus * 0.5) : 0;
+  const cbu = m.cbu ? halfUp((bonus * TERMS.cbuSharePct) / 100) : 0;
+  const loan = m.loanCapped ? Math.floor((bonus * TERMS.loanSharePct) / 100) : 0;
   return { premium, bonus, cbu, loan };
 }
 
@@ -315,10 +332,19 @@ export const RATE_CARD_TEXT = canonicalJson({
   season: "2026-A",
   rules: [
     { id: "R0", text: "Premium is paid by verified kilos and is never deducted." },
-    { id: "R1", text: "CBU: 5% of the bonus until 5000 PHP is paid up." },
-    { id: "R2", text: "Hauling: 1.50 PHP a kg for purok pickups." },
-    { id: "R3", text: "Loan: only with a signed Authority to Deduct, up to 50% of the bonus." },
-    { id: "R4", text: "Advance: only with a voucher, up to 30% of the bonus." },
+    {
+      id: "R1",
+      text: `CBU: ${TERMS.cbuSharePct}% of the bonus until ${TERMS.cbuCapCentavos / 100} PHP is paid up.`,
+    },
+    {
+      id: "R2",
+      text: `Hauling: ${(TERMS.haulingCentavosPerKg / 100).toFixed(2)} PHP a kg for purok pickups.`,
+    },
+    {
+      id: "R3",
+      text: `Loan: only with a signed Authority to Deduct, up to ${TERMS.loanSharePct}% of the bonus.`,
+    },
+    { id: "R4", text: `Advance: only with a voucher, up to ${TERMS.advanceSharePct}% of the bonus.` },
   ],
   coSign: { batchOverCents: 30000, lineOverCents: 15000, overrides: true },
   massBalanceToleranceBp: 200,
