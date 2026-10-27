@@ -1,8 +1,8 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { batchBody, call, canonicalInvoice, MEMBER_PAYOUTS, newSim, token } from "./helpers.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { batchBody, call, canonicalInvoice, fakeTime, MEMBER_PAYOUTS, newSim, token } from "./helpers.js";
 
 describe("persistence and reset", () => {
   const dirs: string[] = [];
@@ -12,6 +12,7 @@ describe("persistence and reset", () => {
     return d;
   };
   afterEach(() => {
+    vi.useRealTimers();
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
@@ -28,6 +29,9 @@ describe("persistence and reset", () => {
   });
 
   it("snapshots state to .data/state.json and restores it (including in-flight batches)", async () => {
+    // Fake timers: the 60 s batch cannot start and the 250 ms snapshot timer cannot fire until the test moves
+    // the clock, so what gets saved does not depend on how fast the machine is.
+    fakeTime({ timers: true });
     const dir = tmp();
     const a = await newSim({
       dataDir: dir,
@@ -41,14 +45,22 @@ describe("persistence and reset", () => {
       body: canonicalInvoice("FS-PERSIST"),
     });
     expect(created.status).toBe(201);
+    const file = join(dir, "state.json");
+    expect(existsSync(file)).toBe(false);
+    await vi.advanceTimersByTimeAsync(250); // the debounced snapshot
+    expect(Object.keys(JSON.parse(readFileSync(file, "utf8")).invoices)).toHaveLength(1);
     const batch = await call(a, "POST", "/v1/payments/payouts", {
       token: tok,
       body: batchBody("2026A-persist", MEMBER_PAYOUTS.slice(0, 1)),
     });
     expect(batch.status).toBe(201);
     await a.close(); // flushes the pending snapshot
-    const snapshot = JSON.parse(readFileSync(join(dir, "state.json"), "utf8")) as { invoices: object };
+    const snapshot = JSON.parse(readFileSync(file, "utf8")) as {
+      invoices: object;
+      batches: Record<string, { status: string }>;
+    };
     expect(Object.keys(snapshot.invoices)).toHaveLength(1);
+    expect(Object.values(snapshot.batches).map((b) => b.status)).toEqual(["PENDING"]); // saved in flight
 
     const b = await newSim({ dataDir: dir, persist: true });
     const tok2 = Object.keys(b.state.tokens)[0] as string;

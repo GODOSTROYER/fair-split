@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SimEnv } from "../src/http/app.js";
 import type { Simulator } from "../src/simulator.js";
 import { DAY_MS } from "../src/util/time.js";
@@ -6,6 +6,7 @@ import {
   BUSINESS_EMAIL,
   call,
   canonicalInvoice,
+  fakeTime,
   newSim,
   PAYER_EMAIL,
   plusDays,
@@ -20,12 +21,16 @@ describe("Invoicing v2", () => {
   let tok: string;
 
   beforeEach(async () => {
+    // Invoice, due and rule dates are Pacific-time calendar dates: with Date frozen at noon, an expectation
+    // computed after a request names the same day the simulator used, even when a run crosses midnight.
+    fakeTime();
     sim = await newSim();
     tok = await token(sim);
   });
   afterEach(async () => {
     expect(sim.violations).toEqual([]);
     await sim.close();
+    vi.useRealTimers();
   });
 
   const create = async (number: string, extra: Record<string, unknown> = {}) => {

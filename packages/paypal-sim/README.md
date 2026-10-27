@@ -173,7 +173,10 @@ headers: `paypal-transmission-id`, `paypal-transmission-time`, `paypal-transmiss
   **`@paypal/agent-toolkit` 1.11.0** (`create_invoice`, `get_invoice`, `send_invoice`,
   `create_conditional_rules_for_invoice`, `record_payment_for_invoice`, `search_invoicing`, its own token fetch)
   plus **`@paypal/paypal-server-sdk` 2.5.0** `TransactionSearchController` running unmodified through the
-  interceptor. Both PayPal packages are test-only dependencies. No test contacts a PayPal host.
+  interceptor. Both PayPal packages are test-only dependencies. No test contacts a PayPal host. Every server a
+  test starts binds port 0 and reads the bound port back (`test/setup.ts` refuses a fixed port), and the
+  clock-dependent tests (throttle windows, latency, speed-1 processing, the snapshot timer, Pacific-time dates)
+  run on Vitest fake timers (`fakeTime()` in `test/helpers.ts`), so several copies of the suite can run at once.
 
 ## Running it
 

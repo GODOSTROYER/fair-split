@@ -13,6 +13,7 @@ import {
 } from "../src/interceptor.js";
 import type { Simulator } from "../src/simulator.js";
 import {
+  BEYOND_TEST_TIMEOUT_MS,
   BUSINESS_EMAIL,
   batchBody,
   MEMBER_PAYOUTS,
@@ -223,7 +224,7 @@ describe("in-process interceptor", () => {
         oAuthClientSecret: app().client_secret,
       },
       environment: Environment.Sandbox,
-      timeout: 10_000,
+      timeout: BEYOND_TEST_TIMEOUT_MS, // in process: only vitest's testTimeout bounds it
     });
     const search = new TransactionSearchController(client);
     const now = sim.clock.now();

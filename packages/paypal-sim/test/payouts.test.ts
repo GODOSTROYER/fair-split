@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Simulator } from "../src/simulator.js";
 import { DAY_MS } from "../src/util/time.js";
-import { batchBody, call, MEMBER_PAYOUTS, newSim, receiver, subscribe, token } from "./helpers.js";
+import { batchBody, call, fakeTime, MEMBER_PAYOUTS, newSim, receiver, subscribe, token } from "./helpers.js";
 
 describe("Payouts v1", () => {
   let sim: Simulator;
@@ -12,6 +12,7 @@ describe("Payouts v1", () => {
     tok = await token(sim);
   });
   afterEach(async () => {
+    vi.useRealTimers();
     expect(sim.violations).toEqual([]);
     await sim.close();
   });
@@ -179,21 +180,47 @@ describe("Payouts v1", () => {
   });
 
   it("holds funds while PENDING (available down, withheld up) and settles them on processing", async () => {
+    // Real-time processing (speed 1) on fake timers: the batch stays PENDING for exactly its 30 s, however
+    // slow the machine, and then runs to the end when the test moves the clock.
+    fakeTime({ timers: true });
     const slow = await newSim({ speed: 1, timing: { batchProcessingS: 30, itemS: 1, batchCompleteS: 1 } });
-    const t = await token(slow);
-    const res = await call(slow, "POST", "/v1/payments/payouts", { token: t, body: batchBody("2026A-hold") });
-    expect(res.status).toBe(201);
-    const pending = await call(slow, "GET", "/v1/reporting/balances", { token: t });
-    expect(pending.json.balances[0].available_balance.value).toBe("99629.61");
-    expect(pending.json.balances[0].withheld_balance.value).toBe("370.39");
-    expect(pending.json.balances[0].total_balance.value).toBe("100000.00");
-    const batch = await call(slow, "GET", `/v1/payments/payouts/${res.json.batch_header.payout_batch_id}`, {
-      token: t,
-    });
-    expect(batch.json.batch_header.batch_status).toBe("PENDING");
-    expect(batch.json.items[0].transaction_status).toBe("PENDING");
-    expect(batch.json.items[0].payout_item_fee).toBeUndefined();
-    await slow.close();
+    try {
+      const t = await token(slow);
+      const res = await call(slow, "POST", "/v1/payments/payouts", {
+        token: t,
+        body: batchBody("2026A-hold"),
+      });
+      expect(res.status).toBe(201);
+      const path = `/v1/payments/payouts/${res.json.batch_header.payout_batch_id}`;
+      const usd = async () =>
+        (await call(slow, "GET", "/v1/reporting/balances", { token: t })).json.balances[0] as Record<
+          string,
+          { value: string }
+        >;
+      const pending = await usd();
+      expect(pending.available_balance?.value).toBe("99629.61");
+      expect(pending.withheld_balance?.value).toBe("370.39");
+      expect(pending.total_balance?.value).toBe("100000.00");
+      const batch = await call(slow, "GET", path, { token: t });
+      expect(batch.json.batch_header.batch_status).toBe("PENDING");
+      expect(batch.json.items[0].transaction_status).toBe("PENDING");
+      expect(batch.json.items[0].payout_item_fee).toBeUndefined();
+
+      const status = async () => (await call(slow, "GET", path, { token: t })).json.batch_header.batch_status;
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(await status()).toBe("PENDING");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await status()).toBe("PROCESSING");
+      await vi.advanceTimersByTimeAsync(8 * 1_000 + 1_000); // eight items a second apart, then completion
+      expect(await status()).toBe("SUCCESS");
+      // Settled: the hold has left the balance (US$368.39 sent plus US$2.00 in fees), nothing is withheld.
+      const settled = await usd();
+      expect(settled.available_balance?.value).toBe("99629.61");
+      expect(settled.withheld_balance?.value).toBe("0.00");
+      expect(settled.total_balance?.value).toBe("99629.61");
+    } finally {
+      await slow.close();
+    }
   });
 
   it("uses PAYPAL_ID receivers and fails a payout to the sender itself", async () => {

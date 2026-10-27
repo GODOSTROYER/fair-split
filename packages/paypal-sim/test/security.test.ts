@@ -14,7 +14,16 @@ import { IN_PROCESS_ENV, type SimEnv } from "../src/http/app.js";
 import { checkWebhookTarget } from "../src/net.js";
 import { startServer } from "../src/server.js";
 import { createSimulator, type Simulator } from "../src/simulator.js";
-import { call, canonicalInvoice, newSim, type Receiver, receiver, subscribe, token } from "./helpers.js";
+import {
+  BEYOND_TEST_TIMEOUT_MS,
+  call,
+  canonicalInvoice,
+  newSim,
+  type Receiver,
+  receiver,
+  subscribe,
+  token,
+} from "./helpers.js";
 
 // Count constant-time comparisons (the admin token must be compared with timingSafeEqual).
 const safeCompares = vi.hoisted(() => ({ count: 0 }));
@@ -102,7 +111,8 @@ describe("SSRF: the simulator delivers only to its host app (finding 1)", () => 
     const sim = await createSimulator({
       ...quiet,
       webhookOrigins: [allowed.origin],
-      delivery: { maxAttempts: 2 },
+      // Exactly two attempts, each answered 307: a loaded machine must not turn one into an aborted POST.
+      delivery: { maxAttempts: 2, timeoutMs: BEYOND_TEST_TIMEOUT_MS },
     });
     open.push(internal, allowed, sim);
     const tok = await token(sim);

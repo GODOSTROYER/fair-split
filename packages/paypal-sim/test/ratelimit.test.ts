@@ -1,15 +1,19 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IN_PROCESS_ENV } from "../src/http/app.js";
 import type { Simulator } from "../src/simulator.js";
-import { call, newSim, token } from "./helpers.js";
+import { call, fakeTime, newSim, token } from "./helpers.js";
 
 const basic = (id: string, secret: string) => `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`;
 
 describe("sandbox-style throttle (per client address, like the sandbox's per-IP block)", () => {
   let sim: Simulator;
+  // Every window here is a minute or more of the simulator's clock: with Date frozen, only the test moves it
+  // (sim.clock.advance), however long a loaded machine takes to send the requests.
+  beforeEach(() => fakeTime());
   afterEach(async () => {
     expect(sim.violations).toEqual([]);
     await sim.close();
+    vi.useRealTimers();
   });
 
   it("allows 50 requests a minute per address, answers 429 RATE_LIMIT_REACHED, then blocks for 5 minutes", async () => {
@@ -146,11 +150,30 @@ describe("sandbox-style throttle (per client address, like the sandbox's per-IP 
   });
 
   it("can be disabled, and injects latency when asked", async () => {
+    fakeTime({ timers: true }); // the latency is a setTimeout: faked, it is moved by hand, 25 ms at a time
     sim = await newSim({ rateLimit: false, latencyMs: 25 });
-    const tok = await token(sim);
-    const t0 = performance.now();
+    /** Lets `request` run for 24 ms (it must still be waiting), then 1 ms more, and returns its answer. */
+    const afterLatency = async <T>(request: Promise<T>): Promise<T> => {
+      let answered = false;
+      request.then(
+        () => {
+          answered = true;
+        },
+        () => {
+          answered = true;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(24);
+      expect(answered, "answered before the injected latency").toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      return request;
+    };
+    const tok = await afterLatency(token(sim));
+    // 60 requests from one address within 1.5 s of the simulator's clock: past the sandbox's 50 a minute.
     for (let i = 0; i < 60; i++)
-      expect((await call(sim, "GET", "/v1/notifications/webhooks", { token: tok })).status).toBe(200);
-    expect(performance.now() - t0).toBeGreaterThanOrEqual(60 * 20);
+      expect(
+        (await afterLatency(call(sim, "GET", "/v1/notifications/webhooks", { token: tok }))).status,
+        `request ${i + 2}`,
+      ).toBe(200);
   });
 });
