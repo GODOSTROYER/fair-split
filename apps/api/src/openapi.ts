@@ -162,7 +162,7 @@ function errorResponses(spec: RouteSpec, catalog: SchemaCatalog): Record<string,
       content: { "application/json": { schema } },
     };
   }
-  if (spec.contract) {
+  if (spec.contract && spec.placeholder) {
     out["501"] = {
       description:
         "NOT_IMPLEMENTED while the slice that owns this command is being built (code INTERNAL, details.reason NOT_IMPLEMENTED)",

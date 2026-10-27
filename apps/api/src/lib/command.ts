@@ -77,6 +77,8 @@ export interface RouteSpec {
   maxBodyBytes?: number;
   /** True for IC-01 commands. */
   contract: boolean;
+  /** An IC-01 command still answered by the shell's 501 placeholder (documented with its 501 response). */
+  placeholder?: boolean;
   /** Server-sent events (documented as text/event-stream). */
   sse?: boolean;
 }
@@ -263,7 +265,7 @@ export function mountCommand<N extends JsonCommandName>(
   name: N,
   handler: CommandHandler<N>,
 ): void {
-  const spec = commandSpec(name);
+  const spec: RouteSpec = { ...commandSpec(name), placeholder: isNotImplemented(handler) };
   mountSpec(m, spec, handler as unknown as AnyHandler);
 }
 
