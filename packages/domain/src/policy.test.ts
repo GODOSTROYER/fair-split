@@ -1239,4 +1239,113 @@ describe("policy lattice: decide(call, ctx) = max verdict (register §9)", () =>
       { numRuns: 300 },
     );
   });
+
+  it("deeply nested or looping arguments are denied, never a stack overflow", () => {
+    // The review's probes: ~3,133 nested arrays or ~5,007 nested objects overflowed the walkers.
+    const deepArrays = JSON.parse(`${"[".repeat(5000)}${"]".repeat(5000)}`) as unknown;
+    let deepObjects: unknown = "x";
+    for (let i = 0; i < 6000; i++) deepObjects = { a: deepObjects };
+    const looping: Record<string, unknown> = {};
+    looping.self = looping;
+    const drafts: [string, unknown][] = [
+      ["deep note", draft({ note: deepArrays })],
+      ["deep objects under an unknown key", draft({ extra: deepObjects })],
+      ["a loop under an unknown key", draft({ extra: looping })],
+      ["a deep item name", { ...draft(), items: [{ ...CANONICAL.items[0], name: deepArrays }] }],
+    ];
+    for (const [label, args] of drafts) {
+      let d: ReturnType<typeof decide> | undefined;
+      expect(() => {
+        d = decide(call("create_invoice", args), ctx());
+      }, label).not.toThrow();
+      expect(d?.verdict, label).toBe("DENY");
+    }
+    const deep = decide(call("create_invoice", draft({ extra: deepObjects })), ctx());
+    for (const p of ["recipientInBrandAllowlist", "dueWithin30Days"] as const) {
+      expect(reasonOf(deep, p), p).toBe("The arguments nest too deeply to check");
+    }
+    const rule = decide(
+      call("create_conditional_rules_for_invoice", { ...RULE("2026-11-23"), x: looping }),
+      ruleCtx(),
+    );
+    expect(rule.verdict).toBe("DENY");
+    expect(reasonOf(rule, "dueWithin30Days")).toBe("The arguments nest too deeply to check");
+    // A canonical body is far shallower than the bound.
+    expect(decide(call("create_invoice", draft()), ctx()).verdict).toBe("ALLOW");
+  });
+
+  it("a policy that throws is a DENY for that policy, never an exception out of the lattice", () => {
+    const boom = () => {
+      throw new RangeError("Maximum call stack size exceeded");
+    };
+    const d = decideWith(call("get_hold", { hold_id: "H1" }), ctx(), {
+      allowlist: POLICIES.allowlist,
+      budgetCap: boom,
+    });
+    expect(d).toMatchObject({ verdict: "DENY", decidedBy: ["budgetCap"] });
+    expect(reasonOf(d, "budgetCap")).toBe("The arguments could not be checked");
+  });
+});
+
+describe("inv.i1.structural-paths: a key spelled like a path never passes as the allowed recipient", () => {
+  const recipientOnly = (args: unknown) =>
+    decideWith(call("create_invoice", args), ctx(), {
+      recipientInBrandAllowlist: POLICIES.recipientInBrandAllowlist,
+    });
+
+  it("the review's probes are denied by recipientInBrandAllowlist alone, naming the key as written", () => {
+    const flatKey = { ...draft(), "primary_recipients[1].billing_info.email_address": "x@evil.example" };
+    const d1 = recipientOnly(flatKey);
+    expect(d1.verdict).toBe("DENY");
+    expect(reasonOf(d1, "recipientInBrandAllowlist")).toBe(
+      'Not a recipient field the draft may set: ["primary_recipients[1].billing_info.email_address"]',
+    );
+    const nestedKey = {
+      ...draft(),
+      "primary_recipients[0].billing_info": { email_address: "x@evil.example" },
+    };
+    const d2 = recipientOnly(nestedKey);
+    expect(d2.verdict).toBe("DENY");
+    // The key names a recipient, so it is the stray field (structurally it is not the allowed place).
+    expect(reasonOf(d2, "recipientInBrandAllowlist")).toBe(
+      'Not a recipient field the draft may set: ["primary_recipients[0].billing_info"]',
+    );
+    const disguised = { ...draft(), "billing[0].info": { email_address: "x@evil.example" } };
+    expect(reasonOf(recipientOnly(disguised), "recipientInBrandAllowlist")).toBe(
+      'Not a recipient field the draft may set: ["billing[0].info"].email_address',
+    );
+    // The full lattice names the key as written too, never the legitimate field.
+    expect(reasonOf(decide(call("create_invoice", flatKey), ctx()), "invoiceEqualsQuote")).toBe(
+      'Not in the canonical invoice: ["primary_recipients[1].billing_info.email_address"]',
+    );
+  });
+
+  it("an e-mail anywhere but the recipient's and the invoicer's place is a stray recipient", () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ note: "Pay x@evil.example" }, "note"],
+      [{ extra: ["x@evil.example"] }, "extra[0]"],
+      [
+        { items: CANONICAL.items.map((i, k) => (k === 2 ? { ...i, name: "x@evil.example" } : i)) },
+        "items[2].name",
+      ],
+      [{ recipientEmail: "x@evil.example" }, "recipientEmail"],
+      [{ "Email-To": PAYER }, '["Email-To"]'],
+    ];
+    for (const [over, path] of cases) {
+      const d = recipientOnly(draft(over));
+      expect(d.verdict, path).toBe("DENY");
+      expect(reasonOf(d, "recipientInBrandAllowlist"), path).toBe(
+        `Not a recipient field the draft may set: ${path}`,
+      );
+    }
+    // The canonical places stay allowed.
+    expect(recipientOnly(draft()).verdict).toBe("ALLOW");
+  });
+
+  it("audit paths escape keys that are not plain identifiers, in printable ASCII", () => {
+    const d = decide(call("create_invoice", draft({ "a.b": 1, "x‮y": 2, "items[0]": 3 })), ctx());
+    expect(reasonOf(d, "invoiceEqualsQuote")).toBe(
+      'Not in the canonical invoice: ["a.b"], ["items[0]"], ["x\\u202ey"]',
+    );
+  });
 });
