@@ -237,6 +237,21 @@ export function runTasks(deps: AppDeps): TaskHandlers {
           step: "post",
         });
         if (rail.kind === "queued") throw new LaneQueued(rail);
+        if (rail.kind === "done") {
+          // PayPal already answered this batch (Judge Mode): nothing is sent and no slot is taken
+          if (rail.reason === "adopt_failed") {
+            deps.logger.error(
+              { runId: args.runId },
+              "payout adopt failed: the batch needs a person; it is not posted again",
+            );
+          }
+          return {
+            outcome: "refused",
+            code: rail.reason === "adopt_failed" ? "ADOPT_FAILED" : "ALREADY_ANSWERED",
+            payoutBatchId: rail.payoutBatchId,
+            rail: "live",
+          };
+        }
         let outcome: BatchOutcome | null = null;
         try {
           return await post(rail.deps, scope, args, (o) => {
