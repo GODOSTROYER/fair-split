@@ -57,35 +57,45 @@
 > 5 per 10 minutes per session, 5 a minute per network, 30 a minute in all. (6) The brand view and its CSV show
 > member lines only once `proofReady` (read inside the view's snapshot); before, the view is the invoice alone.
 
-> **Quota on resume (28 Oct; the `[ws/api] SECURITY` review of e026049).** A judge post whose batch is written live
-> is never replayed (I8) and never goes live without a quota slot held for its run. `beginLiveStep({ resume })`
-> (money/rail.ts `railForStep`, for a written primary batch) no longer turns a quota replay into live: it posts
-> under the run's held reservation, else `reserveLivePost` takes a new one under the quota lock when the quotas
-> allow (same ids; it sets aside the batch's own total and is counted from then), else the post WAITS
-> (`queued`, `waitingFor` the reason, `resumeWaitMs`: the circuit's 6 min, the next clock hour, 15 min for the
-> other quotas), re-queued by `deferTask`; a switch, the simulator, the circuit or a full lane wait the same way.
-> A live post without a reservation throws (nothing sent). The root cause: a reservation was settled `not_posted`
-> by refusals after `writeSubmitted` (the kill switch read by a resumed `executeApproved`, the limiter's
-> `QUEUED`, PayPalHttp's `invalid_request`, a resumed post's re-checks: digest, approvals, guards), freeing the
-> slot while the rows waited. Now `settlementOf` keeps `QUEUED` open, and `settleLivePost` (under the quota lock)
-> never settles `not_posted` once the run's batch is written live: the slot stays held until PayPal posts or
-> denies it (rows DENIED settle `denied`). `countPosts` counts a written judge batch whose run holds no slot (rows
-> an older build freed). Cancel and re-route (`railForItem`) take no reservation by design (not quota steps; a
-> re-route repays an item its run's counted post already paid, under the service's C-21 and floor guard) and have
-> no override. Tests: `money/quota-resume.test.ts`.
+> **Quota on resume (28 Oct; the `[ws/api] SECURITY` review of e026049, rounds 1 to 3).** The rule, in plain words:
+> **every live judge POST is counted from a slot dated within 90 seconds of the moment it reaches PayPal.**
 >
-> **A held slot ages out with the count (28 Oct, round 2).** A reservation is counted in the rolling 24 h from when
-> it was taken, so it carries a post only while it is younger than `JUDGE_QUOTA.heldSlotMaxAgeMs` (23 h: an hour's
-> margin for the burst). `heldReservation` (and so `reserveLivePost`'s fast path and `holdsLivePost`'s peek) ignores
-> an older one: a batch that stalled longer (a kill switch kept on, an outage the catch-up resumes) is decided like
-> a new post, a NEW slot under the quota lock (same ids, its total, counted from then) or a wait, never live on the
-> old slot and never a replay. The old slot is left unsettled; it is in no count and `liveSpend` takes each run once.
-> Because the service checks C-21 only at the first write, such a resume on the sandbox rail must also fit C-21's 40
-> live batches a day (every workspace, its own batch aside), and C-21's count (`postsInLast24h`, via
-> `liveBatchesInLast24h`) counts a judge batch from its run's newest live slot as well as from its write, so a late
-> post weighs on every post after it (including a co-op's own: the one shared ceiling). `countPosts`' safety net
-> counts a written judge batch whose run has no slot in the window. The hourly cap still counts a slot in the clock
-> hour it was taken. Tests: `judge/quota.pg.test.ts` (held-ttl, C-21), `money/quota-resume.test.ts` (S1, catch-up).
+> - A judge post whose batch is written live is never replayed (I8) and never goes live without a counted slot.
+>   Its run's slot (`judge_post`) carries a POST only while it is younger than `JUDGE_QUOTA.restampAfterMs` (the live
+>   lane's lease, 90 s: the burst that took it, or a quick retry such as refused credentials or an unanswered POST)
+>   and only in the clock hour it was taken.
+> - A post that resumes later (PayPal's 429 and the 6-minute circuit, a kill switch, an outage the hourly catch-up
+>   ends) takes a FRESH slot dated now, under the quota lock, checked against every cap (the rolling 24 h, the
+>   clock hour, the session's three, the public third) with its own run's earlier slots left out, and against the
+>   service's first-write guard for the write it resumes: the balance less its batch stays at or above US$10,000, and
+>   C-21's 40 live batches a day. If anything is full it WAITS (`queued`, `waitingFor` the reason, re-queued by
+>   `deferTask`; the hourly cap waits for the next clock hour); kill_payouts makes it wait before it takes a slot.
+>   It is never replayed and never live without a slot. The older slot is settled `superseded`.
+> - Counting: every count looks back 24 h plus the 90 s, so a POST is counted for the whole 24 h after it (and in its
+>   own clock hour). A run counts once however many of its slots are in a window; the spend counts a run through its
+>   newest slot, so a post PayPal denies on the fresh slot spends nothing. C-21 counts a batch from its write, and a
+>   judge batch also from any live slot of its run in the window. The spend counts a batch written before a balance
+>   reading and posted after it from its POST (`batch_posted`), and a written batch still waiting to be posted.
+> - Only a batch still waiting for PayPal's answer is resumed (SUBMITTED, no PayPal id). One PayPal named or denied,
+>   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST.
+> - A written re-route resumed more than 90 s after it was last counted is held to C-21 again (under the spend lock)
+>   and counted from that POST (`batch_sent`); while C-21 is full it waits.
+> - Lock order, wherever both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`):
+>   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the re-route
+>   guard hold only the spend lock, `settleLivePost` only the quota lock. So no two transactions can deadlock.
+> - I8 check-then-act: a post re-reads its rows just before it replays and waits if another executor wrote them live;
+>   the repository refuses to write, mark posted or mark rejected live rows on the replay rail.
+> - Earlier rounds: round 1 stopped the resume override (no live post without a slot) and stopped `settleLivePost`
+>   from settling `not_posted` once a batch is written; round 2's 23 h age-out (`heldSlotMaxAgeMs`) is gone: a slot
+>   now carries a POST for 90 s, and a later POST takes a slot dated at it.
+> - What is left: a burst's own retries (the service's 1 + 3 + 9 s, PayPalHttp's timeouts) can put its POST up to
+>   about two minutes after its slot, and a fresh burst that straddles the top of an hour counts in the hour it
+>   began. A co-op's own (non-judge) primary batch resumed later is still counted by C-21 from its write (outside the
+>   judge quota, and not reachable by a judge). Cancel takes no slot and no C-21 count (it sends no batch).
+> - Tests: `money/quota-sendtime.test.ts` (the drift probe, the hourly wait, one run counted once, denied, the held
+>   retry, D4, D5, D6), `money/quota-oracle.test.ts` (send times over three simulated days),
+>   `money/lock-order.pg.test.ts` (D1 and the lock order), `money/reroute-c21.test.ts` (D7), `judge/quota.pg.test.ts`
+>   (restamp, hour boundary, D2, D8), `money/quota-resume.test.ts`.
 
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
