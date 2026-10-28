@@ -3,7 +3,7 @@
 // every phase; only what is drawn between them changes.
 
 import { MOMENTS } from "@fairsplit/motion";
-import { UiProvider } from "@fairsplit/ui-web";
+import { feedback, UiProvider } from "@fairsplit/ui-web";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMomentTrace, momentPhase, phasesAreCatalogued, tracedPhases } from "../test/moments.js";
@@ -66,6 +66,27 @@ describe("useMoment", () => {
       expect(controller?.play("refuse", { eventId: "evt-1" })).toBe(false);
       expect(controller?.play("no-such-act", { eventId: "evt-2" })).toBe(false);
     });
+  });
+
+  it("skips feedback the person's own press already made, and names the scale note it plays", () => {
+    const played = vi.spyOn(feedback, "play").mockImplementation(() => undefined);
+    renderBolted("full");
+    act(() => {
+      controller?.play("refuse", { eventId: "evt-a", kind: "press" }, { skipFeedback: ["bolted.refuse"] });
+      vi.advanceTimersByTime(400);
+    });
+    expect(played).not.toHaveBeenCalled();
+    act(() => {
+      controller?.play("refuse", { eventId: "evt-b", kind: "http" }, { feedbackIndex: 3 });
+      vi.advanceTimersByTime(400);
+    });
+    expect(played).toHaveBeenCalledWith("bolted.refuse", { index: 3 });
+    act(() => {
+      controller?.play("refuse", { eventId: "evt-c", kind: "http" });
+      vi.advanceTimersByTime(400);
+    });
+    expect(played).toHaveBeenLastCalledWith("bolted.refuse", {});
+    played.mockRestore();
   });
 
   it("resets to its first phase", () => {

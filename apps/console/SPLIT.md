@@ -121,20 +121,20 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 
 ### Lib, sound, theme
 
-| API                                        | Use                                                                                                                             |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `format` (`lib/format.ts`)                 | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl` |
-| `useMoment(id, { focal?, mode? })`         | The phase machine: `play(act, { eventId })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps`                            |
-| `provenanceFooter(input)`                  | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                |
-| `useShortcut(spec)`, `useShortcuts()`      | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                     |
-| `useDataMode()`                            | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                        |
-| `useAnnounce()`                            | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                   |
-| `lib/verify.ts` (import lazily)            | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                   |
-| `lib/sha256.ts`                            | Synchronous SHA-256 (verify-core needs it sync)                                                                                 |
-| `lib/keys.ts`                              | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)  |
-| `lib/keystore.ts`                          | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key      |
-| `useSound()`, `playFromFrame()`, `duck()`  | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                        |
-| `theme/grid.ts` (import only from W-TR-05) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid lazy                                    |
+| API                                        | Use                                                                                                                                     |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `format` (`lib/format.ts`)                 | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`         |
+| `useMoment(id, { focal?, mode? })`         | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps` |
+| `provenanceFooter(input)`                  | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                        |
+| `useShortcut(spec)`, `useShortcuts()`      | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                             |
+| `useDataMode()`                            | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                |
+| `useAnnounce()`                            | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                           |
+| `lib/verify.ts` (import lazily)            | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                           |
+| `lib/sha256.ts`                            | Synchronous SHA-256 (verify-core needs it sync)                                                                                         |
+| `lib/keys.ts`                              | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)          |
+| `lib/keystore.ts`                          | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key              |
+| `useSound()`, `playFromFrame()`, `duck()`  | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                                |
+| `theme/grid.ts` (import only from W-TR-05) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid lazy                                            |
 
 ## Rules every slice keeps
 

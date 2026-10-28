@@ -3,10 +3,11 @@
 // mode and enters each phase at its time, playing the act's feedback, so phases, times and sounds still come
 // from one file (IC-10) while the drawing stays with the component that owns it.
 //
-// It exists beside lib/moment's `play()` for two reasons, both reported to the shell: a d2 or d3 Slab already
-// plays its own plunk and ticks when pressed (playing the act again would double them), and `play()` cannot pass
-// a scale-note index (`item.paid.console` climbs the pentatonic scale, one note per verified item). Evidence is
-// still required: no event, no phases.
+// It began beside lib/moment's `play()` for two reasons the shell has since taken (`PlayOptions`): a d2 or d3
+// Slab already plays its own plunk and ticks when pressed (`skipFeedback`, so the act does not double them), and
+// `item.paid.console` climbs the pentatonic scale, one note per verified item (`feedbackIndex`). It stays for what
+// `play()` does not do: it walks phases while a primitive draws, reports `busy`, `length` and `at`, and pairs with
+// `usePhaseSync`. Evidence is still required: no event, no phases.
 //
 // `usePhaseSync` keeps a moment's phase true to the screen's state when nothing live is playing: history and
 // replays set the phase in place (never animated), and a finished act hands back to the state it led to.

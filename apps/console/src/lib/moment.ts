@@ -6,6 +6,7 @@
 // RunEvent ID, an HTTP response, a signature, or the person's own press). The same evidence twice plays once.
 
 import {
+  type FeedbackEvent,
   MOMENTS,
   type MomentId,
   type MomentPhase,
@@ -28,6 +29,18 @@ export interface MomentEvidence {
   readonly kind?: "sse" | "http" | "signature" | "press";
 }
 
+/**
+ * How one act plays. A d2 or d3 Slab plays its own plunk and ticks when pressed, so an act started by that press
+ * skips them instead of sounding twice; `item.paid.console` climbs the pentatonic scale, one note per verified
+ * item, so the act names its note.
+ */
+export interface PlayOptions {
+  /** Feedback the person's own press already made (the Slab played it): never played again by the act. */
+  readonly skipFeedback?: readonly FeedbackEvent[];
+  /** The scale note for `item.paid.console` (0-based; the recipe wraps after 8). */
+  readonly feedbackIndex?: number;
+}
+
 export interface MomentOptions {
   /** Claims the stage's focus (S1.6 stage director): waits up to 1.6 s, else plays reduced. */
   readonly focal?: boolean;
@@ -43,7 +56,7 @@ export interface MomentController<M extends MomentId> {
   /** An animated target from the moment's timeline (`TIMELINES[id].initial`), e.g. value("arc"). */
   value(target: string): MotionValue<number>;
   /** Plays one act of the timeline. Returns false when refused (no evidence, a repeat, an unknown act). */
-  play(actId: string, evidence: MomentEvidence): boolean;
+  play(actId: string, evidence: MomentEvidence, options?: PlayOptions): boolean;
   /** Moves to a phase that no act drives (MM-5 "blocked" while holds are open). */
   enter(phase: MomentPhase<M>): void;
   /** Back to the first phase and the initial values. */
@@ -131,7 +144,7 @@ export function useMoment<M extends MomentId>(id: M, options: MomentOptions = {}
   }, []);
 
   const apply = useCallback(
-    (step: Step<M>) => {
+    (step: Step<M>, sound: PlayOptions = {}) => {
       if (step.phase) setPhase(step.phase);
       if (step.target !== undefined && step.to !== undefined) {
         const mv = value(step.target);
@@ -143,13 +156,15 @@ export function useMoment<M extends MomentId>(id: M, options: MomentOptions = {}
           void controls.finished.then(() => animations.current.delete(controls));
         }
       }
-      if (step.feedback) feedback.play(step.feedback);
+      if (step.feedback && !sound.skipFeedback?.includes(step.feedback)) {
+        feedback.play(step.feedback, sound.feedbackIndex === undefined ? {} : { index: sound.feedbackIndex });
+      }
     },
     [setPhase, value],
   );
 
   const play = useCallback(
-    (actId: string, evidence: MomentEvidence): boolean => {
+    (actId: string, evidence: MomentEvidence, sound: PlayOptions = {}): boolean => {
       if (!evidence || typeof evidence.eventId !== "string" || evidence.eventId.length === 0) {
         if (import.meta.env.DEV)
           console.warn(`${id} refused "${actId}": a moment needs the event that caused it.`);
@@ -178,12 +193,12 @@ export function useMoment<M extends MomentId>(id: M, options: MomentOptions = {}
       for (const step of steps) {
         const at = delay + step.at;
         if (at === 0) {
-          apply(step);
+          apply(step, sound);
           continue;
         }
         const timer = setTimeout(() => {
           timers.current.delete(timer);
-          apply(step);
+          apply(step, sound);
         }, at);
         timers.current.add(timer);
       }
