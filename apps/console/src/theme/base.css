@@ -15,6 +15,12 @@
     outline: none;
   }
 
+  /* The skip link's target: Enter leaves the screen :focus-visible, and a 2 px ring around the whole screen marks
+     nothing a person can act on. The landmark is the target; its first control takes the ring from Tab on. */
+  .fsc-console__screen:focus-visible {
+    outline: none;
+  }
+
   :where(a, button, [role="tab"], [role="menuitem"], [role="switch"]):focus-visible {
     outline: var(--fs-focus-width) solid var(--fs-pod);
     outline-offset: var(--fs-focus-offset);

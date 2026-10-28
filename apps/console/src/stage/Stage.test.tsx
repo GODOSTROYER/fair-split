@@ -100,6 +100,14 @@ describe("Judge stage", () => {
     const css = readFileSync(resolve(process.cwd(), "src/theme/stage.css"), "utf8");
     const stageRule = /\n\.fsc-stage \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(stageRule).toMatch(/overflow:\s*clip;/);
+    // Enter on the link leaves the screen :focus-visible (the last input was a key): the landmark is the target,
+    // so it draws no ring around the whole screen. jsdom matches no :focus-visible, so the rule is read and its
+    // selector, without the pseudo-class, must be the screen's.
+    const base = readFileSync(resolve(process.cwd(), "src/theme/base.css"), "utf8");
+    const unringed = [...base.matchAll(/([^{}]+):focus-visible\s*\{([^}]*)\}/g)]
+      .filter((m) => /outline:\s*none/.test(m[2] ?? ""))
+      .map((m) => (m[1] ?? "").replace(/\/\*[\s\S]*?\*\//g, "").trim());
+    expect(unringed.some((selector) => main.matches(selector))).toBe(true);
   });
 
   it.each([
