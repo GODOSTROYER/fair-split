@@ -29,6 +29,8 @@
 // hour; a post that resumes later (a pace, a kill switch, the circuit, an outage) takes a FRESH slot dated now, checked
 // against every cap with its run's own slots left out, or waits; the older slot is settled `superseded`. Every count
 // looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot.
+// C-21 and the spend read the batch rows too, so the hourly purge keeps a judge workspace while either still counts
+// one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write.
 //
 // LOCK ORDER, everywhere both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`,
 // money/payouts.ts `SPEND_LOCK`): lane → quota → spend → workspace → rows. A resumed post's fresh slot holds both (its
@@ -686,7 +688,8 @@ async function heldReservation(db: DbOrTx, runId: string, now: Date): Promise<Re
  * resumed later, `countResumedSend`). The two sent-time branches are uncorrelated subqueries over the window's ledger
  * rows (judge runs' slots, a few marks), hashed once per count, so a count stays one pass over the batches.
  * `excludePrimaryOf` leaves out one run's primary batch and `excludeBatchId` one batch (a resumed post asking whether
- * it may go out itself).
+ * it may go out itself). C-21 reads the batch rows, so the hourly purge keeps a judge workspace while this still
+ * counts one of its batches (`batchesStillCounted`).
  */
 export async function liveBatchesInLast24h(
   db: DbOrTx,
@@ -694,14 +697,22 @@ export async function liveBatchesInLast24h(
   now: Date,
   o: { excludePrimaryOf?: string; excludeBatchId?: string } = {},
 ): Promise<number> {
-  const dayAgo = new Date(now.getTime() - DAY_MS).toISOString();
-  const from = countFrom(now).toISOString();
   const [row] = (await db.execute(sql`
     select count(*)::int as n from payout_batches pb
      where pb.provenance = ${provenance}
        ${o.excludePrimaryOf ? sql`and not (pb.kind = 'primary' and pb.run_id = ${o.excludePrimaryOf})` : sql``}
        ${o.excludeBatchId ? sql`and pb.id <> ${o.excludeBatchId}` : sql``}
-       and (pb.submitted_at >= ${dayAgo}::timestamptz
+       and ${c21Counts(now)}`)) as unknown as {
+    n: number | string;
+  }[];
+  return asInt(row?.n);
+}
+
+/** Whether C-21 counts the batch `pb` at `now` (`liveBatchesInLast24h`, any provenance): one predicate for both. */
+function c21Counts(now: Date) {
+  const dayAgo = new Date(now.getTime() - DAY_MS).toISOString();
+  const from = countFrom(now).toISOString();
+  return sql`(pb.submitted_at >= ${dayAgo}::timestamptz
             or (pb.kind = 'primary' and pb.run_id::text in (
                   select r.summary->>'runId' from reconciliation_reports r
                    where r.kind = ${LEDGER_KIND} and r.workspace_id is null and r.summary->>'entry' = 'judge_post'
@@ -715,10 +726,32 @@ export async function liveBatchesInLast24h(
             or pb.id::text in (
                   select m.summary->>'batchId' from reconciliation_reports m
                    where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_sent'
-                     and m.window_end >= ${from}::timestamptz))`)) as unknown as {
-    n: number | string;
+                     and m.window_end >= ${from}::timestamptz))`;
+}
+
+/**
+ * Whether a count still reads a batch row of this workspace at `now` (the purge passes the database's clock): C-21
+ * (`liveBatchesInLast24h`: its write, a live slot of its run or a `batch_sent` mark, as far back as 24 h and a lane
+ * lease), or the spend (`liveSpend`: its write or PayPal naming it, `batch_posted`, after a balance reading, which is
+ * at most `JUDGE_QUOTA.readingMaxAgeMs` old). Both count a batch from its `payout_batches` row, which the purge's
+ * cascade deletes, so the hourly purge keeps the workspace while this holds (judge/pool.ts). The ledger rows it reads
+ * are system rows: the purge never removes them.
+ */
+export async function batchesStillCounted(db: DbOrTx, workspaceId: string, now: Date): Promise<boolean> {
+  const spendFrom = new Date(now.getTime() - JUDGE_QUOTA.readingMaxAgeMs).toISOString();
+  const [row] = (await db.execute(sql`
+    select exists (
+      select 1 from payout_batches pb
+       where pb.workspace_id = ${workspaceId}
+         and (${c21Counts(now)}
+              or pb.submitted_at >= ${spendFrom}::timestamptz
+              or pb.id::text in (
+                   select m.summary->>'batchId' from reconciliation_reports m
+                    where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_posted'
+                      and m.window_end >= ${spendFrom}::timestamptz))) as counted`)) as unknown as {
+    counted: boolean;
   }[];
-  return asInt(row?.n);
+  return row?.counted === true;
 }
 
 /** Writes one settlement of a reservation in the judge quota ledger (inside the caller's quota-locked transaction). */
