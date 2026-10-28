@@ -11,8 +11,10 @@ import { createTestApp, setWorkspaceExpiry, type TestApp, type TestAppOptions } 
 import { beginLiveStep, ELSEWHERE_RETRY_MS, NO_JUDGE_QUOTA } from "./live-step.js";
 import {
   estimateBalance,
+  holdsLivePost,
   JUDGE_QUOTA,
   judgeRail,
+  liveBatchesInLast24h,
   quotaFacts,
   recordBalanceReading,
   reserveLivePost,
@@ -76,13 +78,60 @@ async function reading(cents: number, asOf: Date = t.clock.now()): Promise<void>
 
 async function reserve(
   deps: AppDeps,
-  o: { workspaceId?: string; runId?: string; amountCents?: number } = {},
+  o: { workspaceId?: string; runId?: string; amountCents?: number; resume?: boolean } = {},
 ) {
   return reserveLivePost(deps, {
     workspaceId: o.workspaceId ?? (await judgeWorkspace()),
     sessionId: null,
     runId: o.runId ?? randomUUID(),
     amountCents: o.amountCents ?? BATCH,
+    ...(o.resume ? { resume: true } : {}),
+  });
+}
+
+/** Other judges' live posts fill the rolling 24 h (two hours ago: this clock hour's cap is not what binds). */
+async function fillTheDay(): Promise<void> {
+  const at = new Date(t.clock.nowMs() - 2 * 3_600_000);
+  for (let i = 0; i < JUDGE_QUOTA.dailyMax; i++) {
+    await t.deps.db.insert(schema.reconciliationReports).values({
+      kind: "balance",
+      windowEnd: at,
+      summary: {
+        v: 1,
+        entry: "judge_post",
+        runId: randomUUID(),
+        workspaceId: randomUUID(),
+        sessionId: null,
+        coded: true,
+        amountCents: 100,
+        rail: "sandbox",
+      },
+    });
+  }
+}
+
+/** A live batch row written at `at` (C-21 counts every one on its rail, in every workspace). */
+async function liveBatch(o: {
+  workspaceId: string;
+  runId: string;
+  at: Date;
+  status?: "SUBMITTED" | "SUCCESS";
+}): Promise<void> {
+  const owner = t.pg?.owner.db;
+  if (!owner) throw new Error("no database");
+  await owner.insert(schema.payoutBatches).values({
+    workspaceId: o.workspaceId,
+    runId: o.runId,
+    senderBatchId: `2026A-c21-${randomUUID()}`,
+    requestId: "a".repeat(64),
+    batchSha256: "b".repeat(64),
+    kind: "primary",
+    status: o.status ?? "SUCCESS",
+    itemCount: 8,
+    totalCents: BigInt(BATCH),
+    currency: "USD",
+    provenance: "live",
+    submittedAt: o.at,
   });
 }
 
@@ -147,6 +196,76 @@ describe("the binding decision (reserveLivePost)", () => {
       cents: ONE_MILLION - 2 * BATCH,
     });
     expect(first.reservation?.amountCents).toBe(BATCH);
+  });
+});
+
+describe("a held slot ages out with the count (the rolling 24 h)", () => {
+  it("inv.quota.held-ttl: a run's slot carries its post only while it is counted; 25 h on, the post needs a new one", async () => {
+    await open();
+    await reading(ONE_MILLION);
+    const ws = await judgeWorkspace();
+    const runX = randomUUID();
+    const first = await reserve(t.deps, { workspaceId: ws, runId: runX });
+    expect(first.reservation).not.toBeNull();
+    // 22 h on, the slot is still in the trailing 24 h: the resumed post goes live under it, past a full day
+    t.clock.advance(22 * 3_600_000);
+    await fillTheDay();
+    expect(await holdsLivePost(t.deps.db, runX, t.clock.now())).toBe(true);
+    const held = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
+    expect(held.decision.mode).toBe("live");
+    expect(held.reservation?.id).toBe(first.reservation?.id);
+    // 25 h after it was taken it is in no count any more: no slot is held, and the full day leaves none to take
+    t.clock.advance(3 * 3_600_000);
+    await reading(ONE_MILLION);
+    expect(await holdsLivePost(t.deps.db, runX, t.clock.now())).toBe(false);
+    const full = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
+    expect(full).toMatchObject({ decision: { mode: "replay", reason: "daily_cap" }, reservation: null });
+    // the others age out too: the post takes a NEW slot, counted from now
+    t.clock.advance(23 * 3_600_000);
+    const fresh = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
+    expect(fresh.decision.mode).toBe("live");
+    expect(fresh.reservation).not.toBeNull();
+    expect(fresh.reservation?.id).not.toBe(first.reservation?.id);
+    expect(fresh.reservation?.reservedAt).toEqual(t.clock.now());
+    expect(fresh.decision.quota.used24h).toBe(1);
+    expect((await facts()).posts24h).toBe(1);
+    // and that one is the slot the run holds from now on
+    const again = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
+    expect(again.reservation?.id).toBe(fresh.reservation?.id);
+  });
+
+  it("C-21 counts a written batch from its run's newest live slot too, and a late resume answers to it", async () => {
+    await open();
+    await reading(ONE_MILLION);
+    const judge = await t.fixture({ kind: "judge", withRun: true });
+    const runId = judge.runId as string;
+    const r = await reserve(t.deps, { workspaceId: judge.workspaceId, runId });
+    expect(r.reservation).not.toBeNull();
+    await liveBatch({ workspaceId: judge.workspaceId, runId, at: t.clock.now(), status: "SUBMITTED" });
+    expect(await liveBatchesInLast24h(t.deps.db, "live", t.clock.now())).toBe(1);
+    // the post stalls for 25 h: its write is out of C-21's window
+    t.clock.advance(25 * 3_600_000);
+    await reading(ONE_MILLION);
+    expect(await liveBatchesInLast24h(t.deps.db, "live", t.clock.now())).toBe(0);
+    // a co-op's own workspace posts C-21's 40 meanwhile (the judge quota counts judge posts only)
+    const coop = await t.fixture({ kind: "real", withRun: true });
+    const twoHoursAgo = new Date(t.clock.nowMs() - 2 * 3_600_000);
+    for (let i = 0; i < JUDGE_QUOTA.dailyMax; i++) {
+      await liveBatch({ workspaceId: coop.workspaceId, runId: coop.runId as string, at: twoHoursAgo });
+    }
+    expect(await liveBatchesInLast24h(t.deps.db, "live", t.clock.now())).toBe(JUDGE_QUOTA.dailyMax);
+    expect((await facts()).posts24h).toBe(0);
+    // the service checks C-21 only at the first write: the resumed post takes no slot over it
+    const over = await reserve(t.deps, { workspaceId: judge.workspaceId, runId, resume: true });
+    expect(over).toMatchObject({ decision: { mode: "replay", reason: "daily_cap" }, reservation: null });
+    // a day on, the co-op's batches are out of the window: a new slot, and C-21 counts the batch from it
+    t.clock.advance(23 * 3_600_000);
+    const late = await reserve(t.deps, { workspaceId: judge.workspaceId, runId, resume: true });
+    expect(late.reservation).not.toBeNull();
+    expect(late.reservation?.id).not.toBe(r.reservation?.id);
+    expect(await liveBatchesInLast24h(t.deps.db, "live", t.clock.now())).toBe(1);
+    // a fresh post is decided as before (C-21 is the service's, at its first write)
+    expect((await reserve(t.deps, { workspaceId: judge.workspaceId })).reservation).not.toBeNull();
   });
 });
 
