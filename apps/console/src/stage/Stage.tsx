@@ -134,12 +134,6 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     [view, inSession, season, recordedOn, byHandSlip, payouts, openHold],
   );
 
-  // A moment, a step or a frame raises the phone beside the screen: the console stays lit, so the moment reads
-  // on both screens at once. Only the viewer's own raise lays the scrim over the console.
-  const raisePhone = useCallback((p: FramePersona) => {
-    setPersona(p);
-    setRaisedBy("moment");
-  }, []);
   // The viewer's own raise (1024-1679 px) lays a scrim over the console: the console goes inert under it, focus
   // moves into the phone, and lowering hands focus back to whatever raised it.
   const raiseOpener = useRef<HTMLElement | null>(null);
@@ -152,6 +146,20 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     }
     setRaisedBy("user");
   }, []);
+  // A moment, a step or a frame raises the phone beside the screen: the console stays lit, so the moment reads
+  // on both screens at once. Below 1280 px there is no room beside it (the screen would be 488 px: the approve
+  // column ran under the phone, the fan's labels overlapped), so the phone rises over the scrim, as S1.6's table
+  // has it for that width.
+  const roomBeside = useRef(!layout.railCollapsed);
+  roomBeside.current = !layout.railCollapsed;
+  const raisePhone = useCallback(
+    (p: FramePersona) => {
+      setPersona(p);
+      if (roomBeside.current) setRaisedBy("moment");
+      else raiseByViewer();
+    },
+    [raiseByViewer],
+  );
   const lowerPhone = useCallback(() => {
     const opener = raisedByRef.current === "user" ? raiseOpener.current : null;
     raiseOpener.current = null;

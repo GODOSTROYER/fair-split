@@ -213,6 +213,25 @@ describe("Judge stage", () => {
     expect(screen.getByTestId("W-JG-01.poster.chair")).toBeTruthy();
   });
 
+  it("below 1280 px a moment's raise takes the phone over a scrim: no room to squeeze the screen beside it", async () => {
+    // At 1024 px the squeeze left the screen 488 px: the approve column ran under the phone and the fan's labels
+    // overlapped. Below 1280 px the moment raises the phone the way S1.6's table has it, over the scrim.
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("true"),
+    );
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
+    expect(screen.getByTestId("W-JG-01.phoneBackdrop")).toBeTruthy();
+    expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(true);
+  });
+
   it("docks the phone under a scrim from 1680 px, and the scrim hands it focus", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1920, height: 1080 } });
     expect(screen.getByTestId("W-JG-01.stage").dataset.layout).toBe("dock");

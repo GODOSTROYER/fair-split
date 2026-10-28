@@ -739,8 +739,11 @@
   pointer-events: none;
 }
 
-.fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-console__screen {
-  padding-right: calc(var(--fsc-phone-panel) + 48px);
+/* Room beside the phone exists from 1280 px only; below it a moment raises the phone over the scrim (Stage.tsx). */
+@media (min-width: 1280px) {
+  .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-console__screen {
+    padding-right: calc(var(--fsc-phone-panel) + 48px);
+  }
 }
 
 .fsc-dock__backdrop {
