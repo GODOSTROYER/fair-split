@@ -43,9 +43,6 @@ export function boxFor(field: SlipFieldName): SlipBox | undefined {
   return SLIP_BOXES.find((b) => b.field === field);
 }
 
-/** The line the reading band rests on while a slip is read: its net kilos (MM-2 "band"). */
-export const BAND_FIELD: SlipFieldName = "net_kg";
-
 /** Cap height of Jessie's writing inside a box, and where her line starts. */
 export const HAND_SIZE = 11;
 export const HAND_INSET = { x: 5, y: 14 } as const;

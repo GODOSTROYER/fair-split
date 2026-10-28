@@ -15,10 +15,10 @@ import {
   seedSnapshot,
   tracedPhases,
 } from "../../test/index.js";
+import { illegibleRows, rowEvents, zoomAgreedRow } from "../../test/reading-fixtures.js";
 import { renderSeason, rowsFor, type SeasonRender } from "../../test/season.js";
 import { REPLAY_GAP_MS, replayTiming } from "./replay.js";
 import { replayRows } from "./replay-fixture.js";
-import { illegibleRows, rowEvents, zoomAgreedRow } from "./state-fixtures.js";
 
 // These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
 // wait longer than the kit's defaults rather than fail on load.

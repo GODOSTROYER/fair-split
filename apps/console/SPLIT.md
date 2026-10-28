@@ -74,7 +74,7 @@ Navigate with `webRoutes.*` and `<AppLink href>` (a real anchor) or TanStack's `
 | `useJudgeSession()`                                 | `{ status, session, error, start(), reset(), dismissError() }`                                                                                                          |
 | `usePaypalRail()`                                   | `"simulator"` or `"sandbox"`: label every PayPal value with it (I8)                                                                                                     |
 | `useDescribeContext()`, `describeEvent(event, ctx)` | Run-log rows in three lanes (W-TR-08's log, the ribbon)                                                                                                                 |
-| `run-view.ts` selectors                             | `openHolds`, `blockingHolds`, `holdCards`, `byHandHolds`, `itemCounts`, `atLeast`, `runStrip`, `checkpointFor`, `livePresence`, `lineAmountState`, `invoiceAmountState` |
+| `run-view.ts` selectors                             | `openHolds`, `blockingHolds`, `holdCards`, `byHandHolds`, `itemCounts`, `atLeast`, `runStrip`, `livePresence`, `lineAmountState`, `invoiceAmountState` |
 | `errors.ts`                                         | `CommandError<N>`, `errorView(e)`, `isApiClientError(e, ...codes)`, `asRateCardRatified(e)` (below)                                                                     |
 | `useAdapter().api`, `adapter.pending`               | The typed client, and the routes API_COMMANDS lacks (below)                                                                                                             |
 - **Failures** (`errors.ts`): `CommandError<N>` is api-client's `ApiClientError` (`.code` narrowed to the codes

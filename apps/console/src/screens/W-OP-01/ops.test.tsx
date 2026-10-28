@@ -12,6 +12,16 @@ import { HttpResponse, http, type JsonBodyType } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DataProvider } from "../../data/provider.js";
 import { KeyPanel } from "../../features/ops/OpsPage.js";
+import { SECTION_PATHS } from "../../features/ops/sections.js";
+import { useTreasurerKey } from "../../features/ops/useOps.js";
+import { memoryKeyStore, TREASURER_KEY_ID } from "../../lib/keystore.js";
+import {
+  createTestRuntime,
+  createTestWorld,
+  expectNoAxeViolations,
+  renderConsole,
+  type TestWorld,
+} from "../../test/index.js";
 import {
   SAMPLE_BALANCE,
   SAMPLE_CLAUDE,
@@ -23,17 +33,7 @@ import {
   SAMPLE_RECONCILIATION,
   SAMPLE_SCOPES,
   SAMPLE_SESSION,
-} from "../../features/ops/sections.fixtures.js";
-import { SECTION_PATHS } from "../../features/ops/sections.js";
-import { useTreasurerKey } from "../../features/ops/useOps.js";
-import { memoryKeyStore, TREASURER_KEY_ID } from "../../lib/keystore.js";
-import {
-  createTestRuntime,
-  createTestWorld,
-  expectNoAxeViolations,
-  renderConsole,
-  type TestWorld,
-} from "../../test/index.js";
+} from "../../test/ops-fixtures.js";
 import { gate, withHandlers } from "../../test/proof-world.js";
 
 /** Every S3.15 read beyond health, with the route its "not served yet" names. */

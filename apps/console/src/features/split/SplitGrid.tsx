@@ -16,6 +16,7 @@ import { AgGridReact } from "ag-grid-react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "../../lib/format.js";
 import { useShortcut } from "../../lib/shortcuts.js";
+import { NARROW_GRID_PX } from "../../stage/layout.js";
 import { GRID_DEFAULTS, GRID_HEADER_PX, GRID_ROW_PX, gridTheme } from "../../theme/grid.js";
 import {
   BonusCell,
@@ -51,7 +52,6 @@ export type GridColumn =
 
 /** S1.6: five columns when the container is under 1,180 px. */
 export const NARROW_COLUMNS: readonly GridColumn[] = ["member", "kg", "kaltas", "net", "status"];
-export const NARROW_BELOW_PX = 1180;
 /** Beside an open drawer (a 560 px drawer pushes the grid under 760 px): Status keeps its words whole. */
 export const SLIM_COLUMNS: readonly GridColumn[] = ["member", "kg", "net", "status"];
 export const SLIM_BELOW_PX = 760;
@@ -78,7 +78,7 @@ export interface SplitGridProps {
 export function columnSetFor(width: number, showAll: boolean): ColumnSet {
   if (showAll) return "all";
   if (width > 0 && width < SLIM_BELOW_PX) return "slim";
-  if (width > 0 && width < NARROW_BELOW_PX) return "narrow";
+  if (width > 0 && width < NARROW_GRID_PX) return "narrow";
   return "default";
 }
 

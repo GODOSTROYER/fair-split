@@ -7,6 +7,7 @@ import { MOMENTS, TIMELINES } from "@fairsplit/motion";
 import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import { applyRunEvents, firstView, sessionView } from "../../data/run-view.js";
+import { illegibleRows, zoomAgreedRow } from "../../test/reading-fixtures.js";
 import { flightKeyframes, flightPath, LIFT_SCALE, maxFlights, ROW_AT } from "./mm2.js";
 import {
   benchPhoto,
@@ -25,7 +26,6 @@ import {
 } from "./model.js";
 import { recordedEvents, replayView } from "./replay.js";
 import { extractRowEvent, quarantineEvent, replayRows } from "./replay-fixture.js";
-import { illegibleRows, zoomAgreedRow } from "./state-fixtures.js";
 
 const snapshot = getSnapshot();
 const session = sessionView(snapshot, { runSlug: snapshot.run.runSlug, runId: snapshot.run.id });

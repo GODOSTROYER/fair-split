@@ -245,6 +245,3 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
     </>
   );
 }
-
-/** Exposed for tests that step the cursor's travel. */
-export const CURSOR_TRAVEL_MS = Math.round(SPRINGS.glide.settleMs);

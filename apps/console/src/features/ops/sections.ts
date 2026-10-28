@@ -27,8 +27,6 @@ export const SECTION_PATHS = {
   quotas: "/v1/ops/quotas",
 } as const;
 
-export type SectionRead = Exclude<keyof typeof SECTION_PATHS, "session" | "keys">;
-
 /** One row of a section's table: what, its value in words, a tone, and why. */
 export interface OpsRow {
   readonly key: string;

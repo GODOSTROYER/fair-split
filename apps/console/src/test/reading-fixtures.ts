@@ -7,7 +7,12 @@
 //   `blurred`: photo E with every field of all four slips illegible (score 0, no value).
 
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
-import { type EventStamp, extractRowEvent, type ReplayRow, replayRows } from "./replay-fixture.js";
+import {
+  type EventStamp,
+  extractRowEvent,
+  type ReplayRow,
+  replayRows,
+} from "../features/reading/replay-fixture.js";
 
 type Fields = ReplayRow["payload"]["fields"];
 

@@ -561,15 +561,6 @@ export function atLeast(view: RunView, state: PayRunState): boolean {
   return PAY_RUN_RANK[view.state] < 99 && PAY_RUN_RANK[view.state] >= PAY_RUN_RANK[state];
 }
 
-/** Which engine checkpoint in the snapshot matches what the run has resolved so far. */
-export function checkpointFor(view: RunView): "read" | "byHand" | "resolved" {
-  const holds = Object.values(view.holds);
-  if (holds.length === 0) return view.origin === "showcase" ? "resolved" : "read";
-  const open = openHolds(view);
-  if (open.length === 0) return "resolved";
-  return byHandHolds(view).some((h) => !OPEN_HOLD_STATES.includes(h.state)) ? "byHand" : "read";
-}
-
 export type RunStripStage = "RATIFIED" | "FUNDED" | "READ" | "CHECKED" | "APPROVED" | "PAID";
 
 /** Register §7's run strip: each stage lights only when its condition holds. */

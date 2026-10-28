@@ -646,11 +646,6 @@ const TRACK = 1.15;
 /** Lower case on a slip is written as small capitals. */
 const SMALL = 0.74;
 
-/** Every character the hand can write (anything else is skipped and reported). */
-export const HAND_CHARACTERS: ReadonlySet<string> = new Set(
-  Object.keys(GLYPHS).flatMap((c) => (/[A-Z]/.test(c) ? [c, c.toLowerCase()] : [c])),
-);
-
 /** A small deterministic generator: the same slip always gets the same wobble. */
 function seeded(seed: string): () => number {
   let h = 2166136261;

@@ -381,8 +381,3 @@ export function resultLine(
       return null;
   }
 }
-
-/** The hold card's resolution kind in words for the stamp line ("Counted once", "Plot registered"). */
-export function isHoldCard(hold: RunHold): boolean {
-  return hold.kind !== "LOW_CONFIDENCE" && hold.kind !== "MASS_BALANCE";
-}

@@ -16,8 +16,6 @@ export type GetCommandName = {
   [N in CallableName]: (typeof API_COMMANDS)[N]["method"] extends "GET" ? N : never;
 }[CallableName];
 
-export type PostCommandName = Exclude<CallableName, GetCommandName>;
-
 /**
  * What a caller passes: `params` for path params, `body` (POST) or `query` (GET), and per-call `headers` or an
  * `idempotencyKey`. A body or query with no required field may be left out (`markPaid({ params })`).
@@ -104,17 +102,4 @@ export interface DataAdapter {
   /** Every refusal the client reports (the session renews its token on FRAME_TOKEN_EXPIRED). */
   onFailure(listener: (failure: ClientFailure) => void): () => void;
   readonly pending: PendingApi;
-}
-
-export function scopeKey(scope: SseScope): string {
-  switch (scope.kind) {
-    case "run":
-      return `run:${scope.runSlug}`;
-    case "workspace":
-      return `workspace:${scope.ws}`;
-    case "line":
-      return `line:${scope.lineId}`;
-    case "proof":
-      return `proof:${scope.runSlug}`;
-  }
 }

@@ -114,18 +114,7 @@ export const SCREEN_SLICE = {
   "W-OP-01": "proof",
 } as const satisfies Record<ConsoleScreenId, "season" | "runs" | "proof" | "shell">;
 
-export function screenName(id: ConsoleScreenId): string {
-  return SCREENS[id].name;
-}
-
 /** `data-testid="{screenId}.{element}"` (register §4). The screen root itself is the bare ID. */
 export function tid(screen: ConsoleScreenId, element?: string): string {
   return element === undefined ? screen : testId(screen, element);
-}
-
-export function isScreenState<S extends ConsoleScreenId>(screen: S, state: string): state is ScreenState<S> {
-  return (
-    (SCREEN_STATES[screen] as readonly string[]).includes(state) ||
-    (SHELL_STATES as readonly string[]).includes(state)
-  );
 }

@@ -13,7 +13,7 @@ import {
   SAMPLE_QUOTAS,
   SAMPLE_RECONCILIATION,
   SAMPLE_SCOPES,
-} from "./sections.fixtures.js";
+} from "../../test/ops-fixtures.js";
 import {
   BalanceRead,
   balanceRows,

@@ -2,7 +2,7 @@
 // request names, filled with plausible values. The app never imports this file; nothing here is a real reading.
 
 import type { EvalReport } from "@fairsplit/contracts";
-import type { OutboxRead } from "./opsModel.js";
+import type { OutboxRead } from "../features/ops/opsModel.js";
 import type {
   BalanceRead,
   ClaudeRead,
@@ -12,7 +12,7 @@ import type {
   QuotasRead,
   ReconciliationRead,
   ScopesRead,
-} from "./sections.js";
+} from "../features/ops/sections.js";
 
 const PP = "https://uri.paypal.com/services/";
 

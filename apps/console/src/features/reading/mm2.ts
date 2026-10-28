@@ -89,8 +89,3 @@ export function flightKeyframes(from: Box, to: Box, samples = 12): Keyframe[] {
     return { offset: t, transform: `translate(${p.x - a.x}px, ${p.y - a.y}px) scale(${s})` };
   });
 }
-
-/** Rows start at least this far apart (S1.6 stage director; motion's TIMING.rowGap). */
-export function rowStartDelay(spaced: number | undefined): number {
-  return Math.max(0, spaced ?? 0);
-}
