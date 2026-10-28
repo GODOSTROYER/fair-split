@@ -31,7 +31,8 @@
 // looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot. A run
 // counts in the public third while any of its slots in the window was taken by a session without the judge code (a
 // fresh slot that supersedes an uncoded one is uncoded too), so a public POST never frees a public place by a later
-// unlock.
+// unlock. A slot is never left open with no post behind it: a post that replays settles the slots its earlier attempts
+// took and never used `not_posted` (`releaseUnusedSlots`).
 // C-21 and the spend read the batch rows too, so the hourly purge keeps a judge workspace while either still counts
 // one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write, and the spend
 // from the latest balance reading on the batch's rail, whatever its age (the service's floor guard reads that one).
@@ -971,6 +972,29 @@ async function writtenLiveBatch(db: DbOrTx, runId: string): Promise<{ status: st
      where pb.run_id = ${runId} and pb.kind = 'primary' and pb.provenance <> 'replay'
      limit 1`)) as unknown as { status: string }[];
   return rows[0] ?? null;
+}
+
+/**
+ * A post that replays never goes live (its run replays to the end, or the quotas decided it): every slot an earlier
+ * attempt of it took and never used (open, and nothing written live: the attempt threw before its write) is settled
+ * `not_posted`, so no slot with no post behind it weighs on the judge counts or the spend. Under the quota lock, and
+ * nothing is settled once rows are written live (they wait to be posted with the same ids). Returns how many.
+ */
+export async function releaseUnusedSlots(
+  deps: Pick<AppDeps, "db" | "clock">,
+  runId: string,
+): Promise<number> {
+  // most replayed posts never took a slot: no lock for them
+  if (!(await readReservations(deps.db, { runId })).some((r) => r.outcome === null)) return 0;
+  return deps.db.transaction(async (tx) => {
+    await lockQuota(tx);
+    if (await writtenLiveBatch(tx, runId)) return 0;
+    const open = (await readReservations(tx, { runId })).filter((r) => r.outcome === null);
+    for (const r of open) {
+      await writeSettlement(tx, deps.clock.now(), { reservationId: r.id, runId, outcome: "not_posted" });
+    }
+    return open.length;
+  });
 }
 
 /**

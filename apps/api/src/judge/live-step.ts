@@ -26,6 +26,8 @@
 // under a FRESH slot dated now that every quota still allows with its own run left out (same ids; the floor after its
 // batch and C-21's 40 a day too; the older slot superseded), and otherwise it WAITS (`queued`, `waitingFor` the
 // reason, re-queued by the caller): a switch (kill_payouts too), the simulator, the circuit, a full lane or a quota.
+// A post's peek leaves its own run out, as the binding decision does: a slot an earlier attempt of it took (and left
+// open, nothing written) is its own place, never a reason to replay it.
 // Outside judge workspaces (showcase, real) nothing here applies: the step is live, with no lane and no
 // quota, and the run slice's own guards (kill switch, limiter, circuit) stand.
 import type { BatchOutcome } from "@fairsplit/paypal-payouts";
@@ -226,14 +228,16 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
     };
   };
 
-  // 1. a fresh peek: what replays now never waits in the queue. A resumed post peeks with its own run left out (its
-  //    fresh slot would replace its earlier one) and waits out kill_payouts; it is past the quotas only while its run
-  //    holds a slot that still carries its POST (the binding decision below re-reads all of it under the quota lock).
+  // 1. a fresh peek: what replays now never waits in the queue. A post peeks with its own run left out, as the binding
+  //    decision counts it (a slot an earlier attempt took is its own place; a resume's fresh slot would replace it). A
+  //    resumed post also waits out kill_payouts; it is past the quotas only while its run holds a slot that still
+  //    carries its POST (the binding decision below re-reads all of it under the quota lock).
   const peek = await judgeRail(deps, {
     workspaceId: o.workspaceId,
     sessionId,
     step: o.step,
-    ...(o.resume ? { excludeRunId: o.runId as string, resume: true } : {}),
+    ...(o.step === "post" ? { excludeRunId: o.runId as string } : {}),
+    ...(o.resume ? { resume: true } : {}),
   });
   if (peek.mode === "replay") {
     if (!o.resume) return { kind: "replay", decision: peek };

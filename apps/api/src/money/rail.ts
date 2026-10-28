@@ -25,7 +25,9 @@
 //
 // Over quota is always a labelled replay, never a block: the rules require access "without any restriction".
 // A replay never reaches PayPal, so it spends nothing: the replay rail's batches carry provenance `replay` and are
-// counted neither as live posts (judge/quota.ts) nor by C-21's 40-a-day ceiling (money/payouts.ts).
+// counted neither as live posts (judge/quota.ts) nor by C-21's 40-a-day ceiling (money/payouts.ts). A post that
+// replays settles `not_posted` a slot an earlier attempt of it took and never used (judge/quota.ts
+// `releaseUnusedSlots`).
 //
 // I8, both ways, for two executors of one run's post (a lost outbox heartbeat) that decide differently:
 //   - live rows are never replayed: `replayStep` re-reads the run's rows in the transaction that writes the post's
@@ -56,6 +58,7 @@ import {
   REPLAY_COPY,
   REPLAY_REASONS,
   type ReplayReason,
+  releaseUnusedSlots,
   replayDecision,
   resumeWaitMs,
 } from "../judge/index.js";
@@ -346,7 +349,9 @@ async function recordReplayed(
  * Runs one judge step of a run on the replay rail (see the header), deciding `decision` (a replay). I8, check then
  * act: a post whose rows another executor of the run wrote live since they were read is never replayed; the rows are
  * re-read under the workspace lock in the transaction that writes the label (`recordReplayed`), so the post waits
- * instead (`queued`: its next attempt resumes them live), and nothing is labelled.
+ * instead (`queued`: its next attempt resumes them live), and nothing is labelled. A post that replays frees the slots
+ * its earlier attempts took and never used (judge/quota.ts `releaseUnusedSlots`), after its label is written (no live
+ * write can follow it).
  */
 export async function replayStep(
   deps: AppDeps,
@@ -366,6 +371,7 @@ export async function replayStep(
           source,
         );
   if (!labelled) return { kind: "queued", retryAfterMs: ELSEWHERE_RETRY_MS, position: null };
+  if (o.step === "post") await releaseUnusedSlots(deps, o.runId);
   return { kind: "replay", deps: replay, decision };
 }
 

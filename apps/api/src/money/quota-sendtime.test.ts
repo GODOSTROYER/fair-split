@@ -13,7 +13,9 @@
 //   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again;
 //   - I8 both ways: the replay rail never marks rows written live as posted, and a live executor never POSTs rows
 //     written as a replay (refused at its read, before any POST); a post's replay label and a live write of its rows
-//     exclude each other (one workspace lock), so a run is never labelled replayed beside a live post.
+//     exclude each other (one workspace lock), so a run is never labelled replayed beside a live post;
+//   - a slot is never left open with no post behind it: a fresh post that took one and failed before its write keeps
+//     its place on the retry (its own slot left out of the peek), or frees it when the run replays after all.
 // Each scenario has its own app, so its own judge quota ledger.
 import { randomBytes, randomUUID } from "node:crypto";
 import { appendLedger, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
@@ -684,6 +686,11 @@ describe("I8: the replay label first, then a live executor's write: the write is
       replays: true,
       reason: "hourly_cap",
     });
+    // A's slot carried nothing: settled not_posted when the run replayed, so it is in no count
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post_settled", "not_posted"],
+    ]);
   });
 });
 
@@ -744,5 +751,70 @@ describe("I8: rows written live first, then a replay decided on a stale read: ne
     expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toMatchObject({
       replays: false,
     });
+  });
+});
+
+describe("a fresh post that took its slot and failed before its write keeps its place (the day's 40th)", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    await others(h, JUDGE_QUOTA.dailyMax - 1, new Date(T0 - H));
+    // the attempt takes the 40th slot, then throws before anything is written (the spend lock's wait, say)
+    const first = await railForStep(h.t.deps, postStep(h));
+    if (first.kind !== "live") throw new Error(`the first attempt should go live, got ${first.kind}`);
+    await first.end(null);
+    expect(await batchOf(h)).toBeUndefined();
+  });
+  afterAll(async () => h?.close());
+
+  it("its retry leaves its own open slot out of the peek: it posts live, the old slot superseded", async () => {
+    h.t.clock.advance(5 * MIN);
+    // another judge sees the full day, the run's open slot included
+    expect(await peek(h)).toMatchObject({ mode: "replay", reason: "daily_cap", quota: { used24h: 40 } });
+    await runQueued(h, "postPayoutBatch");
+    expect(sent).toHaveLength(1);
+    expect(await runState(h)).toBe("POSTED");
+    expect(await batchOf(h)).toMatchObject({ provenance: "live" });
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post", null],
+      ["judge_post_settled", "superseded"],
+      ["judge_post_settled", "posted"],
+    ]);
+    expect((await peek(h)).quota.used24h).toBe(40);
+  });
+});
+
+describe("a fresh post that replays after all frees the slot an earlier attempt took and never used", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    const first = await railForStep(h.t.deps, postStep(h));
+    if (first.kind !== "live") throw new Error(`the first attempt should go live, got ${first.kind}`);
+    await first.end(null);
+    // the day fills without it (before the reading, so the spend is the run's own slot alone)
+    await others(h, JUDGE_QUOTA.dailyMax, new Date(T0 - H));
+  });
+  afterAll(async () => h?.close());
+
+  it("the post replays; its unused slot is settled not_posted: in no count and no spend", async () => {
+    h.t.clock.advance(5 * MIN);
+    await runQueued(h, "postPayoutBatch");
+    expect(sent).toHaveLength(0);
+    expect(await batchOf(h)).toMatchObject({ provenance: "replay" });
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post_settled", "not_posted"],
+    ]);
+    expect((await peek(h)).quota.used24h).toBe(40);
+    expect((await estimateBalance(h.t.deps.db, "sandbox", h.t.clock.now())).spentCents).toBe(0);
   });
 });

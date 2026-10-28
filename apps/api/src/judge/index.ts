@@ -72,6 +72,7 @@ export {
   type ReplayReason,
   type ResumedSendCount,
   recordBalanceReading,
+  releaseUnusedSlots,
   replayDecision,
   reserveLivePost,
   settleLivePost,
