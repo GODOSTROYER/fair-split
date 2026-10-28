@@ -12,7 +12,7 @@ import { API_COMMANDS, type Role } from "@fairsplit/contracts";
 import { type Db, schema } from "@fairsplit/db";
 import { and, eq } from "drizzle-orm";
 import type { Credential } from "../credentials/verify/index.js";
-import { clientIp, hashedClientIp } from "../lib/client-ip.js";
+import { clientIpKey } from "../lib/client-ip.js";
 import { commandSpec, type Mounter, toHonoPath } from "../lib/command.js";
 import type { AppContext } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
@@ -49,7 +49,7 @@ export function capsFor(cred: Credential, limits: Readonly<SseLimits>): { key: s
 /** Caps for an anonymous public stream: 3 per hashed IP. */
 export function publicCaps(c: AppContext): { key: string; limit: number }[] {
   const deps = c.get("deps");
-  const ip = hashedClientIp(deps.credentials.keys, clientIp(c.req.raw.headers), deps.clock.now());
+  const ip = clientIpKey(c);
   return [{ key: `ip:${ip}`, limit: deps.sse.limits.publicPerIp }];
 }
 

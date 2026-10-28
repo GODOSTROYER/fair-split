@@ -37,7 +37,7 @@ async function session(): Promise<Session> {
   const r = await t.json<Session>("/v1/judge/sessions", {
     method: "POST",
     body: {},
-    headers: { "true-client-ip": `198.18.0.${ipSeq}` },
+    headers: { "cf-connecting-ip": `198.18.0.${ipSeq}` },
   });
   expect(r.status).toBe(201);
   const cookie = /fs_js=([^;]+)/.exec(r.headers.get("set-cookie") ?? "")?.[1] ?? "";

@@ -31,6 +31,9 @@ export const TEST_ENV: Readonly<Record<string, string>> = {
   PUBLIC_ORIGIN: "http://localhost:8787",
   FS_COOKIE_SECRET: "test-cookie-secret-0123456789abcdef-not-a-real-secret",
   FS_LINK_SIGNING_KEY: "1f".repeat(32),
+  // As deployed (Cloudflare's edge in front of Render's proxy): a test names a client's network with the edge's
+  // CF-Connecting-IP header, or with the rightmost X-Forwarded-For entry (the hop Render's proxy appends).
+  FS_TRUSTED_EDGE: "render",
 };
 
 function noDatabase<T>(what: string): T {

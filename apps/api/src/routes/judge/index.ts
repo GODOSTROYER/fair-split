@@ -33,7 +33,7 @@ import {
   workspaceRow,
 } from "../../judge/session.js";
 import { armChangePayout, tamperArmed, tamperDraft } from "../../judge/tamper.js";
-import { clientIp, hashedClientIp } from "../../lib/client-ip.js";
+import { clientIpKey } from "../../lib/client-ip.js";
 import { reply } from "../../lib/command.js";
 import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
@@ -118,7 +118,7 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         const deps = ctx.deps;
-        const ip = hashedClientIp(deps.credentials.keys, clientIp(ctx.c.req.raw.headers), ctx.now());
+        const ip = clientIpKey(ctx.c);
         const limit = deps.rateLimits.take(JUDGE_RATE_RULES.publicLane, ip);
         if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
         const cookie = readJudgeCookie(ctx.c, deps);
@@ -191,7 +191,7 @@ export default defineRouteFolder({
         if (cred.kind !== "judge_session")
           throw problem.forbidden("Enter the judge code on the judge stage.");
         const deps = ctx.deps;
-        const ip = hashedClientIp(deps.credentials.keys, clientIp(ctx.c.req.raw.headers), ctx.now());
+        const ip = clientIpKey(ctx.c);
         const limit = deps.rateLimits.take(JUDGE_RATE_RULES.judgeCodePerIp, ip);
         if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
         const want = deps.env.secrets.judgeCodeSha256;

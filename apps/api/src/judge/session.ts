@@ -17,7 +17,7 @@ import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { readJudgeCookie, setJudgeCookie } from "../credentials/issue/judge-cookie.js";
 import { CONSOLE_PERSONA, mintBearerToken, revokeWorkspaceTokens } from "../credentials/issue/tokens.js";
 import type { JudgeSessionCredential } from "../credentials/verify/index.js";
-import { clientIp, hashedClientIp } from "../lib/client-ip.js";
+import { clientIpKey } from "../lib/client-ip.js";
 import type { AppContext, AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { RATE_RULES } from "../lib/rate-limit.js";
@@ -136,7 +136,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
       "Three new sessions an hour per browser. Resume yours.",
     );
   }
-  const ip = hashedClientIp(deps.credentials.keys, clientIp(c.req.raw.headers), now);
+  const ip = clientIpKey(c);
   const perIp = deps.rateLimits.take(RATE_RULES.judgeSessionPerIp, ip);
   if (!perIp.ok) throw problem.rateLimited(perIp.retryAfterMs, "Too many new sessions from this network.");
 

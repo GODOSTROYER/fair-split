@@ -61,9 +61,9 @@ import {
   RevokeLinkResponse,
 } from "../../judge/schemas.js";
 import { requireOwnSession, type WorkspaceRow, workspaceAlive, workspaceRow } from "../../judge/session.js";
-import { clientIp, hashedClientIp } from "../../lib/client-ip.js";
+import { clientIpKey } from "../../lib/client-ip.js";
 import { reply } from "../../lib/command.js";
-import type { AppContext, AppDeps } from "../../lib/context.js";
+import type { AppDeps } from "../../lib/context.js";
 import { ApiProblem, problem } from "../../lib/problem.js";
 import { RATE_RULES } from "../../lib/rate-limit.js";
 import { defineRouteFolder } from "../../lib/slice.js";
@@ -77,10 +77,6 @@ function personaProblem(r: Extract<PersonaResult, { ok: false }>): ApiProblem {
 
 function pairingInvalid(message = "This pairing was used or has expired. Make a new one."): ApiProblem {
   return new ApiProblem("PAIRING_TOKEN_INVALID", message);
-}
-
-function ipOf(c: AppContext, deps: AppDeps): string {
-  return hashedClientIp(deps.credentials.keys, clientIp(c.req.raw.headers), deps.clock.now());
 }
 
 function credentialKey(cred: Credential): string {
@@ -178,7 +174,7 @@ export default defineRouteFolder({
       refuseReplayOfSecret(ctx.header);
       const { deps, input } = ctx;
       const now = ctx.now();
-      const perIp = deps.rateLimits.take(RATE_RULES.pairingClaim, ipOf(ctx.c, deps));
+      const perIp = deps.rateLimits.take(RATE_RULES.pairingClaim, clientIpKey(ctx.c));
       if (!perIp.ok)
         throw problem.rateLimited(perIp.retryAfterMs, "Too many pairing attempts. Wait a minute.");
       if ("code6" in input) {
@@ -306,7 +302,7 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         const deps = ctx.deps;
-        const perIp = deps.rateLimits.take(JUDGE_RATE_RULES.opsLoginPerIp, ipOf(ctx.c, deps));
+        const perIp = deps.rateLimits.take(JUDGE_RATE_RULES.opsLoginPerIp, clientIpKey(ctx.c));
         if (!perIp.ok)
           throw problem.rateLimited(perIp.retryAfterMs, "Too many sign-in attempts. Wait a minute.");
         const global = deps.rateLimits.take(JUDGE_RATE_RULES.opsLoginGlobal, "all");

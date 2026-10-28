@@ -1,7 +1,7 @@
 // Request-level limits of the PROOF slice (in-process, like the shell's RATE_RULES; never PayPal's budget).
 // Anonymous Proof reads build and sign a whole bundle, so each hashed IP gets a generous but finite budget; a
 // member's re-check requests are bounded per line so nobody can flood the ledger with them.
-import { clientIp, hashedClientIp } from "../lib/client-ip.js";
+import { clientIpKey } from "../lib/client-ip.js";
 import type { AppContext, AppDeps } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
 import type { RateRule } from "../lib/rate-limit.js";
@@ -16,7 +16,7 @@ export const PROOF_RATE_RULES = {
 /** Takes one public-read slot for the caller's hashed IP, or throws 429 RATE_LIMITED with Retry-After. */
 export function takePublicRead(c: AppContext): void {
   const deps = c.get("deps");
-  const ip = hashedClientIp(deps.credentials.keys, clientIp(c.req.raw.headers), deps.clock.now());
+  const ip = clientIpKey(c);
   const d = deps.rateLimits.take(PROOF_RATE_RULES.publicRead, ip);
   if (!d.ok)
     throw problem.rateLimited(d.retryAfterMs, "Too many Proof requests from here. Try again shortly.");

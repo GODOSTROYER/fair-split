@@ -43,7 +43,11 @@ export interface FairSplitApp {
   readonly registry: Registry;
   /** The OpenAPI 3.1 document (generated once, after every route is mounted). */
   openapi(): ReturnType<typeof buildOpenApiDocument>;
-  readonly fetch: (request: Request) => Response | Promise<Response>;
+  /**
+   * The request handler `serve()` calls. The Node server's bindings (`{ incoming, outgoing }`) pass through to
+   * the handlers: the socket's peer address is the client address when no trusted proxy is in front.
+   */
+  readonly fetch: (request: Request, bindings?: unknown) => Response | Promise<Response>;
 }
 
 export function createApp(o: CreateAppOptions): FairSplitApp {
@@ -92,5 +96,10 @@ export function createApp(o: CreateAppOptions): FairSplitApp {
   const dirs = o.static === undefined ? staticDirs(deps.env.static) : o.static;
   if (dirs) mountStatic(app, dirs);
 
-  return { app, registry, openapi, fetch: (req) => app.fetch(req) };
+  return {
+    app,
+    registry,
+    openapi,
+    fetch: (req, bindings) => app.fetch(req, bindings as Parameters<typeof app.fetch>[1]),
+  };
 }

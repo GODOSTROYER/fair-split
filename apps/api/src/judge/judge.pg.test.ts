@@ -58,7 +58,7 @@ function cookieFrom(setCookie: string | null): string {
 }
 
 async function startSession(o: { cookie?: string; ip?: string } = {}): Promise<Started> {
-  const headers: Record<string, string> = { "true-client-ip": o.ip ?? "203.0.113.7" };
+  const headers: Record<string, string> = { "cf-connecting-ip": o.ip ?? "203.0.113.7" };
   if (o.cookie) headers.cookie = `${JUDGE_COOKIE.name}=${o.cookie}`;
   const r = await t.json<SessionBody>("/v1/judge/sessions", { method: "POST", body: {}, headers });
   if (r.status !== 201 && r.status !== 200)
@@ -282,7 +282,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
     const r = await t.json<ApiError>("/v1/judge/sessions", {
       method: "POST",
       body: {},
-      headers: { cookie: `${JUDGE_COOKIE.name}=${s.cookie}`, "true-client-ip": "198.51.100.1" },
+      headers: { cookie: `${JUDGE_COOKIE.name}=${s.cookie}`, "cf-connecting-ip": "198.51.100.1" },
     });
     expect(r.status).toBe(429);
     expect(ApiError.parse(r.body)).toMatchObject({ code: "RATE_LIMITED" });
@@ -298,7 +298,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
     const r = await t.json<ApiError>("/v1/judge/sessions", {
       method: "POST",
       body: {},
-      headers: { "true-client-ip": "192.0.2.99" },
+      headers: { "cf-connecting-ip": "192.0.2.99" },
     });
     expect(r.status).toBe(429);
     expect(ApiError.parse(r.body).code).toBe("RATE_LIMITED");
@@ -314,7 +314,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
       const r = await t.json<ApiError>("/v1/judge/sessions", {
         method: "POST",
         body: {},
-        headers: { "true-client-ip": "203.0.113.50" },
+        headers: { "cf-connecting-ip": "203.0.113.50" },
       });
       expect(r.status).toBe(429);
       expect(ApiError.parse(r.body)).toMatchObject({
@@ -616,7 +616,7 @@ describe("the judge session view, the lane and the judge code", () => {
     const app = await createTestApp({ db: "postgres", clock: new Date() });
     try {
       type Lane = { rail: { quota: { balance: { source: string } } } };
-      const ip = { "true-client-ip": "198.51.100.77" };
+      const ip = { "cf-connecting-ip": "198.51.100.77" };
       const source = async () =>
         (await app.json<Lane>("/v1/judge/lane", { headers: ip })).body.rail.quota.balance.source;
       expect(await source()).toBe("simulator_opening");
@@ -633,7 +633,9 @@ describe("the judge session view, the lane and the judge code", () => {
       const limited = await app.json<ApiError>("/v1/judge/lane", { headers: ip });
       expect(limited.status).toBe(429);
       expect(ApiError.parse(limited.body).code).toBe("RATE_LIMITED");
-      const elsewhere = await app.json("/v1/judge/lane", { headers: { "true-client-ip": "198.51.100.78" } });
+      const elsewhere = await app.json("/v1/judge/lane", {
+        headers: { "cf-connecting-ip": "198.51.100.78" },
+      });
       expect(elsewhere.status).toBe(200);
     } finally {
       await app.close();

@@ -91,6 +91,10 @@ export function createWebhookHandler(w: WebhookWiring): PayPalWebhookHandler {
   });
 }
 
+/**
+ * The per-IP certificate-fetch budget is keyed on the address fs-api's trust rule derives for this request
+ * (src/lib/client-ip.ts), never on the delivery's own True-Client-IP or X-Forwarded-For claims.
+ */
 export function mountPayPalWebhooks(app: Hono<AppEnv>, handler: PayPalWebhookHandler): void {
-  app.post(WEBHOOK_PATH, honoPayPalWebhook(handler, { clientIp: (req) => clientIp(req.headers) }));
+  app.post(WEBHOOK_PATH, (c) => honoPayPalWebhook(handler, { clientIp: () => clientIp(c) })(c));
 }

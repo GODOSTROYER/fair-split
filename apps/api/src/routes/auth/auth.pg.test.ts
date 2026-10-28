@@ -44,7 +44,7 @@ async function session(): Promise<Session> {
   const r = await t.json<Omit<Session, "cookie">>("/v1/judge/sessions", {
     method: "POST",
     body: {},
-    headers: { "true-client-ip": `198.51.100.${ipSeq}` },
+    headers: { "cf-connecting-ip": `198.51.100.${ipSeq}` },
   });
   expect(r.status).toBe(201);
   const m = /fs_js=([^;]+)/.exec(r.headers.get("set-cookie") ?? "");
@@ -220,7 +220,7 @@ describe("POST /v1/pairing/claim (claimPairing)", () => {
         t.json("/v1/pairing/claim", {
           method: "POST",
           body: { code6: p.code6 },
-          headers: { "true-client-ip": `192.0.2.${i}` },
+          headers: { "cf-connecting-ip": `192.0.2.${i}` },
         }),
       ),
     );
@@ -265,13 +265,13 @@ describe("POST /v1/pairing/claim (claimPairing)", () => {
       await t.json("/v1/pairing/claim", {
         method: "POST",
         body: { code6: "000000" },
-        headers: { "true-client-ip": "192.0.2.77" },
+        headers: { "cf-connecting-ip": "192.0.2.77" },
       });
     }
     const r = await t.json<ApiError>("/v1/pairing/claim", {
       method: "POST",
       body: { code6: "000000" },
-      headers: { "true-client-ip": "192.0.2.77" },
+      headers: { "cf-connecting-ip": "192.0.2.77" },
     });
     expect(r.status).toBe(429);
     expect(ApiError.parse(r.body).code).toBe("RATE_LIMITED");
@@ -281,13 +281,13 @@ describe("POST /v1/pairing/claim (claimPairing)", () => {
       await t.json("/v1/pairing/claim", {
         method: "POST",
         body: { code6: String(i).padStart(6, "0") },
-        headers: { "true-client-ip": `10.0.${Math.floor(i / 9)}.${i % 9}` },
+        headers: { "cf-connecting-ip": `10.0.${Math.floor(i / 9)}.${i % 9}` },
       });
     }
     const guessed = await t.json<ApiError>("/v1/pairing/claim", {
       method: "POST",
       body: { code6: "999999" },
-      headers: { "true-client-ip": "10.9.9.9" },
+      headers: { "cf-connecting-ip": "10.9.9.9" },
     });
     expect(guessed.status).toBe(429);
     const s = await session();
@@ -295,9 +295,32 @@ describe("POST /v1/pairing/claim (claimPairing)", () => {
     const qr = await t.json("/v1/pairing/claim", {
       method: "POST",
       body: { token: p.url.split("#t=")[1] },
-      headers: { "true-client-ip": "10.9.9.10" },
+      headers: { "cf-connecting-ip": "10.9.9.10" },
     });
     expect(qr.status).toBe(200);
+  });
+
+  it("a guesser cannot buy fresh budgets: rotating True-Client-IP or the leftmost X-Forwarded-For entries is still one network", async () => {
+    // 192.0.2.88 is the hop Render's proxy appended (rightmost); everything left of it is the sender's own claim
+    const spoof = (i: number) => ({
+      "true-client-ip": `198.18.${i}.1`,
+      "x-forwarded-for": `198.19.${i}.1, 192.0.2.88`,
+    });
+    for (let i = 0; i < 10; i++) {
+      const r = await t.json("/v1/pairing/claim", {
+        method: "POST",
+        body: { code6: "000000" },
+        headers: spoof(i),
+      });
+      expect(r.status).toBe(410);
+    }
+    const r = await t.json<ApiError>("/v1/pairing/claim", {
+      method: "POST",
+      body: { code6: "000000" },
+      headers: spoof(99),
+    });
+    expect(r.status).toBe(429);
+    expect(ApiError.parse(r.body).code).toBe("RATE_LIMITED");
   });
 });
 
@@ -940,15 +963,39 @@ describe("operator sign-in cannot be locked out by guessers", () => {
         await t.json("/v1/ops/login", {
           method: "POST",
           body: { password: `guess-${n}-${i}` },
-          headers: { "true-client-ip": `203.0.113.${200 + n}` },
+          headers: { "cf-connecting-ip": `203.0.113.${200 + n}` },
         });
       }
     }
     const ok = await t.json<{ ok: boolean }>("/v1/ops/login", {
       method: "POST",
       body: { password: PASSWORD },
-      headers: { "true-client-ip": "203.0.113.250" },
+      headers: { "cf-connecting-ip": "203.0.113.250" },
     });
     expect(ok.status).toBe(200);
+  });
+});
+
+describe("operator sign-in: one network, five guesses a minute", () => {
+  it("rotating True-Client-IP or the leftmost X-Forwarded-For entries buys no sixth guess", async () => {
+    const spoof = (i: number) => ({
+      "true-client-ip": `198.18.${i}.7`,
+      "x-forwarded-for": `198.19.${i}.7, 192.0.2.99`,
+    });
+    for (let i = 0; i < 5; i++) {
+      const r = await t.json("/v1/ops/login", {
+        method: "POST",
+        body: { password: `guess-${i}` },
+        headers: spoof(i),
+      });
+      expect(r.status).toBe(401);
+    }
+    const r = await t.json<ApiError>("/v1/ops/login", {
+      method: "POST",
+      body: { password: PASSWORD },
+      headers: spoof(99),
+    });
+    expect(r.status).toBe(429);
+    expect(ApiError.parse(r.body).code).toBe("RATE_LIMITED");
   });
 });

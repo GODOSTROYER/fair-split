@@ -233,7 +233,7 @@ describe("Proof of the seeded showcase (seeded keys: Sample)", () => {
   });
 
   it("RATE_LIMITED: anonymous reads are budgeted per hashed IP (120 a minute), with Retry-After", async () => {
-    const headers = { "true-client-ip": "198.51.100.23" };
+    const headers = { "cf-connecting-ip": "198.51.100.23" };
     for (let i = 0; i < 120; i++) {
       expect((await t.request("/v1/proof/2026A-r999998", { headers })).status).toBe(404);
     }
@@ -243,7 +243,7 @@ describe("Proof of the seeded showcase (seeded keys: Sample)", () => {
     expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
     // another address is unaffected
     const other = await t.request(`/v1/proof/${w.runSlug}`, {
-      headers: { "true-client-ip": "198.51.100.24" },
+      headers: { "cf-connecting-ip": "198.51.100.24" },
     });
     expect(other.status).toBe(200);
   });

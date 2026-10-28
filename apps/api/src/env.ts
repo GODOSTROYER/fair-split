@@ -6,13 +6,21 @@
 //   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed;
 //   - EXECUTOR=workflow lacks RENDER_API_KEY.
 //   - a PP_* e-mail setting (PP_BUSINESS_EMAIL, PP_PAYER_EMAIL, PP_UNCLAIMED_RECEIVER, each PP_RECEIVERS entry)
-//     is not a strict printable-ASCII address, or PP_CERT_ALLOW names something that is not a PayPal cert id.
+//     is not a strict printable-ASCII address, or PP_CERT_ALLOW names something that is not a PayPal cert id;
+//   - FS_TRUSTED_EDGE names no known hop.
 // The database role check (a ledger-writable role is refused) needs a connection, so it runs in server.ts.
 import { requireAsciiEmail } from "@fairsplit/domain";
 import { CERT_ID_PATTERN, checkCertUrl, PAYPAL_API_HOSTS } from "@fairsplit/paypal-core";
 import { z } from "zod";
 
 export type PayPalMode = "simulator" | "sandbox";
+
+/**
+ * FS_TRUSTED_EDGE: the one hop in front of fs-api whose word on the client's address is believed (S3.9;
+ * src/lib/client-ip.ts has the rule for each). `none` off Render and `render` on it by default.
+ */
+export const TRUSTED_EDGES = ["none", "proxy", "cloudflare", "render"] as const;
+export type TrustedEdge = (typeof TRUSTED_EDGES)[number];
 
 export class BootRefusal extends Error {
   override readonly name = "BootRefusal";
@@ -43,6 +51,8 @@ const Raw = z.object({
   PUBLIC_ORIGIN: nonEmpty,
   PUBLIC_BASE_URL: nonEmpty,
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+  /** Which proxy in front of fs-api reports the client's address (none | proxy | cloudflare | render). */
+  FS_TRUSTED_EDGE: nonEmpty,
 
   DATABASE_URL: nonEmpty,
   /** A direct (non-pooled) URL for the LISTEN connection; defaults to DATABASE_URL. */
@@ -104,6 +114,8 @@ export interface ApiEnv {
   host: string;
   publicOrigin: string;
   logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
+  /** The hop whose report of the client's address per-IP throttles believe (src/lib/client-ip.ts). */
+  trustedEdge: TrustedEdge;
   database: {
     url: string | undefined;
     listenUrl: string | undefined;
@@ -235,6 +247,18 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
   const origin = r.PUBLIC_ORIGIN ?? r.PUBLIC_BASE_URL ?? `http://localhost:${r.PORT}`;
   if (!isHttpUrl(origin)) problems.push("PUBLIC_ORIGIN must be an http(s) origin");
 
+  // Render is the platform's own word (it sets RENDER=true on every service): there Cloudflare's edge and
+  // Render's proxy stand in front of fs-api. Anywhere else nothing is believed until the deployment says so.
+  const edgeSetting = r.FS_TRUSTED_EDGE?.toLowerCase();
+  const trustedEdge: TrustedEdge = isTrustedEdge(edgeSetting) ? edgeSetting : r.RENDER ? "render" : "none";
+  if (edgeSetting !== undefined && !isTrustedEdge(edgeSetting)) {
+    problems.push(`FS_TRUSTED_EDGE must be one of ${TRUSTED_EDGES.join(", ")}`);
+  } else if (edgeSetting === undefined && production && !r.RENDER) {
+    warnings.push(
+      "FS_TRUSTED_EDGE unset off Render: per-IP limits key on the socket's peer (set it when a proxy is in front)",
+    );
+  }
+
   if (problems.length > 0) throw new BootRefusal(problems);
 
   return {
@@ -245,6 +269,7 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     host: r.HOST,
     publicOrigin: new URL(origin).origin,
     logLevel: r.LOG_LEVEL,
+    trustedEdge,
     database: {
       url: r.DATABASE_URL,
       listenUrl: r.LISTEN_DATABASE_URL ?? r.DATABASE_URL,
@@ -289,6 +314,10 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     },
     warnings,
   };
+}
+
+function isTrustedEdge(v: string | undefined): v is TrustedEdge {
+  return (TRUSTED_EDGES as readonly string[]).includes(v ?? "");
 }
 
 /** The env the kill-switch reads see (`readFlags(db, ws, killEnv(env))`): only the kill variables. */
