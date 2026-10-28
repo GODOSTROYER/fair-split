@@ -54,7 +54,8 @@
   color: var(--fs-canary-text);
 }
 
-.fsr-dial__visual[data-status="PENDING"] {
+/* Waiting for slip 0462: the drawing is dimmed, its caption text keeps the token contrast (ink-3 ≥ 4.5:1). */
+.fsr-dial__visual[data-status="PENDING"] svg {
   opacity: 0.72;
 }
 
