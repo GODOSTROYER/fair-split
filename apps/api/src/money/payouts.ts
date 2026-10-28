@@ -231,10 +231,14 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
   const db = deps.db;
   const checked = new Map<string, string[]>();
   /**
-   * I8: on the replay rail only rows written as a replay are written, marked posted or marked rejected. Rows written
-   * live (another executor of the run wrote them since the rail was decided) wait to be posted live with the same
-   * ids; the step is re-queued and its next attempt resumes them live (money/rail.ts). The other way round too: rows
-   * written as a replay are never posted live (a real POST recorded as a replay), the run replays to the end.
+   * I8, for two executors of one run that decided differently (money/rail.ts): rows are only ever resumed, written
+   * over, marked posted or marked rejected on the rail they were written on. Checked where the rows are READ for the
+   * service (`loadPosting`, the re-route's `findSupersedingItem`) and again at `writeSubmitted`, all before the
+   * service's POST, and at the marks besides. On the replay rail, rows written live (another executor wrote them since
+   * the rail was decided) wait to be posted live with the same ids: the step is re-queued and its next attempt resumes
+   * them live. On a live rail, rows written as a replay are never POSTed (a real batch PayPal would hold, recorded as a
+   * replay and counted by neither C-21 nor the spend): the live executor sends nothing, and the run's next attempt
+   * replays to the end.
    */
   const refuseOtherRailRows = (rowProvenance: string, sbid: string) => {
     if ((provenance === "replay") === (rowProvenance === "replay")) return;
@@ -338,6 +342,8 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
             eq(schema.payoutBatches.kind, "primary"),
           ),
         );
+      // I8: rows written on the other rail are never resumed on this one: refused before the service can POST them
+      if (batch) refuseOtherRailRows(batch.provenance, batch.senderBatchId);
       checked.set(
         runId,
         approvals.map((a) => a.payload.nonce),
@@ -766,6 +772,8 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         .innerJoin(schema.payoutBatches, eq(schema.payoutBatches.id, schema.payoutItems.batchId))
         .where(and(eq(schema.payoutItems.workspaceId, ws), eq(schema.payoutItems.supersedesItemId, old.id)));
       if (!row) return null;
+      // I8: a re-route written on the other rail is never resumed on this one (refused before any POST)
+      refuseOtherRailRows(row.batch.provenance, row.batch.senderBatchId);
       return {
         senderBatchId: row.batch.senderBatchId,
         senderItemId: row.item.senderItemId,

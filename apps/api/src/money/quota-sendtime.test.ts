@@ -11,7 +11,8 @@
 //     reading is subtracted from it although its rows were written before it;
 //   - a resumed post's peek leaves its own run out (no false wait);
 //   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again;
-//   - I8: the replay rail never marks rows written live as posted.
+//   - I8 both ways: the replay rail never marks rows written live as posted, and a live executor never POSTs rows
+//     written as a replay (refused at its read, before any POST).
 // Each scenario has its own app, so its own judge quota ledger.
 import { randomBytes, randomUUID } from "node:crypto";
 import { schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
@@ -569,5 +570,55 @@ describe("D6 (I8): the replay rail never marks rows written live", () => {
     expect(await batchOf(h)).toMatchObject({ status: "SUBMITTED", paypalBatchId: null, provenance: "live" });
     expect(await runState(h)).toBe("POSTING");
     expect(sent).toHaveLength(1);
+  });
+});
+
+describe("D6 (I8) the other way round: rows written as a replay are never POSTed live", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    // another executor of the run, decided replay, writes the rows on the replay rail and stops before its mark
+    const replay = await replayDeps(h.t.deps, replayDecision("hourly_cap", "sandbox", NO_JUDGE_QUOTA));
+    const stopped = await payoutsServiceFor(replay, systemScope(h.world.workspaceId, ACTORS.outbox), {
+      repo: (base) => ({
+        ...base,
+        markPosted: async () => {
+          throw new Error("stopped before its mark");
+        },
+      }),
+    });
+    await expect(stopped.executeApproved(h.world.runId)).rejects.toThrow("stopped before its mark");
+    expect(await batchOf(h)).toMatchObject({
+      provenance: "replay",
+      status: "SUBMITTED",
+      paypalBatchId: null,
+    });
+  });
+  afterAll(async () => h?.close());
+
+  it("a live executeApproved that decided live before those rows were written sends nothing: refused at its read", async () => {
+    const live = await payoutsServiceFor(h.t.deps, systemScope(h.world.workspaceId, ACTORS.outbox));
+    await expect(live.executeApproved(h.world.runId)).rejects.toMatchObject({ code: "QUEUED" });
+    expect(sent).toHaveLength(0);
+    expect(await batchOf(h)).toMatchObject({
+      provenance: "replay",
+      status: "SUBMITTED",
+      paypalBatchId: null,
+    });
+    expect(await postsInLast24h(h.t.deps, h.t.clock.now())).toBe(0);
+  });
+
+  it("the run's post then replays to the end: the replay id lands on rows PayPal never saw", async () => {
+    await runQueued(h, "postPayoutBatch");
+    expect(sent).toHaveLength(0);
+    const batch = await batchOf(h);
+    expect(batch?.provenance).toBe("replay");
+    expect(batch?.paypalBatchId).toMatch(/^RPLY/);
+    expect(await runState(h)).toBe("POSTED");
+    expect(await postsInLast24h(h.t.deps, h.t.clock.now())).toBe(0);
   });
 });
