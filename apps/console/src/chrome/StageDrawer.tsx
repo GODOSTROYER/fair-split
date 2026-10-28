@@ -5,7 +5,8 @@
 // the stage (component tests) it renders in place.
 
 import { Glyph } from "@fairsplit/ui-web";
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { restoreFocus, useFocusAfterRemoval } from "../lib/focus.js";
 import { useShortcut } from "../lib/shortcuts.js";
 import { useOptionalStage } from "../stage/context.js";
 import type { DrawerMode } from "../stage/layout.js";
@@ -44,12 +45,44 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
   });
 
   // Focus lands on the drawer's title when it opens (its name is read out; no ring frames the whole drawer),
-  // unless something inside already took it (a pre-focused slab).
+  // unless something inside already took it (a pre-focused slab). Closing hands focus back to what opened it
+  // (a grid row, a link), or to the screen when that is gone (WCAG 2.4.3).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const active = document.activeElement;
+    const opener =
+      active instanceof HTMLElement && active !== document.body && !el.contains(active) ? active : null;
     if (!el.contains(document.activeElement)) (title.current ?? el).focus({ preventScroll: true });
+    return () => restoreFocus(opener, () => document.getElementById("fsc-main"));
   }, []);
+
+  // The same drawer moving to another subject ("Next: hold H2") reads its new name out.
+  const named = useRef(label);
+  useEffect(() => {
+    if (named.current === label) return;
+    named.current = label;
+    const el = ref.current;
+    if (el && (el.contains(document.activeElement) || document.activeElement === document.body)) {
+      (title.current ?? el).focus({ preventScroll: true });
+    }
+  }, [label]);
+
+  // A control the answer removes ("Count it once") leaves focus on the drawer's result line, or its title.
+  const [aside, setAside] = useState<HTMLElement | null>(null);
+  useFocusAfterRemoval(aside, () => aside?.querySelector<HTMLElement>("[data-focus-after]") ?? title.current);
+
+  // Covering the screen (full width below 1280 px, over the scrim from 1600 px), the drawer takes the keyboard:
+  // the screen under it is inert, so Tab never lands on a control the drawer hides (S1.12, WCAG 2.4.11). Pushing
+  // it aside (1280-1599 px), the screen stays live beside it.
+  const covers = Boolean(stage && target) && (resolved === "push-full" || resolved === "overlay");
+  useEffect(() => {
+    if (!covers) return;
+    const main = document.getElementById("fsc-main");
+    if (!main) return;
+    main.setAttribute("inert", "");
+    return () => main.removeAttribute("inert");
+  }, [covers]);
 
   const drawer = (
     <>
@@ -62,7 +95,10 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
         />
       )}
       <aside
-        ref={ref}
+        ref={(el) => {
+          ref.current = el;
+          setAside(el);
+        }}
         className="fsc-drawer"
         data-mode={resolved}
         aria-labelledby={titleId}

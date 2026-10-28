@@ -31,6 +31,7 @@ import { seededLog } from "../../features/fanout/seeded.js";
 import { en, FANOUT } from "../../features/split/shared/copy.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
+import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import type { ScreenState } from "../../lib/screens.js";
@@ -59,6 +60,12 @@ export function Screen({ runSlug }: RunScreenProps) {
   const drawnBy = useRef<string | null>(null);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const slabRef = useRef<HTMLDivElement>(null);
+  // "Pay in cash" goes away once the line moves: focus goes to the line that says where the cash is now.
+  const [fanRoot, setFanRoot] = useState<HTMLElement | null>(null);
+  useFocusAfterRemoval(
+    fanRoot,
+    () => fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.rerouted"]') ?? null,
+  );
   const payCash = useCommand("payCash");
 
   useEffect(
@@ -214,6 +221,7 @@ export function Screen({ runSlug }: RunScreenProps) {
       )}
       <section
         {...moment.rootProps}
+        ref={setFanRoot}
         className="fsr-fanout"
         data-motion={moment.mode}
         aria-labelledby="W-TR-08-figure"
@@ -346,7 +354,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           )}
         </div>
         {moved && !parked && (
-          <p className="fsr-fanout__rerouted fs-t-body" data-testid="W-TR-08.rerouted">
+          <p className="fsr-fanout__rerouted fs-t-body" data-testid="W-TR-08.rerouted" tabIndex={-1}>
             <Glyph name="cash" size={18} />
             {FANOUT.rerouted(moved.name, cashDay)}
           </p>

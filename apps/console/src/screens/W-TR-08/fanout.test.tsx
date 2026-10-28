@@ -96,9 +96,13 @@ describe("W-TR-08 run: the honest fan-out", () => {
         view.world.cosign();
       });
       await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
-      fireEvent.keyDown(screen.getByTestId("W-TR-08.payCash.face"), { key: "Enter" });
+      const face = screen.getByTestId("W-TR-08.payCash.face");
+      face.focus();
+      fireEvent.keyDown(face, { key: "Enter" });
       await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
       expect(toneOf("M-031")).toBe("moved");
+      // The slab went with the parked card: focus is on the line that says where her cash is, never on <body>.
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-TR-08.rerouted")), WAIT);
       // Her thread retracts and her own dashed cash line draws in from the same slot (live, so it animates).
       const line = screen.getByTestId("W-TR-08.cash.M-031");
       expect(line.dataset.moved).toBe("");

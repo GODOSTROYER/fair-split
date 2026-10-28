@@ -184,11 +184,15 @@ describe("W-PF-01 MM-7, tap a peso", () => {
 
     fireEvent.click(screen.getByTestId("W-PF-01.trace.back"));
     await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("line"));
-    fireEvent.click(screen.getByTestId("W-PF-01.trace.back"));
+    const close = screen.getByTestId("W-PF-01.trace.back");
+    close.focus();
+    fireEvent.click(close);
     await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("closed"), {
       timeout: 3000,
     });
     expect(lines.dataset.momentPhase).toBe("rest");
+    // The Close went away with the trace: focus is back on the peso that opened it, never on <body>.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-PF-01.peso.M-014")));
 
     const phases = tracedPhases("MM-7");
     for (const phase of ["framed", "expanded", "zooming", "zoomed", "tiled", "returning", "rest"] as const) {

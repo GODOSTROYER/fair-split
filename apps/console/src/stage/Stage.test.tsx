@@ -98,6 +98,20 @@ describe("Judge stage", () => {
     expect(stageRule).toMatch(/overflow:\s*clip;/);
   });
 
+  it.each([
+    [1024, "push-full", true],
+    [1470, "push", false],
+    [1920, "overlay", true],
+  ])("a drawer at %i px (%s) leaves the screen it covers inert: %s", async (width, mode, inert) => {
+    await renderConsole({ path: "/runs/2026A-r37/split?hold=H1", viewport: { width, height: 900 } });
+    const drawer = await screen.findByTestId("W-TR-06.drawer");
+    expect(drawer.dataset.mode).toBe(mode);
+    const main = document.getElementById("fsc-main") as HTMLElement;
+    // Tab never lands on a W-TR-05 control the drawer hides (S1.12: drawers never cover the focused element).
+    expect(main.hasAttribute("inert")).toBe(inert);
+    expect(main.contains(drawer)).toBe(false);
+  });
+
   it("Reset ends the session and returns the first view", async () => {
     const view = await renderConsole({ path: "/judge" });
     await press("W-JG-01.markPaid");

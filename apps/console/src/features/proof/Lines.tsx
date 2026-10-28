@@ -16,6 +16,7 @@ import { spring } from "@fairsplit/motion/web";
 import { Glyph, StatusChip } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { restoreFocus } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useViewportWidth } from "../../stage/layout.js";
@@ -119,9 +120,14 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
   useEffect(() => {
     if (closing.current && mm7.phase === "rest") {
       closing.current = false;
+      const memberNo = trace?.memberNo ?? null;
       setTrace(null);
+      // The trace's Close went away with it: focus returns to the peso that opened it (WCAG 2.4.3).
+      if (memberNo) {
+        restoreFocus(document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
+      }
     }
-  }, [mm7.phase]);
+  }, [mm7.phase, trace]);
 
   const nudgeZoom = (delta: number) => {
     const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.get() + delta));

@@ -39,6 +39,45 @@ describe("StageDrawer", () => {
     await expectNoAxeViolations(document.body);
   });
 
+  it("hands focus back to what opened it on close, reads a new subject's name, and keeps focus when a control goes", async () => {
+    function Harness({ open, label, decided }: { open: boolean; label: string; decided: boolean }) {
+      return (
+        <ShortcutsProvider>
+          <button type="button" data-testid="opener">
+            Row M-007
+          </button>
+          {open && (
+            <StageDrawer label={label} onClose={() => undefined} testId="W-TR-06.drawer" mode="push">
+              {decided ? (
+                <a href="#next" data-focus-after="" data-testid="next">
+                  Next: hold H2
+                </a>
+              ) : (
+                <button type="button" data-testid="decide">
+                  Count it once
+                </button>
+              )}
+            </StageDrawer>
+          )}
+        </ShortcutsProvider>
+      );
+    }
+    const view = render(<Harness open={false} label="Hold H1" decided={false} />);
+    screen.getByTestId("opener").focus();
+    view.rerender(<Harness open label="Hold H1" decided={false} />);
+    expect(document.activeElement?.textContent).toBe("Hold H1");
+    // A decision removes the focused control: focus lands on the drawer's next step, never on <body>.
+    screen.getByTestId("decide").focus();
+    view.rerender(<Harness open label="Hold H1" decided />);
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("next")));
+    // The same drawer moving to another hold reads the new name out.
+    view.rerender(<Harness open label="Hold H2" decided />);
+    expect(document.activeElement?.textContent).toBe("Hold H2");
+    // Closing returns focus to the row that opened it.
+    view.rerender(<Harness open={false} label="Hold H2" decided />);
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("opener")));
+  });
+
   it("pushes instead of covering below 1600 px: no scrim", () => {
     render(
       <ShortcutsProvider>

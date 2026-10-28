@@ -430,7 +430,7 @@ function NextLink({
   return (
     <p className="fsr-next" data-kind={next.kind === "approve" ? "approve" : "hold"}>
       <span className="fsr-next__mark" aria-hidden />
-      <AppLink href={next.href} className="fs-link fs-t-label" data-testid="W-TR-06.next">
+      <AppLink href={next.href} className="fs-link fs-t-label" data-testid="W-TR-06.next" data-focus-after="">
         {next.words}
       </AppLink>
     </p>
