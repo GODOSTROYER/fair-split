@@ -28,6 +28,8 @@ export interface Measured {
   readonly limit: number;
 }
 
+/** What keeps index.html from flagging Proof's face before its stylesheet applies (`/face.js`), or null. */
+export function faceScriptProblem(html: string): string | null;
 export function closure(manifest: Manifest, key: string, seen?: Set<string>): Set<string>;
 export function entryKeyOf(manifest: Manifest): string | null;
 export function routeChunkOf(manifest: Manifest, route: string): string | null;

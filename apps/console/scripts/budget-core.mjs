@@ -4,6 +4,33 @@
 // route's own code is never counted as the grid's, nor the grid's as the route's. `size(file)` gives a file's
 // gzipped bytes; only JavaScript counts.
 
+/**
+ * S2.11's Proof fonts (≤80 KB): the browser fetches the root's face as soon as the stylesheet applies, so a cold
+ * Proof load must set `<html data-face="proof">` before that, or it fetches the console's 120 KB face too.
+ * index.html loads `/face.js` for it: a classic, blocking, same-origin script (fs-api's CSP allows no inline
+ * script) in `<head>`, ahead of every stylesheet and module script. Returns what breaks that, or null.
+ */
+export function faceScriptProblem(html) {
+  const head = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html)?.[1];
+  if (head === undefined) return "index.html has no <head>";
+  const tags = [...head.matchAll(/<(script|link)\b([^>]*)>/gi)].map((m) => ({
+    name: m[1].toLowerCase(),
+    attrs: m[2],
+  }));
+  const face = tags.findIndex((t) => t.name === "script" && /\bsrc="\/face\.js"/.test(t.attrs));
+  if (face < 0) return "index.html does not load /face.js in <head>";
+  if (/\b(?:async|defer)\b|\btype="module"/.test(tags[face].attrs)) {
+    return "/face.js must be a classic, blocking script (no async, defer or type=module)";
+  }
+  const first = tags.findIndex(
+    (t) =>
+      (t.name === "link" && /\brel="stylesheet"/.test(t.attrs)) ||
+      (t.name === "script" && /\btype="module"/.test(t.attrs)),
+  );
+  if (first >= 0 && first < face) return "a stylesheet or module script comes before /face.js";
+  return null;
+}
+
 /** The JS a chunk pulls in before it runs: itself and its static imports, transitively. */
 export function closure(manifest, key, seen = new Set()) {
   const chunk = manifest[key];

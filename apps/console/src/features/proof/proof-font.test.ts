@@ -12,6 +12,7 @@ import { webRoutes } from "@fairsplit/contracts";
 import { screen, waitFor } from "@testing-library/react";
 import { http } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
+import { faceScriptProblem } from "../../../scripts/budget-core.mjs";
 import { bootFace, hasProofFace, isProofPath, setProofFace } from "../../lib/face.js";
 import { createTestWorld, renderConsole } from "../../test/index.js";
 import { gate, withHandlers } from "../../test/proof-world.js";
@@ -66,6 +67,33 @@ describe("Proof's face", () => {
     expect(isProofPath("/proof/not-a-run")).toBe(true);
     for (const path of ["/", "/judge", webRoutes.approve(RUN), "/ops", "/sign-in", "/proofs", "/b"]) {
       expect(isProofPath(path)).toBe(false);
+    }
+  });
+
+  it("a cold Proof load flags the subset before the stylesheet applies: /face.js, a blocking script ahead of the CSS", () => {
+    // main.tsx's bootFace runs only once the module graph has loaded, long after the stylesheet applied and the
+    // browser fetched the root's face: 4 of 5 cold loads fetched both faces (188 KB). fs-api's CSP is
+    // script-src 'self' (no inline script), so the flag comes from a same-origin classic script in <head>.
+    expect(faceScriptProblem(read("index.html"))).toBeNull();
+    const face = read("public/face.js");
+    for (const path of [
+      webRoutes.proof(RUN),
+      "/proof/2026A-r99",
+      "/proof/2026A-r37/",
+      "/b/fsb_0123456789abcdef.mock",
+      "/b/not-a-token",
+      "/",
+      "/judge",
+      webRoutes.approve(RUN),
+      "/ops",
+      "/sign-in",
+      "/proofs",
+      "/b",
+    ]) {
+      const root = document.createElement("html");
+      // The script as the browser runs it: its only inputs are the location and the root element.
+      new Function("location", "document", face)({ pathname: path }, { documentElement: root });
+      expect(hasProofFace(root), path).toBe(isProofPath(path));
     }
   });
 
