@@ -4,13 +4,15 @@
 // canonical batch with its own key (MM-5, key 1; S2.7: arm on hold, act on release). The Chair's key arrives as
 // an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink. The signature
 // happens only after the payload the API built is re-checked here: its JCS bytes, its batch hash and its lines
-// root must be exactly what the screen shows and recomputed, or nothing is signed (I4). Until the payload has
-// loaded the slab is unavailable and says why: a person signs only a batch the seal and the dialog have shown.
+// root must be exactly what the screen shows and recomputed, or nothing is signed (I4). The amounts and the lines
+// root come from the run's own lines, read with the payload (never the seed's: a judge workspace's line hashes
+// cover its own mark IDs). Until both have loaded the slab is unavailable and says why: a person signs only a
+// batch the seal and the dialog have shown.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
 import { AmountDisplay, Glyph, type HoldChange, InkStamp, Print, RailBar, Slab } from "@fairsplit/ui-web";
-import { useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -18,10 +20,10 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { isApiClientError } from "../../data/errors.js";
-import { useAdapter, useCommand, useCommandQuery, useJudgeSession } from "../../data/hooks.js";
+import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
 import { queryKeys } from "../../data/query.js";
 import { blockingHolds, livePresence, type RunView } from "../../data/run-view.js";
-import { utf8 } from "../../features/approve/jcs.js";
+import { readBatchToSign } from "../../features/approve/batch-read.js";
 import {
   type BrowserKey,
   registerDemoKey,
@@ -43,6 +45,7 @@ import {
   keyKind,
   type LocalApproval,
   linesDigest,
+  linesVersion,
   liveApprovals,
   NO_LOCAL,
   type PaypalRetry,
@@ -63,6 +66,7 @@ import { officer, stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
 import { format } from "../../lib/format.js";
+import { utf8 } from "../../lib/jcs.js";
 import { useMoment } from "../../lib/moment.js";
 import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
@@ -96,26 +100,30 @@ export function Screen({ runSlug }: RunScreenProps) {
   // The run's own state decides whether this browser may ask for the batch to sign at all.
   const paypalRetry: PaypalRetry | null = view ? paypalRetryOf(view) : null;
   const baseState = view ? approveState(view, local, paypalRetry) : null;
-  const payloadQuery = useCommandQuery(
-    "approvalPayload",
-    { params: { runSlug }, query: { role: "treasurer" } },
-    {
-      enabled: data.live && baseState !== null && canSign(baseState),
-      staleTime: 5 * 60_000,
-      retry: false,
-    },
-  );
-  const payload = payloadQuery.data?.payload ?? null;
+  // The payload and the run's own lines, read together, and again whenever a decision changes the lines. The last
+  // pair stays on screen while the next one loads (and once signing has begun), but only a fresh pair arms.
+  const version = view ? linesVersion(view) : null;
+  const batchQuery = useQuery({
+    queryKey: ["approve-batch", runSlug, version] as const,
+    queryFn: ({ signal }) => readBatchToSign(adapter, runSlug, signal),
+    enabled: data.live && baseState !== null && canSign(baseState),
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const payload = batchQuery.data?.payload ?? null;
+  const served = batchQuery.data?.lines ?? null;
   // The payload carries the lines root both keys sign (IC-02); it must be the one this browser recomputes from the
   // lines on screen, or the screen reads mismatch and nothing signs.
-  const digest = useMemo(() => (snapshot && view ? linesDigest(snapshot, view) : null), [snapshot, view]);
+  const digest = useMemo(() => linesDigest(served), [served]);
   const payloadLines = signedLinesDigest(payload);
   const linesDisagree = payloadLines !== null && payloadLines !== digest;
   const state =
     view && linesDisagree ? approveState(view, { ...local, mismatch: true }, paypalRetry) : baseState;
   const signable = state !== null && canSign(state);
-  // A signature needs the batch the seal and the dialog show: until the payload is here, nothing can be held.
-  const armed = signable && payload !== null;
+  // A signature needs the batch the seal and the dialog show: until the payload and the lines are here (and are
+  // the current ones), nothing can be held.
+  const armed = signable && payload !== null && digest !== null && !batchQuery.isPlaceholderData;
 
   const moment = useMoment("MM-5", { focal: true });
   const script = useMomentScript(moment);
@@ -210,8 +218,8 @@ export function Screen({ runSlug }: RunScreenProps) {
   }, [data.live, signable, workspaceId, keyScope, register]);
 
   const batch = useMemo(
-    () => (snapshot && view ? batchFacts(snapshot, view, payload) : null),
-    [snapshot, view, payload],
+    () => (snapshot && view ? batchFacts(snapshot, view, payload, served) : null),
+    [snapshot, view, payload, served],
   );
   const batchSha256 = view ? batchHashOf(view, payload) : null;
   const submit = useCommand("submitApproval");
@@ -221,7 +229,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     holdingRef.current = false;
     setHolding(false);
     const shown: ShownBatch = { batchSha256: batchHashOf(view, payload), linesDigest: digest };
-    if (payload === null || shown.batchSha256 === null) {
+    if (payload === null || shown.batchSha256 === null || shown.linesDigest === null) {
       // I4: no batch was on screen to sign (its payload had not loaded), so nothing is signed. Re-arm the slab.
       setSlabKey((k) => k + 1);
       return;
@@ -278,7 +286,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     }
   }, [adapter, digest, keyScope, payload, register, runSlug, script, snapshot, submit, view]);
 
-  const refetchPayload = payloadQuery.refetch;
+  const refetchPayload = batchQuery.refetch;
   const reload = useCallback(() => {
     setLocal(NO_LOCAL);
     setFailure(null);
@@ -394,8 +402,8 @@ export function Screen({ runSlug }: RunScreenProps) {
   const rows = batch.recipients.map((r) => ({ ...r, amount: format.money(r.cents) }));
   const batchId = senderBatchIdFor(snapshot, view.runSlug);
 
-  // A payload that failed to load says so once, beside the slab; one that is still loading only disarms it.
-  const payloadError = signable && payload === null ? payloadQuery.error : null;
+  // A batch to sign that failed to load says so once, beside the slab; one still loading only disarms it.
+  const payloadError = signable && !armed ? batchQuery.error : null;
 
   let unavailable: string | undefined;
   let onReason: (() => void) | undefined;
@@ -405,7 +413,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   } else if (state === "mismatch" || state === "expired") {
     unavailable = state === "mismatch" ? APPROVE.mismatchAction : APPROVE.expiredAction;
     onReason = reload;
-  } else if (signable && payload === null) {
+  } else if (signable && !armed) {
     unavailable = payloadError ? APPROVE.payloadFailed : APPROVE.payloadLoading;
     if (payloadError) onReason = reloadPayload;
   }

@@ -54,7 +54,11 @@ export function createConsoleMock(options: ConsoleMockOptions = {}): ConsoleMock
     resetStage: stage,
     ...(clock ? { now: () => clock().getTime() } : {}),
   });
-  const fidelity = createFidelityHandlers({ world, rateCardId: rateCardId ?? getSnapshot().rateCard.id });
+  const fidelity = createFidelityHandlers({
+    world,
+    rateCardId: rateCardId ?? getSnapshot().rateCard.id,
+    upstream: handlers,
+  });
   return {
     world,
     driver: createMockDriver(world, { settle: (worldOptions.pace ?? "auto") === "manual" }),

@@ -14,10 +14,11 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { HttpResponse, http, type RequestHandler } from "msw";
 import { describe, expect, it } from "vitest";
 import { CHAIR, createMockDriver } from "../../data/mock/driver.js";
+import { workspaceLines } from "../../data/mock/fidelity.js";
 import { queryKeys } from "../../data/query.js";
 import type { RunView } from "../../data/run-view.js";
 import { heldSessionKey } from "../../features/approve/keys.js";
-import { linesDigest } from "../../features/approve/model.js";
+import { linesRoot } from "../../lib/lines-root.js";
 import { fromHex } from "../../lib/sha256.js";
 import {
   clearMomentTrace,
@@ -156,10 +157,11 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.safe").textContent).toMatch(
         /3 holds resolved\. 1 field entered by hand/,
       );
-      // The payload's lines root (IC-02) prints beside what two people sign, once this browser has recomputed it.
-      const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
-      const root64 = run ? linesDigest(seedSnapshot(), run) : null;
-      expect(root64).toMatch(/^[0-9a-f]{64}$/);
+      // The payload's lines root (IC-02) prints beside what two people sign, once this browser has recomputed it
+      // from the run's own lines: the workspace's, whose returned mark (M-018) has the workspace's own mark ID, so
+      // its root is not the seed's.
+      const root64 = linesRoot(workspaceLines(view.world));
+      expect(root64).not.toBe(linesRoot(seedSnapshot().checkpoints.resolved.lines));
       expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
       // The decision comes first (seal, amount, rails with their fees, why it is safe, the slab, the keys); what
       // both keys sign follows it, for a person to compare by eye.
@@ -225,6 +227,78 @@ describe("W-TR-07 approve", () => {
       );
       expect(root.dataset.state).toMatch(/approved|posting/);
       expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
+    },
+    SLOW,
+  );
+
+  it(
+    "inv.i4 with H3 still open it signs the run's own lines (M-018 held), and again once H3 returns the mark",
+    async () => {
+      const view = await renderConsole({ path: webRoutes.approve(RUN), viewport: { width: 1920 } });
+      await view.startSession();
+      act(() => {
+        view.world.markPaid();
+        view.world.enterByHand();
+        view.world.resolve("H1");
+        view.world.resolve("H2");
+      });
+      const root = await screen.findByTestId("W-TR-07");
+      await waitFor(() =>
+        expect(screen.getByTestId("W-TR-07.batchHash").textContent).toMatch(/^[0-9a-f]{4} /),
+      );
+      expect(view.world.hold("H3")?.state).toBe("OPEN");
+      const digest = () => screen.getByTestId("W-TR-07.linesDigest").getAttribute("title");
+      await waitFor(() => expect(digest()).toBe(linesRoot(workspaceLines(view.world))));
+      expect(root.dataset.state).toBe("ready");
+      const held = digest();
+
+      // H3 returns the multa as a credit: the run's lines change, and the screen reads them (and the batch) again.
+      act(() => {
+        view.world.resolve("H3");
+      });
+      await waitFor(() => expect(digest()).toBe(linesRoot(workspaceLines(view.world))));
+      expect(digest()).not.toBe(held);
+      expect(root.dataset.state).toBe("ready");
+      await waitFor(() =>
+        expect(screen.getByTestId("W-TR-07.approve").dataset.state).not.toBe("unavailable"),
+      );
+      await signKey1(root);
+      expect(view.world.approvals().filter((a) => a.role === "treasurer")).toHaveLength(1);
+    },
+    SLOW,
+  );
+
+  it(
+    "inv.i4 a payload whose lines root is not the run's served lines reads mismatch and signs nothing",
+    async () => {
+      const world = createTestWorld();
+      intercept(
+        world,
+        http.get("*/v1/runs/:runSlug/lines", () =>
+          HttpResponse.json({
+            runSlug: world.runSlug,
+            lines: workspaceLines(world).map((l) =>
+              l.memberNo === "M-064" ? { ...l, lineSha256: "0".repeat(64) } : l,
+            ),
+          }),
+        ),
+      );
+      const sent = recordSubmits(world);
+      const view = await renderConsole({ path: webRoutes.approve(RUN), viewport: { width: 1920 }, world });
+      await view.startSession();
+      act(() => {
+        view.world.markPaid();
+        view.world.resolveAll();
+      });
+      const root = await screen.findByTestId("W-TR-07");
+      await waitFor(() => expect(root.dataset.state).toBe("mismatch"));
+      expect(screen.getByTestId("W-TR-07.mismatch").textContent).toMatch(/Nothing was signed/);
+      await holdSpace("W-TR-07.approve");
+      fireEvent.keyDown(face("W-TR-07.approve"), { key: "Enter" });
+      expect(screen.queryByTestId("W-TR-07.approve.dialog")).toBeNull();
+      expect(sent).toHaveLength(0);
+      expect(view.world.approvals()).toHaveLength(0);
+      await expectNoAxeViolations(root);
     },
     SLOW,
   );

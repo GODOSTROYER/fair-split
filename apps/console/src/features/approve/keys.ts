@@ -10,8 +10,8 @@
 import { type ApiClient, judgeRoutes } from "@fairsplit/api-client";
 import { keyIdFitsKind } from "@fairsplit/contracts";
 import { ed25519 } from "@noble/curves/ed25519.js";
+import { jcs, utf8 } from "../../lib/jcs.js";
 import { toHex } from "../../lib/sha256.js";
-import { jcs, utf8 } from "./jcs.js";
 
 export type BrowserKeyKind = "webcrypto" | "demo";
 

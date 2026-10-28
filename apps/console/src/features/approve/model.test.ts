@@ -7,11 +7,13 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import { describe, expect, it } from "vitest";
 import { ApiClientError, ContractError, NetworkError } from "../../data/errors.js";
 import { CHAIR } from "../../data/mock/driver.js";
+import { workspaceLines } from "../../data/mock/fidelity.js";
 import { createMemoryFetch } from "../../data/mock/memory.js";
 import { applyRunEvents, type RunView, sessionView, showcaseView } from "../../data/run-view.js";
+import { jcs, utf8 } from "../../lib/jcs.js";
 import { fromHex } from "../../lib/sha256.js";
-import { createTestWorld, seedSnapshot } from "../../test/world.js";
-import { jcs, utf8 } from "./jcs.js";
+import { createTestRuntime, createTestWorld, seedSnapshot } from "../../test/world.js";
+import { readBatchToSign } from "./batch-read.js";
 import { demoKeyStatement, forgetBrowserKeys, makeBrowserKey, registerDemoKey, sessionKey } from "./keys.js";
 import {
   approveState,
@@ -25,6 +27,7 @@ import {
   isUnanswered,
   keyKind,
   linesDigest,
+  linesVersion,
   liveApprovals,
   NO_LOCAL,
   payloadMatches,
@@ -176,6 +179,49 @@ describe("the batch both keys sign", () => {
     expect(facts.recipients.map((r) => r.memberNo)).toContain("M-014");
   });
 
+  it("shows the run's own lines once read: their amounts, a reserved line left out, the payload's count and total", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.enterByHand();
+    world.resolve("H1");
+    world.resolve("H2");
+    const view = viewOf(world);
+    // The server's own amounts win over the engine's: one cash line paid 1 cent more than the seed says.
+    const served = workspaceLines(world).map((l) =>
+      l.memberNo === "M-064" ? { ...l, netCents: l.netCents + 1 } : l,
+    );
+    const cash = served.filter((l) => l.rail === "CASH" && l.state !== "EXCLUDED" && l.state !== "HELD");
+    const facts = batchFacts(snapshot, view, null, served);
+    expect(facts.lines).toBe(64);
+    expect(facts.cashCount).toBe(cash.length);
+    expect(facts.cashCents).toBe(cash.reduce((sum, l) => sum + l.netCents, 0));
+    // H3 is still open: it reserves M-018's line, so the batch leaves M-018 out (fs-api's rule).
+    expect(facts.recipients.map((r) => r.memberNo)).not.toContain("M-018");
+    const bacus = facts.recipients.find((r) => r.name === "Consolacion Bacus");
+    expect(bacus?.cents).toBe(served.find((l) => l.memberNo === bacus?.memberNo)?.netCents);
+    expect(facts.totalCents).toBe(facts.recipients.reduce((sum, r) => sum + r.cents, 0));
+    const payload = world.command("approvalPayload", {
+      params: { runSlug: world.runSlug },
+      query: { role: "treasurer" },
+    }).payload;
+    expect(batchFacts(snapshot, view, payload, served)).toMatchObject({
+      itemCount: payload.itemCount,
+      totalCents: payload.totalCents,
+    });
+  });
+
+  it("the lines are read again whenever a decision, a field or a line state changes", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    const read = linesVersion(viewOf(world));
+    world.enterByHand();
+    const entered = linesVersion(viewOf(world));
+    expect(entered).not.toBe(read);
+    world.resolve("H1");
+    expect(linesVersion(viewOf(world))).not.toBe(entered);
+    expect(linesVersion(viewOf(world))).toBe(linesVersion(viewOf(world)));
+  });
+
   it("the fee line uses the published rates, labelled; the co-sign threshold prints as whole dollars", () => {
     expect(feeFacts(snapshot)).toEqual({
       sandboxEach: "US$0.25",
@@ -217,7 +263,8 @@ describe("inv.i4 the approved digest is the payout", () => {
     const entry = snapshot.proof.ledger.find((e) => e.kind === "lines.computed");
     const root = (entry?.payload as { linesRootSha256?: string } | undefined)?.linesRootSha256;
     expect(root).toMatch(/^[0-9a-f]{64}$/);
-    expect(linesDigest(snapshot, showcaseView(snapshot))).toBe(root);
+    expect(linesDigest(snapshot.checkpoints.resolved.lines)).toBe(root);
+    expect(showcaseView(snapshot).origin).toBe("showcase");
   });
 
   it("inv.i4 the browser rebuilds the API's JCS bytes exactly, and refuses a payload that differs", () => {
@@ -228,7 +275,7 @@ describe("inv.i4 the approved digest is the payout", () => {
       params: { runSlug: world.runSlug },
       query: { role: "treasurer" },
     });
-    const shown = { batchSha256: payload.batchSha256, linesDigest: linesDigest(snapshot, viewOf(world)) };
+    const shown = { batchSha256: payload.batchSha256, linesDigest: linesDigest(world.lines()) };
     expect(jcs(payload as unknown as Parameters<typeof jcs>[0])).toBe(serverJcs);
     expect(payloadMatches(payload, serverJcs, shown)).toBe(true);
     expect(payloadMatches(payload, serverJcs, { ...shown, batchSha256: "0".repeat(64) })).toBe(false);
@@ -246,19 +293,23 @@ describe("inv.i4 the approved digest is the payout", () => {
     expect(payloadMatches(payload, serverJcs, { batchSha256: null, linesDigest: null })).toBe(false);
   });
 
-  it("inv.i4 the payload's lines root (IC-02) is the one this browser recomputes, cash lines included", () => {
-    const world = createTestWorld();
+  it("inv.i4 the payload's lines root (IC-02) is the one this browser recomputes from the run's own lines", async () => {
+    const { runtime, adapter, world } = createTestRuntime();
+    await runtime.session.start();
     world.markPaid();
     world.resolveAll();
-    const view = viewOf(world);
-    const { payload, jcs: serverJcs } = world.command("approvalPayload", {
-      params: { runSlug: world.runSlug },
-      query: { role: "treasurer" },
-    });
-    const ours = linesDigest(snapshot, view);
+    const { payload, jcs: serverJcs, lines } = await readBatchToSign(adapter, world.runSlug);
+    const ours = linesDigest(lines);
     expect(ours).toMatch(/^[0-9a-f]{64}$/);
-    // The API signs every member line's hash (64 lines, 57 of them cash); this browser rebuilds the same root.
+    // The API signs every member line's hash (64 lines, 56 of them cash); this browser rebuilds the same root
+    // from the lines it was served, whose returned mark (M-018) carries the workspace's own mark ID.
+    expect(lines).toHaveLength(64);
     expect(signedLinesDigest(payload)).toBe(ours);
+    expect(ours).not.toBe(linesDigest(snapshot.checkpoints.resolved.lines));
+    // Two lines for one member, or a hash that is not one, can be signed by nothing.
+    expect(linesDigest([...lines, lines[0] as (typeof lines)[number]])).toBeNull();
+    expect(linesDigest(lines.map((l, i) => (i === 0 ? { ...l, lineSha256: "nope" } : l)))).toBeNull();
+    expect(linesDigest([])).toBeNull();
     const shown = { batchSha256: payload.batchSha256, linesDigest: ours };
     expect(payloadMatches(payload, serverJcs, shown)).toBe(true);
     // A root that is not the screen's signs nothing, even with the batch hash unchanged (a cash line moved).

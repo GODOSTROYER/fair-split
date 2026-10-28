@@ -229,6 +229,11 @@ exist in the catalog: draw the co-sign QR from an API-provided matrix or request
 - api-client's mock has one session whose run reuses the showcase slug (r37; a real session gets its own runSeq),
   emits no `webhook.received` events (W-TR-08's repeated delivery cannot be shown from the mock yet), and serves no
   frame-token or Reset route (the console's mock does). Reported to WS-API.
+- W-TR-07 reads the run's own lines (`GET /v1/runs/:runSlug/lines`, fs-api's LineList) together with the approval
+  payload, shows their amounts and recomputes IC-02 `linesDigest` from them, never from the seed: a judge workspace
+  mints its own deduction-mark IDs and a line hash covers them, so the seed's root is never the workspace's.
+  api-client's mock serves neither the lines read nor workspace mark IDs; the console's mock does both
+  (`src/data/mock/fidelity.ts`). Reported to WS-API.
 - ui-web lacks SplitFan, FundingArc, RunStrip, RunLog, SlipViewer, FlightLayer, TwinCompare, ByHandField,
   QRPairCard, VerifyPanel, PlotField, EvalWaffle, PrintStatement, Drawer and DigitSwap: build them in your
   `features/` folder on ui-web's primitives and tokens.

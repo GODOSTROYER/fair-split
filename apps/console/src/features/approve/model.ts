@@ -1,9 +1,16 @@
 // W-TR-07's model: which state the approval is in, the batch both keys sign, why it is safe, and the lines
-// digest, as pure functions of the IC-03 snapshot, the live RunView and what this browser is doing. Every
-// figure is the engine's (snapshot checkpoints) or the API's (the approval payload); nothing here invents a
-// cent. The only arithmetic is the lines root (a hash over the engine's own line hashes) and display shares.
+// digest, as pure functions of the IC-03 snapshot, the live RunView, the run's own lines and what this browser
+// is doing. Every figure is the API's (the run's lines, the approval payload) or, for a run nothing serves (the
+// seeded showcase), the engine's (snapshot checkpoints); nothing here invents a cent. The only arithmetic is the
+// lines root (a hash over the run's own line hashes) and display shares.
 
-import { type ApprovalPayload, type ErrorCode, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
+import {
+  type ApprovalPayload,
+  type ErrorCode,
+  type Rail,
+  type SeasonSnapshot,
+  webRoutes,
+} from "@fairsplit/contracts";
 import { isApiClientError, isContractError, isNetworkError } from "../../data/errors.js";
 import {
   atLeast,
@@ -15,17 +22,10 @@ import {
   type RunView,
 } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
+import { jcs } from "../../lib/jcs.js";
 import { signingKeyKind } from "../../lib/keys.js";
-import { sha256Hex } from "../../lib/sha256.js";
-import {
-  engineOutput,
-  isOpenHold,
-  massBalanceView,
-  type SplitRow,
-  splitBasis,
-  splitRows,
-} from "../split/model.js";
-import { jcs } from "./jcs.js";
+import { linesRoot } from "../../lib/lines-root.js";
+import { isOpenHold, massBalanceView, type SplitRow, splitRows } from "../split/model.js";
 
 export type ApproveState =
   | "blocked"
@@ -164,14 +164,72 @@ function payable(row: SplitRow): boolean {
 }
 
 /**
- * The batch as the engine computes it now. The payload, once the API has built it, is the authority on what is
- * signed (its item count and total win); the engine's lines give names and the cash side.
+ * A member line as the run serves it (GET /v1/runs/:runSlug/lines, fs-api's MemberLineDTO): the amounts W-TR-07
+ * shows and the hash the lines root binds. The hash is the workspace's own (its mark IDs are its own), so it is
+ * read, never rebuilt from the seed.
+ */
+export interface ServedLine {
+  readonly memberNo: string;
+  readonly rail: Rail;
+  readonly state: string;
+  readonly netCents: number;
+  readonly lineSha256: string;
+}
+
+/** The line states fs-api puts in the batch (approvals/batch.ts IN_BATCH). */
+const IN_BATCH: readonly string[] = ["READY", "LOCKED", "SUBMITTED"];
+
+/** Members whose line an open hold reserves (H3): the batch leaves them out until the hold is decided. */
+function reservedMembers(view: RunView): Set<string> {
+  return new Set(
+    holdCards(view)
+      .filter((h) => h.gate === "RESERVES_LINE" && isOpenHold(h) && h.memberNo !== null)
+      .map((h) => h.memberNo as string),
+  );
+}
+
+/** The batch from the run's own lines: fs-api's rule for an item (on PayPal, in the batch, not reserved, > 0). */
+function servedFacts(
+  snapshot: SeasonSnapshot,
+  view: RunView,
+  served: readonly ServedLine[],
+  payload: ApprovalPayload | null | undefined,
+): BatchFacts {
+  const names = new Map(snapshot.members.map((m) => [m.memberNo, m.displayName]));
+  const reserved = reservedMembers(view);
+  const open = served.filter(
+    (l) => !reserved.has(l.memberNo) && l.state !== "EXCLUDED" && l.state !== "HELD",
+  );
+  const onPaypal = open.filter((l) => l.rail === "PAYPAL" && IN_BATCH.includes(l.state) && l.netCents > 0);
+  const cash = open.filter((l) => l.rail === "CASH");
+  const sum = (list: readonly ServedLine[]) => list.reduce((s, l) => s + l.netCents, 0);
+  return {
+    itemCount: payload?.itemCount ?? onPaypal.length,
+    totalCents: payload?.totalCents ?? sum(onPaypal),
+    cashCount: cash.length,
+    cashCents: sum(cash),
+    netCents: sum(onPaypal) + sum(cash),
+    lines: served.length,
+    recipients: onPaypal
+      .slice()
+      .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0))
+      .map((l) => ({ name: names.get(l.memberNo) ?? l.memberNo, memberNo: l.memberNo, cents: l.netCents })),
+    final: blockingHolds(view).length === 0 && atLeast(view, "COMPUTED"),
+  };
+}
+
+/**
+ * The batch both keys sign. The run's own lines, once read, give the amounts (the recipients, the cash side and
+ * the whole); the payload, once the API has built it, is the authority on what is signed (its item count and
+ * total win). A run nothing serves (the seeded showcase) shows the engine's lines from the snapshot.
  */
 export function batchFacts(
   snapshot: SeasonSnapshot,
   view: RunView,
   payload?: ApprovalPayload | null,
+  served?: readonly ServedLine[] | null,
 ): BatchFacts {
+  if (served && served.length > 0) return servedFacts(snapshot, view, served, payload);
   const rows = splitRows(snapshot, view);
   const onPaypal = rows.filter((r) => r.rail === "PAYPAL" && payable(r));
   const cash = rows.filter((r) => r.rail === "CASH" && payable(r));
@@ -191,16 +249,31 @@ export function batchFacts(
 
 /**
  * The lines root (`linesRootSha256`, S3 ledger `lines.computed`): sha256 of JCS([{memberNo, lineSha256}]) over
- * every line of the computation the run's decisions match, sorted by member number, recomputed in this browser.
- * A signature binds it only once the approval payload carries it (`signedLinesDigest`) and the two agree.
+ * every member line the run serves (the cash lines too), sorted by member number, recomputed in this browser from
+ * the lines on screen. Never from the seed: a judge workspace mints its own mark IDs, and a line's hash covers
+ * its credits' mark IDs, so the seed's root is never the workspace's. Null when nothing can be signed: no lines,
+ * a member with two, or a hash that is not one. A signature binds it only once the approval payload carries it
+ * (`signedLinesDigest`) and the two agree.
  */
-export function linesDigest(snapshot: SeasonSnapshot, view: RunView): string | null {
-  if (view.origin !== "showcase" && !atLeast(view, "COMPUTED") && Object.keys(view.holds).length === 0)
-    return null;
-  const lines = engineOutput(snapshot, splitBasis(view))
-    .lines.map((l) => ({ memberNo: l.memberNo, lineSha256: l.lineSha256 }))
-    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
-  return sha256Hex(jcs(lines));
+export function linesDigest(lines: readonly ServedLine[] | null | undefined): string | null {
+  if (!lines || lines.length === 0) return null;
+  if (new Set(lines.map((l) => l.memberNo)).size !== lines.length) return null;
+  if (lines.some((l) => !SHA256_HEX.test(l.lineSha256))) return null;
+  return linesRoot(lines);
+}
+
+/**
+ * What the run's lines follow: every hold decision, every field entered by hand and every line's state. When it
+ * changes, the lines and the payload are read again together, so the root on screen and the one the payload
+ * binds are always from the same moment.
+ */
+export function linesVersion(view: RunView): string {
+  const parts = [
+    ...Object.values(view.holds).map((h) => `h:${h.holdId}:${h.state}:${h.resolution ?? ""}`),
+    ...Object.values(view.fields).map((f) => `f:${f.fieldId}:${f.value}`),
+    ...Object.values(view.lines).map((l) => `l:${l.memberNo}:${l.state}`),
+  ];
+  return parts.sort().join("|");
 }
 
 export interface SafeFacts {
