@@ -35,6 +35,18 @@
 > seed (the msw world), so test-kit's real-tree `deps:check` reports 10 violations until WS-QA sanctions those edges
 > (or the shared parts move into contracts). The test-only helpers moved from `runs/testing/` to `runs/test/`.
 
+> **Security pass (28 Oct; the six `[ws/api] SECURITY` review findings and their siblings).** (1) The client
+> address comes only from the hop `FS_TRUSTED_EDGE` names (`none` off Render, `render` on it: `CF-Connecting-IP`,
+> else the rightmost `X-Forwarded-For` entry, else the socket's peer; `True-Client-IP` is never read), through
+> `clientIp(c)` / `clientIpKey(c)` for every per-IP rule and the webhook cert budget; `FairSplitApp.fetch` passes
+> the Node bindings on, so the peer is known. The test env runs as deployed (`render`): tests name a network
+> with `cf-connecting-ip`. (2) Command bodies are read as a stream and cancelled past the cap. (3) A store or
+> resolver without `isLinkRevoked` throws at construction. (4) Every link path asks the same store (`checkLink`,
+> `/v1/credential` no longer keep their own ledger reads), and a credentialed SSE stream re-checks its credential
+> at every ping (`revalidate`), so revoked, expired or ended credentials stop streaming. (5) Judge-code guesses:
+> 5 per 10 minutes per session, 5 a minute per network, 30 a minute in all. (6) The brand view and its CSV show
+> member lines only once `proofReady` (read inside the view's snapshot); before, the view is the invoice alone.
+
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
 Every dependency a slice needs is already installed; if one is missing, report it (do not add it).
@@ -143,7 +155,7 @@ What the shell does **before** your handler runs (`src/lib/command.ts`, one code
 - `COMMAND_FOLDER`, `ROUTE_FOLDERS`, `errorCodesOf(name)`, `SUCCESS_STATUS` (`src/lib/commands.ts`, the HTTP part
   shared with `@fairsplit/api-client/http`)
 - `deps.rateLimits.take(RATE_RULES.presence, key)` → `{ ok: true } | { ok: false; retryAfterMs }` (`src/lib/rate-limit.ts`; presence 1 Hz, pairing claims, session starts per cookie and per hashed IP)
-- `clientIp(headers)`, `hashedClientIp(deps.credentials.keys, ip, now)` (`src/lib/client-ip.ts`; never store a raw IP)
+- `clientIpKey(c)` (the hashed address every per-IP rule takes), `clientIp(c)`, `hashedClientIp(keys, ip, now)` (`src/lib/client-ip.ts`; the address comes only from the hop `FS_TRUSTED_EDGE` names, never from a header a client can write; never store a raw IP)
 - `contentDigestOf(body)`, `sha256Hex(body)`, `digestMatches(header, bytes)` (`src/lib/digest.ts`)
 - `deps.clock.now()` / `ctx.now()`: never `Date.now()` in a handler (tests move a fake clock)
 

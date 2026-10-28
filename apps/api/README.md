@@ -76,6 +76,7 @@ owner-role fallback).
 | Variable                                                                                         | Meaning                                                                                                     |
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `NODE_ENV`, `RENDER`, `PORT` (8787), `HOST`, `LOG_LEVEL`, `PUBLIC_ORIGIN` (or `PUBLIC_BASE_URL`) | Process basics; the public origin builds pairing URLs and decides `Secure` cookies and HSTS                 |
+| `FS_TRUSTED_EDGE` (`none` \| `proxy` \| `cloudflare` \| `render`)                                | The one hop whose word on the client address per-IP limits believe; `render` on Render, else `none`         |
 | `DATABASE_URL`, `LISTEN_DATABASE_URL`, `DB_POOL_MAX`, `FS_ALLOW_OWNER_ROLE`                      | The `fs_app` pool and the one direct LISTEN connection                                                      |
 | `PP_ENV`, `PP_MODE`, `PP_SIM_URL`, `PP_DEV_MOCKS`                                                | PayPal environment (always `sandbox`) and rail mode                                                         |
 | `PP_CERT_ALLOW` (or `PAYPAL_CERT_ALLOW`)                                                         | PayPal webhook cert ids (or sandbox cert URLs) the verifier pins, at most 8                                 |
@@ -107,3 +108,20 @@ names above.
 - Errors are IC-01 `ApiError` bodies with the code's status, the request id, and `Retry-After` when there is one;
   an unexpected error is a 500 whose message is logged, never sent.
 - pino JSON logs redact authorization, cookies, tokens, passwords, signatures and raw bodies.
+- **Client address** (per-IP throttles, the webhook cert-fetch budget): only the hop `FS_TRUSTED_EDGE` names is
+  believed (`src/lib/client-ip.ts`). `none`: the socket's peer, every forwarding header ignored. `render` (default
+  on Render): Cloudflare's `CF-Connecting-IP`, else the rightmost `X-Forwarded-For` entry (what Render's proxy
+  saw), else the peer. `cloudflare`: `CF-Connecting-IP`, else the peer. `proxy`: the rightmost `X-Forwarded-For`
+  entry, else the peer. `True-Client-IP` and the leftmost `X-Forwarded-For` entries are never read: a client can
+  write them (Cloudflare adds `True-Client-IP` only on Enterprise zones, with the value `CF-Connecting-IP` already
+  carries).
+- **Bodies** are read as a stream and cancelled the moment they pass the route's cap (64 KB by default), whatever
+  `Content-Length` says; a body over the cap is a 400 `VALIDATION_FAILED` (`issues[0].code: "too_big"`).
+- **Revocation fails closed**: the credential store refuses to be built without `isLinkRevoked`, every route
+  resolves links through it (`appCredentialStore`: the `link.revoked` ledger entries), and an open SSE stream
+  re-checks its credential at every ping (15 s), so a revoked or expired token or link stops streaming.
+- **Guessing**: the judge code allows 5 tries per 10 minutes per session, 5 a minute per network and 30 a minute in
+  all; pairing claims 10 a minute per network (and 60 six-digit guesses a minute in all); `/ops/login` 5 a minute
+  per network.
+- **The brand view** shows the invoice alone until the run's batch is posted (`proofReady`): no member line, name,
+  amount or receiver, zero totals, and the CSV export answers 404 `PROOF_NOT_READY`.
