@@ -3,7 +3,8 @@
 // IC-12, never in a URL), operator login (scrypt → `fs_ops`), member links `/s/:token` and brand links
 // `/b/:token` (Ed25519, 30 days, member links revocable), and "who am I" for any credential. The shell forwards
 // `/s/:token` to the app and serves `/b/:token` to the console; both pages read their link's facts from
-// `GET /v1/credential` with the link as the bearer (that is the link exchange; revocation is checked there).
+// `GET /v1/credential` with the link as the bearer (the link exchange). The shared resolver refuses a revoked
+// link there and on every other route.
 // Wire formats live in src/credentials/verify/codec.ts; issuance helpers in src/credentials/issue.
 // IC-01 commands here: createPairing, claimPairing.
 //
@@ -21,7 +22,6 @@ import {
   consumePairing,
   createPairingRow,
   findPairing,
-  isLinkRevoked,
   issueBrandLink,
   issueMemberLink,
   linkWasIssued,
@@ -405,10 +405,7 @@ export default defineRouteFolder({
           runSlug: null as string | null,
           expiresAt: cred.expiresAt.toISOString(),
         };
-        if (cred.kind === "member_link" || cred.kind === "brand_link") {
-          // the shell's resolver does not consult revocations yet (SPLIT.md gap): this route always does
-          if (await isLinkRevoked(deps.db, cred.jti)) throw problem.unauthenticated("This link was revoked.");
-        }
+        // a revoked link never gets here: the shared resolver refused it (appCredentialStore)
         if (cred.kind === "member_link") {
           const [line] = await deps.db
             .select({ memberNo: schema.members.memberNo, runSlug: schema.payRuns.runSlug })

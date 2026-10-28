@@ -147,14 +147,15 @@ export type LinkCheck =
 
 /**
  * Full verification of a link outside the resolver (the `/s` and `/b` redirects): signature, expiry,
- * revocation and the workspace, in that order. Never throws; never logs the token.
+ * revocation and the workspace, in that order, through the same credential store the resolver reads (one source
+ * of revocation for every path). Never logs the token.
  */
 export async function checkLink(deps: AppDeps, token: string, kind: LinkKind): Promise<LinkCheck> {
   const now = deps.clock.now();
   const v = verifyLink(deps.credentials.keys.linkPublicKeyHex, token, now.getTime());
   if (!v.ok) return { ok: false, reason: v.reason };
   if (v.payload.k !== kind) return { ok: false, reason: "malformed" };
-  if (await isLinkRevoked(deps.db, v.payload.jti)) return { ok: false, reason: "revoked" };
+  if (await deps.credentials.store.isLinkRevoked(v.payload.jti)) return { ok: false, reason: "revoked" };
   if (!(await deps.credentials.store.workspaceAlive(v.payload.ws, now))) {
     return { ok: false, reason: "workspace_ended" };
   }

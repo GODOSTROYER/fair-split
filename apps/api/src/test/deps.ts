@@ -55,6 +55,8 @@ export interface TestDepsOptions {
   simulator?: InProcessSimulator;
   paypalFetch?: FetchLike;
   webhookTrustAnchors?: readonly string[];
+  /** SSE hub options (a short ping makes stream re-checks observable in a test). */
+  sse?: { pingMs?: number };
 }
 
 export interface TestDeps {
@@ -90,7 +92,11 @@ export function createTestDeps(o: TestDepsOptions): TestDeps {
     logger,
     db: o.data ? o.data.database.db : noDatabase<Db>("deps.db"),
     sql: o.data ? o.data.database.sql : noDatabase<Sql>("deps.sql"),
-    sse: createSseHub({ bus: o.data ? o.data.bus : (bus as MemoryBus), logger }),
+    sse: createSseHub({
+      bus: o.data ? o.data.bus : (bus as MemoryBus),
+      logger,
+      ...(o.sse?.pingMs !== undefined ? { pingMs: o.sse.pingMs } : {}),
+    }),
     paypal,
     credentials: { keys, store, resolver: createCredentialResolver({ store, keys, clock: o.clock }) },
     idempotency: o.data ? dbIdempotencyStore(o.data.database.db) : memoryIdempotencyStore(),

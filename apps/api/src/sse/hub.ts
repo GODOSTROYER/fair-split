@@ -5,7 +5,9 @@
 // Caps (S3.7): 2 streams per credential, 8 per judge session (the stage opens five), 3 public streams per
 // hashed IP, 300 per instance. Over a cap → 429 RATE_LIMITED before the stream opens.
 // A slow client never blocks the bus: its queue is bounded, and on overflow the stream ends so the client
-// reconnects and replays from its Last-Event-ID (no gap, no duplicate).
+// reconnects and replays from its Last-Event-ID (no gap, no duplicate). A credentialed stream re-checks its
+// credential at every ping (`revalidate`): once it is revoked, expired or its workspace has ended, the stream
+// ends and the reconnect meets the credential check.
 import type { BusScope, StoredRunEvent, SubscribeOptions, Unsubscribe } from "@fairsplit/db";
 import { streamSSE } from "hono/streaming";
 import type { Logger } from "pino";
@@ -57,6 +59,12 @@ export interface SseStreamRequest {
   maxReplay?: number;
   /** For logs and stats: "run" | "workspace" | "line" | "proof". */
   label: string;
+  /**
+   * Asked again at every ping: false (or a failed check) ends the stream, and the client's reconnect meets the
+   * credential check. The shell's credentialed streams pass `credentialStillValid(c)` (./routes.ts), so a token
+   * or link that is revoked, expires or loses its workspace stops streaming within one ping.
+   */
+  revalidate?: () => Promise<boolean>;
 }
 
 export interface SseStats {
@@ -179,8 +187,29 @@ export function createSseHub(o: SseHubOptions): SseHub {
           await stream.write(`retry: ${SSE_RETRY_MS}\n: connected\n\n`);
           ready = true;
           void pump();
+          let checking = false;
           ping = setInterval(() => {
-            if (!stream.aborted && !stream.closed) void stream.write(": ping\n\n").catch(end);
+            if (stream.aborted || stream.closed) return;
+            if (req.revalidate && !checking) {
+              checking = true;
+              req
+                .revalidate()
+                .then(
+                  (valid) => {
+                    if (valid) return;
+                    log.debug({ label: req.label }, "sse credential no longer valid; ending stream");
+                    end();
+                  },
+                  (err: unknown) => {
+                    log.warn({ err, label: req.label }, "sse credential re-check failed; ending stream");
+                    end();
+                  },
+                )
+                .finally(() => {
+                  checking = false;
+                });
+            }
+            void stream.write(": ping\n\n").catch(end);
           }, pingMs);
           ping.unref?.();
           await done;

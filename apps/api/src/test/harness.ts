@@ -45,6 +45,8 @@ export interface TestAppOptions {
   paypalFetch?: FetchLike;
   webhookTrustAnchors?: readonly string[];
   static?: StaticDirs | false;
+  /** SSE hub options, e.g. `{ pingMs: 20 }` so a stream's credential re-check runs within a test. */
+  sse?: { pingMs?: number };
 }
 
 export interface JsonInit extends Omit<RequestInit, "body"> {
@@ -112,6 +114,7 @@ export async function createTestApp(o: TestAppOptions = {}): Promise<TestApp> {
     ...(o.simulator ? { simulator: o.simulator } : {}),
     ...(o.paypalFetch ? { paypalFetch: o.paypalFetch } : {}),
     ...(o.webhookTrustAnchors ? { webhookTrustAnchors: o.webhookTrustAnchors } : {}),
+    ...(o.sse ? { sse: o.sse } : {}),
   });
   const app = createApp({
     deps,

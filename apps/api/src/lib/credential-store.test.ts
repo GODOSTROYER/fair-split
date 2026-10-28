@@ -1,9 +1,11 @@
 // The store fs-api boots with (server.ts and the harness share `appCredentialStore`): a revoked member link
 // stops verifying on every route the shell resolves, not only on the judge slice's own checks.
+import { randomUUID } from "node:crypto";
 import { ApiError } from "@fairsplit/contracts";
-import { schema } from "@fairsplit/db";
+import { schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { revokeLink } from "../credentials/issue/links.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 
 let t: TestApp;
@@ -82,5 +84,53 @@ describe("appCredentialStore: link revocation is wired into the shared resolver"
     const body = ApiError.parse(await after.response.json());
     expect(body.code).toBe("UNAUTHENTICATED");
     expect(body.message).toMatch(/revoked/i);
+  });
+});
+
+describe("a revoked link is refused by every route that reads it", () => {
+  async function revoke(workspaceId: string, jti: string): Promise<void> {
+    const scope = systemScope(workspaceId, { kind: "human", id: "operator" });
+    await withWorkspaceTx(t.deps.db, scope, async (tx) => {
+      expect(await revokeLink(tx, scope, { jti, at: t.clock.now() })).toBe(true);
+    });
+  }
+
+  async function refusedAsRevoked(path: string, as: ReturnType<typeof t.credentials.bearer>) {
+    const r = await t.request(path, { as });
+    expect(r.status, path).toBe(401);
+    const body = ApiError.parse(await r.json());
+    expect(body.code, path).toBe("UNAUTHENTICATED");
+    expect(body.message, path).toMatch(/revoked/i);
+  }
+
+  it("a brand link: the brand view, its CSV export and /v1/credential", async () => {
+    const started = await t.json<Started & { runSlug: string }>("/v1/judge/sessions", {
+      method: "POST",
+      body: {},
+    });
+    expect(started.status).toBe(201);
+    const s = started.body;
+    const jti = randomUUID();
+    const link = t.credentials.bearer(t.credentials.brandLink({ workspaceId: s.workspaceId, jti }));
+    expect((await t.json(`/v1/brand/${s.runSlug}`, { as: link })).status).toBe(200);
+    expect((await t.json("/v1/credential", { as: link })).status).toBe(200);
+    await revoke(s.workspaceId, jti);
+    for (const path of [`/v1/brand/${s.runSlug}`, `/v1/brand/${s.runSlug}/export.csv`, "/v1/credential"]) {
+      await refusedAsRevoked(path, link);
+    }
+  });
+
+  it("a member link: its statement, the statement's audio and /v1/credential", async () => {
+    const started = await t.json<Started>("/v1/judge/sessions", { method: "POST", body: {} });
+    expect(started.status).toBe(201);
+    const s = started.body;
+    const lineId = await memberLine(s);
+    const jti = randomUUID();
+    const link = t.credentials.bearer(t.credentials.memberLink({ workspaceId: s.workspaceId, lineId, jti }));
+    expect((await t.json("/v1/credential", { as: link })).status).toBe(200);
+    await revoke(s.workspaceId, jti);
+    for (const path of [`/v1/statements/${lineId}`, `/v1/media/audio/${lineId}`, "/v1/credential"]) {
+      await refusedAsRevoked(path, link);
+    }
   });
 });
