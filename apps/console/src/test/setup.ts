@@ -21,9 +21,9 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => undefined;
 }
 
-if (!window.scrollTo) {
-  window.scrollTo = () => undefined;
-}
+// jsdom defines scrollTo as a "Not implemented" placeholder (it prints on every call), so this one is replaced
+// unconditionally: TanStack Router's scroll restoration calls it on every navigation.
+window.scrollTo = (() => undefined) as typeof window.scrollTo;
 
 if (!("getAnimations" in Element.prototype)) {
   (Element.prototype as unknown as { getAnimations: () => Animation[] }).getAnimations = () => [];
