@@ -24,16 +24,22 @@ import { ACTORS } from "./events.js";
 import { readKill } from "./flags.js";
 import { lockRun } from "./load.js";
 import { cause, moveLine, moveRun } from "./machine.js";
-import { earlierAttempt, report } from "./now.js";
+import { attemptsOf, deferDelayMs, deferTask, earlierAttempt, report } from "./now.js";
 
 function scopeOf(ctx: TaskContext, actor: Actor = ACTORS.outbox) {
   if (!ctx.workspaceId) throw new Error(`${ctx.name} needs the workspace of its outbox row`);
   return systemScope(ctx.workspaceId, actor);
 }
 
-/** Wraps a PayPal step: a report for an inline caller; transient failures rethrown for the outbox to retry. */
+/**
+ * Wraps a PayPal step: a report for an inline caller; transient failures rethrown for the outbox to retry. With
+ * `defer` (a deps), a transient failure re-queues the task instead as the next attempt row of its press, due when
+ * the step said to try again (`deferTask`): the outbox's own budget (8 attempts, seconds apart, about two minutes)
+ * cannot outlast PayPal's 6-minute circuit or a kill switch held for an hour, and ignores the wait it was given.
+ */
 function paypalTask(
   fn: (args: Record<string, unknown>, ctx: TaskContext) => Promise<Record<string, unknown> | undefined>,
+  o: { defer?: Pick<AppDeps, "db"> } = {},
 ): TaskHandler {
   return async (args, ctx) => {
     try {
@@ -41,6 +47,20 @@ function paypalTask(
       report(ctx.outboxId, { ok: true, ...(detail ? { detail } : {}) });
     } catch (e) {
       const step = classifyPayPal(e, ctx.name);
+      if (step.opts.transient && o.defer) {
+        const attempts = await attemptsOf(o.defer.db, ctx.outboxId);
+        const next = await deferTask(o.defer.db, ctx, args, deferDelayMs(step.opts.retryAfterMs, attempts));
+        if (next) {
+          report(ctx.outboxId, {
+            ok: false,
+            code: step.code,
+            message: step.message,
+            debugId: step.opts.debugId ?? null,
+            retryAfterMs: Math.max(1_000, next.runAfter.getTime() - Date.now()),
+          });
+          return;
+        }
+      }
       report(ctx.outboxId, {
         ok: false,
         code: step.code,
@@ -233,101 +253,104 @@ export function runTasks(deps: AppDeps): TaskHandlers {
 
 export function lineTasks(deps: AppDeps): TaskHandlers {
   return {
-    cancelUnclaimed: paypalTask(async (raw, ctx) => {
-      const args = TaskArgs.cancelUnclaimed.parse(raw);
-      const scope = scopeOf(ctx);
-      const service = await payoutsServiceFor(deps, scope);
-      let outcome: Awaited<ReturnType<typeof service.cancelUnclaimed>>;
-      try {
-        outcome = await service.cancelUnclaimed(args.payoutItemId, ACTORS.outbox, args.afterCancel);
-      } catch (e) {
-        if (e instanceof PayoutsApiError) {
-          if (e.status === 429) {
-            throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
-              transient: true,
-              retryAfterMs: 6 * 60_000,
+    cancelUnclaimed: paypalTask(
+      async (raw, ctx) => {
+        const args = TaskArgs.cancelUnclaimed.parse(raw);
+        const scope = scopeOf(ctx);
+        const service = await payoutsServiceFor(deps, scope);
+        let outcome: Awaited<ReturnType<typeof service.cancelUnclaimed>>;
+        try {
+          outcome = await service.cancelUnclaimed(args.payoutItemId, ACTORS.outbox, args.afterCancel);
+        } catch (e) {
+          if (e instanceof PayoutsApiError) {
+            if (e.status === 429) {
+              throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
+                transient: true,
+                retryAfterMs: 6 * 60_000,
+                debugId: e.debugId,
+                status: 429,
+              });
+            }
+            throw new PayPalStepError("PAYPAL_REJECTED", `PayPal refused the cancel (${e.paypalName}).`, {
+              transient: false,
               debugId: e.debugId,
-              status: 429,
+              status: e.status,
             });
           }
-          throw new PayPalStepError("PAYPAL_REJECTED", `PayPal refused the cancel (${e.paypalName}).`, {
-            transient: false,
-            debugId: e.debugId,
-            status: e.status,
-          });
+          throw e;
         }
-        throw e;
-      }
-      switch (outcome.kind) {
-        case "RETURNED": {
-          if (args.afterCancel === "cash") {
-            await withWorkspaceTx(deps.db, scope, async (tx) => {
-              const [row] = await tx
-                .select({
-                  item: schema.payoutItems,
-                  memberNo: schema.members.memberNo,
-                  line: schema.memberLines,
-                })
-                .from(schema.payoutItems)
-                .innerJoin(schema.memberLines, eq(schema.memberLines.id, schema.payoutItems.lineId))
-                .innerJoin(schema.members, eq(schema.members.id, schema.memberLines.memberId))
-                .where(
-                  and(
-                    eq(schema.payoutItems.workspaceId, scope.workspaceId),
-                    eq(schema.payoutItems.payoutItemId, args.payoutItemId),
-                  ),
-                );
-              if (row?.line.state === "RETURNED") {
-                await moveLine(tx, scope, {
-                  id: row.line.id,
-                  memberNo: row.memberNo,
-                  runId: row.line.runId,
-                  from: "RETURNED",
-                  to: "OFF_RAIL_DUE",
-                  version: row.line.version,
-                  cause: cause("MOVED_TO_CASH", args.payoutItemId),
-                  provenance: "live",
-                  actor: ACTORS.outbox,
-                });
-              }
-              if (row) await advanceRun(tx, scope, row.line.runId, deps.paypal.provenance);
-            });
+        switch (outcome.kind) {
+          case "RETURNED": {
+            if (args.afterCancel === "cash") {
+              await withWorkspaceTx(deps.db, scope, async (tx) => {
+                const [row] = await tx
+                  .select({
+                    item: schema.payoutItems,
+                    memberNo: schema.members.memberNo,
+                    line: schema.memberLines,
+                  })
+                  .from(schema.payoutItems)
+                  .innerJoin(schema.memberLines, eq(schema.memberLines.id, schema.payoutItems.lineId))
+                  .innerJoin(schema.members, eq(schema.members.id, schema.memberLines.memberId))
+                  .where(
+                    and(
+                      eq(schema.payoutItems.workspaceId, scope.workspaceId),
+                      eq(schema.payoutItems.payoutItemId, args.payoutItemId),
+                    ),
+                  );
+                if (row?.line.state === "RETURNED") {
+                  await moveLine(tx, scope, {
+                    id: row.line.id,
+                    memberNo: row.memberNo,
+                    runId: row.line.runId,
+                    from: "RETURNED",
+                    to: "OFF_RAIL_DUE",
+                    version: row.line.version,
+                    cause: cause("MOVED_TO_CASH", args.payoutItemId),
+                    provenance: "live",
+                    actor: ACTORS.outbox,
+                  });
+                }
+                if (row) await advanceRun(tx, scope, row.line.runId, deps.paypal.provenance);
+              });
+            }
+            return { outcome: "RETURNED" };
           }
-          return { outcome: "RETURNED" };
+          case "NOT_UNCLAIMED":
+            throw new PayPalStepError(
+              "INVALID_TRANSITION",
+              `The item is ${outcome.status ?? "no longer unclaimed"}; nothing was cancelled.`,
+              { transient: false },
+            );
+          case "REFUSED":
+            // PayPal's pacing (the limiter window, the 429 circuit): nothing was sent, the intent stays recorded
+            // and the outbox retries the cancel later.
+            if (outcome.code === "QUEUED" || outcome.code === "CIRCUIT_OPEN") {
+              throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
+                transient: true,
+                retryAfterMs: outcome.code === "CIRCUIT_OPEN" ? 6 * 60_000 : 30_000,
+              });
+            }
+            throw new PayPalStepError(
+              outcome.code === "KILL_SWITCH_ON" ? "KILL_SWITCH_ON" : "INVALID_TRANSITION",
+              outcome.code === "KILL_SWITCH_ON"
+                ? "Refused: payouts are paused by the co-op."
+                : `The cancel was refused (${outcome.code}).`,
+              { transient: false },
+            );
+          case "UNRESOLVED":
+            throw new PayPalStepError(
+              "CIRCUIT_OPEN",
+              `PayPal did not confirm the cancel (${outcome.reason}); it will be retried.`,
+              {
+                transient: true,
+                retryAfterMs: 30_000,
+              },
+            );
         }
-        case "NOT_UNCLAIMED":
-          throw new PayPalStepError(
-            "INVALID_TRANSITION",
-            `The item is ${outcome.status ?? "no longer unclaimed"}; nothing was cancelled.`,
-            { transient: false },
-          );
-        case "REFUSED":
-          // PayPal's pacing (the limiter window, the 429 circuit): nothing was sent, the intent stays recorded
-          // and the outbox retries the cancel later.
-          if (outcome.code === "QUEUED" || outcome.code === "CIRCUIT_OPEN") {
-            throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
-              transient: true,
-              retryAfterMs: outcome.code === "CIRCUIT_OPEN" ? 6 * 60_000 : 30_000,
-            });
-          }
-          throw new PayPalStepError(
-            outcome.code === "KILL_SWITCH_ON" ? "KILL_SWITCH_ON" : "INVALID_TRANSITION",
-            outcome.code === "KILL_SWITCH_ON"
-              ? "Refused: payouts are paused by the co-op."
-              : `The cancel was refused (${outcome.code}).`,
-            { transient: false },
-          );
-        case "UNRESOLVED":
-          throw new PayPalStepError(
-            "CIRCUIT_OPEN",
-            `PayPal did not confirm the cancel (${outcome.reason}); it will be retried.`,
-            {
-              transient: true,
-              retryAfterMs: 30_000,
-            },
-          );
-      }
-    }),
+      },
+      { defer: deps },
+    ),
   };
 }
 

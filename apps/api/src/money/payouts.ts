@@ -365,6 +365,19 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         const raced = await stored();
         if (raced) return markOf(raced);
         const at = new Date(batch.at);
+        if (batch.kind === "reroute") {
+          // I3 at the write: a re-route pays a line its own cancel RETURNED, and only while it still is (under the
+          // workspace lock and the line's row lock, the same locks "Pay in cash" takes): a line moved to cash since
+          // the task looked is never paid through PayPal as well. Nothing is written; the service refuses.
+          for (const item of batch.items) {
+            const [line] = await tx
+              .select({ state: schema.memberLines.state })
+              .from(schema.memberLines)
+              .where(and(eq(schema.memberLines.workspaceId, ws), eq(schema.memberLines.id, item.lineId)))
+              .for("update");
+            if (line?.state !== "RETURNED") return null;
+          }
+        }
         if (batch.kind === "primary") {
           // APPROVED → POSTING (S3.6.4 step 5), compare-and-set on the run's state AND on the approvals the
           // service checked: each a live SIGNED approval of this run over this very digest. A check voided

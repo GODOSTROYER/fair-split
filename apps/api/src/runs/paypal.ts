@@ -4,8 +4,8 @@
 // outbox task in the transaction that checks the state (I7) and runs it inline (runs/now.ts) so the answer says
 // what PayPal said; nothing here calls PayPal inside a transaction.
 import { type MemberLineState, type PayRunState, TASKS } from "@fairsplit/contracts";
-import { schema, withWorkspaceTx } from "@fairsplit/db";
-import { and, desc, eq } from "drizzle-orm";
+import { schema, type Tx, type WorkspaceScope, withWorkspaceTx } from "@fairsplit/db";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { CommandHandler } from "../lib/command.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { advanceRun } from "../money/settle.js";
@@ -76,6 +76,43 @@ export const markPaidHandler: CommandHandler<"markPaid"> = async (ctx) => {
 };
 
 // ---------------------------------------------------------------- payCash
+
+/**
+ * Whether a re-route of this returned item can still pay the member: rows were written for it (an item superseding
+ * it), or a reroute task of the line is queued, dispatched or running. Read inside the caller's transaction.
+ */
+export async function rerouteStillPending(
+  tx: Tx,
+  scope: WorkspaceScope,
+  lineId: string,
+  itemId: string,
+): Promise<boolean> {
+  const [written] = await tx
+    .select({ id: schema.payoutItems.id })
+    .from(schema.payoutItems)
+    .where(
+      and(
+        eq(schema.payoutItems.workspaceId, scope.workspaceId),
+        eq(schema.payoutItems.supersedesItemId, itemId),
+      ),
+    )
+    .limit(1);
+  if (written) return true;
+  const t = schema.taskOutbox;
+  const [waiting] = await tx
+    .select({ id: t.id })
+    .from(t)
+    .where(
+      and(
+        eq(t.workspaceId, scope.workspaceId),
+        eq(t.name, "reroute"),
+        inArray(t.state, ["queued", "dispatched", "running"]),
+        sql`${t.args}->>'lineId' = ${lineId}`,
+      ),
+    )
+    .limit(1);
+  return waiting !== undefined;
+}
 
 const CASH_DUE_FROM_RUN: readonly PayRunState[] = [
   "APPROVED",
@@ -159,7 +196,7 @@ export const payCashHandler: CommandHandler<"payCash"> = async (ctx) => {
         if (state === "RETURNED" || cashReady) {
           if (state === "RETURNED") {
             const [item] = await tx
-              .select({ cancelIntent: schema.payoutItems.cancelIntent })
+              .select({ id: schema.payoutItems.id, cancelIntent: schema.payoutItems.cancelIntent })
               .from(schema.payoutItems)
               .where(
                 and(
@@ -168,8 +205,16 @@ export const payCashHandler: CommandHandler<"payCash"> = async (ctx) => {
                   eq(schema.payoutItems.status, "RETURNED"),
                 ),
               )
+              .orderBy(desc(schema.payoutItems.createdAt))
               .limit(1);
-            if (item?.cancelIntent === "reroute") {
+            // Cancelled for a re-route: cash only once that re-route can no longer pay her. Under the workspace
+            // lock and the line's row lock: no re-route rows were written for the item (a written one owns the
+            // line), and no re-route task of the line is waiting to write them. A re-route refused or superseded
+            // must never leave the member payable neither through PayPal nor in cash.
+            if (
+              item?.cancelIntent === "reroute" &&
+              (await rerouteStillPending(tx, scope, line.id, item.id))
+            ) {
               throw new ApiProblem(
                 "INVALID_TRANSITION",
                 "This returned item is being re-routed, not moved to cash.",
