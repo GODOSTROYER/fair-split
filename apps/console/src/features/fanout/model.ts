@@ -1,8 +1,9 @@
-// W-TR-08's model: the split fan (S2.7 SplitFan) and the run's honest state, as pure functions of the IC-03
-// snapshot and the live RunView. Width is money: one linear scale, k = 400 / Σ net px per cent, so the eight
-// PayPal threads and the hatched cash band share the bar they leave. A thread's look follows the item's actual
-// PayPal status, never a test value: graphite to 70% when sent, jade only on a verified SUCCESS, a canary cap
-// for UNCLAIMED (a decision, never red), red only for a PayPal failure, retracted once moved to cash.
+// W-TR-08's model: the split fan (S2.7 SplitFan, design §1 signature 6: one seal, 64 lines, eight PayPal threads
+// and 56 dashed cash lines) and the run's honest state, as pure functions of the IC-03 snapshot and the live
+// RunView. Width is money: one linear scale, k = 380 / Σ net px per cent, so every line leaves the bar as wide as
+// its payment. A thread's look follows the item's actual PayPal status, never a test value: graphite to 70% when
+// sent, jade only on a verified SUCCESS, a canary cap for UNCLAIMED (a decision, never red), red only for a
+// PayPal failure, retracted once moved to cash, when its own dashed cash line leaves from the same slot.
 
 import type { MemberLineState, PayoutItemStatus, SeasonSnapshot } from "@fairsplit/contracts";
 import type { LogRow } from "../../data/describe.js";
@@ -12,11 +13,22 @@ import { engineOutput, splitBasis } from "../split/model.js";
 
 export const FAN = {
   width: 1400,
-  height: 560,
-  seal: { cx: 96, cy: 280, size: 128 },
-  bar: { x0: 188, x1: 196, y0: 80, y1: 480 },
-  stub: { x: 1120, y0: 30, step: 20, w: 20, h: 12 },
-  band: { x0: 1100, x1: 1120, y0: 190 },
+  height: 620,
+  seal: { cx: 96, cy: 300, size: 128 },
+  /** The run's net as one bar, 380 px for all of it: every line leaves it as wide as its money. */
+  bar: { x0: 188, x1: 196, y0: 110, y1: 490 },
+  /** Every line ends on this x: the eight PayPal stubs on top, the cash lines' end marks beneath them. */
+  endX: 1040,
+  /** The PayPal stubs, spread so each name and amount keeps its own row at the narrowest stage (892 px). */
+  stub: { y0: 24, step: 28, w: 20, h: 12 },
+  /** The cash lines end in one column from here, each as tall as its money, with a 20 px end mark. */
+  cash: { y0: 268, w: 20 },
+  /** Where the labels begin (they are HTML over the picture, so text keeps its type size at any width). */
+  labelX: 1072,
+  /** A cash line's dashed stroke is half its height: the air between neighbours makes 56 lines read as 56. */
+  cashStroke: 0.5,
+  /** A cash line's dash and gap along its length (pathLength 1; a line runs about 900 px: 13 px and 7 px). */
+  dash: { on: 0.014, off: 0.008 },
   /** A sent thread stops here until PayPal confirms it (design §1: "sent, not paid"). */
   sentAt: 0.7,
   /** Control points sit 45% of the run in from each end. */
@@ -24,6 +36,11 @@ export const FAN = {
   /** The parked or failed end cap. */
   cap: 6,
 } as const;
+
+/** A cash line's dash pattern, as the SVG attribute takes it. */
+export const CASH_DASHARRAY = `${FAN.dash.on} ${FAN.dash.off}`;
+const DASH_PERIOD = FAN.dash.on + FAN.dash.off;
+const GOLDEN = 0.618_033_988_75;
 
 export type ThreadTone = "unsent" | "sent" | "landed" | "parked" | "failed" | "moved";
 
@@ -40,33 +57,54 @@ export interface FanThread {
   readonly d: string;
   /** Where the cap sits (the 70% point along the path). */
   readonly capAt: { readonly x: number; readonly y: number };
+  /** Its slot's centre on the bar: a line moved to cash leaves from here too. */
+  readonly barY: number;
   readonly stubY: number;
   readonly index: number;
   readonly eventId: string | null;
   readonly at: string | null;
   readonly source: RunItem["source"] | null;
-  readonly amountState: "pencil" | "hollow" | "landed";
+  readonly amountState: AmountState;
 }
 
-export interface CashSlice {
+export type AmountState = "pencil" | "ink" | "hollow" | "landed" | "attested";
+
+/** One member paid in cash at the bodega: a dashed line from the bar to the cash column, drawn and still. */
+export interface CashLine {
   readonly memberNo: string;
   readonly name: string;
   readonly cents: number;
-  readonly y: number;
+  readonly d: string;
+  /** Its money as height on the bar and in the cash column (k × cents). */
   readonly h: number;
+  /** The dashed stroke's width: a share of its height, so the 56 read as 56. */
+  readonly stroke: number;
+  /** Where its dashes start (pathLength units): staggered by the golden ratio so no two neighbours line up. */
+  readonly dashOffset: number;
+  /** The top of its end mark in the cash column. */
+  readonly endY: number;
+  /** Cash handed over and attested at the bodega (OFF_RAIL_PAID): the end mark turns ink, never jade. */
   readonly attested: boolean;
-  /** A PayPal line re-routed to cash (Rhea): appended at the band's end, with its own label. */
+  /** A PayPal line re-routed to cash (Rhea): it leaves from her thread's slot and ends on top of the column. */
   readonly moved: boolean;
+  readonly index: number;
 }
 
 export interface FanView {
   readonly k: number;
   readonly netCents: number;
   readonly threads: readonly FanThread[];
-  readonly slices: readonly CashSlice[];
-  readonly band: { readonly d: string; readonly top: number; readonly bottom: number; readonly end: number };
+  /** Every cash line, moved ones first (they end on top of the column, nearest the threads they left). */
+  readonly cashLines: readonly CashLine[];
   readonly paypal: { readonly cents: number; readonly members: number; readonly share: string };
-  readonly cash: { readonly cents: number; readonly members: number };
+  readonly cash: {
+    readonly cents: number;
+    readonly members: number;
+    /** The cash column's extent at the end x. */
+    readonly top: number;
+    readonly bottom: number;
+    readonly amountState: AmountState;
+  };
   readonly members: number;
   readonly sealHash: string;
 }
@@ -189,6 +227,9 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
   const names = new Map(snapshot.members.map((m) => [m.memberNo, m.displayName]));
   const netCents = output.conservation.netCents;
   const k = netCents > 0 ? (FAN.bar.y1 - FAN.bar.y0) / netCents : 0;
+  // S2.2.1: every line is ink once both keys approved it (a batch PayPal denied was approved first); before that
+  // the engine's figures are pencil.
+  const approved = atLeast(view, "APPROVED") || view.state === "DENIED";
   const items = batchItems(snapshot, view).sort(
     (a, b) => b.cents - a.cents || a.memberNo.localeCompare(b.memberNo),
   );
@@ -212,68 +253,78 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
       tone,
       progress: progressOf(tone),
       width,
-      d: curve(FAN.bar.x1, y0, FAN.stub.x, y1),
-      capAt: pointAtLength(FAN.bar.x1, y0, FAN.stub.x, y1, FAN.sentAt),
+      d: curve(FAN.bar.x1, y0, FAN.endX, y1),
+      capAt: pointAtLength(FAN.bar.x1, y0, FAN.endX, y1, FAN.sentAt),
+      barY: y0,
       stubY,
       index: i,
       eventId: item.live?.eventId ?? null,
       at: item.live?.at ?? null,
       source: item.live?.source ?? null,
-      amountState: tone === "landed" ? "landed" : tone === "unsent" ? "pencil" : "hollow",
+      amountState:
+        tone === "landed" ? "landed" : tone === "unsent" ? (approved ? "ink" : "pencil") : "hollow",
     };
   });
 
+  // The cash lines leave the bar below the threads, in member order, and end in the same order in one column
+  // under the stubs, so none crosses another. A line moved to cash leaves from its own thread's slot and ends on
+  // top of the column, the nearest place to the stub it left.
+  const railBottom = y;
   const moved = threads.filter((t) => t.tone === "moved");
-  const cashLines = output.lines
+  const onCash = output.lines
     .filter((l) => l.rail === "CASH" && l.state !== "EXCLUDED")
     .sort((a, b) => a.memberNo.localeCompare(b.memberNo));
-  const sliceSource = [
-    ...cashLines.map((l) => ({ memberNo: l.memberNo, cents: l.netCents, moved: false })),
-    ...moved.map((t) => ({ memberNo: t.memberNo, cents: t.cents, moved: true })),
+  const sources = [
+    ...moved.map((t) => ({ memberNo: t.memberNo, cents: t.cents, fromY: t.barY as number | null })),
+    ...onCash.map((l) => ({ memberNo: l.memberNo, cents: l.netCents, fromY: null as number | null })),
   ];
-  let sy = FAN.band.y0;
-  const slices: CashSlice[] = sliceSource.map((s) => {
+  let barY = railBottom;
+  let endY = FAN.cash.y0;
+  const cashLines: CashLine[] = sources.map((s, index) => {
     const h = k * s.cents;
-    const slice = {
+    let y0 = s.fromY;
+    if (y0 === null) {
+      y0 = barY + h / 2;
+      barY += h;
+    }
+    const line: CashLine = {
       memberNo: s.memberNo,
       name: names.get(s.memberNo) ?? s.memberNo,
       cents: s.cents,
-      y: sy,
+      d: curve(FAN.bar.x1, y0, FAN.endX, endY + h / 2),
       h,
+      stroke: Math.max(1, Math.round(h * FAN.cashStroke * 100) / 100),
+      dashOffset: Math.round(((index * GOLDEN) % 1) * DASH_PERIOD * 10_000) / 10_000,
+      endY,
       attested: view.lines[s.memberNo]?.state === "OFF_RAIL_PAID",
-      moved: s.moved,
+      moved: s.fromY !== null,
+      index,
     };
-    sy += h;
-    return slice;
+    endY += h;
+    return line;
   });
 
   const onRail = threads.filter((t) => t.tone !== "moved");
-  const railWidth = onRail.reduce((s, t) => s + t.width, 0);
-  const top = FAN.bar.y0 + railWidth;
-  const bottom = FAN.bar.y1;
-  const end = sy;
-  const dx = FAN.band.x0 - FAN.bar.x1;
-  const r = (n: number) => Math.round(n * 100) / 100;
-  const band =
-    `M${FAN.bar.x1} ${r(top)}` +
-    `C${r(FAN.bar.x1 + FAN.pull * dx)} ${r(top)} ${r(FAN.band.x0 - FAN.pull * dx)} ${FAN.band.y0} ${FAN.band.x0} ${FAN.band.y0}` +
-    `L${FAN.band.x0} ${r(end)}` +
-    `C${r(FAN.band.x0 - FAN.pull * dx)} ${r(end)} ${r(FAN.bar.x1 + FAN.pull * dx)} ${bottom} ${FAN.bar.x1} ${bottom}Z`;
-
   const paypalCents = onRail.reduce((s, t) => s + t.cents, 0);
-  const cashCents = slices.reduce((s, c) => s + c.cents, 0);
+  const cashCents = cashLines.reduce((s, c) => s + c.cents, 0);
+  const allAttested = cashLines.length > 0 && cashLines.every((c) => c.attested);
   return {
     k,
     netCents,
     threads,
-    slices,
-    band: { d: band, top, bottom, end },
+    cashLines,
     paypal: {
       cents: paypalCents,
       members: onRail.length,
       share: netCents > 0 ? format.shareOf(paypalCents, netCents) : "",
     },
-    cash: { cents: cashCents, members: slices.length },
+    cash: {
+      cents: cashCents,
+      members: cashLines.length,
+      top: FAN.cash.y0,
+      bottom: endY,
+      amountState: allAttested ? "attested" : approved ? "hollow" : "pencil",
+    },
     members: output.lines.length,
     sealHash: snapshot.run.batchSha256,
   };

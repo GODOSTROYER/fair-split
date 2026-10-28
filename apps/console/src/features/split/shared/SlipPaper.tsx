@@ -2,8 +2,8 @@
 // the A6 triplicate form with its printed boxes, the press's red serial, and Jessie's entries in blue ballpoint
 // block capitals, exactly as the seed records them (box 1–13). It is evidence, so it is Paper: the only thing
 // that casts a shadow, tagged "Synthetic sample" in its corner and in its alt text. The pink duplicate prints
-// fainter than the white original. A box can carry a canary highlighter stroke behind the handwriting (MM-3's
-// matched fields, H3's unruled line); the stroke draws with `progress`.
+// fainter than the white original. Canary marks only what a person must look at: one underline beneath the
+// serial (MM-3: the two copies carry the same serial), or the box-13 line a hold points at (H3).
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { Paper } from "@fairsplit/ui-web";
@@ -56,38 +56,19 @@ export interface SlipPaperProps {
   readonly width?: number;
   /** Alt text; Paper adds "Synthetic sample". */
   readonly alt: string;
-  /** Boxes to highlight in canary, and how far the stroke has drawn (0 to 1). */
-  readonly highlight?: { readonly boxes: readonly SlipBox[]; readonly progress: number };
+  /** A canary underline beneath the serial: the field a person compares across two copies (MM-3). */
+  readonly underlineSerial?: boolean;
   /** One box-13 line a hold points at, highlighted in full ("Multa (absent GA) ₱200"). */
   readonly markLine?: string | null;
   readonly testId?: string;
   readonly className?: string;
 }
 
-function Stroke({
-  x,
-  y,
-  width,
-  progress,
-  box,
-}: {
-  x: number;
-  y: number;
-  width: number;
-  progress: number;
-  box?: SlipBox | "mark";
-}) {
-  if (progress <= 0) return null;
-  return (
-    <rect x={x} y={y} width={width * progress} height={9} className="fsr-slip__highlight" data-box={box} />
-  );
-}
-
 export function SlipPaper({
   slip,
   width = 200,
   alt,
-  highlight,
+  underlineSerial = false,
   markLine,
   testId,
   className,
@@ -96,8 +77,6 @@ export function SlipPaper({
   const ink = faint ? 0.62 : 0.94;
   const rows = rowsOf(slip);
   const marks = slip.boxes["13"];
-  const lit = new Set(highlight?.boxes ?? []);
-  const progress = Math.max(0, Math.min(1, highlight?.progress ?? 0));
   const stained = slip.artifacts.includes("WATER_STAIN");
   return (
     <Paper alt={alt} testId={testId} className={["fsr-slip", className].filter(Boolean).join(" ")}>
@@ -117,7 +96,6 @@ export function SlipPaper({
         <text x={14} y={34} fill={FORM_INK} className="fsr-slip__form">
           Weigh slip, dried cacao
         </text>
-        {lit.has("serial") && <Stroke x={W - 64} y={21} width={50} progress={progress} box="serial" />}
         <text
           x={W - 14}
           y={28}
@@ -128,6 +106,9 @@ export function SlipPaper({
         >
           {slip.serial}
         </text>
+        {underlineSerial && (
+          <rect x={W - 66} y={31} width={52} height={4} className="fsr-slip__underline" data-box="serial" />
+        )}
         <line x1={14} x2={W - 14} y1={44} y2={44} stroke={FORM_INK} strokeWidth={0.75} opacity={0.6} />
         {rows.map((row) => (
           <g key={row.label}>
@@ -143,9 +124,6 @@ export function SlipPaper({
               strokeWidth={0.5}
               opacity={0.5}
             />
-            {row.box && lit.has(row.box) && (
-              <Stroke x={VALUE_X - 3} y={row.y - 5} width={VALUE_W} progress={progress} box={row.box} />
-            )}
             <text x={VALUE_X} y={row.y} fill={BALLPOINT} opacity={ink} className="fsr-slip__hand">
               {row.value}
             </text>
@@ -162,7 +140,14 @@ export function SlipPaper({
           marks.map((text, i) => (
             <g key={text}>
               {markLine === text && (
-                <Stroke x={VALUE_X - 3} y={262 + i * 16 - 5} width={VALUE_W} progress={1} box="mark" />
+                <rect
+                  x={VALUE_X - 3}
+                  y={262 + i * 16 - 5}
+                  width={VALUE_W}
+                  height={9}
+                  className="fsr-slip__highlight"
+                  data-box="mark"
+                />
               )}
               <text
                 x={VALUE_X}

@@ -202,10 +202,15 @@
   font-size: 11.5px;
 }
 
-/* A canary highlighter stroke behind the handwriting: a person must look here. */
+/* A canary highlighter stroke behind the handwriting: the line a person must decide on (H3's unruled fine). */
 .fsr-slip__highlight {
   fill: var(--fs-canary);
   opacity: 0.85;
+}
+
+/* One canary underline beneath the press's serial: the field a person compares across two copies (MM-3). */
+.fsr-slip__underline {
+  fill: var(--fs-canary);
 }
 
 .fsr-slip__stain {

@@ -83,6 +83,24 @@ describe("W-TR-09 member line", () => {
   );
 
   it(
+    "reduced motion keeps every fact and state: the line opens in place, its slabs step instead of travel",
+    async () => {
+      await renderConsole({
+        path: webRoutes.memberLine(RUN, "M-053"),
+        viewport: { width: 1920 },
+        motion: "reduced",
+      });
+      await waitFor(() => expect(stateOf()).toBe("cash-due"), WAIT);
+      expect(screen.getByTestId("W-TR-09.cash").textContent).toMatch(/₱7,990\.00/);
+      expect(screen.getByTestId("W-TR-09.markReceived").dataset.motion).toBe("reduced");
+      expect(screen.getByTestId("W-TR-09.markReceived").dataset.state).toBe("unavailable");
+      expect(screen.getByTestId("W-TR-09.pair").dataset.motion).toBe("reduced");
+      await expectNoAxeViolations(screen.getByTestId("W-TR-09.drawer"));
+    },
+    SLOW,
+  );
+
+  it(
     "a member the run lacks says so",
     async () => {
       await renderConsole({ path: webRoutes.memberLine(RUN, "M-099"), viewport: { width: 1920 } });

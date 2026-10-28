@@ -1,14 +1,15 @@
 // The evidence on each hold card, as paper (design §2.5: evidence is the only thing that casts a shadow).
-// H1: the two copies of slip 0457 side by side, converging, their matching fields underlined in canary (MM-3,
-// "The pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not an
-// overlay). H2: the registry's plots and the kilos-per-tree bar. H3: box 13 of slip 0458, each line against
-// Schedule A's closed list. Every figure is the seed's or the engine's.
+// H1: the two copies of slip 0457 side by side, converging, one canary underline drawn beneath both serials
+// (MM-3, "The pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not
+// an overlay). The fields the engine matched read beneath in pencil with an "=": machine facts never wear the
+// decision colour. H2: the registry's plots and the kilos-per-tree bar. H3: box 13 of slip 0458, each line
+// against Schedule A's closed list. Every figure is the seed's or the engine's.
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { MOMENTS, type MomentPhase } from "@fairsplit/motion";
 import { Glyph, Print } from "@fairsplit/ui-web";
 import { HOLDS } from "../split/shared/copy.js";
-import { copyWord, type SlipBox, SlipPaper } from "../split/shared/SlipPaper.js";
+import { copyWord, SlipPaper } from "../split/shared/SlipPaper.js";
 import type { NoRuleFacts, TwinRow, YieldFacts } from "./model.js";
 
 type Mm3Phase = MomentPhase<"MM-3">;
@@ -18,13 +19,6 @@ const MM3 = MOMENTS["MM-3"] as readonly Mm3Phase[];
 export function reached(phase: Mm3Phase, at: Mm3Phase): boolean {
   return MM3.indexOf(phase) >= MM3.indexOf(at);
 }
-
-const FIELD_BOX: Readonly<Record<TwinRow["field"], SlipBox>> = {
-  serial: "serial",
-  date: "date",
-  member: "member",
-  net: "net",
-};
 
 export interface TwinCompareProps {
   readonly a: SnapshotSlip;
@@ -39,7 +33,8 @@ export interface TwinCompareProps {
 
 export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinCompareProps) {
   const matched = rows.filter((r) => r.match);
-  const boxes = matched.map((r) => FIELD_BOX[r.field]);
+  // The canary underline marks the serials only, and only when they are the same slip's.
+  const sameSerial = rows.some((r) => r.field === "serial" && r.match);
   const converged = reached(phase, "converge");
   const lit = reached(phase, "underline");
   const ready = reached(phase, "ready");
@@ -49,7 +44,7 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
         slip={slip}
         width={184}
         alt={HOLDS.slipAlt(slip.serial, copyWord(slip.copy), slip.photoId)}
-        highlight={{ boxes, progress: 1 }}
+        underlineSerial={sameSerial}
         testId={`W-TR-06.twin.${side}`}
       />
       <figcaption className="fsr-twin__caption fs-t-caption">

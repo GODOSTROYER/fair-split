@@ -45,6 +45,20 @@
   opacity: 0.72;
 }
 
+/* MM-3 reduced: the needle cuts to its new value under a 200 ms crossfade, its reading with it. */
+.fsr-dial__visual[data-cut] :is(.fs-dial__needle, .fs-dial__value) {
+  animation: fsr-dial-cut var(--fs-dur-crossfade) var(--fs-ease-out) both;
+}
+
+@keyframes fsr-dial-cut {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .fsr-pools {
   display: grid;
   gap: var(--fs-space-12);

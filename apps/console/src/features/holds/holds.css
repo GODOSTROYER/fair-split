@@ -1,6 +1,7 @@
 /* W-TR-06 Hold drawer: one hold card flat on the drawer's plate-2, its evidence as paper, MM-3's twin compare.
    Machine text prints in pencil (S2.2.1: the engine's line and Claude's differ only by the pencil glyph and the
-   word Claude). Canary marks what a person must look at; jade never appears here. */
+   word Claude). Canary marks only what a person must decide on (in H1, one underline beneath the two serials);
+   facts the engine matched stay pencil; jade never appears here. */
 
 .fsr-hold-screen {
   display: grid;
@@ -86,13 +87,14 @@
   color: var(--fs-ink-2);
 }
 
+/* The centre line the two copies converge on: the engine's alignment, so pencil. */
 .fsr-twin__seam {
   position: absolute;
   top: 0;
   bottom: 28px;
   left: 50%;
   width: 1px;
-  background: var(--fs-canary);
+  background: var(--fs-pencil-faint);
   opacity: 0;
   transform: scaleY(0);
   transform-origin: top;
@@ -130,32 +132,20 @@
   transform: none;
 }
 
-/* underline: the matching fields light in canary on both copies, in turn. */
-.fsr-twin .fsr-slip__highlight {
+/* underline: one canary underline draws beneath both serials (MM-3, 900 to 1,200 ms), with the act's two ticks. */
+.fsr-twin .fsr-slip__underline {
   transform: scaleX(0);
   transform-box: fill-box;
   transform-origin: left center;
 }
 
-.fsr-twin[data-lit] .fsr-slip__highlight {
+.fsr-twin[data-lit] .fsr-slip__underline {
   transform: none;
 }
 
-.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight,
+.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__underline,
 .fsr-twin[data-animate][data-phase="underline"] .fsr-twin__seam {
   animation: fsr-underline var(--fs-dur-underline) var(--fs-ease-out) both;
-}
-
-.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight[data-box="date"] {
-  animation-delay: calc(var(--fs-dur-underline) / 6);
-}
-
-.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight[data-box="member"] {
-  animation-delay: calc(var(--fs-dur-underline) / 3);
-}
-
-.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__highlight[data-box="net"] {
-  animation-delay: calc(var(--fs-dur-underline) / 2);
 }
 
 @keyframes fsr-twin-in {
@@ -205,10 +195,10 @@
   }
 }
 
-/* Reduced motion keeps every phase, with no travel: crossfades into place, the fields fade in lit. */
+/* Reduced motion keeps every phase, with no travel: crossfades into place, the underline fades in. */
 .fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__copy,
 .fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__seam,
-.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__highlight {
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__underline {
   transform: none;
 }
 
@@ -220,15 +210,15 @@
   animation: none;
 }
 
-.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__highlight {
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__underline {
   opacity: 0;
 }
 
-.fsr-twin.fsr-twin[data-motion="reduced"][data-lit] .fsr-slip__highlight {
-  opacity: 0.85;
+.fsr-twin.fsr-twin[data-motion="reduced"][data-lit] .fsr-slip__underline {
+  opacity: 1;
 }
 
-.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-slip__highlight,
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-slip__underline,
 .fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-twin__seam {
   animation: fsr-fade-in var(--fs-dur-reduced) var(--fs-ease-out) both;
 }
@@ -261,14 +251,15 @@
   color: var(--fs-pencil);
 }
 
-.fsr-twin[data-lit] .fsr-twin__fields tr[data-match] th {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
-}
-
+/* What the engine matched reads as its own mark, in pencil: "=" for a match, "≠" for a difference. */
 .fsr-twin__eq {
   display: inline-block;
   width: 20px;
   color: var(--fs-ink-3);
+}
+
+.fsr-twin__fields tr[data-match] .fsr-twin__eq {
+  color: var(--fs-pencil);
 }
 
 .fsr-twin__verdict {

@@ -1,8 +1,9 @@
 // Split review's bench (S1.7 W-TR-05 header): the bodega's hanging-scale dial for mass balance, the three pools,
 // the open decisions as one sentence with the next one linked, and flat filter chips with live counts. The dial
-// swings only on a live decision (the needle spring, MM-3); replayed history sets it in place.
+// swings only on a live decision (the needle spring, MM-3); replayed history sets it in place. In reduced motion
+// the needle cuts to its new value under a 200 ms crossfade instead of swinging.
 
-import { Glyph, MassBalanceDial } from "@fairsplit/ui-web";
+import { Glyph, MassBalanceDial, useMotionMode } from "@fairsplit/ui-web";
 import { AppLink } from "../../chrome/AppLink.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
@@ -62,12 +63,23 @@ export function Dial({
   readonly size?: number;
   readonly testId: string;
 }) {
+  const mode = useMotionMode();
+  // MM-3 reduced: no swing. The needle cuts to the new value and fades in over 200 ms; keying the dial to the
+  // value replays the fade for each live change (history never sets `swing`, so it never fades).
+  const cut = swing && mode === "reduced";
   return (
     <Mirrored
       testId={testId}
       className="fsr-dial"
       visual={
-        <div className="fsr-dial__visual" data-status={dial.status} data-swing={swing ? "" : undefined}>
+        <div
+          key={cut ? `cut-${dial.display}` : "dial"}
+          className="fsr-dial__visual"
+          data-status={dial.status}
+          data-swing={swing ? "" : undefined}
+          data-motion={mode}
+          data-cut={cut ? "" : undefined}
+        >
           <MassBalanceDial
             value={dial.value}
             display={dial.display}

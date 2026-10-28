@@ -55,7 +55,19 @@ describe("W-TR-06 hold drawer", () => {
       );
       expect(card.textContent).toMatch(/The second image is the office's pink copy of the same receipt\./);
       expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe("4 of 4 fields match. Same slip.");
-      expect(screen.getByTestId("W-TR-06.twin").dataset.lit).toBe("");
+      const twin = screen.getByTestId("W-TR-06.twin");
+      expect(twin.dataset.lit).toBe("");
+      // Canary is a person's decision: one underline beneath the two serials, nothing else on the slips. The
+      // fields the engine matched read beneath as its own "=" marks, in pencil.
+      const underlines = [...twin.querySelectorAll(".fsr-slip__underline")];
+      expect(underlines).toHaveLength(2);
+      expect(underlines.every((u) => u.getAttribute("data-box") === "serial")).toBe(true);
+      expect(twin.querySelectorAll(".fsr-slip__highlight")).toHaveLength(0);
+      for (const field of ["serial", "date", "member", "net"]) {
+        const row = screen.getByTestId(`W-TR-06.twin.${field}`);
+        expect(row.dataset.match).toBe("");
+        expect(row.querySelector(".fsr-twin__eq")?.textContent).toBe("=");
+      }
       expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("OUTSIDE");
       expect(screen.getByTestId("W-TR-06.drawer").textContent).toMatch(/Hold 1 of 3/);
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));

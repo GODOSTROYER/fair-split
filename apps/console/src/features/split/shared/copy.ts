@@ -155,8 +155,15 @@ export const APPROVE = {
   mismatchAction: "Reload the batch",
   denied: en("W-TR-07.denied"),
   killed: en("W-TR-07.killed"),
-  retrying: (attempt: number, max: number) =>
-    `The server didn't answer. Sending the same signature again with the same request ID, so nothing is signed twice. Attempt ${attempt} of ${max}.`,
+  /** S1.7 `retrying`: PayPal's Payouts POST, retried by the server (shown once a contract event carries it). */
+  paypalRetrying: (attempt: number, of: number) =>
+    `PayPal didn't answer. Retrying with the same request ID, so no one is paid twice. Attempt ${attempt} of ${of}.`,
+  /** This browser sending its own signed approval again: not PayPal, and not the spec's `retrying`. */
+  resending: (send: number, of: number) =>
+    `The server didn't answer. Sending your signature again with the same request ID, so it counts once. Send ${send} of ${of}.`,
+  payloadLoading: "Preparing the batch to sign",
+  payloadFailed: "The batch to sign didn't load. Load it again",
+  payloadRetry: "Load the batch again",
   confirmTitle: (count: number) => en("confirm.title", { count }),
   confirmBody: (amount: string, count: number) => en("confirm.body", { amount, count }),
   srApprove: (label: string, spoken: string) => `${label}, ${spoken}, ${en("slab.consequence.money")}`,
@@ -165,7 +172,8 @@ export const APPROVE = {
   batchHash: "Batch hash",
   batchPending: "Not final yet",
   linesDigest: "Lines digest",
-  linesNote: (lines: number, cash: number) => `all ${lines} lines, the ${cash} cash lines too`,
+  linesNote: (lines: number, cash: number) =>
+    `all ${lines} lines, the ${cash} cash lines too; this browser recomputed it`,
   rateCard: "Rate card",
   cosignTitle: "Co-sign as Ernesto from your own phone",
   cosignBody: "Uses a labelled demo key made in your phone's browser.",

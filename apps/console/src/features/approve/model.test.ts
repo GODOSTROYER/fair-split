@@ -4,6 +4,8 @@
 
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { describe, expect, it } from "vitest";
+import { ApiClientError, ContractError, NetworkError } from "../../data/errors.js";
+import { CHAIR } from "../../data/mock/driver.js";
 import { applyRunEvents, type RunView, sessionView, showcaseView } from "../../data/run-view.js";
 import { fromHex } from "../../lib/sha256.js";
 import { createTestWorld, seedSnapshot } from "../../test/world.js";
@@ -13,17 +15,23 @@ import {
   approveState,
   batchAmountState,
   batchFacts,
+  batchHashOf,
   blockingReasons,
+  canSign,
   chairRule,
   feeFacts,
+  isUnanswered,
   keyKind,
   linesDigest,
+  liveApprovals,
   NO_LOCAL,
   payloadMatches,
+  paypalRetryOf,
   restingPhase,
   safeFacts,
   sealKeys,
   senderBatchIdFor,
+  signedLinesDigest,
   wholeDollars,
 } from "./model.js";
 
@@ -87,9 +95,57 @@ describe("the approval's state follows the story", () => {
     const view = viewOf(world);
     expect(approveState(view, { ...NO_LOCAL, mismatch: true })).toBe("mismatch");
     expect(approveState(view, { ...NO_LOCAL, expired: true })).toBe("expired");
-    expect(approveState(view, { ...NO_LOCAL, retrying: 2 })).toBe("retrying");
     expect(approveState({ ...view, state: "DENIED" })).toBe("denied");
     expect(approveState({ ...view, flags: { kill_payouts: true } })).toBe("killed");
+  });
+
+  it("this browser sending its signature again is not S1.7's retrying: the run's state stands", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    const view = viewOf(world);
+    expect(approveState(view, { ...NO_LOCAL, resending: 2 })).toBe("ready");
+  });
+
+  it("retrying is PayPal's Payouts POST only: shown while POSTING once an event carries the attempt", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    const posting = { ...viewOf(world), state: "POSTING" as const };
+    expect(paypalRetryOf(posting)).toBeNull();
+    expect(approveState(posting)).toBe("posting");
+    expect(approveState(posting, NO_LOCAL, { attempt: 2, of: 4 })).toBe("retrying");
+    expect(restingPhase("retrying")).toBe("inked");
+    const ready = { ...posting, state: "IN_REVIEW" as const };
+    expect(approveState(ready, NO_LOCAL, { attempt: 2, of: 4 })).not.toBe("retrying");
+  });
+
+  it("the Chair sends the batch back: his decline voids key 1, the seal empties, the batch is pencil again", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    expect(sealKeys(viewOf(world))).toBe(1);
+    world.command("declineApproval", {
+      params: { runSlug: world.runSlug },
+      body: { role: "chair", reason: "Check Merlyn's second plot first." },
+      as: CHAIR,
+    });
+    const view = viewOf(world);
+    expect(view.state).toBe("IN_REVIEW");
+    expect(approveState(view)).toBe("declined");
+    expect(canSign("declined")).toBe(true);
+    expect(liveApprovals(view)).toEqual({ treasurer: null, chair: null });
+    expect(sealKeys(view)).toBe(0);
+    expect(batchHashOf(view, null)).toBeNull();
+    expect(batchAmountState(view)).toBe("pencil");
+    expect(restingPhase("declined")).toBe("declined");
+    world.sign("treasurer");
+    const again = viewOf(world);
+    expect(approveState(again)).toBe("key1");
+    expect(sealKeys(again)).toBe(1);
   });
 
   it("the showcase is approved by two seeded sample keys, its batch landed and settled", () => {
@@ -170,10 +226,46 @@ describe("inv.i4 the approved digest is the payout", () => {
       params: { runSlug: world.runSlug },
       query: { role: "treasurer" },
     });
+    const shown = { batchSha256: payload.batchSha256, linesDigest: null };
     expect(jcs(payload as unknown as Parameters<typeof jcs>[0])).toBe(serverJcs);
-    expect(payloadMatches(payload, serverJcs, payload.batchSha256)).toBe(true);
-    expect(payloadMatches(payload, serverJcs, "0".repeat(64))).toBe(false);
-    expect(payloadMatches({ ...payload, totalCents: payload.totalCents + 1 }, serverJcs, null)).toBe(false);
+    expect(payloadMatches(payload, serverJcs, shown)).toBe(true);
+    expect(payloadMatches(payload, serverJcs, { ...shown, batchSha256: "0".repeat(64) })).toBe(false);
+    expect(payloadMatches({ ...payload, totalCents: payload.totalCents + 1 }, serverJcs, shown)).toBe(false);
+  });
+
+  it("inv.i4 nothing shown, nothing signed: a payload the seal never showed is refused", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    const { payload, jcs: serverJcs } = world.command("approvalPayload", {
+      params: { runSlug: world.runSlug },
+      query: { role: "treasurer" },
+    });
+    expect(payloadMatches(payload, serverJcs, { batchSha256: null, linesDigest: null })).toBe(false);
+  });
+
+  it("inv.i4 once the payload carries a lines root, it must be the one this browser recomputed", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    const view = viewOf(world);
+    const { payload } = world.command("approvalPayload", {
+      params: { runSlug: world.runSlug },
+      query: { role: "treasurer" },
+    });
+    // Today's contract has no linesDigest: nothing to show, nothing extra to compare.
+    expect(signedLinesDigest(payload)).toBeNull();
+    const ours = linesDigest(snapshot, view);
+    expect(ours).toMatch(/^[0-9a-f]{64}$/);
+    const carried = { ...payload, linesDigest: ours };
+    const carriedJcs = jcs(carried as unknown as Parameters<typeof jcs>[0]);
+    expect(signedLinesDigest(carried)).toBe(ours);
+    const shown = { batchSha256: payload.batchSha256, linesDigest: ours };
+    expect(payloadMatches(carried, carriedJcs, shown)).toBe(true);
+    const other = { ...payload, linesDigest: "f".repeat(64) };
+    const otherJcs = jcs(other as unknown as Parameters<typeof jcs>[0]);
+    expect(payloadMatches(other, otherJcs, shown)).toBe(false);
+    expect(payloadMatches(carried, carriedJcs, { ...shown, linesDigest: null })).toBe(false);
   });
 
   it("inv.i4 key 1 signs those bytes with a non-extractable WebCrypto key, and the signature verifies", async () => {
@@ -202,5 +294,32 @@ describe("inv.i4 the approved digest is the payout", () => {
     const b = await browserKey("fs-analyn-w1", "session-b");
     expect(again.publicKeyHex).toBe(a.publicKeyHex);
     expect(b.publicKeyHex).not.toBe(a.publicKeyHex);
+  });
+});
+
+describe("sending a signed approval again", () => {
+  const ctx = { command: "submitApproval", rail: "simulated" as const, requestId: "req-1" };
+  const answer = (status: number, code: string, details?: Record<string, unknown>) =>
+    new ApiClientError(
+      { code: code as never, status, message: `${code} (test)`, ...(details ? { details } : {}) },
+      ctx,
+    );
+
+  it("only when the server gave no definitive answer: no connection, a 500, a gateway or a timeout", () => {
+    expect(isUnanswered(new NetworkError("submitApproval", new TypeError("offline"), false))).toBe(true);
+    expect(isUnanswered(answer(500, "INTERNAL"))).toBe(true);
+    expect(isUnanswered(new ContractError("submitApproval", 502, "Bad gateway page"))).toBe(true);
+    expect(isUnanswered(new ContractError("submitApproval", 504, "Gateway timeout page"))).toBe(true);
+  });
+
+  it("never for an answer: a 501 not wired yet, a definitive 5xx refusal, any 4xx, or a cancelled request", () => {
+    expect(isUnanswered(answer(501, "INTERNAL", { reason: "NOT_IMPLEMENTED" }))).toBe(false);
+    expect(isUnanswered(new ContractError("submitApproval", 501, "Not implemented"))).toBe(false);
+    expect(isUnanswered(answer(503, "CIRCUIT_OPEN"))).toBe(false);
+    expect(isUnanswered(answer(502, "PAYPAL_REJECTED"))).toBe(false);
+    expect(isUnanswered(answer(409, "DIGEST_MISMATCH"))).toBe(false);
+    expect(isUnanswered(answer(422, "APPROVAL_EXPIRED"))).toBe(false);
+    expect(isUnanswered(new NetworkError("submitApproval", new Error("abort"), true))).toBe(false);
+    expect(isUnanswered(new Error("anything else"))).toBe(false);
   });
 });

@@ -59,7 +59,11 @@ export function SealBlock({ batchSha256, keys, engrave, size = 200 }: SealBlockP
 export interface BatchLedgerProps {
   readonly senderBatchId: string;
   readonly batchSha256: string | null;
-  readonly linesDigest: string | null;
+  /**
+   * The lines root the payload asks both keys to sign, shown only when this browser recomputed the same root.
+   * Null hides the row: a digest no signature binds is never shown beside what two people sign.
+   */
+  readonly signedLinesDigest: string | null;
   readonly lines: number;
   readonly cashLines: number;
   readonly rateCardSha256: string;
@@ -69,7 +73,7 @@ export interface BatchLedgerProps {
 export function BatchLedger({
   senderBatchId,
   batchSha256,
-  linesDigest,
+  signedLinesDigest,
   lines,
   cashLines,
   rateCardSha256,
@@ -88,15 +92,15 @@ export function BatchLedger({
           {batchSha256 ? format.hashGroups(batchSha256, 4) : APPROVE.batchPending}
         </dd>
       </div>
-      <div className="fsr-ledger__row">
-        <dt className="fs-t-caption">{APPROVE.linesDigest}</dt>
-        <dd className="fs-t-hash" data-testid="W-TR-07.linesDigest" title={linesDigest ?? undefined}>
-          {linesDigest ? format.hashGroups(linesDigest, 4) : APPROVE.batchPending}
-          {linesDigest && (
+      {signedLinesDigest && (
+        <div className="fsr-ledger__row">
+          <dt className="fs-t-caption">{APPROVE.linesDigest}</dt>
+          <dd className="fs-t-hash" data-testid="W-TR-07.linesDigest" title={signedLinesDigest}>
+            {format.hashGroups(signedLinesDigest, 4)}
             <span className="fsr-ledger__note fs-t-caption"> {APPROVE.linesNote(lines, cashLines)}</span>
-          )}
-        </dd>
-      </div>
+          </dd>
+        </div>
+      )}
       <div className="fsr-ledger__row">
         <dt className="fs-t-caption">{APPROVE.rateCard}</dt>
         <dd className="fs-t-hash">{format.hashGroups(rateCardSha256)}</dd>

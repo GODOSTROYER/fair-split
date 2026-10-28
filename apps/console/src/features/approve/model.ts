@@ -3,12 +3,14 @@
 // figure is the engine's (snapshot checkpoints) or the API's (the approval payload); nothing here invents a
 // cent. The only arithmetic is the lines root (a hash over the engine's own line hashes) and display shares.
 
-import { type ApprovalPayload, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
+import { type ApprovalPayload, type ErrorCode, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
+import { isApiClientError, isContractError, isNetworkError } from "../../data/errors.js";
 import {
   atLeast,
   blockingHolds,
   byHandHolds,
   holdCards,
+  type RunApproval,
   type RunHold,
   type RunView,
 } from "../../data/run-view.js";
@@ -37,18 +39,45 @@ export type ApproveState =
   | "denied"
   | "killed";
 
-/** What only this browser knows: a refused or unanswered signature. */
+/**
+ * What only this browser knows: a refused signature, or one being sent again because the server did not answer.
+ * Sending again is the browser's own retry of its POST, never PayPal's (S1.7 `retrying` is PayPal's: see
+ * `PaypalRetry`), so it leaves the screen's state alone and says so in its own words.
+ */
 export interface LocalApproval {
   readonly mismatch: boolean;
   readonly expired: boolean;
-  /** The attempt now being sent again with the same request ID, or null. */
-  readonly retrying: number | null;
+  /** The send about to go again under the same Idempotency-Key (2, 3 or 4), or null. */
+  readonly resending: number | null;
 }
 
-export const NO_LOCAL: LocalApproval = { mismatch: false, expired: false, retrying: null };
+export const NO_LOCAL: LocalApproval = { mismatch: false, expired: false, resending: null };
 
-/** Every attempt at one signed approval, the first included (S1.7 "Attempt 2 of 4"). */
-export const MAX_ATTEMPTS = 4;
+/** Every send of one signed approval, the first included. */
+export const SEND_ATTEMPTS = 4;
+
+/** Waits before sending the same signature again (no answer): 0.5 s, 1.5 s, 4.5 s. Not motion. */
+export const RESEND_WAIT_MS = [500, 1500, 4500] as const;
+
+/**
+ * PayPal's Payouts POST being retried by the server with the same PayPal-Request-Id (S1.7 `retrying`: "PayPal
+ * didn't answer. Retrying with the same request ID, so no one is paid twice. Attempt 2 of 4."). No RunEvent
+ * carries the attempt yet (shared contract request: a POSTING retry event), so the screen passes null until one
+ * does; the state, its copy and its test are ready for it.
+ */
+export interface PaypalRetry {
+  readonly attempt: number;
+  readonly of: number;
+}
+
+/**
+ * The server's retry of PayPal's Payouts POST, read from the run's events. No RunEvent carries a POSTING attempt
+ * yet (shared contract request: an attempt number on `run.state` metadata or `item.updated`), so this is null
+ * until one does; the screen never borrows the spec's words for its own retries.
+ */
+export function paypalRetryOf(_view: RunView): PaypalRetry | null {
+  return null;
+}
 
 const POSTED_STATES = ["POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"] as const;
 
@@ -56,19 +85,37 @@ export function isPosted(view: RunView): boolean {
   return (POSTED_STATES as readonly string[]).includes(view.state);
 }
 
+export interface LiveApprovals {
+  readonly treasurer: RunApproval | null;
+  readonly chair: RunApproval | null;
+}
+
+/**
+ * The signatures that still count. A decline voids every approval before it (the server voids them and moves the
+ * run back to review); the next `approval.signed` clears the decline, so a decline on the view means nothing
+ * signed before it binds anything now (S2.2.1: when approvals are voided, ink returns to pencil).
+ */
+export function liveApprovals(view: RunView): LiveApprovals {
+  if (view.approvals.declined !== null) return { treasurer: null, chair: null };
+  return { treasurer: view.approvals.treasurer, chair: view.approvals.chair };
+}
+
 /** S1.7's W-TR-07 states, most specific first. */
-export function approveState(view: RunView, local: LocalApproval = NO_LOCAL): ApproveState {
+export function approveState(
+  view: RunView,
+  local: LocalApproval = NO_LOCAL,
+  paypalRetry: PaypalRetry | null = null,
+): ApproveState {
   if (view.state === "DENIED") return "denied";
   if (view.state === "HALTED" || view.flags.kill_payouts === true) return "killed";
   if (local.mismatch) return "mismatch";
   if (local.expired) return "expired";
-  if (local.retrying !== null) return "retrying";
-  if (view.state === "POSTING") return "posting";
+  if (view.state === "POSTING") return paypalRetry ? "retrying" : "posting";
   if (view.state === "APPROVED" || isPosted(view)) return "approved";
   if (view.state === "TREASURER_APPROVED" || view.state === "AWAITING_BOARD") return "key1";
   if (view.state !== "IN_REVIEW" && view.state !== "COMPUTED") return "blocked";
   if (blockingHolds(view).length > 0) return "blocked";
-  if (view.approvals.declined !== null && view.approvals.treasurer === null) return "declined";
+  if (view.approvals.declined !== null) return "declined";
   return "ready";
 }
 
@@ -80,15 +127,15 @@ export function canSign(state: ApproveState): boolean {
 export type KeysSigned = 0 | 1 | 2;
 
 export function sealKeys(view: RunView): KeysSigned {
-  if (view.approvals.treasurer && view.approvals.chair) return 2;
-  return view.approvals.treasurer ? 1 : 0;
+  const signed = liveApprovals(view);
+  if (signed.treasurer && signed.chair) return 2;
+  return signed.treasurer ? 1 : 0;
 }
 
 /** The batch hash both keys sign: the signed one once key 1 is in, else the payload's, else none yet. */
 export function batchHashOf(view: RunView, payload: ApprovalPayload | null | undefined): string | null {
-  return (
-    view.approvals.treasurer?.batchSha256 ?? view.approvals.chair?.batchSha256 ?? payload?.batchSha256 ?? null
-  );
+  const signed = liveApprovals(view);
+  return signed.treasurer?.batchSha256 ?? signed.chair?.batchSha256 ?? payload?.batchSha256 ?? null;
 }
 
 export interface BatchFacts {
@@ -143,8 +190,8 @@ export function batchFacts(
 
 /**
  * The lines root (`linesRootSha256`, S3 ledger `lines.computed`): sha256 of JCS([{memberNo, lineSha256}]) over
- * every line of the computation the run's decisions match, sorted by member number. It binds the 56 cash lines
- * as well as the 8 PayPal items.
+ * every line of the computation the run's decisions match, sorted by member number, recomputed in this browser.
+ * A signature binds it only once the approval payload carries it (`signedLinesDigest`) and the two agree.
  */
 export function linesDigest(snapshot: SeasonSnapshot, view: RunView): string | null {
   if (view.origin !== "showcase" && !atLeast(view, "COMPUTED") && Object.keys(view.holds).length === 0)
@@ -277,7 +324,7 @@ export function holdNumber(label: string): string {
 /** The phase MM-5 rests in for a state reached without a live act (history, a replay, a reload). */
 export function restingPhase(
   state: ApproveState,
-): "blocked" | "ready" | "waiting-2" | "inked" | "declined" | "expired" | "mismatch" | null {
+): "blocked" | "ready" | "waiting-2" | "inked" | "declined" | "expired" | "mismatch" {
   switch (state) {
     case "blocked":
     case "killed":
@@ -288,6 +335,7 @@ export function restingPhase(
       return "waiting-2";
     case "approved":
     case "posting":
+    case "retrying":
     case "denied":
       return "inked";
     case "declined":
@@ -296,8 +344,6 @@ export function restingPhase(
       return "expired";
     case "mismatch":
       return "mismatch";
-    case "retrying":
-      return null;
   }
 }
 
@@ -305,15 +351,60 @@ export function restingPhase(
 export function batchAmountState(view: RunView): "pencil" | "ink" | "hollow" {
   if (view.state === "SETTLED" || view.state === "CLOSED") return "ink";
   if (view.state === "POSTING" || isPosted(view)) return "hollow";
-  return view.approvals.treasurer && view.approvals.chair ? "ink" : "pencil";
+  const signed = liveApprovals(view);
+  return signed.treasurer && signed.chair ? "ink" : "pencil";
 }
 
-/** I4 on the client: the payload must be exactly the bytes the API says it is, and carry the batch on screen. */
-export function payloadMatches(
-  payload: ApprovalPayload,
-  serverJcs: string,
-  shownBatchSha256: string | null,
-): boolean {
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/**
+ * The lines root the payload asks both keys to sign, or null while the payload does not carry one. IC-02 adds
+ * `linesDigest` to ApprovalPayload (shared request #1); until this console's contracts have it, the field is read
+ * defensively and the screen shows no lines digest at all, because nothing signs it yet.
+ */
+export function signedLinesDigest(payload: ApprovalPayload | null | undefined): string | null {
+  const value = (payload as { readonly linesDigest?: unknown } | null | undefined)?.linesDigest;
+  return typeof value === "string" && SHA256_HEX.test(value) ? value : null;
+}
+
+/** What the screen showed before the hold: the batch hash on the seal, and the lines root this browser computed. */
+export interface ShownBatch {
+  readonly batchSha256: string | null;
+  readonly linesDigest: string | null;
+}
+
+/**
+ * I4 on the client: the payload must be exactly the bytes the API says it is, carry the batch hash the seal and the
+ * dialog showed, and, once it carries a lines root, the one this browser recomputed. Nothing shown, nothing signed.
+ */
+export function payloadMatches(payload: ApprovalPayload, serverJcs: string, shown: ShownBatch): boolean {
+  if (shown.batchSha256 === null) return false;
   if (jcs(payload as unknown as Parameters<typeof jcs>[0]) !== serverJcs) return false;
-  return shownBatchSha256 === null || payload.batchSha256 === shownBatchSha256;
+  if (payload.batchSha256 !== shown.batchSha256) return false;
+  const lines = signedLinesDigest(payload);
+  return lines === null || lines === shown.linesDigest;
+}
+
+/** Statuses that mean the server gave no definitive answer (unknown outcome, a gateway, a timeout). */
+const UNANSWERED_STATUS: ReadonlySet<number> = new Set([500, 502, 503, 504]);
+
+/** Typed refusals that are answers even with a 5xx status: sending the same request again changes nothing. */
+const DEFINITIVE_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  "PAYPAL_REJECTED",
+  "CIRCUIT_OPEN",
+  "AI_LIVE_DISABLED",
+]);
+
+/**
+ * Whether a signed approval may be sent again under the same Idempotency-Key: only when the request got no
+ * definitive answer. A 501 (the step is not wired on the server yet) and other definitive refusals are answers,
+ * shown at once; so is any 4xx.
+ */
+export function isUnanswered(error: unknown): boolean {
+  if (isNetworkError(error)) return !error.aborted;
+  if (isApiClientError(error)) {
+    return !error.notImplemented && UNANSWERED_STATUS.has(error.status) && !DEFINITIVE_CODES.has(error.code);
+  }
+  if (isContractError(error)) return UNANSWERED_STATUS.has(error.status);
+  return false;
 }

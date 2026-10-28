@@ -52,6 +52,24 @@ describe("W-TR-08 run: the honest fan-out", () => {
       for (const m of ["M-014", "M-007", "M-060", "M-018", "M-039", "M-022", "M-002"])
         expect(toneOf(m)).toBe("landed");
       expect(toneOf("M-031")).toBe("parked");
+      // Signature 6: one seal, 64 lines, eight PayPal threads and 56 dashed cash lines, each its own path.
+      const fan = screen.getByTestId("W-TR-08.fan");
+      expect(fan.querySelectorAll("path.fsr-fan__thread")).toHaveLength(8);
+      const cash = fan.querySelectorAll<SVGPathElement>("path.fsr-fan__cash-line");
+      expect(cash).toHaveLength(56);
+      expect(
+        [...cash].every((p) => p.getAttribute("pathLength") === "1" && p.getAttribute("stroke-dasharray")),
+      ).toBe(true);
+      // The words are HTML at their type sizes, never SVG text scaled with the picture.
+      expect(fan.querySelectorAll("text")).toHaveLength(0);
+      const celing = screen.getByTestId("W-TR-08.label.M-014");
+      expect(celing.textContent).toBe("Consolacion BacusUS$64.45");
+      expect(celing.querySelector(".fs-t-caption")?.textContent).toBe("Consolacion Bacus");
+      expect(celing.querySelector(".fs-t-figure")?.getAttribute("data-amount-state")).toBe("landed");
+      expect(screen.getByTestId("W-TR-08.chip.M-031").textContent).toBe("Parked");
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toBe(
+        "56 members, cash at the bodega on 30 OctUS$3,849.78",
+      );
       const rhea = screen.getByTestId("W-TR-08.parked");
       expect(rhea.textContent).toMatch(
         /Rhea Jumawan's address has no PayPal account, so PayPal parked US\$26\.65/,
@@ -77,6 +95,21 @@ describe("W-TR-08 run: the honest fan-out", () => {
       fireEvent.keyDown(screen.getByTestId("W-TR-08.payCash.face"), { key: "Enter" });
       await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
       expect(toneOf("M-031")).toBe("moved");
+      // Her thread retracts and her own dashed cash line draws in from the same slot (live, so it animates).
+      const line = screen.getByTestId("W-TR-08.cash.M-031");
+      expect(line.dataset.moved).toBe("");
+      expect(line.closest(".fsr-fan__moved")?.hasAttribute("data-animate")).toBe(true);
+      expect(
+        screen
+          .getByTestId("W-TR-08.thread.M-031")
+          .querySelector(".fsr-fan__thread")
+          ?.hasAttribute("data-animate"),
+      ).toBe(true);
+      const fan = screen.getByTestId("W-TR-08.fan");
+      expect(fan.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(57);
+      expect(screen.getByTestId("W-TR-08.label.M-031").textContent).toMatch(/^Rhea Jumawan, moved to cash/);
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members, cash at the bodega/);
+      expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
         "On PayPal: 8.1% of value (7 of 64 members)",
       );
@@ -154,6 +187,10 @@ describe("W-TR-08 run: the honest fan-out", () => {
       await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
       expect(screen.getByTestId("W-TR-08.log").textContent).toMatch(/Seeded showcase history/);
       expect(toneOf("M-031")).toBe("moved");
+      // History is drawn in place: her cash line is there, still.
+      expect(
+        screen.getByTestId("W-TR-08.cash.M-031").closest(".fsr-fan__moved")?.hasAttribute("data-animate"),
+      ).toBe(false);
       await expectNoAxeViolations(screen.getByTestId("W-TR-08"));
       act(() => {
         view.runtime.client.setQueryData<RunView>(queryKeys.run(RUN), (old) =>

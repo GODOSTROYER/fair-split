@@ -3,7 +3,8 @@
 // pointer) for 1.6 s and this browser signs the canonical batch with its own key (MM-5, key 1). The Chair's key
 // arrives as an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink.
 // The signature happens only after the payload the API built is re-checked here: its JCS bytes and its batch
-// hash must be exactly what the screen shows, or nothing is signed (I4).
+// hash must be exactly what the screen shows, or nothing is signed (I4). Until the payload has loaded the slab
+// is unavailable and says why: a person signs only a batch the seal and the dialog have shown.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
@@ -23,7 +24,7 @@ import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
-import { isApiClientError, isNetworkError } from "../../data/errors.js";
+import { isApiClientError } from "../../data/errors.js";
 import { useAdapter, useCommand, useCommandQuery } from "../../data/hooks.js";
 import { queryKeys } from "../../data/query.js";
 import { blockingHolds, livePresence, type RunView } from "../../data/run-view.js";
@@ -40,16 +41,23 @@ import {
   feeFacts,
   holdNumber,
   isPosted,
+  isUnanswered,
   keyKind,
   type LocalApproval,
   linesDigest,
-  MAX_ATTEMPTS,
+  liveApprovals,
   NO_LOCAL,
+  type PaypalRetry,
   payloadMatches,
+  paypalRetryOf,
+  RESEND_WAIT_MS,
   restingPhase,
+  SEND_ATTEMPTS,
+  type ShownBatch,
   safeFacts,
   sealKeys,
   senderBatchIdFor,
+  signedLinesDigest,
 } from "../../features/approve/model.js";
 import { BatchLedger, ConfirmBody, CosignCard, KeySlot, SealBlock } from "../../features/approve/parts.js";
 import { APPROVE, en } from "../../features/split/shared/copy.js";
@@ -64,9 +72,6 @@ import { useOptionalStage, usePrefocus } from "../../stage/context.js";
 import type { RunScreenProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/approve/approve.css";
-
-/** Waits before sending the same signature again (no answer): 0.5 s, 1.5 s, 4.5 s. Not motion. */
-const RETRY_WAIT_MS = [500, 1500, 4500] as const;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -90,14 +95,28 @@ export function Screen({ runSlug }: RunScreenProps) {
   const releases = useRef(0);
   const slabRef = useRef<HTMLDivElement>(null);
 
-  const state = view ? approveState(view, local) : null;
-  const signable = state !== null && canSign(state);
+  // The run's own state decides whether this browser may ask for the batch to sign at all.
+  const paypalRetry: PaypalRetry | null = view ? paypalRetryOf(view) : null;
+  const baseState = view ? approveState(view, local, paypalRetry) : null;
   const payloadQuery = useCommandQuery(
     "approvalPayload",
     { params: { runSlug }, query: { role: "treasurer" } },
-    { enabled: data.live && signable, staleTime: 5 * 60_000, retry: false },
+    {
+      enabled: data.live && baseState !== null && canSign(baseState),
+      staleTime: 5 * 60_000,
+      retry: false,
+    },
   );
   const payload = payloadQuery.data?.payload ?? null;
+  // The lines root this browser recomputes; once the payload carries one, the two must agree or nothing signs.
+  const digest = useMemo(() => (snapshot && view ? linesDigest(snapshot, view) : null), [snapshot, view]);
+  const payloadLines = signedLinesDigest(payload);
+  const linesDisagree = payloadLines !== null && payloadLines !== digest;
+  const state =
+    view && linesDisagree ? approveState(view, { ...local, mismatch: true }, paypalRetry) : baseState;
+  const signable = state !== null && canSign(state);
+  // A signature needs the batch the seal and the dialog show: until the payload is here, nothing can be held.
+  const armed = signable && payload !== null;
 
   const moment = useMoment("MM-5", { focal: true });
   const script = useMomentScript(moment);
@@ -128,8 +147,16 @@ export function Screen({ runSlug }: RunScreenProps) {
 
   // A signature in flight owns the phase until its event lands; otherwise the phase rests where the state is.
   useEffect(() => {
-    if (submitted && view && (view.approvals.treasurer || !signable)) setSubmitted(false);
+    if (submitted && view && (liveApprovals(view).treasurer || !signable)) setSubmitted(false);
   }, [submitted, view, signable]);
+
+  // A decline voids the signatures: the slab that went flush for key 1 stands up again, ready to sign anew.
+  const signedKeys = view ? sealKeys(view) : 0;
+  const keysBefore = useRef(signedKeys);
+  useEffect(() => {
+    if (signedKeys < keysBefore.current) setSlabKey((k) => k + 1);
+    keysBefore.current = signedKeys;
+  }, [signedKeys]);
   const resting = state ? restingPhase(state) : null;
   usePhaseSync(moment, holding || signing || submitted ? null : resting, script.busy);
 
@@ -144,7 +171,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     return () => clearTimeout(timer);
   }, [presence]);
 
-  usePrefocus(slabRef, "W-TR-07", signable && !signing);
+  usePrefocus(slabRef, "W-TR-07", armed && !signing);
 
   const treasurer = snapshot?.officers.find((o) => o.role === "TREASURER");
   const keyId = webKeyId(treasurer?.persona ?? "treasurer:analyn");
@@ -166,18 +193,22 @@ export function Screen({ runSlug }: RunScreenProps) {
     () => (snapshot && view ? batchFacts(snapshot, view, payload) : null),
     [snapshot, view, payload],
   );
-  const digest = useMemo(() => (snapshot && view ? linesDigest(snapshot, view) : null), [snapshot, view]);
   const batchSha256 = view ? batchHashOf(view, payload) : null;
   const submit = useCommand("submitApproval");
 
   const approve = useCallback(async () => {
     if (!view || !snapshot) return;
-    committedRef.current = true;
     holdingRef.current = false;
     setHolding(false);
+    const shown: ShownBatch = { batchSha256: batchHashOf(view, payload), linesDigest: digest };
+    if (payload === null || shown.batchSha256 === null) {
+      // I4: no batch was on screen to sign (its payload had not loaded), so nothing is signed. Re-arm the slab.
+      setSlabKey((k) => k + 1);
+      return;
+    }
+    committedRef.current = true;
     setSigning(true);
     setFailure(null);
-    const shown = batchHashOf(view, payload);
     try {
       // A fresh payload (a new nonce, 30 minutes to live), checked against the batch on screen before signing.
       const fresh = await adapter.call("approvalPayload", {
@@ -192,10 +223,11 @@ export function Screen({ runSlug }: RunScreenProps) {
       const signer = await browserKey(keyId, keyScope);
       setKey(signer);
       const signature = await signer.sign(utf8(fresh.jcs));
+      // One signed approval, one key: a send the server never answered goes again under the same key, so the
+      // API applies it once however many sends arrive. A definitive answer (a 4xx, a 501) is shown at once.
       const idempotencyKey = `approval-${fresh.payload.nonce}`;
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      for (let send = 1; ; send++) {
         try {
-          if (attempt > 1) setLocal({ ...NO_LOCAL, retrying: attempt });
           await submit.mutateAsync({
             params: { runSlug },
             body: { role: "treasurer", keyId: signer.keyId, signature, payload: fresh.payload },
@@ -205,9 +237,9 @@ export function Screen({ runSlug }: RunScreenProps) {
           setSubmitted(true);
           return;
         } catch (error) {
-          const unanswered = isNetworkError(error) || (isApiClientError(error) && error.status >= 500);
-          if (!unanswered || attempt === MAX_ATTEMPTS) throw error;
-          await wait(RETRY_WAIT_MS[Math.min(attempt - 1, RETRY_WAIT_MS.length - 1)] ?? 0);
+          if (send >= SEND_ATTEMPTS || !isUnanswered(error)) throw error;
+          setLocal({ ...NO_LOCAL, resending: send + 1 });
+          await wait(RESEND_WAIT_MS[Math.min(send - 1, RESEND_WAIT_MS.length - 1)] ?? 0);
         }
       }
     } catch (error) {
@@ -226,24 +258,26 @@ export function Screen({ runSlug }: RunScreenProps) {
       setSigning(false);
       committedRef.current = false;
     }
-  }, [adapter, keyId, keyScope, payload, runSlug, script, snapshot, submit, view]);
+  }, [adapter, digest, keyId, keyScope, payload, runSlug, script, snapshot, submit, view]);
 
+  const refetchPayload = payloadQuery.refetch;
   const reload = useCallback(() => {
     setLocal(NO_LOCAL);
     setFailure(null);
     setSlabKey((k) => k + 1);
-    void payloadQuery.refetch();
-  }, [payloadQuery]);
+    void refetchPayload();
+  }, [refetchPayload]);
+  const reloadPayload = useCallback(() => void refetchPayload(), [refetchPayload]);
 
   // The hold is the slab's; the moment only needs to know when one starts and whether it ended early.
   const beginHold = useCallback(() => {
-    if (!signable || signing || holdingRef.current) return;
+    if (!armed || signing || holdingRef.current) return;
     holdingRef.current = true;
     committedRef.current = false;
     setHolding(true);
     script.cancel();
     moment.enter("hold-1");
-  }, [moment, script, signable, signing]);
+  }, [armed, moment, script, signing]);
   const endHold = useCallback(() => {
     if (!holdingRef.current || committedRef.current) return;
     holdingRef.current = false;
@@ -313,9 +347,11 @@ export function Screen({ runSlug }: RunScreenProps) {
   }
 
   const keys = sealKeys(view);
+  const signedApprovals = liveApprovals(view);
+  const treasurerApproval = signedApprovals.treasurer;
+  const chairApproval = signedApprovals.chair;
   const engrave =
-    live.isLive(view.approvals.chair?.eventId ?? null) ||
-    live.isLive(view.approvals.treasurer?.eventId ?? null);
+    live.isLive(chairApproval?.eventId ?? null) || live.isLive(treasurerApproval?.eventId ?? null);
   const amountState = batchAmountState(view);
   const total = batch.totalCents;
   const amount = { display: format.money(total), spoken: format.amountSpoken(total, "en") };
@@ -330,6 +366,9 @@ export function Screen({ runSlug }: RunScreenProps) {
   const rows = batch.recipients.map((r) => ({ ...r, amount: format.money(r.cents) }));
   const batchId = senderBatchIdFor(snapshot, view.runSlug);
 
+  // A payload that failed to load says so once, beside the slab; one that is still loading only disarms it.
+  const payloadError = signable && payload === null ? payloadQuery.error : null;
+
   let unavailable: string | undefined;
   let onReason: (() => void) | undefined;
   if (state === "blocked") {
@@ -338,12 +377,11 @@ export function Screen({ runSlug }: RunScreenProps) {
   } else if (state === "mismatch" || state === "expired") {
     unavailable = state === "mismatch" ? APPROVE.mismatchAction : APPROVE.expiredAction;
     onReason = reload;
-  } else if (state === "retrying") {
-    unavailable = APPROVE.signing;
+  } else if (signable && payload === null) {
+    unavailable = payloadError ? APPROVE.payloadFailed : APPROVE.payloadLoading;
+    if (payloadError) onReason = reloadPayload;
   }
 
-  const treasurerApproval = view.approvals.treasurer;
-  const chairApproval = view.approvals.chair;
   const keyLabelOf = (id: string) =>
     keyKind(id) === "seeded"
       ? APPROVE.keySeeded
@@ -400,15 +438,21 @@ export function Screen({ runSlug }: RunScreenProps) {
                 }
               : null
           }
-          retrying={local.retrying}
+          paypalRetry={paypalRetry}
           onReload={reload}
         />
+        {local.resending !== null && (
+          <p className="fsr-banner" role="status" data-testid="W-TR-07.resending">
+            <Glyph name="ms:restart-alt" size={18} />
+            {APPROVE.resending(local.resending, SEND_ATTEMPTS)}
+          </p>
+        )}
 
         <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
         <BatchLedger
           senderBatchId={batchId}
           batchSha256={batchSha256}
-          linesDigest={digest}
+          signedLinesDigest={linesDisagree ? null : payloadLines}
           lines={batch.lines}
           cashLines={batch.cashCount}
           rateCardSha256={snapshot.rateCard.sha256}
@@ -515,6 +559,14 @@ export function Screen({ runSlug }: RunScreenProps) {
           )}
         </div>
 
+        {payloadError && (
+          <CommandNotice
+            error={payloadError}
+            testId="W-TR-07.payload.error"
+            onRetry={reloadPayload}
+            retryLabel={APPROVE.payloadRetry}
+          />
+        )}
         {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
 
         <ul className="fsr-keys" aria-label="Keys" data-testid="W-TR-07.keys">
@@ -565,7 +617,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           </p>
         )}
 
-        {(state === "approved" || state === "posting") && (
+        {(state === "approved" || state === "posting" || state === "retrying") && (
           <div className="fsr-approve__done" data-testid="W-TR-07.approved">
             <p className="fs-t-title-2">{APPROVE.approved}</p>
             {state === "posting" && (
@@ -579,7 +631,7 @@ export function Screen({ runSlug }: RunScreenProps) {
               />
             )}
             {isPosted(view) && <p className="fs-t-body fsr-approve__posted">{APPROVE.posted}</p>}
-            {(isPosted(view) || state === "posting") && (
+            {(isPosted(view) || state === "posting" || state === "retrying") && (
               <AppLink
                 href={webRoutes.fanout(view.runSlug)}
                 className="fs-link fs-t-label"
@@ -649,12 +701,12 @@ interface StatusBannerProps {
     readonly by: ReturnType<typeof officer>;
     readonly stamp: ReturnType<typeof stampFor>;
   } | null;
-  readonly retrying: number | null;
+  readonly paypalRetry: PaypalRetry | null;
   readonly onReload: () => void;
 }
 
 /** The one sentence a state must say first. Red only when PayPal is the actor; a decline is the Chair's ink. */
-function StatusBanner({ state, declined, retrying, onReload }: StatusBannerProps) {
+function StatusBanner({ state, declined, paypalRetry, onReload }: StatusBannerProps) {
   switch (state) {
     case "denied":
       return (
@@ -695,12 +747,14 @@ function StatusBanner({ state, declined, retrying, onReload }: StatusBannerProps
         </p>
       );
     case "retrying":
-      return (
+      // PayPal's Payouts POST, retried by the server under the same request ID (S1.7): PayPal is the actor, but
+      // nothing failed yet, so it stays ink.
+      return paypalRetry ? (
         <p className="fsr-banner" role="status" data-testid="W-TR-07.retrying">
           <Glyph name="ms:restart-alt" size={18} />
-          {APPROVE.retrying(retrying ?? 2, MAX_ATTEMPTS)}
+          {APPROVE.paypalRetrying(paypalRetry.attempt, paypalRetry.of)}
         </p>
-      );
+      ) : null;
     default:
       return null;
   }
