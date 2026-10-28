@@ -182,6 +182,11 @@ export const messages = defineMessages({
     fil: "Nakakonekta po ang teleponong ito kay {who}. Papalitan ito ng bagong QR, at mabubura sa telepono ang key {key} na ginagamit sa pagpirma.",
     en: "This phone is paired to {who}. The new QR replaces that pairing and deletes signing key {key} from this phone.",
   },
+  "M-ON-01.pair.replaceBodyUnread": {
+    ceb: "Basin konektado na kini nga telepono, pero dili mabasa karon ang koneksyon niini. Ang bag-ong QR mopuli niini, ug mapapas ang bisan unsang key sa pagpirma niini nga telepono.",
+    fil: "Maaaring nakakonekta na po ang teleponong ito, pero hindi mabasa ngayon ang koneksyon nito. Papalitan ito ng bagong QR, at mabubura ang anumang key sa pagpirma sa teleponong ito.",
+    en: "This phone may already be paired, but its pairing could not be read just now. The new QR replaces it and deletes any signing key on this phone.",
+  },
   "M-ON-01.pair.replaceConfirm": { ceb: "Ikonektar pag-usab", fil: "Ikonekta muli", en: "Pair again" },
   "M-ON-01.pair.replaceCancel": { ceb: "Ayaw usba", fil: "Huwag palitan", en: "Keep this pairing" },
   "M-ON-01.pair.demoTitle": {

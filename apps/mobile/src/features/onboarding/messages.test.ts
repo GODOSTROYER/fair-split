@@ -33,6 +33,8 @@ describe("onboarding copy", () => {
       expect(t(l, "M-ON-01.pair.replaceTitle")).toMatch(/\?$/);
       expect(t(l, "M-ON-01.pair.replaceBody", { who })).toContain(who);
       const withKey = t(l, "M-ON-01.pair.replaceBodyKey", { who, key: "fs-ernesto-a1" });
+      expect(t(l, "M-ON-01.pair.replaceBodyUnread")).not.toMatch(/\d/);
+      expect(t(l, "M-ON-01.pair.replaceBodyUnread")).not.toBe(t(l, "M-ON-01.pair.replaceBody", { who }));
       expect(withKey).toContain(who);
       expect(withKey).toContain("fs-ernesto-a1");
       // The two answers say what they do, and differ.

@@ -4,7 +4,7 @@
  */
 import type { Kv } from "./kv";
 
-export type { Kv } from "./kv";
+export type { Kv, KvRead } from "./kv";
 
 function local(): Storage | null {
   try {
@@ -20,6 +20,13 @@ export const prefs: Kv = {
       return local()?.getItem(k) ?? null;
     } catch {
       return null;
+    }
+  },
+  async read(k) {
+    try {
+      return { ok: true, value: local()?.getItem(k) ?? null };
+    } catch {
+      return { ok: false };
     }
   },
   async set(k, v) {
@@ -41,6 +48,7 @@ export const prefs: Kv = {
 const memory = new Map<string, string>();
 export const secrets: Kv = {
   get: async (k) => memory.get(k) ?? null,
+  read: async (k) => ({ ok: true, value: memory.get(k) ?? null }),
   set: async (k, v) => {
     memory.set(k, v);
   },

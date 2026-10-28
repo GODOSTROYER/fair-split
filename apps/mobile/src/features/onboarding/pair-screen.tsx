@@ -80,7 +80,18 @@ function browserLocale(): string | null {
 }
 
 export function PairScreen({ initialToken }: { initialToken?: string }) {
-  const { api, demo, setSession, session, onboarded, completeOnboarding, setLang, listenFirst } = useApp();
+  const {
+    api,
+    demo,
+    ready,
+    setSession,
+    session,
+    pairingUnreadable,
+    onboarded,
+    completeOnboarding,
+    setLang,
+    listenFirst,
+  } = useApp();
   const { t } = useFs();
   const tr = useT();
   const { width } = useWindowDimensions();
@@ -162,7 +173,9 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
   const linkSettled = useRef(false);
   const [linkDone, setLinkDone] = useState(false);
   const [linkAnswer, setLinkAnswer] = useState<LinkAnswer | null>(null);
-  const step = linkDone ? "none" : linkStep({ session, token: initialToken, answer: linkAnswer });
+  const step = linkDone
+    ? "none"
+    : linkStep({ session, token: initialToken, answer: linkAnswer, pairingUnreadable, ready });
   useEffect(() => {
     if (linkSettled.current || !initialToken || (step !== "claim" && step !== "keep")) return;
     linkSettled.current = true;
@@ -172,7 +185,7 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
   });
 
   // Asking: name what the new QR would take away. A board phone's key is looked up (no prompt: its public half only).
-  const asking = step === "ask" && session !== null;
+  const asking = step === "ask" && (session !== null || pairingUnreadable);
   const [heldKey, setHeldKey] = useState<string | null>(null);
   useEffect(() => {
     if (!asking || !session || session.role !== "board") return;
@@ -410,9 +423,11 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
         visible={asking}
         spec={{
           title: tr("M-ON-01.pair.replaceTitle"),
-          body: heldKey
-            ? tr("M-ON-01.pair.replaceBodyKey", { who: pairedWho, key: heldKey })
-            : tr("M-ON-01.pair.replaceBody", { who: pairedWho }),
+          body: !session
+            ? tr("M-ON-01.pair.replaceBodyUnread")
+            : heldKey
+              ? tr("M-ON-01.pair.replaceBodyKey", { who: pairedWho, key: heldKey })
+              : tr("M-ON-01.pair.replaceBody", { who: pairedWho }),
           confirmLabel: tr("M-ON-01.pair.replaceConfirm"),
           cancelLabel: tr("M-ON-01.pair.replaceCancel"),
         }}

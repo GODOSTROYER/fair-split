@@ -18,13 +18,15 @@ export type PairState = "idle" | "pairing" | "paired" | "expired" | "used" | "in
  * already paired, yes. Anyone who can mint a pairing token for some workspace (a judge workspace, another co-op's
  * treasurer) can send the link, the server cannot tell that claim from a real one, and claiming replaces this phone's
  * pairing and, on a board phone, deletes its signing key. Only the person holding the phone can say no. An unpaired
- * phone has nothing to lose, so a judge opening the QR's link still pairs in one step.
+ * phone has nothing to lose, so a judge opening the QR's link still pairs in one step. A phone whose stored pairing
+ * could not be read (`pairingUnreadable`: a keystore error, not "nothing stored") may be paired, so it asks too.
  */
 export function linkClaimNeedsConfirm(
   session: Pick<PairedSession, "persona"> | null,
   token: string | null | undefined,
+  pairingUnreadable = false,
 ): boolean {
-  return session !== null && !!token?.trim();
+  return (session !== null || pairingUnreadable) && !!token?.trim();
 }
 
 /** The person's answer to "Pair this phone again?". */
@@ -41,9 +43,14 @@ export function linkStep(opts: {
   session: Pick<PairedSession, "persona"> | null;
   token: string | null | undefined;
   answer: LinkAnswer | null;
+  /** The stored pairing could not be read at start, so the phone may be paired: ask, never claim by itself. */
+  pairingUnreadable?: boolean;
+  /** The shell has read storage (`ready`). Before that nothing is decided: an unread pairing is not "unpaired". */
+  ready?: boolean;
 }): LinkStep {
   if (!opts.token?.trim()) return "none";
-  if (!linkClaimNeedsConfirm(opts.session, opts.token)) return "claim";
+  if (opts.ready === false) return "none";
+  if (!linkClaimNeedsConfirm(opts.session, opts.token, opts.pairingUnreadable)) return "claim";
   if (opts.answer === "confirm") return "claim";
   if (opts.answer === "cancel") return "keep";
   return "ask";

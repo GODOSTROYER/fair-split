@@ -180,6 +180,29 @@ describe("a pairing link never replaces a pairing by itself (re-pairing trust)",
     expect(linkStep({ session: null, token: "", answer: null })).toBe("none");
   });
 
+  it("treats a stored pairing it could not read as paired: a link asks first, and waits until storage is read", () => {
+    // A keystore read error is not "nothing stored": the phone may hold a pairing (and a board key) it cannot see.
+    expect(linkClaimNeedsConfirm(null, "fsp_from_a_link", true)).toBe(true);
+    expect(linkStep({ session: null, token: "fsp_from_a_link", answer: null, pairingUnreadable: true })).toBe(
+      "ask",
+    );
+    expect(
+      linkStep({ session: null, token: "fsp_from_a_link", answer: "cancel", pairingUnreadable: true }),
+    ).toBe("keep");
+    expect(
+      linkStep({ session: null, token: "fsp_from_a_link", answer: "confirm", pairingUnreadable: true }),
+    ).toBe("claim");
+    // Read and empty: an unpaired phone still pairs from the QR's link in one step.
+    expect(
+      linkStep({ session: null, token: "fsp_from_a_link", answer: null, pairingUnreadable: false }),
+    ).toBe("claim");
+    // Before the shell has read storage, a link waits: neither a claim nor a question.
+    expect(linkStep({ session: null, token: "fsp_from_a_link", answer: null, ready: false })).toBe("none");
+    expect(linkStep({ session: chair, token: "fsp_from_a_link", answer: "confirm", ready: false })).toBe(
+      "none",
+    );
+  });
+
   it("claims only once the person confirms, and then the old pairing's key goes, as the dialog said", async () => {
     expect(linkStep({ session: chair, token: "fsp_from_a_link", answer: "confirm" })).toBe("claim");
     const r = await openLink(chair, "confirm");

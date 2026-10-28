@@ -75,6 +75,12 @@ export interface AppValue {
   setListenFirst(v: boolean): void;
   session: PairedSession | null;
   /**
+   * True when this phone's stored pairing could not be read at start (a keystore error, not "nothing stored"), so
+   * the phone may be paired even though `session` is null. A pairing link then asks before it claims; it clears once
+   * a pairing is set or removed here.
+   */
+  pairingUnreadable: boolean;
+  /**
    * The session as it is at this instant, for a step that outlives a render (a signature under the fingerprint
    * prompt, an upload): it checks it is still the pairing it started under before anything leaves the phone.
    */
@@ -111,6 +117,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [onboarded, setOnboarded] = useState(false);
   const [listenFirst, setListenFirstState] = useState<boolean | null>(null);
   const [session, setSessionState] = useState<PairedSession | null>(null);
+  const [pairingUnreadable, setPairingUnreadable] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [framePrefs, setFramePrefs] = useState<FramePrefs | null>(inFrame ? DEFAULT_FRAME_PREFS : null);
   const online = useOnline();
@@ -137,12 +144,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [l, t, ob, lf, sSecret, sDemo] = await Promise.all([
+      const [l, t, ob, lf, sSecretRead, sDemo] = await Promise.all([
         prefs.get(PREF.lang),
         prefs.get(PREF.theme),
         prefs.get(PREF.onboarded),
         prefs.get(PREF.listenFirst),
-        secrets.get(PREF.session),
+        secrets.read(PREF.session),
         prefs.get(PREF.session),
       ]);
       if (!alive) return;
@@ -165,7 +172,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       // A stage frame waits for its `fs.token` instead of restoring a stored session.
       const now = new Date();
-      if (!inFrame) setSessionState(restoreSession(sSecret, sDemo, now));
+      if (!inFrame) {
+        // A keystore read that failed is not "unpaired": the phone may hold a pairing it cannot see right now.
+        const sSecret = sSecretRead.ok ? sSecretRead.value : null;
+        setSessionState(restoreSession(sSecret, sDemo, now));
+        setPairingUnreadable(!sSecretRead.ok);
+      }
       setReady(true);
     })();
     return () => {
@@ -216,6 +228,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
   const setSession = useCallback((s: PairedSession | null) => {
     setSessionState(s);
+    setPairingUnreadable(false);
     // One stored session at most: the new pairing's, in its own store; any earlier one, in either store, goes.
     const { secret, plain } = sessionStores(s);
     if (secret) void secrets.set(PREF.session, secret);
@@ -252,6 +265,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       listenFirst,
       setListenFirst,
       session,
+      pairingUnreadable,
       currentSession,
       setSession,
       signOut,
@@ -274,6 +288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       listenFirst,
       setListenFirst,
       session,
+      pairingUnreadable,
       currentSession,
       setSession,
       signOut,
