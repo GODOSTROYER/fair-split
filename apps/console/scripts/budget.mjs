@@ -2,13 +2,15 @@
 // initial download is the entry's static import closure plus the route chunk's, gzipped (level 9). Proof is a
 // public, mobile-first page (≤110 KB gz); every console route ≤300 KB gz; AG Grid is Split review's own lazy
 // chunk (SplitAgGrid, ≤300 KB gz), measured apart from the route's code. It reads dist/.vite/manifest.json,
-// prints a table, and exits 1 when a budget breaks. The measuring is ./budget-core.mjs (tested by the console).
+// prints a table, and exits 1 when a budget breaks. Proof's fonts (≤80 KB) need the built index.html to flag
+// Proof's face (/face.js) before its stylesheet applies: checked here too. The measuring is ./budget-core.mjs
+// (tested by the console).
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { measureBudgets } from "./budget-core.mjs";
+import { faceScriptProblem, measureBudgets } from "./budget-core.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
@@ -42,6 +44,17 @@ for (const m of measureBudgets(manifest, gzipped, BUDGETS)) {
   const measured = m.bytes === null ? "no chunk" : `${(m.bytes / KB).toFixed(1)} KB`;
   rows.push([m.name, measured, `${m.limit / KB} KB`, m.bytes === null ? "?" : ok ? "ok" : "OVER"]);
 }
+// Proof's fonts: without the face flag before the stylesheet, a cold Proof load also fetches the 120 KB face.
+const faceProblem = existsSync(join(dist, "face.js"))
+  ? faceScriptProblem(readFileSync(join(dist, "index.html"), "utf8"))
+  : "dist/face.js is missing";
+failed ||= faceProblem !== null;
+rows.push([
+  "Proof face flag before CSS (index.html)",
+  faceProblem ?? "/face.js first",
+  "",
+  faceProblem ? "FAIL" : "ok",
+]);
 const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => r[i].length)));
 for (const r of rows) console.log(r.map((c, i) => c.padEnd(widths[i])).join("  "));
 process.exit(failed ? 1 : 0);

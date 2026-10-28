@@ -1,9 +1,11 @@
 // Proof's own face (S2.11: Proof's fonts ≤80 KB, "66 + 2 + 4"). On Proof's surfaces (W-PF-01 `/proof/:runSlug`
 // and the brand's W-BR-01 `/b/:token`) the whole document reads in the FSSans-Proof subset, never the console's
 // 120 KB variable face: `<html data-face="proof">` points the --fs-font-* tokens at it (theme/surfaces.css).
-// The browser fetches the root element's face at its first layout, before any text renders, so a cold Proof load
-// sets the flag before the first render (`bootFace`, from main.tsx); after that the Proof surface owns it while it
-// is mounted (`useProofFace`), and leaving Proof for the console clears it (`useFaceFollows`).
+// The browser fetches the root element's face as soon as the stylesheet applies, before main.tsx runs, so a cold
+// Proof load sets the flag from `public/face.js` (a classic script index.html loads ahead of the stylesheet, with
+// the same paths as `isProofPath`); `bootFace` (main.tsx) sets it again before the first render. After that the
+// Proof surface owns it while it is mounted (`useProofFace`), and leaving Proof for the console clears it
+// (`useFaceFollows`).
 
 import { useRouterState } from "@tanstack/react-router";
 import { useLayoutEffect } from "react";
