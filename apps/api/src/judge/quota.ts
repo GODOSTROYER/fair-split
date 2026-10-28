@@ -448,8 +448,9 @@ interface PostCounts {
 
 /**
  * Live judge posts in the rolling 24 h: every reservation not settled `not_posted` (so posts still in
- * flight count), plus any judge batch posted without one (a safety net: older rows, or a caller that
- * skipped the protocol), each run once. A replayed batch (provenance `replay`) reached no one: never a post.
+ * flight count), plus any judge batch written live whose run holds no such reservation (a safety net: older
+ * rows, a slot an older build freed after the write, or a caller that skipped the protocol), each run once.
+ * A replayed batch (provenance `replay`) reached no one: never a post.
  */
 async function countPosts(
   db: DbOrTx,
@@ -474,7 +475,13 @@ async function countPosts(
        and not exists (
          select 1 from reconciliation_reports r
           where r.kind = ${LEDGER_KIND} and r.workspace_id is null and r.summary->>'entry' = 'judge_post'
-            and r.summary->>'runId' = pb.run_id::text)`)) as unknown as {
+            and r.summary->>'runId' = pb.run_id::text
+            and not exists (
+              select 1 from reconciliation_reports s
+               where s.kind = ${LEDGER_KIND} and s.workspace_id is null
+                 and s.summary->>'entry' = 'judge_post_settled'
+                 and s.summary->>'reservationId' = r.id::text
+                 and s.summary->>'outcome' = 'not_posted'))`)) as unknown as {
     run_id: string;
     at: Date | string;
     sid: string | null;
@@ -543,7 +550,10 @@ async function heldReservation(db: DbOrTx, runId: string): Promise<ReservationRo
  * The binding decision for a judge run's post: decides and reserves in one transaction under the quota
  * lock, so concurrent posts (in any process) are counted against each other. Idempotent per run: a
  * retried post keeps the slot it holds, and only a kill switch, the simulator or the circuit can still turn
- * it to replay. Call it while holding the live lane (`beginLiveStep` does both); settle it afterwards.
+ * it to replay. A run that holds no slot is decided like any new post: a slot if the quotas allow one (a
+ * resumed post's written batch included: same ids, counted from now), else the replay decision, which
+ * `beginLiveStep` turns into a wait for a written batch. A live decision always carries its reservation.
+ * Call it while holding the live lane (`beginLiveStep` does both); settle it afterwards.
  */
 export async function reserveLivePost(
   deps: AppDeps,
@@ -611,14 +621,41 @@ export async function reserveLivePost(
 }
 
 /**
+ * Whether a judge post may still go live under a slot its run holds (`heldReservation`), read without the
+ * quota lock: a peek, so a resumed post with no slot waits before it takes the lane. The binding answer is
+ * `reserveLivePost`'s.
+ */
+export async function holdsLivePost(db: DbOrTx, runId: string): Promise<boolean> {
+  return (await heldReservation(db, runId)) !== null;
+}
+
+/**
+ * The run's primary batch as written on a live rail (rows SUBMITTED or further; a replayed batch reached no one),
+ * or null while nothing is written.
+ */
+async function writtenLiveBatch(db: DbOrTx, runId: string): Promise<{ status: string } | null> {
+  const rows = (await db.execute(sql`
+    select pb.status from payout_batches pb
+     where pb.run_id = ${runId} and pb.kind = 'primary' and pb.provenance <> 'replay'
+     limit 1`)) as unknown as { status: string }[];
+  return rows[0] ?? null;
+}
+
+/**
  * What became of a reservation: `posted` (PayPal created the batch), `denied` (PayPal refused it
  * synchronously: it counts toward the caps, not the balance) or `not_posted` (nothing reached PayPal, e.g.
- * the I4 refusal or a kill switch: the slot is free again). The first settlement stands.
+ * the I4 refusal or a kill switch before the write: the slot is free again). The first settlement stands.
+ *
+ * `not_posted` holds only while nothing of the run's batch is written. Once its rows are written live they
+ * wait to be posted with the same ids (a written batch is never abandoned, money/resume.ts) and PayPal may
+ * already hold them, so a refusal after the write (a kill switch read before the resumed POST, the limiter's
+ * window, a re-check that failed) leaves the slot held: nothing is settled (`settled: false, outcome: null`)
+ * until PayPal posts or denies the batch. Rows PayPal denied settle `denied`.
  */
 export async function settleLivePost(
   deps: Pick<AppDeps, "db" | "clock">,
   o: { reservationId: string; outcome: LivePostOutcome },
-): Promise<{ settled: boolean; outcome: LivePostOutcome }> {
+): Promise<{ settled: boolean; outcome: LivePostOutcome | null }> {
   return deps.db.transaction(async (tx) => {
     await lockQuota(tx);
     const rows = (await tx.execute(sql`
@@ -637,6 +674,12 @@ export async function settleLivePost(
     const row = rows[0];
     if (!row) throw new RangeError("settleLivePost: no such reservation");
     if (row.outcome) return { settled: false, outcome: row.outcome };
+    let outcome = o.outcome;
+    if (outcome === "not_posted") {
+      const written = await writtenLiveBatch(tx, row.run_id);
+      if (written?.status === "DENIED") outcome = "denied";
+      else if (written) return { settled: false, outcome: null };
+    }
     await tx.insert(schema.reconciliationReports).values({
       kind: LEDGER_KIND,
       windowEnd: deps.clock.now(),
@@ -645,10 +688,10 @@ export async function settleLivePost(
         entry: "judge_post_settled",
         reservationId: o.reservationId,
         runId: row.run_id,
-        outcome: o.outcome,
+        outcome,
       },
     });
-    return { settled: true, outcome: o.outcome };
+    return { settled: true, outcome };
   });
 }
 

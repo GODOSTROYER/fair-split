@@ -261,9 +261,11 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
 /**
  * How a post's reservation settles from `PayoutsService.executeApproved`'s outcome: a created or adopted
  * batch was posted, and so was one PayPal says already exists that we could not adopt (money may have
- * moved); a synchronous 4xx was denied (it counts toward the caps, not the balance); a refusal sent
- * nothing (the slot is free again). Unresolved or circuit-open posts, and a throw, stay open: the retry
- * resumes the same batch under the same reservation.
+ * moved); a synchronous 4xx was denied (it counts toward the caps, not the balance); any other refusal sent
+ * nothing this time. Unresolved posts, PayPal's pacing (the circuit, and the limiter's window, which the
+ * service only meets after the write), and a throw, stay open: the retry resumes the same batch under the
+ * same reservation. `not_posted` frees the slot only while nothing is written: a refusal after the write
+ * (a kill switch, a re-check of a resumed post) leaves it held (`settleLivePost`), since the rows still wait.
  */
 export function settlementOf(outcome: BatchOutcome | null | undefined): LivePostOutcome | null {
   if (!outcome) return null;
@@ -277,7 +279,7 @@ export function settlementOf(outcome: BatchOutcome | null | undefined): LivePost
       return null;
     case "refused":
       if (outcome.code === "ADOPT_FAILED") return "posted";
-      if (outcome.code === "CIRCUIT_OPEN") return null;
+      if (outcome.code === "CIRCUIT_OPEN" || outcome.code === "QUEUED") return null;
       return "not_posted";
   }
 }

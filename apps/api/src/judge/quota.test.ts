@@ -217,6 +217,8 @@ describe("settling a live post from PayoutsService's outcome", () => {
 
   it("stays open (the retry resumes the same batch) when unresolved, circuit-paced, or never answered", () => {
     expect(settlementOf({ kind: "refused", code: "CIRCUIT_OPEN", reason: "x", ...base })).toBeNull();
+    // the limiter's window: only ever after the rows are written (the service's POST loop), so the slot stays held
+    expect(settlementOf({ kind: "refused", code: "QUEUED", reason: "x", ...base })).toBeNull();
     expect(
       settlementOf({
         kind: "unresolved",
