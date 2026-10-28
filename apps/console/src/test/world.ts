@@ -42,13 +42,15 @@ export function createTestRuntime(
   world: TestWorld = createTestWorld(),
   /** msw handlers answered before the world's (record requests, or answer as fs-api would where the mock differs). */
   handlers: readonly RequestHandler[] = [],
+  /** The IC-03 snapshot loader (default: the seed, at once). */
+  snapshot: (season: string) => Promise<SeasonSnapshot> = async () => seedSnapshot(),
 ): {
   readonly runtime: DataRuntime;
   readonly adapter: DataAdapter;
   readonly world: TestWorld;
 } {
   const adapter = createMockAdapter(world.mock, {
-    snapshot: async () => seedSnapshot(),
+    snapshot,
     ...(handlers.length > 0 ? { fetch: createMemoryFetch([...handlers, ...world.mock.handlers]) } : {}),
   });
   const client = createQueryClient();

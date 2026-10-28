@@ -17,6 +17,7 @@ import type { VerifyOutcome } from "../../features/proof/verify.js";
 import {
   createTestWorld,
   expectNoAxeViolations,
+  recordRequests,
   renderConsole,
   resizeTo,
   tracedPhases,
@@ -54,6 +55,20 @@ const matched: VerifyOutcome = {
   failure: null,
   head: "91:x",
 };
+
+describe("W-PF-01 loads without waiting on the seed", () => {
+  it("renders and sends its own read while the seeded snapshot is still loading", async () => {
+    const log = recordRequests();
+    // A snapshot that never arrives: the route must not hold the page for it (S2.11, initial JS and LCP).
+    await renderConsole({
+      path: webRoutes.proof(RUN),
+      handlers: [log.handler],
+      snapshot: () => new Promise(() => undefined),
+    });
+    await screen.findByTestId("W-PF-01");
+    await waitFor(() => expect(log.sent.some((r) => r.path === `/v1/proof/${RUN}`)).toBe(true));
+  });
+});
 
 async function openProof(options: Parameters<typeof renderConsole>[0] = {}) {
   const view = await renderConsole({ path: webRoutes.proof(RUN), ...options });

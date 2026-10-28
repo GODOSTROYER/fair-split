@@ -2,6 +2,7 @@
 // providers (data runtime, ui-web settings, announcer, shortcuts, Data mode, chrome slots), and a mock world
 // over the seed behind the in-memory adapter, so every route renders in every state with no network.
 
+import type { SeasonSnapshot } from "@fairsplit/contracts";
 import type { MotionPreference } from "@fairsplit/ui-web";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, type RenderResult, render, waitFor } from "@testing-library/react";
@@ -25,6 +26,8 @@ export interface RenderConsoleOptions {
   readonly viewport?: { readonly width: number; readonly height?: number };
   /** msw handlers answered before the world's, from the first request on (see createTestRuntime). */
   readonly handlers?: readonly RequestHandler[];
+  /** The snapshot loader (default: the seed at once); a promise that never settles holds the seed back. */
+  readonly snapshot?: (season: string) => Promise<SeasonSnapshot>;
 }
 
 export interface RenderedConsole extends RenderResult {
@@ -47,7 +50,11 @@ async function settled(router: ConsoleRouter): Promise<void> {
 
 export async function renderConsole(options: RenderConsoleOptions = {}): Promise<RenderedConsole> {
   if (options.viewport) setViewport(options.viewport.width, options.viewport.height);
-  const { runtime, adapter, world } = createTestRuntime(options.world ?? createTestWorld(), options.handlers);
+  const { runtime, adapter, world } = createTestRuntime(
+    options.world ?? createTestWorld(),
+    options.handlers,
+    options.snapshot,
+  );
   const history = createMemoryHistory({ initialEntries: [options.path ?? "/judge"] });
   const router = createConsoleRouter(runtime, history);
   let result: RenderResult | undefined;
