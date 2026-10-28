@@ -213,6 +213,23 @@ export async function runReplays(
   return { replays, reason };
 }
 
+/** Whether the run's primary batch is already written on a live rail (rows SUBMITTED or further, not a replay). */
+async function liveBatchWritten(db: DbOrTx, workspaceId: string, runId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: schema.payoutBatches.id })
+    .from(schema.payoutBatches)
+    .where(
+      and(
+        eq(schema.payoutBatches.workspaceId, workspaceId),
+        eq(schema.payoutBatches.runId, runId),
+        eq(schema.payoutBatches.kind, "primary"),
+        sql`${schema.payoutBatches.provenance} <> 'replay'`,
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
 /** One `judge.step.replayed` entry per run and step (ids and enums only): why it replays, and from which run. */
 async function recordReplayed(
   deps: AppDeps,
@@ -279,6 +296,25 @@ export async function railForStep(
 ): Promise<StepRail> {
   const live = (): StepRail => ({ kind: "live", deps, end: async () => undefined });
   if (!(await isJudgeWorkspace(deps.db, o.workspaceId))) return live();
+  if (o.step === "post" && (await liveBatchWritten(deps.db, o.workspaceId, o.runId))) {
+    // A batch written live is resumed live with its ids, never replayed (that would mark rows PayPal may hold
+    // as posted under a replay id): its slot was taken at the write, so only a switch, the simulator or the
+    // circuit can hold it, and then it waits. It still takes the single-flight lane.
+    const step = await beginLiveStep(deps, {
+      workspaceId: o.workspaceId,
+      step: "post",
+      runId: o.runId,
+      resume: true,
+    });
+    if (step.kind === "queued") {
+      return { kind: "queued", retryAfterMs: Math.max(1_000, step.retryAfterMs), position: step.position };
+    }
+    if (step.kind === "replay") {
+      const circuit = step.decision.reason === "circuit_open";
+      return { kind: "queued", retryAfterMs: circuit ? 6 * 60_000 : 60_000, position: null };
+    }
+    return { kind: "live", deps, end: (outcome) => step.end(outcome ?? null) };
+  }
   const sticky = await runReplays(deps.db, o.workspaceId, o.runId);
   if (sticky.replays) {
     let reason = sticky.reason;

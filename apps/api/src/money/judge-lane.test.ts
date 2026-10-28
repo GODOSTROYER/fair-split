@@ -11,12 +11,14 @@ import { randomUUID } from "node:crypto";
 import { schema, withWorkspaceTx } from "@fairsplit/db";
 import { enqueue } from "@fairsplit/outbox";
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginLiveStep, reserveLivePost } from "../judge/index.js";
 import { armChangePayout } from "../judge/tamper.js";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
 import { type SeedWorldOptions, seedWorld } from "../runs/test/world.js";
+import { PAYPAL_SANDBOX, paypalError } from "../test/index.js";
 
 // UNPAID until a payment is recorded (a retried Mark paid reads the invoice first, S3.10)
 const script = paypalScript({ invoiceStatus: "UNPAID" });
@@ -262,5 +264,56 @@ describe("Judge Mode obeys its rail decision at every PayPal step", () => {
       ["judge_post", null],
       ["judge_post_settled", "posted"],
     ]);
+  });
+
+  it("a batch written live is resumed live, never replayed: a paced POST waits, and posts with its ids even once the hour's cap is full", async () => {
+    const h = await world({});
+    await resolveAll(h);
+    await signBoth(h);
+    // PayPal paces the first POST after the rows are written (a 429: the 6-minute circuit opens)
+    h.paypal?.use(
+      http.post(`${PAYPAL_SANDBOX}/v1/payments/payouts`, () => paypalError(429, "RATE_LIMIT_REACHED"), {
+        once: true,
+      }),
+    );
+    await runQueued(h, "postPayoutBatch");
+    expect(await runState(h)).toBe("POSTING");
+    // others fill this clock hour's live posts meanwhile
+    for (let i = 0; i < 3; i++) {
+      await reserveLivePost(h.t.deps, {
+        workspaceId: h.world.workspaceId,
+        sessionId: null,
+        runId: randomUUID(),
+        amountCents: 100,
+      });
+    }
+    const due = () =>
+      h.t.pg?.owner.db
+        .update(schema.taskOutbox)
+        .set({ runAfter: new Date(Date.now() - 1_000) })
+        .where(
+          and(eq(schema.taskOutbox.workspaceId, h.world.workspaceId), eq(schema.taskOutbox.state, "queued")),
+        );
+    // while the circuit is open the written batch waits: nothing is sent, nothing is replayed
+    const before = calls("create_payout_batch");
+    await due();
+    await runQueued(h, "postPayoutBatch");
+    expect(calls("create_payout_batch")).toBe(before);
+    expect(await runState(h)).toBe("POSTING");
+    expect(await replayedSteps(h)).toEqual([]);
+    // the circuit closes: the same batch is posted live with its ids, the hour's cap notwithstanding (its slot is held)
+    h.t.clock.advance(7 * 60_000);
+    await due();
+    await runQueued(h, "postPayoutBatch");
+    expect(calls("create_payout_batch")).toBe(before + 1);
+    expect(await runState(h)).toBe("POSTED");
+    const [batch] = await h.t.deps.db
+      .select()
+      .from(schema.payoutBatches)
+      .where(eq(schema.payoutBatches.runId, h.world.runId));
+    expect(batch?.provenance).toBe("live");
+    expect(batch?.paypalBatchId).not.toMatch(/^RPLY/);
+    expect(script.posted.at(-1)?.sender_batch_header.sender_batch_id).toBe(batch?.senderBatchId);
+    expect(await replayedSteps(h)).toEqual([]);
   });
 });

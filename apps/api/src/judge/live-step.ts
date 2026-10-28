@@ -28,6 +28,7 @@ import { sessionOfWorkspace } from "../credentials/issue/tokens.js";
 import type { AppDeps } from "../lib/context.js";
 import {
   isJudgeWorkspace,
+  isQuotaReplay,
   type JudgeStep,
   judgeRail,
   type LivePostOutcome,
@@ -71,6 +72,12 @@ export interface LiveStepInput {
   runId?: string;
   /** The post only: the batch total it may spend (the run's on-rail lines when omitted). */
   amountCents?: number;
+  /**
+   * The post only: its batch is already written live (a POST PayPal paced or never answered). Its slot was taken
+   * when the rows were written, so the quotas no longer turn it to replay; only a switch, the simulator or the
+   * circuit can still hold it (the caller then waits: a written batch is never replayed).
+   */
+  resume?: boolean;
 }
 
 export type LiveStep =
@@ -169,9 +176,9 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   const sessionId =
     o.sessionId === undefined ? await sessionOfWorkspace(deps.db, o.workspaceId) : o.sessionId;
 
-  // 1. a fresh peek: what replays now never waits in the queue
+  // 1. a fresh peek: what replays now never waits in the queue (a resumed post is past the quotas)
   const peek = await judgeRail(deps, { workspaceId: o.workspaceId, sessionId, step: o.step });
-  if (peek.mode === "replay") return { kind: "replay", decision: peek };
+  if (peek.mode === "replay" && !(o.resume && isQuotaReplay(peek))) return { kind: "replay", decision: peek };
 
   // 2. the lane: this process's queue, then every process's lock
   const lane = judgeRuntime(deps).lane;
@@ -213,7 +220,7 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
         runId,
         amountCents: o.amountCents ?? (await onRailTotal(deps, o.workspaceId, runId)),
       });
-      decision = r.decision;
+      decision = o.resume && isQuotaReplay(r.decision) ? liveDecision(rail, r.decision.quota) : r.decision;
       reservation = r.reservation;
     } else {
       decision = await judgeRail(deps, { workspaceId: o.workspaceId, sessionId, step: o.step });
