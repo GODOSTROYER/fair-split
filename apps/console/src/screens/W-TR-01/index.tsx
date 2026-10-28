@@ -1,32 +1,10 @@
-// W-TR-01 Season: SHELL PLACEHOLDER, replaced by the season slice (SPLIT.md).
+// W-TR-01 Season (S1.7): the stencilled season, the run strip, the invoice Claude drafted beside the pool it
+// funds, and MM-S when the invoice reads back as paid. The screen is the season slice's (features/season);
+// this module keeps the route contract (screens/contract.ts).
 
-import { ScreenPlaceholder } from "../../chrome/ScreenPlaceholder.js";
-import { useSnapshot } from "../../data/hooks.js";
-import { format } from "../../lib/format.js";
+import { SeasonScreen } from "../../features/season/SeasonScreen.js";
 import type { SeasonScreenProps } from "../contract.js";
 
 export function Screen({ seasonCode }: SeasonScreenProps) {
-  const s = useSnapshot().data;
-  return (
-    <ScreenPlaceholder
-      id="W-TR-01"
-      title={`Season ${seasonCode}`}
-      lede="The run strip from ratified to paid, the pools Lantern Bay funds, and the invoice plate that stays hollow until PayPal confirms it."
-      mark={seasonCode}
-      facts={
-        s
-          ? [
-              { label: "Invoice", value: format.money(s.figures.invoiceCents), state: "hollow" },
-              { label: "Premium, never deducted", value: format.money(s.figures.premiumPoolCents) },
-              { label: "Quality bonus", value: format.money(s.figures.bonusPoolCents) },
-              { label: "Disbursement", value: format.money(s.figures.disbursementCents) },
-            ]
-          : []
-      }
-      provenance={
-        s ? `Seeded sample. Quote computed by engine v1, rate card ${s.figures.display.rc}.` : undefined
-      }
-      beds="season"
-    />
-  );
+  return <SeasonScreen seasonCode={seasonCode} />;
 }

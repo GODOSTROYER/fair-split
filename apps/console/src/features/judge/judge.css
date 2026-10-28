@@ -1,0 +1,236 @@
+/* W-JG-01's first view and the stage extras the season slice adds: the desk of photos on the lacquer, the
+   invoice above the pool with the one slab, "Play it for me" on the run pill and its cursor. Every value is a
+   --fs-* token; only paper casts a shadow. */
+
+/* ---------------------------------------------------------------- the first view */
+
+.fsc-first {
+  display: grid;
+  align-content: start;
+  gap: 32px;
+  max-width: 1320px;
+}
+
+.fsc-first__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  align-items: end;
+  gap: 24px 48px;
+}
+
+.fsc-first__titles {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fsc-first__title {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-first__lede {
+  max-width: 62ch;
+  color: var(--fs-ink-2);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.fsc-first__rules {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.fsc-first__rules > .fsc-bolted-plate {
+  width: 100%;
+}
+
+.fsc-first__rules-link {
+  color: var(--fs-ink-2);
+}
+
+/* The paper, beside the invoice under the pool's strip: it starts inside the first screen at every stage size. */
+.fsc-first__desk {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.fsc-first__desk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.fsc-first__desk-note {
+  max-width: 64ch;
+  color: var(--fs-ink-3);
+}
+
+.fsc-first__action {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.fsc-first__slab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.fsc-first__stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-first__note {
+  max-width: 52ch;
+  color: var(--fs-ink-2);
+}
+
+.fsc-first__status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  color: var(--fs-ink);
+}
+
+.fsc-first__status .fs-glyph {
+  color: var(--fs-ink-2);
+}
+
+.fsc-first__action[data-state="funded"] .fsc-first__status .fs-glyph {
+  color: var(--fs-ink);
+}
+
+@media (max-width: 1099px) {
+  .fsc-first__head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- "Play it for me" (the run pill's accessory) */
+
+.fsc-autoplay {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink-2);
+  font-family: var(--fs-font-ui);
+  font-weight: 560;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+.fsc-autoplay:hover {
+  color: var(--fs-ink);
+}
+
+.fsc-autoplay[data-state="autoplay"] {
+  color: var(--fs-ink);
+}
+
+/* ---------------------------------------------------------------- the autoplay cursor (stage overlay) */
+
+.fsc-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.fsc-cursor__arrow {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  display: block;
+  color: var(--fs-ink);
+}
+
+.fsc-cursor__arrow path {
+  fill: var(--fs-ink);
+  stroke: var(--fs-ground);
+  stroke-width: 1.5;
+  stroke-linejoin: miter;
+}
+
+/* The press: a square ring that closes on the point, like a finger meeting a slab. */
+.fsc-cursor__press {
+  position: absolute;
+  top: -14px;
+  left: -14px;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid var(--fs-ink);
+  opacity: 0;
+}
+
+.fsc-cursor[data-press="on"] .fsc-cursor__press {
+  animation: fsc-cursor-press var(--fs-dur-ring) var(--fs-ease-out) both;
+}
+
+.fsc-cursor[data-motion="reduced"][data-press="on"] .fsc-cursor__press {
+  animation: fsc-cursor-press-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+}
+
+.fsc-cursor__tag {
+  position: absolute;
+  top: 22px;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-ink);
+  color: var(--fs-ground);
+  font-family: var(--fs-font-ui);
+  font-weight: 560;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+.fsc-cursor__tag[data-turn] {
+  background: var(--fs-canary);
+  color: var(--fs-on-canary);
+}
+
+@keyframes fsc-cursor-press {
+  from {
+    opacity: 1;
+    transform: scale(1.6);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes fsc-cursor-press-fade {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

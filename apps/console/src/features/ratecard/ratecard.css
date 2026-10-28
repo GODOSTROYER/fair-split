@@ -1,0 +1,487 @@
+/* W-TR-02 Rate card: the resolution's pages as paper (the only shadow), Schedule A printed flat beside them,
+   the bolted hash plate, and MM-4: a bolted slab that refuses without travelling, and the refusal plate that
+   prints the hash the 409 carried. Every value is a --fs-* token. */
+
+/* ---------------------------------------------------------------- bolted plates (also on the first view) */
+
+.fsc-bolted-plate {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin: 0 5px 5px 0;
+  padding: 18px 22px 16px;
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+/* Steel-hatched edges and two bolt heads: the plate's depth is its frame; it has no travel. */
+.fsc-bolted-plate::before,
+.fsc-bolted-plate::after {
+  content: "";
+  position: absolute;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--fs-steel-line) 0 1.5px,
+    var(--fs-steel-face) 1.5px var(--fs-steel-gap)
+  );
+}
+
+.fsc-bolted-plate::before {
+  top: 5px;
+  left: 100%;
+  width: 5px;
+  height: 100%;
+}
+
+.fsc-bolted-plate::after {
+  top: 100%;
+  left: 5px;
+  width: 100%;
+  height: 5px;
+}
+
+.fsc-bolted-plate__bolt {
+  position: absolute;
+  top: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fs-steel-line);
+}
+
+.fsc-bolted-plate__bolt--l {
+  left: 6px;
+}
+
+.fsc-bolted-plate__bolt--r {
+  right: 6px;
+}
+
+.fsc-bolted-plate[data-bright]::before,
+.fsc-bolted-plate[data-bright]::after,
+.fsc-bolted-plate[data-bright] .fsc-bolted-plate__bolt {
+  animation: fs-brighten var(--fs-dur-brighten) var(--fs-ease-out);
+}
+
+.fsc-bolted-plate__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.fsc-bolted-plate__title .fs-glyph {
+  color: var(--fs-steel-line);
+}
+
+.fsc-bolted-plate__sealed {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-bolted-plate__hash {
+  margin: 0;
+  color: var(--fs-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.fsc-bolted-plate__acts {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--fs-rule);
+  list-style: none;
+  color: var(--fs-ink-2);
+}
+
+.fsc-bolted-plate__acts li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fsc-bolted-plate--compact {
+  padding: 14px 18px 12px;
+  gap: 6px;
+}
+
+/* ---------------------------------------------------------------- the screen */
+
+.fsc-rc {
+  display: grid;
+  align-content: start;
+  gap: 28px;
+  max-width: 1280px;
+}
+
+.fsc-rc__head {
+  display: grid;
+  gap: 10px;
+  max-width: 72ch;
+}
+
+.fsc-rc__head h1 {
+  margin: 0;
+}
+
+.fsc-rc__lede {
+  color: var(--fs-ink-2);
+}
+
+.fsc-rc__muted {
+  color: var(--fs-ink-3);
+}
+
+.fsc-rc__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 500px);
+  align-items: start;
+  gap: 32px 56px;
+}
+
+.fsc-rc__side {
+  position: sticky;
+  top: 0;
+  display: grid;
+  align-content: start;
+  gap: 28px;
+}
+
+/* ---------------------------------------------------------------- the pages (paper) */
+
+.fsc-rc-pages {
+  display: grid;
+  gap: 28px;
+  padding: 4px 8px 12px 0;
+}
+
+.fsc-rc-page {
+  max-width: 600px;
+}
+
+.fsc-rc-page:nth-child(2) {
+  transform: rotate(-0.35deg);
+}
+
+.fsc-rc-page:first-child {
+  transform: rotate(0.25deg);
+}
+
+.fsc-rc-page__sheet {
+  display: grid;
+  gap: 10px;
+  padding: 44px 48px 28px;
+  color: var(--fs-paper-ink);
+  font-family: var(--fs-font-ui);
+  font-weight: 450;
+  font-size: 0.78125rem;
+  line-height: 1.2rem;
+  hyphens: auto;
+}
+
+.fsc-rc-page__line {
+  margin: 0;
+  padding: 2px 4px;
+  transition: background-color var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-rc-page__line--head {
+  text-align: center;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.fsc-rc-page__line--heading {
+  margin-top: 6px;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.fsc-rc-page__line--rule {
+  padding-left: 28px;
+  text-indent: -24px;
+}
+
+.fsc-rc-page__line--date {
+  margin-top: 8px;
+}
+
+.fsc-rc-page__line--sign {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--fs-paper-ink) 40%, transparent);
+  max-width: 300px;
+}
+
+/* The reading band: a rule's clause, in pencil, the way Claude found it. */
+.fsc-rc-page__line[data-band] {
+  background: color-mix(in srgb, var(--fs-pencil) 34%, transparent);
+  box-shadow: inset 2px 0 0 var(--fs-paper-ink);
+}
+
+.fsc-rc-page__folio {
+  margin: 12px 0 0;
+  color: color-mix(in srgb, var(--fs-paper-ink) 55%, transparent);
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------- Schedule A, printed flat */
+
+.fsc-rc__schedule {
+  display: grid;
+  gap: 10px;
+}
+
+.fsc-rc__schedule-head {
+  display: grid;
+  gap: 4px;
+}
+
+.fsc-rc__schedule-head h2 {
+  margin: 0;
+}
+
+.fsc-rc__rules {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-rc__rule-item {
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-rc__rule {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 10px 10px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--fs-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fsc-rc__rule:hover,
+.fsc-rc__rule[data-active] {
+  background: var(--fs-plate);
+}
+
+.fsc-rc__rule[aria-pressed="true"] {
+  box-shadow: inset 2px 0 0 var(--fs-ink);
+}
+
+.fsc-rc__rule-id {
+  display: inline-flex;
+  align-items: center;
+  color: var(--fs-ink-2);
+}
+
+.fsc-rc__rule-id .fs-glyph {
+  color: var(--fs-steel-line);
+}
+
+.fsc-rc__footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--fs-pencil);
+}
+
+/* ---------------------------------------------------------------- MM-4: add a deduction */
+
+.fsc-rc__add {
+  display: grid;
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-rc__add-title {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-rc__row {
+  display: grid;
+  gap: 16px;
+}
+
+.fsc-rc__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+}
+
+.fsc-rc__field {
+  display: grid;
+  gap: 6px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.fsc-input:hover {
+  border-color: var(--fs-ink-3);
+}
+
+.fsc-input:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: var(--fs-focus-offset);
+}
+
+.fsc-input--figure {
+  font-stretch: 87.5%;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fsc-rc__bolted-slab {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+/* The refusal plate: bolted like the card it quotes, printed by the 409. */
+.fsc-rc__refusal {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin: 0 5px 5px 0;
+  padding: 20px 22px 18px;
+  background: var(--fs-plate-2);
+}
+
+.fsc-rc__refusal::before,
+.fsc-rc__refusal::after {
+  content: "";
+  position: absolute;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--fs-steel-line) 0 1.5px,
+    var(--fs-steel-face) 1.5px var(--fs-steel-gap)
+  );
+}
+
+.fsc-rc__refusal::before {
+  top: 5px;
+  left: 100%;
+  width: 5px;
+  height: 100%;
+}
+
+.fsc-rc__refusal::after {
+  top: 100%;
+  left: 5px;
+  width: 100%;
+  height: 5px;
+}
+
+.fsc-rc__refusal-bolt {
+  position: absolute;
+  top: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fs-steel-line);
+}
+
+.fsc-rc__refusal-bolt--l {
+  left: 6px;
+}
+
+.fsc-rc__refusal-bolt--r {
+  right: 6px;
+}
+
+.fsc-rc__refusal-word {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-rc__refusal-word .fs-glyph {
+  color: var(--fs-steel-line);
+}
+
+.fsc-rc__refusal-text {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--fs-ink);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.fsc-rc__refusal-text[data-reveal="wipe"] {
+  animation: fs-wipe var(--fs-dur-print) linear both;
+}
+
+.fsc-rc__refusal-text[data-reveal="fade"] {
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+}
+
+.fsc-rc__refusal-action {
+  padding-top: 4px;
+}
+
+/* A proposal is unhashed and not in force: no plate, a dashed frame, no bolts. */
+.fsc-rc__proposal {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px dashed var(--fs-ink-3);
+  border-radius: var(--fs-radius-2);
+}
+
+.fsc-rc__proposal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.fsc-rc__proposal-head h2 {
+  margin: 0;
+}
+
+.fsc-rc__proposal-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+@media (max-width: 1199px) {
+  .fsc-rc__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-rc__side {
+    position: static;
+    grid-row: 1;
+  }
+}

@@ -1,31 +1,15 @@
-// W-TR-02 Rate card: SHELL PLACEHOLDER, replaced by the season slice (SPLIT.md).
+// W-TR-02 Rate card (S1.7): BR 2026-04 as paper, Schedule A printed flat, the hash plate bolted, and MM-4
+// Bolted when anyone tries to add a deduction mid-season. The screen is the season slice's
+// (features/ratecard); this module keeps the route contract (screens/contract.ts).
 
-import { ScreenPlaceholder } from "../../chrome/ScreenPlaceholder.js";
-import { useSnapshot } from "../../data/hooks.js";
-import { format } from "../../lib/format.js";
+import { RateCard } from "../../features/ratecard/RateCard.js";
+import { gateBeds, SeasonGate } from "../../features/season/gate.js";
 import type { SeasonScreenProps } from "../contract.js";
 
-export function Screen(_props: SeasonScreenProps) {
-  const s = useSnapshot().data;
-  const card = s?.rateCard;
+export function Screen({ seasonCode }: SeasonScreenProps) {
   return (
-    <ScreenPlaceholder
-      id="W-TR-02"
-      title="Rate card"
-      lede="The Board's resolution as paper, Schedule A printed flat beside it, and the hash plate bolted down. Adding a deduction is refused, citing the hash."
-      mark={card ? `sha256 ${format.hashGroups(card.sha256)}` : undefined}
-      markKind="slug"
-      facts={
-        card
-          ? [
-              { label: "Resolution", value: card.canonical.resolutionNo, state: "ink" },
-              { label: "Ratified", value: format.date(card.canonical.ratifiedOn), state: "ink" },
-              { label: "Rules", value: String(card.canonical.terms.length), state: "ink" },
-            ]
-          : []
-      }
-      provenance="Read by Claude (claude-opus-5-5), ratified by the Secretary and the Chair. Seeded sample."
-      beds="plates"
-    />
+    <SeasonGate id="W-TR-02" seasonCode={seasonCode} beds={gateBeds.rateCard}>
+      {(snapshot) => <RateCard snapshot={snapshot} />}
+    </SeasonGate>
   );
 }

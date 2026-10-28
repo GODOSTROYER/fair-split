@@ -1,0 +1,920 @@
+/* W-TR-03 Reading room, and the evidence every season screen draws: a photograph of four weigh slips on the
+   clerk's bamboo mat, each slip the printed A6 form in press grey with Jessie's capitals in the boxes. Until
+   WS-MEDIA's photographs land (IC-11) the evidence is drawn from the seed's boxes; it is still evidence, so
+   the photo is paper and carries the paper shadow wherever it sits. Every value is a --fs-* token or a mix
+   of two. */
+
+/* ---------------------------------------------------------------- the photo: slips on the mat */
+
+.fsc-mat {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--fs-plate-2);
+  /* Bamboo slats, as the clerk lays the slips out to photograph them. */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 11px,
+    color-mix(in srgb, var(--fs-ground) 55%, transparent) 11px 12px
+  );
+}
+
+.fsc-mat[data-detail="thumb"] {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--fs-ground) 55%, transparent) 5px 6px
+  );
+}
+
+.fsc-mat__slip {
+  position: absolute;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 6px 10px rgb(0 0 0 / 0.3));
+}
+
+/* ---------------------------------------------------------------- one slip */
+
+.fsc-slip {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fsc-slip__sheet {
+  fill: var(--fs-copy-white);
+}
+
+.fsc-slip[data-copy="pink"] .fsc-slip__sheet {
+  fill: var(--fs-copy-pink);
+}
+
+.fsc-slip[data-copy="yellow"] .fsc-slip__sheet {
+  fill: var(--fs-copy-yellow);
+}
+
+.fsc-slip__print {
+  fill: color-mix(in srgb, var(--fs-paper-ink) 52%, var(--fs-copy-white));
+  font-family: var(--fs-font-ui);
+  font-weight: 600;
+  font-size: 7px;
+}
+
+.fsc-slip__print--coop {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.fsc-slip__print--title {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.fsc-slip__print--label {
+  font-size: 5.6px;
+  font-weight: 560;
+}
+
+.fsc-slip__serial {
+  fill: color-mix(in srgb, var(--fs-paper-ink) 80%, var(--fs-copy-white));
+  font-family: var(--fs-font-ui);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsc-slip__rule,
+.fsc-slip__box {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fs-paper-ink) 42%, var(--fs-copy-white));
+  stroke-width: 0.7;
+}
+
+.fsc-slip__bar {
+  fill: color-mix(in srgb, var(--fs-paper-ink) 22%, var(--fs-copy-white));
+}
+
+/* Jessie's ballpoint: one stroke weight, square ends, the hand's own wobble. */
+.fsc-slip__hand {
+  fill: none;
+  stroke: var(--fs-paper-ink);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fsc-slip[data-detail="thumb"] .fsc-slip__hand {
+  stroke-width: 1.5;
+}
+
+/* The office's pink copy is carbon: softer and fainter than the white original. */
+.fsc-slip[data-copy="pink"] .fsc-slip__hand {
+  stroke: color-mix(in srgb, var(--fs-paper-ink) 70%, var(--fs-copy-pink));
+  stroke-width: 1.3;
+}
+
+.fsc-slip__hand--signature {
+  stroke-width: 0.9;
+}
+
+.fsc-slip__hand--stained {
+  opacity: 0.45;
+}
+
+.fsc-slip__thumb ellipse {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fs-paper-ink) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+.fsc-slip__margin .fsc-slip__hand {
+  stroke-width: 0.8;
+}
+
+/* Slip 0462's water stain: a soft bloom with a darker tide line where it dried. */
+.fsc-slip__stain-body {
+  fill: color-mix(in srgb, var(--fs-hatch) 34%, transparent);
+  stroke: color-mix(in srgb, var(--fs-hatch) 70%, transparent);
+  stroke-width: 0.9;
+}
+
+.fsc-slip__stain-bloom {
+  fill: color-mix(in srgb, var(--fs-hatch) 22%, transparent);
+}
+
+/* MM-2 reduced: a 2 px pencil outline on the crop being read. */
+.fsc-slip__outline {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fs-pencil) 55%, var(--fs-paper-ink));
+  stroke-width: 2;
+}
+
+/* ---------------------------------------------------------------- W-TR-03 the room */
+
+.fsc-read {
+  /* The photo's height: the window less the stage's bar and pill row (110), the screen's padding (28), this
+     page's title row and gap (54), the bench's heading row (40), the filmstrip under the photo (96) and a
+     breath above the ribbon and caption (107 + 12). */
+  --fsc-bench-h: max(260px, calc(100dvh - 447px));
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  max-width: 1320px;
+}
+
+/* The season's stencil and the room's name on one line: the evidence gets the height. */
+.fsc-read__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
+}
+
+.fsc-read__head h1 {
+  margin: 0;
+}
+
+/* One status sentence, never a chain of thought. */
+.fsc-read__status {
+  --fsc-status-glyph: var(--fs-ink-2);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 72ch;
+  margin: 0;
+  color: var(--fs-ink);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* While Claude reads, the sentence's mark is the pencil's. */
+.fsc-read__status[data-state="reading"] {
+  --fsc-status-glyph: var(--fs-pencil);
+}
+
+.fsc-read__status .fs-glyph {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fsc-status-glyph);
+}
+
+/* S1.7 and design §6 C3: the photo takes 58% of the room, the print beds 42%. The photo is fitted to the height
+   the window leaves it inside its column; the lacquer around it is where the crops fly from. */
+.fsc-read__body {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 58fr) minmax(0, 42fr);
+  align-items: start;
+  gap: 32px 40px;
+}
+
+.fsc-read__desk {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.fsc-read__side {
+  container-type: inline-size;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+}
+
+.fsc-read__progress {
+  margin: 0 0 0 auto;
+  color: var(--fs-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.fsc-read__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 32px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fs-rule);
+  color: var(--fs-ink-3);
+}
+
+.fsc-read__provenance {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.fsc-read__provenance .fs-glyph {
+  color: var(--fs-pencil);
+}
+
+/* Mock data only: the replay of the recording, labelled as such. */
+.fsc-read__replay {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.fsc-read__replay-note {
+  color: var(--fs-ink-3);
+}
+
+.fsc-read__replay .fs-link {
+  color: var(--fs-ink-2);
+}
+
+/* ---------------------------------------------------------------- one person-sized step (confirm, rescan) */
+
+.fsc-read__act {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-read__act-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-read__act-title .fs-glyph {
+  color: var(--fs-pencil);
+}
+
+.fsc-read__act-line {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--fs-pencil);
+}
+
+.fsc-read__act-press {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  padding-top: 4px;
+}
+
+/* ---------------------------------------------------------------- the filmstrip (under the photo) */
+
+.fsc-film {
+  display: grid;
+  gap: 10px;
+}
+
+.fsc-film__photos {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) minmax(0, 1.25fr);
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-film__link {
+  display: grid;
+  gap: 6px;
+  color: var(--fs-ink-3);
+  text-decoration: none;
+}
+
+.fsc-film__thumb {
+  display: block;
+  padding: 2px;
+  background: var(--fs-copy-white);
+  box-shadow: var(--fs-shadow-paper);
+  opacity: 0.72;
+}
+
+.fsc-film__link[data-read] .fsc-film__thumb,
+.fsc-film__link:hover .fsc-film__thumb {
+  opacity: 1;
+}
+
+.fsc-film__link[aria-current="true"] .fsc-film__thumb {
+  opacity: 1;
+  outline: 2px solid var(--fs-ink);
+  outline-offset: 3px;
+}
+
+.fsc-film__link:focus-visible {
+  outline: none;
+}
+
+.fsc-film__link:focus-visible .fsc-film__thumb {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: 3px;
+}
+
+.fsc-film__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-weight: 600;
+}
+
+.fsc-film__link[data-read] .fsc-film__label,
+.fsc-film__link[aria-current="true"] .fsc-film__label {
+  color: var(--fs-ink);
+}
+
+/* A photo with a field for a person: the canary square, as on the run pill. */
+.fsc-film__pending {
+  width: 6px;
+  height: 6px;
+  background: var(--fs-canary);
+}
+
+/* The earlier set, behind one hatched "archived photo" tile at the end of the strip (OD-4). */
+.fsc-film__archive {
+  appearance: none;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fs-ink-3);
+  font: inherit;
+  text-align: center;
+}
+
+.fsc-film__archive-tile {
+  display: grid;
+  place-items: center;
+  aspect-ratio: var(--fsc-photo-aspect, 0.73);
+  border: 1px solid var(--fs-rule);
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+}
+
+.fsc-film__archive-count {
+  padding: 0 3px;
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fsc-film__archive:hover .fsc-film__archive-tile,
+.fsc-film__archive[aria-expanded="true"] .fsc-film__archive-tile {
+  border-color: var(--fs-ink-3);
+}
+
+.fsc-film__archive[aria-expanded="true"] {
+  color: var(--fs-ink);
+}
+
+.fsc-film__archive:focus-visible {
+  outline: none;
+}
+
+.fsc-film__archive:focus-visible .fsc-film__archive-tile {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: 3px;
+}
+
+.fsc-film__earlier {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* An archived photo: hatched, with a word and its read date (never colour alone). */
+.fsc-film__archived {
+  display: grid;
+  gap: 1px;
+  min-height: 40px;
+  padding: 4px 6px;
+  border: 1px solid var(--fs-rule);
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  color: var(--fs-ink-2);
+  text-decoration: none;
+}
+
+.fsc-film__archived-id {
+  justify-self: start;
+  padding: 0 3px;
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  font-weight: 600;
+}
+
+.fsc-film__archived-date {
+  justify-self: start;
+  padding: 0 3px;
+  background: var(--fs-plate);
+}
+
+.fsc-film__archived[aria-current="true"] {
+  border-color: var(--fs-ink);
+}
+
+/* ---------------------------------------------------------------- the bench */
+
+.fsc-bench {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fsc-bench__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+
+.fsc-bench__title {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-bench__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fsc-zoom-button {
+  appearance: none;
+  min-width: 24px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+  font-weight: 560;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.fsc-zoom-button:hover:not([aria-disabled="true"]) {
+  border-color: var(--fs-ink-3);
+}
+
+.fsc-zoom-button[aria-disabled="true"] {
+  color: var(--fs-ink-3);
+  cursor: default;
+}
+
+.fsc-bench__scale {
+  min-width: 40px;
+  color: var(--fs-ink-2);
+  text-align: center;
+}
+
+/* The whole photo fits the window: fitted by height inside its 58% column, centred on the lacquer. The paper's
+   own padding (6 a side) and the viewport's (2 a side) sit outside the photo's aspect. */
+.fsc-bench__viewport {
+  display: block;
+  justify-self: center;
+  width: min(100%, calc((var(--fsc-bench-h) - 16px) * var(--fsc-photo-aspect, 0.73) + 16px));
+  padding: 2px;
+  outline-offset: 4px;
+}
+
+.fsc-bench__paper {
+  padding: 6px;
+}
+
+.fsc-bench__frame {
+  position: relative;
+  overflow: hidden;
+}
+
+.fsc-bench__zoomer {
+  transform-origin: 0 0;
+  transition: transform var(--fs-spring-glide-dur) var(--fs-spring-glide);
+}
+
+.fsc-bench__zoomer[data-tracking],
+.fsc-bench__zoomer[data-motion="reduced"] {
+  transition: none;
+}
+
+.fsc-bench__anchor {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The reading band: a 1 px chalk line over a 6% wash, sliding to the line being read. */
+.fsc-bench__band {
+  position: absolute;
+  z-index: 1;
+  background: color-mix(in srgb, var(--fs-paper-ink) 6%, transparent);
+  box-shadow:
+    inset 0 -1px 0 color-mix(in srgb, var(--fs-paper-ink) 70%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--fs-paper-ink) 12%, transparent);
+  pointer-events: none;
+  transition:
+    top var(--fs-dur-band) var(--fs-ease-band),
+    left var(--fs-dur-band) var(--fs-ease-band),
+    width var(--fs-dur-band) var(--fs-ease-band),
+    height var(--fs-dur-band) var(--fs-ease-band);
+}
+
+[data-motion="reduced"] .fsc-bench__band {
+  transition: none;
+}
+
+/* ---------------------------------------------------------------- the print beds */
+
+.fsc-beds {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fsc-beds__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.fsc-beds__table th,
+.fsc-beds__table td {
+  padding: 0 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.fsc-beds__table thead th {
+  height: var(--fs-console-header);
+  border-bottom: 1px solid var(--fs-rule);
+  color: var(--fs-ink-3);
+  font-weight: 450;
+  white-space: nowrap;
+}
+
+.fsc-beds__table thead th:nth-child(1) {
+  width: 64px;
+}
+
+.fsc-beds__table thead th:nth-child(3) {
+  width: 92px;
+}
+
+.fsc-beds__table thead th:nth-child(4) {
+  width: 56px;
+}
+
+.fsc-beds__table thead th:nth-child(5) {
+  width: 52px;
+}
+
+.fsc-beds__table thead th:nth-child(6) {
+  width: 36px;
+}
+
+.fsc-beds__table [data-numeric] {
+  text-align: right;
+}
+
+.fsc-beds__row {
+  height: 56px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-beds__row:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: -2px;
+}
+
+.fsc-beds__row[data-active] {
+  background: var(--fs-plate);
+}
+
+.fsc-beds__serial {
+  color: var(--fs-ink);
+  font-weight: 520;
+  white-space: nowrap;
+}
+
+/* The copy a slip is: white original or the office's pink duplicate (an evidence tag, never a state hue). */
+.fsc-beds__copy {
+  display: inline-block;
+  width: 6px;
+  height: 10px;
+  margin-right: 6px;
+  background: var(--fs-copy-white);
+  vertical-align: -1px;
+}
+
+.fsc-beds__copy[data-copy="pink"] {
+  background: var(--fs-copy-pink);
+}
+
+.fsc-beds__bed {
+  padding-right: 0;
+}
+
+.fsc-beds__dash {
+  display: block;
+  height: 22px;
+  border: 1px dashed var(--fs-rule);
+}
+
+/* A narrow side column (the 42% of a 1280 px stage) keeps the member's name whole: tighter figure columns,
+   and the name may take a second line. */
+@container (max-width: 440px) {
+  .fsc-beds__table thead th:nth-child(1) {
+    width: 58px;
+  }
+
+  .fsc-beds__table thead th:nth-child(4) {
+    width: 46px;
+  }
+
+  .fsc-beds__table thead th:nth-child(5) {
+    width: 44px;
+  }
+
+  .fsc-beds__table thead th:nth-child(6) {
+    width: 28px;
+  }
+
+  .fsc-beds__member > :first-child {
+    white-space: normal;
+  }
+}
+
+/* A slip nothing could be read from: hatched, with its words (hatch is "unavailable", never colour alone). */
+.fsc-beds__illegible {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--fs-rule);
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-ground);
+  color: var(--fs-ink-2);
+}
+
+.fsc-beds__member {
+  display: grid;
+  overflow: hidden;
+}
+
+.fsc-beds__member > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsc-beds__no {
+  color: var(--fs-ink-3);
+}
+
+/* Machine output prints flat in pencil. */
+.fsc-beds__print {
+  color: var(--fs-pencil);
+}
+
+/* MM-2 "print": a landing row wipes in left to right; under reduced motion it fades. */
+.fsc-beds__row[data-state="landing"] :is(.fsc-beds__member, .fsc-beds__net, td.fsc-beds__print) {
+  animation: fs-wipe var(--fsc-print-ms) linear var(--fsc-print-at) both;
+}
+
+.fsc-read__body[data-motion="reduced"]
+  .fsc-beds__row[data-state="landing"]
+  :is(.fsc-beds__member, .fsc-beds__net, td.fsc-beds__print) {
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) var(--fsc-print-at) both;
+}
+
+.fsc-beds__you {
+  display: inline-flex;
+  color: inherit;
+  text-decoration: none;
+}
+
+.fsc-beds__you:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: 2px;
+}
+
+.fsc-beds__you .fs-you {
+  min-height: 26px;
+}
+
+.fsc-beds__entered {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink);
+}
+
+.fsc-beds__ring {
+  text-align: center;
+}
+
+.fsc-ring {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.fsc-ring circle {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.fsc-ring__track {
+  stroke: var(--fs-rule);
+}
+
+.fsc-ring__arc {
+  stroke: var(--fs-pencil);
+  stroke-dasharray: var(--fsc-score, 1) 1;
+}
+
+.fsc-ring[data-low] .fsc-ring__arc {
+  stroke: var(--fs-canary-text);
+}
+
+.fsc-beds__row[data-state="landing"] .fsc-ring__arc {
+  animation: fsc-ring-draw var(--fsc-ring-ms) var(--fs-ease-out) var(--fsc-ring-at) both;
+}
+
+.fsc-read__body[data-motion="reduced"] .fsc-beds__row[data-state="landing"] .fsc-ring__arc {
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) var(--fsc-ring-at) both;
+}
+
+@keyframes fsc-ring-draw {
+  from {
+    stroke-dasharray: 0 1;
+  }
+
+  to {
+    stroke-dasharray: var(--fsc-score, 1) 1;
+  }
+}
+
+.fsc-beds__notices {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A quarantined instruction: information, never an error colour. */
+.fsc-beds__notice {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.fsc-beds__notice .fs-glyph {
+  margin-top: 1px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-beds__keys {
+  color: var(--fs-ink-3);
+}
+
+/* ---------------------------------------------------------------- MM-2 flights */
+
+.fsc-flights {
+  position: absolute;
+  inset: 0;
+  z-index: var(--fs-z-flight);
+  pointer-events: none;
+}
+
+.fsc-flight {
+  position: absolute;
+  transform-origin: 50% 50%;
+  background: var(--fs-copy-white);
+  box-shadow: var(--fs-shadow-paper);
+  will-change: transform;
+}
+
+.fsc-flight__hand {
+  position: absolute;
+  inset: 0;
+}
+
+.fsc-flight__type {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fs-paper-ink);
+  opacity: 0;
+}
+
+.fsc-flights__connectors {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.fsc-flights__connector {
+  stroke: var(--fs-pencil);
+  stroke-width: 1;
+  animation: fsc-connector var(--fsc-connector-ms) linear both;
+}
+
+@keyframes fsc-connector {
+  0%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
+@media (max-width: 1279px) {
+  .fsc-read {
+    --fsc-bench-h: max(240px, calc(100dvh - 479px));
+  }
+}
+
+@media (max-width: 1099px) {
+  .fsc-read {
+    --fsc-bench-h: 560px;
+  }
+
+  .fsc-read__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-read__side {
+    grid-row: 1;
+  }
+}
