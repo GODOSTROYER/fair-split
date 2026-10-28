@@ -1,7 +1,8 @@
 // src/routes/auth: owned by the JUDGE slice (apps/api/SPLIT.md).
 // Credential issuance: single-use pairing (QR 10 min or a 6-digit code), stage frame tokens (2 h, sent over
 // IC-12, never in a URL), operator login (scrypt → `fs_ops`), member links `/s/:token` and brand links
-// `/b/:token` (Ed25519, 30 days, member links revocable), and "who am I" for any credential. The shell forwards
+// `/b/:token` (Ed25519, 30 days, member links revocable: by id, issued or printed, or every live link of a
+// line for a lost slip), and "who am I" for any credential. The shell forwards
 // `/s/:token` to the app and serves `/b/:token` to the console; both pages read their link's facts from
 // `GET /v1/credential` with the link as the bearer (the link exchange). The shared resolver refuses a revoked
 // link there and on every other route.
@@ -25,6 +26,7 @@ import {
   issueBrandLink,
   issueMemberLink,
   linkWasIssued,
+  liveLinksOfLine,
   mayPair,
   mintBearerToken,
   type PersonaRef,
@@ -57,6 +59,8 @@ import {
   OpsLoginRequest,
   OpsLoginResponse,
   OpsPairingRequest,
+  RevokeLineLinksRequest,
+  RevokeLineLinksResponse,
   RevokeLinkRequest,
   RevokeLinkResponse,
 } from "../../judge/schemas.js";
@@ -492,7 +496,8 @@ export default defineRouteFolder({
         path: "/v1/links/member/revoke",
         auth: "frame_or_session",
         name: "revokeMemberLink",
-        summary: "Revoke a statement link (a reprint rotates it): it stops opening anywhere",
+        summary:
+          "Revoke a statement link, issued or printed (the print names its `memberLink.jti`): it stops opening anywhere",
         request: RevokeLinkRequest,
         response: RevokeLinkResponse,
       },
@@ -506,6 +511,45 @@ export default defineRouteFolder({
           revokeLink(tx, ctx.scope, { jti: ctx.input.jti, at: ctx.now() }),
         );
         return { revoked, jti: ctx.input.jti };
+      },
+    );
+
+    r.route(
+      {
+        method: "POST",
+        path: "/v1/links/member/revoke-line",
+        auth: "frame_or_session",
+        name: "revokeLineLinks",
+        summary: "A lost slip: revoke every live statement link of one line (printed on any day, or issued)",
+        description:
+          "Revokes every member link of the line that still opens: each printed QR (recorded the first time it was printed) and each link issued for it, whatever the day. They stop opening anywhere at once (an open stream ends within a ping); the next print carries a fresh link.",
+        request: RevokeLineLinksRequest,
+        response: RevokeLineLinksResponse,
+      },
+      async (ctx) => {
+        const { deps, credential: cred } = ctx;
+        if (!canIssue(cred.role)) throw problem.forbidden("Statement links are revoked by the treasurer.");
+        const [line] = await deps.db
+          .select({ id: schema.memberLines.id })
+          .from(schema.memberLines)
+          .where(
+            and(
+              eq(schema.memberLines.workspaceId, cred.workspaceId),
+              eq(schema.memberLines.id, ctx.input.lineId),
+            ),
+          )
+          .limit(1);
+        if (!line) throw problem.notFound("No such line in this workspace.");
+        const now = ctx.now();
+        const jtis = await withWorkspaceTx(deps.db, ctx.scope, async (tx) => {
+          const live = await liveLinksOfLine(tx, cred.workspaceId, line.id, now);
+          const done: string[] = [];
+          for (const jti of live) {
+            if (await revokeLink(tx, ctx.scope, { jti, reason: "line", at: now })) done.push(jti);
+          }
+          return done;
+        });
+        return { lineId: line.id, jtis };
       },
     );
 

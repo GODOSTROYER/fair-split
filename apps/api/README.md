@@ -120,6 +120,10 @@ names above.
 - **Revocation fails closed**: the credential store refuses to be built without `isLinkRevoked`, every route
   resolves links through it (`appCredentialStore`: the `link.revoked` ledger entries), and an open SSE stream
   re-checks its credential at every ping (15 s), so a revoked or expired token or link stops streaming.
+  A printed member link (the 80 mm slip's QR) is recorded in the ledger the first time it is printed
+  (`link.issued`, `via: "print"`), so it is revoked like an issued one: by its id (`memberLink.jti`,
+  `POST /v1/links/member/revoke`) or, for a lost slip, with every live link of its line
+  (`POST /v1/links/member/revoke-line`); the day's next print then carries a fresh link.
 - **Guessing**: the judge code allows 5 tries per 10 minutes per session, 5 a minute per network and 30 a minute in
   all; pairing claims 10 a minute per network (and 60 six-digit guesses a minute in all); `/ops/login` 5 a minute
   per network.

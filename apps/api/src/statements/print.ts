@@ -8,15 +8,19 @@
 // print must not mint a fresh credential each time. So the link is a pure function of (workspace, line, issue
 // day, generation): its jti is an HMAC of them and it expires 30 days after the issue day began (Asia/Manila), or
 // with its workspace if sooner. Ed25519 signatures are deterministic, so every print of a line on one day carries
-// the very same token, and each link can be named for revocation (`printLinkJti`) without being stored. Once
-// revoked (a `link.revoked` ledger entry naming its jti, the judge slice's record), the day's next generation is
-// printed instead: one live printed link per line and day, and at most PRINT_LINK_GENERATIONS a day in all.
+// the very same token. The first print of each link records it in the ledger (`link.issued`, `via: "print"`, ids
+// and expiry only; idempotent under the workspace lock), so it is revoked like any issued link: by its id
+// (`POST /v1/links/member/revoke`; the print names it in `memberLink.jti`) or with every live link of its line
+// (`POST /v1/links/member/revoke-line`, a lost slip). Once revoked (a `link.revoked` entry naming its jti), the
+// day's next generation is printed instead: one live printed link per line and day, and at most
+// PRINT_LINK_GENERATIONS a day in all.
 import { createHmac } from "node:crypto";
 import { MEMBER_LINE_LABELS, MemberLineState, MoneyDTO, Provenance } from "@fairsplit/contracts";
-import { type DbOrTx, schema } from "@fairsplit/db";
+import { type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
 import { format, jcs } from "@fairsplit/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
+import { recordPrintedLink } from "../credentials/issue/index.js";
 import { type CredentialKeys, LINK_TTL_MS, signLink } from "../credentials/verify/index.js";
 import type { AppDeps } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
@@ -64,9 +68,10 @@ export const PrintSlip = z.strictObject({
   statement: z.array(RenderedSentence),
   /**
    * The QR: the member's signed, read-only statement link, the same for every print of the line that day; it
-   * expires 30 days after the issue day began (Asia/Manila), or with its workspace if that is sooner.
+   * expires 30 days after the issue day began (Asia/Manila), or with its workspace if that is sooner. `jti` names
+   * it for `POST /v1/links/member/revoke` (a lost slip); once revoked, the day's next print carries a fresh one.
    */
-  memberLink: z.strictObject({ url: z.string(), expiresAt: z.iso.datetime() }),
+  memberLink: z.strictObject({ url: z.string(), jti: z.string(), expiresAt: z.iso.datetime() }),
   nadawat: z.strictObject({ box: z.literal(true), witnessLine: z.literal(true), words: z.string() }),
   printedAt: z.iso.datetime(),
   provenance: Provenance,
@@ -102,7 +107,7 @@ export const PRINT_LINK_JTI_PURPOSE = "link:print-jti";
 /** Fresh printed links one line may get in a day, each after the previous one was revoked. */
 export const PRINT_LINK_GENERATIONS = 8;
 
-/** The ledger kind that revokes a signed link by its jti (written by the judge slice's `revokeLink`). */
+/** The ledger kind that revokes a signed link by its jti (written by `revokeLink`, credentials/issue). */
 export const LINK_REVOKED_KIND = "link.revoked";
 
 /** The co-op's calendar day (Asia/Manila) of an instant: `YYYY-MM-DD`. */
@@ -153,14 +158,24 @@ export interface PrintedLink {
 /**
  * The member link a print of this line carries today: the day's first generation nobody revoked. Signed through
  * the shell's link codec (the bytes JUDGE's issuer signs); it moves to `credentials/issue` once that helper
- * accepts a given jti and expiry. Throws RATE_LIMITED (until the next Manila day) when every generation of the
- * day was revoked.
+ * accepts a given jti and expiry. The first print of each link records it in `scope`'s name
+ * (`recordPrintedLink`), so it can be revoked. Throws RATE_LIMITED (until the next Manila day) when every
+ * generation of the day was revoked.
  */
 export async function printMemberLink(
   deps: Pick<AppDeps, "env" | "credentials">,
   db: DbOrTx,
-  o: { workspaceId: string; lineId: string; now: Date; workspaceExpiresAt: Date | null },
+  o: {
+    scope: WorkspaceScope;
+    workspaceId: string;
+    lineId: string;
+    now: Date;
+    workspaceExpiresAt: Date | null;
+  },
 ): Promise<PrintedLink> {
+  if (o.scope.workspaceId !== o.workspaceId.toLowerCase()) {
+    throw new TypeError("printMemberLink: a printed link is recorded in its own workspace's ledger");
+  }
   const day = issueDayOf(o.now);
   const dayStart = issueDayStartMs(day);
   const ends = Math.min(dayStart + LINK_TTL_MS, o.workspaceExpiresAt?.getTime() ?? Number.POSITIVE_INFINITY);
@@ -184,13 +199,17 @@ export async function printMemberLink(
     jti,
     exp,
   });
-  return { url: `${deps.env.publicOrigin}/s/${token}`, jti, expiresAt: new Date(exp * 1000) };
+  const expiresAt = new Date(exp * 1000);
+  await recordPrintedLink(db, o.scope, { jti, lineId: o.lineId.toLowerCase(), expiresAt }, o.now);
+  return { url: `${deps.env.publicOrigin}/s/${token}`, jti, expiresAt };
 }
 
 export async function printSlip(
   deps: Pick<AppDeps, "env" | "credentials" | "clock">,
   db: DbOrTx,
   sc: StatementContext,
+  /** Who prints: the printed link's `link.issued` entry is attributed to this scope. */
+  scope: WorkspaceScope,
 ): Promise<PrintSlip> {
   const f = sc.facts;
   const lang = f.lang;
@@ -277,6 +296,7 @@ export async function printSlip(
 
   const now = deps.clock.now();
   const link = await printMemberLink(deps, db, {
+    scope,
     workspaceId: sc.workspaceId,
     lineId: f.lineId,
     now,
@@ -308,7 +328,7 @@ export async function printSlip(
       display: run?.batchSha256 ? format.hashAllGroups(run.batchSha256) : null,
     },
     statement: rendered.display,
-    memberLink: { url: link.url, expiresAt: link.expiresAt.toISOString() },
+    memberLink: { url: link.url, jti: link.jti, expiresAt: link.expiresAt.toISOString() },
     nadawat: { box: true, witnessLine: true, words: NADAWAT[lang] },
     printedAt: now.toISOString(),
     provenance: sc.provenance,

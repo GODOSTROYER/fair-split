@@ -343,6 +343,18 @@ export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
       link.revoked = true;
       return { status: 200, body: { revoked, jti } };
     },
+    revokeLineLinks: (call) => {
+      requireRole(call, ["treasurer", "judge"], "Revoking a line's statement links");
+      const lineId = (call.body as { lineId: string }).lineId;
+      if (!world.line(lineId)) throw new MockProblem("NOT_FOUND", "No such line in this workspace.");
+      const jtis: string[] = [];
+      for (const link of links.values()) {
+        if (link.kind !== "member" || link.revoked || link.lineId !== lineId) continue;
+        link.revoked = true;
+        jtis.push(link.jti);
+      }
+      return { status: 200, body: { lineId, jtis } };
+    },
     issueBrandLink: (call) => {
       requireOperator(call);
       return issueLink("brand", null);

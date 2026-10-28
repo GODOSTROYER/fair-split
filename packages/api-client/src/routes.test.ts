@@ -163,6 +163,23 @@ describe("judgeRoutes: the judge and auth routes outside IC-01", () => {
     expect((await refusal(member.whoami())).code).toBe("UNAUTHENTICATED");
   });
 
+  it("a lost slip: every live link of a line is revoked at once, and only that line's", async () => {
+    const [line, other] = mock.world.lines();
+    if (!line || !other) throw new Error("the seeded world has too few lines");
+    const a = await console_.issueMemberLink({ body: { lineId: line.id } });
+    const b = await console_.issueMemberLink({ body: { lineId: line.id } });
+    const keep = await console_.issueMemberLink({ body: { lineId: other.id } });
+    const r = await console_.revokeLineLinks({ body: { lineId: line.id } });
+    expect(r.lineId).toBe(line.id);
+    expect([...r.jtis].sort()).toEqual([a.jti, b.jti].sort());
+    expect(await console_.revokeLineLinks({ body: { lineId: line.id } })).toEqual({
+      lineId: line.id,
+      jtis: [],
+    });
+    const kept = judgeRoutes(createApiClient({ baseUrl: BASE, token: keep.url.split("/s/")[1] ?? "" }));
+    expect(await kept.whoami()).toMatchObject({ kind: "member_link", lineId: other.id });
+  });
+
   it("refuses a body the route's schema refuses (400 VALIDATION_FAILED, located)", async () => {
     const e = await refusal(
       stage.tamper({ params: { sid: MOCK_SESSION_ID }, body: { kind: "everything" as unknown as "amount" } }),
