@@ -8,12 +8,14 @@
 import type { MockWorld } from "@fairsplit/api-client/msw";
 import type { SeasonSnapshot } from "@fairsplit/contracts";
 import { getSnapshot } from "@fairsplit/seed";
+import type { RequestHandler } from "msw";
 import type { DataAdapter } from "../data/adapter.js";
 import { createApiAdapter } from "../data/api.js";
 import {
   type ConsoleMock,
   type ConsoleMockOptions,
   createConsoleMock,
+  createMemoryFetch,
   createMockAdapter,
   type MockDriver,
 } from "../data/mock/index.js";
@@ -36,12 +38,19 @@ export function createTestWorld(options: ConsoleMockOptions = {}): TestWorld {
 }
 
 /** A data runtime over the world through the in-memory adapter (msw's handlers, no interception). */
-export function createTestRuntime(world: TestWorld = createTestWorld()): {
+export function createTestRuntime(
+  world: TestWorld = createTestWorld(),
+  /** msw handlers answered before the world's (record requests, or answer as fs-api would where the mock differs). */
+  handlers: readonly RequestHandler[] = [],
+): {
   readonly runtime: DataRuntime;
   readonly adapter: DataAdapter;
   readonly world: TestWorld;
 } {
-  const adapter = createMockAdapter(world.mock, { snapshot: async () => seedSnapshot() });
+  const adapter = createMockAdapter(world.mock, {
+    snapshot: async () => seedSnapshot(),
+    ...(handlers.length > 0 ? { fetch: createMemoryFetch([...handlers, ...world.mock.handlers]) } : {}),
+  });
   const client = createQueryClient();
   client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false } });
   return { runtime: createDataRuntime(adapter, client), adapter, world };

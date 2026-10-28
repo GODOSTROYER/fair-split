@@ -13,7 +13,7 @@ import type { EventMeta } from "./hub.js";
 import { useDataRuntime } from "./provider.js";
 import { firstViewQuery, queryKeys, runViewQuery, snapshotQuery } from "./query.js";
 import type { RunView } from "./run-view.js";
-import type { JudgeSession, SessionState } from "./session.js";
+import type { InvoiceReadiness, JudgeSession, SessionState } from "./session.js";
 
 export function useAdapter() {
   return useDataRuntime().adapter;
@@ -60,6 +60,8 @@ export function useDescribeContext(): DescribeContext | null {
 
 export interface JudgeSessionApi extends SessionState {
   start(): Promise<JudgeSession>;
+  /** Waits until the session's run is invoiced, or past it (the first press records the payment only then). */
+  whenInvoiced(session: JudgeSession): Promise<InvoiceReadiness>;
   reset(): Promise<void>;
   dismissError(): void;
 }
@@ -71,6 +73,7 @@ export function useJudgeSession(): JudgeSessionApi {
     () => ({
       ...state,
       start: () => session.start(),
+      whenInvoiced: (started: JudgeSession) => session.whenInvoiced(started),
       reset: async () => {
         hub.closeAll();
         await session.reset();

@@ -3,12 +3,14 @@
 // reads in the console's words; autoplay presses with a visible cursor and stops before the keys.
 
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { getResponse, HttpResponse, http } from "msw";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   clearMomentTrace,
   createTestWorld,
   expectNoAxeViolations,
   momentPhase,
+  recordRequests,
   renderConsole,
   tracedPhases,
 } from "../../test/index.js";
@@ -28,8 +30,9 @@ async function press(testId: string) {
 
 describe("W-JG-01 first view", { timeout: 60_000 }, () => {
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
-    const view = await renderConsole({ path: "/judge" });
-    const call = vi.spyOn(view.adapter, "call");
+    // The log is installed before the first render, so it sees anything the page sends while mounting.
+    const log = recordRequests();
+    const view = await renderConsole({ path: "/judge", handlers: [log.handler] });
     const root = await screen.findByTestId("W-JG-01");
     expect(root.dataset.state).toBe("ready");
     expect(within(root).getByRole("heading", { level: 1 }).textContent).toBe(
@@ -48,7 +51,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     );
     expect(root.querySelectorAll(".fs-slab").length).toBeLessThanOrEqual(2);
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest");
-    expect(call).not.toHaveBeenCalled();
+    expect(log.calls()).toEqual([]);
     await expectNoAxeViolations(view.container);
   });
 
@@ -94,6 +97,49 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A is funded.");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Season 2026-A is funded.");
     await expectNoAxeViolations(view.container);
+  });
+
+  it("records the payment only once the session's run reads INVOICED (fs-api makes it in DRAFT, then invoices it)", async () => {
+    const world = createTestWorld();
+    const log = recordRequests();
+    let polls = 0;
+    let pollsBeforeMarkPaid: number | null = null;
+    const handlers = [
+      log.handler,
+      // fs-api answers createJudgeSession with the run in DRAFT; Claude's invoice turn sends it afterwards.
+      http.get("*/v1/judge/session", async ({ request }) => {
+        polls += 1;
+        const real = await getResponse([...world.mock.handlers], request);
+        const body = (await real?.json()) as Record<string, unknown>;
+        const runState = polls === 1 ? "DRAFT" : polls === 2 ? "QUOTED" : "INVOICED";
+        return HttpResponse.json({ ...body, runState });
+      }),
+      http.post("*/v1/runs/:runSlug/mark-paid", () => {
+        pollsBeforeMarkPaid ??= polls;
+        return undefined;
+      }),
+    ];
+    await renderConsole({ path: "/judge", world, handlers });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(world.run.state).toBe("FUNDED"));
+    expect(pollsBeforeMarkPaid).toBe(3);
+    expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toHaveLength(1);
+    expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
+  });
+
+  it("a resumed session already past INVOICED records nothing again: its stream replays where the run is", async () => {
+    const world = createTestWorld();
+    world.markPaid(); // the session funded in an earlier visit (the judge cookie resumes it)
+    expect(world.run.state).toBe("IN_REVIEW");
+    const log = recordRequests();
+    await renderConsole({ path: "/judge", world, handlers: [log.handler] });
+    await press("W-JG-01.markPaid");
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A is funded."),
+    );
+    expect(log.sent.some((r) => r.path === "/v1/judge/session")).toBe(true);
+    expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toEqual([]);
+    expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
   });
 
   it("reduced motion keeps every phase of MM-S", async () => {

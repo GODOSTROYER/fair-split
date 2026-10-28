@@ -6,11 +6,13 @@
 //   expectNoAxeViolations / axeViolations   axe-core 4.13.0, WCAG 2.2 AA tags, contrast off in jsdom
 //   tracedPhases / momentPhase / clearMomentTrace   moment assertions from __fsMoments and data-moment-phase
 //   setViewport / resizeTo / STAGE_WIDTHS   the stage's breakpoints
+//   recordRequests     an msw handler that logs every request from the first render on
 
 export { axeViolations, describeViolations, expectNoAxeViolations } from "./axe.js";
 export { clearMomentTrace, momentPhase, phasesAreCatalogued, tracedPhases } from "./moments.js";
 export { type MockServer, startMockServer, TEST_ORIGIN } from "./msw.js";
 export { type RenderConsoleOptions, type RenderedConsole, renderConsole } from "./render.js";
+export { type RequestLog, recordRequests, type SentRequest } from "./requests.js";
 export { resetViewport, resizeTo, STAGE_WIDTHS, setViewport } from "./viewport.js";
 export {
   createTestHttpAdapter,

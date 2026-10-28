@@ -5,6 +5,7 @@
 import type { MotionPreference } from "@fairsplit/ui-web";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, type RenderResult, render, waitFor } from "@testing-library/react";
+import type { RequestHandler } from "msw";
 import { AppProviders } from "../chrome/AppProviders.js";
 import type { DataAdapter } from "../data/adapter.js";
 import type { DataRuntime } from "../data/provider.js";
@@ -22,6 +23,8 @@ export interface RenderConsoleOptions {
   readonly motion?: MotionPreference;
   /** Window size before the first render (S1.6 layouts); default 1470 × 956. */
   readonly viewport?: { readonly width: number; readonly height?: number };
+  /** msw handlers answered before the world's, from the first request on (see createTestRuntime). */
+  readonly handlers?: readonly RequestHandler[];
 }
 
 export interface RenderedConsole extends RenderResult {
@@ -44,7 +47,7 @@ async function settled(router: ConsoleRouter): Promise<void> {
 
 export async function renderConsole(options: RenderConsoleOptions = {}): Promise<RenderedConsole> {
   if (options.viewport) setViewport(options.viewport.width, options.viewport.height);
-  const { runtime, adapter, world } = createTestRuntime(options.world ?? createTestWorld());
+  const { runtime, adapter, world } = createTestRuntime(options.world ?? createTestWorld(), options.handlers);
   const history = createMemoryHistory({ initialEntries: [options.path ?? "/judge"] });
   const router = createConsoleRouter(runtime, history);
   let result: RenderResult | undefined;

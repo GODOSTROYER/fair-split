@@ -34,6 +34,9 @@ export function FirstView() {
   );
 }
 
+/** The run states in which the press records Lantern Bay's payment (DRAFT and QUOTED only after a deadline). */
+const AWAITS_PAYMENT: ReadonlySet<string> = new Set(["DRAFT", "QUOTED", "INVOICED"]);
+
 type PressPhase = "idle" | "starting" | "recording" | "funded" | "failed";
 
 function Desk() {
@@ -99,12 +102,19 @@ function Desk() {
 
   const start = async () => {
     setPressed(true);
+    let started: Awaited<ReturnType<typeof session.start>>;
     try {
-      const started = await session.start();
-      markPaid.mutate({ params: { runSlug: started.runSlug }, body: {} });
+      started = await session.start();
     } catch {
       // A failed start shows on the stage's own strip, with its request ID and "Try again".
+      return;
     }
+    // fs-api makes the session's run in DRAFT and invoices it in Claude's turn after answering: record the
+    // payment only once the run reads INVOICED. A resumed session already past it has nothing to record; its
+    // stream replays where the run is. Reset meanwhile ends the press.
+    const readiness = await session.whenInvoiced(started);
+    if (readiness === "ended" || (readiness !== null && !AWAITS_PAYMENT.has(readiness))) return;
+    markPaid.mutate({ params: { runSlug: started.runSlug }, body: {} });
   };
 
   let slab: ReactNode;
