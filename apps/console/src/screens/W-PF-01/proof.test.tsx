@@ -20,6 +20,7 @@ import {
   recordRequests,
   renderConsole,
   resizeTo,
+  timersBeforeCommit,
   tracedPhases,
 } from "../../test/index.js";
 import { gate, withHandlers } from "../../test/proof-world.js";
@@ -83,35 +84,6 @@ function press(testId: string) {
 
 function openPlate(plate: string) {
   fireEvent.click(screen.getByTestId(`W-PF-01.plate.${plate}.toggle`));
-}
-
-/**
- * Until the returned function is called, a zero-delay timer fires at the end of the task that set it (a microtask)
- * rather than in a later task: before React commits an update scheduled in that same task. A busy machine gives
- * that order now and then; here it is every time, so code that waits a timer for React's commit fails every run.
- */
-function timersBeforeCommit(): () => void {
-  const setTimer = globalThis.setTimeout;
-  const clearTimer = globalThis.clearTimeout;
-  const cleared = new Set<unknown>();
-  const early = ((run: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
-    if (ms) return setTimer(run, ms, ...args);
-    const handle = setTimer(() => undefined, 0);
-    queueMicrotask(() => {
-      if (!cleared.has(handle)) run(...args);
-    });
-    return handle;
-  }) as typeof setTimeout;
-  const clear = ((handle?: Parameters<typeof clearTimeout>[0]) => {
-    cleared.add(handle);
-    clearTimer(handle);
-  }) as typeof clearTimeout;
-  globalThis.setTimeout = early;
-  globalThis.clearTimeout = clear;
-  return () => {
-    globalThis.setTimeout = setTimer;
-    globalThis.clearTimeout = clearTimer;
-  };
 }
 
 /** The seed's bundle with one line edited after it was signed: a record that no longer matches its signatures. */
