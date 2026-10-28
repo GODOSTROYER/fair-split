@@ -73,6 +73,19 @@
 > an older build freed). Cancel and re-route (`railForItem`) take no reservation by design (not quota steps; a
 > re-route repays an item its run's counted post already paid, under the service's C-21 and floor guard) and have
 > no override. Tests: `money/quota-resume.test.ts`.
+>
+> **A held slot ages out with the count (28 Oct, round 2).** A reservation is counted in the rolling 24 h from when
+> it was taken, so it carries a post only while it is younger than `JUDGE_QUOTA.heldSlotMaxAgeMs` (23 h: an hour's
+> margin for the burst). `heldReservation` (and so `reserveLivePost`'s fast path and `holdsLivePost`'s peek) ignores
+> an older one: a batch that stalled longer (a kill switch kept on, an outage the catch-up resumes) is decided like
+> a new post, a NEW slot under the quota lock (same ids, its total, counted from then) or a wait, never live on the
+> old slot and never a replay. The old slot is left unsettled; it is in no count and `liveSpend` takes each run once.
+> Because the service checks C-21 only at the first write, such a resume on the sandbox rail must also fit C-21's 40
+> live batches a day (every workspace, its own batch aside), and C-21's count (`postsInLast24h`, via
+> `liveBatchesInLast24h`) counts a judge batch from its run's newest live slot as well as from its write, so a late
+> post weighs on every post after it (including a co-op's own: the one shared ceiling). `countPosts`' safety net
+> counts a written judge batch whose run has no slot in the window. The hourly cap still counts a slot in the clock
+> hour it was taken. Tests: `judge/quota.pg.test.ts` (held-ttl, C-21), `money/quota-resume.test.ts` (S1, catch-up).
 
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
