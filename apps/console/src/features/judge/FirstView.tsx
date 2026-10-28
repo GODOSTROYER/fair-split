@@ -6,7 +6,7 @@
 // The single d2 slab is the first press: it starts the judge session, then records Lantern Bay's payment; MM-S
 // plays when the invoice reads back as paid, on the event, never on the press, and the title says it's funded.
 
-import { webRoutes } from "@fairsplit/contracts";
+import { PAY_RUN_RANK, type PayRunState, webRoutes } from "@fairsplit/contracts";
 import { Glyph, InkStamp, Slab, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -37,6 +37,11 @@ export function FirstView() {
 /** The run states in which the press records Lantern Bay's payment (DRAFT and QUOTED only after a deadline). */
 const AWAITS_PAYMENT: ReadonlySet<string> = new Set(["DRAFT", "QUOTED", "INVOICED"]);
 
+/** FUNDED or later on the way to payroll: a resumed run there reads back as funded once its stream replays. */
+function reachedFunding(state: PayRunState): boolean {
+  return PAY_RUN_RANK[state] < 99 && PAY_RUN_RANK[state] >= PAY_RUN_RANK.FUNDED;
+}
+
 type PressPhase = "idle" | "starting" | "recording" | "funded" | "failed";
 
 function Desk() {
@@ -66,9 +71,9 @@ function Desk() {
     setAttempt((a) => a + 1);
   }, [pressed, sessionFailed, commandFailed]);
 
-  // After Reset the first view returns: the slab is pressable again.
+  // After Reset (or a session the server ended) the first view returns: the slab is pressable again.
   useEffect(() => {
-    if (inSession || session.status !== "none") return;
+    if (inSession || (session.status !== "none" && session.status !== "ended")) return;
     setPressed(false);
     markPaid.reset();
   }, [inSession, session.status, markPaid.reset]);
@@ -125,7 +130,21 @@ function Desk() {
     // payment only once the run reads INVOICED. A resumed session already past it has nothing to record; its
     // stream replays where the run is. Reset meanwhile ends the press.
     const readiness = await session.whenInvoiced(started);
-    if (readiness === "ended" || (readiness !== null && !AWAITS_PAYMENT.has(readiness))) return;
+    // A press that ends without recording anything: the slab is remounted at rest, to be pressed again.
+    const rest = () => {
+      setPressed(false);
+      setAttempt((a) => a + 1);
+    };
+    if (readiness === "ended") {
+      rest();
+      return;
+    }
+    if (readiness !== null && !AWAITS_PAYMENT.has(readiness)) {
+      // Funded or later, the stream replays it and the title reads funded. A run that ended without funding
+      // (its invoice cancelled, denied, halted) never will: the press is over, and the slab rests again.
+      if (!reachedFunding(readiness)) rest();
+      return;
+    }
     markPaid.mutate({ params: { runSlug: started.runSlug }, body: {} });
   };
 

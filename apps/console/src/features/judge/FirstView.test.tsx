@@ -136,6 +136,28 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
   });
 
+  it("a resumed session whose run ended unfunded (cancelled) ends the press: never busy, and the slab rests", async () => {
+    const world = createTestWorld();
+    const log = recordRequests();
+    const handlers = [
+      log.handler,
+      // The invoice auto-cancelled in an earlier visit: the session's run reads CANCELLED, and never funds.
+      http.get("*/v1/judge/session", async ({ request }) => {
+        const real = await getResponse([...world.mock.handlers], request);
+        const body = (await real?.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...body, runState: "CANCELLED" });
+      }),
+    ];
+    await renderConsole({ path: "/judge", world, handlers });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(log.sent.some((r) => r.path === "/v1/judge/session")).toBe(true));
+    const action = screen.getByTestId("W-JG-01.action");
+    await waitFor(() => expect(action.getAttribute("aria-busy")).toBeNull());
+    expect(action.dataset.state).toBe("idle");
+    expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toEqual([]);
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest"));
+  });
+
   it("reduced motion keeps every phase of MM-S", async () => {
     const view = await renderConsole({ path: "/judge", motion: "reduced" });
     clearMomentTrace();
@@ -156,8 +178,10 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
 });
 
 describe("Play it for me", { timeout: 60_000 }, () => {
+  const busyMs = autoplayTiming.busyMs;
   afterEach(() => {
     autoplayTiming.stepMs = AUTOPLAY_STEP_MS;
+    autoplayTiming.busyMs = busyMs;
   });
 
   it("waits while its press is in flight (the session's invoice is still being sent): never 'stuck', one payment", async () => {
@@ -185,6 +209,38 @@ describe("Play it for me", { timeout: 60_000 }, () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("W-JG-01.autoplay"));
     });
+  });
+
+  it("a press that never lands (its run's stream went quiet) says 'stuck' after a ceiling, never waits forever", async () => {
+    autoplayTiming.stepMs = 40;
+    autoplayTiming.busyMs = 600;
+    const world = createTestWorld();
+    const log = recordRequests();
+    const handlers = [
+      log.handler,
+      // The stream opens and never speaks: the payment is recorded, but the stage never reads it back as funded.
+      http.get(
+        "*/v1/runs/:runSlug/events",
+        () =>
+          new HttpResponse(new ReadableStream(), {
+            headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store" },
+          }),
+      ),
+    ];
+    await renderConsole({ path: "/judge", motion: "reduced", world, handlers });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.autoplay"));
+    });
+    await waitFor(() => expect(world.run.state).toBe("FUNDED"));
+    expect(screen.getByTestId("W-JG-01.action").getAttribute("aria-busy")).toBe("true");
+    await waitFor(
+      () => expect(screen.getByTestId("W-JG-01.autoplay.tag").textContent).toBe(AUTOPLAY_COPY.stuck),
+      {
+        timeout: 5000,
+      },
+    );
+    expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("paused");
+    expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toHaveLength(1);
   });
 
   it("presses the step the pill names with a visible cursor, and hands the stage back on Stop", async () => {

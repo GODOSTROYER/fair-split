@@ -10,6 +10,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { animate, motion, useMotionValue } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChromePortal } from "../../chrome/slots.js";
+import { INVOICE_WAIT } from "../../data/session.js";
 import { useAnnounce } from "../../lib/announce.js";
 import { type StageApi, useOptionalStage } from "../../stage/context.js";
 import {
@@ -22,8 +23,16 @@ import {
 } from "./autoplay-plan.js";
 import "./judge.css";
 
-/** How long autoplay waits between steps, and how many idle ticks mean a step needs the judge. */
-export const autoplayTiming = { stepMs: AUTOPLAY_STEP_MS, stuckTicks: 4 };
+/**
+ * How long autoplay waits between steps, how many idle ticks mean a step needs the judge, and how long a press in
+ * flight may stay busy before it does: longer than the press's own wait for the session's invoice, so a slow
+ * invoice is waited out, but a press that can never land (a stream gone quiet) is said, never waited on forever.
+ */
+export const autoplayTiming = {
+  stepMs: AUTOPLAY_STEP_MS,
+  stuckTicks: 4,
+  busyMs: INVOICE_WAIT.deadlineMs + 15_000,
+};
 
 export function StageAutoplay() {
   const stage = useOptionalStage();
@@ -98,6 +107,7 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let idle = 0;
+    let busySince: number | null = null;
     const keyOf = (step: StageApi["next"]) => `${step.id}|${step.to}|${step.text}`;
     let lastStep = keyOf(latest.current.next);
     const later = (fn: () => void, ms = autoplayTiming.stepMs) => {
@@ -151,11 +161,14 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
         }
         case "go":
         case "press": {
-          // A press still in flight (the first view waits for the session's invoice): wait, never stuck.
+          // A press still in flight (the first view waits for the session's invoice): wait, up to a ceiling.
           if (document.querySelector('[data-testid="W-JG-01.stage"] [aria-busy="true"]')) {
-            later(tick);
+            busySince ??= Date.now();
+            if (Date.now() - busySince >= autoplayTiming.busyMs) stop(AUTOPLAY_COPY.stuck, null);
+            else later(tick);
             return;
           }
+          busySince = null;
           const el = resolveTarget(document, plan.kind === "go" ? [plan.selector] : plan.selectors);
           if (!el) {
             idle += 1;
