@@ -3,24 +3,51 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Typed HTTP + SSE client shared by console and mobile",
+  "description": "Typed HTTP + SSE client derived from API_COMMANDS, plus msw handlers backed by the seed snapshot",
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./http": {
+      "types": "./src/http.ts",
+      "default": "./src/http.ts"
+    },
+    "./format": {
+      "types": "./src/format.ts",
+      "default": "./src/format.ts"
+    },
+    "./verify": {
+      "types": "./src/verify.ts",
+      "default": "./src/verify.ts"
+    },
+    "./seed": {
+      "types": "./src/seed.ts",
+      "default": "./src/seed.ts"
+    },
+    "./msw": {
+      "types": "./src/msw/index.ts",
+      "default": "./src/msw/index.ts"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@fairsplit/contracts": "workspace:*",
-    "eventsource-parser": "catalog:"
+    "@fairsplit/domain": "workspace:*",
+    "@fairsplit/seed": "workspace:*",
+    "@noble/curves": "catalog:",
+    "canonicalize": "catalog:",
+    "eventsource-parser": "catalog:",
+    "msw": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "@types/node": "catalog:"
+    "vitest": "catalog:"
   }
 }

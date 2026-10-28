@@ -1,0 +1,61 @@
+{
+  "name": "@fairsplit/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "fs-api: Hono /v1 (OpenAPI + Scalar), SSE, /webhooks/paypal, health, outbox dispatcher; serves the console, /app and /media",
+  "exports": {
+    ".": {
+      "types": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./testing": {
+      "types": "./src/test/index.ts",
+      "default": "./src/test/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "openapi": "tsx src/openapi.cli.ts",
+    "smoke": "tsx src/smoke/run.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fairsplit/ai": "workspace:*",
+    "@fairsplit/api-client": "workspace:*",
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/db": "workspace:*",
+    "@fairsplit/domain": "workspace:*",
+    "@fairsplit/outbox": "workspace:*",
+    "@fairsplit/paypal-core": "workspace:*",
+    "@fairsplit/paypal-payouts": "workspace:*",
+    "@fairsplit/paypal-toolkit": "workspace:*",
+    "@fairsplit/seed": "workspace:*",
+    "@hono/node-server": "catalog:",
+    "@hono/zod-openapi": "catalog:",
+    "@renderinc/sdk": "catalog:",
+    "canonicalize": "catalog:",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "pino": "catalog:",
+    "postgres": "catalog:",
+    "sharp": "catalog:",
+    "ts-pattern": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@noble/curves": "catalog:",
+    "@types/node": "catalog:",
+    "ajv": "catalog:",
+    "embedded-postgres": "catalog:",
+    "fast-check": "catalog:",
+    "msw": "catalog:",
+    "tsdown": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
