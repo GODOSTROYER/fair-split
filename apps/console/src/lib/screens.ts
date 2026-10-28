@@ -2,7 +2,7 @@
 // from S1.6 to S1.8 because IC-01 does not export SCREENS[id].states yet (reported as a missing API).
 // When contracts adds them, this map becomes an alias and spec-lint checks both against each other.
 
-import { SCREENS, type ScreenId, testId } from "@fairsplit/contracts";
+import { type ScreenId, testId } from "@fairsplit/contracts";
 
 /** The web screens this SPA renders (W-DP-01 is WS-DS's /prototype and is not listed). */
 export const CONSOLE_SCREEN_IDS = [

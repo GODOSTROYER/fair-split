@@ -4,7 +4,6 @@
 // to approve", "Your turn: co-sign as Ernesto"), and any input from the judge pauses it ("Paused. You're
 // driving."). The stage shows the autoplay state in its notice strip (the "Autoplay" chip).
 
-import { SPRINGS } from "@fairsplit/motion";
 import { spring } from "@fairsplit/motion/web";
 import { Glyph, useMotionMode } from "@fairsplit/ui-web";
 import { useRouterState } from "@tanstack/react-router";

@@ -63,20 +63,20 @@ Navigate with `webRoutes.*` and `<AppLink href>` (a real anchor) or TanStack's `
 
 ### Data (`src/data/`): TanStack Query over `@fairsplit/api-client`
 
-| API                                                 | Use                                                                                                                                                                     |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useCommand(name, options?)`                        | A command as a mutation: `resolve.mutate({ params: { holdId }, body: { resolution } })`                                                                                 |
-| `useCommandQuery(name, input, options?)`            | A GET command as a query: `approvalPayload`, `proof`, `proofJson`, `proofExport`                                                                                        |
-| `useSnapshot()`                                     | The IC-03 season snapshot (members, slips, photos, rate card, figures, checkpoints, run)                                                                                |
-| `useRunView(runSlug)` + `useRunStream(runSlug)`     | The run's live `RunView`; the stream keeps it live (the stage already holds its run open)                                                                               |
-| `useStageRun()`                                     | `{ runSlug, view, inSession, snapshot }`: the stage's run (first view before the press)                                                                                 |
-| `useRunEvents(runSlug, (event, { replay }) => …)`   | Raw events; start a moment only when `!replay`, with `event.id` as evidence                                                                                             |
-| `useJudgeSession()`                                 | `{ status, session, error, start(), reset(), dismissError() }`                                                                                                          |
-| `usePaypalRail()`                                   | `"simulator"` or `"sandbox"`: label every PayPal value with it (I8)                                                                                                     |
-| `useDescribeContext()`, `describeEvent(event, ctx)` | Run-log rows in three lanes (W-TR-08's log, the ribbon)                                                                                                                 |
+| API                                                 | Use                                                                                                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `useCommand(name, options?)`                        | A command as a mutation: `resolve.mutate({ params: { holdId }, body: { resolution } })`                                                                |
+| `useCommandQuery(name, input, options?)`            | A GET command as a query: `approvalPayload`, `proof`, `proofJson`, `proofExport`                                                                       |
+| `useSnapshot()`                                     | The IC-03 season snapshot (members, slips, photos, rate card, figures, checkpoints, run)                                                               |
+| `useRunView(runSlug)` + `useRunStream(runSlug)`     | The run's live `RunView`; the stream keeps it live (the stage already holds its run open)                                                              |
+| `useStageRun()`                                     | `{ runSlug, view, inSession, snapshot }`: the stage's run (first view before the press)                                                                |
+| `useRunEvents(runSlug, (event, { replay }) => …)`   | Raw events; start a moment only when `!replay`, with `event.id` as evidence                                                                            |
+| `useJudgeSession()`                                 | `{ status, session, error, start(), reset(), dismissError() }`                                                                                         |
+| `usePaypalRail()`                                   | `"simulator"` or `"sandbox"`: label every PayPal value with it (I8)                                                                                    |
+| `useDescribeContext()`, `describeEvent(event, ctx)` | Run-log rows in three lanes (W-TR-08's log, the ribbon)                                                                                                |
 | `run-view.ts` selectors                             | `openHolds`, `blockingHolds`, `holdCards`, `byHandHolds`, `itemCounts`, `atLeast`, `runStrip`, `livePresence`, `lineAmountState`, `invoiceAmountState` |
-| `errors.ts`                                         | `CommandError<N>`, `errorView(e)`, `isApiClientError(e, ...codes)`, `asRateCardRatified(e)` (below)                                                                     |
-| `useAdapter().api`, `adapter.pending`               | The typed client, and the routes API_COMMANDS lacks (below)                                                                                                             |
+| `errors.ts`                                         | `CommandError<N>`, `errorView(e)`, `isApiClientError(e, ...codes)`, `asRateCardRatified(e)` (below)                                                    |
+| `useAdapter().api`, `adapter.pending`               | The typed client, and the routes API_COMMANDS lacks (below)                                                                                            |
 - **Failures** (`errors.ts`): `CommandError<N>` is api-client's `ApiClientError` (`.code` narrowed to the codes
   command N may answer, `.status`, `.requestId`, `.paypalDebugId`, `.notImplemented`), `NetworkError` or
   `ContractError`. `asRateCardRatified(e)` gives MM-4's card hash; `errorView(e)` and `requestIdOf(e)` feed
