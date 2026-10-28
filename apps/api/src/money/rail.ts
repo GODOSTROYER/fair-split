@@ -3,6 +3,9 @@
 // item's cancel and the re-route. Each asks `railForStep` before any PayPal call:
 //
 //   outside judge workspaces     live: the configured rail, no lane, no quota (the run slice's own guards stand)
+//   a post whose batch is        live with its ids or a wait, never a replay (rows PayPal may hold), and never live
+//   already written live         without a quota slot: the run's held reservation, else a new one the quotas
+//                                allow (`beginLiveStep` resume); otherwise the task waits and re-queues itself
 //   a run that already replays   replay, to the end (a run is live until one of its PayPal steps replays: its
 //                                session started as a replay, or its invoice or batch was replayed)
 //   otherwise                    judge/live-step.ts `beginLiveStep`: a fresh peek (kill_paypal_live, the simulator
@@ -33,9 +36,11 @@ import {
   type LivePostOutcome,
   NO_JUDGE_QUOTA,
   type RailDecision,
+  REPLAY_COPY,
   REPLAY_REASONS,
   type ReplayReason,
   replayDecision,
+  resumeWaitMs,
 } from "../judge/index.js";
 import type { AppDeps } from "../lib/context.js";
 import { isReplayRail, type ReplaySource, replayRail } from "../paypal/replay.js";
@@ -56,6 +61,8 @@ export type StepRail =
       retryAfterMs: number;
       /** Bursts ahead (null when another process holds the lane). */
       position: number | null;
+      /** A written batch's post only: why it waits to be posted live (absent while it waits for its turn). */
+      waitingFor?: ReplayReason;
     };
 
 const LEDGER_KIND = "judge.step.replayed";
@@ -215,10 +222,17 @@ export async function runReplays(
   return { replays, reason };
 }
 
-/** Whether the run's primary batch is already written on a live rail (rows SUBMITTED or further, not a replay). */
-async function liveBatchWritten(db: DbOrTx, workspaceId: string, runId: string): Promise<boolean> {
+/**
+ * The run's primary batch if it is already written on a live rail (rows SUBMITTED or further, not a replay), with
+ * the total it spends; null while nothing is written.
+ */
+async function liveBatchWritten(
+  db: DbOrTx,
+  workspaceId: string,
+  runId: string,
+): Promise<{ totalCents: number } | null> {
   const [row] = await db
-    .select({ id: schema.payoutBatches.id })
+    .select({ totalCents: schema.payoutBatches.totalCents })
     .from(schema.payoutBatches)
     .where(
       and(
@@ -229,7 +243,7 @@ async function liveBatchWritten(db: DbOrTx, workspaceId: string, runId: string):
       ),
     )
     .limit(1);
-  return row !== undefined;
+  return row ? { totalCents: Number(row.totalCents) } : null;
 }
 
 /** One `judge.step.replayed` entry per run and step (ids and enums only): why it replays, and from which run. */
@@ -298,22 +312,37 @@ export async function railForStep(
 ): Promise<StepRail> {
   const live = (): StepRail => ({ kind: "live", deps, end: async () => undefined });
   if (!(await isJudgeWorkspace(deps.db, o.workspaceId))) return live();
-  if (o.step === "post" && (await liveBatchWritten(deps.db, o.workspaceId, o.runId))) {
+  const written = o.step === "post" ? await liveBatchWritten(deps.db, o.workspaceId, o.runId) : null;
+  if (written) {
     // A batch written live is resumed live with its ids, never replayed (that would mark rows PayPal may hold
-    // as posted under a replay id): its slot was taken at the write, so only a switch, the simulator or the
-    // circuit can hold it, and then it waits. It still takes the single-flight lane.
+    // as posted under a replay id), and never live without a quota slot: `beginLiveStep` (resume) takes the
+    // single-flight lane and posts under the slot the run holds (taken at the write), or under a new one the
+    // quotas still allow (reserved under the quota lock, counted from now); otherwise it waits, as it does for a
+    // switch, the simulator, the circuit or a full lane, and the task re-queues itself (runs/now.ts deferTask).
     const step = await beginLiveStep(deps, {
       workspaceId: o.workspaceId,
       step: "post",
       runId: o.runId,
       resume: true,
+      amountCents: written.totalCents,
     });
     if (step.kind === "queued") {
-      return { kind: "queued", retryAfterMs: Math.max(1_000, step.retryAfterMs), position: step.position };
+      return {
+        kind: "queued",
+        retryAfterMs: Math.max(1_000, step.retryAfterMs),
+        position: step.position,
+        ...(step.waitingFor ? { waitingFor: step.waitingFor } : {}),
+      };
     }
     if (step.kind === "replay") {
-      const circuit = step.decision.reason === "circuit_open";
-      return { kind: "queued", retryAfterMs: circuit ? 6 * 60_000 : 60_000, position: null };
+      // never: a resumed post waits instead; kept so a written batch can never reach the replay rail
+      const reason = step.decision.reason ?? "kill_switch";
+      return {
+        kind: "queued",
+        retryAfterMs: resumeWaitMs(reason, deps.clock.now()),
+        position: null,
+        waitingFor: reason,
+      };
     }
     return { kind: "live", deps, end: (outcome) => step.end(outcome ?? null) };
   }
@@ -364,14 +393,19 @@ export async function railForItem(
   return { kind: "live", deps, end: (outcome) => step.end(outcome ?? null) };
 }
 
-/** A judge step waiting its turn in the live lane (money/rail.ts): it re-queues itself for that turn. */
+/**
+ * A judge step waiting its turn in the live lane, or a written batch waiting to be posted live (money/rail.ts):
+ * it re-queues itself for that turn.
+ */
 export class LaneQueued extends PayPalStepError {
-  constructor(rail: { retryAfterMs: number; position: number | null }) {
+  constructor(rail: { retryAfterMs: number; position: number | null; waitingFor?: ReplayReason }) {
     super(
       "QUEUED",
-      rail.position === null
-        ? "Another live PayPal run is in progress; this step is next in line."
-        : `This step is number ${rail.position + 1} in the live PayPal lane.`,
+      rail.waitingFor
+        ? `The batch is written and waits to be posted live with the same ids (${REPLAY_COPY[rail.waitingFor]}); it is never replayed.`
+        : rail.position === null
+          ? "Another live PayPal run is in progress; this step is next in line."
+          : `This step is number ${rail.position + 1} in the live PayPal lane.`,
       { transient: true, retryAfterMs: rail.retryAfterMs },
     );
   }

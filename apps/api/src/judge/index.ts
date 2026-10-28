@@ -31,6 +31,8 @@ export {
   type LiveStep,
   type LiveStepInput,
   NO_JUDGE_QUOTA,
+  RESUME_QUOTA_WAIT_MS,
+  resumeWaitMs,
   settlementOf,
 } from "./live-step.js";
 export {
