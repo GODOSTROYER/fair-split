@@ -1,7 +1,9 @@
-// The stage's own states (S1.6: queued, resetting, start-failed, autoplay, paused, ai-off, paypal-off; and reset-failed) as one
+// The stage's own states (S1.6: queued, resetting, start-failed, autoplay, paused, circuit, balance-low, ai-off,
+// paypal-off; and reset-failed) as one
 // strip under the top bar. Only one shows at a time, the most pressing first. Nothing here is an error
 // colour: the stage pacing itself, a reset or a paused switch is information, not failure.
 
+import type { ReplayReason } from "@fairsplit/api-client";
 import { translate } from "@fairsplit/i18n";
 import { Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { errorView } from "../data/errors.js";
@@ -17,6 +19,8 @@ export type NoticeState =
   | "autoplay"
   | "paused"
   | "queued"
+  | "circuit"
+  | "balance-low"
   | "ai-off"
   | "paypal-off";
 
@@ -36,6 +40,8 @@ export interface StageNoticeInput {
   readonly view: RunView | undefined;
   readonly autoplay: AutoplayState;
   readonly inSession: boolean;
+  /** Why the API replays PayPal steps for this session (GET /v1/judge/session `rail.reason`), if it does. */
+  readonly replayReason?: ReplayReason | null;
 }
 
 /** The notice the stage shows, or null. Pure, so the stage's `data-state` follows it exactly. */
@@ -44,6 +50,7 @@ export function stageNoticeFor({
   view,
   autoplay,
   inSession,
+  replayReason = null,
 }: StageNoticeInput): StageNoticeView | null {
   const none: readonly string[] = [];
   if (session.status === "resetting") {
@@ -98,6 +105,13 @@ export function stageNoticeFor({
       refs: none,
       retry: false,
     };
+  }
+  // PayPal's sandbox said slow down (the 6-minute circuit), or its balance is too low to post: S1.6's states.
+  if (inSession && replayReason === "circuit_open") {
+    return { state: "circuit", glyph: "rail", text: STAGE_NOTICE.circuit, refs: none, retry: false };
+  }
+  if (inSession && replayReason === "balance_low") {
+    return { state: "balance-low", glyph: "rail", text: STAGE_NOTICE.balanceLow, refs: none, retry: false };
   }
   if (inSession && view?.flags.kill_ai_live) {
     return { state: "ai-off", glyph: "pencil", text: STAGE_NOTICE.aiOff, refs: none, retry: false };

@@ -23,7 +23,14 @@ import { ChromeSlot } from "../chrome/slots.js";
 import { WhatsRealSheet } from "../chrome/WhatsRealSheet.js";
 import type { FramePersona } from "../data/adapter.js";
 import type { LogRow } from "../data/describe.js";
-import { useJudgeSession, usePaypalRail, useRunEvents, useRunStream, useStageRun } from "../data/hooks.js";
+import {
+  useJudgeReplayReason,
+  useJudgeSession,
+  usePaypalRail,
+  useRunEvents,
+  useRunStream,
+  useStageRun,
+} from "../data/hooks.js";
 import { itemCounts } from "../data/run-view.js";
 import { env } from "../lib/env.js";
 import { format } from "../lib/format.js";
@@ -63,6 +70,8 @@ export type StageState =
   | "autoplay"
   | "paused"
   | "queued"
+  | "circuit"
+  | "balance-low"
   | "ai-off"
   | "paypal-off"
   | "session"
@@ -218,7 +227,8 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const counts = view ? itemCounts(view) : { total: 0, confirmed: 0 };
   const seeded = useMemo(() => firstViewRows(snapshot, rail), [snapshot, rail]);
   const visit = layout.phone === "phone-visit";
-  const notice = stageNoticeFor({ session, view, autoplay, inSession });
+  const replayReason = useJudgeReplayReason();
+  const notice = stageNoticeFor({ session, view, autoplay, inSession, replayReason });
   const stageState: StageState = visit ? "phone-visit" : (notice?.state ?? (inSession ? "session" : "ready"));
 
   const api = useMemo<StageApi>(

@@ -85,6 +85,9 @@ export const STAGE_NOTICE = {
   resetRetry: "Try Reset again",
   requestId: (id: string) => `Request ${id}`,
   aiOff: "Live slip reading is off. The recorded run still plays.",
+  // S1.6's words for the API's replay reasons `circuit_open` and `balance_low`.
+  circuit: "PayPal asked us to slow down. For 6 minutes, PayPal steps replay the last real run, labelled.",
+  balanceLow: "The sandbox balance is low. Payouts pause until it's topped up; everything else works.",
   paypalOff: "PayPal calls are off. PayPal steps replay the last run, labelled.",
   payoutsOff: "Payouts are paused by the co-op. Everything else works.",
   autoplay: "Autoplay is driving. Any key or click hands it back to you.",

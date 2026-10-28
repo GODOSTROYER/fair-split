@@ -2,6 +2,7 @@
 // stream per run and is reduced into the run's query data; commands are mutations whose results the events
 // then confirm. Nothing here formats money: that is lib/format.
 
+import { judgeRoutes, type ReplayReason } from "@fairsplit/api-client";
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { type UseMutationOptions, type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
@@ -83,6 +84,25 @@ export function useJudgeSession(): JudgeSessionApi {
     }),
     [state, session, hub],
   );
+}
+
+/**
+ * Why the API replays PayPal steps for this judge session (S3.9, GET /v1/judge/session `rail.reason`), or null:
+ * read while a session is active and every 15 s after, so the stage can name the circuit and a low balance.
+ */
+export function useJudgeReplayReason(): ReplayReason | null {
+  const { adapter, session } = useDataRuntime();
+  const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
+  const sessionId = state.status === "active" ? (state.session?.sessionId ?? null) : null;
+  const query = useQuery({
+    queryKey: ["judge-session-status", sessionId] as const,
+    queryFn: () => judgeRoutes(adapter.api).judgeSession(),
+    enabled: sessionId !== null,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+    retry: false,
+  });
+  return sessionId !== null ? (query.data?.rail.reason ?? null) : null;
 }
 
 /** The status of a stream nobody asked for. One constant: useSyncExternalStore needs a stable snapshot. */
