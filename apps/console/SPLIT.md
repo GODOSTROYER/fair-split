@@ -154,8 +154,12 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
   parked, cash due, with a reduced-motion variant that keeps every phase.
 - **Accessibility**: WCAG 2.2 AA; axe clean on every state; hold slabs keep their dialog route; visualisations
   are `aria-hidden` and mirrored in `<Mirrored>` tables; focus is visible (pod ring).
-- **Budgets** (S2.11): route JS ≤300 KB gz; AG Grid only via `theme/grid.ts` in the split screen's chunk; Proof's
-  verify code only through a dynamic import of `lib/verify.ts`.
+- **Budgets** (S2.11): route JS ≤300 KB gz; Proof's initial JS ≤110 KB gz; AG Grid only via `theme/grid.ts` in
+  the split screen's chunk; Proof's verify code only through a dynamic import of `lib/verify.ts`. Measure with
+  `pnpm --filter ./apps/console build && pnpm --filter ./apps/console budget` (exits 1 on a breach). On
+  2026-10-28 the shared entry alone is about 300 KB gz (react-dom, motion, Base UI, i18next with its ICU parser,
+  zod with contracts), so Proof (338 KB) and every console route (about 340 KB) are over: trimming the entry is
+  open work, and CI does not run the check yet.
 
 ## Tests
 

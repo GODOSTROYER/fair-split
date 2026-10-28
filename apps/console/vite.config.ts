@@ -66,6 +66,8 @@ export default defineConfig(({ command, mode }) => {
     build: {
       target: "es2023",
       sourcemap: true,
+      // scripts/budget.mjs reads it to measure S2.11's JavaScript budgets per route.
+      manifest: true,
     },
   };
 });
