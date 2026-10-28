@@ -51,6 +51,9 @@ function Desk() {
   // The slab is remounted (at rest) after a failure, so the judge can press again.
   const [attempt, setAttempt] = useState(0);
   const [pressed, setPressed] = useState(false);
+  // One press at a time: while it waits for the session's invoice and the payment's answer, another press (a
+  // second click, autoplay's next tick) records nothing twice.
+  const inFlight = useRef(false);
 
   const funded = isFunded(view);
   const movedOn = inSession && view !== undefined && atLeast(view, "FUNDED");
@@ -101,6 +104,15 @@ function Desk() {
   };
 
   const start = async () => {
+    if (inFlight.current || markPaid.isPending) return;
+    inFlight.current = true;
+    try {
+      await press();
+    } finally {
+      inFlight.current = false;
+    }
+  };
+  const press = async () => {
     setPressed(true);
     let started: Awaited<ReturnType<typeof session.start>>;
     try {
@@ -147,7 +159,13 @@ function Desk() {
 
   const status = statusLine[phase];
   const action = (
-    <div className="fsc-first__action" ref={slabArea} data-testid="W-JG-01.action" data-state={phase}>
+    <div
+      className="fsc-first__action"
+      ref={slabArea}
+      data-testid="W-JG-01.action"
+      data-state={phase}
+      aria-busy={phase === "starting" || phase === "recording" ? true : undefined}
+    >
       <div className="fsc-first__slab">
         {slab}
         {(pressed || movedOn) && treasurer && (

@@ -160,6 +160,33 @@ describe("Play it for me", { timeout: 60_000 }, () => {
     autoplayTiming.stepMs = AUTOPLAY_STEP_MS;
   });
 
+  it("waits while its press is in flight (the session's invoice is still being sent): never 'stuck', one payment", async () => {
+    autoplayTiming.stepMs = 40;
+    const world = createTestWorld();
+    const log = recordRequests();
+    let polls = 0;
+    const draftFor = 12; // well past autoplay's four idle ticks
+    const handlers = [
+      log.handler,
+      http.get("*/v1/judge/session", async ({ request }) => {
+        polls += 1;
+        const real = await getResponse([...world.mock.handlers], request);
+        const body = (await real?.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...body, runState: polls <= draftFor ? "DRAFT" : body.runState });
+      }),
+    ];
+    const view = await renderConsole({ path: "/judge", motion: "reduced", world, handlers });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.autoplay"));
+    });
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"), { timeout: 20_000 });
+    expect(screen.getByTestId("W-JG-01.stage").dataset.state).not.toBe("paused");
+    expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toHaveLength(1);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.autoplay"));
+    });
+  });
+
   it("presses the step the pill names with a visible cursor, and hands the stage back on Stop", async () => {
     autoplayTiming.stepMs = 40;
     const view = await renderConsole({ path: "/judge", motion: "reduced" });

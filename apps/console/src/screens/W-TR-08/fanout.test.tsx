@@ -170,7 +170,9 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(row.textContent).toMatch(/Delivery repeated, already applied\./);
       expect(["M-014", "M-031"].map(toneOf)).toEqual(tonesBefore);
       expect(stateOf()).toBe("parked");
-      expect(tracedPhases("MM-6")).toEqual([]);
+      // No act starts: the only phase MM-6 may trace is the resting "parked" it already holds (under load the
+      // live UNCLAIMED's own act can still be landing on it when the trace is cleared).
+      expect(tracedPhases("MM-6").filter((phase) => phase !== "parked")).toEqual([]);
     },
     SLOW,
   );

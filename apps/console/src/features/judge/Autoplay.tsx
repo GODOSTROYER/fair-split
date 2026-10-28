@@ -151,6 +151,11 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
         }
         case "go":
         case "press": {
+          // A press still in flight (the first view waits for the session's invoice): wait, never stuck.
+          if (document.querySelector('[data-testid="W-JG-01.stage"] [aria-busy="true"]')) {
+            later(tick);
+            return;
+          }
           const el = resolveTarget(document, plan.kind === "go" ? [plan.selector] : plan.selectors);
           if (!el) {
             idle += 1;
