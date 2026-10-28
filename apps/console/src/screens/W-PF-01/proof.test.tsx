@@ -85,6 +85,35 @@ function openPlate(plate: string) {
   fireEvent.click(screen.getByTestId(`W-PF-01.plate.${plate}.toggle`));
 }
 
+/**
+ * Until the returned function is called, a zero-delay timer fires at the end of the task that set it (a microtask)
+ * rather than in a later task: before React commits an update scheduled in that same task. A busy machine gives
+ * that order now and then; here it is every time, so code that waits a timer for React's commit fails every run.
+ */
+function timersBeforeCommit(): () => void {
+  const setTimer = globalThis.setTimeout;
+  const clearTimer = globalThis.clearTimeout;
+  const cleared = new Set<unknown>();
+  const early = ((run: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (ms) return setTimer(run, ms, ...args);
+    const handle = setTimer(() => undefined, 0);
+    queueMicrotask(() => {
+      if (!cleared.has(handle)) run(...args);
+    });
+    return handle;
+  }) as typeof setTimeout;
+  const clear = ((handle?: Parameters<typeof clearTimeout>[0]) => {
+    cleared.add(handle);
+    clearTimer(handle);
+  }) as typeof clearTimeout;
+  globalThis.setTimeout = early;
+  globalThis.clearTimeout = clear;
+  return () => {
+    globalThis.setTimeout = setTimer;
+    globalThis.clearTimeout = clearTimer;
+  };
+}
+
 /** The seed's bundle with one line edited after it was signed: a record that no longer matches its signatures. */
 function tamperedBundle(): ProofBundle {
   const bundle = structuredClone(snapshot.proof);
@@ -206,20 +235,35 @@ describe("W-PF-01 MM-7, tap a peso", () => {
     fireEvent.click(screen.getByTestId("W-PF-01.trace.slip.0403"));
     await waitFor(() => expect(lines.dataset.momentPhase).toBe("tiled"), { timeout: 3000 });
     expect(screen.getByTestId("W-PF-01.trace.paper").textContent).toContain("Synthetic sample");
-    fireEvent.click(screen.getByTestId("W-PF-01.trace.zoom-in"));
+    const zoomIn = screen.getByTestId("W-PF-01.trace.zoom-in");
+    zoomIn.focus();
+    fireEvent.click(zoomIn);
     await expectNoAxeViolations(view.container);
 
+    // Escape from the slip takes the zoom controls away: focus moves to the trace's Back, never to <body>.
+    fireEvent.keyDown(zoomIn, { key: "Escape" });
+    await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("line"));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-PF-01.trace.back")));
+
+    fireEvent.click(screen.getByTestId("W-PF-01.trace.slip.0403"));
+    await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("slip"));
     fireEvent.click(screen.getByTestId("W-PF-01.trace.back"));
     await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("line"));
     const close = screen.getByTestId("W-PF-01.trace.back");
     close.focus();
-    fireEvent.click(close);
-    await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("closed"), {
-      timeout: 3000,
-    });
-    expect(lines.dataset.momentPhase).toBe("rest");
-    // The Close went away with the trace: focus is back on the peso that opened it, never on <body>.
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-PF-01.peso.M-014")));
+    // Closing, the zero-delay timers fire before React commits the trace's removal (a loaded machine's order).
+    const restoreTimers = timersBeforeCommit();
+    try {
+      fireEvent.click(close);
+      await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("closed"), {
+        timeout: 3000,
+      });
+      expect(lines.dataset.momentPhase).toBe("rest");
+      // The Close went away with the trace: focus is back on the peso that opened it, never on <body>.
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-PF-01.peso.M-014")));
+    } finally {
+      restoreTimers();
+    }
 
     const phases = tracedPhases("MM-7");
     for (const phase of ["framed", "expanded", "zooming", "zoomed", "tiled", "returning", "rest"] as const) {
