@@ -7,12 +7,14 @@
 //   tracedPhases / momentPhase / clearMomentTrace   moment assertions from __fsMoments and data-moment-phase
 //   setViewport / resizeTo / STAGE_WIDTHS   the stage's breakpoints
 //   recordRequests     an msw handler that logs every request from the first render on
+//   timersBeforeCommit zero-delay timers fire before React's scheduled commit (a loaded machine's order)
 
 export { axeViolations, describeViolations, expectNoAxeViolations } from "./axe.js";
 export { clearMomentTrace, momentPhase, phasesAreCatalogued, tracedPhases } from "./moments.js";
 export { type MockServer, startMockServer, TEST_ORIGIN } from "./msw.js";
 export { type RenderConsoleOptions, type RenderedConsole, renderConsole } from "./render.js";
 export { type RequestLog, recordRequests, type SentRequest } from "./requests.js";
+export { timersBeforeCommit } from "./timers.js";
 export { resetViewport, resizeTo, STAGE_WIDTHS, setViewport } from "./viewport.js";
 export {
   createTestHttpAdapter,

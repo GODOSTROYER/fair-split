@@ -2,11 +2,13 @@
 // notices and print beds. Each one is checked for its behaviour and with axe.
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "../data/errors.js";
 import { DataModeProvider } from "../lib/data-mode.js";
 import { ShortcutsProvider } from "../lib/shortcuts.js";
 import { expectNoAxeViolations } from "../test/axe.js";
+import { timersBeforeCommit } from "../test/timers.js";
 import { CommandNotice } from "./CommandNotice.js";
 import { DataTable, Mirrored } from "./DataTable.js";
 import { PrintBed } from "./PrintBed.js";
@@ -76,6 +78,54 @@ describe("StageDrawer", () => {
     // Closing returns focus to the row that opened it.
     view.rerender(<Harness open={false} label="Hold H2" decided />);
     await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("opener")));
+  });
+
+  it("Escape and Close hand focus back once the drawer is gone, even when timers fire before React commits", async () => {
+    // The drawer restores focus from its own cleanup, which React runs after the commit that removed it: a
+    // zero-delay timer firing early (a loaded machine) still finds its controls gone and focus on <body>.
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <ShortcutsProvider>
+          <button type="button" data-testid="opener" onClick={() => setOpen(true)}>
+            Row M-007
+          </button>
+          {open && (
+            <StageDrawer
+              label="Hold H1"
+              onClose={() => setOpen(false)}
+              testId="W-TR-06.drawer"
+              mode="overlay"
+            >
+              <p>Slip 0457 is in two photos.</p>
+            </StageDrawer>
+          )}
+        </ShortcutsProvider>
+      );
+    }
+    render(<Harness />);
+    const opener = screen.getByTestId("opener");
+    const closes = {
+      escape: () => fireEvent.keyDown(document.body, { key: "Escape" }),
+      close: () => {
+        const close = screen.getByTestId("W-TR-06.drawer.close");
+        close.focus();
+        fireEvent.click(close);
+      },
+    };
+    for (const [how, close] of Object.entries(closes)) {
+      opener.focus();
+      fireEvent.click(opener);
+      expect(document.activeElement?.textContent, how).toBe("Hold H1");
+      const restoreTimers = timersBeforeCommit();
+      try {
+        close();
+        expect(screen.queryByTestId("W-TR-06.drawer"), how).toBeNull();
+        await vi.waitFor(() => expect(document.activeElement, how).toBe(opener));
+      } finally {
+        restoreTimers();
+      }
+    }
   });
 
   it("pushes instead of covering below 1600 px: no scrim", () => {
