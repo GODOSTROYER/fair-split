@@ -3,7 +3,33 @@
    token, every timing a --fs-dur-* or --fs-ease-* variable. Paper (the slip) is the only thing with a shadow;
    jade appears only where PayPal confirmed money; red only where a check failed or PayPal failed. */
 
+/* Proof's own face (S2.11: Proof's fonts ≤80 KB, "66 + 2 + 4"): the FSSans-Proof subset (weights 400-800,
+   widths 75-100%) and the peso glyph, under a family of their own, so a cold Proof load never fetches the
+   console's 120 KB variable face and the two faces never compete for "FS Sans" in one document. */
+@font-face {
+  font-family: "FS Sans Proof";
+  src: url("../../../../../assets/fonts/web/FSSans-Proof.woff2") format("woff2");
+  font-weight: 400 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "FS Sans Proof";
+  src: url("../../../../../assets/fonts/web/FSSansPeso.woff2") format("woff2");
+  font-weight: 400 800;
+  font-stretch: 75% 100%;
+  unicode-range: U+20B1;
+  font-style: normal;
+  font-display: swap;
+}
+
 .pf {
+  --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-hollow: "FS Numerals Hollow", "FS Sans Proof", system-ui, sans-serif;
   display: block;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
@@ -259,7 +285,8 @@
   padding: 4px 10px 4px 8px;
   border: 1.5px solid var(--fs-ink);
   color: var(--fs-ink);
-  font-stretch: 112.5%;
+  /* The Proof face is 75-100% wide. */
+  font-stretch: 100%;
   font-weight: 700;
   font-size: 0.875rem;
   line-height: 1.25rem;
