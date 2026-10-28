@@ -19,7 +19,17 @@ import { FRAME_PERSONAS, frameSrc } from "./bridge.js";
 import { FramePoster } from "./FramePoster.js";
 import type { PhoneLayout, PhoneSize } from "./layout.js";
 import { personaInfo, personaStatus } from "./personas.js";
-import type { StageBridgeApi } from "./useStageBridge.js";
+import type { FrameStatus, StageBridgeApi } from "./useStageBridge.js";
+
+/**
+ * The caption under the phone says what the frame shows: S1.6's "The app's web build, running here" only once the
+ * app answered; otherwise the preview, the asleep notice or the stand-in, in the frame's own words (I8).
+ */
+export function frameCaption(status: FrameStatus, asleep: boolean, appCaption: string): string {
+  if (status === "app") return appCaption;
+  if (status === "stub") return STAGE.frameCaptionStub;
+  return asleep ? STAGE.frameCaptionAsleep : STAGE.frameCaptionPreview;
+}
 
 /** Frames that have not said fs.ready by then are shown as asleep. */
 export const FRAME_ANSWER_MS = 8000;
@@ -153,7 +163,7 @@ export function PhoneDock({
             <div className="fsc-dock__frame" inert={dimmed}>
               <PhoneFrame
                 label={`${info.name}'s phone`}
-                caption={t("W-JG-01.frameCaption")}
+                caption={frameCaption(bridge.status[shown], asleep, t("W-JG-01.frameCaption"))}
                 width={size.width}
                 height={size.height}
                 testId="W-JG-01.frame"

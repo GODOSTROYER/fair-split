@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { renderConsole } from "../test/render.js";
 import { resizeTo } from "../test/viewport.js";
+import { frameCaption } from "./PhoneDock.js";
 
 async function press(testId: string) {
   await act(async () => {
@@ -172,6 +173,21 @@ describe("Judge stage", () => {
     expect(frames.map((f) => f.getAttribute("name"))).toEqual(["member", "chair", "clerk"]);
     expect(frames[0]?.getAttribute("src")).toBe("/app/?theme=adlaw&demo=member&stage=checking");
     expect(frames.every((f) => f.getAttribute("referrerpolicy") === "no-referrer")).toBe(true);
+  });
+
+  it("the caption under the phone says what the frame shows: 'running here' only once the app answers", async () => {
+    await renderConsole({ path: "/judge" });
+    // jsdom's frames never answer fs.ready: the frame shows the preview, and the caption must not claim the app.
+    const caption = () => screen.getByTestId("W-JG-01.frame").querySelector("figcaption")?.textContent ?? "";
+    await waitFor(() =>
+      expect(caption()).toBe("A preview drawn from the run, until the app's web build answers."),
+    );
+    expect(caption()).not.toMatch(/running here/);
+    expect(frameCaption("stub", false, "app")).toBe("A development stand-in, not the app.");
+    expect(frameCaption("waiting", true, "app")).toMatch(/isn't running here/);
+    expect(frameCaption("app", true, "The app's web build, running here.")).toBe(
+      "The app's web build, running here.",
+    );
   });
 
   it("has no axe violations in the first view or in a session", async () => {

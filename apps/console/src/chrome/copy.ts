@@ -60,6 +60,10 @@ export const STAGE = {
     "fs-api serves it at /app. Until it loads, this is what the phone would show, from the seeded run.",
   framePreview: "A preview drawn from the run on the stage. The app's web build loads here.",
   frameStub: "Development stand-in for the app at /app. The preview shows what the phone would.",
+  /** The caption under the phone while the app's web build is not what it shows (S1.6's caption is for the app). */
+  frameCaptionPreview: "A preview drawn from the run, until the app's web build answers.",
+  frameCaptionAsleep: "A preview drawn from the run: the app's web build isn't running here.",
+  frameCaptionStub: "A development stand-in, not the app.",
   frameLabel: (persona: string) => `${persona} frame`,
   raise: "Raise the phone",
   lower: "Lower the phone",
