@@ -2,12 +2,14 @@
 // member number, a signed link cannot run an acting command, and a rate card is looked up in the workspace.
 
 import { isApiClientError } from "@fairsplit/api-client";
-import { MemberLineDTO } from "@fairsplit/contracts";
+import { type ApprovalPayload, MemberLineDTO } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type JcsValue, jcs } from "../../lib/jcs.js";
 import { linesRoot } from "../../lib/lines-root.js";
 import { createTestRuntime, createTestWorld, seedSnapshot } from "../../test/world.js";
+import { DEMO_KEYS } from "./driver.js";
+import { workspaceLines } from "./fidelity.js";
 
 const LineList = z.strictObject({ runSlug: z.string(), lines: z.array(MemberLineDTO) });
 
@@ -83,5 +85,42 @@ describe("mock fidelity (fs-api's rules)", () => {
     expect(answer.payload.linesDigest).toBe(linesRoot(lines));
     expect(answer.payload.linesDigest).not.toBe(linesRoot(seed));
     expect(answer.jcs).toBe(jcs(answer.payload as unknown as JcsValue));
+  });
+
+  it("the treasurer's console and the mock's Chair sign the same lines root: the workspace's", async () => {
+    const { runtime, adapter, world } = createTestRuntime();
+    await runtime.session.start();
+    world.markPaid();
+    world.resolveAll();
+    // The treasurer signs from the console, over HTTP (W-TR-07): the payload the fidelity handler serves.
+    const { payload } = await adapter.call("approvalPayload", {
+      params: { runSlug: world.runSlug },
+      query: { role: "treasurer" },
+    });
+    await adapter.call("submitApproval", {
+      params: { runSlug: world.runSlug },
+      body: { role: "treasurer", keyId: DEMO_KEYS.treasurer, signature: "ab".repeat(64), payload },
+    });
+    // The Chair signs from the mock's driver (its phone, or window.__fsMock.driver.cosign in `vite dev`).
+    world.cosign();
+    const stored = world
+      .approvals()
+      .filter((a) => !a.voidedAt)
+      .map((a) => ({ role: a.role, linesDigest: (JSON.parse(a.payloadJcs) as ApprovalPayload).linesDigest }));
+    const root = linesRoot(workspaceLines(world));
+    expect(stored).toEqual([
+      { role: "treasurer", linesDigest: root },
+      { role: "chair", linesDigest: root },
+    ]);
+    // The driver's treasurer (tests sign with it) signs the same root too.
+    const again = createTestRuntime();
+    await again.runtime.session.start();
+    again.world.markPaid();
+    again.world.resolveAll();
+    again.world.sign("treasurer");
+    const [own] = again.world.approvals();
+    expect((JSON.parse(own?.payloadJcs ?? "{}") as ApprovalPayload).linesDigest).toBe(
+      linesRoot(workspaceLines(again.world)),
+    );
   });
 });
