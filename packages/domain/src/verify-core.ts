@@ -15,7 +15,6 @@
 import {
   type ChainVerification,
   GENESIS_PREV_HASH,
-  isSeededKeyId,
   type Json,
   LedgerCheckpoint,
   type LedgerEntry,
@@ -28,9 +27,7 @@ import {
   type ProofStatus,
   ProofTrust,
   PublishedKeys,
-  SAMPLE_KEY_KINDS,
   type SignedApproval,
-  type SigningKeyKind,
 } from "@fairsplit/contracts";
 import {
   approvalBytes,
@@ -42,6 +39,9 @@ import {
 import { applyItemStatus, itemStatusFromEvent } from "./fsm.js";
 import { batchNote, parseRunSlug, parseSenderItemId, seasonLabelOf, senderBatchId } from "./ids.js";
 import { jcs } from "./jcs.js";
+import { keyIdIsSample } from "./sample-keys.js";
+
+export { keyIdIsSample } from "./sample-keys.js";
 
 /** Synchronous hashing and signature primitives (node:crypto on the server, noble in a browser). */
 export interface ProofCrypto {
@@ -137,7 +137,10 @@ function acceptedRows(p: ProofBundle): Attested<"rows.accepted">[] {
   });
 }
 
-/** The run's last `lines.computed` entry. */
+/**
+ * The run's last `lines.computed` entry. Plate 4 also requires it to come before every signature the
+ * Proof counts, so it is the computation both keys signed: none for the run may follow them.
+ */
 function computedEntry(p: ProofBundle): Attested<"lines.computed"> | undefined {
   return attestedEntries(p.ledger, "lines.computed")
     .filter((e) => e.payload.runId === p.runId)
@@ -222,8 +225,10 @@ function plateRead(p: ProofBundle): PlateResult {
   return PASS;
 }
 
-// 4 Computed: each line re-hashes, cites this card and adds up; the lines sum to the pools; and
-// the run's `lines.computed` entry carries the same lines root and pools.
+// 4 Computed: each line re-hashes, cites this card and adds up; the lines sum to the pools; the
+// run's `lines.computed` entry carries the same lines root and pools; and it precedes every
+// signature the Proof counts, so the lines were not computed again after they were signed. (A
+// signature voided by a line edit may precede it: only the approvals in the bundle count.)
 function plateComputed(p: ProofBundle, c: ProofCrypto): PlateResult {
   if (p.lines.length === 0) return fail("There are no lines.");
   if (new Set(p.lines.map((l) => l.memberNo)).size !== p.lines.length) return fail("A member has two lines.");
@@ -271,19 +276,24 @@ function plateComputed(p: ProofBundle, c: ProofCrypto): PlateResult {
   if (acceptedRows(p).some((e) => e.seq > computed.seq)) {
     return fail("A slip was accepted after the lines were computed.");
   }
+  if (p.approvals.some((a) => (signedEntry(p, a)?.seq ?? Number.POSITIVE_INFINITY) < computed.seq)) {
+    return fail("The lines were computed again after they were signed.");
+  }
   return PASS;
 }
 
-const isSampleKind = (kind: SigningKeyKind | string) =>
-  (SAMPLE_KEY_KINDS as readonly string[]).includes(kind);
 const revokedBy = (revokedAt: string | null, at: string) =>
   revokedAt !== null && !(Date.parse(revokedAt) > Date.parse(at));
 
-// 5 Two keys: the treasurer always signs and the Chair co-signs above the card's thresholds (R5).
-// Each signature is over this batch, recorded by an `approval.signed` entry after its key's
-// `key.registered` entry, and verifies against the key the officer registry publishes for that key
-// ID, role and approver (passed in from outside the bundle). The bundle's keys, in the approval or
-// in the ledger, are never trusted. Seeded or demo keys make the plate a sample (demo mode only).
+// 5 Two keys: the treasurer always signs and the Chair co-signs above the card's thresholds and,
+// when the card says so, for any override the run's computation records (R5: `overrides` on its
+// `lines.computed` entry). Each signature is over this batch and these lines (its `linesDigest` is
+// the lines root of every member line, cash included), recorded by an `approval.signed` entry after
+// its key's `key.registered` entry, and verifies against the key the officer registry publishes for
+// that key ID, role and approver (passed in from outside the bundle). The bundle's keys, in the
+// approval or in the ledger, are never trusted. Seeded or demo keys make the plate a sample (demo
+// mode only): `keyIdIsSample` decides from the published kind, and the ledger's own registration or
+// the key ID can only add to that.
 function plateTwoKeys(
   p: ProofBundle,
   c: ProofCrypto,
@@ -294,7 +304,12 @@ function plateTwoKeys(
   const items = p.batch.items;
   const total = sumOf(items.map((i) => i.amountCents));
   const cosign = p.rateCard.canonical.rules.cosign;
-  const needsChair = total > cosign.batchOverCents || items.some((i) => i.amountCents > cosign.lineOverCents);
+  const computed = computedEntry(p);
+  if (!computed) return fail("No computation for this run is in the chain.");
+  const needsChair =
+    total > cosign.batchOverCents ||
+    items.some((i) => i.amountCents > cosign.lineOverCents) ||
+    (cosign.anyOverride && computed.payload.overrides > 0);
   const roles = p.approvals.map((a) => a.role);
   if (!roles.includes("treasurer")) return fail("The treasurer's signature is missing.");
   if (needsChair && !roles.includes("chair")) return fail("The Chair's co-signature is missing.");
@@ -307,6 +322,7 @@ function plateTwoKeys(
     return fail("Each signature must come from a different person with a different key.");
   }
   const keys = attestedEntries(p.ledger, "key.registered");
+  const linesRoot = c.sha256Hex(linesRootJcs(p.lines));
   const publishedKeys: string[] = [];
   const sampleHere: string[] = [];
   for (const a of p.approvals) {
@@ -322,6 +338,7 @@ function plateTwoKeys(
     ) {
       return fail("A signature is over a different batch.");
     }
+    if (q.linesDigest !== linesRoot) return fail("A signature does not cover these lines.");
     const entry = signedEntry(p, a);
     if (!entry) return fail("A signature is not recorded in the chain.");
     if (Date.parse(entry.at) > Date.parse(q.exp)) return fail("A signature was recorded after it expired.");
@@ -355,7 +372,7 @@ function plateTwoKeys(
       return fail("The two signatures do not both verify over the same batch hash.");
     }
     publishedKeys.push(pub.publicKeyHex);
-    if (isSampleKind(pub.kind) || isSampleKind(reg.payload.kind) || isSeededKeyId(a.keyId)) {
+    if (keyIdIsSample(a.keyId, pub.kind) || keyIdIsSample(reg.payload.keyId, reg.payload.kind)) {
       sampleHere.push(a.keyId);
     }
   }
@@ -375,8 +392,9 @@ type CheckpointResult = ChainVerification["checkpoint"];
  * The ledger's head must be exactly what a pinned ledger key signed for this run: the checkpoint's
  * key ID is pinned once and not revoked (whatever date the checkpoint claims), it names this run,
  * its seq and entry hash are the last entry's (nothing truncated or appended), it is dated no
- * earlier than that entry, and the signature verifies. A seeded ledger key makes it a sample (demo
- * mode only). Without a valid checkpoint, nothing verifies; PayPal's anchors are returned either way.
+ * earlier than that entry, and the signature verifies. A sample ledger key (`keyIdIsSample`: seeded
+ * kind or ID) makes it a sample (demo mode only). Without a valid checkpoint, nothing verifies;
+ * PayPal's anchors are returned either way.
  */
 function checkCheckpoint(
   p: ProofBundle,
@@ -412,7 +430,7 @@ function checkCheckpoint(
   if (!c.verifyEd25519(key.publicKeyHex, checkpointBytes(cp), cp.signatureHex)) {
     return no("The ledger checkpoint's signature does not verify.");
   }
-  if (key.kind === "seeded" || /^fs-ledger-s\d+$/.test(cp.keyId)) {
+  if (keyIdIsSample(cp.keyId, key.kind)) {
     sample.add(cp.keyId);
     if (!demoMode)
       return no(

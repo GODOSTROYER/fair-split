@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import {
   type ApprovalRole,
   GENESIS_PREV_HASH,
@@ -16,6 +15,7 @@ import {
   fact,
   honestProof,
   KEY_IDS,
+  KEY_KINDS,
   LEDGER_KEY,
   PROOF_KEYS,
   PROOF_TRUST,
@@ -23,7 +23,7 @@ import {
   withCheckpoint,
 } from "./__fixtures__/proof.js";
 import { testCanonical } from "./__fixtures__/world.js";
-import { approvalBytes, buildApprovalPayload } from "./approval.js";
+import { approvalBytes, buildApprovalPayload, linesDigest } from "./approval.js";
 import { batchDigest, batchNote, invoiceReference, senderBatchId } from "./batch.js";
 import { jcsSha256, sha256Hex } from "./canon.js";
 import {
@@ -39,6 +39,11 @@ import {
 import { hashRateCard } from "./ratecard.js";
 import { type Ed25519KeyPair, ed25519FromSeed, ed25519Sign } from "./sig.js";
 import { attestedEntries, verifyChainWith } from "./verify-core.js";
+
+/** This package's sources as text, read through the bundler: the domain package does no file IO. */
+const DOMAIN_SOURCES = import.meta.glob<string>("./*.ts", { query: "?raw", import: "default", eager: true });
+/** The only packages the browser verifier may reach. */
+const BROWSER_SAFE: ReadonlySet<string> = new Set(["@fairsplit/contracts", "canonicalize", "ts-pattern"]);
 
 const plain = (kind: string, payload: LedgerFact["payload"], at = T("02:00:00")): LedgerFact => ({
   kind,
@@ -72,19 +77,44 @@ describe("ledger hash chain (architecture §12)", () => {
     expect(verifyLedger([])).toEqual({ ok: true, brokenAtSeq: null });
   });
 
-  it("the browser verifier (`@fairsplit/domain/verify`) imports no node built-ins", () => {
+  it("the browser verifier (`@fairsplit/domain/verify`) reaches only browser-safe modules", () => {
+    // Every import form, static or dynamic: `from "x"`, `import "x"`, `import("x")`, `require("x")`.
+    const specifiers = (src: string) =>
+      [...src.matchAll(/\b(?:from|import)\s*\(?\s*["']([^"']+)["']|\brequire\s*\(\s*["']([^"']+)["']/g)].map(
+        (m) => (m[1] ?? m[2]) as string,
+      );
+    for (const [src, want] of [
+      ['import { readFileSync } from "node:fs";', "node:fs"],
+      ['import "fs";', "fs"],
+      ['const c = await import("crypto");', "crypto"],
+      ['export * from "node:os";', "node:os"],
+      ['const h = require("http");', "http"],
+      ['import type { X } from\n  "./x.js";', "./x.js"],
+    ] as const) {
+      expect(specifiers(src), src).toEqual([want]);
+    }
     const seen = new Set<string>();
+    const external = new Set<string>();
     const visit = (file: string) => {
       if (seen.has(file)) return;
       seen.add(file);
-      const src = readFileSync(new URL(file, import.meta.url), "utf8");
-      expect(src, file).not.toMatch(/from\s+["']node:/);
-      for (const m of src.matchAll(/from\s+["']\.\/([^"']+)\.js["']/g)) visit(`./${m[1]}.ts`);
+      const src = DOMAIN_SOURCES[file];
+      expect(typeof src, `${file} is a domain source`).toBe("string");
+      for (const spec of specifiers(src as string)) {
+        expect(spec.startsWith("../"), `${file} reaches outside the package: ${spec}`).toBe(false);
+        if (spec.startsWith("./")) visit(spec.replace(/\.js$/, ".ts"));
+        else external.add(spec);
+      }
     };
     visit("./verify-core.ts");
-    expect([...seen].sort()).toEqual(
-      ["./digest-input.ts", "./fsm.ts", "./ids.ts", "./jcs.ts", "./verify-core.ts"].sort(),
-    );
+    // An allowlist, not a list of built-ins: anything else (node:*, a bare "crypto" or "fs") fails.
+    expect(
+      [...external].filter((spec) => !BROWSER_SAFE.has(spec)),
+      "non-browser imports",
+    ).toEqual([]);
+    expect(seen.has("./sample-keys.ts") && seen.has("./jcs.ts")).toBe(true);
+    // The check has teeth: a module that reads files is caught.
+    expect([...specifiers(DOMAIN_SOURCES["./canon.ts"] ?? "")].some((s) => !BROWSER_SAFE.has(s))).toBe(true);
   });
 
   it("reads only entries whose payload has the contract's shape", () => {
@@ -120,6 +150,7 @@ function resign(p: ProofBundle): SignedApproval[] {
       seasonId: a.payload.seasonId,
       rateCardSha256: p.rateCard.sha256,
       batch: { batchSha256: p.batch.batchSha256, itemCount: p.batch.items.length, totalCents: total },
+      linesDigest: a.payload.linesDigest,
       role: a.role,
       approverId: a.payload.approverId,
       nonce: a.payload.nonce,
@@ -435,7 +466,7 @@ describe("verifyChain(proof): the chain and the six Proof plates", () => {
         {
           keyId: KEY_IDS[role],
           persona: APPROVERS[role],
-          kind: "app",
+          kind: KEY_KINDS[role],
           publicKeyHex: PROOF_KEYS[role].publicKeyHex,
         },
         "2026-10-01T00:00:00.000Z",
@@ -455,6 +486,181 @@ describe("verifyChain(proof): the chain and the six Proof plates", () => {
     // The card no longer re-hashes, so plate 2 fails, but plate 5 accepts the treasurer alone.
     expect(v.plates.twoKeys).toEqual({ ok: true, reason: null });
     expect(v.plates.ratified.ok).toBe(false);
+  });
+
+  it("inv.i6.override-cosign: a run with an override needs the Chair's key on Proof too (R5)", () => {
+    // The review's failing input: a run under both thresholds, one TWO_DELIVERIES resolution, signed
+    // by the treasurer alone. The computation in the chain carries its override count.
+    const p = honestProof();
+    const lenientCard = (anyOverride: boolean) => {
+      const cosign = {
+        ...p.rateCard.canonical.rules.cosign,
+        batchOverCents: 99_999_999,
+        lineOverCents: 99_999_999,
+        anyOverride,
+      };
+      return { ...p.rateCard.canonical, rules: { ...p.rateCard.canonical.rules, cosign } };
+    };
+    const run = (overrides: number, anyOverride = true, approvals = p.approvals.slice(0, 1)) => {
+      const ledger = buildLedger(
+        p.ledger.map((e) =>
+          e.kind === "lines.computed" ? { ...e, payload: { ...(e.payload as object), overrides } } : e,
+        ),
+      );
+      const rateCard = { ...p.rateCard, canonical: lenientCard(anyOverride) };
+      return verify(withCheckpoint({ ...p, ledger, rateCard, approvals }));
+    };
+    expect(attestedEntries(p.ledger, "lines.computed")[0]?.payload.overrides).toBe(0);
+    expect(run(0).plates.twoKeys).toEqual({ ok: true, reason: null });
+    expect(run(1).plates.twoKeys).toEqual({ ok: false, reason: "The Chair's co-signature is missing." });
+    expect(run(3).plates.twoKeys.ok).toBe(false);
+    // With the Chair's key the override is covered; a card that does not ask for it needs no Chair.
+    expect(run(1, true, p.approvals).plates.twoKeys).toEqual({ ok: true, reason: null });
+    expect(run(1, false).plates.twoKeys).toEqual({ ok: true, reason: null });
+  });
+});
+
+// ------------------------------------------------------------------ both keys bind the cash lines
+
+/** M-003 is paid in cash: cut its line by US$1.00 with an R1 deduction nobody approved, re-hashed. */
+function cutCashLine(p: ProofBundle): ProofBundle["lines"] {
+  return p.lines.map((l) => {
+    if (l.memberNo !== "M-003") return l;
+    const canonical = {
+      ...l.canonical,
+      deductions: [
+        ...l.canonical.deductions,
+        { ruleId: "R1" as const, amountCents: 100, ref: null, carriedCentavos: null },
+      ],
+      netCents: l.canonical.netCents - 100,
+    };
+    return {
+      ...l,
+      deductionsCents: l.deductionsCents + 100,
+      netCents: canonical.netCents,
+      canonical,
+      lineSha256: jcsSha256(canonical),
+    };
+  });
+}
+
+/** The `lines.computed` payload a server recomputing the run over `lines` would append. */
+function computedOver(p: ProofBundle, lines: ProofBundle["lines"]): LedgerPayload<"lines.computed"> {
+  const first = attestedEntries(p.ledger, "lines.computed")[0];
+  if (!first) throw new Error("the honest proof has a computation");
+  return {
+    ...first.payload,
+    linesRootSha256: linesDigest(lines),
+    netCents: lines.reduce((s, l) => s + l.netCents, 0),
+  };
+}
+
+const ENGINE = { actorKind: "engine" as const, actorId: "engine v1" };
+
+describe("inv.i6.lines-digest: both keys bind every member line, so a cash line cannot change after signing", () => {
+  it("the signed payload carries the lines root plate 4 recomputes", () => {
+    const p = honestProof();
+    expect(p.lines.find((l) => l.memberNo === "M-003")?.rail).toBe("CASH");
+    for (const a of p.approvals) expect(a.payload.linesDigest).toBe(linesDigest(p.lines));
+    expect(attestedEntries(p.ledger, "lines.computed")[0]?.payload.linesRootSha256).toBe(
+      linesDigest(p.lines),
+    );
+  });
+
+  it("a cash line cut after both keys, recomputed into the chain and re-anchored with the ledger key, fails", () => {
+    // The review's probe: the approvals sit at seq 9 and 10, the new computation is appended at 16,
+    // the chain is extended and the checkpoint re-signed with fs-ledger-k1.
+    const p = honestProof();
+    const lines = cutCashLine(p);
+    const recomputed = appendLedger(
+      p.ledger,
+      fact("lines.computed", computedOver(p, lines), T("02:14:00"), ENGINE),
+    );
+    expect(attestedEntries(p.ledger, "approval.signed").map((e) => e.seq)).toEqual([9, 10]);
+    expect(recomputed.seq).toBe(16);
+    const tampered = withCheckpoint(
+      { ...p, lines, ledger: [...p.ledger, recomputed] },
+      LEDGER_KEY,
+      p.runId,
+      T("02:15:00"),
+    );
+    const v = verify(tampered);
+    expect(v.chain.ok).toBe(true);
+    expect(v.checkpoint.ok).toBe(true);
+    expect(v.plates.computed).toEqual({
+      ok: false,
+      reason: "The lines were computed again after they were signed.",
+    });
+    expect(v.plates.twoKeys).toEqual({ ok: false, reason: "A signature does not cover these lines." });
+    expect(v).toMatchObject({ ok: false, status: "failed" });
+    expect(verify(tampered, PROOF_TRUST, { demoMode: true }).status).toBe("failed");
+  });
+
+  it("the same cut written into the chain before the signatures still fails: only the officers' keys can sign lines", () => {
+    const p = honestProof();
+    const lines = cutCashLine(p);
+    const ledger = buildLedger(
+      p.ledger.map((e) => (e.kind === "lines.computed" ? { ...e, payload: computedOver(p, lines) } : e)),
+    );
+    const v = verify(withCheckpoint({ ...p, lines, ledger }));
+    expect(v.chain.ok && v.checkpoint.ok).toBe(true);
+    // Plate 4 alone is satisfied: the rewritten computation precedes the signatures and matches.
+    expect(v.plates.computed).toEqual({ ok: true, reason: null });
+    expect(v.plates.twoKeys).toEqual({ ok: false, reason: "A signature does not cover these lines." });
+    expect(v).toMatchObject({ ok: false, status: "failed" });
+  });
+
+  it("plate 4 reads the computation the signatures follow: a recomputation between the two keys fails", () => {
+    const p = honestProof();
+    const entries = [...p.ledger];
+    const [computed] = entries.splice(
+      entries.findIndex((e) => e.kind === "lines.computed"),
+      1,
+    );
+    if (!computed) throw new Error("no computation");
+    // Re-insert it after the treasurer's signature, before the Chair's.
+    entries.splice(entries.findIndex((e) => e.kind === "approval.signed") + 1, 0, computed);
+    const v = verify(withCheckpoint({ ...p, ledger: buildLedger(entries) }));
+    expect(v.plates.computed).toEqual({
+      ok: false,
+      reason: "The lines were computed again after they were signed.",
+    });
+    expect(v.ok).toBe(false);
+  });
+
+  it("a recomputation after a voided signature verifies: only the signatures the Proof counts must follow it", () => {
+    // A line edit after key 1 voids both approvals (the approved plan); the run is recomputed and
+    // signed again. The voided signature stays in the chain, before the recomputation.
+    const p = honestProof();
+    const at = p.ledger.findIndex((e) => e.kind === "lines.computed");
+    const computed = p.ledger[at];
+    if (!computed) throw new Error("no computation");
+    const voidedSignature = fact(
+      "approval.signed",
+      {
+        runId: p.runId,
+        role: "treasurer",
+        keyId: KEY_IDS.treasurer,
+        approverId: APPROVERS.treasurer,
+        batchSha256: p.batch.batchSha256,
+        nonce: "nonce-treasurer-0000",
+      },
+      T("02:04:00"),
+      { actorKind: "human", actorId: APPROVERS.treasurer },
+    );
+    const voided = plain(
+      "approval.voided",
+      { role: "treasurer", nonce: "nonce-treasurer-0000" },
+      T("02:04:30"),
+    );
+    const ledger = buildLedger([
+      ...p.ledger.slice(0, at),
+      { ...computed, at: T("02:03:00") },
+      voidedSignature,
+      voided,
+      ...p.ledger.slice(at),
+    ]);
+    expect(verify(withCheckpoint({ ...p, ledger }))).toMatchObject({ ok: true, status: "verified" });
   });
 });
 
@@ -530,8 +736,8 @@ describe("inv.i6.proof-trust: plate 5 verifies against the published officer key
   it("keys re-registered in a re-chained ledger and re-signed are refused: only the published keys are trusted", () => {
     const p = honestProof();
     const attacker = rekey(p, {
-      treasurer: { keyId: KEY_IDS.treasurer, pair: ATTACKER.treasurer, kind: "app" },
-      chair: { keyId: KEY_IDS.chair, pair: ATTACKER.chair, kind: "app" },
+      treasurer: { keyId: KEY_IDS.treasurer, pair: ATTACKER.treasurer, kind: KEY_KINDS.treasurer },
+      chair: { keyId: KEY_IDS.chair, pair: ATTACKER.chair, kind: KEY_KINDS.chair },
     });
     // Everything the bundle can show is consistent: chain, checkpoint, ledger registrations.
     const v = verify(attacker.proof);
@@ -575,8 +781,8 @@ describe("inv.i6.proof-trust: plate 5 verifies against the published officer key
 
   it("the treasurer and the Chair need distinct published keys, not just distinct key IDs", () => {
     const same = rekey(honestProof(), {
-      treasurer: { keyId: KEY_IDS.treasurer, pair: PROOF_KEYS.treasurer, kind: "app" },
-      chair: { keyId: KEY_IDS.chair, pair: PROOF_KEYS.treasurer, kind: "app" },
+      treasurer: { keyId: KEY_IDS.treasurer, pair: PROOF_KEYS.treasurer, kind: KEY_KINDS.treasurer },
+      chair: { keyId: KEY_IDS.chair, pair: PROOF_KEYS.treasurer, kind: KEY_KINDS.chair },
     });
     expect(verify(same.proof, same.trust).plates.twoKeys).toEqual({
       ok: false,
@@ -737,13 +943,18 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
       treasurer: { keyId: "fs-analyn-s1", pair: seededPair("fs-analyn-s1"), kind: "seeded" },
       chair: { keyId: "fs-ernesto-s1", pair: seededPair("fs-ernesto-s1"), kind: "seeded" },
     },
+    // C-13: a judge session's labelled browser keys carry demo IDs, never a real key's w ID.
     web_demo: {
       treasurer: {
-        keyId: "fs-analyn-w7",
+        keyId: "fs-analyn-demo-a1b2c3",
         pair: ed25519FromSeed(sha256Hex("demo treasurer")),
         kind: "web_demo",
       },
-      chair: { keyId: "fs-ernesto-w7", pair: ed25519FromSeed(sha256Hex("demo chair")), kind: "web_demo" },
+      chair: {
+        keyId: "fs-ernesto-demo-d4e5f6",
+        pair: ed25519FromSeed(sha256Hex("demo chair")),
+        kind: "web_demo",
+      },
     },
   };
 
@@ -763,13 +974,19 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
     });
   }
 
-  it("a seeded key ID or a ledger registration as seeded makes it a sample, whatever the published kind", () => {
+  it("a key published or registered under a kind its ID does not fit trusts nothing, even in demo mode", () => {
+    // Seeded keys published as app keys: the key list does not parse, so nothing is trusted.
     const asApp = rekey(honestProof(), {
       treasurer: { ...SAMPLE.seeded.treasurer, kind: "app" },
       chair: { ...SAMPLE.seeded.chair, kind: "app" },
     });
-    expect(verify(asApp.proof, asApp.trust).status).toBe("failed");
-    expect(verify(asApp.proof, asApp.trust, { demoMode: true }).status).toBe("sample");
+    for (const demoMode of [false, true]) {
+      const v = verify(asApp.proof, asApp.trust, { demoMode });
+      expect(v, String(demoMode)).toMatchObject({ ok: false, status: "failed" });
+      expect(v.plates.twoKeys.reason).toBe("A signing key is not among the published officer keys.");
+      expect(v.checkpoint.reason).toBe("The ledger checkpoint is not signed by a pinned ledger key.");
+    }
+    // The bundle's own ledger registering the real keys as seeded: those entries attest nothing.
     const p = honestProof();
     const ledger = buildLedger(
       p.ledger.map((e) =>
@@ -777,8 +994,75 @@ describe("inv.i8.sample-keys: seeded and demo keys never read as Verified", () =
       ),
     );
     const registeredSeeded = withCheckpoint({ ...p, ledger });
-    expect(verify(registeredSeeded).status).toBe("failed");
-    expect(verify(registeredSeeded, PROOF_TRUST, { demoMode: true }).status).toBe("sample");
+    for (const demoMode of [false, true]) {
+      const v = verify(registeredSeeded, PROOF_TRUST, { demoMode });
+      expect(v, String(demoMode)).toMatchObject({ ok: false, status: "failed" });
+      expect(v.plates.twoKeys.reason).toBe("A signing key is not registered in the chain.");
+    }
+  });
+
+  it("the treasurer's real browser key fs-analyn-w1 (kind web) verifies; published as web_demo or app nothing is trusted", () => {
+    const w1 = { keyId: "fs-analyn-w1", pair: ed25519FromSeed(sha256Hex("treasurer browser key")) };
+    const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
+    const real = rekey(honestProof(), { treasurer: { ...w1, kind: "web" }, chair });
+    expect(verify(real.proof, real.trust)).toMatchObject({ ok: true, status: "verified", sampleKeys: [] });
+    // A w ID is a real browser key's, so a key list publishing it as web_demo or app is unreadable:
+    // it never reads Verified, nor Sample.
+    for (const kind of ["web_demo", "app"] as const) {
+      const trust: ProofTrust = {
+        ...real.trust,
+        officers: real.trust.officers.map((k) => (k.keyId === w1.keyId ? { ...k, kind } : k)),
+      };
+      expect(verify(real.proof, trust).status, kind).toBe("failed");
+      expect(verify(real.proof, trust, { demoMode: true }), kind).toMatchObject({
+        ok: false,
+        status: "failed",
+        sampleKeys: [],
+      });
+    }
+  });
+
+  it("a published key list with a C-13 demo key (fs-{persona}-demo-{6}) as web_demo reads sample in demo mode", () => {
+    const pair = ed25519FromSeed(sha256Hex("judge demo key"));
+    const chair = { keyId: KEY_IDS.chair, pair: PROOF_KEYS.chair, kind: "app" as const };
+    const demo = { keyId: "fs-analyn-demo-a1b2c3", pair, kind: "web_demo" as const };
+    const honest = rekey(honestProof(), { treasurer: demo, chair });
+    const published: PublishedKeys = { v: 1, ...honest.trust };
+    const strict = verify(honest.proof, published);
+    expect(strict).toMatchObject({ ok: false, status: "failed" });
+    expect(strict.plates.twoKeys.reason).toBe(
+      "A signature uses a sample key, so this Proof can only read as a Sample.",
+    );
+    const demoMode = verify(honest.proof, published, { demoMode: true });
+    expect(demoMode.plates).toEqual(ALL_OK);
+    expect(demoMode).toMatchObject({ ok: false, status: "sample", sampleKeys: ["fs-analyn-demo-a1b2c3"] });
+    // A demo ID published as web or app (mislabelled) makes the list unreadable: nothing is trusted.
+    for (const kind of ["web", "app"] as const) {
+      const { proof, trust } = rekey(honestProof(), { treasurer: { ...demo, kind }, chair });
+      expect(verify(proof, { v: 1, ...trust }, { demoMode: true }), kind).toMatchObject({
+        ok: false,
+        status: "failed",
+      });
+    }
+  });
+
+  it("a seeded ledger key ID pinned with kind server is unreadable trust: the checkpoint fails in demo mode too", () => {
+    const seededLedger = { keyId: "fs-ledger-s2", ...seededPair("fs-ledger-s2") };
+    const proof = withCheckpoint(honestProof(), seededLedger);
+    const pinned = (kind: "server" | "seeded"): ProofTrust => ({
+      ...PROOF_TRUST,
+      ledger: [{ keyId: seededLedger.keyId, publicKeyHex: seededLedger.publicKeyHex, kind, revokedAt: null }],
+    });
+    expect(verify(proof, pinned("server")).status).toBe("failed");
+    expect(verify(proof, pinned("server"), { demoMode: true })).toMatchObject({
+      status: "failed",
+      checkpoint: { ok: false, reason: "The ledger checkpoint is not signed by a pinned ledger key." },
+    });
+    // Pinned honestly as seeded, it is a sample.
+    expect(verify(proof, pinned("seeded"), { demoMode: true })).toMatchObject({
+      status: "sample",
+      sampleKeys: ["fs-ledger-s2"],
+    });
   });
 
   it("a checkpoint signed by a seeded ledger key is a sample too", () => {

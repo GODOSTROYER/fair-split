@@ -5,23 +5,35 @@
 //   2. Verify offline: CRC32 of the raw bytes + RSA-SHA256 with PayPal's cert (injected verifier),
 //      transmission time within 5 minutes, each transmission id once (replay), per-IP and global
 //      certificate-fetch budgets keyed by the client address the adapter derives.
-//      The route never asks for a postback, so a delivery costs no PayPal call beyond a first-time
-//      certificate fetch; verification is capped at `verifyTimeoutMs` (20 s; PayPal waits 30 s).
+//      The route never asks for the badge postback (processWebhook does, after the 200). Its only
+//      PayPal calls are a first-time certificate fetch (at most 3 in any hour, all deliveries together)
+//      and, only for a delivery whose signature verifies under an expired PayPal certificate, that
+//      delivery's own verify-webhook-signature call (at most 20 an hour; forged and replayed copies
+//      cost none). Verification is capped at `verifyTimeoutMs` (20 s; PayPal waits 30 s).
 //   3. One transaction: INSERT webhook_events ON CONFLICT (paypal_event_id) DO NOTHING;
 //      inserted → enqueue('processWebhook', {webhookEventId}, 'wh:<event id>') in the same
 //      transaction (I7); already there → record the duplicate delivery ("already applied").
 //   4. Return 200 at once. Everything else happens in processWebhook, including the once-per-run
 //      postback that upgrades `verified` to 'postback' (./postback.ts) from the transmission headers
 //      kept in the row's `delivery`.
-//   Bad signature, stale or replayed transmission → a 'rejected' row (raw truncated) and 400.
+//   Bad signature, stale or replayed transmission → 400 and a 'rejected' row that keeps hashes only
+//   (S3.4, review resolution 18): the body's sha256 and size, never the body (a replayed copy of a
+//   genuine delivery carries receivers and amounts), and PayPal's five headers clipped to 256 characters;
+//   rate-limited over a sliding hour: at most 10 rows per client address (IPv6 by /64) and 100 overall
+//   in any 60 minutes (S3: at most 100 rejects an hour; E-18), so a burst across the top of the hour
+//   cannot store twice the cap. The rest are only counted, in `handler.health()` (no body, no address),
+//   and logged at most once an hour.
 //   Could not be checked now (fetch budget, limiter, PayPal's cert host, replay store) → 503 and no
 //   row: PayPal retries, and nothing is recorded as forged that was merely unchecked.
 //   If the event could not be stored (500), the transmission id is released so PayPal's retry passes.
 //
 // The route changes no state. processWebhook applies events under the contract in ./apply.ts
-// (re-exported here): only a signature-verified PAYOUTS-ITEM.SUCCEEDED applies at once, corroborated
-// by the settle GETs at +25 s / +90 s (a GET that disagrees wins, with an /ops alert); every other
-// status changes state only after a fresh GET.
+// (re-exported here): only a signature-verified PAYOUTS-ITEM.SUCCEEDED whose stored `delivery` says
+// `certWarning: null` (an in-date certificate) applies at once, corroborated by the settle GETs at
+// +25 s / +90 s (a GET that disagrees wins, with an /ops alert); every other status, anything stored with
+// a `delivery.certWarning` (an expired certificate), and a row whose `delivery` was not kept as written
+// (null, or its null-valued keys stripped), changes state only after a fresh GET. So MM-1 needs the
+// repository to store `delivery` as is (see the persistence shim).
 //
 // Persistence, the outbox and the verifier are injected, so this file needs no database or HTTP
 // framework to compile or test.
@@ -30,6 +42,7 @@ import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import {
   MAX_WEBHOOK_BODY_BYTES as CORE_MAX_WEBHOOK_BODY_BYTES,
+  clientIpKey,
   type HeadersLike,
   type LoggerLike,
   type PayPalWebhookVerifier,
@@ -62,8 +75,11 @@ export {
 
 /** PayPal webhook events are a few KB; anything over 64 KB is refused before verification (plan). */
 export const MAX_WEBHOOK_BODY_BYTES = CORE_MAX_WEBHOOK_BODY_BYTES;
-/** Rejected bodies are kept for forensics, truncated. */
-export const MAX_REJECTED_RAW_BYTES = 8 * 1024;
+/**
+ * A rejected row keeps PayPal's five transmission headers clipped to this many characters (S3.4: "five
+ * PayPal headers (≤ 256 chars)"); its body only as a hash (`rejectedRaw`).
+ */
+export const MAX_REJECTED_HEADER_CHARS = 256;
 /** Upper bound on verification (a cold certificate fetch is capped at 5 s, an expired-cert postback at 6 s). */
 export const VERIFY_TIMEOUT_MS = 20_000;
 
@@ -71,8 +87,49 @@ export const VERIFY_TIMEOUT_MS = 20_000;
 export const RETRY_AFTER_SECONDS = 60;
 
 /**
+ * How many 'rejected' rows may be stored in any `windowMs` (a sliding window: a row counts for
+ * `windowMs` after it was stored, whatever the clock hour); the rest are only counted.
+ */
+export interface RejectedRowLimits {
+  /** Per client address (IPv6 by /64; requests with no address share one). Whole number, ≥ 0. */
+  perIp: number;
+  /** Overall. Whole number, ≥ 0. */
+  global: number;
+  /** Positive and finite. */
+  windowMs: number;
+}
+
+/** S3: `webhook_rejects` keeps at most 100 rows an hour; E-18: at most 100 stored rejects. */
+export const DEFAULT_REJECTED_ROW_LIMITS: Readonly<RejectedRowLimits> = Object.freeze({
+  perIp: 10,
+  global: 100,
+  windowMs: 3_600_000,
+});
+
+/** The route's own health, for the `/readyz` body (never fail readiness on it) and `/ops`. Counters only. */
+export interface WebhookRouteHealth {
+  status: "ok" | "degraded";
+  problems: string[];
+  rejectedRows: {
+    windowMs: number;
+    perIpLimit: number;
+    globalLimit: number;
+    /** Rows stored in the last `windowMs` (sliding). */
+    stored: number;
+    /**
+     * Rejections not stored in the last `windowMs`, by the limit that refused them; counted in
+     * sixtieths of the window (to the minute, by default).
+     */
+    notStored: { perIp: number; global: number };
+    /** Rejections not stored since the process started. */
+    notStoredTotal: number;
+  };
+}
+
+/**
  * A row for `webhook_events`: exactly the columns of architecture §3 / S3.4, plus the proposed
- * `delivery` jsonb (see the persistence shim). `workspace_id` stays null until processWebhook resolves it.
+ * `delivery` jsonb (see the persistence shim), which MM-1 requires. `workspace_id` stays null until
+ * processWebhook resolves it.
  */
 export interface WebhookEventInsert {
   paypalEventId: string;
@@ -81,8 +138,13 @@ export interface WebhookEventInsert {
   /** How it was authenticated; `fetched` rows come from the catch-up listing; null when rejected. */
   verified: WebhookVerifiedLabel | null;
   status: Extract<WebhookEventStatus, "received" | "rejected">;
+  /** The body exactly as received; for a 'rejected' row only its hash and size (`rejectedRaw`). */
   raw: string;
-  /** PROPOSED column (WS-DATA): transmission headers, reject reason, certificate warning. Null for fetched rows. */
+  /**
+   * PROPOSED column (WS-DATA): transmission headers, reject reason, certificate warning. Null for fetched
+   * rows. REQUIRED for MM-1: store it as is, null-valued keys included (`certWarning: null` is what lets an
+   * in-date SUCCEEDED apply at once), and hand it back to webhookApplyRule.
+   */
   delivery: WebhookDelivery | null;
 }
 
@@ -121,6 +183,13 @@ export interface PayPalWebhookDeps<Tx> {
   logger?: LoggerLike;
   maxBodyBytes?: number;
   verifyTimeoutMs?: number;
+  /**
+   * Limits on stored 'rejected' rows; unset (or undefined) fields keep DEFAULT_REJECTED_ROW_LIMITS. A
+   * value that would lift the cap (negative, fractional, NaN, a non-positive or infinite window) throws.
+   */
+  rejectedRowLimits?: Partial<RejectedRowLimits>;
+  /** Clock for the rejected-row window (default Date.now). */
+  now?: () => number;
 }
 
 export type WebhookOutcome = "accepted" | "duplicate" | "rejected" | "unavailable" | "too_large" | "error";
@@ -140,7 +209,11 @@ export interface WebhookRequest {
   clientIp?: string | null;
 }
 
-export type PayPalWebhookHandler = (req: WebhookRequest) => Promise<WebhookResponse>;
+export interface PayPalWebhookHandler {
+  (req: WebhookRequest): Promise<WebhookResponse>;
+  /** Rejected rows stored and not stored (counters only), for /readyz and /ops. */
+  health(): WebhookRouteHealth;
+}
 
 /**
  * The IC-01 `webhook.received` run event for a stored or repeated delivery, or null when the frozen
@@ -167,6 +240,16 @@ const decode = (bytes: Uint8Array) =>
 const clip = (value: string | null, max: number): string | null =>
   value === null ? null : value.slice(0, max);
 
+const sha256Hex = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+/**
+ * The `raw` of a 'rejected' row: the body's sha256 and size, as S3.4's `webhook_rejects` keeps them
+ * (`raw_sha256`, `bytes`), never the body itself. Enough to match a capture or a repeat, nothing to leak.
+ */
+export function rejectedRaw(rawBody: Uint8Array): string {
+  return JSON.stringify({ raw_sha256: sha256Hex(rawBody), bytes: rawBody.byteLength });
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -186,43 +269,192 @@ async function within<T>(work: Promise<T>, ms: number): Promise<T | typeof TIMED
   }
 }
 
+/** health() counts refusals in this many slices of the window: to the minute for an hour. */
+const REFUSAL_SLICES = 60;
+
+/** DEFAULT_REJECTED_ROW_LIMITS overlaid with the fields `overrides` sets; throws on any that would lift the cap. */
+function rejectedRowLimitsOf(overrides: Partial<RejectedRowLimits> = {}): RejectedRowLimits {
+  const limits: RejectedRowLimits = {
+    perIp: overrides.perIp ?? DEFAULT_REJECTED_ROW_LIMITS.perIp,
+    global: overrides.global ?? DEFAULT_REJECTED_ROW_LIMITS.global,
+    windowMs: overrides.windowMs ?? DEFAULT_REJECTED_ROW_LIMITS.windowMs,
+  };
+  const isCount = (n: number) => Number.isSafeInteger(n) && n >= 0;
+  const isSpan = (ms: number) => Number.isFinite(ms) && ms > 0;
+  if (!isCount(limits.perIp) || !isCount(limits.global) || !isSpan(limits.windowMs)) {
+    throw new RangeError(
+      "rejectedRowLimits: perIp and global must be whole numbers >= 0, windowMs a positive finite number of ms",
+    );
+  }
+  return limits;
+}
+
+const spanOf = (ms: number) =>
+  ms >= 60_000 ? `${Math.round(ms / 60_000)} min` : `${Math.ceil(ms / 1_000)} s`;
+
+/**
+ * Sliding-window limits on stored 'rejected' rows. A row counts against its address and the overall
+ * cap for `windowMs` after it was stored, so no span of `windowMs` (one across the top of the hour
+ * included) ever holds more than `global` rows, or more than `perIp` from one address. A slot is taken
+ * before the insert and given back when no row was written. Memory stays flat whatever the flood: only
+ * rows still in the window are kept (at most `global`, with their address keys), and refusals are only
+ * counted, in REFUSAL_SLICES slices of the window.
+ */
+function rejectedRowGate(limits: RejectedRowLimits, now: () => number) {
+  /** Rows stored in the last `windowMs`, oldest first. */
+  const live: { at: number; key: string }[] = [];
+  /** How many of `live` each address holds. */
+  const perKey = new Map<string, number>();
+  const sliceMs = limits.windowMs / REFUSAL_SLICES;
+  const refusals = Array.from({ length: REFUSAL_SLICES }, () => ({ slice: Number.NaN, perIp: 0, global: 0 }));
+  let notStoredTotal = 0;
+  let lastReportAt = Number.NEGATIVE_INFINITY;
+  let latest = Number.NEGATIVE_INFINITY;
+
+  /** Never runs backwards, so `live` stays in order; a clock stepped back only keeps rows counted longer. */
+  const clock = () => {
+    latest = Math.max(latest, now());
+    return latest;
+  };
+  const forget = (key: string) => {
+    const left = (perKey.get(key) ?? 1) - 1;
+    if (left > 0) perKey.set(key, left);
+    else perKey.delete(key);
+  };
+  const expire = (t: number) => {
+    for (let oldest = live[0]; oldest !== undefined && t - oldest.at >= limits.windowMs; oldest = live[0]) {
+      live.shift();
+      forget(oldest.key);
+    }
+  };
+  const sliceOf = (t: number) => Math.floor(t / sliceMs);
+  const countRefusal = (t: number, by: "perIp" | "global") => {
+    const slice = sliceOf(t);
+    const bucket = refusals[((slice % REFUSAL_SLICES) + REFUSAL_SLICES) % REFUSAL_SLICES];
+    if (!bucket) return;
+    if (bucket.slice !== slice) {
+      bucket.slice = slice;
+      bucket.perIp = 0;
+      bucket.global = 0;
+    }
+    bucket[by] += 1;
+  };
+  const refusedInWindow = (t: number) => {
+    const current = sliceOf(t);
+    const sum = { perIp: 0, global: 0 };
+    for (const bucket of refusals) {
+      if (current - bucket.slice < REFUSAL_SLICES) {
+        sum.perIp += bucket.perIp;
+        sum.global += bucket.global;
+      }
+    }
+    return sum;
+  };
+
+  return {
+    /**
+     * Take a slot for a row from this address, or say that a limit refused it; `report` is true for at
+     * most one refusal per window, the one to log.
+     */
+    take(clientIp: string | null): { ok: true; giveBack: () => void } | { ok: false; report: boolean } {
+      const t = clock();
+      expire(t);
+      const key = clientIpKey(clientIp);
+      const used = perKey.get(key) ?? 0;
+      const refusedBy = used >= limits.perIp ? "perIp" : live.length >= limits.global ? "global" : null;
+      if (refusedBy) {
+        countRefusal(t, refusedBy);
+        notStoredTotal += 1;
+        const report = t - lastReportAt >= limits.windowMs;
+        if (report) lastReportAt = t;
+        return { ok: false, report };
+      }
+      const row = { at: t, key };
+      live.push(row);
+      perKey.set(key, used + 1);
+      let returned = false;
+      return {
+        ok: true,
+        giveBack: () => {
+          if (returned) return;
+          returned = true;
+          const index = live.indexOf(row);
+          if (index === -1) return; // already out of the window
+          live.splice(index, 1);
+          forget(key);
+        },
+      };
+    },
+    health(): WebhookRouteHealth {
+      const t = clock();
+      expire(t);
+      const notStored = refusedInWindow(t);
+      const refused = notStored.perIp + notStored.global;
+      return {
+        status: refused > 0 ? "degraded" : "ok",
+        problems:
+          refused > 0
+            ? [
+                `${refused} rejected webhook ${refused === 1 ? "delivery" : "deliveries"} in the last ` +
+                  `${spanOf(limits.windowMs)} not stored (limits: ${limits.perIp} per address, ` +
+                  `${limits.global} overall); counted only`,
+              ]
+            : [],
+        rejectedRows: {
+          windowMs: limits.windowMs,
+          perIpLimit: limits.perIp,
+          globalLimit: limits.global,
+          stored: live.length,
+          notStored,
+          notStoredTotal,
+        },
+      };
+    },
+  };
+}
+
 export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): PayPalWebhookHandler {
   const maxBodyBytes = deps.maxBodyBytes ?? MAX_WEBHOOK_BODY_BYTES;
   const verifyTimeoutMs = deps.verifyTimeoutMs ?? VERIFY_TIMEOUT_MS;
   const log = deps.logger;
+  const rejectedRows = rejectedRowGate(rejectedRowLimitsOf(deps.rejectedRowLimits), deps.now ?? Date.now);
 
-  /** PayPal's (public) transmission headers, clipped, as kept in `delivery`. */
+  /**
+   * PayPal's (public) transmission headers, clipped, as kept in `delivery`. An accepted row keeps the
+   * whole signature (processWebhook's postback replays it); a rejected one at most 256 characters each.
+   */
   function deliveryOf(
     headers: HeadersLike,
     verification: VerifyOutcome,
     transmissionId: string | null,
     rejectReason: string | null,
   ): WebhookDelivery {
+    const cap = (value: string | null, max: number) =>
+      clip(value, rejectReason === null ? max : Math.min(max, MAX_REJECTED_HEADER_CHARS));
     return {
       transmissionId,
-      transmissionTime: clip(readHeader(headers, "paypal-transmission-time"), 64),
-      transmissionSig: clip(readHeader(headers, "paypal-transmission-sig"), 2048),
-      certUrl: clip(verification.certUrl ?? readHeader(headers, "paypal-cert-url"), 500),
-      authAlgo: clip(readHeader(headers, "paypal-auth-algo"), 40),
+      transmissionTime: cap(readHeader(headers, "paypal-transmission-time"), 64),
+      transmissionSig: cap(readHeader(headers, "paypal-transmission-sig"), 2048),
+      certUrl: cap(verification.certUrl ?? readHeader(headers, "paypal-cert-url"), 500),
+      authAlgo: cap(readHeader(headers, "paypal-auth-algo"), 40),
       rejectReason,
       certWarning: verification.certWarning,
     };
   }
 
+  /** Store a 'rejected' row under the slot `giveBack` belongs to; the slot is returned if no row was written. */
   async function storeRejected(
     raw: Uint8Array,
     row: Omit<WebhookEventInsert, "raw" | "status" | "verified">,
+    giveBack: () => void,
   ) {
     try {
-      await deps.transaction((tx) =>
-        deps.insertWebhookEvent(tx, {
-          ...row,
-          raw: decode(raw.subarray(0, MAX_REJECTED_RAW_BYTES)),
-          status: "rejected",
-          verified: null,
-        }),
+      const inserted = await deps.transaction((tx) =>
+        deps.insertWebhookEvent(tx, { ...row, raw: rejectedRaw(raw), status: "rejected", verified: null }),
       );
+      if (!inserted) giveBack(); // identical junk, already on file
     } catch (err) {
+      giveBack();
       log?.error?.(
         { error: errorMessage(err), paypalEventId: row.paypalEventId },
         "storing rejected webhook failed",
@@ -243,7 +475,11 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
     }
   }
 
-  return async function handlePayPalWebhook({ rawBody, headers, clientIp = null }) {
+  async function handlePayPalWebhook({
+    rawBody,
+    headers,
+    clientIp = null,
+  }: WebhookRequest): Promise<WebhookResponse> {
     if (rawBody.byteLength > maxBodyBytes) {
       log?.warn?.({ bytes: rawBody.byteLength }, "paypal webhook body too large");
       return { status: 413, outcome: "too_large", paypalEventId: null, reason: "TOO_LARGE" };
@@ -292,6 +528,17 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
 
     if (verification.mode === false || !envelope.ok) {
       const reason = verification.mode === false ? (verification.reason ?? "UNVERIFIED") : "MALFORMED_EVENT";
+      const slot = rejectedRows.take(clientIp);
+      if (!slot.ok) {
+        // Over the row limit: counted in health(), never stored, and logged at most once per window.
+        if (slot.report) {
+          log?.warn?.(
+            { reason },
+            "rejected paypal webhooks over the row limit are counted, not stored (logged at most once per window)",
+          );
+        }
+        return { status: 400, outcome: "rejected", paypalEventId: null, reason };
+      }
       const rejectReason = verification.detail ? `${reason}:${verification.detail}` : reason;
       log?.warn?.(
         {
@@ -304,13 +551,17 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
         "paypal webhook rejected",
       );
       // Identical junk dedupes on its body hash; a real transmission id keys the row otherwise.
-      const rejectionKey = `rejected:${transmissionId ?? `sha256-${createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`}`;
-      await storeRejected(rawBody, {
-        paypalEventId: rejectionKey,
-        eventType: hintType,
-        resourceKey: null,
-        delivery: deliveryOf(headers, verification, transmissionId, rejectReason),
-      });
+      const rejectionKey = `rejected:${transmissionId ?? `sha256-${sha256Hex(rawBody).slice(0, 32)}`}`;
+      await storeRejected(
+        rawBody,
+        {
+          paypalEventId: rejectionKey,
+          eventType: hintType,
+          resourceKey: null,
+          delivery: deliveryOf(headers, verification, transmissionId, rejectReason),
+        },
+        slot.giveBack,
+      );
       return { status: 400, outcome: "rejected", paypalEventId: null, reason };
     }
 
@@ -358,7 +609,9 @@ export function createPayPalWebhookHandler<Tx>(deps: PayPalWebhookDeps<Tx>): Pay
       await release(transmissionId);
       return { status: 500, outcome: "error", paypalEventId: event.id, reason: "STORE_FAILED" };
     }
-  };
+  }
+
+  return Object.assign(handlePayPalWebhook, { health: () => rejectedRows.health() });
 }
 
 export interface PrewarmDeps {
@@ -447,7 +700,7 @@ export interface HonoLikeContext {
  * `X-Forwarded-For` entry. A 503 carries `Retry-After`.
  */
 export function honoPayPalWebhook(
-  handler: PayPalWebhookHandler,
+  handler: (req: WebhookRequest) => Promise<WebhookResponse>,
   options: { maxBodyBytes?: number; clientIp?: (request: Request) => string | null } = {},
 ): (c: HonoLikeContext) => Promise<Response> {
   const maxBytes = options.maxBodyBytes ?? MAX_WEBHOOK_BODY_BYTES;

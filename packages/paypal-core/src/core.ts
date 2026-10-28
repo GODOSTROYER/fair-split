@@ -22,7 +22,13 @@ import {
 } from "./webhook/verify.js";
 
 export interface PayPalCoreOptions {
-  config: Pick<PayPalRuntimeConfig, "clientId" | "clientSecret" | "devMocks">;
+  /**
+   * Pass `loadPayPalConfig(process.env)`: it checks PP_* at boot (sandbox only, dev mocks refused on
+   * Render) and carries `knownCertIds`, the PP_CERT_ALLOW pins, which the verifier pins together with
+   * `webhookKnownCertIds`. `knownCertIds` is required so that a config built some other way cannot
+   * drop the pins without saying so: pass `[]` to pin nothing on purpose.
+   */
+  config: Pick<PayPalRuntimeConfig, "clientId" | "clientSecret" | "devMocks" | "knownCertIds">;
   limiter: PayPalLimiter;
   recorder?: PayPalCallRecorder;
   logger?: LoggerLike;
@@ -32,11 +38,11 @@ export interface PayPalCoreOptions {
   retry?: Partial<RetryPolicy>;
   /** Extra PEM trust anchors for webhook certificates (tests, pinning). */
   webhookTrustAnchors?: readonly string[];
-  /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms once). */
+  /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms each one). */
   webhookExpiredCertPolicy?: ExpiredCertPolicy;
   /** Replay tracking of webhook transmission ids (production: WS-DATA's Postgres store; default in memory). */
   webhookTransmissionStore?: TransmissionStore;
-  /** PayPal cert ids trusted before any delivery (`PP_CERT_ALLOW`): reserved fetch budget, kept once loaded. */
+  /** More PayPal cert ids trusted before any delivery: reserved fetch budget, kept once loaded. */
   webhookKnownCertIds?: readonly string[];
 }
 
@@ -78,6 +84,9 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...shared,
   });
   const postback = createPostbackVerifier(http);
+  // `?? []` only for plain-JS callers: the type makes TypeScript callers say what they pin.
+  const pins = [...(options.config.knownCertIds ?? []), ...(options.webhookKnownCertIds ?? [])];
+  const knownCertIds = [...new Set(pins)];
   const verifier = createPayPalWebhookVerifier({
     devMocks: options.config.devMocks,
     postback,
@@ -86,7 +95,7 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     ...(options.webhookTrustAnchors ? { trustAnchors: options.webhookTrustAnchors } : {}),
     ...(options.webhookExpiredCertPolicy ? { expiredCertPolicy: options.webhookExpiredCertPolicy } : {}),
     ...(options.webhookTransmissionStore ? { transmissionStore: options.webhookTransmissionStore } : {}),
-    ...(options.webhookKnownCertIds ? { knownCertIds: options.webhookKnownCertIds } : {}),
+    ...(knownCertIds.length > 0 ? { knownCertIds } : {}),
     ...shared,
   });
   return {

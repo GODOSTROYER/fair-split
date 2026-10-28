@@ -3,6 +3,7 @@
  * `workspaces` lives in ./workspace.ts and the Better Auth tables in ./auth.ts.
  * Tokens are stored only as sha256 (frame tokens `fst_` + 32 random bytes, 2 h; pairing tokens 10 min, single use).
  */
+import { DEVICE_KEY_ID_PATTERN_BY_KIND, type DeviceKeyKind } from "@fairsplit/contracts";
 import { sql } from "drizzle-orm";
 import { check, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { ROLES } from "../_shims/contracts.js";
@@ -78,14 +79,25 @@ export const pairingTokens = pgTable(
   ],
 );
 
-export const DEVICE_KEY_KINDS = ["app", "web_demo"] as const;
+/**
+ * The kinds a registered key has (contracts `DeviceKeyKind`): `app` (a person's app key), `web` (a persisted
+ * browser key, the treasurer's `fs-analyn-w1`) and `web_demo` (a judge session's labelled key). A seeded key is
+ * never registered (S3.8). Read from contracts' `DEVICE_KEY_ID_PATTERN_BY_KIND`, the one source of each kind's ID.
+ */
+export const DEVICE_KEY_KINDS = Object.keys(DEVICE_KEY_ID_PATTERN_BY_KIND) as [
+  DeviceKeyKind,
+  ...DeviceKeyKind[],
+];
+
+/** A SQL string literal for a constraint (standard_conforming_strings: only the quote needs doubling). */
+const literal = (s: string) => `'${s.replaceAll("'", "''")}'`;
 
 export const deviceKeys = pgTable(
   "device_keys",
   {
     id: id(),
     workspaceId: workspaceId(),
-    /** `fs-{persona}-{a|w}{n}`, e.g. fs-ernesto-a1 */
+    /** its kind's shape (C-13): app `fs-{persona}-a{n}`, web `fs-{persona}-w{n}`, web_demo `fs-{persona}-demo-{6}` */
     keyId: text("key_id").notNull(),
     persona: text("persona").notNull(),
     userId: text("user_id").references(() => authUser.id, { onDelete: "set null" }),
@@ -99,7 +111,13 @@ export const deviceKeys = pgTable(
   },
   (t) => [
     checkIn("device_keys_kind_ck", t.kind, DEVICE_KEY_KINDS),
-    check("device_keys_key_id_ck", sql`${t.keyId} ~ '^fs-[a-z0-9]+-[aw][0-9]+$'`),
+    // one CHECK per kind: a key's ID has its own kind's shape, so a demo key never takes a real key's ID (C-13)
+    ...DEVICE_KEY_KINDS.map((kind) =>
+      check(
+        `device_keys_key_id_${kind}_ck`,
+        sql`${t.kind} <> ${sql.raw(literal(kind))} or ${t.keyId} ~ ${sql.raw(literal(DEVICE_KEY_ID_PATTERN_BY_KIND[kind]))}`,
+      ),
+    ),
     unique("device_keys_key_id_uq").on(t.workspaceId, t.keyId),
     wsIdUnique("device_keys", t),
   ],

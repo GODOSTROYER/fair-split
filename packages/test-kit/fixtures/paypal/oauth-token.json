@@ -1,0 +1,28 @@
+{
+  "name": "paypal/oauth-token",
+  "recordedAt": "2026-10-22T00:00:00.000Z",
+  "provenance": "seeded",
+  "request": {
+    "method": "POST",
+    "url": "https://api-m.sandbox.paypal.com/v1/oauth2/token",
+    "headers": {
+      "authorization": "Basic REDACTED",
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    "body": "grant_type=client_credentials"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "scope": "https://uri.paypal.com/services/invoicing https://uri.paypal.com/services/payments/payouts",
+      "access_token": "REDACTED",
+      "token_type": "Bearer",
+      "app_id": "APP-REDACTED",
+      "expires_in": 32400,
+      "nonce": "REDACTED"
+    }
+  }
+}

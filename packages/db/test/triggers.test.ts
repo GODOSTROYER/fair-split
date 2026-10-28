@@ -2,9 +2,10 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { jcs, sha256Hex } from "../src/_shims/domain.js";
 import { FairSplitDbError } from "../src/errors.js";
-import { documents, rateCards, rateRules, slipRows } from "../src/schema/index.js";
+import { documents, rateCards, rateRules, seasons, slipRows, workspaces } from "../src/schema/index.js";
+import { openSeedWindow } from "../src/seeding.js";
 import { FIXTURE_RATIFIED_AT, fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
-import { dbError, sqlState } from "./helpers.js";
+import { caught, dbError, sqlState } from "./helpers.js";
 
 let t: TestDb;
 beforeAll(async () => {
@@ -189,5 +190,108 @@ describe("inv.i2.rules-before-facts: no slip row before (or dated before) ratifi
 
   it("the fixture's ratification instant is what the cases above assume", () => {
     expect(FIXTURE_RATIFIED_AT.toISOString()).toBe("2026-03-14T02:00:00.000Z");
+  });
+});
+
+/** A second season (2026B) in the fixture's workspace, so a second card can be inserted for it. */
+async function secondSeason(ws: { workspaceId: string; coopId: string }): Promise<string> {
+  const [season] = await t.app.db
+    .insert(seasons)
+    .values({
+      workspaceId: ws.workspaceId,
+      coopId: ws.coopId,
+      code: "2026B",
+      label: "2026-B",
+      opensOn: "2026-09-01",
+      closesOn: "2026-12-31",
+      currency: "USD",
+      cosignBatchCents: 100n,
+      cosignLineCents: 10n,
+      massBalanceTolBp: 100,
+      kgPerTreeMaxG: 1000,
+      autoAcceptBp: 9000,
+      provenance: "live",
+    })
+    .returning({ id: seasons.id });
+  return season?.id ?? "";
+}
+
+function cardFor(ws: { workspaceId: string }, seasonId: string, code: string) {
+  const canonicalJcs = jcs({ code, rules: [{ ruleId: "R0", kind: "SHARE" }] });
+  return { workspaceId: ws.workspaceId, seasonId, code, canonicalJcs, sha256: sha256Hex(canonicalJcs) };
+}
+
+const CLAIMED = new Date("2026-03-14T02:00:00.000Z");
+/** within a few seconds of the database's clock, i.e. not the claimed instant */
+const isNow = (d: Date | null | undefined) =>
+  d instanceof Date && Math.abs(d.getTime() - Date.now()) < 10_000;
+
+describe("inv.i2.no-backdated-ratification: the database's clock says when a card was ratified", () => {
+  it("inv.i2.no-backdated-ratification: ratifying with a past instant stores now(), so earlier facts stay out", async () => {
+    const ws = await fixtureWorkspace(t.app.db, { ratifiedAt: false });
+    const [card] = await t.app.db
+      .update(rateCards)
+      .set({ ratifiedAt: CLAIMED })
+      .where(eq(rateCards.id, ws.rateCardId))
+      .returning();
+    expect(isNow(card?.ratifiedAt)).toBe(true);
+    // a slip dated after the claimed day but before the real ratification is refused
+    const doc = await slipDoc(ws.workspaceId, ws.seasonId);
+    const e = await dbError(() => t.app.db.insert(slipRows).values(slip(ws, doc, "2026-04-02")));
+    expect(e.code).toBe("RULES_BEFORE_FACTS");
+  });
+
+  it("inv.i2.no-backdated-ratification: a card inserted already ratified is stamped now as well", async () => {
+    const ws = await fixtureWorkspace(t.app.db);
+    const seasonId = await secondSeason(ws);
+    const [card] = await t.app.db
+      .insert(rateCards)
+      .values({ ...cardFor(ws, seasonId, "BR 2026-B"), ratifiedAt: CLAIMED, provenance: "live" })
+      .returning();
+    expect(isNow(card?.ratifiedAt)).toBe(true);
+  });
+
+  it("a seed window keeps a seeded snapshot's historical instant, for seeded rows, in its own transaction only", async () => {
+    // fixtureWorkspace loads like seed.loadSnapshot: inside a seed window, so 14 Mar is kept
+    const judge = await fixtureWorkspace(t.app.db, { kind: "judge" });
+    const [kept] = await t.app.db.select().from(rateCards).where(eq(rateCards.id, judge.rateCardId));
+    expect(kept?.ratifiedAt).toEqual(FIXTURE_RATIFIED_AT);
+    // a window is opened per transaction: a draft left by an earlier one is stamped now
+    const draft = await fixtureWorkspace(t.app.db, { kind: "judge", ratifiedAt: false });
+    const [late] = await t.app.db
+      .update(rateCards)
+      .set({ ratifiedAt: CLAIMED })
+      .where(eq(rateCards.id, draft.rateCardId))
+      .returning();
+    expect(isNow(late?.ratifiedAt)).toBe(true);
+    // inside a window, a row that is not labelled seeded (I8) gets the clock too
+    const fresh = await fixtureWorkspace(t.app.db, { kind: "showcase", ratifiedAt: false });
+    const seasonId = await secondSeason(fresh);
+    const [live] = await t.app.db.transaction(async (tx) => {
+      await openSeedWindow(tx, fresh.workspaceId);
+      return tx
+        .insert(rateCards)
+        .values({ ...cardFor(fresh, seasonId, "BR 2026-B"), ratifiedAt: CLAIMED, provenance: "live" })
+        .returning();
+    });
+    expect(isNow(live?.ratifiedAt)).toBe(true);
+  });
+
+  it("a seed window opens only for a fresh showcase or judge workspace, and only inside a transaction", async () => {
+    const [real] = await t.app.db.insert(workspaces).values({ kind: "real", name: "co-op" }).returning();
+    const refusedReal = await dbError(() => t.app.db.transaction((tx) => openSeedWindow(tx, real?.id ?? "")));
+    expect(refusedReal).toMatchObject({ code: "SEED_REFUSED" });
+    // a workspace that already has a ratified card (and so may have facts) cannot be re-seeded
+    const ratified = await fixtureWorkspace(t.app.db, { kind: "judge" });
+    const refusedRatified = await dbError(() =>
+      t.app.db.transaction((tx) => openSeedWindow(tx, ratified.workspaceId)),
+    );
+    expect(refusedRatified.code).toBe("SEED_REFUSED");
+    // the pool is not a transaction (the type says so too): a window must end with the load that opened it
+    const pool = t.app.db as unknown as Parameters<typeof openSeedWindow>[0];
+    expect(await caught(() => openSeedWindow(pool, ratified.workspaceId))).toBeInstanceOf(TypeError);
+    // the window itself is owner-only state
+    expect(await sqlState(() => t.app.sql`select * from fs_private.seed_tickets`)).toBe("42501");
+    expect(await sqlState(() => t.app.sql`select fs_seeding(${ratified.workspaceId})`)).toBe("42501");
   });
 });

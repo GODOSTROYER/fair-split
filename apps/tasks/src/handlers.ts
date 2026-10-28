@@ -1,7 +1,14 @@
 // The handler port. Implementations live in other workstreams (outbox, paypal-*, ai); this package
 // only wires them to an executor. A handler receives ids only, loads its state by id, claims its
 // `task_outbox` row optimistically and is a no-op when run twice (architecture §2 step 4, S3.3).
+//
+// For a Render retry (a new attempt of the same taskRunId, Workflows lanes only) to do useful work,
+// a failed attempt must not leave the row claimed: release it on failure (WS-DATA's runner returns
+// it to `queued`) or make the claim re-entrant for the same run. While the handler runs, the claim
+// heartbeats (WS-DATA's runner), because S3.3's sweeper takes a `running` row after 5 minutes without
+// one and a Workflows attempt may run longer. See the retry model in policy.ts.
 import type { ExecutorKind, TaskName } from "./_shims/contracts.js";
+import type { ActiveFlags } from "./kill.js";
 
 /** What every executor passes to a handler. */
 export interface TaskInvocation {
@@ -12,6 +19,12 @@ export interface TaskInvocation {
   /** Render Workflows run id, when the workflow executor ran it. */
   readonly taskRunId?: string | undefined;
   readonly signal?: AbortSignal | undefined;
+  /**
+   * Kill flags in force for this run, read fresh at entry (`FS_KILL` ∪ the workspace's
+   * `system_flags`). Entry has already refused `kill_payouts` tasks; the handler applies the rest:
+   * `paypalLane(flags, kind)` for PayPal calls, `aiLane(flags)` for Claude calls (S3.11).
+   */
+  readonly flags: ActiveFlags;
 }
 
 /**
@@ -23,6 +36,8 @@ export interface TaskOutcome {
   readonly detail?: string;
   /** Machine code for a permanent failure, for example `NOT_WIRED` or `KILL_SWITCH`. */
   readonly code?: string;
+  /** `replay` when the run served recorded output instead of a live call; the UI labels it (I8). */
+  readonly mode?: "live" | "replay";
 }
 
 export type TaskHandler = (invocation: TaskInvocation) => Promise<TaskOutcome>;

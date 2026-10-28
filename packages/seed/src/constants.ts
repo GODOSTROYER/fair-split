@@ -24,7 +24,8 @@ export const OFFICERS = [
     shortName: "Analyn",
     initials: "AS",
     persona: "treasurer:analyn",
-    keyId: "fs-analyn-a1",
+    /** S3.8 and the approved plan: her non-extractable WebCrypto key, registered from /ops (kind `web`). */
+    keyId: "fs-analyn-w1",
   },
   {
     role: "CHAIR",
@@ -32,6 +33,7 @@ export const OFFICERS = [
     shortName: "Ernesto",
     initials: "EC",
     persona: "board:ernesto",
+    /** S3.8: his app key in SecureStore behind biometrics (kind `app`). */
     keyId: "fs-ernesto-a1",
   },
   {
@@ -118,9 +120,7 @@ export const RUN = {
   runSeq: 37,
   recordedOn: "2026-10-29",
   invoiceDate: "2026-10-29",
-  /** Payment term NET_15. */
-  dueInDays: 15,
-  /** C-27: auto-cancel = invoice date + 25 days. */
+  /** C-27: auto-cancel = invoice date + 25 days. No payment term or due date is ever sent. */
   autoCancelInDays: 25,
   cashDay: "2026-10-30",
   createdAt: "2026-10-29T01:00:00.000Z",

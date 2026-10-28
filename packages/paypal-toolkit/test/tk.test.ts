@@ -1,15 +1,25 @@
-import { delay, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { createMemoryLimiter, createPayPalAuth, PAYPAL_API_BASE_URL } from "@fairsplit/paypal-core";
+import { delay, HttpResponse, http } from "msw";
+import { describe, expect, it } from "vitest";
 import {
   PayPalToolkit,
   ToolkitArgsError,
   type ToolkitCallRecord,
+  type ToolkitDeps,
   ToolkitError,
+  ToolkitLimitedError,
   type ToolkitMethod,
   ToolkitMethodError,
 } from "../src/index.js";
-import { createdLink, fakeAuth, INVOICE_ID, invoiceBody, paypalError } from "./support/fixtures.js";
-import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
+import {
+  createdLink,
+  fakeAuth,
+  INVOICE_ID,
+  invoiceBody,
+  openLimiter,
+  paypalError,
+} from "./support/fixtures.js";
+import { onGet, onPost, paypalJson, requests, sequence, server, useMsw } from "./support/msw.js";
 
 useMsw();
 
@@ -23,7 +33,12 @@ const minimalCreate = {
 function kit(overrides: Partial<ConstructorParameters<typeof PayPalToolkit>[0]> = {}) {
   const auth = fakeAuth();
   const calls: ToolkitCallRecord[] = [];
-  const toolkit = new PayPalToolkit({ auth, onCall: (r) => void calls.push(r), ...overrides });
+  const toolkit = new PayPalToolkit({
+    auth,
+    limiter: openLimiter(),
+    onCall: (r) => void calls.push(r),
+    ...overrides,
+  });
   return { toolkit, auth, calls };
 }
 
@@ -127,6 +142,8 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
     const { toolkit, auth, calls } = kit();
     const out = await toolkit.tk<{ id: string }>("get_invoice", { invoice_id: INVOICE_ID });
     expect(out.id).toBe(INVOICE_ID);
+    // Only the token that failed is dropped, so a token another call just refreshed survives.
+    expect(auth.invalidate).toHaveBeenCalledWith("test-token-1");
     expect(auth.invalidate).toHaveBeenCalledTimes(1);
     expect(requests.map((r) => r.headers.get("authorization"))).toEqual([
       "Bearer test-token-1",
@@ -173,7 +190,7 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
 
   it("takes a limiter token per attempt, at the caller's priority", async () => {
     onGet("/v2/invoicing/invoices/:id", () => paypalJson(invoiceBody()));
-    const take = vi.fn(async () => undefined);
+    const { take } = openLimiter();
     const { toolkit } = kit({ limiter: { take }, priority: "background" });
     await toolkit.tk("get_invoice", { invoice_id: INVOICE_ID });
     await toolkit.tk("get_invoice", { invoice_id: INVOICE_ID }, undefined, { priority: "live" });
@@ -183,7 +200,29 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
     ]);
   });
 
-  it("sends nothing when the limiter denies the call", async () => {
+  it("sends nothing when the limiter decides no (window full or the 429 circuit open)", async () => {
+    const { toolkit, auth } = kit({
+      limiter: { take: async () => ({ ok: false, reason: "CIRCUIT_OPEN", retryAfterMs: 360_000 }) },
+    });
+    const error = (await toolkit
+      .tk("get_invoice", { invoice_id: INVOICE_ID })
+      .catch((e: unknown) => e)) as ToolkitLimitedError;
+    expect(error).toBeInstanceOf(ToolkitLimitedError);
+    // Not a ToolkitError: nothing reached PayPal, so no adoption search or GET may follow.
+    expect(error).not.toBeInstanceOf(ToolkitError);
+    expect(error).toMatchObject({ method: "get_invoice", reason: "CIRCUIT_OPEN", retryAfterMs: 360_000 });
+    expect(auth.token).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
+  });
+
+  it("refuses to be built without the shared auth or the limiter", () => {
+    expect(() => new PayPalToolkit({ auth: fakeAuth() } as unknown as ToolkitDeps)).toThrow(/limiter/);
+    expect(() => new PayPalToolkit({ limiter: openLimiter() } as unknown as ToolkitDeps)).toThrow(
+      /PayPalAuth/,
+    );
+  });
+
+  it("sends nothing when the limiter rejects the call", async () => {
     const { toolkit, auth } = kit({
       limiter: { take: async () => Promise.reject(new Error("RATE_LIMITED")) },
     });
@@ -219,5 +258,51 @@ describe("tk(): the toolkit's PayPalAPI on our injected token (G1)", () => {
     await expect(toolkit.tk("get_invoice", { invoice_id: INVOICE_ID })).resolves.toMatchObject({
       id: INVOICE_ID,
     });
+  });
+});
+
+describe("tk() on WS-PPCORE's real IC-05 token cache and limiter", () => {
+  const OAUTH = `${PAYPAL_API_BASE_URL.sandbox}/v1/oauth2/token`;
+  // Built at runtime, as in paypal-core's own tests, so no secret-looking literal lands in the repo.
+  const credentials = { clientId: "fs-test-client", clientSecret: ["fs", "test", "secret"].join("-") };
+
+  function oauth() {
+    const issued: string[] = [];
+    server.use(
+      http.post(OAUTH, () => {
+        const token = `tok-${issued.length + 1}`;
+        issued.push(token);
+        return HttpResponse.json({ access_token: token, token_type: "Bearer", expires_in: 32_400 });
+      }),
+    );
+    return issued;
+  }
+
+  it("takes the shared token once, swaps only the stale one on a 401, and obeys the shared window", async () => {
+    const issued = oauth();
+    onGet(
+      "/v2/invoicing/invoices/:id",
+      sequence(
+        () => paypalJson({ error: "invalid_token" }, 401),
+        () => paypalJson(invoiceBody()),
+      ),
+    );
+    const toolkit = new PayPalToolkit({
+      auth: createPayPalAuth(credentials),
+      limiter: createMemoryLimiter({ perMinute: 2 }),
+    });
+
+    await expect(toolkit.tk("get_invoice", { invoice_id: INVOICE_ID })).resolves.toMatchObject({
+      id: INVOICE_ID,
+    });
+    expect(issued).toEqual(["tok-1", "tok-2"]);
+    expect(requests.map((r) => r.headers.get("authorization"))).toEqual(["Bearer tok-1", "Bearer tok-2"]);
+
+    // Both attempts took a slot in the 40-a-minute window (here 2): the third call sends nothing.
+    const refused = await toolkit.tk("get_invoice", { invoice_id: INVOICE_ID }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ToolkitLimitedError);
+    expect(refused).toMatchObject({ method: "get_invoice", reason: "WINDOW_FULL" });
+    expect(requests).toHaveLength(2);
+    expect(issued).toHaveLength(2);
   });
 });

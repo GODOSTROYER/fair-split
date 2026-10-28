@@ -31,6 +31,11 @@ export interface GatewayErrorDetails {
   stopReason?: string | null;
   modelServed?: string;
   result?: GatewayResult;
+  /**
+   * A pipeline that failed on this error: every call of it that did run (the failed call too, when it
+   * ran), so the caller still accounts for their cost.
+   */
+  calls?: GatewayResult[];
   status?: number;
   estimateMicros?: number;
   capMicros?: number;

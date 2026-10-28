@@ -1,6 +1,6 @@
 {
   "v": 1,
-  "generated_at": "2026-10-22T07:57:21.493Z",
+  "generated_at": "2026-10-22T12:29:47.526Z",
   "mode": "replay",
   "set": "test",
   "case_count": 0,
@@ -59,7 +59,7 @@
     "prompts": {
       "readA": "a.v1@aaafb346c3f2",
       "readB": "b.v1@20e603bcc294",
-      "zoom": "zoom.v1@cada98447030",
+      "zoom": "zoom.v2@32cfa5cd8c82",
       "screen": "screen.v1@a582a9e1167e",
       "ratecard": "ratecard.v1@77cd9d213b27",
       "classify": "classify.v1"
@@ -72,5 +72,11 @@
     },
     "prep": "prep.v1"
   },
-  "invalid_labels": []
+  "invalid_labels": [],
+  "registry": {
+    "source": "labels",
+    "members": 0,
+    "path": null
+  },
+  "provisional": "Member registry built from the labelled slips (0 members), not the seed's: \"not in the registry\" is stricter than production, so unsafe auto-accepts may be under-counted. Pass --registry with the seed snapshot's members."
 }

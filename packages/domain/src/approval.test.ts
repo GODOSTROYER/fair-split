@@ -1,4 +1,10 @@
-import type { ApprovalRole, OfficerKey, SignedApproval } from "@fairsplit/contracts";
+import type {
+  ApprovalRole,
+  EngineHold,
+  HoldResolutionKind,
+  OfficerKey,
+  SignedApproval,
+} from "@fairsplit/contracts";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { TEST_RULES } from "./__fixtures__/world.js";
@@ -12,13 +18,17 @@ import {
   checkApproval,
   checkApprovals,
   expectedSigner,
+  linesDigest,
   requiresChair,
 } from "./approval.js";
 import { sha256Hex } from "./canon.js";
+import { linesRootSha256, overrideCount } from "./engine.js";
 import { ed25519FromSeed, ed25519Sign } from "./sig.js";
 
 const RC = "a".repeat(64);
 const BATCH = { batchSha256: "b".repeat(64), itemCount: 8, totalCents: 36_839 };
+/** The lines root over every member line, on and off rail, as the server recomputes it from the DB. */
+const LINES = "d".repeat(64);
 const NOW = new Date("2026-10-29T02:09:00.000Z");
 const SEASON = "season-1";
 const NONE: ReadonlySet<string> = new Set();
@@ -29,7 +39,8 @@ const KEYS = {
   attacker: ed25519FromSeed(sha256Hex("someone else's key")),
 };
 const APPROVER = { treasurer: "treasurer:analyn", chair: "board:ernesto" } as const;
-const KEY_ID = { treasurer: "fs-analyn-a1", chair: "fs-ernesto-a1" } as const;
+/** S3.8: the treasurer's real key is the WebCrypto key fs-analyn-w1 (kind web); the Chair's is his app key. */
+const KEY_ID = { treasurer: "fs-analyn-w1", chair: "fs-ernesto-a1" } as const;
 
 /** The officer key registry as the server reads it from `device_keys` (never from the request). */
 const REGISTRY: OfficerKey[] = [
@@ -38,7 +49,7 @@ const REGISTRY: OfficerKey[] = [
     approverId: APPROVER.treasurer,
     role: "treasurer",
     publicKeyHex: KEYS.treasurer.publicKeyHex,
-    kind: "app",
+    kind: "web",
     revokedAt: null,
   },
   {
@@ -59,6 +70,7 @@ interface SignOpts {
   keyId?: string;
   approverId?: string;
   seasonId?: string;
+  linesDigest?: string;
 }
 
 function signed(o: SignOpts = {}): SignedApproval {
@@ -69,6 +81,7 @@ function signed(o: SignOpts = {}): SignedApproval {
     seasonId: o.seasonId ?? SEASON,
     rateCardSha256: RC,
     batch: BATCH,
+    linesDigest: o.linesDigest ?? LINES,
     role,
     approverId: o.approverId ?? APPROVER[role],
     nonce: o.nonce ?? `nonce-${role}-0001`,
@@ -91,11 +104,20 @@ function expected(
 ): ApprovalExpectation {
   const signer = expectedSigner(registry, role, KEY_ID[role], NOW);
   if (!signer.ok) throw new Error(signer.reason);
-  return { runId: "run-1", seasonId: SEASON, rateCardSha256: RC, ...BATCH, role, ...signer.signer, ...over };
+  return {
+    runId: "run-1",
+    seasonId: SEASON,
+    rateCardSha256: RC,
+    ...BATCH,
+    linesDigest: LINES,
+    role,
+    ...signer.signer,
+    ...over,
+  };
 }
 
-describe("signed approval payload (register §8)", () => {
-  it("carries exactly the register's fields, canonicalised", () => {
+describe("signed approval payload (register §8 as amended by the approved plan)", () => {
+  it("carries exactly the register's fields plus linesDigest, canonicalised", () => {
     const s = signed();
     expect(Object.keys(s.payload).sort()).toEqual(
       [
@@ -104,6 +126,7 @@ describe("signed approval payload (register §8)", () => {
         "currency",
         "exp",
         "itemCount",
+        "linesDigest",
         "nonce",
         "rateCardSha256",
         "role",
@@ -144,12 +167,71 @@ describe("signed approval payload (register §8)", () => {
         seasonId: "s",
         rateCardSha256: "not-a-hash",
         batch: BATCH,
+        linesDigest: LINES,
         role: "treasurer",
         approverId: "a",
         nonce: "nonce-0001",
         exp: NOW.toISOString(),
       }),
     ).toThrow();
+    const noLines = {
+      runId: "r",
+      seasonId: "s",
+      rateCardSha256: RC,
+      batch: BATCH,
+      role: "treasurer",
+      approverId: "a",
+      nonce: "nonce-0001",
+      exp: NOW.toISOString(),
+    } as unknown as Parameters<typeof buildApprovalPayload>[0];
+    expect(() => buildApprovalPayload(noLines)).toThrow();
+    expect(() => buildApprovalPayload({ ...noLines, linesDigest: "not-a-hash" })).toThrow();
+  });
+});
+
+describe("inv.i6.lines-digest: both keys bind every member line, the cash lines too", () => {
+  const line = (memberNo: string, seed: string) => ({ memberNo, lineSha256: sha256Hex(seed) });
+  const LINE_SET = [line("M-001", "paypal line"), line("M-002", "paypal line 2"), line("M-003", "cash line")];
+
+  it("linesDigest is the lines root over every line (the root `lines.computed` carries), in any order", () => {
+    expect(linesDigest(LINE_SET)).toBe(linesRootSha256(LINE_SET));
+    expect(linesDigest([...LINE_SET].reverse())).toBe(linesDigest(LINE_SET));
+    // A cash line (off the PayPal batch) changes the digest, so the signatures cover it.
+    const cashCut = LINE_SET.map((l) =>
+      l.memberNo === "M-003" ? line("M-003", "cash line, 1 cent less") : l,
+    );
+    expect(linesDigest(cashCut)).not.toBe(linesDigest(LINE_SET));
+    expect(linesDigest(LINE_SET.slice(0, 2))).not.toBe(linesDigest(LINE_SET));
+    expect(() => linesDigest([...LINE_SET, line("M-003", "a second line")])).toThrow(RangeError);
+    expect(() => linesDigest([])).toThrow(RangeError);
+  });
+
+  it("an approval over other lines is refused as DIGEST_MISMATCH, before its signature is checked", () => {
+    const s = signed();
+    expect(checkApproval(s, expected(), NOW, NONE)).toEqual({ ok: true });
+    // The server recomputes the lines from the database: one cash line changed after signing.
+    const changed = expected("treasurer", { linesDigest: "e".repeat(64) });
+    expect(checkApproval(s, changed, NOW, NONE)).toEqual({
+      ok: false,
+      code: "DIGEST_MISMATCH",
+      reason: "A line changed after it was signed. Nothing was sent.",
+    });
+    // Same batch, other lines: the batch digest alone no longer authorises the payout.
+    const otherLines = signed({ linesDigest: "e".repeat(64) });
+    expect(checkApproval(otherLines, expected(), NOW, NONE)).toMatchObject({ code: "DIGEST_MISMATCH" });
+    // Editing the payload's linesDigest to match breaks the signature.
+    const forged = { ...otherLines, payload: { ...otherLines.payload, linesDigest: LINES } };
+    expect(checkApproval(forged, expected(), NOW, NONE)).toMatchObject({ code: "SIGNATURE_INVALID" });
+    // Both approvals are held to it.
+    const pair = { treasurer: expected("treasurer"), chair: expected("chair") };
+    const chairOverOtherLines = signed({ role: "chair", linesDigest: "e".repeat(64) });
+    expect(
+      checkApprovals(
+        { approvals: [signed(), chairOverOtherLines], expected: pair, chairRequired: true },
+        NOW,
+        NONE,
+      ),
+    ).toMatchObject({ ok: false, code: "DIGEST_MISMATCH" });
   });
 });
 
@@ -391,16 +473,50 @@ describe("inv.i6.registered-signer: approvals verify only against the registry's
     ).toMatchObject({ code: "KEY_NOT_REGISTERED" });
     const later: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), revokedAt: "2026-10-29T03:00:00.000Z" }];
     expect(expectedSigner(later, "treasurer", KEY_ID.treasurer, NOW).ok).toBe(true);
-    // A browser demo key registered for a judge session may sign (it is labelled; Proof reads "Sample").
-    const demo: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), keyId: "fs-analyn-w7", kind: "web_demo" }];
-    expect(expectedSigner(demo, "treasurer", "fs-analyn-w7", NOW).ok).toBe(true);
+    // A C-13 browser demo key registered for a judge session may sign (labelled; Proof reads "Sample").
+    const demoId = "fs-analyn-demo-a1b2c3";
+    const demo: OfficerKey[] = [{ ...(REGISTRY[0] as OfficerKey), keyId: demoId, kind: "web_demo" }];
+    expect(expectedSigner(demo, "treasurer", demoId, NOW).ok).toBe(true);
+  });
+
+  it("a registry row that is not a device key of its own kind never yields a signer", () => {
+    // Rows the database could hold if its CHECKs drift from the contracts: a ledger key ID, an ID of
+    // another kind's shape, a judge key under a real key's w ID, a kind no device key has.
+    const rows: [string, OfficerKey["kind"] | "server"][] = [
+      ["fs-ledger-k1", "app"],
+      ["fs-ledger-k1", "server"],
+      ["fs-analyn-w1", "app"],
+      ["fs-analyn-a1", "web"],
+      ["fs-analyn-w1", "web_demo"],
+      ["fs-analyn-demo-a1b2c3", "web"],
+      ["fs-analyn-demo-a1b2c3", "app"],
+    ];
+    for (const [keyId, kind] of rows) {
+      const registry = [{ ...(REGISTRY[0] as OfficerKey), keyId, kind: kind as OfficerKey["kind"] }];
+      expect(expectedSigner(registry, "treasurer", keyId, NOW), `${kind} ${keyId}`).toMatchObject({
+        ok: false,
+        code: "KEY_NOT_REGISTERED",
+        reason: expect.stringMatching(/^Unknown signer/),
+      });
+    }
+    // The review's probe: a ledger key ID in an unparsed registry row, and an approval carrying it.
+    const ledgerSigned = signed({ keyId: "fs-ledger-k1" });
+    const posing = expected("treasurer", { keyId: "fs-ledger-k1" });
+    expect(checkApproval(ledgerSigned, posing, NOW, NONE)).toMatchObject({
+      ok: false,
+      code: "KEY_NOT_REGISTERED",
+      reason: expect.stringMatching(/^Unknown signer/),
+    });
+    // The real keys still sign: the treasurer's web key and the Chair's app key.
+    expect(checkApproval(signed(), expected("treasurer"), NOW, NONE)).toEqual({ ok: true });
+    expect(checkApproval(signed({ role: "chair" }), expected("chair"), NOW, NONE)).toEqual({ ok: true });
   });
 
   it("property: only the registry's key for the role, with its approver and season, ever passes", () => {
     fc.assert(
       fc.property(
         fc.constantFrom<keyof typeof KEYS>("treasurer", "chair", "attacker"),
-        fc.constantFrom("fs-analyn-a1", "fs-ernesto-a1", "fs-analyn-s1", "fs-analyn-w2"),
+        fc.constantFrom("fs-analyn-w1", "fs-analyn-a1", "fs-ernesto-a1", "fs-analyn-s1", "fs-analyn-w2"),
         fc.constantFrom(APPROVER.treasurer, APPROVER.chair, "board:someone"),
         fc.constantFrom(SEASON, "season-2"),
         fc.constantFrom<ApprovalRole>("treasurer", "chair"),
@@ -442,6 +558,41 @@ describe("R5: who must co-sign", () => {
     expect(
       requiresChair({ batchTotalCents: 100, lineAmountsCents: [100], overrides: 1 }, cosign).reasons,
     ).toEqual(["OVERRIDE"]);
+  });
+
+  it("overrideCount counts the resolutions R5 calls overrides: TWO_DELIVERIES, CONFIRM_AS_READ on a rate or injection hold", () => {
+    const hold = (kind: EngineHold["kind"], resolution: EngineHold["resolution"]): EngineHold => ({
+      key: `${kind}:x`,
+      kind,
+      gate: "BLOCKS_APPROVAL",
+      state: resolution ? "RESOLVED" : "OPEN",
+      memberNo: "M-001",
+      serials: [],
+      rowIds: [],
+      documentIds: [],
+      params: {},
+      resolution,
+    });
+    const by = (kind: HoldResolutionKind) => ({ kind, by: "treasurer:analyn", at: NOW.toISOString() });
+    expect(overrideCount([])).toBe(0);
+    expect(
+      overrideCount([
+        hold("DUPLICATE_SLIP", by("COUNT_ONCE")),
+        hold("IMPLAUSIBLE_YIELD", by("REGISTER_PLOT")),
+        hold("NO_RULE", by("RETURN_AS_CREDIT")),
+        hold("LOW_CONFIDENCE", by("CONFIRM_AS_READ")),
+        hold("RATE_MISMATCH", by("EXCLUDE_LINE")),
+        hold("SUSPECTED_INJECTION", null),
+      ]),
+    ).toBe(0);
+    expect(
+      overrideCount([
+        hold("DUPLICATE_SLIP", by("TWO_DELIVERIES")),
+        hold("RATE_MISMATCH", by("CONFIRM_AS_READ")),
+        hold("SUSPECTED_INJECTION", by("CONFIRM_AS_READ")),
+        hold("NO_RULE", by("APPLY_RULE")),
+      ]),
+    ).toBe(3);
   });
 
   it("property: the treasurer alone is enough only below every threshold", () => {

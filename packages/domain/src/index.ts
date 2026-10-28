@@ -4,6 +4,7 @@
 
 export * from "./agreement.js";
 export * from "./approval.js";
+export * from "./ascii.js";
 export * from "./batch.js";
 export * from "./canon.js";
 export * from "./chain.js";
@@ -21,6 +22,7 @@ export * from "./uuid.js";
 export {
   type Attested,
   attestedEntries,
+  keyIdIsSample,
   ledgerPreimage,
   verifyChainWith,
   verifyLedgerWith,

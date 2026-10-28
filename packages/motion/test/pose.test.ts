@@ -95,6 +95,42 @@ describe("poseAt: MM-5 Two keys study", () => {
     expect(at(7600, "reduced").phase).toBe("inked");
   });
 
+  it("arms at 1600 ms and waits: the signature lands only after the release and approval.signed", () => {
+    expect(at(1500 + 1599).phase).toBe("hold-1");
+    expect(at(1500 + 1600).phase).toBe("armed-1");
+    expect(at(3149).values["slab.released"]).toBe(0);
+    expect(at(3150).values["slab.released"]).toBe(1);
+    expect(at(3150).phase).toBe("armed-1");
+    expect(at(3200).phase).toBe("signed-1");
+    expect(at(4500 + 1200).phase).toBe("armed-2");
+    expect(at(5800).values["phone.released"]).toBe(1);
+    const sequence = phaseTimes("MM-5", STUDIES["MM-5"].cues).map((p) => `${p.phase}@${p.at}`);
+    expect(sequence).toEqual([
+      "rising@300",
+      "ready@1007",
+      "hold-1@1500",
+      "armed-1@3100",
+      "signed-1@3200",
+      "waiting-2@4040",
+      "hold-2@4500",
+      "armed-2@5700",
+      "signed-2@6100",
+      "sealed@6820",
+      "inked@7060",
+    ]);
+  });
+
+  it("a slab armed and then slid off rebounds, retracts the fill and signs nothing", () => {
+    const end = poseOfStudy("MM-5-disarmed", 3600);
+    expect(poseOfStudy("MM-5-disarmed", 2690).phase).toBe("armed-1");
+    expect(end.phase).toBe("disarmed");
+    expect(end.values["slab.travel"]).toBeCloseTo(0, 1);
+    expect(end.values["slab.fill"]).toBeCloseTo(0, 3);
+    expect(end.fired.map((f) => f.event)).toContain("hold.bottom");
+    expect(phaseTimes("MM-5", STUDIES["MM-5-disarmed"].cues).map((p) => p.phase)).not.toContain("signed-1");
+    expect(poseOfStudy("MM-5-disarmed", 3600, "reduced").phase).toBe("disarmed");
+  });
+
   it("an early release springs the face back, retracts the fill and signs nothing", () => {
     const end = poseOfStudy("MM-5-early", 2800);
     expect(end.phase).toBe("released-early");

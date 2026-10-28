@@ -1,14 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { TASK_NAMES } from "../src/_shims/contracts.js";
-import type { TaskHandler } from "../src/handlers.js";
+import { TASK_NAMES, type WorkspaceKind } from "../src/_shims/contracts.js";
+import { KillSwitchError, type TaskHandler } from "../src/handlers.js";
 import { invokeTask } from "../src/invoke.js";
 import {
-  anyFlag,
+  aiLane,
+  assertBootEnv,
   assertSandbox,
-  envFlagCheck,
+  BootRefusedError,
+  envFlags,
+  isSandbox,
+  type KillFlag,
   NotSandboxError,
   parseFsKill,
-  TASKS_REFUSED_BY_FLAG,
+  paypalLane,
+  refusingFlag,
+  TASKS_REFUSED_AT_ENTRY,
+  unionFlags,
 } from "../src/kill.js";
 import { silentLogger } from "../src/log.js";
 import { OUTBOX_ID, testRuntime } from "./helpers.js";
@@ -64,7 +71,7 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
     const handler = vi.fn(done);
     const rt = testRuntime(
       { postPayoutBatch: handler, cancelUnclaimed: handler, reroute: handler, settleBatch: handler },
-      { checkFlags: envFlagCheck(env) },
+      { readFlags: envFlags(env) },
     );
     for (const name of ["postPayoutBatch", "cancelUnclaimed", "reroute"] as const) {
       await expect(invokeTask(rt, name, [OUTBOX_ID], ctx)).resolves.toMatchObject({
@@ -80,23 +87,83 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
 
   it("reads FS_KILL fresh on every entry, never cached", async () => {
     const env: NodeJS.ProcessEnv = {};
-    const rt = testRuntime({ postPayoutBatch: done }, { checkFlags: envFlagCheck(env) });
+    const rt = testRuntime({ postPayoutBatch: done }, { readFlags: envFlags(env) });
     await expect(invokeTask(rt, "postPayoutBatch", [OUTBOX_ID], ctx)).resolves.toEqual({ status: "done" });
     env.FS_KILL = "payouts";
     await expect(invokeTask(rt, "postPayoutBatch", [OUTBOX_ID], ctx)).resolves.toMatchObject({
       code: "KILL_SWITCH",
-      detail: "Task postPayoutBatch refused: kill switch FS_KILL:payouts is on",
+      detail: "Task postPayoutBatch refused: kill switch kill_payouts is on",
     });
     env.FS_KILL = "";
     await expect(invokeTask(rt, "postPayoutBatch", [OUTBOX_ID], ctx)).resolves.toEqual({ status: "done" });
   });
 
-  it("paypal_live also refuses invoices; ai_live refuses nothing at entry (gateway replays)", () => {
-    const check = envFlagCheck({ FS_KILL: "ai_live, paypal_live ,bogus" });
-    const refused = TASK_NAMES.filter((n) => check(n));
-    expect(refused).toEqual(["ensureInvoice", "postPayoutBatch", "cancelUnclaimed", "reroute"]);
-    expect(TASKS_REFUSED_BY_FLAG.ai_live).toEqual([]);
+  it("only kill_payouts refuses at entry; paypal_live and ai_live are left to the handler", () => {
+    const flags = parseFsKill("ai_live, paypal_live ,bogus");
+    expect(TASK_NAMES.filter((n) => refusingFlag(n, flags))).toEqual([]);
+    expect(TASKS_REFUSED_AT_ENTRY).toEqual({
+      payouts: ["postPayoutBatch", "cancelUnclaimed", "reroute"],
+      paypal_live: [],
+      ai_live: [],
+    });
     expect([...parseFsKill(" payouts,,nope,ai_live")]).toEqual(["payouts", "ai_live"]);
+  });
+
+  it("passes the fresh flag set to every handler", async () => {
+    const handler = vi.fn(done);
+    const rt = testRuntime({ ensureInvoice: handler }, { readFlags: envFlags({ FS_KILL: "paypal_live" }) });
+    await invokeTask(rt, "ensureInvoice", [OUTBOX_ID], ctx);
+    expect([...(handler.mock.calls[0]?.[0].flags ?? [])]).toEqual(["paypal_live"]);
+  });
+
+  // These two prove the wrapper's side of kill_paypal_live only: it does not refuse at entry, and it
+  // hands the fresh flags to a handler that applies paypalLane (written here, as WS-PPMONEY will).
+  // Whether a real PayPal handler replays or refuses is WS-PPMONEY's inv.i8 test, not these.
+  const ppHandler =
+    (kind: WorkspaceKind): TaskHandler =>
+    async (inv) => {
+      const lane = paypalLane(inv.flags, kind);
+      if (lane === "refuse") throw new KillSwitchError(inv.name, "kill_paypal_live");
+      return { status: "done", mode: lane === "replay" ? "replay" : "live" };
+    };
+
+  it("entry.kill-paypal-live-reaches-handler: in a judge or showcase workspace the wrapper lets a paypalLane handler return its labelled replay", async () => {
+    const readFlags = envFlags({ FS_KILL: "paypal_live" });
+    for (const kind of ["judge", "showcase"] as const) {
+      const rt = testRuntime(
+        { ensureInvoice: ppHandler(kind), recordPayment: ppHandler(kind), postPayoutBatch: ppHandler(kind) },
+        { readFlags },
+      );
+      for (const name of ["ensureInvoice", "recordPayment", "postPayoutBatch"] as const) {
+        await expect(invokeTask(rt, name, [OUTBOX_ID], ctx)).resolves.toEqual({
+          status: "done",
+          mode: "replay",
+        });
+      }
+      expect(rt.failed).toEqual([]);
+    }
+  });
+
+  it("entry.kill-paypal-live-handler-refusal-recorded: in a real workspace a paypalLane handler's KILL_SWITCH is recorded as a dead row", async () => {
+    const rt = testRuntime(
+      { ensureInvoice: ppHandler("real"), recordPayment: ppHandler("real"), settleBatch: ppHandler("real") },
+      { readFlags: envFlags({ FS_KILL: "paypal_live" }) },
+    );
+    for (const name of ["ensureInvoice", "recordPayment", "settleBatch"] as const) {
+      await expect(invokeTask(rt, name, [OUTBOX_ID], ctx)).resolves.toMatchObject({ code: "KILL_SWITCH" });
+    }
+    expect(rt.failed).toHaveLength(3);
+  });
+
+  it("paypalLane and aiLane follow S3.11", () => {
+    const none = new Set<KillFlag>();
+    const pp = new Set<KillFlag>(["paypal_live"]);
+    expect(paypalLane(none, "real")).toBe("live");
+    expect(paypalLane(pp, "judge")).toBe("replay");
+    expect(paypalLane(pp, "showcase")).toBe("replay");
+    expect(paypalLane(pp, "real")).toBe("refuse");
+    expect(aiLane(none)).toBe("live");
+    expect(aiLane(new Set<KillFlag>(["ai_live"]))).toBe("replay");
   });
 
   it("fails closed: a flag read that throws fails the run without calling the handler", async () => {
@@ -104,7 +171,7 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
     const rt = testRuntime(
       { postPayoutBatch: handler },
       {
-        checkFlags: anyFlag(envFlagCheck({}), async () => {
+        readFlags: unionFlags(envFlags({}), async () => {
           throw new Error("system_flags unavailable");
         }),
       },
@@ -113,21 +180,31 @@ describe("invokeTask: kill switch at every task entry (architecture §11)", () =
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it("anyFlag returns the first refusing flag", async () => {
-    const check = anyFlag(
-      () => undefined,
-      () => "system_flags:kill_payouts",
-      () => "later",
+  it("unionFlags unites FS_KILL with the workspace's system_flags", async () => {
+    const source = unionFlags(envFlags({ FS_KILL: "ai_live" }), (_name, ids) =>
+      ids.includes("ws-killed") ? new Set<KillFlag>(["payouts"]) : new Set<KillFlag>(),
     );
-    await expect(check("reroute")).resolves.toBe("system_flags:kill_payouts");
+    expect([...(await source("reroute", ["ws-killed"]))].sort()).toEqual(["ai_live", "payouts"]);
+    expect([...(await source("reroute", ["other"]))]).toEqual(["ai_live"]);
   });
 });
 
-describe("assertSandbox (S3.13 boot check)", () => {
-  it("accepts only PP_ENV=sandbox", () => {
+describe("boot checks (S3.13)", () => {
+  it("accepts only PP_ENV=sandbox; unset is not sandbox", () => {
     expect(() => assertSandbox({ PP_ENV: "sandbox" })).not.toThrow();
+    expect(isSandbox({ PP_ENV: "sandbox" })).toBe(true);
+    expect(isSandbox({})).toBe(false);
     for (const env of [{}, { PP_ENV: "" }, { PP_ENV: "live" }, { PP_ENV: "Sandbox" }]) {
       expect(() => assertSandbox(env)).toThrow(NotSandboxError);
+      expect(() => assertBootEnv(env)).toThrow(BootRefusedError);
     }
+  });
+
+  it("refuses PayPal dev mocks on Render, allows them locally", () => {
+    expect(() => assertBootEnv({ PP_ENV: "sandbox", PP_DEV_MOCKS: "1" })).not.toThrow();
+    expect(() => assertBootEnv({ PP_ENV: "sandbox", RENDER: "true" })).not.toThrow();
+    expect(() => assertBootEnv({ PP_ENV: "sandbox", PP_DEV_MOCKS: "1", RENDER: "true" })).toThrow(
+      /PP_DEV_MOCKS=1 is not allowed on Render/,
+    );
   });
 });

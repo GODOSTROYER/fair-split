@@ -41,17 +41,23 @@ describe("spring presets", () => {
     expect(dip).toBeCloseTo(1.51, 2);
   });
 
+  // The sweeps below collect the failing samples and assert once: 2,000 separate expect calls were the
+  // costliest work in this package, and under load they pushed the test toward its timeout.
   it("each spring stays within 0.1% of its target after its settle time", () => {
     for (const name of SPRING_NAMES) {
       const settle = SPRINGS[name].settleMs;
+      const outside: number[] = [];
       for (let t = settle; t < settle + 2000; t += 5) {
-        expect(Math.abs(1 - springResponse(name, t))).toBeLessThanOrEqual(0.0010001);
+        if (!(Math.abs(1 - springResponse(name, t)) <= 0.0010001)) outside.push(t);
       }
+      expect(outside, `${name} leaves the 0.1% band at these ms`).toEqual([]);
     }
   });
 
   it("glide is critically damped and never overshoots", () => {
-    for (let t = 0; t < 1500; t += 5) expect(springResponse("glide", t)).toBeLessThanOrEqual(1);
+    const over: number[] = [];
+    for (let t = 0; t < 1500; t += 5) if (!(springResponse("glide", t) <= 1)) over.push(t);
+    expect(over, "glide passes 1 at these ms").toEqual([]);
   });
 
   it("emits a 48-point CSS linear() easing that ends on 1", () => {

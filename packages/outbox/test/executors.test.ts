@@ -68,6 +68,8 @@ describe("workflow executor (Render Workflows, injected startTask)", () => {
     await ob.dispatcher.start();
     const id = await enqueued(t.app.db, "extract", { documentId: "d" });
     await until(async () => (await rowOf(t.app.db, id)).state === "done");
+    // the run id is written once startTask answers, which may be after the task itself finished
+    await until(async () => (await rowOf(t.app.db, id)).workflowRunId !== null);
     expect(render.started[0]).toEqual({ slug: "fs-tasks/extract", args: [id] });
     const row = await rowOf(t.app.db, id);
     expect(row).toMatchObject({ executor: "workflow", workflowRunId: "trn-1" });

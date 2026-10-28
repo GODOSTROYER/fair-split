@@ -1,0 +1,85 @@
+# E-17 nightly live sandbox smoke (S5.5.1, architecture section 15). PLACEHOLDER.
+#
+# Disabled until the secrets exist: the job runs only when the repository variable
+# SANDBOX_SMOKE_ENABLED is "true", and only on main. It runs from GitHub's network (not Render's) with the
+# fs-dev REST app, in the protected environment `sandbox-smoke`.
+# workflow_dispatch can start any branch's copy of this file, so the job checks the ref itself; the environment
+# also allows only main (Settings -> Environments -> sandbox-smoke -> Deployment branches and tags: Selected,
+# main), set before any secret is added (docs/security.md).
+#
+# Required in the `sandbox-smoke` environment (Settings -> Environments), all from the fs-dev app:
+#   secrets: PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET,
+#            PAYPAL_BUSINESS_EMAIL (invoicer and payout sender),
+#            PAYPAL_BUYER_EMAIL (Lantern Bay payer),
+#            PAYPAL_SMOKE_RECEIVER_EMAIL (one on-rail member personal account)
+# The three addresses are secrets, not variables, so GitHub masks them in the logs, which become public with the
+# repository at submission (ADR-0002): the fixture policy treats sandbox addresses as values to scrub. The job
+# also masks them explicitly before any other step.
+# Repository variable: SANDBOX_SMOKE_ENABLED=true to switch it on.
+# No Anthropic or Gemini key is used here; Claude's live run is eval-live.yml (planned).
+#
+# Planned scenario (at most 12 PayPal calls; runSeq from 900000): create invoice -> record payment ->
+# US$1.00 one-item payout -> one GET of the batch to assert the result. Asserted by GET rather than
+# webhook because the dev tunnel is off at night; there is no polling loop.
+name: sandbox-smoke
+
+on:
+  schedule:
+    - cron: "17 21 * * *" # 21:17 UTC = 02:47 IST, after the day's merges
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox-smoke
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24.19.0"
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  smoke:
+    if: ${{ github.ref == 'refs/heads/main' && vars.SANDBOX_SMOKE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: sandbox-smoke
+    steps:
+      - name: Mask sandbox addresses
+        env:
+          PAYPAL_BUSINESS_EMAIL: ${{ secrets.PAYPAL_BUSINESS_EMAIL }}
+          PAYPAL_BUYER_EMAIL: ${{ secrets.PAYPAL_BUYER_EMAIL }}
+          PAYPAL_SMOKE_RECEIVER_EMAIL: ${{ secrets.PAYPAL_SMOKE_RECEIVER_EMAIL }}
+        run: |
+          for v in "$PAYPAL_BUSINESS_EMAIL" "$PAYPAL_BUYER_EMAIL" "$PAYPAL_SMOKE_RECEIVER_EMAIL"; do
+            if [ -n "$v" ]; then echo "::add-mask::$v"; fi
+          done
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 (2026-07-14)
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Install
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Live sandbox smoke (not built yet)
+        env:
+          PAYPAL_ENV: sandbox
+          PAYPAL_CLIENT_ID: ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_BUSINESS_EMAIL: ${{ secrets.PAYPAL_BUSINESS_EMAIL }}
+          PAYPAL_BUYER_EMAIL: ${{ secrets.PAYPAL_BUYER_EMAIL }}
+          PAYPAL_SMOKE_RECEIVER_EMAIL: ${{ secrets.PAYPAL_SMOKE_RECEIVER_EMAIL }}
+        run: |
+          echo "::error::E-17 is not implemented yet (e2e/sandbox-smoke, WS-QA with WS-PPMONEY)."
+          exit 1

@@ -516,7 +516,10 @@ export class ClaudeGateway {
       for await (const event of stream) {
         if (event.type === "message_start") progress.billed = true;
         else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          call.onSnapshot?.(timeline.delta(event.delta.text));
+          // Recorded whether or not anyone watches live: a replay may drive a view later. (Inside
+          // `onSnapshot?.(…)` the argument would not even be evaluated without a consumer.)
+          const snapshot = timeline.delta(event.delta.text);
+          call.onSnapshot?.(snapshot);
         }
       }
       const final = await stream.finalMessage();

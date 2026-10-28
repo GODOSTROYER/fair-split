@@ -11,22 +11,27 @@ import { TREASURER } from "./support/approvals.js";
 import {
   approvalsFor,
   batchBody,
+  CASH_MEMBER,
   created,
   digestFor,
   duplicateBatch,
   HERO_LINES,
   HERO_SENDER_BATCH_ID,
   itemBody,
+  MEMBER_LINES,
   NOW,
   paypalError,
   RHEA_ITEM_ID,
   RUN_BASE,
   RUN_FACTS,
+  rerouteBatchId,
   rheaRow,
+  withEditedLine,
 } from "./support/fixtures.js";
+import { payPalLedger } from "./support/ledger.js";
 import { onGet, onPost, paypalJson, requests, sequence, useMsw } from "./support/msw.js";
 import { MemoryPayoutsRepo } from "./support/repo.js";
-import { makeService } from "./support/service.js";
+import { JUDGE_LIMITS, makeService } from "./support/service.js";
 
 useMsw();
 
@@ -262,14 +267,15 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
     };
   }
 
-  it("posts `{senderBatchId}-x1` with item `r37x1-M-031`, the returned amount, superseding the item", async () => {
+  it("posts `{senderBatchId}-x1-M-031` with item `r37x1-M-031`, the returned amount, superseding the item", async () => {
     const { service, repo } = setup([returnedForReroute()]);
-    const sbid = senderBatchId({ ...RUN_BASE, rerouteNo: 1 });
+    const sbid = rerouteBatchId("M-031", 1);
     onPost("/v1/payments/payouts", () => paypalJson(created(sbid), 201));
 
     const out = await service.reroute(await request());
 
-    expect(sbid).toBe(`${HERO_SENDER_BATCH_ID}-x1`);
+    expect(sbid).toBe(`${HERO_SENDER_BATCH_ID}-x1-M-031`);
+    expect(sbid).toBe(senderBatchId({ ...RUN_BASE, rerouteNo: 1, memberNo: "M-031" }));
     expect(out).toMatchObject({ kind: "created", senderBatchId: sbid, requestId: payPalRequestId(sbid) });
     expect(requests[0]?.body).toMatchObject({
       sender_batch_header: { sender_batch_id: sbid, recipient_type: "EMAIL" },
@@ -287,6 +293,23 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
       items: [{ supersedesItemId: RHEA_ITEM_ID, senderItemId: "r37x1-M-031", amountCents: 2_665n }],
     });
   });
+
+  it.each([
+    ["at the daily cap", { postsInLast24h: async () => JUDGE_LIMITS.maxPostsPer24h }, "DAILY_CAP"],
+    [
+      "a cent under the balance floor",
+      { balanceCents: async () => JUDGE_LIMITS.minBalanceCents + 2_665n - 1n },
+      "SANDBOX_GUARD",
+    ],
+  ] as const)(
+    "a re-route is a new live batch: refused %s, nothing written or sent",
+    async (_label, patch, code) => {
+      const { service, repo } = setup([returnedForReroute()], { limits: { ...JUDGE_LIMITS, ...patch } });
+      await expect(service.reroute(await request())).resolves.toMatchObject({ kind: "refused", code });
+      expect(repo.events).toHaveLength(0);
+      expect(requests).toHaveLength(0);
+    },
+  );
 
   it("only re-routes a RETURNED item", async () => {
     const { service } = setup([rheaRow("UNCLAIMED")]);
@@ -316,9 +339,7 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
 
   it("inv.i3.conservation: a second re-route of the same item is refused, whatever its number", async () => {
     const { service, repo } = setup([returnedForReroute()]);
-    onPost("/v1/payments/payouts", () =>
-      paypalJson(created(senderBatchId({ ...RUN_BASE, rerouteNo: 1 })), 201),
-    );
+    onPost("/v1/payments/payouts", () => paypalJson(created(rerouteBatchId("M-031", 1)), 201));
     await expect(service.reroute(await request())).resolves.toMatchObject({ kind: "created" });
 
     await expect(service.reroute(await request())).resolves.toMatchObject({
@@ -335,7 +356,7 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
   });
 
   it("a retry after an unresolved re-route resumes the same ids, so PayPal holds one batch", async () => {
-    const sbid = senderBatchId({ ...RUN_BASE, rerouteNo: 1 });
+    const sbid = rerouteBatchId("M-031", 1);
     const digest = await digestFor([rheaLine()], 1);
     const { service, repo } = setup([returnedForReroute()]);
     onPost("/v1/payments/payouts", () => paypalJson(paypalError("INTERNAL_SERVER_ERROR", "boom"), 500));
@@ -379,7 +400,7 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
   it("re-routes a re-routed item that came back too as x2, superseding the x1 item", async () => {
     const x1 = returnedForReroute({ payoutItemId: "X1ITEMM031AB12", senderItemId: "r37x1-M-031" });
     const { service } = setup([x1]);
-    const sbid = senderBatchId({ ...RUN_BASE, rerouteNo: 2 });
+    const sbid = rerouteBatchId("M-031", 2);
     onPost("/v1/payments/payouts", () => paypalJson(created(sbid), 201));
     await expect(
       service.reroute(
@@ -391,8 +412,121 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
           2,
         ),
       ),
-    ).resolves.toMatchObject({ kind: "created", senderBatchId: `${HERO_SENDER_BATCH_ID}-x2` });
+    ).resolves.toMatchObject({ kind: "created", senderBatchId: `${HERO_SENDER_BATCH_ID}-x2-M-031` });
     expect(requests[0]?.body).toMatchObject({ items: [{ sender_item_id: "r37x2-M-031" }] });
+  });
+
+  it("two members' first re-routes in one run each get their own batch, and PayPal pays both (no shared -x1)", async () => {
+    // M-022's item came back too. Under a run-wide `-x1` PayPal would answer the second post with the
+    // first's batch ("already exists"), and the second member would never be paid.
+    const m022 = rheaRow("RETURNED", {
+      payoutItemId: "ITEMM022AB12CD",
+      senderItemId: "r37-M-022",
+      lineId: "line-M-022",
+      memberNo: "M-022",
+      receiver: "m022@example.test",
+      amountCents: 3_440n,
+      cancelRequestedAt: "2026-11-05T02:05:00.000Z",
+      cancelIntent: "reroute",
+    });
+    const { service, repo } = setup([returnedForReroute(), m022]);
+    const paypal = payPalLedger();
+    const m022Line = {
+      ...rheaLine("m022.new-account@example.test", 3_440n),
+      lineId: "line-M-022",
+      memberNo: "M-022",
+    };
+
+    const rhea = await service.reroute(await request());
+    const other = await service.reroute({
+      supersedesItemId: "ITEMM022AB12CD",
+      rerouteNo: 1,
+      receiver: "m022.new-account@example.test",
+      approvals: await approvalsFor([m022Line], { signers: [TREASURER], rerouteNo: 1 }),
+    });
+
+    expect(rhea).toMatchObject({ kind: "created", senderBatchId: `${HERO_SENDER_BATCH_ID}-x1-M-031` });
+    expect(other).toMatchObject({ kind: "created", senderBatchId: `${HERO_SENDER_BATCH_ID}-x1-M-022` });
+    expect(paypal.paid().sort()).toEqual([
+      "m022.new-account@example.test 34.40 r37x1-M-022",
+      `${NEW_RECEIVER} 26.65 r37x1-M-031`,
+    ]);
+    expect(repo.types()).toEqual(["writeSubmitted", "markPosted", "writeSubmitted", "markPosted"]);
+  });
+
+  it("inv.i3.conservation: two re-routes of one returned item to two receivers, racing: one is written and paid", async () => {
+    // Both read "nothing supersedes it yet" before either wrote. The second write finds the first's
+    // rows under the same ids and is refused on their digest, before anything is posted under them.
+    const { service, repo } = setup([returnedForReroute()]);
+    const paypal = payPalLedger();
+    const other = "rhea.other-account@example.test";
+    const elsewhere = await request({
+      receiver: other,
+      approvals: await approvalsFor([rheaLine(other)], { signers: [TREASURER], rerouteNo: 1 }),
+    });
+
+    const outcomes = await Promise.all([service.reroute(await request()), service.reroute(elsewhere)]);
+
+    expect(outcomes.map((o) => o.kind).sort()).toEqual(["created", "refused"]);
+    expect(outcomes.find((o) => o.kind === "refused")).toMatchObject({
+      code: "ALREADY_REROUTED",
+      senderBatchId: rerouteBatchId("M-031", 1),
+    });
+    const posted = outcomes.find((o) => o.kind === "created");
+    const stored = repo.batches.get(rerouteBatchId("M-031", 1));
+    // One POST; PayPal pays exactly the receiver whose rows the database holds, under that digest.
+    expect(requests.filter((r) => r.method === "POST")).toHaveLength(1);
+    expect(paypal.paid()).toEqual([`${stored?.batch.items[0]?.receiver} 26.65 r37x1-M-031`]);
+    expect(posted).toMatchObject({ batchSha256: stored?.batch.batchSha256 });
+    expect(stored?.status).toBe("POSTED");
+  });
+
+  it("inv.i3.conservation: UNIQUE supersedes_item_id is the backstop: a re-route the read missed sends nothing", async () => {
+    // Right after this call read "nothing supersedes it", another writer stored a re-route of the same
+    // item under ids of its own (the `-x1` an older build minted). The write hits the UNIQUE
+    // supersedes_item_id, the transaction fails, and nothing is posted: one returned item, one re-route.
+    const { service, repo } = setup([returnedForReroute()]);
+    const legacy = `${HERO_SENDER_BATCH_ID}-x1`;
+    const read = repo.findSupersedingItem.bind(repo);
+    repo.findSupersedingItem = async (payoutItemId) => {
+      const seen = await read(payoutItemId);
+      if (!repo.batches.has(legacy)) {
+        repo.batches.set(legacy, {
+          status: "POSTED",
+          payoutBatchId: "LEGACYX1BATCH",
+          batch: {
+            runId: RUN_FACTS.runId,
+            kind: "reroute",
+            senderBatchId: legacy,
+            requestId: payPalRequestId(legacy),
+            batchSha256: "0".repeat(64),
+            note: "Fair Split 2026-A, batch 00000000",
+            totalCents: 2_665n,
+            currency: "USD",
+            items: [
+              {
+                lineId: "line-M-031",
+                memberNo: "M-031",
+                senderItemId: "r37x1-M-031",
+                receiver: "rhea.elsewhere@example.test",
+                amountCents: 2_665n,
+                currency: "USD",
+                supersedesItemId: RHEA_ITEM_ID,
+              },
+            ],
+            approvalNonces: ["legacy-x1-treasurer"],
+            at: NOW.toISOString(),
+          },
+        });
+      }
+      return seen;
+    };
+    onPost("/v1/payments/payouts", () => paypalJson(created(rerouteBatchId("M-031", 1)), 201));
+
+    await expect(service.reroute(await request())).rejects.toThrow(/UNIQUE violation: supersedes_item_id/);
+
+    expect(requests).toHaveLength(0);
+    expect(repo.batches.has(rerouteBatchId("M-031", 1))).toBe(false);
   });
 
   it("inv.i4.digest-is-payout: the one-item signature must cover the new receiver and the stored amount", async () => {
@@ -412,6 +546,49 @@ describe("PayoutsService.reroute: a one-item batch -x{n}, at most once per retur
       code: "DIGEST_MISMATCH",
     });
     expect(repo.batches.size).toBe(0);
+    expect(requests).toHaveLength(0);
+    // A re-route's approvals are its own: refusing them voids nothing of the run's.
+    expect(repo.types()).toEqual([]);
+  });
+
+  it("inv.i4.digest-is-payout: a re-route's signature binds the run's member lines as the database holds them now", async () => {
+    const LINE_CHANGED = "A line changed after it was signed. Nothing was sent.";
+    const { service, repo } = setup([returnedForReroute()]);
+    const overOtherLines = await approvalsFor([rheaLine()], {
+      signers: [TREASURER],
+      rerouteNo: 1,
+      linesDigest: "e".repeat(64),
+    });
+    await expect(service.reroute(await request({ approvals: overOtherLines }))).resolves.toMatchObject({
+      code: "DIGEST_MISMATCH",
+      reason: LINE_CHANGED,
+    });
+
+    // Signed over the lines as they were; then a cash line changed before the post.
+    const signed = await approvalsFor([rheaLine()], { signers: [TREASURER], rerouteNo: 1 });
+    repo.edit(RUN_FACTS.runId, { memberLines: withEditedLine(CASH_MEMBER) });
+    await expect(service.reroute(await request({ approvals: signed }))).resolves.toMatchObject({
+      code: "DIGEST_MISMATCH",
+      reason: LINE_CHANGED,
+    });
+
+    expect(repo.batches.size).toBe(0);
+    expect(requests).toHaveLength(0);
+    // A re-route's approvals are its own: refusing them voids nothing of the run's.
+    expect(repo.types()).toEqual([]);
+  });
+
+  it("refuses a re-route whose member has no line in the run: an invalid batch, nothing sent", async () => {
+    const repo = new MemoryPayoutsRepo({
+      items: [returnedForReroute()],
+      runs: [{ ...RUN_FACTS, memberLines: MEMBER_LINES.filter((l) => l.memberNo !== "M-031") }],
+    });
+    const { service } = makeService(repo);
+    await expect(service.reroute(await request())).resolves.toMatchObject({
+      kind: "refused",
+      code: "INVALID_BATCH",
+    });
+    expect(repo.events).toEqual([]);
     expect(requests).toHaveLength(0);
   });
 

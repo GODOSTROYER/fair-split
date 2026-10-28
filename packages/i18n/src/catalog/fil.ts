@@ -62,4 +62,11 @@ export const fil = {
   "M-BD-02.hint": "Pindutin nang matagal, saka gamitin ang inyong fingerprint.",
   "M-BD-02.signed": "Napirmahan na po. Key {key}. Tugma ang batch hash sa console.",
   "M-BD-02.demo": "Demo key (ang browser na ito)",
+  // The hold slab and its dialog on the Chair's phone.
+  "slab.holdUntilClick": "Pindutin nang matagal hanggang mag-click",
+  "slab.release": "Bitawan para pumirma",
+  "slab.nothingSigned": "Walang napirmahan.",
+  "slab.altRoute": "Hindi mapindot nang matagal? Pumirma sa ibang paraan",
+  "slab.progress": "{percent}% napindot",
+  "confirm.cancel": "Hindi muna",
 } as const satisfies Partial<Catalog>;

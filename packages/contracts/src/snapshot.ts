@@ -269,8 +269,14 @@ export const SnapshotRun = z.strictObject({
     invoiceNumber: z.string().max(25),
     reference: z.string(),
     note: z.string(),
+    /** PayPal's invoice date, read back by a GET (Fair Split never sends one). */
     invoiceDate: IsoDate,
-    dueDate: IsoDate,
+    /**
+     * @deprecated Always null. No payment term or due date is ever sent (00-plan, S3.6.3), so the
+     * real invoice has none to show; the only date Fair Split sets is `autoCancelOn`.
+     */
+    dueDate: IsoDate.nullable(),
+    /** C-27: the AUTO_CANCEL rule's date, the invoice date + 25 days. */
     autoCancelOn: IsoDate,
     status: InvoiceStatus,
     amountCents: NonNegCents,

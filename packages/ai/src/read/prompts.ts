@@ -6,7 +6,7 @@ import { sha256Hex } from "../gateway/index.js";
  * (a.v2.md) and switching to it, which forces a live run before replays work again. The sha256 of
  * each file is pinned by a test, so an in-place edit fails CI.
  */
-export type PromptName = "a.v1" | "b.v1" | "zoom.v1" | "screen.v1";
+export type PromptName = "a.v1" | "b.v1" | "zoom.v2" | "screen.v1";
 
 const cache = new Map<string, string>();
 

@@ -61,4 +61,11 @@ export const ceb = {
   "M-BD-02.hint": "Kupti, dayon gamita ang inyong fingerprint.",
   "M-BD-02.signed": "Napirmahan. Key {key}. Parehas ang batch hash sa console.",
   "M-BD-02.demo": "Demo key (kini nga browser)",
+  // The hold slab and its dialog on the Chair's phone (S1 M-BD-02 gives the link and "Walay napirmahan").
+  "slab.holdUntilClick": "Kupti hangtod mo-klik",
+  "slab.release": "Buhii aron mopirma",
+  "slab.nothingSigned": "Walay napirmahan.",
+  "slab.altRoute": "Dili makakupti? Pirmahi sa laing paagi",
+  "slab.progress": "{percent}% nakupti",
+  "confirm.cancel": "Dili pa karon",
 } as const satisfies Partial<Catalog>;

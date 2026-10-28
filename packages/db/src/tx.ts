@@ -7,9 +7,10 @@
  *
  *   lock order: workspace lock → row locks (pay_runs, member_lines, holds, payout_items, system_flags, …)
  *
- * The repositories follow it: every scoped insert or update, every transition, `items.applyStatus`,
- * `items.requestCancel`, `approvals.void`, `ledger.append`, `flags.set` and `appendEvent` takes the lock first in
- * its transaction. Code that writes rows with raw Drizzle in the same transaction opens it with `withWorkspaceTx`
+ * The repositories follow it: every scoped insert or update, every transition, `lines.followItem`,
+ * `items.applyStatus`, `items.requestCancel`, `approvals.void`, `ledger.append`, `flags.set`, `appendEvent` and
+ * `openSeedWindow` takes the lock first in its transaction, and so does `fs_purge_workspace()` (`purgeJudgeWorkspace`,
+ * migrations/0014) before it locks the workspace row. Code that writes rows with raw Drizzle in the same transaction opens it with `withWorkspaceTx`
  * (or `repos(scope).tx`), which takes the lock before anything else. The lock is held until commit, so never keep
  * such a transaction open across a PayPal or Claude call: commit, call out, then open a new transaction (the
  * outbox task shape).

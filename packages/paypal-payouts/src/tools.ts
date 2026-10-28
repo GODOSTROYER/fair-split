@@ -3,8 +3,8 @@
 // only the two reads; create and cancel are server-only and reachable solely through
 // PayoutsService (register §8).
 
+import type { CallPriority, PayPalHttp } from "@fairsplit/paypal-core";
 import type { z } from "zod";
-import type { CallPriority, PayPalHttp } from "./_shims/paypal-core.js";
 import { AGENT_READ_TOOL_JSON_SCHEMAS } from "./agent-read-schemas.js";
 import { getPayoutBatch, getPayoutItem } from "./functions.js";
 import {
@@ -180,27 +180,76 @@ export class PayoutsApiError extends Error {
   }
 }
 
-const AGENT_METHOD_SET: ReadonlySet<string> = new Set(AGENT_PAYOUT_METHODS);
+/** The agent's read was refused before anything was sent (another run's id, an oversized page). */
+export class PayoutToolRefusedError extends Error {
+  constructor(
+    readonly tool: AgentPayoutMethod,
+    readonly reason: string,
+  ) {
+    super(`${tool}: ${reason}`);
+    this.name = "PayoutToolRefusedError";
+  }
+}
 
-/** Runs one of the agent's two read tools. Create and cancel are refused before anything is sent. */
+/**
+ * One agent session reads one run's payouts and nothing else (S4 tools 14-15, "Rhea's UNCLAIMED"),
+ * as AgentInvoiceSession binds the invoice tools to the run's invoice. Showcase, judge and dev share
+ * one sandbox business account, so an unbound read could put another run's receivers in the model's
+ * context. The ids come from the database's rows for the session run, never from the model.
+ */
+export interface AgentPayoutSession {
+  http: PayPalHttp;
+  /** payout_batch_id of each of the run's batches (the primary batch and any re-route). */
+  payoutBatchIds: ReadonlySet<string>;
+  /** payout_item_id of each of the run's items. */
+  payoutItemIds: ReadonlySet<string>;
+}
+
+/** The most items one agent read may list: PR #107's default page, and far over a Judge run's 8. */
+export const AGENT_PAYOUT_PAGE_SIZE_MAX = 100;
+
+const AGENT_METHOD_SET: ReadonlySet<string> = new Set(AGENT_PAYOUT_METHODS);
+const CONTEXT: Context = { sandbox: true };
+
+function parseRead<T>(
+  tool: AgentPayoutMethod,
+  schema: { safeParse(input: unknown): { success: true; data: T } | { success: false } },
+  args: unknown,
+): T {
+  const parsed = schema.safeParse(args);
+  if (!parsed.success) throw new PayoutToolRefusedError(tool, "arguments do not match the tool schema");
+  return parsed.data;
+}
+
+/**
+ * Runs one of the agent's two read tools for the session's run. Create and cancel are refused before
+ * anything is sent, and so is a read of a batch or item the run does not hold, or a page over 100 items.
+ */
 export async function runAgentPayoutTool(
-  http: PayPalHttp,
+  session: AgentPayoutSession,
   tool: string,
   args: unknown,
   options: { priority?: CallPriority } = {},
 ): Promise<unknown> {
   if (!AGENT_METHOD_SET.has(tool)) throw new PayoutToolNotAllowedError(tool);
-  const context: Context = { sandbox: true };
-  const result =
-    tool === "get_payout_batch"
-      ? await getPayoutBatch(http, context, args as never, options)
-      : await getPayoutItem(http, context, args as never, options);
+  const method = tool as AgentPayoutMethod;
+  let result: Awaited<ReturnType<typeof getPayoutBatch | typeof getPayoutItem>>;
+  if (method === "get_payout_batch") {
+    const params = parseRead(method, getPayoutBatchParameters(CONTEXT), args);
+    if (!session.payoutBatchIds.has(params.payout_batch_id)) {
+      throw new PayoutToolRefusedError(method, "payout_batch_id is not one of this run's batches");
+    }
+    if (params.page_size > AGENT_PAYOUT_PAGE_SIZE_MAX) {
+      throw new PayoutToolRefusedError(method, `page_size is at most ${AGENT_PAYOUT_PAGE_SIZE_MAX}`);
+    }
+    result = await getPayoutBatch(session.http, CONTEXT, params, options);
+  } else {
+    const params = parseRead(method, getPayoutItemParameters(CONTEXT), args);
+    if (!session.payoutItemIds.has(params.payout_item_id)) {
+      throw new PayoutToolRefusedError(method, "payout_item_id is not one of this run's items");
+    }
+    result = await getPayoutItem(session.http, CONTEXT, params, options);
+  }
   if (result.ok) return result.body;
-  throw new PayoutsApiError(
-    tool as AgentPayoutMethod,
-    result.status,
-    result.name,
-    result.debugId,
-    result.message,
-  );
+  throw new PayoutsApiError(method, result.status, result.name, result.debugId, result.message);
 }

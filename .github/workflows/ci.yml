@@ -1,0 +1,137 @@
+# CI for every PR and workstream branch (architecture section 15, S5.2.3).
+# Every action is pinned by full commit SHA; the tag and its release date are in the trailing comment
+# and in docs/versions.md. Bump only through a deps PR.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, "ws/**", "deps/**"]
+  workflow_dispatch:
+  # Nightly full-history secret scan. gitleaks-action scans only the pushed commits on push and only the PR's
+  # commits on pull_request; it scans the whole history only on schedule and workflow_dispatch.
+  schedule:
+    - cron: "43 20 * * *" # 20:43 UTC = 02:13 IST, after the day's merges
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.19.0"
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  TURBO_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+
+jobs:
+  verify:
+    name: lint, types, tests, boundaries, secrets
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout (full history for diffs)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 (2026-07-14)
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Enable pnpm through corepack (version from package.json packageManager)
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 (2026-06-26)
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-node${{ env.NODE_VERSION }}-
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Work out the diff base
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$(git merge-base "origin/$BASE_REF" HEAD)"
+          elif [ "$GITHUB_REF_NAME" != "main" ]; then
+            base="$(git merge-base origin/main HEAD)"
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            base="$BEFORE_SHA"
+          else
+            base="$(git rev-parse HEAD~1 2>/dev/null || git hash-object -t tree /dev/null)"
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "Diff base: $base"
+
+      - name: Biome
+        run: pnpm exec biome ci --reporter=github .
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Dependency rule (dependency-cruiser)
+        run: pnpm deps:check
+
+      # No ownership step here: on pull_request GitHub runs the PR's own copy of this file, so a step here could
+      # be edited away by the PR it judges. The gate is ownership.yml (pull_request_target, from main) and the
+      # merger's run of main's checker (CONTRIBUTING.md, "Merging"); ADR-0006.
+
+      - name: secretlint (whole tree)
+        run: pnpm secrets:scan
+
+      - name: Secret guard over changed files
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          git diff -z --name-only --diff-filter=ACMR "$BASE_SHA" HEAD \
+            | xargs -0 -r node tools/guard-env.mjs
+
+  gitleaks:
+    # Scope depends on the trigger (gitleaks-action v3): push = the pushed commits, pull_request = the PR's
+    # commits, schedule (nightly) and workflow_dispatch = the full history of the checked-out ref.
+    name: gitleaks (commit range; full history nightly and on manual run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # On pull_request the action lists the PR's commits (GET /repos/{owner}/{repo}/pulls/{n}/commits), which in a
+    # private repository needs pull-requests: read; without it the 403 fails the job on every PR.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0 (2026-05-30)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Personal-account repo: no GITLEAKS_LICENSE needed. Comments stay off so the job keeps read-only rights.
+          GITLEAKS_ENABLE_COMMENTS: "false"

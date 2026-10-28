@@ -2,15 +2,18 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import {
   cropBoxToMaster,
-  cropForZoom,
   dHash64,
   hammingHex,
   imageIdentity,
+  OUTSIDE_FILL,
   PREP_V,
   prepareImage,
+  QUARANTINE_FILL,
+  SANITIZE_V,
+  sanitizeForModel,
 } from "./prep.js";
 import { countImageTokens, HIGH_RES_MAX_EDGE, HIGH_RES_MAX_TOKENS, resizedSize } from "./resize.js";
-import { plainPage } from "./test-fixtures.js";
+import { plainPage, regionStats, stripedPage } from "./test-fixtures.js";
 
 describe("resizedSize (Anthropic reference implementation)", () => {
   it("matches the documented examples", () => {
@@ -67,26 +70,72 @@ describe("prepareImage", () => {
   });
 });
 
-describe("zoom crops", () => {
-  it("pads 25% per side (min 160x96), upscales x2 and maps boxes back to the master", async () => {
+/** Pixel statistics of a master-pixel region of a crop (shrunk by `inset` crop pixels for JPEG edges). */
+function region(
+  crop: { image: Buffer; origin: { x: number; y: number }; scale: { x: number; y: number } },
+  b: { x1: number; y1: number; x2: number; y2: number },
+  inset = 4,
+) {
+  const toCrop = (v: number, o: number, k: number) => (v - o) * k;
+  return regionStats(
+    crop.image,
+    {
+      x1: toCrop(b.x1, crop.origin.x, crop.scale.x),
+      y1: toCrop(b.y1, crop.origin.y, crop.scale.y),
+      x2: toCrop(b.x2, crop.origin.x, crop.scale.x),
+      y2: toCrop(b.y2, crop.origin.y, crop.scale.y),
+    },
+    inset,
+  );
+}
+
+describe("sanitizeForModel: the only way a crop reaches a model (S4.2, S4.7 layer 4)", () => {
+  const SIZE = { width: 1000, height: 1400 };
+  const PAGE_SLIP = { x1: 40, y1: 40, x2: 960, y2: 1360 };
+
+  it("pads 25% per side (min 160x96), upscales x2 (long edge <= 1,000 px) and maps boxes back", async () => {
     const master = (await prepareImage(await plainPage())).A;
-    const crop = await cropForZoom(
-      master,
-      { width: 1000, height: 1400 },
-      { x1: 500, y1: 590, x2: 900, y2: 640 },
-    );
+    const crop = await sanitizeForModel(master, SIZE, {
+      rect: { x1: 500, y1: 590, x2: 900, y2: 640 },
+      slip: PAGE_SLIP,
+      hatch: [],
+    });
     expect(crop.rect).toEqual({ x1: 400, y1: 567, x2: 1000, y2: 663 });
     expect(crop.width).toBe(1000);
     expect(crop.scale.x).toBeCloseTo(1000 / 600, 6);
-    const back = cropBoxToMaster({ x1: 0, y1: 0, x2: crop.width, y2: crop.height }, crop);
-    expect(back).toEqual(crop.rect);
-    const small = await cropForZoom(
-      master,
-      { width: 1000, height: 1400 },
-      { x1: 10, y1: 10, x2: 30, y2: 20 },
-    );
+    expect(cropBoxToMaster({ x1: 0, y1: 0, x2: crop.width, y2: crop.height }, crop)).toEqual(crop.rect);
+    expect(crop.recipe).toEqual({ v: SANITIZE_V, slip: PAGE_SLIP, hatch: [] });
+    const small = await sanitizeForModel(master, SIZE, {
+      rect: { x1: 50, y1: 50, x2: 70, y2: 60 },
+      slip: PAGE_SLIP,
+      hatch: [],
+    });
     expect([small.rect.x2 - small.rect.x1, small.rect.y2 - small.rect.y1]).toEqual([160, 96]);
     expect([small.width, small.height]).toEqual([320, 192]);
+  });
+
+  it("paints everything outside the slip flat grey and every quarantined box opaque", async () => {
+    const master = (await prepareImage(await stripedPage())).A;
+    const slip = { x1: 100, y1: 100, x2: 900, y2: 1300 };
+    const note = { x1: 300, y1: 600, x2: 380, y2: 650 };
+    // The window of this field reaches past the slip's left edge (x < 100) and covers the note.
+    const crop = await sanitizeForModel(master, SIZE, {
+      rect: { x1: 120, y1: 600, x2: 420, y2: 660 },
+      slip,
+      hatch: [note, { x1: 700, y1: 1000, x2: 760, y2: 1040 }],
+    });
+    expect(crop.rect).toEqual({ x1: 45, y1: 582, x2: 495, y2: 678 });
+    const outside = await region(crop, { x1: 45, y1: 582, x2: 100, y2: 678 }, 10);
+    expect(outside.min).toBeGreaterThanOrEqual(OUTSIDE_FILL[0] - 8);
+    expect(outside.max).toBeLessThanOrEqual(OUTSIDE_FILL[0] + 8);
+    const hatched = await region(crop, note);
+    expect(hatched.min).toBeGreaterThanOrEqual(QUARANTINE_FILL[0] - 8);
+    expect(hatched.max).toBeLessThanOrEqual(QUARANTINE_FILL[0] + 8);
+    // Elsewhere on the slip the stripes show: the page had ink everywhere the fills are.
+    const open = await region(crop, { x1: 420, y1: 590, x2: 490, y2: 670 });
+    expect(open.max - open.min).toBeGreaterThan(150);
+    // Only the box inside the window, padded by 16 px (2% of an 800 px slip), is in the recipe.
+    expect(crop.recipe.hatch).toEqual([{ x1: 284, y1: 584, x2: 396, y2: 666 }]);
   });
 });
 

@@ -1,5 +1,6 @@
 // msw harness. The payouts package talks to PayPal only through the injected IC-05 PayPalHttp; in
-// tests that is FetchPayPalHttp (below), so every request crosses a real fetch and msw answers it.
+// tests that is WS-PPCORE's real client (support/http.ts), so every request crosses a real fetch and
+// msw answers it.
 
 import { type DefaultBodyType, HttpResponse, http, type JsonBodyType } from "msw";
 import { setupServer } from "msw/node";

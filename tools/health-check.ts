@@ -5,14 +5,19 @@
 // Checks, each reported as ok / warn / fail / skip:
 //   api.healthz      GET {origin}/healthz must be 200 (liveness; Render's health check path)
 //   api.readyz       GET {origin}/readyz (readiness: DB, LISTEN, token scope, webhooks, flags, dispatcher)
-//   paypal.env       PP_ENV must be "sandbox"; anything else stops the PayPal checks
+//   paypal.env       PP_ENV must be "sandbox", exactly as the boot check (assertSandbox) demands;
+//                    unset or anything else fails and stops the PayPal checks
+//   paypal.mode      ADR-0002's rail: PP_MODE=simulator (the default) or sandbox. On the simulator the
+//                    PayPal checks are skipped and labelled: there is no sandbox to call, and /readyz
+//                    covers the simulator inside fs-api
 //   paypal.token     OAuth client-credentials; exact scopes for invoicing, payouts, search and balances
 //   paypal.webhook   our registration exists, points at {origin}/webhooks/paypal, has all 15 events (register §8)
 //   paypal.balance   USD available balance; warn under US$10,000 (C-21), fail under US$5,000 (S3.9)
-// PayPal checks are skipped until PP_CLIENT_ID and PP_CLIENT_SECRET exist. At most 3 PayPal calls per
-// run. Output carries only non-secret facts (status codes, webhook id, balance); every line is
-// scrubbed of credential values before it is printed.
+// On the sandbox, PayPal checks are skipped until PP_CLIENT_ID and PP_CLIENT_SECRET exist. At most 3
+// PayPal calls per run. Output carries only non-secret facts (status codes, webhook id, balance);
+// every line is scrubbed of credential values before it is printed.
 import { loadDotEnv } from "../apps/tasks/src/env.js";
+import { isSandbox } from "../apps/tasks/src/kill.js";
 import { isMain } from "../apps/tasks/src/main.js";
 
 export const PAYPAL_SANDBOX_BASE = "https://api-m.sandbox.paypal.com";
@@ -88,6 +93,12 @@ function present(env: NodeJS.ProcessEnv, name: string): string | undefined {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
 }
 
+/** ADR-0002's PayPal rail: `simulator` when unset (the default until credentials exist), else as given. */
+export function paypalMode(env: NodeJS.ProcessEnv): "simulator" | "sandbox" | undefined {
+  const mode = present(env, "PP_MODE") ?? "simulator";
+  return mode === "simulator" || mode === "sandbox" ? mode : undefined;
+}
+
 /** Decimal string to integer cents without floating point ("12345.6" -> 1234560). */
 export function toCents(value: string): number {
   const m = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
@@ -149,16 +160,46 @@ export async function runHealthChecks(deps: HealthCheckDeps): Promise<CheckResul
     results.push({ name: "api.readyz", status: "skip", detail: "no --origin or FS_API_ORIGIN" });
   }
 
-  const ppEnv = present(deps.env, "PP_ENV") ?? "sandbox";
-  if (ppEnv !== "sandbox") {
+  // The same test the entries' boot check applies: unset is not sandbox.
+  if (!isSandbox(deps.env)) {
+    const got = deps.env.PP_ENV;
     results.push({
       name: "paypal.env",
       status: "fail",
-      detail: `PP_ENV is "${ppEnv}"; only sandbox is allowed`,
+      detail:
+        got === undefined
+          ? "PP_ENV is unset; the boot check refuses anything but sandbox"
+          : `PP_ENV is "${got}"; only sandbox is allowed`,
     });
     return results;
   }
   results.push({ name: "paypal.env", status: "ok", detail: "sandbox" });
+
+  const mode = paypalMode(deps.env);
+  if (mode === undefined) {
+    results.push({
+      name: "paypal.mode",
+      status: "fail",
+      detail: "PP_MODE must be simulator or sandbox (ADR-0002)",
+    });
+    return results;
+  }
+  if (mode === "simulator") {
+    results.push({
+      name: "paypal.mode",
+      status: "ok",
+      detail: "simulator: simulated rail, labelled (ADR-0002)",
+    });
+    for (const name of ["paypal.token", "paypal.webhook", "paypal.balance"]) {
+      results.push({
+        name,
+        status: "skip",
+        detail: "simulated rail (PP_MODE=simulator): no sandbox to call",
+      });
+    }
+    return results;
+  }
+  results.push({ name: "paypal.mode", status: "ok", detail: "sandbox: PayPal's sandbox" });
 
   const clientId = present(deps.env, "PP_CLIENT_ID");
   const clientSecret = present(deps.env, "PP_CLIENT_SECRET");

@@ -1,25 +1,45 @@
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import {
   AUTO_CANCEL_AFTER_DAYS,
   AUTO_CANCEL_MAX_DAYS_AHEAD,
-  allowedInvoiceNotes,
-  approvalCovers,
   autoCancelDate,
+  canonicalInvoiceCall,
+  canonicalSend,
+  QUOTE_ITEM_KEYS,
+} from "@fairsplit/domain";
+import { describe, expect, it } from "vitest";
+import {
+  approvalCovers,
   autoCancelWindowError,
   buildInvoicePlan,
   type CreateInvoiceArgs,
-  INVOICE_NOTE_CLOSINGS,
+  draftDifferences,
   InvoicePlanError,
+  type InvoiceQuote,
   invoiceMemo,
   invoiceNumberFor,
+  invoiceSendApproval,
+  ppDate,
   rateCardReference,
-  reconcileAgentDraft,
+  readAgentCreate,
   runSlug,
   seasonIdCode,
+  sendArgsSha256,
 } from "../src/index.js";
-import { BUSINESS_EMAIL, HERO_QUOTE, heroRun, PAYER, RATE_CARD_SHA256 } from "./support/fixtures.js";
+import {
+  BUSINESS_EMAIL,
+  HERO_QUOTE,
+  heroQuote,
+  heroRun,
+  LOT_CODE,
+  PAYER,
+  RATE_CARD_SHA256,
+} from "./support/fixtures.js";
+import { mutants } from "./support/mutations.js";
 
-const plan = () => buildInvoicePlan(heroRun(), { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL });
+const plan = () => buildInvoicePlan(heroRun(), { businessEmail: BUSINESS_EMAIL });
+const planFor = (quote: InvoiceQuote) => () =>
+  buildInvoicePlan(heroRun({ quote }), { businessEmail: BUSINESS_EMAIL });
 
 describe("register §8 invoice fields", () => {
   it("derives the season ID code, run slug and invoice number", () => {
@@ -28,9 +48,8 @@ describe("register §8 invoice fields", () => {
     expect(invoiceNumberFor("2026-A", 37)).toBe("FS-2026A-r37");
   });
 
-  it("keeps invoice_number within PayPal's 25 characters for every environment offset (S3.4)", () => {
-    // judge/prod from 1, dev from 100000, nightly smoke from 900000 + 10 × run number
-    for (const runSeq of [1, 100_000, 900_000 + 10 * 99_999]) {
+  it("keeps invoice_number within PayPal's 25 characters for every run block (k × 10,000 + 1, k ≤ 999)", () => {
+    for (const runSeq of [1, 37, 999_999, 1_000_001, 9_990_001, 9_999_999]) {
       expect(invoiceNumberFor("2026-A", runSeq).length).toBeLessThanOrEqual(25);
     }
   });
@@ -54,7 +73,7 @@ describe("register §8 invoice fields", () => {
     );
   });
 
-  it("auto-cancels on the invoice date + 25 days (C-27): an invoice dated 5 Nov cancels on 30 Nov", () => {
+  it("auto-cancels on the invoice date + 25 days (C-27, core's autoCancelDate): 5 Nov cancels on 30 Nov", () => {
     expect(AUTO_CANCEL_AFTER_DAYS).toBe(25);
     expect(autoCancelDate("2026-11-05")).toBe("2026-11-30");
     expect(autoCancelDate("2026-12-20")).toBe("2027-01-14");
@@ -66,7 +85,6 @@ describe("register §8 invoice fields", () => {
     expect(p.createArgs).toEqual<CreateInvoiceArgs>({
       currency_code: "USD",
       invoice_number: "FS-2026A-r37",
-      invoice_date: "2026-11-05",
       reference: `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
       note: invoiceMemo("2026-A", RATE_CARD_SHA256, "LB-PH-2026-03"),
       invoicer_email_address: BUSINESS_EMAIL,
@@ -94,30 +112,96 @@ describe("register §8 invoice fields", () => {
         },
       ],
     });
-    expect(p.totalCents).toBe(HERO_QUOTE.totalCents);
-    expect(p.autoCancelOn).toBe("2026-11-30");
+    expect(p.totalCents).toBe(BigInt(HERO_QUOTE.totalCents));
   });
 
-  it("refuses a quote whose total is not the sum of its parts, a non-USD quote, or a negative part", () => {
-    const bad = (quote: object) => () =>
-      buildInvoicePlan(heroRun({ quote: { ...HERO_QUOTE, ...quote } }), {
-        invoiceDate: "2026-11-05",
-        businessEmail: BUSINESS_EMAIL,
-      });
-    expect(bad({ totalCents: HERO_QUOTE.totalCents + 1n })).toThrow(/not the sum/);
-    expect(bad({ currency: "PHP" })).toThrow(/USD only/);
-    expect(bad({ bonusCents: -1n, totalCents: HERO_QUOTE.totalCents - HERO_QUOTE.bonusCents - 1n })).toThrow(
-      /non-negative/,
-    );
+  it("is core's canonical body: canonicalInvoiceCall over the plan's expectation, nothing local", () => {
+    const p = plan();
+    expect(p.expected).toEqual({
+      quote: HERO_QUOTE,
+      invoiceNumber: "FS-2026A-r37",
+      reference: `rc:${RATE_CARD_SHA256.slice(0, 16)}`,
+      memo: invoiceMemo("2026-A", RATE_CARD_SHA256, LOT_CODE),
+      businessEmail: BUSINESS_EMAIL,
+      payer: { email: PAYER.email, businessName: PAYER.businessName },
+    });
+    const call = canonicalInvoiceCall("create_invoice", {
+      ...p.expected,
+      invoiceId: null,
+      invoiceDate: null,
+    });
+    expect(call).toEqual({ ok: true, method: "create_invoice", args: p.createArgs });
   });
 
-  it("keeps a zero component as a 0.00 line, so the invoice always has the quote's three lines", () => {
-    const p = buildInvoicePlan(
-      heroRun({
-        quote: { ...HERO_QUOTE, disbursementCents: 0n, totalCents: HERO_QUOTE.totalCents - 6_000n },
-      }),
-      { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL },
-    );
+  it("never sends an invoice date or a payment term: PayPal dates the invoice, so a send cannot schedule it", () => {
+    const p = plan();
+    expect(p.createArgs).not.toHaveProperty("invoice_date");
+    expect(JSON.stringify(p.createArgs)).not.toMatch(/date|due|payment_term/);
+  });
+
+  it("refuses a quote whose total is not the sum of its lines, a non-USD quote, or a negative line", () => {
+    expect(planFor({ ...HERO_QUOTE, totalCents: HERO_QUOTE.totalCents + 1 })).toThrow(/not the sum/);
+    expect(planFor({ ...HERO_QUOTE, currency: "PHP" as "USD" })).toThrow(/USD only/);
+    expect(planFor(heroQuote({ bonus: -1 }))).toThrow(/non-negative/);
+    expect(planFor(heroQuote({ premium: 2887.5 }))).toThrow(/integer cents/);
+  });
+
+  it("refuses a quote computed for another rate card or another lot (it would bill another season)", () => {
+    expect(planFor({ ...HERO_QUOTE, rateCardSha256: "0".repeat(64) })).toThrow(/another rate card/);
+    expect(planFor({ ...HERO_QUOTE, lotCode: "LB-PH-2026-04" })).toThrow(/another lot/);
+    expect(LOT_CODE).toBe(HERO_QUOTE.lotCode);
+  });
+
+  it("refuses a quote whose pools disagree with its lines", () => {
+    expect(planFor({ ...HERO_QUOTE, poolCents: HERO_QUOTE.poolCents + 1 })).toThrow(/pools disagree/);
+    expect(planFor({ ...HERO_QUOTE, bonusPoolCents: 0 })).toThrow(/pools disagree/);
+  });
+
+  it("refuses a quote with lines missing, out of order or not in quantity 1", () => {
+    const [premium, bonus, disbursement] = HERO_QUOTE.items as [
+      InvoiceQuote["items"][number],
+      InvoiceQuote["items"][number],
+      InvoiceQuote["items"][number],
+    ];
+    expect(QUOTE_ITEM_KEYS).toEqual(["PREMIUM", "BONUS", "DISBURSEMENT"]);
+    expect(planFor({ ...HERO_QUOTE, items: [premium, bonus] })).toThrow(/exactly three/);
+    expect(planFor({ ...HERO_QUOTE, items: [bonus, premium, disbursement] })).toThrow(/must be PREMIUM/);
+    expect(
+      planFor({ ...HERO_QUOTE, items: [premium, bonus, { ...disbursement, quantity: "2" as "1" }] }),
+    ).toThrow(/quantity/);
+  });
+
+  it.each([
+    ["a digit", "Premium 2026"],
+    ["an amount", "Premium $2,887.50"],
+    ["an amount in words", "Four thousand premium"],
+    ["a Filipino number word", "Dalawang daang premium"],
+    ["a Roman numeral", "Premium XIV"],
+    ["over 40 characters", "Premium paid to the members of the co-op as ratified"],
+    ["a leading space", " Premium"],
+    ["a trailing space", "Premium "],
+    ["a colon", "Premium: season"],
+    ["a domain", "Premium at example.test"],
+    ["a non-ASCII letter", "Prémium"],
+    ["a word outside the premium line's vocabulary", "Premium for Bukidnon"],
+    ["another line's word", "Premium bonus"],
+    ["no word of its own line", "Fairtrade"],
+    ["an empty label", ""],
+  ])("refuses a quote whose own premium name has %s (core's label rules)", (_label, name) => {
+    const items = HERO_QUOTE.items.map((i) => (i.key === "PREMIUM" ? { ...i, name } : i));
+    expect(planFor({ ...HERO_QUOTE, items })).toThrow(/label/);
+  });
+
+  it("refuses a quote whose names are swapped between lines", () => {
+    const swapped = HERO_QUOTE.items.map((i, n, all) => ({
+      ...i,
+      name: (all[(n + 1) % 3] as typeof i).name,
+    }));
+    expect(planFor({ ...HERO_QUOTE, items: swapped })).toThrow(/label/);
+  });
+
+  it("keeps a zero line as a 0.00 line, so the invoice always has the quote's three lines", () => {
+    const p = planFor(heroQuote({ disbursement: 0 }))();
     expect(p.createArgs.items.map((i) => [i.name, i.unit_amount.value])).toEqual([
       ["Premium", "2887.50"],
       ["Quality bonus", "1386.00"],
@@ -126,23 +210,19 @@ describe("register §8 invoice fields", () => {
   });
 
   it("refuses a quote that asks for nothing", () => {
-    expect(() =>
-      buildInvoicePlan(
-        heroRun({
-          quote: { currency: "USD", premiumCents: 0n, bonusCents: 0n, disbursementCents: 0n, totalCents: 0n },
-        }),
-        { invoiceDate: "2026-11-05", businessEmail: BUSINESS_EMAIL },
-      ),
-    ).toThrow(/more than zero/);
+    expect(planFor(heroQuote({ premium: 0, bonus: 0, disbursement: 0 }))).toThrow(/more than zero/);
   });
 
-  it("requires a real invoicer and payer e-mail", () => {
-    expect(() => buildInvoicePlan(heroRun(), { invoiceDate: "2026-11-05", businessEmail: "coop" })).toThrow(
+  it("requires a real invoicer and payer e-mail, in plain ASCII as the policy lattice compares them", () => {
+    expect(() => buildInvoicePlan(heroRun(), { businessEmail: "coop" })).toThrow(InvoicePlanError);
+    expect(() => buildInvoicePlan(heroRun(), { businessEmail: "coop@exampl\u212a.test" })).toThrow(
       InvoicePlanError,
     );
     expect(() =>
-      buildInvoicePlan(heroRun({ payer: { ...PAYER, email: "nobody" } }), {
-        invoiceDate: "2026-11-05",
+      buildInvoicePlan(heroRun({ payer: { ...PAYER, email: "nobody" } }), { businessEmail: BUSINESS_EMAIL }),
+    ).toThrow(InvoicePlanError);
+    expect(() =>
+      buildInvoicePlan(heroRun({ payer: { ...PAYER, email: ` ${PAYER.email}` } }), {
         businessEmail: BUSINESS_EMAIL,
       }),
     ).toThrow(InvoicePlanError);
@@ -153,7 +233,7 @@ describe("the AUTO_CANCEL window (dueWithin30Days), and no due date", () => {
   it("inv.i8.labels: carries no due date, because PayPal never receives one (no payment_term)", () => {
     const p = plan();
     expect(p).not.toHaveProperty("dueDate");
-    expect(JSON.stringify(p.createArgs)).not.toMatch(/due|payment_term/);
+    expect(p).not.toHaveProperty("autoCancelOn");
   });
 
   it("accepts a date after today and at most 30 days out", () => {
@@ -169,132 +249,221 @@ describe("the AUTO_CANCEL window (dueWithin30Days), and no due date", () => {
     expect(autoCancelWindowError("2026-12-06", "2026-11-05")).toMatch(/more than 30 days/);
     expect(() => autoCancelWindowError("2026-11-31", "2026-11-05")).toThrow(RangeError);
   });
+
+  it("measures today on PayPal's calendar (ppDate, America/Los_Angeles), not UTC", () => {
+    // 00:30 UTC on 6 Nov is 16:30 on 5 Nov in Los Angeles (PST after 1 Nov), and 17:30 PDT before it.
+    expect(ppDate(new Date("2026-11-06T00:30:00Z"))).toBe("2026-11-05");
+    expect(ppDate(new Date("2026-10-23T00:30:00Z"))).toBe("2026-10-22");
+    expect(ppDate(new Date("2026-11-05T20:00:00Z"))).toBe("2026-11-05");
+  });
 });
 
 describe("sendNeedsTreasurer: an approval sends exactly one invoice", () => {
   const approval = { approverId: "persona:analyn", approvedAt: "2026-11-05T02:00:00.000Z" };
   const invoice = { invoiceNumber: "FS-2026A-r37", invoiceId: "INV2-Z56S-5LLA-Q52L-CPZ5" };
 
-  it("covers the invoice it names, by number and, when given, by PayPal id", () => {
+  const bound = invoiceSendApproval({
+    ...approval,
+    invoiceNumber: "FS-2026A-r37",
+    invoiceId: invoice.invoiceId,
+  });
+
+  it("binds the exact send: sha256 of the JCS of core's canonicalSend, {invoice_id, send_to_recipient: false}", () => {
+    expect(canonicalSend(invoice.invoiceId)).toEqual({
+      invoice_id: invoice.invoiceId,
+      send_to_recipient: false,
+    });
+    const jcs = `{"invoice_id":"${invoice.invoiceId}","send_to_recipient":false}`;
+    expect(sendArgsSha256(invoice.invoiceId)).toBe(createHash("sha256").update(jcs).digest("hex"));
+    expect(bound).toEqual({
+      ...approval,
+      invoiceNumber: "FS-2026A-r37",
+      invoiceId: invoice.invoiceId,
+      sendArgsSha256: sendArgsSha256(invoice.invoiceId),
+    });
+  });
+
+  it("covers the invoice it is bound to, and by number alone only for the server chain", () => {
+    expect(approvalCovers(bound, invoice)).toBe(true);
+    expect(approvalCovers(bound, invoice, { bound: true })).toBe(true);
+    // Given before the invoice existed (Judge Mode's first press): the server chain only.
     expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37" }, invoice)).toBe(true);
-    expect(
-      approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37", invoiceId: invoice.invoiceId }, invoice),
-    ).toBe(true);
+    expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37" }, invoice, { bound: true })).toBe(
+      false,
+    );
   });
 
   it("covers nothing else", () => {
     expect(approvalCovers(null, invoice)).toBe(false);
     expect(approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r36" }, invoice)).toBe(false);
-    expect(
-      approvalCovers({ ...approval, invoiceNumber: "FS-2026A-r37", invoiceId: "INV2-OTHER" }, invoice),
-    ).toBe(false);
-    expect(approvalCovers({ ...approval, approverId: "", invoiceNumber: "FS-2026A-r37" }, invoice)).toBe(
-      false,
-    );
+    expect(approvalCovers({ ...bound, invoiceId: "INV2-OTHER" }, invoice)).toBe(false);
+    expect(approvalCovers({ ...bound, approverId: "" }, invoice)).toBe(false);
+    // An id without the hash of its send, or the hash without the id, binds nothing.
+    expect(approvalCovers({ ...bound, sendArgsSha256: null }, invoice)).toBe(false);
+    expect(approvalCovers({ ...bound, invoiceId: null }, invoice)).toBe(false);
+    expect(approvalCovers({ ...bound, sendArgsSha256: sendArgsSha256("INV2-OTHER") }, invoice)).toBe(false);
+    // A bound approval never covers an invoice whose id is not known yet.
+    expect(approvalCovers(bound, { ...invoice, invoiceId: null })).toBe(false);
   });
 });
 
-describe("inv.i1.no-model-numbers: the agent's draft may choose words from a closed list, never numbers", () => {
-  const agentDraft = (closing: string = INVOICE_NOTE_CLOSINGS[0]) => {
+describe("inv.i1.no-model-numbers: what the model's create_invoice arguments may say (readAgentCreate)", () => {
+  const RUN_ID = heroRun().runId;
+  /** Claude's labels: each names its own line, in its line's closed vocabulary (core). */
+  const LABELS = ["Fairtrade premium", "Bean quality bonus", "Payout disbursement costs"] as const;
+  const [premium, bonus, disbursement] = LABELS;
+  /** Core's canonical body for these labels, as plain JSON the model could have written. */
+  const canonicalFor = (labels: readonly string[] = LABELS): Record<string, unknown> => {
     const p = plan();
-    return { ...structuredClone(p.createArgs), note: `${p.note}. ${closing}` };
+    const call = canonicalInvoiceCall(
+      "create_invoice",
+      { ...p.expected, invoiceId: null, invoiceDate: null },
+      labels,
+    );
+    if (!call.ok) throw new Error(call.reason);
+    return structuredClone(call.args) as unknown as Record<string, unknown>;
   };
 
-  it("offers the memo alone or the memo with one listed closing, none with a digit", () => {
-    const memo = plan().note;
-    expect(allowedInvoiceNotes(memo)).toEqual([memo, ...INVOICE_NOTE_CLOSINGS.map((c) => `${memo}. ${c}`)]);
-    for (const closing of INVOICE_NOTE_CLOSINGS) expect(closing).not.toMatch(/\p{Nd}/u);
+  it("accepts S4.4's keyed item_labels and builds core's body from them, in the quote's line order", () => {
+    const keyed = { bonus, disbursement, premium };
+    expect(readAgentCreate({ item_labels: keyed }, plan(), RUN_ID)).toEqual({
+      ok: true,
+      labels: keyed,
+      args: canonicalFor(),
+    });
+    expect(readAgentCreate({ run_id: RUN_ID, item_labels: keyed }, plan(), RUN_ID).ok).toBe(true);
   });
 
-  it.each(INVOICE_NOTE_CLOSINGS)("accepts the closing %j and keeps every code-owned field", (closing) => {
-    const p = plan();
-    const result = reconcileAgentDraft(agentDraft(closing), p);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.args).toEqual({ ...p.createArgs, note: `${p.note}. ${closing}` });
+  it("accepts a toolkit draft that is exactly core's canonical body for its own labels, in any key order", () => {
+    const draft = canonicalFor();
+    expect(readAgentCreate(draft, plan(), RUN_ID)).toEqual({ ok: true, labels: [...LABELS], args: draft });
+    const reordered = Object.fromEntries(Object.entries(draft).reverse());
+    expect(readAgentCreate(reordered, plan(), RUN_ID).ok).toBe(true);
+    // The deterministic path's draft: the quote's own names.
+    expect(readAgentCreate(structuredClone(plan().createArgs), plan(), RUN_ID).ok).toBe(true);
   });
 
-  it("accepts the bare memo", () => {
-    const p = plan();
-    expect(reconcileAgentDraft(structuredClone(p.createArgs), p)).toEqual({ ok: true, args: p.createArgs });
+  it.each([
+    [
+      "another run's run_id",
+      { run_id: "0199f6a0-0000-7000-8000-000000000038", item_labels: { premium, bonus, disbursement } },
+    ],
+    ["a field beside item_labels", { item_labels: { premium, bonus, disbursement }, note: "Pay now" }],
+    ["labels as a list under item_labels", { item_labels: [...LABELS] }],
+    ["a fourth keyed label", { item_labels: { premium, bonus, disbursement, tip: "Tip" } }],
+    ["a keyed label missing", { item_labels: { premium, bonus } }],
+    ["a keyed label that is not text", { item_labels: { premium, bonus, disbursement: 60 } }],
+    ["words instead of arguments", "Create the invoice"],
+    ["nothing", null],
+    ["an empty object", {}],
+  ])("refuses %s", (_label, input) => {
+    const read = readAgentCreate(input, plan(), RUN_ID);
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.mismatches.length).toBeGreaterThan(0);
   });
 
-  const cases: [string, (d: ReturnType<typeof agentDraft>) => unknown][] = [
+  it.each([
+    ["an amount in words", ["Four thousand premium", bonus, disbursement]],
+    ["a digit", [premium, "Bonus 1386", disbursement]],
+    ["a Cebuano number word", ["Upat ka libo premium", bonus, disbursement]],
+    ["a Roman numeral", [premium, bonus, "Disbursement costs MMDCCC"]],
+    // The old local check let these through; core's per-line vocabulary does not.
+    [
+      "a word outside the line's vocabulary ('audit')",
+      [premium, bonus, "Payout and audit disbursement costs"],
+    ],
+    ["a place name", ["Premium for Bukidnon farmers", bonus, disbursement]],
+    ["a payment rail", [premium, bonus, "Disbursement by Zelle"]],
+    ["another line's word", [premium, "Quality bonus premium", disbursement]],
+    ["a label that does not name its own line", ["Fairtrade", bonus, disbursement]],
+    ["two lines swapped", [bonus, premium, disbursement]],
+  ])("core's label rules: refuses labels with %s, keyed or in a draft", (_label, labels) => {
+    const [p, b, d] = labels as [string, string, string];
+    const keyed = readAgentCreate({ item_labels: { premium: p, bonus: b, disbursement: d } }, plan(), RUN_ID);
+    expect(keyed.ok).toBe(false);
+    const draft = canonicalFor();
+    (draft.items as { name: string }[]).forEach((item, i) => {
+      item.name = labels[i] as string;
+    });
+    const drafted = readAgentCreate(draft, plan(), RUN_ID);
+    expect(drafted).toMatchObject({ ok: false });
+    if (!drafted.ok) expect(drafted.mismatches[0]).toMatch(/^items: /);
+  });
+
+  it("inv.i1.canonical-body: refuses a draft that differs from the canonical body in any byte, and says where", () => {
+    const all = mutants(canonicalFor());
+    expect(all.length).toBeGreaterThan(150);
+    for (const { label, draft } of all) {
+      const read = readAgentCreate(draft, plan(), RUN_ID);
+      expect(read.ok, label).toBe(false);
+      if (!read.ok) expect(read.mismatches.length, label).toBeGreaterThan(0);
+    }
+  });
+
+  it.each([
     [
       "a changed unit amount",
-      (d) => ({
+      (d: Draft) => ({
         ...d,
         items: d.items.map((i, n) =>
-          n === 0 ? { ...i, unit_amount: { currency_code: "USD", value: "2888.50" } } : i,
+          n ? i : { ...i, unit_amount: { currency_code: "USD", value: "2888.50" } },
         ),
       }),
+      "items[0].unit_amount.value: differs from the canonical body",
     ],
     [
-      "a changed quantity",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 1 ? { ...i, quantity: "2" } : i)) }),
+      "a shipping cost",
+      (d: Draft) => ({ ...d, shipping_cost: "25.00" }),
+      "shipping_cost: not in the canonical body",
     ],
-    ["an extra line", (d) => ({ ...d, items: [...d.items, { ...(d.items[2] as object), name: "Tip" }] })],
-    ["a dropped line", (d) => ({ ...d, items: d.items.slice(0, 2) })],
-    ["a shipping cost", (d) => ({ ...d, shipping_cost: "25.00" })],
+    ["a tip", (d: Draft) => ({ ...d, allow_tip: true }), "allow_tip: not in the canonical body"],
     [
-      "a partial-payment minimum",
-      (d) => ({ ...d, allow_partial_payment: true, minimum_partial_payment_amount: "100.00" }),
-    ],
-    ["a tip", (d) => ({ ...d, allow_tip: true })],
-    [
-      "a per-item discount",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, discount: { percent: "10" } })) }),
+      "an invoice date",
+      (d: Draft) => ({ ...d, invoice_date: "2026-11-05" }),
+      "invoice_date: not in the canonical body",
     ],
     [
-      "a per-item tax",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, tax: { name: "VAT", percent: "12" } })) }),
+      "a closing phrase after the memo",
+      (d: Draft) => ({ ...d, note: `${d.note}. Thank you.` }),
+      "note: differs from the canonical body",
     ],
-    ["another invoice number", (d) => ({ ...d, invoice_number: "FS-2026A-r38" })],
-    ["another reference", (d) => ({ ...d, reference: "rc:0000000000000000" })],
-    ["another invoicer", (d) => ({ ...d, invoicer_email_address: "attacker@example.test" })],
+    ["a missing note", (d: Draft) => ({ ...d, note: undefined }), "note: missing"],
     [
       "another payer",
-      (d) => ({ ...d, primary_recipients: [{ billing_info: { email_address: "attacker@example.test" } }] }),
+      (d: Draft) => ({
+        ...d,
+        primary_recipients: [
+          { billing_info: { business_name: PAYER.businessName, email_address: "attacker@example.test" } },
+        ],
+      }),
+      "primary_recipients[0].billing_info.email_address: differs from the canonical body",
     ],
-    ["another date", (d) => ({ ...d, invoice_date: "2026-11-06" })],
-    ["a note without the memo", (d) => ({ ...d, note: "Season premium" })],
-    ["a number in the note", (d) => ({ ...d, note: `${plan().note}. Please pay 5000 instead.` })],
+    ["an extra line", (d: Draft) => ({ ...d, items: [...d.items, d.items[2]] }), "items: "],
     [
-      "a number in an item name",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Premium 2887.50" } : i)) }),
+      "a key every object inherits",
+      (d: Draft) => ({ ...d, ...(JSON.parse('{"__proto__": {"allow_tip": true}}') as object) }),
+      "__proto__: not in the canonical body",
     ],
-    [
-      "a number in a description",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, description: "9,625 kg" })) }),
-    ],
-    ["a missing currency", (d) => ({ ...d, currency_code: undefined })],
-    ["not an invoice at all", () => ({ hello: "world" })],
-    // No free text either: words can carry an amount ("five thousand") or an injected instruction.
-    [
-      "a renamed item, even without digits",
-      (d) => ({ ...d, items: d.items.map((i, n) => (n === 0 ? { ...i, name: "Season premium" } : i)) }),
-    ],
-    [
-      "an item description, even without digits",
-      (d) => ({ ...d, items: d.items.map((i) => ({ ...i, description: "Paid to members as ratified" })) }),
-    ],
-    ["a free-text closing", (d) => ({ ...d, note: `${plan().note}. Thank you, Lantern Bay.` })],
-    ["an amount in words", (d) => ({ ...d, note: `${plan().note}. Please pay five thousand dollars.` })],
-    ["a link in the note", (d) => ({ ...d, note: `${plan().note}. Pay at https://pay.example.test` })],
-    [
-      "two listed closings",
-      (d) => ({ ...d, note: `${plan().note}. ${INVOICE_NOTE_CLOSINGS[0]} ${INVOICE_NOTE_CLOSINGS[1]}` }),
-    ],
-    ["a closing before the memo", (d) => ({ ...d, note: `${INVOICE_NOTE_CLOSINGS[0]} ${plan().note}` })],
-    ["a missing note", (d) => ({ ...d, note: undefined })],
-    ["pay-by-bank", (d) => ({ ...d, enable_pay_by_bank: true })],
-    ["a theme colour", (d) => ({ ...d, theme_color: "#000000" })],
-    ["an invoicer business name", (d) => ({ ...d, invoicer_business_name: "Another Co-op" })],
-  ];
+  ])("names %s", (_label, mutate, mismatch) => {
+    const read = readAgentCreate(
+      JSON.parse(JSON.stringify(mutate(canonicalFor() as unknown as Draft))),
+      plan(),
+      RUN_ID,
+    );
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.mismatches.some((m) => m.startsWith(mismatch))).toBe(true);
+  });
 
-  it.each(cases)("refuses %s", (_label, mutate) => {
-    const result = reconcileAgentDraft(mutate(agentDraft()), plan());
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.mismatches.length).toBeGreaterThan(0);
+  it("draftDifferences compares values code unit for code unit and ignores only key order", () => {
+    expect(draftDifferences({ a: "x", b: [1, { c: true }] }, { b: [1, { c: true }], a: "x" })).toEqual([]);
+    // "a" + U+0301 COMBINING ACUTE and U+00E1: the same text after NFC, two different bodies here.
+    expect(draftDifferences({ a: "a\u0301" }, { a: "\u00e1" })).toEqual([
+      "a: differs from the canonical body",
+    ]);
+    expect(draftDifferences({ a: "1.0" }, { a: "1.00" })).toEqual(["a: differs from the canonical body"]);
+    expect(draftDifferences({ a: 1 }, { a: "1" })).toEqual(["a: differs from the canonical body"]);
+    expect(draftDifferences([1, 2], [1])).toEqual(["(body): 2 entries, the canonical body has 1"]);
   });
 });
+
+type Draft = CreateInvoiceArgs & { note?: string | undefined };

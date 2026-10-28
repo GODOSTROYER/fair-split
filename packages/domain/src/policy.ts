@@ -16,16 +16,15 @@ import {
   type Verdict,
 } from "@fairsplit/contracts";
 import { match, P } from "ts-pattern";
+import { asciiEmailKey, foldAsciiCase, isAsciiEmail } from "./ascii.js";
 import { addDays } from "./format.js";
 import {
   AUTO_CANCEL_MAX_DAYS_AHEAD,
   autoCancelDate,
-  autoCancelRuleArgs,
-  canonicalInvoice,
+  canonicalInvoiceCall,
   itemLabelProblem,
   parseStrictIsoDate,
 } from "./invoice.js";
-import { minorToDecimal, parseDecimalMinor } from "./money.js";
 
 export type Rank = 0 | 1 | 2;
 export type Policy = (call: ToolCall, ctx: PolicyCtx) => { verdict: Rank; reason: string | null };
@@ -54,7 +53,59 @@ function str(v: unknown): string | null {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 const has = (o: Record<string, unknown>, k: string) => Object.hasOwn(o, k);
-const join = (path: string, key: string) => (path ? `${path}.${key}` : key);
+
+// ---------------------------------------------------------------- paths and bounded walks
+// A path is a list of segments (object keys and array indices), compared structurally: a key that
+// is spelled like a path ("primary_recipients[0].billing_info") is one segment, never three. Audit
+// text prints plain identifiers as `a.b[0]` and quotes every other key, in printable ASCII.
+
+type Seg = string | number;
+type Path = readonly Seg[];
+
+/** Deeper than any invoice call nests (canonical bodies are 4 levels deep); beyond it a walk denies. */
+export const MAX_ARG_DEPTH = 16;
+const TOO_DEEP = "The arguments nest too deeply to check";
+const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+const asciiJson = (s: string) =>
+  JSON.stringify(s).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
+/** A path as audit text: `items[0].name`, with other keys quoted (`["a.b"]`) and escaped to ASCII. */
+export function formatPath(path: Path): string {
+  let out = "";
+  for (const s of path) {
+    if (typeof s === "number") out += `[${s}]`;
+    else if (IDENT.test(s)) out += out === "" ? s : `.${s}`;
+    else out += `[${asciiJson(s)}]`;
+  }
+  return out;
+}
+const formatPaths = (paths: readonly Path[]) => paths.map(formatPath).sort();
+
+/**
+ * Visits every value under `args` (object keys and array elements) with its path, without
+ * recursion; `visit` returns false to skip what is under a value. Returns false, having stopped,
+ * when the args nest deeper than MAX_ARG_DEPTH (a loop does too), so a policy denies instead of
+ * overflowing the stack.
+ */
+function walk(args: unknown, visit: (path: Path, value: unknown) => boolean): boolean {
+  const stack: { path: Seg[]; value: unknown }[] = [{ path: [], value: args }];
+  for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+    const { path, value } = next;
+    if (path.length > MAX_ARG_DEPTH) return false;
+    if (path.length > 0 && !visit(path, value)) continue;
+    if (Array.isArray(value)) {
+      for (let i = value.length - 1; i >= 0; i--) stack.push({ path: [...path, i], value: value[i] });
+    } else if (isRecord(value)) {
+      const entries = Object.entries(value);
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const [k, x] = entries[i] as [string, unknown];
+        stack.push({ path: [...path, k], value: x });
+      }
+    }
+  }
+  return true;
+}
 
 /** Flat toolkit fields and the REST API's nested spelling of the same field. */
 const NESTED_ALIASES: readonly (readonly [flat: string, nested: readonly [string, string]])[] = [
@@ -73,7 +124,7 @@ export interface InvoiceFields {
   values: Readonly<Record<FlatField, string | null>>;
   /** Flat fields that are absent while their nested spelling is present: flat field → nested path. */
   nestedOnly: Readonly<Partial<Record<string, string>>>;
-  /** Readable `primary_recipients[].billing_info.email_address` values. */
+  /** `primary_recipients[].billing_info.email_address` values that are strict printable-ASCII e-mails. */
   recipientEmails: string[];
 }
 
@@ -108,12 +159,10 @@ export function readInvoiceFields(args: unknown): InvoiceFieldsRead {
       nestedOnly,
       recipientEmails: recipients
         .map((r) => (isRecord(r) && isRecord(r.billing_info) ? r.billing_info.email_address : null))
-        .filter((e): e is string => typeof e === "string" && EMAIL.test(e)),
+        .filter(isAsciiEmail),
     },
   };
 }
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** One flat field's value, or why it cannot be read (ambiguous or only in the nested form). */
 function field(
@@ -144,45 +193,58 @@ const RECIPIENT_KEYS: ReadonlySet<string> = new Set([
   "send_to",
   "to",
 ]);
-const RECIPIENT_EMAIL_PATH = /^primary_recipients\[\d+\]\.billing_info\.email_address$/;
+/** A key naming a recipient or a way to reach one, in any spelling or case. */
+const isRecipientKey = (k: string) =>
+  RECIPIENT_KEYS.has(k) || /e-?mail|recipient|phone/.test(foldAsciiCase(k));
 
-/** Paths of recipient-bearing keys anywhere in the draft other than the one allowed place. */
-function strayRecipientFields(args: unknown): string[] {
-  const out: string[] = [];
-  const walk = (v: unknown, path: string) => {
-    if (Array.isArray(v)) {
-      for (const [i, x] of v.entries()) walk(x, `${path}[${i}]`);
-      return;
+/** `primary_recipients[i].billing_info.email_address`, by structure: the one recipient e-mail. */
+const isRecipientEmailPath = (p: Path) =>
+  p.length === 4 &&
+  p[0] === "primary_recipients" &&
+  typeof p[1] === "number" &&
+  p[2] === "billing_info" &&
+  p[3] === "email_address";
+/** Where an e-mail may appear in a create_invoice draft: the recipient's, and the invoicer's. */
+const isEmailPath = (p: Path) =>
+  isRecipientEmailPath(p) || (p.length === 1 && p[0] === "invoicer_email_address");
+
+/**
+ * Paths of recipient-bearing fields anywhere in the draft other than the allowed places: a key that
+ * names a recipient, an e-mail or a phone, and any string holding an `@`. Null when the args nest
+ * too deeply to read.
+ */
+function strayRecipientFields(args: unknown): string[] | null {
+  const out: Path[] = [];
+  const ok = walk(args, (path, value) => {
+    if (isEmailPath(path) || (path.length === 1 && path[0] === "primary_recipients")) return true;
+    const key = path.at(-1);
+    if (
+      (typeof key === "string" && isRecipientKey(key)) ||
+      (typeof value === "string" && value.includes("@"))
+    ) {
+      out.push(path);
+      return false;
     }
-    if (!isRecord(v)) return;
-    for (const [k, x] of Object.entries(v)) {
-      const at = join(path, k);
-      const allowed = (path === "" && k === "primary_recipients") || RECIPIENT_EMAIL_PATH.test(at);
-      if (RECIPIENT_KEYS.has(k) && !allowed) out.push(at);
-      else walk(x, at);
-    }
-  };
-  walk(args, "");
-  return out.sort();
+    return true;
+  });
+  return ok ? formatPaths(out) : null;
 }
 
-/** Paths of keys that set a date or a payment term, anywhere in the args (not descended into). */
-function dateFields(args: unknown): string[] {
-  const out: string[] = [];
-  const walk = (v: unknown, path: string) => {
-    if (Array.isArray(v)) {
-      for (const [i, x] of v.entries()) walk(x, `${path}[${i}]`);
-      return;
+/**
+ * Paths of keys that set a date or a payment term, anywhere in the args (not descended into),
+ * except the ones `allowed`. Null when the args nest too deeply to read.
+ */
+function dateFields(args: unknown, allowed: (p: Path) => boolean = () => false): string[] | null {
+  const out: Path[] = [];
+  const ok = walk(args, (path) => {
+    const key = path.at(-1);
+    if (typeof key !== "string" || !(/date/i.test(key) || key === "payment_term" || key === "term_type")) {
+      return true;
     }
-    if (!isRecord(v)) return;
-    for (const [k, x] of Object.entries(v)) {
-      const at = join(path, k);
-      if (/date/i.test(k) || k === "payment_term" || k === "term_type") out.push(at);
-      else walk(x, at);
-    }
-  };
-  walk(args, "");
-  return out.sort();
+    if (!allowed(path)) out.push(path);
+    return false;
+  });
+  return ok ? formatPaths(out) : null;
 }
 
 /** A strict allowlist: "leaf" is any value, `[s]` a list of `s`, an object only the keys it names. */
@@ -217,14 +279,16 @@ const RULE_SHAPE: Shape = {
 
 /** send_invoice: this run's invoice, never e-mailed by PayPal (register §8, send_to_recipient false). */
 const SEND_SHAPE: Shape = { invoice_id: "leaf", send_to_recipient: "leaf" };
-export const canonicalSend = (invoiceId: string) => ({ invoice_id: invoiceId, send_to_recipient: false });
 
-/** Every key the shape does not allow, by path, sorted. */
-function unknownKeys(value: unknown, shape: Shape, path = "", out: string[] = []): string[] {
+/**
+ * Every key the shape does not allow, by path, sorted. It descends only where the shape does, so
+ * its depth is the shape's, whatever the value.
+ */
+function unknownKeys(value: unknown, shape: Shape, path: Path = [], out: Path[] = []): Path[] {
   if (shape === "leaf") return out;
   if (Array.isArray(shape)) {
     if (Array.isArray(value)) {
-      for (const [i, x] of value.entries()) unknownKeys(x, shape[0] as Shape, `${path}[${i}]`, out);
+      for (const [i, x] of value.entries()) unknownKeys(x, shape[0] as Shape, [...path, i], out);
     }
     return out;
   }
@@ -232,50 +296,36 @@ function unknownKeys(value: unknown, shape: Shape, path = "", out: string[] = []
   const allowed = shape as { readonly [key: string]: Shape };
   for (const [k, x] of Object.entries(value)) {
     const sub = Object.hasOwn(allowed, k) ? allowed[k] : undefined;
-    if (sub === undefined) out.push(join(path, k));
-    else unknownKeys(x, sub, join(path, k), out);
-  }
-  return out.sort();
-}
-
-/** Paths where two JSON values differ (missing keys, lengths, types and values). */
-function differences(a: unknown, b: unknown, path = "", out: string[] = []): string[] {
-  if (isRecord(a) && isRecord(b)) {
-    for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
-      if (!has(a, k) || !has(b, k)) out.push(join(path, k));
-      else differences(a[k], b[k], join(path, k), out);
-    }
-  } else if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) out.push(path || "(body)");
-    else for (const [i, x] of a.entries()) differences(x, b[i], `${path}[${i}]`, out);
-  } else if (a !== b) {
-    out.push(path || "(body)");
+    if (sub === undefined) out.push([...path, k]);
+    else unknownKeys(x, sub, [...path, k], out);
   }
   return out;
 }
 
-/** Normalisation before comparing: amounts as two-decimal cents, e-mail addresses in lower case. */
-function normalised(body: unknown): unknown {
-  const copy = JSON.parse(JSON.stringify(body ?? null)) as unknown;
-  if (!isRecord(copy)) return copy;
-  const lower = (o: Record<string, unknown>, k: string) => {
-    if (typeof o[k] === "string") o[k] = (o[k] as string).toLowerCase();
-  };
-  lower(copy, "invoicer_email_address");
-  for (const r of Array.isArray(copy.primary_recipients) ? copy.primary_recipients : []) {
-    if (isRecord(r) && isRecord(r.billing_info)) lower(r.billing_info, "email_address");
-  }
-  for (const it of Array.isArray(copy.items) ? copy.items : []) {
-    if (isRecord(it) && isRecord(it.unit_amount) && typeof it.unit_amount.value === "string") {
-      const cents = parseDecimalMinor(it.unit_amount.value);
-      if (cents !== null) it.unit_amount.value = minorToDecimal(cents);
+/**
+ * Paths where two JSON values differ (missing keys, lengths, types and values). Strings compare
+ * code unit by code unit: no trim, no case folding, no Unicode normalisation, no re-decimalising.
+ * It descends only while both sides nest, so its depth is code's body's, whatever the draft.
+ */
+function differences(a: unknown, b: unknown, path: Path = [], out: Path[] = []): Path[] {
+  if (isRecord(a) && isRecord(b)) {
+    for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+      if (!has(a, k) || !has(b, k)) out.push([...path, k]);
+      else differences(a[k], b[k], [...path, k], out);
     }
+  } else if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) out.push(path);
+    else for (const [i, x] of a.entries()) differences(x, b[i], [...path, i], out);
+  } else if (a !== b) {
+    out.push(path);
   }
-  return copy;
+  return out;
 }
 
-const differReason = (paths: readonly string[], what: string) =>
-  `${paths.join(", ")} ${paths.length === 1 ? "differs" : "differ"} from the code's ${what}`;
+const pathList = (paths: readonly Path[]) => paths.map((p) => formatPath(p) || "(body)");
+
+const differReason = (paths: readonly Path[], what: string) =>
+  `${pathList(paths).join(", ")} ${paths.length === 1 ? "differs" : "differ"} from the code's ${what}`;
 
 const rankOf = (s: PolicyCtx["runState"]) => PAY_RUN_RANK[s];
 
@@ -300,44 +350,50 @@ export const allowlist: Policy = (call) =>
 export const phaseGate: Policy = (call, ctx) => {
   const s = ctx.runState;
   const a = obj(call.args);
-  return match(call.name)
-    .when(
-      (n) => reads.has(n),
-      () => ALLOW,
-    )
-    .with("get_invoice", () => (rankOf(s) >= rankOf("QUOTED") ? ALLOW : deny("no invoice before QUOTED")))
-    .with("create_invoice", () =>
-      s !== "QUOTED"
-        ? deny("create_invoice only in QUOTED")
-        : ctx.invoiceExists
-          ? deny("the invoice already exists")
-          : ALLOW,
-    )
-    .with("create_conditional_rules_for_invoice", () =>
-      s === "QUOTED" && ctx.invoiceExists ? ALLOW : deny("the AUTO_CANCEL rule needs the invoice, in QUOTED"),
-    )
-    .with("send_invoice", () =>
-      s === "QUOTED" && ctx.invoiceExists ? ALLOW : deny("send_invoice needs the invoice, in QUOTED"),
-    )
-    .with("propose_resolution", () => {
-      if (s !== "IN_REVIEW") return deny("propose_resolution only in IN_REVIEW");
-      const holdId = str(a.hold_id);
-      const hold = ctx.holds.find((h) => h.holdId === holdId);
-      return hold && hold.state === "OPEN" ? ALLOW : deny("the hold is not open");
-    })
-    .with("request_payout_batch", () => {
-      if (s !== "IN_REVIEW") return deny("request_payout_batch only in IN_REVIEW");
-      const blocking = ctx.holds.some(
-        (h) => (h.state === "OPEN" || h.state === "ASKED_CHAIR") && h.gate === "BLOCKS_APPROVAL",
-      );
-      return blocking ? deny("a hold still blocks approval") : ALLOW;
-    })
-    .with(P.union("get_payout_batch", "get_payout_item"), () =>
-      (rankOf(s) >= rankOf("POSTED") && rankOf(s) < 99) || s === "DENIED"
-        ? ALLOW
-        : deny("payout reads only after the batch is posted"),
-    )
-    .otherwise(() => deny("no phase allows this tool"));
+  return (
+    match(call.name)
+      .when(
+        (n) => reads.has(n),
+        () => ALLOW,
+      )
+      .with("get_invoice", () => (rankOf(s) >= rankOf("QUOTED") ? ALLOW : deny("no invoice before QUOTED")))
+      .with("create_invoice", () =>
+        s !== "QUOTED"
+          ? deny("create_invoice only in QUOTED")
+          : ctx.invoiceExists
+            ? deny("the invoice already exists")
+            : ALLOW,
+      )
+      // S4 purposes: DRAFT_INVOICE runs in QUOTED, and tools 11 (the rule) and 13 also in INVOICED,
+      // since S3.6.3 adds the rule after the send and the payable GET.
+      .with("create_conditional_rules_for_invoice", () =>
+        (s === "QUOTED" || s === "INVOICED") && ctx.invoiceExists
+          ? ALLOW
+          : deny("the AUTO_CANCEL rule needs the invoice, in QUOTED or INVOICED"),
+      )
+      .with("send_invoice", () =>
+        s === "QUOTED" && ctx.invoiceExists ? ALLOW : deny("send_invoice needs the invoice, in QUOTED"),
+      )
+      .with("propose_resolution", () => {
+        if (s !== "IN_REVIEW") return deny("propose_resolution only in IN_REVIEW");
+        const holdId = str(a.hold_id);
+        const hold = ctx.holds.find((h) => h.holdId === holdId);
+        return hold && hold.state === "OPEN" ? ALLOW : deny("the hold is not open");
+      })
+      .with("request_payout_batch", () => {
+        if (s !== "IN_REVIEW") return deny("request_payout_batch only in IN_REVIEW");
+        const blocking = ctx.holds.some(
+          (h) => (h.state === "OPEN" || h.state === "ASKED_CHAIR") && h.gate === "BLOCKS_APPROVAL",
+        );
+        return blocking ? deny("a hold still blocks approval") : ALLOW;
+      })
+      .with(P.union("get_payout_batch", "get_payout_item"), () =>
+        (rankOf(s) >= rankOf("POSTED") && rankOf(s) < 99) || s === "DENIED"
+          ? ALLOW
+          : deny("payout reads only after the batch is posted"),
+      )
+      .otherwise(() => deny("no phase allows this tool"))
+  );
 };
 
 export const budgetCap: Policy = (_call, ctx) => {
@@ -359,12 +415,18 @@ function invoiceDates(
 }
 
 /**
- * I1: each invoice call deep-equals its canonical form, built by code. For create_invoice that is
- * `canonicalInvoice(quote, labels)`, where only the three item labels are the agent's; for the
- * AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`; for send_invoice it is
- * `{invoice_id: this run's invoice, send_to_recipient: false}`. Every key the canonical
- * form does not carry (tax, discount, shipping, tip, partial payment, pay by bank, theme, extra
- * recipients, dates…) is named in the verdict; then the whole body is compared after normalising.
+ * I1: each invoice call equals, exactly, the body code built for it (`canonicalInvoiceCall`). For
+ * create_invoice that is `canonicalInvoice(quote, labels)`, where only the three item labels are
+ * the agent's; for the AUTO_CANCEL rule it is `autoCancelRuleArgs(invoiceId, invoice date + 25)`;
+ * for send_invoice it is `{invoice_id: this run's invoice, send_to_recipient: false}`. Every key the
+ * canonical form does not carry (tax, discount, shipping, tip, partial payment, pay by bank, theme,
+ * extra recipients, dates…) is named in the verdict; then the whole body is compared with no
+ * normalisation at all: strings code unit for code unit (no trim, case folding or Unicode
+ * normalisation) and amounts as code's own two-decimal string, so PayPal receives exactly the
+ * bytes approved here.
+ *
+ * This is the second layer. The money executor sends the body `canonicalInvoiceCall` builds, never
+ * the model's arguments; this check makes sure a draft that is not that body is refused and named.
  */
 export const invoiceEqualsQuote: Policy = (call, ctx) => {
   if (call.name === "create_invoice") {
@@ -372,66 +434,80 @@ export const invoiceEqualsQuote: Policy = (call, ctx) => {
     if (!read.ok) return deny(read.reason);
     const nested = Object.entries(read.fields.nestedOnly)[0];
     if (nested) return deny(`Non-canonical draft: ${nested[0]} must be the flat field, not ${nested[1]}`);
-    const extra = unknownKeys(call.args, INVOICE_SHAPE);
+    const extra = formatPaths(unknownKeys(call.args, INVOICE_SHAPE));
     if (extra.length > 0) return deny(`Not in the canonical invoice: ${extra.join(", ")}`);
     const items = (call.args as Record<string, unknown>).items;
     let labels: string[] | undefined;
     if (Array.isArray(items) && items.length === ctx.expected.quote.items.length) {
       const names = items.map((it) => (isRecord(it) ? it.name : undefined));
-      const problem = itemLabelProblem(names);
+      // Each label names its own line, in the quote's line order (I1, S4.4 checkLabels).
+      const problem = itemLabelProblem(
+        names,
+        ctx.expected.quote.items.map((it) => it.key),
+      );
       if (problem) return deny(problem);
       labels = names as string[];
     }
-    let want: unknown;
-    try {
-      want = canonicalInvoice(ctx.expected, labels);
-    } catch {
-      return deny("The code's quote cannot be invoiced");
-    }
-    const diff = differences(normalised(call.args), normalised(want));
+    const want = canonicalInvoiceCall("create_invoice", ctx.expected, labels);
+    if (!want.ok) return deny("The code's quote cannot be invoiced");
+    const diff = differences(call.args, want.args);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "invoice"));
   }
   if (call.name === "create_conditional_rules_for_invoice") {
     if (!isRecord(call.args)) return deny("The rule arguments are not an object");
-    const extra = unknownKeys(call.args, RULE_SHAPE);
+    const extra = formatPaths(unknownKeys(call.args, RULE_SHAPE));
     if (extra.length > 0) return deny(`Not in the canonical rule: ${extra.join(", ")}`);
     if (ctx.expected.invoiceId === null) return deny("There is no invoice to attach the rule to");
     const dates = invoiceDates(ctx);
     if (!dates.ok) return deny(dates.reason);
-    const want = autoCancelRuleArgs(ctx.expected.invoiceId, autoCancelDate(dates.invoiceDate));
-    const diff = differences(call.args, want);
+    const want = canonicalInvoiceCall(call.name, ctx.expected);
+    if (!want.ok) return deny(want.reason);
+    const diff = differences(call.args, want.args);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "rule"));
   }
   if (call.name === "send_invoice") {
     if (!isRecord(call.args)) return deny("The send arguments are not an object");
-    const extra = unknownKeys(call.args, SEND_SHAPE);
+    const extra = formatPaths(unknownKeys(call.args, SEND_SHAPE));
     if (extra.length > 0) return deny(`Not in the canonical send: ${extra.join(", ")}`);
-    if (ctx.expected.invoiceId === null) return deny("There is no invoice to send");
-    const diff = differences(call.args, canonicalSend(ctx.expected.invoiceId));
+    const want = canonicalInvoiceCall(call.name, ctx.expected);
+    if (!want.ok) return deny(want.reason);
+    const diff = differences(call.args, want.args);
     return diff.length === 0 ? ALLOW : deny(differReason(diff, "send"));
   }
   return ALLOW;
 };
 
+const NOT_ASCII_EMAIL = "is not a plain ASCII e-mail address";
+
+/**
+ * The invoicer is the co-op's business account. Both addresses must be strict printable-ASCII
+ * e-mails; only ASCII A-Z case is folded (never `toLowerCase`, which maps U+212A to "k").
+ */
 export const invoicerIsBusinessEmail: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
   const f = field(readInvoiceFields(call.args), "invoicer_email_address");
   if (!f.ok) return deny(f.reason);
-  return f.value !== null && f.value.toLowerCase() === ctx.expected.businessEmail.toLowerCase()
-    ? ALLOW
-    : deny("The invoicer is not the co-op's business account");
+  if (f.value === null) return deny("The invoicer is not the co-op's business account");
+  const invoicer = asciiEmailKey(f.value);
+  if (invoicer === null) return deny(`invoicer_email_address ${NOT_ASCII_EMAIL}`);
+  const business = asciiEmailKey(ctx.expected.businessEmail);
+  if (business === null) return deny(`The co-op's business e-mail ${NOT_ASCII_EMAIL}`);
+  return invoicer === business ? ALLOW : deny("The invoicer is not the co-op's business account");
 };
 
 /**
  * Exactly one recipient, read only from `primary_recipients[0].billing_info.email_address`, which
- * must be a readable e-mail on the brand allowlist. Any other recipient-bearing field (extra
- * recipients, cc, shipping info, phones, a flattened e-mail…) is named and denied.
+ * must be a strict printable-ASCII e-mail on the brand allowlist, compared with ASCII A-Z folded and
+ * nothing else (an allowlist entry that is not plain ASCII matches nothing). Any other
+ * recipient-bearing field (extra recipients, cc, shipping info, phones, a flattened e-mail…) is
+ * named and denied.
  */
 export const recipientInBrandAllowlist: Policy = (call, ctx) => {
   if (call.name !== "create_invoice") return ALLOW;
   const read = readInvoiceFields(call.args);
   if (!read.ok) return deny(read.reason);
   const stray = strayRecipientFields(call.args);
+  if (stray === null) return deny(TOO_DEEP);
   if (stray.length > 0) return deny(`Not a recipient field the draft may set: ${stray.join(", ")}`);
   const recipients = (call.args as Record<string, unknown>).primary_recipients;
   if (!Array.isArray(recipients))
@@ -439,11 +515,13 @@ export const recipientInBrandAllowlist: Policy = (call, ctx) => {
   if (recipients.length !== 1) return deny("Exactly one recipient is allowed");
   const r = recipients[0];
   const email = isRecord(r) && isRecord(r.billing_info) ? r.billing_info.email_address : undefined;
-  if (typeof email !== "string" || !EMAIL.test(email)) {
+  if (typeof email !== "string") {
     return deny("The recipient has no readable e-mail at billing_info.email_address");
   }
-  const allowed = new Set(ctx.expected.brandAllowlist.map((e) => e.toLowerCase()));
-  return allowed.has(email.toLowerCase()) ? ALLOW : deny("A recipient is not on the brand allowlist");
+  const key = asciiEmailKey(email);
+  if (key === null) return deny(`primary_recipients[0].billing_info.email_address ${NOT_ASCII_EMAIL}`);
+  const allowed = new Set(ctx.expected.brandAllowlist.map(asciiEmailKey).filter((e) => e !== null));
+  return allowed.has(key) ? ALLOW : deny("A recipient is not on the brand allowlist");
 };
 
 export const referenceCarriesHash: Policy = (call, ctx) => {
@@ -457,7 +535,13 @@ export const referenceCarriesHash: Policy = (call, ctx) => {
   return note.value === ctx.expected.memo ? ALLOW : deny("The note must be exactly the code-rendered memo");
 };
 
-const RULE_DATE_PATH = "rules[0].rule_expiry_terms.condition_rule_end_date";
+/** `rules[0].rule_expiry_terms.condition_rule_end_date`, by structure: the one date we send. */
+const isRuleDatePath = (p: Path) =>
+  p.length === 4 &&
+  p[0] === "rules" &&
+  p[1] === 0 &&
+  p[2] === "rule_expiry_terms" &&
+  p[3] === "condition_rule_end_date";
 
 /**
  * Dates (C-27, S3.6.3). An invoice draft sets no date and no payment term: PayPal dates the
@@ -468,6 +552,7 @@ const RULE_DATE_PATH = "rules[0].rule_expiry_terms.condition_rule_end_date";
 export const dueWithin30Days: Policy = (call, ctx) => {
   if (call.name === "create_invoice") {
     const dates = dateFields(call.args);
+    if (dates === null) return deny(TOO_DEEP);
     return dates.length === 0 ? ALLOW : deny(`The draft may not set dates: ${dates.join(", ")}`);
   }
   if (call.name !== "create_conditional_rules_for_invoice") return ALLOW;
@@ -483,7 +568,8 @@ export const dueWithin30Days: Policy = (call, ctx) => {
   ) {
     return deny("There must be exactly one AUTO_CANCEL rule on SPECIFIC_DATE");
   }
-  const stray = dateFields(a).filter((p) => p !== RULE_DATE_PATH);
+  const stray = dateFields(a, isRuleDatePath);
+  if (stray === null) return deny(TOO_DEEP);
   if (stray.length > 0) return deny(`The draft may not set dates: ${stray.join(", ")}`);
   const date = parseStrictIsoDate(terms.condition_rule_end_date);
   if (date === null) return deny("The AUTO_CANCEL date is not a YYYY-MM-DD date");
@@ -517,6 +603,15 @@ export const POLICIES: Readonly<Record<PolicyName, Policy>> = {
 
 const VERDICTS: readonly Verdict[] = ["ALLOW", "REQUIRE_APPROVAL", "DENY"];
 
+/** Runs one policy; one that throws (whatever the arguments) denies, so decide never throws. */
+function checked(policy: Policy, call: ToolCall, ctx: PolicyCtx): ReturnType<Policy> {
+  try {
+    return policy(call, ctx);
+  } catch {
+    return deny("The arguments could not be checked");
+  }
+}
+
 /** Max over a set of policies. With no policies the verdict is ALLOW. */
 export function decideWith(
   call: ToolCall,
@@ -526,7 +621,7 @@ export function decideWith(
   const results: PolicyResult[] = [];
   let rank: Rank = 0;
   for (const [name, policy] of Object.entries(policies) as [PolicyName, Policy][]) {
-    const r = policy(call, ctx);
+    const r = checked(policy, call, ctx);
     results.push({ policy: name, verdict: VERDICTS[r.verdict] as Verdict, reason: r.reason });
     if (r.verdict > rank) rank = r.verdict;
   }

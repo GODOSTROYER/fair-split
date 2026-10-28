@@ -56,9 +56,14 @@ export const taskOutbox = pgTable(
     args: jsonb("args").notNull(),
     dedupeKey: text("dedupe_key").notNull().unique("task_outbox_dedupe_key_uq"),
     state: text("state", { enum: TASK_STATES }).notNull().default("queued"),
-    /** number of dispatches so far; the row goes dead after max_attempts */
+    /** number of runs started so far (the runner's claim); a failing row goes dead after max_attempts */
     attempts: integer("attempts").notNull().default(0),
     maxAttempts: integer("max_attempts").notNull().default(8),
+    /**
+     * number of hand-offs (queued → dispatched). A hand-off that never starts does not count as an attempt, so the
+     * sweeper marks a row dead once it has been dispatched max_attempts times without finishing.
+     */
+    dispatches: integer("dispatches").notNull().default(0),
     runAfter: tstz("run_after").notNull().defaultNow(),
     executor: text("executor", { enum: EXECUTOR_KINDS }),
     claimedBy: text("claimed_by"),
@@ -75,7 +80,10 @@ export const taskOutbox = pgTable(
     checkIn("task_outbox_state_ck", t.state, TASK_STATES),
     checkIn("task_outbox_executor_ck", t.executor, EXECUTOR_KINDS),
     check("task_outbox_args_size_ck", sql`octet_length(${t.args}::text) <= 8192`),
-    check("task_outbox_attempts_ck", sql`${t.attempts} >= 0 and ${t.maxAttempts} >= 1`),
+    check(
+      "task_outbox_attempts_ck",
+      sql`${t.attempts} >= 0 and ${t.maxAttempts} >= 1 and ${t.dispatches} >= 0`,
+    ),
     index("task_outbox_queued_idx").on(t.runAfter).where(sql`state = 'queued'`),
     index("task_outbox_inflight_idx").on(t.state, t.updatedAt).where(sql`state in ('dispatched', 'running')`),
   ],
@@ -189,6 +197,11 @@ export const idempotencyKeys = pgTable(
     method: text("method").notNull(),
     route: text("route").notNull(),
     requestSha256: sha256("request_sha256").notNull(),
+    /**
+     * Random per claim (a reclaim after expiry writes a new one): complete and release must present it, so a claim
+     * that outlived its key or was released never touches the request that holds the key now.
+     */
+    claimToken: uuid("claim_token").notNull().default(sql`gen_random_uuid()`),
     /** null while the first request is still in flight */
     responseStatus: integer("response_status"),
     responseBody: jsonb("response_body"),

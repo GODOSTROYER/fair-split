@@ -109,7 +109,7 @@ describe("frozen prompts (S4.2, S4.7)", () => {
 
   it("inv.prompt-injection.layer2: every system prompt states the untrusted-content rule", () => {
     const texts = [
-      ...(["a.v1", "b.v1", "zoom.v1", "screen.v1"] as const).map((name) => prompt(name).text),
+      ...(["a.v1", "b.v1", "zoom.v2", "screen.v1"] as const).map((name) => prompt(name).text),
       ratecardPrompt().text,
       loadPromptFile(new URL("../classify/prompts/", import.meta.url), CLASSIFY_PROMPT_V),
     ];
@@ -128,14 +128,14 @@ describe("frozen prompts (S4.2, S4.7)", () => {
   it("prompt files are frozen: an edit needs a new file name", () => {
     expect(
       Object.fromEntries(
-        (["a.v1", "b.v1", "zoom.v1", "screen.v1"] as const).map((n) => [n, prompt(n).sha256.slice(0, 16)]),
+        (["a.v1", "b.v1", "zoom.v2", "screen.v1"] as const).map((n) => [n, prompt(n).sha256.slice(0, 16)]),
       ),
     ).toMatchInlineSnapshot(`
       {
         "a.v1": "aaafb346c3f2d97e",
         "b.v1": "20e603bcc294b135",
         "screen.v1": "a582a9e1167e21c9",
-        "zoom.v1": "cada984470307aa1",
+        "zoom.v2": "32cfa5cd8c8247c0",
       }
     `);
   });

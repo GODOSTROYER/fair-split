@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
+import type { DbProbeResult } from "../src/db-probe.js";
 import { createInlineExecutor, INLINE_CONCURRENCY, Semaphore, type TaskExecutor } from "../src/executor.js";
 import type { TaskHandler } from "../src/handlers.js";
-import { createWorkflowExecutor, runWithFallback, type WorkflowsPort } from "../src/handoff/dispatcher.js";
+import {
+  createWorkflowExecutor,
+  NotOnWorkflowsError,
+  runWithFallback,
+  type WorkflowsPort,
+} from "../src/handoff/dispatcher.js";
+import { renderIdempotencyKey } from "../src/handoff/idempotency.js";
 import { main as inlineMain, parseInlineArgs } from "../src/inline.js";
 import { silentLogger } from "../src/log.js";
-import { OUTBOX_ID, testRuntime } from "./helpers.js";
+import { OUTBOX_ID, OutboxRow, testRuntime } from "./helpers.js";
 
 const deferred = () => {
   let resolve!: () => void;
@@ -114,17 +121,72 @@ describe("inline executor (EXECUTOR=inline: local and CI)", () => {
     ]);
   });
 
-  it("CLI refuses to run outside the sandbox (S3.13)", async () => {
+  it("CLI refuses to run outside the sandbox, or with dev mocks on Render (S3.13)", async () => {
     const runtime = testRuntime({ reconcile: async () => ({ status: "done" }) });
     for (const env of [{}, { PP_ENV: "live" }]) {
       await expect(
         inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env }),
       ).rejects.toThrow(/PP_ENV must be "sandbox"/);
     }
+    const mocks = { PP_ENV: "sandbox", PP_DEV_MOCKS: "1", RENDER: "true" };
+    await expect(
+      inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env: mocks }),
+    ).rejects.toThrow(/PP_DEV_MOCKS/);
+  });
+
+  it("CLI connects as fs_app: credentials are swapped into DATABASE_URL before the run, and the role check probes that URL", async () => {
+    const runtime = testRuntime({ reconcile: async () => ({ status: "done" }) });
+    const env: NodeJS.ProcessEnv = {
+      PP_ENV: "sandbox",
+      FS_DB_HOST: "dpg-test-a",
+      FS_DB_NAME: "fairsplit",
+      FS_APP_DB_PASSWORD: "pw",
+    };
+    const probeDb = vi.fn(
+      async (_url: string | undefined): Promise<DbProbeResult> => ({
+        configured: true,
+        reachable: true,
+        canCreateRole: false,
+        ledgerWritable: false,
+      }),
+    );
+    await expect(
+      inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env, probeDb }),
+    ).resolves.toBe(0);
+    expect(new URL(env.DATABASE_URL ?? "").username).toBe("fs_app");
+    expect(env.FS_APP_DB_PASSWORD).toBeUndefined();
+    expect(probeDb).toHaveBeenCalledTimes(1);
+    expect(probeDb.mock.calls[0]?.[0]).toBe(env.DATABASE_URL);
+  });
+
+  it("CLI refuses a role that can UPDATE ledger_entries before the task runs (S3.4): exit 2, BOOT_REFUSED", async () => {
+    const handler = vi.fn<TaskHandler>(async () => ({ status: "done" }));
+    const runtime = testRuntime({ reconcile: handler });
+    const env: NodeJS.ProcessEnv = {
+      PP_ENV: "sandbox",
+      DATABASE_URL: "postgres://owner@localhost/fairsplit",
+    };
+    const probeDb = async (): Promise<DbProbeResult> => ({
+      configured: true,
+      reachable: true,
+      canCreateRole: true,
+      ledgerWritable: true,
+    });
+    await expect(
+      inlineMain(["reconcile", OUTBOX_ID], { runtime, logger: silentLogger(), env, probeDb }),
+    ).resolves.toBe(2);
+    expect(handler).not.toHaveBeenCalled();
+    expect(runtime.failed.map((f) => f.code)).toEqual(["BOOT_REFUSED"]);
   });
 });
 
-function fakeWorkflows(statuses: string[], opts: { startThrows?: boolean } = {}) {
+interface FakeWorkflowsOptions {
+  startThrows?: boolean;
+  /** Called on each status read; lets a test act "between polls". */
+  onPoll?: (poll: number) => void;
+}
+
+function fakeWorkflows(statuses: string[], opts: FakeWorkflowsOptions = {}) {
   const startTask = vi.fn(async (slug: string, input: unknown[], options?: unknown) => {
     if (opts.startThrows) throw new Error("401 unauthorized");
     void slug;
@@ -133,7 +195,11 @@ function fakeWorkflows(statuses: string[], opts: { startThrows?: boolean } = {})
     return { taskRunId: "trn-abc" };
   });
   let i = 0;
-  const getTaskRun = vi.fn(async () => ({ status: statuses[Math.min(i++, statuses.length - 1)] }));
+  const getTaskRun = vi.fn(async () => {
+    opts.onPoll?.(i);
+    return { status: statuses[Math.min(i++, statuses.length - 1)] };
+  });
+  // Not part of WorkflowsPort: present only so a test can prove the dispatcher never cancels.
   const cancelTaskRun = vi.fn(async () => undefined);
   return { startTask, getTaskRun, cancelTaskRun } as unknown as WorkflowsPort & {
     startTask: typeof startTask;
@@ -143,22 +209,21 @@ function fakeWorkflows(statuses: string[], opts: { startThrows?: boolean } = {})
 }
 
 describe("workflow executor", () => {
-  it("starts fs-tasks/<name> with ids as positional input and the outbox dedupe key", async () => {
+  it("starts fs-tasks/<name> with ids as positional input and the given idempotency key", async () => {
     const wf = fakeWorkflows(["running"]);
     const ex = createWorkflowExecutor({ client: wf });
-    await expect(ex.run("extract", [OUTBOX_ID], { idempotencyKey: "extract:doc-1" })).resolves.toEqual({
+    const key = renderIdempotencyKey([OUTBOX_ID], 1);
+    await expect(ex.run("extract", [OUTBOX_ID], { idempotencyKey: key })).resolves.toEqual({
       executor: "workflow",
       taskRunId: "trn-abc",
     });
-    expect(wf.startTask).toHaveBeenCalledWith("fs-tasks/extract", [OUTBOX_ID], {
-      idempotencyKey: "extract:doc-1",
-    });
+    expect(wf.startTask).toHaveBeenCalledWith("fs-tasks/extract", [OUTBOX_ID], { idempotencyKey: key });
   });
 
   it("uses the slug Render assigned (FS_TASKS_SLUG) when given", async () => {
     const wf = fakeWorkflows(["running"]);
-    await createWorkflowExecutor({ client: wf, workflowSlug: "fs-tasks-k3j2" }).run("reconcile", ["a"]);
-    expect(wf.startTask.mock.calls[0]?.[0]).toBe("fs-tasks-k3j2/reconcile");
+    await createWorkflowExecutor({ client: wf, workflowSlug: "fs-tasks-k3j2" }).run("warmCaches", ["a"]);
+    expect(wf.startTask.mock.calls[0]?.[0]).toBe("fs-tasks-k3j2/warmCaches");
   });
 
   it("refuses non-id input before calling Render", async () => {
@@ -166,6 +231,15 @@ describe("workflow executor", () => {
     await expect(createWorkflowExecutor({ client: wf }).run("extract", ["not an id"])).rejects.toThrow(
       /not an id/,
     );
+    expect(wf.startTask).not.toHaveBeenCalled();
+  });
+
+  it("refuses an inline-lane task before calling Render: fs-tasks does not register it (S3.3)", async () => {
+    const wf = fakeWorkflows(["running"]);
+    const ex = createWorkflowExecutor({ client: wf });
+    for (const name of ["postPayoutBatch", "judgeReset", "agentTurn"] as const) {
+      await expect(ex.run(name, [OUTBOX_ID])).rejects.toBeInstanceOf(NotOnWorkflowsError);
+    }
     expect(wf.startTask).not.toHaveBeenCalled();
   });
 });
@@ -198,41 +272,80 @@ describe("runWithFallback (S3.3 step 4)", () => {
     expect(inline.run).not.toHaveBeenCalled();
   });
 
+  it("scopes Render's idempotency key to the dispatch attempt, and sends none without one", async () => {
+    const wf = fakeWorkflows(["running"]);
+    const deps = { workflow: wf, inline: inlineSpy(), logger: silentLogger() };
+    await runWithFallback(deps, "extract", [OUTBOX_ID], { ...clock(), attempt: 1 });
+    await runWithFallback(deps, "extract", [OUTBOX_ID], { ...clock(), attempt: 2 });
+    await runWithFallback(deps, "extract", [OUTBOX_ID], clock());
+    expect(wf.startTask.mock.calls.map((c) => c[2])).toEqual([
+      { idempotencyKey: `${OUTBOX_ID}:a1` },
+      { idempotencyKey: `${OUTBOX_ID}:a2` },
+      {},
+    ]);
+  });
+
   it("runs inline when startTask throws", async () => {
     const wf = fakeWorkflows([], { startThrows: true });
     const inline = inlineSpy();
     const r = await runWithFallback(
       { workflow: wf, inline, logger: silentLogger() },
-      "judgeReset",
+      "warmCaches",
       ["a"],
       clock(),
     );
     expect(r).toMatchObject({ executor: "inline", fellBack: "start-failed" });
-    expect(inline.run).toHaveBeenCalledWith("judgeReset", ["a"], {});
+    expect(inline.run).toHaveBeenCalledWith("warmCaches", ["a"]);
   });
 
-  it("runs inline, after cancelling, when the run is not picked up within 20 s", async () => {
+  it("runs an inline-lane task inline without calling Render", async () => {
+    const wf = fakeWorkflows(["running"]);
+    const inline = inlineSpy();
+    const r = await runWithFallback({ workflow: wf, inline, logger: silentLogger() }, "postPayoutBatch", [
+      OUTBOX_ID,
+    ]);
+    expect(r).toMatchObject({ executor: "inline", fellBack: "start-failed" });
+    expect(wf.startTask).not.toHaveBeenCalled();
+  });
+
+  it("runs inline, without cancelling the Workflows run, when it is not picked up within 20 s", async () => {
     const wf = fakeWorkflows(["pending"]);
     const inline = inlineSpy();
     const c = clock();
-    const r = await runWithFallback({ workflow: wf, inline, logger: silentLogger() }, "reconcile", ["a"], {
+    const r = await runWithFallback({ workflow: wf, inline, logger: silentLogger() }, "warmCaches", ["a"], {
       ...c,
-      idempotencyKey: "reconcile:catchup:2026-10-23T05",
+      attempt: 3,
     });
     expect(r).toMatchObject({ executor: "inline", fellBack: "not-picked-up", taskRunId: "trn-abc" });
     expect(c.now()).toBe(20_000);
-    expect(wf.cancelTaskRun).toHaveBeenCalledWith("trn-abc");
-    expect(inline.run).toHaveBeenCalledWith("reconcile", ["a"], {
-      idempotencyKey: "reconcile:catchup:2026-10-23T05",
-    });
+    expect(wf.cancelTaskRun).not.toHaveBeenCalled();
+    // The inline run needs no Render key: the outbox claim is what deduplicates it.
+    expect(inline.run).toHaveBeenCalledWith("warmCaches", ["a"]);
   });
+
+  it.each(["failed", "canceled"])(
+    "a run reported %s before it was ever seen running is not a pickup: inline at once",
+    async (status) => {
+      const wf = fakeWorkflows([status]);
+      const inline = inlineSpy();
+      const c = clock();
+      const r = await runWithFallback({ workflow: wf, inline, logger: silentLogger() }, "extract", ["a"], c);
+      expect(r).toMatchObject({
+        executor: "inline",
+        fellBack: "terminal-before-pickup",
+        taskRunId: "trn-abc",
+      });
+      expect(c.now()).toBe(0);
+      expect(inline.run).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("treats a failed status read as not-yet-picked-up", async () => {
     const wf = fakeWorkflows(["running"]);
     wf.getTaskRun.mockRejectedValueOnce(new Error("502"));
     const r = await runWithFallback(
       { workflow: wf, inline: inlineSpy(), logger: silentLogger() },
-      "explain",
+      "readRateCard",
       ["a"],
       clock(),
     );
@@ -243,10 +356,53 @@ describe("runWithFallback (S3.3 step 4)", () => {
   it("accepts an already-finished run as picked up", async () => {
     const r = await runWithFallback(
       { workflow: fakeWorkflows(["succeeded"]), inline: inlineSpy(), logger: silentLogger() },
-      "computeRun",
+      "extract",
       ["a"],
       clock(),
     );
     expect(r).toMatchObject({ executor: "workflow", pickupMs: 0 });
+  });
+
+  it("race: the run claims the row between the last poll and the deadline; the late inline run is skipped and the effect happens once", async () => {
+    const row = new OutboxRow();
+    let effects = 0;
+    // The Workflows run: claims the row after the final poll (the 21st, at t = 20 s), then works.
+    let workflowRun: Promise<void> | undefined;
+    const wf = fakeWorkflows(["pending"], {
+      onPoll: (poll) => {
+        if (poll === 20) {
+          workflowRun = (async () => {
+            if (!row.claim("trn-abc")) return;
+            await tick(); // mid-effect when the dispatcher gives up waiting
+            effects++;
+            row.finish("trn-abc");
+          })();
+        }
+      },
+    });
+    // The inline fallback runs the same claim-guarded handler.
+    const inline: TaskExecutor = {
+      kind: "inline",
+      run: async () => {
+        if (!row.claim("inline-1")) return { executor: "inline", outcome: { status: "skipped" } };
+        effects++;
+        row.finish("inline-1");
+        return { executor: "inline", outcome: { status: "done" } };
+      },
+    };
+    const r = await runWithFallback(
+      { workflow: wf, inline, logger: silentLogger() },
+      "extract",
+      [OUTBOX_ID],
+      {
+        ...clock(),
+        attempt: 1,
+      },
+    );
+    await workflowRun;
+    expect(r).toMatchObject({ fellBack: "not-picked-up", outcome: { status: "skipped" } });
+    expect(wf.cancelTaskRun).not.toHaveBeenCalled();
+    expect(effects).toBe(1);
+    expect(row.state).toBe("done");
   });
 });

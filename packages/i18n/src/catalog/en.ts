@@ -98,6 +98,8 @@ export const en = {
   "paper.synthetic": "Synthetic sample",
   "slab.holdHint": "Hold to approve",
   "slab.holdUntilClick": "Hold until it clicks",
+  "slab.release": "Release to sign",
+  "slab.nothingSigned": "Nothing was signed.",
   "slab.altRoute": "Can’t hold? Approve another way",
   "slab.progress": "{percent}% held",
   "slab.bolted": "Bolted by {card}",
@@ -116,8 +118,12 @@ export const en = {
   "confirm.cancel": "Not now",
 
   // ---------------------------------------------------------------- W-JG-01 Judge stage
+  // ADR-0002: PayPal steps run on the contract-faithful simulator (PP_MODE=simulator) until sandbox
+  // credentials exist; the stage says which rail it is on.
   "W-JG-01.notice":
     "Judge Mode. Real PayPal sandbox calls on US test accounts. Slip reading replays a recorded Claude run ({date}). People, slips and the co-op are synthetic.",
+  "W-JG-01.notice.simulator":
+    "Judge Mode. PayPal steps run on a simulated PayPal sandbox, contract-tested against PayPal’s OpenAPI specs. Slip reading replays a recorded Claude run ({date}). People, slips and the co-op are synthetic.",
   "W-JG-01.whatsReal": "What’s real",
   "W-JG-01.sound": "Sound",
   "W-JG-01.soundOff": "Sound off",
@@ -167,10 +173,11 @@ export const en = {
   "W-TR-01.invoice.waiting": "Sent to Lantern Bay. Waiting for payment.",
   "W-TR-02.bolted": "sha256 {hash}, sealed {date} by {card}",
   "W-TR-02.R0": "Premium is paid by verified kilos and is never deducted.",
-  "W-TR-02.R1": "CBU: 5% of the bonus until ₱5,000 is paid up.",
-  "W-TR-02.R2": "Hauling: ₱1.50 a kg for purok pickups.",
-  "W-TR-02.R3": "Loan: only with a signed Authority to Deduct, up to 50% of the bonus.",
-  "W-TR-02.R4": "Advance: only with a voucher, up to 30% of the bonus.",
+  // The ratified card's terms arrive as arguments: the copy never restates a figure the card can change.
+  "W-TR-02.R1": "CBU: {share}% of the bonus until {cap} is paid up.",
+  "W-TR-02.R2": "Hauling: {rate} a kg for purok pickups.",
+  "W-TR-02.R3": "Loan: only with a signed Authority to Deduct, up to {share}% of the bonus.",
+  "W-TR-02.R4": "Advance: only with a voucher, up to {share}% of the bonus.",
 
   // ---------------------------------------------------------------- W-TR-05 Split review
   "W-TR-05.title": "Split review",
@@ -259,6 +266,8 @@ export const en = {
   "W-PF-01.heroPaid": "Lantern Bay paid {amount} for Season {season}. Here is where it went.",
   "W-PF-01.heroMarked":
     "Lantern Bay’s {amount} invoice for Season {season} was marked paid in sandbox. Here is where it went.",
+  "W-PF-01.heroMarked.simulator":
+    "Lantern Bay’s {amount} invoice for Season {season} was marked paid in a simulated PayPal sandbox. Here is where it went.",
   "W-PF-01.verify": "Verify in your browser",
   "W-PF-01.chain": "The chain",
   "W-PF-01.plate.invoice": "Invoice paid",
@@ -290,6 +299,8 @@ export const en = {
   "W-PF-01.footer.recon":
     "Reconciliation with PayPal’s Transaction Search runs nightly; new transactions can take up to 3 hours to appear there.",
   "W-PF-01.footer.sandbox": "A sandbox prototype on a synthetic Davao cacao co-op. No real farmer was paid.",
+  "W-PF-01.footer.simulator":
+    "A prototype on a simulated PayPal sandbox, contract-tested against PayPal’s OpenAPI specs, and a synthetic Davao cacao co-op. No real farmer was paid.",
   "W-PF-01.footer.priorArt":
     "Clause-to-Cash, Tributary, SarafuPay and harambee split money people already agreed on. Fair Split turns paper into ratified rules and rows, binds the treasurer to a hashed rate card, and proves each payment on the member’s phone and the brand’s Proof.",
   "W-PF-01.tagline": "Every peso, traced to the pencil mark.",

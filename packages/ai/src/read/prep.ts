@@ -30,7 +30,7 @@ export interface PreparedImage {
 /**
  * The replay identity of a derived image: the source document's sha256, the prep version and the
  * operation. sharp/libvips output is not guaranteed bit-identical across platforms and CPUs, and CI
- * replays recordings made on the dev machine, so keying on the derived bytes would miss.
+ * replays recordings made on the dev machine, so keying on the derived bytes would miss (ADR 0003).
  */
 export function imageIdentity(documentSha256: string, op: Record<string, unknown>): string {
   return inputShaOf({ doc: documentSha256, prep: PREP_V, ...op });
@@ -104,6 +104,13 @@ export async function prepareImage(
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
+/** Bump whenever the sanitiser changes what it paints: it is part of every crop's replay identity. */
+export const SANITIZE_V = "sanitize.v1";
+/** Everything outside the slip's reviewed rectangle (a neighbouring slip, the mat, a margin note). */
+export const OUTSIDE_FILL = [128, 128, 128] as const;
+/** Every quarantined box: opaque, so no stroke of the text survives. */
+export const QUARANTINE_FILL = [40, 40, 40] as const;
+
 export interface ZoomCrop {
   image: Buffer;
   /** Crop origin in master pixels. */
@@ -112,21 +119,34 @@ export interface ZoomCrop {
   scale: { x: number; y: number };
   width: number;
   height: number;
-  /** The crop rectangle in master pixels. */
+  /** The crop window in master pixels. */
   rect: Box;
 }
 
+/** A crop as a model may see it, with everything that decided its bytes (for the replay identity). */
+export interface ModelCrop extends ZoomCrop {
+  recipe: { v: typeof SANITIZE_V; slip: Box; hatch: Box[] };
+}
+
+export interface CropRequest {
+  /** The reviewed rectangle to read: a field, a deduction line or a whole slip (master pixels). */
+  rect: Box;
+  /** The reviewed rectangle of the slip it belongs to: everything outside it is flat grey. */
+  slip: Box;
+  /** Quarantined boxes (master pixels), filled opaque with a margin. */
+  hatch: readonly Box[];
+}
+
 /**
- * AI-3 crop (S4.2 "Zoom"): the fixture rectangle from the variant-A master, padded by 25% on every
- * side (minimum 160x96 px), upscaled x2 with Lanczos, long edge at most 1,000 px.
+ * The crop window of S4.2's zoom: the rectangle padded by 25% on every side (at least 160x96 px),
+ * kept inside the image, and the x2 Lanczos upscale with a long edge of at most 1,000 px.
  */
-export async function cropForZoom(
-  master: Buffer,
-  masterSize: { width: number; height: number },
+export function zoomWindow(
+  size: { width: number; height: number },
   rect: Box,
-): Promise<ZoomCrop> {
-  const W = masterSize.width;
-  const H = masterSize.height;
+): { rect: Box; width: number; height: number } {
+  const W = size.width;
+  const H = size.height;
   const w = Math.max(1, rect.x2 - rect.x1);
   const h = Math.max(1, rect.y2 - rect.y1);
   const cw = Math.min(W, Math.max(Math.round(w * 1.5), 160));
@@ -134,20 +154,75 @@ export async function cropForZoom(
   const left = clamp(Math.round((rect.x1 + rect.x2) / 2 - cw / 2), 0, W - cw);
   const top = clamp(Math.round((rect.y1 + rect.y2) / 2 - ch / 2), 0, H - ch);
   const k = Math.min(2, 1000 / Math.max(cw, ch));
-  const width = Math.max(1, Math.round(cw * k));
-  const height = Math.max(1, Math.round(ch * k));
-  const image = await sharp(master)
+  return {
+    rect: { x1: left, y1: top, x2: left + cw, y2: top + ch },
+    width: Math.max(1, Math.round(cw * k)),
+    height: Math.max(1, Math.round(ch * k)),
+  };
+}
+
+const inside = (b: Box, x: number, y: number) => x >= b.x1 && x < b.x2 && y >= b.y1 && y < b.y2;
+
+/**
+ * `sanitizeForModel` (S4.2, S4.7 layer 4): the only way a crop of a document reaches a model (AI-3
+ * zooms here; WS-AGENT's `get_slip_evidence`). The window comes from a reviewed rectangle (C-10,
+ * never a model box) and is cut from variant A. Pixels outside the slip's reviewed rectangle become
+ * flat grey; quarantined boxes, padded by 2% of the slip's width (at least 8 px), become opaque
+ * fill. Hatching only ever removes pixels, so a model box may place it. Upscaled x2 with Lanczos.
+ */
+export async function sanitizeForModel(
+  master: Buffer,
+  size: { width: number; height: number },
+  req: CropRequest,
+): Promise<ModelCrop> {
+  const win = zoomWindow(size, req.rect);
+  const { x1: left, y1: top } = win.rect;
+  const cw = win.rect.x2 - left;
+  const ch = win.rect.y2 - top;
+  const pad = Math.max(8, Math.round(0.02 * Math.max(0, req.slip.x2 - req.slip.x1)));
+  const hatch = req.hatch
+    .map((b) => ({
+      x1: Math.max(win.rect.x1, b.x1 - pad),
+      y1: Math.max(win.rect.y1, b.y1 - pad),
+      x2: Math.min(win.rect.x2, b.x2 + pad),
+      y2: Math.min(win.rect.y2, b.y2 + pad),
+    }))
+    .filter((b) => b.x2 > b.x1 && b.y2 > b.y1)
+    .sort((a, b) => a.x1 - b.x1 || a.y1 - b.y1 || a.x2 - b.x2 || a.y2 - b.y2);
+  const { data } = await sharp(master)
     .extract({ left, top, width: cw, height: ch })
-    .resize(width, height, { fit: "fill", kernel: "lanczos3" })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let y = 0; y < ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const X = left + x;
+      const Y = top + y;
+      const fill = !inside(req.slip, X, Y)
+        ? OUTSIDE_FILL
+        : hatch.some((b) => inside(b, X, Y))
+          ? QUARANTINE_FILL
+          : null;
+      if (!fill) continue;
+      const i = (y * cw + x) * 3;
+      data[i] = fill[0];
+      data[i + 1] = fill[1];
+      data[i + 2] = fill[2];
+    }
+  }
+  const image = await sharp(data, { raw: { width: cw, height: ch, channels: 3 } })
+    .resize(win.width, win.height, { fit: "fill", kernel: "lanczos3" })
     .jpeg({ quality: 92 })
     .toBuffer();
   return {
     image,
     origin: { x: left, y: top },
-    scale: { x: width / cw, y: height / ch },
-    width,
-    height,
-    rect: { x1: left, y1: top, x2: left + cw, y2: top + ch },
+    scale: { x: win.width / cw, y: win.height / ch },
+    width: win.width,
+    height: win.height,
+    rect: win.rect,
+    recipe: { v: SANITIZE_V, slip: req.slip, hatch },
   };
 }
 

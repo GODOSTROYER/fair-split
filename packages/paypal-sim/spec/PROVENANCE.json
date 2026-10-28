@@ -1,0 +1,46 @@
+{
+  "source": "https://github.com/paypal/paypal-rest-api-specifications",
+  "commit": "90e8041ffe02d80c452d2b476bedd59a8d219bdc",
+  "commit_date": "2026-04-07T22:49:49Z",
+  "fetched": "2026-10-22",
+  "license": "Apache-2.0",
+  "files": {
+    "invoicing_v2.json": {
+      "upstream_path": "openapi/invoicing_v2.json",
+      "sha256": "b38ec179b0a904eed50825cd0b456e788569dc3fdb6efd08e131751f7cc19f52",
+      "bytes": 276617,
+      "title": "Invoices",
+      "version": "2.6",
+      "openapi": "3.0.3"
+    },
+    "payments_payouts_batch_v1.json": {
+      "upstream_path": "openapi/payments_payouts_batch_v1.json",
+      "sha256": "2a86549e2e7e42e9f082d9e43051fe55b83ef19dea1f76cff549377756374cc0",
+      "bytes": 75801,
+      "title": "Payouts",
+      "version": "1.9",
+      "openapi": "3.0.3"
+    },
+    "notifications_webhooks_v1.json": {
+      "upstream_path": "openapi/notifications_webhooks_v1.json",
+      "sha256": "4702a4c2601a087cdde7481f1b55800abb568906e50dde867bb958b4b25afecf",
+      "bytes": 69592,
+      "title": "Webhooks Management",
+      "version": "1.11",
+      "openapi": "3.0.3"
+    },
+    "reporting_transactions_v1.json": {
+      "upstream_path": "openapi/reporting_transactions_v1.json",
+      "sha256": "40f2af0c02c204dde9227b14a6f9f91c2a6cc4222fe2c7c20983c6bc6f9e52b4",
+      "bytes": 75463,
+      "title": "Transaction Search",
+      "version": "1.9",
+      "openapi": "3.0.3"
+    },
+    "LICENSE": {
+      "upstream_path": "LICENSE",
+      "sha256": "aca29b3892ad5c363440c50a618247cf50272b970e1862d837dcc8e1a37336d3",
+      "bytes": 10752
+    }
+  }
+}

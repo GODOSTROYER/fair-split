@@ -5,7 +5,7 @@
 import type { MessageKey } from "@fairsplit/i18n";
 import { AmountDisplay, Glyph, type GlyphName } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
-import { en, RC_SHORT } from "./content.js";
+import { en, RC_SHORT, rateCardRules } from "./content.js";
 import { INVOICE, PEOPLE, RATE_CARD_SHA256, SEASON } from "./fixture.js";
 import { hashPrefix, money, usd } from "./format.js";
 
@@ -144,9 +144,9 @@ export function RateCardPlate() {
         {en("W-TR-02.bolted", { hash: RC_SHORT, date: SEASON.ratifiedLong, card: SEASON.rateCard })}
       </p>
       <ul className="con-rules fs-t-caption">
-        {(["R0", "R1", "R2", "R3", "R4"] as const).map((rule) => (
-          <li key={rule}>
-            <span>{rule}</span> {en(`W-TR-02.${rule}`)}
+        {rateCardRules().map(({ id, text }) => (
+          <li key={id}>
+            <span>{id}</span> {text}
           </li>
         ))}
       </ul>

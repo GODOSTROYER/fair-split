@@ -17,8 +17,8 @@ export function OverviewPage() {
           <>
             What you sign off at gate G1 (register §12): the token sheet with its contrast results, the five
             primitives in every state including reduced motion, six screens composed from the register’s
-            figures, and motion studies of Two keys and Bayad na. Everything renders from the shared packages,
-            so what you approve here is what the console, the app and Proof are built from.
+            figures, motion studies of Two keys and Bayad na, and the seal sheet. Everything renders from the
+            shared packages, so what you approve here is what the console, the app and Proof are built from.
           </>
         }
       />
@@ -40,6 +40,13 @@ export function OverviewPage() {
             </Link>{" "}
             in every state, in both themes, under the motion switch above. The interactive ones respond to
             pointer and keyboard.
+          </dd>
+          <dt>Seal sheet</dt>
+          <dd>
+            <Link to="/prototype/seal-sheet" search={(prev) => prev} className="fs-link">
+              Three hundred seeded seals
+            </Link>{" "}
+            at 64, 200 and 320 px, and the 80 mm print at 203 dpi. Flag any ugly draw by its number.
           </dd>
           <dt>Screens</dt>
           <dd>
@@ -93,8 +100,10 @@ export function OverviewPage() {
             Tab moves the pod-coloured focus ring; it travels with a slab’s face when the face is pressed.
           </li>
           <li>
-            On Approve, hold Space (or the pointer) for 1.6 s. Let go early to see the face spring back.
-            Enter, or “Can’t hold? Approve another way”, opens the dialog route.
+            On Approve, hold Space (or the pointer) until the slab clunks flush at 1.6 s and reads “Release to
+            sign”, then let go on it to sign. Let go early, or slide off after the click, and nothing is
+            signed. Enter, or “Can’t hold? Approve another way”, opens the dialog route, which opens on “Not
+            now”.
           </li>
           <li>
             The motion switch compares the full renderer with reduced motion and the low tier. “System”
@@ -120,6 +129,23 @@ export function OverviewPage() {
           <dd>
             Neither Mona Sans nor Atkinson Hyperlegible Next has ₱. A 2 KB Noto Sans subset joins “FS Sans”
             for that one glyph on the web, and is grafted into the four native cuts (spike S8’s fallback).
+          </dd>
+          <dt>Signing on release</dt>
+          <dd>
+            Following the revised S2 §2.7 and WCAG 2.5.2, a hold arms the slab and the signature happens when
+            you let go inside it, never at the end of a timer. MM-5 gains the armed, confirm and disarmed
+            phases for it.
+          </dd>
+          <dt>The seal</dt>
+          <dd>
+            Ring counts, turns and pen widths come from S2’s coverage simulation, so every band stays between
+            12% and 40% ink rather than reading as grey moiré; below 96 px it draws one ring per key.
+          </dd>
+          <dt>Simulated PayPal</dt>
+          <dd>
+            Until sandbox credentials exist, PayPal steps run on the contract-tested simulator (ADR-0002), so
+            the stage and Proof say “simulated PayPal sandbox”. The sandbox wording stays in the catalog for
+            the day the real sandbox is switched on.
           </dd>
           <dt>Red on its wash</dt>
           <dd>

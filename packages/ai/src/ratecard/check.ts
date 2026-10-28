@@ -58,7 +58,10 @@ export function normaliseQuote(s: string): string {
     .trim();
 }
 
-/** The uniqueness key: (rule_id, pool, basis). See the report: (rule_id, pool) alone would reject R5/R6. */
+/**
+ * The uniqueness key, (rule_id, pool, basis): R5 and R6 each print three thresholds under one rule id
+ * in pool NONE, so (rule_id, pool) alone would flag them (ADR 0003; WS-CORE hashes terms in this order).
+ */
 export const termKey = (t: Pick<Term, "rule_id" | "pool" | "basis">): string =>
   `${t.rule_id}|${t.pool}|${t.basis}`;
 

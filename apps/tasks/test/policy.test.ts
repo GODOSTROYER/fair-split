@@ -1,20 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { TASK_NAMES } from "../src/_shims/contracts.js";
 import { chooseExecutor, parseExecutorKind } from "../src/handoff/dispatcher.js";
+import { renderIdempotencyKey } from "../src/handoff/idempotency.js";
+import type { KillFlag } from "../src/kill.js";
 import {
+  hungAttemptRequeuedAfterMs,
   NO_RENDER_RETRY,
+  RENDER_RETRY,
+  runsOnWorkflows,
   SWEEPER_MAX_ATTEMPTS,
   SWEEPER_STUCK_AFTER_MS,
   TASK_POLICY,
   tasksInLane,
+  WORKFLOW_TASK_NAMES,
 } from "../src/policy.js";
+import { OUTBOX_ID } from "./helpers.js";
 
 describe("task policy", () => {
   it("covers every TaskName", () => {
     expect(Object.keys(TASK_POLICY).sort()).toEqual([...TASK_NAMES].sort());
   });
 
-  it("puts tasks in the S3.3 executor lanes", () => {
+  it("puts tasks in the approved S3.3 lanes: everything inline except three AI tasks on Workflows", () => {
     expect(tasksInLane("inline-api")).toEqual([
       "ensureInvoice",
       "recordPayment",
@@ -23,16 +30,15 @@ describe("task policy", () => {
       "settleBatch",
       "cancelUnclaimed",
       "reroute",
-      "pushNotify",
-    ]);
-    expect(tasksInLane("workflow-live")).toEqual([
-      "extract",
-      "readRateCard",
       "computeRun",
       "explain",
       "agentTurn",
+      "pushNotify",
+      "reconcile",
+      "judgeReset",
     ]);
-    expect(tasksInLane("workflow-scheduled")).toEqual(["reconcile", "judgeReset", "warmCaches"]);
+    expect(tasksInLane("workflow-live")).toEqual(["extract", "readRateCard"]);
+    expect(tasksInLane("workflow-scheduled")).toEqual(["warmCaches"]);
   });
 
   it.each(TASK_NAMES)("%s has a Render-legal timeout (30..86400 s)", (name) => {
@@ -41,11 +47,28 @@ describe("task policy", () => {
     expect(p.timeoutSeconds).toBeLessThanOrEqual(86_400);
   });
 
-  // The claim moves the row to `running` before any I/O, so a Render retry of the same run would
-  // only ever see `skipped`. One retry owner: the outbox sweeper (S3.3 step 4).
-  it.each(TASK_NAMES)("inv.i7.single-retry-owner: %s registers with no Render retries", (name) => {
-    expect(TASK_POLICY[name].retry).toEqual(NO_RENDER_RETRY);
-    expect(TASK_POLICY[name].retry.maxRetries).toBe(0);
+  // Render retries are attempts of the same taskRunId; they only exist for what fs-tasks registers.
+  it.each(TASK_NAMES)("inv.i7.retry-model: %s retries on Render only on a Workflows lane", (name) => {
+    expect(TASK_POLICY[name].retry).toEqual(runsOnWorkflows(name) ? RENDER_RETRY : NO_RENDER_RETRY);
+  });
+
+  it("Render retries are few and finish well inside one sweeper window", () => {
+    expect(RENDER_RETRY.maxRetries).toBe(2);
+    expect(RENDER_RETRY.waitDurationMs * (1 + (RENDER_RETRY.backoffScaling ?? 1))).toBeLessThan(60_000);
+  });
+
+  // S3.3's sweeper takes a `running` row only after 5 minutes without a heartbeat, the same for every
+  // task (no per-task threshold); a timeout bounds only an attempt that hangs.
+  it("a hung live read (extract, the hero path) is back in the queue within 10 minutes", () => {
+    expect(hungAttemptRequeuedAfterMs("extract")).toBe(300_000 + SWEEPER_STUCK_AFTER_MS);
+    expect(hungAttemptRequeuedAfterMs("extract")).toBeLessThanOrEqual(10 * 60_000);
+    // S4.9: a composite read is done within 45 s; the timeout leaves several times that.
+    expect(TASK_POLICY.extract.timeoutSeconds).toBeGreaterThanOrEqual(4 * 45);
+  });
+
+  it("no Workflows attempt can hold its row past a quarter of an hour", () => {
+    for (const name of WORKFLOW_TASK_NAMES)
+      expect(hungAttemptRequeuedAfterMs(name), name).toBeLessThanOrEqual(15 * 60_000);
   });
 
   it("the sweeper bounds a stuck task to 8 attempts, 5 minutes apart (S3.3)", () => {
@@ -53,8 +76,26 @@ describe("task policy", () => {
     expect(SWEEPER_MAX_ATTEMPTS).toBe(8);
   });
 
-  it("judgeReset fits well inside the hour between cron passes", () => {
+  it("judgeReset fits well inside the hour between ticks", () => {
     expect(TASK_POLICY.judgeReset.timeoutSeconds).toBeLessThan(3_600);
+  });
+});
+
+describe("renderIdempotencyKey (handoff to WS-DATA)", () => {
+  it("is scoped to the dispatch attempt: same attempt, same key; next attempt, new key", () => {
+    expect(renderIdempotencyKey([OUTBOX_ID], 1)).toBe(`${OUTBOX_ID}:a1`);
+    expect(renderIdempotencyKey([OUTBOX_ID], 1)).toBe(renderIdempotencyKey([OUTBOX_ID], 1));
+    expect(renderIdempotencyKey([OUTBOX_ID], 2)).not.toBe(renderIdempotencyKey([OUTBOX_ID], 1));
+    expect(renderIdempotencyKey(["a", "b"], 0)).toBe("a+b:a0");
+  });
+
+  it("hashes long id lists, and refuses no ids or a bad attempt", () => {
+    const ids = Array.from({ length: 64 }, (_, i) => `${OUTBOX_ID}-${i}`);
+    const key = renderIdempotencyKey(ids, 3);
+    expect(key).toMatch(/^h[0-9a-f]{64}:a3$/);
+    expect(renderIdempotencyKey(ids, 3)).toBe(key);
+    expect(() => renderIdempotencyKey([], 1)).toThrow();
+    for (const bad of [-1, 1.5, Number.NaN]) expect(() => renderIdempotencyKey([OUTBOX_ID], bad)).toThrow();
   });
 });
 
@@ -65,12 +106,30 @@ describe("chooseExecutor (handoff to WS-DATA)", () => {
       expect(chooseExecutor(name, { configured: "worker", replay: true })).toBe("worker");
     }
   });
-  it("a workflow deployment keeps money inline, AI on Workflows when live, and replays inline", () => {
+
+  it("a workflow deployment sends only the three Workflows tasks to fs-tasks, and replays inline", () => {
+    const onWorkflows = TASK_NAMES.filter(
+      (name) => chooseExecutor(name, { configured: "workflow", replay: false }) === "workflow",
+    );
+    expect(onWorkflows).toEqual(["extract", "readRateCard", "warmCaches"]);
     expect(chooseExecutor("postPayoutBatch", { configured: "workflow", replay: false })).toBe("inline");
-    expect(chooseExecutor("extract", { configured: "workflow", replay: false })).toBe("workflow");
+    expect(chooseExecutor("judgeReset", { configured: "workflow", replay: false })).toBe("inline");
     expect(chooseExecutor("extract", { configured: "workflow", replay: true })).toBe("inline");
-    expect(chooseExecutor("judgeReset", { configured: "workflow", replay: true })).toBe("workflow");
+    expect(chooseExecutor("warmCaches", { configured: "workflow", replay: true })).toBe("workflow");
   });
+
+  it("under kill_ai_live every AI lane stays in fs-api, whose flags were read fresh; other flags change nothing", () => {
+    const ai = new Set<KillFlag>(["ai_live"]);
+    for (const name of TASK_NAMES)
+      expect(chooseExecutor(name, { configured: "workflow", replay: false, flags: ai }), name).toBe("inline");
+    const others = new Set<KillFlag>(["payouts", "paypal_live"]);
+    const onWorkflows = TASK_NAMES.filter(
+      (name) => chooseExecutor(name, { configured: "workflow", replay: false, flags: others }) === "workflow",
+    );
+    expect(onWorkflows).toEqual(["extract", "readRateCard", "warmCaches"]);
+    expect(chooseExecutor("extract", { configured: "worker", replay: false, flags: ai })).toBe("worker");
+  });
+
   it("parses EXECUTOR strictly with an inline default", () => {
     expect(parseExecutorKind(undefined)).toBe("inline");
     expect(parseExecutorKind("")).toBe("inline");

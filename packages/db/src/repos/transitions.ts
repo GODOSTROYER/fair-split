@@ -6,15 +6,18 @@
  * Zero rows means another writer moved first: the caller gets `{ok: false, reason: "STALE", current}` and reloads.
  * The edge itself is checked against a transition policy first (default: the register's tables in the domain
  * shim; inject WS-CORE's `fsm` once it lands). A successful transition appends its run_event in the same
- * transaction. Payout item statuses climb ranks only (`applyItemStatus`), mirrored by a SQL trigger.
+ * transaction. Payout item statuses climb ranks only (`applyItemStatus`). The database mirrors all of it
+ * (migrations/0006): a state change outside the machine, or one that does not count version up by one, raises
+ * FS409 ILLEGAL_TRANSITION / VERSION_MISMATCH whoever writes it, so these helpers are the only way state moves.
  *
  * Every helper takes the workspace lock before its first row lock (tx.ts), so a transition can never deadlock
  * against another transaction that holds the lock and wants the same row (e.g. the kill-switch handler).
  */
-import { and, eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
 import {
   type HoldState,
   ITEM_STATUS_RANK,
+  ITEM_STATUS_TO_LINE_STATE,
   type ItemStatus,
   type LineState,
   type Provenance,
@@ -23,7 +26,8 @@ import {
 import { canApplyItemStatus, canTransitionLine, canTransitionRun } from "../_shims/domain.js";
 import type { DbOrTx, Tx } from "../client.js";
 import { appendEvent, type StoredRunEvent } from "../events.js";
-import { holds, memberLines, payoutItems, payRuns } from "../schema/index.js";
+import { appendLedger } from "../ledger.js";
+import { approvals, holds, memberLines, payoutItems, payRuns } from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
 import { withWorkspaceTx } from "../tx.js";
 
@@ -56,6 +60,7 @@ export type TransitionResult<R> = { ok: true; row: R; event: StoredRunEvent | nu
 export type Cause = string | Record<string, unknown>;
 
 type PayRun = typeof payRuns.$inferSelect;
+type Approval = typeof approvals.$inferSelect;
 type MemberLine = typeof memberLines.$inferSelect;
 type Hold = typeof holds.$inferSelect;
 type PayoutItem = typeof payoutItems.$inferSelect;
@@ -93,7 +98,7 @@ export async function transitionRun(
   return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(payRuns)
-      .set({ ...(t.patch ?? {}), state: t.to, version: sql`${payRuns.version} + 1` })
+      .set({ ...extra(t.patch), state: t.to, version: sql`${payRuns.version} + 1` })
       .where(and(eq(payRuns.workspaceId, scope.workspaceId), eq(payRuns.id, t.id), eq(payRuns.state, t.from)))
       .returning();
     if (!row) return staleOrMissing(await currentState(tx, payRuns, scope, t.id));
@@ -130,7 +135,7 @@ export async function transitionLine(
   return withWorkspaceTx(db, scope, async (tx) => {
     const [row] = await tx
       .update(memberLines)
-      .set({ ...(t.patch ?? {}), state: t.to, version: sql`${memberLines.version} + 1` })
+      .set({ ...extra(t.patch), state: t.to, version: sql`${memberLines.version} + 1` })
       .where(
         and(
           eq(memberLines.workspaceId, scope.workspaceId),
@@ -196,6 +201,13 @@ export async function transitionHold(
       : null;
     return { ok: true, row, event };
   });
+}
+
+/** A transition's extra columns, minus anything the transition itself owns or the scope decides. */
+function extra(patch: object | undefined): Record<string, unknown> {
+  if (!patch) return {};
+  const { id: _id, workspaceId: _ws, state: _s, version: _v, ...rest } = patch as Record<string, unknown>;
+  return rest;
 }
 
 function staleOrMissing(current: string | null): TransitionFailure {
@@ -329,4 +341,177 @@ async function requestItemCancelLocked(
     .from(payoutItems)
     .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.id, r.id)));
   return { ok: false, current: cur?.status ?? null };
+}
+
+export interface LineFollow {
+  /** our payout item row id; its current status is what the line follows */
+  itemId: string;
+  provenance: Provenance;
+  /** what caused it, e.g. {webhookEventId} or {get: "payouts-item"}; recorded on every line.state event */
+  cause?: Record<string, unknown>;
+}
+
+export type FollowResult =
+  | { ok: true; from: LineState; to: LineState; row: MemberLine; events: StoredRunEvent[] }
+  | { ok: false; reason: "ILLEGAL" | "NOT_FOUND" | "SUPERSEDED"; current: string | null };
+
+/**
+ * The item rank each line state mirrors (S3.5 "item status → line state"). The cash and re-route successors of
+ * RETURNED have left their item behind: a notice up to RETURNED's rank is stale for them, and nothing higher applies.
+ */
+const FOLLOW_RANK: Partial<Record<LineState, number>> = {
+  SUBMITTED: 0,
+  PAYPAL_PENDING: ITEM_STATUS_RANK.PENDING,
+  PAYPAL_HELD: ITEM_STATUS_RANK.ONHOLD,
+  UNCLAIMED: ITEM_STATUS_RANK.UNCLAIMED,
+  RETURNED: ITEM_STATUS_RANK.RETURNED,
+  REROUTED: ITEM_STATUS_RANK.RETURNED,
+  OFF_RAIL_DUE: ITEM_STATUS_RANK.RETURNED,
+  OFF_RAIL_PAID: ITEM_STATUS_RANK.RETURNED,
+  NEEDS_ACTION: ITEM_STATUS_RANK.FAILED,
+  PAID: ITEM_STATUS_RANK.SUCCESS,
+  REVERSED: ITEM_STATUS_RANK.REVERSED,
+};
+
+/**
+ * States an item status implies without a notice of their own: any status after PENDING means PayPal accepted the
+ * item (PAYPAL_PENDING), and RETURNED follows only our cancel of an UNCLAIMED item (UNCLAIMED).
+ */
+const IMPLIED: readonly LineState[] = ["PAYPAL_PENDING", "UNCLAIMED"];
+
+/** The shortest walk from → to along the policy's edges, through implied states only (null when there is none). */
+function followPath(from: LineState, to: LineState, policy: TransitionPolicy): LineState[] | null {
+  const limit = FOLLOW_RANK[to];
+  if (limit === undefined) return null;
+  const parent = new Map<LineState, LineState>();
+  const queue: LineState[] = [from];
+  while (queue.length > 0) {
+    const cur = queue.shift() as LineState;
+    const rank = FOLLOW_RANK[cur] ?? Number.POSITIVE_INFINITY;
+    for (const next of [to, ...IMPLIED]) {
+      const r = FOLLOW_RANK[next] ?? Number.NEGATIVE_INFINITY;
+      if (next === from || parent.has(next) || r <= rank || r > limit || !policy.line(cur, next)) continue;
+      parent.set(next, cur);
+      if (next === to) {
+        const path: LineState[] = [to];
+        for (let s = parent.get(to); s !== undefined && s !== from; s = parent.get(s)) path.unshift(s);
+        return path;
+      }
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+/**
+ * Moves a member line to the state its payout item's status maps to (S3.5), in the caller's transaction. Item
+ * notices arrive in any order, and one can beat our own 201: an item that is already SUCCESS while its line is still
+ * SUBMITTED walks the line SUBMITTED → PAYPAL_PENDING → PAID here, in one transaction, instead of being stuck behind
+ * an edge the machine does not have. Each step is an optimistic transition with its own line.state event (implied
+ * steps say so in their cause). A notice the line is already at or past is a no-op; so the late 201, whose own
+ * SUBMITTED → PAYPAL_PENDING then finds the line STALE, changes nothing. An item a re-route superseded no longer
+ * moves its line (SUPERSEDED), and a line that never reached PayPal cannot follow one (ILLEGAL).
+ */
+export async function followItem(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  f: LineFollow,
+  policy: TransitionPolicy = DEFAULT_POLICY,
+): Promise<FollowResult> {
+  return withWorkspaceTx(db, scope, async (tx) => {
+    const [item] = await tx
+      .select({ id: payoutItems.id, status: payoutItems.status, lineId: payoutItems.lineId })
+      .from(payoutItems)
+      .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.id, f.itemId)));
+    if (!item) return { ok: false, reason: "NOT_FOUND", current: null };
+    const [line] = await tx
+      .select()
+      .from(memberLines)
+      .where(and(eq(memberLines.workspaceId, scope.workspaceId), eq(memberLines.id, item.lineId)))
+      .for("update");
+    if (!line) return { ok: false, reason: "NOT_FOUND", current: null };
+    const [successor] = await tx
+      .select({ id: payoutItems.id })
+      .from(payoutItems)
+      .where(and(eq(payoutItems.workspaceId, scope.workspaceId), eq(payoutItems.supersedesItemId, item.id)))
+      .limit(1);
+    if (successor) return { ok: false, reason: "SUPERSEDED", current: line.state };
+    const from = line.state as LineState;
+    const target = ITEM_STATUS_TO_LINE_STATE[item.status as ItemStatus | "SUBMITTED"];
+    const fromRank = FOLLOW_RANK[from];
+    if (fromRank === undefined) return { ok: false, reason: "ILLEGAL", current: from };
+    if (fromRank >= (FOLLOW_RANK[target] ?? 0)) return { ok: true, from, to: from, row: line, events: [] };
+    const path = followPath(from, target, policy);
+    if (!path) return { ok: false, reason: "ILLEGAL", current: from };
+    let cur = from;
+    let row = line;
+    const events: StoredRunEvent[] = [];
+    for (const next of path) {
+      const cause = {
+        ...(f.cause ?? {}),
+        itemId: item.id,
+        itemStatus: item.status,
+        ...(next !== target ? { implied: true } : {}),
+      };
+      const res = await transitionLine(
+        tx,
+        scope,
+        { id: line.id, from: cur, to: next, cause, provenance: f.provenance },
+        policy,
+      );
+      // the workspace lock is held, so nothing can move the line between steps
+      if (!res.ok) throw new Error(`followItem: ${cur} → ${next} failed (${res.reason})`);
+      if (res.event) events.push(res.event);
+      row = res.row;
+      cur = next;
+    }
+    return { ok: true, from, to: cur, row, events };
+  });
+}
+
+export interface ApprovalVoid {
+  runId: string;
+  /** a code such as LINE_EDITED, KILL_SWITCH or DIGEST_MISMATCH; free text belongs in notes, never the ledger */
+  reason: string;
+}
+
+/** A void reason: a code such as LINE_EDITED or DIGEST_MISMATCH, never free text (S3.12). */
+export const VOID_REASON = /^[A-Z][A-Z0-9_]{1,63}$/;
+
+/**
+ * Voids every live signature of a run — a line edited after key 1, the kill switch halting an approved run, a digest
+ * that no longer matches (S3.5, S3.11) — and records it in the ledger in the same transaction. Voiding is the only
+ * write an approval ever takes (migrations/0006 freezes the rest), and it happens once: the live-signature slot is
+ * then free for a fresh key. Idempotent: nothing left to void writes nothing.
+ */
+export async function voidApprovals(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  v: ApprovalVoid,
+): Promise<{ voided: Approval[] }> {
+  if (!VOID_REASON.test(v.reason)) {
+    throw new TypeError("approvals.void: the reason is a code such as LINE_EDITED, never free text (S3.12)");
+  }
+  return withWorkspaceTx(db, scope, async (tx) => {
+    const voided = await tx
+      .update(approvals)
+      .set({ voidedAt: sql`now()`, voidReason: v.reason })
+      .where(
+        and(
+          eq(approvals.workspaceId, scope.workspaceId),
+          eq(approvals.runId, v.runId),
+          eq(approvals.decision, "SIGNED"),
+          isNull(approvals.voidedAt),
+        ),
+      )
+      .returning();
+    if (voided.length > 0) {
+      await appendLedger(tx, scope, {
+        kind: "approval.voided",
+        runId: v.runId,
+        payload: { runId: v.runId, approvalIds: voided.map((a) => a.id).sort(), reason: v.reason },
+      });
+    }
+    return { voided };
+  });
 }

@@ -10,7 +10,7 @@ import {
 } from "../gateway/index.js";
 import { SSE_HEADERS, sseBody } from "../gateway/test-helpers.js";
 import { plainPage } from "../read/test-fixtures.js";
-import { checkRateCard, normaliseQuote } from "./check.js";
+import { checkRateCard, normaliseQuote, termKey } from "./check.js";
 import {
   parseCap,
   parseConfidence,
@@ -184,6 +184,14 @@ describe("checkRateCard (S4.3 checks)", () => {
       ["R6", "READ_CONFIDENCE", { unit: "bp", value: 8500 }, { unit: "none" }],
       ["CLOSED", "NONE", { unit: "none" }, { unit: "none" }],
     ]);
+  });
+
+  it("ADR 0003: terms are keyed by (rule_id, pool, basis), so R5's three thresholds are three terms", () => {
+    const r5 = goodRead.terms.filter((t) => t.rule_id === "R5");
+    expect(new Set(r5.map((t) => `${t.rule_id}|${t.pool}`)).size).toBe(1);
+    expect(new Set(r5.map(termKey)).size).toBe(3);
+    const d = checkRateCard(goodRead, textLayer);
+    expect(d.terms.filter((t) => t.rule_id === "R5" || t.rule_id === "R6").every((t) => t.ok)).toBe(true);
   });
 
   it("only whitespace and quote marks are normalised when matching quotes", () => {

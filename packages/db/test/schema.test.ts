@@ -14,21 +14,28 @@ afterAll(async () => {
   await t?.close();
 });
 
-/** Tables that are not workspace data: the tenancy root and Better Auth's own tables. */
+/**
+ * Tables that are not workspace data: the tenancy root, Better Auth's own tables, and the webhook replay record (a
+ * delivery's transmission id is claimed before the event names a workspace; it is a key and an expiry, nothing more).
+ */
 const NO_WORKSPACE = new Set([
   "workspaces",
   "auth_user",
   "auth_session",
   "auth_account",
   "auth_verification",
+  "webhook_transmissions",
 ]);
 /** System-wide rows are allowed here (S3 deviation 4 plus cron tasks, system PayPal calls and health reports). */
 const NULLABLE_WORKSPACE = new Set([
   "webhook_events",
   "paypal_calls",
+  "llm_calls",
   "task_outbox",
   "reconciliation_reports",
 ]);
+/** Global memory that only names a workspace: it outlives a purge (ON DELETE SET NULL); everything else cascades. */
+const KEPT_ON_PURGE = new Set(["webhook_events", "paypal_calls", "llm_calls"]);
 /** Infrastructure bookkeeping without data provenance (I8 labels data rows). */
 const NO_PROVENANCE = new Set([
   ...NO_WORKSPACE,
@@ -88,7 +95,14 @@ describe("register §7 table conventions", () => {
         "cash_receipts",
         "review_requests",
       ],
-      ["payout_batches", "payout_items", "webhook_events", "paypal_calls", "reconciliation_reports"],
+      [
+        "payout_batches",
+        "payout_items",
+        "webhook_events",
+        "webhook_transmissions",
+        "paypal_calls",
+        "reconciliation_reports",
+      ],
       ["task_outbox", "run_events", "ledger_entries", "ledger_heads", "agent_sessions", "llm_calls"],
       ["idempotency_keys", "system_flags"],
     ].flat();
@@ -107,6 +121,27 @@ describe("register §7 table conventions", () => {
         NULLABLE_WORKSPACE.has(tbl) ? "YES" : "NO",
       );
     }
+  });
+
+  it("workspace_id cascades on purge, except the global memory that must outlive it (SET NULL)", async () => {
+    const rows = await t.owner.sql<{ table_name: string; on_delete: string }[]>`
+      select c.conrelid::regclass::text as table_name,
+             case c.confdeltype when 'c' then 'cascade' when 'n' then 'set null' else c.confdeltype::text end
+               as on_delete
+        from pg_constraint c
+        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+       where c.contype = 'f' and c.confrelid = 'workspaces'::regclass
+         and array_length(c.conkey, 1) = 1 and a.attname = 'workspace_id'`;
+    expect(rows.length).toBeGreaterThan(35);
+    for (const r of rows) {
+      expect(r.on_delete, r.table_name).toBe(KEPT_ON_PURGE.has(r.table_name) ? "set null" : "cascade");
+    }
+    expect(
+      rows
+        .filter((r) => r.on_delete === "set null")
+        .map((r) => r.table_name)
+        .sort(),
+    ).toEqual([...KEPT_ON_PURGE].sort());
   });
 
   it("uuid primary keys default to fs_uuidv7(), which returns RFC 9562 v7 ids in time order", async () => {
@@ -202,19 +237,31 @@ describe("pay_runs.run_seq", () => {
   });
 
   it("requires the batch digest and sender_batch_id from POSTING on", async () => {
-    const ws = await fixtureWorkspace(t.owner.db, { withRun: true });
+    const ws = await fixtureWorkspace(t.owner.db, { withRun: true, runState: "APPROVED" });
     const runId = ws.runId ?? "";
-    expect(
-      await sqlState(() => t.owner.db.update(payRuns).set({ state: "POSTING" }).where(eq(payRuns.id, runId))),
-    ).toBe("23514");
+    // APPROVED → POSTING is a legal edge (migrations/0006), so what refuses it here is the check constraint
+    const post = { state: "POSTING" as const, version: sql`${payRuns.version} + 1` };
+    expect(await sqlState(() => t.owner.db.update(payRuns).set(post).where(eq(payRuns.id, runId)))).toBe(
+      "23514",
+    );
     await t.owner.db
       .update(payRuns)
-      .set({
-        state: "POSTING",
-        batchSha256: "a".repeat(64),
-        senderBatchId: `2026A-aaaaaaaa-r${runId.slice(0, 4)}`,
-      })
+      .set({ ...post, batchSha256: "a".repeat(64), senderBatchId: `2026A-aaaaaaaa-r${runId.slice(0, 4)}` })
       .where(eq(payRuns.id, runId));
+    expect(
+      await sqlState(() =>
+        t.owner.db.insert(payRuns).values({
+          workspaceId: ws.workspaceId,
+          seasonId: ws.seasonId,
+          rateCardId: ws.rateCardId,
+          seasonCode: "2026A",
+          currency: "USD",
+          rateCardSha256: ws.rateCardSha256,
+          state: "SETTLED",
+          provenance: "seeded",
+        }),
+      ),
+    ).toBe("23514");
   });
 });
 

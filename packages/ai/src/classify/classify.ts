@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   type GatewayResult,
   inputShaOf,
+  jsonForPrompt,
   jsonOutputFormat,
   parseStructured,
   sha256Hex,
@@ -104,7 +105,8 @@ export async function classifyDeduction(input: ClassifyInput, deps: ReadDeps): P
       messages: [
         {
           role: "user",
-          content: `<terms>${JSON.stringify(shown)}</terms>\n<line>${JSON.stringify(line)}</line>`,
+          // Both blocks through jsonForPrompt: a line (or a quote) cannot close its block (S4.7 layer 5).
+          content: `<terms>${jsonForPrompt(shown)}</terms>\n<line>${jsonForPrompt(line)}</line>`,
         },
       ],
     },

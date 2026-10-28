@@ -1,6 +1,12 @@
+import type {
+  CallPriority,
+  CallPurpose,
+  LimiterDecision,
+  PayPalAuth,
+  PayPalLimiter,
+} from "@fairsplit/paypal-core";
 import { PayPalAPI } from "@paypal/agent-toolkit/mcp";
 import type { z } from "zod";
-import type { CallPriority, PayPalAuth } from "./_shims/paypal-core.js";
 import { isToolkitMethod, type ToolkitMethod } from "./actions.js";
 import { type CallCapture, installCapture, withCapture } from "./capture.js";
 import { toolkitZodSchemas } from "./schemas.js";
@@ -9,15 +15,18 @@ import { toolkitZodSchemas } from "./schemas.js";
 export const TOOLKIT_SOURCE = "FairSplit";
 /** PayPalHttp's timeout (S3 §S3.6.2); the toolkit itself sets none. */
 export const DEFAULT_TIMEOUT_MS = 15_000;
+/** Every PayPalAPI this package builds runs in the toolkit's sandbox mode (policy `sandboxOnly`). */
+export const TOOLKIT_SANDBOX = true;
 
-/** IC-04 `limiter.take` (TEMPORARY local port until WS-DATA's limiter lands). Rejects when denied. */
-export interface ToolkitLimiter {
-  take(request: { purpose: string; priority: CallPriority }): Promise<unknown>;
-}
+/**
+ * IC-04 `limiter.take`, shared with PayPalHttp (WS-PPCORE's `PayPalLimiter`). A denial is a decision
+ * `{ok:false}` (or a rejection); either way nothing is sent.
+ */
+export type ToolkitLimiter = PayPalLimiter;
 
 /** One row for `paypal_calls` (purpose, status, debug_id, request_id, ms). */
 export interface ToolkitCallRecord {
-  purpose: string;
+  purpose: CallPurpose;
   method: ToolkitMethod;
   attempt: number;
   ok: boolean;
@@ -30,8 +39,9 @@ export interface ToolkitCallRecord {
 
 export interface ToolkitDeps {
   /** IC-05 PayPalAuth: the one shared token cache. The toolkit never fetches its own token. */
-  auth: PayPalAuth;
-  limiter?: ToolkitLimiter;
+  auth: Pick<PayPalAuth, "token" | "invalidate">;
+  /** Required: the sandbox blocks an IP above 50 calls a minute, so no call skips the limiter. */
+  limiter: ToolkitLimiter;
   /** Best effort: a failing recorder never fails the PayPal call. */
   onCall?: (record: ToolkitCallRecord) => void | Promise<void>;
   timeoutMs?: number;
@@ -55,6 +65,26 @@ export class ToolkitMethodError extends Error {
     super(`Not an allowlisted toolkit method: ${method}`);
     this.name = "ToolkitMethodError";
   }
+}
+
+/** The limiter refused the call (window full or the 429 circuit open); nothing was sent. */
+export class ToolkitLimitedError extends Error {
+  constructor(
+    readonly method: ToolkitMethod,
+    readonly reason: string,
+    readonly retryAfterMs: number | null,
+  ) {
+    super(`${method}: the PayPal limiter refused the call (${reason}); nothing was sent`);
+    this.name = "ToolkitLimitedError";
+  }
+}
+
+function denial(
+  decision: LimiterDecision | undefined | null,
+): { reason: string; retryAfterMs: number | null } | null {
+  if (!decision || typeof decision !== "object" || decision.ok !== false) return null;
+  const retryAfterMs = Number.isFinite(decision.retryAfterMs) ? decision.retryAfterMs : null;
+  return { reason: String(decision.reason ?? "DENIED"), retryAfterMs };
 }
 
 /** The arguments failed the toolkit's own zod schema; nothing was sent. */
@@ -140,6 +170,10 @@ export class PayPalToolkit {
   readonly #deps: ToolkitDeps;
 
   constructor(deps: ToolkitDeps) {
+    if (!deps?.auth || typeof deps.auth.token !== "function")
+      throw new TypeError("tk() needs the shared IC-05 PayPalAuth");
+    if (!deps.limiter || typeof deps.limiter.take !== "function")
+      throw new TypeError("tk() needs the shared PayPal limiter (40 calls a minute across services)");
     this.#deps = deps;
     installCapture();
   }
@@ -157,12 +191,13 @@ export class PayPalToolkit {
     if (!parsed.success) throw new ToolkitArgsError(method, parsed.error.issues);
 
     const priority = options?.priority ?? this.#deps.priority ?? "live";
-    const purpose = `toolkit:${method}`;
+    const purpose: CallPurpose = `toolkit:${method}`;
     for (let attempt = 1; ; attempt++) {
-      await this.#deps.limiter?.take({ purpose, priority });
+      const refused = denial(await this.#deps.limiter.take({ purpose, priority }));
+      if (refused) throw new ToolkitLimitedError(method, refused.reason, refused.retryAfterMs);
       const token = await this.#deps.auth.token();
       const api = new PayPalAPI(token.v, {
-        sandbox: true,
+        sandbox: TOOLKIT_SANDBOX,
         source: TOOLKIT_SOURCE,
         ...(requestId ? { request_id: requestId } : {}),
       });
@@ -194,7 +229,7 @@ export class PayPalToolkit {
       });
       if (!failure) return out as T;
       if (status === 401 && attempt === 1) {
-        this.#deps.auth.invalidate();
+        this.#deps.auth.invalidate(token.v);
         continue;
       }
       throw new ToolkitError({

@@ -34,8 +34,10 @@ figures are kept exact.
 3. **Auto-cancel date.** C-27: invoice date + 25 days. S1/design showcase copy: "Auto-cancels
    30 Nov 2026" with the cash day on 30 Oct. A 30 Nov auto-cancel needs a 5 Nov invoice, which is
    after the cash day. **Decision:** the showcase run r37 is invoiced on 29 Oct 2026 (the hero
-   recording date), auto-cancel is computed as 23 Nov 2026, the due date is NET_15 (13 Nov) and
-   the cash day stays 30 Oct. S3 deviation 13 already treats "30 Nov" as copy.
+   recording date), auto-cancel is computed as 23 Nov 2026 and the cash day stays 30 Oct. S3
+   deviation 13 already treats "30 Nov" as copy. There is no due date: no payment term is ever sent
+   (00-plan, S3.6.3), so `run.invoice.dueDate` is null (kept, deprecated, for older readers) and
+   `autoCancelOn` is the only date Fair Split sets.
 
 4. **Serial range of the replay set.** S4.10 suggests starting serials at 0209; the register fixes
    0301–0563. **Decision:** register. A–L hold 0425–0471 plus the pink 0457 (B has the white 0457,
@@ -50,15 +52,20 @@ figures are kept exact.
    register §4 uses `/season/…`, `/runs/…`, `/proof/:runSlug` and `{screenId}.{element}`.
    **Decision:** register (contracts `webRoutes`, `appRoutes`, `testId`).
 
-7. **Key IDs on Proof plate 5.** S1 shows `fs-analyn-a1` and `fs-ernesto-a1` on the two-keys
-   plate, and S3.8 makes `fs-ernesto-a1` the showcase Chair's SecureStore key on the phone. A key
-   whose private half derives from public text must never carry a device key ID, or a workspace that
-   registers keys from the snapshot would accept a Chair co-sign anyone can forge (I6).
-   **Decision:** the seeded run r37 is signed with seeded keys `fs-analyn-s1` and `fs-ernesto-s1`
-   (`SeededKeyId`, `fs-{persona}-s{n}`), registered only in the seeded ledger as kind `seeded`.
-   `officers[].keyId` keeps the device IDs as identity metadata; no public key for them is in the
-   snapshot. `device_keys` and the API accept only `DeviceKeyId` (`a` or `w`), and `checkApproval`
-   refuses seeded keys. A recorded live run shows the device keys on plate 5.
+7. **Key IDs on Proof plate 5.** The pre-adoption draft of S1 showed `fs-analyn-a1` and
+   `fs-ernesto-a1` on the two-keys plate. The adopted specs on main (00-plan "Keys", S3.8 and S3
+   deviation 7, S1, S5) make the treasurer's real key `fs-analyn-w1`, a non-extractable WebCrypto key
+   registered from `/ops` (kind `web`), and the Chair's `fs-ernesto-a1`, his SecureStore key on the
+   phone (kind `app`). Judge Mode's labelled browser keys are `fs-{persona}-demo-{6}` (C-13, kind
+   `web_demo`). A key whose private half derives from public text must never carry a device key ID,
+   or a workspace that registers keys from the snapshot would accept a co-sign anyone can forge (I6).
+   **Decision:** `officers[].keyId` is `fs-analyn-w1` (TREASURER) and `fs-ernesto-a1` (CHAIR), as
+   identity metadata only; no public key for them is in the snapshot. The seeded run r37 is signed
+   with seeded keys `fs-analyn-s1` and `fs-ernesto-s1` (`SeededKeyId`, `fs-{persona}-s{n}`),
+   registered only in the seeded ledger as kind `seeded`. `device_keys` and the API accept only
+   `DeviceKeyId` (`a{n}` app keys, `w{n}` browser keys and C-13 demo keys), each with its own kind
+   (`DEVICE_KEY_ID_PATTERN_BY_KIND`), and `checkApproval` refuses seeded keys. A recorded live run
+   shows the device keys on plate 5.
 
 ## Interpretations (no conflict, but a choice had to be made)
 

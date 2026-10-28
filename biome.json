@@ -1,7 +1,23 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "files": {
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/.expo", "!**/coverage", "!**/*.gen.ts"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!!**/.turbo",
+      "!!**/dist",
+      "!!**/coverage",
+      "!!**/.expo",
+      "!!**/.expo-shared",
+      "!!**/playwright-report",
+      "!!**/test-results",
+      "!!media/raw",
+      "!!video/render",
+      "!!apps/mobile/android",
+      "!!apps/mobile/ios",
+      "!**/*.gen.ts",
+      "!docs/spec"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -12,7 +28,11 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "style": {
+        "useImportType": "error",
+        "useExportType": "error"
+      }
     }
   },
   "javascript": {

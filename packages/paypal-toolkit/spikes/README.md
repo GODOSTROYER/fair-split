@@ -13,10 +13,20 @@ AUTO_CANCEL rule, get, record payment, verified INVOICE.PAID."
 | Payout read tools (`../../paypal-payouts/spikes/s2-payout-read-schemas.ts --live`)                                            | Accepted; 1,167 input tokens; one `get_payout_item` call, valid under the vendored PR #107 schema; 1.5 s                                       |
 
 Re-run 22 Oct 2026 after the I1 rule was tightened (the note may only close the memo with one phrase from
-`INVOICE_NOTE_CLOSINGS`; item names are the code's): Opus 5.5 chose "Thank you.", kept the code's item names,
+a closed list; item names are the code's): Opus 5.5 chose "Thank you.", kept the code's item names,
 and the draft reconciles; 5.3 s, US$0.0629.
 
-Spend: US$0.0614 + US$0.0061 + US$0.0629 at US$4 / US$20 per MTok, effort `low`, no sampling parameters,
+Rule changed again on 23 Oct to the approved plan and S4.4: the note is the memo exactly, and the agent
+chooses the three item labels (letters, spaces and `,'()-`, distinct, no number words). Re-run with a prompt
+that asks for labels: Opus 5.5 labelled the lines "Premium", "Quality bonus" and "Disbursement costs", kept
+every other value, and the draft reconciles; 5.2 s, US$0.0609.
+
+Changed on 28 Oct, with WS-CORE's contracts on main: the script now checks the draft with
+`readAgentCreate` (it must be core's `canonicalInvoiceCall` body, byte for byte, for its own labels) and
+gives the model each line's closed vocabulary (`ITEM_LABEL_WORDS`). The runs above used the earlier
+`reconcileAgentDraft`; the 23 Oct labels are core's quote names and pass the new check too. Not re-run.
+
+Spend: US$0.0614 + US$0.0061 + US$0.0629 + US$0.0609 at US$4 / US$20 per MTok, effort `low`, no sampling parameters,
 no forced `tool_choice`. Server-side fallbacks were left off on purpose, so the result is Opus 5.5's own.
 
 **Still open (needs the S1 sandbox credentials, not yet in `.env`):** the PayPal half: create → send
@@ -24,6 +34,10 @@ no forced `tool_choice`. Server-side fallbacks were left off on purpose, so the 
 INVOICE.PAID; whether PayPal accepts the rule after send (if not, set `ruleBeforeSend: true`); the
 payment term PayPal applies when `create_invoice` sends none (the toolkit has no `payment_term`
 field); whether the axios interceptor sees `paypal-debug-id` on real sandbox responses (it does
-under msw). Spike S4 (Payouts: 201, UNCLAIMED → cancel → RETURNED, ERRPYO005/ERRPYO002) also waits for S1.
+under msw); and whether `delete_invoice` on a SCHEDULED invoice frees its `invoice_number`, which the
+chain's one recreate reuses (`FS-{runSlug}`; S3.6.3 says the number "becomes reusable", unverified). If
+it does not, the recreate fails on a duplicate number and the adoption search finds the deleted invoice:
+record what PayPal returns. Spike S4 (Payouts: 201, UNCLAIMED → cancel → RETURNED, ERRPYO005/ERRPYO002)
+also waits for S1.
 
 Results append to `.cache/spikes/*.jsonl` (gitignored); without `--live` the scripts print the last run.

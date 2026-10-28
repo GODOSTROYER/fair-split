@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createPayPalWebhookVerifier, type PostbackFn, type VerifyOutcome } from "@fairsplit/paypal-core";
 import {
   createTestPki,
@@ -18,7 +19,7 @@ import {
   createPayPalWebhookHandler,
   type DuplicateDelivery,
   honoPayPalWebhook,
-  MAX_REJECTED_RAW_BYTES,
+  MAX_REJECTED_HEADER_CHARS,
   MAX_WEBHOOK_BODY_BYTES,
   type PayPalWebhookDeps,
   prewarmWebhookCertificates,
@@ -91,7 +92,6 @@ function realVerifier(
     ...(options.devMocks ? { devMocks: true } : {}),
     ...(options.postback ? { postback: options.postback } : {}),
     ...(options.now ? { now: options.now } : {}),
-    expiredCertPolicy: "accept",
     fetch: pemServer({ [TEST_CERT_URL]: leaf.pem, ...options.pems }),
   });
   return {
@@ -298,9 +298,13 @@ describe("POST /webhooks/paypal handler", () => {
     expect(webhookApplyRule).toBe(applyModule.webhookApplyRule);
     expect(corroborateWithSettleGet).toBe(applyModule.corroborateWithSettleGet);
     expect(SETTLE_GET_DELAYS_MS).toBe(applyModule.SETTLE_GET_DELAYS_MS);
-    expect(webhookApplyRule({ eventType: "PAYMENT.PAYOUTS-ITEM.UNCLAIMED", verified: "self" }).action).toBe(
-      "fresh_get_first",
-    );
+    expect(
+      webhookApplyRule({
+        eventType: "PAYMENT.PAYOUTS-ITEM.UNCLAIMED",
+        verified: "self",
+        delivery: { certWarning: null },
+      }).action,
+    ).toBe("fresh_get_first");
   });
 
   it("rejects a tampered body with 400, stores a 'rejected' row with its reason and enqueues nothing", async () => {
@@ -325,7 +329,10 @@ describe("POST /webhooks/paypal handler", () => {
     expect(outbox).toEqual([]);
   });
 
-  it("keeps only the first 8 KB of a rejected body", async () => {
+  // Verifier follow-up (regress, minor): S3.4, S3.6.5 and review resolution 18 keep rejects "as hashes
+  // only" (raw_sha256, bytes, five PayPal headers of at most 256 characters). The route stored up to 8 KB
+  // of every forged body, plus a 2,048-character signature, in rows the app cannot delete.
+  it("keeps no rejected body: only its sha256 and size (S3.4: rejects stored as hashes only)", async () => {
     const { handler, committed } = setup();
     const junk = JSON.stringify({ event_type: "X", pad: "x".repeat(20_000) });
     const res = await handler({
@@ -334,9 +341,60 @@ describe("POST /webhooks/paypal handler", () => {
     });
     expect(res).toMatchObject({ status: 400, reason: "MISSING_HEADER" });
     const row = committed.get("rejected:t-junk");
-    expect(row?.raw.length).toBe(MAX_REJECTED_RAW_BYTES);
+    expect(JSON.parse(row?.raw ?? "null")).toEqual({
+      raw_sha256: createHash("sha256").update(junk).digest("hex"),
+      bytes: Buffer.byteLength(junk),
+    });
+    expect(row?.raw).not.toContain("xxx");
     expect(row?.eventType).toBe("X");
     expect(row?.delivery?.rejectReason).toBe("MISSING_HEADER:paypal-transmission-time");
+  });
+
+  it("a replayed copy of a genuine delivery leaves none of its contents (receiver, amount) in the rejected row", async () => {
+    const { handler, committed } = setup();
+    const first = sign();
+    expect((await handler(request(first))).outcome).toBe("accepted");
+    expect((await handler(request(first))).reason).toBe("TRANSMISSION_REPLAYED");
+    const row = committed.get(`rejected:${first.headers["paypal-transmission-id"]}`);
+    expect(row?.status).toBe("rejected");
+    for (const secret of ["member@example.test", "1.00", "r37-M-014", "5KX9"]) {
+      expect(JSON.stringify(row)).not.toContain(secret);
+    }
+    expect(JSON.parse(row?.raw ?? "null")).toEqual({
+      raw_sha256: createHash("sha256").update(first.body).digest("hex"),
+      bytes: Buffer.byteLength(first.body),
+    });
+  });
+
+  it("clips the five PayPal headers of a rejected row to 256 characters; an accepted row keeps the whole signature", async () => {
+    expect(MAX_REJECTED_HEADER_CHARS).toBe(256);
+    const { handler, committed } = setup();
+    const s = sign();
+    const long = "A".repeat(4_000);
+    const res = await handler({
+      rawBody: Buffer.from(s.body),
+      headers: {
+        ...s.headers,
+        "paypal-transmission-sig": `${s.headers["paypal-transmission-sig"]}${long}`,
+        "paypal-auth-algo": `SHA256withRSA${long}`,
+        "paypal-transmission-time": `${s.headers["paypal-transmission-time"]}${long}`,
+        "paypal-cert-url": `${s.headers["paypal-cert-url"]}${long}`,
+      },
+    });
+    expect(res.status).toBe(400);
+    const row = committed.get(`rejected:${s.headers["paypal-transmission-id"]}`);
+    const d = row?.delivery;
+    expect(d).toBeDefined();
+    for (const value of [d?.transmissionSig, d?.authAlgo, d?.transmissionTime, d?.certUrl]) {
+      expect(value?.length ?? 0).toBeGreaterThan(0);
+      expect(value?.length ?? 0).toBeLessThanOrEqual(256);
+    }
+    // An accepted row needs the whole signature: processWebhook's postback replays it to PayPal.
+    const ok = sign();
+    expect((await handler(request(ok))).outcome).toBe("accepted");
+    const stored = [...committed.values()].find((r) => r.status === "received");
+    expect(stored?.delivery?.transmissionSig).toBe(ok.headers["paypal-transmission-sig"]);
+    expect((stored?.delivery?.transmissionSig ?? "").length).toBeGreaterThan(256);
   });
 
   it("never uses an odd transmission id as a key: junk dedupes on its body hash instead", async () => {
@@ -402,34 +460,94 @@ describe("POST /webhooks/paypal handler", () => {
     expect(outbox).toHaveLength(1);
   });
 
-  it("stores the certificate warning when a delivery was accepted under an expired certificate", async () => {
+  it("an expired-certificate SUCCEEDED is stored labelled CERT_EXPIRED and changes no state before a GET; an in-date one still applies at once (MM-1)", async () => {
     const expired = pki.issueLeaf({
       notBefore: new Date(Date.now() - 400 * DAY),
       notAfter: new Date(Date.now() - DAY),
     });
     const url = testCertUrl("route-expired");
+    const answers = new Map<string, "SUCCESS" | "FAILURE">();
+    const postback = vi.fn<PostbackFn>(async (input) => answers.get(input.transmissionId) ?? "FAILURE");
     const warn = vi.fn();
     const db = fakeDb();
     const handler = createPayPalWebhookHandler({
       ...db.deps,
-      ...realVerifier({ pems: { [url]: expired.pem } }),
+      ...realVerifier({ postback, pems: { [url]: expired.pem } }),
       logger: { warn },
     });
-    const s = signWebhook({
-      body: itemEvent,
-      webhookId: TEST_WEBHOOK_ID,
-      privateKey: expired.privateKey,
-      certUrl: url,
+    const signedExpired = (body: object) =>
+      signWebhook({ body, webhookId: TEST_WEBHOOK_ID, privateKey: expired.privateKey, certUrl: url });
+
+    // PayPal confirms this very transmission: stored, but labelled, so processWebhook GETs first.
+    const confirmed = signedExpired(itemEvent);
+    answers.set(confirmed.headers["paypal-transmission-id"] ?? "", "SUCCESS");
+    expect(await handler(request(confirmed))).toMatchObject({ status: 200, outcome: "accepted" });
+    const row = db.committed.get((itemEvent as { id: string }).id);
+    expect(row).toMatchObject({
+      verified: "postback",
+      delivery: { certUrl: url, certWarning: "CERT_EXPIRED" },
     });
-    expect(await handler(request(s))).toMatchObject({ status: 200, outcome: "accepted" });
-    expect([...db.committed.values()][0]?.delivery).toMatchObject({
-      certUrl: url,
-      certWarning: "CERT_EXPIRED_ACCEPTED",
-    });
+    expect(row && webhookApplyRule(row)).toEqual({ action: "fresh_get_first", reason: "CERT_EXPIRED" });
     expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({ certWarning: "CERT_EXPIRED_ACCEPTED" }),
+      expect.objectContaining({ certWarning: "CERT_EXPIRED" }),
       "paypal webhook accepted with an expired certificate",
     );
+
+    // The next delivery under the same certificate gets no credit from the first: PayPal says FAILURE, 400.
+    const other = syntheticEvent(
+      "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+      payoutItemResource({
+        senderItemId: "r37-M-015",
+        payoutItemId: "5KY0",
+        payoutBatchId: "CR9VS",
+        transactionStatus: "SUCCESS",
+      }),
+      "expired-second",
+    );
+    expect(await handler(request(signedExpired(other)))).toMatchObject({
+      status: 400,
+      outcome: "rejected",
+      reason: "CERT_EXPIRED",
+    });
+    expect(postback).toHaveBeenCalledTimes(2);
+    expect(db.outbox).toHaveLength(1);
+
+    // An in-date certificate: verified 'self', no warning, applies at once as before.
+    const fresh = fakeDb();
+    const freshHandler = createPayPalWebhookHandler({ ...fresh.deps, ...realVerifier() });
+    expect((await freshHandler(request(sign()))).status).toBe(200);
+    const freshRow = fresh.committed.get((itemEvent as { id: string }).id);
+    expect(freshRow).toMatchObject({ verified: "self", delivery: { certWarning: null } });
+    expect(freshRow && webhookApplyRule(freshRow)).toEqual({
+      action: "apply_now",
+      status: "SUCCESS",
+      corroboration: "settle_get",
+    });
+  });
+
+  it("MM-1 needs `delivery` back exactly as the route wrote it, null keys included; without it every SUCCEEDED waits for the settle GET", async () => {
+    const { handler, committed } = setup();
+    expect((await handler(request(sign()))).status).toBe(200);
+    const row = committed.get((itemEvent as { id: string }).id);
+    if (!row) throw new Error("the event was not stored");
+    // A jsonb column keeps null-valued keys, so the round trip changes nothing and MM-1 fires.
+    const readBack = JSON.parse(JSON.stringify(row.delivery));
+    expect(readBack).toEqual(row.delivery);
+    expect(readBack).toHaveProperty("certWarning", null);
+    expect(webhookApplyRule({ ...row, delivery: readBack })).toEqual({
+      action: "apply_now",
+      status: "SUCCESS",
+      corroboration: "settle_get",
+    });
+    // A repository that drops the column, or strips null keys on the way in: fails closed, MM-1 is off.
+    const stripped = Object.fromEntries(Object.entries(readBack).filter(([, value]) => value !== null));
+    const { delivery: _dropped, ...withoutColumn } = row;
+    for (const stored of [{ ...row, delivery: null }, { ...row, delivery: stripped }, withoutColumn]) {
+      expect(webhookApplyRule(stored as typeof row)).toEqual({
+        action: "fresh_get_first",
+        reason: "DELIVERY_NOT_RECORDED",
+      });
+    }
   });
 
   it("inv.i7.outbox: if enqueue fails, nothing is committed and a retry stores the event once", async () => {
