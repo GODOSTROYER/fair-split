@@ -76,10 +76,11 @@ export const READING_COPY = {
   rescanSr: (photoId: string, clerk: string) => `Request a rescan of photo ${photoId} from ${clerk}`,
   rescanUnavailable: (clerk: string) =>
     `Rescan requests reach ${clerk}'s phone once the server has a route for them. Nothing was sent.`,
-  // The mock API streams no rows yet: this page can replay the recorded run itself (mock data only).
-  replay: "Replay the recorded reading",
-  replayAgain: "Replay it again",
-  replayStop: "Stop the replay",
+  // The mock API streams no rows yet: this page plays a stand-in for the recorded run, built from the seed (mock
+  // data only). The button names what plays (I8): never "the recorded reading".
+  replay: "Play the seed's stand-in",
+  replayAgain: "Play the stand-in again",
+  replayStop: "Stop the stand-in",
   // The mock's stand-in is built from the seed's own text: not the recording, and it shows no scores.
   replayNote: (date: string) =>
     `Mock data: the mock API sends no rows, so this page plays a stand-in for the ${date} recording, built from the seed. It shows no agreement scores: none were read.`,

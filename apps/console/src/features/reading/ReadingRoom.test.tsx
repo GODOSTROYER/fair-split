@@ -245,7 +245,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
-  it("on the mock, replays the recorded reading through the live handler: MM-2 plays, labelled mock data", async () => {
+  it("on the mock, plays the seed's stand-in through the live handler: MM-2 plays, labelled mock data", async () => {
     // Slower than the recording's 240 ms, so the first row's act completes before the next row replaces it.
     replayTiming.gapMs = 2500;
     const r = await renderSeason({ path: READING });
@@ -255,11 +255,16 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(replay.textContent).toMatch(/Mock data: the mock API sends no rows/);
     // A stand-in built from the seed, never "the recording": no model read it, so it shows no scores.
     expect(replay.textContent).toMatch(/stand-in for the \d+ \w{3} recording, built from the seed/);
+    // The button names what plays (I8): the seed's stand-in, never "the recorded reading".
+    const toggle = () => screen.getByTestId("W-TR-03.replay.toggle").textContent ?? "";
+    expect(toggle()).toBe("Play the seed's stand-in");
+    expect(replay.textContent).not.toMatch(/recorded reading|Replay/);
     clearMomentTrace();
     await act(async () => {
       fireEvent.click(screen.getByTestId("W-TR-03.replay.toggle"));
     });
     expect(screen.getByTestId("W-TR-03.replay").dataset.state).toBe("running");
+    expect(toggle()).toBe("Stop the stand-in");
     expect(screen.getByTestId("W-TR-03").dataset.state).toBe("reading");
     await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 10_000 });
     expect(tracedPhases("MM-2").slice(0, 7)).toEqual([
