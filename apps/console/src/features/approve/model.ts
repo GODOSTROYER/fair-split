@@ -417,6 +417,11 @@ const DEFINITIVE_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
  */
 export function isUnanswered(error: unknown): boolean {
   if (isNetworkError(error)) return !error.aborted;
+  // "The first request with this Idempotency-Key is still running" (fs-api): its answer is still coming, and a
+  // later send under the same key gets the stored one.
+  if (isApiClientError(error, "VERSION_CONFLICT") && error.details.reason === "IDEMPOTENCY_KEY_IN_FLIGHT") {
+    return true;
+  }
   if (isApiClientError(error)) {
     return !error.notImplemented && UNANSWERED_STATUS.has(error.status) && !DEFINITIVE_CODES.has(error.code);
   }

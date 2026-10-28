@@ -366,6 +366,12 @@ describe("sending a signed approval again", () => {
     expect(isUnanswered(new ContractError("submitApproval", 504, "Gateway timeout page"))).toBe(true);
   });
 
+  it("a 409 saying the first request with this key is still running is not an answer yet: send again", () => {
+    // fs-api lib/command.ts: a claimed, unfinished Idempotency-Key answers VERSION_CONFLICT with this reason.
+    expect(isUnanswered(answer(409, "VERSION_CONFLICT", { reason: "IDEMPOTENCY_KEY_IN_FLIGHT" }))).toBe(true);
+    expect(isUnanswered(answer(409, "VERSION_CONFLICT"))).toBe(false);
+  });
+
   it("never for an answer: a 501 not wired yet, a definitive 5xx refusal, any 4xx, or a cancelled request", () => {
     expect(isUnanswered(answer(501, "INTERNAL", { reason: "NOT_IMPLEMENTED" }))).toBe(false);
     expect(isUnanswered(new ContractError("submitApproval", 501, "Not implemented"))).toBe(false);

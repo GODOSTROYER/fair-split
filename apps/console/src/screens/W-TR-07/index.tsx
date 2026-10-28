@@ -149,6 +149,13 @@ export function Screen({ runSlug }: RunScreenProps) {
     if (submitted && view && (liveApprovals(view).treasurer || !signable)) setSubmitted(false);
   }, [submitted, view, signable]);
 
+  // A send that failed while its first copy was still landing: once the treasurer's signature arrives, the
+  // failure is stale, so its notice goes.
+  const treasurerSigned = view ? liveApprovals(view).treasurer !== null : false;
+  useEffect(() => {
+    if (treasurerSigned) setFailure(null);
+  }, [treasurerSigned]);
+
   // A decline voids the signatures: the slab that went flush for key 1 stands up again, ready to sign anew.
   const signedKeys = view ? sealKeys(view) : 0;
   const keysBefore = useRef(signedKeys);
