@@ -15,7 +15,6 @@ which it could re-export `domain`'s formatter. The console's `lib/format.ts` and
 seams to switch to `api-client` "in the wiring step".
 
 The ws/api and ws/console merges (28 Oct) failed `deps:check` with 28 violations:
-
 - `api-client` re-exports `@fairsplit/domain/format` and `@fairsplit/domain/verify` (Proof's "Verify in your
   browser" runs the same verifier as the server), and its msw world is built from `@fairsplit/seed`.
 - The console imported `domain` directly through those seams, and `seed` for the Judge first view's showcase
@@ -49,6 +48,6 @@ The ws/api and ws/console merges (28 Oct) failed `deps:check` with 28 violations
 
 | Option                                          | Why not                                                                                            |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Let UI apps import `domain` and `seed` directly | Contradicts register §6 and the plan's "formatting cents only through `api-client`"                 |
+| Let UI apps import `domain` and `seed` directly | Contradicts register §6 and the plan's "formatting cents only through `api-client`"                |
 | Move the HTTP table into `contracts`            | Sound, but moves a shared file during the merge; the narrow allowance keeps one copy with no drift |
-| Copy the formatter and verifier into the UI     | Two implementations of money formatting and Proof verification could disagree                     |
+| Copy the formatter and verifier into the UI     | Two implementations of money formatting and Proof verification could disagree                      |
