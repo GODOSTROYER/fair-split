@@ -13,6 +13,7 @@ import {
 } from "@fairsplit/contracts";
 import { Chip, type ChipTone, Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
+import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { signingKeyKind } from "../../lib/keys.js";
@@ -403,7 +404,7 @@ function Items({ bundle, items, names, rail }: ChainProps) {
           ? "These statuses are our record of the simulated sandbox's signed item notices."
           : "These statuses are our record of PayPal's verified item notices, corroborated nightly by Transaction Search."}
       </p>
-      <div className="pf-table-wrap">
+      <ScrollRegion className="pf-table-wrap" label="Payout items, amount and status">
         <table className="pf-table" data-testid="W-PF-01.items">
           <caption className="fs-sr">Payout items: amount, status and PayPal's IDs</caption>
           <thead>
@@ -454,7 +455,7 @@ function Items({ bundle, items, names, rail }: ChainProps) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </>
   );
 }

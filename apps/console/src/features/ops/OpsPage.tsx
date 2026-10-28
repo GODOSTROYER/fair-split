@@ -10,6 +10,7 @@ import { Glyph, type GlyphName, Slab } from "@fairsplit/ui-web";
 import { type ReactNode, useId, useMemo } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
+import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import { Wordmark } from "../../chrome/Wordmark.js";
 import { useJudgeSession, useRunStream, useRunView, useSnapshot } from "../../data/hooks.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -421,7 +422,7 @@ export function OpsPage({ rail, treasurerKey, operator, verdict }: OpsPageProps)
             {OPS_COPY.noticesEmpty}
           </p>
         ) : (
-          <div className="op-scroll">
+          <ScrollRegion className="op-scroll" label="PayPal's notices, newest first">
             <table className="op-table" data-testid="W-OP-01.notices.table">
               <caption className="fs-sr">PayPal's notices, newest first, with how each was checked</caption>
               <thead>
@@ -450,7 +451,7 @@ export function OpsPage({ rail, treasurerKey, operator, verdict }: OpsPageProps)
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
       </Section>
 
@@ -633,7 +634,7 @@ function OutboxTable({ data }: { readonly data: OutboxRead }) {
         {data.executor ? `. Executor ${data.executor}` : ""}
         {data.lastTickAt ? `. Last cron tick ${when(data.lastTickAt)}` : ""}.
       </p>
-      <div className="op-scroll">
+      <ScrollRegion className="op-scroll" label="Outbox tasks, newest first">
         <table className="op-table" data-testid="W-OP-01.outbox.table">
           <caption className="fs-sr">Outbox tasks, newest first</caption>
           <thead>
@@ -657,7 +658,7 @@ function OutboxTable({ data }: { readonly data: OutboxRead }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </>
   );
 }

@@ -4,6 +4,7 @@
 // it at the true receipt times, funding to each confirmed payment, with the median and the slowest.
 
 import { Glyph } from "@fairsplit/ui-web";
+import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import { type LogRow, rowTime } from "../../data/describe.js";
 import { format } from "../../lib/format.js";
 import { FANOUT } from "../split/shared/copy.js";
@@ -34,27 +35,29 @@ export function RunLog({ rows, isLive, seeded }: RunLogProps) {
             {lanes[lane].length === 0 ? (
               <p className="fsr-log__empty fs-t-caption">{FANOUT.laneEmpty[lane]}</p>
             ) : (
-              <ol className="fsr-log__rows">
-                {lanes[lane].map((row) => (
-                  <li
-                    key={row.id}
-                    className="fsr-log__row"
-                    data-duplicate={row.duplicate ? "" : undefined}
-                    data-provenance={row.provenance}
-                    data-live={isLive(row.id) ? "" : undefined}
-                    data-testid={row.duplicate ? "W-TR-08.log.duplicate" : `W-TR-08.log.${row.id}`}
-                  >
-                    <p className="fsr-log__words fs-t-label">
-                      {row.duplicate && <Glyph name="ms:restart-alt" size={14} />}
-                      {row.words}
-                    </p>
-                    {row.detail && <p className="fsr-log__detail fs-t-caption">{row.detail}</p>}
-                    <time className="fsr-log__time fs-t-caption" dateTime={row.at ?? undefined}>
-                      {rowTime(row.at)}
-                    </time>
-                  </li>
-                ))}
-              </ol>
+              <ScrollRegion className="fsr-log__scroll" labelledBy={`W-TR-08-lane-${lane}`}>
+                <ol className="fsr-log__rows">
+                  {lanes[lane].map((row) => (
+                    <li
+                      key={row.id}
+                      className="fsr-log__row"
+                      data-duplicate={row.duplicate ? "" : undefined}
+                      data-provenance={row.provenance}
+                      data-live={isLive(row.id) ? "" : undefined}
+                      data-testid={row.duplicate ? "W-TR-08.log.duplicate" : `W-TR-08.log.${row.id}`}
+                    >
+                      <p className="fsr-log__words fs-t-label">
+                        {row.duplicate && <Glyph name="ms:restart-alt" size={14} />}
+                        {row.words}
+                      </p>
+                      {row.detail && <p className="fsr-log__detail fs-t-caption">{row.detail}</p>}
+                      <time className="fsr-log__time fs-t-caption" dateTime={row.at ?? undefined}>
+                        {rowTime(row.at)}
+                      </time>
+                    </li>
+                  ))}
+                </ol>
+              </ScrollRegion>
             )}
           </section>
         ))}
