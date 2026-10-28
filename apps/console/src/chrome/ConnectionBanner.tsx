@@ -31,6 +31,7 @@ export function ConnectionBanner({ status }: { readonly status: StreamStatus }) 
   else if (status.kind === "reconnecting")
     text = CONNECTION.reconnecting(status.lastEventAt ? format.time(status.lastEventAt) : null);
   else if (status.kind === "closed" && status.reason === "unauthorized") text = CONNECTION.unauthorized;
+  else if (status.kind === "closed" && status.reason === "expired") text = CONNECTION.expired;
   if (!text) return null;
   return (
     <p className="fsc-banner fs-t-label" role="status" data-testid="W-JG-01.connection">

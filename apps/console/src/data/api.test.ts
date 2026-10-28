@@ -125,7 +125,7 @@ describe("adapter over HTTP (msw/node)", () => {
       { kind: "run", runSlug: "2026A-r37" },
       { onEvent: () => undefined, onStatus: (s) => statuses.push(s) },
     );
-    await expect.poll(() => statuses.at(-1)).toEqual({ kind: "closed", reason: "unauthorized" });
+    await expect.poll(() => statuses.at(-1)).toEqual({ kind: "closed", reason: "expired" });
     await startSession(adapter);
     const missing: StreamStatus[] = [];
     adapter.subscribe(
@@ -247,7 +247,7 @@ describe("adapter helpers", () => {
     const ctx = { command: "SSE /v1/runs/2026A-r37/events", rail: null, requestId: null };
     const at = (status: number, code: "UNAUTHENTICATED" | "FORBIDDEN" | "NOT_FOUND") =>
       new ApiClientError({ code, status, message: code }, ctx);
-    expect(closeReasonOf(at(401, "UNAUTHENTICATED"))).toBe("unauthorized");
+    expect(closeReasonOf(at(401, "UNAUTHENTICATED"))).toBe("expired");
     expect(closeReasonOf(at(403, "FORBIDDEN"))).toBe("unauthorized");
     expect(closeReasonOf(at(404, "NOT_FOUND"))).toBe("not-found");
   });

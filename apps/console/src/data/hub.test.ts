@@ -6,6 +6,7 @@
 import { ApiClientError } from "@fairsplit/api-client";
 import { describe, expect, it } from "vitest";
 import { stageNoticeFor } from "../chrome/StageNotice.js";
+import { recordRequests } from "../test/requests.js";
 import { createTestRuntime, createTestWorld } from "../test/world.js";
 import type { EventMeta } from "./hub.js";
 import { queryKeys, runViewQuery } from "./query.js";
@@ -138,6 +139,42 @@ describe("judge session", () => {
     };
     await runtime.session.reset();
     expect(runtime.session.getState()).toEqual({ status: "none", session: null, error: null });
+  });
+
+  it("renews the 2-hour console token before it lapses, and at once on FRAME_TOKEN_EXPIRED (the cookie resumes)", async () => {
+    // The world's clock runs 2 hours behind, so the token it mints is already within the renewal window.
+    const world = createTestWorld({ now: () => new Date(Date.now() - 2 * 60 * 60_000 + 60_000) });
+    const log = recordRequests();
+    const { runtime } = createTestRuntime(world, [log.handler]);
+    const renewed: number[] = [];
+    runtime.session.onRenewed(() => renewed.push(Date.now()));
+    await runtime.session.start();
+    const starts = () => log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions");
+    await expect.poll(() => renewed.length).toBeGreaterThanOrEqual(1);
+    // The renewal is createJudgeSession sent with the judge cookie alone.
+    expect(starts().length).toBeGreaterThanOrEqual(2);
+    expect(starts()[1]?.authorization).toBeNull();
+    runtime.session.reset().catch(() => undefined);
+  });
+
+  it("a call answered FRAME_TOKEN_EXPIRED renews the token and reopens the streams", async () => {
+    const world = createTestWorld();
+    const { runtime, adapter } = createTestRuntime(world);
+    const session = await runtime.session.start();
+    let renewals = 0;
+    runtime.session.onRenewed(() => {
+      renewals += 1;
+    });
+    world.failNext("markPaid", "FRAME_TOKEN_EXPIRED");
+    await expect(adapter.call("markPaid", { params: { runSlug: session.runSlug } })).rejects.toMatchObject({
+      code: "FRAME_TOKEN_EXPIRED",
+    });
+    await expect.poll(() => renewals).toBe(1);
+    expect(runtime.session.getState()).toMatchObject({
+      status: "active",
+      session: { sessionId: session.sessionId },
+    });
+    await runtime.session.reset();
   });
 
   it("a failed start can be dismissed and tried again", async () => {

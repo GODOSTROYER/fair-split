@@ -66,7 +66,7 @@ export const ERROR_WORDS: Readonly<Record<ErrorCode, string>> = {
   NOT_FOUND: "That isn't here any more.",
   UNAUTHENTICATED: "This run's session ended. Reset to start a fresh one.",
   FORBIDDEN: "That isn't allowed for this role.",
-  FRAME_TOKEN_EXPIRED: "The phone's session expired. It gets a fresh one on its own.",
+  FRAME_TOKEN_EXPIRED: "This session's credential lapsed. It renews on its own: try again in a moment.",
   PAIRING_TOKEN_INVALID: "That pairing code expired. Make a new one.",
   INTERNAL: "The server failed on this step. Nothing changed.",
 };

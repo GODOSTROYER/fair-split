@@ -96,7 +96,10 @@ export class StreamHub {
     this.setStatus(channel, { kind: "connecting" });
     let base: RunView;
     try {
-      base = await this.client.ensureQueryData(runViewQuery(this.deps, runSlug));
+      // The view as it stands (a reopened stream resumes after its last applied event), else its base.
+      base =
+        this.client.getQueryData<RunView>(queryKeys.run(runSlug)) ??
+        (await this.client.ensureQueryData(runViewQuery(this.deps, runSlug)));
     } catch {
       if (generation === channel.generation) this.setStatus(channel, { kind: "closed", reason: "not-found" });
       return;
@@ -136,6 +139,20 @@ export class StreamHub {
     const channel = this.channel(runSlug);
     channel.statusListeners.add(listener);
     return () => channel.statusListeners.delete(listener);
+  }
+
+  /**
+   * Reopens every stream someone still holds (after the session's token is renewed: fs-api ends a stream whose
+   * token lapsed, and a 401 is final). Each resumes after the last event its run view applied.
+   */
+  reconnect(): void {
+    for (const [runSlug, channel] of this.channels) {
+      if (channel.refs === 0) continue;
+      channel.generation += 1;
+      channel.stop?.();
+      channel.stop = null;
+      void this.open(runSlug, channel, channel.generation);
+    }
   }
 
   /** Closes everything (Reset, tests). */

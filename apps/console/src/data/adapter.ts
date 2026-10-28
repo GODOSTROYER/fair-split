@@ -5,7 +5,7 @@
 // origin, msw's service worker in `vite dev`, or the same msw handlers in memory (tests, and dev where a service
 // worker cannot register). `api` is the typed client itself, for links (`api.url`) and routes outside IC-01.
 
-import type { ApiClient, CallArgs, CommandData, JsonCommandName } from "@fairsplit/api-client";
+import type { ApiClient, CallArgs, ClientFailure, CommandData, JsonCommandName } from "@fairsplit/api-client";
 import type { API_COMMANDS, ApiCommandName, RunEvent, SeasonSnapshot, SseScope } from "@fairsplit/contracts";
 import type { DataSource, PaypalRail } from "../lib/env.js";
 
@@ -43,7 +43,10 @@ export type StreamStatus =
       /** When the last event was applied, for "Showing changes up to 10:21:41." */
       readonly lastEventAt: string | null;
     }
-  | { readonly kind: "closed"; readonly reason: "unsubscribed" | "unauthorized" | "not-found" };
+  | { readonly kind: "closed"; readonly reason: StreamCloseReason };
+
+/** Why a stream stopped: unsubscribed, no valid credential (401: expired or missing), refused (403), or gone. */
+export type StreamCloseReason = "unsubscribed" | "expired" | "unauthorized" | "not-found";
 
 export interface StreamHandlers {
   onEvent(event: RunEvent): void;
@@ -98,6 +101,8 @@ export interface DataAdapter {
   subscribe(scope: SseScope, handlers: StreamHandlers, options?: SubscribeOptions): () => void;
   /** The console bearer token from createJudgeSession (2 h). Held in memory only, never in a URL. */
   setToken(token: string | null): void;
+  /** Every refusal the client reports (the session renews its token on FRAME_TOKEN_EXPIRED). */
+  onFailure(listener: (failure: ClientFailure) => void): () => void;
   readonly pending: PendingApi;
 }
 

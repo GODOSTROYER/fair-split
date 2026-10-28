@@ -21,6 +21,8 @@ export function createDataRuntime(
 ): DataRuntime {
   const session = new SessionStore(adapter);
   const hub = new StreamHub({ adapter, client, session });
+  // A renewed console token reopens the streams the lapsed one closed.
+  session.onRenewed(() => hub.reconnect());
   // A session's run starts from its own base and its own stream: whatever was cached under its slug (the
   // showcase read, or the run of the session Reset just ended) is dropped when a session starts and when it ends.
   let sessionRun: string | null = null;

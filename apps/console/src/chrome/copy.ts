@@ -117,6 +117,7 @@ export const CONNECTION = {
   reconnecting: (at: string | null) =>
     at ? `Reconnecting. Showing changes up to ${at}.` : "Reconnecting to the run's updates.",
   unauthorized: "This run belongs to another session. Showing what was last received.",
+  expired: "This session's credential lapsed. Showing what was last received until it renews.",
   offline: "You're offline. Showing the last copy. Actions are paused.",
 } as const;
 

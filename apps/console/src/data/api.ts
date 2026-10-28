@@ -63,18 +63,23 @@ export function reconnectBound(attempt: number): number {
   return Math.min(SSE_BACKOFF.maxMs, SSE_BACKOFF.minMs * 2 ** Math.max(0, attempt));
 }
 
-/** Why a stream stopped for good: the credential (401/403) or the scope (404/410). */
-export function closeReasonOf(failure: ClientFailure): "unauthorized" | "not-found" {
+/** Why a stream stopped for good: no valid credential (401), a refused one (403), or the scope (404/410). */
+export function closeReasonOf(failure: ClientFailure): "expired" | "unauthorized" | "not-found" {
   const status = "status" in failure ? failure.status : 0;
-  return status === 401 || status === 403 ? "unauthorized" : "not-found";
+  if (status === 401) return "expired";
+  return status === 403 ? "unauthorized" : "not-found";
 }
 
 export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
   let token: string | null = null;
+  const failureListeners = new Set<(failure: ClientFailure) => void>();
   const api: ApiClient = createApiClient({
     baseUrl: options.baseUrl ?? "",
     ...(options.fetch ? { fetch: options.fetch } : {}),
     token: () => token,
+    onError: (failure) => {
+      for (const listener of failureListeners) listener(failure);
+    },
   });
   const judge = judgeRoutes(api);
 
@@ -89,7 +94,7 @@ export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
 
   function subscribe(scope: SseScope, handlers: StreamHandlers, subscribeOptions: SubscribeOptions = {}) {
     let stopped = false;
-    let finalReason: "unauthorized" | "not-found" | null = null;
+    let finalReason: "expired" | "unauthorized" | "not-found" | null = null;
     let lastEventAt: string | null = null;
     const report = (status: StreamStatus) => {
       if (!stopped || status.kind === "closed") handlers.onStatus?.(status);
@@ -148,6 +153,10 @@ export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
     subscribe,
     setToken(next) {
       token = next;
+    },
+    onFailure(listener) {
+      failureListeners.add(listener);
+      return () => failureListeners.delete(listener);
     },
     pending: {
       snapshot: options.snapshot,

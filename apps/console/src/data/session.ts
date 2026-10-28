@@ -29,6 +29,13 @@ export interface SessionState {
 const NONE: SessionState = { status: "none", session: null, error: null };
 
 /**
+ * The console token lives 2 hours while the judge cookie and its workspace live 24 (S3.8): the store renews the
+ * token this long before it lapses, and at once when a call answers FRAME_TOKEN_EXPIRED. A renewal is
+ * createJudgeSession sent with the cookie alone, which resumes the same session with a fresh token (S3.9).
+ */
+export const TOKEN_RENEW_EARLY_MS = 5 * 60_000;
+
+/**
  * How the first press waits for the session's run to be invoiced. fs-api creates the run in DRAFT and only
  * enqueues Claude's invoice turn (quote, then create and send the invoice), so markPaid answers 409 until the run
  * reads INVOICED. The press polls the session's own status read (GET /v1/judge/session, `runState`) from 250 ms
@@ -50,8 +57,62 @@ export class SessionStore {
   private state: SessionState = NONE;
   private readonly listeners = new Set<() => void>();
   private starting: Promise<JudgeSession> | null = null;
+  private renewing: Promise<void> | null = null;
+  private renewTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly renewListeners = new Set<() => void>();
 
-  constructor(private readonly adapter: DataAdapter) {}
+  constructor(
+    private readonly adapter: DataAdapter,
+    private readonly now: () => number = () => Date.now(),
+  ) {
+    adapter.onFailure((failure) => {
+      if (isApiClientError(failure, "FRAME_TOKEN_EXPIRED") && this.state.session) void this.renew();
+    });
+  }
+
+  /** Called after the token is renewed (the hub reopens the streams the lapsed token closed). */
+  onRenewed = (listener: () => void): (() => void) => {
+    this.renewListeners.add(listener);
+    return () => this.renewListeners.delete(listener);
+  };
+
+  private scheduleRenewal(session: JudgeSession, atLeastMs = 0): void {
+    this.cancelRenewal();
+    const at = Date.parse(session.expiresAt) - TOKEN_RENEW_EARLY_MS;
+    if (Number.isNaN(at)) return;
+    this.renewTimer = setTimeout(() => void this.renew(), Math.max(atLeastMs, at - this.now()));
+  }
+
+  private cancelRenewal(): void {
+    if (this.renewTimer !== null) clearTimeout(this.renewTimer);
+    this.renewTimer = null;
+  }
+
+  /**
+   * Renews the console token: createJudgeSession with the judge cookie alone resumes the session with a fresh
+   * token. A failure leaves the session as it is (the next lapse or refusal tries again).
+   */
+  renew(): Promise<void> {
+    if (this.renewing) return this.renewing;
+    const session = this.state.session;
+    if (!session || this.state.status !== "active") return Promise.resolve();
+    this.renewing = this.adapter.api
+      .call("createJudgeSession", { body: {}, token: null })
+      .then((resumed) => {
+        if (this.state.session?.sessionId !== session.sessionId) return;
+        this.adapter.setToken(resumed.consoleToken);
+        const next: JudgeSession = { ...sessionOf(resumed) };
+        this.set({ ...this.state, session: next });
+        // Never sooner than a minute after a renewal, whatever the clocks say.
+        this.scheduleRenewal(next, 60_000);
+        for (const listener of this.renewListeners) listener();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        this.renewing = null;
+      });
+    return this.renewing;
+  }
 
   getState = (): SessionState => this.state;
 
@@ -74,15 +135,9 @@ export class SessionStore {
       .call("createJudgeSession", { body: {} })
       .then((created) => {
         this.adapter.setToken(created.consoleToken);
-        const session: JudgeSession = {
-          sessionId: created.sessionId,
-          workspaceId: created.workspaceId,
-          runId: created.runId,
-          runSlug: created.runSlug,
-          expiresAt: created.expiresAt,
-          queuePosition: created.queuePosition,
-        };
+        const session = sessionOf(created);
         this.set({ status: "active", session, error: null });
+        this.scheduleRenewal(session);
         return session;
       })
       .catch((error: CommandError) => {
@@ -146,6 +201,7 @@ export class SessionStore {
         throw error;
       }
     }
+    this.cancelRenewal();
     this.adapter.setToken(null);
     this.set(NONE);
   }
@@ -155,6 +211,24 @@ export class SessionStore {
     if (this.state.status === "failed") this.set(NONE);
     else if (this.state.error) this.set({ ...this.state, error: null });
   }
+}
+
+function sessionOf(created: {
+  readonly sessionId: string;
+  readonly workspaceId: string;
+  readonly runId: string;
+  readonly runSlug: string;
+  readonly expiresAt: string;
+  readonly queuePosition: number | null;
+}): JudgeSession {
+  return {
+    sessionId: created.sessionId,
+    workspaceId: created.workspaceId,
+    runId: created.runId,
+    runSlug: created.runSlug,
+    expiresAt: created.expiresAt,
+    queuePosition: created.queuePosition,
+  };
 }
 
 /** A Reset answered 401 or 410: the session had already ended on the server. */
