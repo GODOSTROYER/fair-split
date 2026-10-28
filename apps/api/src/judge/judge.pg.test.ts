@@ -693,6 +693,76 @@ describe("the judge session view, the lane and the judge code", () => {
       await app.close();
     }
   });
+
+  it("judge-code guesses are capped per session and in all: new networks or spoofed headers buy no new guesses", async () => {
+    const code = "lantern-bay-judges";
+    const app = await createTestApp({
+      db: "postgres",
+      clock: new Date(),
+      env: { JUDGE_CODE_SHA256: createHash("sha256").update(code).digest("hex") },
+    });
+    try {
+      // each session starts from its own network (the edge's CF-Connecting-IP, which the test env trusts)
+      let net = 0;
+      const start = async () => {
+        net++;
+        const r = await app.json("/v1/judge/sessions", {
+          method: "POST",
+          body: {},
+          headers: { "cf-connecting-ip": `198.18.0.${net}` },
+        });
+        expect(r.status).toBe(201);
+        return app.credentials.judge(cookieFrom(r.headers.get("set-cookie")));
+      };
+      const guess = (
+        as: ReturnType<typeof app.credentials.judge>,
+        headers: Record<string, string>,
+        c = "nope",
+      ) => app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code: c }, as, headers });
+
+      // 1. one session, every guess from a different real network: five, then 429 even for the right code
+      const a = await start();
+      for (let i = 0; i < 5; i++) {
+        expect((await guess(a, { "cf-connecting-ip": `198.19.1.${i}` })).status).toBe(403);
+      }
+      const perSession = await guess(a, { "cf-connecting-ip": "198.19.1.99" }, code);
+      expect(perSession.status).toBe(429);
+      expect(ApiError.parse(perSession.body).code).toBe("RATE_LIMITED");
+
+      // 2. one network rotating True-Client-IP and the leftmost X-Forwarded-For entries over fresh sessions: the
+      //    hop Render's proxy appended (rightmost) is the network, five guesses a minute
+      app.deps.rateLimits.reset();
+      const sessions = [await start(), await start(), await start()];
+      for (let i = 0; i < 5; i++) {
+        const spoof = { "true-client-ip": `203.0.113.${i}`, "x-forwarded-for": `198.20.0.${i}, 192.0.2.200` };
+        expect((await guess(sessions[i % 2] as typeof a, spoof)).status).toBe(403);
+      }
+      const spoofed = await guess(
+        sessions[2] as typeof a,
+        { "true-client-ip": "203.0.113.99", "x-forwarded-for": "198.20.0.99, 192.0.2.200" },
+        code,
+      );
+      expect(spoofed.status).toBe(429);
+
+      // 3. many sessions on many networks: thirty guesses a minute in all, then even the right code waits
+      app.deps.rateLimits.reset();
+      for (let s = 0; s < 6; s++) {
+        const j = await start();
+        for (let i = 0; i < 5; i++) {
+          expect((await guess(j, { "cf-connecting-ip": `198.19.${10 + s}.${i}` })).status).toBe(403);
+        }
+      }
+      const late = await start();
+      const global = await guess(late, { "cf-connecting-ip": "198.19.99.1" }, code);
+      expect(global.status).toBe(429);
+      expect(Number(global.headers.get("retry-after"))).toBeGreaterThan(0);
+      app.clock.advance(60_001);
+      const ok = await guess(late, { "cf-connecting-ip": "198.19.99.2" }, code);
+      expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 describe("demo signing keys", () => {

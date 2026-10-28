@@ -191,9 +191,16 @@ export default defineRouteFolder({
         if (cred.kind !== "judge_session")
           throw problem.forbidden("Enter the judge code on the judge stage.");
         const deps = ctx.deps;
-        const ip = clientIpKey(ctx.c);
-        const limit = deps.rateLimits.take(JUDGE_RATE_RULES.judgeCodePerIp, ip);
-        if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
+        // narrowest first, so a capped session or network never spends a slot of the shared budget
+        for (const [rule, key] of [
+          [JUDGE_RATE_RULES.judgeCodePerSession, cred.sessionId],
+          [JUDGE_RATE_RULES.judgeCodePerIp, clientIpKey(ctx.c)],
+          [JUDGE_RATE_RULES.judgeCodeGlobal, "all"],
+        ] as const) {
+          const limit = deps.rateLimits.take(rule, key);
+          if (!limit.ok)
+            throw problem.rateLimited(limit.retryAfterMs, "Too many judge-code attempts. Try again shortly.");
+        }
         const want = deps.env.secrets.judgeCodeSha256;
         if (!want) throw problem.forbidden("No judge code is configured on this server.");
         const got = createHash("sha256").update(ctx.input.code.trim(), "utf8").digest();

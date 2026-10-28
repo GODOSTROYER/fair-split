@@ -23,7 +23,14 @@ export const JUDGE_RATE_RULES = {
    * at 5 a minute each can use up quickly, so they cannot lock the operator out of /ops.
    */
   opsLoginGlobal: { name: "opsLoginGlobal", limit: 300, windowMs: 60_000 },
+  /**
+   * Judge-code guesses. The per-IP rule keys on the trusted hop's address (src/lib/client-ip.ts); the session
+   * rule holds however many networks one session uses; the global rule bounds every session and network together
+   * (a judge types the code once or twice, so guessing stays hopeless while a lockout lasts a minute at most).
+   */
   judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000 },
+  judgeCodePerSession: { name: "judgeCodePerSession", limit: 5, windowMs: 600_000 },
+  judgeCodeGlobal: { name: "judgeCodeGlobal", limit: 30, windowMs: 60_000 },
   tamper: { name: "judgeTamper", limit: 10, windowMs: 600_000 },
   links: { name: "linkIssue", limit: 60, windowMs: 600_000 },
   /** Brand links are the operator's: a handful per brand conversation. */
