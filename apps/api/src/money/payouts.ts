@@ -52,10 +52,18 @@ import {
   type RefusalCode,
   type SubmittedMark,
 } from "@fairsplit/paypal-payouts";
-import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { runHolds } from "../approvals/batch.js";
 import { officerRegistry } from "../approvals/registry.js";
-import { JUDGE_QUOTA, latestBalanceReading, liveBatchesInLast24h, liveSpend } from "../judge/quota.js";
+import {
+  countResumedSend,
+  JUDGE_QUOTA,
+  latestBalanceReading,
+  liveBatchesInLast24h,
+  liveSpend,
+  PAYOUT_SPEND_LOCK,
+  recordBatchPosted,
+} from "../judge/quota.js";
 import type { AppDeps } from "../lib/context.js";
 import { toInt } from "../runs/codes.js";
 import { ACTORS, factLedger, noteSha256, proofLedger } from "../runs/events.js";
@@ -221,6 +229,22 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
   const provenance = deps.paypal.provenance;
   const db = deps.db;
   const checked = new Map<string, string[]>();
+  /**
+   * I8: on the replay rail only rows written as a replay are written, marked posted or marked rejected. Rows written
+   * live (another executor of the run wrote them since the rail was decided) wait to be posted live with the same
+   * ids; the step is re-queued and its next attempt resumes them live (money/rail.ts). The other way round too: rows
+   * written as a replay are never posted live (a real POST recorded as a replay), the run replays to the end.
+   */
+  const refuseOtherRailRows = (rowProvenance: string, sbid: string) => {
+    if ((provenance === "replay") === (rowProvenance === "replay")) return;
+    throw new PayPalStepError(
+      "QUEUED",
+      provenance === "replay"
+        ? `The batch ${sbid} is written live: it is posted live with the same ids, never replayed.`
+        : `The batch ${sbid} is written as a replay: it is never posted live.`,
+      { transient: true, retryAfterMs: 3_000 },
+    );
+  };
 
   const facts = async (runId: string): Promise<{ run: RunRow; facts: PayoutRunFacts } | null> => {
     const [run] = await db
@@ -347,16 +371,19 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         });
         // The rows under a sender_batch_id are the batch (I4 at the write): never overwritten or merged. A
         // resumed post finds its own; a re-route racing another of the same item finds the winner's digest.
-        const stored = async () =>
-          (
-            await tx
-              .select({
-                submittedAt: schema.payoutBatches.submittedAt,
-                batchSha256: schema.payoutBatches.batchSha256,
-              })
-              .from(schema.payoutBatches)
-              .where(eq(schema.payoutBatches.senderBatchId, batch.senderBatchId))
-          )[0];
+        const stored = async () => {
+          const [row] = await tx
+            .select({
+              submittedAt: schema.payoutBatches.submittedAt,
+              batchSha256: schema.payoutBatches.batchSha256,
+              provenance: schema.payoutBatches.provenance,
+            })
+            .from(schema.payoutBatches)
+            .where(eq(schema.payoutBatches.senderBatchId, batch.senderBatchId));
+          // I8: rows written on the other rail (live, or as a replay) are never resumed on this one
+          if (row) refuseOtherRailRows(row.provenance, batch.senderBatchId);
+          return row;
+        };
         const before = await stored();
         if (before) return markOf(before);
         const run = await lockRun(tx, scope, batch.runId);
@@ -554,6 +581,8 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
           )
           .for("update");
         if (!batch) throw new Error(`no batch ${posted.senderBatchId}`);
+        // I8: a replay id never lands on rows written live, nor a PayPal id on rows written as a replay
+        refuseOtherRailRows(batch.provenance, posted.senderBatchId);
         // Compare-and-set on the digest posted: other rows under these ids are not this batch.
         if (batch.batchSha256 !== posted.batchSha256) throw notThisBatch(posted.senderBatchId);
         if (batch.paypalBatchId !== null) {
@@ -569,6 +598,10 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
             adopted: posted.outcome === "adopted",
           })
           .where(eq(schema.payoutBatches.id, batch.id));
+        // when PayPal named it: the spend dates rows written before a balance reading by this POST (judge/quota.ts)
+        if (provenance !== "replay") {
+          await recordBatchPosted(tx, { batchId: batch.id, rail: deps.paypal.label, at: deps.clock.now() });
+        }
         const items = await tx
           .select()
           .from(schema.payoutItems)
@@ -620,6 +653,7 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
           )
           .for("update");
         if (!batch) return;
+        refuseOtherRailRows(batch.provenance, rejected.senderBatchId);
         // Compare-and-set on the digest posted, as markPosted.
         if (batch.batchSha256 !== rejected.batchSha256) throw notThisBatch(rejected.senderBatchId);
         if (batch.status === "DENIED") return;
@@ -824,12 +858,52 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
 }
 
 /**
- * Batches written as SUBMITTED on this rail in the 24 h before `now`, every workspace (C-21's count), and a judge
- * batch also from its run's newest live slot: one that stalled for over a day posts under a new slot, and counts
- * from that post (judge/quota.ts `liveBatchesInLast24h`).
+ * C-21's count (judge/quota.ts `liveBatchesInLast24h`): the live batches on this rail, every workspace, each once,
+ * written in the 24 h before `now` or sent since then: a judge primary batch from any live reservation of its run in
+ * the window (a POST resumed later goes out under a fresh slot dated then), any batch from a `batch_sent` mark in it
+ * (a re-route resumed later, `countResumedSend`).
  */
 export async function postsInLast24h(deps: Pick<Deps, "db" | "paypal">, now: Date): Promise<number> {
   return liveBatchesInLast24h(deps.db, deps.paypal.provenance, now);
+}
+
+/** How long a written re-route that C-21 holds back waits before it asks again (a slot frees as the 24 h moves). */
+const C21_RESUME_WAIT_MS = 15 * 60_000;
+
+/**
+ * C-21 at a re-route's resumed POST (the service checks C-21 only at a batch's first write): a re-route whose rows are
+ * written and that PayPal has not named yet (its POST paced or unanswered) goes out more than a lane lease after it
+ * was last counted only while the other live batches of the 24 h are fewer than 40, and is counted from that POST
+ * (judge/quota.ts `countResumedSend`, under the spend lock). Otherwise it waits: thrown as QUEUED (transient), so the
+ * re-route task re-queues itself; never replayed, nothing sent. Where C-21 binds: the sandbox rail, live.
+ */
+export async function guardResumedReroute(
+  deps: Pick<Deps, "db" | "paypal" | "clock">,
+  scope: WorkspaceScope,
+  o: { lineId: string; supersedesItemId: string },
+): Promise<void> {
+  if (deps.paypal.mode !== "sandbox" || deps.paypal.provenance === "replay") return;
+  const [written] = (await deps.db.execute(sql`
+    select pb.id::text as id from payout_items newer
+      join payout_items old on old.id = newer.supersedes_item_id and old.workspace_id = newer.workspace_id
+      join payout_batches pb on pb.id = newer.batch_id and pb.workspace_id = newer.workspace_id
+     where newer.workspace_id = ${scope.workspaceId} and newer.line_id = ${o.lineId}
+       and old.payout_item_id = ${o.supersedesItemId}
+       and pb.kind = 'reroute' and pb.status = 'SUBMITTED' and pb.paypal_batch_id is null
+     limit 1`)) as unknown as { id: string }[];
+  if (!written) return;
+  const counted = await countResumedSend(deps.db, {
+    provenance: deps.paypal.provenance,
+    batchId: written.id,
+    now: deps.clock.now(),
+  });
+  if (!counted.ok) {
+    throw new PayPalStepError(
+      "QUEUED",
+      `${counted.count} live batches in the last 24 h (C-21's cap is ${MAX_POSTS_PER_24H}): the written re-route waits to be posted with the same ids.`,
+      { transient: true, retryAfterMs: C21_RESUME_WAIT_MS },
+    );
+  }
 }
 
 /**
@@ -879,8 +953,11 @@ export interface ServiceOptions {
   repo?: (base: AppPayoutsRepository) => PayoutsRepository;
 }
 
-/** The one lock every live post's spend check and write hold, in every process (C-21, the balance floor). */
-export const SPEND_LOCK = "fs:payout-spend";
+/**
+ * The one lock every live post's spend check and write hold, in every process (C-21, the balance floor). Lock order
+ * (judge/quota.ts): the judge quota lock first when both are held; the service's spend guard holds only this one.
+ */
+export const SPEND_LOCK = PAYOUT_SPEND_LOCK;
 /** How long a post waits for another's check-and-write before it re-queues itself. */
 const SPEND_LOCK_WAIT_MS = 10_000;
 

@@ -49,7 +49,7 @@ import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { classifyPayPal, PayPalStepError, type StepCode } from "../money/errors.js";
-import { payoutsServiceFor, REROUTE_VOID_REASON } from "../money/payouts.js";
+import { guardResumedReroute, payoutsServiceFor, REROUTE_VOID_REASON } from "../money/payouts.js";
 import { LaneQueued, notReplayable, railForItem } from "../money/rail.js";
 import { receiverDirectory } from "../money/receivers.js";
 import { allow, CAN, personaId } from "./access.js";
@@ -533,6 +533,11 @@ export function rerouteTasks(deps: AppDeps): TaskHandlers {
         if (rail.kind === "refused") throw notReplayable(rail.decision);
         let outcome: Awaited<ReturnType<PayoutsService["reroute"]>>;
         try {
+          // rows written and resumed later: C-21 again at this POST, which it is then counted from (D7)
+          await guardResumedReroute(rail.deps, scope, {
+            lineId: args.lineId,
+            supersedesItemId: prepared.note.reroute.payoutItemId,
+          });
           const service = await payoutsServiceFor(rail.deps, scope);
           outcome = await service.reroute({
             supersedesItemId: prepared.note.reroute.payoutItemId,
