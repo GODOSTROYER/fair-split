@@ -101,7 +101,7 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       headerTooltip: "Never deducted (R0)",
       cellRenderer: PremiumCell,
       width: 92,
-      tooltipValueGetter: (p) => {
+      tooltip: (p) => {
         const row = lineOf(p.data);
         return row ? `${format.kg(row.verifiedG)} × ${premiumRate}, R0, engine v1.` : null;
       },

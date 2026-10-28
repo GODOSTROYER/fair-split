@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { msw } from "msw/vite";
-import { defineConfig, loadEnv, type Plugin } from "vite";
+import { type Connect, defineConfig, loadEnv, type Plugin } from "vite";
 
 // The console SPA (register §6). The router plugin must run before the React plugin.
 //
@@ -12,21 +12,26 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 // `vite build` targets the API on its own origin unless VITE_PUBLIC_FS_DATA=mock (a labelled static demo).
 // Only VITE_PUBLIC_* variables reach the bundle (envPrefix), and env files are read from this folder only.
 
-/** Development stand-in for the Expo web export at /app: answers the IC-12 frame bridge, labelled. */
+/**
+ * Development stand-in for the Expo web export at /app: answers the IC-12 frame bridge, labelled. `vite dev` and
+ * `vite preview` of a mock build serve it; it is never part of a build's output.
+ */
 function appStub(): Plugin {
   const page = readFileSync(new URL("./dev/app-stub.html", import.meta.url), "utf8");
+  const serveStub = (server: { middlewares: Connect.Server }) => {
+    server.middlewares.use((req, res, next) => {
+      const path = new URL(req.url ?? "/", "http://localhost").pathname;
+      if (path !== "/app" && !path.startsWith("/app/")) return next();
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.setHeader("cache-control", "no-store");
+      res.end(page);
+    });
+  };
   return {
     name: "fs-app-stub",
     apply: "serve",
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        const path = new URL(req.url ?? "/", "http://localhost").pathname;
-        if (path !== "/app" && !path.startsWith("/app/")) return next();
-        res.setHeader("content-type", "text/html; charset=utf-8");
-        res.setHeader("cache-control", "no-store");
-        res.end(page);
-      });
-    },
+    configureServer: serveStub,
+    configurePreviewServer: serveStub,
   };
 }
 

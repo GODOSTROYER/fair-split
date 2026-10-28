@@ -5,9 +5,39 @@
 
 import { TWEENS } from "@fairsplit/motion";
 import { fsGridModes, fsGridTheme } from "@fairsplit/tokens/ag-grid";
-import { AllCommunityModule, type GridOptions, ModuleRegistry, themeQuartz } from "ag-grid-community";
+import {
+  CellStyleModule,
+  ClientSideRowModelApiModule,
+  ClientSideRowModelModule,
+  type GridOptions,
+  HighlightChangesModule,
+  ModuleRegistry,
+  PinnedRowModule,
+  RowApiModule,
+  RowStyleModule,
+  ScrollApiModule,
+  TooltipModule,
+  themeQuartz,
+  ValidationModule,
+} from "ag-grid-community";
 
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Only the modules Split review uses, not AllCommunityModule (filters, editors, export, pagination...), so the
+// route's chunk stays inside the S2.11 budget: client-side rows and their API (row count, focus, scrolling to a
+// row), the pinned totals row, row and cell classes (the canary hold rule, figures), header and cell tooltips, and
+// the change wash. A grid option whose module is missing is reported by ValidationModule, which is registered in
+// development and tests only and never ships.
+ModuleRegistry.registerModules([
+  ClientSideRowModelModule,
+  ClientSideRowModelApiModule,
+  RowApiModule,
+  ScrollApiModule,
+  PinnedRowModule,
+  RowStyleModule,
+  CellStyleModule,
+  TooltipModule,
+  HighlightChangesModule,
+  ...(import.meta.env.PROD ? [] : [ValidationModule]),
+]);
 
 /** The console's grid theme; pass it as `<AgGridReact theme={gridTheme}>`. */
 export const gridTheme = fsGridTheme(themeQuartz);
