@@ -140,8 +140,24 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     setPersona(p);
     setRaisedBy("moment");
   }, []);
-  const raiseByViewer = useCallback(() => setRaisedBy("user"), []);
-  const lowerPhone = useCallback(() => setRaisedBy(null), []);
+  // The viewer's own raise (1024-1679 px) lays a scrim over the console: the console goes inert under it, focus
+  // moves into the phone, and lowering hands focus back to whatever raised it.
+  const raiseOpener = useRef<HTMLElement | null>(null);
+  const raisedByRef = useRef(raisedBy);
+  raisedByRef.current = raisedBy;
+  const raiseByViewer = useCallback(() => {
+    if (raisedByRef.current !== "user") {
+      const active = document.activeElement;
+      raiseOpener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
+    setRaisedBy("user");
+  }, []);
+  const lowerPhone = useCallback(() => {
+    const opener = raisedByRef.current === "user" ? raiseOpener.current : null;
+    raiseOpener.current = null;
+    setRaisedBy(null);
+    if (opener) setTimeout(() => opener.isConnected && opener.focus({ preventScroll: true }), 0);
+  }, []);
 
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
   const lastStep = useRef(next.id);
@@ -219,6 +235,16 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     return () => link?.removeEventListener("click", skipToScreen);
   }, []);
 
+  const consoleUnderScrim = layout.phone === "tab" && raisedBy === "user";
+  useEffect(() => {
+    if (!consoleUnderScrim) return;
+    const panel = document.getElementById("fsc-phone-panel");
+    if (panel?.contains(document.activeElement)) return;
+    panel
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], [role="tab"]')
+      ?.focus({ preventScroll: true });
+  }, [consoleUnderScrim]);
+
   const onReset = async () => {
     setAutoplay("off");
     lowerPhone();
@@ -284,6 +310,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                 className="fsc-console"
                 data-rail={layout.railCollapsed ? "collapsed" : "full"}
                 onPointerDown={layout.phone === "dock" && raised ? lowerPhone : undefined}
+                inert={consoleUnderScrim}
               >
                 <ConsoleRail
                   items={items}
