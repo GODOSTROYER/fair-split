@@ -185,3 +185,94 @@ describe("GET /v1/brand/:runSlug/export.csv", () => {
     ).toBe(403);
   });
 });
+
+describe("before the Proof exists the brand view is the invoice only (C-23)", () => {
+  // Member lines, names, receivers and the CSV are the Proof's: they exist for the brand only once the batch is
+  // posted (proofReady). Until then the view is the invoice (W-PF-02) and the export is refused.
+  const BEFORE_PROOF = [
+    "DRAFT",
+    "QUOTED",
+    "INVOICED",
+    "FUNDED",
+    "EXTRACTING",
+    "COMPUTED",
+    "IN_REVIEW",
+    "TREASURER_APPROVED",
+    "AWAITING_BOARD",
+    "APPROVED",
+    "CANCELLED",
+    "HALTED",
+  ] as const;
+
+  /** A run in `runState` with two computed member lines (names and money), no batch. */
+  async function runWithLines(runState: (typeof BEFORE_PROOF)[number]) {
+    const fx = await t.fixture({ withRun: true, runState, members: 2 });
+    const runId = must(fx.runId);
+    for (const memberId of fx.memberIds) {
+      await must(t.pg).owner.db.insert(schema.memberLines).values({
+        workspaceId: fx.workspaceId,
+        runId,
+        memberId,
+        state: "READY",
+        rail: "ON",
+        currency: "USD",
+        verifiedG: 1000n,
+        grade1G: 1000n,
+        premiumCents: 3000n,
+        bonusCents: 1500n,
+        deductionsCents: 131n,
+        creditsCents: 0n,
+        netCents: 4369n,
+        deductions: [],
+        provenance: "seeded",
+      });
+    }
+    const [run] = await t.deps.db
+      .select({ slug: schema.payRuns.runSlug })
+      .from(schema.payRuns)
+      .where(eq(schema.payRuns.id, runId));
+    return { workspaceId: fx.workspaceId, runSlug: must(run).slug };
+  }
+
+  for (const runState of BEFORE_PROOF) {
+    it(`${runState}: no member, name or amount in the view, zero totals, and the CSV is refused`, async () => {
+      const r = await runWithLines(runState);
+      const brand = t.credentials.bearer(t.credentials.brandLink({ workspaceId: r.workspaceId }));
+      const view = await t.json<BrandView>(`/v1/brand/${r.runSlug}`, { as: brand });
+      expect(view.status, JSON.stringify(view.body)).toBe(200);
+      expect(view.body).toMatchObject({
+        runState,
+        proofReady: false,
+        members: [],
+        totals: {
+          members: 0,
+          net: { cents: 0 },
+          paypalMembers: 0,
+          paypal: { cents: 0 },
+          cashMembers: 0,
+          cash: { cents: 0 },
+        },
+        hashes: { batchSha256: null, ledgerHead: null },
+      });
+      expect(JSON.stringify(view.body)).not.toContain("Fixture Member");
+      const csv = await t.request(`/v1/brand/${r.runSlug}/export.csv`, { as: brand });
+      expect(csv.status).toBe(404);
+      const refused = (await csv.json()) as ApiError;
+      expect(refused).toMatchObject({ code: "NOT_FOUND", details: { reason: "PROOF_NOT_READY", runState } });
+    });
+  }
+
+  it("the same holds for the officers' brand view (treasurer) before posting", async () => {
+    const r = await runWithLines("APPROVED");
+    const tk = await t.credentials.frameToken({
+      workspaceId: r.workspaceId,
+      role: "treasurer",
+      persona: "analyn",
+    });
+    const view = await t.json<BrandView>(`/v1/brand/${r.runSlug}`, { as: t.credentials.bearer(tk) });
+    expect(view.status).toBe(200);
+    expect(view.body).toMatchObject({ proofReady: false, members: [], totals: { members: 0 } });
+    const csv = await t.request(`/v1/brand/${r.runSlug}/export.csv`, { as: t.credentials.bearer(tk) });
+    expect(csv.status).toBe(404);
+  });
+});
