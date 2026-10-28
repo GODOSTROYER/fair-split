@@ -10,7 +10,8 @@
 //   - writeSubmitted (primary): APPROVED → POSTING only while every approval the service checked
 //     (`approvalNonces`) is a live SIGNED approval of the run over this very batch digest; otherwise it writes
 //     nothing and returns null. Rows already under the sender_batch_id are never overwritten: their mark is
-//     returned and the service posts only if it carries its own digest.
+//     returned and the service posts only if it carries its own digest. A judge run labelled replayed is never
+//     written live (I8: thrown as QUEUED; money/rail.ts `replayStep` labels under the same workspace lock).
 //   - voidApprovals: only while the run is APPROVED and every live approval is one it names: those voided, the
 //     lines unlocked, `payout.refused` recorded, APPROVED → IN_REVIEW; otherwise nothing is written.
 //   - markPosted / markRejected: only the rows that carry the digest that was posted.
@@ -137,6 +138,25 @@ const notThisBatch = (senderBatchId: string) =>
     `The rows under ${senderBatchId} are not the batch that was posted; nothing was changed.`,
     { transient: false },
   );
+
+/** `judge.step.replayed` (money/rail.ts): a judge run one of whose PayPal steps was replayed replays to the end. */
+const STEP_REPLAYED = "judge.step.replayed";
+
+/** Whether the run is labelled replayed (inside the caller's workspace-locked transaction). */
+async function labelledReplayed(tx: Tx, workspaceId: string, runId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: schema.ledgerEntries.id })
+    .from(schema.ledgerEntries)
+    .where(
+      and(
+        eq(schema.ledgerEntries.workspaceId, workspaceId),
+        eq(schema.ledgerEntries.runId, runId),
+        eq(schema.ledgerEntries.kind, STEP_REPLAYED),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
 
 /** What a refused attempt checked, for the send-back that undoes only what it checked. */
 export interface CheckedRefusal {
@@ -397,6 +417,19 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         // Taken under the run lock: another writer of these ids committed while this one waited for it.
         const raced = await stored();
         if (raced) return markOf(raced);
+        if (
+          batch.kind === "primary" &&
+          provenance !== "replay" &&
+          (await labelledReplayed(tx, ws, batch.runId))
+        ) {
+          // I8: a run labelled replayed (money/rail.ts `replayStep`, under this workspace lock) replays to the end. A
+          // live executor that decided before the label never writes its rows: it waits, and its next attempt replays.
+          throw new PayPalStepError(
+            "QUEUED",
+            `The run of ${batch.senderBatchId} replays: its batch is never written live.`,
+            { transient: true, retryAfterMs: 3_000 },
+          );
+        }
         const at = new Date(batch.at);
         if (batch.kind === "reroute") {
           // I3 at the write: a re-route pays a line its own cancel RETURNED, and only while it still is (under the

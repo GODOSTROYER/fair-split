@@ -12,10 +12,11 @@
 //   - a resumed post's peek leaves its own run out (no false wait);
 //   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again;
 //   - I8 both ways: the replay rail never marks rows written live as posted, and a live executor never POSTs rows
-//     written as a replay (refused at its read, before any POST).
+//     written as a replay (refused at its read, before any POST); a post's replay label and a live write of its rows
+//     exclude each other (one workspace lock), so a run is never labelled replayed beside a live post.
 // Each scenario has its own app, so its own judge quota ledger.
 import { randomBytes, randomUUID } from "node:crypto";
-import { schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
+import { appendLedger, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
 import { enqueue } from "@fairsplit/outbox";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { http } from "msw";
@@ -34,7 +35,7 @@ import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "..
 import { type PostedBatch, paypalScript } from "../runs/test/paypal.js";
 import { PAYPAL_SANDBOX, paypalError } from "../test/index.js";
 import { estimatedBalanceCents, payoutsServiceFor, postsInLast24h } from "./payouts.js";
-import { railForStep, replayDeps } from "./rail.js";
+import { railForStep, replayDeps, replayStep, runReplays } from "./rail.js";
 import { resumeStalledPosts } from "./resume.js";
 
 const POSTS = `${PAYPAL_SANDBOX}/v1/payments/payouts`;
@@ -620,5 +621,128 @@ describe("D6 (I8) the other way round: rows written as a replay are never POSTed
     expect(batch?.paypalBatchId).toMatch(/^RPLY/);
     expect(await runState(h)).toBe("POSTED");
     expect(await postsInLast24h(h.t.deps, h.t.clock.now())).toBe(0);
+  });
+});
+
+/** The run's `judge.step.replayed` entries, [step, reason] in order. */
+async function replayedSteps(h: RunsHarness) {
+  return (
+    await h.t.deps.db
+      .select({ payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(
+        and(
+          eq(schema.ledgerEntries.workspaceId, h.world.workspaceId),
+          eq(schema.ledgerEntries.kind, "judge.step.replayed"),
+        ),
+      )
+      .orderBy(asc(schema.ledgerEntries.seq))
+  ).map((e) => {
+    const p = e.payload as { step: string; reason: string };
+    return [p.step, p.reason];
+  });
+}
+
+const postStep = (h: RunsHarness) =>
+  ({ workspaceId: h.world.workspaceId, runId: h.world.runId, step: "post" }) as const;
+
+describe("I8: the replay label first, then a live executor's write: the write is refused, the run replays", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+  });
+  afterAll(async () => h?.close());
+
+  it("A decided live (its slot, the lane); B, its other executor, labels the post replayed; A never writes or POSTs", async () => {
+    const scope = systemScope(h.world.workspaceId, ACTORS.outbox);
+    const a = await railForStep(h.t.deps, postStep(h));
+    if (a.kind !== "live") throw new Error(`A should go live, got ${a.kind}`);
+    // the clock hour fills meanwhile: B decides replay (hourly_cap) and labels the post
+    await others(h, 3, h.t.clock.now());
+    const b = await railForStep(h.t.deps, postStep(h));
+    expect(b).toMatchObject({ kind: "replay", decision: { reason: "hourly_cap" } });
+    try {
+      const service = await payoutsServiceFor(a.deps, scope);
+      await expect(service.executeApproved(h.world.runId)).rejects.toMatchObject({ code: "QUEUED" });
+    } finally {
+      await a.end(null);
+    }
+    expect(sent).toHaveLength(0);
+    expect(await batchOf(h)).toBeUndefined();
+    // B's replay writes and marks the rows: the label tells the truth
+    if (b.kind !== "replay") throw new Error("B replays");
+    const replayed = await payoutsServiceFor(b.deps, scope);
+    expect(await replayed.executeApproved(h.world.runId)).toMatchObject({ kind: "created" });
+    expect(await batchOf(h)).toMatchObject({ provenance: "replay" });
+    expect(sent).toHaveLength(0);
+    expect(await replayedSteps(h)).toEqual([["post", "hourly_cap"]]);
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toEqual({
+      replays: true,
+      reason: "hourly_cap",
+    });
+  });
+});
+
+describe("I8: rows written live first, then a replay decided on a stale read: never labelled replayed", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await writeThenPace(h, sent);
+  });
+  afterAll(async () => h?.close());
+
+  it("the replay re-reads the rows under the workspace lock: it waits, labels nothing, frees no slot", async () => {
+    const rail = await replayStep(
+      h.t.deps,
+      postStep(h),
+      replayDecision("hourly_cap", "sandbox", NO_JUDGE_QUOTA),
+    );
+    expect(rail).toMatchObject({ kind: "queued" });
+    expect(await replayedSteps(h)).toEqual([]);
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toEqual({
+      replays: false,
+      reason: null,
+    });
+    expect(shape(await quotaLedger(h))).toEqual([["judge_post", null]]);
+  });
+
+  it("a post label an older build left beside live rows makes no replay: the next hour's resume posts live", async () => {
+    const scope = systemScope(h.world.workspaceId, ACTORS.outbox);
+    await withWorkspaceTx(h.t.deps.db, scope, (tx) =>
+      appendLedger(tx, scope, {
+        kind: "judge.step.replayed",
+        payload: {
+          runId: h.world.runId,
+          step: "post",
+          reason: "hourly_cap",
+          source: {
+            kind: "seed",
+            runSlug: "r37",
+            recordedOn: "2026-10-27",
+            invoiceId: null,
+            payoutBatchId: null,
+          },
+        },
+        runId: h.world.runId,
+        at: h.t.clock.now(),
+      }),
+    );
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toMatchObject({
+      replays: false,
+    });
+    h.t.clock.advance(7 * MIN);
+    await resume(h);
+    expect(sent).toHaveLength(2);
+    expect(await runState(h)).toBe("POSTED");
+    expect(await batchOf(h)).toMatchObject({ provenance: "live" });
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toMatchObject({
+      replays: false,
+    });
   });
 });
