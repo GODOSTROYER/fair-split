@@ -3,21 +3,21 @@
 // five in a narrow container (Member, Verified kg, Kaltas, Net, Status), and four beside an open drawer, so
 // Status always reads whole. The lines a person must still decide are pinned above the rest, in the order the run
 // pill walks them, and the totals are pinned beneath. Held rows carry a 3 px canary rule. A row opens its hold
-// (W-TR-06) or its line (W-TR-09) on click or Enter. AG Grid loads only in this route's chunk (theme/grid.ts).
+// (W-TR-06) or its line (W-TR-09) on click or Enter. AG Grid is its own lazy chunk (./SplitAgGrid.tsx, with
+// theme/grid.ts): it loads once the container has a size, and the static table prints the lines until it has.
 
 import type {
   CellKeyDownEvent,
   ColDef,
   FullWidthCellKeyDownEvent,
+  GridApi,
   RowClassRules,
   RowClickedEvent,
 } from "ag-grid-community";
-import { AgGridReact } from "ag-grid-react";
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "../../lib/format.js";
 import { useShortcut } from "../../lib/shortcuts.js";
 import { NARROW_GRID_PX } from "../../stage/layout.js";
-import { GRID_DEFAULTS, GRID_HEADER_PX, GRID_ROW_PX, gridTheme } from "../../theme/grid.js";
 import {
   BonusCell,
   ConfidenceCell,
@@ -36,6 +36,9 @@ import {
 import type { SplitRow, SplitTotals } from "./model.js";
 import { StaticTable } from "./StaticTable.js";
 import { en, SPLIT } from "./shared/copy.js";
+
+/** AG Grid and its theme, in their own chunk (S2.11): fetched only once a container is measured. */
+const SplitAgGrid = lazy(() => import("./SplitAgGrid.js").then((m) => ({ default: m.SplitAgGrid })));
 
 export type GridColumn =
   | "member"
@@ -264,10 +267,13 @@ export function SplitGrid({
     if (row) open.current(row);
   }, []);
 
-  const gridRef = useRef<AgGridReact<GridRow>>(null);
+  const gridApi = useRef<GridApi<GridRow> | null>(null);
+  const onApi = useCallback((api: GridApi<GridRow> | null) => {
+    gridApi.current = api;
+  }, []);
   const moveRow = useCallback(
     (step: 1 | -1) => {
-      const api = gridRef.current?.api;
+      const api = gridApi.current;
       if (!api) {
         // The static table: move focus between its rows.
         const trs = [...(wrap.current?.querySelectorAll<HTMLTableRowElement>("tbody tr") ?? [])];
@@ -305,6 +311,24 @@ export function SplitGrid({
     run: () => moveRow(-1),
   });
 
+  // The lines as a plain table: before the container is measured, and while AG Grid's chunk loads.
+  const staticFrame = (
+    <section className="fsr-grid__frame fsr-grid__frame--static" aria-label={SPLIT.gridLabel}>
+      {rowData.length + topRows.length === 0 ? (
+        <p className="fs-t-body fsr-muted">{SPLIT.noMatch}</p>
+      ) : (
+        <StaticTable
+          columns={colDefs}
+          rows={[...topRows, ...rowData]}
+          totals={pinned[0] as GridRow}
+          context={context}
+          {...(openMember !== undefined ? { openMember } : {})}
+          onOpen={(row) => open.current(row)}
+        />
+      )}
+    </section>
+  );
+
   return (
     <div
       className="fsr-grid"
@@ -314,44 +338,26 @@ export function SplitGrid({
       data-pinned={topRows.length > 0 ? topRows.length : undefined}
     >
       {measured ? (
-        <section className="fsr-grid__frame" aria-label={SPLIT.gridLabel}>
-          <AgGridReact<GridRow>
-            ref={gridRef}
-            theme={gridTheme}
-            rowData={rowData}
-            columnDefs={colDefs}
-            pinnedTopRowData={topRows}
-            pinnedBottomRowData={pinned}
-            context={context}
-            getRowId={rowId}
-            rowClassRules={rowClassRules}
-            onRowClicked={onRowClicked}
-            onCellKeyDown={onCellKeyDown}
-            rowHeight={GRID_ROW_PX}
-            headerHeight={GRID_HEADER_PX}
-            defaultColDef={DEFAULT_COL}
-            suppressColumnVirtualisation
-            ensureDomOrder
-            enableBrowserTooltips
-            overlayNoRowsTemplate={`<span class="fs-t-body">${SPLIT.noMatch}</span>`}
-            {...GRID_DEFAULTS}
-          />
-        </section>
-      ) : (
-        <section className="fsr-grid__frame fsr-grid__frame--static" aria-label={SPLIT.gridLabel}>
-          {rowData.length + topRows.length === 0 ? (
-            <p className="fs-t-body fsr-muted">{SPLIT.noMatch}</p>
-          ) : (
-            <StaticTable
-              columns={colDefs}
-              rows={[...topRows, ...rowData]}
-              totals={pinned[0] as GridRow}
+        <Suspense fallback={staticFrame}>
+          <section className="fsr-grid__frame" aria-label={SPLIT.gridLabel}>
+            <SplitAgGrid
+              rowData={rowData}
+              columnDefs={colDefs}
+              pinnedTopRowData={topRows}
+              pinnedBottomRowData={pinned}
               context={context}
-              {...(openMember !== undefined ? { openMember } : {})}
-              onOpen={(row) => open.current(row)}
+              getRowId={rowId}
+              rowClassRules={rowClassRules}
+              onRowClicked={onRowClicked}
+              onCellKeyDown={onCellKeyDown}
+              defaultColDef={DEFAULT_COL}
+              noRows={SPLIT.noMatch}
+              onApi={onApi}
             />
-          )}
-        </section>
+          </section>
+        </Suspense>
+      ) : (
+        staticFrame
       )}
     </div>
   );

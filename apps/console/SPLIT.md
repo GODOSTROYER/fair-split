@@ -121,20 +121,20 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 
 ### Lib, sound, theme
 
-| API                                        | Use                                                                                                                                     |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `format` (`lib/format.ts`)                 | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`         |
-| `useMoment(id, { focal?, mode? })`         | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps` |
-| `provenanceFooter(input)`                  | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                        |
-| `useShortcut(spec)`, `useShortcuts()`      | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                             |
-| `useDataMode()`                            | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                |
-| `useAnnounce()`                            | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                           |
-| `lib/verify.ts` (import lazily)            | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                           |
-| `lib/sha256.ts`                            | Synchronous SHA-256 (verify-core needs it sync)                                                                                         |
-| `lib/keys.ts`                              | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)          |
-| `lib/keystore.ts`                          | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key              |
-| `useSound()`, `playFromFrame()`, `duck()`  | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                                |
-| `theme/grid.ts` (import only from W-TR-05) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid lazy                                            |
+| API                                            | Use                                                                                                                                     |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `format` (`lib/format.ts`)                     | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`         |
+| `useMoment(id, { focal?, mode? })`             | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps` |
+| `provenanceFooter(input)`                      | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                        |
+| `useShortcut(spec)`, `useShortcuts()`          | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                             |
+| `useDataMode()`                                | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                |
+| `useAnnounce()`                                | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                           |
+| `lib/verify.ts` (import lazily)                | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                           |
+| `lib/sha256.ts`                                | Synchronous SHA-256 (verify-core needs it sync)                                                                                         |
+| `lib/keys.ts`                                  | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)          |
+| `lib/keystore.ts`                              | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key              |
+| `useSound()`, `playFromFrame()`, `duck()`      | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                                |
+| `theme/grid.ts` (import only from SplitAgGrid) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid in its lazy chunk                               |
 
 ## Rules every slice keeps
 
@@ -154,12 +154,14 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
   parked, cash due, with a reduced-motion variant that keeps every phase.
 - **Accessibility**: WCAG 2.2 AA; axe clean on every state; hold slabs keep their dialog route; visualisations
   are `aria-hidden` and mirrored in `<Mirrored>` tables; focus is visible (pod ring).
-- **Budgets** (S2.11): route JS ≤300 KB gz; Proof's initial JS ≤110 KB gz; AG Grid only via `theme/grid.ts` in
-  the split screen's chunk; Proof's verify code only through a dynamic import of `lib/verify.ts`. Measure with
-  `pnpm --filter ./apps/console build && pnpm --filter ./apps/console budget` (exits 1 on a breach). On
-  2026-10-28 the shared entry alone is about 300 KB gz (react-dom, motion, Base UI, i18next with its ICU parser,
-  zod with contracts), so Proof (338 KB) and every console route (about 340 KB) are over: trimming the entry is
-  open work, and CI does not run the check yet.
+- **Budgets** (S2.11): route JS ≤300 KB gz; Proof's initial JS ≤110 KB gz; AG Grid only in its own lazy chunk
+  (`features/split/SplitAgGrid.tsx` with `theme/grid.ts`, loaded once the grid's container is measured; the static
+  table prints the lines until then); Proof's verify code only through a dynamic import of `lib/verify.ts`. Measure
+  with `pnpm --filter ./apps/console build && pnpm --filter ./apps/console budget` (exits 1 on a breach;
+  `scripts/budget-core.mjs` is the measuring, tested in `test/budget.test.ts`). On 2026-10-28 the shared entry
+  alone is about 300 KB gz (react-dom, motion, Base UI, i18next with its ICU parser, zod with contracts), so Proof
+  (338 KB), the Judge stage (340 KB) and Split review (355 KB; AG Grid's lazy chunk 212 KB, inside its 300 KB) are
+  over: trimming the entry is open work, and CI does not run the check yet.
 
 ## Tests
 

@@ -1,6 +1,6 @@
 // AG Grid Community 36.2.0 for Split review (W-TR-05, the runs slice), themed from the tokens (S2.7 SplitGrid):
 // both modes come from @fairsplit/tokens/ag-grid, and <html data-ag-theme-mode> picks fs-tablea or fs-adlaw.
-// Import this module only from the split screen, so AG Grid stays in that route's lazy chunk (S2.11: the AG
+// Import this module only from features/split/SplitAgGrid.tsx, so AG Grid stays in its own lazy chunk (S2.11: the AG
 // Grid chunk is lazy and at most 300 KB). Never jade as the accent; never a slab in a row.
 
 import { TWEENS } from "@fairsplit/motion";
