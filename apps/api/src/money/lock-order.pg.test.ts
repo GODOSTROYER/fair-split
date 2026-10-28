@@ -7,9 +7,13 @@
 //   - the service's spend guard and the re-route resume's C-21 guard hold only the spend lock (never the quota lock),
 //     and `settleLivePost` (the burst's end) holds only the quota lock: no transaction waits for the quota lock while
 //     holding the spend lock, so no two can deadlock.
+// The re-route guard (`countResumedSend`) takes a lock only on its locked path: a batch last counted more than a lane
+// lease ago. Its tests use batches written a day before, so they wait for the spend lock and mark the batch sent; the
+// concurrent mix runs real co-op first writes (the service holds the spend lock from its C-21 read to its write) and
+// those locked guards beside the quota-first resumes and settles.
 import { randomUUID } from "node:crypto";
 import { type Db, schema, systemScope } from "@fairsplit/db";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   countResumedSend,
@@ -33,28 +37,30 @@ let a: RunsHarness;
 let b: RunsHarness;
 let judge: { workspaceId: string; runId: string; batchId: string };
 let coop: { workspaceId: string; runId: string };
-let coopBatchId: string;
+/** Two more co-ops, each with a run reviewed and signed only in the concurrent mix: its first writes. */
+let approved: RunsHarness[] = [];
 
-async function another(base: RunsHarness): Promise<RunsHarness> {
+/** The officers' frame tokens for a workspace, issued at the clock's now. */
+async function tokensFor(base: RunsHarness, workspaceId: string): Promise<RunsHarness["tokens"]> {
+  const tk = (role: "treasurer" | "board" | "clerk" | "member" | "brand", persona: string) =>
+    base.t.credentials.frameToken({ workspaceId, role, persona });
+  return {
+    treasurer: await tk("treasurer", "analyn"),
+    chair: await tk("board", "ernesto"),
+    clerk: await tk("clerk", "jessie"),
+    member: await tk("member", "celing"),
+    brand: await tk("brand", "dana"),
+  };
+}
+
+async function another(base: RunsHarness, invoice: string): Promise<RunsHarness> {
   const db = base.t.pg?.app.db;
   if (!db) throw new Error("db");
   const w = await seedWorld(db, {
     kind: "showcase",
-    invoice: { paypalInvoiceId: "INV2-TEST-LOCK-0002", status: "SENT", sent: true },
+    invoice: { paypalInvoiceId: invoice, status: "SENT", sent: true },
   });
-  const tk = (role: "treasurer" | "board" | "clerk" | "member" | "brand", persona: string) =>
-    base.t.credentials.frameToken({ workspaceId: w.workspaceId, role, persona });
-  return {
-    ...base,
-    world: w,
-    tokens: {
-      treasurer: await tk("treasurer", "analyn"),
-      chair: await tk("board", "ernesto"),
-      clerk: await tk("clerk", "jessie"),
-      member: await tk("member", "celing"),
-      brand: await tk("brand", "dana"),
-    },
-  };
+  return { ...base, world: w, tokens: await tokensFor(base, w.workspaceId) };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -129,6 +135,58 @@ async function c21At(n: number) {
   expect(await postsInLast24h(a.t.deps, now)).toBe(n);
 }
 
+/**
+ * A co-op re-route written live 25 h before the clock and never marked sent: counted more than a lane lease ago, so
+ * its resumed POST's C-21 guard (`countResumedSend`) takes its locked path.
+ */
+async function staleReroute(): Promise<string> {
+  const owner = a.t.pg?.owner.db;
+  if (!owner) throw new Error("db");
+  const writtenAt = a.t.clock.nowMs() - 25 * H;
+  expect(a.t.clock.nowMs() - writtenAt).toBeGreaterThan(JUDGE_QUOTA.restampAfterMs);
+  const [row] = await owner
+    .insert(schema.payoutBatches)
+    .values({
+      workspaceId: coop.workspaceId,
+      runId: coop.runId,
+      senderBatchId: `2026A-lock-reroute-${randomUUID()}`,
+      requestId: "e".repeat(64),
+      batchSha256: "f".repeat(64),
+      kind: "reroute",
+      status: "SUBMITTED",
+      itemCount: 1,
+      totalCents: BigInt(100),
+      currency: "USD",
+      provenance: "live",
+      submittedAt: new Date(writtenAt),
+    })
+    .returning({ id: schema.payoutBatches.id });
+  return row?.id as string;
+}
+
+/** The `batch_sent` marks of a batch: only the guard's locked path writes one. */
+async function sentMarks(batchId: string): Promise<number> {
+  const [row] = (await a.t.deps.db.execute(sql`
+    select count(*)::int as n from reconciliation_reports
+     where kind = 'balance' and workspace_id is null
+       and summary->>'entry' = 'batch_sent' and summary->>'batchId' = ${batchId}`)) as unknown as {
+    n: number;
+  }[];
+  return Number(row?.n ?? 0);
+}
+
+const guardResume = (batchId: string) =>
+  countResumedSend(a.t.deps.db as Db, { provenance: "live", batchId, now: a.t.clock.now() });
+
+/** `p`, or a rejection once `ms` pass first (a call that waits for a lock held elsewhere). */
+const within = <T>(ms: number, p: Promise<T>) =>
+  Promise.race([
+    p,
+    sleep(ms).then(() => {
+      throw new Error(`still waiting after ${ms} ms: it asked for a lock held elsewhere`);
+    }),
+  ]);
+
 const resumeJudge = () =>
   reserveLivePost(a.t.deps, {
     workspaceId: judge.workspaceId,
@@ -140,11 +198,11 @@ const resumeJudge = () =>
 
 beforeAll(async () => {
   a = await startRuns({ paypal: script.handlers, world: { kind: "showcase" } });
-  b = await another(a);
-  for (const h of [a, b]) {
-    await resolveAll(h);
-    await signBoth(h);
-  }
+  b = await another(a, "INV2-TEST-LOCK-0002");
+  approved = [await another(a, "INV2-TEST-LOCK-0003"), await another(a, "INV2-TEST-LOCK-0004")];
+  for (const h of [a, b, ...approved]) await resolveAll(h);
+  // the mix's co-ops sign later, so their co-sign is still live a day on
+  for (const h of [a, b]) await signBoth(h);
   await recordBalanceReading(a.t.deps.db, {
     rail: "sandbox",
     availableCents: 100_000_000,
@@ -189,23 +247,34 @@ describe("inv.lock-order: the quota lock, then the spend lock, everywhere both a
     }
   });
 
-  it("the re-route resume's C-21 guard never asks for the quota lock either", async () => {
-    const [posted] = await a.t.deps.db
-      .select({ id: schema.payoutBatches.id })
-      .from(schema.payoutBatches)
-      .where(eq(schema.payoutBatches.runId, b.world.runId));
-    coopBatchId = posted?.id as string;
+  it("the re-route resume's C-21 guard (its locked path) takes the spend lock and never the quota lock", async () => {
+    // the quota lock held elsewhere: the guard counts C-21 and marks the batch sent all the same
+    const viaQuota = await staleReroute();
     const quota = await holdLock(QUOTA_LOCK);
     try {
-      const r = await countResumedSend(a.t.deps.db as Db, {
-        provenance: "live",
-        batchId: coopBatchId,
-        now: a.t.clock.now(),
-      });
-      expect(r.ok).toBe(true);
+      expect(await within(3_000, guardResume(viaQuota))).toEqual({ ok: true });
     } finally {
       await quota.release();
     }
+    expect(await sentMarks(viaQuota)).toBe(1);
+    // the spend lock held elsewhere: the guard waits for it, and marks nothing until it has it
+    const viaSpend = await staleReroute();
+    const spend = await holdLock(SPEND_LOCK);
+    let done = false;
+    let guard: Promise<unknown> = Promise.resolve();
+    try {
+      guard = guardResume(viaSpend).then((x) => {
+        done = true;
+        return x;
+      });
+      await sleep(400);
+      expect(done).toBe(false);
+      expect(await sentMarks(viaSpend)).toBe(0);
+    } finally {
+      await spend.release();
+    }
+    expect(await guard).toEqual({ ok: true });
+    expect(await sentMarks(viaSpend)).toBe(1);
   });
 
   it("settleLivePost never asks for the spend lock: a burst's end settles while it is held elsewhere", async () => {
@@ -305,7 +374,14 @@ describe("inv.lock-order: the quota lock, then the spend lock, everywhere both a
     expect(await deadlocks()).toBe(before);
   });
 
-  it("v: many at once (resumes, settles, co-op posts, the re-route guard) all finish with no deadlock", async () => {
+  it("v: many at once (resumes, settles, co-op first writes, the re-route guard's locked path) all finish, no deadlock", async () => {
+    // a day on: the earlier batches leave C-21's window, so the co-op first writes and a resume go through (the
+    // reading is 25 h old: still fresh)
+    a.t.clock.advance(25 * H);
+    for (const h of approved) {
+      h.tokens = await tokensFor(h, h.world.workspaceId);
+      await signBoth(h);
+    }
     const before = await deadlocks();
     const reservations = await Promise.all(
       [1, 2, 3].map(() =>
@@ -318,21 +394,27 @@ describe("inv.lock-order: the quota lock, then the spend lock, everywhere both a
       ),
     );
     const ids = reservations.map((x) => x.reservation?.id).filter((x): x is string => !!x);
+    expect(ids).toHaveLength(3);
+    const reroutes = [await staleReroute(), await staleReroute(), await staleReroute()];
+    // spend first: the co-ops' first writes (spend lock from the C-21 read to the write) and the re-route guards
+    const writes = approved.map(async (h) => {
+      const service = await payoutsServiceFor(h.t.deps, systemScope(h.world.workspaceId, ACTORS.outbox));
+      return service.executeApproved(h.world.runId);
+    });
+    const guards = reroutes.map((id) => guardResume(id));
+    // quota first: resumes (quota, then spend), settles (quota only)
     const work: Promise<unknown>[] = [];
     for (let i = 0; i < 4; i++) {
       work.push(resumeJudge());
-      work.push(
-        countResumedSend(a.t.deps.db as Db, {
-          provenance: "live",
-          batchId: coopBatchId,
-          now: a.t.clock.now(),
-        }),
-      );
       work.push(postsInLast24h(a.t.deps, a.t.clock.now()));
     }
     for (const id of ids) work.push(settleLivePost(a.t.deps, { reservationId: id, outcome: "posted" }));
-    const results = await Promise.allSettled(work);
+    const results = await Promise.allSettled([...writes, ...guards, ...work]);
     expect(results.filter((x) => x.status === "rejected")).toEqual([]);
+    // the co-op posts were real first writes, and every guard took its locked path (it marked its batch sent)
+    expect(await Promise.all(writes)).toMatchObject([{ kind: "created" }, { kind: "created" }]);
+    expect(await Promise.all(guards)).toEqual([{ ok: true }, { ok: true }, { ok: true }]);
+    for (const id of reroutes) expect(await sentMarks(id)).toBe(1);
     expect(await deadlocks()).toBe(before);
   });
 });
