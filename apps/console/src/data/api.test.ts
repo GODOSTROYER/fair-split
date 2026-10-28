@@ -198,13 +198,25 @@ describe("adapter in memory (msw handlers, no interception)", () => {
       { kind: "run", runSlug: session.runSlug },
       { onEvent: (e) => received.push(e.type), onStatus: (s) => statuses.push(s.kind) },
     );
-    await expect.poll(() => statuses.includes("open")).toBe(true);
+    // A twin stream that stays open: every event the world emits reaches it, so it says when they have landed.
+    const twin: string[] = [];
+    const twinStatuses: StreamStatus["kind"][] = [];
+    const stopTwin = adapter.subscribe(
+      { kind: "run", runSlug: session.runSlug },
+      { onEvent: (e) => twin.push(e.id), onStatus: (s) => twinStatuses.push(s.kind) },
+    );
+    await expect.poll(() => statuses.includes("open") && twinStatuses.includes("open")).toBe(true);
     await adapter.call("markPaid", { params: { runSlug: session.runSlug } });
     await expect.poll(() => received.includes("run.state")).toBe(true);
     stop();
     const count = received.length;
+    const before = world.events().length;
     world.settle(); // the reading plays after the stream closed: nothing more arrives
-    await new Promise((r) => setTimeout(r, 20));
+    const after = world.events().length;
+    expect(after).toBeGreaterThan(before);
+    // Once the open twin holds every event the reading emitted, a stream still open would hold them too.
+    await expect.poll(() => twin.length).toBe(after);
+    stopTwin();
     expect(received.length).toBe(count);
     expect(statuses.at(-1)).toBe("closed");
     expect(statuses.filter((s) => s === "closed")).toHaveLength(1);

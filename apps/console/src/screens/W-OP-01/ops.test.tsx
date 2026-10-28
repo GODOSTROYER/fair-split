@@ -9,6 +9,7 @@ import { webRoutes } from "@fairsplit/contracts";
 import { getSnapshot } from "@fairsplit/seed";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type JsonBodyType } from "msw";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DataProvider } from "../../data/provider.js";
 import { KeyPanel } from "../../features/ops/OpsPage.js";
@@ -347,32 +348,36 @@ describe("the treasurer's browser key (fs-analyn-w1)", () => {
   });
 
   it("does nothing when it isn't the operator's session", async () => {
-    const generateKey = vi.fn();
-    function Disabled() {
-      const key = useTreasurerKey({
-        store: memoryKeyStore(),
-        subtle: { generateKey } as unknown as SubtleCrypto,
-        enabled: false,
-      });
+    function Probe({ id, enabled, subtle }: { id: string; enabled: boolean; subtle: SubtleCrypto }) {
+      const [store] = useState(memoryKeyStore);
+      const key = useTreasurerKey({ store, subtle, enabled });
       return (
-        <button type="button" data-testid="probe" data-phase={key.phase.kind} onClick={key.make}>
+        <button type="button" data-testid={id} data-phase={key.phase.kind} onClick={key.make}>
           make
         </button>
       );
     }
+    const offKey = vi.fn();
+    const onKey = vi.fn();
+    const crypto = (generateKey: () => unknown) => ({ generateKey }) as unknown as SubtleCrypto;
     const { runtime } = createTestRuntime();
     render(
       <DataProvider runtime={runtime}>
-        <Disabled />
+        <Probe id="off" enabled={false} subtle={crypto(offKey)} />
+        <Probe id="on" enabled subtle={crypto(onKey)} />
       </DataProvider>,
     );
-    const probe = screen.getByTestId("probe");
-    fireEvent.click(probe);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
-    expect(probe.dataset.phase).toBe("checking");
-    expect(generateKey).not.toHaveBeenCalled();
+    const off = screen.getByTestId("off");
+    const on = screen.getByTestId("on");
+    // The operator's twin, given the same press, does the work a press starts (its check, then generateKey, then
+    // a phase), so once it has settled, a press that did anything off the operator's session would have shown it.
+    await waitFor(() => expect(on.dataset.phase).toBe("none"));
+    fireEvent.click(off);
+    fireEvent.click(on);
+    await waitFor(() => expect(on.dataset.phase).toBe("failed"));
+    expect(onKey).toHaveBeenCalledTimes(2);
+    expect(off.dataset.phase).toBe("checking");
+    expect(offKey).not.toHaveBeenCalled();
   });
 
   it("makes a key whose private half can't be exported", async () => {
