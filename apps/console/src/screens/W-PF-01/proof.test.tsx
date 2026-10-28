@@ -8,7 +8,7 @@ import { type ProofBundle, webRoutes } from "@fairsplit/contracts";
 import { getSnapshot } from "@fairsplit/seed";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { VerifyPanel } from "../../features/proof/Hero.js";
 import type { ProgressCounts } from "../../features/proof/model.js";
 import { proofState } from "../../features/proof/ProofView.js";
@@ -128,6 +128,14 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     for (const row of within(screen.getByTestId("W-PF-01.checks")).getAllByRole("listitem")) {
       expect(row.dataset.state).toBe("idle");
     }
+    // The verdict prints under the six checks, below a laptop's fold: it is brought into view once it lands,
+    // so "Sample" (and why) is never off screen beside six "Matches".
+    const scrolled: Element[] = [];
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+      this: Element,
+    ) {
+      scrolled.push(this);
+    });
     press("W-PF-01.verify");
     await waitFor(() => expect(screen.getByTestId("W-PF-01.verdict").dataset.state).toBe("sample"), {
       timeout: 10_000,
@@ -136,6 +144,10 @@ describe("W-PF-01 Proof: the season's settled run", () => {
       expect(row.dataset.state).toBe("matches");
     }
     expect(screen.getByTestId("W-PF-01.verdict.word").textContent).toBe("Sample");
+    await waitFor(() =>
+      expect(scrolled.some((el) => el.contains(screen.getByTestId("W-PF-01.verdict.sample")))).toBe(true),
+    );
+    scrollIntoView.mockRestore();
     expect(screen.getByTestId("W-PF-01.verdict.sample").textContent).toContain("fs-analyn-s1");
     // The mock publishes no keys document, so the seed's published sample keys stand in, and the page says so.
     expect(screen.getByTestId("W-PF-01.verdict.trust").dataset.trust).toBe("seed");

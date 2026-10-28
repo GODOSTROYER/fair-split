@@ -6,7 +6,7 @@
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
 import { Glyph, type GlyphName, Seal, Slab } from "@fairsplit/ui-web";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -186,6 +186,15 @@ export function VerifyPanel({ verification }: { readonly verification: Verificat
   const outcome = done?.outcome ?? null;
   const matched = outcome ? PLATES.filter((p) => outcome.checks[p].state !== "differs").length : 0;
   const status = verifyStatus(state);
+  // The verdict prints under the six checks, below a laptop's fold (956 px): once it lands it is brought into
+  // view, so "Sample" and why never sit off screen beside six "Matches" (I8).
+  const verdictRef = useRef<HTMLDivElement>(null);
+  const landedAt = done?.at ?? null;
+  useEffect(() => {
+    if (!landedAt) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    verdictRef.current?.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+  }, [landedAt]);
   return (
     <div className="pf-verify" data-testid="W-PF-01.verdict" data-state={status}>
       <Slab
@@ -228,7 +237,7 @@ export function VerifyPanel({ verification }: { readonly verification: Verificat
           );
         })}
       </ol>
-      <div className="pf-verify__status" role="status" aria-atomic="true">
+      <div className="pf-verify__status" role="status" aria-atomic="true" ref={verdictRef}>
         {state.kind === "idle" && (
           <p className="pf-verify__line">{state.stale ? VERIFY_COPY.stale : VERIFY_COPY.idle}</p>
         )}
