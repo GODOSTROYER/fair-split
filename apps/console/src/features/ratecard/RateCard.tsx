@@ -11,7 +11,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { asRateCardRatified, isApiClientError } from "../../data/errors.js";
-import { useCommand, useJudgeSession } from "../../data/hooks.js";
+import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { CLAUDE_MODEL } from "../../lib/provenance.js";
@@ -29,6 +29,7 @@ import {
   scheduleRules,
 } from "./model.js";
 import { HashPlate, ResolutionPages } from "./parts.js";
+import { workspaceRateCardId } from "./workspace-card.js";
 import "./ratecard.css";
 
 export type RateCardScreenState = "draft" | "ratified" | "proposal" | "refused";
@@ -42,6 +43,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   const t = useT();
   const mode = useMotionMode();
   const session = useJudgeSession();
+  const adapter = useAdapter();
   const card = snapshot.rateCard;
   const ratified = isRatified(snapshot);
   const printed = useMemo(() => {
@@ -101,10 +103,12 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
       label: label.trim() || RATECARD_COPY.sampleLabel,
       amountText: amountText.trim() || RATECARD_COPY.sampleAmount,
     };
-    // The first press anywhere on the stage starts the judge's session (S3.9); the API answers inside it.
+    // The first press anywhere on the stage starts the judge's session (S3.9); the API answers inside it, on
+    // the session workspace's own card (its clone mints a new ID).
     void session
       .start()
-      .then(() => add.mutate({ params: { id: card.id }, body }))
+      .then(() => workspaceRateCardId(adapter, snapshot.season.label, card.id))
+      .then((id) => add.mutate({ params: { id }, body }))
       .catch((error: unknown) => setStartError(error));
   };
 

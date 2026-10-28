@@ -8,9 +8,11 @@ import { act, configure, fireEvent, screen, waitFor, within } from "@testing-lib
 import { describe, expect, it } from "vitest";
 import {
   clearMomentTrace,
+  createTestWorld,
   expectNoAxeViolations,
   momentPhase,
   renderConsole,
+  type TestWorld,
   tracedPhases,
 } from "../../test/index.js";
 
@@ -20,8 +22,8 @@ configure({ asyncUtilTimeout: 6000 });
 
 const RATE_CARD = "/season/2026-A/rate-card";
 
-async function refuse(motion: "full" | "reduced") {
-  const view = await renderConsole({ path: RATE_CARD, motion });
+async function refuse(motion: "full" | "reduced", world?: TestWorld) {
+  const view = await renderConsole({ path: RATE_CARD, motion, ...(world ? { world } : {}) });
   await screen.findByTestId("W-TR-02");
   clearMomentTrace();
   await act(async () => {
@@ -75,6 +77,14 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(view.runtime.session.getState().status).toBe("active");
     expect(view.world.run.state).toBe("INVOICED");
     await expectNoAxeViolations(view.container);
+  });
+
+  it("MM-4 posts to the session workspace's own card: a judge workspace's clone mints its own rate card ID", async () => {
+    // fs-api looks the card up in the workspace first (404 for the seed's ID), before the ratified-card trigger.
+    const world = createTestWorld({ rateCardId: "019ceb5b-fc00-7d12-90d6-00000000c10e" });
+    await refuse("full", world);
+    expect(screen.getByTestId("W-TR-02").dataset.state).toBe("refused");
+    expect(screen.queryByTestId("W-TR-02.error")).toBeNull();
   });
 
   it("reduced motion: no shake, the same phases, the plate fades in", async () => {
