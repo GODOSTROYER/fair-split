@@ -357,7 +357,10 @@ describe("eval harness", () => {
     // Three whole pipelines (image prep, two reads, screen) run three times over: far past the 5 s default.
   }, 60_000);
 
-  it("validates against the seed's registry from --registry; a report on the labels' own registry is provisional", async () => {
+  // over 2 s alone on a busy machine, past vitest's default 5 s under turbo
+  it("validates against the seed's registry from --registry; a report on the labels' own registry is provisional", {
+    timeout: 30_000,
+  }, async () => {
     const media = mkdtempSync(join(tmpdir(), "fs-eval-registry-"));
     try {
       expect(parseArgs(["--registry", "seed/members.json"])).toEqual({ registryPath: "seed/members.json" });

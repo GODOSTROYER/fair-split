@@ -3,7 +3,8 @@ import { chunks } from "../gateway/test-helpers.js";
 import { ExtractionStreamTracker } from "./stream.js";
 import { extraction, field, json, row } from "./test-fixtures.js";
 
-describe("ExtractionStreamTracker (MM-2 streaming)", () => {
+// up to 7.5 s alone on a busy machine, past vitest's default 5 s
+describe("ExtractionStreamTracker (MM-2 streaming)", { timeout: 30_000 }, () => {
   const doc = extraction([
     row({}, { deductions: [field("Hauling P96.75", { x1: 100, y1: 1180, x2: 900, y2: 1220 })] }),
     row({ serial: field("0902", { x1: 500, y1: 100, x2: 900, y2: 150 }) }),

@@ -81,7 +81,13 @@ describe("committed recordings", () => {
   });
 });
 
-describe("smoke replay (recorded live run, claude-opus-5-5 at effort low)", () => {
+/**
+ * Replays over the smoke photos (sharp): over 2 s alone on a busy machine, so past vitest's default 5 s under turbo's
+ * full test run.
+ */
+const SLOW = { timeout: 30_000 };
+
+describe("smoke replay (recorded live run, claude-opus-5-5 at effort low)", SLOW, () => {
   it("smoke-1 clean slip: every field auto-accepted at 0.97, boxes inside their cells", async () => {
     const { result, events } = await run("smoke-1-clean");
     expect(result.provenance).toBe("replay");
@@ -151,7 +157,7 @@ describe("smoke replay (recorded live run, claude-opus-5-5 at effort low)", () =
   });
 });
 
-describe("component smoke replay (recorded live once: zoom, screen, rate card, classifier)", () => {
+describe("component smoke replay (recorded live once: zoom, screen, rate card, classifier)", SLOW, () => {
   it("AI-3 + AI-4: smoke-2's stained net is re-read on a sanitised crop, still smudged, so a person types it", async () => {
     const { result, events } = await run("smoke-2-overwrite-smudge", { zoom: true, screen: true });
     expect(result.provenance).toBe("replay");

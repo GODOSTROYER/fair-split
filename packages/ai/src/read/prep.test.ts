@@ -31,7 +31,13 @@ describe("resizedSize (Anthropic reference implementation)", () => {
   });
 });
 
-describe("prepareImage", () => {
+/**
+ * Image preparation (sharp): over 2 s alone on a busy machine, so past vitest's default 5 s under turbo's
+ * full test run.
+ */
+const SLOW = { timeout: 30_000 };
+
+describe("prepareImage", SLOW, () => {
   it("resizes to the high-resolution tier, strips metadata and makes a greyscale variant B", async () => {
     const big = await sharp({ create: { width: 4032, height: 3024, channels: 3, background: "#c08040" } })
       .withExif({ IFD0: { Copyright: "secret-gps-holder" } })
@@ -89,7 +95,7 @@ function region(
   );
 }
 
-describe("sanitizeForModel: the only way a crop reaches a model (S4.2, S4.7 layer 4)", () => {
+describe("sanitizeForModel: the only way a crop reaches a model (S4.2, S4.7 layer 4)", SLOW, () => {
   const SIZE = { width: 1000, height: 1400 };
   const PAGE_SLIP = { x1: 40, y1: 40, x2: 960, y2: 1360 };
 
@@ -139,7 +145,7 @@ describe("sanitizeForModel: the only way a crop reaches a model (S4.2, S4.7 laye
   });
 });
 
-describe("dHash", () => {
+describe("dHash", SLOW, () => {
   it("is stable for the same crop and close for a re-encode", async () => {
     const page = await plainPage(1);
     const h1 = await dHash64(page);
