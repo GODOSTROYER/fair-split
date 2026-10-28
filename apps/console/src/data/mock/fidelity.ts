@@ -11,7 +11,8 @@
 //   workspace mark IDs  a judge workspace mints its own deduction-mark IDs (fs-api judge/world.ts uuidv7, and
 //                   runs/engine.ts `markId: m.id`), and a line's hash covers its credits' mark IDs (domain
 //                   lineCanonical): a line carrying a returned mark hashes differently from the seed's, so the
-//                   approval payload's `linesDigest` is the workspace's, never the seed's
+//                   approval payload's `linesDigest` is the workspace's, never the seed's, whether the console
+//                   reads it over HTTP or the mock's driver signs it (`workspacePayload`)
 //   GET /v1/runs/:runSlug/lines  the run's own member lines with those hashes (fs-api runs/reads.ts LineList)
 
 import { compilePath, HEADER } from "@fairsplit/api-client";
@@ -50,6 +51,20 @@ export function workspaceLines(world: MockWorld): MemberLineDTO[] {
         }
       : line,
   );
+}
+
+/**
+ * The approval payload as fs-api builds it for this workspace: api-client's payload with the workspace's lines root
+ * (over `workspaceLines`, never the seed's), and that payload's JCS bytes. The treasurer's console (over HTTP, the
+ * handler below) and the mock's driver (the Chair's phone, `window.__fsMock.driver` in `vite dev`) both sign it, so
+ * every stored approval of a run carries one `linesDigest`.
+ */
+export function workspacePayload(
+  world: MockWorld,
+  upstream: ApprovalPayload,
+): { readonly payload: ApprovalPayload; readonly jcs: string } {
+  const payload: ApprovalPayload = { ...upstream, linesDigest: linesRoot(workspaceLines(world)) };
+  return { payload, jcs: jcs(payload as unknown as JcsValue) };
 }
 
 const LINES_PATH = /\/v1\/runs\/([^/]+)\/lines$/;
@@ -134,11 +149,10 @@ export function createFidelityHandlers(options: FidelityOptions): RequestHandler
       const answer = await getResponse([...upstream], request.clone());
       if (!answer?.ok) return answer;
       const body = (await answer.clone().json()) as { payload: ApprovalPayload; jcs: string };
-      const payload: ApprovalPayload = { ...body.payload, linesDigest: linesRoot(workspaceLines(world)) };
-      return HttpResponse.json(
-        { payload, jcs: jcs(payload as unknown as JcsValue) },
-        { status: answer.status, headers: answer.headers },
-      );
+      return HttpResponse.json(workspacePayload(world, body.payload), {
+        status: answer.status,
+        headers: answer.headers,
+      });
     }),
     http.get("*/v1/runs/:runSlug/lines", ({ request }) => {
       if (!bearer(request)) return refuse(world, "UNAUTHENTICATED", "Sign in, or start a judge session.");

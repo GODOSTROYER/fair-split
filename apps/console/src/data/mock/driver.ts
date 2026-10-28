@@ -13,6 +13,7 @@ import {
   mockId,
 } from "@fairsplit/api-client/msw";
 import { API_COMMANDS, type ApprovalRole, type RunEvent } from "@fairsplit/contracts";
+import { workspacePayload } from "./fidelity.js";
 
 /** The judge's console acts as Analyn, the treasurer (S3.8). */
 export const TREASURER: MockCaller = { token: MOCK_CONSOLE_TOKEN, persona: "analyn", role: "treasurer" };
@@ -117,7 +118,9 @@ export function createMockDriver(world: MockWorld, options: MockDriverOptions = 
 
   function sign(role: ApprovalRole): CommandData<"submitApproval"> {
     const as = role === "treasurer" ? TREASURER : CHAIR;
-    const { payload } = command("approvalPayload", { params: { runSlug: runSlug() }, query: { role }, as });
+    const served = command("approvalPayload", { params: { runSlug: runSlug() }, query: { role }, as });
+    // The payload the console's treasurer signs over HTTP: the workspace's lines root, never the seed's.
+    const { payload } = workspacePayload(world, served.payload);
     const signature = mockHex(`sig:${payload.nonce}:1`, 32) + mockHex(`sig:${payload.nonce}:2`, 32);
     return command("submitApproval", {
       params: { runSlug: runSlug() },
