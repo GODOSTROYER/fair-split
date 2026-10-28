@@ -57,6 +57,23 @@
 > 5 per 10 minutes per session, 5 a minute per network, 30 a minute in all. (6) The brand view and its CSV show
 > member lines only once `proofReady` (read inside the view's snapshot); before, the view is the invoice alone.
 
+> **Quota on resume (28 Oct; the `[ws/api] SECURITY` review of e026049).** A judge post whose batch is written live
+> is never replayed (I8) and never goes live without a quota slot held for its run. `beginLiveStep({ resume })`
+> (money/rail.ts `railForStep`, for a written primary batch) no longer turns a quota replay into live: it posts
+> under the run's held reservation, else `reserveLivePost` takes a new one under the quota lock when the quotas
+> allow (same ids; it sets aside the batch's own total and is counted from then), else the post WAITS
+> (`queued`, `waitingFor` the reason, `resumeWaitMs`: the circuit's 6 min, the next clock hour, 15 min for the
+> other quotas), re-queued by `deferTask`; a switch, the simulator, the circuit or a full lane wait the same way.
+> A live post without a reservation throws (nothing sent). The root cause: a reservation was settled `not_posted`
+> by refusals after `writeSubmitted` (the kill switch read by a resumed `executeApproved`, the limiter's
+> `QUEUED`, PayPalHttp's `invalid_request`, a resumed post's re-checks: digest, approvals, guards), freeing the
+> slot while the rows waited. Now `settlementOf` keeps `QUEUED` open, and `settleLivePost` (under the quota lock)
+> never settles `not_posted` once the run's batch is written live: the slot stays held until PayPal posts or
+> denies it (rows DENIED settle `denied`). `countPosts` counts a written judge batch whose run holds no slot (rows
+> an older build freed). Cancel and re-route (`railForItem`) take no reservation by design (not quota steps; a
+> re-route repays an item its run's counted post already paid, under the service's C-21 and floor guard) and have
+> no override. Tests: `money/quota-resume.test.ts`.
+
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
 Every dependency a slice needs is already installed; if one is missing, report it (do not add it).
