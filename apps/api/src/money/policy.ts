@@ -160,11 +160,14 @@ export const SERVER_BUDGET: Budget = { spentMicros: 0, capMicros: 1, iteration: 
 export async function policyContext(
   db: DbOrTx,
   scope: WorkspaceScope,
-  deps: Pick<AppDeps, "db" | "env">,
+  deps: Pick<AppDeps, "db" | "env"> & Partial<Pick<AppDeps, "paypal">>,
   w: InvoiceWorld,
   o: { today: string; budget?: Budget },
 ): Promise<PolicyCtx> {
-  const flags = await readKill(deps, scope.workspaceId, db);
+  const read = await readKill(deps, scope.workspaceId, db);
+  // On Judge Mode's replay rail (paypal/replay.ts) no call reaches PayPal: kill_paypal_live is why the step is
+  // replayed (S3.11), not a reason to refuse it. Every other policy, and every other switch, decides as ever.
+  const flags = deps.paypal?.provenance === "replay" ? { ...read, killPaypalLive: false } : read;
   const holds = await db
     .select({ id: schema.holds.id, state: schema.holds.state, gate: schema.holds.gate })
     .from(schema.holds)
@@ -293,7 +296,7 @@ function askedCreate(expected: PolicyCtx["expected"], labels: readonly string[] 
 export async function decideInvoiceCall<M extends InvoiceMethod>(
   tx: DbOrTx,
   scope: WorkspaceScope,
-  deps: Pick<AppDeps, "db" | "env">,
+  deps: Pick<AppDeps, "db" | "env"> & Partial<Pick<AppDeps, "paypal">>,
   w: InvoiceWorld,
   o: {
     method: M;

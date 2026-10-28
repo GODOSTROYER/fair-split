@@ -8,7 +8,8 @@
 //   - over a quota (three live posts this clock hour) the post is a labelled replay, not a live post.
 // Several judge worlds share one app (one msw server per process): each test takes its own.
 import { randomUUID } from "node:crypto";
-import { schema } from "@fairsplit/db";
+import { schema, withWorkspaceTx } from "@fairsplit/db";
+import { enqueue } from "@fairsplit/outbox";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { beginLiveStep, reserveLivePost } from "../judge/index.js";
@@ -88,6 +89,31 @@ describe("Judge Mode obeys its rail decision at every PayPal step", () => {
     expect(r).toMatchObject({ invoiceStatus: "MARKED_AS_PAID", runState: "EXTRACTING" });
     expect(script.calls.length).toBe(before);
     expect(await replayedSteps(h)).toEqual([["fund", "kill_switch"]]);
+    await api.setFlag({ body: { flag: "kill_paypal_live", on: false } });
+  });
+
+  it("kill_paypal_live in Judge Mode: Claude's invoice turn is replayed too (the lattice refuses no call that reaches no one)", async () => {
+    const h = await world({ runState: "DRAFT", invoice: null });
+    const api = h.t.client(h.tokens.treasurer);
+    await api.setFlag({ body: { flag: "kill_paypal_live", on: true } });
+    const id = await withWorkspaceTx(h.t.deps.db, h.world.workspaceId, async (tx) => {
+      const args = { runId: h.world.runId, purpose: "DRAFT_INVOICE" as const, holdId: null, turn: 0 };
+      return (
+        await enqueue(tx, "agentTurn", args, `agent:lane:${h.world.runId}`, {
+          workspaceId: h.world.workspaceId,
+        })
+      ).id;
+    });
+    const before = script.calls.length;
+    await h.t.deps.outbox?.runTask(id);
+    expect(script.calls.length).toBe(before);
+    expect(await runState(h)).toBe("INVOICED");
+    const [invoice] = await h.t.deps.db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.runId, h.world.runId));
+    expect(invoice).toMatchObject({ provenance: "replay", status: "UNPAID" });
+    expect(await replayedSteps(h)).toEqual([["invoice", "kill_switch"]]);
     await api.setFlag({ body: { flag: "kill_paypal_live", on: false } });
   });
 
