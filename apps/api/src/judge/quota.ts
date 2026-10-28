@@ -28,7 +28,10 @@
 // (`JUDGE_QUOTA.restampAfterMs`): the run's slot carries a retry only while it is that young and in the same clock
 // hour; a post that resumes later (a pace, a kill switch, the circuit, an outage) takes a FRESH slot dated now, checked
 // against every cap with its run's own slots left out, or waits; the older slot is settled `superseded`. Every count
-// looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot.
+// looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot. A run
+// counts in the public third while any of its slots in the window was taken by a session without the judge code (a
+// fresh slot that supersedes an uncoded one is uncoded too), so a public POST never frees a public place by a later
+// unlock.
 // C-21 and the spend read the batch rows too, so the hourly purge keeps a judge workspace while either still counts
 // one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write, and the spend
 // from the latest balance reading on the batch's rail, whatever its age (the service's floor guard reads that one).
@@ -579,8 +582,10 @@ interface PostCounts {
  * judge batch written live in it whose run has no such reservation in it (a safety net: older rows, a slot an older
  * build freed after the write, or a caller that skipped the protocol). Each run once, however many of its slots are in
  * the window (a fresh slot dated at a resumed POST supersedes the one taken at the write; both may be in it), dated
- * by its newest slot for the clock hour: a slot carries a POST only in its own clock hour. A replayed batch
- * (provenance `replay`) reached no one: never a post.
+ * by its newest slot for the clock hour: a slot carries a POST only in its own clock hour. A run is in the public third
+ * while ANY of its slots in the window was uncoded: a POST a public session made (its answer lost, say) stays public
+ * when the session unlocks the judge code before the resume. A replayed batch (provenance `replay`) reached no one:
+ * never a post.
  */
 async function countPosts(
   db: DbOrTx,
@@ -591,8 +596,9 @@ async function countPosts(
   const runs = new Map<string, { at: number; sessionId: string | null; coded: boolean }>();
   for (const r of await readReservations(db, { since: from })) {
     if (r.outcome === "not_posted" || r.runId === o.excludeRunId) continue;
-    // oldest first: the run's newest slot in the window stands
-    runs.set(r.runId, { at: r.reservedAt.getTime(), sessionId: r.sessionId, coded: r.coded });
+    // oldest first: the run's newest slot in the window dates it; it is coded only while every one of them was
+    const coded = r.coded && (runs.get(r.runId)?.coded ?? true);
+    runs.set(r.runId, { at: r.reservedAt.getTime(), sessionId: r.sessionId, coded });
   }
   const unreserved = (await db.execute(sql`
     select pb.run_id::text as run_id, pb.submitted_at as at,
@@ -824,6 +830,8 @@ async function writeSettlement(
  * a first write: the balance less its batch stays at or above the floor, and C-21's 40 live batches a day, counted
  * under the spend lock (taken after the quota lock: the header's lock order) together with the slot's insert. A
  * fresh post that will not go live frees a slot an earlier attempt of it took and never used (nothing written).
+ * A fresh slot that supersedes a slot a session without the judge code took is uncoded too (the run stays in the
+ * public third), and is checked against the public share as such.
  * A live decision always carries its reservation. Call it while holding the live lane (`beginLiveStep`
  * does both); settle it afterwards.
  */
@@ -853,7 +861,10 @@ export async function reserveLivePost(
       { workspaceId: o.workspaceId, sessionId: o.sessionId, now, excludeRunId: o.runId },
       tx,
     );
-    const decision = decideRail(facts, now, "post", rail);
+    const open = (await readReservations(tx, { runId: o.runId })).filter((r) => r.outcome === null);
+    // a run a public session posted stays public: the slot that supersedes an uncoded one is uncoded too
+    const coded = facts.coded && open.every((r) => r.coded);
+    const decision = decideRail({ ...facts, coded }, now, "post", rail);
     const held = await heldReservation(tx, o.runId, now);
     if (held) {
       if (decision.mode === "live" || isQuotaReplay(decision)) {
@@ -861,7 +872,6 @@ export async function reserveLivePost(
       }
       return { decision, reservation: null };
     }
-    const open = (await readReservations(tx, { runId: o.runId })).filter((r) => r.outcome === null);
     const none = async (d: RailDecision) => {
       if (!o.resume && open.length > 0 && !(await writtenLiveBatch(tx, o.runId))) {
         // a fresh post that will not go live: the slot an earlier attempt took sent nothing (no rows are written)
@@ -895,7 +905,7 @@ export async function reserveLivePost(
           runId: o.runId,
           workspaceId: o.workspaceId,
           sessionId: o.sessionId,
-          coded: facts.coded,
+          coded,
           amountCents: o.amountCents,
           rail,
         },
@@ -916,7 +926,7 @@ export async function reserveLivePost(
       runId: o.runId,
       workspaceId: o.workspaceId,
       sessionId: o.sessionId,
-      coded: facts.coded,
+      coded,
       amountCents: o.amountCents,
       rail,
       reservedAt: now,
@@ -927,7 +937,7 @@ export async function reserveLivePost(
       used24h: decision.quota.used24h + 1,
       usedThisHour: decision.quota.usedThisHour + 1,
       sessionUsed: decision.quota.sessionUsed + (o.sessionId ? 1 : 0),
-      publicUsed: decision.quota.publicUsed + (facts.coded ? 0 : 1),
+      publicUsed: decision.quota.publicUsed + (coded ? 0 : 1),
     };
     return { decision: { ...decision, quota }, reservation };
   });

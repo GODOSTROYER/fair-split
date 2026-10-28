@@ -199,6 +199,61 @@ describe("the binding decision (reserveLivePost)", () => {
     });
     expect(first.reservation?.amountCents).toBe(BATCH);
   });
+
+  it("the public third: a run a public session posted stays public when the session unlocks the code before its resume", async () => {
+    await open();
+    await reading(ONE_MILLION);
+    // twelve public posts two hours ago: one public place is left of the 13 (40 / 3)
+    for (let i = 0; i < 12; i++) {
+      await t.deps.db.insert(schema.reconciliationReports).values({
+        kind: "balance",
+        windowEnd: new Date(t.clock.nowMs() - 2 * 3_600_000),
+        summary: {
+          v: 1,
+          entry: "judge_post",
+          runId: randomUUID(),
+          workspaceId: randomUUID(),
+          sessionId: randomUUID(),
+          coded: false,
+          amountCents: 100,
+          rail: "sandbox",
+        },
+      });
+    }
+    const p = randomUUID();
+    const runA = randomUUID();
+    const wsA = await judgeWorkspace();
+    const first = await reserveLivePost(t.deps, {
+      workspaceId: wsA,
+      sessionId: p,
+      runId: runA,
+      amountCents: BATCH,
+    });
+    expect(first.reservation).toMatchObject({ coded: false });
+    expect(first.decision.quota).toMatchObject({ publicCap: 13, publicUsed: 13 });
+    // PayPal created A's batch, but its answer was lost; another public session is refused meanwhile
+    const refused = await reserve(t.deps, { workspaceId: await judgeWorkspace() });
+    expect(refused.decision).toMatchObject({ mode: "replay", reason: "public_share" });
+    // P unlocks the judge code; A's post resumes 10 minutes on under a fresh slot: still a public post
+    await recordJudgeCode(t.deps.db, { sessionId: p, at: t.clock.now() });
+    t.clock.advance(10 * 60_000);
+    const resumed = await reserveLivePost(t.deps, {
+      workspaceId: wsA,
+      sessionId: p,
+      runId: runA,
+      amountCents: BATCH,
+      resume: true,
+    });
+    expect(resumed.reservation).toMatchObject({ coded: false });
+    // 70 minutes on: no public place has been freed (13 public creations, the cap)
+    t.clock.advance(70 * 60_000);
+    const peek = await judgeRail(t.deps, {
+      workspaceId: await judgeWorkspace(),
+      sessionId: randomUUID(),
+      step: "post",
+    });
+    expect(peek).toMatchObject({ mode: "replay", reason: "public_share", quota: { publicUsed: 13 } });
+  });
 });
 
 describe("a held slot carries a post for one lane lease in its clock hour; later the post takes a fresh slot dated now", () => {
