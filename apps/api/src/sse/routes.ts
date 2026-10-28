@@ -5,14 +5,16 @@
 //                                                     own member's line, or that line's member link
 // Run readers are the acting treasurer, board, clerk and judge (`STREAM_READERS`, the same roles as the runs
 // slice's `CAN.readRuns`): these streams carry member-level events (line.state, item.updated, hold.*, extract.*),
-// so a brand or member token, which reads no run, streams none of them. The role is checked before any lookup.
+// so a brand or member token, which reads no run, streams none of them. The role is checked before any lookup,
+// and the credential again at every ping (`credentialStillValid`): revoked, expired or ended, the stream ends.
 // The public Proof stream (aggregate counters only) is the Proof slice's: it calls `deps.sse.open()` with
 // `publicCaps(c)` and its own projection.
 import { API_COMMANDS, type Role } from "@fairsplit/contracts";
 import { type Db, schema } from "@fairsplit/db";
 import { and, eq } from "drizzle-orm";
+import { getCookie } from "hono/cookie";
 import type { Credential } from "../credentials/verify/index.js";
-import { clientIp, hashedClientIp } from "../lib/client-ip.js";
+import { clientIpKey } from "../lib/client-ip.js";
 import { commandSpec, type Mounter, toHonoPath } from "../lib/command.js";
 import type { AppContext } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
@@ -49,8 +51,39 @@ export function capsFor(cred: Credential, limits: Readonly<SseLimits>): { key: s
 /** Caps for an anonymous public stream: 3 per hashed IP. */
 export function publicCaps(c: AppContext): { key: string; limit: number }[] {
   const deps = c.get("deps");
-  const ip = hashedClientIp(deps.credentials.keys, clientIp(c.req.raw.headers), deps.clock.now());
+  const ip = clientIpKey(c);
   return [{ key: `ip:${ip}`, limit: deps.sse.limits.publicPerIp }];
+}
+
+/** The identity a credential names: the same request headers must keep naming it for the stream to go on. */
+function credentialId(cred: Credential): string {
+  switch (cred.kind) {
+    case "frame":
+    case "device":
+      return `${cred.kind}:${cred.tokenId}`;
+    case "judge_session":
+      return `judge:${cred.sessionId}:${cred.workspaceId.toLowerCase()}`;
+    case "member_link":
+    case "brand_link":
+      return `link:${cred.jti}`;
+    case "operator":
+      return "operator";
+  }
+}
+
+/**
+ * A stream's `revalidate`: the request's own credential, resolved afresh (never the memoised first answer), must
+ * still verify as the one that opened the stream. A revoked token or link, an expiry or a workspace that has
+ * ended (a judge Reset, the purge) ends the stream at the next ping.
+ */
+export function credentialStillValid(c: AppContext, opened: Credential): () => Promise<boolean> {
+  const deps = c.get("deps");
+  const presented = { authorization: c.req.header("authorization") ?? null, cookies: getCookie(c) };
+  const id = credentialId(opened);
+  return async () => {
+    const now = await deps.credentials.resolver.resolve(presented);
+    return now.kind === "ok" && credentialId(now.credential) === id;
+  };
 }
 
 export async function findRunId(db: Db, workspaceId: string, runSlug: string): Promise<string | null> {
@@ -103,6 +136,7 @@ export function mountSseRoutes(m: Mounter): void {
       caps: capsFor(cred, deps.sse.limits),
       lastEventId: lastEventId(ctx),
       label: "run",
+      revalidate: credentialStillValid(ctx, cred),
     });
   });
   documentRoute(m.app, m.catalog, commandSpec("runEvents"));
@@ -120,6 +154,7 @@ export function mountSseRoutes(m: Mounter): void {
       caps: capsFor(cred, deps.sse.limits),
       lastEventId: lastEventId(ctx),
       label: "workspace",
+      revalidate: credentialStillValid(ctx, cred),
     });
   });
   documentRoute(m.app, m.catalog, commandSpec("workspaceEvents"));
@@ -149,6 +184,7 @@ export function mountSseRoutes(m: Mounter): void {
       caps: capsFor(cred, deps.sse.limits),
       lastEventId: lastEventId(ctx),
       label: "line",
+      revalidate: credentialStillValid(ctx, cred),
     });
   });
   documentRoute(m.app, m.catalog, {

@@ -2,8 +2,8 @@
 // from the run's own events and FS_KILL, and PayPal's notices from a live run or the season's hash chain.
 
 import { ApiClientError, ContractError, NetworkError } from "@fairsplit/api-client";
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { RunEvent } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import {
   classifyFailure,

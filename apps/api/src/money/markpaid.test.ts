@@ -1,4 +1,5 @@
-// markPaid's listed errors on the sandbox rail (msw): KILL_SWITCH_ON before anything is sent, PayPal's refusal
+// markPaid's listed errors on the sandbox rail (msw): KILL_SWITCH_ON before anything is sent (outside Judge Mode,
+// where kill_paypal_live is a refusal; in Judge Mode it makes the step a labelled replay), PayPal's refusal
 // (PAYPAL_REJECTED with its debug_id), its pacing (CIRCUIT_OPEN), a press while the outbox retries (QUEUED),
 // and the retried attempt finally funding the run. Every attempt is an outbox row (I7); a refusal never
 // blocks the next press.
@@ -28,10 +29,7 @@ afterAll(async () => h?.close());
 describe("markPaid: refusals and retries (MM-S)", () => {
   const press = () => h.t.client(h.tokens.treasurer).markPaid({ params: { runSlug: h.world.runSlug } });
 
-  it("KILL_SWITCH_ON: kill_paypal_live refuses before any task or call; FORBIDDEN for a clerk", async () => {
-    await h.t.client(h.tokens.treasurer).setFlag({ body: { flag: "kill_paypal_live", on: true } });
-    await expect(press()).rejects.toMatchObject({ code: "KILL_SWITCH_ON", status: 423 });
-    await h.t.client(h.tokens.treasurer).setFlag({ body: { flag: "kill_paypal_live", on: false } });
+  it("FORBIDDEN for a clerk, before any task or call", async () => {
     await expect(
       h.t.client(h.tokens.clerk).markPaid({ params: { runSlug: h.world.runSlug } }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -106,5 +104,26 @@ describe("markPaid: refusals and retries (MM-S)", () => {
       provenance: "simulated_rail",
     });
     expect(script.calls.filter((c) => c === "record_payment")).toHaveLength(1);
+  });
+});
+
+describe("markPaid: KILL_SWITCH_ON outside Judge Mode (S3.11: kill_paypal_live is a refusal in real mode)", () => {
+  let g: RunsHarness;
+  beforeAll(async () => {
+    // the simulated rail, where Mark paid is the funding of any workspace; a showcase one, so no judge lane
+    g = await startRuns({ world: { kind: "showcase", runState: "INVOICED" } });
+  });
+  afterAll(async () => g?.close());
+
+  it("kill_paypal_live refuses before any task or call (423)", async () => {
+    await g.t.client(g.tokens.treasurer).setFlag({ body: { flag: "kill_paypal_live", on: true } });
+    await expect(
+      g.t.client(g.tokens.treasurer).markPaid({ params: { runSlug: g.world.runSlug } }),
+    ).rejects.toMatchObject({ code: "KILL_SWITCH_ON", status: 423 });
+    const tasks = await g.t.deps.db
+      .select()
+      .from(schema.taskOutbox)
+      .where(eq(schema.taskOutbox.workspaceId, g.world.workspaceId));
+    expect(tasks).toHaveLength(0);
   });
 });

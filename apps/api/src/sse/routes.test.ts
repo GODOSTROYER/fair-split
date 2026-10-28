@@ -6,6 +6,7 @@ import { ApiError } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
 import type { FixtureWorkspace } from "@fairsplit/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type memoryCredentialStore, opaqueTokenSha256 } from "../credentials/verify/index.js";
 import { CAN } from "../runs/access.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 import { STREAM_READERS } from "./routes.js";
@@ -124,5 +125,68 @@ describe("SSE line stream readers (postgres)", () => {
       expect(ok.response.status).toBe(200);
       await ok.reader.close();
     }
+  });
+});
+
+describe("a credentialed stream lasts only as long as its credential (no database)", () => {
+  // Every ping re-resolves the request's own credential: revoked, expired or ended, the stream ends, and the
+  // client's reconnect then meets the credential check. 20 ms pings keep this fast; production pings every 15 s.
+  let t: TestApp;
+  beforeAll(async () => {
+    t = await createTestApp({ sse: { pingMs: 20 } });
+    t.credentials.registerWorkspace(WS);
+  });
+  afterAll(async () => t.close());
+
+  const store = () => t.deps.credentials.store as ReturnType<typeof memoryCredentialStore>;
+
+  it("a valid token's stream stays open across pings", async () => {
+    const token = await t.credentials.frameToken({ workspaceId: WS, role: "treasurer", persona: "analyn" });
+    const { response, reader } = await t.sse(`/v1/workspaces/${WS}/events`, {
+      as: t.credentials.bearer(token),
+    });
+    expect(response.status).toBe(200);
+    await expect(reader.next(300)).rejects.toThrow(/no message within/);
+    expect(reader.comments.filter((c) => c === "ping").length).toBeGreaterThan(2);
+    await reader.close();
+  });
+
+  it("revoking the token ends its open stream; the reconnect is refused (401)", async () => {
+    const token = await t.credentials.frameToken({ workspaceId: WS, role: "treasurer", persona: "analyn" });
+    const as = t.credentials.bearer(token);
+    const { response, reader } = await t.sse(`/v1/workspaces/${WS}/events`, { as });
+    expect(response.status).toBe(200);
+    const row = store().tokens.get(opaqueTokenSha256(token));
+    if (!row) throw new Error("token not stored");
+    row.revokedAt = t.clock.now();
+    await expect(reader.next(2_000)).rejects.toThrow(/stream ended/);
+    const again = await t.sse(`/v1/workspaces/${WS}/events`, { as });
+    expect(again.response.status).toBe(401);
+  });
+
+  it("revoking a member link ends its line stream", async () => {
+    const lineId = "0192f8a0-0000-7000-8000-0000000000bb";
+    const jti = "line-stream-revocation-0001";
+    const link = t.credentials.bearer(t.credentials.memberLink({ workspaceId: WS, lineId, jti }));
+    const { response, reader } = await t.sse(`/v1/lines/${lineId}/events`, { as: link });
+    expect(response.status).toBe(200);
+    store().revokedLinks.add(jti);
+    await expect(reader.next(2_000)).rejects.toThrow(/stream ended/);
+    expect((await t.sse(`/v1/lines/${lineId}/events`, { as: link })).response.status).toBe(401);
+  });
+
+  it("a token that expires mid-stream ends it (the stage reconnects with its re-minted token)", async () => {
+    const token = await t.credentials.frameToken({
+      workspaceId: WS,
+      role: "board",
+      persona: "ernesto",
+      expiresAt: new Date(t.clock.nowMs() + 60_000),
+    });
+    const { response, reader } = await t.sse(`/v1/workspaces/${WS}/events`, {
+      as: t.credentials.bearer(token),
+    });
+    expect(response.status).toBe(200);
+    t.clock.advance(60_001);
+    await expect(reader.next(2_000)).rejects.toThrow(/stream ended/);
   });
 });

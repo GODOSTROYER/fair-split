@@ -7,10 +7,20 @@
 > link revocation into the shared resolver (the `isLinkRevoked` callback is now required, never defaulted); the
 > run, workspace and line streams take `STREAM_READERS` (= the runs slice's `CAN.readRuns`); and the typed client
 > has `judgeRoutes(api)` plus msw mocks for the judge and auth routes, parity-tested against the server
-> (src/routes/client-routes.test.ts). Still open across slices: the runs slice's PayPal steps do not yet call the
-> judge slice's `beginLiveStep` / `withArmedTamper` (so a judge rail decided `replay` is not obeyed and the armed
-> 1-cent tamper never meets a post), `extract` has no inline handler in fs-api, and an operator logout is
-> enforced only in the browser (a server-side session epoch needs a WS-DATA table).
+> (src/routes/client-routes.test.ts). Still open across slices: `extract` has no inline handler in fs-api, and an
+> operator logout is enforced only in the browser (a server-side session epoch needs a WS-DATA table).
+
+> **Judge rail obeyed (28 Oct, verifier round).** Every PayPal step of a judge workspace (Claude's invoice turn,
+> ensureInvoice, recordPayment, the batch POST, the parked item's cancel, the re-route) asks
+> `src/money/rail.ts` `railForStep` / `railForItem` before any PayPal call: `beginLiveStep` (a fresh `judgeRail`,
+> the single-flight lane, the post's reservation) decides; a queued step re-queues itself (`runs/now.ts`
+> `deferTask`); a replay runs the same code on the replay rail (`src/paypal/replay.ts`: no PayPal call, rows and
+> events `replay`, the latest settled live run else showcase r37 else the seed as the source, named in
+> `judge.step.replayed`); a live step holds the lane and the post runs inside `withArmedTamper`, settling its
+> reservation. A run that replayed a step replays to the end. `kill_paypal_live` in Judge Mode is that replay,
+> not a refusal. C-21's 40 a day and the balance floor are checked and written under one cross-process lock
+> (`money/payouts.ts` `spendLock`). Printed member links are recorded and revocable (`revoke`, `revoke-line`); a
+> written batch is never abandoned (`money/resume.ts`); every signed re-route has its own task row.
 
 > **Merged with main (28 Oct, after phase 1).** `ws/api` now builds on main's final packages, with no shims of its
 > own. What changed here: approvals sign and check `linesDigest` (every member line, cash lines too; the batch view
@@ -34,6 +44,70 @@
 > `test/harness.ts` and `smoke/checks.ts`, the parity tests) and api-client importing domain (`verify`, `format`) and
 > seed (the msw world), so test-kit's real-tree `deps:check` reports 10 violations until WS-QA sanctions those edges
 > (or the shared parts move into contracts). The test-only helpers moved from `runs/testing/` to `runs/test/`.
+
+> **Security pass (28 Oct; the six `[ws/api] SECURITY` review findings and their siblings).** (1) The client
+> address comes only from the hop `FS_TRUSTED_EDGE` names (`none` off Render, `render` on it: `CF-Connecting-IP`,
+> else the rightmost `X-Forwarded-For` entry, else the socket's peer; `True-Client-IP` is never read), through
+> `clientIp(c)` / `clientIpKey(c)` for every per-IP rule and the webhook cert budget; `FairSplitApp.fetch` passes
+> the Node bindings on, so the peer is known. The test env runs as deployed (`render`): tests name a network
+> with `cf-connecting-ip`. (2) Command bodies are read as a stream and cancelled past the cap. (3) A store or
+> resolver without `isLinkRevoked` throws at construction. (4) Every link path asks the same store (`checkLink`,
+> `/v1/credential` no longer keep their own ledger reads), and a credentialed SSE stream re-checks its credential
+> at every ping (`revalidate`), so revoked, expired or ended credentials stop streaming. (5) Judge-code guesses:
+> 5 per 10 minutes per session, 5 a minute per network, 30 a minute in all. (6) The brand view and its CSV show
+> member lines only once `proofReady` (read inside the view's snapshot); before, the view is the invoice alone.
+
+> **Quota on resume (28 Oct; the `[ws/api] SECURITY` review of e026049, rounds 1 to 4).** The rule, in plain words:
+> **every live judge POST is counted from a slot dated within 90 seconds of the moment it reaches PayPal.**
+>
+> - A judge post whose batch is written live is never replayed (I8) and never goes live without a counted slot.
+>   Its run's slot (`judge_post`) carries a POST only while it is younger than `JUDGE_QUOTA.restampAfterMs` (the live
+>   lane's lease, 90 s: the burst that took it, or a quick retry such as refused credentials or an unanswered POST)
+>   and only in the clock hour it was taken.
+> - A post that resumes later (PayPal's 429 and the 6-minute circuit, a kill switch, an outage the hourly catch-up
+>   ends) takes a FRESH slot dated now, under the quota lock, checked against every cap (the rolling 24 h, the
+>   clock hour, the session's three, the public third) with its own run's earlier slots left out, and against the
+>   service's first-write guard for the write it resumes: the balance less its batch stays at or above US$10,000, and
+>   C-21's 40 live batches a day. If anything is full it WAITS (`queued`, `waitingFor` the reason, re-queued by
+>   `deferTask`; the hourly cap waits for the next clock hour); kill_payouts makes it wait before it takes a slot.
+>   It is never replayed and never live without a slot. The older slot is settled `superseded`.
+> - Counting: every count looks back 24 h plus the 90 s, so a POST is counted for the whole 24 h after it (and in its
+>   own clock hour). A run counts once however many of its slots are in a window; the spend counts a run through its
+>   newest slot, so a post PayPal denies on the fresh slot spends nothing. C-21 counts a batch from its write, and a
+>   judge batch also from any live slot of its run in the window. The spend counts a batch written before a balance
+>   reading and posted after it from its POST (`batch_posted`), and a written batch still waiting to be posted.
+> - Only a batch still waiting for PayPal's answer is resumed (SUBMITTED, no PayPal id). One PayPal named or denied,
+>   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST.
+> - A written re-route resumed more than 90 s after it was last counted is held to C-21 again (under the spend lock)
+>   and counted from that POST (`batch_sent`); while C-21 is full it waits.
+> - The hourly purge never removes a batch a count still reads. C-21 and the spend count a batch from its row, and
+>   the purge deletes the expired judge workspace's rows. So it waits while C-21 still counts one of its batches (24 h
+>   and 90 s after its write, after a live slot of its run, or after a `batch_sent` mark) or the spend does (its write
+>   or PayPal naming it, `batch_posted`, within 26 h: the oldest reading the spend counts from). A batch POSTed late
+>   is counted for the whole 24 h after that POST, even when its workspace expired before it
+>   (`judge/quota.ts batchesStillCounted`, read on the database's clock).
+> - Lock order, wherever both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`):
+>   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the re-route
+>   guard hold only the spend lock, `settleLivePost` only the quota lock. So no two transactions can deadlock. The
+>   tests drive the re-route guard on its locked path (a batch last counted a day before) and mix real co-op first
+>   writes into the concurrent run.
+> - I8 check-then-act: a post re-reads its rows just before it replays and waits if another executor wrote them live;
+>   the repository refuses to write, mark posted or mark rejected live rows on the replay rail.
+> - Earlier rounds: round 1 stopped the resume override (no live post without a slot) and stopped `settleLivePost`
+>   from settling `not_posted` once a batch is written; round 2's 23 h age-out (`heldSlotMaxAgeMs`) is gone: a slot
+>   now carries a POST for 90 s, and a later POST takes a slot dated at it. Round 4: the purge used to wait only 24 h
+>   after a batch's write, so a POST made a day after its write could drop out of C-21 within the hour.
+> - What is left: a burst's own retries (the service's 1 + 3 + 9 s, PayPalHttp's timeouts) can put its POST up to
+>   about two minutes after its slot, and a fresh burst that straddles the top of an hour counts in the hour it
+>   began. A co-op's own (non-judge) primary batch resumed later is still counted by C-21 from its write (outside the
+>   judge quota, and not reachable by a judge). Cancel takes no slot and no C-21 count (it sends no batch). The purge
+>   reads the counts on the database's clock while the ledger is stamped by the app's; in production they are the
+>   same clock, and any skew between them moves the end of its wait by that much.
+> - Tests: `money/quota-sendtime.test.ts` (the drift probe, the hourly wait, one run counted once, denied, the held
+>   retry, D4, D5, D6), `money/quota-oracle.test.ts` (send times over three simulated days),
+>   `money/quota-purge.test.ts` (a late POST, then the purge: still counted 2 h and 23 h after it),
+>   `money/lock-order.pg.test.ts` (D1 and the lock order), `money/reroute-c21.test.ts` (D7), `judge/quota.pg.test.ts`
+>   (restamp, hour boundary, D2, D8), `money/quota-resume.test.ts`.
 
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
@@ -143,7 +217,7 @@ What the shell does **before** your handler runs (`src/lib/command.ts`, one code
 - `COMMAND_FOLDER`, `ROUTE_FOLDERS`, `errorCodesOf(name)`, `SUCCESS_STATUS` (`src/lib/commands.ts`, the HTTP part
   shared with `@fairsplit/api-client/http`)
 - `deps.rateLimits.take(RATE_RULES.presence, key)` → `{ ok: true } | { ok: false; retryAfterMs }` (`src/lib/rate-limit.ts`; presence 1 Hz, pairing claims, session starts per cookie and per hashed IP)
-- `clientIp(headers)`, `hashedClientIp(deps.credentials.keys, ip, now)` (`src/lib/client-ip.ts`; never store a raw IP)
+- `clientIpKey(c)` (the hashed address every per-IP rule takes), `clientIp(c)`, `hashedClientIp(keys, ip, now)` (`src/lib/client-ip.ts`; the address comes only from the hop `FS_TRUSTED_EDGE` names, never from a header a client can write; never store a raw IP)
 - `contentDigestOf(body)`, `sha256Hex(body)`, `digestMatches(header, bytes)` (`src/lib/digest.ts`)
 - `deps.clock.now()` / `ctx.now()`: never `Date.now()` in a handler (tests move a fake clock)
 

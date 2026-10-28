@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BootRefusal, killEnv, parseEnv } from "./env.js";
+import { BootRefusal, killEnv, parseEnv, TRUSTED_EDGES } from "./env.js";
 
 // A distinctive fake value (deliberately not key-shaped, so the secret guards stay quiet): it must never be echoed.
 const SECRET_LOOKING = "not-a-real-secret-value-7f3a91c2-0123456789";
@@ -202,5 +202,29 @@ describe("env: PP_CERT_ALLOW pins PayPal webhook cert ids for paypal-core", () =
       expect(problems[0]).toMatch(/^PP_CERT_ALLOW must list at most 8 PayPal cert ids/);
       expect(problems[0]).not.toContain("api-m.paypal.com");
     }
+  });
+});
+
+describe("env: FS_TRUSTED_EDGE names the one hop client addresses come from (S3.9)", () => {
+  const { NODE_ENV: _n, ...onRender } = PROD;
+
+  it("defaults to none off Render and to render on Render (RENDER=true is set by the platform)", () => {
+    expect(parseEnv({}).trustedEdge).toBe("none");
+    expect(parseEnv({ ...onRender, RENDER: "true" }).trustedEdge).toBe("render");
+  });
+
+  it("takes an explicit value anywhere and refuses anything else, naming the variable", () => {
+    for (const edge of TRUSTED_EDGES) expect(parseEnv({ FS_TRUSTED_EDGE: edge }).trustedEdge).toBe(edge);
+    expect(parseEnv({ ...onRender, RENDER: "true", FS_TRUSTED_EDGE: "none" }).trustedEdge).toBe("none");
+    expect(parseEnv({ FS_TRUSTED_EDGE: " Render " }).trustedEdge).toBe("render");
+    expect(refusal({ FS_TRUSTED_EDGE: "true-client-ip" })).toEqual([
+      "FS_TRUSTED_EDGE must be one of none, proxy, cloudflare, render",
+    ]);
+  });
+
+  it("warns in production off Render when nothing says which proxy is in front", () => {
+    expect(parseEnv(PROD).warnings.join(" ")).toMatch(/FS_TRUSTED_EDGE/);
+    expect(parseEnv({ ...PROD, FS_TRUSTED_EDGE: "proxy" }).warnings.join(" ")).not.toMatch(/FS_TRUSTED_EDGE/);
+    expect(parseEnv({ ...onRender, RENDER: "true" }).warnings.join(" ")).not.toMatch(/FS_TRUSTED_EDGE/);
   });
 });

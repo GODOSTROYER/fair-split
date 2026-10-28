@@ -6,6 +6,7 @@
 
 import { agentTasks } from "../../agent/tasks.js";
 import { defineRouteFolder } from "../../lib/slice.js";
+import { resumeStalledPosts } from "../../money/resume.js";
 import { allow, CAN } from "../../runs/access.js";
 import { setFlagHandler } from "../../runs/flags.js";
 import {
@@ -119,4 +120,9 @@ export default defineRouteFolder({
     );
   },
   tasks: (deps) => ({ ...runTasks(deps), ...agentTasks(deps) }),
+  // A written batch is never abandoned: whatever stopped its POST before this boot (a crash, an outage that
+  // outlasted its attempts), it is posted again with the same ids (money/resume.ts; also hourly and on a switch off).
+  onBoot: async (deps) => {
+    await resumeStalledPosts(deps);
+  },
 });

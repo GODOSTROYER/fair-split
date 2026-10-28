@@ -58,7 +58,7 @@ function cookieFrom(setCookie: string | null): string {
 }
 
 async function startSession(o: { cookie?: string; ip?: string } = {}): Promise<Started> {
-  const headers: Record<string, string> = { "true-client-ip": o.ip ?? "203.0.113.7" };
+  const headers: Record<string, string> = { "cf-connecting-ip": o.ip ?? "203.0.113.7" };
   if (o.cookie) headers.cookie = `${JUDGE_COOKIE.name}=${o.cookie}`;
   const r = await t.json<SessionBody>("/v1/judge/sessions", { method: "POST", body: {}, headers });
   if (r.status !== 201 && r.status !== 200)
@@ -282,7 +282,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
     const r = await t.json<ApiError>("/v1/judge/sessions", {
       method: "POST",
       body: {},
-      headers: { cookie: `${JUDGE_COOKIE.name}=${s.cookie}`, "true-client-ip": "198.51.100.1" },
+      headers: { cookie: `${JUDGE_COOKIE.name}=${s.cookie}`, "cf-connecting-ip": "198.51.100.1" },
     });
     expect(r.status).toBe(429);
     expect(ApiError.parse(r.body)).toMatchObject({ code: "RATE_LIMITED" });
@@ -298,7 +298,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
     const r = await t.json<ApiError>("/v1/judge/sessions", {
       method: "POST",
       body: {},
-      headers: { "true-client-ip": "192.0.2.99" },
+      headers: { "cf-connecting-ip": "192.0.2.99" },
     });
     expect(r.status).toBe(429);
     expect(ApiError.parse(r.body).code).toBe("RATE_LIMITED");
@@ -314,7 +314,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
       const r = await t.json<ApiError>("/v1/judge/sessions", {
         method: "POST",
         body: {},
-        headers: { "true-client-ip": "203.0.113.50" },
+        headers: { "cf-connecting-ip": "203.0.113.50" },
       });
       expect(r.status).toBe(429);
       expect(ApiError.parse(r.body)).toMatchObject({
@@ -616,7 +616,7 @@ describe("the judge session view, the lane and the judge code", () => {
     const app = await createTestApp({ db: "postgres", clock: new Date() });
     try {
       type Lane = { rail: { quota: { balance: { source: string } } } };
-      const ip = { "true-client-ip": "198.51.100.77" };
+      const ip = { "cf-connecting-ip": "198.51.100.77" };
       const source = async () =>
         (await app.json<Lane>("/v1/judge/lane", { headers: ip })).body.rail.quota.balance.source;
       expect(await source()).toBe("simulator_opening");
@@ -633,7 +633,9 @@ describe("the judge session view, the lane and the judge code", () => {
       const limited = await app.json<ApiError>("/v1/judge/lane", { headers: ip });
       expect(limited.status).toBe(429);
       expect(ApiError.parse(limited.body).code).toBe("RATE_LIMITED");
-      const elsewhere = await app.json("/v1/judge/lane", { headers: { "true-client-ip": "198.51.100.78" } });
+      const elsewhere = await app.json("/v1/judge/lane", {
+        headers: { "cf-connecting-ip": "198.51.100.78" },
+      });
       expect(elsewhere.status).toBe(200);
     } finally {
       await app.close();
@@ -687,6 +689,76 @@ describe("the judge session view, the lane and the judge code", () => {
         as: app.credentials.judge(cookieFrom(r1.headers.get("set-cookie"))),
       });
       expect(after.body.rail.quota.coded).toBe(true);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("judge-code guesses are capped per session and in all: new networks or spoofed headers buy no new guesses", async () => {
+    const code = "lantern-bay-judges";
+    const app = await createTestApp({
+      db: "postgres",
+      clock: new Date(),
+      env: { JUDGE_CODE_SHA256: createHash("sha256").update(code).digest("hex") },
+    });
+    try {
+      // each session starts from its own network (the edge's CF-Connecting-IP, which the test env trusts)
+      let net = 0;
+      const start = async () => {
+        net++;
+        const r = await app.json("/v1/judge/sessions", {
+          method: "POST",
+          body: {},
+          headers: { "cf-connecting-ip": `198.18.0.${net}` },
+        });
+        expect(r.status).toBe(201);
+        return app.credentials.judge(cookieFrom(r.headers.get("set-cookie")));
+      };
+      const guess = (
+        as: ReturnType<typeof app.credentials.judge>,
+        headers: Record<string, string>,
+        c = "nope",
+      ) => app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code: c }, as, headers });
+
+      // 1. one session, every guess from a different real network: five, then 429 even for the right code
+      const a = await start();
+      for (let i = 0; i < 5; i++) {
+        expect((await guess(a, { "cf-connecting-ip": `198.19.1.${i}` })).status).toBe(403);
+      }
+      const perSession = await guess(a, { "cf-connecting-ip": "198.19.1.99" }, code);
+      expect(perSession.status).toBe(429);
+      expect(ApiError.parse(perSession.body).code).toBe("RATE_LIMITED");
+
+      // 2. one network rotating True-Client-IP and the leftmost X-Forwarded-For entries over fresh sessions: the
+      //    hop Render's proxy appended (rightmost) is the network, five guesses a minute
+      app.deps.rateLimits.reset();
+      const sessions = [await start(), await start(), await start()];
+      for (let i = 0; i < 5; i++) {
+        const spoof = { "true-client-ip": `203.0.113.${i}`, "x-forwarded-for": `198.20.0.${i}, 192.0.2.200` };
+        expect((await guess(sessions[i % 2] as typeof a, spoof)).status).toBe(403);
+      }
+      const spoofed = await guess(
+        sessions[2] as typeof a,
+        { "true-client-ip": "203.0.113.99", "x-forwarded-for": "198.20.0.99, 192.0.2.200" },
+        code,
+      );
+      expect(spoofed.status).toBe(429);
+
+      // 3. many sessions on many networks: thirty guesses a minute in all, then even the right code waits
+      app.deps.rateLimits.reset();
+      for (let s = 0; s < 6; s++) {
+        const j = await start();
+        for (let i = 0; i < 5; i++) {
+          expect((await guess(j, { "cf-connecting-ip": `198.19.${10 + s}.${i}` })).status).toBe(403);
+        }
+      }
+      const late = await start();
+      const global = await guess(late, { "cf-connecting-ip": "198.19.99.1" }, code);
+      expect(global.status).toBe(429);
+      expect(Number(global.headers.get("retry-after"))).toBeGreaterThan(0);
+      app.clock.advance(60_001);
+      const ok = await guess(late, { "cf-connecting-ip": "198.19.99.2" }, code);
+      expect(ok.status, JSON.stringify(ok.body)).toBe(200);
     } finally {
       await app.close();
     }

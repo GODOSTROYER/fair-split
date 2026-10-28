@@ -1,6 +1,7 @@
 // Credential issuance (judge slice). The verify side is src/credentials/verify (shell); both use one codec.
 // Other slices import from here, never from the files below:
-//   - PROOF (print, statements): `issueMemberLink` + `recordLinkIssued` for the 80 mm slip and the statement;
+//   - PROOF (print, statements): `issueMemberLink` + `recordLinkIssued` for the statement, `recordPrintedLink`
+//     for the 80 mm slip's QR (recorded once, the first time it is printed, so it can be revoked);
 //     a route that returns a link calls `refuseReplayOfSecret(ctx.header)` first (no secret in idempotency_keys);
 //   - the shell's server.ts: `dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) })`, so a
 //     revoked statement link stops opening every route, not only GET /v1/credential.
@@ -19,8 +20,10 @@ export {
   type LinkCheck,
   type LinkKind,
   linkWasIssued,
+  liveLinksOfLine,
   newJti,
   recordLinkIssued,
+  recordPrintedLink,
   revokeLink,
 } from "./links.js";
 export {

@@ -210,6 +210,79 @@ describe("command builder", () => {
     expect(readOnly.body.code).toBe("FORBIDDEN");
   });
 
+  describe("the body cap (64 KB by default) holds while the body is read, not after", () => {
+    const CAP = 64 * 1024;
+    const CHUNK = 16 * 1024;
+    /** A 4 MB body produced only as fast as the server reads it, so `pulled()` is what the server took in. */
+    function slowBody(total = 4 * 1024 * 1024) {
+      let pulled = 0;
+      let cancelled = false;
+      const stream = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            if (pulled >= total) return controller.close();
+            pulled += CHUNK;
+            controller.enqueue(new Uint8Array(CHUNK).fill(0x20));
+          },
+          cancel() {
+            cancelled = true;
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      return { stream, pulled: () => pulled, cancelled: () => cancelled };
+    }
+    const send = (stream: ReadableStream<Uint8Array>, headers: Record<string, string> = {}) =>
+      t.request(holdPath(), {
+        method: "POST",
+        body: stream,
+        duplex: "half",
+        headers: { "content-type": "application/json", ...headers },
+        as: t.credentials.bearer(token),
+      });
+
+    it("a chunked body (no Content-Length) is refused once it passes the cap, without reading the rest", async () => {
+      await setup();
+      const body = slowBody();
+      const r = await send(body.stream);
+      expect(r.status).toBe(400);
+      expect(((await r.json()) as ApiError).details).toMatchObject({
+        issues: [{ path: "body", code: "too_big" }],
+      });
+      expect(body.pulled()).toBeLessThanOrEqual(CAP + 2 * CHUNK);
+      expect(body.cancelled()).toBe(true);
+      expect(resolveHold).not.toHaveBeenCalled();
+    });
+
+    it("a Content-Length that understates the body buys nothing: reading stops at the cap", async () => {
+      await setup();
+      const body = slowBody();
+      const r = await send(body.stream, { "content-length": "20" });
+      expect(r.status).toBe(400);
+      expect(body.pulled()).toBeLessThanOrEqual(CAP + 2 * CHUNK);
+      expect(resolveHold).not.toHaveBeenCalled();
+    });
+
+    it("a declared length over the cap is refused before a byte is read; a body under it still runs", async () => {
+      await setup();
+      const body = slowBody();
+      const r = await send(body.stream, { "content-length": String(CAP + 1) });
+      expect(r.status).toBe(400);
+      expect(body.pulled()).toBe(0);
+      resolveHold.mockImplementation(async () => {
+        throw new ApiProblem("HOLD_NOT_OPEN", "H1 is already resolved.");
+      });
+      const padded = `{"resolution":"COUNT_ONCE"${" ".repeat(CAP - 40)}}`;
+      const ok = await t.json<ApiError>(holdPath(), {
+        method: "POST",
+        body: padded,
+        as: t.credentials.bearer(token),
+      });
+      expect(ok.status, JSON.stringify(ok.body)).toBe(409);
+      expect(resolveHold).toHaveBeenCalledOnce();
+    });
+  });
+
   it("GET commands parse the query with the request schema", async () => {
     await setup();
     approvalPayload.mockImplementation(async (ctx) => {

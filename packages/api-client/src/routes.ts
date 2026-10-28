@@ -199,6 +199,13 @@ export const LinkResponse = z.strictObject({
 });
 export const RevokeLinkRequest = z.strictObject({ jti: z.string().min(8).max(64) });
 export const RevokeLinkResponse = z.strictObject({ revoked: z.boolean(), jti: z.string() });
+/** A lost slip: every live member link of one line (printed on any day, or issued) is revoked. */
+export const RevokeLineLinksRequest = z.strictObject({ lineId: Uuid });
+export const RevokeLineLinksResponse = z.strictObject({
+  lineId: Uuid,
+  /** The links this call revoked (none when nothing of the line was still live). */
+  jtis: z.array(z.string()),
+});
 
 // ---------------------------------------------------------------- the route table
 
@@ -318,6 +325,14 @@ export const JUDGE_ROUTES = {
     auth: "frame_or_session",
     request: RevokeLinkRequest,
     response: RevokeLinkResponse,
+    success: [200],
+  },
+  revokeLineLinks: {
+    method: "POST",
+    path: "/v1/links/member/revoke-line",
+    auth: "frame_or_session",
+    request: RevokeLineLinksRequest,
+    response: RevokeLineLinksResponse,
     success: [200],
   },
   issueBrandLink: {

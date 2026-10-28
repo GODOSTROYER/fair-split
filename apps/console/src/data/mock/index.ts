@@ -11,8 +11,8 @@ import {
   type MockWorld,
   type MockWorldOptions,
 } from "@fairsplit/api-client/msw";
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import type { RequestHandler } from "msw";
 import type { DataAdapter } from "../adapter.js";
 import { createApiAdapter } from "../api.js";

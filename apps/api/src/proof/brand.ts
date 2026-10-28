@@ -25,6 +25,7 @@ import {
   findRunBySlug,
   foldItemEvents,
   loadRunFacts,
+  notReady,
   type ProofFacts,
   type ProofRun,
   proofReady,
@@ -68,6 +69,7 @@ export const BrandView = z.strictObject({
   }),
   /** True from the batch's POST on: the Proof (six plates) exists. Before that the view shows the invoice. */
   proofReady: z.boolean(),
+  /** Zero until proofReady (C-23: no member figure leaves before the Proof exists). */
   totals: z.strictObject({
     members: z.int().nonnegative(),
     net: MoneyDTO,
@@ -76,6 +78,7 @@ export const BrandView = z.strictObject({
     cashMembers: z.int().nonnegative(),
     cash: MoneyDTO,
   }),
+  /** Empty until proofReady. */
   members: z.array(BrandMember),
   hashes: z.strictObject({
     rateCardSha256: z.string(),
@@ -86,7 +89,11 @@ export const BrandView = z.strictObject({
 });
 export type BrandView = z.infer<typeof BrandView>;
 
-/** The run a brand reader may see, or a 401/403/404. A credential for another workspace sees nothing here. */
+/**
+ * The run a brand reader may see, or a 401/403/404. A credential for another workspace sees nothing here. Any
+ * state of the run: before its batch is posted the view is the invoice alone (W-PF-02 unpaid); its member lines,
+ * names, receivers and the CSV export wait for the Proof (`proofReady`, decided in the read's own snapshot).
+ */
 export async function brandRun(
   db: DbOrTx,
   credential: Credential | null,
@@ -134,8 +141,17 @@ interface MemberRow {
   plots: { code: string; trees: number; areaHa: string | null; lat: string | null; lon: string | null }[];
 }
 
-async function brandRows(db: DbOrTx, run: ProofRun): Promise<{ rows: MemberRow[]; facts: ProofFacts }> {
+/**
+ * The run's facts and, once its Proof exists, one row per member line. Before that there are no rows at all
+ * (C-23: names, amounts and receivers are the Proof's): the snapshot's own run decides, never the lookup that
+ * preceded it, so a run posted in between is read whole or not at all.
+ */
+async function brandRows(
+  db: DbOrTx,
+  run: ProofRun,
+): Promise<{ rows: MemberRow[]; facts: ProofFacts; ready: boolean }> {
   const facts = await loadRunFacts(db, run);
+  if (!proofReady(facts.run)) return { rows: [], facts, ready: false };
   const ws = run.workspaceId;
   const ml = schema.memberLines;
   const lines = await db
@@ -233,7 +249,7 @@ async function brandRows(db: DbOrTx, run: ProofRun): Promise<{ rows: MemberRow[]
         .map((p) => ({ code: p.code, trees: p.trees, areaHa: p.areaHa, lat: p.lat, lon: p.lon })),
     };
   });
-  return { rows, facts };
+  return { rows, facts, ready: true };
 }
 
 /** The brand view, read from one snapshot. */
@@ -255,7 +271,7 @@ export function brandView(db: DbOrTx, run: ProofRun): Promise<BrandView> {
 }
 
 async function readBrandView(db: DbOrTx, lookedUp: ProofRun): Promise<BrandView> {
-  const { rows, facts } = await brandRows(db, lookedUp);
+  const { rows, facts, ready } = await brandRows(db, lookedUp);
   // the run as this snapshot read it: state, hashes and readiness from the same moment as the rows
   const run = facts.run;
   const [inv] = await db
@@ -296,7 +312,7 @@ async function readBrandView(db: DbOrTx, lookedUp: ProofRun): Promise<BrandView>
       reference: invoiceReference(run.rateCardSha256),
       payerViewUrl: UNPAID.has(status) && inv?.payerViewUrl ? safeUrl(inv.payerViewUrl) : null,
     },
-    proofReady: proofReady(run),
+    proofReady: ready,
     totals: {
       members: rows.length,
       net: format.moneyDTO(sum(rows)),
@@ -322,8 +338,8 @@ async function readBrandView(db: DbOrTx, lookedUp: ProofRun): Promise<BrandView>
     })),
     hashes: {
       rateCardSha256: run.rateCardSha256,
-      batchSha256: run.batchSha256,
-      ledgerHead: head ? { seq: head.seq, entryHash: head.entryHash } : null,
+      batchSha256: ready ? run.batchSha256 : null,
+      ledgerHead: ready && head ? { seq: head.seq, entryHash: head.entryHash } : null,
     },
     exportPath: `/v1/brand/${run.runSlug}/export.csv`,
   };
@@ -368,7 +384,8 @@ export function brandCsv(db: DbOrTx, run: ProofRun): Promise<string> {
 }
 
 async function readBrandCsv(db: DbOrTx, run: ProofRun): Promise<string> {
-  const { rows } = await brandRows(db, run);
+  const { rows, facts, ready } = await brandRows(db, run);
+  if (!ready) notReady(facts.run);
   const lines = [CSV_HEADER.join(",")];
   for (const r of rows) {
     lines.push(

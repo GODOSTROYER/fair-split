@@ -1,8 +1,8 @@
 // W-TR-04's model: slip 0462's mask, the kilos preview against the logbook's second witness, "Use logbook line
 // 7", and the field ID the console resolves for the entry (the session run's own, or none).
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { RunEvent } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import { applyRunEvents, sessionView } from "../../data/run-view.js";
 import { createTestWorld } from "../../test/index.js";

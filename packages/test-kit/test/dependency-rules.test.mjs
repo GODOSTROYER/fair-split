@@ -193,6 +193,33 @@ beforeAll(() => {
   put("apps/api/src/print.cli.ts", 'import { fake } from "./test/fakes.js";\nexport { fake };\n');
   put("apps/api/src/plant-uses-cli.ts", 'import { fake } from "./print.cli.js";\nexport { fake };\n');
 
+  // api-client (ADR-0009): it may import domain and seed, never a server package like db. fs-api may import
+  // its HTTP table; only fs-api's tests and smoke CLI may import the typed client itself.
+  workspacePackage(
+    "api-client",
+    { "@fairsplit/domain": "workspace:*", "@fairsplit/db": "workspace:*" },
+    { ".": "./src/index.ts", "./http": "./src/http.ts" },
+  );
+  put("packages/api-client/src/http.ts", "export const API_COMMANDS = 1;\n");
+  put(
+    "packages/api-client/src/index.ts",
+    'import { c } from "@fairsplit/domain";\nexport { API_COMMANDS } from "./http.js";\nexport const f = c;\n',
+  );
+  put("packages/api-client/src/plant-db.ts", 'import { db } from "@fairsplit/db";\nexport const x = db;\n');
+  const clientImport = (entry) =>
+    `import { API_COMMANDS } from "@fairsplit/api-client${entry}";\nexport { API_COMMANDS };\n`;
+  put("apps/api/src/plant-client.ts", clientImport(""));
+  put("apps/api/src/lib/plant-http.ts", clientImport("/http"));
+  put("apps/api/src/plant-client.test.ts", clientImport(""));
+  put("apps/api/src/test/plant-harness.ts", clientImport(""));
+  put("apps/api/src/smoke/plant-checks.ts", clientImport(""));
+  put(
+    "apps/api/src/smoke/plant-db.ts",
+    'import { db } from "@fairsplit/db";\nimport "@fairsplit/motion";\nexport { db };\n',
+  );
+  // Tool state under .cache (apps/api keeps its embedded test Postgres there) is never cruised.
+  put("apps/api/.cache/pg/plant-cache.ts", 'import "@fairsplit/motion";\nexport const x = 1;\n');
+
   // Cycles: a runtime one (planted) and one that passes through an `import type` (clean).
   put("packages/db/src/cycle-a.ts", 'import { b } from "./cycle-b.js";\nexport const a = () => b;\n');
   put("packages/db/src/cycle-b.ts", 'import { a } from "./cycle-a.js";\nexport const b = () => a;\n');
@@ -240,6 +267,32 @@ describe("dependency-cruiser rules fire on planted violations", () => {
 
   it("layer-ui: a package-root file in packages/motion importing a server package", () => {
     expect(hits("layer-ui", "packages/motion/moments.ts")).toHaveLength(1);
+  });
+
+  it("layer-api-client: api-client may reach domain (and seed), never a server package like db", () => {
+    expect(hits("layer-api-client", "packages/api-client/src/plant-db.ts")).toHaveLength(1);
+    expect(hits("layer-api-client", "packages/api-client/src/index.ts")).toEqual([]);
+    expect(hits("layer-ui", "packages/api-client/src/index.ts")).toEqual([]);
+  });
+
+  it("layer-server-apps: fs-api runtime may import api-client's HTTP table only; tests and smoke use the client", () => {
+    expect(hits("layer-server-apps", "apps/api/src/plant-client.ts")).toHaveLength(1);
+    for (const f of [
+      "apps/api/src/lib/plant-http.ts",
+      "apps/api/src/plant-client.test.ts",
+      "apps/api/src/test/plant-harness.ts",
+      "apps/api/src/smoke/plant-checks.ts",
+    ]) {
+      expect(hits("layer-server-apps", f), f).toEqual([]);
+      expect(hits("layer-server-apps-tests", f), f).toEqual([]);
+    }
+    // The smoke CLI's allowance is the typed client only: a UI package still fails.
+    expect(hits("layer-server-apps-tests", "apps/api/src/smoke/plant-db.ts")).toHaveLength(1);
+  });
+
+  it("tool state is not cruised: a UI import under apps/api/.cache raises nothing", () => {
+    expect(rulesFor("apps/api/.cache/pg/plant-cache.ts")).toEqual([]);
+    expect(violations.filter((v) => v.from.includes("/.cache/"))).toEqual([]);
   });
 
   it("tools are cruised: relative deep import from tools/", () => {

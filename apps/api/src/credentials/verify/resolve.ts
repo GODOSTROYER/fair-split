@@ -68,6 +68,7 @@ export function createCredentialResolver(deps: {
   clock: Clock;
 }): CredentialResolver {
   const { store, keys, clock } = deps;
+  requireRevocationCheck(store?.isLinkRevoked, "createCredentialResolver: the store");
 
   async function fromBearer(token: string): Promise<ResolveResult> {
     const now = clock.now();
@@ -168,6 +169,17 @@ function ok(credential: Credential): ResolveResult {
   return { kind: "ok", credential };
 }
 
+/**
+ * Member and brand links are revocable, so a store must say how it knows (fail closed): a missing check would
+ * read as "never revoked" and keep every revoked link open. Thrown at construction, so a miswired server never
+ * boots instead of failing open later.
+ */
+function requireRevocationCheck(check: unknown, who: string): void {
+  if (typeof check !== "function") {
+    throw new TypeError(`${who} needs isLinkRevoked(jti): link revocation is never assumed away`);
+  }
+}
+
 function invalid(p: ApiProblem): ResolveResult {
   return { kind: "invalid", problem: p };
 }
@@ -181,6 +193,7 @@ export function dbCredentialStore(
   db: Db,
   opts: { isLinkRevoked: (jti: string) => Promise<boolean> },
 ): CredentialStore {
+  requireRevocationCheck(opts?.isLinkRevoked, "dbCredentialStore");
   const ft = schema.frameTokens;
   const ws = schema.workspaces;
   return {

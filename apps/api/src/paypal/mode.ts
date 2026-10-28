@@ -8,7 +8,8 @@
 //   sandbox                  → the real api-m.sandbox.paypal.com
 //
 // I8: whatever the mode, everything derived from PayPal carries `rail.provenance` (`simulated_rail` or `live`)
-// and every API response carries the `X-FS-Rail` header (`simulated` | `sandbox`).
+// and every API response carries the `X-FS-Rail` header (`simulated` | `sandbox`). A Judge Mode step decided
+// replay runs on a REPLAY rail derived from this one (paypal/replay.ts): provenance `replay`, no network.
 // When packages/paypal-sim lands, `inProcessSimulator(sim)` below is the one place that plugs its
 // fetch-compatible handler in (no change to callers).
 import {
@@ -25,7 +26,8 @@ import {
 import type { ApiEnv, PayPalMode } from "../env.js";
 
 export type RailLabel = "simulated" | "sandbox";
-export type RailProvenance = "simulated_rail" | "live";
+/** `replay` only on a Judge Mode replay rail (paypal/replay.ts), never on the rail a request is served on. */
+export type RailProvenance = "simulated_rail" | "live" | "replay";
 
 /** How simulator traffic is served. */
 export type SimulatorTransport =
@@ -54,7 +56,8 @@ export interface PayPalRail {
 export interface RailDescription {
   mode: PayPalMode;
   label: RailLabel;
-  provenance: RailProvenance;
+  /** The configured rail's (a replay rail describes the rail it replays on). */
+  provenance: Exclude<RailProvenance, "replay">;
   simulator: SimulatorTransport | null;
   credentials: "configured" | "placeholder";
   webhookId: "configured" | "missing";
@@ -129,7 +132,7 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
   });
 
   const label: RailLabel = mode === "simulator" ? "simulated" : "sandbox";
-  const provenance: RailProvenance = mode === "simulator" ? "simulated_rail" : "live";
+  const provenance: Exclude<RailProvenance, "replay"> = mode === "simulator" ? "simulated_rail" : "live";
   return {
     mode,
     label,

@@ -17,7 +17,7 @@ import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { readJudgeCookie, setJudgeCookie } from "../credentials/issue/judge-cookie.js";
 import { CONSOLE_PERSONA, mintBearerToken, revokeWorkspaceTokens } from "../credentials/issue/tokens.js";
 import type { JudgeSessionCredential } from "../credentials/verify/index.js";
-import { clientIp, hashedClientIp } from "../lib/client-ip.js";
+import { clientIpKey } from "../lib/client-ip.js";
 import type { AppContext, AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { RATE_RULES } from "../lib/rate-limit.js";
@@ -136,7 +136,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
       "Three new sessions an hour per browser. Resume yours.",
     );
   }
-  const ip = hashedClientIp(deps.credentials.keys, clientIp(c.req.raw.headers), now);
+  const ip = clientIpKey(c);
   const perIp = deps.rateLimits.take(RATE_RULES.judgeSessionPerIp, ip);
   if (!perIp.ok) throw problem.rateLimited(perIp.retryAfterMs, "Too many new sessions from this network.");
 
@@ -225,7 +225,8 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
       at: now,
     });
     // Claude's invoice turn (S4: session start enqueues it). The recording replays through the live lattice;
-    // the money steps it reaches ask `judgeRail` / the live lane before any PayPal call.
+    // every PayPal step it reaches asks money/rail.ts (a fresh `judgeRail`, the live lane) before any PayPal call,
+    // and a session decided replay replays its run to the end, calling PayPal not once.
     const turn = { runId, purpose: "DRAFT_INVOICE" as const, holdId: null, turn: 0 };
     await enqueue(tx, "agentTurn", turn, TASKS.agentTurn.dedupeKey(turn), { workspaceId });
     return { workspaceId, runId, runSlug: run.runSlug, consoleToken, expiresAt };

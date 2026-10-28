@@ -31,6 +31,9 @@ export const TEST_ENV: Readonly<Record<string, string>> = {
   PUBLIC_ORIGIN: "http://localhost:8787",
   FS_COOKIE_SECRET: "test-cookie-secret-0123456789abcdef-not-a-real-secret",
   FS_LINK_SIGNING_KEY: "1f".repeat(32),
+  // As deployed (Cloudflare's edge in front of Render's proxy): a test names a client's network with the edge's
+  // CF-Connecting-IP header, or with the rightmost X-Forwarded-For entry (the hop Render's proxy appends).
+  FS_TRUSTED_EDGE: "render",
 };
 
 function noDatabase<T>(what: string): T {
@@ -52,6 +55,8 @@ export interface TestDepsOptions {
   simulator?: InProcessSimulator;
   paypalFetch?: FetchLike;
   webhookTrustAnchors?: readonly string[];
+  /** SSE hub options (a short ping makes stream re-checks observable in a test). */
+  sse?: { pingMs?: number };
 }
 
 export interface TestDeps {
@@ -87,7 +92,11 @@ export function createTestDeps(o: TestDepsOptions): TestDeps {
     logger,
     db: o.data ? o.data.database.db : noDatabase<Db>("deps.db"),
     sql: o.data ? o.data.database.sql : noDatabase<Sql>("deps.sql"),
-    sse: createSseHub({ bus: o.data ? o.data.bus : (bus as MemoryBus), logger }),
+    sse: createSseHub({
+      bus: o.data ? o.data.bus : (bus as MemoryBus),
+      logger,
+      ...(o.sse?.pingMs !== undefined ? { pingMs: o.sse.pingMs } : {}),
+    }),
     paypal,
     credentials: { keys, store, resolver: createCredentialResolver({ store, keys, clock: o.clock }) },
     idempotency: o.data ? dbIdempotencyStore(o.data.database.db) : memoryIdempotencyStore(),

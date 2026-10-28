@@ -2,13 +2,14 @@
 // through setFlag's HALT (FS_KILL forced by env, or kill_paypal_live) used to leave the run APPROVED with its
 // lines LOCKED and its approvals live, and nothing posted it once the switch was off.
 //   kill_payouts (stored or forced by FS_KILL): the run is HALTED, approvals voided, lines unlocked.
-//   kill_paypal_live ("refusal in real mode"): nothing is sent, the approvals are voided and the run goes back
-//     to review; once the switch is off, signing again posts the batch.
-//   A POST whose rows are already written (POSTING, PayPal's answer unknown) is never abandoned: the outbox
-//     retries it while the switch is on, and it resumes with the same ids once the switch is off.
+//   kill_paypal_live ("refusal in real mode", outside Judge Mode): nothing is sent, the approvals are voided and
+//     the run goes back to review; once the switch is off, signing again posts the batch.
+//   A POST whose rows are already written (POSTING, PayPal's answer unknown) is never abandoned: while the switch
+//     is on each attempt re-queues the post as a fresh attempt row (never the outbox's two-minute budget), and it
+//     resumes with the same ids once the switch is off.
 import { schema } from "@fairsplit/db";
 import { getSnapshot } from "@fairsplit/seed";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
@@ -45,14 +46,19 @@ async function liveApprovals(h: RunsHarness) {
 
 async function postTasks(h: RunsHarness) {
   return h.t.deps.db
-    .select({ state: schema.taskOutbox.state, attempts: schema.taskOutbox.attempts })
+    .select({
+      key: schema.taskOutbox.dedupeKey,
+      state: schema.taskOutbox.state,
+      attempts: schema.taskOutbox.attempts,
+    })
     .from(schema.taskOutbox)
     .where(
       and(
         eq(schema.taskOutbox.workspaceId, h.world.workspaceId),
         eq(schema.taskOutbox.name, "postPayoutBatch"),
       ),
-    );
+    )
+    .orderBy(asc(schema.taskOutbox.createdAt), asc(schema.taskOutbox.dedupeKey));
 }
 
 /** Makes the queued rows of a task due now (the outbox claims a retried row only once run_after passed). */
@@ -112,11 +118,13 @@ describe("inv.i6.kill-post: kill_payouts forced by FS_KILL after both keys (no s
   });
 });
 
+// Outside Judge Mode ("refusal in real mode", S3.11); in Judge Mode the same switch makes the post a labelled
+// replay instead (money/judge-rail.test.ts).
 describe("kill_paypal_live after both keys (setFlag HALTs nothing for it)", () => {
   const script = paypalScript();
   let h: RunsHarness;
   beforeAll(async () => {
-    h = await startRuns({ paypal: script.handlers });
+    h = await startRuns({ paypal: script.handlers, world: { kind: "showcase" } });
     await resolveAll(h);
     await signBoth(h);
   });
@@ -181,7 +189,8 @@ describe("a POST already written (POSTING) while the switch is on", () => {
     await runQueued(h, "postPayoutBatch");
     expect(sent).toHaveLength(1);
     expect((await runOf(h)).state).toBe("POSTING");
-    expect((await postTasks(h)).map((t) => t.state)).toEqual(["queued"]);
+    // the row that hit the switch finished; the post waits as the press's next attempt row (same ids)
+    expect((await postTasks(h)).map((t) => t.state)).toEqual(["done", "queued"]);
 
     // the retry finds the switch on before it calls PayPal: still waiting, nothing sent, nothing abandoned
     await due(h, "postPayoutBatch");
@@ -189,8 +198,9 @@ describe("a POST already written (POSTING) while the switch is on", () => {
     expect(sent).toHaveLength(1);
     expect(script.calls).not.toContain("create_payout_batch");
     expect((await runOf(h)).state).toBe("POSTING");
-    const [task] = await postTasks(h);
-    expect(task).toMatchObject({ state: "queued", attempts: 2 });
+    const tasks = await postTasks(h);
+    expect(tasks.map((t) => t.state)).toEqual(["done", "done", "queued"]);
+    expect(tasks.map((t) => t.key.replace(/:r\d+$/, ""))).toEqual(Array(3).fill(tasks[0]?.key));
     const [batch] = await h.t.deps.db
       .select()
       .from(schema.payoutBatches)
@@ -210,6 +220,6 @@ describe("a POST already written (POSTING) while the switch is on", () => {
       .from(schema.payoutBatches)
       .where(eq(schema.payoutBatches.runId, h.world.runId));
     expect(batch).toMatchObject({ paypalBatchId: TEST_BATCH_ID });
-    expect((await postTasks(h)).map((t) => t.state)).toEqual(["done"]);
+    expect((await postTasks(h)).map((t) => t.state)).toEqual(["done", "done", "done"]);
   });
 });

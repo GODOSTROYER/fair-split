@@ -1,7 +1,7 @@
 // The rate card's read model (W-TR-02): Schedule A printed from the ratified card, every rule pointing at the
 // clause it was read from, and the refusal plate built from a 409 RATE_CARD_RATIFIED.
 
-import { getSnapshot } from "@fairsplit/seed";
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { describe, expect, it } from "vitest";
 import {
   allowedDeductions,

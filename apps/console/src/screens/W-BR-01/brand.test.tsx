@@ -3,8 +3,8 @@
 // export; states loading (print beds), unpaid (a judge's run before funding), progress (through to its final
 // count), mismatch (a tampered record: proof and export withheld), and error when the link is refused.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { INVOICE_STATUS_LABELS, pickLabel } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { act, configure, fireEvent, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";

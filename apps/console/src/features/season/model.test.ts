@@ -1,8 +1,8 @@
 // The season's read model (W-TR-01 and the first view): its S1 states, the run strip's true sequence, and the
 // invoice Claude drafted whose every amount is the code's quote.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { RunEvent } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import { applyRunEvents, firstView, type RunView, sessionView, showcaseView } from "../../data/run-view.js";
 import {

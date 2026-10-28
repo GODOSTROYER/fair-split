@@ -2,8 +2,8 @@
 // it. The seeded bundle is signed with seeded sample keys, so a full match reads Sample, never Verified; an edited
 // bundle fails and names the plate; a public bundle with withheld receivers checks five of six here.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { PlateResult, ProofBundle } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import * as verifyModule from "../../lib/verify.js";
 import { WITHHELD_RECEIVER } from "./model.js";

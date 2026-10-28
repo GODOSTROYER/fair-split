@@ -52,10 +52,18 @@ import {
   type RefusalCode,
   type SubmittedMark,
 } from "@fairsplit/paypal-payouts";
-import { and, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { runHolds } from "../approvals/batch.js";
 import { officerRegistry } from "../approvals/registry.js";
-import { JUDGE_QUOTA, latestBalanceReading, liveSpend } from "../judge/quota.js";
+import {
+  countResumedSend,
+  JUDGE_QUOTA,
+  latestBalanceReading,
+  liveBatchesInLast24h,
+  liveSpend,
+  PAYOUT_SPEND_LOCK,
+  recordBatchPosted,
+} from "../judge/quota.js";
 import type { AppDeps } from "../lib/context.js";
 import { toInt } from "../runs/codes.js";
 import { ACTORS, factLedger, noteSha256, proofLedger } from "../runs/events.js";
@@ -81,7 +89,6 @@ export const MIN_BALANCE_CENTS = BigInt(JUDGE_QUOTA.replayFloorCents);
 export const REROUTE_VOID_REASON = "reroute";
 /** A public key that matches no registry row: an approval whose key left the registry never verifies. */
 const NO_KEY = "0".repeat(64);
-const DAY_MS = 24 * 3_600_000;
 
 function parsePayload(jcs: string | null): ApprovalPayload | null {
   if (!jcs) return null;
@@ -222,6 +229,22 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
   const provenance = deps.paypal.provenance;
   const db = deps.db;
   const checked = new Map<string, string[]>();
+  /**
+   * I8: on the replay rail only rows written as a replay are written, marked posted or marked rejected. Rows written
+   * live (another executor of the run wrote them since the rail was decided) wait to be posted live with the same
+   * ids; the step is re-queued and its next attempt resumes them live (money/rail.ts). The other way round too: rows
+   * written as a replay are never posted live (a real POST recorded as a replay), the run replays to the end.
+   */
+  const refuseOtherRailRows = (rowProvenance: string, sbid: string) => {
+    if ((provenance === "replay") === (rowProvenance === "replay")) return;
+    throw new PayPalStepError(
+      "QUEUED",
+      provenance === "replay"
+        ? `The batch ${sbid} is written live: it is posted live with the same ids, never replayed.`
+        : `The batch ${sbid} is written as a replay: it is never posted live.`,
+      { transient: true, retryAfterMs: 3_000 },
+    );
+  };
 
   const facts = async (runId: string): Promise<{ run: RunRow; facts: PayoutRunFacts } | null> => {
     const [run] = await db
@@ -348,16 +371,19 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         });
         // The rows under a sender_batch_id are the batch (I4 at the write): never overwritten or merged. A
         // resumed post finds its own; a re-route racing another of the same item finds the winner's digest.
-        const stored = async () =>
-          (
-            await tx
-              .select({
-                submittedAt: schema.payoutBatches.submittedAt,
-                batchSha256: schema.payoutBatches.batchSha256,
-              })
-              .from(schema.payoutBatches)
-              .where(eq(schema.payoutBatches.senderBatchId, batch.senderBatchId))
-          )[0];
+        const stored = async () => {
+          const [row] = await tx
+            .select({
+              submittedAt: schema.payoutBatches.submittedAt,
+              batchSha256: schema.payoutBatches.batchSha256,
+              provenance: schema.payoutBatches.provenance,
+            })
+            .from(schema.payoutBatches)
+            .where(eq(schema.payoutBatches.senderBatchId, batch.senderBatchId));
+          // I8: rows written on the other rail (live, or as a replay) are never resumed on this one
+          if (row) refuseOtherRailRows(row.provenance, batch.senderBatchId);
+          return row;
+        };
         const before = await stored();
         if (before) return markOf(before);
         const run = await lockRun(tx, scope, batch.runId);
@@ -365,6 +391,19 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         const raced = await stored();
         if (raced) return markOf(raced);
         const at = new Date(batch.at);
+        if (batch.kind === "reroute") {
+          // I3 at the write: a re-route pays a line its own cancel RETURNED, and only while it still is (under the
+          // workspace lock and the line's row lock, the same locks "Pay in cash" takes): a line moved to cash since
+          // the task looked is never paid through PayPal as well. Nothing is written; the service refuses.
+          for (const item of batch.items) {
+            const [line] = await tx
+              .select({ state: schema.memberLines.state })
+              .from(schema.memberLines)
+              .where(and(eq(schema.memberLines.workspaceId, ws), eq(schema.memberLines.id, item.lineId)))
+              .for("update");
+            if (line?.state !== "RETURNED") return null;
+          }
+        }
         if (batch.kind === "primary") {
           // APPROVED → POSTING (S3.6.4 step 5), compare-and-set on the run's state AND on the approvals the
           // service checked: each a live SIGNED approval of this run over this very digest. A check voided
@@ -542,6 +581,8 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
           )
           .for("update");
         if (!batch) throw new Error(`no batch ${posted.senderBatchId}`);
+        // I8: a replay id never lands on rows written live, nor a PayPal id on rows written as a replay
+        refuseOtherRailRows(batch.provenance, posted.senderBatchId);
         // Compare-and-set on the digest posted: other rows under these ids are not this batch.
         if (batch.batchSha256 !== posted.batchSha256) throw notThisBatch(posted.senderBatchId);
         if (batch.paypalBatchId !== null) {
@@ -557,6 +598,10 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
             adopted: posted.outcome === "adopted",
           })
           .where(eq(schema.payoutBatches.id, batch.id));
+        // when PayPal named it: the spend dates rows written before a balance reading by this POST (judge/quota.ts)
+        if (provenance !== "replay") {
+          await recordBatchPosted(tx, { batchId: batch.id, rail: deps.paypal.label, at: deps.clock.now() });
+        }
         const items = await tx
           .select()
           .from(schema.payoutItems)
@@ -608,6 +653,7 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
           )
           .for("update");
         if (!batch) return;
+        refuseOtherRailRows(batch.provenance, rejected.senderBatchId);
         // Compare-and-set on the digest posted, as markPosted.
         if (batch.batchSha256 !== rejected.batchSha256) throw notThisBatch(rejected.senderBatchId);
         if (batch.status === "DENIED") return;
@@ -811,18 +857,53 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
   };
 }
 
-/** Batches written as SUBMITTED on this rail in the 24 h before `now`, every workspace (C-21's count). */
+/**
+ * C-21's count (judge/quota.ts `liveBatchesInLast24h`): the live batches on this rail, every workspace, each once,
+ * written in the 24 h before `now` or sent since then: a judge primary batch from any live reservation of its run in
+ * the window (a POST resumed later goes out under a fresh slot dated then), any batch from a `batch_sent` mark in it
+ * (a re-route resumed later, `countResumedSend`).
+ */
 export async function postsInLast24h(deps: Pick<Deps, "db" | "paypal">, now: Date): Promise<number> {
-  const [row] = await deps.db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.payoutBatches)
-    .where(
-      and(
-        eq(schema.payoutBatches.provenance, deps.paypal.provenance),
-        gte(schema.payoutBatches.submittedAt, new Date(now.getTime() - DAY_MS)),
-      ),
+  return liveBatchesInLast24h(deps.db, deps.paypal.provenance, now);
+}
+
+/** How long a written re-route that C-21 holds back waits before it asks again (a slot frees as the 24 h moves). */
+const C21_RESUME_WAIT_MS = 15 * 60_000;
+
+/**
+ * C-21 at a re-route's resumed POST (the service checks C-21 only at a batch's first write): a re-route whose rows are
+ * written and that PayPal has not named yet (its POST paced or unanswered) goes out more than a lane lease after it
+ * was last counted only while the other live batches of the 24 h are fewer than 40, and is counted from that POST
+ * (judge/quota.ts `countResumedSend`, under the spend lock). Otherwise it waits: thrown as QUEUED (transient), so the
+ * re-route task re-queues itself; never replayed, nothing sent. Where C-21 binds: the sandbox rail, live.
+ */
+export async function guardResumedReroute(
+  deps: Pick<Deps, "db" | "paypal" | "clock">,
+  scope: WorkspaceScope,
+  o: { lineId: string; supersedesItemId: string },
+): Promise<void> {
+  if (deps.paypal.mode !== "sandbox" || deps.paypal.provenance === "replay") return;
+  const [written] = (await deps.db.execute(sql`
+    select pb.id::text as id from payout_items newer
+      join payout_items old on old.id = newer.supersedes_item_id and old.workspace_id = newer.workspace_id
+      join payout_batches pb on pb.id = newer.batch_id and pb.workspace_id = newer.workspace_id
+     where newer.workspace_id = ${scope.workspaceId} and newer.line_id = ${o.lineId}
+       and old.payout_item_id = ${o.supersedesItemId}
+       and pb.kind = 'reroute' and pb.status = 'SUBMITTED' and pb.paypal_batch_id is null
+     limit 1`)) as unknown as { id: string }[];
+  if (!written) return;
+  const counted = await countResumedSend(deps.db, {
+    provenance: deps.paypal.provenance,
+    batchId: written.id,
+    now: deps.clock.now(),
+  });
+  if (!counted.ok) {
+    throw new PayPalStepError(
+      "QUEUED",
+      `${counted.count} live batches in the last 24 h (C-21's cap is ${MAX_POSTS_PER_24H}): the written re-route waits to be posted with the same ids.`,
+      { transient: true, retryAfterMs: C21_RESUME_WAIT_MS },
     );
-  return Number(row?.n ?? 0);
+  }
 }
 
 /**
@@ -849,7 +930,8 @@ export async function estimatedBalanceCents(deps: Pick<Deps, "db" | "paypal">): 
 export function spendGuardsFor(
   deps: Pick<Deps, "db" | "paypal">,
 ): Pick<PayoutLimits, "maxPostsPer24h" | "postsInLast24h" | "balanceCents" | "minBalanceCents"> {
-  if (deps.paypal.mode !== "sandbox") {
+  // A replayed post (Judge Mode's replay rail) reaches no one and spends nothing: no live ceiling or floor binds it.
+  if (deps.paypal.mode !== "sandbox" || deps.paypal.provenance === "replay") {
     return {
       maxPostsPer24h: Number.MAX_SAFE_INTEGER,
       postsInLast24h: (now) => postsInLast24h(deps, now),
@@ -871,9 +953,69 @@ export interface ServiceOptions {
   repo?: (base: AppPayoutsRepository) => PayoutsRepository;
 }
 
+/**
+ * The one lock every live post's spend check and write hold, in every process (C-21, the balance floor). Lock order
+ * (judge/quota.ts): the judge quota lock first when both are held; the service's spend guard holds only this one.
+ */
+export const SPEND_LOCK = PAYOUT_SPEND_LOCK;
+/** How long a post waits for another's check-and-write before it re-queues itself. */
+const SPEND_LOCK_WAIT_MS = 10_000;
+
+/**
+ * C-21's 40 live batches a day and the US$10,000 floor guard the one shared sandbox business account, so their
+ * check and the write it allows must be one step across every workspace and process. The service serialises them
+ * per instance only (`#exclusive`), and an instance serves one task; this lock spans the service's first guard
+ * read (`postsInLast24h`) to the end of `writeSubmitted` (or to the end of the call when a guard refused), on a
+ * reserved connection, so two posts at cap − 1 can never both pass on the same count.
+ */
+function spendLock(sql: AppDeps["sql"]) {
+  let held: Awaited<ReturnType<AppDeps["sql"]["reserve"]>> | null = null;
+  return {
+    async acquire(): Promise<void> {
+      if (held) return;
+      const deadline = Date.now() + SPEND_LOCK_WAIT_MS;
+      for (;;) {
+        // a connection is reserved only for the try and kept only by the winner: waiters hold none of the pool
+        const reserved = await sql.reserve();
+        let locked = false;
+        try {
+          const [row] = await reserved<{ locked: boolean }[]>`
+            select pg_try_advisory_lock(hashtextextended(${SPEND_LOCK}, 0)) as locked`;
+          locked = row?.locked === true;
+        } finally {
+          if (!locked) reserved.release();
+        }
+        if (locked) {
+          held = reserved;
+          return;
+        }
+        if (Date.now() > deadline) {
+          throw new PayPalStepError("QUEUED", "Another post is checking the daily cap; this one waits.", {
+            transient: true,
+            retryAfterMs: 5_000,
+          });
+        }
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    },
+    async release(): Promise<void> {
+      const reserved = held;
+      held = null;
+      if (!reserved) return;
+      try {
+        await reserved`select pg_advisory_unlock(hashtextextended(${SPEND_LOCK}, 0))`;
+      } catch {
+        await reserved`select pg_advisory_unlock_all()`.catch(() => undefined);
+      } finally {
+        reserved.release();
+      }
+    },
+  };
+}
+
 /** The PayoutsService for one workspace, every guard wired. */
 export async function payoutsServiceFor(
-  deps: Deps,
+  deps: Deps & Partial<Pick<AppDeps, "sql">>,
   scope: WorkspaceScope,
   o: ServiceOptions = {},
 ): Promise<PayoutsService> {
@@ -883,24 +1025,64 @@ export async function payoutsServiceFor(
     .from(schema.workspaces)
     .where(eq(schema.workspaces.id, scope.workspaceId));
   const base = payoutsRepository(deps, scope);
-  return new PayoutsService({
+  const repo = o.repo ? o.repo(base) : base;
+  const guards = spendGuardsFor(deps);
+  // Only where the guards bind (the sandbox rail, live): a replay or the simulated rail spends nothing shared.
+  const lock =
+    deps.sql && deps.paypal.mode === "sandbox" && deps.paypal.provenance !== "replay"
+      ? spendLock(deps.sql)
+      : null;
+  const service = new PayoutsService({
     http: deps.paypal.core.http,
-    repo: o.repo ? o.repo(base) : base,
+    repo: lock
+      ? {
+          ...repo,
+          async writeSubmitted(batch) {
+            try {
+              return await repo.writeSubmitted(batch);
+            } finally {
+              await lock.release();
+            }
+          },
+        }
+      : repo,
     // The registry is read fresh for every check; a database fault throws, so nothing is voided or sent.
     officerKeys: () => officerRegistry(deps.db, scope),
     async killSwitch() {
       const k = await readKill(deps, scope.workspaceId);
+      // On Judge Mode's replay rail kill_paypal_live is the reason the step replays (S3.11: "labelled replay in
+      // Judge Mode"); the co-op's own pause, kill_payouts, still refuses.
+      if (deps.paypal.provenance === "replay") return k.killPayouts;
       return k.killPayouts || k.killPaypalLive;
     },
     limits: {
       maxBatchTotalCents: MAX_BATCH_TOTAL_CENTS,
       maxItems: wsRow?.kind === "judge" ? JUDGE_MAX_ITEMS : 15_000,
       receiverAllowed: (r) => receivers.allowed(r),
-      ...spendGuardsFor(deps),
+      ...guards,
+      // the first guard read takes the cross-process spend lock (released after the write)
+      postsInLast24h: async (now) => {
+        await lock?.acquire();
+        return guards.postsInLast24h(now);
+      },
     },
     ...(o.sleep ? { sleep: o.sleep } : {}),
     now: () => deps.clock.now(),
     priority: "live",
+  });
+  if (!lock) return service;
+  // a guard that refused never reaches the write: the call's end frees the lock
+  const freeing =
+    <A extends unknown[], R>(f: (...a: A) => Promise<R>) =>
+    (...a: A) =>
+      f(...a).finally(() => lock.release());
+  return Object.assign(service, {
+    executeApproved: freeing((runId: string) =>
+      PayoutsService.prototype.executeApproved.call(service, runId),
+    ),
+    reroute: freeing((req: Parameters<PayoutsService["reroute"]>[0]) =>
+      PayoutsService.prototype.reroute.call(service, req),
+    ),
   });
 }
 
@@ -912,8 +1094,10 @@ export async function payoutsServiceFor(
  *   - kill_payouts on (stored or forced): the run is HALTED, approvals voided, lines unlocked;
  *   - kill_paypal_live alone ("refusal in real mode"): sent back like any refusal before the POST, so signing
  *     again posts once the switch is off;
- *   - rows already written (POSTING, PayPal's answer unknown): never abandoned; the outbox retries the POST and
- *     it resumes with the same ids once the switch is off (thrown, transient).
+ *   - rows already written (POSTING, PayPal's answer unknown): never abandoned; thrown as transient, so the
+ *     post task re-queues itself as a fresh attempt row (runs/now.ts `deferTask`) for as long as the switch is
+ *     held, turning a switch off brings the waiting attempt forward (money/resume.ts), and it resumes with the
+ *     same ids. A post that stopped anyway (an outage outlasting every attempt) is picked up by the catch-up.
  */
 export async function refusedByKillSwitch(
   deps: Deps,

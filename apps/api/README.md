@@ -55,7 +55,21 @@ every process. Invoices are sent only as IC-02 `canonicalInvoiceCall(...).args`,
 decided (`money/policy.ts` `decideInvoiceCall`); payouts only through WS-PPMONEY's `PayoutsService` on
 `money/payouts.ts`'s repository, whose compare-and-sets (`writeSubmitted` APPROVED → POSTING only under the
 approvals checked, `voidApprovals` only while every live approval is named) are pinned on Postgres by
-`money/posting-cas.pg.test.ts`.
+`money/posting-cas.pg.test.ts`. C-21's 40 live batches a day and the US$10,000 floor are checked and written under
+one cross-process advisory lock (`spendLock`), so two workspaces at cap − 1 never both post.
+
+**Judge Mode** decides every PayPal step of a judge workspace before it is made (`money/rail.ts`, S3.9): a fresh
+`judgeRail` (kill switch, simulator stub, the 429 circuit, the balance and its floor, the daily, hourly, per-cookie
+and public quotas), then the single-flight live lane. Live steps hold the lane; the post reserves its quota slot
+and runs inside "change one payout after both keys" (`withArmedTamper`), so an armed one-cent change is refused by
+I4. A step the lane queues re-queues itself for its turn. A replayed step runs the very same code on the **replay
+rail** (`src/paypal/replay.ts`): nothing reaches PayPal, no limiter slot is taken, every row and event is
+`replay`, and a `judge.step.replayed` ledger entry names why and the source run (the latest settled live run,
+else showcase r37, else the seed). Once a run replays a step it replays to the end; `kill_paypal_live` in Judge
+Mode is a labelled replay, a refusal elsewhere (S3.11). A written batch is never abandoned: a post that must wait
+(the circuit, an unanswered POST, a kill switch) re-queues itself as a fresh attempt row due when the wait ends,
+turning a switch off brings it forward, and boot plus the hourly cron resume any post that stopped
+(`money/resume.ts`).
 
 ## Configuration
 
@@ -76,6 +90,7 @@ owner-role fallback).
 | Variable                                                                                         | Meaning                                                                                                     |
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `NODE_ENV`, `RENDER`, `PORT` (8787), `HOST`, `LOG_LEVEL`, `PUBLIC_ORIGIN` (or `PUBLIC_BASE_URL`) | Process basics; the public origin builds pairing URLs and decides `Secure` cookies and HSTS                 |
+| `FS_TRUSTED_EDGE` (`none` \| `proxy` \| `cloudflare` \| `render`)                                | The one hop whose word on the client address per-IP limits believe; `render` on Render, else `none`         |
 | `DATABASE_URL`, `LISTEN_DATABASE_URL`, `DB_POOL_MAX`, `FS_ALLOW_OWNER_ROLE`                      | The `fs_app` pool and the one direct LISTEN connection                                                      |
 | `PP_ENV`, `PP_MODE`, `PP_SIM_URL`, `PP_DEV_MOCKS`                                                | PayPal environment (always `sandbox`) and rail mode                                                         |
 | `PP_CERT_ALLOW` (or `PAYPAL_CERT_ALLOW`)                                                         | PayPal webhook cert ids (or sandbox cert URLs) the verifier pins, at most 8                                 |
@@ -107,3 +122,24 @@ names above.
 - Errors are IC-01 `ApiError` bodies with the code's status, the request id, and `Retry-After` when there is one;
   an unexpected error is a 500 whose message is logged, never sent.
 - pino JSON logs redact authorization, cookies, tokens, passwords, signatures and raw bodies.
+- **Client address** (per-IP throttles, the webhook cert-fetch budget): only the hop `FS_TRUSTED_EDGE` names is
+  believed (`src/lib/client-ip.ts`). `none`: the socket's peer, every forwarding header ignored. `render` (default
+  on Render): Cloudflare's `CF-Connecting-IP`, else the rightmost `X-Forwarded-For` entry (what Render's proxy
+  saw), else the peer. `cloudflare`: `CF-Connecting-IP`, else the peer. `proxy`: the rightmost `X-Forwarded-For`
+  entry, else the peer. `True-Client-IP` and the leftmost `X-Forwarded-For` entries are never read: a client can
+  write them (Cloudflare adds `True-Client-IP` only on Enterprise zones, with the value `CF-Connecting-IP` already
+  carries).
+- **Bodies** are read as a stream and cancelled the moment they pass the route's cap (64 KB by default), whatever
+  `Content-Length` says; a body over the cap is a 400 `VALIDATION_FAILED` (`issues[0].code: "too_big"`).
+- **Revocation fails closed**: the credential store refuses to be built without `isLinkRevoked`, every route
+  resolves links through it (`appCredentialStore`: the `link.revoked` ledger entries), and an open SSE stream
+  re-checks its credential at every ping (15 s), so a revoked or expired token or link stops streaming.
+  A printed member link (the 80 mm slip's QR) is recorded in the ledger the first time it is printed
+  (`link.issued`, `via: "print"`), so it is revoked like an issued one: by its id (`memberLink.jti`,
+  `POST /v1/links/member/revoke`) or, for a lost slip, with every live link of its line
+  (`POST /v1/links/member/revoke-line`); the day's next print then carries a fresh link.
+- **Guessing**: the judge code allows 5 tries per 10 minutes per session, 5 a minute per network and 30 a minute in
+  all; pairing claims 10 a minute per network (and 60 six-digit guesses a minute in all); `/ops/login` 5 a minute
+  per network.
+- **The brand view** shows the invoice alone until the run's batch is posted (`proofReady`): no member line, name,
+  amount or receiver, zero totals, and the CSV export answers 404 `PROOF_NOT_READY`.

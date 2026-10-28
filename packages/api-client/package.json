@@ -21,6 +21,10 @@
       "types": "./src/verify.ts",
       "default": "./src/verify.ts"
     },
+    "./seed": {
+      "types": "./src/seed.ts",
+      "default": "./src/seed.ts"
+    },
     "./msw": {
       "types": "./src/msw/index.ts",
       "default": "./src/msw/index.ts"

@@ -490,11 +490,49 @@ function parseParams(c: AppContext, spec: RouteSpec): Record<string, string> {
 const EMPTY_BODY = new Uint8Array(0);
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
 
+/**
+ * The body's bytes, never more than `max` of them in memory. A declared Content-Length over the cap is refused
+ * before anything is read; otherwise the stream is read chunk by chunk and cancelled the moment the running total
+ * passes the cap, so neither a chunked body nor one under an understated length is buffered whole first.
+ */
 async function readBody(c: AppContext, max: number): Promise<Uint8Array> {
+  const tooLarge = () =>
+    problem.validation(`The body is larger than ${max} bytes.`, [
+      issue("body", `larger than ${max} bytes`, "too_big"),
+    ]);
   const declared = Number(c.req.header("content-length") ?? "0");
-  if (declared > max) throw problem.validation(`The body is larger than ${max} bytes.`);
-  const bytes = new Uint8Array(await c.req.arrayBuffer());
-  if (bytes.byteLength > max) throw problem.validation(`The body is larger than ${max} bytes.`);
+  if (declared > max) throw tooLarge();
+  const raw = c.req.raw;
+  if (raw.bodyUsed) {
+    // already drained into Hono's cache by earlier code: what it holds is all there is
+    const cached = new Uint8Array(await c.req.arrayBuffer());
+    if (cached.byteLength > max) throw tooLarge();
+    return cached;
+  }
+  if (!raw.body) return EMPTY_BODY;
+  const reader = raw.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => undefined);
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  // The stream is spent: later readers (c.req.json(), text()) get these bytes from Hono's body cache, which
+  // holds promises at run time (its `BodyCache` type names the resolved values).
+  const cache = c.req.bodyCache as unknown as { arrayBuffer?: Promise<ArrayBuffer> };
+  cache.arrayBuffer = Promise.resolve(bytes.buffer);
   return bytes;
 }
 

@@ -6,6 +6,7 @@ import { approvalBytes, batchDigest, ed25519Sign } from "@fairsplit/domain";
 import { senderBatchId, senderItemId } from "@fairsplit/paypal-payouts";
 import { and, eq } from "drizzle-orm";
 import type { HttpHandler } from "msw";
+import { recordBalanceReading } from "../../judge/quota.js";
 import { createPayPalMock, createTestApp, type PayPalMock, type TestApp } from "../../test/index.js";
 import { registerKey, type SeedWorld, type SeedWorldOptions, seedWorld, testKeyPair } from "./world.js";
 
@@ -36,6 +37,11 @@ export async function startRuns(
     clock?: string;
     /** PP_RECEIVERS on the sandbox rail (default SANDBOX_RECEIVERS). */
     receivers?: Readonly<Record<string, string>>;
+    /**
+     * A judge world on the sandbox rail: the fresh balance reading recorded at the start (default US$1,000,000);
+     * null records none (the sandbox balance is unknown, so Judge Mode replays every PayPal step).
+     */
+    balanceCents?: number | null;
   } = {},
 ): Promise<RunsHarness> {
   const paypal = o.paypal ? createPayPalMock(o.paypal) : null;
@@ -62,6 +68,17 @@ export async function startRuns(
   const pg = t.pg;
   if (!pg) throw new Error("the runs harness needs Postgres");
   const world = await seedWorld(pg.app.db, o.world ?? {});
+  if (paypal && (o.world?.kind ?? "judge") === "judge" && o.balanceCents !== null) {
+    // Judge Mode decides every PayPal step live or replay (money/rail.ts); on the sandbox rail a step goes live
+    // only on a fresh balance reading (the nightly reconciliation's) above the floor. The default stands for a
+    // well-funded business account, so the quotas leave room for a test's posts.
+    await recordBalanceReading(pg.app.db, {
+      rail: "sandbox",
+      availableCents: o.balanceCents ?? 100_000_000,
+      asOf: t.clock.now(),
+      source: "searchBalances",
+    });
+  }
   const ws = world.workspaceId;
   const tokens = {
     treasurer: await t.credentials.frameToken({ workspaceId: ws, role: "treasurer", persona: "analyn" }),

@@ -5,8 +5,8 @@
 // judge, made and registered only in the operator's session.
 
 import { webcrypto } from "node:crypto";
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { webRoutes } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type JsonBodyType } from "msw";
 import { useState } from "react";

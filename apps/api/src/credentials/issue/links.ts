@@ -4,10 +4,12 @@
 // verifier and this issuer agree on every byte. A link never outlives its workspace.
 //
 // Issuance and revocation are recorded in the workspace's attribution ledger (`link.issued`, `link.revoked`:
-// ids and expiry only, never the token). `isLinkRevoked(db, jti)` reads those entries; the shell's
+// ids and expiry only, never the token). A printed link (the slip's QR) is recorded the first time it is
+// printed (`recordPrintedLink`, `via: "print"`), so it is revoked like any other, by its id or with every live
+// link of its line (`liveLinksOfLine`, a lost slip). `isLinkRevoked(db, jti)` reads those entries; the shell's
 // `dbCredentialStore(db, { isLinkRevoked })` takes it, so a revoked link stops verifying everywhere.
 import { randomBytes } from "node:crypto";
-import { appendLedger, type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
+import { appendLedger, type DbOrTx, schema, type WorkspaceScope, withWorkspaceTx } from "@fairsplit/db";
 import { and, eq, sql } from "drizzle-orm";
 import type { AppDeps } from "../../lib/context.js";
 import { LINK_TTL_MS, type LinkPayload, signLink, verifyLink } from "../verify/index.js";
@@ -89,6 +91,62 @@ export async function recordLinkIssued(
   });
 }
 
+/**
+ * Records a PRINTED member link (the QR on the 80 mm slip, `statements/print.ts`) the first time it is printed:
+ * `link.issued` with `via: "print"` (ids and expiry only, never the token). Printed links are a pure function of
+ * (workspace, line, day, generation), so every reprint names the same jti and this is idempotent; it runs under
+ * the workspace lock, so two prints racing record it once. Returns true when this call recorded it.
+ */
+export async function recordPrintedLink(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  link: { jti: string; lineId: string; expiresAt: Date },
+  at: Date,
+): Promise<boolean> {
+  return withWorkspaceTx(db, scope, async (tx) => {
+    if (await linkWasIssued(tx, scope.workspaceId, link.jti, "member")) return false;
+    await appendLedger(tx, scope, {
+      kind: "link.issued",
+      payload: {
+        kind: "member",
+        jti: link.jti,
+        exp: link.expiresAt.toISOString(),
+        lineId: link.lineId,
+        via: "print",
+      },
+      at,
+    });
+    return true;
+  });
+}
+
+/**
+ * Every member link of one line that still opens: a `link.issued` member entry of the workspace naming the line
+ * (issued by the treasurer or printed on any day), not yet expired at `now`, and not revoked. Oldest first.
+ */
+export async function liveLinksOfLine(
+  db: DbOrTx,
+  workspaceId: string,
+  lineId: string,
+  now: Date,
+): Promise<string[]> {
+  const rows = (await db.execute(sql`
+    select distinct on (i.payload->>'jti') i.payload->>'jti' as jti, i.seq
+      from ledger_entries i
+     where i.workspace_id = ${workspaceId} and i.kind = 'link.issued'
+       and i.payload->>'kind' = 'member'
+       and lower(i.payload->>'lineId') = ${lineId.toLowerCase()}
+       and (i.payload->>'exp')::timestamptz > ${now.toISOString()}::timestamptz
+       and not exists (
+         select 1 from ledger_entries r
+          where r.kind = 'link.revoked' and r.payload->>'jti' = i.payload->>'jti')
+     order by i.payload->>'jti', i.seq`)) as unknown as { jti: string | null; seq: number | string }[];
+  return rows
+    .filter((r): r is { jti: string; seq: number | string } => typeof r.jti === "string")
+    .sort((a, b) => Number(a.seq) - Number(b.seq))
+    .map((r) => r.jti);
+}
+
 /** Revokes a link by its id (idempotent). Returns false when it was already revoked. */
 export async function revokeLink(
   tx: DbOrTx,
@@ -147,14 +205,15 @@ export type LinkCheck =
 
 /**
  * Full verification of a link outside the resolver (the `/s` and `/b` redirects): signature, expiry,
- * revocation and the workspace, in that order. Never throws; never logs the token.
+ * revocation and the workspace, in that order, through the same credential store the resolver reads (one source
+ * of revocation for every path). Never logs the token.
  */
 export async function checkLink(deps: AppDeps, token: string, kind: LinkKind): Promise<LinkCheck> {
   const now = deps.clock.now();
   const v = verifyLink(deps.credentials.keys.linkPublicKeyHex, token, now.getTime());
   if (!v.ok) return { ok: false, reason: v.reason };
   if (v.payload.k !== kind) return { ok: false, reason: "malformed" };
-  if (await isLinkRevoked(deps.db, v.payload.jti)) return { ok: false, reason: "revoked" };
+  if (await deps.credentials.store.isLinkRevoked(v.payload.jti)) return { ok: false, reason: "revoked" };
   if (!(await deps.credentials.store.workspaceAlive(v.payload.ws, now))) {
     return { ok: false, reason: "workspace_ended" };
   }

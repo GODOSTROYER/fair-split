@@ -12,7 +12,7 @@ import {
   LINK_TTL_MS,
   verifyLink,
 } from "../verify/index.js";
-import { issueBrandLink, issueMemberLink, newJti } from "./links.js";
+import { checkLink, issueBrandLink, issueMemberLink, newJti } from "./links.js";
 import { hashOperatorPassword, parseScryptHash, verifyOperatorPassword } from "./operator.js";
 import {
   code6Digest,
@@ -169,5 +169,22 @@ describe("signed links: the issuer and the verifier agree on every byte", () => 
     const ids = new Set(Array.from({ length: 500 }, newJti));
     expect(ids.size).toBe(500);
     for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9_-]{22}$/);
+  });
+
+  it("checkLink reads revocation from the credential store the resolver reads (one source for every path)", async () => {
+    const { deps: d, memoryStore } = createTestDeps({ clock });
+    const store = memoryStore as NonNullable<typeof memoryStore>;
+    store.workspaces.set(ws, null);
+    const link = issueMemberLink(d, {
+      workspaceId: ws,
+      lineId: randomUUID(),
+      now: clock.now(),
+      workspaceExpiresAt: null,
+    });
+    expect(await checkLink(d, link.token, "member")).toMatchObject({ ok: true, payload: { jti: link.jti } });
+    store.revokedLinks.add(link.jti);
+    expect(await checkLink(d, link.token, "member")).toEqual({ ok: false, reason: "revoked" });
+    const revoked = await d.credentials.resolver.resolve({ authorization: `Bearer ${link.token}` });
+    expect(revoked.kind === "invalid" && revoked.problem.message).toMatch(/revoked/);
   });
 });

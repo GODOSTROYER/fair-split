@@ -73,6 +73,47 @@ catalog:
   "ajv": 8.20.0
   "embedded-postgres": 17.10.0-beta.17
   "ajv-formats": 3.0.1
+  # WS-APP (apps/mobile): Expo SDK 58. Native modules take the exact version from expo 58.0.20's
+  # bundledNativeModules.json ("npx expo install --check" is authoritative; Expo's pin wins over the 14-day rule).
+  "expo": 58.0.20
+  "expo-audio": 58.0.10
+  "expo-background-task": 58.0.11
+  "expo-build-properties": 58.0.11
+  "expo-camera": 58.0.13
+  "expo-constants": 58.0.13
+  "expo-crypto": 58.0.7
+  "expo-dev-client": 58.0.16
+  "expo-device": 58.0.5
+  "expo-file-system": 58.0.12
+  "expo-font": 58.0.10
+  "expo-haptics": 58.0.7
+  "expo-image": 58.0.17
+  "expo-image-manipulator": 58.0.15
+  "expo-image-picker": 58.0.10
+  "expo-linking": 58.0.14
+  "expo-local-authentication": 58.0.2
+  "expo-notifications": 58.1.6
+  "expo-router": 58.0.27
+  "expo-secure-store": 58.0.2
+  "expo-speech": 58.0.3
+  "expo-splash-screen": 58.0.11
+  "expo-sqlite": 58.0.14
+  "expo-status-bar": 58.0.4
+  "expo-system-ui": 58.0.6
+  "expo-task-manager": 58.0.12
+  "react-native": 0.88.0
+  "react-native-gesture-handler": 3.3.0
+  "react-native-reanimated": 4.7.1
+  "react-native-safe-area-context": 5.10.1
+  "react-native-screens": 4.30.0
+  "react-native-svg": 15.16.0
+  "react-native-web": 0.21.4
+  "react-native-worklets": 0.13.0
+  "@react-native-community/netinfo": 12.0.1
+  "@noble/hashes": 2.4.0
+  # Temporary type until WS-DS ships the FS Sans / Atkinson native cuts (assets/fonts).
+  "@expo-google-fonts/mona-sans": 0.4.1
+  "@expo-google-fonts/atkinson-hyperlegible-next": 0.4.1
 
 catalogs:
   zod3:
@@ -103,3 +144,43 @@ minimumReleaseAgeExclude:
   - "@biomejs/cli-win32-arm64@2.6.2"
   - "@biomejs/cli-win32-x64@2.6.2"
   - i18next@26.5.4
+  - "@expo/cli@58.1.14 || 58.1.16"
+  - "@expo/config-plugins@58.0.10"
+  - "@expo/config@58.0.7"
+  - "@expo/env@2.5.3"
+  - "@expo/fingerprint@0.21.6 || 0.21.7"
+  - "@expo/inline-modules@0.2.7"
+  - "@expo/local-build-cache-provider@58.0.7"
+  - "@expo/log-box@58.0.13"
+  - "@expo/metro-config@58.0.16 || 58.0.18"
+  - "@expo/metro-runtime@58.0.15"
+  - "@expo/prebuild-config@58.0.15"
+  - "@expo/router-server@58.0.16 || 58.0.18"
+  - "@noxcturnal/noxcturnal-darwin-arm64@0.1.8"
+  - "@noxcturnal/noxcturnal-darwin-x64@0.1.8"
+  - "@noxcturnal/noxcturnal-linux-arm64-gnu@0.1.8"
+  - "@noxcturnal/noxcturnal-linux-arm64-musl@0.1.8"
+  - "@noxcturnal/noxcturnal-linux-x64-gnu@0.1.8"
+  - "@noxcturnal/noxcturnal-linux-x64-musl@0.1.8"
+  - "@noxcturnal/noxcturnal-win32-arm64-msvc@0.1.8"
+  - "@noxcturnal/noxcturnal-win32-x64-msvc@0.1.8"
+  - babel-preset-expo@58.0.19 || 58.0.21
+  - expo-asset@58.0.18
+  - expo-audio@58.0.10
+  - expo-camera@58.0.12 || 58.0.13
+  - expo-constants@58.0.13
+  - expo-linking@58.0.14
+  - expo-modules-autolinking@58.0.14
+  - expo-modules-core@58.0.24 || 58.0.27
+  - expo-modules-jsi@58.0.17 || 58.0.20
+  - expo-notifications@58.1.6
+  - expo-router@58.0.25 || 58.0.27
+  - expo-splash-screen@58.0.11
+  - expo-status-bar@58.0.4
+  - expo@58.0.17 || 58.0.20
+  - noxcturnal@0.1.8
+  - expo-dev-client@58.0.16
+  - expo-dev-launcher@58.0.16
+  - expo-dev-menu@58.0.12
+  - expo-file-system@58.0.12
+  - expo-modules-cli@0.3.3

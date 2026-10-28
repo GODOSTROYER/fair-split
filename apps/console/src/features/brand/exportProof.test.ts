@@ -1,7 +1,7 @@
 // The brand's export (W-BR-01): exact decimals from integer cents and grams, RFC 4180 cells guarded against
 // formula injection, one row per member line with its hash and PayPal item, and the whole bundle in the JSON.
 
-import { getSnapshot } from "@fairsplit/seed";
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { describe, expect, it } from "vitest";
 import {
   CSV_COLUMNS,

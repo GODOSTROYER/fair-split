@@ -161,7 +161,7 @@ describe("GET /v1/proof/:runSlug/events (public, aggregates only)", () => {
   });
 
   it("caps anonymous streams at 3 per hashed IP (429 for the fourth)", async () => {
-    const headers = { "true-client-ip": "203.0.113.7" };
+    const headers = { "cf-connecting-ip": "203.0.113.7" };
     const open = [];
     for (let i = 0; i < 3; i++) open.push(await t.sse(`/v1/proof/${w.runSlug}/events`, { headers }));
     for (const s of open) expect(s.response.status).toBe(200);
@@ -195,7 +195,7 @@ describe("GET /v1/proof/:runSlug/events (public, aggregates only)", () => {
   });
 
   it("RATE_LIMITED: opening the stream spends a public-read slot of the caller's hashed IP", async () => {
-    const headers = { "true-client-ip": "198.51.100.77" };
+    const headers = { "cf-connecting-ip": "198.51.100.77" };
     for (let i = 0; i < 120; i++) {
       expect((await t.request("/v1/proof/2026A-r999998/metrics", { headers })).status).toBe(404);
     }

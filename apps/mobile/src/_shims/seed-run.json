@@ -1,0 +1,1633 @@
+{
+  "source": "packages/seed/snapshot/season-2026A.json",
+  "runId": "01a1852b-c280-792f-8540-bc7919b9823f",
+  "runSlug": "2026A-r37",
+  "seasonId": "019ca6b1-dc00-7c73-8b2b-9661129af6b4",
+  "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+  "senderBatchId": "2026A-f2d7026d-r37",
+  "items": [
+    {
+      "senderItemId": "r37-M-002",
+      "receiver": "m002@members.fairsplit.example",
+      "amountCents": 3027,
+      "currency": "USD",
+      "memberNo": "M-002"
+    },
+    {
+      "senderItemId": "r37-M-007",
+      "receiver": "m007@members.fairsplit.example",
+      "amountCents": 6271,
+      "currency": "USD",
+      "memberNo": "M-007"
+    },
+    {
+      "senderItemId": "r37-M-014",
+      "receiver": "m014@members.fairsplit.example",
+      "amountCents": 6445,
+      "currency": "USD",
+      "memberNo": "M-014"
+    },
+    {
+      "senderItemId": "r37-M-018",
+      "receiver": "m018@members.fairsplit.example",
+      "amountCents": 5563,
+      "currency": "USD",
+      "memberNo": "M-018"
+    },
+    {
+      "senderItemId": "r37-M-022",
+      "receiver": "m022@members.fairsplit.example",
+      "amountCents": 3440,
+      "currency": "USD",
+      "memberNo": "M-022"
+    },
+    {
+      "senderItemId": "r37-M-031",
+      "receiver": "m031.no-account@unclaimed.fairsplit.example",
+      "amountCents": 2665,
+      "currency": "USD",
+      "memberNo": "M-031"
+    },
+    {
+      "senderItemId": "r37-M-039",
+      "receiver": "m039@members.fairsplit.example",
+      "amountCents": 3832,
+      "currency": "USD",
+      "memberNo": "M-039"
+    },
+    {
+      "senderItemId": "r37-M-060",
+      "receiver": "m060@members.fairsplit.example",
+      "amountCents": 5596,
+      "currency": "USD",
+      "memberNo": "M-060"
+    }
+  ],
+  "lines": [
+    {
+      "memberNo": "M-001",
+      "rail": "CASH",
+      "netCents": 6320,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-001",
+        "rail": "CASH",
+        "verifiedG": 142700,
+        "grade1G": 142700,
+        "slipSerials": ["0429", "0432", "0450", "0474"],
+        "premiumCents": 4213,
+        "bonusCents": 2107,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6320
+      },
+      "lineSha256": "5fe3bcdaa1b14b04ac83ec178a71006da59020a78a2f65d6b1e0669dc4bd9853"
+    },
+    {
+      "memberNo": "M-002",
+      "rail": "PAYPAL",
+      "netCents": 3027,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-002",
+        "rail": "PAYPAL",
+        "verifiedG": 74000,
+        "grade1G": 60000,
+        "slipSerials": ["0375", "0482", "0533"],
+        "premiumCents": 2185,
+        "bonusCents": 886,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 44,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 3027
+      },
+      "lineSha256": "f3d79481c80f9dd9a15d648c13b6ae1eef649c2db21fef150bcf465a4a568e07"
+    },
+    {
+      "memberNo": "M-003",
+      "rail": "CASH",
+      "netCents": 8321,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-003",
+        "rail": "CASH",
+        "verifiedG": 187900,
+        "grade1G": 187900,
+        "slipSerials": ["0390", "0447", "0470", "0521", "0563"],
+        "premiumCents": 5547,
+        "bonusCents": 2774,
+        "deductions": [],
+        "credits": [],
+        "netCents": 8321
+      },
+      "lineSha256": "ea33a9d36a3fa25e391f1b8934814d740b74103e769f4243a25e44868ea910e3"
+    },
+    {
+      "memberNo": "M-004",
+      "rail": "CASH",
+      "netCents": 7674,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-004",
+        "rail": "CASH",
+        "verifiedG": 173300,
+        "grade1G": 173300,
+        "slipSerials": ["0320", "0402", "0442", "0532", "0548"],
+        "premiumCents": 5116,
+        "bonusCents": 2558,
+        "deductions": [],
+        "credits": [],
+        "netCents": 7674
+      },
+      "lineSha256": "58e95b91a3612177240304b1eeeff78c466e495c14fb764248f3dc090182e28c"
+    },
+    {
+      "memberNo": "M-005",
+      "rail": "CASH",
+      "netCents": 8347,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-005",
+        "rail": "CASH",
+        "verifiedG": 191700,
+        "grade1G": 191700,
+        "slipSerials": ["0417", "0531", "0557", "0559", "0560"],
+        "premiumCents": 5659,
+        "bonusCents": 2830,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 142,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 8347
+      },
+      "lineSha256": "cc3ad8b2ea67a28956eb126412663552ae4ea92421c92aa26a914f5d319ba4f5"
+    },
+    {
+      "memberNo": "M-006",
+      "rail": "CASH",
+      "netCents": 4325,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-006",
+        "rail": "CASH",
+        "verifiedG": 99300,
+        "grade1G": 99300,
+        "slipSerials": ["0391", "0405", "0498"],
+        "premiumCents": 2932,
+        "bonusCents": 1466,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 73,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 4325
+      },
+      "lineSha256": "409d662a7f0c5421a9e34074c27630279f1c257fd23c51f2e807fd68669a1217"
+    },
+    {
+      "memberNo": "M-007",
+      "rail": "PAYPAL",
+      "netCents": 6271,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-007",
+        "rail": "PAYPAL",
+        "verifiedG": 144000,
+        "grade1G": 144000,
+        "slipSerials": ["0303", "0457", "0497", "0562"],
+        "premiumCents": 4251,
+        "bonusCents": 2126,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 106,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6271
+      },
+      "lineSha256": "c9f9fd0e9dc538a86907b25c8f37c928a792602ef24267735eb4fa5f4ab67a54"
+    },
+    {
+      "memberNo": "M-008",
+      "rail": "CASH",
+      "netCents": 9300,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-008",
+        "rail": "CASH",
+        "verifiedG": 210000,
+        "grade1G": 210000,
+        "slipSerials": ["0355", "0361", "0424", "0469", "0478", "0507"],
+        "premiumCents": 6200,
+        "bonusCents": 3100,
+        "deductions": [],
+        "credits": [],
+        "netCents": 9300
+      },
+      "lineSha256": "8450189da5b2bbdb73a314668ba3d5a8a8bdbc3090d0017f2f28e8e6a8f49884"
+    },
+    {
+      "memberNo": "M-009",
+      "rail": "CASH",
+      "netCents": 6515,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-009",
+        "rail": "CASH",
+        "verifiedG": 147100,
+        "grade1G": 147100,
+        "slipSerials": ["0316", "0513", "0525", "0554"],
+        "premiumCents": 4343,
+        "bonusCents": 2172,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6515
+      },
+      "lineSha256": "896d1acaf16e6cd264ead836be2b25e3c7a049ff57b89924975b72364ea8eaf3"
+    },
+    {
+      "memberNo": "M-010",
+      "rail": "CASH",
+      "netCents": 7000,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-010",
+        "rail": "CASH",
+        "verifiedG": 168700,
+        "grade1G": 136800,
+        "slipSerials": ["0305", "0318", "0397", "0479"],
+        "premiumCents": 4980,
+        "bonusCents": 2020,
+        "deductions": [],
+        "credits": [],
+        "netCents": 7000
+      },
+      "lineSha256": "f619070ec9fe851555aa013f042e2e0f8045e01ccbd8f3885268285aa5391de5"
+    },
+    {
+      "memberNo": "M-011",
+      "rail": "CASH",
+      "netCents": 10059,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-011",
+        "rail": "CASH",
+        "verifiedG": 231000,
+        "grade1G": 231000,
+        "slipSerials": ["0308", "0336", "0340", "0400", "0443", "0552"],
+        "premiumCents": 6820,
+        "bonusCents": 3410,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 171,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 10059
+      },
+      "lineSha256": "a5f2b546b258234aa1ffb42c26aa3ea2b1ff322a6f5351b0355a79fb42879122"
+    },
+    {
+      "memberNo": "M-012",
+      "rail": "CASH",
+      "netCents": 6894,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-012",
+        "rail": "CASH",
+        "verifiedG": 166500,
+        "grade1G": 166500,
+        "slipSerials": ["0349", "0396", "0472", "0555"],
+        "premiumCents": 4916,
+        "bonusCents": 2458,
+        "deductions": [
+          {
+            "ruleId": "R3",
+            "amountCents": 480,
+            "ref": "ATD-2026-012",
+            "carriedCentavos": 0
+          }
+        ],
+        "credits": [],
+        "netCents": 6894
+      },
+      "lineSha256": "8a7021a539bf69b6d3c058bea23e0c2acb620e12a1615e6abb719362f65afd61"
+    },
+    {
+      "memberNo": "M-013",
+      "rail": "CASH",
+      "netCents": 6440,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-013",
+        "rail": "CASH",
+        "verifiedG": 145400,
+        "grade1G": 145400,
+        "slipSerials": ["0334", "0368", "0516", "0526"],
+        "premiumCents": 4293,
+        "bonusCents": 2147,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6440
+      },
+      "lineSha256": "72d64a421fedd46d8555bff56d6e1c82fc64ca2b2062c42af07f8a2fccf611d4"
+    },
+    {
+      "memberNo": "M-014",
+      "rail": "PAYPAL",
+      "netCents": 6445,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-014",
+        "rail": "PAYPAL",
+        "verifiedG": 148000,
+        "grade1G": 148000,
+        "slipSerials": ["0403", "0419", "0436", "0467"],
+        "premiumCents": 4369,
+        "bonusCents": 2185,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 109,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6445
+      },
+      "lineSha256": "411c771a16e46172db86ee6c85accb88ae193f4af8a6c1128beaaa98f5e2b8cd"
+    },
+    {
+      "memberNo": "M-015",
+      "rail": "CASH",
+      "netCents": 5912,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-015",
+        "rail": "CASH",
+        "verifiedG": 133500,
+        "grade1G": 133500,
+        "slipSerials": ["0332", "0371", "0393", "0422"],
+        "premiumCents": 3941,
+        "bonusCents": 1971,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5912
+      },
+      "lineSha256": "a8597ab43f12c8870c916b5b1d12cda5f42f6fdfdb6edc4aad6ab32123a33eb1"
+    },
+    {
+      "memberNo": "M-016",
+      "rail": "CASH",
+      "netCents": 8914,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-016",
+        "rail": "CASH",
+        "verifiedG": 213600,
+        "grade1G": 185900,
+        "slipSerials": ["0327", "0357", "0401", "0434", "0529", "0553"],
+        "premiumCents": 6306,
+        "bonusCents": 2745,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 137,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 8914
+      },
+      "lineSha256": "d0b59fd35e4344a12e14a2f53fcbe05ec788b6aea90c237a8080ee0e10a5a152"
+    },
+    {
+      "memberNo": "M-017",
+      "rail": "CASH",
+      "netCents": 8367,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-017",
+        "rail": "CASH",
+        "verifiedG": 197700,
+        "grade1G": 171400,
+        "slipSerials": ["0387", "0445", "0448", "0464", "0541"],
+        "premiumCents": 5837,
+        "bonusCents": 2530,
+        "deductions": [],
+        "credits": [],
+        "netCents": 8367
+      },
+      "lineSha256": "9794a355a1f764ee3818fb58cf516fe7beef0348629a858efdfcc2a6f4e2d539"
+    },
+    {
+      "memberNo": "M-018",
+      "rail": "PAYPAL",
+      "netCents": 5563,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-018",
+        "rail": "PAYPAL",
+        "verifiedG": 120400,
+        "grade1G": 120400,
+        "slipSerials": ["0389", "0458", "0465"],
+        "premiumCents": 3555,
+        "bonusCents": 1777,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 89,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [
+          {
+            "markId": "mark-0458-2",
+            "amountCents": 320
+          }
+        ],
+        "netCents": 5563
+      },
+      "lineSha256": "658dc957cdb3042e798f0828040f0214dc510294a07d579c78ed170c7b78912f"
+    },
+    {
+      "memberNo": "M-019",
+      "rail": "CASH",
+      "netCents": 9154,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-019",
+        "rail": "CASH",
+        "verifiedG": 206700,
+        "grade1G": 206700,
+        "slipSerials": ["0315", "0317", "0338", "0341", "0364", "0540"],
+        "premiumCents": 6102,
+        "bonusCents": 3052,
+        "deductions": [],
+        "credits": [],
+        "netCents": 9154
+      },
+      "lineSha256": "5d5c3e17c6edbb2987fabddc8fce1d18f39669a25d3916d2c02d091536df6381"
+    },
+    {
+      "memberNo": "M-020",
+      "rail": "CASH",
+      "netCents": 6864,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-020",
+        "rail": "CASH",
+        "verifiedG": 157600,
+        "grade1G": 157600,
+        "slipSerials": ["0395", "0438", "0486", "0493"],
+        "premiumCents": 4653,
+        "bonusCents": 2327,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 116,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6864
+      },
+      "lineSha256": "e07328f87a054775ca793a45245e8191a9320e523cd0d7d17a56c334a9ed017e"
+    },
+    {
+      "memberNo": "M-021",
+      "rail": "CASH",
+      "netCents": 6068,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-021",
+        "rail": "CASH",
+        "verifiedG": 137000,
+        "grade1G": 137000,
+        "slipSerials": ["0449", "0509", "0522", "0543"],
+        "premiumCents": 4045,
+        "bonusCents": 2023,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6068
+      },
+      "lineSha256": "46163887c53aad903ecbd3891629b7562a75a80ea9e72516f4a9cb5321f99ca0"
+    },
+    {
+      "memberNo": "M-022",
+      "rail": "PAYPAL",
+      "netCents": 3440,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-022",
+        "rail": "PAYPAL",
+        "verifiedG": 96500,
+        "grade1G": 80000,
+        "slipSerials": ["0408", "0427", "0511"],
+        "premiumCents": 2849,
+        "bonusCents": 1181,
+        "deductions": [
+          {
+            "ruleId": "R3",
+            "amountCents": 590,
+            "ref": "ATD-2026-022",
+            "carriedCentavos": 3125
+          }
+        ],
+        "credits": [],
+        "netCents": 3440
+      },
+      "lineSha256": "437ab9cb6030acad704e038c03bda83ca19353a7ffedcd065743f6aafb433648"
+    },
+    {
+      "memberNo": "M-023",
+      "rail": "CASH",
+      "netCents": 5774,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-023",
+        "rail": "CASH",
+        "verifiedG": 143300,
+        "grade1G": 104500,
+        "slipSerials": ["0304", "0319", "0473", "0545"],
+        "premiumCents": 4231,
+        "bonusCents": 1543,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5774
+      },
+      "lineSha256": "e7e8157cfa6efbdd6ebca5f4969ee53dee7081acb44ad78e1b929ce0bfac2814"
+    },
+    {
+      "memberNo": "M-024",
+      "rail": "CASH",
+      "netCents": 8561,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-024",
+        "rail": "CASH",
+        "verifiedG": 193300,
+        "grade1G": 193300,
+        "slipSerials": ["0337", "0410", "0453", "0488", "0551"],
+        "premiumCents": 5707,
+        "bonusCents": 2854,
+        "deductions": [],
+        "credits": [],
+        "netCents": 8561
+      },
+      "lineSha256": "2da17df1293bf9b3a30cf025d52b701112895de1f6b9ce97043af6a423a225c2"
+    },
+    {
+      "memberNo": "M-025",
+      "rail": "CASH",
+      "netCents": 5484,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-025",
+        "rail": "CASH",
+        "verifiedG": 134900,
+        "grade1G": 101700,
+        "slipSerials": ["0350", "0416", "0433", "0452"],
+        "premiumCents": 3983,
+        "bonusCents": 1501,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5484
+      },
+      "lineSha256": "a86c665f0c560dcd7d06a023dc1ffd91129258b9de42f516add8c16ea23d2961"
+    },
+    {
+      "memberNo": "M-026",
+      "rail": "CASH",
+      "netCents": 6045,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-026",
+        "rail": "CASH",
+        "verifiedG": 136500,
+        "grade1G": 136500,
+        "slipSerials": ["0311", "0347", "0444", "0537"],
+        "premiumCents": 4030,
+        "bonusCents": 2015,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6045
+      },
+      "lineSha256": "d90cdc68946e7f455534898cde404c4c006dfc889f5e1056f31fd01e0ac5868e"
+    },
+    {
+      "memberNo": "M-027",
+      "rail": "CASH",
+      "netCents": 5363,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-027",
+        "rail": "CASH",
+        "verifiedG": 121100,
+        "grade1G": 121100,
+        "slipSerials": ["0366", "0385", "0492"],
+        "premiumCents": 3575,
+        "bonusCents": 1788,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5363
+      },
+      "lineSha256": "00925f5ce7e99a15ff2728aab25da68b6f6ca61143a9f0209fb41e12a4a435e8"
+    },
+    {
+      "memberNo": "M-028",
+      "rail": "CASH",
+      "netCents": 4094,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-028",
+        "rail": "CASH",
+        "verifiedG": 94000,
+        "grade1G": 94000,
+        "slipSerials": ["0333", "0359", "0518"],
+        "premiumCents": 2775,
+        "bonusCents": 1388,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 69,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 4094
+      },
+      "lineSha256": "2ba873b40202e2db4835184b1e91b31969d6139f62153036cba6e5c627b0116a"
+    },
+    {
+      "memberNo": "M-029",
+      "rail": "CASH",
+      "netCents": 6837,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-029",
+        "rail": "CASH",
+        "verifiedG": 157000,
+        "grade1G": 157000,
+        "slipSerials": ["0404", "0490", "0500", "0556"],
+        "premiumCents": 4635,
+        "bonusCents": 2318,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 116,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6837
+      },
+      "lineSha256": "6248db47f2ef44bf33a280a0d54484615b5e689572109d45c19f60089e3b787d"
+    },
+    {
+      "memberNo": "M-030",
+      "rail": "CASH",
+      "netCents": 7431,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-030",
+        "rail": "CASH",
+        "verifiedG": 167800,
+        "grade1G": 167800,
+        "slipSerials": ["0430", "0437", "0460", "0561"],
+        "premiumCents": 4954,
+        "bonusCents": 2477,
+        "deductions": [],
+        "credits": [],
+        "netCents": 7431
+      },
+      "lineSha256": "3c8f66358ca27dd0b51de0458c8f3ba412dd3afe9a21c738b61ef1bad5b1adc1"
+    },
+    {
+      "memberNo": "M-031",
+      "rail": "PAYPAL",
+      "netCents": 2665,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-031",
+        "rail": "PAYPAL",
+        "verifiedG": 61200,
+        "grade1G": 61200,
+        "slipSerials": ["0335", "0373"],
+        "premiumCents": 1807,
+        "bonusCents": 903,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 45,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 2665
+      },
+      "lineSha256": "d5e5ee6b20d1feb277a595b757971333fbbfb17e5ca0bfdd4bfd01386e25fba6"
+    },
+    {
+      "memberNo": "M-032",
+      "rail": "CASH",
+      "netCents": 4561,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-032",
+        "rail": "CASH",
+        "verifiedG": 112700,
+        "grade1G": 83600,
+        "slipSerials": ["0380", "0425", "0499"],
+        "premiumCents": 3327,
+        "bonusCents": 1234,
+        "deductions": [],
+        "credits": [],
+        "netCents": 4561
+      },
+      "lineSha256": "2fe7c2a019516ec0e94dd614f671dd7101eff742e0eba3c0aa64815db6131c51"
+    },
+    {
+      "memberNo": "M-033",
+      "rail": "CASH",
+      "netCents": 5243,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-033",
+        "rail": "CASH",
+        "verifiedG": 118400,
+        "grade1G": 118400,
+        "slipSerials": ["0345", "0435", "0534"],
+        "premiumCents": 3495,
+        "bonusCents": 1748,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5243
+      },
+      "lineSha256": "852b62ae0e223cdfb756ca35567e9dabf0c7861bca390a2ca41f61f9017bfe80"
+    },
+    {
+      "memberNo": "M-034",
+      "rail": "CASH",
+      "netCents": 7037,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-034",
+        "rail": "CASH",
+        "verifiedG": 158900,
+        "grade1G": 158900,
+        "slipSerials": ["0339", "0372", "0412", "0505"],
+        "premiumCents": 4691,
+        "bonusCents": 2346,
+        "deductions": [],
+        "credits": [],
+        "netCents": 7037
+      },
+      "lineSha256": "b020837a2a31f3c1c5459df6c8d4bcc3865b8161952830e7c13dabfcb5cd33fd"
+    },
+    {
+      "memberNo": "M-035",
+      "rail": "CASH",
+      "netCents": 6572,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-035",
+        "rail": "CASH",
+        "verifiedG": 150900,
+        "grade1G": 150900,
+        "slipSerials": ["0346", "0420", "0431", "0558"],
+        "premiumCents": 4455,
+        "bonusCents": 2228,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 111,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6572
+      },
+      "lineSha256": "0cdf4da88bb3d0f776163c3ac95d7fcfe902ec3f06e454fd33d509fa3cadba78"
+    },
+    {
+      "memberNo": "M-036",
+      "rail": "CASH",
+      "netCents": 4056,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-036",
+        "rail": "CASH",
+        "verifiedG": 91600,
+        "grade1G": 91600,
+        "slipSerials": ["0312", "0352"],
+        "premiumCents": 2704,
+        "bonusCents": 1352,
+        "deductions": [],
+        "credits": [],
+        "netCents": 4056
+      },
+      "lineSha256": "b276a8168f48922f63efa02dc7175a9c523a121f06458d02b6fade54e82a9c8b"
+    },
+    {
+      "memberNo": "M-037",
+      "rail": "CASH",
+      "netCents": 9371,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-037",
+        "rail": "CASH",
+        "verifiedG": 215200,
+        "grade1G": 215200,
+        "slipSerials": ["0314", "0356", "0386", "0406", "0463", "0510"],
+        "premiumCents": 6353,
+        "bonusCents": 3177,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 159,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 9371
+      },
+      "lineSha256": "72ba13680a134bb3231404c923bdb0c8b483381e6d5012f5fd6d4303bdb358f0"
+    },
+    {
+      "memberNo": "M-038",
+      "rail": "CASH",
+      "netCents": 6336,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-038",
+        "rail": "CASH",
+        "verifiedG": 150400,
+        "grade1G": 135200,
+        "slipSerials": ["0307", "0344", "0468", "0546"],
+        "premiumCents": 4440,
+        "bonusCents": 1996,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 100,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6336
+      },
+      "lineSha256": "3b8b9c0ce72d36713f80136ec7b5e87cd6a6881d4f311aa76c0f82e2285b26c2"
+    },
+    {
+      "memberNo": "M-039",
+      "rail": "PAYPAL",
+      "netCents": 3832,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-039",
+        "rail": "PAYPAL",
+        "verifiedG": 88000,
+        "grade1G": 88000,
+        "slipSerials": ["0415", "0440", "0441"],
+        "premiumCents": 2598,
+        "bonusCents": 1299,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 65,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 3832
+      },
+      "lineSha256": "9b00eaf2a4af763e7c870db511db53532509b18fdf22d16e9ff63c2fabb18974"
+    },
+    {
+      "memberNo": "M-040",
+      "rail": "CASH",
+      "netCents": 8277,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-040",
+        "rail": "CASH",
+        "verifiedG": 186900,
+        "grade1G": 186900,
+        "slipSerials": ["0414", "0418", "0496", "0523", "0530"],
+        "premiumCents": 5518,
+        "bonusCents": 2759,
+        "deductions": [],
+        "credits": [],
+        "netCents": 8277
+      },
+      "lineSha256": "4bda18a56f19e56ee6f6de84a0cfe32d75efbf027caf080ad7d88d8f105997eb"
+    },
+    {
+      "memberNo": "M-041",
+      "rail": "CASH",
+      "netCents": 7655,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-041",
+        "rail": "CASH",
+        "verifiedG": 175800,
+        "grade1G": 175800,
+        "slipSerials": ["0342", "0365", "0413", "0455", "0549"],
+        "premiumCents": 5190,
+        "bonusCents": 2595,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 130,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 7655
+      },
+      "lineSha256": "aa53ea28141f8958dd3b95c4eb1468247b4a3a3c88dc30befc3046643de26f77"
+    },
+    {
+      "memberNo": "M-042",
+      "rail": "CASH",
+      "netCents": 3852,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-042",
+        "rail": "CASH",
+        "verifiedG": 87000,
+        "grade1G": 87000,
+        "slipSerials": ["0506", "0512"],
+        "premiumCents": 2568,
+        "bonusCents": 1284,
+        "deductions": [],
+        "credits": [],
+        "netCents": 3852
+      },
+      "lineSha256": "e7b52d71926ab0625fc549ef297e02e41795e8f86336f4f25cbeda07d085a45e"
+    },
+    {
+      "memberNo": "M-043",
+      "rail": "CASH",
+      "netCents": 6820,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-043",
+        "rail": "CASH",
+        "verifiedG": 154000,
+        "grade1G": 154000,
+        "slipSerials": ["0324", "0376", "0426", "0544"],
+        "premiumCents": 4546,
+        "bonusCents": 2274,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6820
+      },
+      "lineSha256": "c00f26d8202c53ea0c0609fb5613e54f38e88389a1ec0988158e1675aba2c2b9"
+    },
+    {
+      "memberNo": "M-044",
+      "rail": "CASH",
+      "netCents": 6937,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-044",
+        "rail": "CASH",
+        "verifiedG": 159300,
+        "grade1G": 159300,
+        "slipSerials": ["0384", "0411", "0484", "0528"],
+        "premiumCents": 4703,
+        "bonusCents": 2352,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 118,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6937
+      },
+      "lineSha256": "92012097000389875da604b958f4f8826a9dd0cffa70b3c32d85b312c071946a"
+    },
+    {
+      "memberNo": "M-045",
+      "rail": "CASH",
+      "netCents": 5557,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-045",
+        "rail": "CASH",
+        "verifiedG": 127600,
+        "grade1G": 127600,
+        "slipSerials": ["0330", "0483", "0519"],
+        "premiumCents": 3767,
+        "bonusCents": 1884,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 94,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 5557
+      },
+      "lineSha256": "87fc39dd079dda7ba1df3d91e904139712285e7a637af0ee4597ccf8f31f4977"
+    },
+    {
+      "memberNo": "M-046",
+      "rail": "CASH",
+      "netCents": 8675,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-046",
+        "rail": "CASH",
+        "verifiedG": 195900,
+        "grade1G": 195900,
+        "slipSerials": ["0313", "0353", "0481", "0508", "0517"],
+        "premiumCents": 5783,
+        "bonusCents": 2892,
+        "deductions": [],
+        "credits": [],
+        "netCents": 8675
+      },
+      "lineSha256": "b46549d3b4c7ebf8b73c55fa6f53d53a0d64caa5d2824e207a671381739c040b"
+    },
+    {
+      "memberNo": "M-047",
+      "rail": "CASH",
+      "netCents": 6615,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-047",
+        "rail": "CASH",
+        "verifiedG": 151900,
+        "grade1G": 151900,
+        "slipSerials": ["0328", "0360", "0381", "0520"],
+        "premiumCents": 4484,
+        "bonusCents": 2243,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 112,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 6615
+      },
+      "lineSha256": "ab320a4f559266077cc819f95088ccd059081ee7fe4ffc69a0a08a61815c0782"
+    },
+    {
+      "memberNo": "M-048",
+      "rail": "CASH",
+      "netCents": 5718,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-048",
+        "rail": "CASH",
+        "verifiedG": 155200,
+        "grade1G": 155200,
+        "slipSerials": ["0306", "0326", "0394", "0547"],
+        "premiumCents": 4582,
+        "bonusCents": 2291,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 115,
+            "ref": null,
+            "carriedCentavos": null
+          },
+          {
+            "ruleId": "R3",
+            "amountCents": 1040,
+            "ref": "ATD-2026-048",
+            "carriedCentavos": 0
+          }
+        ],
+        "credits": [],
+        "netCents": 5718
+      },
+      "lineSha256": "ef4029a74eb1b1518719f24379cf8cc69e3728eb5589861853dcb3c2a8927f49"
+    },
+    {
+      "memberNo": "M-049",
+      "rail": "CASH",
+      "netCents": 5959,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-049",
+        "rail": "CASH",
+        "verifiedG": 149500,
+        "grade1G": 149500,
+        "slipSerials": ["0301", "0354", "0477", "0542"],
+        "premiumCents": 4414,
+        "bonusCents": 2207,
+        "deductions": [
+          {
+            "ruleId": "R4",
+            "amountCents": 662,
+            "ref": "CA-0177",
+            "carriedCentavos": 8625
+          }
+        ],
+        "credits": [],
+        "netCents": 5959
+      },
+      "lineSha256": "01ca8f5081a550ed3b9d74cb078be6e163205f9543081b9250a8a5ed6200fa3d"
+    },
+    {
+      "memberNo": "M-050",
+      "rail": "CASH",
+      "netCents": 8583,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-050",
+        "rail": "CASH",
+        "verifiedG": 197100,
+        "grade1G": 197100,
+        "slipSerials": ["0323", "0343", "0379", "0423", "0491"],
+        "premiumCents": 5819,
+        "bonusCents": 2910,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 146,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 8583
+      },
+      "lineSha256": "a2088dc13a3ba8015df37a57cbc625c5a78e96962e1768c7d23cdc6e0d6b7059"
+    },
+    {
+      "memberNo": "M-051",
+      "rail": "CASH",
+      "netCents": 4373,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-051",
+        "rail": "CASH",
+        "verifiedG": 105200,
+        "grade1G": 85800,
+        "slipSerials": ["0309", "0383", "0501"],
+        "premiumCents": 3106,
+        "bonusCents": 1267,
+        "deductions": [],
+        "credits": [],
+        "netCents": 4373
+      },
+      "lineSha256": "25ba077dd83b02790b169ca826472b2f658f6b327ac274a0313ec151edec616c"
+    },
+    {
+      "memberNo": "M-052",
+      "rail": "CASH",
+      "netCents": 9127,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-052",
+        "rail": "CASH",
+        "verifiedG": 219500,
+        "grade1G": 179300,
+        "slipSerials": ["0321", "0363", "0367", "0398", "0524", "0538"],
+        "premiumCents": 6480,
+        "bonusCents": 2647,
+        "deductions": [],
+        "credits": [],
+        "netCents": 9127
+      },
+      "lineSha256": "d76f7da799c42093d4f46a98ce88dfd4b8af9d327fbdb523dccf96a66ef6a42f"
+    },
+    {
+      "memberNo": "M-053",
+      "rail": "CASH",
+      "netCents": 12784,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-053",
+        "rail": "CASH",
+        "verifiedG": 300000,
+        "grade1G": 280000,
+        "slipSerials": ["0374", "0399", "0407", "0428", "0459", "0471", "0487", "0489"],
+        "premiumCents": 8857,
+        "bonusCents": 4134,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 207,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 12784
+      },
+      "lineSha256": "159441d4e35f38d264adc0ac74b8a839d98908245fc8e992afb111941f46354c"
+    },
+    {
+      "memberNo": "M-054",
+      "rail": "CASH",
+      "netCents": 6522,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-054",
+        "rail": "CASH",
+        "verifiedG": 155100,
+        "grade1G": 131600,
+        "slipSerials": ["0302", "0310", "0382", "0439"],
+        "premiumCents": 4579,
+        "bonusCents": 1943,
+        "deductions": [],
+        "credits": [],
+        "netCents": 6522
+      },
+      "lineSha256": "5f744dfdfa7478957b8a3cc92ba297ae899ab20e1103c0ca947914433a5b89d7"
+    },
+    {
+      "memberNo": "M-055",
+      "rail": "CASH",
+      "netCents": 7486,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-055",
+        "rail": "CASH",
+        "verifiedG": 171900,
+        "grade1G": 171900,
+        "slipSerials": ["0329", "0348", "0409", "0502", "0504"],
+        "premiumCents": 5075,
+        "bonusCents": 2538,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 127,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 7486
+      },
+      "lineSha256": "94ce1f0afb12d6748dbc3d02b7b195bd580d2deea845deb3f0485aac60742e21"
+    },
+    {
+      "memberNo": "M-056",
+      "rail": "CASH",
+      "netCents": 5855,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-056",
+        "rail": "CASH",
+        "verifiedG": 132200,
+        "grade1G": 132200,
+        "slipSerials": ["0446", "0456", "0515", "0539"],
+        "premiumCents": 3903,
+        "bonusCents": 1952,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5855
+      },
+      "lineSha256": "d921bb418eba58aeb6cebd58f59243d3ce866cdac32257bac453f337e2781cc5"
+    },
+    {
+      "memberNo": "M-057",
+      "rail": "CASH",
+      "netCents": 9625,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-057",
+        "rail": "CASH",
+        "verifiedG": 221000,
+        "grade1G": 221000,
+        "slipSerials": ["0325", "0358", "0362", "0451", "0535", "0536"],
+        "premiumCents": 6525,
+        "bonusCents": 3263,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 163,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 9625
+      },
+      "lineSha256": "3690ce1e231fa5891835731b35aaa075993ea617a93521c975cf5974cc73121f"
+    },
+    {
+      "memberNo": "M-058",
+      "rail": "CASH",
+      "netCents": 5204,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-058",
+        "rail": "CASH",
+        "verifiedG": 117500,
+        "grade1G": 117500,
+        "slipSerials": ["0351", "0370", "0421"],
+        "premiumCents": 3469,
+        "bonusCents": 1735,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5204
+      },
+      "lineSha256": "30f9a88eb4ff6db4faee562cccadf58e7a509941ff87c57ade736196052e51e3"
+    },
+    {
+      "memberNo": "M-059",
+      "rail": "CASH",
+      "netCents": 5018,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-059",
+        "rail": "CASH",
+        "verifiedG": 126700,
+        "grade1G": 86500,
+        "slipSerials": ["0377", "0495", "0550"],
+        "premiumCents": 3741,
+        "bonusCents": 1277,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5018
+      },
+      "lineSha256": "a67476953568675c1ef8ca48764dfa774a673b26b6dbe9832ca3e832b11e8fda"
+    },
+    {
+      "memberNo": "M-060",
+      "rail": "PAYPAL",
+      "netCents": 5596,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-060",
+        "rail": "PAYPAL",
+        "verifiedG": 128500,
+        "grade1G": 128500,
+        "slipSerials": ["0369", "0462", "0527"],
+        "premiumCents": 3794,
+        "bonusCents": 1897,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 95,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 5596
+      },
+      "lineSha256": "df3c1d1068cedefddd77d5f3c8526ce65b10b7df861c6557cb3b41de488e5313"
+    },
+    {
+      "memberNo": "M-061",
+      "rail": "CASH",
+      "netCents": 8312,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-061",
+        "rail": "CASH",
+        "verifiedG": 187700,
+        "grade1G": 187700,
+        "slipSerials": ["0331", "0388", "0466", "0480", "0514"],
+        "premiumCents": 5541,
+        "bonusCents": 2771,
+        "deductions": [],
+        "credits": [],
+        "netCents": 8312
+      },
+      "lineSha256": "c02b9e4c3857883754145089aaea9368e18efb09e6af1b3ec17d0f3ef7dbbb9a"
+    },
+    {
+      "memberNo": "M-062",
+      "rail": "CASH",
+      "netCents": 7194,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-062",
+        "rail": "CASH",
+        "verifiedG": 165200,
+        "grade1G": 165200,
+        "slipSerials": ["0392", "0461", "0485", "0503"],
+        "premiumCents": 4877,
+        "bonusCents": 2439,
+        "deductions": [
+          {
+            "ruleId": "R1",
+            "amountCents": 122,
+            "ref": null,
+            "carriedCentavos": null
+          }
+        ],
+        "credits": [],
+        "netCents": 7194
+      },
+      "lineSha256": "025e12502ebd49516feda1a26d489579117745604dccda18465ef22d31276155"
+    },
+    {
+      "memberNo": "M-063",
+      "rail": "CASH",
+      "netCents": 5641,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-063",
+        "rail": "CASH",
+        "verifiedG": 132900,
+        "grade1G": 116300,
+        "slipSerials": ["0322", "0378", "0454", "0476"],
+        "premiumCents": 3924,
+        "bonusCents": 1717,
+        "deductions": [],
+        "credits": [],
+        "netCents": 5641
+      },
+      "lineSha256": "a1d05efd3cc410d7ef46ed50c8e289702df8c985c215f34c0027ade9b4d3da29"
+    },
+    {
+      "memberNo": "M-064",
+      "rail": "CASH",
+      "netCents": 3950,
+      "canonical": {
+        "v": 1,
+        "engine": "engine v1",
+        "rateCardSha256": "f2d7026d4602b8dd66e999f9cf4435511d40ded2dc8e55c8de937bd26ba4e12b",
+        "memberNo": "M-064",
+        "rail": "CASH",
+        "verifiedG": 89200,
+        "grade1G": 89200,
+        "slipSerials": ["0475", "0494"],
+        "premiumCents": 2633,
+        "bonusCents": 1317,
+        "deductions": [],
+        "credits": [],
+        "netCents": 3950
+      },
+      "lineSha256": "c1aa3eb5bef634ded642037be875303d52fb608c79425f6632ae330842ed0194"
+    }
+  ]
+}

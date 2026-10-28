@@ -2,9 +2,9 @@
 // pink copy and the quarantined instruction are named, slip 0462 goes to a person, and MM-2's numbers all come
 // from @fairsplit/motion's timeline.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { RunEvent } from "@fairsplit/contracts";
 import { MOMENTS, TIMELINES } from "@fairsplit/motion";
-import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import { applyRunEvents, firstView, sessionView } from "../../data/run-view.js";
 import { illegibleRows, zoomAgreedRow } from "../../test/reading-fixtures.js";

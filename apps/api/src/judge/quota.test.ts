@@ -2,7 +2,7 @@ import { decide } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { settlementOf } from "./live-step.js";
+import { RESUME_QUOTA_WAIT_MS, resumeWaitMs, settlementOf } from "./live-step.js";
 import {
   dailyLivePostCap,
   daysLeft,
@@ -217,6 +217,8 @@ describe("settling a live post from PayoutsService's outcome", () => {
 
   it("stays open (the retry resumes the same batch) when unresolved, circuit-paced, or never answered", () => {
     expect(settlementOf({ kind: "refused", code: "CIRCUIT_OPEN", reason: "x", ...base })).toBeNull();
+    // the limiter's window: only ever after the rows are written (the service's POST loop), so the slot stays held
+    expect(settlementOf({ kind: "refused", code: "QUEUED", reason: "x", ...base })).toBeNull();
     expect(
       settlementOf({
         kind: "unresolved",
@@ -228,6 +230,20 @@ describe("settling a live post from PayoutsService's outcome", () => {
       }),
     ).toBeNull();
     expect(settlementOf(undefined)).toBeNull();
+  });
+});
+
+describe("how long a resumed post waits (a written batch is never replayed)", () => {
+  it("the circuit's six minutes, the next clock hour for the hourly cap, a quarter hour for the other quotas", () => {
+    expect(resumeWaitMs("circuit_open", NOW)).toBe(6 * 60_000);
+    // 10:15 → 11:00, plus a second
+    expect(resumeWaitMs("hourly_cap", NOW)).toBe(45 * 60_000 + 1_000);
+    for (const r of ["daily_cap", "session_cap", "public_share", "balance_unknown", "balance_low"] as const) {
+      expect(resumeWaitMs(r, NOW), r).toBe(RESUME_QUOTA_WAIT_MS);
+    }
+    for (const r of ["kill_switch", "simulator_not_running", "lane_full"] as const) {
+      expect(resumeWaitMs(r, NOW), r).toBe(60_000);
+    }
   });
 });
 

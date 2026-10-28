@@ -1,8 +1,8 @@
 // Proof's read model over the seeded season (IC-03): every figure W-PF-01 prints is computed here from the bundle
 // and the run's line states, never typed. The paid tiers conserve money (I3) and progress only climbs (I5).
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { MemberLineState, PayoutItemStatus } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { format } from "../../lib/format.js";

@@ -120,6 +120,54 @@ Publish dates checked on 22 Oct 2026 with `npm view <pkg> time --json`. `yaml` i
 entries. That churn is why the lockfile changes only in `deps/*` PRs, merged one at a time and before the
 workstream that consumes them.
 
+## Expo SDK 58 set (WS-APP, orchestrator merge 28 Oct 2026)
+
+`apps/mobile` pins. The plan excludes the Expo SDK 58 set from the 14-day release-age rule by exact version, so the
+pins newer than 14 days below, and the Expo-internal packages in `minimumReleaseAgeExclude`, follow
+`npx expo install --check` rather than the age rule. That includes `noxcturnal` 0.1.10, Expo's own package
+(github.com/expo/noxcturnal), published 26 Oct 2026, which `@expo/metro-config` 58.0.18 requires.
+
+| Package                                         | Version | Published  | Why                                                                                                                |
+| ----------------------------------------------- | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| `expo`                                          | 58.0.20 | 2026-10-27 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-audio`                                    | 58.0.10 | 2026-10-21 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-background-task`                          | 58.0.11 | 2026-10-15 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-build-properties`                         | 58.0.11 | 2026-10-16 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-camera`                                   | 58.0.13 | 2026-10-27 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-constants`                                | 58.0.13 | 2026-10-21 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-crypto`                                   | 58.0.7  | 2026-10-16 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-dev-client`                               | 58.0.16 | 2026-10-27 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-device`                                   | 58.0.5  | 2026-10-01 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-file-system`                              | 58.0.12 | 2026-10-27 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-font`                                     | 58.0.10 | 2026-10-23 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-haptics`                                  | 58.0.7  | 2026-10-16 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-image`                                    | 58.0.17 | 2026-10-23 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-image-manipulator`                        | 58.0.15 | 2026-10-19 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-image-picker`                             | 58.0.10 | 2026-10-01 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-linking`                                  | 58.0.14 | 2026-10-21 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-local-authentication`                     | 58.0.2  | 2026-10-01 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-notifications`                            | 58.1.6  | 2026-10-21 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-router`                                   | 58.0.27 | 2026-10-27 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-secure-store`                             | 58.0.2  | 2026-10-01 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-speech`                                   | 58.0.3  | 2026-10-01 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-splash-screen`                            | 58.0.11 | 2026-10-21 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-sqlite`                                   | 58.0.14 | 2026-10-23 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-status-bar`                               | 58.0.4  | 2026-10-21 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-system-ui`                                | 58.0.6  | 2026-10-15 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `expo-task-manager`                             | 58.0.12 | 2026-10-15 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native`                                  | 0.88.0  | 2026-10-15 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-gesture-handler`                  | 3.3.0   | 2026-09-11 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-reanimated`                       | 4.7.1   | 2026-10-02 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-safe-area-context`                | 5.10.1  | 2026-09-29 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-screens`                          | 4.30.0  | 2026-10-13 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-svg`                              | 15.16.0 | 2026-10-15 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-web`                              | 0.21.4  | 2026-10-08 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `react-native-worklets`                         | 0.13.0  | 2026-09-18 | Expo SDK 58 set: the exact version in expo 58.0.20's `bundledNativeModules.json`                                   |
+| `@react-native-community/netinfo`               | 12.0.1  | 2026-02-14 | Offline state for the outbox and the statement's last copy                                                         |
+| `@noble/hashes`                                 | 2.4.0   | 2026-08-27 | SHA-256 for the phone's own `batchSha256` and `linesDigest` recompute before co-sign (M-BD-01)                     |
+| `@expo-google-fonts/mona-sans`                  | 0.4.1   | 2025-09-05 | Temporary fonts from the slice build; unused since the FS Sans and Atkinson Next native cuts (remove in a deps PR) |
+| `@expo-google-fonts/atkinson-hyperlegible-next` | 0.4.1   | 2025-09-05 | Temporary fonts from the slice build; unused since the FS Sans and Atkinson Next native cuts (remove in a deps PR) |
+
 ## Planned additions (not installed yet)
 
 Recorded here when installed, each exact and at least 14 days old:

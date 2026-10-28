@@ -1,8 +1,8 @@
 // S3.15's sections in words (W-OP-01): every row computed from what the API's ops slice serves, red only for a
 // PayPal failure, money in pencil when it is an estimate, and the treasurer key as Fair Split publishes it.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { PublishedKeys } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import {
   SAMPLE_BALANCE,

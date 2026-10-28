@@ -16,7 +16,7 @@ export class UnknownSeasonError extends Error {
 /** Loads the seeded season (a separate chunk, so the first paint does not wait on 700 KB of JSON). */
 export async function loadSnapshot(season: string = SHOWCASE_SEASON): Promise<SeasonSnapshot> {
   if (season !== SHOWCASE_SEASON) throw new UnknownSeasonError(`No season ${season} in the seed.`);
-  loading ??= import("@fairsplit/seed").then((seed) => seed.getSnapshot());
+  loading ??= import("@fairsplit/api-client/seed").then((seed) => seed.getSnapshot());
   try {
     return await loading;
   } catch (error) {

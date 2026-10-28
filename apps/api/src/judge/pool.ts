@@ -11,10 +11,13 @@
 // Purge (hourly `judgeReset`): `fs_purge_workspace()` deletes an expired judge workspace and everything in
 // it. It already refuses while money is in flight (a POSTING run, a non-terminal item). We also wait while
 // the workspace's PayPal calls are inside the limiter's window or circuit (7 minutes: the purge cascade
-// would delete the `paypal_calls` rows the limiter counts) and while its batches are inside the rolling
-// 24 h window. The quota and the spend no longer depend on that wait (they live in the judge quota ledger,
-// system rows the cascade never touches); it remains as the safety net for a post made outside the
-// protocol. Expiry here is the database clock's, exactly as `fs_purge_workspace()` decides it.
+// would delete the `paypal_calls` rows the limiter counts) and while a count still reads one of its batch rows
+// (quota.ts `batchesStillCounted`): C-21 counts a batch for 24 h and a lane lease after its write or after a POST
+// sent later (its run's fresh slot, a re-route's `batch_sent` mark), and the spend from a balance reading up to 26 h
+// old (its write, or PayPal naming it). A batch POSTed late is counted from that POST, though its rows were written a
+// day or more before, so the write alone would let the purge drop a POST C-21 still counts. The judge quotas (slots)
+// live in the judge quota ledger, system rows the cascade never touches. Expiry here, and the time the counts are
+// read at, is the database clock's, exactly as `fs_purge_workspace()` decides it.
 import {
   asDbError,
   type ClaimedWorkspace,
@@ -26,6 +29,7 @@ import {
 } from "@fairsplit/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { JUDGE_COOKIE_TTL_MS } from "../credentials/verify/index.js";
+import { batchesStillCounted } from "./quota.js";
 import { materializeWorld, seedTag } from "./world.js";
 
 /** Unclaimed workspaces kept ready (S3.9: "refills the pool to 3 workspaces"). */
@@ -165,7 +169,7 @@ export async function refillPool(db: Db, target = POOL_TARGET): Promise<number> 
 
 export interface PurgeOutcome {
   purged: string[];
-  /** Still holding money in flight, recent PayPal calls, or live posts inside the 24 h quota window. */
+  /** Still holding money in flight, recent PayPal calls, or a batch C-21 or the spend still counts. */
   deferred: string[];
 }
 
@@ -195,17 +199,14 @@ export async function purgeExpiredJudgeWorkspaces(
      limit ${limit}`)) as unknown as { id: string }[];
   const out: PurgeOutcome = { purged: [], deferred: [] };
   for (const { id } of candidates) {
-    const busy = (await db.execute(sql`
+    const [busy] = (await db.execute(sql`
       select exists (select 1 from paypal_calls pc
                       where pc.workspace_id = ${id}
                         and pc.at > now() - make_interval(secs => ${quietSec})) as calls,
-             exists (select 1 from payout_batches pb
-                      where pb.workspace_id = ${id}
-                        and pb.submitted_at > now() - interval '24 hours') as posts`)) as unknown as {
-      calls: boolean;
-      posts: boolean;
-    }[];
-    if (busy[0]?.calls || busy[0]?.posts) {
+             now() as now`)) as unknown as { calls: boolean; now: Date | string }[];
+    // C-21 and the spend count a batch from its row, which the cascade deletes: wait while either still counts one
+    // (a batch POSTed late counts from that POST, its write a day or more before it)
+    if (busy?.calls || (await batchesStillCounted(db, id, new Date(busy?.now ?? Date.now())))) {
       out.deferred.push(id);
       continue;
     }

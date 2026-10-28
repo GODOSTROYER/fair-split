@@ -4,8 +4,8 @@
 // (while PayPal confirms, and on a settled run until a check here matches against keys that aren't samples),
 // verified only after such a check, and failed on a tampered record.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { type ProofBundle, webRoutes } from "@fairsplit/contracts";
-import { getSnapshot } from "@fairsplit/seed";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";

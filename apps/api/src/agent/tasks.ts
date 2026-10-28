@@ -1,15 +1,17 @@
 // The agentTurn task (S4.4, C-06). Judge Mode always replays the recorded session; the model is never called
-// from fs-api. The invoice turn (DRAFT_INVOICE) runs its PayPal steps live through the AgentMoneyPort and
-// hands any unfinished step to the checkpointed ensureInvoice chain; REQUEST_BATCH only opens an approval
-// request. The live agent loop (dev, nightly eval) is WS-AGENT's and calls the same port.
+// from fs-api. The invoice turn (DRAFT_INVOICE) runs its PayPal steps through the AgentMoneyPort on the rail
+// Judge Mode decides first (money/rail.ts: live in the single-flight lane, or a labelled replay that calls
+// nothing) and hands any unfinished step to the checkpointed ensureInvoice chain; REQUEST_BATCH only opens an
+// approval request. The live agent loop (dev, nightly eval) is WS-AGENT's and calls the same port.
 import { TaskArgs } from "@fairsplit/contracts";
 import { schema, systemScope } from "@fairsplit/db";
 import type { TaskHandlers } from "@fairsplit/outbox";
 import { and, eq, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import type { SendApproval } from "../money/funding.js";
+import { LaneQueued, railForStep } from "../money/rail.js";
 import { ACTORS } from "../runs/events.js";
-import { report } from "../runs/now.js";
+import { deferTask, report } from "../runs/now.js";
 import { type AgentRecording, PLACEHOLDER_DRAFT_INVOICE, PLACEHOLDER_REQUEST_BATCH } from "./recording.js";
 import { replaySession } from "./replay.js";
 
@@ -59,13 +61,54 @@ export function agentTasks(deps: AppDeps): TaskHandlers {
         });
         return;
       }
-      const out = await replaySession(deps, scope, args.runId, recording, {
-        sendApproval: await sendApprovalFor(deps, ctx.workspaceId, args.runId),
+      const sendApproval = await sendApprovalFor(deps, ctx.workspaceId, args.runId);
+      if (recording.purpose !== "DRAFT_INVOICE") {
+        // REQUEST_BATCH only opens an approval request: no PayPal step, no lane
+        const out = await replaySession(deps, scope, args.runId, recording, { sendApproval });
+        report(ctx.outboxId, {
+          ok: true,
+          detail: {
+            sessionId: out.sessionId,
+            runState: out.runState,
+            stopped: out.stoppedAt?.reason ?? null,
+          },
+        });
+        return;
+      }
+      // The invoice turn is the first press's burst of PayPal calls: Judge Mode decides live or replay and takes
+      // the single-flight lane before any of them (money/rail.ts). Queued: the turn waits for its place.
+      const rail = await railForStep(deps, {
+        workspaceId: ctx.workspaceId,
+        runId: args.runId,
+        step: "invoice",
       });
-      report(ctx.outboxId, {
-        ok: true,
-        detail: { sessionId: out.sessionId, runState: out.runState, stopped: out.stoppedAt?.reason ?? null },
-      });
+      if (rail.kind === "queued") {
+        const step = new LaneQueued(rail);
+        const next = await deferTask(deps.db, ctx, raw, rail.retryAfterMs);
+        if (!next) throw step;
+        report(ctx.outboxId, {
+          ok: false,
+          code: step.code,
+          message: step.message,
+          debugId: null,
+          retryAfterMs: Math.max(1_000, next.runAfter.getTime() - Date.now()),
+        });
+        return;
+      }
+      try {
+        const out = await replaySession(rail.deps, scope, args.runId, recording, { sendApproval });
+        report(ctx.outboxId, {
+          ok: true,
+          detail: {
+            sessionId: out.sessionId,
+            runState: out.runState,
+            stopped: out.stoppedAt?.reason ?? null,
+            rail: rail.kind,
+          },
+        });
+      } finally {
+        if (rail.kind === "live") await rail.end();
+      }
     },
   };
 }
