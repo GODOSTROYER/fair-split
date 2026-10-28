@@ -275,6 +275,20 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     void navigate({ to: "/judge" });
   };
 
+  // The server ended the session meanwhile (a renewal landed in another workspace: a Reset in another tab, or
+  // it expired): the strip says the stage is back at the first press, so it goes there, as Reset does. Only on
+  // the change into "ended": the judge may move on while the notice is still up.
+  const ended = session.status === "ended";
+  const wasEnded = useRef(ended);
+  useEffect(() => {
+    const entered = ended && !wasEnded.current;
+    wasEnded.current = ended;
+    if (!entered) return;
+    setAutoplay("off");
+    lowerPhone();
+    void navigate({ to: "/judge" });
+  }, [ended, lowerPhone, navigate]);
+
   const phoneSize = phoneSizeFor(layout, viewportHeight);
 
   return (

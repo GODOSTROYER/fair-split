@@ -236,6 +236,13 @@ exist in the catalog: draw the co-sign QR from an API-provided matrix or request
   mints its own deduction-mark IDs and a line hash covers them, so the seed's root is never the workspace's.
   api-client's mock serves neither the lines read nor workspace mark IDs; the console's mock does both
   (`src/data/mock/fidelity.ts`). Reported to WS-API.
+- Renewing the console token has no resume-only path in fs-api. `SessionStore.renew()` sends `createJudgeSession`
+  with the judge cookie alone; when the cookie's workspace has ended (a Reset in another tab, or it expired) fs-api
+  mints a new workspace and run under the same session ID, and that renewal uses a slot of the
+  3-new-sessions-an-hour limit. The console refuses the answer (another workspace or run ends the session; the
+  stage returns to `/judge` and says why), but the new workspace has already been created. Needed from WS-API: a
+  renewal that only resumes, answering 401/410 for an ended workspace instead of recreating it, and never
+  counting against the new-session limit.
 - ui-web lacks SplitFan, FundingArc, RunStrip, RunLog, SlipViewer, FlightLayer, TwinCompare, ByHandField,
   QRPairCard, VerifyPanel, PlotField, EvalWaffle, PrintStatement, Drawer and DigitSwap: build them in your
   `features/` folder on ui-web's primitives and tokens.
