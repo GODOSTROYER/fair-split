@@ -4,6 +4,10 @@
 //   contracts <- domain <- {seed, db} <- outbox <- {paypal-*, ai} <- {apps/api, apps/tasks}
 // UI code (apps/console, apps/mobile and the UI packages) may import only
 //   contracts, api-client, tokens, motion, seal, i18n, ui-*.
+// packages/api-client is the UI's one gateway to shared logic: it may also import domain (pure: cents
+// formatting, the Proof verifier) and seed (the seeded season), so UI code reaches them only through it.
+// fs-api imports api-client's HTTP command table (`/http`, built from contracts) so server and client cannot
+// drift; its tests and smoke CLI drive it through the typed client (ADR-0009).
 // Cross-package imports go through a package's declared "exports" (no deep imports), and
 // domain stays pure (no node:fs / node:net style IO).
 // Every import must be declared in the importing package's own package.json; the packages AGENTS.md
@@ -39,6 +43,8 @@ const SERVER_ALLOWED = {
 
 const UI_PACKAGES = ["contracts", "api-client", "tokens", "motion", "seal", "i18n", "ui-web", "ui-native"];
 const UI_PACKAGE_DIRS = ["api-client", "tokens", "motion", "seal", "i18n", "ui-web", "ui-native"];
+/** What api-client may import besides the UI packages (ADR-0009). Both are pure: domain-is-pure holds. */
+const API_CLIENT_ALSO = ["domain", "seed"];
 const SERVER_APPS = ["api", "tasks"];
 const UI_APPS = ["console", "mobile"];
 
@@ -234,6 +240,15 @@ function toolsRule(name, comment, to) {
  */
 const NOT_RUNTIME = ["\\.(test|spec|cli)\\.[cm]?[jt]sx?$", "(^|/)(test|tests|__tests__)/"];
 
+/** A server app's tests and its smoke CLI (`pnpm smoke`), which drive fs-api through the typed client. */
+const serverTestCode = (app) => [
+  `^apps/${esc(app)}/.*\\.(test|spec|cli)\\.[cm]?[jt]sx?$`,
+  `^apps/${esc(app)}/(test|tests|__tests__)/`,
+  `^apps/${esc(app)}/.*/(test|tests|__tests__)/`,
+  `^apps/${esc(app)}/src/smoke/`,
+];
+const SERVER_PACKAGES = Object.keys(SERVER_ALLOWED).filter((p) => p !== "test-kit" && p !== "eval");
+
 const layerRules = Object.entries(SERVER_ALLOWED).map(([pkg, allowed]) => ({
   name: `layer-${pkg}`,
   comment: `packages/${pkg} may import only: ${allowed.join(", ") || "(no workspace packages)"} (register section 6)`,
@@ -265,26 +280,50 @@ module.exports = {
     {
       name: "layer-server-apps",
       comment:
-        "apps/api and apps/tasks may import server packages and contracts, never UI packages or other apps",
+        "apps/api and apps/tasks may import server packages and contracts, never UI packages or other apps. " +
+        "The one UI file they share is api-client's HTTP command table, built from contracts (ADR-0009)",
       severity: "error",
-      from: { path: `^apps/(${alt(SERVER_APPS)})/` },
+      from: { path: `^apps/(${alt(SERVER_APPS)})/`, pathNot: SERVER_APPS.flatMap(serverTestCode) },
       to: {
         path: "^(packages|apps)/([^/]+)/",
-        pathNot: [
-          `^packages/(${alt(Object.keys(SERVER_ALLOWED).filter((p) => p !== "test-kit" && p !== "eval"))})/`,
-          "^apps/$1/",
-        ],
+        pathNot: [`^packages/(${alt(SERVER_PACKAGES)})/`, "^apps/$1/", "^packages/api-client/src/http\\.ts$"],
       },
     },
+    ...SERVER_APPS.map((app) => ({
+      name: "layer-server-apps-tests",
+      comment:
+        `apps/${app}'s tests and smoke CLI may also use the typed client (@fairsplit/api-client) to drive the ` +
+        "server the way the UI does; nothing else beyond the server packages (ADR-0009)",
+      severity: "error",
+      from: { path: serverTestCode(app) },
+      to: {
+        path: "^(packages|apps)/([^/]+)/",
+        pathNot: [`^packages/(${alt([...SERVER_PACKAGES, "api-client"])})/`, `^apps/${esc(app)}/`],
+      },
+    })),
     {
       name: "layer-ui",
       comment:
         "UI code imports only contracts, api-client, tokens, motion, seal, i18n and ui-* (register section 6)",
       severity: "error",
-      from: { path: `^(apps/(${alt(UI_APPS)})|packages/(${alt(UI_PACKAGE_DIRS)}))/` },
+      from: {
+        path: `^(apps/(${alt(UI_APPS)})|packages/(${alt(UI_PACKAGE_DIRS.filter((d) => d !== "api-client"))}))/`,
+      },
       to: {
         path: "^(packages|apps)/([^/]+)/",
         pathNot: [`^packages/(${alt(UI_PACKAGES)})/`, "^$1/"],
+      },
+    },
+    {
+      name: "layer-api-client",
+      comment:
+        "packages/api-client may import the UI packages plus domain and seed: it is the UI's one gateway to " +
+        "cents formatting, the Proof verifier and the seeded season (ADR-0009)",
+      severity: "error",
+      from: { path: "^packages/api-client/" },
+      to: {
+        path: "^(packages|apps)/([^/]+)/",
+        pathNot: [`^packages/(${alt([...UI_PACKAGES, ...API_CLIENT_ALSO])})/`],
       },
     },
     {
