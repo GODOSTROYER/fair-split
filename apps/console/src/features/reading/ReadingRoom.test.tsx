@@ -253,6 +253,8 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     const replay = screen.getByTestId("W-TR-03.replay");
     expect(replay.dataset.state).toBe("idle");
     expect(replay.textContent).toMatch(/Mock data: the mock API sends no rows/);
+    // A stand-in built from the seed, never "the recording": no model read it, so it shows no scores.
+    expect(replay.textContent).toMatch(/stand-in for the \d+ \w{3} recording, built from the seed/);
     clearMomentTrace();
     await act(async () => {
       fireEvent.click(screen.getByTestId("W-TR-03.replay.toggle"));
@@ -270,8 +272,9 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
       "landed",
     ]);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).not.toBe("waiting");
+    expect(screen.getByTestId("W-TR-03.beds.row.0425").textContent).not.toMatch(/\d+%/);
     expect(screen.getByTestId("W-TR-03.replay").textContent).toMatch(
-      /Replaying the \d+ \w{3} recording here: \d+ of 48 rows\. Mock data\./,
+      /Playing the seed's stand-in here: \d+ of 48 rows\. Mock data\./,
     );
     await expectNoAxeViolations(r.container);
     await act(async () => {

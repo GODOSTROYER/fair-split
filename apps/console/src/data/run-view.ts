@@ -75,7 +75,12 @@ export interface RunField {
   readonly eventId: string;
 }
 
-export type RunRow = RunEventOf<"extract.row">["payload"] & { readonly eventId: string; readonly at: string };
+export type RunRow = RunEventOf<"extract.row">["payload"] & {
+  readonly eventId: string;
+  readonly at: string;
+  /** `seeded` for a stand-in built from the seed (its scores are placeholders, never shown as a reading's). */
+  readonly provenance: Provenance;
+};
 
 export interface RunQuarantine {
   readonly docId: string;
@@ -418,7 +423,7 @@ function applyEvent(view: RunView, e: RunEvent): RunView {
       return { ...view, fields: { ...view.fields, [p.fieldId]: field } };
     }
     case "extract.row": {
-      const row: RunRow = { ...e.payload, eventId: e.id, at: e.at };
+      const row: RunRow = { ...e.payload, eventId: e.id, at: e.at, provenance: e.provenance };
       const rows = view.rows.filter((r) => !(r.docId === row.docId && r.row === row.row));
       return { ...view, rows: [...rows, row] };
     }

@@ -80,10 +80,10 @@ export const READING_COPY = {
   replay: "Replay the recorded reading",
   replayAgain: "Replay it again",
   replayStop: "Stop the replay",
+  // The mock's stand-in is built from the seed's own text: not the recording, and it shows no scores.
   replayNote: (date: string) =>
-    `Mock data: the mock API sends no rows, so this page replays the ${date} recording itself.`,
-  replayRunning: (done: number, total: number, date: string) =>
-    `Replaying the ${date} recording here: ${done} of ${total} rows. Mock data.`,
-  replayDone: (total: number, date: string) =>
-    `Replayed all ${total} rows of the ${date} recording. Mock data.`,
+    `Mock data: the mock API sends no rows, so this page plays a stand-in for the ${date} recording, built from the seed. It shows no agreement scores: none were read.`,
+  replayRunning: (done: number, total: number, _date: string) =>
+    `Playing the seed's stand-in here: ${done} of ${total} rows. Mock data.`,
+  replayDone: (total: number, _date: string) => `Played all ${total} rows of the seed's stand-in. Mock data.`,
 } as const;

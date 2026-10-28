@@ -92,22 +92,37 @@ export interface EventStamp {
   readonly runId: string | null;
 }
 
-/** One `extract.row` RunEvent, attributed to the agent (Claude) and labelled as a replay of the recording. */
-export function extractRowEvent(row: ReplayRow, stamp: EventStamp): RunEvent {
+/**
+ * One `extract.row` RunEvent. As a stand-in for the recording (`seeded`, the page's mock-only replay) it is the
+ * seed's own text with placeholder agreement scores, attributed to the seed, never to Claude: no model read it,
+ * and the page shows none of its scores. Tests that model a recorded reading pass `replay`.
+ */
+export function extractRowEvent(
+  row: ReplayRow,
+  stamp: EventStamp,
+  provenance: "replay" | "seeded" = "replay",
+): RunEvent {
   return {
     id: stamp.id,
     ws: stamp.ws,
     runId: stamp.runId,
     at: stamp.at,
-    actor: { kind: "agent", id: "claude-opus-5-5", impersonatedBy: null },
-    provenance: "replay",
+    actor:
+      provenance === "seeded"
+        ? { kind: "system", id: "seed", impersonatedBy: null }
+        : { kind: "agent", id: "claude-opus-5-5", impersonatedBy: null },
+    provenance,
     type: "extract.row",
     payload: row.payload,
   } as RunEvent;
 }
 
 /** Slip 0449's margin note, quarantined: never a prompt, shown as a notice (register §2). */
-export function quarantineEvent(snapshot: SeasonSnapshot, stamp: EventStamp): RunEvent | null {
+export function quarantineEvent(
+  snapshot: SeasonSnapshot,
+  stamp: EventStamp,
+  provenance: "replay" | "seeded" = "replay",
+): RunEvent | null {
   const notice = snapshot.quarantineNotices[0];
   if (!notice) return null;
   const photo = snapshot.photos.find((p) => p.photoId === notice.photoId);
@@ -118,8 +133,11 @@ export function quarantineEvent(snapshot: SeasonSnapshot, stamp: EventStamp): Ru
     ws: stamp.ws,
     runId: stamp.runId,
     at: stamp.at,
-    actor: { kind: "agent", id: "claude-opus-5-5", impersonatedBy: null },
-    provenance: "replay",
+    actor:
+      provenance === "seeded"
+        ? { kind: "system", id: "seed", impersonatedBy: null }
+        : { kind: "agent", id: "claude-opus-5-5", impersonatedBy: null },
+    provenance,
     type: "extract.quarantined",
     payload: { docId: photo.documentId, row: POSITIONS.indexOf(slip.position), box: null, source: "screen" },
   } as RunEvent;

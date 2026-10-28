@@ -370,7 +370,7 @@ describe("the room's state and its bench", () => {
 });
 
 describe("the mock-only replay of the recording", () => {
-  it("replays the 48 rows in order, slip 0449's quarantine right after its row, every event a labelled replay", () => {
+  it("plays the 48 rows in order, slip 0449's quarantine right after its row, every event the seed's stand-in", () => {
     const events = recordedEvents(snapshot, "Rtest", () => "2026-10-29T02:00:00.000Z");
     const kinds = events.map((e) => e.type);
     expect(kinds.filter((k) => k === "extract.row")).toHaveLength(48);
@@ -378,9 +378,10 @@ describe("the mock-only replay of the recording", () => {
     const q = kinds.indexOf("extract.quarantined");
     const before = events[q - 1];
     expect(before?.type === "extract.row" && before.payload.serial).toBe("0449");
+    // Built from the seed, not a recording: labelled seeded, attributed to the seed, never to Claude.
     for (const e of events) {
-      expect(e.provenance).toBe("replay");
-      expect(e.actor.kind).toBe("agent");
+      expect(e.provenance).toBe("seeded");
+      expect(e.actor).toMatchObject({ kind: "system", id: "seed" });
     }
     const ids = events.map((e) => e.id);
     expect([...ids].sort()).toEqual(ids);

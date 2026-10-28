@@ -31,9 +31,9 @@ export function recordedEvents(snapshot: SeasonSnapshot, nonce: string, at: () =
     runId: null,
   });
   for (const row of rows) {
-    events.push(extractRowEvent(row, stamp()));
+    events.push(extractRowEvent(row, stamp(), "seeded"));
     if (quarantine && row.serial === quarantine.serial && row.photoId === quarantine.photoId) {
-      const q = quarantineEvent(snapshot, stamp());
+      const q = quarantineEvent(snapshot, stamp(), "seeded");
       if (q) events.push(q);
     }
   }

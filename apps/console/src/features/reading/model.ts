@@ -257,7 +257,8 @@ export function rowsForPhoto({ view, snapshot, photo }: RowsInput): (ReadingRow 
         netKg: entered?.value ?? fieldText(event.fields, "net_kg", slip.boxes["8"]),
         mcPct: fieldText(event.fields, "mc_pct", slip.boxes["9"]),
         grade: fieldText(event.fields, "grade", slip.boxes["12"]),
-        score: scores.length > 0 ? Math.min(...scores) : null,
+        // A stand-in row built from the seed carries placeholder scores: no reading reported them, so none shows.
+        score: event.provenance !== "seeded" && scores.length > 0 ? Math.min(...scores) : null,
         pending: decided ? [] : pending,
         entered,
         zoomAgreed: decided ? null : agreed,
