@@ -83,6 +83,7 @@ export const STAGE_NOTICE = {
   startRetry: "Try again",
   resetFailed: "Reset didn't go through: this session is still running.",
   resetRetry: "Try Reset again",
+  ended: "This session ended in another tab, or it expired. The stage is back at the first press.",
   requestId: (id: string) => `Request ${id}`,
   aiOff: "Live slip reading is off. The recorded run still plays.",
   // S1.6's words for the API's replay reasons `circuit_open` and `balance_low`.

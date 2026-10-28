@@ -4,6 +4,7 @@
 // the session's run starts from its own base, never from a showcase read cached under the same slug.
 
 import { ApiClientError } from "@fairsplit/api-client";
+import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { stageNoticeFor } from "../chrome/StageNotice.js";
 import { recordRequests } from "../test/requests.js";
@@ -175,6 +176,52 @@ describe("judge session", () => {
       session: { sessionId: session.sessionId },
     });
     await runtime.session.reset();
+  });
+
+  it("a renewal that lands in another workspace ends the session: nothing moves the stage to a new run", async () => {
+    // A Reset in another tab ended this session's workspace: fs-api answers the cookie's renewal with a fresh
+    // workspace and run under the same session ID.
+    const world = createTestWorld();
+    let starts = 0;
+    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+      starts += 1;
+      if (starts === 1) return undefined;
+      const answer = await getResponse([...world.mock.handlers], request.clone());
+      if (!answer?.ok) return answer;
+      const body = (await answer.json()) as Record<string, unknown>;
+      return HttpResponse.json(
+        {
+          ...body,
+          workspaceId: "019a0000-0000-7000-8000-00000000beef",
+          runId: "019a0000-0000-7000-8000-00000000cafe",
+          runSlug: "2026A-r38",
+          consoleToken: "fst_another-workspace",
+        },
+        { status: answer.status, headers: answer.headers },
+      );
+    });
+    const log = recordRequests();
+    const { runtime, adapter } = createTestRuntime(world, [log.handler, elsewhere]);
+    const session = await runtime.session.start();
+    let renewed = 0;
+    runtime.session.onRenewed(() => {
+      renewed += 1;
+    });
+    await runtime.session.renew();
+    expect(starts).toBe(2);
+    const state = runtime.session.getState();
+    expect(state.status).toBe("ended");
+    expect(state.session).toBeNull();
+    expect(renewed).toBe(0);
+    // The new workspace's token is never adopted: the console holds no credential for it.
+    await adapter.call("proof", { params: { runSlug: session.runSlug } }).catch(() => undefined);
+    expect(log.sent.at(-1)).toMatchObject({ path: `/v1/proof/${session.runSlug}`, authorization: null });
+    // The stage says the session ended, and the next press starts again from the first view.
+    const notice = stageNoticeFor({ session: state, view: undefined, autoplay: "off", inSession: false });
+    expect(notice).toMatchObject({ state: "session-ended", retry: false });
+    expect(notice?.text).toMatch(/ended/);
+    runtime.session.dismissError();
+    expect(runtime.session.getState().status).toBe("none");
   });
 
   it("a failed start can be dismissed and tried again", async () => {

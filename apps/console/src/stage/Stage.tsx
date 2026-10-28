@@ -65,6 +65,7 @@ function skipToScreen(event: MouseEvent): void {
 export type StageState =
   | "phone-visit"
   | "resetting"
+  | "session-ended"
   | "reset-failed"
   | "start-failed"
   | "autoplay"

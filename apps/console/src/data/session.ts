@@ -17,7 +17,8 @@ export interface JudgeSession {
   readonly queuePosition: number | null;
 }
 
-export type SessionStatus = "none" | "starting" | "active" | "resetting" | "failed";
+/** `ended`: the server ended the session meanwhile (a Reset in another tab, or the workspace expired). */
+export type SessionStatus = "none" | "starting" | "active" | "resetting" | "failed" | "ended";
 
 export interface SessionState {
   readonly status: SessionStatus;
@@ -90,7 +91,9 @@ export class SessionStore {
 
   /**
    * Renews the console token: createJudgeSession with the judge cookie alone resumes the session with a fresh
-   * token. A failure leaves the session as it is (the next lapse or refusal tries again).
+   * token. A failure leaves the session as it is (the next lapse or refusal tries again). An answer for another
+   * workspace or run means the cookie's workspace had ended (a Reset in another tab clears the claim, or it
+   * expired) and fs-api started a new one: that is not this session, so nothing adopts it, and the session ends.
    */
   renew(): Promise<void> {
     if (this.renewing) return this.renewing;
@@ -100,6 +103,10 @@ export class SessionStore {
       .call("createJudgeSession", { body: {}, token: null })
       .then((resumed) => {
         if (this.state.session?.sessionId !== session.sessionId) return;
+        if (!sameSession(session, resumed)) {
+          this.end();
+          return;
+        }
         this.adapter.setToken(resumed.consoleToken);
         const next: JudgeSession = { ...sessionOf(resumed) };
         this.set({ ...this.state, session: next });
@@ -206,9 +213,16 @@ export class SessionStore {
     this.set(NONE);
   }
 
-  /** Clears a failed start so the press can be tried again, or a failed Reset's notice. */
+  /** The server ended the session: no credential, no renewal, and the first view returns with a notice. */
+  private end(): void {
+    this.cancelRenewal();
+    this.adapter.setToken(null);
+    this.set({ status: "ended", session: null, error: null });
+  }
+
+  /** Clears a failed start so the press can be tried again, a failed Reset's notice, or an ended session's. */
   dismissError(): void {
-    if (this.state.status === "failed") this.set(NONE);
+    if (this.state.status === "failed" || this.state.status === "ended") this.set(NONE);
     else if (this.state.error) this.set({ ...this.state, error: null });
   }
 }
@@ -229,6 +243,18 @@ function sessionOf(created: {
     expiresAt: created.expiresAt,
     queuePosition: created.queuePosition,
   };
+}
+
+/** The same session, workspace and run: a renewal that answers anything else is a new workspace, not this one. */
+function sameSession(
+  session: JudgeSession,
+  resumed: { readonly sessionId: string; readonly workspaceId: string; readonly runId: string },
+): boolean {
+  return (
+    resumed.sessionId === session.sessionId &&
+    resumed.workspaceId === session.workspaceId &&
+    resumed.runId === session.runId
+  );
 }
 
 /** A Reset answered 401 or 410: the session had already ended on the server. */

@@ -1,5 +1,5 @@
 // The stage's own states (S1.6: queued, resetting, start-failed, autoplay, paused, circuit, balance-low, ai-off,
-// paypal-off; and reset-failed) as one
+// paypal-off; and reset-failed and session-ended) as one
 // strip under the top bar. Only one shows at a time, the most pressing first. Nothing here is an error
 // colour: the stage pacing itself, a reset or a paused switch is information, not failure.
 
@@ -14,6 +14,7 @@ import { STAGE_NOTICE } from "./copy.js";
 
 export type NoticeState =
   | "resetting"
+  | "session-ended"
   | "reset-failed"
   | "start-failed"
   | "autoplay"
@@ -58,6 +59,16 @@ export function stageNoticeFor({
       state: "resetting",
       glyph: "ms:restart-alt",
       text: STAGE_NOTICE.resetting,
+      refs: none,
+      retry: false,
+    };
+  }
+  if (session.status === "ended") {
+    // The server ended the session meanwhile: the stage is back at the first press, and says why.
+    return {
+      state: "session-ended",
+      glyph: "ms:restart-alt",
+      text: STAGE_NOTICE.ended,
       refs: none,
       retry: false,
     };
