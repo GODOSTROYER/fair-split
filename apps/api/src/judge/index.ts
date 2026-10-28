@@ -63,6 +63,8 @@ export {
   type LivePostOutcome,
   type LivePostReservation,
   type LivePostSettlement,
+  type PostAnswered,
+  postAnswered,
   postSettled,
   type QuotaFacts,
   quotaFacts,

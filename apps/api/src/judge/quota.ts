@@ -831,8 +831,10 @@ async function writeSettlement(
  * a first write: the balance less its batch stays at or above the floor, and C-21's 40 live batches a day, counted
  * under the spend lock (taken after the quota lock: the header's lock order) together with the slot's insert. A
  * fresh post that will not go live frees a slot an earlier attempt of it took and never used (nothing written).
- * A fresh slot that supersedes a slot a session without the judge code took is uncoded too (the run stays in the
- * public third), and is checked against the public share as such.
+ * A resume re-reads its batch here, holding the lane and the quota lock: one PayPal answered meanwhile (another
+ * executor posted it while this one waited for the lane) takes no slot (`answered`), as `railForStep` would have
+ * decided had it read the batch then. A fresh slot that supersedes a slot a session without the judge code took is
+ * uncoded too (the run stays in the public third), and is checked against the public share as such.
  * A live decision always carries its reservation. Call it while holding the live lane (`beginLiveStep`
  * does both); settle it afterwards.
  */
@@ -846,7 +848,12 @@ export async function reserveLivePost(
     /** The run's primary batch is already written live: the post resumes it (never a first write). */
     resume?: boolean;
   },
-): Promise<{ decision: RailDecision; reservation: LivePostReservation | null }> {
+): Promise<{
+  decision: RailDecision;
+  reservation: LivePostReservation | null;
+  /** A resume only: PayPal already answered the batch (or holds it as ADOPT_FAILED); no slot was taken. */
+  answered?: PostAnswered;
+}> {
   if (!Number.isSafeInteger(o.amountCents) || o.amountCents < 0) {
     throw new RangeError("reserveLivePost: amountCents is the batch total in whole cents");
   }
@@ -866,6 +873,11 @@ export async function reserveLivePost(
     // a run a public session posted stays public: the slot that supersedes an uncoded one is uncoded too
     const coded = facts.coded && open.every((r) => r.coded);
     const decision = decideRail({ ...facts, coded }, now, "post", rail);
+    if (o.resume) {
+      // D5 under the lane: the batch read before the lane was taken may have been answered since
+      const answered = await postAnswered(tx, o.runId);
+      if (answered) return { decision, reservation: null, answered };
+    }
     const held = await heldReservation(tx, o.runId, now);
     if (held) {
       if (decision.mode === "live" || isQuotaReplay(decision)) {
@@ -966,12 +978,33 @@ export async function postSettled(db: DbOrTx, runId: string): Promise<boolean> {
  * The run's primary batch as written on a live rail (rows SUBMITTED or further; a replayed batch reached no one),
  * or null while nothing is written.
  */
-async function writtenLiveBatch(db: DbOrTx, runId: string): Promise<{ status: string } | null> {
+async function writtenLiveBatch(
+  db: DbOrTx,
+  runId: string,
+): Promise<{ status: string; paypalBatchId: string | null } | null> {
   const rows = (await db.execute(sql`
-    select pb.status from payout_batches pb
+    select pb.status, pb.paypal_batch_id from payout_batches pb
      where pb.run_id = ${runId} and pb.kind = 'primary' and pb.provenance <> 'replay'
-     limit 1`)) as unknown as { status: string }[];
-  return rows[0] ?? null;
+     limit 1`)) as unknown as { status: string; paypal_batch_id: string | null }[];
+  const row = rows[0];
+  return row ? { status: row.status, paypalBatchId: row.paypal_batch_id } : null;
+}
+
+/**
+ * Why a written judge post is not posted again: `answered`, PayPal named its batch (POSTED or further) or denied it;
+ * `adopt_failed`, PayPal holds a batch under its ids that is not ours (its slot settled `posted`): it needs a person.
+ */
+export type PostAnswered = "answered" | "adopt_failed";
+
+/**
+ * Whether the run's live primary batch was answered by PayPal (`PostAnswered`), or still waits for its POST (null, as
+ * while nothing is written). money/rail.ts asks it before the lane; `reserveLivePost` again once the lane is held.
+ */
+export async function postAnswered(db: DbOrTx, runId: string): Promise<PostAnswered | null> {
+  const written = await writtenLiveBatch(db, runId);
+  if (!written) return null;
+  if (written.paypalBatchId !== null || written.status !== "SUBMITTED") return "answered";
+  return (await postSettled(db, runId)) ? "adopt_failed" : null;
 }
 
 /**

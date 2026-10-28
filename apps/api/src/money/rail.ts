@@ -4,11 +4,13 @@
 //
 //   outside judge workspaces     live: the configured rail, no lane, no quota (the run slice's own guards stand)
 //   a post whose batch PayPal    done: nothing is sent and no slot is taken (posted, or denied: the task completes;
-//   already answered             ADOPT_FAILED, rows PayPal holds under our ids but not as ours, needs a person)
+//   already answered             ADOPT_FAILED, rows PayPal holds under our ids but not as ours, needs a person); a
+//                                turn this process's lane kept for an earlier attempt of the post is freed
 //   a post whose batch is        live with its ids or a wait, never a replay (rows PayPal may hold), and never live
 //   written live, unanswered     without a slot dated within a lane lease of its POST: the run's held reservation
 //                                (a quick retry), else a fresh one dated now that the quotas allow (`beginLiveStep`
-//                                resume); otherwise the task waits and re-queues itself
+//                                resume, which re-reads the batch once it holds the lane: done if PayPal answered it
+//                                meanwhile); otherwise the task waits and re-queues itself
 //   a run that already replays   replay, to the end (a run is live until one of its PayPal steps replays: its
 //                                session started as a replay, or its invoice or batch was replayed)
 //   otherwise                    judge/live-step.ts `beginLiveStep`: a fresh peek (kill_paypal_live, the simulator
@@ -53,6 +55,7 @@ import {
   judgeRuntime,
   type LivePostOutcome,
   NO_JUDGE_QUOTA,
+  type PostAnswered,
   postSettled,
   type RailDecision,
   REPLAY_COPY,
@@ -92,7 +95,7 @@ export type StepRail =
  */
 export interface DoneRail {
   kind: "done";
-  reason: "answered" | "adopt_failed";
+  reason: PostAnswered;
   payoutBatchId: string | null;
 }
 
@@ -391,13 +394,17 @@ export async function railForStep(deps: AppDeps, o: StepInput): Promise<StepRail
   if (written) {
     // Only a batch still waiting for PayPal's answer is posted again (SUBMITTED, no PayPal id): one PayPal named or
     // denied completes the task, and one PayPal holds under our ids but not as ours (ADOPT_FAILED: its slot settled
-    // `posted`) needs a person. Neither takes a slot, so neither weighs on anyone's quota again.
+    // `posted`) needs a person. Neither takes a slot, so neither weighs on anyone's quota again. Either frees the turn
+    // this process's lane kept for an earlier attempt of the post (queued while another process held the lane), so it
+    // never holds up the next judge's step for the rest of its lease.
+    const done = (reason: PostAnswered, payoutBatchId: string | null): DoneRail => {
+      judgeRuntime(deps).lane.release({ workspaceId: o.workspaceId, step: "post" });
+      return { kind: "done", reason, payoutBatchId };
+    };
     if (written.paypalBatchId !== null || written.status !== "SUBMITTED") {
-      return { kind: "done", reason: "answered", payoutBatchId: written.paypalBatchId };
+      return done("answered", written.paypalBatchId);
     }
-    if (await postSettled(deps.db, o.runId)) {
-      return { kind: "done", reason: "adopt_failed", payoutBatchId: null };
-    }
+    if (await postSettled(deps.db, o.runId)) return done("adopt_failed", null);
     // A batch written live is resumed live with its ids, never replayed (that would mark rows PayPal may hold
     // as posted under a replay id), and never live without a slot dated within a lane lease of its POST:
     // `beginLiveStep` (resume) takes the single-flight lane and posts under the slot the run holds while it still
@@ -429,6 +436,11 @@ export async function railForStep(deps: AppDeps, o: StepInput): Promise<StepRail
         waitingFor: reason,
       };
     }
+    if (step.kind === "done") {
+      // PayPal answered the batch while the post waited for the lane (beginLiveStep freed it): no slot was taken
+      const now = await liveBatchWritten(deps.db, o.workspaceId, o.runId);
+      return { kind: "done", reason: step.reason, payoutBatchId: now?.paypalBatchId ?? null };
+    }
     return { kind: "live", deps, end: (outcome) => step.end(outcome ?? null) };
   }
   // I8, check then act: rows another executor of this run wrote live since the read above are never replayed
@@ -453,6 +465,7 @@ export async function railForStep(deps: AppDeps, o: StepInput): Promise<StepRail
     return { kind: "queued", retryAfterMs: Math.max(1_000, step.retryAfterMs), position: step.position };
   }
   if (step.kind === "replay") return replay(step.decision);
+  if (step.kind === "done") throw new Error("railForStep: only a resumed post is done");
   return { kind: "live", deps, end: (outcome) => step.end(outcome ?? null) };
 }
 
@@ -478,6 +491,7 @@ export async function railForItem(
     return { kind: "queued", retryAfterMs: Math.max(1_000, step.retryAfterMs), position: step.position };
   }
   if (step.kind === "replay") return { kind: "refused", decision: step.decision };
+  if (step.kind === "done") throw new Error("railForItem: only a resumed post is done");
   return { kind: "live", deps, end: (outcome) => step.end(outcome ?? null) };
 }
 

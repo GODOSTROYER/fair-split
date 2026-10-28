@@ -10,7 +10,9 @@
 //   - a held slot carries a quick retry (within the threshold) unchanged, and a POST that lands after a balance
 //     reading is subtracted from it although its rows were written before it;
 //   - a resumed post's peek leaves its own run out (no false wait);
-//   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again;
+//   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again,
+//     also when PayPal named it while the resume waited for the lane (re-read under the lane), and the post's turn in
+//     this process's lane is freed either way;
 //   - I8 both ways: the replay rail never marks rows written live as posted, and a live executor never POSTs rows
 //     written as a replay (refused at its read, before any POST); a post's replay label and a live write of its rows
 //     exclude each other (one workspace lock), so a run is never labelled replayed beside a live post;
@@ -24,9 +26,12 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  beginLiveStep,
   estimateBalance,
   JUDGE_QUOTA,
   judgeRail,
+  judgeRuntime,
+  LANE_LOCK,
   NO_JUDGE_QUOTA,
   recordBalanceReading,
   replayDecision,
@@ -816,5 +821,78 @@ describe("a fresh post that replays after all frees the slot an earlier attempt 
     ]);
     expect((await peek(h)).quota.used24h).toBe(40);
     expect((await estimateBalance(h.t.deps.db, "sandbox", h.t.clock.now())).spentCents).toBe(0);
+  });
+});
+
+describe("a post PayPal answered while it waited for the lane frees its turn in this process's lane", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+  });
+  afterAll(async () => h?.close());
+
+  it("queued (another process holds the lane), posted elsewhere, then done: the next judge step is granted at once", async () => {
+    const owner = h.t.pg?.owner.sql;
+    if (!owner) throw new Error("db");
+    // another fs-api process holds the live lane
+    const elsewhere = await owner.reserve();
+    try {
+      await elsewhere`select pg_advisory_lock(hashtextextended(${LANE_LOCK}, 0))`;
+      expect(await railForStep(h.t.deps, postStep(h))).toMatchObject({ kind: "queued", position: null });
+      await elsewhere`select pg_advisory_unlock(hashtextextended(${LANE_LOCK}, 0))`;
+    } finally {
+      elsewhere.release();
+    }
+    // that process's executor of the run posts the batch
+    const service = await payoutsServiceFor(h.t.deps, systemScope(h.world.workspaceId, ACTORS.outbox));
+    expect(await service.executeApproved(h.world.runId)).toMatchObject({ kind: "created" });
+    expect(sent).toHaveLength(1);
+    expect(await railForStep(h.t.deps, postStep(h))).toMatchObject({ kind: "done", reason: "answered" });
+    // the lane is free here: another judge's step goes live at once (no 90 s lease left behind)
+    const other = await h.t.fixture({ kind: "judge" });
+    const step = await beginLiveStep(h.t.deps, {
+      workspaceId: other.workspaceId,
+      sessionId: null,
+      step: "invoice",
+    });
+    expect(step.kind).toBe("live");
+    if (step.kind === "live") await step.end();
+  });
+});
+
+describe("D5 under the lane: a resume re-reads its batch once it holds the lane", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    await runQueued(h, "postPayoutBatch");
+    expect(await runState(h)).toBe("POSTED");
+  });
+  afterAll(async () => h?.close());
+
+  it("a resume whose earlier read missed PayPal's answer takes no fresh slot: done, and the lane is free again", async () => {
+    h.t.clock.advance(5 * MIN); // the posted slot no longer carries a POST
+    const step = await beginLiveStep(h.t.deps, {
+      workspaceId: h.world.workspaceId,
+      step: "post",
+      runId: h.world.runId,
+      resume: true,
+      amountCents: Number((await batchOf(h))?.totalCents),
+    });
+    if (step.kind === "live") await step.end(null);
+    expect(step).toMatchObject({ kind: "done", reason: "answered" });
+    expect(sent).toHaveLength(1);
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post_settled", "posted"],
+    ]);
+    expect(judgeRuntime(h.t.deps).lane.view().holder).toBeNull();
   });
 });

@@ -26,6 +26,8 @@
 // under a FRESH slot dated now that every quota still allows with its own run left out (same ids; the floor after its
 // batch and C-21's 40 a day too; the older slot superseded), and otherwise it WAITS (`queued`, `waitingFor` the
 // reason, re-queued by the caller): a switch (kill_payouts too), the simulator, the circuit, a full lane or a quota.
+// Holding the lane, it re-reads its batch first: one PayPal answered while it waited (another executor posted it)
+// is `done`, with no slot taken (D5's check, then act, under the lane).
 // A post's peek leaves its own run out, as the binding decision does: a slot an earlier attempt of it took (and left
 // open, nothing written) is its own place, never a reason to replay it.
 // Outside judge workspaces (showcase, real) nothing here applies: the step is live, with no lane and no
@@ -43,6 +45,7 @@ import {
   type LivePostOutcome,
   type LivePostReservation,
   liveDecision,
+  type PostAnswered,
   type QuotaNumbers,
   type RailDecision,
   type ReplayReason,
@@ -129,6 +132,8 @@ export type LiveStep =
       waitingFor?: ReplayReason;
     }
   | { kind: "replay"; decision: RailDecision }
+  /** A resumed post only: PayPal answered its batch while it waited for the lane; nothing to send, no slot taken. */
+  | { kind: "done"; reason: PostAnswered }
   | {
       kind: "live";
       decision: RailDecision;
@@ -278,6 +283,7 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   // 3. the binding decision, holding the lane
   let decision: RailDecision;
   let reservation: LivePostReservation | null = null;
+  let answered: PostAnswered | null = null;
   try {
     if (o.step === "post") {
       const runId = o.runId as string;
@@ -292,12 +298,18 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
       // dated now that the quotas allowed: for a resume, the floor after its batch and C-21's 40 a day too)
       decision = r.decision;
       reservation = r.reservation;
+      answered = r.answered ?? null;
     } else {
       decision = await judgeRail(deps, { workspaceId: o.workspaceId, sessionId, step: o.step });
     }
   } catch (err) {
     await free();
     throw err;
+  }
+  if (answered) {
+    // a resume whose batch PayPal answered while it waited for the lane: nothing to send, no slot taken
+    await free();
+    return { kind: "done", reason: answered };
   }
   if (decision.mode === "replay") {
     await free();
