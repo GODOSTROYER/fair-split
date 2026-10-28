@@ -5,10 +5,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { renderConsole } from "../test/render.js";
 import { resizeTo } from "../test/viewport.js";
+import { createTestWorld } from "../test/world.js";
 import { frameCaption } from "./PhoneDock.js";
 
 // These render the whole console over the mock world; on a busy machine that is slow, so they wait longer than
@@ -137,6 +139,48 @@ describe("Judge stage", () => {
     expect(view.world.events()).toEqual([]);
     expect(runSlug).toBe(view.world.runSlug);
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
+  });
+
+  it("a renewal that lands in another workspace ends the session and takes the stage back to /judge", async () => {
+    // A Reset in another tab ended this session's workspace: fs-api answers the cookie's renewal with a fresh
+    // workspace and run under the same session ID.
+    const world = createTestWorld();
+    let starts = 0;
+    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+      starts += 1;
+      if (starts === 1) return undefined;
+      const answer = await getResponse([...world.mock.handlers], request.clone());
+      if (!answer?.ok) return answer;
+      const body = (await answer.json()) as Record<string, unknown>;
+      return HttpResponse.json(
+        {
+          ...body,
+          workspaceId: "019a0000-0000-7000-8000-00000000beef",
+          runId: "019a0000-0000-7000-8000-00000000cafe",
+          runSlug: "2026A-r38",
+          consoleToken: "fst_another-workspace",
+        },
+        { status: answer.status, headers: answer.headers },
+      );
+    });
+    const view = await renderConsole({ path: "/judge", world, handlers: [elsewhere] });
+    await press("W-JG-01.markPaid");
+    const stage = screen.getByTestId("W-JG-01.stage");
+    await waitFor(() => expect(stage.dataset.state).toBe("session"));
+    const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
+    await view.navigate(`/runs/${runSlug}/split`);
+    expect(view.router.state.location.pathname).toBe(`/runs/${runSlug}/split`);
+
+    await act(async () => {
+      await view.runtime.session.renew();
+    });
+    expect(starts).toBe(2);
+    // The notice says the stage is back at the first press, and it is: /judge, with the first view's next step.
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/judge"));
+    expect(stage.dataset.state).toBe("session-ended");
+    expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid"));
+    expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
   });
 
   it("What's real separates real from simulated PayPal, and holds Try to break it", async () => {
