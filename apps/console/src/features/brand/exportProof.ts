@@ -50,6 +50,10 @@ export const CSV_COLUMNS = [
   "item_event_id",
   "receiver",
   "plots",
+  /** Where every PayPal value in the row ran: "simulated" (the simulator) or "sandbox" (I8, ADR-0002). */
+  "paypal_rail",
+  /** The bundle's provenance, in words (seeded sample, replay, …). */
+  "provenance",
 ] as const;
 
 export interface ExportMember {
@@ -81,7 +85,11 @@ function itemFor(bundle: ProofBundle, memberNo: string) {
 }
 
 /** Every member's line, one row each, with its hash, its slips and the PayPal item it was paid by. */
-export function proofCsv(bundle: ProofBundle, members: ReadonlyMap<string, ExportMember>): string {
+export function proofCsv(
+  bundle: ProofBundle,
+  members: ReadonlyMap<string, ExportMember>,
+  meta: Pick<ExportMeta, "rail" | "provenance">,
+): string {
   const rows: string[] = [CSV_COLUMNS.join(",")];
   for (const line of bundle.lines) {
     const k = line.canonical;
@@ -107,6 +115,8 @@ export function proofCsv(bundle: ProofBundle, members: ReadonlyMap<string, Expor
       item?.eventId ?? null,
       item?.receiver ?? null,
       plots,
+      meta.rail,
+      meta.provenance,
     ];
     rows.push(cells.map(csvCell).join(","));
   }

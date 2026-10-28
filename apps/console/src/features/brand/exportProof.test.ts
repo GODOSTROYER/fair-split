@@ -50,7 +50,7 @@ describe("CSV cells", () => {
 });
 
 describe("the proof CSV", () => {
-  const csv = proofCsv(snapshot.proof, members);
+  const csv = proofCsv(snapshot.proof, members, { rail: "simulated", provenance: "Seeded sample" });
   const rows = csv.trimEnd().split("\r\n");
 
   it("has a header and one row per line", () => {
@@ -70,6 +70,17 @@ describe("the proof CSV", () => {
     expect(row).toContain("SUCCESS");
     // The complete receiver is in the export only (C-23).
     expect(row).toContain("m014@members.fairsplit.example");
+  });
+
+  it("inv.i8: every row carries the PayPal rail it ran on and its provenance, so SUCCESS never reads as real", () => {
+    expect(CSV_COLUMNS).toEqual(expect.arrayContaining(["paypal_rail", "provenance"]));
+    const rail = CSV_COLUMNS.indexOf("paypal_rail");
+    const provenance = CSV_COLUMNS.indexOf("provenance");
+    for (const row of rows.slice(1)) {
+      const cells = row.split(",");
+      expect(cells[rail]).toBe("simulated");
+      expect(cells[provenance]).toBe("Seeded sample");
+    }
   });
 
   it("sums back to the season's net to the cent", () => {

@@ -75,16 +75,14 @@ export function BrandHeader({
     if (!bundle) return;
     const members = membersOf(snapshot);
     const name = exportFileName(bundle.runSlug, ext);
+    // Both files carry the rail every PayPal value ran on, and the bundle's provenance (I8).
+    const meta = { rail: rail === "sandbox" ? ("sandbox" as const) : ("simulated" as const), provenance };
     const ok =
       ext === "csv"
-        ? downloadText(name, proofCsv(bundle, members), "text/csv;charset=utf-8")
+        ? downloadText(name, proofCsv(bundle, members, meta), "text/csv;charset=utf-8")
         : downloadText(
             name,
-            proofJson(bundle, members, {
-              generatedAt: new Date().toISOString(),
-              rail: rail === "sandbox" ? "sandbox" : "simulated",
-              provenance,
-            }),
+            proofJson(bundle, members, { generatedAt: new Date().toISOString(), ...meta }),
             "application/json",
           );
     setSaved(ok ? BRAND_COPY.exported(name) : BRAND_COPY.noDownload);
