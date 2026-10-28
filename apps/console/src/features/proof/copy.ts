@@ -133,6 +133,9 @@ export const FAILURE_PLACE: Readonly<Record<"chain" | "checkpoint", string>> = {
 };
 
 export const STATE_COPY = {
+  /** Where the progress line's counts come from (S1.11: never "live" for sandbox or simulated PayPal activity). */
+  sourceSession: "From this run's own notice stream.",
+  sourcePublic: "From the public notice stream.",
   none: "No pay run yet for this season.",
   notPosted: "This run's Proof is published once both keys are signed and the batch is posted to PayPal.",
   noneHint: "A Proof appears for a run once its payout batch is posted.",

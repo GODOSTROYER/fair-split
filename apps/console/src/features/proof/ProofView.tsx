@@ -159,7 +159,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
                 : STATE_COPY.liveProgress(page.progress, rail)}
             </span>
             <span className="pf-progress__source">
-              {page.live ? "From this run's live notices." : "From the public notice stream."}
+              {page.live ? STATE_COPY.sourceSession : STATE_COPY.sourcePublic}
             </span>
           </p>
         }

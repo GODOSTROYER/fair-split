@@ -82,7 +82,7 @@ export const OPS_COPY = {
   balance: "Balance",
   balanceNote: "Estimated against observed. PayPal has no balance API, so the estimate is labelled as one.",
   notices: "PayPal's notices",
-  noticesSession: "This judge session's run, as its live stream delivers them.",
+  noticesSession: "This judge session's run, as its own stream delivers them.",
   noticesSeason: (run: string) => `The season's run ${run}, from its hash chain.`,
   noticesEmpty: "No PayPal notices yet. They arrive once the batch is posted.",
   outbox: "Outbox",
