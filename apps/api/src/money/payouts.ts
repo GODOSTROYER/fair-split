@@ -902,17 +902,23 @@ function spendLock(sql: AppDeps["sql"]) {
   return {
     async acquire(): Promise<void> {
       if (held) return;
-      const reserved = await sql.reserve();
       const deadline = Date.now() + SPEND_LOCK_WAIT_MS;
       for (;;) {
-        const [row] = await reserved<{ locked: boolean }[]>`
-          select pg_try_advisory_lock(hashtextextended(${SPEND_LOCK}, 0)) as locked`;
-        if (row?.locked) {
+        // a connection is reserved only for the try and kept only by the winner: waiters hold none of the pool
+        const reserved = await sql.reserve();
+        let locked = false;
+        try {
+          const [row] = await reserved<{ locked: boolean }[]>`
+            select pg_try_advisory_lock(hashtextextended(${SPEND_LOCK}, 0)) as locked`;
+          locked = row?.locked === true;
+        } finally {
+          if (!locked) reserved.release();
+        }
+        if (locked) {
           held = reserved;
           return;
         }
         if (Date.now() > deadline) {
-          reserved.release();
           throw new PayPalStepError("QUEUED", "Another post is checking the daily cap; this one waits.", {
             transient: true,
             retryAfterMs: 5_000,
