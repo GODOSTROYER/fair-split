@@ -2,6 +2,8 @@
 // session and the run's SSE stream drives every state after it (motion is evidence: nothing moves on a timer);
 // the run pill names the next step; What's real, sound, the phone and Reset behave; each S1.6 layout holds.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
@@ -75,6 +77,25 @@ describe("Judge stage", () => {
     });
     await waitFor(() => expect(pill().dataset.actor).toBe("person"));
     expect(square()?.dataset.actor).toBe("person");
+  });
+
+  it("the skip link moves focus to the screen without scrolling the stage, so the top bar stays in view", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    const main = document.getElementById("fsc-main") as HTMLElement;
+    const focus = vi.spyOn(main, "focus");
+    const skip = screen.getByText("Skip to the screen");
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    act(() => {
+      skip.dispatchEvent(event);
+    });
+    // No fragment navigation (it scrolls the overflow-hidden stage by the bar's height): focus, without scrolling.
+    expect(event.defaultPrevented).toBe(true);
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(document.activeElement).toBe(main);
+    // And the stage itself cannot be scrolled by script: clip, not hidden (a hidden box is still a scroller).
+    const css = readFileSync(resolve(process.cwd(), "src/theme/stage.css"), "utf8");
+    const stageRule = /\n\.fsc-stage \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(stageRule).toMatch(/overflow:\s*clip;/);
   });
 
   it("Reset ends the session and returns the first view", async () => {

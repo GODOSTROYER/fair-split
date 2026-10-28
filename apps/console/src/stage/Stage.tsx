@@ -43,6 +43,17 @@ import { useStageBridge } from "./useStageBridge.js";
 
 const SEASON_FALLBACK = "2026-A";
 
+/**
+ * The skip link focuses the screen without fragment navigation: following `#fsc-main` scrolls the stage (a box
+ * with overflow) by the bar's height and hides the top bar with its labels, so focus moves with preventScroll.
+ */
+function skipToScreen(event: MouseEvent): void {
+  const main = document.getElementById("fsc-main");
+  if (!main) return;
+  event.preventDefault();
+  main.focus({ preventScroll: true });
+}
+
 /** The stage's `data-state` (S1.6), most specific first. */
 export type StageState =
   | "phone-visit"
@@ -201,6 +212,13 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     [layout, persona, raised, raisedBy, ready, raisePhone, lowerPhone, director, next, autoplay],
   );
 
+  const skipLink = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    const link = skipLink.current;
+    link?.addEventListener("click", skipToScreen);
+    return () => link?.removeEventListener("click", skipToScreen);
+  }, []);
+
   const onReset = async () => {
     setAutoplay("off");
     lowerPhone();
@@ -226,7 +244,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
           data-rail={layout.railCollapsed ? "collapsed" : "full"}
           data-raised={raisedBy ?? undefined}
         >
-          <a className="fsc-skip" href="#fsc-main">
+          <a className="fsc-skip" href="#fsc-main" ref={skipLink}>
             {STAGE.skip}
           </a>
           <StageBar

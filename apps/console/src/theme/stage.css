@@ -14,7 +14,8 @@
   flex-direction: column;
   height: 100dvh;
   min-height: 600px;
-  overflow: hidden;
+  /* clip, not hidden: a hidden box is still a scroller that script and fragment links can scroll. */
+  overflow: clip;
   color: var(--fs-ink);
 }
 
