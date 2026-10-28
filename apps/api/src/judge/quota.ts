@@ -1030,7 +1030,9 @@ export async function settleLivePost(
  * first write. A batch counted within the last lane lease (written, or marked sent) goes out as it is. Otherwise,
  * under the spend lock, it goes out only while the other live batches of the 24 h are fewer than 40, and is marked
  * sent now (a `batch_sent` system row), so C-21 counts it for the 24 h after this POST (`liveBatchesInLast24h`).
- * Takes only the spend lock, never the quota lock (the header's lock order). Opens its own transaction.
+ * Takes only the spend lock, never the quota lock (the header's lock order), and waits for it holding no pooled
+ * connection (the header's pool bound): each try is a short transaction of its own, and after 10 s it answers `busy`
+ * (the send waits as a task, as the service's guard does).
  */
 export async function countResumedSend(
   db: Db,
