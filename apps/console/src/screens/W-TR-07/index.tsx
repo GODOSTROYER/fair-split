@@ -712,17 +712,20 @@ function BlockedList({
     <div className="fsr-approve__blocked" data-testid="W-TR-07.blockedList">
       <p className="fs-t-caption">{APPROVE.blockedWaiting}</p>
       <ul>
-        {reasons.map((r) => (
-          <li key={r.hold.holdId}>
-            <span className="fsr-approve__blocked-mark" aria-hidden />
-            <AppLink href={r.href} className="fs-link fs-t-label">
-              {r.hold.label}
-            </AppLink>
-            <span className="fs-t-caption fsr-muted">
-              {en(`hold.kind.${r.hold.kind as "DUPLICATE_SLIP"}`)}
-            </span>
-          </li>
-        ))}
+        {reasons.map((r) => {
+          const kind = en(`hold.kind.${r.hold.kind as "DUPLICATE_SLIP"}`);
+          // A label that is its kind's own word ("Mass balance") is said once (as the ribbon does).
+          const sameWord = kind.toLowerCase() === r.hold.label.toLowerCase();
+          return (
+            <li key={r.hold.holdId}>
+              <span className="fsr-approve__blocked-mark" aria-hidden />
+              <AppLink href={r.href} className="fs-link fs-t-label">
+                {r.hold.label}
+              </AppLink>
+              {!sameWord && <span className="fs-t-caption fsr-muted">{kind}</span>}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

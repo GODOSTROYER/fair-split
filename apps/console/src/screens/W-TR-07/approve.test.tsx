@@ -120,6 +120,30 @@ describe("W-TR-07 approve", () => {
   );
 
   it(
+    "the blocked list names a hold whose label is its kind's own word once ('Mass balance', not twice)",
+    async () => {
+      const view = await renderConsole({ path: webRoutes.approve(RUN), viewport: { width: 1920 } });
+      await view.startSession();
+      act(() => {
+        view.world.markPaid();
+        view.world.enterByHand();
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("W-TR-07.blockedList").textContent).toMatch(/Mass balance/),
+      );
+      const list = screen.getByTestId("W-TR-07.blockedList");
+      for (const item of within(list).getAllByRole("listitem")) {
+        const words = item.textContent ?? "";
+        expect(words).not.toMatch(/Mass balance\s*Mass balance/i);
+        const caption = item.querySelector(".fsr-muted")?.textContent ?? "";
+        const label = item.querySelector("a")?.textContent ?? "";
+        expect(caption.toLowerCase()).not.toBe(label.toLowerCase());
+      }
+    },
+    SLOW,
+  );
+
+  it(
     "signs key 1 over the dialog route; the signature verifies over the payload's JCS; Ernesto's key seals it",
     async () => {
       clearMomentTrace();
