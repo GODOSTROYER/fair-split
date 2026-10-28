@@ -262,8 +262,9 @@ export const FANOUT = {
   resendNote: "Needs her confirmed email and your key on a new one-item batch",
   resendPending: "Re-sending needs a confirmed email address. Ask Rhea at the bodega first.",
   wait: "Or wait: she can join PayPal and claim it within 30 days. Whether the sandbox allows this is unverified.",
-  rerouted: (name: string, date: string) =>
-    `Returned to the co-op's PayPal balance. ${name} is paid in cash at the bodega on ${date}.`,
+  // S1.7's wording: the cash is due on cash day, not paid yet.
+  rerouted: (_name: string, date: string) =>
+    `Returned to the co-op's PayPal balance. Cash at the bodega on ${date}.`,
   duplicate: "Delivery repeated, already applied.",
   figure: "Where the money goes",
   tableCaption: "Payout threads and cash lines",

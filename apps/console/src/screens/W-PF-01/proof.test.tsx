@@ -100,7 +100,7 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     expect(screen.getByTestId("W-PF-01.metric.holds").textContent).toContain("3 caught");
     expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
-      "7 of 8 confirmed by PayPal, 1 returned to the co-op and paid in cash.",
+      "7 of 8 confirmed by PayPal, 1 returned to the co-op, cash due at the bodega.",
     );
     expect(screen.getByTestId("W-PF-01.progress").dataset.state).toBe("settled");
     // Nothing PayPal is unlabelled (I8): the simulated rail is named on the page.

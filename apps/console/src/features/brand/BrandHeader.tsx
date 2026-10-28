@@ -6,7 +6,7 @@ import type { InvoiceStatus, ProofBundle, SeasonSnapshot } from "@fairsplit/cont
 import { Glyph } from "@fairsplit/ui-web";
 import { useState } from "react";
 import type { PaypalRail } from "../../lib/env.js";
-import { invoiceWords, railShort } from "../proof/copy.js";
+import { invoiceWords, railShort, STATE_COPY } from "../proof/copy.js";
 import { isSettled, type ProgressCounts } from "../proof/model.js";
 import { downloadText, exportFileName, membersOf, proofCsv, proofJson } from "./exportProof.js";
 
@@ -25,8 +25,8 @@ export const BRAND_COPY = {
     "Pay it from the invoice PayPal sent to Lantern Bay's account. The pay run starts once PayPal confirms payment.",
   progress: (confirmed: number, total: number) =>
     `${confirmed} of ${total} confirmed by PayPal, updating as notices arrive.`,
-  settled: (p: ProgressCounts) =>
-    `${p.confirmed} of ${p.total} confirmed by PayPal.${p.returned > 0 ? ` ${p.returned} returned to the co-op and paid in cash.` : ""}`,
+  settled: (p: ProgressCounts, cashPaid: number) =>
+    `${p.confirmed} of ${p.total} confirmed by PayPal.${p.returned > 0 ? ` ${STATE_COPY.returned(p.returned, cashPaid)}.` : ""}`,
   notYet: "The payout batch isn't posted yet.",
   export: "Export proof (CSV and JSON with hashes)",
   csv: "Download CSV",
@@ -50,6 +50,8 @@ export interface BrandHeaderProps {
   readonly invoiceStatus: InvoiceStatus | null;
   readonly invoiceNumber: string | null;
   readonly progress: ProgressCounts;
+  /** Of the items PayPal returned, how many lines the clerk attested as paid in cash (the rest are due). */
+  readonly returnedCashPaid: number;
   readonly posted: boolean;
   readonly rail: PaypalRail;
   readonly provenance: string | null;
@@ -62,6 +64,7 @@ export function BrandHeader({
   invoiceStatus,
   invoiceNumber,
   progress,
+  returnedCashPaid,
   posted,
   rail,
   provenance,
@@ -120,7 +123,7 @@ export function BrandHeader({
             {!posted || progress.total === 0
               ? BRAND_COPY.notYet
               : isSettled(progress)
-                ? BRAND_COPY.settled(progress)
+                ? BRAND_COPY.settled(progress, returnedCashPaid)
                 : BRAND_COPY.progress(progress.confirmed, progress.total)}
             <span className="br-strip__rail">{railShort(rail)}</span>
           </dd>

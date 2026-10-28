@@ -182,8 +182,11 @@ export function liveItems(items: readonly ProofItem[], live: ReadonlyMap<string,
 
 export type LineStates = Readonly<Record<string, MemberLineState | undefined>>;
 
-/** Lines that are reserved, carried over, never redistributed (the server's rule). */
-const RESERVED_STATES: readonly MemberLineState[] = ["HELD", "EXCLUDED", "COMPUTED", "READY"];
+/**
+ * Lines that are reserved, carried over, never redistributed: the server's rule (fs-api proof/metrics.ts). READY
+ * is payable, not reserved: a cash line READY on a posted run is cash due at the bodega.
+ */
+const RESERVED_STATES: readonly MemberLineState[] = ["HELD", "EXCLUDED", "COMPUTED"];
 
 /** Cash at the bodega: the line was always cash, or its PayPal item came back and moved to cash. */
 const CASH_STATES: readonly MemberLineState[] = ["OFF_RAIL_DUE", "OFF_RAIL_PAID"];
@@ -208,6 +211,16 @@ export interface PaidTiers {
 
 /** Where each member's line stands for Proof: exactly one tier. */
 export type LineTier = "paypal" | "attested" | "due-cash" | "due-paypal" | "reserved";
+
+/**
+ * Of the items PayPal returned to the co-op (their lines moved to cash), how many the clerk has attested as handed
+ * over (OFF_RAIL_PAID). The rest are cash due: never "paid in cash" before the receipt.
+ */
+export function returnedCashPaid(items: readonly ProofItemView[], states: LineStates): number {
+  return items.filter(
+    (i) => i.status === "RETURNED" && i.memberNo !== null && states[i.memberNo] === "OFF_RAIL_PAID",
+  ).length;
+}
 
 /** Members PayPal confirmed: a SUCCESS that rests on an event (a notice, or a fresh status check). */
 export function paidMembers(items: readonly ProofItemView[]): ReadonlySet<string> {

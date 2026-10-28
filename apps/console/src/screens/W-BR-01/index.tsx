@@ -14,6 +14,7 @@ import { BRAND_COPY, BrandHeader, type BrandState, FUNDED } from "../../features
 import { useBrandBundle } from "../../features/brand/useBrandProof.js";
 import { provenanceWords } from "../../features/proof/copy.js";
 import type { MemberLabel } from "../../features/proof/Lines.js";
+import { returnedCashPaid } from "../../features/proof/model.js";
 import { ProofView, verifyAttr } from "../../features/proof/ProofView.js";
 import { isPosted, useProofPage } from "../../features/proof/useProof.js";
 import { useVerification } from "../../features/proof/useVerification.js";
@@ -84,6 +85,7 @@ export function Screen({ token }: BrandEntryProps) {
               invoiceStatus={invoiceStatus}
               invoiceNumber={invoiceNumber}
               progress={page.progress}
+              returnedCashPaid={returnedCashPaid(page.items, page.lineStates)}
               posted={posted && page.phase === "ready"}
               rail={rail}
               provenance={page.provenance ? provenanceWords(page.provenance) : null}

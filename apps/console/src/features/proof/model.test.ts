@@ -23,6 +23,7 @@ import {
   plotField,
   premiumAllocation,
   railSplit,
+  returnedCashPaid,
 } from "./model.js";
 
 const snapshot = getSnapshot();
@@ -158,6 +159,26 @@ describe("inv.i3 money is conserved across the paid tiers", () => {
       ),
       { numRuns: 60 },
     );
+  });
+
+  it("a READY line is payable, not reserved (the server's rule): Merlyn's cash after her hold is cash due", () => {
+    const items = mergeItems(bundle.batch.items);
+    const states = { ...showcaseStates, "M-053": "READY" as MemberLineState };
+    const tiers = paidTiers(bundle.lines, items, states);
+    const reference = paidTiers(bundle.lines, items, showcaseStates);
+    expect(tiers.reserved).toEqual(reference.reserved);
+    expect(tiers.due.cash).toEqual(reference.due.cash);
+    // COMPUTED stays reserved, as fs-api's metrics keep it.
+    const computed = paidTiers(bundle.lines, items, { ...showcaseStates, "M-053": "COMPUTED" });
+    expect(computed.reserved.members).toBe(reference.reserved.members + 1);
+  });
+
+  it("a returned item is paid in cash only once the clerk attests it", () => {
+    const items = mergeItems(bundle.batch.items);
+    const returned = items.find((i) => i.status === "RETURNED");
+    if (!returned?.memberNo) throw new Error("the seed returns Rhea's item");
+    expect(returnedCashPaid(items, { [returned.memberNo]: "OFF_RAIL_DUE" })).toBe(0);
+    expect(returnedCashPaid(items, { [returned.memberNo]: "OFF_RAIL_PAID" })).toBe(1);
   });
 
   it("a SUCCESS with no notice behind it is not paid (nothing turns jade before PayPal confirms)", () => {

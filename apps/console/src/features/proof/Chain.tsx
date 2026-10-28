@@ -35,6 +35,7 @@ import {
   type LineStates,
   type ProgressCounts,
   type ProofItemView,
+  returnedCashPaid,
 } from "./model.js";
 import type { VerifyState } from "./useVerification.js";
 import { PLATES } from "./verify.js";
@@ -77,7 +78,10 @@ function sumCents(xs: readonly number[]): number {
 }
 
 /** One sentence per plate, every figure computed from the bundle. */
-export function plateFact(plate: PlateName, p: Pick<ChainProps, "bundle" | "facts" | "progress">): string {
+export function plateFact(
+  plate: PlateName,
+  p: Pick<ChainProps, "bundle" | "facts" | "progress" | "items" | "lineStates">,
+): string {
   const { bundle, facts, progress } = p;
   switch (plate) {
     case "paid":
@@ -93,7 +97,8 @@ export function plateFact(plate: PlateName, p: Pick<ChainProps, "bundle" | "fact
     case "payoutItems": {
       if (!isSettled(progress)) return STATE_COPY.progress(progress.confirmed, progress.total);
       const parts = [STATE_COPY.settled(progress.confirmed, progress.total).replace(/\.$/, "")];
-      if (progress.returned > 0) parts.push(`${progress.returned} returned to the co-op and paid in cash`);
+      if (progress.returned > 0)
+        parts.push(STATE_COPY.returned(progress.returned, returnedCashPaid(p.items, p.lineStates)));
       if (progress.failed > 0) parts.push(`${progress.failed} not completed by PayPal`);
       if (progress.reversed > 0) parts.push(`${progress.reversed} reversed`);
       return `${parts.join(", ")}.`;

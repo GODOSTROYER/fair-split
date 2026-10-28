@@ -221,9 +221,17 @@ const CASH_STATES: readonly MemberLineState[] = ["RETURNED", "REROUTED", "OFF_RA
 
 function lineState(view: RunView, line: EngineLine, open: readonly RunHold[]): MemberLineState {
   const live = view.lines[line.memberNo];
-  if (live) return live.state;
-  if (open.length > 0) return "HELD";
-  return line.state === "EXCLUDED" ? "EXCLUDED" : "READY";
+  const state = live
+    ? live.state
+    : open.length > 0
+      ? "HELD"
+      : line.state === "EXCLUDED"
+        ? "EXCLUDED"
+        : "READY";
+  // Posting the primary batch moves every READY cash line to cash due in the same step (fs-api CASH_DUE): a cash
+  // line still READY on a posted run is cash due, never "Ready".
+  if (state === "READY" && line.rail === "CASH" && atLeast(view, "POSTED")) return "OFF_RAIL_DUE";
+  return state;
 }
 
 /** True once the run has lines to show: the engine computed them (register §7). */

@@ -43,7 +43,7 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     const payouts = screen.getByTestId("W-BR-01.payouts");
     expect(payouts.hasAttribute("data-settled")).toBe(true);
     expect(payouts.textContent).toContain(
-      "7 of 8 confirmed by PayPal. 1 returned to the co-op and paid in cash.",
+      "7 of 8 confirmed by PayPal. 1 returned to the co-op, cash due at the bodega.",
     );
 
     fireEvent.click(screen.getByTestId("W-PF-01.plate.computed.toggle"));

@@ -139,6 +139,13 @@ export const STATE_COPY = {
   showcase: "Open the season's Proof",
   progress: (confirmed: number, total: number) => `Waiting for PayPal. ${confirmed} of ${total} confirmed.`,
   settled: (confirmed: number, total: number) => `${confirmed} of ${total} confirmed by PayPal.`,
+  /** Items PayPal returned: their cash is due until the clerk attests it (paid only then). */
+  returned: (returned: number, cashPaid: number) =>
+    cashPaid >= returned
+      ? `${returned} returned to the co-op and paid in cash`
+      : cashPaid > 0
+        ? `${returned} returned to the co-op: ${cashPaid} paid in cash, ${returned - cashPaid} due at the bodega`
+        : `${returned} returned to the co-op, cash due at the bodega`,
   /** The hero's live line while PayPal is still confirming: counts only, and the rail it ran on (I8). */
   liveProgress: (p: ProgressFacts, rail: PaypalRail) =>
     `Waiting for PayPal: ${p.confirmed} of ${p.total} PayPal payouts confirmed ${railWhere(rail)}.${parkedWords(p)}`,

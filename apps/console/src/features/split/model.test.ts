@@ -195,6 +195,21 @@ describe("the yield bar and confidence", () => {
     expect(arnel()?.confidence.kind).toBe("by-hand");
   });
 
+  it("a cash line is cash due once the batch is posted, never 'Ready' on a settled run", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    world.settle();
+    const view = viewOf(world);
+    const rows = splitRows(snapshot, view);
+    const cash = rows.filter((r) => r.rail === "CASH" && !r.movedToCash);
+    expect(cash.length).toBeGreaterThan(50);
+    expect(cash.filter((r) => r.state === "READY")).toEqual([]);
+    expect(rows.find((r) => r.memberNo === "M-053")?.state).toBe("OFF_RAIL_DUE");
+  });
+
   it("the showcase's lines are ink after both keys and landed when PayPal confirmed", () => {
     const rows = splitRows(snapshot, showcaseView(snapshot));
     const celing = rows.find((r) => r.memberNo === "M-014");
