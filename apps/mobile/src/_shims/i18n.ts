@@ -2,8 +2,8 @@
  * TEMPORARY SHIM: replace with @fairsplit/i18n (ICU MessageFormat through i18next + i18next-icu) after WS-DS merges.
  *
  * Keys are `<screenId>.<key>` (S1.5); UI code holds no user-facing literals. Arguments use `{name}`.
- * Every ceb and fil string is machine-translated, pending native review (OD-2), and the app says so on member
- * surfaces until a native speaker signs off in i18n/REVIEW.md.
+ * Every ceb and fil string is machine-translated, pending native review (OD-2), and every Cebuano and Filipino surface
+ * says so (`pendingReview`, drawn by the chrome) until a native speaker signs off in i18n/REVIEW.md.
  *
  * Catalogs are split by owner so three slices can write copy in parallel without touching one file:
  * - this file: the shell's own keys (app, common, role, tab, slab, seal), frozen with the shell;
@@ -20,6 +20,15 @@ export type MessageArgs = Readonly<Record<string, string | number>>;
 
 /** The same text in all three languages (names, product terms, codes). */
 export const same = (s: string): Entry => ({ ceb: s, fil: s, en: s });
+
+/**
+ * OD-2 (S1.6, S1.13): whether a surface in `lang` shows "Machine-translated, pending native review". The chip stays
+ * while any visible string is unreviewed, and no Cebuano or Filipino key has been signed off in i18n/REVIEW.md yet,
+ * so every ceb and fil surface shows it; English is the source text.
+ */
+export function pendingReview(lang: Lang): boolean {
+  return lang !== "en";
+}
 
 /** Declares a catalog, keeping its literal keys for type-checked lookups. */
 export function defineMessages<const C extends Record<string, Entry>>(catalog: C): C {

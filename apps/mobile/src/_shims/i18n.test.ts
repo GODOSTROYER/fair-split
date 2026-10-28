@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { catalogProblems, interpolate, messages, translate, translateIn } from "./i18n";
+import { catalogProblems, interpolate, messages, pendingReview, translate, translateIn } from "./i18n";
+
+describe("native review (OD-2, S1.6)", () => {
+  it("marks every Cebuano and Filipino surface as machine-translated until a native speaker signs it off", () => {
+    expect(pendingReview("ceb")).toBe(true);
+    expect(pendingReview("fil")).toBe(true);
+    expect(pendingReview("en")).toBe(false);
+  });
+
+  it("says so in the same words in every language, so a judge reads it on camera", () => {
+    const chip = messages["common.machineTranslated"];
+    expect(chip.ceb).toBe("Machine-translated, pending native review");
+    expect(chip.fil).toBe(chip.ceb);
+  });
+});
 
 describe("shell copy (the @fairsplit/i18n shim)", () => {
   it("is complete in Cebuano, Filipino and English, with the same placeholders in each", () => {

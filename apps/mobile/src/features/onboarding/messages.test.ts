@@ -27,6 +27,19 @@ describe("onboarding copy", () => {
     expect(new Set(LANGS.map((l) => t(l, "M-ON-01.lang.name"))).size).toBe(3);
   });
 
+  it("asks before a link replaces a pairing, naming who the phone is paired to and the key it would lose", () => {
+    const who = "Ernesto P. Cabahug, Board";
+    for (const l of LANGS) {
+      expect(t(l, "M-ON-01.pair.replaceTitle")).toMatch(/\?$/);
+      expect(t(l, "M-ON-01.pair.replaceBody", { who })).toContain(who);
+      const withKey = t(l, "M-ON-01.pair.replaceBodyKey", { who, key: "fs-ernesto-a1" });
+      expect(withKey).toContain(who);
+      expect(withKey).toContain("fs-ernesto-a1");
+      // The two answers say what they do, and differ.
+      expect(t(l, "M-ON-01.pair.replaceConfirm")).not.toBe(t(l, "M-ON-01.pair.replaceCancel"));
+    }
+  });
+
   it("never says error or fraud, and never shouts (S1.11)", () => {
     for (const [key, entry] of Object.entries(messages)) {
       for (const text of Object.values(entry)) {

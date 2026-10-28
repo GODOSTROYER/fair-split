@@ -1,7 +1,7 @@
 /**
  * Small pieces the member screens share (MEMBER slice only; nothing here is shell API):
- * - `LangBar`: Cebuano, Filipino, English one tap away on every member surface (design §8), the "machine-translated,
- *   pending native review" chip on ceb and fil (S1.13), and the English gloss switch;
+ * - `LangBar`: Cebuano, Filipino, English one tap away on every member surface (design §8), and the English gloss
+ *   switch (the "machine-translated, pending native review" chip is the chrome's, on every screen: `SurfaceLabels`);
  * - `GlossedSentence`: a statement sentence with its English gloss underneath when the gloss is on (IC-12 `gloss`);
  * - `HistoryMark`: the mark beside a history row (initials in ink for people, jade only for PayPal's confirmation).
  */
@@ -12,7 +12,6 @@ import { radius, space, target } from "../../_shims/tokens.native";
 import type { GlossPair } from "../../lib/statement";
 import { useApp } from "../../state/app";
 import { type TypeRole, useFs } from "../../theme/theme";
-import { Glyph } from "../../ui/glyph";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Hatch, InkStamp } from "../../ui/primitives";
 import { Sentence } from "../../ui/sentence";
@@ -27,29 +26,9 @@ import { useT } from "./use-t";
  */
 export const COLUMN = { width: "100%", maxWidth: 640, alignSelf: "center" } as const;
 
-/** Machine output is pencil (design §1): the translation chip is drawn in pencil, with the translate glyph. */
-export function MachineChip({ testID }: { testID?: string }) {
-  const { t } = useFs();
-  const tr = useT();
-  return (
-    <View
-      testID={testID}
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={tr("common.machineTranslated")}
-      style={[styles.machine, { borderColor: t.color.rule, backgroundColor: t.color.plate2 }]}
-    >
-      <Glyph name="translate" size={16} color={t.color.pencil} />
-      <Txt kind="caption" style={{ color: t.color.pencil, flexShrink: 1 }}>
-        {tr("common.machineTranslated")}
-      </Txt>
-    </View>
-  );
-}
-
 /**
- * The member's language row, with the review chip when the language is not English, and the English gloss switch on
- * the screens that show statement sentences (`glossable`).
+ * The member's language row, and the English gloss switch on the screens that show statement sentences
+ * (`glossable`) when the language is not English.
  */
 export function LangBar({ testID, glossable = true }: { testID: string; glossable?: boolean }) {
   const { lang } = useApp();
@@ -60,35 +39,32 @@ export function LangBar({ testID, glossable = true }: { testID: string; glossabl
   return (
     <View style={styles.bar}>
       <LanguagePicker testID={`${testID}.lang`} />
-      {lang !== "en" ? (
+      {lang !== "en" && glossable && !glossForced ? (
         <View style={styles.row}>
-          <MachineChip testID={`${testID}.machine`} />
-          {glossForced || !glossable ? null : (
-            <Pressable
-              testID={`${testID}.gloss`}
-              accessibilityRole="switch"
-              accessibilityLabel={tr("M-MB-01.glossHint")}
-              aria-checked={gloss}
-              dataSet={{ state: gloss ? "on" : "off" }}
-              onPress={() => setGloss(!gloss)}
-              hitSlop={6}
-              style={({ pressed }) => [styles.glossTap, pressed && { opacity: 0.8 }]}
+          <Pressable
+            testID={`${testID}.gloss`}
+            accessibilityRole="switch"
+            accessibilityLabel={tr("M-MB-01.glossHint")}
+            aria-checked={gloss}
+            dataSet={{ state: gloss ? "on" : "off" }}
+            onPress={() => setGloss(!gloss)}
+            hitSlop={6}
+            style={({ pressed }) => [styles.glossTap, pressed && { opacity: 0.8 }]}
+          >
+            <View
+              style={[
+                styles.gloss,
+                {
+                  borderColor: gloss ? t.color.ink : t.color.rule,
+                  backgroundColor: gloss ? t.color.ink : t.color.plate,
+                },
+              ]}
             >
-              <View
-                style={[
-                  styles.gloss,
-                  {
-                    borderColor: gloss ? t.color.ink : t.color.rule,
-                    backgroundColor: gloss ? t.color.ink : t.color.plate,
-                  },
-                ]}
-              >
-                <Txt kind="label" style={{ color: gloss ? t.color.plate : t.color.ink }}>
-                  {tr("M-MB-01.glossOn")}
-                </Txt>
-              </View>
-            </Pressable>
-          )}
+              <Txt kind="label" style={{ color: gloss ? t.color.plate : t.color.ink }}>
+                {tr("M-MB-01.glossOn")}
+              </Txt>
+            </View>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -174,17 +150,6 @@ export function HistoryMark({ mark, by }: { mark: Mark; by: readonly string[] })
 const styles = StyleSheet.create({
   bar: { gap: space.s8 },
   row: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
-  machine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s4,
-    minHeight: 32,
-    paddingHorizontal: space.s8,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.plate,
-    flexShrink: 1,
-  },
   glossTap: { minHeight: target.min, justifyContent: "center" },
   gloss: {
     minHeight: 32,

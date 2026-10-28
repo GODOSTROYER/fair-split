@@ -1,7 +1,6 @@
 /**
  * Splits plain UI copy into words and figures so `<Sentence>` can set figures in the figure face, tabular, with the
- * straight-bar zero, inside Atkinson prose (design §2.3: "Money is always set in FS Sans, even inside Atkinson
- * prose"). A figure is taken whole, unit and all: "US$300", "₱4,028", "30 Okt 2026", "148.0 kg", "1.62%", "09:12",
+ * slashed zero, inside Atkinson prose (design §2.3: "Money is always set in FS Sans, even inside Atkinson prose"). A figure is taken whole, unit and all: "US$300", "₱4,028", "30 Okt 2026", "148.0 kg", "1.62%", "09:12",
  * "2026-A", "M-014", "R1", so a date or a weight never changes face halfway through.
  */
 export interface Segment {
@@ -57,14 +56,13 @@ export function isFigure(s: Segment): boolean {
 
 export interface PesoRun {
   text: string;
-  /** True for a ₱ sign, which is set in the platform's own face (neither app face has the glyph, S2.3). */
+  /** True for a ₱ sign, which text in a face without one (Atkinson, S2.3) sets in the figure face. */
   peso: boolean;
 }
 
 /**
- * Splits already formatted money into runs so a drawn amount can set each ₱ in the system font and every other
- * character in the amount face ("₱7,990.00" → "₱", "7,990.00"). `Txt` does the same for text; SVG amounts need the
- * runs as `TSpan`s. Joining the runs gives back the text exactly.
+ * Splits text into runs around each ₱ ("mga ₱4,028" → "mga ", "₱", "4,028"), so `Txt` can set the sign in a face
+ * that has it when the text's own face does not. Joining the runs gives back the text exactly.
  */
 export function pesoRuns(text: string): PesoRun[] {
   const out: PesoRun[] = [];

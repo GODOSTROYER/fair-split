@@ -28,8 +28,10 @@ corepack pnpm --filter @fairsplit/mobile smoke:web  # after build: walks every r
 ```
 
 `smoke:web` starts its own server, opens every app route of register §4 (first run, the three roles, `/pair?t=`,
-`/s/:token`) and fails on a missing screen root, an unsettled or wrong `data-state`, a page or console error, or a
-focus ring on a screen's first focus; `--shots <dir>` saves screenshots. Playwright is not a dependency of the app:
+`/s/:token`) in Cebuano and in Filipino (`--langs`), and fails on a missing screen root, an unsettled or wrong
+`data-state`, a page or console error, a focus ring on a screen's first focus, or a surface without exactly one
+"Machine-translated, pending native review" chip. The routes that show money open again at 200% zoom, where no amount
+may be clipped or push the page sideways; `--shots <dir>` saves screenshots. Playwright is not a dependency of the app:
 it uses `playwright-core` when installed, or the folder in `PLAYWRIGHT_CORE`.
 
 Demo links (no fs-api): `/app/?demo=member&stage=sent`, `?demo=board`, `?demo=clerk`; stages are `checking`, `sent`,
@@ -64,12 +66,17 @@ UI code may import only `contracts` of WS-CORE's packages (register §6), so the
   byte; `domain-core.parity.test.ts` compares it with packages/domain and recomputes the seed's hashes.
 - `seed-run.json` is the seed snapshot's run r37 (items and all 64 member lines), copied by `node scripts/seed-run.mjs`
   and checked by `scripts/seed-run.test.mjs`; rerun the script whenever WS-CORE regenerates the snapshot.
+- `fonts.ts` names WS-DS's native cuts in `assets/fonts/native` (FS Sans CondXBold 75/800 for amounts, SemiCondMedium
+  87.5/500 for figures, Regular 100/400, SemiExpBold 112.5/700 for slabs and titles, and Atkinson Next for statement
+  prose). Each file's name is its family: the expo-font plugin embeds them in native builds (`app.config.ts`) and the
+  web export loads the same files (`font-sources.web.ts`, reached through `metro.config.js`). The cuts carry the
+  slashed tabular zero and their own ₱; `fonts.test.ts` holds the names and files to WS-DS's build report.
 
 The other files under `src/_shims/` still stand in for their packages and mirror the register's names, so the swap is
 an import change: `domain.ts` (IC-02 `format.*`, `fsm.item`; it re-exports `domain-core.ts`),
 `seed.ts` (IC-03 fixture and the register's canonical figures), `api-client.ts` (IC-08), `tokens.native.ts` (IC-09),
 `motion.ts` and `moments.ts` (IC-09 presets, IC-10 phases), `seal.ts` (`@fairsplit/seal`), `i18n.ts`
-(`@fairsplit/i18n`, plus one catalog per slice), `fonts.ts` / `font-sources*.ts` (FS Sans cuts).
+(`@fairsplit/i18n`, plus one catalog per slice).
 `src/platform/feedback.ts` stands in for `@fairsplit/motion` `feedback.play` (haptics, and the three native sounds
 written by `scripts/make-sfx.mjs` from design §4's recipes), and `src/ui/` for the `@fairsplit/ui-native` primitives
 and glyphs. `scripts/make-icons.mjs` draws the interim app icon (the hanging-scale dial).

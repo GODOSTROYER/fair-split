@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { StatementDTO } from "../../_shims/api-client";
-import { LANGS, MEMBER_STATUS_WORDS } from "../../_shims/contracts";
+import { type AmountState, LANGS, MEMBER_STATUS_WORDS } from "../../_shims/contracts";
 import { MOMENTS } from "../../_shims/moments";
 import {
   CAPSULE_WORD,
@@ -12,7 +12,16 @@ import {
 } from "../../lib/item-status";
 import { mergeTrack } from "../../lib/statement";
 import { buildDemoStatement, DEMO_STAGES, type DemoStage } from "../../services/demo-fixtures";
-import { capsuleText, elapsedClock, historyRows, lineView, msOf, sealSigners } from "./line-view";
+import {
+  capsuleText,
+  elapsedClock,
+  historyRows,
+  lineView,
+  msOf,
+  receiptStates,
+  runAmountState,
+  sealSigners,
+} from "./line-view";
 import { messages, t } from "./messages";
 import { previewLine } from "./preview";
 
@@ -313,5 +322,49 @@ describe("history in her words", () => {
   it("names the two officers who closed the seal", () => {
     expect(sealSigners(at("paid"))).toEqual(["AS", "EC"]);
     expect(sealSigners(at("checking"))).toBeNull();
+  });
+});
+
+describe("every amount on the receipt and the board's Bayad keeps the amount grammar (S2.0 rule 3, S2.2.1)", () => {
+  it("the receipt's parts are figures two officers approved (ink); the net is the money and follows the hero", () => {
+    const expected: Record<DemoStage, AmountState | null> = {
+      checking: null,
+      sent: "hollow",
+      paid: "landed",
+      unclaimed: "hollow",
+      "cash-due": "hollow",
+      "cash-received": "attested",
+    };
+    for (const stage of DEMO_STAGES) {
+      const v = view(at(stage));
+      const net = expected[stage];
+      if (!net) {
+        expect(v.showAmount, stage).toBe(false);
+        continue;
+      }
+      expect(receiptStates(v), stage).toEqual({ parts: "ink", net });
+      expect(receiptStates(v).net, stage).toBe(v.amountState);
+    }
+  });
+
+  it("a receipt that does not add up never shows a settled net (I3), and its parts stay the approved figures", () => {
+    const v = view({
+      ...at("paid"),
+      amounts: { ...at("paid").amounts, netCents: at("paid").amounts.netCents + 1 },
+    });
+    expect(receiptStates(v)).toEqual({ parts: "ink", net: "hollow" });
+  });
+
+  it("a line nobody has approved keeps every figure on its receipt in pencil", () => {
+    expect(receiptStates({ amountState: "pencil" })).toEqual({ parts: "pencil", net: "pencil" });
+    expect(receiptStates({ amountState: "ink" })).toEqual({ parts: "ink", net: "ink" });
+  });
+
+  it("the board's run is pencil until both keys are in, then ink, as on M-BD-01", () => {
+    expect(runAmountState({ state: "request" })).toBe("pencil");
+    expect(runAmountState({ state: "override" })).toBe("pencil");
+    expect(runAmountState({ state: "expired" })).toBe("pencil");
+    expect(runAmountState({ state: "declined" })).toBe("pencil");
+    expect(runAmountState({ state: "signed" })).toBe("ink");
   });
 });

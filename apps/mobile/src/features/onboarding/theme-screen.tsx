@@ -20,7 +20,7 @@ import { AmountDisplay } from "../../ui/amount";
 import { Screen } from "../../ui/chrome";
 import { Banner, Button, MemberStatusChip } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
-import { largeText, textSizePct } from "./flow";
+import { textSizePct } from "./flow";
 import { ChoicePlate, COLUMN, Desk, Paper, StepFooter } from "./parts";
 import { useT } from "./use-t";
 
@@ -38,7 +38,6 @@ export function ThemeScreen() {
   const tr = useT();
   const { fontScale } = useWindowDimensions();
   const [answer, setAnswer] = useState<"clear" | "small" | null>(null);
-  const stacked = largeText(fontScale);
 
   return (
     <Screen
@@ -88,7 +87,8 @@ export function ThemeScreen() {
           <Txt kind="statementLead" lang={lang}>
             {tr("M-ON-01.size.greeting", { name: heroLine.nameByLang[lang] })}
           </Txt>
-          <View style={[styles.money, stacked ? styles.moneyStacked : null]}>
+          {/* As on the statement: the amount, then the peso estimate under it. */}
+          <View style={styles.money}>
             <AmountDisplay
               text={format.usd(heroLine.netCents)}
               srLabel={format.amountSpoken(heroLine.netCents, fx.phpPerUsd)}
@@ -148,8 +148,7 @@ const styles = StyleSheet.create({
   sampleHead: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: space.s8 },
   coop: { flexGrow: 1, flexShrink: 1, flexBasis: 160 },
   tag: { paddingHorizontal: space.s8, paddingVertical: space.s2, borderWidth: 1, borderRadius: radius.plate },
-  money: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", columnGap: space.s12 },
-  moneyStacked: { flexDirection: "column", alignItems: "flex-start" },
+  money: { gap: space.s4 },
   choices: { gap: space.s12 },
   open: { alignSelf: "flex-start" },
 });

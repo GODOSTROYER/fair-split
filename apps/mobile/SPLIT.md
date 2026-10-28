@@ -81,7 +81,8 @@ Code that crosses a boundary. The owner may change everything behind these names
   (`guardUnavailable`, `settleUnavailable` in `ui/hold.ts`). The focus ring shows for keyboard focus only
   (`ui/focus-ring.ts`).
 - `focusFirst` draws no focus ring around the landing block (browsers ringed the hero amount on load).
-- `AmountDisplay` sets ₱ in the system font inside the SVG amount (`pesoRuns` in `ui/figures.ts`); `StatusChip` words
+- `AmountDisplay` sets ₱ in the system font inside the SVG amount (replaced by the cuts' own ₱ in the review round,
+  below); `StatusChip` words
   wrap; `NavBar` reads a tab's `tabBarAccessibilityLabel`, and the clerk layout puts the Outbox badge there
   ("Outbox, 3 sa telepono").
 - Demo data: each judge reset (`fs.reset`) is a fresh demo workspace; history times always read in order.
@@ -156,6 +157,31 @@ These need a contract or an endpoint the app does not own; the slices already wo
 - WS-API: the statement's co-op Grade 1 total, the clerk per slip, mention offsets for audio clips, the Committee's
   reply, slip photos; whether to issue the dot-free member link (`body~sig`).
 
+### Review round (28 Oct): the verifiers' blockers and majors
+
+- Pairing links never replace a pairing by themselves (re-pairing trust, the class of [ws/app] SECURITY (1)). On a
+  paired phone, `/app/pair?t=` and `fairsplit://pair?t=` ask first (`linkStep` in `features/onboarding/flow.ts`): the
+  dialog names who the phone is paired to and, on a board phone, the signing key the new pairing deletes. Only "Pair
+  again" claims; "Keep this pairing" claims nothing and goes home, so the session and the key stay. An unpaired phone
+  still claims at once (the judge's QR link). The camera is off while the question is open.
+- `AmountDisplay`'s large figure never wraps or clips: it measures the figure on one line and the room its parent
+  gives it, and scales the whole figure down when it does not fit (`ui/amount-fit.ts`: `amountType`, `roomFrom`,
+  `fitAmount`), keeping the 1.5× hero cap; the box is one line high. `SignedAmount` no longer scales on its own.
+- The review chip is the chrome's: `SurfaceLabels` (`ui/primitives.tsx`) opens every `<Screen>` with the demo label
+  and, while `pendingReview(lang)` (`_shims/i18n.ts`: Cebuano and Filipino), "Machine-translated, pending native
+  review" with the hook `{screenId}.machine`. The Paminawa sheet, the one surface that is not a screen, draws it too;
+  the member's `LangBar` no longer draws its own. `ui/labels.test.ts` walks every route to its root.
+- The amount grammar reaches every amount: `AmountDisplay` takes `size: "m"` (22 sp, inline grammar, a receipt's
+  total) and an optional `srLabel` (omit it inside a control that already speaks the amount: the figure is then hidden
+  from screen readers). Inline hollow draws its 1.5 px dashed underline (Android cannot dash a text underline). The
+  ReceiptBar's parts are ink, its net follows the hero (`receiptStates`), and a narrow row wraps the figure under its
+  words; the board's Bayad tab is pencil until both keys, then ink (`runAmountState`).
+- Fonts are WS-DS's cuts (`_shims/fonts.ts`, `app.config.ts`, `font-sources.web.ts`, `metro.config.js`): amounts in
+  FS Sans CondXBold, figures in SemiCondMedium, UI in Regular, slabs and titles in SemiExpBold, statements in Atkinson
+  Next. Figures are `tabular-nums` only (the cuts' zero is the slashed one; `ss08` is never on); every FS Sans cut has
+  its own ₱, so only Atkinson prose sets a ₱ apart, in the figure face. The `@expo-google-fonts/*` dependencies are no
+  longer imported; removing them from `package.json` is a deps-lane change (lockfile).
+
 ## 2. The shell's APIs
 
 ### State (`state/app.tsx`)
@@ -221,7 +247,8 @@ skip it.
 
 ### UI kit (`ui/`), theme and platform
 
-- Text and copy: `Txt` (type roles, token colours, ₱ in the system font, scales to 2×, hero 1.5×), `useT()` (shell
+- Text and copy: `Txt` (type roles, token colours, a ₱ in Atkinson prose set in the figure face, scales to 2×,
+  hero 1.5×), `useT()` (shell
   keys), `useMessages(catalog)`; `Sentence` + `figures()` (figures in the figure face inside prose).
 - Chrome: `Screen<S>({ testID: S, state: ScreenStateOf<S>, … })` (demo label, safe areas, `fs.focus`), `TopBar`,
   `NavBar` (role tabs).
@@ -229,11 +256,13 @@ skip it.
   arm on hold, act on release inside, dialog route for Enter, virtual clicks, TalkBack and "Can't hold?"),
   `ConfirmDialog`, `Sheet`, `Snackbar` + `useSnackbar()`; the pure machine in `ui/hold.ts` (`holdReducer`,
   `mm5Phase`, `routeFor`, `quarterAt`).
-- Money and machine output: `AmountDisplay({ text, srLabel, state, size, fill })` (the amount grammar, MM-1 via
+- Money and machine output: `AmountDisplay({ text, srLabel?, state, size: "hero" | "l" | "m" | "figure", fill })`
+  (the amount grammar; a large figure scales down to fit its column; MM-1 via
   `fill`), `Print` (pencil/ink with a provenance footer), `SealView({ batchSha256, size, keys, engrave })`,
   `HashText`.
 - Status and chips: `StatusChip`, `MemberStatusChip({ status, word })`, `RuleChip`, `Chip` (`role="radio"`), `Button`,
   `Banner`, `InkStamp`, `Hatch`, `Rule`, `SectionTitle`, `Wordmark`, `DemoLabel`, `MachineTranslatedNote`,
+  `SurfaceLabels({ screen })` (both labels; every `<Screen>` draws it),
   `LanguagePicker`, `Glyph` (typed names).
 - States: `OfflineBar({ lastCopyAt })`, `EmptyState`, `Skeleton`.
 - Moments: `useMoment(id, initial)` → `{ phase, set, start(eventId, phase), rest, timers, rootProps }`,
@@ -262,7 +291,8 @@ skip it.
   `AMOUNT_STATE`/`amountStateOf`.
 - **Copy.** No user-facing literals in components. Add keys to your slice's `messages.ts` (`<screenId>.<key>`, all
   three languages, the same `{placeholders}`), read them with `useT()` from `./use-t`; `messages.test.ts` must stay
-  green. Show `MachineTranslatedNote` on member surfaces.
+  green. The chrome shows the review chip on every Cebuano and Filipino screen; a surface that is not a `<Screen>`
+  draws `SurfaceLabels` itself.
 - **Motion.** No numeric literal inside `withTiming(` or `withSpring(`: use `spring()`, `tween()`, `reducedFade()` or
   a `TIMELINE` entry. Under `motion.reduced` nothing travels and colour or opacity changes over 150 ms; under
   `motion.low` at most three animations run. No count-ups, confetti or ambient loops.

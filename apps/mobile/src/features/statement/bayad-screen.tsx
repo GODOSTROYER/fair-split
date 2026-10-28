@@ -40,7 +40,7 @@ import { EmptyState, OfflineBar, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { InviteRing, StatusCapsule, useBayadNa } from "./capsule";
 import { DemoTray } from "./demo-tray";
-import { historyRows, type LineView, lineView, sealSigners } from "./line-view";
+import { historyRows, type LineView, lineView, receiptStates, sealSigners } from "./line-view";
 import { traceState } from "./mm7";
 import { PaminawaPanel, useVoiceLabel } from "./paminawa-panel";
 import { COLUMN, GlossedSentence, HistoryMark, LangBar } from "./parts";
@@ -372,6 +372,7 @@ function Statement({
                 onSegment={onSegment}
                 onSlip={openSlip}
                 owner={owner}
+                states={receiptStates(view)}
               />
             </View>
           ) : null}

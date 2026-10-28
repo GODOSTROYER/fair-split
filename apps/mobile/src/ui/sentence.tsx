@@ -3,13 +3,13 @@ import { FIGURE_VARIANT, fontFamily } from "../_shims/fonts";
 import type { FsColors } from "../_shims/tokens.native";
 import type { TypeRole } from "../theme/theme";
 import { figureRuns, isFigure, type Segment } from "./figures";
-import { Txt, withPeso } from "./text";
+import { Txt } from "./text";
 
 export { figures, type Segment } from "./figures";
 
 /**
  * Statement prose (Atkinson Hyperlegible Next) with every engine figure set in the figure face, tabular, with the
- * straight-bar zero: "Money is always set in FS Sans, even inside Atkinson prose" (design §2.3).
+ * slashed zero and FS Sans's own ₱: "Money is always set in FS Sans, even inside Atkinson prose" (design §2.3).
  */
 export function Sentence({
   segments,
@@ -37,7 +37,7 @@ export function Sentence({
       {figureRuns(segments).map((s, i) =>
         isFigure(s) ? (
           <Text key={`${i}-${s.text}`} style={styles.figure}>
-            {withPeso(s.text)}
+            {s.text}
           </Text>
         ) : (
           s.text

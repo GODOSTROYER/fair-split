@@ -8,8 +8,14 @@
  * never presented as settled. Its amount stays hollow whatever PayPal or the clerk says, MM-1 does not fill it, and
  * the sentence under it says the figures are still being checked and who checks them.
  */
-import type { StatementDTO, StatementHistoryEntry } from "../../_shims/api-client";
-import { type AmountState, type Lang, MEMBER_STATUS_WORDS, type MemberStatus } from "../../_shims/contracts";
+import type { CosignRequestDTO, StatementDTO, StatementHistoryEntry } from "../../_shims/api-client";
+import {
+  type AmountState,
+  amountStateOf,
+  type Lang,
+  MEMBER_STATUS_WORDS,
+  type MemberStatus,
+} from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
 import type { MessageArgs } from "../../_shims/i18n";
 import type { MomentPhase } from "../../_shims/moments";
@@ -157,6 +163,24 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
     sentAt: historyAt(dto, "sent"),
     paidAt,
   };
+}
+
+/**
+ * The receipt's amounts in the amount grammar (S2.0 rule 3, S2.2.1). Its parts (the premium, the bonus, ruled
+ * deductions, credits) are figures two officers approved: ink, or pencil while nobody has. The net is the money itself
+ * and reads as the hero does: hollow while it is with PayPal or due at the bodega, landed once PayPal confirms it,
+ * attested once the clerk records the cash, and never settled while the receipt does not add up (I3).
+ */
+export function receiptStates(view: Pick<LineView, "amountState">): { parts: AmountState; net: AmountState } {
+  return { parts: view.amountState === "pencil" ? "pencil" : "ink", net: view.amountState };
+}
+
+/**
+ * The board's Bayad tab shows the run it co-signs: every figure in pencil until both keys are in, then ink, as M-BD-01
+ * draws the same figures (S2.2.1: a line turns ink once its run is APPROVED).
+ */
+export function runAmountState(run: Pick<CosignRequestDTO, "state">): AmountState {
+  return amountStateOf("READY", { approved: run.state === "signed" });
 }
 
 /** The settled looks of the amount grammar (S2.2.1): PayPal confirmed it, or the clerk recorded the cash. */

@@ -6,19 +6,21 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  * - `EXPO_WEB_BASE` sets `experiments.baseUrl` for the web export only (C-11: served at `/app`). It is never set for
  *   native builds, because the base URL is inlined into every platform bundle. `pnpm --filter @fairsplit/mobile build`
  *   sets it to `/app` (scripts/export-web.mjs).
- * - Fonts are embedded at build time on native (expo-font plugin) and loaded at runtime on web.
- *   TEMPORARY: Mona Sans / Atkinson Hyperlegible Next from Google Fonts until WS-DS ships the FS Sans cuts.
+ * - Fonts are WS-DS's native cuts (assets/fonts/native: FS Sans CondXBold, SemiCondMedium, Regular, SemiExpBold and
+ *   Atkinson Next Regular, Bold; design §2.3), embedded at build time by the expo-font plugin, which names each family
+ *   after its file (src/_shims/fonts.ts uses the same names). The web export loads the same files at runtime.
  */
 const webBase = process.env.EXPO_WEB_BASE?.trim();
 
+/** Relative to this project's root, as the expo-font plugin resolves them. */
 const fontFiles = [
-  "@expo-google-fonts/mona-sans/400Regular/MonaSans_400Regular.ttf",
-  "@expo-google-fonts/mona-sans/500Medium/MonaSans_500Medium.ttf",
-  "@expo-google-fonts/mona-sans/700Bold/MonaSans_700Bold.ttf",
-  "@expo-google-fonts/mona-sans/800ExtraBold/MonaSans_800ExtraBold.ttf",
-  "@expo-google-fonts/atkinson-hyperlegible-next/400Regular/AtkinsonHyperlegibleNext_400Regular.ttf",
-  "@expo-google-fonts/atkinson-hyperlegible-next/700Bold/AtkinsonHyperlegibleNext_700Bold.ttf",
-].map((f) => require.resolve(f));
+  "FSSans-CondXBold",
+  "FSSans-SemiCondMedium",
+  "FSSans-Regular",
+  "FSSans-SemiExpBold",
+  "AtkinsonNext-Regular",
+  "AtkinsonNext-Bold",
+].map((family) => `../../assets/fonts/native/${family}.ttf`);
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,

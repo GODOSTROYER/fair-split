@@ -9,6 +9,10 @@
  *
  * The camera reads the QR in front of it many times a second: a code is claimed once, a refused code is never sent
  * again by itself (`shouldClaimScan`), and "Scan again" or a different QR starts over.
+ *
+ * A link that reaches a phone already paired never replaces that pairing by itself (`linkStep`): a dialog names who
+ * the phone is paired to, says the new QR replaces it and, on a board phone, which signing key it deletes. Only "Pair
+ * again" claims the token; "Keep this pairing" claims nothing and goes home, so the stored session and the key stay.
  * States: idle, camera-denied, pairing, paired, listen-choice, expired, used, invalid, offline, error.
  */
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -20,18 +24,22 @@ import { season } from "../../_shims/seed";
 import { space } from "../../_shims/tokens.native";
 import { claimPairing, type PairingOutcome, parsePairingInput } from "../../lib/pairing";
 import { feedback } from "../../platform/feedback";
+import { keyVault } from "../../platform/key-vault";
 import { BUILD } from "../../services/build";
 import { demoSession } from "../../services/demo-api";
-import { homeHref, type PairedSession } from "../../services/session";
+import { homeHref, type PairedSession, pairingId } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { announce } from "../../ui/a11y";
 import { Screen } from "../../ui/chrome";
+import { ConfirmDialog } from "../../ui/overlay";
 import { Banner, Button, Rule } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import {
   afterPairing,
   firstLanguage,
+  type LinkAnswer,
+  linkStep,
   type PairState,
   pairScreenState,
   QR_CELLS,
@@ -142,25 +150,48 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
     setState("idle");
   };
 
-  // The QR's link (`/app/pair?t=…`, `fairsplit://pair?t=…`) arrives with its token: claim it once.
-  const claimed = useRef(false);
-  useEffect(() => {
-    if (initialToken && !claimed.current) {
-      claimed.current = true;
-      void tryInput(initialToken);
-    }
-  });
-
-  // Already paired and nothing to do here: go home.
-  useEffect(() => {
-    if (session && state === "idle" && !initialToken) router.replace("/");
-  }, [session, state, initialToken]);
-
   // The board lands on the Pirma tab, which finds the request that is actually open (never a fixture's run).
   const goHome = () => {
     const s = paired ?? session;
     router.replace(s ? homeHref(s.role, null) : "/");
   };
+
+  // The QR's link (`/app/pair?t=…`, `fairsplit://pair?t=…`) arrives with its token. An unpaired phone claims it at
+  // once; a paired one claims it only after "Pair again", and "Keep this pairing" goes home with nothing claimed.
+  // `linkSettled` ends the link's part (a claim made, or kept), so the session the claim brings never asks again.
+  const linkSettled = useRef(false);
+  const [linkDone, setLinkDone] = useState(false);
+  const [linkAnswer, setLinkAnswer] = useState<LinkAnswer | null>(null);
+  const step = linkDone ? "none" : linkStep({ session, token: initialToken, answer: linkAnswer });
+  useEffect(() => {
+    if (linkSettled.current || !initialToken || (step !== "claim" && step !== "keep")) return;
+    linkSettled.current = true;
+    setLinkDone(true);
+    if (step === "claim") void tryInput(initialToken);
+    else goHome();
+  });
+
+  // Asking: name what the new QR would take away. A board phone's key is looked up (no prompt: its public half only).
+  const asking = step === "ask" && session !== null;
+  const [heldKey, setHeldKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!asking || !session || session.role !== "board") return;
+    let alive = true;
+    keyVault
+      .current(pairingId(session))
+      .then((k) => {
+        if (alive) setHeldKey(k?.keyId ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [asking, session]);
+
+  // Already paired and nothing to do here: go home.
+  useEffect(() => {
+    if (session && state === "idle" && !initialToken) router.replace("/");
+  }, [session, state, initialToken]);
 
   const cameraDenied = native && permission?.granted === false && permission.canAskAgain === false;
   const screenState = pairScreenState({ state, cameraDenied, listenChoice: choosing });
@@ -170,12 +201,16 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
   }
 
   const message = MESSAGE[state];
+  const pairedWho = session
+    ? [session.displayName, tr(ROLE_WORD[session.role])].filter((w) => w.trim()).join(", ")
+    : "";
   // The card's inside: the screen's column on the desk (16 dp each side), at most 360 wide, less its own padding.
   const cardInner = Math.min(width - 2 * space.s16, CARD_MAX) - 2 * space.s16;
   const square = Math.max(160, Math.min(cardInner, QR_MAX));
   // Whole modules only (25 a side), so the printed QR draws without seams between its squares.
   const printed = QR_CELLS * Math.floor(Math.min(square, FACSIMILE_MAX) / QR_CELLS);
-  const camera = native && !cameraDenied && permission?.granted === true && state !== "paired";
+  // While the question is open the camera is off: nothing it reads may pair the phone past the answer.
+  const camera = native && !cameraDenied && permission?.granted === true && state !== "paired" && !asking;
   const askCamera = native && !cameraDenied && permission?.granted !== true && state !== "paired";
   const done = state === "paired" && paired;
 
@@ -370,6 +405,21 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
           ))}
         </View>
       ) : null}
+
+      <ConfirmDialog
+        visible={asking}
+        spec={{
+          title: tr("M-ON-01.pair.replaceTitle"),
+          body: heldKey
+            ? tr("M-ON-01.pair.replaceBodyKey", { who: pairedWho, key: heldKey })
+            : tr("M-ON-01.pair.replaceBody", { who: pairedWho }),
+          confirmLabel: tr("M-ON-01.pair.replaceConfirm"),
+          cancelLabel: tr("M-ON-01.pair.replaceCancel"),
+        }}
+        onConfirm={() => setLinkAnswer("confirm")}
+        onCancel={() => setLinkAnswer("cancel")}
+        testID="M-ON-01.replace"
+      />
     </Screen>
   );
 }

@@ -3,9 +3,9 @@
  * and every user-facing word through a catalog (`useT` for the shell's keys, `useMessages(catalog)` for a slice's).
  */
 import { Children, type ReactNode, useCallback } from "react";
-import { Text, type TextProps } from "react-native";
+import { StyleSheet, Text, type TextProps } from "react-native";
 import type { Lang } from "../_shims/contracts";
-import { systemFont } from "../_shims/fonts";
+import { pesoFace } from "../_shims/fonts";
 import {
   type Catalog,
   type MessageArgs,
@@ -16,6 +16,7 @@ import {
 import type { FsColors } from "../_shims/tokens.native";
 import { useApp } from "../state/app";
 import { type TypeRole, typeScale, useFs } from "../theme/theme";
+import { pesoRuns } from "./figures";
 
 export interface TxtProps extends TextProps {
   /** Type role from the scale (named `kind` because `role` is the ARIA role on Text). */
@@ -24,24 +25,30 @@ export interface TxtProps extends TextProps {
   align?: "left" | "center" | "right";
 }
 
-/** Neither Mona Sans nor Atkinson Next has ₱ (S2.3): it is set in the system font as its own span. */
-const PESO = { fontFamily: systemFont } as const;
-
-/** Splits plain string children so every ₱ renders in the system font; other children pass through. */
-export function withPeso(children: ReactNode): ReactNode {
+/**
+ * Sets every ₱ in string children in the face `pesoFace` names for the text's own face: FS Sans has its own ₱ (left
+ * alone), Atkinson has none, so a peso in statement prose takes the figure face (S2.3: money is always FS Sans).
+ * Other children pass through. The face is only looked up when a child carries a ₱.
+ */
+function withPeso(children: ReactNode, face: () => string | null): ReactNode {
+  let peso: string | null | undefined;
   return Children.map(children, (child) => {
     if (typeof child !== "string" || !child.includes("₱")) return child;
-    const parts = child.split("₱");
-    return parts.flatMap((p, i) =>
-      i === 0
-        ? [p]
-        : [
-            <Text key={`peso-${i}`} style={PESO}>
-              ₱
-            </Text>,
-            p,
-          ],
-    );
+    if (peso === undefined) peso = face();
+    if (!peso) return child;
+    const style = { fontFamily: peso };
+    let at = 0;
+    return pesoRuns(child).map((r) => {
+      const key = `peso-${at}`;
+      at += r.text.length;
+      return r.peso ? (
+        <Text key={key} style={style}>
+          {r.text}
+        </Text>
+      ) : (
+        r.text
+      );
+    });
   });
 }
 
@@ -59,13 +66,15 @@ export function Txt({
   ...rest
 }: TxtProps) {
   const { t } = useFs();
+  const face = () =>
+    pesoFace((StyleSheet.flatten(style)?.fontFamily as string | undefined) ?? typeScale[kind].fontFamily);
   return (
     <Text
       {...rest}
       maxFontSizeMultiplier={maxFontSizeMultiplier ?? (kind === "amountHero" ? 1.5 : 2)}
       style={[typeScale[kind], { color: t.color[color] }, align ? { textAlign: align } : null, style]}
     >
-      {withPeso(children)}
+      {withPeso(children, face)}
     </Text>
   );
 }

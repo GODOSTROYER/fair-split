@@ -1,7 +1,8 @@
 /**
  * App chrome on Material 3 structure, themed from our tokens (design §6 "Navigation"; Android guidance): the
  * navigation bar with three destinations per role, a small top app bar, and the edge-to-edge screen frame that
- * carries the screen's test hooks (`testID` = its register ID, `data-state` from IC-01's list) and the demo label.
+ * carries the screen's test hooks (`testID` = its register ID, `data-state` from IC-01's list) and the labels that
+ * keep it honest (demo data, machine translation).
  */
 
 import { useFocusEffect } from "expo-router";
@@ -13,7 +14,7 @@ import type { ScreenStateOf, ScreenWithStates } from "../_shims/contracts";
 import { space, target } from "../_shims/tokens.native";
 import { stage } from "../services/frame-bridge";
 import { useFs } from "../theme/theme";
-import { DemoLabel } from "./primitives";
+import { SurfaceLabels } from "./primitives";
 import { Txt } from "./text";
 
 /**
@@ -115,9 +116,10 @@ export interface ScreenProps<S extends ScreenWithStates> {
 }
 
 /**
- * Edge-to-edge screen on the ground colour with 16 dp gutters and 24 dp between sections (design §2.4), the demo
- * label whenever data is not live (I8), and the screen's test hooks. In a judge frame it tells the stage which
- * screen it shows (IC-12 `fs.focus`).
+ * Edge-to-edge screen on the ground colour with 16 dp gutters and 24 dp between sections (design §2.4), opened by its
+ * labels: the demo label whenever data is not live (I8) and "Machine-translated, pending native review" whenever the
+ * language is Cebuano or Filipino (OD-2), on every screen of every role. It carries the screen's test hooks, and in a
+ * judge frame it tells the stage which screen it shows (IC-12 `fs.focus`).
  */
 export function Screen<S extends ScreenWithStates>({
   testID,
@@ -145,12 +147,12 @@ export function Screen<S extends ScreenWithStates>({
           contentContainerStyle={[styles.content, pad, contentStyle]}
           keyboardShouldPersistTaps="handled"
         >
-          <DemoLabel />
+          <SurfaceLabels screen={testID} />
           {children}
         </ScrollView>
       ) : (
         <View style={[styles.content, pad, { flex: 1 }, contentStyle as object]}>
-          <DemoLabel />
+          <SurfaceLabels screen={testID} />
           {children}
         </View>
       )}

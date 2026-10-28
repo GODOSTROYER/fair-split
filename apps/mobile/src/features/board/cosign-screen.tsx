@@ -10,6 +10,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, TextInput, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { format } from "../../_shims/domain";
+import { fontFamily } from "../../_shims/fonts";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
 import { feedback } from "../../platform/feedback";
@@ -514,7 +515,7 @@ const styles = StyleSheet.create({
     padding: space.s12,
     fontSize: 16,
     lineHeight: 22,
-    fontFamily: "MonaSans_400Regular",
+    fontFamily: fontFamily.ui,
   },
   sheetActions: {
     flexDirection: "row",

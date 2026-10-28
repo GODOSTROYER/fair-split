@@ -4,6 +4,7 @@
  * the count through the tab's `tabBarAccessibilityLabel` ("Outbox, 3 on this phone", set by the clerk layout).
  */
 import { type ColorValue, StyleSheet, View } from "react-native";
+import { fontFamily } from "../../_shims/fonts";
 import { summarise } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
@@ -56,5 +57,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  count: { fontSize: 11, lineHeight: 13, fontFamily: "MonaSans_700Bold" },
+  count: { fontSize: 11, lineHeight: 13, fontFamily: fontFamily.strong },
 });

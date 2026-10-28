@@ -4,7 +4,7 @@
  * the amount, the labelled "Simulated push" that stands in for FCM in judge frames, the honest push status on a
  * phone, and the amount that turns from pencil to ink when both keys are in.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -266,11 +266,6 @@ export function SignedAmount({
 }) {
   const { motion } = useFs();
   const opacity = useSharedValue(ink ? 1 : 0);
-  // The figure never wraps or clips: in a column narrower than the amount (200% zoom, a 2× font on a small
-  // phone) it scales down to fit, and gives back the height it no longer needs.
-  const [avail, setAvail] = useState(0);
-  const [natural, setNatural] = useState({ w: 0, h: 0 });
-  const scale = avail > 0 && natural.w > avail ? avail / natural.w : 1;
   useEffect(() => {
     if (!ink) {
       opacity.set(0);
@@ -279,20 +274,15 @@ export function SignedAmount({
     opacity.set(live ? withTiming(1, motion.reduced ? reducedFade() : tween("crossfade")) : 1);
   }, [ink, live, motion.reduced, opacity]);
   const inkStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  // The figure never wraps or clips: in a column narrower than the amount (200% zoom, a 2× font on a small phone)
+  // AmountDisplay scales the whole figure down to fit, pencil and ink alike, so the two layers stay in register.
   return (
     <View
       testID={testID}
       dataSet={{ amountState: ink ? "ink" : "pencil" }}
-      onLayout={(e) => setAvail(e.nativeEvent.layout.width)}
       style={[styles.fit, { alignItems: align === "center" ? "center" : "flex-start" }]}
     >
-      <View
-        onLayout={(e) => setNatural({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
-        style={[
-          align === "center" ? styles.originCenter : styles.originLeft,
-          scale < 1 ? { transform: [{ scale }], marginBottom: -natural.h * (1 - scale) } : null,
-        ]}
-      >
+      <View style={styles.layers}>
         <AmountDisplay text={text} srLabel={srLabel} state="pencil" />
         <Animated.View
           style={[StyleSheet.absoluteFill, inkStyle]}
@@ -426,8 +416,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   flexShrink: { flexShrink: 1 },
   fit: { alignSelf: "stretch" },
-  originLeft: { transformOrigin: "left top" },
-  originCenter: { transformOrigin: "center top" },
+  layers: { maxWidth: "100%" },
   hashRows: { alignItems: "center", gap: space.s2 },
   hashRow: { letterSpacing: 0.6 },
   hold: {

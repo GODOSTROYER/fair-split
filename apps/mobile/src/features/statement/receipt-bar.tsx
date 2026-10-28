@@ -6,13 +6,14 @@
  *
  * Every amount can be tapped (MM-7): it lifts into a 1 px ink frame (`framed`, 90 ms), then the line opens in place
  * (`expanded`, `glide`) to say where it comes from, down to her slips; a slip opens the zoom. All figures come from
- * `lib/figures` (I1); the words wrap them.
+ * `lib/figures` (I1); the words wrap them. Every amount keeps the amount grammar (`receiptStates`): the parts in the
+ * ink of the officers who approved them, the net as the hero reads it, hollow until PayPal or the clerk settles it.
  */
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import type { StatementDTO } from "../../_shims/api-client";
-import type { Lang } from "../../_shims/contracts";
+import type { AmountState, Lang } from "../../_shims/contracts";
 import { SPRINGS } from "../../_shims/motion";
 import { radius, space, target } from "../../_shims/tokens.native";
 import {
@@ -25,6 +26,7 @@ import {
   traceFor,
 } from "../../lib/figures";
 import { useFs } from "../../theme/theme";
+import { AmountDisplay } from "../../ui/amount";
 import { Glyph } from "../../ui/glyph";
 import { ms } from "../../ui/motion";
 import { Hatch, RuleChip } from "../../ui/primitives";
@@ -55,7 +57,8 @@ function Row({
 }: {
   id: TraceId;
   label: ReactNode;
-  amount?: string;
+  /** The row's figure and its amount state; the row's own label speaks it. */
+  amount?: { text: string; state: AmountState };
   note?: string;
   strong?: boolean;
   dotted?: boolean;
@@ -97,9 +100,14 @@ function Row({
           ) : null}
         </View>
         {amount ? (
-          <Txt kind={strong ? "amountM" : "figure"} align="right" style={styles.amount}>
-            {amount}
-          </Txt>
+          <View style={styles.amount}>
+            <AmountDisplay
+              text={amount.text}
+              state={amount.state}
+              size={strong ? "m" : "figure"}
+              testID={`M-MB-01.receipt.${safeId}.amount`}
+            />
+          </View>
         ) : null}
         <View style={[styles.chevron, open === "expanded" && styles.chevronOpen]}>
           <Glyph name="chevronDown" size={16} color={t.color.ink3} />
@@ -248,6 +256,7 @@ export function ReceiptBar({
   onSegment,
   onSlip,
   owner,
+  states,
 }: {
   dto: StatementDTO;
   lang: Lang;
@@ -257,10 +266,13 @@ export function ReceiptBar({
   onSegment(id: TraceId): void;
   onSlip(serial: string, at: TapPoint): void;
   owner: SlipOwner;
+  /** The amount grammar of the parts and of the net (`receiptStates` of the line). */
+  states: { parts: AmountState; net: AmountState };
 }) {
   const { t } = useFs();
   const tr = useT();
   const rows = receiptRows(dto);
+  const part = (text: string) => ({ text, state: states.parts });
   const w = receiptBarWeights(dto);
   const share = shareFigures(dto);
   const fees = feeFigures();
@@ -313,7 +325,7 @@ export function ReceiptBar({
                   </View>
                 }
                 note={tr("M-MB-01.noDeductions")}
-                amount={r.amount}
+                amount={part(r.amount)}
                 srLabel={`${tr("M-MB-01.premium")}, ${r.spoken}, ${tr("M-MB-01.noDeductions")}`}
               >
                 {body(r.id)}
@@ -328,7 +340,7 @@ export function ReceiptBar({
                 open={stateOf(r.id)}
                 onPress={onSegment}
                 label={tr("M-MB-01.bonus")}
-                amount={r.amount}
+                amount={part(r.amount)}
                 srLabel={`${tr("M-MB-01.bonus")}, ${r.spoken}`}
               >
                 {body(r.id)}
@@ -349,7 +361,7 @@ export function ReceiptBar({
                   </View>
                 }
                 note={tr("M-MB-01.ruleRef", { card: dto.rateCard.id })}
-                amount={r.amount}
+                amount={part(r.amount)}
                 srLabel={`${r.label ?? ""}, ${r.spoken}, ${r.ruleId ?? ""}, ${dto.rateCard.id}`}
               >
                 {body(r.id)}
@@ -365,7 +377,7 @@ export function ReceiptBar({
                 onPress={onSegment}
                 label={tr("M-MB-01.credit")}
                 note={tr("M-MB-01.creditSlip", { slip: r.slip ?? "" })}
-                amount={r.amount}
+                amount={part(r.amount)}
                 srLabel={`${tr("M-MB-01.credit")}, ${r.spoken}, ${tr("M-MB-01.creditSlip", { slip: r.slip ?? "" })}`}
               >
                 {body(r.id)}
@@ -380,7 +392,7 @@ export function ReceiptBar({
                 onPress={onSegment}
                 strong
                 label={tr("M-MB-01.net")}
-                amount={r.amount}
+                amount={{ text: r.amount, state: states.net }}
                 srLabel={`${tr("M-MB-01.net")}, ${r.spoken}`}
               >
                 {body(r.id)}
@@ -417,17 +429,21 @@ const styles = StyleSheet.create({
   hatched: { overflow: "hidden" },
   list: { borderTopWidth: 1 },
   rowWrap: { borderWidth: 1, borderRadius: radius.none, marginTop: -1 },
+  // A narrow column (200% zoom, a 2× font) wraps the figure under its words, right-aligned: the receipt becomes a
+  // list (design §8) instead of squeezing the words into a sliver beside the figure.
   row: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: space.s12,
+    columnGap: space.s12,
+    rowGap: space.s4,
     minHeight: target.min + 8,
     paddingVertical: space.s8,
     paddingLeft: space.s8,
     paddingRight: space.s4,
   },
-  rowText: { flex: 1, gap: space.s2 },
-  amount: { flexShrink: 0 },
+  rowText: { flexGrow: 1, flexShrink: 1, flexBasis: 128, gap: space.s2 },
+  amount: { flexShrink: 0, marginLeft: "auto" },
   chevron: { width: 16, alignItems: "center" },
   chevronOpen: { transform: [{ rotate: "180deg" }] },
   labelRow: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },

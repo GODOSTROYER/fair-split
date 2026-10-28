@@ -9,8 +9,45 @@
  */
 import type { AppRole, Lang, ScreenStateOf } from "../../_shims/contracts";
 import { LANGS } from "../../_shims/contracts";
+import type { PairedSession } from "../../services/session";
 
 export type PairState = "idle" | "pairing" | "paired" | "expired" | "used" | "invalid" | "offline" | "error";
+
+/**
+ * Whether a pairing link (`/app/pair?t=…`, `fairsplit://pair?t=…`) must ask before it is claimed: on a phone that is
+ * already paired, yes. Anyone who can mint a pairing token for some workspace (a judge workspace, another co-op's
+ * treasurer) can send the link, the server cannot tell that claim from a real one, and claiming replaces this phone's
+ * pairing and, on a board phone, deletes its signing key. Only the person holding the phone can say no. An unpaired
+ * phone has nothing to lose, so a judge opening the QR's link still pairs in one step.
+ */
+export function linkClaimNeedsConfirm(
+  session: Pick<PairedSession, "persona"> | null,
+  token: string | null | undefined,
+): boolean {
+  return session !== null && !!token?.trim();
+}
+
+/** The person's answer to "Pair this phone again?". */
+export type LinkAnswer = "confirm" | "cancel";
+
+/**
+ * What the pairing screen does with a link's token: nothing (no token), claim it, ask first (`ask` shows the
+ * dialog that names the current pairing), or keep the current pairing (`keep`: nothing is claimed, nothing stored
+ * changes, so the shell never forgets the signing key).
+ */
+export type LinkStep = "none" | "claim" | "ask" | "keep";
+
+export function linkStep(opts: {
+  session: Pick<PairedSession, "persona"> | null;
+  token: string | null | undefined;
+  answer: LinkAnswer | null;
+}): LinkStep {
+  if (!opts.token?.trim()) return "none";
+  if (!linkClaimNeedsConfirm(opts.session, opts.token)) return "claim";
+  if (opts.answer === "confirm") return "claim";
+  if (opts.answer === "cancel") return "keep";
+  return "ask";
+}
 
 /**
  * Whether a code the camera reads should be claimed. The camera reports the QR in front of it many times a second,
@@ -117,9 +154,4 @@ export function stampInitials(name: string): string {
 export function textSizePct(fontScale: number): number {
   if (!Number.isFinite(fontScale) || fontScale <= 0) return 100;
   return Math.round(fontScale * 100);
-}
-
-/** From 1.3× the sample stacks and the statement becomes one column (S1.12 "Large text"). */
-export function largeText(fontScale: number): boolean {
-  return fontScale >= 1.3;
 }

@@ -167,6 +167,23 @@ export const messages = defineMessages({
     fil: "Nakakonekta na po. Ang teleponong ito ay para sa {role}.",
     en: "Paired. This phone is for the {role}.",
   },
+  "M-ON-01.pair.replaceTitle": {
+    ceb: "Ikonektar pag-usab kini nga telepono?",
+    fil: "Ikonekta muli ang teleponong ito?",
+    en: "Pair this phone again?",
+  },
+  "M-ON-01.pair.replaceBody": {
+    ceb: "Konektado kini nga telepono kang {who}. Ang bag-ong QR mopuli niini nga koneksyon.",
+    fil: "Nakakonekta po ang teleponong ito kay {who}. Papalitan ito ng bagong QR.",
+    en: "This phone is paired to {who}. The new QR replaces that pairing.",
+  },
+  "M-ON-01.pair.replaceBodyKey": {
+    ceb: "Konektado kini nga telepono kang {who}. Ang bag-ong QR mopuli niini nga koneksyon, ug mapapas sa telepono ang key {key} nga gigamit sa pagpirma.",
+    fil: "Nakakonekta po ang teleponong ito kay {who}. Papalitan ito ng bagong QR, at mabubura sa telepono ang key {key} na ginagamit sa pagpirma.",
+    en: "This phone is paired to {who}. The new QR replaces that pairing and deletes signing key {key} from this phone.",
+  },
+  "M-ON-01.pair.replaceConfirm": { ceb: "Ikonektar pag-usab", fil: "Ikonekta muli", en: "Pair again" },
+  "M-ON-01.pair.replaceCancel": { ceb: "Ayaw usba", fil: "Huwag palitan", en: "Keep this pairing" },
   "M-ON-01.pair.demoTitle": {
     ceb: "Walay server nga gi-set. Sulayi ang usa ka papel gamit ang demo data.",
     fil: "Walang server na naka-set. Subukan ang isang papel gamit ang demo data.",

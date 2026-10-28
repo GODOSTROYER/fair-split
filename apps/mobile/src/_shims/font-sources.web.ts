@@ -1,11 +1,13 @@
 /**
- * TEMPORARY SHIM (see fonts.ts): the web export loads the same files at runtime under the same family names.
+ * The web export (the judge's phone frames) loads the very files the Android build embeds, WS-DS's native cuts in
+ * assets/fonts/native, under the same family names (fonts.ts), so a frame sets the same figures as the phone: the
+ * condensed amounts, the slashed zero, the grafted ₱. Metro reaches the folder through metro.config.js.
  */
 export const fontSources: Record<string, number> = {
-  MonaSans_400Regular: require("@expo-google-fonts/mona-sans/400Regular/MonaSans_400Regular.ttf"),
-  MonaSans_500Medium: require("@expo-google-fonts/mona-sans/500Medium/MonaSans_500Medium.ttf"),
-  MonaSans_700Bold: require("@expo-google-fonts/mona-sans/700Bold/MonaSans_700Bold.ttf"),
-  MonaSans_800ExtraBold: require("@expo-google-fonts/mona-sans/800ExtraBold/MonaSans_800ExtraBold.ttf"),
-  AtkinsonHyperlegibleNext_400Regular: require("@expo-google-fonts/atkinson-hyperlegible-next/400Regular/AtkinsonHyperlegibleNext_400Regular.ttf"),
-  AtkinsonHyperlegibleNext_700Bold: require("@expo-google-fonts/atkinson-hyperlegible-next/700Bold/AtkinsonHyperlegibleNext_700Bold.ttf"),
+  "FSSans-CondXBold": require("../../../../assets/fonts/native/FSSans-CondXBold.ttf"),
+  "FSSans-SemiCondMedium": require("../../../../assets/fonts/native/FSSans-SemiCondMedium.ttf"),
+  "FSSans-Regular": require("../../../../assets/fonts/native/FSSans-Regular.ttf"),
+  "FSSans-SemiExpBold": require("../../../../assets/fonts/native/FSSans-SemiExpBold.ttf"),
+  "AtkinsonNext-Regular": require("../../../../assets/fonts/native/AtkinsonNext-Regular.ttf"),
+  "AtkinsonNext-Bold": require("../../../../assets/fonts/native/AtkinsonNext-Bold.ttf"),
 };

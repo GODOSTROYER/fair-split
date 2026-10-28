@@ -37,7 +37,7 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { spring, TIMELINE } from "../../ui/motion";
-import { Button, DemoLabel, Hatch } from "../../ui/primitives";
+import { Button, Hatch, SurfaceLabels } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { lineView } from "./line-view";
 import { canPlay, paminawaScreenState, SLOW_RATE } from "./paminawa-machine";
@@ -209,7 +209,7 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
         <View ref={content} collapsable={false} style={styles.content}>
           {/* The labels scroll away with the transcript, so a small phone keeps most of its height for the words. */}
           <View style={styles.top}>
-            <DemoLabel />
+            <SurfaceLabels screen="M-MB-03" />
             <LangBar testID="M-MB-03" />
             {label ? (
               <View style={styles.voice} testID="M-MB-03.voice" dataSet={{ state: plan.mode }}>

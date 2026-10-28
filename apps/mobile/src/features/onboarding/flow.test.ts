@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SCREEN_STATES } from "../../_shims/contracts";
+import { type PairedSession, pairingChanged } from "../../services/session";
 import {
   afterPairing,
   firstLanguage,
+  type LinkAnswer,
   languageFromLocale,
-  largeText,
+  linkClaimNeedsConfirm,
+  linkStep,
   type PairState,
   pairScreenState,
   QR_CELLS,
@@ -15,6 +18,45 @@ import {
   stencilGlyphs,
   textSizePct,
 } from "./flow";
+
+/** The Chair's phone, paired to his co-op (his signing key, fs-ernesto-a1, is bound to this pairing). */
+const chair: PairedSession = {
+  kind: "device",
+  bearer: "fsd_chair_phone",
+  expiresAt: "2027-01-01T00:00:00Z",
+  workspaceId: "ws_bulawanon",
+  persona: "board:ernesto",
+  role: "board",
+  memberNo: null,
+  displayName: "Ernesto P. Cabahug",
+  lang: "ceb",
+  pairedAt: "2026-10-20T08:00:00Z",
+};
+
+/** What the link's token claims: some other workspace, seeded to look the same. */
+const elsewhere: PairedSession = {
+  ...chair,
+  bearer: "fsd_other",
+  workspaceId: "ws_somebody_else",
+  pairedAt: "2026-10-28T09:00:00Z",
+};
+
+/**
+ * A pairing link opened on this phone, end to end as the app runs it: the screen's step (`linkStep`), the claim when
+ * the step says so, then the shell's rule (state/app.tsx): the signing key is forgotten whenever the pairing changes.
+ */
+async function openLink(session: PairedSession | null, answer: LinkAnswer | null) {
+  const claim = vi.fn(async (_token: string) => elsewhere);
+  const forget = vi.fn();
+  let paired = session;
+  const step = linkStep({ session, token: "fsp_from_a_link", answer });
+  if (step === "claim") {
+    const next = await claim("fsp_from_a_link");
+    if (pairingChanged(paired, next)) forget();
+    paired = next;
+  }
+  return { step, claim, forget, paired };
+}
 
 describe("M-ON-01 flow", () => {
   it("asks members read-or-listen once, after pairing, and never infers it", () => {
@@ -117,11 +159,54 @@ describe("M-ON-01 flow", () => {
     expect(firstLanguage(null, "en-GB")).toBe("en");
   });
 
-  it("reads the text size as a percentage, and stacks from 1.3×", () => {
+  it("reads the text size as a percentage", () => {
     expect(textSizePct(1)).toBe(100);
     expect(textSizePct(1.3)).toBe(130);
     expect(textSizePct(Number.NaN)).toBe(100);
-    expect(largeText(1.29)).toBe(false);
-    expect(largeText(2)).toBe(true);
+  });
+});
+
+describe("a pairing link never replaces a pairing by itself (re-pairing trust)", () => {
+  it("asks first on a paired phone, and claims at once on an unpaired one (a judge's QR link)", () => {
+    expect(linkClaimNeedsConfirm(chair, "fsp_from_a_link")).toBe(true);
+    expect(linkClaimNeedsConfirm(null, "fsp_from_a_link")).toBe(false);
+    // No token, no question: the screen is the ordinary pairing card.
+    expect(linkClaimNeedsConfirm(chair, undefined)).toBe(false);
+    expect(linkClaimNeedsConfirm(chair, "   ")).toBe(false);
+
+    expect(linkStep({ session: chair, token: "fsp_from_a_link", answer: null })).toBe("ask");
+    expect(linkStep({ session: null, token: "fsp_from_a_link", answer: null })).toBe("claim");
+    expect(linkStep({ session: chair, token: undefined, answer: null })).toBe("none");
+    expect(linkStep({ session: null, token: "", answer: null })).toBe("none");
+  });
+
+  it("claims only once the person confirms, and then the old pairing's key goes, as the dialog said", async () => {
+    expect(linkStep({ session: chair, token: "fsp_from_a_link", answer: "confirm" })).toBe("claim");
+    const r = await openLink(chair, "confirm");
+    expect(r.claim).toHaveBeenCalledOnce();
+    expect(r.forget).toHaveBeenCalledOnce();
+    expect(r.paired).toBe(elsewhere);
+  });
+
+  it("cancelling claims nothing: the session and the Chair's signing key stay as they were", async () => {
+    expect(linkStep({ session: chair, token: "fsp_from_a_link", answer: "cancel" })).toBe("keep");
+    const r = await openLink(chair, "cancel");
+    expect(r.claim).not.toHaveBeenCalled();
+    expect(r.forget).not.toHaveBeenCalled();
+    expect(r.paired).toBe(chair);
+  });
+
+  it("waiting for the answer claims nothing either", async () => {
+    const r = await openLink(chair, null);
+    expect(r.step).toBe("ask");
+    expect(r.claim).not.toHaveBeenCalled();
+    expect(r.forget).not.toHaveBeenCalled();
+  });
+
+  it("an unpaired phone claims the link with no question, and has no key to lose", async () => {
+    const r = await openLink(null, null);
+    expect(r.claim).toHaveBeenCalledOnce();
+    expect(r.forget).not.toHaveBeenCalled();
+    expect(r.paired).toBe(elsewhere);
   });
 });

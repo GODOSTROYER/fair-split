@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { MemberStatus } from "../_shims/contracts";
+import { fontFamily } from "../_shims/fonts";
+import { pendingReview } from "../_shims/i18n";
 import { radius, space, target } from "../_shims/tokens.native";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
 import { useApp } from "../state/app";
@@ -220,14 +222,49 @@ export function DemoLabel() {
   );
 }
 
-export function MachineTranslatedNote() {
+/**
+ * OD-2 (S1.6): "Machine-translated, pending native review" while the language is Cebuano or Filipino
+ * (`pendingReview`). Machine output is pencil (design §1): the translate glyph and the words in pencil, on a dashed
+ * edge, beside the demo label.
+ */
+export function MachineTranslatedNote({ testID }: { testID?: string }) {
   const { lang } = useApp();
   const t = useT();
-  if (lang === "en") return null;
+  const fs = useFs();
+  if (!pendingReview(lang)) return null;
   return (
-    <Txt kind="caption" color="ink3" testID="machine-translated">
-      {t("common.machineTranslated")}
-    </Txt>
+    <View
+      testID={testID}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={t("common.machineTranslated")}
+      style={[
+        styles.demoLabel,
+        styles.machine,
+        { borderColor: fs.t.color.rule, backgroundColor: fs.t.color.plate2 },
+      ]}
+    >
+      <Glyph name="translate" size={14} color={fs.t.color.pencil} />
+      <Txt kind="caption" style={{ color: fs.t.color.pencil, flexShrink: 1 }}>
+        {t("common.machineTranslated")}
+      </Txt>
+    </View>
+  );
+}
+
+/**
+ * The labels that open every surface, on one row that wraps on a narrow phone: demo data (I8) and the review chip
+ * (OD-2). The chrome draws them on every `<Screen>`; the one surface that is not a screen, the Paminawa sheet, draws
+ * them itself. `screen` is the register ID: the chip's test hook is `{screen}.machine`.
+ */
+export function SurfaceLabels({ screen }: { screen: string }) {
+  const { demo, lang } = useApp();
+  if (!demo && !pendingReview(lang)) return null;
+  return (
+    <View style={styles.labels}>
+      <DemoLabel />
+      <MachineTranslatedNote testID={`${screen}.machine`} />
+    </View>
   );
 }
 
@@ -390,7 +427,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   stamp: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
-  stampText: { fontSize: 9, lineHeight: 11, fontFamily: "MonaSans_700Bold" },
+  stampText: { fontSize: 9, lineHeight: 11, fontFamily: fontFamily.strong },
   banner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -432,4 +469,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.plate,
   },
+  machine: { borderStyle: "dashed", flexShrink: 1, maxWidth: "100%" },
+  labels: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
 });
