@@ -5,7 +5,7 @@
 import { judgeRoutes } from "@fairsplit/api-client";
 import type { PayRunState } from "@fairsplit/contracts";
 import type { DataAdapter } from "./adapter.js";
-import type { CommandError } from "./errors.js";
+import { type CommandError, isApiClientError } from "./errors.js";
 
 export interface JudgeSession {
   readonly sessionId: string;
@@ -22,6 +22,7 @@ export type SessionStatus = "none" | "starting" | "active" | "resetting" | "fail
 export interface SessionState {
   readonly status: SessionStatus;
   readonly session: JudgeSession | null;
+  /** Why the start failed ("failed"), or why the last Reset did not go through ("active"). */
   readonly error: CommandError | null;
 }
 
@@ -102,14 +103,19 @@ export class SessionStore {
     const routes = judgeRoutes(this.adapter.api);
     const deadline = Date.now() + INVOICE_WAIT.deadlineMs;
     let delay: number = INVOICE_WAIT.firstMs;
+    // Reset (or a new session) while waiting ends the press: nothing is recorded for a session being let go.
+    const current = () =>
+      this.state.status === "active" && this.state.session?.sessionId === session.sessionId;
     for (;;) {
-      if (this.state.session?.sessionId !== session.sessionId) return "ended";
+      if (!current()) return "ended";
       let runState: PayRunState | null;
       try {
         const status = await routes.judgeSession();
+        if (!current()) return "ended";
         if (status.runSlug !== null && status.runSlug !== session.runSlug) return null;
         runState = status.runState;
       } catch {
+        if (!current()) return "ended";
         // No status read (an older API, a blip): go on, and let markPaid's own answer speak.
         return null;
       }
@@ -120,7 +126,11 @@ export class SessionStore {
     }
   }
 
-  /** Reset: cancels parked items and expires the workspace (about 10 s), then the first view returns. */
+  /**
+   * Reset: cancels parked items and expires the workspace (about 10 s), then the first view returns. A session
+   * the server already ended (401, 410) counts as reset. Any other failure leaves the session as it is, with
+   * the error, because the server still holds it: the stage says so and Reset can be pressed again.
+   */
   async reset(): Promise<void> {
     const session = this.state.session;
     if (!session) {
@@ -130,16 +140,26 @@ export class SessionStore {
     this.set({ status: "resetting", session, error: null });
     try {
       await this.adapter.pending.resetSession(session.sessionId);
-    } finally {
-      this.adapter.setToken(null);
-      this.set(NONE);
+    } catch (error) {
+      if (!alreadyEnded(error)) {
+        this.set({ status: "active", session, error: error as CommandError });
+        throw error;
+      }
     }
+    this.adapter.setToken(null);
+    this.set(NONE);
   }
 
-  /** Clears a failed start so the press can be tried again. */
+  /** Clears a failed start so the press can be tried again, or a failed Reset's notice. */
   dismissError(): void {
     if (this.state.status === "failed") this.set(NONE);
+    else if (this.state.error) this.set({ ...this.state, error: null });
   }
+}
+
+/** A Reset answered 401 or 410: the session had already ended on the server. */
+function alreadyEnded(error: unknown): boolean {
+  return isApiClientError(error) && (error.status === 401 || error.status === 410);
 }
 
 function wait(ms: number): Promise<void> {

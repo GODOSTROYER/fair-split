@@ -152,7 +152,26 @@ describe("adapter over HTTP (msw/node)", () => {
     expect(member.persona).toBe("member:M-014");
     expect(world.callerOf(member.token)).toMatchObject({ role: "member" });
     const refused = await adapter.pending.frameToken("not-a-session", "clerk").catch((e) => e);
-    expect(isApiClientError(refused, "NOT_FOUND")).toBe(true);
+    expect(isApiClientError(refused, "FORBIDDEN")).toBe(true);
+  });
+
+  it("sends Reset and frame tokens with the judge cookie only: fs-api refuses the console's bearer there (403)", async () => {
+    const session = await startSession(adapter);
+    // As fs-api's requireOwnSession: a bearer wins over the cookie and is not a judge_session credential.
+    for (const path of [
+      `/v1/judge/sessions/${session.sessionId}/frames`,
+      `/v1/judge/sessions/${session.sessionId}/reset`,
+    ]) {
+      const withBearer = await adapter.api
+        .request({ method: "POST", path, body: { persona: "board:ernesto" }, name: "probe" })
+        .catch((e) => e);
+      expect(isApiClientError(withBearer, "FORBIDDEN")).toBe(true);
+    }
+    // The adapter's own calls carry no bearer, so they go through with the console's token set.
+    await expect(adapter.pending.frameToken(session.sessionId, "clerk")).resolves.toMatchObject({
+      persona: "clerk:jessie",
+    });
+    await expect(adapter.pending.resetSession(session.sessionId)).resolves.toBeUndefined();
   });
 
   it("Reset returns the world to the first press and ends the console's credential", async () => {

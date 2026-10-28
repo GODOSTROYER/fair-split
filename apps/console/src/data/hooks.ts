@@ -75,8 +75,9 @@ export function useJudgeSession(): JudgeSessionApi {
       start: () => session.start(),
       whenInvoiced: (started: JudgeSession) => session.whenInvoiced(started),
       reset: async () => {
-        hub.closeAll();
+        // Throws when the server still holds the session: its streams stay open then.
         await session.reset();
+        hub.closeAll();
       },
       dismissError: () => session.dismissError(),
     }),

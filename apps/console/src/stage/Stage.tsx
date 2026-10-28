@@ -47,6 +47,7 @@ const SEASON_FALLBACK = "2026-A";
 export type StageState =
   | "phone-visit"
   | "resetting"
+  | "reset-failed"
   | "start-failed"
   | "autoplay"
   | "paused"
@@ -203,7 +204,11 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const onReset = async () => {
     setAutoplay("off");
     lowerPhone();
-    await session.reset();
+    try {
+      await session.reset();
+    } catch {
+      // The server still holds the session: the stage's strip says so, with its request ID and "Try Reset again".
+    }
     void navigate({ to: "/judge" });
   };
 
@@ -247,7 +252,12 @@ export function Stage({ children }: { readonly children: ReactNode }) {
             onWhatsReal={() => setWhatsReal(true)}
             onReset={() => void onReset()}
           />
-          {notice && !visit && <StageNotice notice={notice} onRetry={() => session.dismissError()} />}
+          {notice && !visit && (
+            <StageNotice
+              notice={notice}
+              onRetry={() => (notice.state === "reset-failed" ? void onReset() : session.dismissError())}
+            />
+          )}
           <div className="fsc-stage__body">
             {visit ? (
               <PhoneVisit />

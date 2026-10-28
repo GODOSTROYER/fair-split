@@ -3,7 +3,9 @@
 // moment (motion is evidence). The session store starts one judge session per press and forgets its token;
 // the session's run starts from its own base, never from a showcase read cached under the same slug.
 
+import { ApiClientError } from "@fairsplit/api-client";
 import { describe, expect, it } from "vitest";
+import { stageNoticeFor } from "../chrome/StageNotice.js";
 import { createTestRuntime, createTestWorld } from "../test/world.js";
 import type { EventMeta } from "./hub.js";
 import { queryKeys, runViewQuery } from "./query.js";
@@ -108,6 +110,34 @@ describe("judge session", () => {
       code: "UNAUTHENTICATED",
       status: 401,
     });
+  });
+
+  it("a Reset the server refuses keeps the session and says why; one the server already ended counts as done", async () => {
+    const { runtime, adapter } = createTestRuntime();
+    const original = adapter.pending.resetSession;
+    const session = await runtime.session.start();
+    const ctx = { command: "resetJudgeSession", rail: null, requestId: null };
+    const refusal = new ApiClientError({ code: "FORBIDDEN", status: 403, message: "Not this session." }, ctx);
+    (adapter.pending as { resetSession: typeof original }).resetSession = async () => {
+      throw refusal;
+    };
+    await expect(runtime.session.reset()).rejects.toBe(refusal);
+    // The server still holds the workspace: nothing pretends it was reset.
+    expect(runtime.session.getState()).toEqual({ status: "active", session, error: refusal });
+    const notice = stageNoticeFor({
+      session: runtime.session.getState(),
+      view: undefined,
+      autoplay: "off",
+      inSession: true,
+    });
+    expect(notice).toMatchObject({ state: "reset-failed", retry: true });
+    expect(notice?.text).toMatch(/^Reset didn't go through/);
+    // A 410 (the session already ended on the server) is a reset.
+    (adapter.pending as { resetSession: typeof original }).resetSession = async () => {
+      throw new ApiClientError({ code: "FRAME_TOKEN_EXPIRED", status: 410, message: "Ended." }, ctx);
+    };
+    await runtime.session.reset();
+    expect(runtime.session.getState()).toEqual({ status: "none", session: null, error: null });
   });
 
   it("a failed start can be dismissed and tried again", async () => {

@@ -10,6 +10,7 @@ import {
   type ClientFailure,
   createApiClient,
   type FetchLike,
+  judgeRoutes,
   SSE_BACKOFF,
   type SseState,
 } from "@fairsplit/api-client";
@@ -28,6 +29,7 @@ import type {
   StreamStatus,
   SubscribeOptions,
 } from "./adapter.js";
+import { FRAME_SCOPES } from "./adapter.js";
 
 export interface ApiAdapterOptions {
   /** "http" for fs-api, "mock" when msw answers (the stage labels mock data). */
@@ -42,19 +44,12 @@ export interface ApiAdapterOptions {
   readonly paypalRail: PaypalRail;
 }
 
-/** S3.8 / S3.9 routes outside API_COMMANDS (pending in IC-08). */
+/** S3.8 / S3.9 routes outside API_COMMANDS: api-client's typed judge routes (`JUDGE_ROUTES`), and /healthz. */
 export const PENDING_PATHS = {
   frames: "/v1/judge/sessions/:sid/frames",
   reset: "/v1/judge/sessions/:sid/reset",
   health: "/healthz",
 } as const;
-
-export const FrameTokenGrantSchema = z.strictObject({
-  token: z.string().min(16),
-  exp: z.number().int().positive(),
-  persona: z.string().min(1),
-  ws: z.string().min(1),
-});
 
 const HealthSchema = z.looseObject({ rail: z.enum(["simulated", "sandbox"]) });
 
@@ -81,6 +76,7 @@ export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
     ...(options.fetch ? { fetch: options.fetch } : {}),
     token: () => token,
   });
+  const judge = judgeRoutes(api);
 
   function call<N extends CallableName>(
     name: N,
@@ -155,24 +151,23 @@ export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
     },
     pending: {
       snapshot: options.snapshot,
+      // Reset and frame tokens answer only to the judge cookie of the session (fs-api's requireOwnSession), and a
+      // bearer wins over the cookie there: these two never send the console's bearer, so the cookie speaks.
       async frameToken(sessionId: string, persona: FramePersona): Promise<FrameTokenGrant> {
-        return api.request({
-          method: "POST",
-          path: PENDING_PATHS.frames,
+        const grant = await judge.frameToken({
           params: { sid: sessionId },
-          body: { persona },
-          schema: FrameTokenGrantSchema,
-          name: "frameToken",
+          body: { persona: FRAME_SCOPES[persona] },
+          token: null,
         });
+        return {
+          token: grant.token,
+          exp: Date.parse(grant.expiresAt),
+          persona: `${grant.role}:${grant.persona}`,
+          ws: grant.workspaceId,
+        };
       },
       async resetSession(sessionId: string): Promise<void> {
-        await api.request({
-          method: "POST",
-          path: PENDING_PATHS.reset,
-          params: { sid: sessionId },
-          body: {},
-          name: "resetSession",
-        });
+        await judge.resetJudgeSession({ params: { sid: sessionId }, token: null });
       },
       async paypalRail(): Promise<PaypalRail> {
         try {

@@ -1,4 +1,4 @@
-// The stage's own states (S1.6: queued, resetting, start-failed, autoplay, paused, ai-off, paypal-off) as one
+// The stage's own states (S1.6: queued, resetting, start-failed, autoplay, paused, ai-off, paypal-off; and reset-failed) as one
 // strip under the top bar. Only one shows at a time, the most pressing first. Nothing here is an error
 // colour: the stage pacing itself, a reset or a paused switch is information, not failure.
 
@@ -12,6 +12,7 @@ import { STAGE_NOTICE } from "./copy.js";
 
 export type NoticeState =
   | "resetting"
+  | "reset-failed"
   | "start-failed"
   | "autoplay"
   | "paused"
@@ -52,6 +53,17 @@ export function stageNoticeFor({
       text: STAGE_NOTICE.resetting,
       refs: none,
       retry: false,
+    };
+  }
+  if (session.status === "active" && session.error) {
+    // Reset did not go through: the server still holds the session, so the stage does not pretend otherwise.
+    const failure = errorView(session.error);
+    return {
+      state: "reset-failed",
+      glyph: "ms:restart-alt",
+      text: `${STAGE_NOTICE.resetFailed} ${failure.title}`,
+      refs: failure.refs,
+      retry: true,
     };
   }
   if (session.status === "failed") {
@@ -125,7 +137,7 @@ export function StageNotice({
           onClick={onRetry}
           data-testid="W-JG-01.notice.retry"
         >
-          {STAGE_NOTICE.startRetry}
+          {notice.state === "reset-failed" ? STAGE_NOTICE.resetRetry : STAGE_NOTICE.startRetry}
         </button>
       )}
     </p>

@@ -1,33 +1,31 @@
-// msw handlers for the routes the console calls that API_COMMANDS does not list yet (pending in IC-08), answered
-// by the same api-client mock world: S3.8's frame tokens, S3.9's Reset and the `/healthz` rail label
-// (ADR-0002). A frame token is minted the way a phone pairs (createPairing, then claimPairing), so the world
-// knows whose credential it is and attributes that phone's steps to the right persona. Everything is mock data.
+// msw handlers for the judge routes the console calls whose fs-api rules api-client's mock cannot apply here,
+// answered by the same api-client mock world in fs-api's typed shapes (`JUDGE_ROUTES`): S3.8's frame tokens and
+// S3.9's Reset, plus the `/healthz` rail label (ADR-0002). fs-api accepts Reset and frame tokens only from the
+// judge cookie of that session (`requireOwnSession`), and a bearer wins over the cookie there, so a request
+// carrying the console's bearer is refused (403). api-client's mock checks the `fs_js` cookie header, which
+// neither the in-memory fetch nor a service worker can carry; here a request with no bearer stands for the
+// cookie. A frame token is minted the way a phone pairs (createPairing, then claimPairing), so the world knows
+// whose credential it is and attributes that phone's steps to the right persona. Everything is mock data.
 
-import { HEADER } from "@fairsplit/api-client";
+import { HEADER, JUDGE_ROUTES } from "@fairsplit/api-client";
 import { MOCK_SESSION_ID, MockProblem, type MockStage, type MockWorld } from "@fairsplit/api-client/msw";
 import { ERROR_HTTP_STATUS, type Role } from "@fairsplit/contracts";
 import { HttpResponse, http, type RequestHandler } from "msw";
-import { z } from "zod";
-import type { FramePersona, FrameTokenGrant } from "../adapter.js";
+import { FRAME_SCOPES, type FramePersona } from "../adapter.js";
 import { PENDING_PATHS } from "../api.js";
 import { TREASURER } from "./driver.js";
 
-/** S3.8: who each Judge-stage frame is, and the credential scope its token carries. */
+/** S3.8: who each Judge-stage frame is (its credential scope is `FRAME_SCOPES`). */
 export const FRAME_PERSONAS: Readonly<
-  Record<
-    FramePersona,
-    { readonly scope: string; readonly persona: string; readonly role: Role; readonly memberNo?: string }
-  >
+  Record<FramePersona, { readonly persona: string; readonly role: Role; readonly memberNo?: string }>
 > = {
-  member: { scope: "member:M-014", persona: "M-014", role: "member", memberNo: "M-014" },
-  chair: { scope: "board:ernesto", persona: "ernesto", role: "board" },
-  clerk: { scope: "clerk:jessie", persona: "jessie", role: "clerk" },
+  member: { persona: "M-014", role: "member", memberNo: "M-014" },
+  chair: { persona: "ernesto", role: "board" },
+  clerk: { persona: "jessie", role: "clerk" },
 };
 
 /** S3.8: frame tokens live 2 hours. */
 export const FRAME_TOKEN_TTL_MS = 2 * 60 * 60_000;
-
-const FrameRequest = z.strictObject({ persona: z.enum(["member", "chair", "clerk"]) });
 
 function problem(world: MockWorld, p: MockProblem): Response {
   const status = ERROR_HTTP_STATUS[p.code];
@@ -41,20 +39,25 @@ function bearer(request: Request): string | null {
   return /^Bearer[ ]+(\S+)$/i.exec(request.headers.get("authorization") ?? "")?.[1] ?? null;
 }
 
-/** The session's console credential (the treasurer's, from createJudgeSession), else a refusal. */
-function requireConsole(world: MockWorld, request: Request, sid: unknown): MockProblem | null {
-  const token = bearer(request);
-  const caller = token ? world.callerOf(token) : null;
-  if (!caller) return new MockProblem("UNAUTHENTICATED", "Start a judge session first.");
-  if (caller.role !== "treasurer" && caller.role !== "judge") {
-    return new MockProblem("FORBIDDEN", "Only the judge's console manages its session.");
+/** fs-api's `requireOwnSession`: the judge cookie of `:sid`, and never a bearer (a bearer wins over the cookie). */
+function requireOwnSession(request: Request, sid: unknown): MockProblem | null {
+  if (bearer(request)) {
+    return new MockProblem("FORBIDDEN", "Only the judge stage that started this session can do this.");
   }
-  if (sid !== MOCK_SESSION_ID) return new MockProblem("NOT_FOUND", "No judge session with that ID.");
+  if (String(sid).toLowerCase() !== MOCK_SESSION_ID) {
+    return new MockProblem("FORBIDDEN", "This is another judge session.");
+  }
   return null;
 }
 
+/** The frame persona a `{role}:{persona}` scope names, if the stage has that frame. */
+function frameOf(scope: string): FramePersona | null {
+  const entry = Object.entries(FRAME_SCOPES).find(([, s]) => s.toLowerCase() === scope.toLowerCase());
+  return (entry?.[0] as FramePersona | undefined) ?? null;
+}
+
 /** Mints a frame token as a pairing would, so the world attributes the frame's steps to its persona. */
-export function mintFrameToken(world: MockWorld, persona: FramePersona, nowMs: number): FrameTokenGrant {
+export function mintFrameToken(world: MockWorld, persona: FramePersona, nowMs: number) {
   const who = FRAME_PERSONAS[persona];
   const pairing = world.execute("createPairing", {
     params: {},
@@ -71,9 +74,10 @@ export function mintFrameToken(world: MockWorld, persona: FramePersona, nowMs: n
   });
   return {
     token: claimed.body.token,
-    exp: nowMs + FRAME_TOKEN_TTL_MS,
-    persona: who.scope,
-    ws: world.workspaceId,
+    role: who.role,
+    persona: who.persona,
+    workspaceId: world.workspaceId,
+    expiresAt: new Date(nowMs + FRAME_TOKEN_TTL_MS).toISOString(),
   };
 }
 
@@ -84,20 +88,27 @@ export interface PendingHandlerOptions {
   readonly now?: () => number;
 }
 
-/** Handlers for the pending routes, matched on any origin like api-client's own. */
+/** Handlers for these routes, matched on any origin like api-client's own, and answered before them. */
 export function createPendingHandlers(options: PendingHandlerOptions): RequestHandler[] {
   const { world } = options;
   const now = options.now ?? (() => Date.now());
   return [
     http.post(`*${PENDING_PATHS.frames}`, async ({ request, params }) => {
-      const refused = requireConsole(world, request, params.sid);
+      const refused = requireOwnSession(request, params.sid);
       if (refused) return problem(world, refused);
-      const parsed = FrameRequest.safeParse(await request.json().catch(() => null));
-      if (!parsed.success) {
-        return problem(world, new MockProblem("VALIDATION_FAILED", "A frame names member, chair or clerk."));
+      const parsed = JUDGE_ROUTES.frameToken.request.safeParse(await request.json().catch(() => null));
+      const persona = parsed.success ? frameOf(parsed.data.persona) : null;
+      if (!persona) {
+        return problem(
+          world,
+          new MockProblem(
+            "VALIDATION_FAILED",
+            "A persona is {role}:{name}, e.g. board:ernesto or member:M-014.",
+          ),
+        );
       }
       try {
-        const grant = mintFrameToken(world, parsed.data.persona, now());
+        const grant = mintFrameToken(world, persona, now());
         return HttpResponse.json(grant, { status: 201, headers: { [HEADER.rail]: world.rail } });
       } catch (error) {
         if (error instanceof MockProblem) return problem(world, error);
@@ -105,10 +116,19 @@ export function createPendingHandlers(options: PendingHandlerOptions): RequestHa
       }
     }),
     http.post(`*${PENDING_PATHS.reset}`, ({ request, params }) => {
-      const refused = requireConsole(world, request, params.sid);
+      const refused = requireOwnSession(request, params.sid);
       if (refused) return problem(world, refused);
       world.reset(options.resetStage);
-      return new HttpResponse(null, { status: 204, headers: { [HEADER.rail]: world.rail } });
+      return HttpResponse.json(
+        {
+          reset: true,
+          sessionId: MOCK_SESSION_ID,
+          workspaceId: world.workspaceId,
+          endedAt: new Date(now()).toISOString(),
+          revokedTokens: 1,
+        },
+        { status: 200, headers: { [HEADER.rail]: world.rail } },
+      );
     }),
     http.get(`*${PENDING_PATHS.health}`, () =>
       HttpResponse.json(

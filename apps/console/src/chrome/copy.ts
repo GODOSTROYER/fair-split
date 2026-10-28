@@ -77,6 +77,8 @@ export const STAGE_NOTICE = {
   resetting: STAGE.resetting,
   startFailed: "We couldn't start a run.",
   startRetry: "Try again",
+  resetFailed: "Reset didn't go through: this session is still running.",
+  resetRetry: "Try Reset again",
   requestId: (id: string) => `Request ${id}`,
   aiOff: "Live slip reading is off. The recorded run still plays.",
   paypalOff: "PayPal calls are off. PayPal steps replay the last run, labelled.",

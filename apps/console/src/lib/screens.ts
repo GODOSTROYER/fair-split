@@ -36,6 +36,7 @@ export const SCREEN_STATES = {
     "session",
     "queued",
     "resetting",
+    "reset-failed",
     "circuit",
     "balance-low",
     "ai-off",

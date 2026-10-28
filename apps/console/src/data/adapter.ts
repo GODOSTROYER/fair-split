@@ -58,6 +58,13 @@ export interface SubscribeOptions {
 /** The three phone-frame personas on the Judge stage (S1.6) and the credential each frame holds (S3.8). */
 export type FramePersona = "member" | "chair" | "clerk";
 
+/** Each frame's credential scope, `{role}:{persona}` as fs-api's frame-token route takes it (S3.8). */
+export const FRAME_SCOPES: Readonly<Record<FramePersona, string>> = {
+  member: "member:M-014",
+  chair: "board:ernesto",
+  clerk: "clerk:jessie",
+};
+
 export interface FrameTokenGrant {
   readonly token: string;
   /** Epoch milliseconds. The stage refreshes 5 minutes before. */
