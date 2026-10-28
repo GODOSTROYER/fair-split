@@ -8,6 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AppDeps } from "../lib/context.js";
 import { createTestApp, setWorkspaceExpiry, type TestApp, type TestAppOptions } from "../test/index.js";
+import { LANE_DEFAULTS } from "./lane.js";
 import { beginLiveStep, ELSEWHERE_RETRY_MS, NO_JUDGE_QUOTA } from "./live-step.js";
 import {
   estimateBalance,
@@ -17,6 +18,7 @@ import {
   liveBatchesInLast24h,
   quotaFacts,
   recordBalanceReading,
+  recordJudgeCode,
   reserveLivePost,
   settleLivePost,
 } from "./quota.js";
@@ -199,32 +201,34 @@ describe("the binding decision (reserveLivePost)", () => {
   });
 });
 
-describe("a held slot ages out with the count (the rolling 24 h)", () => {
-  it("inv.quota.held-ttl: a run's slot carries its post only while it is counted; 25 h on, the post needs a new one", async () => {
-    await open();
+describe("a held slot carries a post for one lane lease in its clock hour; later the post takes a fresh slot dated now", () => {
+  it("inv.quota.restamp: a quick retry keeps the slot; a lease later, or in the next clock hour, the post needs a new one", async () => {
+    await open({ clock: new Date("2026-10-28T02:00:00.000Z") });
     await reading(ONE_MILLION);
+    // the threshold is the live lane's lease: a slot younger than one burst is that burst's
+    expect(JUDGE_QUOTA.restampAfterMs).toBe(LANE_DEFAULTS.leaseMs);
     const ws = await judgeWorkspace();
     const runX = randomUUID();
     const first = await reserve(t.deps, { workspaceId: ws, runId: runX });
     expect(first.reservation).not.toBeNull();
-    // 22 h on, the slot is still in the trailing 24 h: the resumed post goes live under it, past a full day
-    t.clock.advance(22 * 3_600_000);
+    // a minute on (the same clock hour) the retried post goes live under it, past a full day: unchanged
+    t.clock.advance(60_000);
     await fillTheDay();
     expect(await holdsLivePost(t.deps.db, runX, t.clock.now())).toBe(true);
     const held = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
     expect(held.decision.mode).toBe("live");
     expect(held.reservation?.id).toBe(first.reservation?.id);
-    // 25 h after it was taken it is in no count any more: no slot is held, and the full day leaves none to take
-    t.clock.advance(3 * 3_600_000);
-    await reading(ONE_MILLION);
+    // a lease later it carries nothing: the post would reach PayPal now, so it needs a slot dated now, and the full
+    // day (its own slot aside) leaves none: it waits
+    t.clock.advance(JUDGE_QUOTA.restampAfterMs);
     expect(await holdsLivePost(t.deps.db, runX, t.clock.now())).toBe(false);
     const full = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
     expect(full).toMatchObject({ decision: { mode: "replay", reason: "daily_cap" }, reservation: null });
-    // the others age out too: the post takes a NEW slot, counted from now
+    // the others age out: a FRESH slot dated now supersedes the old one, and the run is counted once
     t.clock.advance(23 * 3_600_000);
+    await reading(ONE_MILLION);
     const fresh = await reserve(t.deps, { workspaceId: ws, runId: runX, resume: true });
     expect(fresh.decision.mode).toBe("live");
-    expect(fresh.reservation).not.toBeNull();
     expect(fresh.reservation?.id).not.toBe(first.reservation?.id);
     expect(fresh.reservation?.reservedAt).toEqual(t.clock.now());
     expect(fresh.decision.quota.used24h).toBe(1);
@@ -234,7 +238,54 @@ describe("a held slot ages out with the count (the rolling 24 h)", () => {
     expect(again.reservation?.id).toBe(fresh.reservation?.id);
   });
 
-  it("C-21 counts a written batch from its run's newest live slot too, and a late resume answers to it", async () => {
+  it("a slot taken in the last seconds of a clock hour carries no retry into the next hour (counted where it lands)", async () => {
+    await open({ clock: new Date("2026-10-28T02:59:30.000Z") });
+    await reading(ONE_MILLION);
+    const ws = await judgeWorkspace();
+    const runY = randomUUID();
+    const first = await reserve(t.deps, { workspaceId: ws, runId: runY });
+    expect(first.reservation).not.toBeNull();
+    // three other posts in the next hour fill it before the retry
+    t.clock.advance(31_000);
+    for (let i = 0; i < JUDGE_QUOTA.hourlyMax; i++)
+      expect((await reserve(t.deps)).reservation).not.toBeNull();
+    expect(await holdsLivePost(t.deps.db, runY, t.clock.now())).toBe(false);
+    const late = await reserve(t.deps, { workspaceId: ws, runId: runY, resume: true });
+    expect(late).toMatchObject({ decision: { mode: "replay", reason: "hourly_cap" }, reservation: null });
+  });
+
+  it("D2: on the last judging day a resume's fresh slot keeps balance minus its batch above the floor", async () => {
+    await open({ clock: new Date("2026-12-14T02:00:00.000Z") });
+    const judge = await t.fixture({ kind: "judge", withRun: true });
+    const runId = judge.runId as string;
+    await liveBatch({
+      workspaceId: judge.workspaceId,
+      runId,
+      at: new Date(t.clock.nowMs() - 2 * 3_600_000),
+      status: "SUBMITTED",
+    });
+    // US$10,350: one day left, so the formula allows a run (US$345), but this US$368.39 batch would leave US$9,981.61
+    await reading(JUDGE_QUOTA.replayFloorCents + 35_000);
+    // a judge-code session (the day's one slot is no public share)
+    const sessionId = randomUUID();
+    await recordJudgeCode(t.deps.db, { sessionId, at: t.clock.now() });
+    const resume = (amountCents: number) =>
+      reserveLivePost(t.deps, {
+        workspaceId: judge.workspaceId,
+        sessionId,
+        runId,
+        amountCents,
+        resume: true,
+      });
+    expect(await resume(BATCH)).toMatchObject({
+      decision: { mode: "replay", reason: "balance_low" },
+      reservation: null,
+    });
+    // a batch the floor still covers takes its slot (the service's guard at a first write, applied to the resume)
+    expect((await resume(30_000)).reservation).not.toBeNull();
+  });
+
+  it("C-21 counts a written batch from any live slot of its run in the window too, and a late resume answers to it", async () => {
     await open();
     await reading(ONE_MILLION);
     const judge = await t.fixture({ kind: "judge", withRun: true });
@@ -258,6 +309,13 @@ describe("a held slot ages out with the count (the rolling 24 h)", () => {
     // the service checks C-21 only at the first write: the resumed post takes no slot over it
     const over = await reserve(t.deps, { workspaceId: judge.workspaceId, runId, resume: true });
     expect(over).toMatchObject({ decision: { mode: "replay", reason: "daily_cap" }, reservation: null });
+    // D8: a fresh (non-resume) post is not held to C-21 here while C-21 is full: the service checks it at its write
+    const freshWhileFull = await reserve(t.deps, { workspaceId: judge.workspaceId });
+    expect(freshWhileFull.reservation).not.toBeNull();
+    await settleLivePost(t.deps, {
+      reservationId: freshWhileFull.reservation?.id as string,
+      outcome: "not_posted",
+    });
     // a day on, the co-op's batches are out of the window: a new slot, and C-21 counts the batch from it
     t.clock.advance(23 * 3_600_000);
     const late = await reserve(t.deps, { workspaceId: judge.workspaceId, runId, resume: true });

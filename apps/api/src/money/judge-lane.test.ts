@@ -323,7 +323,8 @@ describe("Judge Mode obeys its rail decision at every PayPal step", () => {
     expect(calls("create_payout_batch")).toBe(before);
     expect(await runState(h)).toBe("POSTING");
     expect(await replayedSteps(h)).toEqual([]);
-    // the circuit closes: the same batch is posted live with its ids, the hour's cap notwithstanding (its slot is held)
+    // the circuit closes: the same batch is posted live with its ids on a slot dated now (its own earlier slot aside,
+    // the hour has room: the others could only fill it up to that slot)
     h.t.clock.advance(7 * 60_000);
     await due();
     await runQueued(h, "postPayoutBatch");

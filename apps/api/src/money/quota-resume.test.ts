@@ -1,17 +1,16 @@
 // The quota on resume (S3.9, plan "Limits", I8), on embedded Postgres on the sandbox rail with PayPal answered by msw.
 // A judge post whose batch is written live is never replayed (rows PayPal may hold), and it never goes live without
-// a quota slot held for its run:
-//   - a kill switch that refuses the resumed POST after the write leaves the run's reservation held (the rows still
-//     wait to be posted): once the switch is off the batch posts under it, the 24 h cap filled meanwhile
-//     notwithstanding, and nothing is counted twice;
+// a quota slot held for its run, dated within a lane lease of its POST:
+//   - a kill switch after the write leaves the run's reservation held (the rows still wait to be posted) and the post
+//     waits; once the switch is off the batch posts on a fresh slot dated at its POST (its own earlier slot aside, so
+//     a day at 40 with it still has room), the old slot is superseded, and nothing is counted twice;
 //   - a written batch whose run holds no reservation (one settled not_posted after the write, as builds before this
 //     fix settled the kill switch's refusal) waits while the 24 h cap is full: nothing reaches PayPal, nothing is
 //     replayed, the rows stay SUBMITTED. With a slot free it takes a new reservation under the quota lock and is
 //     posted once, with its sender_batch_id and PayPal-Request-Id, and counted;
-//   - the ordinary resume (its reservation held) is unchanged, and a fresh post over the quota still replays;
-//   - a slot held for more than a day is no slot: it is in no 24 h count any more, so a batch that stalled that long
-//     (a kill switch kept on, an outage the catch-up resumes) waits while the day is full and otherwise takes a new
-//     slot, counted from its post by the judge quota and by C-21.
+//   - a resume after the circuit (7 min) posts the same way, and a fresh post over the quota still replays;
+//   - a batch that stalled for a day (a kill switch kept on, an outage the catch-up resumes) waits while the day is
+//     full and otherwise takes a new slot, counted from its post by the judge quota and by C-21.
 // Each scenario has its own app, so its own judge quota ledger.
 import { randomUUID } from "node:crypto";
 import type { TaskName } from "@fairsplit/contracts";
@@ -133,10 +132,13 @@ async function quotaLedger(h: RunsHarness): Promise<QuotaRow[]> {
 
 const shape = (rows: QuotaRow[]) => rows.map((r) => [r.entry, r.outcome ?? null]);
 
-/** Other judges' live posts fill the rolling 24 h (two hours ago: this clock hour's cap is not what binds). */
-async function fillTheDay(h: RunsHarness) {
+/**
+ * Other judges' live posts fill the rolling 24 h (two hours ago: this clock hour's cap is not what binds): `n` of
+ * them, 40 by default (a full day without the run's own slot).
+ */
+async function fillTheDay(h: RunsHarness, n: number = JUDGE_QUOTA.dailyMax) {
   const at = new Date(h.t.clock.nowMs() - 2 * 3_600_000);
-  for (let i = 0; i < JUDGE_QUOTA.dailyMax; i++) {
+  for (let i = 0; i < n; i++) {
     await h.t.deps.db.insert(schema.reconciliationReports).values({
       kind: "balance",
       windowEnd: at,
@@ -239,7 +241,7 @@ async function writeThenPace(h: RunsHarness, sent: Sent[]) {
   expect(shape(await quotaLedger(h))).toEqual([["judge_post", null]]);
 }
 
-describe("a kill switch after the write keeps the slot held: the batch posts under it once the switch is off", () => {
+describe("a kill switch after the write keeps the slot held; switched off, the batch posts on a fresh slot dated at its POST", () => {
   const script = paypalScript();
   let h: RunsHarness;
   let sent: Sent[];
@@ -249,7 +251,7 @@ describe("a kill switch after the write keeps the slot held: the batch posts und
   });
   afterAll(async () => h?.close());
 
-  it("the co-op pauses payouts after the write: the resumed POST is refused, nothing is sent, the reservation stays open", async () => {
+  it("the co-op pauses payouts after the write: the resumed post waits, nothing is sent, the reservation stays open", async () => {
     h.t.clock.advance(7 * 60_000); // the circuit has closed
     await h.t.client(h.tokens.treasurer).setFlag({ body: { flag: "kill_payouts", on: true } });
     await due(h);
@@ -263,8 +265,9 @@ describe("a kill switch after the write keeps the slot held: the batch posts und
     expect((await postRows(h)).filter((r) => r.state === "queued")).toHaveLength(1);
   });
 
-  it("the 24 h cap fills meanwhile; the switch off, the same batch posts live once under its held reservation", async () => {
-    await fillTheDay(h);
+  it("the day fills meanwhile (40 with its slot); the switch off, the same batch posts live once, counted once", async () => {
+    await fillTheDay(h, JUDGE_QUOTA.dailyMax - 1);
+    expect((await peek(h)).quota.used24h).toBe(JUDGE_QUOTA.dailyMax);
     await h.t.client(h.tokens.treasurer).setFlag({ body: { flag: "kill_payouts", on: false } });
     await runQueued(h, "postPayoutBatch");
     expect(sent).toHaveLength(2);
@@ -275,11 +278,18 @@ describe("a kill switch after the write keeps the slot held: the batch posts und
     expect(script.posted.map((b) => b.sender_batch_header.sender_batch_id)).toEqual([batch?.senderBatchId]);
     expect(sent[0]?.senderBatchId).toBe(batch?.senderBatchId);
     expect(sent.map((s) => s.requestId)).toEqual([batch?.requestId, batch?.requestId]);
-    // one slot, taken at the write, settled posted
-    expect(shape(await quotaLedger(h))).toEqual([
+    // the slot taken at the write is superseded by the one dated at the POST, which is settled posted
+    const ledger = await quotaLedger(h);
+    expect(shape(ledger)).toEqual([
       ["judge_post", null],
+      ["judge_post", null],
+      ["judge_post_settled", "superseded"],
       ["judge_post_settled", "posted"],
     ]);
+    expect(ledger[2]?.reservationId).toBe(ledger[0]?.id);
+    expect(ledger[3]?.reservationId).toBe(ledger[1]?.id);
+    // both slots are in the window: the run is one post of the 40
+    expect((await peek(h)).quota.used24h).toBe(JUDGE_QUOTA.dailyMax);
     expect(await replayedSteps(h)).toEqual([]);
   });
 });
@@ -373,19 +383,19 @@ describe("a written batch whose run holds no reservation takes a new one when a 
   });
 });
 
-describe("the ordinary resume is unchanged: a held reservation posts the written batch with the 24 h cap full", () => {
+describe("a resume after the circuit posts the written batch on a fresh slot, the day full but for its own slot", () => {
   const script = paypalScript();
   let h: RunsHarness;
   let sent: Sent[];
   beforeAll(async () => {
     ({ h, sent } = await judgeWorld(script));
     await writeThenPace(h, sent);
-    await fillTheDay(h);
+    await fillTheDay(h, JUDGE_QUOTA.dailyMax - 1);
     h.t.clock.advance(7 * 60_000);
   });
   afterAll(async () => h?.close());
 
-  it("posted live once under the reservation taken at the write; no new slot", async () => {
+  it("posted live once, its slot dated at the POST (the one taken at the write superseded); the run counted once", async () => {
     await due(h);
     await runQueued(h, "postPayoutBatch");
     expect(sent).toHaveLength(2);
@@ -395,8 +405,11 @@ describe("the ordinary resume is unchanged: a held reservation posts the written
     expect(sent.map((s) => s.requestId)).toEqual([batch?.requestId, batch?.requestId]);
     expect(shape(await quotaLedger(h))).toEqual([
       ["judge_post", null],
+      ["judge_post", null],
+      ["judge_post_settled", "superseded"],
       ["judge_post_settled", "posted"],
     ]);
+    expect((await peek(h)).quota.used24h).toBe(JUDGE_QUOTA.dailyMax);
     expect(await replayedSteps(h)).toEqual([]);
   });
 });
@@ -424,7 +437,7 @@ describe("a fresh post over the quota still replays, labelled", () => {
   });
 });
 
-describe("S1: a slot held over a day is no slot: a kill switch kept on for 25 h, then the day full", () => {
+describe("S1: a post stalled for a day needs a slot dated at its POST: a kill switch kept on for 25 h, then the day full", () => {
   const script = paypalScript();
   let h: RunsHarness;
   let sent: Sent[];
@@ -445,7 +458,7 @@ describe("S1: a slot held over a day is no slot: a kill switch kept on for 25 h,
   });
   afterAll(async () => h?.close());
 
-  it("the day is full: the slot taken 25 h ago carries nothing, so the post waits; nothing sent, replayed or taken", async () => {
+  it("the day is full: the slot taken 25 h ago carries no POST now, so the post waits; nothing sent, replayed or taken", async () => {
     const decision = await peek(h);
     expect(decision).toMatchObject({ mode: "replay", reason: "daily_cap" });
     expect(decision.quota.used24h).toBe(JUDGE_QUOTA.dailyMax);
@@ -482,10 +495,12 @@ describe("S1: a slot held over a day is no slot: a kill switch kept on for 25 h,
     expect(shape(ledger)).toEqual([
       ["judge_post", null],
       ["judge_post", null],
+      ["judge_post_settled", "superseded"],
       ["judge_post_settled", "posted"],
     ]);
     expect(ledger[1]?.amountCents).toBe(Number(batch?.totalCents));
-    expect(ledger[2]?.reservationId).toBe(ledger[1]?.id);
+    expect(ledger[2]?.reservationId).toBe(ledger[0]?.id);
+    expect(ledger[3]?.reservationId).toBe(ledger[1]?.id);
     // counted from the post: by the judge quota, and by C-21 for every post after it
     expect((await peek(h)).quota.used24h).toBe(1);
     expect(await postsInLast24h(h.t.deps, h.t.clock.now())).toBe(1);
@@ -532,6 +547,7 @@ describe("a post the catch-up resumes after a 25 h stall (no switch): it waits w
     expect(shape(await quotaLedger(h))).toEqual([
       ["judge_post", null],
       ["judge_post", null],
+      ["judge_post_settled", "superseded"],
       ["judge_post_settled", "posted"],
     ]);
     expect((await peek(h)).quota.used24h).toBe(1);
