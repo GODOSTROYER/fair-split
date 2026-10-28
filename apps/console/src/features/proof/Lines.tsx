@@ -124,7 +124,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
       setTrace(null);
       // The trace's Close went away with it: focus returns to the peso that opened it (WCAG 2.4.3).
       if (memberNo) {
-        restoreFocus(document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
+        restoreFocus(() => document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
       }
     }
   }, [mm7.phase, trace]);

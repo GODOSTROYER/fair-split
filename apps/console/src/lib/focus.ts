@@ -51,12 +51,14 @@ export function useFocusAfterRemoval(root: HTMLElement | null, target: () => HTM
  * a control another screen pre-focused meanwhile keeps it.
  */
 export function restoreFocus(
-  opener: HTMLElement | null,
+  opener: HTMLElement | null | (() => HTMLElement | null),
   fallback: () => HTMLElement | null = () => null,
 ): void {
   setTimeout(() => {
     if (!focusLost()) return;
-    const target = opener?.isConnected ? opener : fallback();
+    // A getter finds the opener after the re-render (a row redrawn since it was pressed).
+    const found = typeof opener === "function" ? opener() : opener;
+    const target = found?.isConnected ? found : fallback();
     target?.focus({ preventScroll: true });
   }, 0);
 }

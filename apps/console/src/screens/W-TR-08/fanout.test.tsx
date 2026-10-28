@@ -139,6 +139,9 @@ describe("W-TR-08 run: the honest fan-out", () => {
         view.world.cosign();
       });
       await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+      // The live UNCLAIMED plays MM-6's "parked" act once the director gives it the stage: wait for that act to
+      // be traced before clearing, so the check below sees only what the repeated delivery does.
+      await waitFor(() => expect(tracedPhases("MM-6")).toContain("parked"), WAIT);
       clearMomentTrace();
       const tonesBefore = ["M-014", "M-031"].map(toneOf);
       act(() => {
