@@ -1,6 +1,7 @@
 // In-process sliding-window throttles for request-level limits (fs-api runs one instance, register §6):
 // presence at most 1 Hz per credential, pairing claims and judge session starts per hashed IP (S3.9).
-// PayPal's budget is NOT here: that is the shared Postgres limiter (src/paypal/limiter.ts).
+// PayPal's budget is NOT here: that is the shared Postgres limiter (WS-DATA's `paypalCoreLimiter`, wired in
+// server.ts).
 import type { Clock } from "./clock.js";
 
 export interface RateRule {

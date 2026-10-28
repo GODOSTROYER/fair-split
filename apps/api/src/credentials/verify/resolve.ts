@@ -7,7 +7,7 @@
 
 import type { Role } from "@fairsplit/contracts";
 import { type Db, schema } from "@fairsplit/db";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 import type { Clock } from "../../lib/clock.js";
 import { type ApiProblem, problem } from "../../lib/problem.js";
 import {
@@ -172,10 +172,14 @@ function invalid(p: ApiProblem): ResolveResult {
   return { kind: "invalid", problem: p };
 }
 
-/** The production store: frame_tokens joined with workspaces. Revocation of links is a gap (see SPLIT.md). */
+/**
+ * The production store: frame_tokens joined with workspaces. Link revocation is required, never defaulted: a
+ * store without it would keep honouring revoked member and brand links (fail-open). fs-api passes the judge
+ * slice's ledger-backed check through `appCredentialStore(db)` (src/lib/credential-store.ts).
+ */
 export function dbCredentialStore(
   db: Db,
-  opts: { isLinkRevoked?: (jti: string) => Promise<boolean> } = {},
+  opts: { isLinkRevoked: (jti: string) => Promise<boolean> },
 ): CredentialStore {
   const ft = schema.frameTokens;
   const ws = schema.workspaces;
@@ -200,14 +204,21 @@ export function dbCredentialStore(
       return row ? { ...row, role: row.role as Role } : null;
     },
     async workspaceAlive(workspaceId, now) {
+      // In use: it never expires, or it is claimed and unexpired. A judge workspace whose session ended (a Reset
+      // clears the claim; the database never moves an expiry earlier) is not, whatever its expiry says.
       const [row] = await db
         .select({ id: ws.id })
         .from(ws)
-        .where(and(eq(ws.id, workspaceId), or(isNull(ws.expiresAt), gt(ws.expiresAt, now))))
+        .where(
+          and(
+            eq(ws.id, workspaceId),
+            or(isNull(ws.expiresAt), and(isNotNull(ws.claimedAt), gt(ws.expiresAt, now))),
+          ),
+        )
         .limit(1);
       return !!row;
     },
-    isLinkRevoked: opts.isLinkRevoked ?? (async () => false),
+    isLinkRevoked: opts.isLinkRevoked,
   };
 }
 

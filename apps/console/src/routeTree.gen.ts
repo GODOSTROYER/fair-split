@@ -19,6 +19,7 @@ import { Route as BTokenRouteImport } from "./routes/b/$token";
 import { Route as ProofRunSlugRouteImport } from "./routes/proof/$runSlug";
 import { Route as PrototypeIndexRouteImport } from "./routes/prototype/index";
 import { Route as PrototypePrimitivesRouteImport } from "./routes/prototype/primitives";
+import { Route as PrototypeSealSheetRouteImport } from "./routes/prototype/seal-sheet";
 import { Route as PrototypeTokensRouteImport } from "./routes/prototype/tokens";
 import { Route as STokenRouteImport } from "./routes/s/$token";
 import { Route as StageRunsRunSlugRouteRouteImport } from "./routes/_stage/runs/$runSlug/route";
@@ -82,6 +83,11 @@ const PrototypeIndexRoute = PrototypeIndexRouteImport.update({
 const PrototypePrimitivesRoute = PrototypePrimitivesRouteImport.update({
   id: "/primitives",
   path: "/primitives",
+  getParentRoute: () => PrototypeRoute,
+} as any);
+const PrototypeSealSheetRoute = PrototypeSealSheetRouteImport.update({
+  id: "/seal-sheet",
+  path: "/seal-sheet",
   getParentRoute: () => PrototypeRoute,
 } as any);
 const PrototypeTokensRoute = PrototypeTokensRouteImport.update({
@@ -176,6 +182,7 @@ export interface FileRoutesByFullPath {
   "/b/$token": typeof BTokenRoute;
   "/proof/$runSlug": typeof ProofRunSlugRoute;
   "/prototype/primitives": typeof PrototypePrimitivesRoute;
+  "/prototype/seal-sheet": typeof PrototypeSealSheetRoute;
   "/prototype/tokens": typeof PrototypeTokensRoute;
   "/s/$token": typeof STokenRoute;
   "/prototype/": typeof PrototypeIndexRoute;
@@ -201,6 +208,7 @@ export interface FileRoutesByTo {
   "/b/$token": typeof BTokenRoute;
   "/proof/$runSlug": typeof ProofRunSlugRoute;
   "/prototype/primitives": typeof PrototypePrimitivesRoute;
+  "/prototype/seal-sheet": typeof PrototypeSealSheetRoute;
   "/prototype/tokens": typeof PrototypeTokensRoute;
   "/s/$token": typeof STokenRoute;
   "/prototype": typeof PrototypeIndexRoute;
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   "/b/$token": typeof BTokenRoute;
   "/proof/$runSlug": typeof ProofRunSlugRoute;
   "/prototype/primitives": typeof PrototypePrimitivesRoute;
+  "/prototype/seal-sheet": typeof PrototypeSealSheetRoute;
   "/prototype/tokens": typeof PrototypeTokensRoute;
   "/s/$token": typeof STokenRoute;
   "/prototype/": typeof PrototypeIndexRoute;
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | "/b/$token"
     | "/proof/$runSlug"
     | "/prototype/primitives"
+    | "/prototype/seal-sheet"
     | "/prototype/tokens"
     | "/s/$token"
     | "/prototype/"
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | "/b/$token"
     | "/proof/$runSlug"
     | "/prototype/primitives"
+    | "/prototype/seal-sheet"
     | "/prototype/tokens"
     | "/s/$token"
     | "/prototype"
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | "/b/$token"
     | "/proof/$runSlug"
     | "/prototype/primitives"
+    | "/prototype/seal-sheet"
     | "/prototype/tokens"
     | "/s/$token"
     | "/prototype/"
@@ -405,6 +417,13 @@ declare module "@tanstack/react-router" {
       path: "/primitives";
       fullPath: "/prototype/primitives";
       preLoaderRoute: typeof PrototypePrimitivesRouteImport;
+      parentRoute: typeof PrototypeRoute;
+    };
+    "/prototype/seal-sheet": {
+      id: "/prototype/seal-sheet";
+      path: "/seal-sheet";
+      fullPath: "/prototype/seal-sheet";
+      preLoaderRoute: typeof PrototypeSealSheetRouteImport;
       parentRoute: typeof PrototypeRoute;
     };
     "/prototype/tokens": {
@@ -571,6 +590,7 @@ const StageRouteWithChildren = StageRoute._addFileChildren(StageRouteChildren);
 
 interface PrototypeRouteChildren {
   PrototypePrimitivesRoute: typeof PrototypePrimitivesRoute;
+  PrototypeSealSheetRoute: typeof PrototypeSealSheetRoute;
   PrototypeTokensRoute: typeof PrototypeTokensRoute;
   PrototypeIndexRoute: typeof PrototypeIndexRoute;
   PrototypeCompositionsCompositionRoute: typeof PrototypeCompositionsCompositionRoute;
@@ -579,6 +599,7 @@ interface PrototypeRouteChildren {
 
 const PrototypeRouteChildren: PrototypeRouteChildren = {
   PrototypePrimitivesRoute: PrototypePrimitivesRoute,
+  PrototypeSealSheetRoute: PrototypeSealSheetRoute,
   PrototypeTokensRoute: PrototypeTokensRoute,
   PrototypeIndexRoute: PrototypeIndexRoute,
   PrototypeCompositionsCompositionRoute: PrototypeCompositionsCompositionRoute,

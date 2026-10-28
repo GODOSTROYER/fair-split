@@ -23,7 +23,17 @@ corepack pnpm --filter @fairsplit/api test          # embedded Postgres, no netw
 corepack pnpm --filter @fairsplit/api typecheck
 corepack pnpm --filter @fairsplit/api openapi > openapi.json   # the document, no database needed
 DATABASE_URL=postgres://… corepack pnpm --filter @fairsplit/api dev   # local server on :8787
+corepack pnpm --filter @fairsplit/api smoke         # boot fs-api on embedded Postgres, smoke every route
+corepack pnpm --filter @fairsplit/api smoke -- --dist   # the same against the bundle (after `build`)
 ```
+
+**Smoke** (`src/smoke`): boots fs-api in its own process the way Render does (fresh migrated database,
+`PP_MODE=simulator`, throwaway secrets made for the run and never printed), then drives it over HTTP: health and
+readiness, the OpenAPI document and `/v1/docs`, `/.well-known/fairsplit-keys.json`, a judge session, every IC-01
+command through the typed client (a success must parse with the contract, a refusal must be one of the command's
+listed codes; a 501, a 500 or drift fails), the run, workspace, line and Proof streams (each event parsed as a
+`RunEvent`), `/ops` sign-in, a brand link, the judge code and Reset. `--url <origin>` smokes a running server,
+`--sim-url <origin>` points the rail at a running simulator, `--json <file>` writes the report.
 
 `pnpm build` bundles `dist/index.js` (tsdown inlines the `@fairsplit/*` packages); Render starts
 `node apps/api/dist/index.js` and binds `0.0.0.0:$PORT`. SIGTERM drains: streams end (clients replay from
@@ -38,6 +48,15 @@ to a **labelled stub** that answers every call `503 SIMULATOR_NOT_RUNNING` (noth
 REST credentials are used, so simulator mode needs no secret. Every `/v1` response carries `X-FS-Rail: simulated`
 or `sandbox`, and every PayPal-derived row and event carries `simulated_rail` or `live` provenance (I8).
 
+Every PayPal attempt takes a slot of WS-DATA's shared Postgres limiter (`paypalCoreLimiter`, 40 a minute across
+services, the 6-minute circuit after a 429) and completes its `paypal_calls` row; a verified webhook's transmission
+id is claimed in `webhook_transmissions` (`createWebhookTransmissionStore`), so a replayed delivery is refused in
+every process. Invoices are sent only as IC-02 `canonicalInvoiceCall(...).args`, the very object the policy lattice
+decided (`money/policy.ts` `decideInvoiceCall`); payouts only through WS-PPMONEY's `PayoutsService` on
+`money/payouts.ts`'s repository, whose compare-and-sets (`writeSubmitted` APPROVED → POSTING only under the
+approvals checked, `voidApprovals` only while every live approval is named) are pinned on Postgres by
+`money/posting-cas.pg.test.ts`.
+
 ## Configuration
 
 Names only; values live in `.env` (gitignored) locally and per-service `sync: false` keys on Render. Never commit,
@@ -47,7 +66,10 @@ variable and never its value.
 **Boot refuses** when `PP_ENV` (or `PAYPAL_ENV`) is anything but `sandbox` (or is missing in production);
 `PP_DEV_MOCKS` is on while `RENDER=true` or `NODE_ENV=production`; `PP_MODE=sandbox` lacks `PP_CLIENT_ID`,
 `PP_CLIENT_SECRET` or `PP_WEBHOOK_ID`; production lacks `DATABASE_URL`, `FS_COOKIE_SECRET` or `FS_LINK_SIGNING_KEY`;
-a key is malformed; `EXECUTOR=workflow` lacks `RENDER_API_KEY`; or the database role can UPDATE or DELETE
+a key is malformed; a PayPal e-mail setting (`PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`, `PP_UNCLAIMED_RECEIVER`, each
+`PP_RECEIVERS` entry, and the brand allowlist built from them) is not a strict printable-ASCII address (domain
+`requireAsciiEmail`); `PP_CERT_ALLOW` names something that is not a PayPal cert id; `EXECUTOR=workflow` lacks
+`RENDER_API_KEY`; or the database role can UPDATE or DELETE
 `run_events`, `ledger_entries` or `agent_sessions` (checked on connect; `FS_ALLOW_OWNER_ROLE=1` records the S6
 owner-role fallback).
 
@@ -56,6 +78,7 @@ owner-role fallback).
 | `NODE_ENV`, `RENDER`, `PORT` (8787), `HOST`, `LOG_LEVEL`, `PUBLIC_ORIGIN` (or `PUBLIC_BASE_URL`) | Process basics; the public origin builds pairing URLs and decides `Secure` cookies and HSTS                 |
 | `DATABASE_URL`, `LISTEN_DATABASE_URL`, `DB_POOL_MAX`, `FS_ALLOW_OWNER_ROLE`                      | The `fs_app` pool and the one direct LISTEN connection                                                      |
 | `PP_ENV`, `PP_MODE`, `PP_SIM_URL`, `PP_DEV_MOCKS`                                                | PayPal environment (always `sandbox`) and rail mode                                                         |
+| `PP_CERT_ALLOW` (or `PAYPAL_CERT_ALLOW`)                                                         | PayPal webhook cert ids (or sandbox cert URLs) the verifier pins, at most 8                                 |
 | `PP_CLIENT_ID`, `PP_CLIENT_SECRET`, `PP_WEBHOOK_ID` (secrets)                                    | Sandbox REST app and webhook id (`PAYPAL_*` spellings also read)                                            |
 | `PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`, `PP_RECEIVERS`, `PP_UNCLAIMED_RECEIVER`                   | Sandbox account addresses (`PAYPAL_BUSINESS_EMAIL`, `PAYPAL_BUYER_EMAIL`, `PAYPAL_MEMBER_EMAILS` also read) |
 | `FS_COOKIE_SECRET` (secret, ≥ 32 chars)                                                          | Root of every HMAC subkey: judge cookie `fs_js`, operator cookie `fs_ops`, daily IP hashing                 |

@@ -40,6 +40,7 @@ import type {
 import { PAYOUT_ITEM_RANK } from "@fairsplit/contracts";
 import { getLogbook, getMembers, getSnapshot } from "@fairsplit/seed";
 import canonicalize from "canonicalize";
+import { sha256Hex } from "../bytes.js";
 import {
   type CommandData,
   type CommandRequest,
@@ -48,6 +49,17 @@ import {
   type RailLabel,
 } from "../http.js";
 import { freshId, mockHex, mockId, mockToken } from "./ids.js";
+
+/**
+ * IC-02 `linesDigest` as the API signs it: sha256 of the JCS of every member line as `{memberNo, lineSha256}`,
+ * sorted by member number (domain `linesRootJcs`; a UI package computes it here, register section 6).
+ */
+export function linesDigestOf(lines: readonly { memberNo: string; lineSha256: string }[]): string {
+  const sorted = lines
+    .map((l) => ({ memberNo: l.memberNo, lineSha256: l.lineSha256 }))
+    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
+  return sha256Hex(canonicalize(sorted) ?? "");
+}
 
 // ---------------------------------------------------------------- public types
 
@@ -222,6 +234,15 @@ export interface MockWorld {
   /** The persona a token belongs to (tokens minted by createJudgeSession and claimPairing), else null. */
   callerOf(token: string): MockCaller | null;
   /**
+   * Mints a bearer token acting as `persona` (`fst_` frame/console or `fsd_` device), as the judge and auth
+   * routes do (frame tokens for the stage's phones). Deterministic per persona and count.
+   */
+  mintToken(kind: "fst_" | "fsd_", caller: { persona: string; role: Role }): string;
+  /** The origin pairing URLs and signed links use. */
+  readonly origin: string;
+  /** The world's clock. */
+  now(): Date;
+  /**
    * Makes the next call to `command` fail with `code` (a code that command can answer with).
    * For UI states that are hard to reach: `world.failNext("submitApproval", "KILL_SWITCH_ON")`.
    */
@@ -288,6 +309,7 @@ export function createMockWorld(options: MockWorldOptions = {}): MockWorld {
   const presenceAt = new Map<string, number>();
   const presenceEventAt = new Map<string, number>();
   let sessionStarted = false;
+  let minted = 0;
   let events: RunEvent[] = [];
   let nextEventId = 1;
   const listeners = new Set<Listener>();
@@ -923,6 +945,8 @@ export function createMockWorld(options: MockWorldOptions = {}): MockWorld {
       seasonId,
       rateCardSha256,
       batchSha256,
+      // IC-02 linesDigest over every member line of the run as it stands (the cash lines too), as the API signs it
+      linesDigest: linesDigestOf(engineLines()),
       itemCount: batchItems.length,
       totalCents: batchTotalCents,
       currency: "USD",
@@ -1395,6 +1419,14 @@ export function createMockWorld(options: MockWorldOptions = {}): MockWorld {
       return fn(call);
     },
     callerOf: (token) => tokens.get(token) ?? null,
+    mintToken(kind, caller) {
+      minted++;
+      const token = mockToken(kind, `minted:${minted}:${caller.role}:${caller.persona}`);
+      tokens.set(token, { token, persona: caller.persona, role: caller.role });
+      return token;
+    },
+    origin,
+    now: () => now(),
     failNext(command, code, message) {
       if (!errorCodesOf(command).includes(code)) {
         throw new TypeError(

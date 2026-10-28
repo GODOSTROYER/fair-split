@@ -11,6 +11,7 @@
 //
 // See packages/api-client/README.md for the stages and the hero path.
 import { createMockHandlers, type MockHandlerOptions } from "./handlers.js";
+import { createRouteHandlers } from "./routes.js";
 import { createMockWorld, type MockWorld, type MockWorldOptions } from "./world.js";
 
 export {
@@ -20,6 +21,7 @@ export {
   urlPattern,
 } from "./handlers.js";
 export { freshId, mockHex, mockId, mockToken } from "./ids.js";
+export { createRouteHandlers } from "./routes.js";
 export {
   type CommandInvocation,
   type CommandOutcome,
@@ -37,18 +39,21 @@ export {
 
 export interface MockApi {
   world: MockWorld;
+  /** Every IC-01 command, the four streams, and the judge and auth routes (`JUDGE_ROUTES`). */
   handlers: ReturnType<typeof createMockHandlers>;
 }
 
 /** A world and its handlers in one call. */
 export function createMockApi(options: MockWorldOptions & Omit<MockHandlerOptions, "world"> = {}): MockApi {
-  const { baseUrl, latency, auth, ...worldOptions } = options;
+  const { baseUrl, latency, auth, judgeCode, operatorPassword, ...worldOptions } = options;
   const world = createMockWorld(worldOptions);
-  const handlers = createMockHandlers({
+  const handlerOptions: MockHandlerOptions = {
     world,
     ...(baseUrl !== undefined ? { baseUrl } : {}),
     ...(latency !== undefined ? { latency } : {}),
     ...(auth !== undefined ? { auth } : {}),
-  });
-  return { world, handlers };
+    ...(judgeCode !== undefined ? { judgeCode } : {}),
+    ...(operatorPassword !== undefined ? { operatorPassword } : {}),
+  };
+  return { world, handlers: [...createMockHandlers(handlerOptions), ...createRouteHandlers(handlerOptions)] };
 }

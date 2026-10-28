@@ -3,7 +3,9 @@ import { API_COMMANDS, type ApiCommandName, ERROR_HTTP_STATUS } from "@fairsplit
 import { getProof } from "@fairsplit/seed";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { notImplemented } from "./lib/command.js";
 import { errorCodesOf, pathParamNames, SUCCESS_STATUS } from "./lib/commands.js";
+import { defineRouteFolder } from "./lib/slice.js";
 import { DOCS_CSP, SCALAR, toOpenApiPath } from "./openapi.js";
 import { createTestApp, type TestApp } from "./test/index.js";
 
@@ -80,6 +82,31 @@ describe("OpenAPI document", () => {
       Object.values(p).map((op) => (op as Json).operationId),
     );
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("documents 501 NOT_IMPLEMENTED only on a command still answered by the shell's placeholder", async () => {
+    const with501 = (d: typeof doc) =>
+      Object.values(d.paths).flatMap((p) =>
+        Object.values(p)
+          .filter((op) => "501" in ((op as Json).responses as Json))
+          .map((op) => (op as Json).operationId),
+      );
+    // every slice has filled in its commands: none of them documents the placeholder's 501
+    expect(with501(doc)).toEqual([]);
+    const stub = await createTestApp({
+      folders: [
+        defineRouteFolder({
+          folder: "runs",
+          commands: { markPaid: notImplemented, setFlag: notImplemented },
+        }),
+      ],
+    });
+    try {
+      const stubDoc = (await stub.json("/openapi.json")).body as typeof doc;
+      expect(with501(stubDoc).sort()).toEqual(["markPaid", "setFlag"]);
+    } finally {
+      await stub.close();
+    }
   });
 
   it("resolves every $ref and every component is a valid JSON Schema 2020-12", () => {

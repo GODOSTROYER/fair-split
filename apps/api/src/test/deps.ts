@@ -9,12 +9,12 @@ import type { Sql } from "postgres";
 import {
   createCredentialKeys,
   createCredentialResolver,
-  dbCredentialStore,
   memoryCredentialStore,
 } from "../credentials/verify/index.js";
 import { type EnvSource, parseEnv } from "../env.js";
 import type { Clock } from "../lib/clock.js";
 import type { AppDeps } from "../lib/context.js";
+import { appCredentialStore } from "../lib/credential-store.js";
 import { dbIdempotencyStore, memoryIdempotencyStore } from "../lib/idempotency.js";
 import { createKeyedRateLimiter } from "../lib/rate-limit.js";
 import { silentLogger } from "../middleware/logger.js";
@@ -68,7 +68,7 @@ export function createTestDeps(o: TestDepsOptions): TestDeps {
   const keys = createCredentialKeys(env.secrets);
   const memoryStore = o.data ? null : memoryCredentialStore();
   const store = o.data
-    ? dbCredentialStore(o.data.database.db)
+    ? appCredentialStore(o.data.database.db)
     : (memoryStore as ReturnType<typeof memoryCredentialStore>);
   const bus = o.data ? null : createMemoryBus();
   const paypal = createPayPalRail({
