@@ -449,7 +449,7 @@ interface PostCounts {
 /**
  * Live judge posts in the rolling 24 h: every reservation not settled `not_posted` (so posts still in
  * flight count), plus any judge batch posted without one (a safety net: older rows, or a caller that
- * skipped the protocol), each run once.
+ * skipped the protocol), each run once. A replayed batch (provenance `replay`) reached no one: never a post.
  */
 async function countPosts(
   db: DbOrTx,
@@ -469,7 +469,7 @@ async function countPosts(
              order by ft.created_at limit 1) as sid
       from payout_batches pb
       join workspaces w on w.id = pb.workspace_id
-     where w.kind = 'judge' and pb.kind = 'primary'
+     where w.kind = 'judge' and pb.kind = 'primary' and pb.provenance <> 'replay'
        and pb.submitted_at > ${dayAgo.toISOString()}::timestamptz
        and not exists (
          select 1 from reconciliation_reports r

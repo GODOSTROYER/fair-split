@@ -55,7 +55,21 @@ every process. Invoices are sent only as IC-02 `canonicalInvoiceCall(...).args`,
 decided (`money/policy.ts` `decideInvoiceCall`); payouts only through WS-PPMONEY's `PayoutsService` on
 `money/payouts.ts`'s repository, whose compare-and-sets (`writeSubmitted` APPROVED → POSTING only under the
 approvals checked, `voidApprovals` only while every live approval is named) are pinned on Postgres by
-`money/posting-cas.pg.test.ts`.
+`money/posting-cas.pg.test.ts`. C-21's 40 live batches a day and the US$10,000 floor are checked and written under
+one cross-process advisory lock (`spendLock`), so two workspaces at cap − 1 never both post.
+
+**Judge Mode** decides every PayPal step of a judge workspace before it is made (`money/rail.ts`, S3.9): a fresh
+`judgeRail` (kill switch, simulator stub, the 429 circuit, the balance and its floor, the daily, hourly, per-cookie
+and public quotas), then the single-flight live lane. Live steps hold the lane; the post reserves its quota slot
+and runs inside "change one payout after both keys" (`withArmedTamper`), so an armed one-cent change is refused by
+I4. A step the lane queues re-queues itself for its turn. A replayed step runs the very same code on the **replay
+rail** (`src/paypal/replay.ts`): nothing reaches PayPal, no limiter slot is taken, every row and event is
+`replay`, and a `judge.step.replayed` ledger entry names why and the source run (the latest settled live run,
+else showcase r37, else the seed). Once a run replays a step it replays to the end; `kill_paypal_live` in Judge
+Mode is a labelled replay, a refusal elsewhere (S3.11). A written batch is never abandoned: a post that must wait
+(the circuit, an unanswered POST, a kill switch) re-queues itself as a fresh attempt row due when the wait ends,
+turning a switch off brings it forward, and boot plus the hourly cron resume any post that stopped
+(`money/resume.ts`).
 
 ## Configuration
 

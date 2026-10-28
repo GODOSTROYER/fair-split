@@ -225,7 +225,8 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
       at: now,
     });
     // Claude's invoice turn (S4: session start enqueues it). The recording replays through the live lattice;
-    // the money steps it reaches ask `judgeRail` / the live lane before any PayPal call.
+    // every PayPal step it reaches asks money/rail.ts (a fresh `judgeRail`, the live lane) before any PayPal call,
+    // and a session decided replay replays its run to the end, calling PayPal not once.
     const turn = { runId, purpose: "DRAFT_INVOICE" as const, holdId: null, turn: 0 };
     await enqueue(tx, "agentTurn", turn, TASKS.agentTurn.dedupeKey(turn), { workspaceId });
     return { workspaceId, runId, runSlug: run.runSlug, consoleToken, expiresAt };

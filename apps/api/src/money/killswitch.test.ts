@@ -2,8 +2,8 @@
 // through setFlag's HALT (FS_KILL forced by env, or kill_paypal_live) used to leave the run APPROVED with its
 // lines LOCKED and its approvals live, and nothing posted it once the switch was off.
 //   kill_payouts (stored or forced by FS_KILL): the run is HALTED, approvals voided, lines unlocked.
-//   kill_paypal_live ("refusal in real mode"): nothing is sent, the approvals are voided and the run goes back
-//     to review; once the switch is off, signing again posts the batch.
+//   kill_paypal_live ("refusal in real mode", outside Judge Mode): nothing is sent, the approvals are voided and
+//     the run goes back to review; once the switch is off, signing again posts the batch.
 //   A POST whose rows are already written (POSTING, PayPal's answer unknown) is never abandoned: while the switch
 //     is on each attempt re-queues the post as a fresh attempt row (never the outbox's two-minute budget), and it
 //     resumes with the same ids once the switch is off.
@@ -118,11 +118,13 @@ describe("inv.i6.kill-post: kill_payouts forced by FS_KILL after both keys (no s
   });
 });
 
+// Outside Judge Mode ("refusal in real mode", S3.11); in Judge Mode the same switch makes the post a labelled
+// replay instead (money/judge-rail.test.ts).
 describe("kill_paypal_live after both keys (setFlag HALTs nothing for it)", () => {
   const script = paypalScript();
   let h: RunsHarness;
   beforeAll(async () => {
-    h = await startRuns({ paypal: script.handlers });
+    h = await startRuns({ paypal: script.handlers, world: { kind: "showcase" } });
     await resolveAll(h);
     await signBoth(h);
   });

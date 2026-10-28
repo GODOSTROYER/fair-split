@@ -7,10 +7,20 @@
 > link revocation into the shared resolver (the `isLinkRevoked` callback is now required, never defaulted); the
 > run, workspace and line streams take `STREAM_READERS` (= the runs slice's `CAN.readRuns`); and the typed client
 > has `judgeRoutes(api)` plus msw mocks for the judge and auth routes, parity-tested against the server
-> (src/routes/client-routes.test.ts). Still open across slices: the runs slice's PayPal steps do not yet call the
-> judge slice's `beginLiveStep` / `withArmedTamper` (so a judge rail decided `replay` is not obeyed and the armed
-> 1-cent tamper never meets a post), `extract` has no inline handler in fs-api, and an operator logout is
-> enforced only in the browser (a server-side session epoch needs a WS-DATA table).
+> (src/routes/client-routes.test.ts). Still open across slices: `extract` has no inline handler in fs-api, and an
+> operator logout is enforced only in the browser (a server-side session epoch needs a WS-DATA table).
+
+> **Judge rail obeyed (28 Oct, verifier round).** Every PayPal step of a judge workspace (Claude's invoice turn,
+> ensureInvoice, recordPayment, the batch POST, the parked item's cancel, the re-route) asks
+> `src/money/rail.ts` `railForStep` / `railForItem` before any PayPal call: `beginLiveStep` (a fresh `judgeRail`,
+> the single-flight lane, the post's reservation) decides; a queued step re-queues itself (`runs/now.ts`
+> `deferTask`); a replay runs the same code on the replay rail (`src/paypal/replay.ts`: no PayPal call, rows and
+> events `replay`, the latest settled live run else showcase r37 else the seed as the source, named in
+> `judge.step.replayed`); a live step holds the lane and the post runs inside `withArmedTamper`, settling its
+> reservation. A run that replayed a step replays to the end. `kill_paypal_live` in Judge Mode is that replay,
+> not a refusal. C-21's 40 a day and the balance floor are checked and written under one cross-process lock
+> (`money/payouts.ts` `spendLock`). Printed member links are recorded and revocable (`revoke`, `revoke-line`); a
+> written batch is never abandoned (`money/resume.ts`); every signed re-route has its own task row.
 
 > **Merged with main (28 Oct, after phase 1).** `ws/api` now builds on main's final packages, with no shims of its
 > own. What changed here: approvals sign and check `linesDigest` (every member line, cash lines too; the batch view

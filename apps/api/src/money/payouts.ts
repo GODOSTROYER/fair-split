@@ -862,7 +862,8 @@ export async function estimatedBalanceCents(deps: Pick<Deps, "db" | "paypal">): 
 export function spendGuardsFor(
   deps: Pick<Deps, "db" | "paypal">,
 ): Pick<PayoutLimits, "maxPostsPer24h" | "postsInLast24h" | "balanceCents" | "minBalanceCents"> {
-  if (deps.paypal.mode !== "sandbox") {
+  // A replayed post (Judge Mode's replay rail) reaches no one and spends nothing: no live ceiling or floor binds it.
+  if (deps.paypal.mode !== "sandbox" || deps.paypal.provenance === "replay") {
     return {
       maxPostsPer24h: Number.MAX_SAFE_INTEGER,
       postsInLast24h: (now) => postsInLast24h(deps, now),
@@ -884,9 +885,60 @@ export interface ServiceOptions {
   repo?: (base: AppPayoutsRepository) => PayoutsRepository;
 }
 
+/** The one lock every live post's spend check and write hold, in every process (C-21, the balance floor). */
+export const SPEND_LOCK = "fs:payout-spend";
+/** How long a post waits for another's check-and-write before it re-queues itself. */
+const SPEND_LOCK_WAIT_MS = 10_000;
+
+/**
+ * C-21's 40 live batches a day and the US$10,000 floor guard the one shared sandbox business account, so their
+ * check and the write it allows must be one step across every workspace and process. The service serialises them
+ * per instance only (`#exclusive`), and an instance serves one task; this lock spans the service's first guard
+ * read (`postsInLast24h`) to the end of `writeSubmitted` (or to the end of the call when a guard refused), on a
+ * reserved connection, so two posts at cap − 1 can never both pass on the same count.
+ */
+function spendLock(sql: AppDeps["sql"]) {
+  let held: Awaited<ReturnType<AppDeps["sql"]["reserve"]>> | null = null;
+  return {
+    async acquire(): Promise<void> {
+      if (held) return;
+      const reserved = await sql.reserve();
+      const deadline = Date.now() + SPEND_LOCK_WAIT_MS;
+      for (;;) {
+        const [row] = await reserved<{ locked: boolean }[]>`
+          select pg_try_advisory_lock(hashtextextended(${SPEND_LOCK}, 0)) as locked`;
+        if (row?.locked) {
+          held = reserved;
+          return;
+        }
+        if (Date.now() > deadline) {
+          reserved.release();
+          throw new PayPalStepError("QUEUED", "Another post is checking the daily cap; this one waits.", {
+            transient: true,
+            retryAfterMs: 5_000,
+          });
+        }
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    },
+    async release(): Promise<void> {
+      const reserved = held;
+      held = null;
+      if (!reserved) return;
+      try {
+        await reserved`select pg_advisory_unlock(hashtextextended(${SPEND_LOCK}, 0))`;
+      } catch {
+        await reserved`select pg_advisory_unlock_all()`.catch(() => undefined);
+      } finally {
+        reserved.release();
+      }
+    },
+  };
+}
+
 /** The PayoutsService for one workspace, every guard wired. */
 export async function payoutsServiceFor(
-  deps: Deps,
+  deps: Deps & Partial<Pick<AppDeps, "sql">>,
   scope: WorkspaceScope,
   o: ServiceOptions = {},
 ): Promise<PayoutsService> {
@@ -896,24 +948,64 @@ export async function payoutsServiceFor(
     .from(schema.workspaces)
     .where(eq(schema.workspaces.id, scope.workspaceId));
   const base = payoutsRepository(deps, scope);
-  return new PayoutsService({
+  const repo = o.repo ? o.repo(base) : base;
+  const guards = spendGuardsFor(deps);
+  // Only where the guards bind (the sandbox rail, live): a replay or the simulated rail spends nothing shared.
+  const lock =
+    deps.sql && deps.paypal.mode === "sandbox" && deps.paypal.provenance !== "replay"
+      ? spendLock(deps.sql)
+      : null;
+  const service = new PayoutsService({
     http: deps.paypal.core.http,
-    repo: o.repo ? o.repo(base) : base,
+    repo: lock
+      ? {
+          ...repo,
+          async writeSubmitted(batch) {
+            try {
+              return await repo.writeSubmitted(batch);
+            } finally {
+              await lock.release();
+            }
+          },
+        }
+      : repo,
     // The registry is read fresh for every check; a database fault throws, so nothing is voided or sent.
     officerKeys: () => officerRegistry(deps.db, scope),
     async killSwitch() {
       const k = await readKill(deps, scope.workspaceId);
+      // On Judge Mode's replay rail kill_paypal_live is the reason the step replays (S3.11: "labelled replay in
+      // Judge Mode"); the co-op's own pause, kill_payouts, still refuses.
+      if (deps.paypal.provenance === "replay") return k.killPayouts;
       return k.killPayouts || k.killPaypalLive;
     },
     limits: {
       maxBatchTotalCents: MAX_BATCH_TOTAL_CENTS,
       maxItems: wsRow?.kind === "judge" ? JUDGE_MAX_ITEMS : 15_000,
       receiverAllowed: (r) => receivers.allowed(r),
-      ...spendGuardsFor(deps),
+      ...guards,
+      // the first guard read takes the cross-process spend lock (released after the write)
+      postsInLast24h: async (now) => {
+        await lock?.acquire();
+        return guards.postsInLast24h(now);
+      },
     },
     ...(o.sleep ? { sleep: o.sleep } : {}),
     now: () => deps.clock.now(),
     priority: "live",
+  });
+  if (!lock) return service;
+  // a guard that refused never reaches the write: the call's end frees the lock
+  const freeing =
+    <A extends unknown[], R>(f: (...a: A) => Promise<R>) =>
+    (...a: A) =>
+      f(...a).finally(() => lock.release());
+  return Object.assign(service, {
+    executeApproved: freeing((runId: string) =>
+      PayoutsService.prototype.executeApproved.call(service, runId),
+    ),
+    reroute: freeing((req: Parameters<PayoutsService["reroute"]>[0]) =>
+      PayoutsService.prototype.reroute.call(service, req),
+    ),
   });
 }
 

@@ -37,6 +37,7 @@ import { SETTLE_GET_DELAYS_MS, webhookApplyRule } from "../webhooks/apply.js";
 import { classifyPayPal } from "./errors.js";
 import { confirmFunding } from "./funding.js";
 import { applyItem, type ItemRow, itemStatusOf } from "./items.js";
+import { replayDepsForRun } from "./rail.js";
 
 type Deps = Pick<AppDeps, "db" | "env" | "paypal" | "clock" | "logger">;
 
@@ -133,9 +134,12 @@ export async function settleBatch(
     );
   if (!batch?.paypalBatchId) return;
   const scope = systemScope(batch.workspaceId, ACTORS.paypalGet);
-  const provenance = deps.paypal.provenance;
+  // A replayed batch (Judge Mode's replay rail) is settled by the replay too: no PayPal call, rows `replay`.
+  const rail =
+    batch.provenance === "replay" ? await replayDepsForRun(deps, batch.workspaceId, batch.runId) : deps;
+  const provenance = rail.paypal.provenance;
   const got = await getPayoutBatch(
-    deps.paypal.core.http,
+    rail.paypal.core.http,
     CONTEXT,
     { payout_batch_id: batch.paypalBatchId, page: 1, page_size: 100, total_required: true },
     { priority: "background" },

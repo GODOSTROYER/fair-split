@@ -44,7 +44,9 @@ export const markPaidHandler: CommandHandler<"markPaid"> = async (ctx) => {
         `The run is ${run.state}; only an invoiced run can be marked paid.`,
       );
     }
-    await assertNotKilled(deps, scope.workspaceId, "kill_paypal_live", tx);
+    // S3.11: kill_paypal_live refuses outside Judge Mode; in it the funding step is a labelled replay instead
+    // (the recordPayment task asks money/rail.ts before any PayPal call).
+    if (workspace?.kind !== "judge") await assertNotKilled(deps, scope.workspaceId, "kill_paypal_live", tx);
     const invoice = await invoiceOfRun(tx, scope, run.id);
     if (!invoice?.paypalInvoiceId || !invoice.sentAt) {
       throw invalidTransition(run.state as PayRunState, "The invoice has not been sent yet.");

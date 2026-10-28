@@ -1,5 +1,7 @@
 // The one protocol for a live judge PayPal step (S3.9, plan "Limits"). The run slice's money tasks
-// (ensureInvoice, recordPayment, postPayoutBatch, cancelUnclaimed, resend) call it before any PayPal call:
+// (agentTurn's invoice turn, ensureInvoice, recordPayment, postPayoutBatch, cancelUnclaimed, reroute) call it
+// before any PayPal call, through money/rail.ts (`railForStep`, `railForItem`), which runs a replay on the replay
+// rail (paypal/replay.ts):
 //
 //   const step = await beginLiveStep(deps, { workspaceId, step: "post", runId });
 //   switch (step.kind) {

@@ -36,7 +36,12 @@ import {
   requiresChair,
 } from "@fairsplit/domain";
 import { enqueue, type TaskHandlers } from "@fairsplit/outbox";
-import { parseSenderItemId, senderBatchId, senderItemId } from "@fairsplit/paypal-payouts";
+import {
+  type PayoutsService,
+  parseSenderItemId,
+  senderBatchId,
+  senderItemId,
+} from "@fairsplit/paypal-payouts";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { linesDigestOf } from "../approvals/batch.js";
 import { officerRegistry } from "../approvals/registry.js";
@@ -45,6 +50,7 @@ import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { classifyPayPal, PayPalStepError, type StepCode } from "../money/errors.js";
 import { payoutsServiceFor, REROUTE_VOID_REASON } from "../money/payouts.js";
+import { LaneQueued, notReplayable, railForItem } from "../money/rail.js";
 import { receiverDirectory } from "../money/receivers.js";
 import { allow, CAN, personaId } from "./access.js";
 import { toInt } from "./codes.js";
@@ -504,13 +510,39 @@ export function rerouteTasks(deps: AppDeps): TaskHandlers {
             ...(prepared.retryAfterMs ? { retryAfterMs: prepared.retryAfterMs } : {}),
           });
         }
-        const service = await payoutsServiceFor(deps, scope);
-        const outcome = await service.reroute({
-          supersedesItemId: prepared.note.reroute.payoutItemId,
-          rerouteNo: args.n,
-          receiver: prepared.note.reroute.receiver,
-          approvals: [prepared.approval],
-        });
+        // A replayed item is re-routed on the replay rail; a live one through the judge lane, never replayed.
+        const [returned] = await deps.db
+          .select({ provenance: schema.payoutItems.provenance, runId: schema.memberLines.runId })
+          .from(schema.payoutItems)
+          .innerJoin(schema.memberLines, eq(schema.memberLines.id, schema.payoutItems.lineId))
+          .where(
+            and(
+              eq(schema.payoutItems.workspaceId, scope.workspaceId),
+              eq(schema.payoutItems.payoutItemId, prepared.note.reroute.payoutItemId),
+            ),
+          );
+        const rail = returned
+          ? await railForItem(deps, {
+              workspaceId: scope.workspaceId,
+              runId: returned.runId,
+              step: "resend",
+              itemProvenance: returned.provenance,
+            })
+          : ({ kind: "live", deps, end: async () => undefined } as const);
+        if (rail.kind === "queued") throw new LaneQueued(rail);
+        if (rail.kind === "refused") throw notReplayable(rail.decision);
+        let outcome: Awaited<ReturnType<PayoutsService["reroute"]>>;
+        try {
+          const service = await payoutsServiceFor(rail.deps, scope);
+          outcome = await service.reroute({
+            supersedesItemId: prepared.note.reroute.payoutItemId,
+            rerouteNo: args.n,
+            receiver: prepared.note.reroute.receiver,
+            approvals: [prepared.approval],
+          });
+        } finally {
+          if (rail.kind === "live") await rail.end();
+        }
         if (outcome.kind === "unresolved") {
           throw new PayPalStepError("QUEUED", `The re-route POST is unresolved (${outcome.reason}).`, {
             transient: true,

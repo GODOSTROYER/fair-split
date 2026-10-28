@@ -464,8 +464,13 @@ async function fundFrom(
   snapshot: InvoiceSnapshot,
   o: { provenance?: Provenance },
 ): Promise<FundOutcome> {
+  // a replayed step's rows say `replay` whatever the replayed answer was
   const provenance: Provenance =
-    snapshot.status === "MARKED_AS_PAID" ? "simulated_rail" : (o.provenance ?? deps.paypal.provenance);
+    deps.paypal.provenance === "replay"
+      ? "replay"
+      : snapshot.status === "MARKED_AS_PAID"
+        ? "simulated_rail"
+        : (o.provenance ?? deps.paypal.provenance);
   const runState = await withWorkspaceTx(deps.db, scope, (tx) =>
     fund(tx, scope, runId, snapshot, { provenance, at: deps.clock.now() }),
   );

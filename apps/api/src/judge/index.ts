@@ -1,7 +1,8 @@
 // The judge slice's public surface for other slices (import from here, never from the files below).
 //
-// For the RUNS slice's money steps in a judge workspace (ensureInvoice, recordPayment, postPayoutBatch,
-// cancelUnclaimed, resend), one protocol, before any PayPal call (live-step.ts has the details):
+// For the RUNS slice's money steps in a judge workspace (the invoice turn, ensureInvoice, recordPayment,
+// postPayoutBatch, cancelUnclaimed, reroute), one protocol, before any PayPal call (live-step.ts has the details;
+// money/rail.ts applies it, and runs a replayed step on the replay rail):
 //
 //   const step = await beginLiveStep(deps, { workspaceId, step: "post", runId });   // fresh, never cached
 //   if (step.kind === "queued") → re-queue the task (retry after step.retryAfterMs; the stage shows position)
@@ -65,6 +66,7 @@ export {
   REPLAY_REASONS,
   type ReplayReason,
   recordBalanceReading,
+  replayDecision,
   reserveLivePost,
   settleLivePost,
 } from "./quota.js";

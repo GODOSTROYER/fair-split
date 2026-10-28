@@ -5,6 +5,7 @@
 import { type CallPriority, createLimiter, paypalCoreLimiter } from "@fairsplit/db";
 import { createTk, type Tk, type ToolkitCallRecord } from "@fairsplit/paypal-toolkit";
 import type { AppDeps } from "../lib/context.js";
+import { isReplayRail } from "../paypal/replay.js";
 import { LaneRefused } from "./errors.js";
 
 export interface ToolkitOptions {
@@ -13,6 +14,8 @@ export interface ToolkitOptions {
 }
 
 export function toolkitFor(deps: Pick<AppDeps, "db" | "paypal" | "logger" | "clock">, o: ToolkitOptions): Tk {
+  // Judge Mode's replay rail (paypal/replay.ts): the same calls, answered from the replayed run, nothing sent.
+  if (isReplayRail(deps.paypal)) return deps.paypal.replay.tk;
   const { limiter, recorder } = paypalCoreLimiter(createLimiter(deps.db), { workspaceId: o.workspaceId });
   // tk() takes a slot before each attempt and reports the attempt after it, in order: the reports complete the
   // slots' rows first in, first out.
