@@ -15,8 +15,16 @@ import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fai
 import { spring } from "@fairsplit/motion/web";
 import { Glyph, StatusChip } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { restoreFocus } from "../../lib/focus.js";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { focusIfLost, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useViewportWidth } from "../../stage/layout.js";
@@ -117,17 +125,31 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
   };
 
   // The back act ends in "rest"; only then does the line fold away.
+  const refocus = useRef<string | null>(null);
   useEffect(() => {
     if (closing.current && mm7.phase === "rest") {
       closing.current = false;
-      const memberNo = trace?.memberNo ?? null;
+      // The trace's Close goes away with it: the layout effect below hands focus back once that commit lands.
+      refocus.current = trace?.memberNo ?? null;
       setTrace(null);
-      // The trace's Close went away with it: focus returns to the peso that opened it (WCAG 2.4.3).
-      if (memberNo) {
-        restoreFocus(() => document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
-      }
     }
   }, [mm7.phase, trace]);
+
+  // After the commit that removed the trace (never on a timer, which can fire before React commits, find the
+  // Close still focused and give up), focus returns to the peso that opened it if it fell to <body> (WCAG 2.4.3).
+  useLayoutEffect(() => {
+    const memberNo = refocus.current;
+    if (trace !== null || memberNo === null) return;
+    refocus.current = null;
+    focusIfLost(document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
+  }, [trace]);
+
+  // Back from the slip (Escape on a zoom button) takes the zoom controls away: focus lands on the trace's Back.
+  const [traceRoot, setTraceRoot] = useState<HTMLDivElement | null>(null);
+  useFocusAfterRemoval(
+    traceRoot,
+    () => traceRoot?.querySelector<HTMLElement>('[data-testid="W-PF-01.trace.back"]') ?? null,
+  );
 
   const nudgeZoom = (delta: number) => {
     const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.get() + delta));
@@ -226,6 +248,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                 >
                   {isOpen && trace && (
                     <motion.div
+                      ref={setTraceRoot}
                       className="pf-trace"
                       id={traceId}
                       style={{ opacity: expand, clipPath: unfold }}

@@ -1,8 +1,12 @@
-// Focus that never falls to <body> (WCAG 2.4.3). Two cases the console meets on its hero path:
-//   - a control that held focus is removed by the answer it asked for ("Count it once", "Pay in cash", a trace's
-//     Close): `useFocusAfterRemoval` moves focus to the place that now says what happened;
-//   - a drawer or a trace closes: `restoreFocus` hands focus back to what opened it, once the DOM has settled,
-//     and only when nothing else took focus meanwhile (a new screen's pre-focused control wins).
+// Focus that never falls to <body> (WCAG 2.4.3). The cases the console meets on its hero path:
+//   - a control that held focus is removed by the answer it asked for ("Count it once", "Pay in cash", a slip's
+//     zoom controls): `useFocusAfterRemoval` moves focus to the place that now says what happened;
+//   - a trace closes: `focusIfLost`, from a layout effect after the commit that removed it, hands focus back to
+//     the peso that opened it;
+//   - a drawer closes: `restoreFocus`, from the drawer's own cleanup, hands focus back to what opened it.
+// Each acts after React has committed the removal, and only when focus fell to <body> (a control the person or a
+// new screen focused meanwhile keeps it). A timer alone is never the wait: on a loaded machine it can fire before
+// React commits, find the control still focused, and give up just before focus falls to <body>.
 
 import { useEffect, useRef } from "react";
 
@@ -47,18 +51,32 @@ export function useFocusAfterRemoval(root: HTMLElement | null, target: () => HTM
 }
 
 /**
- * After the DOM settles, focuses `opener` (or `fallback()` when the opener is gone), but only if focus was lost:
- * a control another screen pre-focused meanwhile keeps it.
+ * Focuses `target` (or `fallback()` when it is gone) if focus fell to <body>. Call it once the commit that removed
+ * the focused control has landed: from a layout effect that runs after that commit, or from the cleanup of the
+ * component that went (React runs it after removing its DOM).
+ */
+export function focusIfLost(
+  target: HTMLElement | null | undefined,
+  fallback: () => HTMLElement | null = () => null,
+): void {
+  if (!focusLost()) return;
+  const found = target?.isConnected ? target : fallback();
+  found?.focus({ preventScroll: true });
+}
+
+/**
+ * From the cleanup of a component that held focus (a drawer: React runs it after the commit that removed the
+ * drawer, so its controls are already gone): focuses `opener` (or `fallback()` when the opener is gone) if focus
+ * fell to <body>, one task later, once the other cleanups of that commit have run (the screen the drawer covered
+ * is no longer inert). A control another screen pre-focused meanwhile keeps it. Never call it before that commit
+ * (from an event handler, or an effect that is about to remove the control): use `focusIfLost` after it instead.
  */
 export function restoreFocus(
   opener: HTMLElement | null | (() => HTMLElement | null),
   fallback: () => HTMLElement | null = () => null,
 ): void {
   setTimeout(() => {
-    if (!focusLost()) return;
     // A getter finds the opener after the re-render (a row redrawn since it was pressed).
-    const found = typeof opener === "function" ? opener() : opener;
-    const target = found?.isConnected ? found : fallback();
-    target?.focus({ preventScroll: true });
+    focusIfLost(typeof opener === "function" ? opener() : opener, fallback);
   }, 0);
 }
