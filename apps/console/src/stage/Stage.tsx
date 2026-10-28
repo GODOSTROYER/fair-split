@@ -273,6 +273,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                   seasonMark={season}
                   story={story(snapshot?.figures.members ?? 0)}
                   states={places}
+                  {...(next ? { nextActor: next.actor } : {})}
                 />
                 <div className="fsc-console__main">
                   <ConnectionBanner status={stream} />

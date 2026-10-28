@@ -324,6 +324,21 @@
   background: var(--fs-canary);
 }
 
+/* The pill's marks: canary only for a person's decision. */
+.fsc-rail__square[data-actor="machine"] {
+  background: var(--fs-pencil);
+}
+
+.fsc-rail__square[data-actor="paypal"] {
+  border: 1.5px solid var(--fs-ink-2);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-rail__square[data-actor="done"] {
+  background: var(--fs-ink);
+}
+
 .fsc-rail__foot {
   display: grid;
   gap: 6px;

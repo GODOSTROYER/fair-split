@@ -61,6 +61,22 @@ describe("Judge stage", () => {
     );
   });
 
+  it("the rail's next mark is the pill's: pencil while the machine reads, canary only for a person", async () => {
+    const view = await renderConsole({ path: "/judge" });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    const pill = () => screen.getByTestId("W-JG-01.runPill").closest("[data-actor]") as HTMLElement;
+    const square = () =>
+      document.querySelector<HTMLElement>('.fsc-rail__place[data-place="next"] .fsc-rail__square');
+    await waitFor(() => expect(pill().dataset.actor).toBe("machine"));
+    expect(square()?.dataset.actor).toBe("machine");
+    act(() => {
+      view.world.settle();
+    });
+    await waitFor(() => expect(pill().dataset.actor).toBe("person"));
+    expect(square()?.dataset.actor).toBe("person");
+  });
+
   it("Reset ends the session and returns the first view", async () => {
     const view = await renderConsole({ path: "/judge" });
     await press("W-JG-01.markPaid");
