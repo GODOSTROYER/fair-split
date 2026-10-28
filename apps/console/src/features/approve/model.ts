@@ -15,6 +15,7 @@ import {
   type RunView,
 } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
+import { signingKeyKind } from "../../lib/keys.js";
 import { sha256Hex } from "../../lib/sha256.js";
 import {
   engineOutput,
@@ -306,13 +307,26 @@ function order(h: RunHold): number {
   return 1;
 }
 
-export type KeyLabelKind = "seeded" | "web" | "device";
+export type KeyLabelKind = "seeded" | "demo" | "web" | "app";
 
-/** How a key ID says where it lives: `-s1` seeded sample, `-w1` this browser (demo in Judge Mode), `-a1` a device. */
-export function keyKind(keyId: string): KeyLabelKind {
-  if (/-s\d+$/.test(keyId)) return "seeded";
-  if (/-w\d+$/.test(keyId)) return "web";
-  return "device";
+/**
+ * How a key ID says what signed (contracts: one ID shape per kind, C-13): `-s1` a seeded sample, `-demo-{6}` a
+ * judge session's demo key, `-w1` an officer's persisted browser key, `-a1` an officer's app key. Null for an ID
+ * no signing key can carry.
+ */
+export function keyKind(keyId: string): KeyLabelKind | null {
+  switch (signingKeyKind(keyId)) {
+    case "seeded":
+      return "seeded";
+    case "web_demo":
+      return "demo";
+    case "web":
+      return "web";
+    case "app":
+      return "app";
+    case null:
+      return null;
+  }
 }
 
 /** The presence label's hold number: "H2" → "2". */
@@ -358,12 +372,12 @@ export function batchAmountState(view: RunView): "pencil" | "ink" | "hollow" {
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 /**
- * The lines root the payload asks both keys to sign, or null while the payload does not carry one. IC-02 adds
- * `linesDigest` to ApprovalPayload (shared request #1); until this console's contracts have it, the field is read
- * defensively and the screen shows no lines digest at all, because nothing signs it yet.
+ * The lines root the payload asks both keys to sign (IC-02 `linesDigest`: every member line, the cash lines too),
+ * or null while there is no payload. The contract requires it, so a payload without a well-formed root is one
+ * nothing signs.
  */
 export function signedLinesDigest(payload: ApprovalPayload | null | undefined): string | null {
-  const value = (payload as { readonly linesDigest?: unknown } | null | undefined)?.linesDigest;
+  const value = payload?.linesDigest;
   return typeof value === "string" && SHA256_HEX.test(value) ? value : null;
 }
 
@@ -375,14 +389,15 @@ export interface ShownBatch {
 
 /**
  * I4 on the client: the payload must be exactly the bytes the API says it is, carry the batch hash the seal and the
- * dialog showed, and, once it carries a lines root, the one this browser recomputed. Nothing shown, nothing signed.
+ * dialog showed, and carry the lines root this browser recomputed from the lines on screen (IC-02 `linesDigest`),
+ * so a cash line changed behind the screen signs nothing either. Nothing shown, nothing signed.
  */
 export function payloadMatches(payload: ApprovalPayload, serverJcs: string, shown: ShownBatch): boolean {
-  if (shown.batchSha256 === null) return false;
+  if (shown.batchSha256 === null || shown.linesDigest === null) return false;
   if (jcs(payload as unknown as Parameters<typeof jcs>[0]) !== serverJcs) return false;
   if (payload.batchSha256 !== shown.batchSha256) return false;
   const lines = signedLinesDigest(payload);
-  return lines === null || lines === shown.linesDigest;
+  return lines !== null && lines === shown.linesDigest;
 }
 
 /** Statuses that mean the server gave no definitive answer (unknown outcome, a gateway, a timeout). */

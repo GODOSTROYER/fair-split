@@ -31,6 +31,33 @@ export function holdsText(card: Card): string {
   return `Holds: more than ${perTree} a registered tree, mass balance outside ${balance}, or a reading below ${confidence} confidence goes to a person.`;
 }
 
+/** A percentage from basis points with no trailing zeros: 500 → "5", 250 → "2.5". */
+function sharePct(bp: number): string {
+  return format
+    .percentBp(bp, 2)
+    .replace(/%$/, "")
+    .replace(/\.?0+$/, "");
+}
+
+/** Pesos as the card states them: whole pesos when the term is whole ("₱5,000"), else to the centavo ("₱1.50"). */
+function pesos(centavos: number): string {
+  return centavos % 100 === 0 ? format.pesoWhole(centavos) : format.money(centavos, "PHP");
+}
+
+/**
+ * The ratified card's own terms for R1 to R4's copy (i18n `W-TR-02.R1`…`R4` take them as arguments): the copy
+ * never restates a figure the card could change, so the plate prints exactly what BR 2026-04 bolted.
+ */
+export function ruleTerms(card: Card) {
+  const r = card.canonical.rules;
+  return {
+    R1: { share: sharePct(r.cbu.bp), cap: pesos(r.cbu.paidUpCapCentavos) },
+    R2: { rate: pesos(r.hauling.centavosPerNetKg) },
+    R3: { share: sharePct(r.loan.capBp) },
+    R4: { share: sharePct(r.advance.capBp) },
+  } as const;
+}
+
 export function cosignText(card: Card): string {
   const c = card.canonical.rules.cosign;
   const override = c.anyOverride ? ", or any override of a hold" : "";

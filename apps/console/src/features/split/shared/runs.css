@@ -208,11 +208,6 @@
   opacity: 0.85;
 }
 
-/* One canary underline beneath the press's serial: the field a person compares across two copies (MM-3). */
-.fsr-slip__underline {
-  fill: var(--fs-canary);
-}
-
 .fsr-slip__stain {
   fill: #b79f73;
   opacity: 0.32;

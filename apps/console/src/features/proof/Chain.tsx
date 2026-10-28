@@ -15,6 +15,7 @@ import { Chip, type ChipTone, Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
+import { signingKeyKind } from "../../lib/keys.js";
 import {
   invoiceWords,
   PLATE_CHECK,
@@ -228,10 +229,12 @@ function Figure({ cents, state = "ink" }: { readonly cents: number; readonly sta
   );
 }
 
+/** A key's kind in words: the registry's, else its ID's shape (C-13); a sample by either reads as a sample. */
 function keyKindWords(kind: string, keyId: string): string {
-  if (kind === "seeded" || /-s\d+$/.test(keyId)) return "Sample key (seeded)";
-  if (kind === "web_demo") return "Demo key, made in a judge's browser";
-  return /-w\d+$/.test(keyId) ? "Browser key" : "Device key";
+  const byShape = signingKeyKind(keyId);
+  if (kind === "seeded" || byShape === "seeded") return "Sample key (seeded)";
+  if (kind === "web_demo" || byShape === "web_demo") return "Demo key, made in a judge's browser";
+  return (kind || byShape) === "web" ? "Browser key" : "Device key";
 }
 
 function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) {

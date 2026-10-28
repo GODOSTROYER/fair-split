@@ -11,7 +11,6 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { HttpResponse, http, type JsonBodyType } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DataProvider } from "../../data/provider.js";
-import { memoryKeyStore, TREASURER_KEY_ID } from "../../features/ops/keystore.js";
 import { KeyPanel } from "../../features/ops/OpsPage.js";
 import {
   SAMPLE_BALANCE,
@@ -28,6 +27,7 @@ import {
 import { SECTION_PATHS } from "../../features/ops/sections.js";
 import { useTreasurerKey } from "../../features/ops/useOps.js";
 import { gate, withHandlers } from "../../features/proof/test-world.js";
+import { memoryKeyStore, TREASURER_KEY_ID } from "../../lib/keystore.js";
 import {
   createTestRuntime,
   createTestWorld,
@@ -158,7 +158,7 @@ describe("W-OP-01 /ops for a judge (read-only)", () => {
     if (!officer) throw new Error("the seed publishes officer keys");
     const published = {
       ...keys,
-      officers: [...keys.officers, { ...officer, keyId: TREASURER_KEY_ID, kind: "app", revokedAt: null }],
+      officers: [...keys.officers, { ...officer, keyId: TREASURER_KEY_ID, kind: "web", revokedAt: null }],
     };
     const world = withHandlers(createTestWorld(), [
       http.get(`*${SECTION_PATHS.keys}`, () => HttpResponse.json(published)),
@@ -376,7 +376,7 @@ describe("the treasurer's browser key (fs-analyn-w1)", () => {
   });
 
   it("makes a key whose private half can't be exported", async () => {
-    const { makeKey } = await import("../../features/ops/keystore.js");
+    const { makeKey } = await import("../../lib/keystore.js");
     const key = await makeKey(
       TREASURER_KEY_ID,
       "treasurer:analyn",

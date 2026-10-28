@@ -1,7 +1,8 @@
 // W-TR-07 Approve against the mock world: blocked until the holds are decided, the seal grown from the batch hash
-// the API built, key 1 signed in this browser (over the dialog route and by holding Space for 1.6 s) with a
-// signature that verifies over exactly the payload's JCS bytes, the Chair's key landing as an event, and MM-5's
-// phases in full and reduced motion. Refusals: no batch on screen signs nothing (the payload still loading or
+// the API built, key 1 signed in this browser with the session's registered demo key (fs-analyn-demo-{6}, C-13),
+// over the dialog route and by holding Space until the slab arms at 1.6 s and then letting go inside (nothing is
+// sent before the release), with a signature that verifies over exactly the payload's JCS bytes and a lines root
+// this browser recomputed, the Chair's key landing as an event, and MM-5's phases in full and reduced motion. Refusals: no batch on screen signs nothing (the payload still loading or
 // failed); a changed batch signs nothing; an expired approval asks to sign again; a send the server never
 // answered goes again under the same Idempotency-Key, while a 501 is said at once; the Chair's decline voids key
 // 1; the kill switch bolts the slab. Every state is axe-clean.
@@ -15,13 +16,15 @@ import { describe, expect, it } from "vitest";
 import { CHAIR, createMockDriver } from "../../data/mock/driver.js";
 import { queryKeys } from "../../data/query.js";
 import type { RunView } from "../../data/run-view.js";
-import { browserKey } from "../../features/approve/keys.js";
+import { heldSessionKey } from "../../features/approve/keys.js";
+import { linesDigest } from "../../features/approve/model.js";
 import { fromHex } from "../../lib/sha256.js";
 import {
   clearMomentTrace,
   createTestWorld,
   expectNoAxeViolations,
   renderConsole,
+  seedSnapshot,
   type TestWorld,
   tracedPhases,
 } from "../../test/index.js";
@@ -71,7 +74,7 @@ async function readyToApprove(motion: "full" | "reduced" = "full", world?: TestW
     motion,
     ...(world ? { world } : {}),
   });
-  await view.startSession();
+  const session = await view.startSession();
   act(() => {
     view.world.markPaid();
     view.world.resolveAll();
@@ -83,7 +86,7 @@ async function readyToApprove(motion: "full" | "reduced" = "full", world?: TestW
   await waitFor(() =>
     expect(root.querySelector("[data-moment='MM-5']")?.getAttribute("data-moment-phase")).toBe("ready"),
   );
-  return { view, root };
+  return { view, root, session };
 }
 
 function face(testId: string): HTMLElement {
@@ -120,7 +123,7 @@ describe("W-TR-07 approve", () => {
     "signs key 1 over the dialog route; the signature verifies over the payload's JCS; Ernesto's key seals it",
     async () => {
       clearMomentTrace();
-      const { view, root } = await readyToApprove();
+      const { view, root, session } = await readyToApprove();
       expect(screen.getByTestId("W-TR-07.amount").textContent).toMatch(/US\$368\.39/);
       expect(tracedPhases("MM-5")).toEqual(expect.arrayContaining(["blocked", "rising", "ready"]));
       expect(screen.getByTestId("W-TR-07.fees").textContent).toMatch(
@@ -129,26 +132,35 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.safe").textContent).toMatch(
         /3 holds resolved\. 1 field entered by hand/,
       );
-      // The payload carries no lines root yet, so no digest prints beside what two people sign.
-      expect(screen.queryByTestId("W-TR-07.linesDigest")).toBeNull();
+      // The payload's lines root (IC-02) prints beside what two people sign, once this browser has recomputed it.
+      const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
+      const root64 = run ? linesDigest(seedSnapshot(), run) : null;
+      expect(root64).toMatch(/^[0-9a-f]{64}$/);
+      expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
       await expectNoAxeViolations(screen.getByTestId("W-TR-07"));
 
       fireEvent.keyDown(face("W-TR-07.approve"), { key: "Enter" });
       const dialog = await screen.findByTestId("W-TR-07.approve.dialog");
       expect(dialog.textContent).toMatch(/US\$368\.39 to 8 members by PayPal/);
       expect(dialog.textContent).toMatch(/Consolacion Bacus/);
+      expect(tracedPhases("MM-5")).toContain("confirm-1");
       fireEvent.keyDown(face("W-TR-07.approve.dialog.confirm"), { key: "Enter" });
 
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
       await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-1"));
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
+      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1.
       expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).toMatch(
-        /fs-analyn-w1, Demo key \(this browser\)/,
+        /fs-analyn-demo-[a-z0-9]{6}, Demo key \(this browser\)/,
       );
+      expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).not.toMatch(/fs-analyn-w1/);
 
       const approval = view.world.approvals().find((a) => a.role === "treasurer");
       if (!approval) throw new Error("no treasurer approval");
-      const key = await browserKey("fs-analyn-w1", RUN);
+      const held = heldSessionKey(`${session.sessionId}:treasurer:analyn`);
+      if (!held) throw new Error("no session key");
+      const key = await held;
+      expect(approval.keyId).toBe(key.keyId);
       const pub = fromHex(key.publicKeyHex);
       const sig = fromHex(approval.signatureHex);
       expect(pub && sig && ed25519.verify(sig, new TextEncoder().encode(approval.payloadJcs), pub)).toBe(
@@ -175,10 +187,12 @@ describe("W-TR-07 approve", () => {
   );
 
   it(
-    "holding Space for 1.6 s signs; letting go early signs nothing and says hold until it clicks",
+    "holding Space arms the slab at 1.6 s and letting go inside signs; letting go early signs nothing",
     async () => {
       clearMomentTrace();
-      const { view, root } = await readyToApprove();
+      const world = createTestWorld();
+      const sent = recordSubmits(world);
+      const { view, root } = await readyToApprove("full", world);
       const slab = face("W-TR-07.approve");
       slab.focus();
       fireEvent.keyDown(slab, { key: " " });
@@ -189,9 +203,20 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.approve.hint").textContent).toMatch(/Hold until it clicks/);
       expect(view.world.approvals()).toHaveLength(0);
 
+      // Held past 1.6 s the slab arms ("Release to sign"): MM-5 armed-1, and still nothing is sent.
       fireEvent.keyDown(face("W-TR-07.approve"), { key: " " });
+      await waitFor(() => expect(screen.getByTestId("W-TR-07.approve").dataset.state).toBe("armed"), {
+        timeout: 5_000,
+      });
+      expect(tracedPhases("MM-5")).toContain("armed-1");
+      expect(sent).toHaveLength(0);
+      expect(view.world.approvals()).toHaveLength(0);
+      fireEvent.keyUp(face("W-TR-07.approve"), { key: " " });
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
+      expect(sent).toHaveLength(1);
       expect(view.world.approvals().filter((a) => a.role === "treasurer")).toHaveLength(1);
+      const phases = tracedPhases("MM-5");
+      expect(phases.indexOf("armed-1")).toBeLessThan(phases.lastIndexOf("signed-1"));
     },
     SLOW,
   );
@@ -203,6 +228,10 @@ describe("W-TR-07 approve", () => {
       const { view, root } = await readyToApprove("reduced");
       fireEvent.keyDown(face("W-TR-07.approve"), { key: " " });
       await waitFor(() => expect(screen.getByTestId("W-TR-07.approve.steps")).toBeTruthy());
+      await waitFor(() => expect(screen.getByTestId("W-TR-07.approve").dataset.state).toBe("armed"), {
+        timeout: 5_000,
+      });
+      fireEvent.keyUp(face("W-TR-07.approve"), { key: " " });
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
       await waitFor(() => expect(tracedPhases("MM-5")).toContain("waiting-2"), { timeout: 5_000 });
       act(() => {
@@ -210,7 +239,7 @@ describe("W-TR-07 approve", () => {
       });
       await waitFor(() => expect(tracedPhases("MM-5").slice(-1)[0]).toBe("inked"), { timeout: 5_000 });
       expect(tracedPhases("MM-5")).toEqual(
-        expect.arrayContaining(["hold-1", "signed-1", "waiting-2", "signed-2", "sealed", "inked"]),
+        expect.arrayContaining(["hold-1", "armed-1", "signed-1", "waiting-2", "signed-2", "sealed", "inked"]),
       );
     },
     SLOW,

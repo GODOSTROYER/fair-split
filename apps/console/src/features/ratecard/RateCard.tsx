@@ -24,6 +24,7 @@ import {
   nextSeason,
   type Refusal,
   refusalText,
+  ruleTerms,
   type ScheduleRuleId,
   scheduleRules,
 } from "./model.js";
@@ -43,16 +44,16 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   const session = useJudgeSession();
   const card = snapshot.rateCard;
   const ratified = isRatified(snapshot);
-  const printed = useMemo(
-    () => ({
+  const printed = useMemo(() => {
+    const terms = ruleTerms(card);
+    return {
       R0: t("W-TR-02.R0"),
-      R1: t("W-TR-02.R1"),
-      R2: t("W-TR-02.R2"),
-      R3: t("W-TR-02.R3"),
-      R4: t("W-TR-02.R4"),
-    }),
-    [t],
-  );
+      R1: t("W-TR-02.R1", terms.R1),
+      R2: t("W-TR-02.R2", terms.R2),
+      R3: t("W-TR-02.R3", terms.R3),
+      R4: t("W-TR-02.R4", terms.R4),
+    };
+  }, [t, card]);
   const rules = useMemo(() => scheduleRules(card, printed), [card, printed]);
   const [hovered, setHovered] = useState<ScheduleRuleId | null>(null);
   const [pinned, setPinned] = useState<ScheduleRuleId | null>(null);

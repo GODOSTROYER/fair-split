@@ -1,35 +1,33 @@
 // W-TR-07 Approve (S1.7, design §6 C7): one centred 640 px column with no cards. The seal grown from the batch
 // hash, the batch in pencil, why it is safe, and the one d3 jade slab on the console: hold Space (or the
-// pointer) for 1.6 s and this browser signs the canonical batch with its own key (MM-5, key 1). The Chair's key
-// arrives as an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink.
-// The signature happens only after the payload the API built is re-checked here: its JCS bytes and its batch
-// hash must be exactly what the screen shows, or nothing is signed (I4). Until the payload has loaded the slab
-// is unavailable and says why: a person signs only a batch the seal and the dialog have shown.
+// pointer) for 1.6 s until it clicks and reads "Release to sign", then let go inside, and this browser signs the
+// canonical batch with its own key (MM-5, key 1; S2.7: arm on hold, act on release). The Chair's key arrives as
+// an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink. The signature
+// happens only after the payload the API built is re-checked here: its JCS bytes, its batch hash and its lines
+// root must be exactly what the screen shows and recomputed, or nothing is signed (I4). Until the payload has
+// loaded the slab is unavailable and says why: a person signs only a batch the seal and the dialog have shown.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
-import { AmountDisplay, Glyph, InkStamp, Print, RailBar, Slab } from "@fairsplit/ui-web";
+import { AmountDisplay, Glyph, type HoldChange, InkStamp, Print, RailBar, Slab } from "@fairsplit/ui-web";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import {
-  type KeyboardEvent,
-  type PointerEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { isApiClientError } from "../../data/errors.js";
-import { useAdapter, useCommand, useCommandQuery } from "../../data/hooks.js";
+import { useAdapter, useCommand, useCommandQuery, useJudgeSession } from "../../data/hooks.js";
 import { queryKeys } from "../../data/query.js";
 import { blockingHolds, livePresence, type RunView } from "../../data/run-view.js";
 import { utf8 } from "../../features/approve/jcs.js";
-import { type BrowserKey, browserKey, webKeyId } from "../../features/approve/keys.js";
+import {
+  type BrowserKey,
+  registerDemoKey,
+  type SigningKey,
+  sessionKey,
+} from "../../features/approve/keys.js";
 import {
   approveState,
   batchAmountState,
@@ -82,17 +80,17 @@ export function Screen({ runSlug }: RunScreenProps) {
   const stage = useOptionalStage();
   const adapter = useAdapter();
   const client = useQueryClient();
+  const { session } = useJudgeSession();
   const [local, setLocal] = useState<LocalApproval>(NO_LOCAL);
   const [signing, setSigning] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [holding, setHolding] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
   const [slabKey, setSlabKey] = useState(0);
-  const [key, setKey] = useState<BrowserKey | null>(null);
+  const [key, setKey] = useState<SigningKey | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const holdingRef = useRef(false);
-  const committedRef = useRef(false);
-  const releases = useRef(0);
+  const changes = useRef(0);
   const slabRef = useRef<HTMLDivElement>(null);
 
   // The run's own state decides whether this browser may ask for the batch to sign at all.
@@ -108,7 +106,8 @@ export function Screen({ runSlug }: RunScreenProps) {
     },
   );
   const payload = payloadQuery.data?.payload ?? null;
-  // The lines root this browser recomputes; once the payload carries one, the two must agree or nothing signs.
+  // The payload carries the lines root both keys sign (IC-02); it must be the one this browser recomputes from the
+  // lines on screen, or the screen reads mismatch and nothing signs.
   const digest = useMemo(() => (snapshot && view ? linesDigest(snapshot, view) : null), [snapshot, view]);
   const payloadLines = signedLinesDigest(payload);
   const linesDisagree = payloadLines !== null && payloadLines !== digest;
@@ -173,21 +172,35 @@ export function Screen({ runSlug }: RunScreenProps) {
 
   usePrefocus(slabRef, "W-TR-07", armed && !signing);
 
+  // Key 1 is the judge session's demo key (C-13): made in this browser and registered for the session's workspace
+  // as the treasurer, so its ID is fs-api's `fs-analyn-demo-{6}`, never the treasurer's own `fs-analyn-w1`.
   const treasurer = snapshot?.officers.find((o) => o.role === "TREASURER");
-  const keyId = webKeyId(treasurer?.persona ?? "treasurer:analyn");
-  const keyScope = runSlug;
+  const approverId = treasurer?.persona ?? "treasurer:analyn";
+  const workspaceId = session?.workspaceId ?? null;
+  const keyScope = `${session?.sessionId ?? runSlug}:${approverId}`;
+  const register = useCallback(
+    (made: BrowserKey) => {
+      if (!workspaceId) return Promise.reject(new Error("A demo key needs a judge session."));
+      return registerDemoKey(adapter.api, made, { workspaceId, approverId });
+    },
+    [adapter, workspaceId, approverId],
+  );
 
-  // Make the key before the hold ends, so a signature never waits on key generation.
+  // Make and register the key before the hold ends, so a signature never waits on either. A failure here is
+  // said on the press, when the same step runs again.
   useEffect(() => {
-    if (!data.live || !signable) return;
+    if (!data.live || !signable || !workspaceId) return;
     let alive = true;
-    void browserKey(keyId, keyScope).then((k) => {
-      if (alive) setKey(k);
-    });
+    sessionKey(keyScope, register).then(
+      (k) => {
+        if (alive) setKey(k);
+      },
+      () => undefined,
+    );
     return () => {
       alive = false;
     };
-  }, [data.live, signable, keyId, keyScope]);
+  }, [data.live, signable, workspaceId, keyScope, register]);
 
   const batch = useMemo(
     () => (snapshot && view ? batchFacts(snapshot, view, payload) : null),
@@ -206,7 +219,6 @@ export function Screen({ runSlug }: RunScreenProps) {
       setSlabKey((k) => k + 1);
       return;
     }
-    committedRef.current = true;
     setSigning(true);
     setFailure(null);
     try {
@@ -220,7 +232,7 @@ export function Screen({ runSlug }: RunScreenProps) {
         script.run("mismatch", { eventId: `mismatch:${fresh.payload.nonce}`, kind: "http" });
         return;
       }
-      const signer = await browserKey(keyId, keyScope);
+      const signer = await sessionKey(keyScope, register);
       setKey(signer);
       const signature = await signer.sign(utf8(fresh.jcs));
       // One signed approval, one key: a send the server never answered goes again under the same key, so the
@@ -256,9 +268,8 @@ export function Screen({ runSlug }: RunScreenProps) {
       setSlabKey((k) => k + 1);
     } finally {
       setSigning(false);
-      committedRef.current = false;
     }
-  }, [adapter, digest, keyId, keyScope, payload, runSlug, script, snapshot, submit, view]);
+  }, [adapter, digest, keyScope, payload, register, runSlug, script, snapshot, submit, view]);
 
   const refetchPayload = payloadQuery.refetch;
   const reload = useCallback(() => {
@@ -269,36 +280,46 @@ export function Screen({ runSlug }: RunScreenProps) {
   }, [refetchPayload]);
   const reloadPayload = useCallback(() => void refetchPayload(), [refetchPayload]);
 
-  // The hold is the slab's; the moment only needs to know when one starts and whether it ended early.
-  const beginHold = useCallback(() => {
-    if (!armed || signing || holdingRef.current) return;
-    holdingRef.current = true;
-    committedRef.current = false;
-    setHolding(true);
-    script.cancel();
-    moment.enter("hold-1");
-  }, [armed, moment, script, signing]);
-  const endHold = useCallback(() => {
-    if (!holdingRef.current || committedRef.current) return;
-    holdingRef.current = false;
-    setHolding(false);
-    releases.current += 1;
-    script.run("released-early", { eventId: `release-${releases.current}`, kind: "press" });
-  }, [script]);
-  const onPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button === 0 && (e.target as Element).closest?.(".fs-slab__face")) beginHold();
-  };
-  const onKeyDownCapture = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (
-      (e.key === " " || e.key === "Spacebar") &&
-      !e.repeat &&
-      (e.target as Element).closest?.(".fs-slab__face")
-    )
-      beginHold();
-  };
-  const onKeyUpCapture = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === " " || e.key === "Spacebar") endHold();
-  };
+  // The hold is the slab's (ui-web, S2.7: arm on hold, act on release inside), and it reports each change; the
+  // screen writes MM-5's phases from them. hold-1 as the hold starts, armed-1 at 1,600 ms ("Release to sign",
+  // nothing signed yet), released-early or disarmed when it ends without a release inside, confirm-1 when Enter,
+  // a screen reader or the link opens the dialog. The release (or the dialog's Sign) commits: `approve`.
+  const onHoldChange = useCallback(
+    (change: HoldChange) => {
+      const press = () => ({ eventId: `${change}-${++changes.current}`, kind: "press" as const });
+      switch (change) {
+        case "holding":
+          if (!armed || signing) return;
+          holdingRef.current = true;
+          setHolding(true);
+          script.cancel();
+          moment.enter("hold-1");
+          return;
+        case "armed":
+          if (holdingRef.current) moment.enter("armed-1");
+          return;
+        case "released-early":
+        case "disarmed":
+          if (!holdingRef.current) return;
+          holdingRef.current = false;
+          setHolding(false);
+          script.run(change === "disarmed" ? "disarm-1" : "released-early", press());
+          return;
+        case "dialog":
+          // The dialog route stands in for the hold: the phase stays confirm-1 until it signs or closes.
+          holdingRef.current = true;
+          setHolding(true);
+          script.cancel();
+          script.run("confirm-1", press());
+          return;
+        case "dismissed":
+          holdingRef.current = false;
+          setHolding(false);
+          return;
+      }
+    },
+    [armed, moment, script, signing],
+  );
 
   const pairing = useCommand("createPairing");
 
@@ -382,15 +403,26 @@ export function Screen({ runSlug }: RunScreenProps) {
     if (payloadError) onReason = reloadPayload;
   }
 
-  const keyLabelOf = (id: string) =>
-    keyKind(id) === "seeded"
-      ? APPROVE.keySeeded
-      : keyKind(id) === "web"
-        ? en("W-TR-07.key.demo")
-        : APPROVE.keyDevice;
-  const treasurerKeyId = treasurerApproval?.keyId ?? key?.keyId ?? keyId;
+  // The key's kind comes from its ID's shape (C-13): a judge's demo key never reads as an officer's own key.
+  const keyLabelOf = (id: string, holder: "treasurer" | "chair") => {
+    switch (keyKind(id)) {
+      case "seeded":
+        return APPROVE.keySeeded;
+      case "demo":
+        return holder === "treasurer" ? en("W-TR-07.key.demo") : APPROVE.keyDemoChair;
+      case "web":
+        return APPROVE.keyBrowser;
+      default:
+        return APPROVE.keyDevice;
+    }
+  };
+  const treasurerKeyId = treasurerApproval?.keyId ?? key?.keyId ?? null;
+  // Until fs-api has registered this browser's key the slot names the kind of key that will sign, not an ID.
+  const treasurerKeyLine = treasurerKeyId
+    ? APPROVE.keyLine(treasurerKeyId, keyLabelOf(treasurerKeyId, "treasurer"))
+    : en("W-TR-07.key.demo");
   const treasurerNote =
-    !treasurerApproval || keyKind(treasurerApproval.keyId) === "web"
+    !treasurerApproval || keyKind(treasurerApproval.keyId) === "demo"
       ? key?.kind === "webcrypto"
         ? APPROVE.keyWebCrypto
         : key?.kind === "demo"
@@ -512,16 +544,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           <BlockedList reasons={reasons} />
         )}
 
-        <div
-          ref={slabRef}
-          className="fsr-approve__slab"
-          onPointerDownCapture={onPointerDownCapture}
-          onPointerUpCapture={endHold}
-          onPointerCancelCapture={endHold}
-          onKeyDownCapture={onKeyDownCapture}
-          onKeyUpCapture={onKeyUpCapture}
-          onBlurCapture={endHold}
-        >
+        <div ref={slabRef} className="fsr-approve__slab">
           <Slab
             key={slabKey}
             label={label}
@@ -549,7 +572,8 @@ export function Screen({ runSlug }: RunScreenProps) {
             {...(signedNow ? { frame: { state: "committed" as const, travel: 8, fill: 1 } } : {})}
             hint={!signedNow}
             testId="W-TR-07.approve"
-            onCommit={() => void approve()}
+            onHoldChange={onHoldChange}
+            onCommit={approve}
           />
           {state === "killed" && (
             <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
@@ -572,7 +596,7 @@ export function Screen({ runSlug }: RunScreenProps) {
         <ul className="fsr-keys" aria-label="Keys" data-testid="W-TR-07.keys">
           <KeySlot
             name={en("W-TR-07.key.treasurer")}
-            keyLine={APPROVE.keyLine(treasurerKeyId, keyLabelOf(treasurerKeyId))}
+            keyLine={treasurerKeyLine}
             {...(treasurerNote ? { keyNote: treasurerNote } : {})}
             status={
               treasurerApproval && treasurerStamp
@@ -590,7 +614,9 @@ export function Screen({ runSlug }: RunScreenProps) {
               name={en("W-TR-07.key.chair")}
               why={APPROVE.chairWhy(chair.threshold)}
               {...(chairApproval
-                ? { keyLine: APPROVE.keyLine(chairApproval.keyId, keyLabelOf(chairApproval.keyId)) }
+                ? {
+                    keyLine: APPROVE.keyLine(chairApproval.keyId, keyLabelOf(chairApproval.keyId, "chair")),
+                  }
                 : {})}
               status={
                 chairApproval && chairStamp

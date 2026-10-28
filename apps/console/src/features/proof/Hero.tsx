@@ -51,7 +51,13 @@ export function ProofHero({
   const Title = level;
   const paid = bundle.invoice.status === "PAID";
   const amount = format.money(bundle.invoice.amountCents);
-  const [before, after] = around(paid ? "W-PF-01.heroPaid" : "W-PF-01.heroMarked", "amount", {
+  // ADR-0002, I8: an invoice marked paid on the simulator says the sandbox was simulated.
+  const heroKey = paid
+    ? "W-PF-01.heroPaid"
+    : rail === "simulator"
+      ? "W-PF-01.heroMarked.simulator"
+      : "W-PF-01.heroMarked";
+  const [before, after] = around(heroKey, "amount", {
     amount,
     season: seasonLabel,
   });

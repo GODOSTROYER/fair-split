@@ -199,7 +199,7 @@ describe("the treasurer key as Fair Split publishes it", () => {
     if (!officer) throw new Error("the seed publishes officer keys");
     const published: PublishedKeys = {
       ...keys,
-      officers: [...keys.officers, { ...officer, keyId: "fs-analyn-w1", kind: "app", revokedAt: null }],
+      officers: [...keys.officers, { ...officer, keyId: "fs-analyn-w1", kind: "web", revokedAt: null }],
     };
     expect(registryKeyOf(published, "fs-analyn-w1")).toEqual({
       state: "registered",
@@ -208,7 +208,7 @@ describe("the treasurer key as Fair Split publishes it", () => {
     });
     const revoked: PublishedKeys = {
       ...keys,
-      officers: [{ ...officer, keyId: "fs-analyn-w1", revokedAt: "2026-11-01T00:00:00.000Z" }],
+      officers: [{ ...officer, keyId: "fs-analyn-w1", kind: "web", revokedAt: "2026-11-01T00:00:00.000Z" }],
     };
     expect(registryKeyOf(revoked, "fs-analyn-w1").state).toBe("revoked");
   });

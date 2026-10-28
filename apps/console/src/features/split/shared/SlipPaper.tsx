@@ -2,8 +2,8 @@
 // the A6 triplicate form with its printed boxes, the press's red serial, and Jessie's entries in blue ballpoint
 // block capitals, exactly as the seed records them (box 1–13). It is evidence, so it is Paper: the only thing
 // that casts a shadow, tagged "Synthetic sample" in its corner and in its alt text. The pink duplicate prints
-// fainter than the white original. Canary marks only what a person must look at: one underline beneath the
-// serial (MM-3: the two copies carry the same serial), or the box-13 line a hold points at (H3).
+// fainter than the white original. Canary marks only what a person must look at: the box-13 line a hold points
+// at (H3). MM-3 compares the two copies' fields beside the paper, never by drawing on it.
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { Paper } from "@fairsplit/ui-web";
@@ -56,23 +56,13 @@ export interface SlipPaperProps {
   readonly width?: number;
   /** Alt text; Paper adds "Synthetic sample". */
   readonly alt: string;
-  /** A canary underline beneath the serial: the field a person compares across two copies (MM-3). */
-  readonly underlineSerial?: boolean;
   /** One box-13 line a hold points at, highlighted in full ("Multa (absent GA) ₱200"). */
   readonly markLine?: string | null;
   readonly testId?: string;
   readonly className?: string;
 }
 
-export function SlipPaper({
-  slip,
-  width = 200,
-  alt,
-  underlineSerial = false,
-  markLine,
-  testId,
-  className,
-}: SlipPaperProps) {
+export function SlipPaper({ slip, width = 200, alt, markLine, testId, className }: SlipPaperProps) {
   const faint = slip.copy === "PINK_DUPLICATE";
   const ink = faint ? 0.62 : 0.94;
   const rows = rowsOf(slip);
@@ -106,9 +96,6 @@ export function SlipPaper({
         >
           {slip.serial}
         </text>
-        {underlineSerial && (
-          <rect x={W - 66} y={31} width={52} height={4} className="fsr-slip__underline" data-box="serial" />
-        )}
         <line x1={14} x2={W - 14} y1={44} y2={44} stroke={FORM_INK} strokeWidth={0.75} opacity={0.6} />
         {rows.map((row) => (
           <g key={row.label}>

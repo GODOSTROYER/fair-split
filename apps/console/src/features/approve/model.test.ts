@@ -2,15 +2,17 @@
 // story, the batch both keys sign, the lines digest the ledger records, and the browser's Ed25519 key, whose
 // signature must verify over exactly the JCS bytes the API hands out (I4: the approved digest is the payout).
 
+import { createApiClient } from "@fairsplit/api-client";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { describe, expect, it } from "vitest";
 import { ApiClientError, ContractError, NetworkError } from "../../data/errors.js";
 import { CHAIR } from "../../data/mock/driver.js";
+import { createMemoryFetch } from "../../data/mock/memory.js";
 import { applyRunEvents, type RunView, sessionView, showcaseView } from "../../data/run-view.js";
 import { fromHex } from "../../lib/sha256.js";
 import { createTestWorld, seedSnapshot } from "../../test/world.js";
 import { jcs, utf8 } from "./jcs.js";
-import { browserKey, forgetBrowserKeys, makeBrowserKey, webKeyId } from "./keys.js";
+import { demoKeyStatement, forgetBrowserKeys, makeBrowserKey, registerDemoKey, sessionKey } from "./keys.js";
 import {
   approveState,
   batchAmountState,
@@ -226,7 +228,7 @@ describe("inv.i4 the approved digest is the payout", () => {
       params: { runSlug: world.runSlug },
       query: { role: "treasurer" },
     });
-    const shown = { batchSha256: payload.batchSha256, linesDigest: null };
+    const shown = { batchSha256: payload.batchSha256, linesDigest: linesDigest(snapshot, viewOf(world)) };
     expect(jcs(payload as unknown as Parameters<typeof jcs>[0])).toBe(serverJcs);
     expect(payloadMatches(payload, serverJcs, shown)).toBe(true);
     expect(payloadMatches(payload, serverJcs, { ...shown, batchSha256: "0".repeat(64) })).toBe(false);
@@ -244,33 +246,32 @@ describe("inv.i4 the approved digest is the payout", () => {
     expect(payloadMatches(payload, serverJcs, { batchSha256: null, linesDigest: null })).toBe(false);
   });
 
-  it("inv.i4 once the payload carries a lines root, it must be the one this browser recomputed", () => {
+  it("inv.i4 the payload's lines root (IC-02) is the one this browser recomputes, cash lines included", () => {
     const world = createTestWorld();
     world.markPaid();
     world.resolveAll();
     const view = viewOf(world);
-    const { payload } = world.command("approvalPayload", {
+    const { payload, jcs: serverJcs } = world.command("approvalPayload", {
       params: { runSlug: world.runSlug },
       query: { role: "treasurer" },
     });
-    // Today's contract has no linesDigest: nothing to show, nothing extra to compare.
-    expect(signedLinesDigest(payload)).toBeNull();
     const ours = linesDigest(snapshot, view);
     expect(ours).toMatch(/^[0-9a-f]{64}$/);
-    const carried = { ...payload, linesDigest: ours };
-    const carriedJcs = jcs(carried as unknown as Parameters<typeof jcs>[0]);
-    expect(signedLinesDigest(carried)).toBe(ours);
+    // The API signs every member line's hash (64 lines, 57 of them cash); this browser rebuilds the same root.
+    expect(signedLinesDigest(payload)).toBe(ours);
     const shown = { batchSha256: payload.batchSha256, linesDigest: ours };
-    expect(payloadMatches(carried, carriedJcs, shown)).toBe(true);
+    expect(payloadMatches(payload, serverJcs, shown)).toBe(true);
+    // A root that is not the screen's signs nothing, even with the batch hash unchanged (a cash line moved).
     const other = { ...payload, linesDigest: "f".repeat(64) };
     const otherJcs = jcs(other as unknown as Parameters<typeof jcs>[0]);
     expect(payloadMatches(other, otherJcs, shown)).toBe(false);
-    expect(payloadMatches(carried, carriedJcs, { ...shown, linesDigest: null })).toBe(false);
+    // Nothing recomputed on screen, nothing signed.
+    expect(payloadMatches(payload, serverJcs, { ...shown, linesDigest: null })).toBe(false);
+    expect(signedLinesDigest({ ...payload, linesDigest: "not a hash" })).toBeNull();
   });
 
   it("inv.i4 key 1 signs those bytes with a non-extractable WebCrypto key, and the signature verifies", async () => {
-    const key = await makeBrowserKey(webKeyId("treasurer:analyn"));
-    expect(key.keyId).toBe("fs-analyn-w1");
+    const key = await makeBrowserKey();
     expect(key.kind).toBe("webcrypto");
     const bytes = utf8(jcs({ v: 1, batchSha256: snapshot.run.batchSha256, totalCents: 36_839 }));
     const signature = await key.sign(bytes);
@@ -282,18 +283,71 @@ describe("inv.i4 the approved digest is the payout", () => {
   });
 
   it("falls back to the labelled demo key where WebCrypto lacks Ed25519, and keeps one key per session", async () => {
-    const demo = await makeBrowserKey("fs-analyn-w1", "demo");
+    const demo = await makeBrowserKey("demo");
     expect(demo.kind).toBe("demo");
     const bytes = utf8("{}");
     const sig = fromHex(await demo.sign(bytes));
     const pub = fromHex(demo.publicKeyHex);
     expect(sig && pub && ed25519.verify(sig, bytes, pub)).toBe(true);
     forgetBrowserKeys();
-    const a = await browserKey("fs-analyn-w1", "session-a");
-    const again = await browserKey("fs-analyn-w1", "session-a");
-    const b = await browserKey("fs-analyn-w1", "session-b");
+    let n = 0;
+    const register = async (key: Parameters<Parameters<typeof sessionKey>[1]>[0]) => ({
+      ...key,
+      keyId: `fs-analyn-demo-test0${++n}`,
+    });
+    const a = await sessionKey("session-a:treasurer:analyn", register);
+    const again = await sessionKey("session-a:treasurer:analyn", register);
+    const b = await sessionKey("session-b:treasurer:analyn", register);
     expect(again.publicKeyHex).toBe(a.publicKeyHex);
+    expect(again.keyId).toBe(a.keyId);
     expect(b.publicKeyHex).not.toBe(a.publicKeyHex);
+    expect(n).toBe(2);
+  });
+
+  it("a registration that fails is forgotten, so the next press registers afresh", async () => {
+    forgetBrowserKeys();
+    let calls = 0;
+    const failing = async () => {
+      calls++;
+      throw new Error("not registered");
+    };
+    await expect(sessionKey("session-c:treasurer:analyn", failing)).rejects.toThrow("not registered");
+    await expect(sessionKey("session-c:treasurer:analyn", failing)).rejects.toThrow("not registered");
+    expect(calls).toBe(2);
+  });
+
+  it("inv.i6 the demo key is registered for the session as the treasurer, proving possession; its ID is C-13's", async () => {
+    const world = createTestWorld();
+    const session = world.command("createJudgeSession", { body: {} });
+    const api = createApiClient({
+      baseUrl: "",
+      fetch: createMemoryFetch(world.mock.handlers),
+      token: () => session.consoleToken,
+    });
+    const key = await makeBrowserKey();
+    const signer = { workspaceId: session.workspaceId, approverId: "treasurer:analyn" };
+    const registered = await registerDemoKey(api, key, signer);
+    expect(registered.keyId).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
+    expect(keyKind(registered.keyId)).toBe("demo");
+    expect(registered.publicKeyHex).toBe(key.publicKeyHex);
+    // What the browser signed to register: the session's workspace, the approver and this public key (fs-api's
+    // demoKeyStatement), so the registration cannot be replayed for another workspace, approver or key.
+    const statement = demoKeyStatement(signer, key.publicKeyHex);
+    expect(statement).toEqual({
+      v: 1,
+      purpose: "fs.register-demo-key",
+      ws: session.workspaceId,
+      approverId: "treasurer:analyn",
+      publicKeyHex: key.publicKeyHex,
+    });
+  });
+
+  it("names each key by its kind: seeded samples, a session's demo key, the officers' own keys", () => {
+    expect(keyKind("fs-analyn-s1")).toBe("seeded");
+    expect(keyKind("fs-analyn-demo-k3x9q2")).toBe("demo");
+    expect(keyKind("fs-analyn-w1")).toBe("web");
+    expect(keyKind("fs-ernesto-a1")).toBe("app");
+    expect(keyKind("fs-ernesto-w1x")).toBeNull();
   });
 });
 

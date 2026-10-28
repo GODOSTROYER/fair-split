@@ -3,10 +3,13 @@
 // be read out, copied or sent. Its public half is registered once from /ops (the operator's step). Where IndexedDB
 // is unavailable (a private window, tests) the key lives for this page only, and the page says so.
 //
-// Shared change requested: W-TR-07 signs with this key, so this module should move to `src/lib/keystore.ts`
-// (reported). Until then the database and record shapes below are the contract between the two slices.
+// Shared (src/lib) because two screens need it: /ops (W-OP-01) makes and registers the key, and W-TR-07 is the
+// screen that signs with a treasurer's key. Today W-TR-07 signs only inside a judge session, and there it uses a
+// session-only `web_demo` key (features/approve/keys.ts): a judge never makes or uses a key named fs-analyn-w1.
+// Signing with this one waits for a treasurer's own sign-in (W-AU-01, P2). The record shapes below are the
+// contract.
 
-import { sha256Hex, toHex } from "../../lib/sha256.js";
+import { sha256Hex, toHex } from "./sha256.js";
 
 export const TREASURER_KEY_ID = "fs-analyn-w1";
 export const TREASURER_APPROVER = "treasurer:analyn";

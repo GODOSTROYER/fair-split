@@ -189,7 +189,9 @@ export const PLOT_COPY = {
 export const FOOTER_COPY = {
   recon: () => t("W-PF-01.footer.recon"),
   merchant: "Lantern Bay pays the co-op, which is the merchant of record. Fair Split never holds the money.",
-  sandbox: () => t("W-PF-01.footer.sandbox"),
+  /** ADR-0002, I8: under the simulator the footer says the PayPal sandbox itself is simulated. */
+  sandbox: (rail: PaypalRail) =>
+    t(rail === "simulator" ? "W-PF-01.footer.simulator" : "W-PF-01.footer.sandbox"),
   tagline: () => t("W-PF-01.tagline"),
   privacy: "Members appear by ID only, never by name (Philippine Data Privacy Act, RA 10173).",
 } as const;

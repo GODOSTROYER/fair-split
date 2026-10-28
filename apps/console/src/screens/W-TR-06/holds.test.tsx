@@ -1,10 +1,11 @@
 // W-TR-06 Hold drawer against the mock world. H1 is MM-3, "The pink copy": opening it plays glide-in, converge,
-// underline and ready over the two copies of slip 0457 (4 of 4 fields match); "Count it once" is pressed, and
+// pairs and ready over the two copies of slip 0457 (4 of 4 fields match); "Count it once" is pressed, and
 // the engine's hold.resolved swings the needle to 1.62% and resolves the card flush in ink with the AS stamp,
 // in full and reduced motion. H2 registers Merlyn's second plot, H3 returns the multa as a credit, and the
 // flat "These are two deliveries" asks for a reason first.
 
 import { webRoutes } from "@fairsplit/contracts";
+import { TIMING } from "@fairsplit/motion";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { clearMomentTrace, expectNoAxeViolations, renderConsole, tracedPhases } from "../../test/index.js";
@@ -47,7 +48,7 @@ describe("W-TR-06 hold drawer", () => {
       await inReview(webRoutes.holdDrawer(RUN, "H1"));
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
       await waitFor(() => expect(sinceOpen()).toContain("ready"), WAIT);
-      expect(sinceOpen()).toEqual(["glide-in", "converge", "underline", "ready"]);
+      expect(sinceOpen()).toEqual(["glide-in", "converge", "pairs", "ready"]);
       expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval. Changes kilos.");
       const card = screen.getByTestId("W-TR-06.card");
       expect(card.textContent).toMatch(
@@ -57,17 +58,17 @@ describe("W-TR-06 hold drawer", () => {
       expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe("4 of 4 fields match. Same slip.");
       const twin = screen.getByTestId("W-TR-06.twin");
       expect(twin.dataset.lit).toBe("");
-      // Canary is a person's decision: one underline beneath the two serials, nothing else on the slips. The
-      // fields the engine matched read beneath as its own "=" marks, in pencil.
-      const underlines = [...twin.querySelectorAll(".fsr-slip__underline")];
-      expect(underlines).toHaveLength(2);
-      expect(underlines.every((u) => u.getAttribute("data-box") === "serial")).toBe(true);
+      // Canary is a person's decision: the matching field pairs light in turn (serial, date, member, net kg,
+      // TIMING.pairStagger apart), with nothing drawn on the slips themselves: no underline, no highlight.
+      expect(twin.querySelectorAll(".fsr-slip__underline")).toHaveLength(0);
       expect(twin.querySelectorAll(".fsr-slip__highlight")).toHaveLength(0);
-      for (const field of ["serial", "date", "member", "net"]) {
+      ["serial", "date", "member", "net"].forEach((field, i) => {
         const row = screen.getByTestId(`W-TR-06.twin.${field}`);
         expect(row.dataset.match).toBe("");
+        expect(row.dataset.lit).toBe("");
+        expect(row.style.getPropertyValue("--fsr-pair-at")).toBe(`${i * TIMING.pairStagger}ms`);
         expect(row.querySelector(".fsr-twin__eq")?.textContent).toBe("=");
-      }
+      });
       expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("OUTSIDE");
       expect(screen.getByTestId("W-TR-06.drawer").textContent).toMatch(/Hold 1 of 3/);
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
@@ -118,7 +119,7 @@ describe("W-TR-06 hold drawer", () => {
         expect.arrayContaining([
           "glide-in",
           "converge",
-          "underline",
+          "pairs",
           "ready",
           "pressed",
           "needle",

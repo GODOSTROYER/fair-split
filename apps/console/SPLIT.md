@@ -3,7 +3,10 @@
 The console (`apps/console`, WS-CONSOLE) is built in four steps. The **shell** (this commit) registers every web
 route, draws the Judge stage and its chrome in Tablea, and provides the data layer, the test kit and every
 dependency. The **wire** step (done) merged `ws/api`, moved `src/data/` onto `@fairsplit/api-client` and its msw
-mock, and created the three slice worktrees. Now **season**, **runs** and **proof** build their screens in parallel.
+mock, and created the three slice worktrees. **season**, **runs** and **proof** built their screens in parallel. The
+**integrate** step (done) merged the three slices, then `main` (the final phase-1 packages) and `ws/api` (api-client
+on main's contracts), and adapted the console: IC-02 `linesDigest` in the approval payload, judge demo keys
+`fs-{persona}-demo-{6}` registered per session, MM-3 `pairs` and MM-5's arm-then-release from the revised S2.9.
 
 Read first: `docs/spec/00-plan.md` (wins), `docs/spec/01-design-direction.md`, register §1–§5, S1.5–S1.12, S2 (all)
 and `docs/adr/0002-simulated-paypal-sandbox-and-private-repo.md`.
@@ -128,6 +131,8 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 | `useAnnounce()`                            | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                   |
 | `lib/verify.ts` (import lazily)            | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                   |
 | `lib/sha256.ts`                            | Synchronous SHA-256 (verify-core needs it sync)                                                                                 |
+| `lib/keys.ts`                              | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)  |
+| `lib/keystore.ts`                          | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key      |
 | `useSound()`, `playFromFrame()`, `duck()`  | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                        |
 | `theme/grid.ts` (import only from W-TR-05) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid lazy                                    |
 

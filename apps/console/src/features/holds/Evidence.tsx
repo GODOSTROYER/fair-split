@@ -1,12 +1,14 @@
 // The evidence on each hold card, as paper (design §2.5: evidence is the only thing that casts a shadow).
-// H1: the two copies of slip 0457 side by side, converging, one canary underline drawn beneath both serials
-// (MM-3, "The pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not
-// an overlay). The fields the engine matched read beneath in pencil with an "=": machine facts never wear the
-// decision colour. H2: the registry's plots and the kilos-per-tree bar. H3: box 13 of slip 0458, each line
-// against Schedule A's closed list. Every figure is the seed's or the engine's.
+// H1: the two copies of slip 0457 side by side, converging, then their matching fields lit in turn (MM-3, "The
+// pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not an overlay or
+// an underline). Serial, date, member and net kg each get a canary outline on both cells and a canary connector,
+// 120 ms apart, then "4 of 4 fields match. Same slip." prints. The count is the DTO's: a field that differs
+// keeps its pencil "≠" and is never lit, so a mismatch reads "3 of 4". H2: the registry's plots and the
+// kilos-per-tree bar. H3: box 13 of slip 0458, each line against Schedule A's closed list. Every figure is the
+// seed's or the engine's.
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
-import { MOMENTS, type MomentPhase } from "@fairsplit/motion";
+import { MOMENTS, type MomentPhase, TIMING } from "@fairsplit/motion";
 import { Glyph, Print } from "@fairsplit/ui-web";
 import { HOLDS } from "../split/shared/copy.js";
 import { copyWord, SlipPaper } from "../split/shared/SlipPaper.js";
@@ -33,18 +35,17 @@ export interface TwinCompareProps {
 
 export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinCompareProps) {
   const matched = rows.filter((r) => r.match);
-  // The canary underline marks the serials only, and only when they are the same slip's.
-  const sameSerial = rows.some((r) => r.field === "serial" && r.match);
   const converged = reached(phase, "converge");
-  const lit = reached(phase, "underline");
+  // pairs: the matching fields light in turn (MM3_PAIRS order), one TIMING.pairStagger apart.
+  const lit = reached(phase, "pairs");
   const ready = reached(phase, "ready");
+  let pair = 0;
   const copy = (slip: SnapshotSlip, side: "a" | "b") => (
     <figure className="fsr-twin__copy" data-side={side} data-copy={slip.copy}>
       <SlipPaper
         slip={slip}
         width={184}
         alt={HOLDS.slipAlt(slip.serial, copyWord(slip.copy), slip.photoId)}
-        underlineSerial={sameSerial}
         testId={`W-TR-06.twin.${side}`}
       />
       <figcaption className="fsr-twin__caption fs-t-caption">
@@ -77,11 +78,14 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
+          {rows.map((r) => (
             <tr
               key={r.field}
               data-match={r.match ? "" : undefined}
-              style={{ ["--fsr-i" as string]: String(i) }}
+              data-lit={lit && r.match ? "" : undefined}
+              style={
+                r.match ? { ["--fsr-pair-at" as string]: `${pair++ * TIMING.pairStagger}ms` } : undefined
+              }
               data-testid={`W-TR-06.twin.${r.field}`}
             >
               <th scope="row" className="fs-t-caption">

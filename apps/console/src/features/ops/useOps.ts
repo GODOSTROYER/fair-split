@@ -15,7 +15,7 @@ import {
   type StoredKey,
   TREASURER_APPROVER,
   TREASURER_KEY_ID,
-} from "./keystore.js";
+} from "../../lib/keystore.js";
 import { classifyFailure, Healthz, OPS_PATHS, OutboxRead, type ReadOutcome, Readyz } from "./opsModel.js";
 import {
   BalanceRead,

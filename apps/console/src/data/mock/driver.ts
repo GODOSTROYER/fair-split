@@ -19,10 +19,14 @@ export const TREASURER: MockCaller = { token: MOCK_CONSOLE_TOKEN, persona: "anal
 /** Ernesto, the Chair, signing from his phone (the second key). */
 export const CHAIR: MockCaller = { token: null, persona: "ernesto", role: "board" };
 
-/** Each approver's session-only demo key (S3.8: `fs-{persona}-w{n}`). */
+/**
+ * Each approver's session-only demo key (S3.8, C-13: kind `web_demo`, ID `fs-{persona}-demo-{6}`): the mock world is
+ * a judge session, and a judge signs with demo keys only. The officers' own keys are other keys entirely: the
+ * treasurer's `fs-analyn-w1` (kind `web`, registered from /ops) and the Chair's `fs-ernesto-a1` (kind `app`).
+ */
 export const DEMO_KEYS: Readonly<Record<ApprovalRole, string>> = {
-  treasurer: "fs-analyn-w1",
-  chair: "fs-ernesto-w1",
+  treasurer: "fs-analyn-demo-mock01",
+  chair: "fs-ernesto-demo-mock02",
 };
 
 export type StepArgs<N extends JsonCommandName> = {

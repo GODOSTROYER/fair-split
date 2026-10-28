@@ -4,11 +4,13 @@
 
 import { act, configure, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { format } from "../../lib/format.js";
 import {
   clearMomentTrace,
   expectNoAxeViolations,
   momentPhase,
   renderConsole,
+  seedSnapshot,
   tracedPhases,
 } from "../../test/index.js";
 
@@ -37,6 +39,16 @@ describe("W-TR-01 season", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-01.next").textContent).toMatch(/Mark the invoice paid \(sandbox\)/);
     expect(screen.getByTestId("W-TR-01.eval").dataset.state).toBe("empty");
     await expectNoAxeViolations(view.container);
+  });
+
+  it("the invoice has no due date (no payment term is ever sent): the plate says when it auto-cancels", async () => {
+    const snapshot = seedSnapshot();
+    expect(snapshot.run.invoice.dueDate).toBeNull();
+    await renderConsole({ path: SEASON });
+    const invoice = await screen.findByTestId("W-TR-01.invoice");
+    const autoCancel = `Auto-cancels ${format.date(snapshot.run.invoice.autoCancelOn)} if unpaid.`;
+    expect(invoice.textContent).toContain(autoCancel);
+    expect(invoice.textContent).not.toMatch(/\bDue\b/);
   });
 
   it("BEAT-PAID: the GET reads paid, the arc draws, the pool lands and 'Funded' closes in jade", async () => {

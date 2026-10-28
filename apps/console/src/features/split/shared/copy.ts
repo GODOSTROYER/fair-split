@@ -137,6 +137,8 @@ export const APPROVE = {
   keyLine: (keyId: string, label: string) => `Key ${keyId}, ${label}`,
   keySeeded: "Sample key (seeded)",
   keyDevice: "Device key",
+  keyBrowser: "Browser key, registered from /ops",
+  keyDemoChair: "Demo key (the Chair's phone frame)",
   keyWebCrypto: "Made by WebCrypto in this browser; the private half can't be exported.",
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
   waitingKey: en("W-TR-07.key.waiting"),

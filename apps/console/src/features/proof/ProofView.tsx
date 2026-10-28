@@ -224,7 +224,7 @@ function ProofFooter({
       <p>
         {railName(rail)}.{provenance ? ` This record: ${provenance}.` : ""}
       </p>
-      <p className="pf-footer__last">{FOOTER_COPY.sandbox()}</p>
+      <p className="pf-footer__last">{FOOTER_COPY.sandbox(rail)}</p>
     </footer>
   );
 }

@@ -1,7 +1,7 @@
 /* W-TR-06 Hold drawer: one hold card flat on the drawer's plate-2, its evidence as paper, MM-3's twin compare.
    Machine text prints in pencil (S2.2.1: the engine's line and Claude's differ only by the pencil glyph and the
-   word Claude). Canary marks only what a person must decide on (in H1, one underline beneath the two serials);
-   facts the engine matched stay pencil; jade never appears here. */
+   word Claude). Canary marks only what a person must decide on (in H1, the matching field pairs of the two
+   copies); facts the engine matched stay pencil until they are lit; jade never appears here. */
 
 .fsr-hold-screen {
   display: grid;
@@ -132,20 +132,9 @@
   transform: none;
 }
 
-/* underline: one canary underline draws beneath both serials (MM-3, 900 to 1,200 ms), with the act's two ticks. */
-.fsr-twin .fsr-slip__underline {
-  transform: scaleX(0);
-  transform-box: fill-box;
-  transform-origin: left center;
-}
-
-.fsr-twin[data-lit] .fsr-slip__underline {
-  transform: none;
-}
-
-.fsr-twin[data-animate][data-phase="underline"] .fsr-slip__underline,
-.fsr-twin[data-animate][data-phase="underline"] .fsr-twin__seam {
-  animation: fsr-underline var(--fs-dur-underline) var(--fs-ease-out) both;
+/* pairs: the centre line the copies met on draws as the first pair lights (the fields' own rules are below). */
+.fsr-twin[data-animate][data-phase="pairs"] .fsr-twin__seam {
+  animation: fsr-seam var(--fs-dur-pair) var(--fs-ease-out) both;
 }
 
 @keyframes fsr-twin-in {
@@ -177,12 +166,19 @@
   }
 }
 
-@keyframes fsr-underline {
+@keyframes fsr-seam {
   from {
-    transform: scaleX(0);
+    transform: scaleY(0);
   }
   to {
     transform: none;
+  }
+}
+
+@keyframes fsr-pair {
+  from {
+    outline-color: transparent;
+    color: var(--fs-ink-3);
   }
 }
 
@@ -195,10 +191,9 @@
   }
 }
 
-/* Reduced motion keeps every phase, with no travel: crossfades into place, the underline fades in. */
+/* Reduced motion keeps every phase, with no travel: crossfades into place, the pairs fade in. */
 .fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__copy,
-.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__seam,
-.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__underline {
+.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-twin__seam {
   transform: none;
 }
 
@@ -210,20 +205,11 @@
   animation: none;
 }
 
-.fsr-twin.fsr-twin[data-motion="reduced"] .fsr-slip__underline {
-  opacity: 0;
-}
-
-.fsr-twin.fsr-twin[data-motion="reduced"][data-lit] .fsr-slip__underline {
-  opacity: 1;
-}
-
-.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-slip__underline,
-.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="underline"] .fsr-twin__seam {
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="pairs"] .fsr-twin__seam {
   animation: fsr-fade-in var(--fs-dur-reduced) var(--fs-ease-out) both;
 }
 
-/* The low tier: the crops start already overlapped (MM-3 low). */
+/* The low tier: the crops start converged; the pairs light as in full (MM-3 low). */
 .fsr-twin.fsr-twin[data-motion="low"][data-animate][data-phase="converge"] .fsr-twin__copy {
   animation: none;
 }
@@ -260,6 +246,36 @@
 
 .fsr-twin__fields tr[data-match] .fsr-twin__eq {
   color: var(--fs-pencil);
+}
+
+/* pairs: serial, date, member and net kg light in turn, 120 ms apart (MM-3, 900 to 1,380 ms), a tick each: a
+   canary outline on both cells and a canary connector between them, drawn in 150 ms. Canary is the decision
+   colour, and this is the evidence Analyn decides on; a field that differs is never lit. */
+.fsr-twin__fields tr[data-match] td {
+  outline: 1px solid transparent;
+  outline-offset: -1px;
+}
+
+.fsr-twin__fields tr[data-lit] td {
+  outline-color: var(--fs-canary);
+}
+
+.fsr-twin__fields tr[data-lit] .fsr-twin__eq {
+  color: var(--fs-canary);
+}
+
+.fsr-twin[data-animate][data-phase="pairs"] .fsr-twin__fields tr[data-lit] td,
+.fsr-twin[data-animate][data-phase="pairs"] .fsr-twin__fields tr[data-lit] .fsr-twin__eq {
+  animation: fsr-pair var(--fs-dur-pair) var(--fs-ease-out) var(--fsr-pair-at, 0ms) both;
+}
+
+/* Reduced motion: the pairs fade in on the reduced timing, still one stagger apart. */
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="pairs"] .fsr-twin__fields tr[data-lit] td,
+.fsr-twin.fsr-twin[data-motion="reduced"][data-animate][data-phase="pairs"]
+  .fsr-twin__fields
+  tr[data-lit]
+  .fsr-twin__eq {
+  animation: fsr-pair var(--fs-dur-reduced) var(--fs-ease-out) var(--fsr-pair-at, 0ms) both;
 }
 
 .fsr-twin__verdict {

@@ -14,8 +14,8 @@ import { Wordmark } from "../../chrome/Wordmark.js";
 import { useJudgeSession, useRunStream, useRunView, useSnapshot } from "../../data/hooks.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
+import { fingerprint, TREASURER_KEY_ID } from "../../lib/keystore.js";
 import { davaoShort } from "../proof/davao.js";
-import { fingerprint, TREASURER_KEY_ID } from "./keystore.js";
 import {
   FLAG_WORDS,
   type FlagRow,
