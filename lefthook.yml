@@ -6,5 +6,4 @@ pre-commit:
     guard-env:
       run: node tools/guard-env.mjs {staged_files}
     biome:
-      glob: "*.{ts,tsx,js,mjs,cjs,json}"
       run: node tools/run-staged.mjs biome

@@ -6,6 +6,10 @@
 // can stage hundreds of files, so this script reads the staged list from git itself and calls
 // each tool's JavaScript entry with node directly, 40 files at a time.
 //
+// Both tools get every staged file. Biome decides for itself which it checks, exactly as CI's `biome ci .` does
+// (Markdown, YAML and CSS as well as code and JSON), and skips the rest: --files-ignore-unknown=true for file
+// types it has no support for, --no-errors-on-unmatched for a batch in which nothing is left to check.
+//
 // Usage (from the repo root, as lefthook runs it): node tools/run-staged.mjs secretlint|biome
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -13,12 +17,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const TOOLS = {
-  secretlint: { pkg: "secretlint", bin: "secretlint", args: [], match: () => true },
+  secretlint: { pkg: "secretlint", bin: "secretlint", args: [] },
   biome: {
     pkg: "@biomejs/biome",
     bin: "biome",
-    args: ["check", "--no-errors-on-unmatched"],
-    match: (file) => /\.(ts|tsx|js|mjs|cjs|json)$/.test(file),
+    args: ["check", "--files-ignore-unknown=true", "--no-errors-on-unmatched"],
   },
 };
 
@@ -40,8 +43,7 @@ const staged = execFileSync("git", ["diff", "--cached", "--name-only", "--diff-f
   encoding: "utf8",
 })
   .split("\0")
-  .filter(Boolean)
-  .filter(tool.match);
+  .filter(Boolean);
 
 for (let i = 0; i < staged.length; i += BATCH) {
   const batch = staged.slice(i, i + BATCH);
