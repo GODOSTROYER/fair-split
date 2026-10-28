@@ -17,7 +17,7 @@ export const Route = createFileRoute("/proof/$runSlug")({
     const { runSlug } = Route.useParams();
     useDocumentTitle(`Proof ${runSlug}`);
     return (
-      <Surface theme="adlaw" className="fsc-surface fsc-surface--proof">
+      <Surface theme="adlaw" face="proof" className="fsc-surface fsc-surface--proof">
         <Screen runSlug={runSlug} />
       </Surface>
     );

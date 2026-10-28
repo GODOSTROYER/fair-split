@@ -9,7 +9,7 @@ export const Route = createFileRoute("/b/$token")({
     const { token } = Route.useParams();
     useDocumentTitle("Proof for the brand");
     return (
-      <Surface theme="adlaw" className="fsc-surface fsc-surface--proof">
+      <Surface theme="adlaw" face="proof" className="fsc-surface fsc-surface--proof">
         <Screen token={token} />
       </Surface>
     );

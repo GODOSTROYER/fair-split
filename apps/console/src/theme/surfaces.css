@@ -9,6 +9,38 @@
 
 /* ---------------------------------------------------------------- Proof (W-PF-01, W-BR-01) */
 
+/* Proof's own face (S2.11: Proof's fonts ≤80 KB, "66 + 2 + 4"): the FSSans-Proof subset (weights 400-800,
+   widths 75-100%) and the peso glyph, under a family of their own, so the two faces never compete for "FS Sans"
+   in one document. A face downloads only once text uses it. On Proof's surfaces <html data-face="proof"> (set
+   before a cold load's first layout, then while the surface is mounted: lib/face.ts) points every font token
+   at it, so the loading, error and not-found states, and the root's own line boxes, never fetch the console's
+   120 KB variable face. */
+@font-face {
+  font-family: "FS Sans Proof";
+  src: url("../../../../assets/fonts/web/FSSans-Proof.woff2") format("woff2");
+  font-weight: 400 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "FS Sans Proof";
+  src: url("../../../../assets/fonts/web/FSSansPeso.woff2") format("woff2");
+  font-weight: 400 800;
+  font-stretch: 75% 100%;
+  unicode-range: U+20B1;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root[data-face="proof"] {
+  --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-hollow: "FS Numerals Hollow", "FS Sans Proof", system-ui, sans-serif;
+}
+
 .fsc-surface--proof {
   padding: 48px var(--fs-proof-gutter) 72px;
 }

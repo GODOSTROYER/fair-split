@@ -12,6 +12,7 @@ import { createApiAdapter } from "./data/api.js";
 import { createDataRuntime } from "./data/provider.js";
 import { loadSnapshot } from "./data/snapshot.js";
 import { env } from "./lib/env.js";
+import { bootFace } from "./lib/face.js";
 import { createConsoleRouter } from "./router.js";
 import { installSound } from "./sound/sound.js";
 import "./styles.css";
@@ -67,4 +68,6 @@ async function boot(): Promise<void> {
   }
 }
 
+// Before anything else: a cold Proof load picks Proof's subset face before the browser's first layout.
+bootFace(window.location.pathname);
 void boot();

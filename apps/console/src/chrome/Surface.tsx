@@ -3,6 +3,7 @@
 
 import { withoutTransitions } from "@fairsplit/motion/web";
 import { type ReactNode, useLayoutEffect } from "react";
+import { useProofFace } from "../lib/face.js";
 
 export type SurfaceTheme = "tablea" | "adlaw";
 
@@ -27,14 +28,18 @@ export function useSurfaceTheme(theme: SurfaceTheme): void {
 
 export function Surface({
   theme,
+  face,
   children,
   className,
 }: {
   readonly theme: SurfaceTheme;
+  /** Proof's surfaces read in their own subset face (lib/face.ts), the whole document while they are mounted. */
+  readonly face?: "proof";
   readonly children: ReactNode;
   readonly className?: string;
 }) {
   useSurfaceTheme(theme);
+  useProofFace(face === "proof");
   return (
     <div className={className} data-surface={theme}>
       {children}
