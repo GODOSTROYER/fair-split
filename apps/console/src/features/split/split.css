@@ -1,0 +1,582 @@
+/* W-TR-05 Split review: the bench (dial, pools, decisions, filters) and the AG Grid, themed from the tokens. */
+
+.fsr-split {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
+
+.fsr-split__beds {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-split__beds-bench {
+  display: grid;
+  grid-template-columns: 132px 220px minmax(0, 1fr);
+  gap: var(--fs-space-32);
+  margin-bottom: var(--fs-space-16);
+}
+
+/* ------------------------------------------------------------------ the bench */
+
+.fsr-bench {
+  display: grid;
+  grid-template-columns: auto minmax(180px, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--fs-space-32) 40px;
+  padding-bottom: var(--fs-space-24);
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-bench__dial {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-4);
+}
+
+.fsr-bench__dial-note {
+  color: var(--fs-ink-2);
+}
+
+.fsr-bench__dial-note[data-status="OUTSIDE"] {
+  color: var(--fs-canary-text);
+}
+
+.fsr-dial__visual[data-status="PENDING"] {
+  opacity: 0.72;
+}
+
+/* MM-3 reduced: the needle cuts to its new value under a 200 ms crossfade, its reading with it. */
+.fsr-dial__visual[data-cut] :is(.fs-dial__needle, .fs-dial__value) {
+  animation: fsr-dial-cut var(--fs-dur-crossfade) var(--fs-ease-out) both;
+}
+
+@keyframes fsr-dial-cut {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fsr-pools {
+  display: grid;
+  gap: var(--fs-space-12);
+  margin: 0;
+  padding-top: var(--fs-space-8);
+}
+
+.fsr-pools__item {
+  display: grid;
+  gap: 2px;
+}
+
+.fsr-pools dt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  color: var(--fs-ink-3);
+}
+
+.fsr-pools dd {
+  margin: 0;
+}
+
+.fsr-pools dd[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-pools__note {
+  color: var(--fs-ink-3);
+}
+
+.fsr-bench__summary {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: var(--fs-space-12);
+  padding-top: var(--fs-space-8);
+}
+
+.fsr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-8);
+  min-inline-size: 0;
+  margin: var(--fs-space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.fsr-chip {
+  min-height: 32px;
+  padding: 0 var(--fs-space-12);
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+}
+
+.fsr-chip:hover {
+  color: var(--fs-ink);
+}
+
+.fsr-chip[aria-pressed="true"] {
+  border-color: var(--fs-ink-3);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+/* ------------------------------------------------------------------ the grid */
+
+.fsr-grid {
+  display: grid;
+  gap: var(--fs-space-8);
+  min-width: 0;
+}
+
+.fsr-grid__columns {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.fsr-grid__frame {
+  height: max(440px, calc(100dvh - 420px));
+  min-width: 0;
+}
+
+.fsr-grid .ag-root-wrapper {
+  border-color: var(--fs-rule);
+}
+
+.fsr-grid .ag-row {
+  cursor: pointer;
+}
+
+.fsr-grid .ag-row.fsr-row--totals {
+  cursor: default;
+}
+
+.fsr-grid .ag-cell {
+  display: flex;
+  align-items: center;
+}
+
+/* Held and reserved rows: a 3 px canary rule on the left (a person decides). */
+.fsr-grid .fsr-row--held .ag-cell[col-id="member"] {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-grid .fsr-row--open .ag-cell {
+  background: var(--fs-plate-2);
+}
+
+.fsr-grid .fsr-row--totals .ag-cell {
+  border-top: 1px solid var(--fs-ink-3);
+  background: var(--fs-plate-2);
+}
+
+/* A renderer fills its cell so a wash covers it edge to edge. */
+.fsr-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.fsr-ag-num .fsr-cell {
+  justify-content: flex-end;
+}
+
+.fsr-cell > :not(.fsr-cell__wash) {
+  position: relative;
+}
+
+.fsr-cell__wash {
+  position: absolute;
+  inset: 0 calc(-1 * var(--ag-cell-horizontal-padding, 12px));
+  animation: fsr-wash calc(var(--fs-dur-flash) + var(--fs-dur-flash-fade)) var(--fs-ease-out) both;
+  pointer-events: none;
+}
+
+.fsr-cell__wash[data-cause="paypal"] {
+  --fsr-wash: var(--fs-jade-wash);
+}
+
+.fsr-cell__wash[data-cause="engine"] {
+  --fsr-wash: var(--fs-pencil-wash);
+}
+
+@keyframes fsr-wash {
+  0% {
+    background: transparent;
+  }
+  25% {
+    background: var(--fsr-wash);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Member: name, number and the statement language. */
+.fsr-member {
+  display: grid;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.fsr-member__name {
+  overflow: hidden;
+  color: var(--fs-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsr-member__meta {
+  display: inline-flex;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-3);
+}
+
+.fsr-member__lang {
+  color: var(--fs-ink-2);
+}
+
+/* Slips: a small stack in the copies' own colours, then the count. */
+.fsr-slips {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+}
+
+.fsr-slips__stack {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 16px;
+}
+
+.fsr-slips__sheet {
+  position: absolute;
+  top: 1px;
+  left: calc(var(--i) * 4px);
+  width: 10px;
+  height: 13px;
+  background: var(--fs-copy-white);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.45);
+}
+
+.fsr-slips__sheet[data-copy="PINK_DUPLICATE"] {
+  background: var(--fs-copy-pink);
+}
+
+.fsr-slips__sheet[data-copy="YELLOW_TRIPLICATE"] {
+  background: var(--fs-copy-yellow);
+}
+
+/* Kilos and the kilos-per-tree bar against the ratified limit (the tick sits at the limit). */
+.fsr-kg {
+  display: grid;
+  grid-template-columns: auto 52px;
+  align-items: center;
+  column-gap: var(--fs-space-12);
+  line-height: 1.1;
+}
+
+.fsr-kg__bar {
+  position: relative;
+  height: 4px;
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-kg__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fs-pencil-faint);
+}
+
+.fsr-kg__over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  max-width: 50%;
+  background: var(--fs-canary);
+}
+
+.fsr-kg__limit {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  width: 1px;
+  background: var(--fs-ink-2);
+}
+
+.fsr-kg__note {
+  grid-column: 1 / -1;
+  color: var(--fs-canary-text);
+}
+
+/* Confidence. */
+.fsr-conf {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-2);
+}
+
+.fsr-conf--unknown {
+  color: var(--fs-ink-3);
+}
+
+.fsr-conf__you {
+  height: 26px;
+}
+
+/* Money: the amount grammar, inline (S2.2.1). */
+.fsr-amount[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-amount[data-amount-state="ink"],
+.fsr-amount[data-amount-state="landed"],
+.fsr-amount[data-amount-state="attested"] {
+  color: var(--fs-ink);
+}
+
+.fsr-amount[data-amount-state="hollow"] {
+  color: var(--fs-ink-2);
+  text-decoration: underline dashed 1.5px;
+  text-underline-offset: 4px;
+}
+
+.fsr-amount--net {
+  font-weight: 640;
+}
+
+.fsr-amount--total {
+  color: var(--fs-ink);
+  font-weight: 600;
+}
+
+.fsr-kaltas {
+  display: inline-flex;
+  gap: var(--fs-space-4);
+}
+
+.fsr-kaltas[data-amount-state="pencil"] .fs-rule-chip {
+  color: var(--fs-pencil);
+}
+
+.fsr-credit--pending {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  color: var(--fs-canary-text);
+}
+
+/* Rail: PayPal by name, cash hatched with its word. */
+.fsr-rail {
+  color: var(--fs-ink-2);
+}
+
+.fsr-rail--cash {
+  display: inline-grid;
+  justify-items: start;
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.fsr-rail--cash > .fs-t-label {
+  padding: 1px 8px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  color: var(--fs-ink);
+  text-shadow:
+    0 0 2px var(--fs-plate),
+    0 0 2px var(--fs-plate);
+}
+
+.fsr-rail__moved {
+  color: var(--fs-ink-3);
+}
+
+/* Status: a glyph and a word, coloured only by what is true now. */
+.fsr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  min-width: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-status > .fs-glyph {
+  flex: none;
+  color: var(--fs-ink-2);
+}
+
+.fsr-status[data-tone="canary"] > .fs-glyph {
+  color: var(--fs-canary-text);
+}
+
+.fsr-status[data-tone="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-status[data-tone="pencil"] > .fs-glyph {
+  color: var(--fs-pencil);
+}
+
+.fsr-status[data-tone="red"],
+.fsr-status[data-tone="red"] > .fs-glyph {
+  color: var(--fs-red);
+}
+
+/* PayPal confirmed it: jade flush, the only jade in the grid. */
+.fsr-status[data-tone="jade"] {
+  padding: 2px 8px 2px 6px;
+  border: 1px solid var(--fs-jade-flush-border);
+  background: var(--fs-jade);
+  color: var(--fs-on-jade);
+}
+
+.fsr-status[data-tone="jade"] > .fs-glyph {
+  color: var(--fs-on-jade);
+}
+
+.fsr-status[data-tone="hatch"] {
+  padding: 2px 8px 2px 6px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-status__hold {
+  padding: 0 4px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink-2);
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.fsr-split__foot {
+  display: grid;
+  gap: var(--fs-space-4);
+}
+
+.fsr-split__totals {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsr-split__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  padding: 0 6px;
+  border: 1px solid var(--fs-ink-3);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink);
+}
+
+.fsr-split__check:not([data-balanced]) {
+  border-color: var(--fs-red);
+  color: var(--fs-red);
+}
+
+.fsr-split__provenance {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+@media (max-width: 1279px) {
+  .fsr-bench {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fsr-bench__summary {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ------------------------------------------------------------------ the static table (before the grid is measured) */
+
+.fsr-grid__frame--static {
+  height: auto;
+  overflow-x: auto;
+  border: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.fsr-static {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsr-static th,
+.fsr-static td {
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--fs-rule);
+  font-weight: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fsr-static thead th {
+  height: 36px;
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+}
+
+.fsr-static [data-numeric] {
+  text-align: right;
+}
+
+.fsr-static tbody tr {
+  cursor: pointer;
+}
+
+.fsr-static tbody tr:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: calc(-1 * var(--fs-focus-width));
+}
+
+.fsr-static .fsr-row--held > th:first-child {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-static .fsr-row--open > * {
+  background: var(--fs-plate-2);
+}
+
+.fsr-static tfoot th,
+.fsr-static tfoot td {
+  border-top: 1px solid var(--fs-ink-3);
+  background: var(--fs-plate-2);
+}
+
+.fsr-static .fsr-cell {
+  height: 40px;
+}
+
+.fsr-static [data-numeric] .fsr-cell {
+  justify-content: flex-end;
+}
+
+.fsr-static__more {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: var(--fs-space-12);
+}

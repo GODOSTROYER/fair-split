@@ -1,0 +1,417 @@
+/* W-TR-09: the member line in the drawer, and the 80 mm statement on the daylight surface. The statement is
+   paper: on screen it casts the paper shadow; printed, it is the page (the shell sets @page 80mm). */
+
+.fsr-line-screen {
+  display: grid;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+.fsr-line__beds {
+  display: grid;
+  gap: var(--fs-space-12);
+}
+
+.fsr-line {
+  display: grid;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+.fsr-line__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fs-space-12);
+}
+
+.fsr-line__who {
+  display: grid;
+  gap: 2px;
+}
+
+.fsr-line__who h2,
+.fsr-line__who p {
+  margin: 0;
+}
+
+.fsr-line__amount {
+  display: grid;
+  gap: var(--fs-space-4);
+}
+
+.fsr-line__amount p {
+  margin: 0;
+}
+
+.fsr-line__cash {
+  color: var(--fs-ink);
+}
+
+.fsr-line__section {
+  display: grid;
+  gap: var(--fs-space-8);
+  min-width: 0;
+}
+
+.fsr-line__section h3 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
+  margin: 0;
+  padding-bottom: var(--fs-space-4);
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-line__slips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-16);
+  margin: 0;
+  padding: var(--fs-space-4) 0 0;
+  list-style: none;
+}
+
+.fsr-line__slip {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-8);
+  width: 112px;
+}
+
+.fsr-line__slip-caption {
+  color: var(--fs-ink-2);
+}
+
+/* OD-4: an earlier photo is archived; its tile is hatched, with its word. */
+.fsr-archived {
+  display: grid;
+  align-content: end;
+  gap: 2px;
+  width: 112px;
+  height: 140px;
+  padding: var(--fs-space-8);
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  color: var(--fs-ink);
+}
+
+/* A segment of the ReceiptBar that comes from the kilos lights the slips it comes from. */
+.fsr-line__section[data-lit] .fsr-line__slip .fsr-slip,
+.fsr-line__section[data-lit] .fsr-archived {
+  outline: var(--fs-focus-width) solid var(--fs-ink);
+  outline-offset: 3px;
+}
+
+.fsr-line__history {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsr-line__history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--fs-space-12);
+  padding: var(--fs-space-8) 0;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-line__h-words {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.fsr-line__h-detail {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.fsr-line__h-time {
+  grid-column: 2;
+  grid-row: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* In the drawer the receipt wraps rather than running off its edge; the big net is the header's. */
+.fsr-line .fs-receipt__row {
+  flex-wrap: wrap;
+}
+
+.fsr-line .fs-receipt__item[data-kind="net"] .fs-receipt__value {
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+}
+
+.fsr-sms__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--fs-space-8);
+}
+
+.fsr-sms__head h3 {
+  border-bottom: 0;
+}
+
+.fsr-sms__chip {
+  padding: 0 6px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink-2);
+}
+
+.fsr-sms__langs {
+  display: flex;
+  gap: var(--fs-space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fsr-sms__text {
+  margin: 0;
+  padding: var(--fs-space-12) var(--fs-space-16);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  color: var(--fs-ink);
+  max-width: 52ch;
+}
+
+.fsr-sms__review {
+  color: var(--fs-ink-2);
+}
+
+.fsr-line__actions {
+  display: grid;
+  gap: var(--fs-space-16);
+  padding-top: var(--fs-space-16);
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsr-line__actions > .fs-flat {
+  justify-self: start;
+  text-decoration: none;
+}
+
+.fsr-line__pair,
+.fsr-line__received {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-8);
+}
+
+.fsr-line__received p {
+  margin: 0;
+  max-width: 48ch;
+}
+
+.fsr-line__code {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ the 80 mm statement */
+
+.fsr-print {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-24);
+}
+
+.fsr-print__tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-16);
+  width: 80mm;
+  max-width: 100%;
+}
+
+.fsr-paper80 {
+  display: grid;
+  gap: 10px;
+  width: 80mm;
+  max-width: 100%;
+  padding: 6mm 5mm 8mm;
+  background: var(--fs-copy-white);
+  box-shadow: var(--fs-shadow-paper);
+  color: var(--fs-paper-ink, #1c1511);
+  font-family: var(--fs-font-ui);
+  font-size: 12px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsr-paper80--beds {
+  min-height: 120mm;
+}
+
+.fsr-paper80 p,
+.fsr-paper80 h1 {
+  margin: 0;
+}
+
+.fsr-paper80__head {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed currentColor;
+  text-align: center;
+}
+
+.fsr-paper80__coop {
+  font-weight: 700;
+}
+
+.fsr-paper80__mark {
+  margin-top: 4px;
+}
+
+.fsr-paper80__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fsr-paper80__who {
+  display: grid;
+  gap: 1px;
+}
+
+.fsr-paper80__name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fsr-paper80__amount {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  border-block: 1px solid currentColor;
+  text-align: center;
+}
+
+.fsr-paper80__big {
+  font-size: 30px;
+  font-weight: 800;
+  font-stretch: 75%;
+  line-height: 1.05;
+}
+
+.fsr-paper80__small {
+  font-size: 11px;
+}
+
+.fsr-paper80__held {
+  font-weight: 600;
+}
+
+.fsr-paper80__receipt {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fsr-paper80__receipt th {
+  padding: 1px 0;
+  font-weight: 400;
+  text-align: left;
+}
+
+.fsr-paper80__receipt td {
+  padding: 1px 0;
+  text-align: right;
+}
+
+.fsr-paper80__net th,
+.fsr-paper80__net td {
+  padding-top: 4px;
+  border-top: 1px solid currentColor;
+  font-weight: 700;
+}
+
+.fsr-paper80__seal {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 4px 0 0;
+}
+
+.fsr-paper80__seal .fs-seal__ring {
+  stroke: currentColor;
+}
+
+.fsr-paper80__seal .fs-seal__band {
+  stroke: currentColor;
+  opacity: 0.4;
+}
+
+.fsr-paper80__seal figcaption {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.fsr-paper80__hash {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.fsr-paper80__qr {
+  padding: 6px;
+  border: 1px dashed currentColor;
+  text-align: center;
+}
+
+.fsr-paper80__nadawat {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.fsr-paper80__nadawat-title {
+  font-weight: 700;
+}
+
+.fsr-paper80__box {
+  height: 28mm;
+  border: 1.5px solid currentColor;
+}
+
+.fsr-paper80__line {
+  height: 14mm;
+  border-bottom: 1px solid currentColor;
+}
+
+.fsr-paper80__foot {
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed currentColor;
+  font-size: 10px;
+  text-align: center;
+}
+
+@media print {
+  .fsr-print__tools {
+    display: none;
+  }
+
+  .fsr-print {
+    gap: 0;
+  }
+
+  .fsr-paper80 {
+    width: 100%;
+    padding: 4mm 3mm;
+    box-shadow: none;
+  }
+}
