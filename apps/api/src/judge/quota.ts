@@ -51,6 +51,12 @@ export const JUDGE_QUOTA = {
   simulatorOpeningCents: 10_000_000,
   /** A balance reading older than this is no reading (the nightly reconciliation, plus two hours' slack). */
   readingMaxAgeMs: 26 * 3_600_000,
+  /**
+   * A reservation is counted in the rolling 24 h from when it was taken, so a post goes live under the slot its run
+   * holds only while that slot is younger than this (an hour's margin for the burst that posts under it). An older
+   * one is in no count any more: the post is decided like a new one (a new slot if the quotas allow, else it waits).
+   */
+  heldSlotMaxAgeMs: 23 * 3_600_000,
 } as const;
 
 export type JudgeStep = "session" | "invoice" | "fund" | "post" | "cancel" | "resend";
@@ -447,10 +453,10 @@ interface PostCounts {
 }
 
 /**
- * Live judge posts in the rolling 24 h: every reservation not settled `not_posted` (so posts still in
- * flight count), plus any judge batch written live whose run holds no such reservation (a safety net: older
- * rows, a slot an older build freed after the write, or a caller that skipped the protocol), each run once.
- * A replayed batch (provenance `replay`) reached no one: never a post.
+ * Live judge posts in the rolling 24 h: every reservation taken in it and not settled `not_posted` (so posts
+ * still in flight count), plus any judge batch written live in it whose run has no such reservation in it (a
+ * safety net: older rows, a slot an older build freed after the write, or a caller that skipped the protocol),
+ * each run once. A replayed batch (provenance `replay`) reached no one: never a post.
  */
 async function countPosts(
   db: DbOrTx,
@@ -471,17 +477,7 @@ async function countPosts(
       from payout_batches pb
       join workspaces w on w.id = pb.workspace_id
      where w.kind = 'judge' and pb.kind = 'primary' and pb.provenance <> 'replay'
-       and pb.submitted_at > ${dayAgo.toISOString()}::timestamptz
-       and not exists (
-         select 1 from reconciliation_reports r
-          where r.kind = ${LEDGER_KIND} and r.workspace_id is null and r.summary->>'entry' = 'judge_post'
-            and r.summary->>'runId' = pb.run_id::text
-            and not exists (
-              select 1 from reconciliation_reports s
-               where s.kind = ${LEDGER_KIND} and s.workspace_id is null
-                 and s.summary->>'entry' = 'judge_post_settled'
-                 and s.summary->>'reservationId' = r.id::text
-                 and s.summary->>'outcome' = 'not_posted'))`)) as unknown as {
+       and pb.submitted_at > ${dayAgo.toISOString()}::timestamptz`)) as unknown as {
     run_id: string;
     at: Date | string;
     sid: string | null;
@@ -540,24 +536,73 @@ export async function judgeRail(
   return decideRail(facts, now, o.step, deps.paypal.label);
 }
 
-/** The run's newest reservation that still holds a slot (not settled `not_posted`), if any. */
-async function heldReservation(db: DbOrTx, runId: string): Promise<ReservationRow | null> {
+/**
+ * The run's newest reservation that still holds a slot: not settled `not_posted`, and still counted, so taken less
+ * than `JUDGE_QUOTA.heldSlotMaxAgeMs` before `now`. An older one is left as it is (it is in no 24 h count any
+ * more, it moves no money twice: `liveSpend` takes each run once); the run holds no slot.
+ */
+async function heldReservation(db: DbOrTx, runId: string, now: Date): Promise<ReservationRow | null> {
   const mine = await readReservations(db, { runId });
-  return mine.filter((r) => r.outcome !== "not_posted").at(-1) ?? null;
+  const held = mine.filter((r) => r.outcome !== "not_posted").at(-1);
+  if (!held) return null;
+  return now.getTime() - held.reservedAt.getTime() < JUDGE_QUOTA.heldSlotMaxAgeMs ? held : null;
+}
+
+/**
+ * C-21's count: the live batches on this rail (batch provenance) in the 24 h before `now`, every workspace. A batch
+ * counts from its write, and a judge batch also from its run's newest live reservation: a written batch that stalled
+ * for over a day posts under a new slot, so it is counted from that post on. `excludePrimaryOf` leaves out one
+ * run's primary batch (a resumed post asking whether it may go out itself).
+ */
+export async function liveBatchesInLast24h(
+  db: DbOrTx,
+  provenance: string,
+  now: Date,
+  o: { excludePrimaryOf?: string } = {},
+): Promise<number> {
+  const dayAgo = new Date(now.getTime() - 86_400_000).toISOString();
+  const [row] = (await db.execute(sql`
+    select count(*)::int as n from payout_batches pb
+     where pb.provenance = ${provenance}
+       ${o.excludePrimaryOf ? sql`and not (pb.kind = 'primary' and pb.run_id = ${o.excludePrimaryOf})` : sql``}
+       and (pb.submitted_at >= ${dayAgo}::timestamptz
+            or (pb.kind = 'primary' and exists (
+                  select 1 from reconciliation_reports r
+                   where r.kind = ${LEDGER_KIND} and r.workspace_id is null and r.summary->>'entry' = 'judge_post'
+                     and r.summary->>'runId' = pb.run_id::text
+                     and r.window_end >= ${dayAgo}::timestamptz
+                     and not exists (
+                       select 1 from reconciliation_reports s
+                        where s.kind = ${LEDGER_KIND} and s.workspace_id is null
+                          and s.summary->>'entry' = 'judge_post_settled'
+                          and s.summary->>'reservationId' = r.id::text
+                          and s.summary->>'outcome' = 'not_posted'))))`)) as unknown as {
+    n: number | string;
+  }[];
+  return asInt(row?.n);
 }
 
 /**
  * The binding decision for a judge run's post: decides and reserves in one transaction under the quota
  * lock, so concurrent posts (in any process) are counted against each other. Idempotent per run: a
- * retried post keeps the slot it holds, and only a kill switch, the simulator or the circuit can still turn
- * it to replay. A run that holds no slot is decided like any new post: a slot if the quotas allow one (a
- * resumed post's written batch included: same ids, counted from now), else the replay decision, which
- * `beginLiveStep` turns into a wait for a written batch. A live decision always carries its reservation.
- * Call it while holding the live lane (`beginLiveStep` does both); settle it afterwards.
+ * retried post keeps the slot it holds (`heldReservation`: while it is still counted), and only a kill
+ * switch, the simulator or the circuit can still turn it to replay. A run that holds no slot is decided
+ * like any new post: a slot if the quotas allow one, else the replay decision, which `beginLiveStep` turns
+ * into a wait for a written batch. A `resume` (its batch already written: same ids, counted from now) on the
+ * sandbox rail must also fit C-21's 40 live batches a day, which the service checks only at the first write.
+ * A live decision always carries its reservation. Call it while holding the live lane (`beginLiveStep`
+ * does both); settle it afterwards.
  */
 export async function reserveLivePost(
   deps: AppDeps,
-  o: { workspaceId: string; sessionId: string | null; runId: string; amountCents: number },
+  o: {
+    workspaceId: string;
+    sessionId: string | null;
+    runId: string;
+    amountCents: number;
+    /** The run's primary batch is already written live: the post resumes it (never a first write). */
+    resume?: boolean;
+  },
 ): Promise<{ decision: RailDecision; reservation: LivePostReservation | null }> {
   if (!Number.isSafeInteger(o.amountCents) || o.amountCents < 0) {
     throw new RangeError("reserveLivePost: amountCents is the batch total in whole cents");
@@ -572,7 +617,7 @@ export async function reserveLivePost(
       tx,
     );
     const decision = decideRail(facts, now, "post", rail);
-    const held = await heldReservation(tx, o.runId);
+    const held = await heldReservation(tx, o.runId, now);
     if (held) {
       if (decision.mode === "live" || isQuotaReplay(decision)) {
         return { decision: liveDecision(rail, decision.quota), reservation: held };
@@ -580,6 +625,12 @@ export async function reserveLivePost(
       return { decision, reservation: null };
     }
     if (decision.mode === "replay") return { decision, reservation: null };
+    if (o.resume && rail === "sandbox") {
+      const others = await liveBatchesInLast24h(tx, provenanceOf(rail), now, { excludePrimaryOf: o.runId });
+      if (others >= JUDGE_QUOTA.dailyMax) {
+        return { decision: replayDecision("daily_cap", rail, decision.quota), reservation: null };
+      }
+    }
     const [row] = await tx
       .insert(schema.reconciliationReports)
       .values({
@@ -621,12 +672,12 @@ export async function reserveLivePost(
 }
 
 /**
- * Whether a judge post may still go live under a slot its run holds (`heldReservation`), read without the
- * quota lock: a peek, so a resumed post with no slot waits before it takes the lane. The binding answer is
- * `reserveLivePost`'s.
+ * Whether a judge post may still go live under a slot its run holds (`heldReservation`: still counted at `now`),
+ * read without the quota lock: a peek, so a resumed post with no slot waits before it takes the lane. The
+ * binding answer is `reserveLivePost`'s.
  */
-export async function holdsLivePost(db: DbOrTx, runId: string): Promise<boolean> {
-  return (await heldReservation(db, runId)) !== null;
+export async function holdsLivePost(db: DbOrTx, runId: string, now: Date): Promise<boolean> {
+  return (await heldReservation(db, runId, now)) !== null;
 }
 
 /**
@@ -650,7 +701,9 @@ async function writtenLiveBatch(db: DbOrTx, runId: string): Promise<{ status: st
  * wait to be posted with the same ids (a written batch is never abandoned, money/resume.ts) and PayPal may
  * already hold them, so a refusal after the write (a kill switch read before the resumed POST, the limiter's
  * window, a re-check that failed) leaves the slot held: nothing is settled (`settled: false, outcome: null`)
- * until PayPal posts or denies the batch. Rows PayPal denied settle `denied`.
+ * until PayPal posts or denies the batch. Rows PayPal denied settle `denied`. A slot held longer than
+ * `JUDGE_QUOTA.heldSlotMaxAgeMs` is in no 24 h count any more, so it carries no post: the resumed post takes a new
+ * one when the quotas allow (`reserveLivePost`), else it waits.
  */
 export async function settleLivePost(
   deps: Pick<AppDeps, "db" | "clock">,

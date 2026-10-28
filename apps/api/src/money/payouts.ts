@@ -52,10 +52,10 @@ import {
   type RefusalCode,
   type SubmittedMark,
 } from "@fairsplit/paypal-payouts";
-import { and, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { runHolds } from "../approvals/batch.js";
 import { officerRegistry } from "../approvals/registry.js";
-import { JUDGE_QUOTA, latestBalanceReading, liveSpend } from "../judge/quota.js";
+import { JUDGE_QUOTA, latestBalanceReading, liveBatchesInLast24h, liveSpend } from "../judge/quota.js";
 import type { AppDeps } from "../lib/context.js";
 import { toInt } from "../runs/codes.js";
 import { ACTORS, factLedger, noteSha256, proofLedger } from "../runs/events.js";
@@ -81,7 +81,6 @@ export const MIN_BALANCE_CENTS = BigInt(JUDGE_QUOTA.replayFloorCents);
 export const REROUTE_VOID_REASON = "reroute";
 /** A public key that matches no registry row: an approval whose key left the registry never verifies. */
 const NO_KEY = "0".repeat(64);
-const DAY_MS = 24 * 3_600_000;
 
 function parsePayload(jcs: string | null): ApprovalPayload | null {
   if (!jcs) return null;
@@ -824,18 +823,13 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
   };
 }
 
-/** Batches written as SUBMITTED on this rail in the 24 h before `now`, every workspace (C-21's count). */
+/**
+ * Batches written as SUBMITTED on this rail in the 24 h before `now`, every workspace (C-21's count), and a judge
+ * batch also from its run's newest live slot: one that stalled for over a day posts under a new slot, and counts
+ * from that post (judge/quota.ts `liveBatchesInLast24h`).
+ */
 export async function postsInLast24h(deps: Pick<Deps, "db" | "paypal">, now: Date): Promise<number> {
-  const [row] = await deps.db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.payoutBatches)
-    .where(
-      and(
-        eq(schema.payoutBatches.provenance, deps.paypal.provenance),
-        gte(schema.payoutBatches.submittedAt, new Date(now.getTime() - DAY_MS)),
-      ),
-    );
-  return Number(row?.n ?? 0);
+  return liveBatchesInLast24h(deps.db, deps.paypal.provenance, now);
 }
 
 /**
