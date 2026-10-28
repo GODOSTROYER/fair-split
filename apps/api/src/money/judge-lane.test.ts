@@ -94,6 +94,28 @@ describe("Judge Mode obeys its rail decision at every PayPal step", () => {
     await api.setFlag({ body: { flag: "kill_paypal_live", on: false } });
   });
 
+  it("a run whose funding was replayed replays to the end: its post replays too, the switch long off", async () => {
+    const h = base;
+    await runQueued(h, "computeRun");
+    expect(await runState(h)).toBe("IN_REVIEW");
+    await resolveAll(h);
+    await signBoth(h);
+    const before = calls("create_payout_batch");
+    await runQueued(h, "postPayoutBatch");
+    expect(calls("create_payout_batch")).toBe(before);
+    expect(await runState(h)).toBe("POSTED");
+    const [batch] = await h.t.deps.db
+      .select()
+      .from(schema.payoutBatches)
+      .where(eq(schema.payoutBatches.runId, h.world.runId));
+    expect(batch?.provenance).toBe("replay");
+    // why: the reason its first replayed step gave
+    expect(await replayedSteps(h)).toEqual([
+      ["fund", "kill_switch"],
+      ["post", "kill_switch"],
+    ]);
+  });
+
   it("kill_paypal_live in Judge Mode: Claude's invoice turn is replayed too (the lattice refuses no call that reaches no one)", async () => {
     const h = await world({ runState: "DRAFT", invoice: null });
     const api = h.t.client(h.tokens.treasurer);

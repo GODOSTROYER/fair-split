@@ -204,7 +204,9 @@ export async function runReplays(
     session_reason: string | null;
   }[];
   if (!row) return { replays: false, reason: null };
-  const replays = row.run === "replay" || row.invoice === "replay" || row.batch === true;
+  // any step replayed before (the session's start, the invoice, the funding, the batch) makes the run a replay
+  const replays =
+    row.run === "replay" || row.invoice === "replay" || row.batch === true || row.step_reason !== null;
   const reason = isReason(row.step_reason)
     ? row.step_reason
     : isReason(row.session_reason)
