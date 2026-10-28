@@ -30,7 +30,8 @@
 // against every cap with its run's own slots left out, or waits; the older slot is settled `superseded`. Every count
 // looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot.
 // C-21 and the spend read the batch rows too, so the hourly purge keeps a judge workspace while either still counts
-// one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write.
+// one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write, and the spend
+// from the latest balance reading on the batch's rail, whatever its age (the service's floor guard reads that one).
 //
 // LOCK ORDER, everywhere both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`,
 // money/payouts.ts `SPEND_LOCK`): lane → quota → spend → workspace → rows. A resumed post's fresh slot holds both (its
@@ -732,23 +733,39 @@ function c21Counts(now: Date) {
 /**
  * Whether a count still reads a batch row of this workspace at `now` (the purge passes the database's clock): C-21
  * (`liveBatchesInLast24h`: its write, a live slot of its run or a `batch_sent` mark, as far back as 24 h and a lane
- * lease), or the spend (`liveSpend`: its write or PayPal naming it, `batch_posted`, after a balance reading, which is
- * at most `JUDGE_QUOTA.readingMaxAgeMs` old). Both count a batch from its `payout_batches` row, which the purge's
- * cascade deletes, so the hourly purge keeps the workspace while this holds (judge/pool.ts). The ledger rows it reads
- * are system rows: the purge never removes them.
+ * lease), or the spend (`liveSpend`, as both balance estimates call it: a batch not DENIED, written or named by PayPal,
+ * `batch_posted`, at or after the latest balance reading on its rail, or still waiting to be posted). The spend's
+ * reading is the latest one WHATEVER its age: the service's floor guard (money/payouts.ts `estimatedBalanceCents`)
+ * reads it however old it is, and the judge estimate reads the same one while it is fresh. On a rail with no reading
+ * at all the spend counts every batch ever; the purge then waits `JUDGE_QUOTA.readingMaxAgeMs` after the write or the
+ * name (SPLIT.md: a judge live batch on the sandbox rail needs a reading, so this is the simulated rail's, where no
+ * floor binds). A replayed batch (provenance `replay`) is in no count. Both count a batch from its `payout_batches`
+ * row, which the purge's cascade deletes, so the hourly purge keeps the workspace while this holds (judge/pool.ts). The
+ * ledger rows it reads are system rows: the purge never removes them.
  */
 export async function batchesStillCounted(db: DbOrTx, workspaceId: string, now: Date): Promise<boolean> {
-  const spendFrom = new Date(now.getTime() - JUDGE_QUOTA.readingMaxAgeMs).toISOString();
+  const noReading = new Date(now.getTime() - JUDGE_QUOTA.readingMaxAgeMs).toISOString();
   const [row] = (await db.execute(sql`
+    with spend_from as (
+      select p.provenance,
+             coalesce((select max(r.window_end) from reconciliation_reports r
+                        where r.kind = ${LEDGER_KIND} and r.workspace_id is null
+                          and r.summary->>'entry' = 'reading' and r.summary->>'rail' = p.rail),
+                      ${noReading}::timestamptz) as at
+        from (values ('live', 'sandbox'), ('simulated_rail', 'simulated')) as p(provenance, rail))
     select exists (
       select 1 from payout_batches pb
-       where pb.workspace_id = ${workspaceId}
+        join spend_from f on f.provenance = pb.provenance
+       where pb.workspace_id = ${workspaceId} and pb.provenance <> 'replay'
          and (${c21Counts(now)}
-              or pb.submitted_at >= ${spendFrom}::timestamptz
-              or pb.id::text in (
-                   select m.summary->>'batchId' from reconciliation_reports m
-                    where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_posted'
-                      and m.window_end >= ${spendFrom}::timestamptz))) as counted`)) as unknown as {
+              or (pb.status <> 'DENIED'
+                  and (pb.submitted_at >= f.at
+                       or (pb.status = 'SUBMITTED' and pb.paypal_batch_id is null)
+                       or pb.id::text in (
+                            select m.summary->>'batchId' from reconciliation_reports m
+                             where m.kind = ${LEDGER_KIND} and m.workspace_id is null
+                               and m.summary->>'entry' = 'batch_posted'
+                               and m.window_end >= f.at))))) as counted`)) as unknown as {
     counted: boolean;
   }[];
   return row?.counted === true;

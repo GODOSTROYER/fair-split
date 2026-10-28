@@ -17,10 +17,11 @@ import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { estimateBalance, JUDGE_QUOTA, judgeRail, recordBalanceReading } from "../judge/index.js";
 import { purgeExpiredJudgeWorkspaces } from "../judge/pool.js";
+import { batchesStillCounted } from "../judge/quota.js";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
 import { PAYPAL_SANDBOX, paypalError, setWorkspaceExpiry } from "../test/index.js";
-import { postsInLast24h } from "./payouts.js";
+import { estimatedBalanceCents, postsInLast24h } from "./payouts.js";
 import { settleBatch } from "./settle.js";
 
 const POSTS = `${PAYPAL_SANDBOX}/v1/payments/payouts`;
@@ -152,10 +153,85 @@ describe("a judge batch POSTed late under a fresh slot, then the hourly purge of
   });
 });
 
+const TOTAL = 4_100;
+const purgeOnly = (h: RunsHarness, workspaceId: string) =>
+  purgeExpiredJudgeWorkspaces(h.t.deps.db, 20, [workspaceId]);
+
+/**
+ * An expired judge workspace with one batch written `writtenAgo` (default 30 h) before now, and the system ledger
+ * rows given: a `batch_sent` mark, a `batch_posted` mark (PayPal named it), a judge slot of its run (settled as given).
+ */
+async function expiredWithBatch(
+  h: RunsHarness,
+  o: {
+    kind?: "primary" | "reroute";
+    status?: "SUCCESS" | "DENIED";
+    provenance?: "live" | "replay";
+    writtenAgo?: number;
+    sentAgo?: number;
+    postedAgo?: number;
+    slot?: { ago: number; outcome: "posted" | "denied" };
+  } = {},
+) {
+  const fx = await h.t.fixture({ kind: "judge", withRun: true });
+  const status = o.status ?? "SUCCESS";
+  const provenance = o.provenance ?? "live";
+  const [row] = await owner(h)
+    .db.insert(schema.payoutBatches)
+    .values({
+      workspaceId: fx.workspaceId,
+      runId: fx.runId as string,
+      senderBatchId: `2026A-purge-${randomUUID()}`,
+      requestId: "e".repeat(64),
+      batchSha256: "f".repeat(64),
+      kind: o.kind ?? "reroute",
+      status,
+      itemCount: 1,
+      totalCents: BigInt(TOTAL),
+      currency: "USD",
+      provenance,
+      paypalBatchId:
+        status === "DENIED"
+          ? null
+          : `${provenance === "replay" ? "RPLY" : "PBPURGE"}${randomUUID().slice(0, 8)}`,
+      submittedAt: new Date(Date.now() - (o.writtenAgo ?? 30 * H)),
+    })
+    .returning({ id: schema.payoutBatches.id });
+  const id = row?.id as string;
+  const mark = async (ago: number, summary: Record<string, unknown>) => {
+    const [r] = await owner(h)
+      .db.insert(schema.reconciliationReports)
+      .values({ kind: "balance", windowEnd: new Date(Date.now() - ago), summary: { v: 1, ...summary } })
+      .returning({ id: schema.reconciliationReports.id });
+    return r?.id as string;
+  };
+  if (o.sentAgo !== undefined) await mark(o.sentAgo, { entry: "batch_sent", batchId: id, provenance });
+  if (o.postedAgo !== undefined)
+    await mark(o.postedAgo, { entry: "batch_posted", batchId: id, rail: "sandbox" });
+  if (o.slot) {
+    const slotId = await mark(o.slot.ago, {
+      entry: "judge_post",
+      runId: fx.runId,
+      workspaceId: fx.workspaceId,
+      sessionId: null,
+      coded: false,
+      amountCents: TOTAL,
+      rail: "sandbox",
+    });
+    await mark(o.slot.ago, {
+      entry: "judge_post_settled",
+      reservationId: slotId,
+      runId: fx.runId,
+      outcome: o.slot.outcome,
+    });
+  }
+  await setWorkspaceExpiry(owner(h).sql, fx.workspaceId, new Date(Date.now() - H));
+  return { workspaceId: fx.workspaceId, batchId: id };
+}
+
 describe("a judge workspace's re-route (marked sent at a late POST, or named by PayPal after a reading)", () => {
   const script = paypalScript();
   let h: RunsHarness;
-  const TOTAL = 4_100;
 
   beforeAll(async () => {
     // no reading at the start: each test records the one it needs
@@ -163,49 +239,7 @@ describe("a judge workspace's re-route (marked sent at a late POST, or named by 
   });
   afterAll(async () => h?.close());
 
-  /** An expired judge workspace whose re-route batch was written 30 h ago, its items settled; marks as given. */
-  async function expiredWithReroute(marks: { sentAgo?: number; postedAgo?: number }) {
-    const fx = await h.t.fixture({ kind: "judge", withRun: true });
-    const [row] = await owner(h)
-      .db.insert(schema.payoutBatches)
-      .values({
-        workspaceId: fx.workspaceId,
-        runId: fx.runId as string,
-        senderBatchId: `2026A-purge-${randomUUID()}`,
-        requestId: "e".repeat(64),
-        batchSha256: "f".repeat(64),
-        kind: "reroute",
-        status: "SUCCESS",
-        itemCount: 1,
-        totalCents: BigInt(TOTAL),
-        currency: "USD",
-        provenance: "live",
-        paypalBatchId: `PBPURGE${randomUUID().slice(0, 8)}`,
-        submittedAt: new Date(REAL - 30 * H),
-      })
-      .returning({ id: schema.payoutBatches.id });
-    const id = row?.id as string;
-    if (marks.sentAgo !== undefined) {
-      await owner(h)
-        .db.insert(schema.reconciliationReports)
-        .values({
-          kind: "balance",
-          windowEnd: new Date(Date.now() - marks.sentAgo),
-          summary: { v: 1, entry: "batch_sent", batchId: id, provenance: "live" },
-        });
-    }
-    if (marks.postedAgo !== undefined) {
-      await owner(h)
-        .db.insert(schema.reconciliationReports)
-        .values({
-          kind: "balance",
-          windowEnd: new Date(Date.now() - marks.postedAgo),
-          summary: { v: 1, entry: "batch_posted", batchId: id, rail: "sandbox" },
-        });
-    }
-    await setWorkspaceExpiry(owner(h).sql, fx.workspaceId, new Date(Date.now() - H));
-    return { workspaceId: fx.workspaceId, batchId: id };
-  }
+  const expiredWithReroute = (marks: { sentAgo?: number; postedAgo?: number }) => expiredWithBatch(h, marks);
 
   it("C-21 counts a re-route marked sent 23 h ago: the purge keeps it, and the count holds", async () => {
     const w = await expiredWithReroute({ sentAgo: 23 * H, postedAgo: 23 * H });
@@ -236,5 +270,84 @@ describe("a judge workspace's re-route (marked sent at a late POST, or named by 
     const w = await expiredWithReroute({ sentAgo: 25 * H, postedAgo: 27 * H });
     const out = await purgeExpiredJudgeWorkspaces(h.t.deps.db, 20, [w.workspaceId]);
     expect(out).toEqual({ purged: [w.workspaceId], deferred: [] });
+  });
+});
+
+describe("the purge waits for the spend from the latest reading on the rail, whatever its age", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let w: { workspaceId: string; batchId: string };
+
+  beforeAll(async () => {
+    h = await startRuns({ paypal: script.handlers, clock: new Date(REAL).toISOString(), balanceCents: null });
+    // the nightly reconciliation has not run for 30 h: the latest reading is that old (the judge rail replays, and
+    // the service's floor guard still reads it)
+    await recordBalanceReading(h.t.deps.db, {
+      rail: "sandbox",
+      availableCents: 100_000_000,
+      asOf: new Date(Date.now() - 30 * H),
+      source: "searchBalances",
+    });
+  });
+  afterAll(async () => h?.close());
+
+  it("a re-route PayPal named 27 h ago, after that reading: the floor guard subtracts it, so the purge keeps it", async () => {
+    w = await expiredWithBatch(h, { writtenAgo: 31 * H, postedAgo: 27 * H });
+    const before = await estimatedBalanceCents(h.t.deps);
+    expect(before).toBe(BigInt(100_000_000 - TOTAL));
+    expect(await purgeOnly(h, w.workspaceId)).toEqual({ purged: [], deferred: [w.workspaceId] });
+    expect(await estimatedBalanceCents(h.t.deps)).toBe(before);
+  });
+
+  it("once a newer reading lands after PayPal named it, no count reads the batch: the purge removes it", async () => {
+    await recordBalanceReading(h.t.deps.db, {
+      rail: "sandbox",
+      availableCents: 99_000_000,
+      asOf: new Date(Date.now() - 20 * H),
+      source: "searchBalances",
+    });
+    expect(await estimatedBalanceCents(h.t.deps)).toBe(99_000_000n);
+    expect(await purgeOnly(h, w.workspaceId)).toEqual({ purged: [w.workspaceId], deferred: [] });
+  });
+});
+
+describe("the purge waits for C-21 alone: no reading, no PayPal name, a slot or a sent mark 23 h old", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  const past = 24 * H + JUDGE_QUOTA.restampAfterMs + MIN;
+
+  beforeAll(async () => {
+    h = await startRuns({ paypal: script.handlers, clock: new Date(REAL).toISOString(), balanceCents: null });
+  });
+  afterAll(async () => h?.close());
+
+  it("a primary batch written 30 h ago and DENIED on a fresh slot 23 h ago: kept, then purged once that slot ages out", async () => {
+    const kept = await expiredWithBatch(h, {
+      kind: "primary",
+      status: "DENIED",
+      slot: { ago: 23 * H, outcome: "denied" },
+    });
+    expect(await batchesStillCounted(h.t.deps.db, kept.workspaceId, new Date())).toBe(true);
+    expect(await purgeOnly(h, kept.workspaceId)).toEqual({ purged: [], deferred: [kept.workspaceId] });
+    const aged = await expiredWithBatch(h, {
+      kind: "primary",
+      status: "DENIED",
+      slot: { ago: past, outcome: "denied" },
+    });
+    expect(await purgeOnly(h, aged.workspaceId)).toEqual({ purged: [aged.workspaceId], deferred: [] });
+  });
+
+  it("a re-route written 30 h ago, marked sent 23 h ago and refused (never named): kept, then purged once the mark ages out", async () => {
+    const kept = await expiredWithBatch(h, { status: "DENIED", sentAgo: 23 * H });
+    expect(await batchesStillCounted(h.t.deps.db, kept.workspaceId, new Date())).toBe(true);
+    expect(await purgeOnly(h, kept.workspaceId)).toEqual({ purged: [], deferred: [kept.workspaceId] });
+    const aged = await expiredWithBatch(h, { status: "DENIED", sentAgo: past });
+    expect(await purgeOnly(h, aged.workspaceId)).toEqual({ purged: [aged.workspaceId], deferred: [] });
+  });
+
+  it("a replay batch weighs on no count: a workspace whose only batch is a replay written 25 h ago is purged", async () => {
+    const w = await expiredWithBatch(h, { kind: "primary", provenance: "replay", writtenAgo: 25 * H });
+    expect(await batchesStillCounted(h.t.deps.db, w.workspaceId, new Date())).toBe(false);
+    expect(await purgeOnly(h, w.workspaceId)).toEqual({ purged: [w.workspaceId], deferred: [] });
   });
 });

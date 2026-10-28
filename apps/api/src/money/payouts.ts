@@ -911,7 +911,9 @@ export async function guardResumedReroute(
  * payouts since; otherwise S1's observed balance seeds it"): the latest reading on this rail, whatever its age,
  * minus every batch posted on this rail since; before any reading, register §8's opening US$100,000 minus every
  * batch ever posted on this rail. The judge lane's own estimate is stricter (a sandbox reading must be fresh, else
- * the run replays) and is decided before `executeApproved` is called.
+ * the run replays) and is decided before `executeApproved` is called. The hourly purge keeps every judge batch this
+ * reads (written or named by PayPal at or after the latest reading, whatever its age: judge/quota.ts
+ * `batchesStillCounted`), so a purged workspace never raises this estimate.
  */
 export async function estimatedBalanceCents(deps: Pick<Deps, "db" | "paypal">): Promise<bigint> {
   const rail = deps.paypal.label;

@@ -13,11 +13,12 @@
 // the workspace's PayPal calls are inside the limiter's window or circuit (7 minutes: the purge cascade
 // would delete the `paypal_calls` rows the limiter counts) and while a count still reads one of its batch rows
 // (quota.ts `batchesStillCounted`): C-21 counts a batch for 24 h and a lane lease after its write or after a POST
-// sent later (its run's fresh slot, a re-route's `batch_sent` mark), and the spend from a balance reading up to 26 h
-// old (its write, or PayPal naming it). A batch POSTed late is counted from that POST, though its rows were written a
-// day or more before, so the write alone would let the purge drop a POST C-21 still counts. The judge quotas (slots)
-// live in the judge quota ledger, system rows the cascade never touches. Expiry here, and the time the counts are
-// read at, is the database clock's, exactly as `fs_purge_workspace()` decides it.
+// sent later (its run's fresh slot, a `batch_sent` mark), and the spend from the latest balance reading on its rail,
+// whatever its age (its write, or PayPal naming it, at or after that reading; the service's floor guard reads it
+// however old). A replayed batch is in no count. A batch POSTed late is counted from that POST, though its rows were
+// written a day or more before, so the write alone would let the purge drop a POST C-21 still counts. The judge
+// quotas (slots) live in the judge quota ledger, system rows the cascade never touches. Expiry here, and the time the
+// counts are read at, is the database clock's, exactly as `fs_purge_workspace()` decides it.
 import {
   asDbError,
   type ClaimedWorkspace,
