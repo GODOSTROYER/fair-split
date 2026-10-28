@@ -1,0 +1,105 @@
+/* W-TR-10's sheet, on the shell's sheet material (plate-2 over the scrim): three switches, then the keys grouped by
+   task. Keys are small square plates with a heavier lower rule (never slabs, never pressable). */
+
+.sc-sheet .fsc-sheet__lede {
+  padding-bottom: 4px;
+}
+
+.sc-toggles {
+  display: grid;
+  gap: 4px;
+  margin: 8px 28px 0;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.sc-toggle {
+  display: grid;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.sc-toggle .fsc-toggle {
+  min-height: 36px;
+}
+
+.sc-toggle__word {
+  margin-left: auto;
+  color: var(--fs-ink-3);
+  font-weight: 560;
+  font-size: 0.75rem;
+}
+
+.sc-toggle .fsc-toggle[aria-checked="true"] .sc-toggle__word {
+  color: var(--fs-ink);
+}
+
+.sc-toggle__note {
+  padding-left: 46px;
+  color: var(--fs-ink-2);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.sc-groups {
+  display: grid;
+  gap: 0;
+  margin: 0 28px 32px;
+}
+
+.sc-group {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.sc-group:last-child {
+  border-bottom: 0;
+}
+
+.sc-group__title {
+  font-weight: 640;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.sc-group__empty {
+  color: var(--fs-ink-3);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.sc-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sc-item {
+  display: grid;
+  grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.sc-item .fsc-kbd {
+  justify-self: start;
+}
+
+.sc-item[data-off] .fsc-kbd,
+.sc-item[data-off] .sc-item__label {
+  color: var(--fs-ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--fs-ink-3);
+}
+
+.sc-item__off {
+  grid-column: 2;
+  color: var(--fs-ink-3);
+  font-size: 0.75rem;
+}
