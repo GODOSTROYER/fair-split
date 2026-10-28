@@ -59,6 +59,11 @@ export function ByHand({ snapshot, serial }: { readonly snapshot: SeasonSnapshot
   return <ByHandField snapshot={snapshot} serial={serial} field={by} />;
 }
 
+/** Two kilo texts name the same weight ("64.50" and "64.5"). */
+function sameKilos(a: string, b: string): boolean {
+  return Number(a) === Number(b);
+}
+
 function NothingByHand({ snapshot, serial }: { readonly snapshot: SeasonSnapshot; readonly serial: string }) {
   const slip = snapshot.slips.find((s) => s.serial === serial);
   return (
@@ -103,7 +108,6 @@ function ByHandField({
   const inputId = useId();
   const hintId = useId();
   const liveId = useId();
-  const reasonId = useId();
 
   const witness = logbookWitness(snapshot, serial);
   const mask = maskOf(field.reading);
@@ -113,7 +117,6 @@ function ByHandField({
   const [fromLogbook, setFromLogbook] = useState(false);
   const [skipped, setSkipped] = useState(false);
   const [anyway, setAnyway] = useState(false);
-  const [reason, setReason] = useState("");
   const [pressedAt, setPressedAt] = useState<string | null>(null);
 
   const hold = view ? byHandHoldFor(view, snapshot, serial) : undefined;
@@ -165,7 +168,11 @@ function ByHandField({
   if (!ready) unavailable = BY_HAND_COPY.notRead(serial);
   else if (!fieldId) unavailable = BY_HAND_COPY.noField(serial);
   else if (!isComplete(value)) unavailable = whole ? BY_HAND_COPY.needValue : BY_HAND_COPY.needDigit;
-  else if (mismatch && !(anyway && reason.trim().length >= 3)) unavailable = BY_HAND_COPY.checkBoth;
+  // A value the logbook disagrees with cannot be entered here: this console computes the split, the lines root
+  // the keys sign and every amount from the engine's checkpoint for the logbook's value, so a different value
+  // would sign lines that are not the run's (I1) or never match the server's (W-TR-07). Until the API returns the
+  // lines for the value typed, "Enter anyway" says why, and nothing is entered.
+  else if (mismatch) unavailable = anyway ? BY_HAND_COPY.offPath : BY_HAND_COPY.checkBoth;
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -304,12 +311,13 @@ function ByHandField({
               {netAfter && (
                 <p className="fs-t-label fsc-hand__net" data-testid="W-TR-04.net">
                   {witness
-                    ? `${BY_HAND_COPY.committedNet(netAfter)} ${BY_HAND_COPY.matches(witness.page.page, witness.lineNo)}`
+                    ? `${BY_HAND_COPY.committedNet(netAfter)} ${
+                        sameKilos(netAfter, witness.netKgText)
+                          ? BY_HAND_COPY.matches(witness.page.page, witness.lineNo)
+                          : BY_HAND_COPY.committedMismatch(witness.lineNo, witness.netKgText)
+                      }`
                     : BY_HAND_COPY.committedNet(netAfter)}
                 </p>
-              )}
-              {reason && (
-                <p className="fs-t-caption fsc-hand__muted">{`${reason} (${BY_HAND_COPY.reasonNote})`}</p>
               )}
               {next && next.screen !== "W-TR-04" && next.actor === "person" && (
                 <p className="fsc-hand__next fs-t-label">
@@ -422,19 +430,9 @@ function ByHandField({
                 )}
               </div>
               {mismatch && anyway && (
-                <div className="fsc-hand__reason">
-                  <label htmlFor={reasonId} className="fs-t-caption">
-                    {BY_HAND_COPY.reasonLabel}
-                  </label>
-                  <input
-                    id={reasonId}
-                    className="fsc-input"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    data-testid="W-TR-04.reason"
-                  />
-                  <p className="fs-t-caption fsc-hand__muted">{BY_HAND_COPY.reasonNote}</p>
-                </div>
+                <p className="fsc-hand__reason fs-t-caption" role="status" data-testid="W-TR-04.offPath">
+                  {BY_HAND_COPY.offPath}
+                </p>
               )}
               <div className="fsc-hand__commit">
                 <Slab

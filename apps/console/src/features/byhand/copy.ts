@@ -40,14 +40,16 @@ export const BY_HAND_COPY = {
     `This step isn't wired on the server yet: it doesn't say which field on slip ${serial} takes the entry. Nothing changed.`,
   readFirst: "Watch the reading room",
   anywayOpen: "Enter anyway with a reason",
-  reasonLabel: "Why the slip is right and the logbook isn't",
-  reasonNote: "The reason stays on this console: the entry the API takes is the value alone.",
+  offPath:
+    "This console computes the split from the logbook's value, so it can't take a different one yet: the payout wouldn't follow it. Check the slip, or use the logbook line.",
   skip: "Skip for now",
   skipped: (serial: string) => `Skipped. Approval waits for slip ${serial}.`,
   unskip: "Enter it now",
   committed: (name: string) => `Entered by ${name}`,
   committedFrom: (name: string, line: number) => `Entered by ${name}, from logbook line ${line}`,
   committedNet: (net: string) => `Net ${net} kg.`,
+  committedMismatch: (line: number, logbookNet: string) =>
+    `Logbook line ${line} says ${logbookNet}: they don't match.`,
   sending: "Entering the value.",
   next: "Next",
 } as const;

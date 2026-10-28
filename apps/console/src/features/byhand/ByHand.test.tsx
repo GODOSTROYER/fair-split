@@ -158,6 +158,22 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     expect(tracedPhases("MM-2")).toEqual(["done"]);
   });
 
+  it("a committed value the logbook disagrees with never reads 'Matches logbook'", async () => {
+    const view = await renderConsole({ path: "/judge" });
+    exposeMockWorld(view);
+    await view.startSession();
+    act(() => {
+      view.world.markPaid();
+      view.world.enterByHand("64.90"); // entered elsewhere (another console, the API), not through this page
+    });
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
+    await view.navigate(BY_HAND);
+    await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
+    const net = screen.getByTestId("W-TR-04.net").textContent ?? "";
+    expect(net).not.toMatch(/Matches logbook/);
+    expect(net).toMatch(/Logbook line 7 says 64\.50: they don't match\./);
+  });
+
   it("with nothing to name the session's field (fs-api today), the slab says why and nothing is posted", async () => {
     const view = await readRun("full", { mock: false });
     const call = vi.spyOn(view.adapter, "call");
@@ -192,7 +208,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     );
   });
 
-  it("a digit the logbook disagrees with is a person's question: the slab waits for a reason", async () => {
+  it("a digit the logbook disagrees with is a person's question, and this console cannot take it: the split would not follow", async () => {
     const view = await readRun();
     typeDigit("5");
     expect(screen.getByTestId("W-TR-04").dataset.state).toBe("mismatch");
@@ -203,11 +219,13 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("W-TR-04.anyway"));
     });
-    fireEvent.change(screen.getByTestId("W-TR-04.reason"), {
-      target: { value: "The slip was rewritten at the scale." },
-    });
-    await waitFor(() => expect(screen.getByTestId("W-TR-04.commit").dataset.state).toBe("rest"));
-    expect(screen.getByTestId("W-TR-04.commit").textContent).toMatch(/Enter 65\.80 anyway/);
+    // The engine's checkpoint here is the logbook's 64.80: 65.80 would leave the split, the lines root the keys
+    // sign and every amount where they are (I1), so the entry says why it waits instead of going through.
+    expect(screen.getByTestId("W-TR-04.offPath").textContent).toMatch(/can't take a different one yet/);
+    expect(screen.getByTestId("W-TR-04.commit").dataset.state).toBe("unavailable");
+    fireEvent.keyDown(screen.getByTestId("W-TR-04.input"), { key: "Enter" });
+    expect(screen.queryByTestId("W-TR-04.committed")).toBeNull();
+    expect(screen.getByTestId("W-TR-04").dataset.state).toBe("mismatch");
     await expectNoAxeViolations(view.container);
   });
 
