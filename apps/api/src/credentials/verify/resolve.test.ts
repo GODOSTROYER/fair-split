@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Db } from "@fairsplit/db";
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../../lib/clock.js";
 import {
@@ -10,7 +11,7 @@ import {
   signLink,
 } from "./codec.js";
 import { createCredentialKeys } from "./keys.js";
-import { createCredentialResolver, memoryCredentialStore } from "./resolve.js";
+import { createCredentialResolver, dbCredentialStore, memoryCredentialStore } from "./resolve.js";
 import { actorOf, scopeOf } from "./types.js";
 
 function setup() {
@@ -215,5 +216,48 @@ describe("credential resolution", () => {
     const s = setup();
     expect(await s.resolver.resolve({})).toEqual({ kind: "none" });
     expect(await s.resolver.resolve({ cookies: { unrelated: "x" } })).toEqual({ kind: "none" });
+  });
+});
+
+describe("link revocation fails closed", () => {
+  // a store answering "never revoked" by omission would honour every revoked statement and brand link
+  const db = {} as unknown as Db;
+
+  it("dbCredentialStore refuses to be built without a revocation check", () => {
+    expect(() => dbCredentialStore(db, {} as never)).toThrow(/isLinkRevoked/);
+    expect(() => dbCredentialStore(db, undefined as never)).toThrow(/isLinkRevoked/);
+    expect(() => dbCredentialStore(db, { isLinkRevoked: true } as never)).toThrow(/isLinkRevoked/);
+    expect(dbCredentialStore(db, { isLinkRevoked: async () => true }).isLinkRevoked).toBeTypeOf("function");
+  });
+
+  it("the resolver refuses a store without one", () => {
+    const s = setup();
+    const { isLinkRevoked: _omitted, ...store } = s.store;
+    expect(() => createCredentialResolver({ store: store as never, keys: s.keys, clock: s.clock })).toThrow(
+      /isLinkRevoked/,
+    );
+  });
+
+  it("a revocation check that fails never opens the link", async () => {
+    const s = setup();
+    const resolver = createCredentialResolver({
+      store: {
+        ...s.store,
+        isLinkRevoked: async () => {
+          throw new Error("ledger unreachable");
+        },
+      },
+      keys: s.keys,
+      clock: s.clock,
+    });
+    const link = signLink(s.keys.linkPrivateKey, {
+      v: 1,
+      k: "brand",
+      ws: s.ws,
+      brand: "lantern-bay",
+      jti: randomUUID(),
+      exp: s.nowS + 600,
+    });
+    await expect(resolver.resolve({ authorization: `Bearer ${link}` })).rejects.toThrow(/ledger unreachable/);
   });
 });
