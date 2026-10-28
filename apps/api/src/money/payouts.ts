@@ -57,6 +57,7 @@ import { runHolds } from "../approvals/batch.js";
 import { officerRegistry } from "../approvals/registry.js";
 import {
   countResumedSend,
+  isJudgeWorkspace,
   JUDGE_QUOTA,
   latestBalanceReading,
   liveBatchesInLast24h,
@@ -922,6 +923,31 @@ export async function guardResumedReroute(
      limit 1`)) as unknown as { id: string }[];
   if (!written) return;
   await holdToC21(deps, written.id, "re-route");
+}
+
+/**
+ * C-21 at a resumed primary POST outside Judge Mode (a co-op's own batch, written and then stalled: PayPal's pacing,
+ * an outage, a kill switch held for a day). The service checks C-21 only at a batch's first write, and no judge slot
+ * counts this POST, so a written primary batch PayPal has not named yet goes out more than a lane lease after it was
+ * last counted only while the other live batches of the 24 h are fewer than 40, and is counted from that POST
+ * (`holdToC21`), as a re-route is. Otherwise it waits. A judge run's primary batch is counted through its run's fresh
+ * slot instead (money/rail.ts, judge/quota.ts `reserveLivePost`). Where C-21 binds: the sandbox rail, live.
+ */
+export async function guardResumedPrimary(
+  deps: Pick<Deps, "db" | "paypal" | "clock">,
+  scope: WorkspaceScope,
+  runId: string,
+): Promise<void> {
+  if (deps.paypal.mode !== "sandbox" || deps.paypal.provenance === "replay") return;
+  if (await isJudgeWorkspace(deps.db, scope.workspaceId)) return;
+  const [written] = (await deps.db.execute(sql`
+    select pb.id::text as id from payout_batches pb
+     where pb.workspace_id = ${scope.workspaceId} and pb.run_id = ${runId}
+       and pb.kind = 'primary' and pb.provenance = ${deps.paypal.provenance}
+       and pb.status = 'SUBMITTED' and pb.paypal_batch_id is null
+     limit 1`)) as unknown as { id: string }[];
+  if (!written) return;
+  await holdToC21(deps, written.id, "batch");
 }
 
 /**

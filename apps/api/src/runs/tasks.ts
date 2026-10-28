@@ -16,6 +16,7 @@ import type { AppDeps } from "../lib/context.js";
 import { classifyPayPal, PayPalStepError } from "../money/errors.js";
 import { confirmFunding, ensureInvoiceSent, recordPaymentAndFund } from "../money/funding.js";
 import {
+  guardResumedPrimary,
   payoutsRepository,
   payoutsServiceFor,
   refusedByKillSwitch,
@@ -254,6 +255,8 @@ export function runTasks(deps: AppDeps): TaskHandlers {
         }
         let outcome: BatchOutcome | null = null;
         try {
+          // outside Judge Mode, rows written and resumed later: C-21 again at this POST, which it is then counted from
+          await guardResumedPrimary(rail.deps, scope, args.runId);
           return await post(rail.deps, scope, args, (o) => {
             outcome = o;
           });
