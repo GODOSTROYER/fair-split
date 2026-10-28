@@ -15,7 +15,7 @@ import {
   seedSnapshot,
   tracedPhases,
 } from "../../test/index.js";
-import { renderSeason, rowsFor, type SeasonRender } from "../season/testing.js";
+import { renderSeason, rowsFor, type SeasonRender } from "../../test/season.js";
 import { REPLAY_GAP_MS, replayTiming } from "./replay.js";
 import { replayRows } from "./replay-fixture.js";
 import { illegibleRows, rowEvents, zoomAgreedRow } from "./state-fixtures.js";

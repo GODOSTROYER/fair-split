@@ -3,7 +3,7 @@
 // answer with a tampered bundle (a mismatch), a 503 (degraded) or a route the mock doesn't serve yet.
 
 import type { RequestHandler } from "msw";
-import type { TestWorld } from "../../test/index.js";
+import type { TestWorld } from "./index.js";
 
 /** The same world, with `handlers` answering first (msw takes the first handler that returns a response). */
 export function withHandlers(world: TestWorld, handlers: readonly RequestHandler[]): TestWorld {

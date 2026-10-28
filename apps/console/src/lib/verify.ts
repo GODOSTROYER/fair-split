@@ -1,13 +1,13 @@
 // Proof's "Verify in your browser" runs domain's verify-core against the published keys (brief, W-PF-01).
-// This seam is the console's only import of it, so the Verify chunk can be code-split (S2.11: ≤45 KB,
-// lazy) and the wiring step can move it behind @fairsplit/api-client without touching the Proof slice.
+// It comes through @fairsplit/api-client's re-export (the layer-ui dependency rule). This seam is the
+// console's only import of it, so the Verify chunk can be code-split (S2.11: ≤45 KB, lazy).
 // Import it lazily: `const { verifyChainWith, browserProofCrypto } = await import("../../lib/verify.js")`.
 
-import type { ProofCrypto } from "@fairsplit/domain/verify";
+import type { ProofCrypto } from "@fairsplit/api-client/verify";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { fromHex, sha256Hex } from "./sha256.js";
 
-export * from "@fairsplit/domain/verify";
+export * from "@fairsplit/api-client/verify";
 
 /**
  * verify-core's crypto in a browser: SHA-256 from ./sha256 and strict RFC 8032 Ed25519 verification from

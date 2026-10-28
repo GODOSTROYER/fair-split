@@ -12,7 +12,6 @@ import { describe, expect, it } from "vitest";
 import { VerifyPanel } from "../../features/proof/Hero.js";
 import type { ProgressCounts } from "../../features/proof/model.js";
 import { proofState } from "../../features/proof/ProofView.js";
-import { gate, withHandlers } from "../../features/proof/test-world.js";
 import type { Verification } from "../../features/proof/useVerification.js";
 import type { VerifyOutcome } from "../../features/proof/verify.js";
 import {
@@ -22,6 +21,7 @@ import {
   resizeTo,
   tracedPhases,
 } from "../../test/index.js";
+import { gate, withHandlers } from "../../test/proof-world.js";
 
 const RUN = "2026A-r37";
 const snapshot = getSnapshot();

@@ -26,7 +26,6 @@ import {
 } from "../../features/ops/sections.fixtures.js";
 import { SECTION_PATHS } from "../../features/ops/sections.js";
 import { useTreasurerKey } from "../../features/ops/useOps.js";
-import { gate, withHandlers } from "../../features/proof/test-world.js";
 import { memoryKeyStore, TREASURER_KEY_ID } from "../../lib/keystore.js";
 import {
   createTestRuntime,
@@ -35,6 +34,7 @@ import {
   renderConsole,
   type TestWorld,
 } from "../../test/index.js";
+import { gate, withHandlers } from "../../test/proof-world.js";
 
 /** Every S3.15 read beyond health, with the route its "not served yet" names. */
 const SECTIONS = [

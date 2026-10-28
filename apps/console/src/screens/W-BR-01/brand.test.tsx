@@ -8,8 +8,8 @@ import { getSnapshot } from "@fairsplit/seed";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { gate, withHandlers } from "../../features/proof/test-world.js";
 import { createTestWorld, expectNoAxeViolations, renderConsole } from "../../test/index.js";
+import { gate, withHandlers } from "../../test/proof-world.js";
 
 const TOKEN = "brand-token-sample-0001";
 const PATH = `/b/${TOKEN}`;

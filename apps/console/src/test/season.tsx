@@ -9,16 +9,21 @@ import type { RunEvent } from "@fairsplit/contracts";
 import type { MotionPreference } from "@fairsplit/ui-web";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, render, waitFor } from "@testing-library/react";
-import { AppProviders } from "../../chrome/AppProviders.js";
-import type { DataAdapter, StreamHandlers } from "../../data/adapter.js";
-import { createMockAdapter } from "../../data/mock/index.js";
-import { createDataRuntime } from "../../data/provider.js";
-import { createQueryClient } from "../../data/query.js";
-import type { JudgeSession } from "../../data/session.js";
-import type { DataSource } from "../../lib/env.js";
-import { createConsoleRouter } from "../../router.js";
-import { createTestWorld, seedSnapshot, setViewport, type TestWorld } from "../../test/index.js";
-import { type EventStamp, extractRowEvent, quarantineEvent, replayRows } from "../reading/replay-fixture.js";
+import { AppProviders } from "../chrome/AppProviders.js";
+import type { DataAdapter, StreamHandlers } from "../data/adapter.js";
+import { createMockAdapter } from "../data/mock/index.js";
+import { createDataRuntime } from "../data/provider.js";
+import { createQueryClient } from "../data/query.js";
+import type { JudgeSession } from "../data/session.js";
+import {
+  type EventStamp,
+  extractRowEvent,
+  quarantineEvent,
+  replayRows,
+} from "../features/reading/replay-fixture.js";
+import type { DataSource } from "../lib/env.js";
+import { createConsoleRouter } from "../router.js";
+import { createTestWorld, seedSnapshot, setViewport, type TestWorld } from "./index.js";
 
 const SCALE = 1000;
 
