@@ -29,6 +29,14 @@ interface Channel {
 
 const IDLE: StreamStatus = { kind: "closed", reason: "unsubscribed" };
 
+/**
+ * The Last-Event-ID that asks for a run's whole backlog. fs-api streams only events committed after the
+ * subscription when the header is missing (packages/db's bus), so a base with no events (a judge session's run,
+ * fresh or resumed after a refresh) must ask from the start, or the invoice turn and a resumed run's history are
+ * lost. The reducer drops anything its base already holds.
+ */
+export const FROM_THE_START = "0";
+
 /** Events older than this before the subscription count as replay (clock skew allowance). */
 export const REPLAY_SKEW_MS = 1500;
 
@@ -101,7 +109,7 @@ export class StreamHub {
         onEvent: (event) => this.deliver(runSlug, channel, event),
         onStatus: (status) => this.setStatus(channel, status),
       },
-      { lastEventId: base.lastEventId },
+      { lastEventId: base.lastEventId ?? FROM_THE_START },
     );
   }
 

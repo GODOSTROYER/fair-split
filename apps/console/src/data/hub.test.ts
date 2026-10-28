@@ -47,6 +47,23 @@ describe("stream hub", () => {
     release();
   });
 
+  it("asks for the run's history from the start when its base has no events (fs-api replays only on Last-Event-ID)", async () => {
+    // fs-api streams only new events when no Last-Event-ID is sent (packages/db bus: "omitted: only events
+    // committed from now on"), so a session run whose base has no events must subscribe after "0".
+    const { runtime, adapter } = createTestRuntime();
+    const asked: (string | null | undefined)[] = [];
+    const subscribe = adapter.subscribe.bind(adapter);
+    (adapter as { subscribe: typeof adapter.subscribe }).subscribe = (scope, handlers, options) => {
+      asked.push(options?.lastEventId);
+      return subscribe(scope, handlers, options);
+    };
+    const session = await runtime.session.start();
+    const release = runtime.hub.acquire(session.runSlug);
+    await expect.poll(() => asked.length).toBe(1);
+    expect(asked[0]).toBe("0");
+    release();
+  });
+
   it("shares one stream between callers and closes it when the last one leaves", async () => {
     const { runtime } = createTestRuntime();
     const session = await runtime.session.start();
