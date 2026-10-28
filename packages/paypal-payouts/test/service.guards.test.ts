@@ -81,6 +81,9 @@ describe("the daily cap: register C-21's live batches per rolling 24 h", () => {
       expect(balance).not.toHaveBeenCalled();
       expect(posts()).toHaveLength(1);
     },
+    // two services over the hero batch's signed snapshot, one post: well under a second alone, but it overran
+    // vitest's default 5 s under turbo's full test run at the ws/api trial merge
+    30_000,
   );
 
   it("two runs racing for the day's last slot: the count and the write take turns, so one batch goes out", async () => {
