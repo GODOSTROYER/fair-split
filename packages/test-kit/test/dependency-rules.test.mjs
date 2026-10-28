@@ -217,6 +217,8 @@ beforeAll(() => {
     "apps/api/src/smoke/plant-db.ts",
     'import { db } from "@fairsplit/db";\nimport "@fairsplit/motion";\nexport { db };\n',
   );
+  // Tool state under .cache (apps/api keeps its embedded test Postgres there) is never cruised.
+  put("apps/api/.cache/pg/plant-cache.ts", 'import "@fairsplit/motion";\nexport const x = 1;\n');
 
   // Cycles: a runtime one (planted) and one that passes through an `import type` (clean).
   put("packages/db/src/cycle-a.ts", 'import { b } from "./cycle-b.js";\nexport const a = () => b;\n');
@@ -286,6 +288,11 @@ describe("dependency-cruiser rules fire on planted violations", () => {
     }
     // The smoke CLI's allowance is the typed client only: a UI package still fails.
     expect(hits("layer-server-apps-tests", "apps/api/src/smoke/plant-db.ts")).toHaveLength(1);
+  });
+
+  it("tool state is not cruised: a UI import under apps/api/.cache raises nothing", () => {
+    expect(rulesFor("apps/api/.cache/pg/plant-cache.ts")).toEqual([]);
+    expect(violations.filter((v) => v.from.includes("/.cache/"))).toEqual([]);
   });
 
   it("tools are cruised: relative deep import from tools/", () => {

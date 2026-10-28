@@ -447,7 +447,8 @@ module.exports = {
     // node_modules must not be excluded: that would drop every npm dependency before the rules above see it.
     // doNotFollow keeps node_modules out of the starting files and stops the cruise at its first file.
     doNotFollow: { path: "(^|/)node_modules/" },
-    exclude: { path: "(^|/)(dist|coverage|\\.turbo|\\.expo)/" },
+    // .cache holds tool state such as apps/api's embedded test Postgres, whose files come and go while tests run.
+    exclude: { path: "(^|/)(dist|coverage|\\.turbo|\\.expo|\\.cache)/" },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.base.json" },
     enhancedResolveOptions: {
