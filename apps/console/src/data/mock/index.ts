@@ -12,10 +12,12 @@ import {
   type MockWorldOptions,
 } from "@fairsplit/api-client/msw";
 import type { SeasonSnapshot } from "@fairsplit/contracts";
+import { getSnapshot } from "@fairsplit/seed";
 import type { RequestHandler } from "msw";
 import type { DataAdapter } from "../adapter.js";
 import { createApiAdapter } from "../api.js";
 import { createMockDriver, type MockDriver } from "./driver.js";
+import { createFidelityHandlers } from "./fidelity.js";
 import { createMemoryFetch } from "./memory.js";
 import { createPendingHandlers } from "./pending.js";
 
@@ -24,19 +26,21 @@ export interface ConsoleMockOptions extends MockWorldOptions {
   readonly baseUrl?: string;
   /** Simulated latency per request (ms, or msw's "real"). */
   readonly latency?: number | "real";
+  /** The workspace's rate card ID, as a judge workspace's clone mints its own (default: the seed's). */
+  readonly rateCardId?: string;
 }
 
 export interface ConsoleMock {
   readonly world: MockWorld;
   readonly driver: MockDriver;
-  /** The pending routes first, then every IC-01 command and stream. */
+  /** The pending routes and fs-api's rules api-client's mock lacks (./fidelity.ts), then every IC-01 command and stream. */
   readonly handlers: readonly RequestHandler[];
   /** Where the world starts, and where Reset returns it. */
   readonly stage: MockStage;
 }
 
 export function createConsoleMock(options: ConsoleMockOptions = {}): ConsoleMock {
-  const { baseUrl, latency, ...worldOptions } = options;
+  const { baseUrl, latency, rateCardId, ...worldOptions } = options;
   const stage = worldOptions.stage ?? "invoiced";
   const { world, handlers } = createMockApi({
     ...worldOptions,
@@ -50,10 +54,11 @@ export function createConsoleMock(options: ConsoleMockOptions = {}): ConsoleMock
     resetStage: stage,
     ...(clock ? { now: () => clock().getTime() } : {}),
   });
+  const fidelity = createFidelityHandlers({ world, rateCardId: rateCardId ?? getSnapshot().rateCard.id });
   return {
     world,
     driver: createMockDriver(world, { settle: (worldOptions.pace ?? "auto") === "manual" }),
-    handlers: [...pending, ...handlers],
+    handlers: [...pending, ...fidelity, ...handlers],
     stage,
   };
 }

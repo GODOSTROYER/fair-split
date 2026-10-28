@@ -212,11 +212,8 @@ export function MemberLine({ snapshot, view, member, row, state, live, printHref
             {...(!live ? { unavailableReason: LINE.pairOffline } : {})}
             onCommit={() =>
               pairing.mutate({
-                body: {
-                  persona: `member:${row.memberNo.toLowerCase()}`,
-                  role: "member",
-                  memberNo: row.memberNo,
-                },
+                // fs-api names a member's persona by their member number (resolvePersona).
+                body: { persona: row.memberNo, role: "member", memberNo: row.memberNo },
               })
             }
           />
