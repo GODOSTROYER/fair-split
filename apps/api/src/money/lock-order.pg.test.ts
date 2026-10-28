@@ -417,4 +417,22 @@ describe("inv.lock-order: the quota lock, then the spend lock, everywhere both a
     for (const id of reroutes) expect(await sentMarks(id)).toBe(1);
     expect(await deadlocks()).toBe(before);
   });
+
+  it("the re-route guard waits for the spend lock holding no pooled connection: more waiters than the pool, a query still runs", async () => {
+    // the app pool has 6 connections: had each waiter kept one while it waited, this query would wait for the lock too
+    const waiting = await Promise.all(Array.from({ length: 8 }, () => staleReroute()));
+    const spend = await holdLock(SPEND_LOCK);
+    let guards: Promise<unknown>[] = [];
+    try {
+      guards = waiting.map((id) => guardResume(id));
+      await sleep(400);
+      await within(2_000, a.t.deps.db.execute(sql`select 1`));
+      for (const id of waiting) expect(await sentMarks(id)).toBe(0);
+    } finally {
+      await spend.release();
+    }
+    // once the lock is free every waiter counts C-21 under it and answers (it marks its batch sent while there is room)
+    const out = await Promise.all(guards);
+    for (const o of out) expect(o).toHaveProperty("ok");
+  });
 });

@@ -37,6 +37,13 @@
 // money/payouts.ts `SPEND_LOCK`): lane → quota → spend → workspace → rows. A resumed post's fresh slot holds both (its
 // C-21 count and its insert); the service's spend guard and `countResumedSend` hold only the spend lock, and
 // `settleLivePost` only the quota lock, so nothing waits for the quota lock while holding the spend lock.
+// POOL BOUND for the spend-lock waits: the service's guard and `countResumedSend` wait holding no pooled connection
+// (each try of `pg_try_advisory_*` takes one only for the try, and gives up as QUEUED after 10 s). The one blocking
+// wait left is `reserveLivePost` on a sandbox resume, which holds its transaction's connection (and the quota lock)
+// while it waits for the spend lock; it runs only under the live lane, which is single-flight across every process, so
+// at most one such waiter exists at a time. The spend-lock holder needs at most two connections (its reserved lock
+// connection and its write's transaction), the lane holder one more, so no pool of DB_POOL_MAX ≥ 4 (default 10) can be
+// drained by waiters while the holder waits for a connection.
 //
 // The balance is the latest reading on this rail minus every live post since it. On the sandbox rail a
 // reading older than 26 h is no reading: PayPal steps replay (`balance_unknown`) instead of assuming the
@@ -307,6 +314,19 @@ const lockQuota = (tx: DbOrTx) =>
 /** The spend lock until the transaction ends. Never taken before the quota lock in the same transaction. */
 const lockSpend = (tx: DbOrTx) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${PAYOUT_SPEND_LOCK}, 0))`);
+
+/** The spend lock until the transaction ends, if it is free now (false: another transaction holds it). */
+async function tryLockSpend(tx: DbOrTx): Promise<boolean> {
+  const [row] = (await tx.execute(
+    sql`select pg_try_advisory_xact_lock(hashtextextended(${PAYOUT_SPEND_LOCK}, 0)) as locked`,
+  )) as unknown as { locked: boolean }[];
+  return row?.locked === true;
+}
+
+/** How long `countResumedSend` asks for the spend lock before the send waits as a task (as the service's guard). */
+const SPEND_LOCK_WAIT_MS = 10_000;
+/** Between two tries of the spend lock (no connection is held meanwhile). */
+const SPEND_LOCK_POLL_MS = 25;
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -1005,30 +1025,43 @@ export async function settleLivePost(
 export async function countResumedSend(
   db: Db,
   o: { provenance: string; batchId: string; now: Date },
-): Promise<{ ok: true } | { ok: false; count: number }> {
-  return db.transaction(async (tx) => {
-    const [batch] = (await tx.execute(sql`
-      select pb.submitted_at as at,
-             (select max(m.window_end) from reconciliation_reports m
-               where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_sent'
-                 and m.summary->>'batchId' = pb.id::text) as sent
-        from payout_batches pb
-       where pb.id = ${o.batchId}`)) as unknown as { at: Date | string; sent: Date | string | null }[];
-    // nothing written: the service's own guard at the first write applies
-    if (!batch) return { ok: true } as const;
-    const counted = Math.max(asDate(batch.at).getTime(), batch.sent ? asDate(batch.sent).getTime() : 0);
-    if (o.now.getTime() - counted < JUDGE_QUOTA.restampAfterMs) return { ok: true } as const;
-    await lockSpend(tx);
-    const count = await liveBatchesInLast24h(tx, o.provenance, o.now, { excludeBatchId: o.batchId });
-    if (count >= JUDGE_QUOTA.dailyMax) return { ok: false, count } as const;
-    await tx.insert(schema.reconciliationReports).values({
-      kind: LEDGER_KIND,
-      windowEnd: o.now,
-      summary: { v: 1, entry: "batch_sent", batchId: o.batchId, provenance: o.provenance },
+): Promise<ResumedSendCount> {
+  const deadline = Date.now() + SPEND_LOCK_WAIT_MS;
+  for (;;) {
+    const out = await db.transaction(async (tx): Promise<ResumedSendCount | null> => {
+      const [batch] = (await tx.execute(sql`
+        select pb.submitted_at as at,
+               (select max(m.window_end) from reconciliation_reports m
+                 where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_sent'
+                   and m.summary->>'batchId' = pb.id::text) as sent
+          from payout_batches pb
+         where pb.id = ${o.batchId}`)) as unknown as { at: Date | string; sent: Date | string | null }[];
+      // nothing written: the service's own guard at the first write applies
+      if (!batch) return { ok: true };
+      const counted = Math.max(asDate(batch.at).getTime(), batch.sent ? asDate(batch.sent).getTime() : 0);
+      if (o.now.getTime() - counted < JUDGE_QUOTA.restampAfterMs) return { ok: true };
+      // busy: this try ends here and its connection goes back to the pool while the send waits
+      if (!(await tryLockSpend(tx))) return null;
+      const count = await liveBatchesInLast24h(tx, o.provenance, o.now, { excludeBatchId: o.batchId });
+      if (count >= JUDGE_QUOTA.dailyMax) return { ok: false, count };
+      await tx.insert(schema.reconciliationReports).values({
+        kind: LEDGER_KIND,
+        windowEnd: o.now,
+        summary: { v: 1, entry: "batch_sent", batchId: o.batchId, provenance: o.provenance },
+      });
+      return { ok: true };
     });
-    return { ok: true } as const;
-  });
+    if (out) return out;
+    if (Date.now() > deadline) return { ok: false, busy: true };
+    await new Promise((r) => setTimeout(r, SPEND_LOCK_POLL_MS));
+  }
 }
+
+/**
+ * `countResumedSend`'s answer: the send may go out (counted); C-21 is full (`count` others in the 24 h); or another
+ * post held the spend lock for the whole wait (`busy`). Either refusal makes the written batch wait as a task.
+ */
+export type ResumedSendCount = { ok: true } | { ok: false; count: number } | { ok: false; busy: true };
 
 /** True for a workspace of kind `judge` (quotas and the lane apply only there). */
 export async function isJudgeWorkspace(db: DbOrTx, workspaceId: string): Promise<boolean> {

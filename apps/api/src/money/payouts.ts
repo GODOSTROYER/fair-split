@@ -871,11 +871,39 @@ export async function postsInLast24h(deps: Pick<Deps, "db" | "paypal">, now: Dat
 const C21_RESUME_WAIT_MS = 15 * 60_000;
 
 /**
+ * C-21 at a written batch's resumed POST (judge/quota.ts `countResumedSend`, under the spend lock): goes out only
+ * while the other live batches of the 24 h are fewer than 40, and is counted from this POST; otherwise thrown as
+ * QUEUED (transient), so the task re-queues itself: never replayed, nothing sent.
+ */
+async function holdToC21(deps: Pick<Deps, "db" | "paypal" | "clock">, batchId: string, what: string) {
+  const counted = await countResumedSend(deps.db, {
+    provenance: deps.paypal.provenance,
+    batchId,
+    now: deps.clock.now(),
+  });
+  if (counted.ok) return;
+  if ("busy" in counted) {
+    throw new PayPalStepError(
+      "QUEUED",
+      `Another post is checking the daily cap; the written ${what} waits.`,
+      {
+        transient: true,
+        retryAfterMs: 5_000,
+      },
+    );
+  }
+  throw new PayPalStepError(
+    "QUEUED",
+    `${counted.count} live batches in the last 24 h (C-21's cap is ${MAX_POSTS_PER_24H}): the written ${what} waits to be posted with the same ids.`,
+    { transient: true, retryAfterMs: C21_RESUME_WAIT_MS },
+  );
+}
+
+/**
  * C-21 at a re-route's resumed POST (the service checks C-21 only at a batch's first write): a re-route whose rows are
- * written and that PayPal has not named yet (its POST paced or unanswered) goes out more than a lane lease after it
- * was last counted only while the other live batches of the 24 h are fewer than 40, and is counted from that POST
- * (judge/quota.ts `countResumedSend`, under the spend lock). Otherwise it waits: thrown as QUEUED (transient), so the
- * re-route task re-queues itself; never replayed, nothing sent. Where C-21 binds: the sandbox rail, live.
+ * written on this rail and that PayPal has not named yet (its POST paced or unanswered) goes out more than a lane
+ * lease after it was last counted only while the other live batches of the 24 h are fewer than 40, and is counted from
+ * that POST (`holdToC21`). Otherwise it waits. Where C-21 binds: the sandbox rail, live.
  */
 export async function guardResumedReroute(
   deps: Pick<Deps, "db" | "paypal" | "clock">,
@@ -889,21 +917,11 @@ export async function guardResumedReroute(
       join payout_batches pb on pb.id = newer.batch_id and pb.workspace_id = newer.workspace_id
      where newer.workspace_id = ${scope.workspaceId} and newer.line_id = ${o.lineId}
        and old.payout_item_id = ${o.supersedesItemId}
-       and pb.kind = 'reroute' and pb.status = 'SUBMITTED' and pb.paypal_batch_id is null
+       and pb.kind = 'reroute' and pb.provenance = ${deps.paypal.provenance}
+       and pb.status = 'SUBMITTED' and pb.paypal_batch_id is null
      limit 1`)) as unknown as { id: string }[];
   if (!written) return;
-  const counted = await countResumedSend(deps.db, {
-    provenance: deps.paypal.provenance,
-    batchId: written.id,
-    now: deps.clock.now(),
-  });
-  if (!counted.ok) {
-    throw new PayPalStepError(
-      "QUEUED",
-      `${counted.count} live batches in the last 24 h (C-21's cap is ${MAX_POSTS_PER_24H}): the written re-route waits to be posted with the same ids.`,
-      { transient: true, retryAfterMs: C21_RESUME_WAIT_MS },
-    );
-  }
+  await holdToC21(deps, written.id, "re-route");
 }
 
 /**
@@ -957,7 +975,8 @@ export interface ServiceOptions {
 
 /**
  * The one lock every live post's spend check and write hold, in every process (C-21, the balance floor). Lock order
- * (judge/quota.ts): the judge quota lock first when both are held; the service's spend guard holds only this one.
+ * (judge/quota.ts): the judge quota lock first when both are held; the service's spend guard holds only this one, and
+ * waits for it holding no pooled connection (judge/quota.ts header, "POOL BOUND").
  */
 export const SPEND_LOCK = PAYOUT_SPEND_LOCK;
 /** How long a post waits for another's check-and-write before it re-queues itself. */

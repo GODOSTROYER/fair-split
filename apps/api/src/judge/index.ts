@@ -70,6 +70,7 @@ export {
   REPLAY_COPY,
   REPLAY_REASONS,
   type ReplayReason,
+  type ResumedSendCount,
   recordBalanceReading,
   replayDecision,
   reserveLivePost,
