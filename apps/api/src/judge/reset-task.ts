@@ -5,7 +5,8 @@
 //          1. cancels judge items parked UNCLAIMED for over 15 minutes (at most 5 a pass),
 //          2. purges expired judge workspaces that are safe to remove,
 //          3. retires pooled workspaces of an older seed and refills the pool to 3,
-//          4. writes a `reconciliation_reports{health}` summary for /ops.
+//          4. resumes every written batch whose POST stopped (money/resume.ts, the hourly catch-up),
+//          5. writes a `reconciliation_reports{health}` summary for /ops.
 // Cancels are never made here: they are `cancelUnclaimed` outbox rows (I7), run by the run slice's handler
 // through `PayoutsService.cancelUnclaimed`, which re-checks the kill switch before any PayPal call.
 // (S3.9 step 5, the webhook-registration and Claude-budget checks, belongs to WS-PPCORE and WS-READ.)
@@ -14,6 +15,7 @@ import { schema } from "@fairsplit/db";
 import { enqueue, type TaskContext } from "@fairsplit/outbox";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
+import { resumeStalledPosts } from "../money/resume.js";
 import { POOL_TARGET, poolSize, purgeExpiredJudgeWorkspaces, refillPool, retireStalePool } from "./pool.js";
 
 /** Judge items parked UNCLAIMED longer than this are cancelled by the hourly pass. */
@@ -30,6 +32,8 @@ export interface JudgeResetReport {
   deferred: number;
   poolCreated: number;
   poolRetired: number;
+  /** Written batches whose POST had stopped, re-queued with their ids (cron only). */
+  postsResumed: number;
   skipped?: "locked";
 }
 
@@ -115,6 +119,7 @@ export async function runJudgeReset(
       deferred: 0,
       poolCreated: 0,
       poolRetired: 0,
+      postsResumed: 0,
     };
     deps.logger.info({ ...report, outboxId: task?.outboxId }, "judge reset (button)");
     return report;
@@ -128,6 +133,7 @@ export async function runJudgeReset(
     const purge = await purgeExpiredJudgeWorkspaces(deps.db);
     const poolRetired = await retireStalePool(deps.db);
     const poolCreated = await refillPool(deps.db, POOL_TARGET);
+    const postsResumed = await resumeStalledPosts(deps);
     const r: JudgeResetReport = {
       trigger: "cron",
       cancelsEnqueued,
@@ -135,6 +141,7 @@ export async function runJudgeReset(
       deferred: purge.deferred.length,
       poolCreated,
       poolRetired,
+      postsResumed,
     };
     await deps.db.insert(schema.reconciliationReports).values({
       kind: "health",
@@ -150,6 +157,7 @@ export async function runJudgeReset(
     deferred: 0,
     poolCreated: 0,
     poolRetired: 0,
+    postsResumed: 0,
     skipped: "locked",
   };
   deps.logger.info({ ...out, outboxId: task?.outboxId }, "judge reset (cron)");

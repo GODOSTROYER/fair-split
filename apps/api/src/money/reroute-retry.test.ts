@@ -19,10 +19,11 @@ import {
   startRuns,
 } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
-import { PAYPAL_SANDBOX } from "../test/index.js";
+import { PAYPAL_SANDBOX, paypalError } from "../test/index.js";
+import { resumeStalledPosts } from "./resume.js";
 import { settleBatch } from "./settle.js";
 
-const script = paypalScript({ parked: ["rhea", "m002", "m007"] });
+const script = paypalScript({ parked: ["rhea", "m002", "m007", "m018"] });
 let h: RunsHarness;
 let keys: Awaited<ReturnType<typeof signBoth>>["keys"];
 
@@ -279,5 +280,44 @@ describe("resend again after a refusal", () => {
     expect(posts()).toBe(before + 1);
     expect(script.posted.at(-1)?.sender_batch_header.sender_batch_id).toBe(r.sbid);
     expect((await line("M-031")).state).toBe("PAYPAL_PENDING");
+  });
+
+  it("a re-route whose POST was paced after its rows were written resumes with the same ids, even after its row died", async () => {
+    const m018 = await line("M-018");
+    expect(m018.state).toBe("UNCLAIMED");
+    h.paypal?.use(
+      http.post(`${PAYPAL_SANDBOX}/v1/payments/payouts`, () => paypalError(429, "RATE_LIMIT_REACHED"), {
+        once: true,
+      }),
+    );
+    const r = await rerouteBody("M-018", "m039@example.com");
+    await expect(resend(r)).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    // the cancel landed and the re-route's rows are written, but PayPal named no batch
+    expect((await line("M-018")).state).toBe("SUBMITTED");
+    const [written] = await h.t.deps.db
+      .select()
+      .from(schema.payoutBatches)
+      .where(eq(schema.payoutBatches.senderBatchId, r.sbid));
+    expect(written).toMatchObject({ status: "SUBMITTED", paypalBatchId: null, kind: "reroute" });
+    // an outage outlasted its attempts: every re-route row of the line died; the catch-up resumes it
+    await h.t.pg?.owner.db
+      .update(schema.taskOutbox)
+      .set({ state: "dead" })
+      .where(
+        and(
+          eq(schema.taskOutbox.workspaceId, h.world.workspaceId),
+          like(schema.taskOutbox.dedupeKey, `reroute:${m018.id}:%`),
+        ),
+      );
+    expect(await resumeStalledPosts(h.t.deps)).toBe(1);
+    expect(await resumeStalledPosts(h.t.deps)).toBe(0);
+    h.t.clock.advance(7 * 60_000);
+    const before = posts();
+    await dueNow("reroute");
+    await runQueued(h, "reroute");
+    expect(posts()).toBe(before + 1);
+    expect(script.posted.at(-1)?.sender_batch_header.sender_batch_id).toBe(r.sbid);
+    expect(script.posted.at(-1)?.items.map((i) => i.receiver)).toEqual(["m039@example.com"]);
+    expect((await line("M-018")).state).toBe("PAYPAL_PENDING");
   });
 });

@@ -4,7 +4,8 @@
 //
 // `setFlag` (IC-01) flips one in a single transaction with its ledger entry and the IC-01 `flag.changed`
 // event. Turning `kill_payouts` on HALTs every run waiting on signatures (TREASURER_APPROVED,
-// AWAITING_BOARD, APPROVED) with its approvals voided: "Payouts paused by the co-op."
+// AWAITING_BOARD, APPROVED) with its approvals voided: "Payouts paused by the co-op." Turning `kill_payouts` or
+// `kill_paypal_live` off brings the PayPal steps that waited it out forward (money/resume.ts).
 import type { PayRunState, SystemFlagDTO, SystemFlagName } from "@fairsplit/contracts";
 import {
   type DbOrTx,
@@ -19,6 +20,7 @@ import { killEnv } from "../env.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem } from "../lib/problem.js";
+import { resumeStalledPosts, wakeWaitingPosts } from "../money/resume.js";
 import { allow, CAN, personaId } from "./access.js";
 import { emit, factLedger, noteSha256 } from "./events.js";
 import { cause, moveLine, moveRun, type RunRow } from "./machine.js";
@@ -214,6 +216,12 @@ export const setFlagHandler: CommandHandler<"setFlag"> = async (ctx) => {
     await factLedger(tx, scope, "flag.flipped", { flag, on }, { at });
     await emit(tx, scope, "flag.changed", { flag, on, by }, { provenance: "live" });
     if (flag === "kill_payouts" && on) await haltSigningRuns(tx, scope, at);
+    if (!on && (flag === "kill_payouts" || flag === "kill_paypal_live")) {
+      // The PayPal steps that waited the switch out (a written batch's POST, a re-route, a cancel) are due now,
+      // and a written batch nothing waits for any more gets its POST back (same ids, I4 re-checked).
+      await wakeWaitingPosts(tx, scope.workspaceId);
+      await resumeStalledPosts({ db: tx, logger: deps.logger }, { workspaceId: scope.workspaceId });
+    }
   });
   return { flag: await flagDto(deps, deps.db, scope.workspaceId, flag) };
 };

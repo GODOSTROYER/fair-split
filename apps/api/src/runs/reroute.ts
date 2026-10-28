@@ -348,6 +348,8 @@ const noteOf = (row: { reason: string | null }): Partial<RerouteNote> => {
  *     word and this one sends nothing (an old press can never pay the old receiver after a new one was signed);
  *   - the line RETURNED by our cancel: go. Still UNCLAIMED while its cancel is on its way (requested for a re-route,
  *     or a cancel row still waiting): wait. Otherwise the cancel never landed: finish, nothing sent.
+ *   - SUBMITTED with this re-route's rows written but not yet named by PayPal (a paced or unanswered POST): go,
+ *     and the service resumes the same ids.
  */
 async function prepareReroute(
   deps: AppDeps,
@@ -440,7 +442,21 @@ async function prepareReroute(
       }
       return none("The parked item's cancel did not land; nothing was re-routed.");
     }
-    if (state !== "RETURNED") return none("Only a returned line can be re-routed.");
+    if (state === "SUBMITTED") {
+      // This re-route's rows are written and PayPal has not named its batch (the POST was paced or unanswered):
+      // resume it with the same ids. The service posts only if the written rows are exactly this approval's.
+      const [unposted] = (await tx.execute(sql`
+        select pb.id from payout_items newer
+          join payout_items old on old.id = newer.supersedes_item_id and old.workspace_id = newer.workspace_id
+          join payout_batches pb on pb.id = newer.batch_id and pb.workspace_id = newer.workspace_id
+         where newer.workspace_id = ${scope.workspaceId} and newer.line_id = ${args.lineId}
+           and old.payout_item_id = ${note.reroute.payoutItemId}
+           and pb.status = 'SUBMITTED' and pb.paypal_batch_id is null
+         limit 1`)) as unknown as { id: string }[];
+      if (!unposted) return none("This line's re-route is already with PayPal.");
+    } else if (state !== "RETURNED") {
+      return none("Only a returned line can be re-routed.");
+    }
     return {
       go: true,
       note,

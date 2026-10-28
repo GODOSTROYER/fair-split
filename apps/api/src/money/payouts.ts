@@ -925,8 +925,10 @@ export async function payoutsServiceFor(
  *   - kill_payouts on (stored or forced): the run is HALTED, approvals voided, lines unlocked;
  *   - kill_paypal_live alone ("refusal in real mode"): sent back like any refusal before the POST, so signing
  *     again posts once the switch is off;
- *   - rows already written (POSTING, PayPal's answer unknown): never abandoned; the outbox retries the POST and
- *     it resumes with the same ids once the switch is off (thrown, transient).
+ *   - rows already written (POSTING, PayPal's answer unknown): never abandoned; thrown as transient, so the
+ *     post task re-queues itself as a fresh attempt row (runs/now.ts `deferTask`) for as long as the switch is
+ *     held, turning a switch off brings the waiting attempt forward (money/resume.ts), and it resumes with the
+ *     same ids. A post that stopped anyway (an outage outlasting every attempt) is picked up by the catch-up.
  */
 export async function refusedByKillSwitch(
   deps: Deps,
