@@ -7,7 +7,7 @@
    at 1470 × 956 and at 1280 × 800 without a scroll. */
 
 .fsc-hand {
-  /* Above the screen: the bar and the run pill's row (110) and the screen's padding (28); the title block (62)
+  /* Above the screen: the top bar (49; its old 110 with the pill row is kept as slack) and the screen's padding (28); the title block (62)
      and its gap (20); below: the ribbon and the caption (107) and a breath (12). */
   --fsc-hand-room: calc(100dvh - 339px);
   display: grid;

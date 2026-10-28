@@ -16,7 +16,6 @@ import {
 } from "../../test/index.js";
 import { autoplayTiming } from "./Autoplay.js";
 import { AUTOPLAY_COPY, AUTOPLAY_STEP_MS } from "./autoplay-plan.js";
-import { deskTop, foldAt, paperTop } from "./fold.js";
 
 // These render the whole console over the mock world and run axe on it: on a busy machine that is slow, so they
 // wait longer than the kit's defaults rather than fail on load.
@@ -55,7 +54,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     await expectNoAxeViolations(view.container);
   });
 
-  it("leads with the paper: at 1470 × 956 the desk lies beside the invoice, under the pool's strip, above the fold", async () => {
+  it("leads with the paper: at 1470 × 956 the desk lies beside the invoice, under the pool's strip", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
     const funding = await screen.findByTestId("W-JG-01.funding");
     // The composition: the invoice on the left; the pool as one strip and the desk under it on the right, all
@@ -68,13 +67,8 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     for (let i = 1; i < order.length; i++) {
       expect(order[i - 1]?.compareDocumentPosition(order[i] as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
-    // The budget the layout draws with (jsdom lays nothing out; Chromium measures the desk at 456 px):
-    // the desk's top, and a band of the first row of prints with their paper shadow, sit above the ribbon.
-    const viewport = { width: 1470, height: 956 };
-    expect(deskTop()).toBeLessThan(foldAt(viewport));
-    expect(paperTop() + 120).toBeLessThan(foldAt(viewport));
-    expect(paperTop(true) + 120).toBeLessThan(foldAt(viewport));
-    expect(paperTop() + 120).toBeLessThan(foldAt({ width: 1280, height: 800 }));
+    // Where the desk lands against the fold is a layout fact jsdom cannot measure (it lays nothing out): the
+    // browser checks it. Hand-written pixel budgets here could not fail for a CSS change, so none is kept.
   });
 
   it("the first press starts the session and records the payment; MM-S plays on the invoice's event", async () => {

@@ -153,7 +153,7 @@
 /* ---------------------------------------------------------------- W-TR-03 the room */
 
 .fsc-read {
-  /* The photo's height: the window less the stage's bar and pill row (110), the screen's padding (28), this
+  /* The photo's height: the window less the top bar (49; its old 110 kept as slack), the screen's padding (28), this
      page's title row and gap (54), the bench's heading row (40), the filmstrip under the photo (96) and a
      breath above the ribbon and caption (107 + 12). */
   --fsc-bench-h: max(260px, calc(100dvh - 447px));
