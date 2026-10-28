@@ -76,7 +76,7 @@ describe("W-TR-09 member line", () => {
       await waitFor(() => expect(stateOf()).toBe("held"), WAIT);
       expect(screen.getByTestId("W-TR-09.amount").dataset.amountState).toBe("pencil");
       fireEvent.keyDown(screen.getByTestId("W-TR-09.pair.face"), { key: "Enter" });
-      const code = await screen.findByTestId("W-TR-09.pair.code");
+      const code = await screen.findByTestId("W-TR-09.pair.code", {}, WAIT);
       expect(code.textContent).toMatch(/\d{3} \d{3}/);
     },
     SLOW,

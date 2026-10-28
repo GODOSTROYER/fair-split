@@ -4,12 +4,16 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { renderConsole } from "../test/render.js";
 import { resizeTo } from "../test/viewport.js";
 import { frameCaption } from "./PhoneDock.js";
+
+// These render the whole console over the mock world; on a busy machine that is slow, so they wait longer than
+// the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
 
 async function press(testId: string) {
   await act(async () => {

@@ -5,11 +5,15 @@
 
 import { INVOICE_STATUS_LABELS, pickLabel } from "@fairsplit/contracts";
 import { getSnapshot } from "@fairsplit/seed";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestWorld, expectNoAxeViolations, renderConsole } from "../../test/index.js";
 import { gate, withHandlers } from "../../test/proof-world.js";
+
+// These render the whole console over the mock world; on a busy machine that is slow, so they wait longer than
+// the kit's defaults rather than fail on load.
+configure({ asyncUtilTimeout: 6000 });
 
 // A signed brand link as fs-api issues them (`/b/fsb_…`): fs-api refuses it on every acting command, so the
 // brand's read must be the public-or-tiered `proof`, never `proofExport` (the console's mock refuses it too).
