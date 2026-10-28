@@ -21,10 +21,11 @@
 //      one transaction under the quota lock (two judges at cap−1 never both post); for the steps before it,
 //      a fresh peek. A replay releases the lane at once. A live post always holds its reservation.
 // A RESUMED post (`resume`: its batch is already written live, rows PayPal may hold) is never replayed, and never
-// goes live without a slot: it goes live under the slot its run holds while that slot is still counted (taken under
-// `JUDGE_QUOTA.heldSlotMaxAgeMs` ago: the rolling 24 h, with an hour's margin), or under a new one the quotas still
-// allow (same ids, counted from then; C-21's 40 a day too), and otherwise it WAITS (`queued`, `waitingFor` the
-// reason, re-queued by the caller): a switch, the simulator, the circuit, a full lane or a quota without a held slot.
+// goes live without a slot dated within a lane lease of its POST: it goes live under the slot its run holds while
+// that slot still carries it (taken under `JUDGE_QUOTA.restampAfterMs` ago, in this clock hour: a quick retry), or
+// under a FRESH slot dated now that every quota still allows with its own run left out (same ids; the floor after its
+// batch and C-21's 40 a day too; the older slot superseded), and otherwise it WAITS (`queued`, `waitingFor` the
+// reason, re-queued by the caller): a switch (kill_payouts too), the simulator, the circuit, a full lane or a quota.
 // Outside judge workspaces (showcase, real) nothing here applies: the step is live, with no lane and no
 // quota, and the run slice's own guards (kill switch, limiter, circuit) stand.
 import type { BatchOutcome } from "@fairsplit/paypal-payouts";
@@ -107,9 +108,10 @@ export interface LiveStepInput {
   amountCents?: number;
   /**
    * The post only: its batch is already written live (a POST PayPal paced, refused or never answered), so it is
-   * never replayed. It goes live under the slot its run holds (taken at the write) while that slot is still
-   * counted, else under a new one if the quotas (and C-21's 40 a day) allow it; otherwise it waits (`queued` with
-   * `waitingFor`), as it does for a switch, the simulator, the circuit or a full lane.
+   * never replayed. It goes live under the slot its run holds while that slot still carries its POST (a lane lease,
+   * in its clock hour), else under a fresh slot dated now if the quotas (its own run left out), the floor after its
+   * batch and C-21's 40 a day allow it; otherwise it waits (`queued` with `waitingFor`), as it does for a switch, the
+   * simulator, the circuit or a full lane.
    */
   resume?: boolean;
 }
@@ -224,9 +226,15 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
     };
   };
 
-  // 1. a fresh peek: what replays now never waits in the queue. A resumed post is past the quotas only while its
-  //    run holds a slot that is still counted (the binding decision below re-reads that under the quota lock).
-  const peek = await judgeRail(deps, { workspaceId: o.workspaceId, sessionId, step: o.step });
+  // 1. a fresh peek: what replays now never waits in the queue. A resumed post peeks with its own run left out (its
+  //    fresh slot would replace its earlier one) and waits out kill_payouts; it is past the quotas only while its run
+  //    holds a slot that still carries its POST (the binding decision below re-reads all of it under the quota lock).
+  const peek = await judgeRail(deps, {
+    workspaceId: o.workspaceId,
+    sessionId,
+    step: o.step,
+    ...(o.resume ? { excludeRunId: o.runId as string, resume: true } : {}),
+  });
   if (peek.mode === "replay") {
     if (!o.resume) return { kind: "replay", decision: peek };
     if (!isQuotaReplay(peek) || !(await holdsLivePost(deps.db, o.runId as string, deps.clock.now()))) {
@@ -276,8 +284,8 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
         amountCents: o.amountCents ?? (await onRailTotal(deps, o.workspaceId, runId)),
         ...(o.resume ? { resume: true } : {}),
       });
-      // binding: live only with a reservation (the run's held slot while it is still counted, or a new one the
-      // quotas allowed: for a resume, C-21's 40 a day too)
+      // binding: live only with a reservation (the run's held slot while it still carries the POST, or a fresh one
+      // dated now that the quotas allowed: for a resume, the floor after its batch and C-21's 40 a day too)
       decision = r.decision;
       reservation = r.reservation;
     } else {

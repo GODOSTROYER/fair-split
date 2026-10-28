@@ -51,6 +51,7 @@ export {
 export {
   type BalanceEstimate,
   type BalanceReading,
+  countResumedSend,
   dailyLivePostCap,
   decideRail,
   estimateBalance,
@@ -61,6 +62,8 @@ export {
   judgeRail,
   type LivePostOutcome,
   type LivePostReservation,
+  type LivePostSettlement,
+  postSettled,
   type QuotaFacts,
   quotaFacts,
   type RailDecision,
