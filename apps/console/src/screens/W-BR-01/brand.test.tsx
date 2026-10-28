@@ -11,7 +11,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestWorld, expectNoAxeViolations, renderConsole } from "../../test/index.js";
 import { gate, withHandlers } from "../../test/proof-world.js";
 
-const TOKEN = "brand-token-sample-0001";
+// A signed brand link as fs-api issues them (`/b/fsb_…`): fs-api refuses it on every acting command, so the
+// brand's read must be the public-or-tiered `proof`, never `proofExport` (the console's mock refuses it too).
+const TOKEN = "fsb_0123456789abcdef.sample";
+/** GET /v1/proof/:runSlug only (not .json, not /export). */
+const PROOF_READ = /\/v1\/proof\/[^/.]+$/;
 const PATH = `/b/${TOKEN}`;
 
 async function openBrand(options: Parameters<typeof renderConsole>[0] = {}) {
@@ -80,7 +84,7 @@ describe("W-BR-01 the brand's view of the season's run", () => {
   it("loading: print beds until the brand tier's bundle arrives", async () => {
     const held = gate();
     const world = withHandlers(createTestWorld(), [
-      http.get("*/v1/proof/:runSlug/export", async () => {
+      http.get(PROOF_READ, async () => {
         await held.opened;
       }),
     ]);
@@ -104,9 +108,7 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     line.netCents += 1;
     line.canonical.netCents += 1;
     const world = withHandlers(createTestWorld(), [
-      http.get("*/v1/proof/:runSlug/export", () =>
-        HttpResponse.json({ bundle, provenance: "seeded", redacted: false }),
-      ),
+      http.get(PROOF_READ, () => HttpResponse.json({ bundle, provenance: "seeded", redacted: false })),
     ]);
     const { view, root } = await openBrand({ world });
     expect(root.dataset.state).toBe("progress");
@@ -127,12 +129,22 @@ describe("W-BR-01 the brand's view of the season's run", () => {
 
   it("error: a refused link says so and points to the public Proof", async () => {
     const world = createTestWorld();
-    world.failNext("proofExport", "UNAUTHENTICATED");
+    world.failNext("proof", "UNAUTHENTICATED");
     const { view, root } = await openBrand({ world });
     expect(root.dataset.state).toBe("error");
     expect(screen.getByTestId("W-BR-01.error").textContent).toContain("This brand link isn't valid any more");
     expect(screen.getByTestId("W-BR-01.public").getAttribute("href")).toBe("/proof/2026A-r37");
     await expectNoAxeViolations(view.container);
+  });
+
+  it("error: a link that earns only the public tier (member IDs) did not grant the brand's view", async () => {
+    const bundle = getSnapshot().proof;
+    const world = withHandlers(createTestWorld(), [
+      http.get(PROOF_READ, () => HttpResponse.json({ bundle, provenance: "seeded", redacted: true })),
+    ]);
+    const { root } = await openBrand({ world });
+    expect(root.dataset.state).toBe("error");
+    expect(screen.queryByTestId("W-BR-01.export.csv")).toBeNull();
   });
 
   it("unpaid: a judge's run before funding waits for payment, with nothing to export yet", async () => {

@@ -7,9 +7,10 @@
 //                   403 (fs-api lib/command.ts runRoute, ACTING_KINDS)
 //   addDeduction    the card must be this workspace's (fs-api runs/load.ts cardById: 404 before the trigger)
 //   GET /v1/seasons/:seasonCode   the season read, with the workspace's rate card ID (fs-api runs/reads.ts)
+//   GET /v1/proof/:runSlug  a brand link of the workspace earns the full tier (fs-api proof/tier.ts tierFor)
 
 import { compilePath, HEADER } from "@fairsplit/api-client";
-import type { MockWorld } from "@fairsplit/api-client/msw";
+import { MockProblem, type MockWorld, urlPattern } from "@fairsplit/api-client/msw";
 import { API_COMMANDS, ERROR_HTTP_STATUS, type ErrorCode } from "@fairsplit/contracts";
 import { HttpResponse, http, type RequestHandler } from "msw";
 
@@ -46,6 +47,27 @@ export function createFidelityHandlers(options: FidelityOptions): RequestHandler
       const acting = ACTING_ONLY.some((c) => c.method === request.method && c.path.match(pathname));
       if (!acting) return undefined;
       return refuse(world, "FORBIDDEN", "Read-only links and the operator session cannot do this.");
+    }),
+    http.get(urlPattern("/v1/proof/:runSlug"), ({ request }) => {
+      const token = bearer(request);
+      if (!token?.startsWith("fsb_")) return undefined;
+      const injected = world.takeFailure("proof");
+      if (injected) return refuse(world, injected.code, injected.message);
+      const runSlug = /\/v1\/proof\/([^/]+)$/.exec(new URL(request.url).pathname)?.[1] ?? "";
+      try {
+        const full = world.execute("proofExport", {
+          params: { runSlug },
+          input: undefined as never,
+          caller: { token, persona: "brand", role: "brand" },
+          headers: { idempotencyKey: null },
+        });
+        return HttpResponse.json(full.body, {
+          headers: { [HEADER.rail]: world.rail, "Cache-Control": "no-store" },
+        });
+      } catch (error) {
+        if (error instanceof MockProblem) return refuse(world, error.code, error.message);
+        throw error;
+      }
     }),
     http.post("*/v1/pairing", async ({ request }) => {
       const body = (await request
