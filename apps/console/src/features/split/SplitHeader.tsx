@@ -1,9 +1,11 @@
-// Split review's bench (S1.7 W-TR-05 header): the bodega's hanging-scale dial for mass balance, the three pools,
-// the open decisions as one sentence with the next one linked, and flat filter chips with live counts. The dial
-// swings only on a live decision (the needle spring, MM-3); replayed history sets it in place. In reduced motion
-// the needle cuts to its new value under a 200 ms crossfade instead of swinging.
+// Split review's bench (S1.7 W-TR-05 header): the bodega's hanging-scale dial for mass balance; the pool, the
+// screen's money, in pencil (the engine's figure, nobody has signed) with its two parts, the balance check and the
+// engine's provenance beneath it; the open decisions as one sentence with the next one linked, and flat filter
+// chips with live counts. The dial swings only on a live decision (the needle spring, MM-3); replayed history sets
+// it in place. In reduced motion the needle cuts to its new value under a 200 ms crossfade instead of swinging.
 
 import { Glyph, MassBalanceDial, useMotionMode } from "@fairsplit/ui-web";
+import type { ReactNode } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
@@ -14,6 +16,8 @@ export interface PoolsView {
   readonly premiumCents: number;
   readonly bonusCents: number;
   readonly poolCents: number;
+  /** The pool's amount state: pencil until both keys turn the run to ink (S2.2.1). */
+  readonly amountState?: "pencil" | "ink";
 }
 
 export interface NextDecision {
@@ -36,6 +40,10 @@ export interface SplitHeaderProps {
   readonly decidedWords?: string;
   /** The dial's own testId root ("W-TR-05.dial"); the drawer reuses the dial with its own. */
   readonly dialTestId?: string;
+  /** Beneath the pool: the balance check and the engine's provenance for every figure on the screen. */
+  readonly proof?: ReactNode;
+  /** After the filters: the grid's "All columns" toggle. */
+  readonly columns?: ReactNode;
 }
 
 const FILTER_KEY = {
@@ -124,12 +132,15 @@ export function SplitHeader({
   onFilter,
   decidedWords = SPLIT.allDecided,
   dialTestId = "W-TR-05.dial",
+  proof,
+  columns,
 }: SplitHeaderProps) {
   const decided = open.holds === 0 && open.byHand === 0;
+  const money = pools.amountState ?? "pencil";
   return (
     <section className="fsr-bench" aria-label="Pools, mass balance and filters" data-testid="W-TR-05.bench">
       <div className="fsr-bench__dial">
-        <Dial dial={dial} swing={swing} testId={dialTestId} />
+        <Dial dial={dial} swing={swing} size={168} testId={dialTestId} />
         <p
           className="fsr-bench__dial-note fs-t-caption"
           data-status={dial.status}
@@ -138,30 +149,31 @@ export function SplitHeader({
           {dialLabel(dial)}
         </p>
       </div>
-      <dl className="fsr-pools" data-testid="W-TR-05.pools">
-        <div className="fsr-pools__item">
-          <dt className="fs-t-caption">
-            {en("W-TR-01.pool.premium")}
-            <Glyph name="ms:lock" size={12} />
-          </dt>
-          <dd className="fs-t-figure" data-amount-state="pencil">
-            {format.money(pools.premiumCents)}
-          </dd>
-          <dd className="fsr-pools__note fs-t-caption">{en("W-TR-01.pool.premiumNote")}</dd>
-        </div>
-        <div className="fsr-pools__item">
-          <dt className="fs-t-caption">{en("W-TR-01.pool.bonus")}</dt>
-          <dd className="fs-t-figure" data-amount-state="pencil">
-            {format.money(pools.bonusCents)}
-          </dd>
-        </div>
-        <div className="fsr-pools__item">
-          <dt className="fs-t-caption">{en("W-TR-05.pool")}</dt>
-          <dd className="fs-t-figure" data-amount-state="pencil">
-            {format.money(pools.poolCents)}
-          </dd>
-        </div>
-      </dl>
+      <div className="fsr-pools" data-testid="W-TR-05.pools">
+        <p className="fsr-pools__label fs-t-caption">{en("W-TR-05.pool")}</p>
+        <p className="fsr-pools__total fs-t-amount-l" data-amount-state={money} data-testid="W-TR-05.pool">
+          {format.money(pools.poolCents)}
+        </p>
+        <dl className="fsr-pools__parts">
+          <div className="fsr-pools__item">
+            <dt className="fs-t-caption">
+              {en("W-TR-01.pool.premium")}
+              <Glyph name="ms:lock" size={12} />
+            </dt>
+            <dd className="fs-t-figure" data-amount-state={money}>
+              {format.money(pools.premiumCents)}
+            </dd>
+          </div>
+          <div className="fsr-pools__item">
+            <dt className="fs-t-caption">{en("W-TR-01.pool.bonus")}</dt>
+            <dd className="fs-t-figure" data-amount-state={money}>
+              {format.money(pools.bonusCents)}
+            </dd>
+          </div>
+        </dl>
+        <p className="fsr-pools__note fs-t-caption">{en("W-TR-01.pool.premiumNote")}</p>
+        {proof}
+      </div>
       <div className="fsr-bench__summary">
         <h2 className="fs-t-title-2" data-testid="W-TR-05.summary">
           {decided ? decidedWords : en("W-TR-05.summary", { holds: open.holds, byHand: open.byHand })}
@@ -189,6 +201,7 @@ export function SplitHeader({
             </button>
           ))}
         </fieldset>
+        {columns}
       </div>
     </section>
   );

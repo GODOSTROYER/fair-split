@@ -1,7 +1,9 @@
-// The Judge stage (S1.6, design §6 J1): the top bar, the console (rail, run pill, the screen) on the left, one
-// phone frame on the right, the newest log row of each lane along the bottom, and the honesty caption under
-// it. It holds the run the judge is driving: the first view before the first press (no session, no calls),
-// then the session's run, kept live by one SSE stream. Every console route renders inside it.
+// The Judge stage (S1.6, design §6 J1): one bar on top (the honesty line, the run pill in its centre, What's
+// real, Sound, Reset and Proof), the console (rail and the screen) on the left, one phone frame on the right,
+// and the ribbon along the bottom: the newest log row of each lane, the phone's lane between 1024 and 1679 px,
+// and the honesty caption at its end. Nothing else takes the screens' height. It holds the run the judge is
+// driving: the first view before the first press (no session, no calls), then the session's run, kept live by
+// one SSE stream. Every console route renders inside it.
 
 import { type LogLane, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { useMotionMode } from "@fairsplit/ui-web";
@@ -9,11 +11,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConnectionBanner } from "../chrome/ConnectionBanner.js";
 import { ConsoleRail } from "../chrome/ConsoleRail.js";
-import { MOCK_DATA, STAGE, stageCaption } from "../chrome/copy.js";
+import { STAGE, stageCaption, story } from "../chrome/copy.js";
 import { nextStep } from "../chrome/next-step.js";
 import { Ribbon } from "../chrome/Ribbon.js";
 import { RunPill } from "../chrome/RunPill.js";
-import { railItems } from "../chrome/rail-items.js";
+import { placeStates, railItems } from "../chrome/rail-items.js";
 import { SoundOffer } from "../chrome/SoundOffer.js";
 import { StageBar } from "../chrome/StageBar.js";
 import { StageNotice, stageNoticeFor } from "../chrome/StageNotice.js";
@@ -26,6 +28,7 @@ import { itemCounts } from "../data/run-view.js";
 import { env } from "../lib/env.js";
 import { format } from "../lib/format.js";
 import { DirectorProvider } from "../lib/moment.js";
+import { useSearchParam } from "../lib/search-param.js";
 import { useShortcut } from "../lib/shortcuts.js";
 import { StageExtras } from "../screens/W-JG-01/index.js";
 import { useSound } from "../sound/sound.js";
@@ -33,7 +36,7 @@ import type { FramePrefs } from "./bridge.js";
 import { type AutoplayState, type StageApi, StageContext } from "./context.js";
 import { StageDirector } from "./director.js";
 import { phoneSizeFor, useStageLayout, useViewportHeight } from "./layout.js";
-import { PhoneDock } from "./PhoneDock.js";
+import { PhoneDock, phoneLaneWords, type RaisedBy } from "./PhoneDock.js";
 import { PhoneVisit } from "./PhoneVisit.js";
 import { HERO_MEMBER } from "./personas.js";
 import { useStageBridge } from "./useStageBridge.js";
@@ -103,7 +106,8 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const stream = useRunStream(inSession ? runSlug : null);
   const director = useMemo(() => new StageDirector(), []);
   const [persona, setPersona] = useState<FramePersona>("member");
-  const [raised, setRaised] = useState(false);
+  const [raisedBy, setRaisedBy] = useState<RaisedBy | null>(null);
+  const raised = raisedBy !== null;
   const [whatsReal, setWhatsReal] = useState(false);
   const [autoplay, setAutoplay] = useState<AutoplayState>("off");
 
@@ -111,16 +115,21 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const recordedOn = snapshot ? format.dateShort(snapshot.run.recordedOn) : "";
   const byHandSlip = snapshot?.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? "0462";
   const payouts = snapshot?.figures.batchItemCount ?? 0;
+  // The hold open in the drawer: the pill names its decision instead of pointing elsewhere.
+  const openHold = useSearchParam("hold") ?? null;
   const next = useMemo(
-    () => nextStep(view, { inSession, season, recordedOn, byHandSlip, payouts }),
-    [view, inSession, season, recordedOn, byHandSlip, payouts],
+    () => nextStep(view, { inSession, season, recordedOn, byHandSlip, payouts, openHold }),
+    [view, inSession, season, recordedOn, byHandSlip, payouts, openHold],
   );
 
+  // A moment, a step or a frame raises the phone beside the screen: the console stays lit, so the moment reads
+  // on both screens at once. Only the viewer's own raise lays the scrim over the console.
   const raisePhone = useCallback((p: FramePersona) => {
     setPersona(p);
-    setRaised(true);
+    setRaisedBy("moment");
   }, []);
-  const lowerPhone = useCallback(() => setRaised(false), []);
+  const raiseByViewer = useCallback(() => setRaisedBy("user"), []);
+  const lowerPhone = useCallback(() => setRaisedBy(null), []);
 
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
   const lastStep = useRef(next.id);
@@ -164,6 +173,12 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   });
 
   const items = useMemo(() => railItems(season, runSlug), [season, runSlug]);
+  // Where the run stands with each place: the first view's step is the Season's press; a settled run is done.
+  const ratified = snapshot !== undefined;
+  const places = useMemo(
+    () => placeStates(items, next.id === "done" ? null : next.screen, ratified),
+    [items, next, ratified],
+  );
   const counts = view ? itemCounts(view) : { total: 0, confirmed: 0 };
   const seeded = useMemo(() => firstViewRows(snapshot, rail), [snapshot, rail]);
   const visit = layout.phone === "phone-visit";
@@ -173,7 +188,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const api = useMemo<StageApi>(
     () => ({
       layout,
-      phone: { persona, raised, ready },
+      phone: { persona, raised, raisedBy, ready },
       raisePhone,
       lowerPhone,
       selectPersona: setPersona,
@@ -182,7 +197,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
       autoplay,
       setAutoplay,
     }),
-    [layout, persona, raised, ready, raisePhone, lowerPhone, director, next, autoplay],
+    [layout, persona, raised, raisedBy, ready, raisePhone, lowerPhone, director, next, autoplay],
   );
 
   const onReset = async () => {
@@ -204,7 +219,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
           data-layout={layout.phone}
           data-drawer={layout.drawer}
           data-rail={layout.railCollapsed ? "collapsed" : "full"}
-          data-raised={raised ? "" : undefined}
+          data-raised={raisedBy ?? undefined}
         >
           <a className="fsc-skip" href="#fsc-main">
             {STAGE.skip}
@@ -213,7 +228,17 @@ export function Stage({ children }: { readonly children: ReactNode }) {
             members={snapshot?.figures.members ?? 0}
             rail={rail}
             mock={env.data === "mock"}
-            lockup={layout.railCollapsed}
+            lockup={layout.railCollapsed || visit}
+            pill={
+              visit ? null : (
+                <RunPill
+                  view={view}
+                  next={next}
+                  items={items}
+                  onStep={(s) => s.persona && raisePhone(s.persona)}
+                />
+              )
+            }
             proofHref={runSlug ? webRoutes.proof(runSlug) : null}
             confirmed={counts.confirmed}
             total={counts.total || payouts}
@@ -232,16 +257,14 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                 data-rail={layout.railCollapsed ? "collapsed" : "full"}
                 onPointerDown={layout.phone === "dock" && raised ? lowerPhone : undefined}
               >
-                <ConsoleRail items={items} collapsed={layout.railCollapsed} seasonMark={season} />
+                <ConsoleRail
+                  items={items}
+                  collapsed={layout.railCollapsed}
+                  seasonMark={season}
+                  story={story(snapshot?.figures.members ?? 0)}
+                  states={places}
+                />
                 <div className="fsc-console__main">
-                  <div className="fsc-console__top">
-                    <RunPill
-                      view={view}
-                      next={next}
-                      items={items}
-                      onStep={(s) => s.persona && raisePhone(s.persona)}
-                    />
-                  </div>
                   <ConnectionBanner status={stream} />
                   <div className="fsc-console__body">
                     <main id="fsc-main" className="fsc-console__screen" tabIndex={-1}>
@@ -256,8 +279,9 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               layout={layout.phone}
               persona={persona}
               raised={raised}
+              raisedBy={raisedBy}
               onPersona={setPersona}
-              onRaise={() => setRaised(true)}
+              onRaise={raiseByViewer}
               onLower={lowerPhone}
               bridge={bridge}
               view={view}
@@ -265,11 +289,27 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               size={phoneSize}
             />
           </div>
-          {!visit && <Ribbon view={inSession ? view : undefined} seeded={seeded} />}
-          <footer className="fsc-stage__caption fs-t-caption" data-testid="W-JG-01.caption">
-            <span>{stageCaption(recordedOn)}</span>
-            {env.data === "mock" && <span className="fsc-stage__mocknote">{MOCK_DATA.note}</span>}
-          </footer>
+          {!visit && (
+            <Ribbon
+              view={inSession ? view : undefined}
+              seeded={seeded}
+              caption={stageCaption(recordedOn)}
+              phone={
+                layout.phone === "tab"
+                  ? {
+                      words: phoneLaneWords(persona, view, snapshot),
+                      raised,
+                      onToggle: raised ? lowerPhone : raiseByViewer,
+                    }
+                  : null
+              }
+            />
+          )}
+          {visit && (
+            <footer className="fsc-stage__caption fs-t-caption" data-testid="W-JG-01.caption">
+              <span>{stageCaption(recordedOn)}</span>
+            </footer>
+          )}
           <ChromeSlot name="stage.overlay" className="fsc-stage__overlay" />
           <SoundOffer />
           <WhatsRealSheet
@@ -283,6 +323,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               earlierPhotos: snapshot?.photos.filter((p) => p.set === "EARLIER").length ?? 0,
               members: snapshot?.figures.members ?? 0,
               paypalMembers: snapshot?.figures.onRailMembers ?? 0,
+              mock: env.data === "mock",
             }}
           />
           <StageExtras />

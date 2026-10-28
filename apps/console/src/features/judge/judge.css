@@ -69,6 +69,29 @@
   color: var(--fs-ink-3);
 }
 
+/* All twelve prints on the first screen: two rows of six, each still a photo of four slips. */
+.fsc-first__sheet {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.fsc-first__sheet > .fsc-contact {
+  width: 100%;
+  gap: 16px 14px;
+}
+
+/* The sheet's own label, on paper like each print's tag: these are synthetic samples (design §2.6). */
+.fsc-first__synthetic {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--fs-copy-white);
+  box-shadow: inset 0 0 0 1px var(--fs-paper-ink);
+  color: var(--fs-paper-ink);
+}
+
 .fsc-first__action {
   display: grid;
   gap: 14px;

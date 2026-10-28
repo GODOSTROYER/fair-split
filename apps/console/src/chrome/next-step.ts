@@ -1,11 +1,13 @@
 // The run pill names the next human step and the stage pre-focuses its control (S1.6). The steps follow the
 // judge's 60-second loop: mark paid, the replayed reading, slip 0462 by hand, the three holds, key 1, the
-// Chair's key, PayPal confirming, Rhea's decision, then Proof. Pure: it reads the run view only.
+// Chair's key, PayPal confirming, Rhea's decision, then Proof. While the drawer is open on a hold that is still
+// open, the pill names that hold's own decision, so it never points away from the card on screen. Pure: it
+// reads the run view and the drawer's hold only.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { type MessageKey, translate } from "@fairsplit/i18n";
 import type { FramePersona } from "../data/adapter.js";
-import { byHandHolds, holdCards, openHolds, type RunView } from "../data/run-view.js";
+import { byHandHolds, holdCards, openHolds, type RunHold, type RunView } from "../data/run-view.js";
 import type { ConsoleScreenId } from "../lib/screens.js";
 
 export type StepId =
@@ -48,9 +50,25 @@ export interface NextStepContext {
   readonly byHandSlip: string;
   /** Items in the batch (8). */
   readonly payouts: number;
+  /** The hold open in the drawer (`?hold=`, a label or an ID): the pill names that hold's own decision. */
+  readonly openHold?: string | null;
 }
 
 const en = (key: MessageKey, values?: Record<string, string | number>) => translate("en", key, values);
+
+/** What deciding each hold card means, in the pill's words (S1.7 W-TR-06's slabs). */
+const HOLD_DECISION: Partial<Record<RunHold["kind"], string>> = {
+  DUPLICATE_SLIP: "count it once",
+  IMPLAUSIBLE_YIELD: "register a plot",
+  NO_RULE: "return the multa as a credit",
+};
+
+/** The open hold card the drawer shows, if the drawer is open on one. */
+function drawerHold(view: RunView, openHold: string | null | undefined): RunHold | null {
+  if (!openHold) return null;
+  const hold = Object.values(view.holds).find((h) => h.label === openHold || h.holdId === openHold);
+  return hold && HOLD_DECISION[hold.kind] && openHolds(view).includes(hold) ? hold : null;
+}
 
 export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextStep {
   const runSlug = view?.runSlug ?? "";
@@ -78,6 +96,16 @@ export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextS
       };
     case "COMPUTED":
     case "IN_REVIEW": {
+      const shown = drawerHold(view, ctx.openHold);
+      if (shown) {
+        return {
+          id: "holds",
+          text: `Next: ${HOLD_DECISION[shown.kind]} (${shown.label})`,
+          actor: "person",
+          screen: "W-TR-06",
+          to: webRoutes.holdDrawer(runSlug, shown.label),
+        };
+      }
       if (byHandHolds(view).some((h) => h.state === "OPEN")) {
         return {
           id: "by-hand",

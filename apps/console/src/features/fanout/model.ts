@@ -1,6 +1,6 @@
 // W-TR-08's model: the split fan (S2.7 SplitFan, design §1 signature 6: one seal, 64 lines, eight PayPal threads
 // and 56 dashed cash lines) and the run's honest state, as pure functions of the IC-03 snapshot and the live
-// RunView. Width is money: one linear scale, k = 380 / Σ net px per cent, so every line leaves the bar as wide as
+// RunView. Width is money: one linear scale, k = 276 / Σ net px per cent, so every line leaves the bar as wide as
 // its payment. A thread's look follows the item's actual PayPal status, never a test value: graphite to 70% when
 // sent, jade only on a verified SUCCESS, a canary cap for UNCLAIMED (a decision, never red), red only for a
 // PayPal failure, retracted once moved to cash, when its own dashed cash line leaves from the same slot.
@@ -13,10 +13,13 @@ import { engineOutput, splitBasis } from "../split/model.js";
 
 export const FAN = {
   width: 1400,
-  height: 620,
-  seal: { cx: 96, cy: 300, size: 128 },
-  /** The run's net as one bar, 380 px for all of it: every line leaves it as wide as its money. */
-  bar: { x0: 188, x1: 196, y0: 110, y1: 490 },
+  height: 560,
+  seal: { cx: 96, cy: 248, size: 128 },
+  /**
+   * The run's net as one bar, 276 px for all of it: every line leaves it as wide as its money. The scale keeps the
+   * 56 cash lines' column to under half the picture's height, so the eight PayPal threads still read first.
+   */
+  bar: { x0: 188, x1: 196, y0: 110, y1: 386 },
   /** Every line ends on this x: the eight PayPal stubs on top, the cash lines' end marks beneath them. */
   endX: 1040,
   /** The PayPal stubs, spread so each name and amount keeps its own row at the narrowest stage (892 px). */
@@ -25,10 +28,10 @@ export const FAN = {
   cash: { y0: 268, w: 20 },
   /** Where the labels begin (they are HTML over the picture, so text keeps its type size at any width). */
   labelX: 1072,
-  /** A cash line's dashed stroke is half its height: the air between neighbours makes 56 lines read as 56. */
-  cashStroke: 0.5,
-  /** A cash line's dash and gap along its length (pathLength 1; a line runs about 900 px: 13 px and 7 px). */
-  dash: { on: 0.014, off: 0.008 },
+  /** A cash line's dashed stroke is a third of its height: the air between neighbours makes 56 lines read as 56. */
+  cashStroke: 0.36,
+  /** A cash line's dash and gap along its length (pathLength 1; a line runs about 900 px: 9 px on, 11 px off). */
+  dash: { on: 0.01, off: 0.012 },
   /** A sent thread stops here until PayPal confirms it (design §1: "sent, not paid"). */
   sentAt: 0.7,
   /** Control points sit 45% of the run in from each end. */
@@ -433,5 +436,28 @@ export function summaryFacts(snapshot: SeasonSnapshot, fan: FanView) {
     paid: fan.threads.filter((t) => t.tone === "landed").length,
     cash: fan.cash.members,
     kept: format.money(snapshot.figures.redirectedCents),
+  };
+}
+
+/**
+ * The fan's one-line count (W-TR-08's share line): what PayPal was sent, what it confirmed, what waits on a person
+ * or failed, and how many members are paid in cash. A line moved to cash still counts as sent by PayPal.
+ */
+export function shareCounts(fan: Pick<FanView, "threads" | "cash">): {
+  readonly onRail: number;
+  readonly sent: number;
+  readonly confirmed: number;
+  readonly parked: number;
+  readonly failed: number;
+  readonly cash: number;
+} {
+  const tones = fan.threads.map((t) => t.tone);
+  return {
+    onRail: tones.length,
+    sent: tones.filter((t) => t !== "unsent").length,
+    confirmed: tones.filter((t) => t === "landed").length,
+    parked: tones.filter((t) => t === "parked").length,
+    failed: tones.filter((t) => t === "failed").length,
+    cash: fan.cash.members,
   };
 }

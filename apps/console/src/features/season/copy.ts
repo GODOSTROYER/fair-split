@@ -96,6 +96,7 @@ export const FIRST_VIEW_COPY = {
   openCard: "Open the rate card",
   titleFunded: (season: string) => `Season ${season} is funded.`,
   desk: "The slips on the desk",
+  synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>
     funded
       ? `${count} photos, four slips each, in Jessie's blue block capitals. Claude's reading of them replays now; each photo ticks once its slips are read.`

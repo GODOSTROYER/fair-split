@@ -44,10 +44,10 @@ function ends(d: string): { from: [number, number]; to: [number, number] } {
 }
 
 describe("the fan's geometry: width is money", () => {
-  it("k = 380 / Σ net, threads largest first, spread one row apart so every label has room", () => {
+  it("k = 276 / Σ net, threads largest first, spread one row apart so every label has room", () => {
     const fan = fanView(snapshot, showcaseView(snapshot));
     expect(fan.netCents).toBe(snapshot.figures.netCents);
-    expect(fan.k).toBeCloseTo(380 / snapshot.figures.netCents, 12);
+    expect(fan.k).toBeCloseTo(276 / snapshot.figures.netCents, 12);
     expect(fan.threads.map((t) => t.memberNo)).toEqual([
       "M-014",
       "M-007",
@@ -59,11 +59,13 @@ describe("the fan's geometry: width is money", () => {
       "M-031",
     ]);
     const widths = fan.threads.reduce((s, t) => s + t.width, 0);
-    expect(widths).toBeCloseTo((380 * snapshot.figures.batchTotalCents) / snapshot.figures.netCents, 6);
-    expect(fan.threads[0]?.width).toBeCloseTo(5.8, 1);
+    expect(widths).toBeCloseTo((276 * snapshot.figures.batchTotalCents) / snapshot.figures.netCents, 6);
+    expect(fan.threads[0]?.width).toBeCloseTo(4.2, 1);
     expect(fan.threads.map((t) => t.stubY)).toEqual([24, 52, 80, 108, 136, 164, 192, 220]);
     // 28 units a row is 17.8 px at the 892 px stage: a 12 px name and a 14 px figure never touch.
     expect(FAN.stub.step * (892 / FAN.width)).toBeGreaterThan(17.5);
+    // The 56 cash lines' column stays under half the picture: the eight PayPal threads read first.
+    expect((fan.cash.bottom - fan.cash.top) / FAN.height).toBeLessThanOrEqual(0.46);
   });
 
   it("signature 6: one seal, 64 lines, eight PayPal threads and 56 dashed cash lines", () => {

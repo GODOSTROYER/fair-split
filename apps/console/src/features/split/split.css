@@ -1,7 +1,20 @@
-/* W-TR-05 Split review: the bench (dial, pools, decisions, filters) and the AG Grid, themed from the tokens. */
+/* W-TR-05 Split review: the bench (dial, pool, decisions, filters) and the AG Grid, themed from the tokens. The
+   grid fills what the bench leaves, down to the ribbon: its pinned totals sit on the ribbon's edge and only the
+   grid's own lines scroll, never the screen around it. */
 
 .fsr-split {
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  container-type: inline-size;
+}
+
+.fsr-split:has(> .fsr-banner) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.fsc-console__screen:has(> .fsr-split[data-state="ready"]),
+.fsc-console__screen:has(> .fsr-split[data-state="declined"]) {
+  padding-bottom: var(--fs-space-16);
 }
 
 .fsr-split__beds {
@@ -11,7 +24,7 @@
 
 .fsr-split__beds-bench {
   display: grid;
-  grid-template-columns: 132px 220px minmax(0, 1fr);
+  grid-template-columns: 168px 260px minmax(0, 1fr);
   gap: var(--fs-space-32);
   margin-bottom: var(--fs-space-16);
 }
@@ -59,11 +72,37 @@
   }
 }
 
+/* The pool: the screen's money at amount-l, in pencil (the engine's figure; nobody has signed), its two parts on
+   one line, then the balance check and the provenance of every figure on the screen. */
 .fsr-pools {
   display: grid;
-  gap: var(--fs-space-12);
+  align-content: start;
+  gap: var(--fs-space-4);
+  min-width: 0;
+  max-width: 400px;
   margin: 0;
-  padding-top: var(--fs-space-8);
+  padding-top: var(--fs-space-4);
+}
+
+.fsr-pools__label {
+  color: var(--fs-ink-3);
+}
+
+.fsr-pools__total {
+  margin: 0;
+  color: var(--fs-pencil);
+  white-space: nowrap;
+}
+
+.fsr-pools__total[data-amount-state="ink"] {
+  color: var(--fs-ink);
+}
+
+.fsr-pools__parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-4) var(--fs-space-24);
+  margin: var(--fs-space-4) 0 0;
 }
 
 .fsr-pools__item {
@@ -132,19 +171,21 @@
 
 .fsr-grid {
   display: grid;
-  gap: var(--fs-space-8);
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
 }
 
-.fsr-grid__columns {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0;
-}
-
+/* Fills the screen down to the ribbon; below a laptop's height it keeps room for the pinned rows and a few lines
+   and lets the screen scroll instead. */
 .fsr-grid__frame {
-  height: max(440px, calc(100dvh - 420px));
+  height: 100%;
   min-width: 0;
+  min-height: 360px;
+}
+
+.fsr-chip--columns {
+  justify-self: start;
 }
 
 .fsr-grid .ag-root-wrapper {
@@ -176,6 +217,11 @@
 .fsr-grid .fsr-row--totals .ag-cell {
   border-top: 1px solid var(--fs-ink-3);
   background: var(--fs-plate-2);
+}
+
+/* The decisions still open, pinned above the other lines: the run pill's order, set off by an ink-3 rule. */
+.fsr-grid .ag-floating-top {
+  border-bottom: 1px solid var(--fs-ink-3);
 }
 
 /* A renderer fills its cell so a wash covers it edge to edge. */
@@ -247,7 +293,8 @@
   color: var(--fs-ink-2);
 }
 
-/* Slips: a small stack in the copies' own colours, then the count. */
+/* Slips: the line's own sheets as 24 × 18 crops of their top corner (the red serial, Jessie's first entries),
+   fanned 5 px apart on the copies' own paper, then the count. Evidence, so paper: the only shadow in the grid. */
 .fsr-slips {
   display: inline-flex;
   align-items: center;
@@ -257,26 +304,16 @@
 .fsr-slips__stack {
   position: relative;
   display: inline-block;
-  width: 26px;
-  height: 16px;
+  width: calc(24px + (var(--n, 1) - 1) * 5px);
+  height: 18px;
 }
 
-.fsr-slips__sheet {
+.fsr-slips__crop {
   position: absolute;
-  top: 1px;
-  left: calc(var(--i) * 4px);
-  width: 10px;
-  height: 13px;
-  background: var(--fs-copy-white);
+  top: 0;
+  left: calc(var(--i) * 5px);
+  display: block;
   box-shadow: 0 1px 1px rgb(0 0 0 / 0.45);
-}
-
-.fsr-slips__sheet[data-copy="PINK_DUPLICATE"] {
-  background: var(--fs-copy-pink);
-}
-
-.fsr-slips__sheet[data-copy="YELLOW_TRIPLICATE"] {
-  background: var(--fs-copy-yellow);
 }
 
 /* Kilos and the kilos-per-tree bar against the ratified limit (the tick sits at the limit). */
@@ -286,6 +323,14 @@
   align-items: center;
   column-gap: var(--fs-space-12);
   line-height: 1.1;
+}
+
+.fsr-kg__value[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-kg__value[data-amount-state="ink"] {
+  color: var(--fs-ink);
 }
 
 .fsr-kg__bar {
@@ -409,13 +454,38 @@
   color: var(--fs-ink-3);
 }
 
-/* Status: a glyph and a word, coloured only by what is true now. */
+/* Status: a glyph and a word, coloured only by what is true now. The words never clip mid-word: a long status
+   (a held line and its hold, or "Reserved, never redistributed.") wraps to a second line inside the 40 px row. */
 .fsr-status {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
   min-width: 0;
   color: var(--fs-ink);
+}
+
+.fsr-status__text {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.15;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.fsr-status__text > span {
+  line-height: inherit;
+}
+
+.fsr-grid .ag-cell[col-id="status"] {
+  white-space: normal;
+}
+
+.fsr-status__hold {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .fsr-status > .fs-glyph {
@@ -473,6 +543,11 @@
   gap: var(--fs-space-4);
 }
 
+/* Under the pool: the balance check and the provenance of every figure on the screen. */
+.fsr-pools > .fsr-split__foot {
+  margin-top: var(--fs-space-8);
+}
+
 .fsr-split__totals {
   margin: 0;
   color: var(--fs-ink-2);
@@ -498,13 +573,31 @@
   color: var(--fs-ink-3);
 }
 
-@media (max-width: 1279px) {
+/* Beside an open drawer, or in a narrow window, the screen is narrow: the decisions and filters run as one
+   wrapping row beneath the dial and the pool, and the dial draws smaller, so the grid keeps its height. */
+@container (max-width: 960px) {
   .fsr-bench {
     grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--fs-space-16) var(--fs-space-24);
+    padding-bottom: var(--fs-space-16);
+  }
+
+  .fsr-bench__dial .fs-dial svg {
+    width: 120px;
+    height: auto;
   }
 
   .fsr-bench__summary {
+    display: flex;
+    flex-wrap: wrap;
     grid-column: 1 / -1;
+    align-items: center;
+    gap: var(--fs-space-8) var(--fs-space-16);
+    padding-top: 0;
+  }
+
+  .fsr-bench__summary .fsr-chips {
+    margin: 0;
   }
 }
 

@@ -30,6 +30,7 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
   const target = useChromeSlotTarget("console.drawer");
   const resolved: DrawerMode = mode ?? stage?.layout.drawer ?? "overlay";
   const ref = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const close = useRef(onClose);
   close.current = onClose;
@@ -42,11 +43,12 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
     run: () => close.current(),
   });
 
-  // Focus lands in the drawer when it opens, unless something inside already took it (a pre-focused slab).
+  // Focus lands on the drawer's title when it opens (its name is read out; no ring frames the whole drawer),
+  // unless something inside already took it (a pre-focused slab).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (!el.contains(document.activeElement)) el.focus({ preventScroll: true });
+    if (!el.contains(document.activeElement)) (title.current ?? el).focus({ preventScroll: true });
   }, []);
 
   const drawer = (
@@ -68,7 +70,7 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
         data-testid={testId}
       >
         <header className="fsc-drawer__head">
-          <h2 id={titleId} className="fs-sr">
+          <h2 id={titleId} ref={title} className="fs-sr fsc-drawer__title" tabIndex={-1}>
             {label}
           </h2>
           <p className="fsc-drawer__meta fs-t-caption">{meta}</p>

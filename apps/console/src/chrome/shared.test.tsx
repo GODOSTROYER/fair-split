@@ -28,7 +28,10 @@ describe("StageDrawer", () => {
     expect(drawer.getAttribute("aria-labelledby")).toBeTruthy();
     expect(screen.getByRole("complementary", { name: "Hold H1" })).toBe(drawer);
     expect(drawer.dataset.mode).toBe("overlay");
-    expect(document.activeElement).toBe(drawer);
+    // Focus lands on the drawer's title (its name is read out), never a ring around the whole 560 px drawer.
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.tagName).toBe("H2");
+    expect(document.activeElement?.textContent).toBe("Hold H1");
     expect(screen.getByTestId("W-TR-06.drawer.scrim")).toBeTruthy();
     fireEvent.keyDown(document.body, { key: "Escape" });
     fireEvent.click(screen.getByTestId("W-TR-06.drawer.close"));

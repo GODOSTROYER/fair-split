@@ -55,6 +55,17 @@
   max-width: 320px;
 }
 
+/* A laptop's first screen (956 px tall) keeps the money and the checks in view: the seal draws at 240 px. */
+@media (max-height: 1000px) {
+  .pf-hero__seal {
+    max-width: 240px;
+  }
+
+  .pf-hero__lot {
+    margin-top: 16px;
+  }
+}
+
 .pf-hero__seal .fsc-mirrored__visual svg {
   display: block;
   width: 100%;
@@ -76,17 +87,22 @@
 }
 
 .pf-hero__title {
-  max-width: 28ch;
-  margin-top: 20px;
+  max-width: 34ch;
+  margin-top: 16px;
   font-stretch: 100%;
-  font-weight: 660;
-  font-size: 1.75rem;
-  line-height: 2.25rem;
-  letter-spacing: -0.012em;
+  font-weight: 620;
+  font-size: 1.375rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.008em;
   text-wrap: balance;
 }
 
+/* The money is the hero: its own line inside the sentence, at hero size, in ink (PayPal recorded it). The words
+   around it step down to a reading size, so nothing on the page outweighs the amount. */
 .pf-hero__amount {
+  display: block;
+  margin: 4px 0;
+  color: var(--fs-ink);
   font-stretch: 75%;
   font-weight: 800;
   letter-spacing: 0;
@@ -94,7 +110,7 @@
 }
 
 .pf-hero__tagline {
-  margin-top: 14px;
+  margin-top: 10px;
   color: var(--fs-ink-2);
   font-size: 1.0625rem;
   line-height: 1.5rem;
@@ -102,7 +118,7 @@
 
 .pf-hero__rail {
   max-width: 46ch;
-  margin-top: 10px;
+  margin-top: 6px;
   color: var(--fs-ink-2);
   font-size: 0.75rem;
   line-height: 1.125rem;
@@ -120,19 +136,33 @@
 .pf-verify {
   display: grid;
   justify-items: center;
-  gap: 24px;
+  gap: 20px;
   width: 100%;
-  margin-top: 36px;
+  margin-top: 24px;
 }
 
+/* The six checks in two columns of three, in order down each column, so all six sit under the slab. */
 .pf-checks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, auto);
+  column-gap: 32px;
   width: 100%;
-  max-width: 560px;
+  max-width: var(--fs-proof-column);
   margin: 0;
   padding: 0;
   border-top: 1px solid var(--fs-rule);
   list-style: none;
   text-align: left;
+}
+
+@media (max-width: 640px) {
+  .pf-checks {
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
 }
 
 .pf-checks__row {
@@ -280,6 +310,11 @@
 
 .pf-progress[data-state="settled"] {
   color: var(--fs-ink-2);
+}
+
+/* The run's live line sits in the hero under the sentence, before the tagline: what PayPal confirmed so far. */
+.pf-hero > .pf-progress {
+  margin: 12px auto 0;
 }
 
 .pf-progress__source {

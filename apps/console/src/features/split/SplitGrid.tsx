@@ -1,7 +1,9 @@
-// SplitGrid (S2.7, S1.7 W-TR-05): every member line in AG Grid Community, themed from the tokens. Eleven columns,
-// or five in a narrow container (Member, Verified kg, Kaltas, Net, Status) with an "All columns" toggle. Held
-// rows carry a 3 px canary rule; the totals are pinned. A row opens its hold (W-TR-06) or its line (W-TR-09)
-// on click or Enter. AG Grid loads only in this route's chunk (theme/grid.ts).
+// SplitGrid (S2.7, S1.7 W-TR-05): every member line in AG Grid Community, themed from the tokens. Ten columns by
+// default (minimum confidence waits behind "All columns": sixty of the 64 lines were read earlier and have none);
+// five in a narrow container (Member, Verified kg, Kaltas, Net, Status), and four beside an open drawer, so
+// Status always reads whole. The lines a person must still decide are pinned above the rest, in the order the run
+// pill walks them, and the totals are pinned beneath. Held rows carry a 3 px canary rule. A row opens its hold
+// (W-TR-06) or its line (W-TR-09) on click or Enter. AG Grid loads only in this route's chunk (theme/grid.ts).
 
 import type {
   CellKeyDownEvent,
@@ -50,9 +52,17 @@ export type GridColumn =
 /** S1.6: five columns when the container is under 1,180 px. */
 export const NARROW_COLUMNS: readonly GridColumn[] = ["member", "kg", "kaltas", "net", "status"];
 export const NARROW_BELOW_PX = 1180;
+/** Beside an open drawer (a 560 px drawer pushes the grid under 760 px): Status keeps its words whole. */
+export const SLIM_COLUMNS: readonly GridColumn[] = ["member", "kg", "net", "status"];
+export const SLIM_BELOW_PX = 760;
+
+/** The grid's column set: every column, the default ten, five in a narrow container, four beside a drawer. */
+export type ColumnSet = "all" | "default" | "narrow" | "slim";
 
 export interface SplitGridProps {
   readonly rows: readonly SplitRow[];
+  /** Lines a person must still decide, pinned above the rest (they are not repeated among `rows`). */
+  readonly pinned?: readonly SplitRow[];
   readonly totals: SplitTotals;
   readonly context: GridContext;
   /** The member whose line or hold is open beside the grid. */
@@ -60,6 +70,16 @@ export interface SplitGridProps {
   readonly onOpen: (row: SplitRow) => void;
   /** Forces a column set (tests, galleries); defaults to the container's width. */
   readonly columns?: "all" | "narrow";
+  /** "All columns" is on (the screen's toggle): every column, whatever the width. */
+  readonly showAll?: boolean;
+}
+
+/** The set a container of `width` px shows when nothing forces one (0: not measured yet). */
+export function columnSetFor(width: number, showAll: boolean): ColumnSet {
+  if (showAll) return "all";
+  if (width > 0 && width < SLIM_BELOW_PX) return "slim";
+  if (width > 0 && width < NARROW_BELOW_PX) return "narrow";
+  return "default";
 }
 
 const lineOf = (row: GridRow | undefined): SplitRow | null => (row && row.kind === "line" ? row : null);
@@ -125,10 +145,10 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       colId: "credit",
       headerName: en("W-TR-05.col.credit"),
       cellRenderer: CreditCell,
-      width: 104,
+      width: 72,
     },
     net: { ...num, colId: "net", headerName: en("W-TR-05.col.net"), cellRenderer: NetCell, width: 96 },
-    rail: { colId: "rail", headerName: en("W-TR-05.col.rail"), cellRenderer: RailCell, width: 92 },
+    rail: { colId: "rail", headerName: en("W-TR-05.col.rail"), cellRenderer: RailCell, width: 84 },
     status: {
       colId: "status",
       headerName: en("W-TR-05.col.status"),
@@ -153,6 +173,16 @@ const ALL: readonly GridColumn[] = [
   "status",
 ];
 
+/** Minimum confidence waits behind "All columns": 60 of 64 lines were read earlier and show none. */
+const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
+
+const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {
+  all: ALL,
+  default: DEFAULT,
+  narrow: NARROW_COLUMNS,
+  slim: SLIM_COLUMNS,
+};
+
 /** Watches the grid's container: under 1,180 px it shows five columns (S1.6). 0 means "not measured". */
 function useContainerWidth(): [RefObject<HTMLDivElement | null>, number] {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -170,30 +200,35 @@ function useContainerWidth(): [RefObject<HTMLDivElement | null>, number] {
   return [ref, width];
 }
 
-export function SplitGrid({ rows, totals, context, openMember, onOpen, columns }: SplitGridProps) {
+export function SplitGrid({
+  rows,
+  pinned: decisions = [],
+  totals,
+  context,
+  openMember,
+  onOpen,
+  columns,
+  showAll = false,
+}: SplitGridProps) {
   const [wrap, width] = useContainerWidth();
   // AG Grid places rows by measuring its viewport: it mounts once the container has a size (a frame in a
   // browser). Until then, and wherever nothing is laid out, the same lines print as a plain table.
   const measured = width > 0;
-  const [showAll, setShowAll] = useState(false);
-  const narrowContainer = width > 0 && width < NARROW_BELOW_PX;
-  const narrow = columns ? columns === "narrow" : narrowContainer && !showAll;
+  const set: ColumnSet = columns ?? columnSetFor(width, showAll);
   const defs = useMemo(() => columnDefs(context.premiumRate), [context.premiumRate]);
-  const colDefs = useMemo(() => (narrow ? NARROW_COLUMNS : ALL).map((c) => defs[c]), [defs, narrow]);
+  const colDefs = useMemo(() => SETS[set].map((c) => defs[c]), [defs, set]);
   // One grid row per line object: an unchanged line keeps its row, so AG Grid refreshes only the lines that moved.
   const wrapped = useRef(new WeakMap<SplitRow, GridRow>());
-  const rowData = useMemo<GridRow[]>(
-    () =>
-      rows.map((r) => {
-        let row = wrapped.current.get(r);
-        if (!row) {
-          row = { kind: "line" as const, ...r };
-          wrapped.current.set(r, row);
-        }
-        return row;
-      }),
-    [rows],
-  );
+  const wrap1 = useCallback((r: SplitRow): GridRow => {
+    let row = wrapped.current.get(r);
+    if (!row) {
+      row = { kind: "line" as const, ...r };
+      wrapped.current.set(r, row);
+    }
+    return row;
+  }, []);
+  const rowData = useMemo<GridRow[]>(() => rows.map(wrap1), [rows, wrap1]);
+  const topRows = useMemo<GridRow[]>(() => decisions.map(wrap1), [decisions, wrap1]);
   const pinned = useMemo<GridRow[]>(
     () => [{ kind: "totals" as const, memberNo: "totals" as const, ...totals }],
     [totals],
@@ -212,6 +247,7 @@ export function SplitGrid({ rows, totals, context, openMember, onOpen, columns }
         return row !== null && openMember !== null && openMember !== undefined && row.memberNo === openMember;
       },
       "fsr-row--totals": (p) => p.data?.kind === "totals",
+      "fsr-row--decision": (p) => p.node.rowPinned === "top",
     }),
     [openMember],
   );
@@ -270,20 +306,13 @@ export function SplitGrid({ rows, totals, context, openMember, onOpen, columns }
   });
 
   return (
-    <div className="fsr-grid" ref={wrap} data-testid="W-TR-05.grid" data-columns={narrow ? "narrow" : "all"}>
-      {narrowContainer && !columns && (
-        <p className="fsr-grid__columns">
-          <button
-            type="button"
-            className="fs-flat"
-            aria-pressed={showAll}
-            onClick={() => setShowAll((v) => !v)}
-            data-testid="W-TR-05.allColumns"
-          >
-            {showAll ? SPLIT.fewerColumns : SPLIT.allColumns}
-          </button>
-        </p>
-      )}
+    <div
+      className="fsr-grid"
+      ref={wrap}
+      data-testid="W-TR-05.grid"
+      data-columns={set}
+      data-pinned={topRows.length > 0 ? topRows.length : undefined}
+    >
       {measured ? (
         <section className="fsr-grid__frame" aria-label={SPLIT.gridLabel}>
           <AgGridReact<GridRow>
@@ -291,6 +320,7 @@ export function SplitGrid({ rows, totals, context, openMember, onOpen, columns }
             theme={gridTheme}
             rowData={rowData}
             columnDefs={colDefs}
+            pinnedTopRowData={topRows}
             pinnedBottomRowData={pinned}
             context={context}
             getRowId={rowId}
@@ -309,12 +339,12 @@ export function SplitGrid({ rows, totals, context, openMember, onOpen, columns }
         </section>
       ) : (
         <section className="fsr-grid__frame fsr-grid__frame--static" aria-label={SPLIT.gridLabel}>
-          {rowData.length === 0 ? (
+          {rowData.length + topRows.length === 0 ? (
             <p className="fs-t-body fsr-muted">{SPLIT.noMatch}</p>
           ) : (
             <StaticTable
               columns={colDefs}
-              rows={rowData}
+              rows={[...topRows, ...rowData]}
               totals={pinned[0] as GridRow}
               context={context}
               {...(openMember !== undefined ? { openMember } : {})}

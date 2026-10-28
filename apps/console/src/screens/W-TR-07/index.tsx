@@ -481,14 +481,6 @@ export function Screen({ runSlug }: RunScreenProps) {
         )}
 
         <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
-        <BatchLedger
-          senderBatchId={batchId}
-          batchSha256={batchSha256}
-          signedLinesDigest={linesDisagree ? null : payloadLines}
-          lines={batch.lines}
-          cashLines={batch.cashCount}
-          rateCardSha256={snapshot.rateCard.sha256}
-        />
 
         <div
           className="fsr-approve__amount"
@@ -506,21 +498,22 @@ export function Screen({ runSlug }: RunScreenProps) {
           </p>
         </div>
 
-        <RailBar
-          paypalShare={batch.netCents > 0 ? total / batch.netCents : 0}
-          paypalText={en("W-TR-07.payouts", { count: batch.itemCount })}
-          cashText={en("W-TR-07.cash", {
-            count: batch.cashCount,
-            amount: format.money(batch.cashCents),
-            date: cashDay,
-          })}
-          cashWord={en("cash.word")}
-          testId="W-TR-07.rail"
-        />
-
-        <p className="fsr-approve__fees fs-t-caption" data-testid="W-TR-07.fees">
-          {en("W-TR-07.fees", { ...fees })} <span className="fsr-muted">{APPROVE.feesLabel}.</span>
-        </p>
+        <figure className="fsr-approve__rails">
+          <RailBar
+            paypalShare={batch.netCents > 0 ? total / batch.netCents : 0}
+            paypalText={en("W-TR-07.payouts", { count: batch.itemCount })}
+            cashText={en("W-TR-07.cash", {
+              count: batch.cashCount,
+              amount: format.money(batch.cashCents),
+              date: cashDay,
+            })}
+            cashWord={en("cash.word")}
+            testId="W-TR-07.rail"
+          />
+          <figcaption className="fsr-approve__fees fs-t-caption" data-testid="W-TR-07.fees">
+            {en("W-TR-07.fees", { ...fees })} <span className="fsr-muted">{APPROVE.feesLabel}.</span>
+          </figcaption>
+        </figure>
 
         {batch.final ? (
           <Print
@@ -680,6 +673,21 @@ export function Screen({ runSlug }: RunScreenProps) {
             }
           />
         )}
+
+        <section className="fsr-approve__ledger" aria-labelledby="W-TR-07-ledger">
+          <h2 id="W-TR-07-ledger" className="fs-t-label">
+            {APPROVE.ledgerTitle}
+          </h2>
+          <p className="fs-t-caption fsr-muted">{APPROVE.ledgerNote}</p>
+          <BatchLedger
+            senderBatchId={batchId}
+            batchSha256={batchSha256}
+            signedLinesDigest={linesDisagree ? null : payloadLines}
+            lines={batch.lines}
+            cashLines={batch.cashCount}
+            rateCardSha256={snapshot.rateCard.sha256}
+          />
+        </section>
       </section>
     </ScreenRoot>
   );

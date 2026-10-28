@@ -3,14 +3,16 @@
 // it (a verified item notice) and pencil only when the engine recomputed it; both wash only for live events,
 // never for replayed history. Every amount carries `data-amount-state` (S2.2.1).
 
+import type { SnapshotSlip } from "@fairsplit/contracts";
 import type { StampView } from "@fairsplit/ui-web";
 import { ConfidenceRing, Glyph, type GlyphName, InkStamp, RuleChip } from "@fairsplit/ui-web";
 import type { CustomCellRendererProps } from "ag-grid-react";
 import type { ReactNode } from "react";
 import { format } from "../../lib/format.js";
-import type { RowConfidence, SplitRow, SplitTotals } from "./model.js";
+import type { RowConfidence, RowSlip, SplitRow, SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
 import { DigitSwap } from "./shared/DigitSwap.js";
+import { BALLPOINT, COPY_FILL, FORM_INK, SERIAL_RED } from "./shared/SlipPaper.js";
 
 /** A grid row: a member's line, or the pinned totals. */
 export type GridRow =
@@ -27,6 +29,8 @@ export interface GridContext {
   readonly yieldLimit: string;
   /** The premium's per-kg pool rate for the tooltip, console only: "US$0.29523 a kg". */
   readonly premiumRate: string;
+  /** The seed's slip for a copy, so the slips cell crops the real sheet (its serial and Jessie's entries). */
+  readonly slip?: (serial: string, copy: SnapshotSlip["copy"]) => SnapshotSlip | undefined;
 }
 
 type Props = CustomCellRendererProps<GridRow, unknown, GridContext>;
@@ -110,19 +114,62 @@ export function MemberCell({ data }: Props) {
 
 // ------------------------------------------------------------------------------------------------ slips
 
-export function SlipsCell({ data }: Props) {
+/**
+ * A 24 × 18 crop of a slip's top corner, as the sheet is drawn everywhere else: the press's red serial and
+ * Jessie's first entries in blue ballpoint on the copy's own paper. It is evidence, so it is paper.
+ */
+function SlipCrop({ slip, index, sheet }: { slip: RowSlip; index: number; sheet: SnapshotSlip | undefined }) {
+  const values = sheet ? [sheet.boxes["1"], sheet.boxes["2"], sheet.boxes["3"]] : ["", "", ""];
+  const faint = slip.copy === "PINK_DUPLICATE";
+  return (
+    <svg
+      className="fsr-slips__crop"
+      viewBox="112 6 128 96"
+      width={24}
+      height={18}
+      aria-hidden="true"
+      focusable="false"
+      data-copy={slip.copy}
+      style={{ ["--i" as string]: String(index) }}
+    >
+      <rect x={0} y={0} width={240} height={300} fill={COPY_FILL[slip.copy]} />
+      <text x={226} y={30} textAnchor="end" fill={SERIAL_RED} opacity={faint ? 0.7 : 0.95} fontSize={22}>
+        {slip.serial}
+      </text>
+      <line x1={112} x2={226} y1={44} y2={44} stroke={FORM_INK} strokeWidth={1.5} opacity={0.6} />
+      {values.map((value, i) => (
+        <g key={`${i}-${value}`}>
+          <line
+            x1={112}
+            x2={226}
+            y1={65 + i * 22}
+            y2={65 + i * 22}
+            stroke={FORM_INK}
+            strokeWidth={1}
+            opacity={0.5}
+          />
+          <text x={118} y={62 + i * 22} fill={BALLPOINT} opacity={faint ? 0.62 : 0.94} fontSize={16}>
+            {value || "—"}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function SlipsCell({ data, context }: Props) {
   if (!data || data.kind === "totals") return null;
-  const shown = data.slips.slice(0, 4);
+  const shown = data.slips.slice(0, 3);
   return (
     <Cell className="fsr-cell--slips">
       <span className="fsr-slips">
-        <span className="fsr-slips__stack" aria-hidden>
+        <span className="fsr-slips__stack" aria-hidden style={{ ["--n" as string]: String(shown.length) }}>
           {shown.map((s, i) => (
-            <span
+            <SlipCrop
               key={`${s.serial}-${s.copy}-${s.photoId}`}
-              className="fsr-slips__sheet"
-              data-copy={s.copy}
-              style={{ ["--i" as string]: String(i) }}
+              slip={s}
+              index={i}
+              sheet={context?.slip?.(s.serial, s.copy)}
             />
           ))}
         </span>
@@ -141,10 +188,13 @@ export function KgCell({ data, context }: Props) {
   if (!data) return null;
   if (data.kind === "totals") return null;
   const ratio = Math.max(0, Math.min(2, data.treeRatio));
+  // Verified kilos are the engine's figure, like the money beside them: pencil until the two keys turn it to ink.
   return (
     <Cell className="fsr-cell--kg">
       <span className="fsr-kg">
-        <span className="fs-t-figure">{format.kgNumber(data.verifiedG)}</span>
+        <span className="fsr-kg__value fs-t-figure" data-amount-state={data.partsState}>
+          {format.kgNumber(data.verifiedG)}
+        </span>
         <span
           className="fsr-kg__bar"
           data-over={data.overYield ? "" : undefined}
@@ -464,12 +514,17 @@ export function StatusCell({ data, context }: Props) {
         data-testid={`W-TR-05.status.${data.memberNo}`}
       >
         <Glyph name={look.glyph} size={16} />
-        <span className={data.status.kind === "reserved" ? "fs-t-caption" : "fs-t-label"}>
-          {statusWords(data)}
+        <span className="fsr-status__text">
+          <span className={data.status.kind === "reserved" ? "fs-t-caption" : "fs-t-label"}>
+            {statusWords(data)}
+          </span>
+          {data.status.kind !== "line" && (
+            <>
+              {" "}
+              <span className="fsr-status__hold fs-t-caption">{data.status.hold.label}</span>
+            </>
+          )}
         </span>
-        {data.status.kind !== "line" && (
-          <span className="fsr-status__hold fs-t-caption">{data.status.hold.label}</span>
-        )}
       </span>
     </Cell>
   );

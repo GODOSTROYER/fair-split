@@ -12,16 +12,16 @@ import { Paper } from "@fairsplit/ui-web";
 export type SlipBox = "serial" | "date" | "member" | "name" | "gross" | "tare" | "net" | "grade";
 
 /** Paper colours and the press's inks: part of the drawn sheet, not interface colours. */
-const COPY_FILL: Readonly<Record<SnapshotSlip["copy"], string>> = {
+export const COPY_FILL: Readonly<Record<SnapshotSlip["copy"], string>> = {
   WHITE_ORIGINAL: "var(--fs-copy-white)",
   PINK_DUPLICATE: "var(--fs-copy-pink)",
   YELLOW_TRIPLICATE: "var(--fs-copy-yellow)",
   LOGBOOK_LINE: "var(--fs-copy-white)",
   UNKNOWN: "var(--fs-copy-white)",
 };
-const BALLPOINT = "#2b4ba0";
-const SERIAL_RED = "#b23a2e";
-const FORM_INK = "#5f5a54";
+export const BALLPOINT = "#2b4ba0";
+export const SERIAL_RED = "#b23a2e";
+export const FORM_INK = "#5f5a54";
 
 const W = 240;
 const H = 300;

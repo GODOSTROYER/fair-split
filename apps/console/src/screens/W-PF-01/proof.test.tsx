@@ -258,7 +258,12 @@ describe("W-PF-01 states", () => {
     await waitFor(() => expect(root.dataset.state).toBe("progress"), { timeout: 10_000 });
     const progress = screen.getByTestId("W-PF-01.progress");
     expect(progress.dataset.state).toBe("progress");
-    expect(progress.textContent).toContain("7 of 8 confirmed");
+    // The hero's live line: what PayPal confirmed, on which rail, and what waits on a person.
+    expect(screen.getByTestId("W-PF-01.hero").contains(progress)).toBe(true);
+    expect(progress.textContent).toContain(
+      "Waiting for PayPal: 7 of 8 PayPal payouts confirmed in the simulated sandbox.",
+    );
+    expect(progress.textContent).toContain("1 parked for a decision.");
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
       "Waiting for PayPal. 7 of 8 confirmed.",
     );
@@ -270,6 +275,9 @@ describe("W-PF-01 states", () => {
     await waitFor(() => expect(screen.getByTestId("W-PF-01.progress").dataset.state).toBe("settled"), {
       timeout: 10_000,
     });
+    expect(screen.getByTestId("W-PF-01.progress").textContent).toContain(
+      "7 of 8 PayPal payouts confirmed in the simulated sandbox. 1 moved to cash.",
+    );
     expect(root.dataset.state).toBe("progress");
     expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
   });

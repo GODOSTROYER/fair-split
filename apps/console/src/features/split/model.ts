@@ -441,6 +441,15 @@ export function filterRows(rows: readonly SplitRow[], filter: SplitFilter): Spli
   return rows.filter((r) => matches(r, filter));
 }
 
+/**
+ * The lines a person must still decide (an open hold card, or a field to enter by hand), in the order the run pill
+ * walks them: the field by hand first, then H1, H2 and H3. Split review pins these above the other lines.
+ */
+export function decisionRows(rows: readonly SplitRow[]): SplitRow[] {
+  const rank = (r: SplitRow) => (r.openHold?.kind === "LOW_CONFIDENCE" ? "0" : `1${r.openHold?.label ?? ""}`);
+  return rows.filter((r) => r.openHold !== null).sort((a, b) => rank(a).localeCompare(rank(b)));
+}
+
 export function filterCounts(rows: readonly SplitRow[]): Readonly<Record<SplitFilter, number>> {
   const out: Record<SplitFilter, number> = { all: 0, held: 0, byHand: 0, paypal: 0, cash: 0 };
   for (const row of rows) for (const f of SPLIT_FILTERS) if (matches(row, f)) out[f] += 1;

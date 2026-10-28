@@ -69,6 +69,30 @@ export function railItems(season: string, runSlug: string | null): RailItem[] {
   ];
 }
 
+/** Where the run stands with a place: done, the place the next step is in, or still ahead. */
+export type PlaceState = "done" | "next" | "later";
+
+/**
+ * Each place's state from the run pill's step: places before the step's place are done, its own is next, the
+ * rest are ahead. The rate card is ratified before the first slip, so it is done whenever one is in force.
+ * Once the run is settled (the step is Proof) every place is done.
+ */
+export function placeStates(
+  items: readonly RailItem[],
+  nextScreen: ConsoleScreenId | null,
+  ratified: boolean,
+): Partial<Record<RailItem["id"], PlaceState>> {
+  const out: Partial<Record<RailItem["id"], PlaceState>> = {};
+  if (nextScreen === null) return out;
+  const at = items.findIndex((item) => item.screens.includes(nextScreen));
+  items.forEach((item, i) => {
+    if (item.id === "rate-card" && ratified && i !== at) out[item.id] = "done";
+    else if (at < 0 || i < at) out[item.id] = "done";
+    else out[item.id] = i === at ? "next" : "later";
+  });
+  return out;
+}
+
 /** Which place a pathname belongs to (the Judge stage's first view is the Season). */
 export function activeRailItem(pathname: string): RailItem["id"] | null {
   if (pathname === "/judge" || /^\/season\/[^/]+\/?$/.test(pathname)) return "season";

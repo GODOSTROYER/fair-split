@@ -22,7 +22,7 @@ describe("Judge stage", () => {
     expect(stage.dataset.state).toBe("ready");
     expect(stage.dataset.layout).toBe("tab");
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
-    expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/);
+    expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/i);
     expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toMatch(/FS-2026A-r37/);
     expect(screen.getByTestId("W-JG-01.caption").textContent).toMatch(
       /Slip reading replays a recorded Claude run/,
@@ -104,19 +104,41 @@ describe("Judge stage", () => {
     });
   });
 
-  it("raises the phone from its tab and lowers it with Escape (1024–1679 px)", async () => {
+  it("raises the phone from its ribbon lane and lowers it with Escape (1024–1679 px)", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1470 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
+    // The collapsed phone is the ribbon's fourth lane: it never covers the screen.
+    expect(screen.getByTestId("W-JG-01.ribbon").contains(tab)).toBe(true);
     expect(tab.getAttribute("aria-expanded")).toBe("false");
     expect(tab.textContent).toMatch(/Gisusi pa/);
     await act(async () => {
       fireEvent.click(tab);
     });
     expect(tab.getAttribute("aria-expanded")).toBe("true");
+    // The viewer's own raise lays the scrim over the console.
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
+    expect(screen.getByTestId("W-JG-01.phoneBackdrop")).toBeTruthy();
     await act(async () => {
       fireEvent.keyDown(document.body, { key: "Escape" });
     });
     expect(tab.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("a moment raises the phone beside a lit console: no scrim, both screens read at once", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    // Key 1 signs: the co-sign request raises the Chair's frame (S1.6), as a moment.
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("moment"));
+    expect(screen.queryByTestId("W-JG-01.phoneBackdrop")).toBeNull();
+    expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("W-JG-01.poster.chair")).toBeTruthy();
   });
 
   it("docks the phone under a scrim from 1680 px, and the scrim hands it focus", async () => {
@@ -127,7 +149,8 @@ describe("Judge stage", () => {
       fireEvent.click(scrim);
     });
     expect(screen.queryByTestId("W-JG-01.phoneScrim")).toBeNull();
-    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("");
+    // The viewer raised it: a raise they asked for, recorded as theirs (a moment raises it as "moment").
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
   });
 
   it("becomes a phone visit under 1024 px, and follows the window as it resizes", async () => {

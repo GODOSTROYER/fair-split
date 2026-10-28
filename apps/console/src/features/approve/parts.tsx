@@ -2,11 +2,54 @@
 // the two key slots, the dialog route's body and the co-sign card. Machines print (flat pencil, no button);
 // people press (the one d3 slab lives in the screen); a signature is ink under its initials stamp.
 
-import { bandCircle, type RingIndex } from "@fairsplit/seal";
+import { bandCircle, type RingIndex, seal } from "@fairsplit/seal";
 import { Glyph, InkStamp, Seal, type StampView } from "@fairsplit/ui-web";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo, useSyncExternalStore } from "react";
 import { format } from "../../lib/format.js";
 import { APPROVE, en } from "../split/shared/copy.js";
+
+/** On a short screen (a 13-inch laptop's 956 px) the seal draws at 160 px so the slab stays in the first view. */
+const SHORT_SCREEN = "(max-height: 1000px)";
+
+function subscribeShort(listener: () => void): () => void {
+  if (typeof window === "undefined" || !window.matchMedia) return () => undefined;
+  const query = window.matchMedia(SHORT_SCREEN);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+function readShort(): boolean {
+  return typeof window !== "undefined" && window.matchMedia ? window.matchMedia(SHORT_SCREEN).matches : false;
+}
+
+/** The seal's size on Approve: 200 px (design §6 C7), 160 px on a short screen. */
+export function useSealSize(): number {
+  return useSyncExternalStore(subscribeShort, readShort, () => false) ? 160 : 200;
+}
+
+/**
+ * The batch's own pattern before anyone signs: every ring the hash grows, in pencil at a quarter strength, so
+ * the seal reads as this batch's guilloché, waiting for ink, never as empty circles. Each key's rings engrave
+ * over it in ink (ui-web's Seal, on top). Decorative: the Seal above carries the name and the key count.
+ */
+function SealGhost({ batchSha256, size }: { readonly batchSha256: string; readonly size: number }) {
+  const geometry = useMemo(() => seal(batchSha256, size), [batchSha256, size]);
+  return (
+    <svg
+      className="fsr-seal-ghost"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      aria-hidden="true"
+      focusable="false"
+      data-testid="W-TR-07.sealGhost"
+    >
+      {geometry.rings.map((r) => (
+        <path key={r.index} d={r.d} fill="none" strokeWidth={geometry.strokeWidth} strokeLinejoin="round" />
+      ))}
+    </svg>
+  );
+}
 
 const RINGS: readonly RingIndex[] = [0, 1, 2, 3, 4];
 
@@ -41,11 +84,16 @@ export interface SealBlockProps {
   readonly size?: number;
 }
 
-export function SealBlock({ batchSha256, keys, engrave, size = 200 }: SealBlockProps) {
+export function SealBlock({ batchSha256, keys, engrave, size: fixed }: SealBlockProps) {
+  const responsive = useSealSize();
+  const size = fixed ?? responsive;
   return (
     <div className="fsr-approve__seal" data-keys={keys}>
       {batchSha256 ? (
-        <Seal batchSha256={batchSha256} size={size} keys={keys} engrave={engrave} testId="W-TR-07.seal" />
+        <span className="fsr-seal-stack" style={{ width: size, height: size }}>
+          <SealGhost batchSha256={batchSha256} size={size} />
+          <Seal batchSha256={batchSha256} size={size} keys={keys} engrave={engrave} testId="W-TR-07.seal" />
+        </span>
       ) : (
         <UnsealedRings size={size} testId="W-TR-07.seal" />
       )}

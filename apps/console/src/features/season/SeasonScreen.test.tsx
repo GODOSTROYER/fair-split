@@ -67,13 +67,15 @@ describe("W-TR-01 season", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-01.funded")).toBeTruthy();
     expect(screen.getByTestId("W-TR-01.strip.FUNDED").dataset.state).toBe("lit");
     expect(screen.getByTestId("W-TR-01.strip.READ").dataset.state).toBe("lit");
-    // Funded is PayPal's: once the invoice reads back as paid it lands jade, the strip's only jade.
+    // Funded is PayPal's to say: it lights once the invoice reads back as paid, and prints in ink with its tick;
+    // the event's jade is the arc's and the pool's, once each, never a third time on the strip.
     const landed = screen.getByTestId("W-TR-01.strip").querySelectorAll("[data-landed]");
     expect([...landed].map((el) => (el as HTMLElement).dataset.stage)).toEqual(["FUNDED"]);
+    expect(screen.getByTestId("W-TR-01.strip.FUNDED").querySelector(".fsc-strip__tick")).toBeTruthy();
     await expectNoAxeViolations(view.container);
   });
 
-  it("draws the run strip in the product's own material: stencilled words on a plate, no checkboxes", async () => {
+  it("draws the run strip in the product's own material: sentence-case words on a plate, no checkboxes", async () => {
     await renderConsole({ path: SEASON });
     const strip = await screen.findByTestId("W-TR-01.strip");
     const stages = [...strip.querySelectorAll<HTMLElement>(":scope > li")];
@@ -97,9 +99,16 @@ describe("W-TR-01 season", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-01.strip.RATIFIED").textContent).toMatch(/^Ratified14 Mar, done$/);
     expect(screen.getByTestId("W-TR-01.strip.FUNDED").textContent).toBe("FundedNext, next");
     expect(strip.querySelector("[data-landed]")).toBeNull();
-    expect(
-      strip.querySelector('input[type="checkbox"], [role="checkbox"], .fs-glyph[data-glyph="ms:check"]'),
-    ).toBeNull();
+    // No checkboxes: a stage that has happened prints an ink tick beside its word; the rest have none.
+    expect(strip.querySelector('input[type="checkbox"], [role="checkbox"]')).toBeNull();
+    expect(stages.map((s) => s.querySelector(".fsc-strip__tick") !== null)).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it("says so when the browser is offline", async () => {

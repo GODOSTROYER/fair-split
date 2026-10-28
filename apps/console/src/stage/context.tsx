@@ -14,6 +14,11 @@ export interface PhoneState {
   readonly persona: FramePersona;
   /** Docked phone in focus (no scrim), or the tab raised. */
   readonly raised: boolean;
+  /**
+   * Who raised it (1024–1679 px): a moment leaves the console lit beside the phone, so a screen may make room
+   * for it; the viewer's own raise lays the scrim over the console.
+   */
+  readonly raisedBy?: "user" | "moment" | null;
   /** Frames whose app answered fs.ready (the development stand-in does not count). */
   readonly ready: Readonly<Record<FramePersona, boolean>>;
 }
@@ -54,9 +59,24 @@ export function useNextStep(): NextStep | null {
   return useContext(StageContext)?.next ?? null;
 }
 
+/** True when `el` is not wholly inside its scrolling screen (or the window): a focused control there is unseen. */
+function outOfView(el: HTMLElement): boolean {
+  const box = el.getBoundingClientRect();
+  if (box.width === 0 && box.height === 0) return false;
+  const scroller = el.closest<HTMLElement>(".fsc-console__screen, .fsc-drawer");
+  const frame = scroller?.getBoundingClientRect() ?? {
+    top: 0,
+    bottom: window.innerHeight,
+    left: 0,
+    right: window.innerWidth,
+  };
+  return box.top < frame.top || box.bottom > frame.bottom || box.left < frame.left || box.right > frame.right;
+}
+
 /**
  * Focuses `ref` when the run pill's next step is this screen (S1.6: "the control for the step it names is
- * pre-focused"). Scrolls nothing: the step's control is already in view on its screen.
+ * pre-focused"). Focus never jumps the page; if the control sits outside its screen's view, the screen scrolls
+ * the least it can to show it, so a held key never presses a slab the judge cannot see.
  */
 export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleScreenId, when = true): void {
   const next = useNextStep();
@@ -69,6 +89,8 @@ export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleS
     const target = el.matches("button, a, input, [tabindex]")
       ? el
       : el.querySelector<HTMLElement>(".fs-slab__face, button, a, input, [tabindex]:not([tabindex='-1'])");
-    target?.focus({ preventScroll: true });
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    if (outOfView(target)) target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [isStep, stepId, when, ref]);
 }

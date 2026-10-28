@@ -1,7 +1,8 @@
 /* W-TR-06 Hold drawer: one hold card flat on the drawer's plate-2, its evidence as paper, MM-3's twin compare.
    Machine text prints in pencil (S2.2.1: the engine's line and Claude's differ only by the pencil glyph and the
-   word Claude). Canary marks only what a person must decide on (in H1, the matching field pairs of the two
-   copies); facts the engine matched stay pencil until they are lit; jade never appears here. */
+   word Claude). Canary marks only what a person must decide on: in H1, one underline beneath the two serials
+   (design §7 M3); the other fields the engine matched print in ink once lit. Jade never appears here. The
+   decision (the card's actions) stays pinned to the drawer's foot, so the slab is always in view. */
 
 .fsr-hold-screen {
   display: grid;
@@ -36,6 +37,16 @@
 
 .fsr-hold .fs-hold__actions .fs-flat {
   text-decoration: none;
+}
+
+/* The decision never scrolls out of the drawer: its row sticks to the drawer's foot on the drawer's plate-2. */
+.fsc-drawer .fsr-hold .fs-hold__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: calc(-1 * var(--fs-space-24));
+  padding: var(--fs-space-16) var(--fs-space-24) var(--fs-space-24);
+  background: var(--fs-plate-2);
 }
 
 .fsr-hold__result {
@@ -177,7 +188,7 @@
 
 @keyframes fsr-pair {
   from {
-    outline-color: transparent;
+    box-shadow: inset 0 0 0 transparent;
     color: var(--fs-ink-3);
   }
 }
@@ -214,21 +225,33 @@
   animation: none;
 }
 
-/* The fields, side by side, as the engine compared them. */
+/* The fields as the engine compared them, two to a row: serial and date, then member and net kg. */
 .fsr-twin__fields {
   width: 100%;
   border-collapse: collapse;
 }
 
+.fsr-twin__fields tbody {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--fs-space-16);
+}
+
+.fsr-twin__fields tr {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: baseline;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
 .fsr-twin__fields th,
 .fsr-twin__fields td {
-  padding: var(--fs-space-4) var(--fs-space-8);
-  border-bottom: 1px solid var(--fs-rule);
+  padding: var(--fs-space-4) var(--fs-space-4);
   text-align: left;
+  white-space: nowrap;
 }
 
 .fsr-twin__fields th {
-  width: 88px;
   color: var(--fs-ink-3);
   font-weight: inherit;
 }
@@ -248,20 +271,20 @@
   color: var(--fs-pencil);
 }
 
-/* pairs: serial, date, member and net kg light in turn, 120 ms apart (MM-3, 900 to 1,380 ms), a tick each: a
-   canary outline on both cells and a canary connector between them, drawn in 150 ms. Canary is the decision
-   colour, and this is the evidence Analyn decides on; a field that differs is never lit. */
-.fsr-twin__fields tr[data-match] td {
-  outline: 1px solid transparent;
-  outline-offset: -1px;
-}
-
+/* pairs: serial, date, member and net kg light in turn, 120 ms apart (MM-3, 900 to 1,380 ms), a tick each: the
+   two values print in ink with an ink "=" between them. One canary underline draws beneath the two serials
+   (design §7 M3): the same serial twice is the fact Analyn decides on, and canary is the decision's colour. A
+   field that differs is never lit. */
 .fsr-twin__fields tr[data-lit] td {
-  outline-color: var(--fs-canary);
+  color: var(--fs-ink);
 }
 
 .fsr-twin__fields tr[data-lit] .fsr-twin__eq {
-  color: var(--fs-canary);
+  color: var(--fs-ink);
+}
+
+.fsr-twin__fields tr[data-lit][data-field="serial"] td {
+  box-shadow: inset 0 -2px 0 var(--fs-canary);
 }
 
 .fsr-twin[data-animate][data-phase="pairs"] .fsr-twin__fields tr[data-lit] td,

@@ -38,6 +38,17 @@ export interface DescribeContext {
   readonly personName: (actorId: string) => string;
   readonly itemAmount: (senderItemId: string) => string | null;
   readonly recordedOn: string;
+  /**
+   * The season check (mass balance) in the engine's figures: "shrink 2.05%, over 2.0%" when it is raised (slip
+   * 0462 entered, the duplicate counted twice), "shrink 1.62%, inside 2.0%" once the engine clears it.
+   */
+  readonly seasonCheck?: { readonly raised: string; readonly cleared: string };
+}
+
+/** "shrink 2.05%, over 2.0%": a checkpoint's mass balance in words, every digit the engine's. */
+function shrinkWords(mb: { readonly shrinkBp: number; readonly tolBp: number }): string {
+  const over = mb.shrinkBp > mb.tolBp;
+  return `shrink ${format.percentBp(mb.shrinkBp)}, ${over ? "over" : "inside"} ${format.percentBp(mb.tolBp, 1)}`;
 }
 
 export function describeContext(snapshot: SeasonSnapshot): DescribeContext {
@@ -59,6 +70,10 @@ export function describeContext(snapshot: SeasonSnapshot): DescribeContext {
       return cents === undefined ? null : format.money(cents);
     },
     recordedOn: snapshot.run.recordedOn,
+    seasonCheck: {
+      raised: shrinkWords(snapshot.checkpoints.byHand.massBalance),
+      cleared: shrinkWords(snapshot.checkpoints.resolved.massBalance),
+    },
   };
 }
 
@@ -204,16 +219,37 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
           : p.to === "PENDING"
             ? null
             : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
-      const item = p.payoutItemId ? `item ${p.payoutItemId.slice(0, 3)}…` : null;
+      // The whole item ID: it is what a person matches against PayPal's own records.
+      const item = p.payoutItemId ? `item ${p.payoutItemId}` : null;
       return { ...base, lane: "PAYPAL", words, detail: join(eventName, item, itemSource(p.source), note) };
     }
     case "hold.raised": {
       const p = event.payload;
+      if (p.kind === "MASS_BALANCE") {
+        const figures = ctx.seasonCheck?.raised;
+        return {
+          ...base,
+          words: figures ? `Season check: ${figures}` : "Season check raised",
+          detail: join("Raised by the engine", note),
+        };
+      }
       const kind = pickLabel(HOLD_KIND_LABELS[p.kind], "en");
-      return { ...base, words: `${p.label}: ${kind}`, detail: join("Raised by the engine", note) };
+      // A label that is its kind's own word ("Mass balance") is said once.
+      const words = p.label.toLowerCase() === kind.toLowerCase() ? kind : `${p.label}: ${kind}`;
+      return { ...base, words, detail: join("Raised by the engine", note) };
     }
     case "hold.resolved": {
       const p = event.payload;
+      if (p.resolution === "ENGINE_CLEARED") {
+        // The engine clears the season check itself once the duplicate is counted once: machine work, in pencil.
+        const figures = ctx.seasonCheck?.cleared;
+        return {
+          ...base,
+          lane: "MACHINE",
+          words: figures ? `Season check: ${figures}` : "Season check cleared",
+          detail: join("Cleared by the engine", note),
+        };
+      }
       return {
         ...base,
         lane: "PEOPLE",

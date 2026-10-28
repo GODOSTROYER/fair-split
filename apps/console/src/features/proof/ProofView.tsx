@@ -146,18 +146,24 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         rail={rail}
         verification={verification}
         level={level}
+        status={
+          <p
+            className="pf-progress"
+            data-state={settled ? "settled" : "progress"}
+            data-testid="W-PF-01.progress"
+          >
+            <Glyph name={settled ? "seal-fill" : "rail"} size={16} />
+            <span>
+              {settled
+                ? STATE_COPY.liveSettled(page.progress, rail)
+                : STATE_COPY.liveProgress(page.progress, rail)}
+            </span>
+            <span className="pf-progress__source">
+              {page.live ? "From this run's live notices." : "From the public notice stream."}
+            </span>
+          </p>
+        }
       />
-      <p className="pf-progress" data-state={settled ? "settled" : "progress"} data-testid="W-PF-01.progress">
-        <Glyph name="rail" size={16} />
-        <span>
-          {settled
-            ? STATE_COPY.settled(page.progress.confirmed, page.progress.total)
-            : STATE_COPY.progress(page.progress.confirmed, page.progress.total)}
-        </span>
-        <span className="pf-progress__source">
-          {page.live ? "From this run's live notices." : "From the public notice stream."}
-        </span>
-      </p>
       <Chain
         bundle={bundle}
         facts={facts}

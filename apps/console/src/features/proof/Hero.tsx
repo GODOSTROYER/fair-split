@@ -6,7 +6,7 @@
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
 import { Glyph, type GlyphName, Seal, Slab } from "@fairsplit/ui-web";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -33,6 +33,8 @@ export interface ProofHeroProps {
   readonly verification: Verification;
   /** The page's own heading level: h1 on Proof, h2 under the brand view's strip. */
   readonly level?: "h1" | "h2";
+  /** The run's live line under the sentence: "7 of 8 PayPal payouts confirmed in the simulated sandbox…". */
+  readonly status?: ReactNode;
 }
 
 export function sealKeys(bundle: Pick<ProofBundle, "approvals">): 0 | 1 | 2 {
@@ -47,6 +49,7 @@ export function ProofHero({
   rail,
   verification,
   level = "h1",
+  status,
 }: ProofHeroProps) {
   const Title = level;
   const paid = bundle.invoice.status === "PAID";
@@ -94,13 +97,19 @@ export function ProofHero({
           {lotCode}
         </p>
       )}
+      {/* The money is the hero: the amount takes its own line at hero size, inside the one sentence. */}
       <Title id="W-PF-01-title" className="pf-hero__title">
-        {before}
-        <span className="pf-hero__amount" data-amount-state="landed" data-testid="W-PF-01.invoice-amount">
+        <span className="pf-hero__before">{before.trim()}</span>{" "}
+        <span
+          className="pf-hero__amount fs-t-amount-hero"
+          data-amount-state="landed"
+          data-testid="W-PF-01.invoice-amount"
+        >
           {amount}
-        </span>
-        {after}
+        </span>{" "}
+        <span className="pf-hero__after">{after.trim()}</span>
       </Title>
+      {status}
       <p className="pf-hero__tagline">{FOOTER_COPY.tagline()}</p>
       <p className="pf-hero__rail" data-testid="W-PF-01.rail" data-rail={rail}>
         <Glyph name="rail" size={16} />

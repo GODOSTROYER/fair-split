@@ -12,10 +12,19 @@ export function story(members: number): string {
   return `A cacao co-op pays ${members} farmers from one brand invoice.`;
 }
 
-export function railLine(rail: PaypalRail): string {
+/**
+ * The stage bar's honesty line (I8), one line beside the run pill: how PayPal runs here, in ink, then the
+ * promise about replays. The contract-testing detail lives in What's real, linked beside it.
+ */
+export function railNotice(rail: PaypalRail): { readonly lead: string; readonly rest: string } {
   return rail === "simulator"
-    ? "PayPal steps run on a simulated PayPal sandbox, contract-tested against PayPal's OpenAPI specs. Anything replayed says so."
-    : "PayPal steps are calls to PayPal's sandbox. Anything replayed says so.";
+    ? { lead: "Simulated PayPal sandbox.", rest: "Anything replayed says so." }
+    : { lead: "PayPal sandbox calls.", rest: "Anything replayed says so." };
+}
+
+export function railLine(rail: PaypalRail): string {
+  const { lead, rest } = railNotice(rail);
+  return `${lead} ${rest}`;
 }
 
 export function stageCaption(recordedOn: string): string {
@@ -25,6 +34,13 @@ export function stageCaption(recordedOn: string): string {
 export const MOCK_DATA = {
   chip: "Mock data",
   note: "This build answers from a mock of the API over the seeded season. Nothing reaches PayPal or Claude.",
+} as const;
+
+/** The ribbon's phone lane (1024–1679 px): the collapsed phone, read like the log's three lanes beside it. */
+export const PHONE_LANE = {
+  name: "Phone",
+  raise: "Raise the phone",
+  lower: "Lower the phone",
 } as const;
 
 export const STAGE = {
@@ -73,6 +89,10 @@ export const STAGE_NOTICE = {
 export const POSTER = {
   chairIdle: "Nothing to co-sign yet.",
   chairRole: (name: string) => `${name}, Chair`,
+  /** M-BD-01's heading, as the app words it (Cebuano; the machine-translated chip sits beneath). */
+  chairTitle: (season: string) => `Pirmahan sa Season ${season}`,
+  /** Under the poster's hatched "Pirmahi" slab: a still, never a control. */
+  slabPreview: "Preview. In the app, Ernesto holds this slab to sign.",
   clerkRole: (name: string) => `${name}, clerk`,
   clerkReady: "Ready to scan slips",
   sign: "Sign",
@@ -112,10 +132,19 @@ export interface WhatsRealFacts {
   readonly earlierPhotos: number;
   readonly members: number;
   readonly paypalMembers: number;
+  /** A mock-data build (I8): the sheet says first that nothing here reaches PayPal or Claude. */
+  readonly mock?: boolean;
 }
 
 /** W-JG-02 (S1.6): what is real, replayed, simulated, seeded and synthetic, and what is not built. */
 export function whatsReal(f: WhatsRealFacts): readonly WhatsRealSection[] {
+  const build: readonly WhatsRealSection[] = f.mock
+    ? [{ id: "build", title: "This build", items: [MOCK_DATA.note] }]
+    : [];
+  return [...build, ...whatsRealSections(f)];
+}
+
+function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
   const simulated = f.rail === "simulator";
   const paypal: WhatsRealSection = simulated
     ? {

@@ -1,9 +1,10 @@
 // The evidence on each hold card, as paper (design §2.5: evidence is the only thing that casts a shadow).
 // H1: the two copies of slip 0457 side by side, converging, then their matching fields lit in turn (MM-3, "The
-// pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not an overlay or
-// an underline). Serial, date, member and net kg each get a canary outline on both cells and a canary connector,
-// 120 ms apart, then "4 of 4 fields match. Same slip." prints. The count is the DTO's: a field that differs
-// keeps its pencil "≠" and is never lit, so a mismatch reads "3 of 4". H2: the registry's plots and the
+// pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not an overlay).
+// Serial, date, member and net kg light in turn, 120 ms apart, their values printing in ink, two to a row; one
+// canary underline draws beneath the two serials (design §7 M3), then "4 of 4 fields match. Same slip." prints.
+// The count is the DTO's: a field that differs keeps its pencil "≠" and is never lit, so a mismatch reads "3 of
+// 4". H2: the registry's plots and the
 // kilos-per-tree bar. H3: box 13 of slip 0458, each line against Schedule A's closed list. Every figure is the
 // seed's or the engine's.
 
@@ -44,7 +45,7 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
     <figure className="fsr-twin__copy" data-side={side} data-copy={slip.copy}>
       <SlipPaper
         slip={slip}
-        width={184}
+        width={152}
         alt={HOLDS.slipAlt(slip.serial, copyWord(slip.copy), slip.photoId)}
         testId={`W-TR-06.twin.${side}`}
       />
@@ -81,6 +82,7 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
           {rows.map((r) => (
             <tr
               key={r.field}
+              data-field={r.field}
               data-match={r.match ? "" : undefined}
               data-lit={lit && r.match ? "" : undefined}
               style={

@@ -5,12 +5,12 @@ import { Glyph } from "@fairsplit/ui-web";
 import { useSound } from "../sound/sound.js";
 import { STAGE } from "./copy.js";
 
-export function SoundToggle({ testId }: { readonly testId: string }) {
+export function SoundToggle({ testId, className }: { readonly testId: string; readonly className?: string }) {
   const sound = useSound();
   return (
     <button
       type="button"
-      className="fsc-barlink"
+      className={["fsc-barlink", className].filter(Boolean).join(" ")}
       aria-pressed={sound.on}
       onClick={() => sound.toggle()}
       data-testid={testId}

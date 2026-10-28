@@ -137,6 +137,25 @@ describe("W-TR-07 approve", () => {
       const root64 = run ? linesDigest(seedSnapshot(), run) : null;
       expect(root64).toMatch(/^[0-9a-f]{64}$/);
       expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
+      // The decision comes first (seal, amount, rails with their fees, why it is safe, the slab, the keys); what
+      // both keys sign follows it, for a person to compare by eye.
+      const order = [
+        "W-TR-07.seal",
+        "W-TR-07.amount",
+        "W-TR-07.rail",
+        "W-TR-07.fees",
+        "W-TR-07.safe",
+        "W-TR-07.approve",
+        "W-TR-07.keys",
+        "W-TR-07.ledger",
+      ].map((id) => screen.getByTestId(id));
+      for (let i = 1; i < order.length; i++) {
+        const before = order[i - 1] as HTMLElement;
+        const after = order[i] as HTMLElement;
+        expect(before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      }
+      // Before any key, the seal is this batch's own pattern in pencil, never empty rings.
+      expect(screen.getByTestId("W-TR-07.sealGhost").querySelectorAll("path")).toHaveLength(5);
       await expectNoAxeViolations(screen.getByTestId("W-TR-07"));
 
       fireEvent.keyDown(face("W-TR-07.approve"), { key: "Enter" });

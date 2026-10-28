@@ -61,11 +61,12 @@ const STRIP_KEYS = {
 } as const satisfies Record<RunStripStage, string>;
 
 /**
- * The run strip: six stages in their true sequence, stencilled on one plate like the marks on the co-op's jute
- * sacks, with a notch cut between each stage and the next. A stage that has not happened is a dashed print bed
- * with its word faint inside, waiting to print; the first of them is next. A stage that has happened prints in
- * ink. Funded is the one PayPal decides: it lands flush jade, and only once the invoice has read back as paid.
- * Each stage lights only when register §7's condition holds.
+ * The run strip: six stages in their true sequence on one plate, with a notch cut between each stage and the
+ * next, like a tally cut into a sack's edge. Words are sentence case (the stencil belongs to season and lot marks
+ * only). A stage that has not happened is a dashed print bed with its word faint inside, waiting to print; the
+ * first of them is next. A stage that has happened prints in ink after an ink tick. Funded is the one PayPal
+ * decides, and lights only once the invoice has read back as paid; its jade is the arc's and the pool's, once
+ * per event. Each stage lights only when register §7's condition holds.
  */
 export function RunStrip({
   stages,
@@ -96,7 +97,10 @@ export function RunStrip({
             data-landed={landed ? "" : undefined}
             data-testid={`${testId}.${stage.id}`}
           >
-            <span className="fsc-strip__word">{word}</span>
+            <span className="fsc-strip__word fs-t-title-2">
+              {state === "lit" && <Glyph name="ms:check" size={18} className="fsc-strip__tick" />}
+              {word}
+            </span>
             {stage.id === "RATIFIED" ? (
               <span className="fsc-strip__note fs-t-caption">
                 <Glyph name="bolt" size={12} />

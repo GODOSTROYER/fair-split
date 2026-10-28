@@ -21,6 +21,25 @@ export function t(key: MessageKey, values?: Values): string {
   return translate("en", key, values);
 }
 
+/** The progress counts the hero's live line reads (a subset of the page's ProgressCounts). */
+export interface ProgressFacts {
+  readonly total: number;
+  readonly confirmed: number;
+  readonly parked: number;
+  readonly returned: number;
+}
+
+function railWhere(rail: PaypalRail): string {
+  return rail === "simulator" ? "in the simulated sandbox" : "in PayPal's sandbox";
+}
+
+/** " 1 moved to cash." and " 1 parked for a decision.": the items PayPal did not pay, said plainly. */
+function parkedWords(p: ProgressFacts): string {
+  const moved = p.returned > 0 ? ` ${p.returned} moved to cash.` : "";
+  const parked = p.parked > 0 ? ` ${p.parked} parked for a decision.` : "";
+  return `${moved}${parked}`;
+}
+
 /** Splits a catalog sentence around one value, so the value can carry its own amount state. */
 export function around(key: MessageKey, slot: string, values: Values): readonly [string, string] {
   const marker = "⁣";
@@ -120,6 +139,12 @@ export const STATE_COPY = {
   showcase: "Open the season's Proof",
   progress: (confirmed: number, total: number) => `Waiting for PayPal. ${confirmed} of ${total} confirmed.`,
   settled: (confirmed: number, total: number) => `${confirmed} of ${total} confirmed by PayPal.`,
+  /** The hero's live line while PayPal is still confirming: counts only, and the rail it ran on (I8). */
+  liveProgress: (p: ProgressFacts, rail: PaypalRail) =>
+    `Waiting for PayPal: ${p.confirmed} of ${p.total} PayPal payouts confirmed ${railWhere(rail)}.${parkedWords(p)}`,
+  /** The hero's live line once PayPal has finished: "7 of 8 PayPal payouts confirmed in the simulated sandbox." */
+  liveSettled: (p: ProgressFacts, rail: PaypalRail) =>
+    `${p.confirmed} of ${p.total} PayPal payouts confirmed ${railWhere(rail)}.${parkedWords(p)}`,
   withheldTitle: "Proof withheld",
   withheldFigures: "The figures stay withheld until the record matches again.",
   loadFailed: "Proof didn't load.",
@@ -192,7 +217,11 @@ export const FOOTER_COPY = {
   /** ADR-0002, I8: under the simulator the footer says the PayPal sandbox itself is simulated. */
   sandbox: (rail: PaypalRail) =>
     t(rail === "simulator" ? "W-PF-01.footer.simulator" : "W-PF-01.footer.sandbox"),
-  tagline: () => t("W-PF-01.tagline"),
+  /**
+   * The amounts are dollars and the trail ends at the slip, not at Claude's pencil (pencil means an unconfirmed
+   * reading). Reported to WS-DS for the catalog's `W-PF-01.tagline`; the console says it until the key changes.
+   */
+  tagline: () => "Every dollar, traced to the slip it was weighed on.",
   privacy: "Members appear by ID only, never by name (Philippine Data Privacy Act, RA 10173).",
 } as const;
 

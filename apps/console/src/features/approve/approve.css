@@ -20,12 +20,48 @@
   gap: var(--fs-space-16);
 }
 
+/* A 13-inch laptop (956 px tall): the seal draws at 160 px and the column tightens, so the seal, the amount,
+   the rails, why it is safe and the slab all sit in the first view. */
+@media (max-height: 1000px) {
+  .fsr-approve {
+    gap: var(--fs-space-16);
+  }
+}
+
+/* While a moment raises the phone beside the screen (the Chair's co-sign), the column moves to the start, so the
+   seal and the Chair's frame read side by side. */
+.fsc-stage[data-layout="tab"][data-raised="moment"] .fsr-approve {
+  margin-inline: 0 auto;
+}
+
 /* ------------------------------------------------------------------ the seal and its hashes */
 
 .fsr-approve__seal {
   display: grid;
   justify-items: center;
   gap: var(--fs-space-8);
+}
+
+/* The batch's own pattern in pencil, a quarter strength, under the Seal: each key engraves its rings in ink. */
+.fsr-seal-stack {
+  position: relative;
+  display: block;
+}
+
+.fsr-seal-stack > .fs-seal {
+  position: relative;
+}
+
+.fsr-seal-ghost {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  stroke: var(--fs-pencil);
+  opacity: 0.25;
+}
+
+.fsr-seal-stack .fs-seal__band {
+  display: none;
 }
 
 .fsr-approve__keys-count {
@@ -44,7 +80,7 @@
 .fsr-ledger {
   display: grid;
   gap: var(--fs-space-4);
-  margin: calc(-1 * var(--fs-space-8)) 0 0;
+  margin: var(--fs-space-4) 0 0;
   text-align: left;
 }
 
@@ -96,10 +132,33 @@
   text-align: left;
 }
 
+/* The rail bar with the fees as its caption: what moves by PayPal, what goes to cash, and what PayPal charges. */
+.fsr-approve__rails {
+  display: grid;
+  gap: var(--fs-space-8);
+  width: 100%;
+  margin: 0;
+}
+
 .fsr-approve__fees {
-  max-width: 60ch;
   margin: 0;
   color: var(--fs-ink-2);
+  text-align: left;
+}
+
+/* What both keys sign, for a person to compare by eye with the Chair's phone: after the decision, not before. */
+.fsr-approve__ledger {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-8);
+  width: 100%;
+  padding-top: var(--fs-space-16);
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsr-approve__ledger > h2,
+.fsr-approve__ledger > p {
+  margin: 0;
 }
 
 .fsr-approve__safe {

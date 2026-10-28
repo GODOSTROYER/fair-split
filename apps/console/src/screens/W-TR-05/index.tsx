@@ -1,7 +1,9 @@
 // W-TR-05 Split review (S1.7, design §6 C5): every member's line in one grid, on the engine computation the
-// run's decisions match. The bench above it holds the mass-balance dial, the pools, the open decisions and the
-// filters; the pinned totals prove the money balances to the cent. `?hold=` opens W-TR-06 beside it and
-// `?member=` opens W-TR-09; the route renders those, this screen marks their row.
+// run's decisions match. The bench above it holds the mass-balance dial, the pool (the screen's money, in pencil
+// until the keys turn, with the engine's provenance and the balance check beneath it), the open decisions and the
+// filters. The lines a person must still decide are pinned above the rest; the pinned totals sit on the ribbon,
+// so the grid fills the screen and nothing else scrolls. `?hold=` opens W-TR-06 beside it and `?member=` opens
+// W-TR-09; the route renders those, this screen marks their row.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { useRouter } from "@tanstack/react-router";
@@ -13,6 +15,7 @@ import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import type { GridContext } from "../../features/split/cells.js";
 import {
   basisEventId,
+  decisionRows,
   engineOutput,
   filterCounts,
   filterRows,
@@ -50,6 +53,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const data = useRunData(runSlug);
   const live = useLiveEvents(data.live ? runSlug : null);
   const [filter, setFilter] = useState<SplitFilter>("all");
+  const [allColumns, setAllColumns] = useState(false);
   const { snapshot, view } = data;
 
   // A line that did not change keeps its object, so the grid redraws only the lines an event moved.
@@ -67,16 +71,28 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
     previous.current = kept;
     return out;
   }, [snapshot, view]);
-  const shown = useMemo(() => filterRows(rows, filter), [rows, filter]);
+  // Every line: the open decisions pinned on top, the rest beneath. A filter shows its lines in member order.
+  const decisions = useMemo(() => (filter === "all" ? decisionRows(rows) : []), [rows, filter]);
+  const shown = useMemo(() => {
+    const pinned = new Set(decisions.map((r) => r.memberNo));
+    return filterRows(rows, filter).filter((r) => !pinned.has(r.memberNo));
+  }, [rows, filter, decisions]);
   const totals = useMemo(
     () => (snapshot && view ? splitTotals(snapshot, view, rows) : null),
     [snapshot, view, rows],
   );
+  // The wave runs down the lines as they stand on screen: the pinned decisions first, then the rest.
   const waves = useMemo(
-    () => (snapshot && view ? waveDelays(snapshot, view, shown) : new Map<string, number>()),
-    [snapshot, view, shown],
+    () =>
+      snapshot && view ? waveDelays(snapshot, view, [...decisions, ...shown]) : new Map<string, number>(),
+    [snapshot, view, decisions, shown],
   );
 
+  // Each slip copy by serial and copy, so the slips cell crops the real sheet.
+  const sheets = useMemo(
+    () => new Map((snapshot?.slips ?? []).map((s) => [`${s.serial}|${s.copy}`, s] as const)),
+    [snapshot],
+  );
   const context = useMemo<GridContext | null>(() => {
     if (!snapshot) return null;
     const limit = snapshot.rateCard.canonical.rules.tolerances.kgPerTreeMaxG;
@@ -86,8 +102,9 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
       stamp: (by, at) => stampFor(snapshot, by, at),
       yieldLimit: format.kgNumber(limit, 1),
       premiumRate: snapshot.figures.display.premiumRate ?? "",
+      slip: (serial, copy) => sheets.get(`${serial}|${copy}`),
     };
-  }, [snapshot, live, waves]);
+  }, [snapshot, live, waves, sheets]);
 
   const openRow = useCallback(
     (row: SplitRow) => {
@@ -142,7 +159,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         ) : (
           <div className="fsr-split__beds" aria-hidden data-testid="W-TR-05.loading">
             <div className="fsr-split__beds-bench">
-              <PrintBed shape="seal" width={132} height={104} />
+              <PrintBed shape="seal" width={168} height={132} />
               <PrintBed shape="block" width={220} height={96} />
               <PrintBed shape="block" height={96} />
             </div>
@@ -225,6 +242,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
           premiumCents: output.conservation.premiumPoolCents,
           bonusCents: output.conservation.bonusPoolCents,
           poolCents: output.conservation.poolCents,
+          amountState: rows.some((r) => r.partsState === "ink") ? "ink" : "pencil",
         }}
         open={open}
         next={next}
@@ -232,20 +250,42 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         filter={filter}
         onFilter={setFilter}
         decidedWords={decidedWords(view.state)}
+        proof={
+          <div className="fsr-split__foot">
+            <p className="fsr-split__totals fs-t-caption" data-testid="W-TR-05.totals">
+              <span className="fsr-split__check" data-balanced={totals.balanced ? "" : undefined}>
+                {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
+              </span>{" "}
+              {en("W-TR-05.totals", { gross: format.amount(totals.grossCents) })}
+            </p>
+            <p className="fsr-split__provenance fs-t-caption" data-testid="W-TR-05.provenance">
+              {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })},{" "}
+              {BASIS_NOTE[basis]}.
+              {view.origin === "showcase" ? ` ${provenanceFooter({ kind: "seeded" })}.` : ""}
+            </p>
+          </div>
+        }
+        columns={
+          <button
+            type="button"
+            className="fsr-chip fsr-chip--columns fs-t-label"
+            aria-pressed={allColumns}
+            onClick={() => setAllColumns((v) => !v)}
+            data-testid="W-TR-05.allColumns"
+          >
+            {allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
+          </button>
+        }
       />
-      <SplitGrid rows={shown} totals={totals} context={context} openMember={openMember} onOpen={openRow} />
-      <footer className="fsr-split__foot">
-        <p className="fsr-split__totals fs-t-caption" data-testid="W-TR-05.totals">
-          <span className="fsr-split__check" data-balanced={totals.balanced ? "" : undefined}>
-            {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
-          </span>{" "}
-          {en("W-TR-05.totals", { gross: format.amount(totals.grossCents) })}
-        </p>
-        <p className="fsr-split__provenance fs-t-caption" data-testid="W-TR-05.provenance">
-          {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })},{" "}
-          {BASIS_NOTE[basis]}.{view.origin === "showcase" ? ` ${provenanceFooter({ kind: "seeded" })}.` : ""}
-        </p>
-      </footer>
+      <SplitGrid
+        rows={shown}
+        pinned={decisions}
+        totals={totals}
+        context={context}
+        openMember={openMember}
+        onOpen={openRow}
+        showAll={allColumns}
+      />
     </ScreenRoot>
   );
 }

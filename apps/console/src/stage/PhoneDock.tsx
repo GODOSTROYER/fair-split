@@ -1,13 +1,15 @@
 // The stage's one phone (S1.6): Member, Chair and Clerk tabs over the Expo web export at /app, one iframe per
 // persona (named after it) so each keeps its own token and screen. Docked at the right from 1680 px under a
-// 56% ground scrim until it is the focus; a 64 px tab below that, which rises to 360 px for its persona's
-// moment or when clicked; the member's frame alone on the phone-visit layout under 1024 px. The aside never
-// moves in the DOM, because a re-parented iframe reloads. Frames load once the console is idle (S2.11: all
-// within 6 s); until the app answers, each shows a labelled preview drawn from the run on the stage.
+// 56% ground scrim until it is the focus; between 1024 and 1679 px it folds into the ribbon's phone lane and
+// rises above the ribbon at the right, beside the screen: a moment that raises it (a co-sign request, M-014's
+// payment) leaves the console lit and usable, so both screens read at once; only a raise the viewer asked for
+// lays the scrim over the console. The member's frame alone on the phone-visit layout under 1024 px. The aside
+// never moves in the DOM, because a re-parented iframe reloads. Frames load once the console is idle (S2.11:
+// all within 6 s); until the app answers, each shows a labelled preview drawn from the run on the stage.
 
 import { Tabs } from "@base-ui/react/tabs";
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, PhoneFrame, useT } from "@fairsplit/ui-web";
+import { PhoneFrame, useT } from "@fairsplit/ui-web";
 import { useEffect, useState } from "react";
 import { STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
@@ -51,10 +53,15 @@ function useAfter(ms: number, start: boolean): boolean {
   return done;
 }
 
+/** Who raised the phone: the viewer (a scrim over the console) or a moment (the console stays lit). */
+export type RaisedBy = "user" | "moment";
+
 export interface PhoneDockProps {
   readonly layout: PhoneLayout;
   readonly persona: FramePersona;
   readonly raised: boolean;
+  /** Who raised it; only the viewer's own raise lays the scrim over the console (1024–1679 px). */
+  readonly raisedBy?: RaisedBy | null;
   readonly onPersona: (persona: FramePersona) => void;
   readonly onRaise: () => void;
   readonly onLower: () => void;
@@ -65,10 +72,22 @@ export interface PhoneDockProps {
   readonly size: PhoneSize;
 }
 
+/** The phone lane's words: "Nang Celing: Gisusi pa" (member status words are Cebuano, register §7). */
+export function phoneLaneWords(
+  persona: FramePersona,
+  view: RunView | undefined,
+  snapshot: SeasonSnapshot | undefined,
+): string {
+  const info = personaInfo(persona, snapshot);
+  const status = personaStatus(persona, view);
+  return status ? `${info.name}: ${status}` : info.name;
+}
+
 export function PhoneDock({
   layout,
   persona,
   raised,
+  raisedBy = "user",
   onPersona,
   onRaise,
   onLower,
@@ -83,7 +102,6 @@ export function PhoneDock({
   const visit = layout === "phone-visit";
   const shown: FramePersona = visit ? "member" : persona;
   const info = personaInfo(shown, snapshot);
-  const status = personaStatus(shown, view);
   const hiddenPanel = layout === "tab" && !raised;
   const dimmed = layout === "dock" && !raised;
 
@@ -91,37 +109,17 @@ export function PhoneDock({
     <aside
       className="fsc-dock"
       data-layout={layout}
-      data-raised={raised ? "" : undefined}
+      data-raised={raised ? (raisedBy ?? "user") : undefined}
       aria-label="Phone"
       data-testid="W-JG-01.phone"
     >
-      {layout === "tab" && raised && (
+      {layout === "tab" && raised && raisedBy !== "moment" && (
         <div
           className="fsc-dock__backdrop"
           onClick={onLower}
           aria-hidden
           data-testid="W-JG-01.phoneBackdrop"
         />
-      )}
-      {layout === "tab" && (
-        <button
-          type="button"
-          className="fsc-dock__handle"
-          aria-expanded={raised}
-          aria-controls="fsc-phone-panel"
-          onClick={raised ? onLower : onRaise}
-          data-testid="W-JG-01.phoneTab"
-        >
-          <span className="fsc-dock__handle-face" aria-hidden>
-            <Glyph name={raised ? "ms:expand-more" : "ms:expand-less"} size={18} />
-          </span>
-          <span className="fsc-dock__handle-text">
-            <span className="fsc-dock__handle-name fs-t-label">
-              {status ? `${info.name}: ${status}` : info.name}
-            </span>
-            <span className="fsc-dock__handle-action fs-t-caption">{raised ? STAGE.lower : STAGE.raise}</span>
-          </span>
-        </button>
       )}
       <div
         id="fsc-phone-panel"

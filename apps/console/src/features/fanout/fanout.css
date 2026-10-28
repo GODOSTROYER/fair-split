@@ -6,6 +6,7 @@
   display: grid;
   gap: var(--fs-space-16);
   min-width: 0;
+  container-type: inline-size;
 }
 
 .fsr-fanout__beds {
@@ -295,6 +296,27 @@
 
 /* ------------------------------------------------------------------ the parked decision (Rhea) */
 
+/* While a payment is parked, its decision stands in a right column beside the fan and its legend, so the slab is
+   in the first view with the thread it decides. */
+.fsr-fanout__stage {
+  display: grid;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+.fsr-fanout__main {
+  display: grid;
+  gap: var(--fs-space-16);
+  min-width: 0;
+}
+
+@container (min-width: 1040px) {
+  .fsr-fanout__stage[data-parked] {
+    grid-template-columns: minmax(0, 1fr) 344px;
+    align-items: start;
+  }
+}
+
 .fsr-parked {
   display: grid;
   gap: var(--fs-space-12);
@@ -333,6 +355,28 @@
   display: grid;
   gap: var(--fs-space-4);
   max-width: 320px;
+}
+
+/* In the right column the decision stacks: the slab, then the flat with its note, each the column's width. */
+.fsr-fanout__stage[data-parked] .fsr-parked {
+  padding: var(--fs-space-16) var(--fs-space-16) var(--fs-space-24);
+}
+
+.fsr-fanout__stage[data-parked] .fsr-parked__actions {
+  display: grid;
+  gap: var(--fs-space-16);
+}
+
+.fsr-fanout__stage[data-parked] .fsr-parked__flat {
+  max-width: none;
+}
+
+.fsr-fanout__stage[data-parked] .fsr-parked__flat .fs-flat {
+  min-height: 40px;
+  height: auto;
+  padding-block: var(--fs-space-8);
+  white-space: normal;
+  text-align: left;
 }
 
 /* ------------------------------------------------------------------ the run log and the latency dots */

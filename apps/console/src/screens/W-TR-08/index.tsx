@@ -22,6 +22,7 @@ import {
   parkedThread,
   postedAt,
   restingPhase,
+  shareCounts,
   summaryFacts,
 } from "../../features/fanout/model.js";
 import { LatencyDots, RunLog } from "../../features/fanout/RunLog.js";
@@ -240,99 +241,110 @@ export function Screen({ runSlug }: RunScreenProps) {
             </p>
           )}
         </header>
-        <Mirrored
-          testId="W-TR-08.figureBlock"
-          className="fsr-fanout__figure"
-          visual={
-            <SplitFan fan={fan} animate={landings} drawing={drawing} mode={moment.mode} cashDay={cashDay} />
-          }
-          table={
-            <DataTable
-              caption={FANOUT.tableCaption}
-              testId="W-TR-08.table"
-              columns={[
-                { key: "member", label: FANOUT.col.member },
-                { key: "rail", label: FANOUT.col.rail },
-                { key: "amount", label: FANOUT.col.amount, numeric: true },
-                { key: "status", label: FANOUT.col.status },
-              ]}
-              rows={[
-                ...fan.threads.map((t) => ({
-                  key: t.memberNo,
-                  cells: {
-                    member: `${t.name} (${t.memberNo})`,
-                    rail: t.tone === "moved" ? FANOUT.railCash : "PayPal",
-                    amount: format.money(t.cents),
-                    status: view.lines[t.memberNo]
-                      ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
-                      : t.tone === "unsent"
-                        ? en("console.status.READY")
-                        : FANOUT.statusWaiting,
-                  },
-                })),
-                {
-                  key: "cash",
-                  cells: {
-                    member: FANOUT.cashBandMembers(fan.cash.members, cashDay),
-                    rail: FANOUT.railCash,
-                    amount: format.money(fan.cash.cents),
-                    status: en("console.status.OFF_RAIL_DUE"),
-                  },
-                },
-              ]}
-            />
-          }
-        />
-        <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
-          {FANOUT.onPaypal(fan.paypal.share, fan.paypal.members, fan.members)}
-        </p>
-
-        {parked && (
-          <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
-            <h3 id="W-TR-08-parked" className="fs-t-label">
-              <span className="fsr-parked__chip">{FANOUT.parkedChip}</span>
-              {parked.name}
-            </h3>
-            <p className="fs-t-body">{FANOUT.rheaWhy(parked.name, format.money(parked.cents))}</p>
-            <div className="fsr-parked__actions">
-              <div ref={slabRef}>
-                <Slab
-                  key={slabKey}
-                  label={FANOUT.payCash}
-                  srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
-                  depth="d2"
-                  tone="chalk"
-                  glyph="cash"
-                  testId="W-TR-08.payCash"
-                  {...(!data.live || !parkedLineId ? { unavailableReason: FANOUT.payCashUnavailable } : {})}
-                  onCommit={() => {
-                    if (!parkedLineId) return;
-                    pressedCash.current = parked.memberNo;
-                    payCash.mutate(
-                      { params: { lineId: parkedLineId } },
-                      { onError: () => setSlabKey((k) => k + 1) },
-                    );
-                  }}
+        <div className="fsr-fanout__stage" data-parked={parked ? "" : undefined}>
+          <div className="fsr-fanout__main">
+            <Mirrored
+              testId="W-TR-08.figureBlock"
+              className="fsr-fanout__figure"
+              visual={
+                <SplitFan
+                  fan={fan}
+                  animate={landings}
+                  drawing={drawing}
+                  mode={moment.mode}
+                  cashDay={cashDay}
                 />
+              }
+              table={
+                <DataTable
+                  caption={FANOUT.tableCaption}
+                  testId="W-TR-08.table"
+                  columns={[
+                    { key: "member", label: FANOUT.col.member },
+                    { key: "rail", label: FANOUT.col.rail },
+                    { key: "amount", label: FANOUT.col.amount, numeric: true },
+                    { key: "status", label: FANOUT.col.status },
+                  ]}
+                  rows={[
+                    ...fan.threads.map((t) => ({
+                      key: t.memberNo,
+                      cells: {
+                        member: `${t.name} (${t.memberNo})`,
+                        rail: t.tone === "moved" ? FANOUT.railCash : "PayPal",
+                        amount: format.money(t.cents),
+                        status: view.lines[t.memberNo]
+                          ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
+                          : t.tone === "unsent"
+                            ? en("console.status.READY")
+                            : FANOUT.statusWaiting,
+                      },
+                    })),
+                    {
+                      key: "cash",
+                      cells: {
+                        member: FANOUT.cashBandMembers(fan.cash.members, cashDay),
+                        rail: FANOUT.railCash,
+                        amount: format.money(fan.cash.cents),
+                        status: en("console.status.OFF_RAIL_DUE"),
+                      },
+                    },
+                  ]}
+                />
+              }
+            />
+            <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
+              {FANOUT.shareCounts(shareCounts(fan))}{" "}
+              <span className="fsr-muted">{FANOUT.shareValue(fan.paypal.share)}</span>
+            </p>
+          </div>
+
+          {parked && (
+            <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
+              <h3 id="W-TR-08-parked" className="fs-t-label">
+                <span className="fsr-parked__chip">{FANOUT.parkedChip}</span>
+                {parked.name}
+              </h3>
+              <p className="fs-t-body">{FANOUT.rheaWhy(parked.name, format.money(parked.cents))}</p>
+              <div className="fsr-parked__actions">
+                <div ref={slabRef}>
+                  <Slab
+                    key={slabKey}
+                    label={FANOUT.payCash}
+                    srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
+                    depth="d2"
+                    tone="chalk"
+                    glyph="cash"
+                    testId="W-TR-08.payCash"
+                    {...(!data.live || !parkedLineId ? { unavailableReason: FANOUT.payCashUnavailable } : {})}
+                    onCommit={() => {
+                      if (!parkedLineId) return;
+                      pressedCash.current = parked.memberNo;
+                      payCash.mutate(
+                        { params: { lineId: parkedLineId } },
+                        { onError: () => setSlabKey((k) => k + 1) },
+                      );
+                    }}
+                  />
+                </div>
+                <div className="fsr-parked__flat">
+                  <button
+                    type="button"
+                    className="fs-flat"
+                    onClick={() => setResendAsked(true)}
+                    data-testid="W-TR-08.resend"
+                  >
+                    {FANOUT.resend}
+                  </button>
+                  <span className="fs-t-caption fsr-muted">
+                    {resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
+                  </span>
+                </div>
               </div>
-              <div className="fsr-parked__flat">
-                <button
-                  type="button"
-                  className="fs-flat"
-                  onClick={() => setResendAsked(true)}
-                  data-testid="W-TR-08.resend"
-                >
-                  {FANOUT.resend}
-                </button>
-                <span className="fs-t-caption fsr-muted">
-                  {resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
-                </span>
-              </div>
-            </div>
-            <p className="fs-t-caption fsr-muted">{FANOUT.wait}</p>
-            {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
-          </section>
-        )}
+              <p className="fs-t-caption fsr-muted">{FANOUT.wait}</p>
+              {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
+            </section>
+          )}
+        </div>
         {moved && !parked && (
           <p className="fsr-fanout__rerouted fs-t-body" data-testid="W-TR-08.rerouted">
             <Glyph name="cash" size={18} />

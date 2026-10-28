@@ -22,7 +22,7 @@ export const SPLIT = {
   byHandNext: (slip: string) => `Enter slip ${slip} by hand`,
   filters: "Filter lines",
   allColumns: "All columns",
-  fewerColumns: "Five columns",
+  fewerColumns: "Fewer columns",
   totalsLines: (n: number) => `${n} lines`,
   slipCount: (n: number) => (n === 1 ? "1 slip" : `${n} slips`),
   showAll: (n: number) => `Show all ${n} lines`,
@@ -177,6 +177,8 @@ export const APPROVE = {
   linesNote: (lines: number, cash: number) =>
     `all ${lines} lines, the ${cash} cash lines too; this browser recomputed it`,
   rateCard: "Rate card",
+  ledgerTitle: "What both keys sign",
+  ledgerNote: "Compare these by eye with the Chair's phone: the seal above grows from the batch hash.",
   cosignTitle: "Co-sign as Ernesto from your own phone",
   cosignBody: "Uses a labelled demo key made in your phone's browser.",
   cosignMake: "Make a co-sign code",
@@ -203,6 +205,30 @@ export const FANOUT = {
   doneFees: "PayPal reports each actual fee with the item; none is shown until it arrives.",
   onPaypal: (pct: string, n: number, total: number) =>
     `On PayPal: ${pct} of value (${n} of ${total} members)`,
+  /**
+   * The fan's one-line count, in the same words as the stage's Proof counter: what PayPal was sent, what it
+   * confirmed, what waits on a person, and who is paid in cash. "8 sent by PayPal, 7 confirmed, 1 parked."
+   */
+  shareCounts: (c: {
+    readonly onRail: number;
+    readonly sent: number;
+    readonly confirmed: number;
+    readonly parked: number;
+    readonly failed: number;
+    readonly cash: number;
+  }) => {
+    const paypal =
+      c.sent === 0
+        ? `${c.onRail} to send by PayPal once both keys sign`
+        : [
+            `${c.sent} sent by PayPal`,
+            `${c.confirmed} confirmed`,
+            ...(c.parked > 0 ? [`${c.parked} parked`] : []),
+            ...(c.failed > 0 ? [`${c.failed} failed`] : []),
+          ].join(", ");
+    return `${paypal}. ${c.cash} in cash at the bodega.`;
+  },
+  shareValue: (pct: string) => `On PayPal: ${pct} of value.`,
   cashBand: (n: number, date: string, amount: string) =>
     `${n} members, cash at the bodega on ${date}: ${amount}`,
   cashBandMembers: (n: number, date: string) => `${n} members, cash at the bodega on ${date}`,

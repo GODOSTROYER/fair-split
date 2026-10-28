@@ -5,10 +5,11 @@
 
 import { MEMBER_LINE_LABELS, type MemberLineState, type SeasonSnapshot } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
-import { AmountDisplay, type CapsuleState, Glyph, StatusCapsule } from "@fairsplit/ui-web";
+import { AmountDisplay, type CapsuleState, Glyph, Seal, StatusCapsule } from "@fairsplit/ui-web";
 import { POSTER, STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
 import { atLeast, type RunView } from "../data/run-view.js";
+import { batchHashOf, sealKeys } from "../features/approve/model.js";
 import { format } from "../lib/format.js";
 import { HERO_MEMBER } from "./personas.js";
 
@@ -88,6 +89,11 @@ function MemberPoster({
   );
 }
 
+/**
+ * The Chair's co-sign request and sign sheet (M-BD-01/02) as a still: the amount at the app's hero size in pencil
+ * (nobody has finished signing), why him, the seal at 1 of 2 with its hash to compare with the console, and the
+ * "Pirmahi" slab drawn flush and hatched, labelled as a preview: the poster has no controls.
+ */
 function ChairPoster({
   view,
   snapshot,
@@ -98,23 +104,51 @@ function ChairPoster({
   const chair = snapshot?.officers.find((o) => o.role === "CHAIR");
   const waiting = view?.state === "AWAITING_BOARD" || view?.state === "TREASURER_APPROVED";
   const signed = view ? atLeast(view, "APPROVED") : false;
-  return (
-    <div className="fsc-poster__statement">
-      <p className="fsc-poster__coop fs-t-caption">{chair ? POSTER.chairRole(chair.name) : ""}</p>
-      {waiting && snapshot ? (
-        <p className="fsc-poster__greet fs-t-statement-lead" lang="ceb">
-          {translate("ceb", "M-BD-01.push", {
-            season: snapshot.season.label,
-            count: snapshot.figures.batchItemCount,
-            amount: format.money(snapshot.figures.batchTotalCents),
-          })}
-        </p>
-      ) : (
+  const hash = view ? batchHashOf(view, null) : null;
+  if (!(waiting || signed) || !snapshot || !view) {
+    return (
+      <div className="fsc-poster__statement">
+        <p className="fsc-poster__coop fs-t-caption">{chair ? POSTER.chairRole(chair.name) : ""}</p>
         <p className="fsc-poster__greet fs-t-statement-lead">{POSTER.chairIdle}</p>
+        <p className="fsc-poster__chip fs-t-label">
+          <Glyph name="seal" size={16} />
+          <span>{POSTER.sign}</span>
+        </p>
+      </div>
+    );
+  }
+  const cents = snapshot.figures.batchTotalCents;
+  const keys = sealKeys(view);
+  return (
+    <div className="fsc-poster__statement fsc-poster__chair" data-testid="W-JG-01.poster.chair.request">
+      <p className="fsc-poster__coop fs-t-caption">{chair ? POSTER.chairRole(chair.name) : ""}</p>
+      <p className="fsc-poster__title fs-t-label" lang="ceb">
+        {POSTER.chairTitle(snapshot.season.label)}
+      </p>
+      <p className="fsc-poster__amount" data-amount-state={signed ? "ink" : "pencil"}>
+        {format.money(cents)}
+      </p>
+      <p className="fsc-poster__why fs-t-caption" lang="ceb">
+        {translate("ceb", "M-BD-01.why", {
+          threshold: format.money(snapshot.rateCard.canonical.rules.cosign.batchOverCents),
+        })}
+      </p>
+      {hash && (
+        <figure className="fsc-poster__seal">
+          <Seal batchSha256={hash} size={112} keys={keys} />
+          <figcaption className="fs-t-hash">{format.hashGroups(hash, 4)}</figcaption>
+        </figure>
       )}
-      <p className="fsc-poster__chip fs-t-label">
-        <Glyph name={signed ? "seal-fill" : "seal"} size={16} />
-        <span>{POSTER.sign}</span>
+      <div className="fsc-poster__slab" data-signed={signed ? "" : undefined}>
+        <span className="fsc-poster__slab-face fs-t-slab" lang="ceb" aria-hidden>
+          <Glyph name="ms:fingerprint" size={18} />
+          {translate("ceb", "M-BD-02.sign")}
+        </span>
+        <span className="fsc-poster__slab-note fs-t-caption">{POSTER.slabPreview}</span>
+      </div>
+      <p className="fsc-poster__chip fs-t-caption" lang="en">
+        <Glyph name="ms:translate" size={14} />
+        <span>{translate("en", "W-JG-01.machineTranslated")}</span>
       </p>
     </div>
   );

@@ -139,22 +139,23 @@
   border-bottom: var(--fsc-notch) solid var(--fs-ground);
 }
 
-/* The stage's word in the sack stencil. Printed: solid ink. Not yet: a dashed print bed, the word faint in it. */
+/* The stage's word in sentence case (the stencil is kept for season and lot marks, design §2.3). Done: ink,
+   after an ink tick. Not yet: a dashed print bed, the word faint in it. */
 .fsc-strip__word {
-  display: inline-block;
-  padding: 4px 7px 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
   border: 1px dashed transparent;
-  font-family: var(--fs-font-mark);
-  font-weight: 800;
-  font-size: 1.375rem;
-  line-height: 1.375rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
 .fsc-strip__stage[data-state="lit"] .fsc-strip__word {
   padding-inline: 0;
+}
+
+.fsc-strip__tick {
+  color: var(--fs-ink);
 }
 
 .fsc-strip__stage[data-state="unlit"] .fsc-strip__word {
@@ -179,14 +180,8 @@
   color: var(--fs-steel-line);
 }
 
-/* Funded is PayPal's to say: once the invoice reads back as paid its word lands flush jade, the strip's only
-   jade. */
-.fsc-strip__stage[data-landed] .fsc-strip__word {
-  padding-inline: 7px;
-  border: 1px solid var(--fs-jade-flush-border);
-  background: var(--fs-jade);
-  color: var(--fs-on-jade);
-}
+/* Funded is PayPal's to say, and it says it once on this screen: the arc and the pool's chip carry the jade, so
+   the stage itself prints in ink with its tick, like every stage that has happened. */
 
 /* ---------------------------------------------------------------- invoice, arc and pool (MM-S) */
 
@@ -390,6 +385,12 @@
 .fsc-figure__hollow {
   color: transparent;
   -webkit-text-stroke: var(--fs-hollow-stroke) var(--fs-ink);
+}
+
+/* At hero size a 1.25 px outline dissolves at a glance (and under video compression): the money being decided
+   keeps the member surfaces' 2 px stroke (S2.2.1), still clearly lighter than landed ink. */
+.fsc-figure__digits.fs-t-amount-hero .fsc-figure__hollow {
+  -webkit-text-stroke-width: var(--fsc-hollow-stroke-hero);
 }
 
 .fsc-figure__solid {

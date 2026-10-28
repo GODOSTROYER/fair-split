@@ -88,7 +88,24 @@ describe("W-TR-05 split review", () => {
         view.world.markPaid();
       });
       await waitFor(() => expect(stateOf()).toBe("ready"), WAIT);
-      await gridRows(64);
+      const grid = await gridRows(64);
+      // The four open decisions lead the grid, in the run pill's order: slip 0462 by hand, then H1, H2, H3.
+      const first = within(grid)
+        .getAllByTestId(/^W-TR-05\.row\./)
+        .slice(0, 4)
+        .map((el) => el.dataset.testid?.replace("W-TR-05.row.", ""));
+      expect(first).toEqual(["M-060", "M-007", "M-053", "M-018"]);
+      expect(grid.dataset.pinned).toBe("4");
+      // The screen's money is the pool, in pencil: the engine's figure, and nobody has signed.
+      expect(screen.getByTestId("W-TR-05.pool").dataset.amountState).toBe("pencil");
+      expect(screen.getByTestId("W-TR-05.pool").textContent).toBe("US$4,273.50");
+      // Minimum confidence waits behind "All columns": sixty of the 64 lines have none.
+      expect(within(grid).queryByRole("columnheader", { name: /confidence/i })).toBeNull();
+      fireEvent.click(screen.getByTestId("W-TR-05.allColumns"));
+      await waitFor(() =>
+        expect(within(grid).getByRole("columnheader", { name: /confidence/i })).toBeTruthy(),
+      );
+      fireEvent.click(screen.getByTestId("W-TR-05.allColumns"));
       expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("3 holds, 1 by hand");
       expect(screen.getByTestId("W-TR-05.next").textContent).toBe("Enter slip 0462 by hand");
       expect(screen.getByTestId("W-TR-05.filter.held").textContent).toBe("Held 3");

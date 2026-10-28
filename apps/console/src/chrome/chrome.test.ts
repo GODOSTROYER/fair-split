@@ -11,7 +11,7 @@ import { provenanceFooter } from "../lib/provenance.js";
 import { createTestWorld, seedSnapshot, type TestWorld } from "../test/world.js";
 import { railLine, story, whatsReal } from "./copy.js";
 import { nextStep } from "./next-step.js";
-import { activeRailItem, railItems } from "./rail-items.js";
+import { activeRailItem, placeStates, railItems } from "./rail-items.js";
 import { stageNoticeFor } from "./StageNotice.js";
 
 const snapshot = seedSnapshot();
@@ -49,6 +49,82 @@ describe("run pill (S1.6)", () => {
     });
     expect(nextStep(cosign, CTX)).toMatchObject({ id: "cosign", persona: "chair", actor: "person" });
   });
+
+  it("names the open drawer's own decision, never a step elsewhere, while that hold is open", () => {
+    const reading = runTo((w) => {
+      w.markPaid();
+    });
+    // Slip 0462 is still open, but the drawer shows H1: the pill names H1's decision and points at its card.
+    const h1 = nextStep(reading, { ...CTX, openHold: "H1" });
+    expect(h1).toMatchObject({ id: "holds", screen: "W-TR-06", text: "Next: count it once (H1)" });
+    expect(h1.to).toBe(`/runs/${reading.runSlug}/split?hold=H1`);
+    expect(nextStep(reading, { ...CTX, openHold: "H3" }).text).toBe(
+      "Next: return the multa as a credit (H3)",
+    );
+    // A decided hold, or no drawer, gives the run's own next step back.
+    const decided = runTo((w) => {
+      w.markPaid();
+      w.enterByHand("64.80");
+      w.resolve("H1");
+    });
+    expect(nextStep(decided, { ...CTX, openHold: "H1" }).text).toBe("Next: 2 holds need you");
+    expect(nextStep(reading, { ...CTX, openHold: null }).id).toBe("by-hand");
+  });
+});
+
+describe("console rail places (S1.7)", () => {
+  const items = railItems("2026-A", "2026A-r37");
+
+  it("marks the places done, next or still ahead from the pill's step", () => {
+    expect(placeStates(items, "W-JG-01", true)).toEqual({
+      season: "next",
+      "rate-card": "done",
+      reading: "later",
+      split: "later",
+      approve: "later",
+      run: "later",
+    });
+    expect(placeStates(items, "W-TR-06", true)).toEqual({
+      season: "done",
+      "rate-card": "done",
+      reading: "done",
+      split: "next",
+      approve: "later",
+      run: "later",
+    });
+    // Proof is the last step: every place is done.
+    expect(Object.values(placeStates(items, "W-PF-01", true))).toEqual(Array(6).fill("done"));
+    expect(placeStates(items, null, true)).toEqual({});
+  });
+});
+
+describe("the ribbon's words", () => {
+  it("says the season check in the engine's figures, raised and cleared, and an item's whole ID", () => {
+    const ctx = describeContext(snapshot);
+    const world = createTestWorld();
+    world.markPaid();
+    world.enterByHand("64.80");
+    world.resolve("H1");
+    const rows = world
+      .eventsAfter(null)
+      .map((e) => describeEvent(e, ctx))
+      .filter((r) => r !== null);
+    const check = rows.filter((r) => r.words.startsWith("Season check"));
+    expect(check.map((r) => [r.lane, r.words])).toEqual([
+      ["MACHINE", "Season check: shrink 2.05%, over 2.0%"],
+      ["MACHINE", "Season check: shrink 1.62%, inside 2.0%"],
+    ]);
+    expect(rows.some((r) => /Mass balance: Mass balance/.test(r.words))).toBe(false);
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    const paid = world
+      .eventsAfter(null)
+      .map((e) => describeEvent(e, ctx))
+      .find((r) => r?.type === "item.updated" && r.words.startsWith("Paid "));
+    expect(paid?.detail).toMatch(/item [A-Z0-9]{8,}(,|$)/);
+    expect(paid?.detail).not.toMatch(/…/);
+  });
 });
 
 describe("honest labels (I8: nothing simulated is unlabelled)", () => {
@@ -64,7 +140,7 @@ describe("honest labels (I8: nothing simulated is unlabelled)", () => {
 
   it("inv.i8.top-bar: the story names the simulated rail, and never says live", () => {
     expect(story(64)).toBe("A cacao co-op pays 64 farmers from one brand invoice.");
-    expect(railLine("simulator")).toMatch(/simulated PayPal sandbox/);
+    expect(railLine("simulator")).toMatch(/simulated PayPal sandbox/i);
     expect(railLine("sandbox")).not.toMatch(/\blive\b/i);
   });
 

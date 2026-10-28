@@ -219,14 +219,20 @@ function Desk() {
                 {FIRST_VIEW_COPY.deskNote(photos.length, funded)}
               </p>
             </header>
-            <ContactSheet
-              snapshot={snapshot}
-              photos={photos}
-              readPhotos={readPhotos}
-              hrefFor={(photo) => webRoutes.reading(season, photo)}
-              testId="W-JG-01.photos"
-              columns="fit"
-            />
+            <div className="fsc-first__sheet">
+              <ContactSheet
+                snapshot={snapshot}
+                photos={photos}
+                readPhotos={readPhotos}
+                hrefFor={(photo) => webRoutes.reading(season, photo)}
+                testId="W-JG-01.photos"
+                columns={6}
+              />
+              <p className="fsc-first__synthetic fs-t-caption" data-testid="W-JG-01.synthetic">
+                <Glyph name="triplicate-slip" size={14} />
+                {FIRST_VIEW_COPY.synthetic}
+              </p>
+            </div>
           </section>
         }
       />

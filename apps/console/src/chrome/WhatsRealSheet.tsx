@@ -5,7 +5,7 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Glyph } from "@fairsplit/ui-web";
-import { TRY_TO_BREAK, type WhatsRealFacts, whatsReal } from "./copy.js";
+import { stageCaption, TRY_TO_BREAK, type WhatsRealFacts, whatsReal } from "./copy.js";
 import { ChromeSlot } from "./slots.js";
 
 export interface WhatsRealSheetProps {
@@ -29,7 +29,8 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
             </Dialog.Close>
           </header>
           <Dialog.Description className="fsc-sheet__lede">
-            Everything on this stage is real, replayed with its date, simulated or synthetic, and says which.
+            Everything on this stage is real, replayed with its date, simulated or synthetic, and says which.{" "}
+            {stageCaption(facts.recordedOn)}
           </Dialog.Description>
           <dl className="fsc-ledger">
             {sections.map((section) => (
