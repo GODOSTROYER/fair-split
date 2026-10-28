@@ -57,7 +57,7 @@
 > 5 per 10 minutes per session, 5 a minute per network, 30 a minute in all. (6) The brand view and its CSV show
 > member lines only once `proofReady` (read inside the view's snapshot); before, the view is the invoice alone.
 
-> **Quota on resume (28 Oct; the `[ws/api] SECURITY` review of e026049, rounds 1 to 3).** The rule, in plain words:
+> **Quota on resume (28 Oct; the `[ws/api] SECURITY` review of e026049, rounds 1 to 4).** The rule, in plain words:
 > **every live judge POST is counted from a slot dated within 90 seconds of the moment it reaches PayPal.**
 >
 > - A judge post whose batch is written live is never replayed (I8) and never goes live without a counted slot.
@@ -80,20 +80,32 @@
 >   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST.
 > - A written re-route resumed more than 90 s after it was last counted is held to C-21 again (under the spend lock)
 >   and counted from that POST (`batch_sent`); while C-21 is full it waits.
+> - The hourly purge never removes a batch a count still reads. C-21 and the spend count a batch from its row, and
+>   the purge deletes the expired judge workspace's rows. So it waits while C-21 still counts one of its batches (24 h
+>   and 90 s after its write, after a live slot of its run, or after a `batch_sent` mark) or the spend does (its write
+>   or PayPal naming it, `batch_posted`, within 26 h: the oldest reading the spend counts from). A batch POSTed late
+>   is counted for the whole 24 h after that POST, even when its workspace expired before it
+>   (`judge/quota.ts batchesStillCounted`, read on the database's clock).
 > - Lock order, wherever both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`):
 >   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the re-route
->   guard hold only the spend lock, `settleLivePost` only the quota lock. So no two transactions can deadlock.
+>   guard hold only the spend lock, `settleLivePost` only the quota lock. So no two transactions can deadlock. The
+>   tests drive the re-route guard on its locked path (a batch last counted a day before) and mix real co-op first
+>   writes into the concurrent run.
 > - I8 check-then-act: a post re-reads its rows just before it replays and waits if another executor wrote them live;
 >   the repository refuses to write, mark posted or mark rejected live rows on the replay rail.
 > - Earlier rounds: round 1 stopped the resume override (no live post without a slot) and stopped `settleLivePost`
 >   from settling `not_posted` once a batch is written; round 2's 23 h age-out (`heldSlotMaxAgeMs`) is gone: a slot
->   now carries a POST for 90 s, and a later POST takes a slot dated at it.
+>   now carries a POST for 90 s, and a later POST takes a slot dated at it. Round 4: the purge used to wait only 24 h
+>   after a batch's write, so a POST made a day after its write could drop out of C-21 within the hour.
 > - What is left: a burst's own retries (the service's 1 + 3 + 9 s, PayPalHttp's timeouts) can put its POST up to
 >   about two minutes after its slot, and a fresh burst that straddles the top of an hour counts in the hour it
 >   began. A co-op's own (non-judge) primary batch resumed later is still counted by C-21 from its write (outside the
->   judge quota, and not reachable by a judge). Cancel takes no slot and no C-21 count (it sends no batch).
+>   judge quota, and not reachable by a judge). Cancel takes no slot and no C-21 count (it sends no batch). The purge
+>   reads the counts on the database's clock while the ledger is stamped by the app's; in production they are the
+>   same clock, and any skew between them moves the end of its wait by that much.
 > - Tests: `money/quota-sendtime.test.ts` (the drift probe, the hourly wait, one run counted once, denied, the held
 >   retry, D4, D5, D6), `money/quota-oracle.test.ts` (send times over three simulated days),
+>   `money/quota-purge.test.ts` (a late POST, then the purge: still counted 2 h and 23 h after it),
 >   `money/lock-order.pg.test.ts` (D1 and the lock order), `money/reroute-c21.test.ts` (D7), `judge/quota.pg.test.ts`
 >   (restamp, hour boundary, D2, D8), `money/quota-resume.test.ts`.
 
