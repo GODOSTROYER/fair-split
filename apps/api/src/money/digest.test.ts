@@ -5,8 +5,8 @@
 import { schema } from "@fairsplit/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/testing/app.js";
-import { paypalScript } from "../runs/testing/paypal.js";
+import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
+import { paypalScript } from "../runs/test/paypal.js";
 
 const script = paypalScript();
 let h: RunsHarness;

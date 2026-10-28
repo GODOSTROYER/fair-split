@@ -8,7 +8,7 @@ import { schema } from "@fairsplit/db";
 import { getComputation, getSnapshot } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, startRuns } from "./testing/app.js";
+import { type RunsHarness, startRuns } from "./test/app.js";
 
 let h: RunsHarness;
 const auth = (token: string) => ({ as: h.t.credentials.bearer(token) });

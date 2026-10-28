@@ -10,7 +10,7 @@ import {
   HOLD_KINDS,
   type HoldKind,
 } from "@fairsplit/contracts";
-import { ALLOWED_RESOLUTIONS } from "@fairsplit/domain";
+import { ALLOWED_RESOLUTIONS, linesDigest } from "@fairsplit/domain";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { contentDigest } from "../bytes.js";
@@ -19,6 +19,7 @@ import { ApiClientError, ContractError } from "../errors.js";
 import { errorCodesOf, isSseCommand, JSON_COMMAND_NAMES, SSE_PATHS } from "../http.js";
 import { JUDGE_ROUTES } from "../routes.js";
 import { createMockApi, MOCK_ALLOWED_RESOLUTIONS, urlPattern } from "./index.js";
+import { linesDigestOf } from "./world.js";
 
 const BASE = "http://localhost:8787";
 const TOKEN = `fst_${"p".repeat(43)}`;
@@ -47,6 +48,7 @@ const PAYLOAD = {
   seasonId: "0192f8a0-0000-7000-8000-000000000011",
   rateCardSha256: "7f3a".repeat(16),
   batchSha256: "91c2".repeat(16),
+  linesDigest: "5ab3".repeat(16),
   itemCount: 8,
   totalCents: 36_839,
   currency: "USD",
@@ -291,6 +293,24 @@ describe("msw handlers: parity with API_COMMANDS", () => {
     );
     const e = await api.presence({ body: { view: "x" } }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(ContractError);
+  });
+
+  it("the mock's approval payload signs linesDigest exactly as IC-02 does: every member line, by member number", async () => {
+    const fresh = createMockApi({ stage: "approve", pace: "manual", baseUrl: BASE });
+    server.use(...fresh.handlers);
+    try {
+      const { payload } = await api.approvalPayload({
+        params: { runSlug: fresh.world.runSlug },
+        query: { role: "treasurer" },
+      });
+      const lines = fresh.world.lines().map((l) => ({ memberNo: l.memberNo, lineSha256: l.lineSha256 }));
+      expect(lines.length).toBeGreaterThan(payload.itemCount);
+      expect(payload.linesDigest).toBe(linesDigest(lines));
+      expect(linesDigestOf([...lines].reverse())).toBe(linesDigest(lines));
+    } finally {
+      server.resetHandlers();
+      fresh.world.dispose();
+    }
   });
 
   it("the mock's allowed resolutions are the engine's", () => {

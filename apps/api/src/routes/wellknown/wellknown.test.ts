@@ -33,7 +33,7 @@ beforeAll(async () => {
   judgeSlug = runs.find((r) => r.ws === judgeWs)?.slug as string;
   await t.deps.db.insert(schema.deviceKeys).values({
     workspaceId: judgeWs,
-    keyId: "fs-ernesto-w1",
+    keyId: "fs-ernesto-demo-c13key",
     persona: "board:ernesto",
     publicKey: storedPublicKeyOf(demo.publicKeyHex),
     kind: "web_demo",
@@ -83,7 +83,7 @@ describe("GET /.well-known/fairsplit-keys.json", () => {
     const scoped = PublishedKeys.parse(
       (await t.json(`/.well-known/fairsplit-keys.json?run=${judgeSlug}`)).body,
     );
-    expect(scoped.officers.find((k) => k.keyId === "fs-ernesto-w1")).toMatchObject({
+    expect(scoped.officers.find((k) => k.keyId === "fs-ernesto-demo-c13key")).toMatchObject({
       kind: "web_demo",
       role: "chair",
       publicKeyHex: demo.publicKeyHex,

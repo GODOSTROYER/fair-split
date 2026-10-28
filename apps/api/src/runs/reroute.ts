@@ -1,30 +1,39 @@
 // IC-01 `resend` (P1, S3.6.4 re-route): a parked or returned PayPal line paid again to a new receiver, as a
-// one-item batch `{senderBatchId}-x{n}` with item `r{runSeq}x{n}-{memberNo}` superseding the returned one.
-// Nothing moves without a person: the treasurer signs a fresh one-item payload (verified exactly like a batch
-// approval: registry key, the credential's own key, digest of THIS item, unexpired, unused nonce, Ed25519).
-// The new receiver must be a known sandbox account. An UNCLAIMED item is cancelled first (intent "reroute",
-// never cash); the re-route then runs through `PayoutsService.reroute`, which re-checks all of it before the
-// POST and refuses a second re-route of the same returned item (I3: a member is never paid twice).
+// one-item batch `{senderBatchId}-x{n}-{memberNo}` (ADR-0007) with item `r{runSeq}x{n}-{memberNo}` superseding
+// the returned one. The ids are WS-PPMONEY's own builders, so the digest signed here is the one
+// `PayoutsService.reroute` recomputes. Nothing moves without a person: the treasurer signs a fresh one-item
+// payload, verified exactly like a batch approval (domain `expectedSigner` + `checkApprovals`: registry key of
+// its kind, the credential's own key, THIS item's digest and every member line's `linesDigest`, unexpired,
+// unused nonce, Ed25519). The new receiver must be a known sandbox account. An UNCLAIMED item is cancelled
+// first (intent "reroute", never cash); the re-route then runs through `PayoutsService.reroute`, which
+// re-checks all of it before the POST and refuses a second re-route of the same returned item (I3: a member is
+// never paid twice).
 import {
   ApprovalPayload as ApprovalPayloadSchema,
   type MemberLineState,
   type SignedApproval,
   TASKS,
 } from "@fairsplit/contracts";
-import { isUniqueViolation, schema, systemScope, type Tx, withWorkspaceTx } from "@fairsplit/db";
+import {
+  isUniqueViolation,
+  memberLineHashes,
+  schema,
+  systemScope,
+  type Tx,
+  withWorkspaceTx,
+} from "@fairsplit/db";
 import {
   type ApprovalExpectation,
   approvalJcs,
   batchDigest,
-  checkApproval,
+  checkApprovals,
   expectedSigner,
-  parseSenderItemId,
   requiresChair,
-  senderBatchId,
-  senderItemId,
 } from "@fairsplit/domain";
 import { enqueue, type TaskHandlers } from "@fairsplit/outbox";
+import { parseSenderItemId, senderBatchId, senderItemId } from "@fairsplit/paypal-payouts";
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { linesDigestOf } from "../approvals/batch.js";
 import { officerRegistry } from "../approvals/registry.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
@@ -109,17 +118,22 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
         const run = await lockRun(tx, scope, line.runId);
         const season = await seasonById(tx, scope, run.seasonId);
         const parsed = parseSenderItemId(item.senderItemId);
-        const n = (parsed?.rerouteN ?? 0) + 1;
-        const sbid = senderBatchId(season.code, run.rateCardSha256, run.runSeq, n);
-        const sid = senderItemId(run.runSeq, memberNo, n);
-        // The register's re-route id is per run (`{senderBatchId}-x{n}`) while n is per item: a second item of
-        // this run re-routed as the same -x{n} would collide with the first. Refuse before anything is cancelled.
+        if (!parsed || parsed.memberNo !== memberNo) {
+          throw invalid("The returned item does not carry one of our sender_item_ids.", { lineState: state });
+        }
+        const n = (parsed.rerouteNo ?? 0) + 1;
+        // WS-PPMONEY's own ids (ADR-0007: the member is in the batch id), so the treasurer signs exactly the
+        // batch PayoutsService.reroute rebuilds and hashes before the POST.
+        const ids = { seasonCode: season.label, rateCardSha256: run.rateCardSha256, runSeq: run.runSeq };
+        const sbid = senderBatchId({ ...ids, rerouteNo: n, memberNo });
+        const sid = senderItemId({ runSeq: run.runSeq, memberNo, rerouteNo: n });
+        // Rows under this id mean this re-route was already written: refuse before anything is cancelled.
         const [taken] = await tx
           .select({ id: schema.payoutBatches.id })
           .from(schema.payoutBatches)
           .where(eq(schema.payoutBatches.senderBatchId, sbid));
         if (taken)
-          throw invalid(`${sbid} already re-routes another item of this run.`, {
+          throw invalid(`${sbid} was already written for this item.`, {
             reason: "REROUTE_ID_TAKEN",
           });
         const amount = toInt(item.amountCents);
@@ -127,6 +141,9 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
           { runId: run.id, senderBatchId: sbid, rateCardSha256: run.rateCardSha256 },
           [{ senderItemId: sid, receiver: newReceiver, amountCents: amount, currency: "USD" }],
         );
+        // A re-route's approval binds every member line too (IC-02 `linesDigest`), as the service checks it.
+        const lines = linesDigestOf(await memberLineHashes(tx, scope, run.id));
+        if (!lines) throw invalid("A member line has no stored hash; nothing can be signed.");
         const card = await cardById(tx, scope, run.rateCardId);
         if (
           requiresChair(
@@ -156,6 +173,7 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
           seasonId: run.seasonId,
           rateCardSha256: run.rateCardSha256,
           batchSha256: digest.batchSha256,
+          linesDigest: lines,
           itemCount: 1,
           totalCents: amount,
           role: "treasurer",
@@ -171,7 +189,12 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
           .select({ nonce: schema.approvals.nonce })
           .from(schema.approvals)
           .where(and(eq(schema.approvals.workspaceId, scope.workspaceId), isNotNull(schema.approvals.nonce)));
-        const check = checkApproval(signed, expected, at, new Set(nonces.map((x) => x.nonce as string)));
+        // The set PayoutsService.reroute will check (domain `checkApprovals`): the treasurer alone, under R5.
+        const check = checkApprovals(
+          { approvals: [signed], expected: { treasurer: expected }, chairRequired: false },
+          at,
+          new Set(nonces.map((x) => x.nonce as string)),
+        );
         if (!check.ok) {
           const direct =
             check.code === "KEY_NOT_REGISTERED" ||

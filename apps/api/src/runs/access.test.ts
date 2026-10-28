@@ -5,7 +5,7 @@
 // Proof to member IDs; these reads would undo it.
 import type { ApiError } from "@fairsplit/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, startRuns } from "./testing/app.js";
+import { type RunsHarness, startRuns } from "./test/app.js";
 
 let h: RunsHarness;
 

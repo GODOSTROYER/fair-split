@@ -1,8 +1,12 @@
 // The judge workspace pool (S3.9). A first press claims a pooled workspace (a non-blocking workspace lock,
-// then a compare-and-set on its row, so two judges never share one) or, when the pool is empty, clones one
-// on the spot. Pooled workspaces are
-// unclaimed (`claimed_at` and `expires_at` null) and carry the seed fingerprint in their name, so a deploy
-// with a new seed retires the old ones instead of handing them out. A claimed workspace lives 24 h.
+// then WS-DATA's `claimJudgeWorkspace`, a compare-and-set on its row, so two judges never share one) or, when
+// the pool is empty, clones one on the spot and claims it. Pooled workspaces are unclaimed (`claimed_at` and
+// `expires_at` null) and carry the seed fingerprint in their name, so a deploy with a new seed retires the old
+// ones instead of handing them out.
+//
+// A claim lives 24 h by the DATABASE's clock: the database admits a first expiry only as now() + 24 h (0013), and
+// never moves one earlier. So a workspace ends in two ways: its expiry passes, or its session is ended (a Reset,
+// a retired pool workspace), which clears `claimed_at` and leaves the expiry to run out (`workspaceInUse`).
 //
 // Purge (hourly `judgeReset`): `fs_purge_workspace()` deletes an expired judge workspace and everything in
 // it. It already refuses while money is in flight (a POSTING run, a non-terminal item). We also wait while
@@ -11,8 +15,16 @@
 // 24 h window. The quota and the spend no longer depend on that wait (they live in the judge quota ledger,
 // system rows the cascade never touches); it remains as the safety net for a post made outside the
 // protocol. Expiry here is the database clock's, exactly as `fs_purge_workspace()` decides it.
-import { asDbError, type Db, schema, type Tx, uuidv7 } from "@fairsplit/db";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import {
+  asDbError,
+  type ClaimedWorkspace,
+  claimJudgeWorkspace,
+  type Db,
+  schema,
+  type Tx,
+  uuidv7,
+} from "@fairsplit/db";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { JUDGE_COOKIE_TTL_MS } from "../credentials/verify/index.js";
 import { materializeWorld, seedTag } from "./world.js";
 
@@ -40,19 +52,29 @@ async function showcaseId(tx: Tx): Promise<string | null> {
   return row?.id ?? null;
 }
 
-/** Inserts a judge workspace row and its world, in the caller's transaction. */
-export async function cloneWorkspace(
-  tx: Tx,
-  o: { claimedAt?: Date; expiresAt?: Date } = {},
-): Promise<string> {
+/**
+ * A workspace in use: one that never expires (showcase, real, an unclaimed pool workspace) or a claimed judge
+ * workspace before its expiry. A judge workspace whose session ended (claim cleared) is not, whatever its expiry.
+ */
+export function workspaceInUse(
+  row: { claimedAt: Date | null; expiresAt: Date | null } | null,
+  now: Date,
+): boolean {
+  if (!row) return false;
+  if (row.expiresAt === null) return true;
+  return row.claimedAt !== null && row.expiresAt.getTime() > now.getTime();
+}
+
+/** Inserts an unclaimed judge workspace row and its world, in the caller's transaction. */
+export async function cloneWorkspace(tx: Tx): Promise<string> {
   const id = uuidv7();
   await tx.insert(schema.workspaces).values({
     id,
     kind: "judge",
     name: poolName(),
     seededFrom: await showcaseId(tx),
-    claimedAt: o.claimedAt ?? null,
-    expiresAt: o.expiresAt ?? null,
+    claimedAt: null,
+    expiresAt: null,
   });
   // lock order (db/tx.ts): the workspace lock before the world's rows and ledger entries
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`fs:ws-log:${id}`}, 0))`);
@@ -64,13 +86,14 @@ export async function cloneWorkspace(
 const CLAIM_CANDIDATES = 8;
 
 /**
- * Claims one pooled workspace of the current seed for 24 h, or returns null when none is free. Lock order
- * (db/tx.ts): the workspace lock before its row. Candidates are read without a lock; each is tried with a
- * NON-blocking workspace lock (held to commit, as the session start needs it next), then claimed with a
- * compare-and-set on the row. So two concurrent claims never get the same workspace and never wait on each
+ * Claims one pooled workspace of the current seed for 24 h by the database's clock, or returns null when none is
+ * free. Lock order (db/tx.ts): the workspace lock before its row. Candidates are read without a lock; each is
+ * tried with a NON-blocking workspace lock (held to commit, as the session start needs it next), then claimed
+ * with WS-DATA's `claimJudgeWorkspace` (a compare-and-set on the row that stamps `claimed_at = now()`,
+ * `expires_at = now() + 24 h`). So two concurrent claims never get the same workspace and never wait on each
  * other, and a workspace whose lock someone holds is skipped, not waited on.
  */
-export async function claimPooledWorkspace(tx: Tx, now: Date, expiresAt: Date): Promise<string | null> {
+export async function claimPooledWorkspace(tx: Tx): Promise<ClaimedWorkspace | null> {
   const w = schema.workspaces;
   const free = and(eq(w.kind, "judge"), isNull(w.claimedAt), isNull(w.expiresAt), eq(w.name, poolName()));
   const candidates = await tx
@@ -84,14 +107,17 @@ export async function claimPooledWorkspace(tx: Tx, now: Date, expiresAt: Date): 
       sql`select pg_try_advisory_xact_lock(hashtextextended(${`fs:ws-log:${id}`}, 0)) as locked`,
     )) as unknown as { locked: boolean }[];
     if (!lock?.locked) continue;
-    const [claimed] = await tx
-      .update(w)
-      .set({ claimedAt: now, expiresAt })
-      .where(and(eq(w.id, id), free))
-      .returning({ id: w.id });
-    if (claimed) return claimed.id;
+    const claimed = await claimJudgeWorkspace(tx, { workspaceId: id });
+    if (claimed) return claimed;
   }
   return null;
+}
+
+/** Claims a judge workspace this transaction just cloned (database clock, as `claimPooledWorkspace`). */
+export async function claimCloned(tx: Tx, workspaceId: string): Promise<ClaimedWorkspace> {
+  const claimed = await claimJudgeWorkspace(tx, { workspaceId });
+  if (!claimed) throw new Error("a freshly cloned judge workspace could not be claimed");
+  return claimed;
 }
 
 /** Unclaimed workspaces of the current seed. */
@@ -104,14 +130,17 @@ export async function poolSize(db: Db | Tx): Promise<number> {
   return row?.n ?? 0;
 }
 
-/** Expires unclaimed judge workspaces cloned from another seed, so the next purge removes them. */
-export async function retireStalePool(db: Db, now: Date): Promise<number> {
-  const w = schema.workspaces;
-  const rows = await db
-    .update(w)
-    .set({ expiresAt: now })
-    .where(and(eq(w.kind, "judge"), isNull(w.claimedAt), isNull(w.expiresAt), ne(w.name, poolName())))
-    .returning({ id: w.id });
+/**
+ * Retires unclaimed judge workspaces cloned from another seed: never handed out again (an expiry and no claim),
+ * and purged once that expiry passes. The database admits no first expiry sooner than now() + 24 h (0013), so the
+ * retirement stamps exactly that, by its own clock.
+ */
+export async function retireStalePool(db: Db): Promise<number> {
+  const rows = (await db.execute(sql`
+    update workspaces
+       set expires_at = date_trunc('milliseconds', now()) + interval '24 hours'
+     where kind = 'judge' and claimed_at is null and expires_at is null and name <> ${poolName()}
+    returning id`)) as unknown as { id: string }[];
   return rows.length;
 }
 

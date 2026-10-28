@@ -7,8 +7,8 @@ import { and, asc, eq } from "drizzle-orm";
 import { HttpResponse, http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ACTORS } from "../runs/events.js";
-import { type RunsHarness, startRuns } from "../runs/testing/app.js";
-import { paypalScript, TEST_INVOICE_ID, TOOLKIT_HOST } from "../runs/testing/paypal.js";
+import { type RunsHarness, startRuns } from "../runs/test/app.js";
+import { paypalScript, TEST_INVOICE_ID, TOOLKIT_HOST } from "../runs/test/paypal.js";
 import { createAgentMoneyPort } from "./executor.js";
 
 const HOSTILE = "INV2-HOSTILE-0001";

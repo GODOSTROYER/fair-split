@@ -126,7 +126,7 @@ export async function runJudgeReset(
       MAX_CANCELS_PER_PASS,
     );
     const purge = await purgeExpiredJudgeWorkspaces(deps.db);
-    const poolRetired = await retireStalePool(deps.db, now);
+    const poolRetired = await retireStalePool(deps.db);
     const poolCreated = await refillPool(deps.db, POOL_TARGET);
     const r: JudgeResetReport = {
       trigger: "cron",

@@ -114,6 +114,9 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
       clientId: placeholder ? SIMULATOR_CLIENT.clientId : (o.paypal.clientId ?? ""),
       clientSecret: placeholder ? SIMULATOR_CLIENT.clientSecret : (o.paypal.clientSecret ?? ""),
       devMocks: o.paypal.devMocks,
+      // PP_CERT_ALLOW: pinned PayPal cert ids draw on the fetches held back for known ids, so a flood of forged
+      // deliveries naming new cert URLs cannot starve the real one.
+      knownCertIds: o.paypal.knownCertIds,
     },
     limiter: o.limiter,
     ...(o.recorder ? { recorder: o.recorder } : {}),

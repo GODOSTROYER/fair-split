@@ -33,6 +33,7 @@ export {
   settlementOf,
 } from "./live-step.js";
 export {
+  claimCloned,
   claimPooledWorkspace,
   cloneWorkspace,
   JUDGE_WORKSPACE_TTL_MS,
@@ -42,6 +43,7 @@ export {
   purgeExpiredJudgeWorkspaces,
   refillPool,
   retireStalePool,
+  workspaceInUse,
 } from "./pool.js";
 export {
   type BalanceEstimate,

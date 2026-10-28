@@ -1,7 +1,9 @@
 // Test setup for the RUNS slice: a Postgres-backed app with the outbox runtime wired (no background
 // dispatcher, so every task runs inline and deterministically), the seeded world, and one token per persona.
+import type { ApprovalPayload } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import { approvalBytes, ed25519Sign } from "@fairsplit/domain";
+import { approvalBytes, batchDigest, ed25519Sign } from "@fairsplit/domain";
+import { senderBatchId, senderItemId } from "@fairsplit/paypal-payouts";
 import { and, eq } from "drizzle-orm";
 import type { HttpHandler } from "msw";
 import { createPayPalMock, createTestApp, type PayPalMock, type TestApp } from "../../test/index.js";
@@ -160,4 +162,51 @@ export async function runQueued(h: RunsHarness, name: string): Promise<number> {
   const queued = rows.filter((r) => r.state === "queued");
   for (const r of queued) await h.t.deps.outbox?.runTask(r.id);
   return queued.length;
+}
+
+/**
+ * The one-item batch a re-route's treasurer signs, exactly as `PayoutsService.reroute` rebuilds it: WS-PPMONEY's
+ * ids (`{senderBatchId}-x{n}-{memberNo}`, ADR-0007), IC-02 `batchDigest`, and the run's `linesDigest` (every
+ * member line, read from the batch view).
+ */
+export async function reroutePayload(
+  h: RunsHarness,
+  o: { memberNo: string; receiver: string; amountCents: number; n?: number; nonce: string; exp: string },
+): Promise<{ payload: ApprovalPayload; senderBatchId: string }> {
+  const n = o.n ?? 1;
+  const ids = { seasonCode: "2026-A", rateCardSha256: h.world.rateCardSha256, runSeq: h.world.runSeq };
+  const sbid = senderBatchId({ ...ids, rerouteNo: n, memberNo: o.memberNo });
+  const digest = batchDigest(
+    { runId: h.world.runId, senderBatchId: sbid, rateCardSha256: h.world.rateCardSha256 },
+    [
+      {
+        senderItemId: senderItemId({ runSeq: h.world.runSeq, memberNo: o.memberNo, rerouteNo: n }),
+        receiver: o.receiver,
+        amountCents: o.amountCents,
+        currency: "USD",
+      },
+    ],
+  );
+  const view = await h.t.json<{ linesDigest: string | null }>(`/v1/runs/${h.world.runSlug}/batch`, {
+    as: h.t.credentials.bearer(h.tokens.treasurer),
+  });
+  if (!view.body.linesDigest) throw new Error("the run's lines have no digest");
+  return {
+    senderBatchId: sbid,
+    payload: {
+      v: 1,
+      runId: h.world.runId,
+      seasonId: h.world.seasonId,
+      rateCardSha256: h.world.rateCardSha256,
+      batchSha256: digest.batchSha256,
+      linesDigest: view.body.linesDigest,
+      itemCount: 1,
+      totalCents: o.amountCents,
+      currency: "USD",
+      role: "treasurer",
+      approverId: "treasurer:analyn",
+      nonce: o.nonce,
+      exp: o.exp,
+    },
+  };
 }

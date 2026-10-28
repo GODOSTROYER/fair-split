@@ -108,7 +108,7 @@ describe("judgeRoutes: the judge and auth routes outside IC-01", () => {
     const key = await console_.registerDemoKey({
       body: { publicKeyHex: "ab".repeat(32), signatureHex: "cd".repeat(64) },
     });
-    expect(key.keyId).toMatch(/^fs-analyn-w\d{6}$/);
+    expect(key.keyId).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
     expect(key).toMatchObject({ kind: "web_demo", approverId: "treasurer:analyn" });
   });
 

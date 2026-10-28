@@ -137,3 +137,70 @@ describe("env: boot refusals (S3.13)", () => {
     });
   });
 });
+
+describe("env: PayPal e-mail settings are plain ASCII (domain requireAsciiEmail, I1)", () => {
+  // U+0430 CYRILLIC SMALL LETTER A: looks like "a", folds to nothing the lattice would match
+  const LOOKALIKE = "coop@busin\u0430ss.example.com";
+
+  it("refuses a lookalike or malformed address in any PP_* e-mail setting, naming the setting, never the value", () => {
+    const problems = refusal({
+      PP_BUSINESS_EMAIL: LOOKALIKE,
+      PP_PAYER_EMAIL: "lantern bay@example.com",
+      PP_UNCLAIMED_RECEIVER: "rhea.example.com",
+      PP_RECEIVERS: JSON.stringify({ "M-014": "m014@example.com", "M-031": `m031${"\u212A"}@example.com` }),
+    });
+    expect(problems).toEqual([
+      "PP_BUSINESS_EMAIL is not a plain ASCII e-mail address",
+      "PP_PAYER_EMAIL is not a plain ASCII e-mail address",
+      "PP_UNCLAIMED_RECEIVER is not a plain ASCII e-mail address",
+      "PP_RECEIVERS[M-031] is not a plain ASCII e-mail address",
+    ]);
+    expect(problems.join(" ")).not.toContain("example.com");
+  });
+
+  it("checks every receiver pair and the scaffold's spellings, and refuses unreadable JSON", () => {
+    expect(refusal({ PAYPAL_MEMBER_EMAILS: "M-014=m014@example.com, M-007=m 007@example.com" })).toEqual([
+      "PAYPAL_MEMBER_EMAILS[M-007] is not a plain ASCII e-mail address",
+    ]);
+    expect(refusal({ PAYPAL_BUYER_EMAIL: LOOKALIKE })).toEqual([
+      "PAYPAL_BUYER_EMAIL is not a plain ASCII e-mail address",
+    ]);
+    expect(refusal({ PP_RECEIVERS: "{not json" })[0]).toMatch(/PP_RECEIVERS must be a JSON map/);
+  });
+
+  it("accepts plain ASCII addresses, punycode TLDs included", () => {
+    const env = parseEnv({
+      PP_BUSINESS_EMAIL: "coop@business.example.com",
+      PP_PAYER_EMAIL: "lantern-bay@shop.xn--p1ai",
+      PP_RECEIVERS: "M-014=m014@example.com,M-031=m031@example.com",
+    });
+    expect(env.paypal.payerEmail).toBe("lantern-bay@shop.xn--p1ai");
+  });
+});
+
+describe("env: PP_CERT_ALLOW pins PayPal webhook cert ids for paypal-core", () => {
+  const current = "CERT-360caa42-fca2a594-bf9ab596";
+  const next = "CERT-360caa42-fca2a594-0e1c0de5";
+
+  it("reads ids and sandbox cert URLs, deduplicated, in order", () => {
+    const env = parseEnv({
+      PP_CERT_ALLOW: ` ${current},https://api-m.sandbox.paypal.com/v1/notifications/certs/${next} ${current}`,
+    });
+    expect(env.paypal.knownCertIds).toEqual([current, next]);
+    expect(parseEnv({ PAYPAL_CERT_ALLOW: current }).paypal.knownCertIds).toEqual([current]);
+    expect(parseEnv({}).paypal.knownCertIds).toEqual([]);
+  });
+
+  it("refuses anything else (a live-PayPal URL, an unknown shape, more than 8 ids), naming only the variable", () => {
+    for (const value of [
+      "CERT-nope",
+      `https://api-m.paypal.com/v1/notifications/certs/${current}`,
+      Array.from({ length: 9 }, (_, n) => `CERT-360caa42-fca2a594-0000000${n}`).join(","),
+    ]) {
+      const problems = refusal({ PP_CERT_ALLOW: value });
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toMatch(/^PP_CERT_ALLOW must list at most 8 PayPal cert ids/);
+      expect(problems[0]).not.toContain("api-m.paypal.com");
+    }
+  });
+});

@@ -11,8 +11,8 @@ import { getSnapshot } from "@fairsplit/seed";
 import { and, eq, isNull } from "drizzle-orm";
 import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/testing/app.js";
-import { type PostedBatch, paypalScript, TEST_BATCH_ID } from "../runs/testing/paypal.js";
+import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
+import { type PostedBatch, paypalScript, TEST_BATCH_ID } from "../runs/test/paypal.js";
 import { PAYPAL_SANDBOX, paypalError } from "../test/index.js";
 
 const figures = getSnapshot().figures;

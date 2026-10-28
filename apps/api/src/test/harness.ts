@@ -169,7 +169,12 @@ export async function createTestApp(o: TestAppOptions = {}): Promise<TestApp> {
     async fixture(opts) {
       if (!pg) throw new Error('fixture() needs createTestApp({ db: "postgres" })');
       const { fixtureWorkspace } = await import("@fairsplit/db/testing");
-      return fixtureWorkspace(pg.app.db, opts);
+      const fx = await fixtureWorkspace(pg.app.db, opts);
+      // A workspace born with an expiry is a claimed session's, as claimJudgeWorkspace leaves it: claimed too.
+      if (opts?.expiresAt) {
+        await pg.owner.sql`update workspaces set claimed_at = now() where id = ${fx.workspaceId}`;
+      }
+      return fx;
     },
     request,
     async json<T>(path: string, init: JsonInit = {}) {

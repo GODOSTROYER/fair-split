@@ -13,7 +13,7 @@ import { TASKS } from "@fairsplit/contracts";
 import { appendLedger, type DbOrTx, schema, type Tx, uuidv7, workspaceScope } from "@fairsplit/db";
 import { enqueue } from "@fairsplit/outbox";
 import { getSnapshot } from "@fairsplit/seed";
-import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { readJudgeCookie, setJudgeCookie } from "../credentials/issue/judge-cookie.js";
 import { CONSOLE_PERSONA, mintBearerToken, revokeWorkspaceTokens } from "../credentials/issue/tokens.js";
 import type { JudgeSessionCredential } from "../credentials/verify/index.js";
@@ -21,7 +21,7 @@ import { clientIp, hashedClientIp } from "../lib/client-ip.js";
 import type { AppContext, AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { RATE_RULES } from "../lib/rate-limit.js";
-import { claimPooledWorkspace, cloneWorkspace, JUDGE_WORKSPACE_TTL_MS } from "./pool.js";
+import { claimCloned, claimPooledWorkspace, cloneWorkspace, workspaceInUse } from "./pool.js";
 import { judgeRail, type RailDecision } from "./quota.js";
 import { JUDGE_RATE_RULES, judgeRuntime } from "./runtime.js";
 
@@ -52,8 +52,9 @@ export async function workspaceRow(db: DbOrTx, workspaceId: string): Promise<Wor
   return row ?? null;
 }
 
+/** In use: unexpired, and (for a judge workspace) its session not ended by a Reset (pool.ts `workspaceInUse`). */
 export function workspaceAlive(row: WorkspaceRow | null, now: Date): row is WorkspaceRow {
-  return !!row && (row.expiresAt === null || row.expiresAt.getTime() > now.getTime());
+  return workspaceInUse(row, now);
 }
 
 /** The workspace's newest run (a judge workspace has one, plus any successor after a DENIED post). */
@@ -142,13 +143,13 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
   // 3. Live or replay, from fresh flags and counts (over quota is a labelled replay, never a refusal).
   const rail = await judgeRail(deps, { workspaceId: NO_WORKSPACE, sessionId, step: "session" });
   const runProvenance = rail.mode === "live" ? deps.paypal.provenance : ("replay" as const);
-  const expiresAt = new Date(now.getTime() + JUDGE_WORKSPACE_TTL_MS);
 
-  // 4. One transaction: claim (or clone) the workspace, make the run, mint the console token, record, enqueue.
+  // 4. One transaction: claim (or clone and claim) the workspace, make the run, mint the console token, record,
+  //    enqueue. The claim's 24 h are the database's (WS-DATA's claimJudgeWorkspace); the cookie ends with it.
   let cloned = false;
   const started = await deps.db.transaction(async (tx) => {
-    let workspaceId = await claimPooledWorkspace(tx, now, expiresAt);
-    if (!workspaceId) {
+    let claim = await claimPooledWorkspace(tx);
+    if (!claim) {
       if (!rt.tryEnterClone()) {
         throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
           retryAfterMs: 3_000,
@@ -156,27 +157,31 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
         });
       }
       try {
-        workspaceId = await cloneWorkspace(tx, { claimedAt: now, expiresAt });
+        claim = await claimCloned(tx, await cloneWorkspace(tx));
         cloned = true;
       } finally {
         rt.leaveClone();
       }
     }
+    let workspaceId = claim.workspaceId;
     // lock order (db/tx.ts): the workspace lock before this workspace's rows and ledger
     await tx.execute(sqlLock(workspaceId));
     let basis = await runBasis(tx, workspaceId);
     if (!basis && !cloned) {
-      // A damaged pooled workspace is retired (the hourly purge removes it), never handed to a judge.
+      // A damaged pooled workspace is retired: its claim is ended at once (never handed to a judge) and the
+      // hourly purge removes it once its expiry passes (the database never moves an expiry earlier).
       await tx
         .update(schema.workspaces)
-        .set({ claimedAt: null, expiresAt: now })
+        .set({ claimedAt: null })
         .where(eq(schema.workspaces.id, workspaceId));
       deps.logger.warn({ workspaceId }, "retired a pooled judge workspace without a ratified season");
-      workspaceId = await cloneWorkspace(tx, { claimedAt: now, expiresAt });
+      claim = await claimCloned(tx, await cloneWorkspace(tx));
+      workspaceId = claim.workspaceId;
       cloned = true;
       await tx.execute(sqlLock(workspaceId));
       basis = await runBasis(tx, workspaceId);
     }
+    const expiresAt = claim.expiresAt;
     if (!basis) throw problem.internal("A fresh judge workspace could not be prepared.");
     const scope = workspaceScope({ workspaceId, actor: sessionActor(sessionId), via: "session" });
     const fx = getSnapshot().fx;
@@ -223,10 +228,15 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
     // the money steps it reaches ask `judgeRail` / the live lane before any PayPal call.
     const turn = { runId, purpose: "DRAFT_INVOICE" as const, holdId: null, turn: 0 };
     await enqueue(tx, "agentTurn", turn, TASKS.agentTurn.dedupeKey(turn), { workspaceId });
-    return { workspaceId, runId, runSlug: run.runSlug, consoleToken };
+    return { workspaceId, runId, runSlug: run.runSlug, consoleToken, expiresAt };
   });
 
-  setJudgeCookie(c, deps, { sessionId, workspaceId: started.workspaceId, now, expiresAt });
+  setJudgeCookie(c, deps, {
+    sessionId,
+    workspaceId: started.workspaceId,
+    now,
+    expiresAt: started.expiresAt,
+  });
   const queuePosition =
     rail.mode === "live"
       ? rt.lane.join({ workspaceId: started.workspaceId, step: "invoice", sessionId })
@@ -311,9 +321,11 @@ export interface ResetOutcome {
 }
 
 /**
- * `POST /v1/judge/sessions/:sid/reset`: ends the workspace now (compare-and-set on its expiry), revokes every
- * token minted in it and enqueues `judgeReset{button}` in the same transaction (I7). The cookie keeps its
- * session id, so the next press is a fresh workspace under the same per-cookie quotas.
+ * `POST /v1/judge/sessions/:sid/reset`: ends the session now (compare-and-set: its claim is cleared while it is
+ * still in use), revokes every token minted in it and enqueues `judgeReset{button}` in the same transaction (I7).
+ * The workspace keeps its 24-hour expiry (the database never moves one earlier); the hourly purge removes it once
+ * that passes. The cookie keeps its session id, so the next press is a fresh workspace under the same per-cookie
+ * quotas.
  */
 export async function resetJudgeSession(
   deps: AppDeps,
@@ -331,8 +343,8 @@ export async function resetJudgeSession(
     const w = schema.workspaces;
     const ended = await tx
       .update(w)
-      .set({ expiresAt: now })
-      .where(and(eq(w.id, ws), eq(w.kind, "judge"), or(isNull(w.expiresAt), gt(w.expiresAt, now))))
+      .set({ claimedAt: null })
+      .where(and(eq(w.id, ws), eq(w.kind, "judge"), isNotNull(w.claimedAt), gt(w.expiresAt, now)))
       .returning({ id: w.id });
     if (ended.length === 0) {
       throw problem.expired("This judge session has already ended. Start again.");

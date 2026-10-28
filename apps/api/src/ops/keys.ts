@@ -16,8 +16,9 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { CredentialKeys } from "../credentials/verify/index.js";
 import { commitText } from "../ledger/commitments.js";
+import { deviceKeyRow } from "../lib/device-keys.js";
 import { ApiProblem, problem } from "../lib/problem.js";
-import { approverIdOf, publicKeyHexOf, storedPublicKeyOf } from "../proof/keys.js";
+import { approverIdOf, publicKeyHexOf } from "../proof/keys.js";
 
 export const KEY_REGISTRATION_PURPOSE = "fairsplit.key.register";
 /** How far a registration statement's `at` may be from the server's clock. */
@@ -131,12 +132,13 @@ export async function registerTreasurerKey(
       .from(schema.deviceKeys)
       .where(eq(schema.deviceKeys.workspaceId, workspaceId));
     const same = existing.find((k) => k.keyId === req.keyId);
+    // A persisted, non-extractable WebCrypto key: kind `web`, its ID `fs-{persona}-w{n}` (contracts DeviceKey).
     const key = {
       keyId: req.keyId,
       approverId,
       role: "treasurer" as const,
       publicKeyHex: req.publicKeyHex,
-      kind: "app" as const,
+      kind: "web" as const,
       revokedAt: null,
     };
     if (same) {
@@ -168,17 +170,24 @@ export async function registerTreasurerKey(
         },
       );
     }
-    await tx.insert(schema.deviceKeys).values({
+    const built = deviceKeyRow({
       workspaceId,
       keyId: req.keyId,
       persona: approverId,
-      publicKey: storedPublicKeyOf(req.publicKeyHex),
-      kind: "app",
+      publicKeyHex: req.publicKeyHex,
+      kind: "web",
+      label: "Treasurer web key",
       platform: "web",
     });
+    if (!built.ok) {
+      throw problem.validation("Not a browser key of its kind.", [
+        { path: "body.keyId", message: built.reason, code: "kind_mismatch" },
+      ]);
+    }
+    await tx.insert(schema.deviceKeys).values(built.row);
     const entry = await appendLedger(tx, scope, {
       kind: "key.registered",
-      payload: { keyId: req.keyId, persona: approverId, kind: "app", publicKeyHex: req.publicKeyHex },
+      payload: { keyId: req.keyId, persona: approverId, kind: "web", publicKeyHex: req.publicKeyHex },
       at: now,
     });
     return { key, registered: true, ledgerSeq: entry.seq };
@@ -211,7 +220,7 @@ export async function revokeKey(
           approverId,
           role,
           publicKeyHex,
-          kind: row.kind as "app" | "web_demo",
+          kind: row.kind,
           revokedAt: row.revokedAt.toISOString(),
         },
         revoked: false,
@@ -244,7 +253,7 @@ export async function revokeKey(
         approverId,
         role,
         publicKeyHex,
-        kind: row.kind as "app" | "web_demo",
+        kind: row.kind,
         revokedAt: now.toISOString(),
       },
       revoked: true,

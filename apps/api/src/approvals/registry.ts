@@ -54,7 +54,9 @@ export async function officerRegistry(db: DbOrTx, scope: WorkspaceScope): Promis
       approverId,
       role,
       publicKeyHex,
-      kind: k.kind === "web_demo" ? "web_demo" : "app",
+      // The row's own kind (app, web or web_demo; the database holds each to its ID shape). Domain
+      // `expectedSigner` refuses a row whose kind does not fit its key ID, so a kind is never guessed here.
+      kind: k.kind,
       revokedAt: k.revokedAt ? k.revokedAt.toISOString() : null,
     });
   }

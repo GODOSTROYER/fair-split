@@ -205,11 +205,12 @@ export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
       const persona =
         caller.persona === "judge" ? "analyn" : caller.persona.replace(/[^a-z]/g, "") || "judge";
       demoKeys++;
-      const digits = String(100_000 + (Number.parseInt(mockHex(`demo-key:${demoKeys}`, 4), 16) % 900_000));
+      // C-13: a web_demo key is fs-{persona}-demo-{6 of [a-z0-9]} (contracts DeviceKey), never a real key's shape
+      const suffix = mockHex(`demo-key:${demoKeys}`, 3);
       return {
         status: 201,
         body: {
-          keyId: `fs-${persona}-w${digits}`,
+          keyId: `fs-${persona}-demo-${suffix}`,
           approverId: caller.role === "judge" ? "treasurer:analyn" : `${caller.role}:${caller.persona}`,
           kind: "web_demo",
           label: "Demo key in this browser (Judge Mode only)",

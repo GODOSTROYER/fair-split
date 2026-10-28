@@ -12,6 +12,29 @@
 > 1-cent tamper never meets a post), `extract` has no inline handler in fs-api, and an operator logout is
 > enforced only in the browser (a server-side session epoch needs a WS-DATA table).
 
+> **Merged with main (28 Oct, after phase 1).** `ws/api` now builds on main's final packages, with no shims of its
+> own. What changed here: approvals sign and check `linesDigest` (every member line, cash lines too; the batch view
+> lists `memberLines`) with domain `expectedSigner` + `checkApprovals`; `lines.computed` carries `overrides`;
+> device keys go through contracts `DeviceKey` (`src/lib/device-keys.ts`: `fs-analyn-w1` is kind `web` from /ops,
+> a judge's key is `web_demo` `fs-{persona}-demo-{6}`) and every published key has its own kind; boot checks the
+> PayPal e-mails with `requireAsciiEmail`; invoices send `canonicalInvoiceCall(...).args` as decided; the agent port
+> exports `itemLabelGuide()` (ITEM_LABEL_WORDS) for the prompt; `money/payouts.ts` implements the PayoutsRepository
+> compare-and-sets (tests: `money/posting-cas.pg.test.ts`); idempotency holds, the WS-DATA limiter and transmission
+> store, `PP_CERT_ALLOW`; judge workspaces are claimed by the database clock (`claimJudgeWorkspace`), and a Reset
+> ends the session by clearing the claim (the database never moves an expiry earlier). Tests that need a run further
+> on or "24 hours later" use `walkRun` / `setWorkspaceExpiry` (`src/test/db-time.ts`). Open across workstreams:
+> (1) WS-DATA's `beginPosting`/`voidCheckedApprovals` make the same compare-and-sets but emit `run.state` events in
+> a non-IC-01 shape, so apps/api keeps its own until they emit IC-01 payloads; (2) `webhook_events` has no
+> `delivery` column, so WS-PPCORE's apply rule fails closed and MM-1 waits for the settle GET; (3) domain
+> `senderBatchId` still builds a re-route as `-x{n}` (ADR-0007 wants `-x{n}-{memberNo}`): the API signs re-routes with
+> WS-PPMONEY's ids, so clients must too (or get a server-built re-route payload); (4) the live agent prompt is
+> WS-AGENT's; (5) the simulator mode still uses the labelled stub unless `PP_SIM_URL` points at `tools/paypal-sim.ts`;
+> (6) WS-QA's dependency rules (register §6) forbid what this package's brief prescribes: apps/api importing
+> `@fairsplit/api-client` (the shared `/http` table in `lib/commands.ts`/`lib/problem.ts`, the typed client in
+> `test/harness.ts` and `smoke/checks.ts`, the parity tests) and api-client importing domain (`verify`, `format`) and
+> seed (the msw world), so test-kit's real-tree `deps:check` reports 10 violations until WS-QA sanctions those edges
+> (or the shared parts move into contracts). The test-only helpers moved from `runs/testing/` to `runs/test/`.
+
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
 Every dependency a slice needs is already installed; if one is missing, report it (do not add it).

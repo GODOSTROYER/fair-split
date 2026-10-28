@@ -9,6 +9,8 @@
 import {
   type ApprovalRole,
   DeviceKeyId,
+  type DeviceKeyKind,
+  deviceKeyIdFitsKind,
   Ed25519PublicKeyHex,
   LedgerPayloads,
   type OfficerKey,
@@ -91,6 +93,10 @@ export async function officerRegistry(db: DbOrTx, workspaceId: string): Promise<
   const out: OfficerKey[] = [];
   for (const row of rows) {
     if (!DeviceKeyId.safeParse(row.keyId).success) continue;
+    // Published with its own kind, and only when that kind fits its ID (`app` a{n}, `web` w{n}, `web_demo`
+    // demo-{6}): one misfit row would make the whole `OfficerKey` list unreadable, and Proof fail everywhere.
+    if (!deviceKeyIdFitsKind(row.kind, row.keyId)) continue;
+    const kind = row.kind as DeviceKeyKind;
     const publicKeyHex = publicKeyHexOf(row.publicKey);
     if (!publicKeyHex) continue;
     const approverId = resolveApprover(row, officers, ledgerPersona.get(row.keyId));
@@ -101,7 +107,7 @@ export async function officerRegistry(db: DbOrTx, workspaceId: string): Promise<
       approverId,
       role,
       publicKeyHex,
-      kind: row.kind === "web_demo" ? "web_demo" : "app",
+      kind,
       revokedAt: row.revokedAt ? row.revokedAt.toISOString() : null,
     });
   }

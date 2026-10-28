@@ -361,6 +361,7 @@ export async function runSmoke(target: SmokeTarget): Promise<SmokeReport> {
     seasonId: probe?.run.seasonId ?? randomUUID(),
     rateCardSha256: probe?.run.rateCardSha256 ?? "0".repeat(64),
     batchSha256: "0".repeat(64),
+    linesDigest: "0".repeat(64),
     itemCount: 1,
     totalCents: 1,
     currency: "USD" as const,

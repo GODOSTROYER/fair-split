@@ -3,16 +3,17 @@
 // duplicates, extraction dispatch in the same transaction), setFlag (ledger, event, HALT), the hold and field
 // edge cases (ASK_CHAIR, overrides, VERSION_CONFLICT once money moves), and the season and rate-card reads.
 import { randomUUID } from "node:crypto";
-import { type ApiError, RateCardRatifiedError } from "@fairsplit/contracts";
+import { type ApiError, LedgerPayloads, RateCardRatifiedError } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import { approvalBytes, ed25519Sign } from "@fairsplit/domain";
+import { approvalBytes, ed25519Sign, overrideCount } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { runHolds } from "../approvals/batch.js";
 import { contentDigestOf } from "../lib/digest.js";
-import { createTestApp } from "../test/index.js";
-import { type RunsHarness, resolveAll, startRuns } from "./testing/app.js";
-import { registerKey } from "./testing/world.js";
+import { createTestApp, walkRun } from "../test/index.js";
+import { type RunsHarness, resolveAll, startRuns } from "./test/app.js";
+import { registerKey } from "./test/world.js";
 
 let h: RunsHarness;
 const auth = (token: string) => ({ as: h.t.credentials.bearer(token) });
@@ -255,14 +256,34 @@ describe("holds and fields: the Chair, overrides, and the point of no return", (
       body: { resolution: "TWO_DELIVERIES", reason: "Two loads that day" },
     });
     expect(r).toMatchObject({ resolution: "TWO_DELIVERIES", needsChair: true, recomputed: true });
+    // inv.i6.override-cosign: the recomputation records the override for Proof plate 5 (lines.computed.overrides,
+    // domain overrideCount), so a verifier also requires the Chair's key, and the batch view says so
+    const computed = await h.t.deps.db
+      .select({ payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(
+        and(eq(schema.ledgerEntries.runId, h.world.runId), eq(schema.ledgerEntries.kind, "lines.computed")),
+      )
+      .orderBy(asc(schema.ledgerEntries.seq));
+    const latest = LedgerPayloads["lines.computed"].parse(computed.at(-1)?.payload);
+    const holds = await h.t.deps.db
+      .select({ kind: schema.holds.kind, resolution: schema.holds.resolution })
+      .from(schema.holds)
+      .where(eq(schema.holds.runId, h.world.runId));
+    expect(latest.overrides).toBeGreaterThanOrEqual(1);
+    expect(latest.overrides).toBe(overrideCount(runHolds(holds)));
+    const view = await h.t.json<{ chairRequired: boolean; chairReasons: string[] }>(
+      `/v1/runs/${h.world.runSlug}/batch`,
+      { as: h.t.credentials.bearer(h.tokens.treasurer) },
+    );
+    expect(view.body.chairReasons).toContain("OVERRIDE");
   });
 
   it("VERSION_CONFLICT: once the run is posting, no hold or field can change it", async () => {
     const h2 = (await holdsOf()).find((x) => x.label === "H2");
-    await h.t.pg?.owner.db
-      .update(schema.payRuns)
-      .set({ state: "POSTING", batchSha256: "b".repeat(64), senderBatchId: `test-${randomUUID()}` })
-      .where(eq(schema.payRuns.id, h.world.runId));
+    const owner = h.t.pg?.owner.sql;
+    if (!owner) throw new Error("db");
+    await walkRun(owner, h.world.runId, "POSTING");
     await expect(
       h.t.client(h.tokens.treasurer).resolveHold({
         params: { holdId: h2?.id as string },

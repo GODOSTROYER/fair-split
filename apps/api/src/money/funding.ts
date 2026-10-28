@@ -5,8 +5,9 @@
 // `ensureInvoiceSent` is the ensureInvoice{target:SENT} task: create (or adopt) the code-built invoice, send it
 // (the treasurer's approval: in Judge Mode the session start, "Judge as Treasurer approved send"), GET it to
 // confirm it is payable and learn PayPal's invoice date, add the AUTO_CANCEL rule; each step is checkpointed
-// in `invoices` before the next, so a retried task resumes where it stopped. Every call is first decided by
-// the policy lattice on the exact body about to be sent, and the verdict recorded.
+// in `invoices` before the next, so a retried task resumes where it stopped. Every call's body is IC-02
+// `canonicalInvoiceCall(...).args`, decided by the policy lattice (the verdict recorded) and then sent as is
+// (money/policy.ts `decideInvoiceCall`).
 //
 // `recordPaymentAndFund` (Judge Mode's "Mark paid", the recordPayment task) and `confirmFunding` (the
 // ensureInvoice{target:FUNDED} GET) end in `fund`: FUNDED only on a fresh GET showing PAID or MARKED_AS_PAID
@@ -21,14 +22,7 @@ import {
   type WorkspaceScope,
   withWorkspaceTx,
 } from "@fairsplit/db";
-import {
-  autoCancelDate,
-  autoCancelRuleArgs,
-  canonicalInvoice,
-  canonicalSend,
-  quoteDigest,
-  runMachine,
-} from "@fairsplit/domain";
+import { quoteDigest, runMachine } from "@fairsplit/domain";
 import { enqueue } from "@fairsplit/outbox";
 import { and, eq, isNull, notExists, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
@@ -46,7 +40,7 @@ import {
   recordPayment,
   sendInvoice,
 } from "./invoices.js";
-import { decideAndRecord, type InvoiceWorld, invoiceWorld, policyContext, todayOf } from "./policy.js";
+import { decideInvoiceCall, type InvoiceMethod, type InvoiceWorld, invoiceWorld, todayOf } from "./policy.js";
 import { toolkitFor } from "./toolkit.js";
 
 type Deps = Pick<AppDeps, "db" | "env" | "paypal" | "clock" | "logger">;
@@ -159,23 +153,26 @@ export async function ensureInvoiceSent(
   const actor = o.actor ?? ACTORS.outbox;
   const tk = toolkitFor(deps, { workspaceId: scope.workspaceId });
   const today = () => todayOf(deps.clock.now());
-  const step = async (
-    name: "create_invoice" | "send_invoice" | "create_conditional_rules_for_invoice",
-    args: (w: InvoiceWorld) => unknown,
+  // Each call: IC-02 `canonicalInvoiceCall` builds the args from the run, the lattice decides them (recorded),
+  // and exactly those args are sent; a call code cannot build is decided as asked, refused, and never sent.
+  const step = async <M extends InvoiceMethod>(
+    method: M,
+    c: { labels?: readonly string[]; invoiceDate?: string | null } = {},
   ) =>
     withWorkspaceTx(deps.db, scope, async (tx) => {
       const run = await lockRun(tx, scope, runId);
       const w = await invoiceWorld(tx, scope, deps, run);
-      const ctx = await policyContext(tx, scope, deps, w, { today: today() });
-      const decision = await decideAndRecord(tx, scope, { name, args: args(w) }, ctx, {
-        runId,
-        sessionId: o.sessionId ?? null,
-        actor,
-        at: deps.clock.now(),
-        provenance,
+      const decided = await decideInvoiceCall(tx, scope, deps, w, {
+        method,
+        ...(c.labels ? { labels: c.labels } : {}),
+        ...(c.invoiceDate ? { invoiceDate: c.invoiceDate } : {}),
+        today: today(),
+        record: { runId, sessionId: o.sessionId ?? null, actor, at: deps.clock.now(), provenance },
       });
-      return { w, decision };
+      return { w, ...decided };
     });
+  const denied = (d: { decision: { decidedBy: string[] }; reason: string | null }) =>
+    d.decision.decidedBy.join(", ") || d.reason || "refused";
 
   // 0. the quote and the checkpoint row
   let w = await quoteRun(deps, scope, runId);
@@ -190,10 +187,10 @@ export async function ensureInvoiceSent(
   // 1. create (or adopt)
   let invoiceId = w.invoice?.paypalInvoiceId ?? null;
   if (!invoiceId) {
-    const { decision } = await step("create_invoice", (x) => canonicalInvoice(x.expected, o.labels));
-    if (decision.verdict === "DENY")
-      return { state: "DENIED_BY_POLICY", invoiceId: null, reason: decision.decidedBy.join(", ") };
-    const created = await createOrAdopt(tk, w, o.labels);
+    const create = await step("create_invoice", o.labels ? { labels: o.labels } : {});
+    if (create.decision.verdict === "DENY" || !create.args)
+      return { state: "DENIED_BY_POLICY", invoiceId: null, reason: denied(create) };
+    const created = await createOrAdopt(tk, create.w, create.args);
     invoiceId = created.invoiceId;
     await withWorkspaceTx(deps.db, scope, async (tx) => {
       await tx
@@ -209,12 +206,12 @@ export async function ensureInvoiceSent(
     invoiceWorld(tx, scope, deps, await runById(tx, scope, runId)),
   );
   if (!w.invoice?.sentAt) {
-    const { decision } = await step("send_invoice", () => canonicalSend(id));
-    if (decision.verdict === "DENY")
-      return { state: "DENIED_BY_POLICY", invoiceId: id, reason: decision.decidedBy.join(", ") };
+    const send = await step("send_invoice");
+    if (send.decision.verdict === "DENY" || !send.args)
+      return { state: "DENIED_BY_POLICY", invoiceId: id, reason: denied(send) };
     if (!o.approval)
       return { state: "PENDING_APPROVAL", invoiceId: id, reason: "send_invoice waits for the treasurer" };
-    const sent = await sendInvoice(tk, id);
+    const sent = await sendInvoice(tk, send.args);
     await withWorkspaceTx(deps.db, scope, async (tx) => {
       await tx
         .update(schema.invoices)
@@ -267,12 +264,10 @@ export async function ensureInvoiceSent(
     .from(schema.invoices)
     .where(and(eq(schema.invoices.workspaceId, scope.workspaceId), eq(schema.invoices.runId, runId)));
   if (!cp?.ruleCreatedAt) {
-    const { decision } = await step("create_conditional_rules_for_invoice", (x) =>
-      autoCancelRuleArgs(id, autoCancelDate(x.expected.invoiceDate ?? payableOn)),
-    );
-    if (decision.verdict === "DENY")
-      return { state: "DENIED_BY_POLICY", invoiceId: id, reason: decision.decidedBy.join(", ") };
-    const on = await addAutoCancelRule(tk, id, payableOn);
+    const rule = await step("create_conditional_rules_for_invoice", { invoiceDate: payableOn });
+    if (rule.decision.verdict === "DENY" || !rule.args)
+      return { state: "DENIED_BY_POLICY", invoiceId: id, reason: denied(rule) };
+    const on = await addAutoCancelRule(tk, rule.args);
     await withWorkspaceTx(deps.db, scope, async (tx) => {
       await tx
         .update(schema.invoices)

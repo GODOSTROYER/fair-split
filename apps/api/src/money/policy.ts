@@ -12,9 +12,24 @@ import type {
   ToolCall,
 } from "@fairsplit/contracts";
 import { type Actor, type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
-import { decide, invoiceMemo, invoiceNumber, invoiceReference, quoteInvoice } from "@fairsplit/domain";
+import {
+  type AutoCancelRuleArgs,
+  type CanonicalInvoice,
+  type CanonicalSend,
+  canonicalInvoice,
+  canonicalInvoiceCall,
+  decide,
+  type ItemLabels,
+  invoiceMemo,
+  invoiceNumber,
+  invoiceReference,
+  jcs,
+  quoteInvoice,
+  requireAsciiEmail,
+} from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
+import type { ApiEnv } from "../env.js";
 import type { AppDeps } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
 import { emit, factLedger } from "../runs/events.js";
@@ -56,6 +71,29 @@ export function partiesOf(deps: Pick<AppDeps, "env">): Parties {
     };
   }
   throw problem.internal("PP_BUSINESS_EMAIL and PP_PAYER_EMAIL are required on the sandbox rail.");
+}
+
+/** The brands a run may invoice (`recipientInBrandAllowlist`): the payer alone. */
+export function brandAllowlistOf(parties: Parties): string[] {
+  return [parties.payer.email];
+}
+
+/**
+ * Boot (S3.13, I1): the invoicer, the payer and every brand allowlist entry the lattice will compare are strict
+ * printable-ASCII e-mails (domain `requireAsciiEmail`), so a misconfigured address stops the boot instead of
+ * denying every run later. Throws a RangeError naming the setting, never the value. A sandbox rail without the
+ * two addresses boots; its invoice steps refuse with a 500 until they are set.
+ */
+export function assertPartiesAscii(env: ApiEnv): void {
+  let parties: Parties;
+  try {
+    parties = partiesOf({ env });
+  } catch {
+    return;
+  }
+  requireAsciiEmail("PP_BUSINESS_EMAIL", parties.businessEmail);
+  requireAsciiEmail("PP_PAYER_EMAIL", parties.payer.email);
+  for (const entry of brandAllowlistOf(parties)) requireAsciiEmail("the brand allowlist", entry);
 }
 
 export interface InvoiceWorld {
@@ -102,7 +140,7 @@ export async function invoiceWorld(
       memo: invoiceMemo(season.label, card.sha256, lot.lotCode),
       businessEmail: parties.businessEmail,
       payer: parties.payer,
-      brandAllowlist: [parties.payer.email],
+      brandAllowlist: brandAllowlistOf(parties),
       invoiceId: invoice?.paypalInvoiceId ?? null,
       invoiceDate: invoice?.createdAtPaypal ? invoice.createdAtPaypal.toISOString().slice(0, 10) : null,
     },
@@ -201,3 +239,98 @@ export async function decideAndRecord(
 }
 
 export const todayOf = (d: Date): string => d.toISOString().slice(0, 10);
+
+export type InvoiceMethod = "create_invoice" | "send_invoice" | "create_conditional_rules_for_invoice";
+
+/** The exact toolkit arguments IC-02 `canonicalInvoiceCall` builds for each invoice call. */
+export interface InvoiceCallArgs {
+  create_invoice: CanonicalInvoice;
+  send_invoice: CanonicalSend;
+  create_conditional_rules_for_invoice: AutoCancelRuleArgs;
+}
+
+export interface DecidedInvoiceCall<M extends InvoiceMethod> {
+  decision: Decision;
+  /**
+   * The arguments to send, the very object the lattice decided, when code built them (`canonicalInvoiceCall`) and
+   * they are what was asked for; null otherwise: then nothing is ever sent. Sent only if the verdict allows it.
+   */
+  args: InvoiceCallArgs[M] | null;
+  /** Why there are no arguments to send (core's refusal, or the asker named something else); null otherwise. */
+  reason: string | null;
+}
+
+const sameJson = (a: unknown, b: unknown): boolean => {
+  try {
+    return jcs(a) === jcs(b);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * What a create the code cannot build asked for, as the lattice reads it: the canonical body with the asked
+ * labels as the item names, unchecked. Decided only so the refusal is recorded; it is never sent.
+ */
+function askedCreate(expected: PolicyCtx["expected"], labels: readonly string[] | ItemLabels | undefined) {
+  const base = canonicalInvoice(expected);
+  if (labels === undefined) return base;
+  const keyed = Array.isArray(labels) ? null : (labels as ItemLabels as unknown as Record<string, unknown>);
+  const names = keyed
+    ? expected.quote.items.map((it) => keyed[it.key.toLowerCase()])
+    : (labels as readonly unknown[]);
+  return { ...base, items: base.items.map((item, i) => ({ ...item, name: names[i] })) };
+}
+
+/**
+ * I1 at the money edge, the one way an invoice call is decided (the server chain and the agent's port alike):
+ * IC-02 `canonicalInvoiceCall` builds the exact arguments from the run (the agent's three item labels are its only
+ * input), the policy lattice decides THOSE arguments (`decide`, recorded as a `policy.verdict`), and the caller
+ * sends `args`, the same object, and nothing else. When code cannot build the call (core refuses the labels, or
+ * there is no invoice or no PayPal date yet), or the asker named something else (`asked`: the model's own draft,
+ * another invoice id), the asked call is decided and recorded instead, `args` is null and nothing is sent.
+ */
+export async function decideInvoiceCall<M extends InvoiceMethod>(
+  tx: DbOrTx,
+  scope: WorkspaceScope,
+  deps: Pick<AppDeps, "db" | "env">,
+  w: InvoiceWorld,
+  o: {
+    method: M;
+    labels?: readonly string[] | ItemLabels;
+    /** PayPal's invoice date when the world does not carry it yet (read by a GET just before). */
+    invoiceDate?: string | null;
+    /** What the asker sent, when it may not be this run's call: decided as given unless it is the built args. */
+    asked?: unknown;
+    today: string;
+    budget?: Budget;
+    record: Parameters<typeof decideAndRecord>[4];
+  },
+): Promise<DecidedInvoiceCall<M>> {
+  const expected = { ...w.expected, invoiceDate: w.expected.invoiceDate ?? o.invoiceDate ?? null };
+  const built = canonicalInvoiceCall(o.method, expected, o.labels);
+  // the lattice reads the same expectation the call was built from (PayPal's date included)
+  const ctx = await policyContext(
+    tx,
+    scope,
+    deps,
+    { ...w, expected },
+    {
+      today: o.today,
+      ...(o.budget ? { budget: o.budget } : {}),
+    },
+  );
+  const send = built.ok && (o.asked === undefined || sameJson(o.asked, built.args)) ? built.args : null;
+  const asked =
+    send ??
+    o.asked ??
+    (o.method === "create_invoice"
+      ? askedCreate(expected, o.labels)
+      : { invoice_id: expected.invoiceId ?? "" });
+  const decision = await decideAndRecord(tx, scope, { name: o.method, args: asked }, ctx, o.record);
+  return {
+    decision,
+    args: send as InvoiceCallArgs[M] | null,
+    reason: send ? null : built.ok ? "Only the code-built call is ever sent." : built.reason,
+  };
+}

@@ -4,9 +4,14 @@
 //   PP_RECEIVERS           a JSON map member number → sandbox e-mail ({"M-014": "…"}), or "M-014=…,M-007=…"
 //   PP_UNCLAIMED_RECEIVER  the address with no PayPal account (Rhea, OD-11): her item parks UNCLAIMED
 //
+// Boot refuses any of them that is not a strict printable-ASCII address (env.ts, domain `requireAsciiEmail`);
+// addresses are compared with domain `asciiEmailKey` (ASCII A-Z folded only), never `toLowerCase`, so a
+// lookalike address can never match a known one.
+//
 // In simulator mode (ADR-0002) a member without a configured address gets the seed's labelled `.example`
 // alias, so the simulated rail can run the whole batch; in sandbox mode an unknown member has no receiver
 // and stays off the batch (the sandbox guard only ever pays known sandbox accounts).
+import { asciiEmailKey, isAsciiEmail } from "@fairsplit/domain";
 import { getMember } from "@fairsplit/seed";
 import type { ApiEnv } from "../env.js";
 
@@ -19,7 +24,7 @@ export interface ReceiverDirectory {
   sourceOf(memberNo: string): "env" | "seeded_alias" | null;
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MEMBER_NO = /^M-\d{3}$/;
 
 export function parseReceivers(raw: string | undefined): Map<string, string> {
   const out = new Map<string, string>();
@@ -29,16 +34,16 @@ export function parseReceivers(raw: string | undefined): Map<string, string> {
     try {
       const obj = JSON.parse(text) as Record<string, unknown>;
       for (const [k, v] of Object.entries(obj)) {
-        if (/^M-\d{3}$/.test(k) && typeof v === "string" && EMAIL.test(v.trim())) out.set(k, v.trim());
+        if (MEMBER_NO.test(k) && typeof v === "string" && isAsciiEmail(v.trim())) out.set(k, v.trim());
       }
     } catch {
-      // unreadable JSON: no receivers (boot logs the variable name only)
+      // unreadable JSON: boot refused it already (env.ts); nothing is paid from it
     }
     return out;
   }
   for (const pair of text.split(",")) {
     const [k, v] = pair.split("=").map((s) => s.trim());
-    if (k && v && /^M-\d{3}$/.test(k) && EMAIL.test(v)) out.set(k, v);
+    if (k && v && MEMBER_NO.test(k) && isAsciiEmail(v)) out.set(k, v);
   }
   return out;
 }
@@ -54,10 +59,13 @@ export function seededAlias(memberNo: string): string | null {
     : `${local}@members.fairsplit.example`;
 }
 
+/** The labelled alias domains only the simulated rail pays. */
+const SIMULATED_DOMAINS = ["@members.fairsplit.example", "@unclaimed.fairsplit.example"] as const;
+
 export function receiverDirectory(paypal: ApiEnv["paypal"]): ReceiverDirectory {
   const configured = parseReceivers(paypal.receivers);
   const unclaimed =
-    paypal.unclaimedReceiver && EMAIL.test(paypal.unclaimedReceiver) ? paypal.unclaimedReceiver : null;
+    paypal.unclaimedReceiver && isAsciiEmail(paypal.unclaimedReceiver) ? paypal.unclaimedReceiver : null;
   const simulated = paypal.mode === "simulator";
   const resolve = (memberNo: string): { address: string; source: "env" | "seeded_alias" } | null => {
     const env = configured.get(memberNo);
@@ -72,17 +80,18 @@ export function receiverDirectory(paypal: ApiEnv["paypal"]): ReceiverDirectory {
     return null;
   };
   const known = new Set<string>(
-    [...configured.values(), ...(unclaimed ? [unclaimed] : [])].map((e) => e.toLowerCase()),
+    [...configured.values(), ...(unclaimed ? [unclaimed] : [])]
+      .map((e) => asciiEmailKey(e))
+      .filter((k): k is string => k !== null),
   );
   return {
     receiverFor: (memberNo) => resolve(memberNo)?.address ?? null,
     allowed(receiver) {
-      const r = receiver.toLowerCase();
+      const r = asciiEmailKey(receiver);
+      if (r === null) return false;
       if (known.has(r)) return true;
       // the simulated rail also knows the seed's labelled aliases
-      return (
-        simulated && (r.endsWith("@members.fairsplit.example") || r.endsWith("@unclaimed.fairsplit.example"))
-      );
+      return simulated && SIMULATED_DOMAINS.some((d) => r.endsWith(d));
     },
     sourceOf: (memberNo) => resolve(memberNo)?.source ?? null,
   };

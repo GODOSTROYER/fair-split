@@ -5,10 +5,11 @@
 // throws is undone too; a crash between apply and undo is repaired before the next post, never re-applied.
 import { type ApiError, CreateJudgeSessionResponse } from "@fairsplit/contracts";
 import { schema, systemScope, verifyChain } from "@fairsplit/db";
-import { batchDigest, seasonLabelOf } from "@fairsplit/domain";
+import { batchDigest, linesDigest, seasonLabelOf } from "@fairsplit/domain";
 import {
   type ApprovedLine,
   type BatchOutcome,
+  type OfficerKey,
   type PayoutsRepository,
   PayoutsService,
   type PostingSnapshot,
@@ -19,7 +20,7 @@ import {
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { JUDGE_COOKIE } from "../credentials/verify/index.js";
-import { createTestApp, type TestApp } from "../test/index.js";
+import { createTestApp, type TestApp, walkRun } from "../test/index.js";
 import { applyArmedTamper, tamperArmed, withArmedTamper } from "./tamper.js";
 
 let t: TestApp;
@@ -90,7 +91,7 @@ async function lockedBatch(s: Session) {
         provenance: "replay",
       });
   }
-  await owner().sql`update pay_runs set state = 'APPROVED' where id = ${s.runId}`;
+  await walkRun(owner().sql, s.runId, "APPROVED");
 }
 
 /** The run's on-rail lines as the database holds them now (what executeApproved re-reads). */
@@ -135,8 +136,34 @@ async function facts(s: Session) {
     seasonId: run.seasonId,
     rateCardSha256: run.rateCardSha256,
     cosign: { ruleId: "R5" as const, batchOverCents: 30_000, lineOverCents: 15_000, anyOverride: true },
+    // every member line's stored hash, as the repository hands them on (the tamper changes an amount, not these)
+    memberLines: [
+      { memberNo: "M-014", lineSha256: "1".repeat(64) },
+      { memberNo: "M-031", lineSha256: "2".repeat(64) },
+    ],
+    spentNonces: [] as string[],
   };
 }
+
+/** The officer registry the service reads: one labelled demo key per officer (two people, two keys). */
+const REGISTRY: OfficerKey[] = [
+  {
+    keyId: "fs-analyn-demo-a1b2c3",
+    approverId: "treasurer:analyn",
+    role: "treasurer",
+    publicKeyHex: "a".repeat(64),
+    kind: "web_demo",
+    revokedAt: null,
+  },
+  {
+    keyId: "fs-ernesto-demo-d4e5f6",
+    approverId: "board:ernesto",
+    role: "chair",
+    publicKeyHex: "c".repeat(64),
+    kind: "web_demo",
+    revokedAt: null,
+  },
+];
 
 /** IC-02 batchSha256 over lines, exactly as PayoutsService builds the items. */
 function digestOf(f: Awaited<ReturnType<typeof facts>>, lines: readonly ApprovedLine[]): string {
@@ -164,6 +191,7 @@ async function signBoth(s: Session) {
     seasonId: f.seasonId,
     rateCardSha256: f.rateCardSha256,
     batchSha256: digest,
+    linesDigest: linesDigest(f.memberLines),
     itemCount: lines.length,
     totalCents: lines.reduce((sum, l) => sum + Number(l.amountCents), 0),
     currency: "USD" as const,
@@ -175,14 +203,14 @@ async function signBoth(s: Session) {
   const approvals: SignedApproval[] = [
     {
       role: "treasurer",
-      keyId: "fs-analyn-w482913",
+      keyId: "fs-analyn-demo-a1b2c3",
       publicKeyHex: "a".repeat(64),
       payload: payload("treasurer", "treasurer:analyn", "nonce-treasurer-1"),
       signatureHex: "b".repeat(128),
     },
     {
       role: "chair",
-      keyId: "fs-ernesto-w104729",
+      keyId: "fs-ernesto-demo-d4e5f6",
       publicKeyHex: "c".repeat(64),
       payload: payload("chair", "board:ernesto", "nonce-chair-0001"),
       signatureHex: "d".repeat(128),
@@ -192,11 +220,13 @@ async function signBoth(s: Session) {
 }
 
 /**
- * The real PayoutsService over this run: lines re-read from Postgres at the moment of the post; any PayPal
- * request or any write fails the test (a refused batch writes nothing and sends nothing).
+ * The real PayoutsService over this run: lines re-read from Postgres at the moment of the post, approvals checked
+ * against the officer registry; any PayPal request or any write fails the test (a refused batch writes nothing
+ * and sends nothing). The void the service asks for (S3.6.4 step 3) is recorded, never written.
  */
 function service(s: Session, signed: Awaited<ReturnType<typeof signBoth>>) {
   const paypal: unknown[] = [];
+  const voids: { nonces: readonly string[]; code: string }[] = [];
   const refuse = async (what: string): Promise<never> => {
     throw new Error(`a refused post must not ${what}`);
   };
@@ -204,12 +234,15 @@ function service(s: Session, signed: Awaited<ReturnType<typeof signBoth>>) {
     async loadPosting(runId): Promise<PostingSnapshot | null> {
       if (runId !== s.runId) return null;
       const lines = (await linesNow(s)).map(({ credits: _c, ...l }) => l);
-      return { ...signed.facts, lines, approvals: signed.approvals, overrides: 0, submitted: null };
+      return { ...signed.facts, lines, approvals: signed.approvals, holds: [], submitted: null };
     },
     loadRun: async () => null,
     writeSubmitted: () => refuse("write the batch"),
     markPosted: () => refuse("mark a batch posted"),
     markRejected: () => refuse("mark a batch rejected"),
+    async voidApprovals(v) {
+      voids.push({ nonces: v.nonces, code: v.code });
+    },
     findItem: async () => null,
     findSupersedingItem: async () => null,
     markCancelRequested: () => refuse("cancel"),
@@ -223,22 +256,21 @@ function service(s: Session, signed: Awaited<ReturnType<typeof signBoth>>) {
       },
     },
     repo,
-    batchDigest: (run, items) =>
-      batchDigest(
-        run,
-        items.map((i) => ({ ...i, amountCents: Number(i.amountCents) })),
-      ).batchSha256,
-    verifyApprovalSignature: async () => true,
+    officerKeys: async () => REGISTRY,
     killSwitch: async () => false,
     limits: {
       maxBatchTotalCents: 40_000n,
       maxItems: 8,
       receiverAllowed: (r) => Object.values(RECEIVERS).includes(r),
+      maxPostsPer24h: 40,
+      postsInLast24h: async () => 0,
+      balanceCents: async () => 10_000_000n,
+      minBalanceCents: 1_000_000n,
     },
     now: () => t.clock.now(),
     sleep: async () => undefined,
   });
-  return { svc, paypal };
+  return { svc, paypal, voids };
 }
 
 async function tamperLedger(s: Session) {
@@ -257,7 +289,7 @@ describe("change one payout after both keys (simulated, labelled)", () => {
     await lockedBatch(s);
     const before = await linesNow(s);
     const signed = await signBoth(s);
-    const { svc, paypal } = service(s, signed);
+    const { svc, paypal, voids } = service(s, signed);
 
     let during: bigint[] = [];
     const outcome = await withArmedTamper(
@@ -272,8 +304,12 @@ describe("change one payout after both keys (simulated, labelled)", () => {
     // the post saw one line a cent higher, exactly as an insider's edit would leave it…
     expect(during).toEqual(before.map((l, i) => l.amountCents + (i === 0 ? 1n : 0n)));
     // …and refused it: the approvals sign another digest (I4). Nothing reached PayPal.
-    expect(outcome).toMatchObject({ kind: "refused", code: "DIGEST_MISMATCH" });
+    expect(outcome).toMatchObject({ kind: "refused", code: "DIGEST_MISMATCH", check: "DIGEST_MISMATCH" });
     expect(paypal).toHaveLength(0);
+    // the void names exactly the two approvals the check read (the repository's compare-and-set applies it)
+    expect(voids).toEqual([
+      { nonces: signed.approvals.map((a) => a.payload.nonce), code: "DIGEST_MISMATCH" },
+    ]);
     // the change is undone: every line is what code computed, and the batch re-hashes to what both keys signed
     expect(await linesNow(s)).toEqual(before);
     expect(digestOf(signed.facts, await linesNow(s))).toBe(signed.digest);
@@ -310,7 +346,7 @@ describe("change one payout after both keys (simulated, labelled)", () => {
     expect(await linesNow(s)).toEqual(before);
     expect((await tamperLedger(s)).at(-1)?.payload).toMatchObject({ reason: "post_failed", restored: true });
     // the run slice sends the refused run back to review: the judge may arm the change again
-    await owner().sql`update pay_runs set state = 'IN_REVIEW' where id = ${s.runId}`;
+    await owner().sql`update pay_runs set state = 'IN_REVIEW', version = version + 1 where id = ${s.runId}`;
     const again = await arm(s);
     expect(again.status).toBe(200);
     expect(again.body.armed).toBe(true);

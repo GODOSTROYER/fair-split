@@ -2,8 +2,14 @@
 // fails for a reason a retry can fix (no answer, a 5xx, the 40/min window) is retried by the outbox with
 // backoff, so the caller hears QUEUED with a retry hint. A 429 opens the 6-minute circuit (CIRCUIT_OPEN). A
 // 4xx is PayPal's answer (PAYPAL_REJECTED, with its debug_id) and is never retried.
+import type { DenyReason } from "@fairsplit/db";
 import { PayPalAuthError, PayPalHttpError } from "@fairsplit/paypal-core";
-import { ToolkitArgsError, ToolkitError, ToolkitMethodError } from "@fairsplit/paypal-toolkit";
+import {
+  ToolkitArgsError,
+  ToolkitError,
+  ToolkitLimitedError,
+  ToolkitMethodError,
+} from "@fairsplit/paypal-toolkit";
 
 export type StepCode =
   | "PAYPAL_REJECTED"
@@ -29,11 +35,11 @@ export class PayPalStepError extends Error {
   }
 }
 
-/** The 40/min window or the circuit refused a slot; nothing was sent. */
+/** The 40/min window (or the background share of it) or the circuit refused a slot; nothing was sent. */
 export class LaneRefused extends Error {
   override readonly name = "LaneRefused";
   constructor(
-    readonly reason: "WINDOW_FULL" | "BACKGROUND_FULL" | "CIRCUIT_OPEN",
+    readonly reason: DenyReason,
     readonly retryAfterMs: number,
   ) {
     super(`PayPal lane refused a slot (${reason})`);
@@ -44,6 +50,16 @@ const CIRCUIT_MS = 6 * 60_000;
 
 export function classifyPayPal(err: unknown, what: string): PayPalStepError {
   if (err instanceof PayPalStepError) return err;
+  if (err instanceof ToolkitLimitedError) {
+    // tk() asked the shared limiter and was refused: nothing was sent.
+    return classifyPayPal(
+      new LaneRefused(
+        err.reason === "CIRCUIT_OPEN" ? "CIRCUIT_OPEN" : "WINDOW_FULL",
+        err.retryAfterMs ?? 5_000,
+      ),
+      what,
+    );
+  }
   if (err instanceof LaneRefused) {
     return err.reason === "CIRCUIT_OPEN"
       ? new PayPalStepError(

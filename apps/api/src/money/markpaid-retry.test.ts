@@ -7,9 +7,9 @@ import { schema } from "@fairsplit/db";
 import { and, eq } from "drizzle-orm";
 import { HttpResponse, http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, startRuns } from "../runs/testing/app.js";
-import { paypalScript, TEST_INVOICE_ID, TOOLKIT_HOST } from "../runs/testing/paypal.js";
-import { seedWorld } from "../runs/testing/world.js";
+import { type RunsHarness, startRuns } from "../runs/test/app.js";
+import { paypalScript, TEST_INVOICE_ID, TOOLKIT_HOST } from "../runs/test/paypal.js";
+import { seedWorld } from "../runs/test/world.js";
 import { paypalError } from "../test/index.js";
 
 const INVOICE = `${TOOLKIT_HOST}/v2/invoicing/invoices/${TEST_INVOICE_ID}`;

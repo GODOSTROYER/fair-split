@@ -13,6 +13,7 @@ import type {
   PolicyName,
   Verdict,
 } from "@fairsplit/contracts";
+import { ITEM_LABEL_MAX, ITEM_LABEL_WORDS, QUOTE_ITEM_KEYS } from "@fairsplit/domain";
 
 export interface ItemLabels {
   premium: string;
@@ -82,3 +83,17 @@ export const PURPOSE_LIMITS: Readonly<Record<AgentPurpose, { capMicros: number; 
   INVESTIGATE_HOLD: { capMicros: 400_000, maxIterations: 10 },
   REQUEST_BATCH: { capMicros: 150_000, maxIterations: 4 },
 };
+
+/**
+ * S4.4 tool 10 (`create_run_invoice`) as the model must read it: each line's label names its own line and uses only
+ * that line's closed vocabulary, IC-02 `ITEM_LABEL_WORDS` (core refuses any other word, so a label can never spell
+ * an amount, a contact, another party or another charge). The agent prompt carries this text verbatim, and a
+ * create refused for its labels returns it, so the model can label again from the same words.
+ */
+export function itemLabelGuide(): string {
+  return [
+    `Label each invoice line yourself: 1-${ITEM_LABEL_MAX} characters of letters, single spaces and ,'()- only,`,
+    "naming its own line and no other, and using only these words for it.",
+    ...QUOTE_ITEM_KEYS.map((key) => `${key.toLowerCase()} line: ${ITEM_LABEL_WORDS[key].join(", ")}`),
+  ].join("\n");
+}

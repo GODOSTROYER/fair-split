@@ -1,16 +1,18 @@
 // Two keys (I6, MM-5). A person approves the irreversible step: the treasurer signs the batch, and the Chair
 // co-signs when R5 asks for her (a batch over US$300, a line over US$150, any override).
 //
-//   approvalPayload  GET  the register §8 JCS payload for one role, built by code from the database batch,
-//                         with a fresh server nonce and exp = now + 30 min. Refused (INVALID_TRANSITION,
-//                         details.unpayable), like submitApproval, while a PayPal member has no receiver.
-//   submitApproval   POST verifies, in the domain's order (`expectedSigner`, `checkApproval`): the key is the
-//                         registered, unrevoked device key for the role (never a seeded or presented key);
-//                         the credential holds that key (a judge signs only with a labelled demo key); the
-//                         payload names that approver, role and season and the batch recomputed NOW; exp is
-//                         ahead and within 30 minutes; the nonce was never used (used-nonce store: every
-//                         approval row, voided ones included, plus UNIQUE(nonce)); the Ed25519 signature
-//                         verifies against the registry key; the two signers are two people with two keys.
+//   approvalPayload  GET  the register §8 JCS payload for one role, built by code from the database: the batch
+//                         (`batchSha256`) and every member line on and off rail (`linesDigest`), with a fresh
+//                         server nonce and exp = now + 30 min. Refused (INVALID_TRANSITION, details.unpayable),
+//                         like submitApproval, while a PayPal member has no receiver.
+//   submitApproval   POST verifies with the domain (`expectedSigner`, then `checkApprovals` over the run's live
+//                         approvals plus this one, as PayoutsService checks them before the POST): the key is
+//                         the registered, unrevoked device key of its own kind for the role (never a seeded or
+//                         presented key); the credential holds that key (a judge signs only with a labelled
+//                         demo key); each payload names its approver, role and season and the batch and lines
+//                         recomputed NOW; exp is ahead and within 30 minutes; no nonce was ever used (used-nonce
+//                         store: every approval row, voided ones included, plus UNIQUE(nonce)); each Ed25519
+//                         signature verifies against the registry key; the signers are two people with two keys.
 //                         Then, in one transaction: the approval row, `key.registered` (once per key) and
 //                         `approval.signed` ledger entries, the IC-01 event, the run's move, and at APPROVED
 //                         the lines LOCKED and the `postPayoutBatch` task (I7).
@@ -18,6 +20,8 @@
 //                         the reason kept as a note hash, run → IN_REVIEW.
 import { randomBytes } from "node:crypto";
 import {
+  type ApprovalPayload,
+  ApprovalPayload as ApprovalPayloadSchema,
   type ApprovalRole,
   type ErrorCode,
   type OfficerKey,
@@ -38,7 +42,8 @@ import {
   type ApprovalExpectation,
   approvalJcs,
   buildApprovalPayload,
-  checkApproval,
+  checkApprovals,
+  type ExpectedSigner,
   expectedSigner,
 } from "@fairsplit/domain";
 import { enqueue } from "@fairsplit/outbox";
@@ -95,6 +100,15 @@ function unpayableProblem(state: PayRunState, batch: RunBatch): ApiProblem {
   );
 }
 
+/** A member line without a stored hash: `linesDigest` cannot bind it, so nothing is signed around it. */
+function unhashedLines(state: PayRunState): ApiProblem {
+  return refuse(
+    "INVALID_TRANSITION",
+    "A member line has no stored hash: recompute the run before anyone signs.",
+    { runState: state },
+  );
+}
+
 export function receiversOf(deps: Pick<AppDeps, "env">) {
   return receiverDirectory(deps.env.paypal);
 }
@@ -121,6 +135,7 @@ export const approvalPayloadHandler: CommandHandler<"approvalPayload"> = async (
       "No line is payable through PayPal: there is no batch to sign.",
     );
   }
+  if (!batch.linesDigest) throw unhashedLines(run.state as PayRunState);
   const approverId =
     ctx.credential.role === "judge" ? await officerFor(deps.db, scope, role) : personaId(ctx.credential);
   if (!approverId) throw problem.forbidden(`No ${ROLE_NOUN[role]} is registered in this workspace.`);
@@ -130,6 +145,8 @@ export const approvalPayloadHandler: CommandHandler<"approvalPayload"> = async (
     seasonId: run.seasonId,
     rateCardSha256: run.rateCardSha256,
     batch: batch.digest,
+    // I4: both keys also sign every member line, on and off rail (IC-02 `linesDigest`).
+    linesDigest: batch.linesDigest,
     role,
     approverId,
     nonce: randomBytes(16).toString("hex"),
@@ -139,6 +156,34 @@ export const approvalPayloadHandler: CommandHandler<"approvalPayload"> = async (
 };
 
 // ---------------------------------------------------------------- submitApproval
+
+/**
+ * A stored SIGNED approval as the domain checks it: the payload as signed (JCS), the key and signature, and the
+ * public key from the registry (never the request). Null when the row cannot be read back or its key is gone.
+ */
+export function signedApprovalOf(
+  row: Pick<typeof schema.approvals.$inferSelect, "payloadJcs" | "keyId" | "signature">,
+  registry: readonly OfficerKey[],
+): SignedApproval | null {
+  if (!row.payloadJcs || !row.keyId || !row.signature) return null;
+  let payload: ApprovalPayload;
+  try {
+    const parsed = ApprovalPayloadSchema.safeParse(JSON.parse(row.payloadJcs));
+    if (!parsed.success) return null;
+    payload = parsed.data;
+  } catch {
+    return null;
+  }
+  const key = registry.find((k) => k.keyId === row.keyId);
+  if (!key) return null;
+  return {
+    role: payload.role,
+    keyId: row.keyId,
+    publicKeyHex: key.publicKeyHex,
+    payload,
+    signatureHex: row.signature,
+  };
+}
 
 /** Every nonce ever spent in this workspace: signed approvals, voided ones included (the used-nonce store). */
 async function usedNonces(db: DbOrTx, scope: WorkspaceScope): Promise<Set<string>> {
@@ -227,6 +272,9 @@ export const submitApprovalHandler: CommandHandler<"submitApproval"> = async (ct
         }
         if (batch.unpayable.length > 0) throw unpayableProblem(run.state as PayRunState, batch);
         if (!batch.digest) throw invalidTransition(run.state as PayRunState, "There is no batch to sign.");
+        if (!batch.linesDigest) throw unhashedLines(run.state as PayRunState);
+        const digest = batch.digest;
+        const lines = batch.linesDigest;
 
         // 1. The signer is the registry's key for this role (never a presented or seeded key).
         const registry = await officerRegistry(tx, scope);
@@ -245,7 +293,11 @@ export const submitApprovalHandler: CommandHandler<"submitApproval"> = async (ct
         } else if (signer.approverId !== personaId(ctx.credential)) {
           throw refuse("APPROVER_MISMATCH", `${keyId} belongs to someone else; sign with your own key.`);
         }
-        // 3. Two people with two keys.
+        // 3. The set this signature completes, checked now exactly as PayoutsService checks it before the POST
+        //    (domain `checkApprovals`): the run's live approvals read back from the database plus this one; each
+        //    signer the registry's key for its role; each payload signing this batch and every member line as
+        //    recomputed now (`batchSha256`, `linesDigest`), unexpired, with its own unspent nonce and a valid
+        //    signature; the treasurer and the Chair two people with two keys (key IDs, public keys, approvers).
         const live = await tx
           .select()
           .from(schema.approvals)
@@ -257,32 +309,17 @@ export const submitApprovalHandler: CommandHandler<"submitApproval"> = async (ct
               isNull(schema.approvals.voidedAt),
             ),
           );
-        for (const other of live) {
-          const sameRole = other.role === dbApprovalRoleOf(role);
-          const otherKey = registry.find((k) => k.keyId === other.keyId);
-          if (
-            sameRole ||
-            other.keyId === signer.keyId ||
-            other.approverId === signer.approverId ||
-            otherKey?.publicKeyHex === signer.publicKeyHex
-          ) {
-            throw refuse(
-              "SIGNERS_NOT_DISTINCT",
-              "The treasurer and the Chair must be two people with two keys.",
-            );
-          }
-        }
-        // 4. The payload signs exactly this batch, now; unexpired; unused nonce; a valid signature.
-        const expected: ApprovalExpectation = {
-          ...signer,
+        const expectation = (s: ExpectedSigner, r: ApprovalRole): ApprovalExpectation => ({
+          ...s,
           runId: run.id,
           seasonId: run.seasonId,
           rateCardSha256: run.rateCardSha256,
-          batchSha256: batch.digest.batchSha256,
-          itemCount: batch.digest.itemCount,
-          totalCents: batch.digest.totalCents,
-          role,
-        };
+          batchSha256: digest.batchSha256,
+          linesDigest: lines,
+          itemCount: digest.itemCount,
+          totalCents: digest.totalCents,
+          role: r,
+        });
         const signed: SignedApproval = {
           role,
           keyId,
@@ -290,13 +327,45 @@ export const submitApprovalHandler: CommandHandler<"submitApproval"> = async (ct
           payload,
           signatureHex: signature,
         };
-        const check = checkApproval(signed, expected, at, await usedNonces(tx, scope));
+        const set: SignedApproval[] = [];
+        const expected: Partial<Record<ApprovalRole, ApprovalExpectation>> = {
+          [role]: expectation(signer, role),
+        };
+        for (const row of live) {
+          const prior = signedApprovalOf(row, registry);
+          if (!prior) {
+            throw refuse(
+              "KEY_NOT_REGISTERED",
+              "The other approval's key is no longer registered: sign again.",
+            );
+          }
+          if (prior.role !== role) {
+            const other = expectedSigner(registry, prior.role, prior.keyId, at);
+            if (!other.ok) throw refuse("KEY_NOT_REGISTERED", other.reason);
+            expected[prior.role] = expectation(other.signer, prior.role);
+          }
+          set.push(prior);
+        }
+        // Spent: every nonce this workspace ever stored (voided approvals included), except those of the live
+        // approvals presented above. The new nonce is never exempt: a stored one is NONCE_REUSED, and one equal
+        // to a presented live nonce fails the set's own distinct-nonce check.
+        const livePresented = new Set(set.map((a) => a.payload.nonce));
+        const spent = new Set([...(await usedNonces(tx, scope))].filter((n) => !livePresented.has(n)));
+        set.push(signed);
+        const check = checkApprovals(
+          { approvals: set, expected, chairRequired: role === "chair" },
+          at,
+          spent,
+        );
         if (!check.ok) {
           throw refuse(
             check.code === "APPROVALS_MISSING" ? "INVALID_TRANSITION" : check.code,
             check.reason,
             check.code === "DIGEST_MISMATCH"
-              ? { expected: batch.digest.batchSha256, got: payload.batchSha256 }
+              ? {
+                  expected: { batchSha256: digest.batchSha256, linesDigest: lines },
+                  got: { batchSha256: payload.batchSha256, linesDigest: payload.linesDigest },
+                }
               : undefined,
           );
         }
@@ -491,6 +560,8 @@ export async function batchView(deps: AppDeps, scope: WorkspaceScope, runSlug: s
     itemCount: batch.digest?.itemCount ?? 0,
     totalCents: batch.digest?.totalCents ?? 0,
     batchSha256: batch.digest?.batchSha256 ?? null,
+    memberLines: batch.memberLines,
+    linesDigest: batch.linesDigest,
     chairRequired: batch.chair.required,
     chairReasons: batch.chair.reasons,
     blocking: batch.blocking.map((h) => ({ id: h.id, label: h.code ?? h.kind })),

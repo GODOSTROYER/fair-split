@@ -1,6 +1,7 @@
 // The API test harness (`@fairsplit/api/testing` for other packages; slices import it relatively).
 export { createFakeClock, type FakeClock } from "../lib/clock.js";
 export { type FrameTokenOptions, type TestAuth, TestCredentials } from "./credentials.js";
+export { setWorkspaceExpiry, walkRun } from "./db-time.js";
 export { createTestDeps, TEST_ENV, type TestDeps, type TestDepsOptions } from "./deps.js";
 export {
   createTestApp,

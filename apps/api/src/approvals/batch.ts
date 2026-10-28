@@ -1,18 +1,28 @@
 // The batch both keys sign and PayoutsService posts (I4: the approved digest is the payout). It is rebuilt
 // from the database every time it is needed (approval payload, each signature, the POST): the on-rail lines
 // that are READY (LOCKED once approved, SUBMITTED once written) with a positive net and no open hold
-// reserving them, each paid to its member's receiver, hashed with IC-02 `batchDigest`. A payable on-rail line
-// whose member has no receiver is listed in `unpayable`, and the approval routes refuse to sign around it.
-import type {
-  BatchDigest,
-  BatchItem,
-  CosignReason,
+// reserving them, each paid to its member's receiver, hashed with IC-02 `batchDigest`; and every member line of
+// the run, on and off rail, hashed with IC-02 `linesDigest` (the second digest both keys sign, so a cash line
+// changed after signing is refused too). A payable on-rail line whose member has no receiver is listed in
+// `unpayable`, and the approval routes refuse to sign around it.
+import {
+  type BatchDigest,
+  type BatchItem,
+  type CosignReason,
+  type EngineHold,
   HoldResolutionKind,
-  PayRunState,
-  RateCardRules,
+  type PayRunState,
+  type RateCardRules,
 } from "@fairsplit/contracts";
 import { type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
-import { batchDigest, isOverride, requiresChair, senderBatchId, senderItemId } from "@fairsplit/domain";
+import {
+  batchDigest,
+  linesDigest,
+  overrideCount,
+  requiresChair,
+  senderBatchId,
+  senderItemId,
+} from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
 import type { ReceiverDirectory } from "../money/receivers.js";
 import { toInt } from "../runs/codes.js";
@@ -33,6 +43,16 @@ export interface RunBatch {
   items: BatchLine[];
   /** Null when no on-rail line is payable. */
   digest: BatchDigest | null;
+  /**
+   * Every member line of the run, on and off rail (the cash lines too), as `{memberNo, lineSha256}` stored now,
+   * by member number: what IC-02 `linesDigest` hashes and M-BD-01 recomputes.
+   */
+  memberLines: { memberNo: string; lineSha256: string | null }[];
+  /**
+   * IC-02 `linesDigest(memberLines)`: the second digest both keys sign (I4: a cash line changed after signing
+   * no longer matches). Null when the run has no line, or a line has no stored hash (nothing can be signed).
+   */
+  linesDigest: string | null;
   cosign: RateCardRules["cosign"];
   chair: { required: boolean; reasons: CosignReason[] };
   overrides: number;
@@ -74,12 +94,9 @@ export async function runBatch(
       .map((h) => h.lineId as string),
   );
   const blocking = holds.filter((h) => OPEN.includes(h.state) && h.gate === "BLOCKS_APPROVAL");
-  const overrides = holds.filter((h) => {
-    const r = h.resolution as { kind?: string } | null;
-    return (
-      h.state === "RESOLVED" && r?.kind !== undefined && isOverride(h.kind, r.kind as HoldResolutionKind)
-    );
-  }).length;
+  // R5's overrides exactly as PayoutsService counts them before the POST (domain `overrideCount` over every hold
+  // of the run as stored), so who must co-sign never differs between signing and posting.
+  const overrides = overrideCount(runHolds(holds));
 
   const sbid = senderBatchId(season.code, run.rateCardSha256, run.runSeq);
   const items: BatchLine[] = [];
@@ -124,6 +141,9 @@ export async function runBatch(
     },
     cosign,
   );
+  const memberLines = lines
+    .map(({ line, memberNo }) => ({ memberNo, lineSha256: line.lineSha256 ?? null }))
+    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
   return {
     run,
     season,
@@ -131,12 +151,56 @@ export async function runBatch(
     senderBatchId: sbid,
     items,
     digest,
+    memberLines,
+    linesDigest: linesDigestOf(memberLines),
     cosign,
     chair,
     overrides,
     blocking,
     unpayable,
   };
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const RESOLUTION_KINDS: ReadonlySet<string> = new Set(HoldResolutionKind.options);
+
+/**
+ * The run's holds as domain `overrideCount` and PayoutsService read them: `{kind, resolution}` with the stored
+ * resolution's kind (an unreadable resolution counts as none).
+ */
+export function runHolds(
+  holds: readonly Pick<HoldRow, "kind" | "resolution">[],
+): Pick<EngineHold, "kind" | "resolution">[] {
+  return holds.map((h) => {
+    const r = h.resolution as { kind?: unknown; by?: unknown; at?: unknown } | null;
+    const kind = typeof r?.kind === "string" && RESOLUTION_KINDS.has(r.kind) ? r.kind : null;
+    return {
+      kind: h.kind as EngineHold["kind"],
+      resolution:
+        kind === null
+          ? null
+          : {
+              kind: kind as HoldResolutionKind,
+              by: typeof r?.by === "string" ? r.by : "",
+              at: typeof r?.at === "string" ? r.at : null,
+            },
+    };
+  });
+}
+
+/**
+ * IC-02 `linesDigest` over every member line as stored, or null when it cannot be signed: no line, a line without
+ * a stored hash, or one member with two lines (the domain refuses those; nothing signs around them).
+ */
+export function linesDigestOf(memberLines: readonly { memberNo: string; lineSha256: string | null }[]) {
+  if (memberLines.length === 0) return null;
+  const hashed: { memberNo: string; lineSha256: string }[] = [];
+  for (const l of memberLines) {
+    if (l.lineSha256 === null || !SHA256_HEX.test(l.lineSha256)) return null;
+    hashed.push({ memberNo: l.memberNo, lineSha256: l.lineSha256 });
+  }
+  if (new Set(hashed.map((l) => l.memberNo)).size !== hashed.length) return null;
+  return linesDigest(hashed);
 }
 
 /** The states in which each role may sign (register §7, S3.8). */

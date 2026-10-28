@@ -33,7 +33,14 @@ import {
   type Station,
 } from "@fairsplit/contracts";
 import { type Actor, type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
-import { computeLines, deriveKilos, engineLine, linesRootSha256, normalise } from "@fairsplit/domain";
+import {
+  computeLines,
+  deriveKilos,
+  engineLine,
+  linesRootSha256,
+  normalise,
+  overrideCount,
+} from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { problem } from "../lib/problem.js";
@@ -659,6 +666,9 @@ export async function recompute(
       netCents: c.netCents,
       onRailNetCents: c.onRailNetCents,
       balanced: c.balanced,
+      // R5: hold resolutions in this computation that are overrides; with `cosign.anyOverride`, Proof plate 5
+      // then requires the Chair's key (domain `overrideCount`, as the seed computes it).
+      overrides: overrideCount(output.holds),
     },
     { runId: run.id, at: o.at, actor: ACTORS.engine },
   );

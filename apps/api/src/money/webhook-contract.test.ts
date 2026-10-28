@@ -6,8 +6,8 @@
 import { schema } from "@fairsplit/db";
 import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/testing/app.js";
-import { paypalScript, TEST_BATCH_ID } from "../runs/testing/paypal.js";
+import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
+import { paypalScript, TEST_BATCH_ID } from "../runs/test/paypal.js";
 import { processWebhook } from "./settle.js";
 
 const script = paypalScript();

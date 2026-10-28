@@ -689,7 +689,13 @@ describe("who may issue for whom (S3.8 roles; separation of duties)", () => {
     const stageExp = (await t.json<{ expiresAt: string }>("/v1/credential", { as: judge(s) })).body.expiresAt;
     const clerk = await claim(fromStage);
     expect(clerk.body.expiresAt).toBe(stageExp);
-    expect(Date.parse(stageExp) - t.clock.nowMs()).toBeGreaterThan(24 * 3_600_000 - 1_000);
+    // the workspace's claim: 24 h by the database's clock (claimJudgeWorkspace), to the second
+    const owner = t.pg?.owner.sql;
+    if (!owner) throw new Error("db");
+    const [ws] = await owner<{ expires_s: string }[]>`
+      select floor(extract(epoch from expires_at))::bigint::text as expires_s
+        from workspaces where id = ${s.workspaceId}`;
+    expect(Math.floor(Date.parse(stageExp) / 1000)).toBe(Number(ws?.expires_s));
     // and a chain of self-pairings never extends it: the Chair's phone pairs a member, capped again
     const chained = await t.json<PairingBody>("/v1/pairing", {
       method: "POST",

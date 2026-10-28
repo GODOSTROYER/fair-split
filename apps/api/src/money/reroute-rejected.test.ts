@@ -2,15 +2,21 @@
 // (RETURNED, for a re-route), nothing was paid, and the line needs action. Its own file: one msw server per
 // process.
 import { randomUUID } from "node:crypto";
-import type { ApprovalPayload } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import { approvalBytes, batchDigest, ed25519Sign, senderBatchId, senderItemId } from "@fairsplit/domain";
+import { approvalBytes, ed25519Sign } from "@fairsplit/domain";
 import { eq } from "drizzle-orm";
 import { HttpResponse, http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/testing/app.js";
-import { paypalScript } from "../runs/testing/paypal.js";
-import { registerKey } from "../runs/testing/world.js";
+import {
+  type RunsHarness,
+  reroutePayload,
+  resolveAll,
+  runQueued,
+  signBoth,
+  startRuns,
+} from "../runs/test/app.js";
+import { paypalScript } from "../runs/test/paypal.js";
+import { registerKey } from "../runs/test/world.js";
 import { PAYPAL_SANDBOX } from "../test/index.js";
 import { settleBatch } from "./settle.js";
 
@@ -47,33 +53,14 @@ describe("resend: PAYPAL_REJECTED when PayPal refuses the re-route POST synchron
     const db = g.t.pg?.app.db;
     if (!db) throw new Error("db");
     const key = await registerKey(db, g.world.workspaceId, { keyId: "fs-analyn-a2", persona: "analyn" });
-    const sbid = senderBatchId("2026A", g.world.rateCardSha256, g.world.runSeq, 1);
     const receiver = "m014@example.com";
-    const digest = batchDigest(
-      { runId: g.world.runId, senderBatchId: sbid, rateCardSha256: g.world.rateCardSha256 },
-      [
-        {
-          senderItemId: senderItemId(g.world.runSeq, "M-031", 1),
-          receiver,
-          amountCents: rhea.netCents,
-          currency: "USD",
-        },
-      ],
-    );
-    const payload: ApprovalPayload = {
-      v: 1,
-      runId: g.world.runId,
-      seasonId: g.world.seasonId,
-      rateCardSha256: g.world.rateCardSha256,
-      batchSha256: digest.batchSha256,
-      itemCount: 1,
-      totalCents: rhea.netCents,
-      currency: "USD",
-      role: "treasurer",
-      approverId: "treasurer:analyn",
+    const { payload } = await reroutePayload(g, {
+      memberNo: "M-031",
+      receiver,
+      amountCents: rhea.netCents,
       nonce: randomUUID().replaceAll("-", ""),
       exp: new Date(g.t.clock.nowMs() + 20 * 60_000).toISOString(),
-    };
+    });
     g.paypal?.use(
       http.post(`${PAYPAL_SANDBOX}/v1/payments/payouts`, () =>
         HttpResponse.json(

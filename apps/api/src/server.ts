@@ -2,19 +2,20 @@
 // bus, build the PayPal rail for PP_MODE, assemble deps, build the app, start the outbox dispatcher, listen
 // on 0.0.0.0:$PORT, then run the folders' boot hooks. SIGTERM drains: SSE streams end (clients replay from
 // Last-Event-ID), the dispatcher finishes in-flight tasks, connections close (Render waits up to 60 s).
+import { createWebhookTransmissionStore, paypalCoreLimiter } from "@fairsplit/db";
 import { type ServerType, serve } from "@hono/node-server";
 import type { Logger } from "pino";
 import { API_VERSION, createApp, type FairSplitApp } from "./app.js";
 import { createCredentialKeys, createCredentialResolver } from "./credentials/verify/index.js";
 import { openDataLayer, wireOutbox } from "./db.js";
-import { type ApiEnv, type EnvSource, parseEnv } from "./env.js";
+import { type ApiEnv, BootRefusal, type EnvSource, parseEnv } from "./env.js";
 import { systemClock } from "./lib/clock.js";
 import type { AppDeps } from "./lib/context.js";
 import { appCredentialStore } from "./lib/credential-store.js";
 import { dbIdempotencyStore } from "./lib/idempotency.js";
 import { createKeyedRateLimiter } from "./lib/rate-limit.js";
 import { createLogger } from "./middleware/logger.js";
-import { dbPayPalLimiter } from "./paypal/limiter.js";
+import { assertPartiesAscii } from "./money/policy.js";
 import { createPayPalRail } from "./paypal/mode.js";
 import { createSseHub } from "./sse/hub.js";
 
@@ -29,12 +30,28 @@ export interface RunningServer {
 
 export async function startServer(source: EnvSource = process.env): Promise<RunningServer> {
   const env = parseEnv(source);
+  try {
+    assertPartiesAscii(env);
+  } catch (err) {
+    throw new BootRefusal([
+      err instanceof Error ? err.message : "a PayPal e-mail setting is not plain ASCII",
+    ]);
+  }
   const logger = createLogger({ level: env.logLevel });
   for (const w of env.warnings) logger.warn(w);
   const data = await openDataLayer(env, logger);
 
-  const ppLimiter = dbPayPalLimiter(data.limiter);
-  const paypal = createPayPalRail({ paypal: env.paypal, limiter: ppLimiter, recorder: ppLimiter, logger });
+  // WS-DATA's adapters: every PayPal attempt takes a slot of the shared Postgres limiter and completes its
+  // `paypal_calls` row; a verified webhook's transmission id is claimed in `webhook_transmissions`, so a replayed
+  // delivery is refused in every process (the hourly cron purges expired ids).
+  const pp = paypalCoreLimiter(data.limiter);
+  const paypal = createPayPalRail({
+    paypal: env.paypal,
+    limiter: pp.limiter,
+    recorder: pp.recorder,
+    logger,
+    webhookTransmissionStore: createWebhookTransmissionStore(data.database.db),
+  });
   const keys = createCredentialKeys(env.secrets);
   const store = appCredentialStore(data.database.db);
   const clock = systemClock;

@@ -1,23 +1,24 @@
 // After the POST, on embedded Postgres with PayPal answered by msw: verified webhooks applied by rank
 // (processWebhook), the settle GET, three parked items (Rhea M-031, M-002, M-007), and every listed error of
-// payCash and resend (P1 re-route) on them, ending in a one-item re-route batch `-x1`.
+// payCash and resend (P1 re-route) on them, ending in one-item re-route batches `-x1-{memberNo}` (ADR-0007).
 import { randomUUID } from "node:crypto";
 import type { ApprovalPayload } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import {
-  approvalBytes,
-  approvalJcs,
-  batchDigest,
-  ed25519Sign,
-  senderBatchId,
-  senderItemId,
-} from "@fairsplit/domain";
+import { approvalBytes, approvalJcs, ed25519Sign } from "@fairsplit/domain";
+import { senderItemId } from "@fairsplit/paypal-payouts";
 import { and, eq, like } from "drizzle-orm";
 import { HttpResponse, http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/testing/app.js";
-import { paypalScript } from "../runs/testing/paypal.js";
-import { registerKey } from "../runs/testing/world.js";
+import {
+  type RunsHarness,
+  reroutePayload,
+  resolveAll,
+  runQueued,
+  signBoth,
+  startRuns,
+} from "../runs/test/app.js";
+import { paypalScript } from "../runs/test/paypal.js";
+import { registerKey } from "../runs/test/world.js";
 import { PAYPAL_SANDBOX } from "../test/index.js";
 import { processWebhook, settleBatch } from "./settle.js";
 
@@ -75,7 +76,7 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 describe("processWebhook: verified events applied by rank (S3.6.5)", () => {
-  it("a self-verified PAYOUTS-ITEM.SUCCEEDED applies at once (MM-1), with webhook.applied in the ledger", async () => {
+  it("a self-verified PAYOUTS-ITEM.SUCCEEDED is applied from a fresh GET while no delivery record says its certificate was in date", async () => {
     const posted = script.posted[0];
     const i = posted?.items.findIndex((it) => it.sender_item_id.endsWith("M-014")) ?? -1;
     const id = await storeWebhook(
@@ -93,7 +94,9 @@ describe("processWebhook: verified events applied by rank (S3.6.5)", () => {
     );
     const before = script.calls.length;
     await processWebhook(h.t.deps, { webhookEventId: id, paypalEventId: "WH-TEST-0001" }, complete);
-    expect(script.calls.length).toBe(before); // no GET: the signature vouches for it
+    // WS-PPCORE's apply rule fails closed: webhook_events has no `delivery` column yet (WS-DATA), so nothing
+    // records an in-date certificate and PayPal's GET decides (MM-1 applies at once once the column lands)
+    expect(script.calls.slice(before)).toEqual(["get_payout_item"]);
     expect((await line("M-014")).state).toBe("PAID");
     expect(await runState()).toBe("SETTLING");
     const [row] = await h.t.deps.db
@@ -185,26 +188,15 @@ describe("resend (P1 re-route): every refusal, then a one-item batch", () => {
     } = {},
   ) {
     const l = await line(memberNo);
-    const sbid = senderBatchId("2026A", h.world.rateCardSha256, h.world.runSeq, 1);
-    const sid = senderItemId(h.world.runSeq, memberNo, 1);
-    const digest = batchDigest(
-      { runId: h.world.runId, senderBatchId: sbid, rateCardSha256: h.world.rateCardSha256 },
-      [{ senderItemId: sid, receiver: o.receiver ?? newReceiver, amountCents: l.netCents, currency: "USD" }],
-    );
-    let payload: ApprovalPayload = {
-      v: 1,
-      runId: h.world.runId,
-      seasonId: h.world.seasonId,
-      rateCardSha256: h.world.rateCardSha256,
-      batchSha256: digest.batchSha256,
-      itemCount: 1,
-      totalCents: l.netCents,
-      currency: "USD",
-      role: "treasurer",
-      approverId: "treasurer:analyn",
+    const built = await reroutePayload(h, {
+      memberNo,
+      receiver: o.receiver ?? newReceiver,
+      amountCents: l.netCents,
       nonce: randomUUID().replaceAll("-", ""),
       exp: new Date(h.t.clock.nowMs() + 20 * 60_000).toISOString(),
-    };
+    });
+    const sbid = built.senderBatchId;
+    let payload: ApprovalPayload = built.payload;
     if (o.mutate) payload = o.mutate(payload);
     const signer = o.key ?? keys.analyn;
     return {
@@ -267,7 +259,7 @@ describe("resend (P1 re-route): every refusal, then a one-item batch", () => {
     expect(script.calls.filter((c) => c === "cancel_unclaimed")).toHaveLength(0);
   });
 
-  it("Rhea's parked item is cancelled for a re-route and paid again as `-x1` to her new account", async () => {
+  it("Rhea's parked item is cancelled for a re-route and paid again as `-x1-M-031` to her new account", async () => {
     const r = await rerouteBody("M-031");
     const out = await resend(r.lineId, r.body);
     expect(out).toMatchObject({
@@ -279,7 +271,7 @@ describe("resend (P1 re-route): every refusal, then a one-item batch", () => {
     expect(reroute?.items).toEqual([
       expect.objectContaining({
         receiver: "m014@example.com",
-        sender_item_id: senderItemId(h.world.runSeq, "M-031", 1),
+        sender_item_id: senderItemId({ runSeq: h.world.runSeq, memberNo: "M-031", rerouteNo: 1 }),
       }),
     ]);
     const [approval] = await h.t.deps.db
@@ -291,15 +283,27 @@ describe("resend (P1 re-route): every refusal, then a one-item batch", () => {
     await expect(resend(r.lineId, r.body)).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
   });
 
-  it("a second item of the same run cannot take the same -x1 re-route id: refused before anything is cancelled", async () => {
-    const before = script.calls.filter((c) => c === "cancel_unclaimed").length;
+  it("a second item of the same run is re-routed under its own id (`-x1-M-007`, ADR-0007), never the first's", async () => {
+    const rhea = (await rerouteBody("M-031")).sbid;
     const r = await rerouteBody("M-007");
-    await expect(resend(r.lineId, r.body)).rejects.toMatchObject({
-      code: "INVALID_TRANSITION",
-      details: { reason: "REROUTE_ID_TAKEN" },
+    expect(r.sbid).toBe(rhea.replace(/-M-031$/, "-M-007"));
+    const out = await resend(r.lineId, r.body);
+    expect(out).toMatchObject({
+      senderBatchId: r.sbid,
+      line: { memberNo: "M-007", state: "PAYPAL_PENDING" },
     });
+    const posted = script.posted.at(-1);
+    expect(posted?.sender_batch_header.sender_batch_id).toBe(r.sbid);
+    expect(posted?.items).toEqual([
+      expect.objectContaining({
+        sender_item_id: senderItemId({ runSeq: h.world.runSeq, memberNo: "M-007", rerouteNo: 1 }),
+      }),
+    ]);
+    // the same item again: its rows are written under that id, refused before anything is cancelled
+    const before = script.calls.filter((c) => c === "cancel_unclaimed").length;
+    const again = await rerouteBody("M-007");
+    await expect(resend(again.lineId, again.body)).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
     expect(script.calls.filter((c) => c === "cancel_unclaimed").length).toBe(before);
-    expect((await line("M-007")).state).toBe("UNCLAIMED");
   });
 });
 

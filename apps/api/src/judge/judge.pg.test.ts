@@ -16,7 +16,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { JUDGE_COOKIE } from "../credentials/verify/index.js";
 import { hashedClientIp } from "../lib/client-ip.js";
-import { createTestApp, type TestApp } from "../test/index.js";
+import { createTestApp, setWorkspaceExpiry, type TestApp, walkRun } from "../test/index.js";
 import { demoKeyStatement } from "./keys.js";
 import { claimPooledWorkspace, poolName, poolSize, purgeExpiredJudgeWorkspaces, refillPool } from "./pool.js";
 import { recordBalanceReading } from "./quota.js";
@@ -75,9 +75,8 @@ async function startSession(o: { cookie?: string; ip?: string } = {}): Promise<S
 const judge = (cookie: string) => t.credentials.judge(cookie);
 
 async function drainPool(): Promise<void> {
-  const now = t.clock.now();
   while ((await poolSize(t.deps.db)) > 0) {
-    await t.deps.db.transaction((tx) => claimPooledWorkspace(tx, now, new Date(now.getTime() + 60_000)));
+    await t.deps.db.transaction((tx) => claimPooledWorkspace(tx));
   }
 }
 
@@ -151,15 +150,17 @@ describe("the judge world (a clone of the seed)", () => {
     await refillPool(t.deps.db, 2);
     const before = await poolSize(t.deps.db);
     expect(before).toBeGreaterThanOrEqual(2);
-    const now = t.clock.now();
-    const exp = new Date(now.getTime() + 60_000);
     const [a, b] = await Promise.all([
-      t.deps.db.transaction((tx) => claimPooledWorkspace(tx, now, exp)),
-      t.deps.db.transaction((tx) => claimPooledWorkspace(tx, now, exp)),
+      t.deps.db.transaction((tx) => claimPooledWorkspace(tx)),
+      t.deps.db.transaction((tx) => claimPooledWorkspace(tx)),
     ]);
     expect(a).toBeTruthy();
     expect(b).toBeTruthy();
-    expect(a).not.toBe(b);
+    expect(a?.workspaceId).not.toBe(b?.workspaceId);
+    // the claim is the database clock: claimed now, 24 h exactly (WS-DATA claimJudgeWorkspace, migration 0013)
+    for (const c of [a, b]) {
+      expect((c?.expiresAt.getTime() ?? 0) - (c?.claimedAt.getTime() ?? 0)).toBe(24 * 3_600_000);
+    }
     expect(await poolSize(t.deps.db)).toBe(before - 2);
   });
 
@@ -177,11 +178,8 @@ describe("the judge world (a clone of the seed)", () => {
     const holder = await ownerSql().reserve();
     await holder`select pg_advisory_lock(hashtextextended(${`fs:ws-log:${free[0]?.id}`}, 0))`;
     try {
-      const now = t.clock.now();
-      const claimed = await t.deps.db.transaction((tx) =>
-        claimPooledWorkspace(tx, now, new Date(now.getTime() + 60_000)),
-      );
-      expect(claimed).toBe(free[1]?.id);
+      const claimed = await t.deps.db.transaction((tx) => claimPooledWorkspace(tx));
+      expect(claimed?.workspaceId).toBe(free[1]?.id);
     } finally {
       await holder`select pg_advisory_unlock_all()`;
       holder.release();
@@ -531,7 +529,7 @@ describe("Try to break it", () => {
     expect(r.body.armed).toBe(true);
     expect((await arm()).status).toBe(200); // idempotent
     expect(await tamperArmed(t.deps.db, s.body.workspaceId, s.body.runId)).toBe(true);
-    await ownerSql()`update pay_runs set state = 'APPROVED' where id = ${s.body.runId}`;
+    await walkRun(ownerSql(), s.body.runId, "APPROVED");
     const late = await t.json<ApiError>(`/v1/judge/sessions/${s.body.sessionId}/tamper`, {
       method: "POST",
       body: { kind: "change_payout" },
@@ -539,7 +537,7 @@ describe("Try to break it", () => {
     });
     expect(late.status).toBe(200); // already armed: the earlier arming stands
     const s2 = await startSession({ ip: "203.0.113.92" });
-    await ownerSql()`update pay_runs set state = 'APPROVED' where id = ${s2.body.runId}`;
+    await walkRun(ownerSql(), s2.body.runId, "APPROVED");
     const refused = await t.json<ApiError>(`/v1/judge/sessions/${s2.body.sessionId}/tamper`, {
       method: "POST",
       body: { kind: "change_payout" },
@@ -597,7 +595,13 @@ describe("the judge session view, the lane and the judge code", () => {
     expect(r.body.rail.quota.balance.source).toBe("simulator_opening");
     expect(r.body.lane.position).toBeNull();
     expect(r.body.tamper.changePayoutArmed).toBe(false);
-    expect(Date.parse(r.body.sessionExpiresAt) - t.clock.nowMs()).toBe(24 * 3_600_000);
+    // the session ends with its workspace's claim: 24 h by the database's clock (claimJudgeWorkspace, 0013)
+    const [claim] = await ownerSql()<{ claimed_ms: string; expires_ms: string }[]>`
+      select (extract(epoch from claimed_at) * 1000)::bigint::text as claimed_ms,
+             (extract(epoch from expires_at) * 1000)::bigint::text as expires_ms
+        from workspaces where id = ${s.body.workspaceId}`;
+    expect(Date.parse(r.body.sessionExpiresAt)).toBe(Number(claim?.expires_ms));
+    expect(Number(claim?.expires_ms) - Number(claim?.claimed_ms)).toBe(24 * 3_600_000);
     // a frame token minted by the session sees the same session
     const f = await t.json<{ sessionId: string }>("/v1/judge/session", {
       as: t.credentials.bearer(s.body.consoleToken),
@@ -667,7 +671,8 @@ describe("the judge session view, the lane and the judge code", () => {
       await app.json(`/v1/judge/sessions/${s0.sessionId}/reset`, { method: "POST", body: {}, as });
       const ownerSql = app.pg?.owner.sql;
       if (!ownerSql) throw new Error("no database");
-      await ownerSql`update workspaces set expires_at = now() - interval '1 minute' where id = ${s0.workspaceId}`;
+      // the database's 24 hours are over for s0's workspace
+      await setWorkspaceExpiry(ownerSql, s0.workspaceId, new Date(Date.now() - 60_000));
       await app.deps.db.execute(sql`select fs_purge_workspace(${s0.workspaceId}::uuid)`);
       const r1 = await app.json<SessionBody>("/v1/judge/sessions", {
         method: "POST",
@@ -718,7 +723,7 @@ describe("demo signing keys", () => {
     };
   }
 
-  it("registers a frame's browser key as fs-{persona}-w{6 digits} with proof of possession and a key.registered entry", async () => {
+  it("registers a frame's browser key as fs-{persona}-demo-{6} (web_demo) with proof of possession and a key.registered entry", async () => {
     const s = await startSession({ ip: "203.0.113.110" });
     const as = await frameFor(s, "board:ernesto");
     const key = browserKey();
@@ -737,9 +742,9 @@ describe("demo signing keys", () => {
       kind: "web_demo",
       label: "Demo key (this browser only)",
     });
-    // C-13: a demo key id is the persona plus six random digits, a valid DeviceKeyId that no real key
-    // (fs-ernesto-a1, fs-analyn-w1: small numbers) can ever share, in keys.json or on Proof
-    expect(r.body.keyId).toMatch(/^fs-ernesto-w[1-9]\d{5}$/);
+    // C-13: a demo key id is fs-{persona}-demo-{6 of [a-z0-9]}, the one shape a web_demo key may have (contracts
+    // DeviceKey, the database's per-kind CHECK), so no real key (fs-ernesto-a1, fs-analyn-w1) can ever share it
+    expect(r.body.keyId).toMatch(/^fs-ernesto-demo-[a-z0-9]{6}$/);
     expect(DeviceKeyId.safeParse(r.body.keyId).success).toBe(true);
     const keyId = r.body.keyId;
     const again = await t.json<{ keyId: string }>("/v1/judge/keys", { method: "POST", body, as });
@@ -800,7 +805,7 @@ describe("demo signing keys", () => {
       as: treasurer,
     });
     expect(own.status).toBe(201);
-    expect(own.body.keyId).toMatch(/^fs-analyn-w[1-9]\d{5}$/);
+    expect(own.body.keyId).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
   });
 
   it("a real officer key (any workspace) is never registered again as a demo key", async () => {
@@ -816,7 +821,7 @@ describe("demo signing keys", () => {
         keyId: "fs-analyn-w1",
         persona: "analyn",
         publicKey: Buffer.from(key.publicKeyHex, "hex").toString("base64url"),
-        kind: "app",
+        kind: "web",
         platform: "web",
       });
     const r = await t.json<ApiError>("/v1/judge/keys", {
@@ -968,12 +973,13 @@ describe("judgeReset (task)", () => {
       as: judge(quiet.cookie),
     });
     const busy = await startSession({ ip: "203.0.113.122" });
-    await ownerSql()`update workspaces set expires_at = now() - interval '1 minute' where id = ${busy.body.workspaceId}`;
+    await setWorkspaceExpiry(ownerSql(), busy.body.workspaceId, new Date(Date.now() - 60_000));
     // a POSTING run is money in flight: fs_purge_workspace refuses it
-    await ownerSql()`
-      update pay_runs set state = 'POSTING', batch_sha256 = ${"c".repeat(64)}, sender_batch_id = ${`2026A-busy-${busy.body.runSlug}`}
-       where id = ${busy.body.runId}`;
-    await ownerSql()`update workspaces set expires_at = now() - interval '1 minute' where id = ${quiet.body.workspaceId}`;
+    await walkRun(ownerSql(), busy.body.runId, "POSTING", {
+      batchSha256: "c".repeat(64),
+      senderBatchId: `2026A-busy-${busy.body.runSlug}`,
+    });
+    await setWorkspaceExpiry(ownerSql(), quiet.body.workspaceId, new Date(Date.now() - 60_000));
     const out = await purgeExpiredJudgeWorkspaces(t.deps.db, 50);
     expect(out.purged).toContain(quiet.body.workspaceId);
     expect(out.deferred).toContain(busy.body.workspaceId);

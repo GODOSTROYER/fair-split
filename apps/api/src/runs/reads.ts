@@ -96,6 +96,13 @@ export const BatchView = z.strictObject({
   itemCount: z.int().nonnegative(),
   totalCents: z.int().nonnegative(),
   batchSha256: Sha256Hex.nullable(),
+  /**
+   * Every member line of the run, on and off rail (the cash lines too), as stored: M-BD-01 recomputes IC-02
+   * `linesDigest` from these, the second digest both keys sign.
+   */
+  memberLines: z.array(z.strictObject({ memberNo: z.string(), lineSha256: Sha256Hex.nullable() })),
+  /** IC-02 `linesDigest(memberLines)`; null when a line has no stored hash (nothing can be signed). */
+  linesDigest: Sha256Hex.nullable(),
   chairRequired: z.boolean(),
   chairReasons: z.array(z.string()),
   blocking: z.array(z.strictObject({ id: Uuid, label: z.string() })),

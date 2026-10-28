@@ -20,7 +20,7 @@ import {
   type PayoutItemStatus,
   type SignedApproval,
 } from "@fairsplit/contracts";
-import { type Db, schema } from "@fairsplit/db";
+import { type Db, openSeedWindow, schema } from "@fairsplit/db";
 import {
   approvalBytes,
   buildLedger,
@@ -88,7 +88,13 @@ export async function loadShowcase(db: Db, opts: ShowcaseOptions = {}): Promise<
 
   const [ws] = await db
     .insert(schema.workspaces)
-    .values({ kind: opts.kind ?? "showcase", name: "Showcase 2026-A", expiresAt: opts.expiresAt ?? null })
+    .values({
+      kind: opts.kind ?? "showcase",
+      name: "Showcase 2026-A",
+      expiresAt: opts.expiresAt ?? null,
+      // born with an expiry: a claimed session's workspace, as claimJudgeWorkspace leaves it
+      claimedAt: opts.expiresAt ? new Date() : null,
+    })
     .returning({ id: schema.workspaces.id });
   const workspaceId = must(ws).id;
 
@@ -128,15 +134,20 @@ export async function loadShowcase(db: Db, opts: ShowcaseOptions = {}): Promise<
     provenance: "seeded",
   });
   const canonicalJcs = jcs(card.canonical);
-  await db.insert(schema.rateCards).values({
-    id: card.id,
-    workspaceId,
-    seasonId: season.id,
-    code: card.canonical.resolutionNo,
-    canonicalJcs,
-    sha256: sha256Hex(canonicalJcs),
-    ratifiedAt: new Date(card.ratifiedAt),
-    provenance: "seeded",
+  // I2 (migration 0007): the database stamps a ratification with its own clock, except inside a seed window,
+  // where a `seeded` card keeps the snapshot's instant (ratified before the slips it pays).
+  await db.transaction(async (tx) => {
+    await openSeedWindow(tx, workspaceId);
+    await tx.insert(schema.rateCards).values({
+      id: card.id,
+      workspaceId,
+      seasonId: season.id,
+      code: card.canonical.resolutionNo,
+      canonicalJcs,
+      sha256: sha256Hex(canonicalJcs),
+      ratifiedAt: new Date(card.ratifiedAt),
+      provenance: "seeded",
+    });
   });
 
   await db.insert(schema.members).values(

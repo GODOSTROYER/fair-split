@@ -9,9 +9,9 @@
 //   - one key, one signer: a public key already registered in this workspace (for any persona), or as a
 //     real officer key in any workspace, is refused. PayoutsService compares key ids, so one browser key
 //     registered as both the treasurer and the Chair would otherwise sign both approvals;
-//   - a demo key's id is `fs-{persona}-w{6 random digits}`: C-13's `fs-{persona}-demo-{6}` in the form the
-//     DeviceKeyId format (`fs-{persona}-{a|w}{n}`) accepts. Real keys are numbered from 1 (fs-ernesto-a1,
-//     fs-analyn-w1), so a demo key can never share an id with one, in keys.json or on Proof.
+//   - a demo key's id is C-13's `fs-{persona}-demo-{6 of [a-z0-9]}`, the one shape contracts `DeviceKey` (and
+//     the database's per-kind CHECK) allow for `web_demo`, so a demo key can never share an id with a real one
+//     (`fs-ernesto-a1`, `fs-analyn-w1`), in keys.json or on Proof.
 import { randomInt } from "node:crypto";
 import { DeviceKeyId, Ed25519PublicKeyHex } from "@fairsplit/contracts";
 import { appendLedger, isUniqueViolation, schema, withWorkspaceTx } from "@fairsplit/db";
@@ -20,19 +20,31 @@ import { and, eq, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { type ActingCredential, scopeOf } from "../credentials/verify/index.js";
 import type { AppDeps } from "../lib/context.js";
+import { deviceKeyRow, storedPublicKey } from "../lib/device-keys.js";
 import { problem } from "../lib/problem.js";
 import { isJudgeWorkspace } from "./quota.js";
 
 /** Who signs a pay run: the treasurer always, the Chair above the card's thresholds (R5). */
 export const SIGNING_ROLES = ["treasurer", "board"] as const;
 
-/** A demo key's number: six digits, never a small number a real key uses. */
-const DEMO_KEY_NUMBER = { min: 100_000, max: 1_000_000 } as const;
+/** The six characters a demo key's id ends in (C-13). */
+const DEMO_SUFFIX_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const DEMO_SUFFIX_LENGTH = 6;
 
-/** `fs-{persona}-w{6 random digits}` (see the header). */
+/** `fs-{persona}-demo-{6 of [a-z0-9]}` (see the header), drawn with the CSPRNG. */
 export function demoKeyId(persona: string): string {
-  return `fs-${persona}-w${randomInt(DEMO_KEY_NUMBER.min, DEMO_KEY_NUMBER.max)}`;
+  let suffix = "";
+  for (let i = 0; i < DEMO_SUFFIX_LENGTH; i++) {
+    suffix += DEMO_SUFFIX_ALPHABET[randomInt(DEMO_SUFFIX_ALPHABET.length)];
+  }
+  return `fs-${persona}-demo-${suffix}`;
 }
+
+const DEMO_KEY_LABEL = "Demo key (this browser only)";
+
+/** A demo key of this persona (its own kind's shape). */
+const isDemoKeyOf = (persona: string, keyId: string) =>
+  new RegExp(`^fs-${persona}-demo-[a-z0-9]{${DEMO_SUFFIX_LENGTH}}$`).test(keyId);
 
 export const DemoKeyRequest = z.strictObject({
   publicKeyHex: Ed25519PublicKeyHex,
@@ -87,7 +99,7 @@ export async function registerDemoKey(
   }
   const scope = scopeOf(cred);
   if (!scope) throw problem.forbidden();
-  const raw = Buffer.from(input.publicKeyHex, "hex").toString("base64url");
+  const raw = storedPublicKey(input.publicKeyHex);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       // the workspace lock serialises every registration of this workspace, so the check below holds
@@ -110,7 +122,7 @@ export async function registerDemoKey(
             h.workspaceId === cred.workspaceId &&
             h.kind === "web_demo" &&
             h.persona === cred.persona &&
-            h.keyId.startsWith(`fs-${cred.persona}-w`) &&
+            isDemoKeyOf(cred.persona, h.keyId) &&
             h.revokedAt === null,
         );
         if (own && holders.length === 1) return own.keyId; // the same key registered twice: idempotent
@@ -118,14 +130,18 @@ export async function registerDemoKey(
           throw problem.forbidden("This browser key already signs for someone else: one key, one signer.");
         }
         const id = demoKeyId(cred.persona);
-        await tx.insert(dk).values({
+        // Through contracts DeviceKey: a web_demo key with its own kind's ID shape, or nothing is written.
+        const built = deviceKeyRow({
           workspaceId: cred.workspaceId,
           keyId: id,
           persona: cred.persona,
-          publicKey: raw,
+          publicKeyHex: input.publicKeyHex,
           kind: "web_demo",
+          label: DEMO_KEY_LABEL,
           platform: "web",
         });
+        if (!built.ok) throw problem.internal(`A demo key id did not fit its kind: ${built.reason}`);
+        await tx.insert(dk).values(built.row);
         await appendLedger(tx, scope, {
           kind: "key.registered",
           payload: { keyId: id, persona: approverId, kind: "web_demo", publicKeyHex: input.publicKeyHex },
@@ -137,11 +153,11 @@ export async function registerDemoKey(
         keyId,
         approverId,
         kind: "web_demo",
-        label: "Demo key (this browser only)",
+        label: DEMO_KEY_LABEL,
         publicKeyHex: input.publicKeyHex,
       };
     } catch (err) {
-      // two registrations drew the same six digits (one in 900,000): draw again
+      // two registrations drew the same six characters (one in 36^6): draw again
       if (!isUniqueViolation(err) || attempt === 2) throw err;
     }
   }

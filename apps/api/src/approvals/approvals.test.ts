@@ -2,14 +2,14 @@
 // by code from the database batch (8 items, US$368.39), each signature is checked against the `device_keys`
 // registry in the domain's order, and every listed error code of approvalPayload, submitApproval and
 // declineApproval is reached.
-import type { ApprovalPayload } from "@fairsplit/contracts";
+import { type ApprovalPayload, LedgerPayloads } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import { approvalBytes, approvalJcs, batchDigest, ed25519Sign } from "@fairsplit/domain";
+import { approvalBytes, approvalJcs, batchDigest, ed25519Sign, linesDigest } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, startRuns } from "../runs/testing/app.js";
-import { registerKey } from "../runs/testing/world.js";
+import { type RunsHarness, resolveAll, startRuns } from "../runs/test/app.js";
+import { registerKey } from "../runs/test/world.js";
 
 type KeyPair = Awaited<ReturnType<typeof registerKey>>;
 
@@ -50,6 +50,7 @@ describe("approvals (approvalPayload, submitApproval, declineApproval)", () => {
         seasonId: h.world.seasonId,
         rateCardSha256: h.world.rateCardSha256,
         batchSha256: "a".repeat(64),
+        linesDigest: "b".repeat(64),
         itemCount: 8,
         totalCents: 1,
         currency: "USD",
@@ -115,6 +116,61 @@ describe("approvals (approvalPayload, submitApproval, declineApproval)", () => {
     );
     expect(recomputed.batchSha256).toBe(payload.batchSha256);
     expect(batch.body.chairRequired).toBe(true);
+  });
+
+  it("inv.i4.lines-digest: the payload also signs every member line (linesDigest): the run's lines root, recomputable from /batch", async () => {
+    const { payload } = await payloadFor("treasurer", h.tokens.treasurer);
+    const view = await h.t.json<{
+      memberLines: { memberNo: string; lineSha256: string | null }[];
+      linesDigest: string | null;
+      items: { memberNo: string }[];
+    }>(`/v1/runs/${h.world.runSlug}/batch`, { as: h.t.credentials.bearer(h.tokens.chair) });
+    const stored = await h.t.deps.db
+      .select({ memberNo: schema.members.memberNo, lineSha256: schema.memberLines.lineSha256 })
+      .from(schema.memberLines)
+      .innerJoin(schema.members, eq(schema.members.id, schema.memberLines.memberId))
+      .where(eq(schema.memberLines.runId, h.world.runId));
+    // every member line, the cash lines too: more lines than PayPal items
+    expect(view.body.memberLines).toHaveLength(stored.length);
+    expect(view.body.memberLines.length).toBeGreaterThan(view.body.items.length);
+    const lines = view.body.memberLines.map((l) => ({
+      memberNo: l.memberNo,
+      lineSha256: l.lineSha256 ?? "",
+    }));
+    expect(linesDigest(lines)).toBe(view.body.linesDigest);
+    expect(payload.linesDigest).toBe(view.body.linesDigest);
+    // the root the run's latest lines.computed carries (Proof plate 4 recomputes the same)
+    const computed = await h.t.deps.db
+      .select({ payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(
+        and(eq(schema.ledgerEntries.runId, h.world.runId), eq(schema.ledgerEntries.kind, "lines.computed")),
+      )
+      .orderBy(asc(schema.ledgerEntries.seq));
+    const latest = LedgerPayloads["lines.computed"].parse(computed.at(-1)?.payload);
+    expect(latest.linesRootSha256).toBe(payload.linesDigest);
+  });
+
+  it("DIGEST_MISMATCH: a payload whose linesDigest is not the lines' (a cash line changed) is refused", async () => {
+    const { payload } = await payloadFor("treasurer", h.tokens.treasurer);
+    const forged = { ...payload, linesDigest: "e".repeat(64) };
+    await expect(
+      h.t.client(h.tokens.treasurer).submitApproval({
+        params: { runSlug: h.world.runSlug },
+        body: { role: "treasurer", keyId: "fs-analyn-a1", signature: sign(analyn, forged), payload: forged },
+      }),
+    ).rejects.toMatchObject({
+      code: "DIGEST_MISMATCH",
+      details: {
+        expected: { linesDigest: payload.linesDigest },
+        got: { linesDigest: "e".repeat(64) },
+      },
+    });
+    const live = await h.t.deps.db
+      .select()
+      .from(schema.approvals)
+      .where(and(eq(schema.approvals.runId, h.world.runId), isNull(schema.approvals.voidedAt)));
+    expect(live.filter((a) => a.nonce === forged.nonce)).toHaveLength(0);
   });
 
   it("refuses every bad signature in the domain's order, each with its own code", async () => {

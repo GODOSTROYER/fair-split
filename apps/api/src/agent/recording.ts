@@ -55,9 +55,10 @@ export const PLACEHOLDER_DRAFT_INVOICE: AgentRecording = AgentRecording.parse({
       kind: "tool",
       tool: "create_invoice",
       input: {
+        // Words from each line's closed vocabulary (IC-02 `ITEM_LABEL_WORDS`): core refuses any other.
         item_labels: {
-          premium: "Fair-trade premium",
-          bonus: "Quality bonus (Grade one)",
+          premium: "Fairtrade premium",
+          bonus: "Top grade quality bonus",
           disbursement: "Disbursement costs",
         },
       },

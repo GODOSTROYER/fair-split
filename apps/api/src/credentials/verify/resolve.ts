@@ -7,7 +7,7 @@
 
 import type { Role } from "@fairsplit/contracts";
 import { type Db, schema } from "@fairsplit/db";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 import type { Clock } from "../../lib/clock.js";
 import { type ApiProblem, problem } from "../../lib/problem.js";
 import {
@@ -204,10 +204,17 @@ export function dbCredentialStore(
       return row ? { ...row, role: row.role as Role } : null;
     },
     async workspaceAlive(workspaceId, now) {
+      // In use: it never expires, or it is claimed and unexpired. A judge workspace whose session ended (a Reset
+      // clears the claim; the database never moves an expiry earlier) is not, whatever its expiry says.
       const [row] = await db
         .select({ id: ws.id })
         .from(ws)
-        .where(and(eq(ws.id, workspaceId), or(isNull(ws.expiresAt), gt(ws.expiresAt, now))))
+        .where(
+          and(
+            eq(ws.id, workspaceId),
+            or(isNull(ws.expiresAt), and(isNotNull(ws.claimedAt), gt(ws.expiresAt, now))),
+          ),
+        )
         .limit(1);
       return !!row;
     },

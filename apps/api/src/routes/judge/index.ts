@@ -248,7 +248,7 @@ export default defineRouteFolder({
   }),
   onBoot: async (deps) => {
     const rt = judgeRuntime(deps);
-    await retireStalePool(deps.db, deps.clock.now());
+    await retireStalePool(deps.db);
     rt.refillSoon();
     const [seq] = (await deps.db.execute(sql`
       select case when is_called then last_value + 1 else last_value end as next from fs_run_seq`)) as unknown as {

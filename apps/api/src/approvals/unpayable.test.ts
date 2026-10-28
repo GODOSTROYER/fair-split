@@ -16,15 +16,16 @@ import {
   SANDBOX_RECEIVERS,
   signBoth,
   startRuns,
-} from "../runs/testing/app.js";
-import { paypalScript } from "../runs/testing/paypal.js";
-import { registerKey } from "../runs/testing/world.js";
+} from "../runs/test/app.js";
+import { paypalScript } from "../runs/test/paypal.js";
+import { registerKey } from "../runs/test/world.js";
 
 interface BatchBody {
   items: { memberNo: string; receiver: string; amountCents: number }[];
   itemCount: number;
   totalCents: number;
   batchSha256: string | null;
+  linesDigest: string | null;
   unpayable: string[];
 }
 
@@ -80,6 +81,7 @@ describe("a PayPal member with no configured receiver, before anyone signs (sand
       seasonId: h.world.seasonId,
       rateCardSha256: h.world.rateCardSha256,
       batchSha256: b.batchSha256,
+      linesDigest: b.linesDigest ?? "",
       itemCount: b.itemCount,
       totalCents: b.totalCents,
       currency: "USD",

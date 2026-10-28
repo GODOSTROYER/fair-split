@@ -10,8 +10,8 @@ import { getSnapshot } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
 import { HttpResponse, http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type RunsHarness, resolveAll, startRuns } from "../runs/testing/app.js";
-import { registerKey } from "../runs/testing/world.js";
+import { type RunsHarness, resolveAll, startRuns } from "../runs/test/app.js";
+import { registerKey } from "../runs/test/world.js";
 import { PAYPAL_SANDBOX } from "../test/index.js";
 import { settleBatch } from "./settle.js";
 

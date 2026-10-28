@@ -7,7 +7,7 @@ import { schema } from "@fairsplit/db";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AppDeps } from "../lib/context.js";
-import { createTestApp, type TestApp, type TestAppOptions } from "../test/index.js";
+import { createTestApp, setWorkspaceExpiry, type TestApp, type TestAppOptions } from "../test/index.js";
 import { beginLiveStep, ELSEWHERE_RETRY_MS, NO_JUDGE_QUOTA } from "./live-step.js";
 import {
   estimateBalance,
@@ -204,10 +204,10 @@ describe("the balance", () => {
     const before = await estimateBalance(t.deps.db, "sandbox", now);
     expect(before).toMatchObject({ cents: ONE_MILLION - BATCH, spentCents: BATCH, source: "reading" });
 
-    // the hourly purge removes the workspace and, with it, its batch rows
-    await owner.execute(
-      sql`update workspaces set expires_at = now() - interval '1 minute' where id = ${fx.workspaceId}`,
-    );
+    // the hourly purge removes the workspace and, with it, its batch rows (the database's 24 hours are over)
+    const ownerSql = t.pg?.owner.sql;
+    if (!ownerSql) throw new Error("db");
+    await setWorkspaceExpiry(ownerSql, fx.workspaceId, new Date(Date.now() - 60_000));
     await t.deps.db.execute(sql`select fs_purge_workspace(${fx.workspaceId}::uuid)`);
     expect(
       await t.deps.db.select().from(schema.payoutBatches).where(eq(schema.payoutBatches.runId, runId)),

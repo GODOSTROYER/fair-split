@@ -5,7 +5,7 @@
 // checkpoint) is produced by the slice's own `recomputeRun`, so the holds and lines the tests act on are the
 // ones code raised.
 import type { PayRunState } from "@fairsplit/contracts";
-import { type Db, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
+import { type Db, openSeedWindow, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
 import { ed25519FromSeed, jcs, quoteDigest, quoteInvoice, sha256Hex } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import { recomputeRun } from "../engine.js";
@@ -140,19 +140,29 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
     })
     .returning();
   if (!lot) throw new Error("lot");
-  const [rc] = await db
-    .insert(schema.rateCards)
-    .values({
-      workspaceId,
-      seasonId: season.id,
-      code: card.canonical.resolutionNo,
-      canonicalJcs,
-      sha256: card.sha256,
-      ratifiedAt: at(card.ratifiedAt),
-      provenance: "seeded",
-    })
-    .returning();
+  // I2 (migration 0007): the database stamps a ratification with its own clock, except inside a seed window,
+  // where a `seeded` card keeps the snapshot's instant. Only a showcase or judge workspace may load one; a real
+  // co-op's card is ratified now, so a real world carries none of the seeded (earlier-dated) evidence.
+  const real = (o.kind ?? "judge") === "real";
+  const [rc] = await db.transaction(async (tx) => {
+    if (!real) await openSeedWindow(tx, workspaceId);
+    return tx
+      .insert(schema.rateCards)
+      .values({
+        workspaceId,
+        seasonId: season.id,
+        code: card.canonical.resolutionNo,
+        canonicalJcs,
+        sha256: card.sha256,
+        ratifiedAt: at(card.ratifiedAt),
+        provenance: "seeded",
+      })
+      .returning();
+  });
   if (!rc) throw new Error("rate card");
+  if (real && (o.runState ?? "IN_REVIEW") !== "DRAFT" && !["QUOTED", "INVOICED"].includes(o.runState ?? "")) {
+    throw new Error("a real test world has no seeded evidence: start it at DRAFT, QUOTED or INVOICED");
+  }
   await db.insert(schema.ratifications).values(
     card.ratifications.map((r) => ({
       workspaceId,
@@ -164,53 +174,66 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
     })),
   );
 
-  // Evidence: the 66 photos and their 264 slip rows (seeded facts; only 0462's kilos wait for a person).
-  const docs = await db
-    .insert(schema.documents)
-    .values(
-      s.photos.map((p) => ({
-        workspaceId,
-        seasonId: season.id,
-        kind: "slip_photo" as const,
-        sha256: p.manifestSha256,
-        storage: "static" as const,
-        path: p.file.replace(/^media\//, ""),
-        byteSize: 0,
-        mime: "image/webp",
-        photoCode: p.photoId,
-        provenance: p.set === "REPLAY" ? ("replay" as const) : ("seeded" as const),
-      })),
-    )
-    .returning({ id: schema.documents.id, photoCode: schema.documents.photoCode });
+  // Evidence: the 66 photos and their 264 slip rows (seeded facts; only 0462's kilos wait for a person). A
+  // real world has none: its card was ratified now, after every seeded slip date (I2).
+  const photos = real ? [] : s.photos;
+  const slips = real ? [] : s.slips;
+  const docs =
+    photos.length === 0
+      ? []
+      : await db
+          .insert(schema.documents)
+          .values(
+            photos.map((p) => ({
+              workspaceId,
+              seasonId: season.id,
+              kind: "slip_photo" as const,
+              sha256: p.manifestSha256,
+              storage: "static" as const,
+              path: p.file.replace(/^media\//, ""),
+              byteSize: 0,
+              mime: "image/webp",
+              photoCode: p.photoId,
+              provenance: p.set === "REPLAY" ? ("replay" as const) : ("seeded" as const),
+            })),
+          )
+          .returning({ id: schema.documents.id, photoCode: schema.documents.photoCode });
   const docOf = new Map(docs.map((d) => [d.photoCode, d.id]));
   const position = { TL: 1, TR: 2, BL: 3, BR: 4 } as const;
-  const rows = await db
-    .insert(schema.slipRows)
-    .values(
-      s.slips.map((x) => {
-        const pending = pending0462 && x.serial === "0462";
-        return {
-          workspaceId,
-          seasonId: season.id,
-          documentId: docOf.get(x.photoId) as string,
-          serial: x.serial,
-          rowNo: position[x.position],
-          memberId: memberId.get(x.memberNo) as string,
-          slipDate: x.slipDate,
-          grossG: pending ? null : BigInt(x.grossG),
-          tareG: BigInt(x.tareG),
-          netG: pending ? null : BigInt(x.netG),
-          grade: x.grade,
-          minConfidence: pending ? 0.4 : 0.97,
-          state: pending ? ("NEEDS_HUMAN" as const) : ("AUTO_ACCEPTED" as const),
-          copyColor: x.copy,
-          provenance: x.replaySet ? ("replay" as const) : ("seeded" as const),
-        };
-      }),
-    )
-    .returning({ id: schema.slipRows.id, serial: schema.slipRows.serial, copy: schema.slipRows.copyColor });
+  const rows =
+    slips.length === 0
+      ? []
+      : await db
+          .insert(schema.slipRows)
+          .values(
+            slips.map((x) => {
+              const pending = pending0462 && x.serial === "0462";
+              return {
+                workspaceId,
+                seasonId: season.id,
+                documentId: docOf.get(x.photoId) as string,
+                serial: x.serial,
+                rowNo: position[x.position],
+                memberId: memberId.get(x.memberNo) as string,
+                slipDate: x.slipDate,
+                grossG: pending ? null : BigInt(x.grossG),
+                tareG: BigInt(x.tareG),
+                netG: pending ? null : BigInt(x.netG),
+                grade: x.grade,
+                minConfidence: pending ? 0.4 : 0.97,
+                state: pending ? ("NEEDS_HUMAN" as const) : ("AUTO_ACCEPTED" as const),
+                copyColor: x.copy,
+                provenance: x.replaySet ? ("replay" as const) : ("seeded" as const),
+              };
+            }),
+          )
+          .returning({
+            id: schema.slipRows.id,
+            serial: schema.slipRows.serial,
+            copy: schema.slipRows.copyColor,
+          });
   const slipRow = new Map(rows.map((r) => [`${r.serial}:${r.copy}`, r.id]));
-  const replay = s.slips.filter((x) => x.replaySet);
+  const replay = slips.filter((x) => x.replaySet);
   const read = (v: string, legibility = "CLEAR") => ({ valueText: v, legibility });
   const fieldRows = replay.flatMap((x) => {
     const id = slipRow.get(`${x.serial}:${x.copy}`) as string;
@@ -242,14 +265,17 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
       provenance: "replay" as const,
     }));
   });
-  const fields = await db.insert(schema.slipFields).values(fieldRows).returning({
-    id: schema.slipFields.id,
-    field: schema.slipFields.field,
-    slipRowId: schema.slipFields.slipRowId,
-  });
+  const fields =
+    fieldRows.length === 0
+      ? []
+      : await db.insert(schema.slipFields).values(fieldRows).returning({
+          id: schema.slipFields.id,
+          field: schema.slipFields.field,
+          slipRowId: schema.slipFields.slipRowId,
+        });
   const row0462 = slipRow.get("0462:WHITE_ORIGINAL") as string;
   const f = (name: string) => fields.find((x) => x.slipRowId === row0462 && x.field === name)?.id as string;
-  const marks = s.slips.flatMap((x) =>
+  const marks = slips.flatMap((x) =>
     x.marks.map((m) => ({
       workspaceId,
       slipRowId: slipRow.get(`${x.serial}:${x.copy}`) as string,
@@ -261,7 +287,7 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
     })),
   );
   if (marks.length > 0) await db.insert(schema.deductionMarks).values(marks);
-  const injected = s.slips.filter((x) => x.marginNote !== null);
+  const injected = slips.filter((x) => x.marginNote !== null);
   if (injected.length > 0) {
     await db.insert(schema.slipAnomalies).values(
       injected.map((x) => ({

@@ -5,7 +5,11 @@
 //   - PP_MODE=sandbox lacks PP_CLIENT_ID, PP_CLIENT_SECRET or PP_WEBHOOK_ID;
 //   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed;
 //   - EXECUTOR=workflow lacks RENDER_API_KEY.
+//   - a PP_* e-mail setting (PP_BUSINESS_EMAIL, PP_PAYER_EMAIL, PP_UNCLAIMED_RECEIVER, each PP_RECEIVERS entry)
+//     is not a strict printable-ASCII address, or PP_CERT_ALLOW names something that is not a PayPal cert id.
 // The database role check (a ledger-writable role is refused) needs a connection, so it runs in server.ts.
+import { requireAsciiEmail } from "@fairsplit/domain";
+import { CERT_ID_PATTERN, checkCertUrl, PAYPAL_API_HOSTS } from "@fairsplit/paypal-core";
 import { z } from "zod";
 
 export type PayPalMode = "simulator" | "sandbox";
@@ -66,6 +70,9 @@ const Raw = z.object({
   PP_DEV_MOCKS: flag,
   /** Simulator mode: base URL of a running paypal-sim (`tools/paypal-sim.ts`); unset uses the labelled stub. */
   PP_SIM_URL: nonEmpty,
+  /** PayPal webhook cert ids (or their sandbox cert URLs) to pin, e.g. the current and the next one. */
+  PP_CERT_ALLOW: nonEmpty,
+  PAYPAL_CERT_ALLOW: nonEmpty,
 
   EXECUTOR: z.enum(["inline", "workflow", "worker"]).default("inline"),
   RENDER_API_KEY: nonEmpty,
@@ -115,6 +122,8 @@ export interface ApiEnv {
     unclaimedReceiver: string | undefined;
     devMocks: boolean;
     simUrl: string | undefined;
+    /** PP_CERT_ALLOW: the PayPal cert ids the webhook verifier pins (paypal-core `knownCertIds`). */
+    knownCertIds: readonly string[];
   };
   executor: { kind: "inline" | "workflow" | "worker"; renderApiKey: string | undefined; tasksSlug: string };
   /** FS_KILL and the scaffold's KILL_* booleans, handed to `@fairsplit/db` flag reads (never cached). */
@@ -185,6 +194,13 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
   }
   if (r.PP_SIM_URL !== undefined && !isHttpUrl(r.PP_SIM_URL))
     problems.push("PP_SIM_URL must be an http(s) URL");
+  const knownCertIds = parseCertAllow(r.PP_CERT_ALLOW ?? r.PAYPAL_CERT_ALLOW);
+  if (knownCertIds === null) {
+    problems.push(
+      `PP_CERT_ALLOW must list at most ${MAX_PINNED_CERT_IDS} PayPal cert ids (CERT-xxxxxxxx-xxxxxxxx-xxxxxxxx) or their sandbox cert URLs`,
+    );
+  }
+  problems.push(...emailSettingProblems(r));
 
   if (r.FS_COOKIE_SECRET !== undefined && r.FS_COOKIE_SECRET.length < 32) {
     problems.push("FS_COOKIE_SECRET must be at least 32 characters");
@@ -247,6 +263,7 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
       unclaimedReceiver: r.PP_UNCLAIMED_RECEIVER,
       devMocks: r.PP_DEV_MOCKS,
       simUrl: r.PP_SIM_URL,
+      knownCertIds: knownCertIds ?? [],
     },
     executor: { kind: r.EXECUTOR, renderApiKey: r.RENDER_API_KEY, tasksSlug: r.FS_TASKS_SLUG ?? "fs-tasks" },
     kill: {
@@ -277,6 +294,89 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
 /** The env the kill-switch reads see (`readFlags(db, ws, killEnv(env))`): only the kill variables. */
 export function killEnv(env: ApiEnv): Record<string, string | undefined> {
   return { ...env.kill };
+}
+
+/** PayPal overlaps at most two signing certificates; a few more leaves room (paypal-core's limit). */
+const MAX_PINNED_CERT_IDS = 8;
+
+/** PP_CERT_ALLOW → cert ids (deduplicated, in order), or null when an entry is not one (paypal-core's rule). */
+function parseCertAllow(value: string | undefined): string[] | null {
+  const ids: string[] = [];
+  for (const entry of (value ?? "").split(/[\s,]+/)) {
+    if (entry === "") continue;
+    let id: string | null = null;
+    if (CERT_ID_PATTERN.test(entry)) id = entry;
+    else {
+      const check = checkCertUrl(entry, PAYPAL_API_HOSTS.sandbox);
+      if (check.ok) id = check.certId;
+    }
+    if (id === null) return null;
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids.length > MAX_PINNED_CERT_IDS ? null : ids;
+}
+
+/** A member number as PP_RECEIVERS keys it. */
+const RECEIVER_KEY = /^M-\d{3}$/;
+
+/**
+ * The PP_* e-mail settings, each a strict printable-ASCII address (domain `requireAsciiEmail`, I1): the policy
+ * lattice compares them code unit for code unit, so a lookalike or padded address must stop the boot instead of
+ * denying every run later. Problems name the setting (and the member number), never the value.
+ */
+function emailSettingProblems(r: z.infer<typeof Raw>): string[] {
+  const problems: string[] = [];
+  const check = (setting: string, value: string | undefined) => {
+    if (value === undefined) return;
+    try {
+      requireAsciiEmail(setting, value);
+    } catch (err) {
+      problems.push(err instanceof Error ? err.message : `${setting} is not a plain ASCII e-mail address`);
+    }
+  };
+  check(
+    r.PP_BUSINESS_EMAIL ? "PP_BUSINESS_EMAIL" : "PAYPAL_BUSINESS_EMAIL",
+    r.PP_BUSINESS_EMAIL ?? r.PAYPAL_BUSINESS_EMAIL,
+  );
+  check(r.PP_PAYER_EMAIL ? "PP_PAYER_EMAIL" : "PAYPAL_BUYER_EMAIL", r.PP_PAYER_EMAIL ?? r.PAYPAL_BUYER_EMAIL);
+  check("PP_UNCLAIMED_RECEIVER", r.PP_UNCLAIMED_RECEIVER);
+  const name = r.PP_RECEIVERS ? "PP_RECEIVERS" : "PAYPAL_MEMBER_EMAILS";
+  const receivers = r.PP_RECEIVERS ?? r.PAYPAL_MEMBER_EMAILS;
+  if (receivers === undefined) return problems;
+  const entries = receiverEntries(receivers);
+  if (entries === null) {
+    problems.push(`${name} must be a JSON map or M-001=address pairs of member numbers to e-mail addresses`);
+    return problems;
+  }
+  // Every address must be plain ASCII; an entry not keyed by a member number pays no one (receivers.ts).
+  for (const [i, [memberNo, address]] of entries.entries()) {
+    check(RECEIVER_KEY.test(memberNo) ? `${name}[${memberNo}]` : `${name} entry ${i + 1}`, address);
+  }
+  return problems;
+}
+
+/**
+ * PP_RECEIVERS as `[key, address]` pairs: a JSON map, or comma-separated `M-014=…` pairs (a bare address, the
+ * scaffold's PAYPAL_MEMBER_EMAILS list, has an empty key); null when the JSON is unreadable.
+ */
+function receiverEntries(raw: string): [string, string][] | null {
+  const text = raw.trim();
+  if (text.startsWith("{")) {
+    try {
+      const obj = JSON.parse(text) as unknown;
+      if (obj === null || typeof obj !== "object" || Array.isArray(obj)) return null;
+      return Object.entries(obj).map(([k, v]) => [k, typeof v === "string" ? v.trim() : ""]);
+    } catch {
+      return null;
+    }
+  }
+  const out: [string, string][] = [];
+  for (const pair of text.split(",")) {
+    if (pair.trim() === "") continue;
+    const at = pair.indexOf("=");
+    out.push(at < 0 ? ["", pair.trim()] : [pair.slice(0, at).trim(), pair.slice(at + 1).trim()]);
+  }
+  return out;
 }
 
 function isHttpUrl(v: string): boolean {

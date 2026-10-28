@@ -236,7 +236,7 @@ describe("treasurer web-key registration (POST /v1/ops/keys)", () => {
       approverId: "treasurer:analyn",
       role: "treasurer",
       publicKeyHex: browser.publicKeyHex,
-      kind: "app",
+      kind: "web",
       revokedAt: null,
     });
     const [entry] = await t.deps.db
@@ -252,7 +252,7 @@ describe("treasurer web-key registration (POST /v1/ops/keys)", () => {
     expect(LedgerPayloads["key.registered"].parse(entry?.payload)).toEqual({
       keyId: "fs-analyn-w1",
       persona: "treasurer:analyn",
-      kind: "app",
+      kind: "web",
       publicKeyHex: browser.publicKeyHex,
     });
     const keys = PublishedKeys.parse(

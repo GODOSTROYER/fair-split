@@ -1,10 +1,9 @@
 // The 80 mm print for a member's line (W-TR-09): exact pesos for cash at the run's rate, the ReceiptBar adding
 // up to the net, the hashes, and a QR that is a real, read-only member link for exactly that line.
 import type { ApiError } from "@fairsplit/contracts";
-import { appendLedger, schema, systemScope } from "@fairsplit/db";
+import { appendLedger, systemScope } from "@fairsplit/db";
 import { format, mulDivHalfUp } from "@fairsplit/domain";
 import { getLine, getRun } from "@fairsplit/seed";
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { LINK_TTL_MS, verifyLink } from "../../credentials/verify/index.js";
 import { loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
@@ -16,7 +15,7 @@ import {
   printLinkJti,
 } from "../../statements/print.js";
 import type { StatementView } from "../../statements/view.js";
-import { createTestApp, type TestApp } from "../../test/index.js";
+import { createTestApp, setWorkspaceExpiry, type TestApp } from "../../test/index.js";
 
 let t: TestApp;
 let w: ShowcaseWorld;
@@ -149,9 +148,8 @@ describe("GET /v1/print/:runSlug/members/:memberNo", () => {
 
   it("a printed link never outlives its workspace (a judge session's prints end with the session)", async () => {
     const ends = new Date(t.clock.nowMs() + 6 * 60 * 60_000 + 123);
-    const owner = must(t.pg).owner.db;
-    const setExpiry = (at: Date | null) =>
-      owner.update(schema.workspaces).set({ expiresAt: at }).where(eq(schema.workspaces.id, w.workspaceId));
+    // the database never moves an expiry earlier or clears it: set and restore it with the guard off
+    const setExpiry = (at: Date | null) => setWorkspaceExpiry(must(t.pg).owner.sql, w.workspaceId, at);
     await setExpiry(ends);
     try {
       const r = await t.json<PrintSlip>(path("M-014"), { as: t.credentials.bearer(treasurer) });

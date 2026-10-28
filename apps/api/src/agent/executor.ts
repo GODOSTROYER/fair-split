@@ -1,22 +1,18 @@
-// The AgentMoneyPort over @fairsplit/paypal-toolkit and @fairsplit/paypal-payouts. Every call:
+// The AgentMoneyPort over @fairsplit/paypal-toolkit and @fairsplit/paypal-payouts. Every invoice call:
 //
-//   1. builds the exact body PayPal will see from the database (IC-02 `canonicalInvoice`, `canonicalSend`,
-//      `autoCancelRuleArgs`): the agent's input contributes at most the three item labels (I1);
-//   2. decides it with the policy lattice (flags read fresh, the session's budget and iteration), recording the
-//      verdict as a `policy.verdict` event and ledger entry with the agent as actor; an agent-supplied draft
-//      (the tamper demo, a hostile eval case) is decided as given, and a DENY on it sends nothing;
-//   3. on ALLOW (or REQUIRE_APPROVAL with the treasurer's approval) executes the canonical body through `tk()`,
-//      checkpointing in `invoices` exactly like the ensureInvoice task, so the two paths can hand over.
+//   1. builds the exact body PayPal will see from the database, IC-02 `canonicalInvoiceCall(method, expected,
+//      labels).args`: the agent's input contributes at most the three item labels (I1), each from its line's
+//      closed vocabulary (`ITEM_LABEL_WORDS`, see `itemLabelGuide` in ./port.ts);
+//   2. decides THOSE arguments with the policy lattice (flags read fresh, the session's budget and iteration),
+//      recording the verdict as a `policy.verdict` event and ledger entry with the agent as actor. Whatever the
+//      model asked that code would not build (its own draft, refused labels, another invoice) is decided as
+//      asked and recorded, and nothing is sent (money/policy.ts `decideInvoiceCall`);
+//   3. on ALLOW (or REQUIRE_APPROVAL with the treasurer's approval) sends exactly those arguments through `tk()`,
+//      never the model's, checkpointing in `invoices` like the ensureInvoice task, so the two paths can hand over.
 // Payout reads use the typed Payouts tool's GETs; nothing here can create or cancel a payout.
 import type { Decision, ToolCall } from "@fairsplit/contracts";
 import { type Actor, schema, type WorkspaceScope, withWorkspaceTx } from "@fairsplit/db";
-import {
-  autoCancelDate,
-  autoCancelRuleArgs,
-  canonicalInvoice,
-  canonicalSend,
-  itemLabelProblem,
-} from "@fairsplit/domain";
+import { autoCancelDate, autoCancelRuleArgs, canonicalSend } from "@fairsplit/domain";
 import { getPayoutBatch, getPayoutItem } from "@fairsplit/paypal-payouts";
 import { and, desc, eq } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
@@ -24,12 +20,25 @@ import { classifyPayPal } from "../money/errors.js";
 import type { SendApproval } from "../money/funding.js";
 import { addAutoCancelRule, createOrAdopt, getInvoice, sendInvoice } from "../money/invoices.js";
 import { itemStatusOf } from "../money/items.js";
-import { payoutsHttp } from "../money/payouts.js";
-import { decideAndRecord, type InvoiceWorld, invoiceWorld, policyContext, todayOf } from "../money/policy.js";
+import {
+  decideAndRecord,
+  decideInvoiceCall,
+  type InvoiceMethod,
+  type InvoiceWorld,
+  invoiceWorld,
+  policyContext,
+  todayOf,
+} from "../money/policy.js";
 import { toolkitFor } from "../money/toolkit.js";
 import { factLedger } from "../runs/events.js";
 import { lockRun, runById } from "../runs/load.js";
-import type { AgentMoneyPort, AgentSession, ItemLabels, PortResult } from "./port.js";
+import {
+  type AgentMoneyPort,
+  type AgentSession,
+  type ItemLabels,
+  itemLabelGuide,
+  type PortResult,
+} from "./port.js";
 
 type Deps = Pick<AppDeps, "db" | "env" | "paypal" | "clock" | "logger">;
 
@@ -47,51 +56,71 @@ export function agentActor(session: AgentSession): Actor {
   };
 }
 
-const labelsOf = (l: ItemLabels): string[] => [l.premium, l.bonus, l.disbursement];
-
 export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: ExecutorOptions): AgentMoneyPort {
   const actor = agentActor(o.session);
   const provenance = o.session.mode === "replay" ? ("replay" as const) : deps.paypal.provenance;
   const tk = toolkitFor(deps, { workspaceId: scope.workspaceId });
   let iteration = o.session.iteration;
 
-  /** Decide (and record) the exact call; returns the world it was decided on. */
+  const budget = () => ({
+    spentMicros: o.session.spentMicros,
+    capMicros: o.session.capMicros,
+    iteration,
+    maxIterations: o.session.maxIterations,
+  });
+  const record = (runId: string) => ({
+    runId,
+    sessionId: o.session.sessionId,
+    actor,
+    at: deps.clock.now(),
+    provenance,
+  });
+
+  /** Decide (and record) a read or a request: the call as code builds it. */
   const gate = async (runId: string, call: (w: InvoiceWorld) => ToolCall) =>
     withWorkspaceTx(deps.db, scope, async (tx) => {
       const run = await lockRun(tx, scope, runId);
       const w = await invoiceWorld(tx, scope, deps, run);
       const ctx = await policyContext(tx, scope, deps, w, {
         today: todayOf(deps.clock.now()),
-        budget: {
-          spentMicros: o.session.spentMicros,
-          capMicros: o.session.capMicros,
-          iteration,
-          maxIterations: o.session.maxIterations,
-        },
+        budget: budget(),
       });
-      const decision = await decideAndRecord(tx, scope, call(w), ctx, {
-        runId,
-        sessionId: o.session.sessionId,
-        actor,
-        at: deps.clock.now(),
-        provenance,
-      });
+      const decision = await decideAndRecord(tx, scope, call(w), ctx, record(runId));
       iteration += 1;
       return { w, decision };
+    });
+
+  /** An invoice call: `canonicalInvoiceCall`'s args, decided and recorded; the args to send, or null. */
+  const invoiceGate = async <M extends InvoiceMethod>(
+    runId: string,
+    c: { method: M; labels?: ItemLabels; invoiceDate?: string | null; asked?: unknown },
+  ) =>
+    withWorkspaceTx(deps.db, scope, async (tx) => {
+      const run = await lockRun(tx, scope, runId);
+      const w = await invoiceWorld(tx, scope, deps, run);
+      const decided = await decideInvoiceCall(tx, scope, deps, w, {
+        ...c,
+        today: todayOf(deps.clock.now()),
+        budget: budget(),
+        record: record(runId),
+      });
+      iteration += 1;
+      return { w, ...decided };
     });
 
   const refused = <T>(
     d: Decision,
     error: "POLICY_DENIED" | "APPROVAL_REQUIRED" = "POLICY_DENIED",
+    why: string | null = null,
   ): PortResult<T> => ({
     ok: false,
     verdict: d.verdict,
     error,
     reason:
-      d.results
-        .filter((r) => r.reason && r.verdict !== "ALLOW")
-        .map((r) => `${r.policy}: ${r.reason}`)
-        .join("; ") || d.verdict,
+      [
+        ...d.results.filter((r) => r.reason && r.verdict !== "ALLOW").map((r) => `${r.policy}: ${r.reason}`),
+        ...(why ? [why] : []),
+      ].join("; ") || d.verdict,
     decidedBy: d.decidedBy,
   });
 
@@ -108,20 +137,21 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
 
   return {
     async createRunInvoice(req) {
-      const labels = labelsOf(req.itemLabels);
-      const { w, decision } = await gate(req.runId, (x) => ({
-        name: "create_invoice",
-        // A supplied draft (tamper demo, hostile eval) is decided as given; otherwise the canonical body.
-        args:
-          req.draft ??
-          (itemLabelProblem(labels)
-            ? { ...canonicalInvoice(x.expected), items: labels }
-            : canonicalInvoice(x.expected, labels)),
-      }));
-      if (decision.verdict === "DENY") return refused(decision);
-      // Even an allowed draft is never what is sent: code sends its own canonical body.
+      // Code builds the body from the run and the agent's three labels; a supplied draft (the tamper demo, a
+      // hostile eval) is decided as given unless it is exactly that body, and is never sent.
+      const { w, decision, args, reason } = await invoiceGate(req.runId, {
+        method: "create_invoice",
+        labels: req.itemLabels,
+        ...(req.draft === undefined ? {} : { asked: req.draft }),
+      });
+      if (decision.verdict === "DENY" || !args) {
+        // Labels core refused: the answer carries each line's closed vocabulary, to label again from.
+        const labelled =
+          !args && req.draft === undefined && reason ? `${reason}\n${itemLabelGuide()}` : reason;
+        return refused(decision, "POLICY_DENIED", labelled);
+      }
       try {
-        const out = await createOrAdopt(tk, w, labels);
+        const out = await createOrAdopt(tk, w, args);
         await withWorkspaceTx(deps.db, scope, async (tx) => {
           await tx
             .update(schema.invoices)
@@ -141,15 +171,15 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
     },
 
     async sendRunInvoice(req) {
-      const { w, decision } = await gate(req.runId, () => ({
-        name: "send_invoice",
-        args: canonicalSend(req.invoiceId),
-      }));
-      if (decision.verdict === "DENY") return refused(decision);
-      if (w.expected.invoiceId !== req.invoiceId) return refused(decision);
+      // Only this run's own invoice is ever sent: another id is decided as asked, refused, and never sent.
+      const { decision, args, reason } = await invoiceGate(req.runId, {
+        method: "send_invoice",
+        asked: canonicalSend(req.invoiceId),
+      });
+      if (decision.verdict === "DENY" || !args) return refused(decision, "POLICY_DENIED", reason);
       if (!o.sendApproval) return refused(decision, "APPROVAL_REQUIRED");
       try {
-        const sent = await sendInvoice(tk, req.invoiceId);
+        const sent = await sendInvoice(tk, args);
         const got = await getInvoice(tk, req.invoiceId);
         await withWorkspaceTx(deps.db, scope, async (tx) => {
           await tx
@@ -204,17 +234,16 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
         }
       }
       const date = invoiceDate;
-      const { decision } = await gate(req.runId, () => ({
-        name: "create_conditional_rules_for_invoice",
-        args: date
+      const { decision, args, reason } = await invoiceGate(req.runId, {
+        method: "create_conditional_rules_for_invoice",
+        invoiceDate: date,
+        asked: date
           ? autoCancelRuleArgs(req.invoiceId, autoCancelDate(date))
           : { invoice_id: req.invoiceId, rules: [] },
-      }));
-      if (decision.verdict === "DENY" || !date || ours === null || req.invoiceId !== ours) {
-        return refused(decision);
-      }
+      });
+      if (decision.verdict === "DENY" || !args) return refused(decision, "POLICY_DENIED", reason);
       try {
-        const on = await addAutoCancelRule(tk, ours, date);
+        const on = await addAutoCancelRule(tk, args);
         await deps.db
           .update(schema.invoices)
           .set({ ruleCreatedAt: deps.clock.now(), autoCancelOn: on })
@@ -270,7 +299,7 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
       }));
       if (decision.verdict === "DENY" || !batch?.paypalBatchId) return refused(decision);
       const got = await getPayoutBatch(
-        payoutsHttp(deps.paypal.core.http),
+        deps.paypal.core.http,
         { sandbox: true },
         { payout_batch_id: batch.paypalBatchId, page: 1, page_size: 100, total_required: true },
         { priority: "background" },
@@ -310,7 +339,7 @@ export function createAgentMoneyPort(deps: Deps, scope: WorkspaceScope, o: Execu
         );
       if (!mine) return refused(decision);
       const got = await getPayoutItem(
-        payoutsHttp(deps.paypal.core.http),
+        deps.paypal.core.http,
         { sandbox: true },
         { payout_item_id: req.payoutItemId },
         { priority: "background" },

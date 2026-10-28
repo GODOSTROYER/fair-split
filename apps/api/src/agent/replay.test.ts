@@ -4,7 +4,7 @@
 // (the "make Claude's draft overcharge" and "offsetting invoice" demos, eval case A2) is denied and sends
 // nothing; so is anything while kill_paypal_live is on.
 import { schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
-import { canonicalInvoice } from "@fairsplit/domain";
+import { canonicalInvoice, ITEM_LABEL_WORDS } from "@fairsplit/domain";
 import { enqueue } from "@fairsplit/outbox";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, asc, eq } from "drizzle-orm";
@@ -13,9 +13,10 @@ import { quoteRun } from "../money/funding.js";
 import { invoiceWorld } from "../money/policy.js";
 import { ACTORS } from "../runs/events.js";
 import { runById } from "../runs/load.js";
-import { type RunsHarness, startRuns } from "../runs/testing/app.js";
-import { paypalScript } from "../runs/testing/paypal.js";
+import { type RunsHarness, startRuns } from "../runs/test/app.js";
+import { paypalScript } from "../runs/test/paypal.js";
 import { createAgentMoneyPort } from "./executor.js";
+import { itemLabelGuide } from "./port.js";
 import { PLACEHOLDER_DRAFT_INVOICE } from "./recording.js";
 
 const script = paypalScript({ invoiceStatus: "DRAFT" });
@@ -29,7 +30,8 @@ const session = {
   iteration: 0,
   maxIterations: 6,
 };
-const labels = { premium: "Fair-trade premium", bonus: "Quality bonus", disbursement: "Disbursement costs" };
+// Words from each line's closed vocabulary (IC-02 ITEM_LABEL_WORDS)
+const labels = { premium: "Fairtrade premium", bonus: "Quality bonus", disbursement: "Disbursement costs" };
 
 beforeAll(async () => {
   h = await startRuns({ paypal: script.handlers, world: { runState: "DRAFT", invoice: null } });
@@ -91,6 +93,21 @@ describe("the AgentMoneyPort: the lattice decides the body code built", () => {
     expect(recorded.every((v) => v.provenance === "replay")).toBe(true);
   });
 
+  it("inv.i1.labels: a label outside its line's closed vocabulary is refused (never sent), and the answer carries each line's words", async () => {
+    const port = createAgentMoneyPort(h.t.deps, scope(), { session, sendApproval: null });
+    const r = await port.createRunInvoice({
+      runId: h.world.runId,
+      itemLabels: { ...labels, bonus: "Quality bonus for Grade one" },
+    });
+    expect(r).toMatchObject({ ok: false, verdict: "DENY", error: "POLICY_DENIED" });
+    if (!r.ok) {
+      expect(r.reason).toContain("may not use");
+      expect(r.reason).toContain(itemLabelGuide());
+      for (const word of ITEM_LABEL_WORDS.BONUS) expect(r.reason).toContain(word);
+    }
+    expect(script.calls).toEqual([]);
+  });
+
   it("kill_paypal_live denies every toolkit call before anything is sent (S3.11)", async () => {
     const api = h.t.client(h.tokens.treasurer);
     await api.setFlag({ body: { flag: "kill_paypal_live", on: true } });
@@ -126,8 +143,8 @@ describe("C-06: the recorded invoice turn replays through the live lattice", () 
     expect(sent.detail.reference).toBe(`rc:${h.world.rateCardSha256.slice(0, 16)}`);
     expect(sent.detail.invoice_date).toBeUndefined();
     expect(sent.items.map((i) => i.name)).toEqual([
-      "Fair-trade premium",
-      "Quality bonus (Grade one)",
+      "Fairtrade premium",
+      "Top grade quality bonus",
       "Disbursement costs",
     ]);
     expect(sent.items.map((i) => i.unit_amount.value)).toEqual(["2887.50", "1386.00", "60.00"]);
@@ -143,8 +160,9 @@ describe("C-06: the recorded invoice turn replays through the live lattice", () 
       .where(eq(schema.invoices.runId, h.world.runId));
     expect(inv).toMatchObject({ paypalInvoiceId: "INV2-TEST-RUNS-0001", autoCancelOn: "2026-11-22" });
 
+    // the earlier tests recorded five DENYs (two drafts, two refused label sets, the kill switch)
     const recorded = (await verdicts())
-      .slice(4)
+      .slice(5)
       .map((v) => v.payload as { tool: string; verdict: string; sessionId: string });
     expect(recorded.map((v) => [v.tool, v.verdict])).toEqual([
       ["get_invoice_quote", "ALLOW"],

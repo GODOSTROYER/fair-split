@@ -14,7 +14,7 @@
 // Not in a clone: a pay run (made when a judge claims the workspace, with a fresh runSeq), the replay
 // photos' rows (the replayed 28 Oct read writes them), keys, lines, holds and approvals.
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { appendLedger, schema, systemScope, type Tx, uuidv7 } from "@fairsplit/db";
+import { appendLedger, openSeedWindow, schema, systemScope, type Tx, uuidv7 } from "@fairsplit/db";
 import { jcs, sha256Hex } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import { eq } from "drizzle-orm";
@@ -81,6 +81,10 @@ export async function materializeWorld(tx: Tx, workspaceId: string): Promise<Jud
   }
   const rules = card.canonical.rules;
   const seeded = "seeded" as const;
+  // I2 (migration 0007): the database stamps a ratification with its own clock, except inside a seed window,
+  // where rows labelled `seeded` keep the snapshot's historical instant (the card ratified on 14 Mar, before the
+  // slips it pays). The window is this fresh judge workspace's, for this transaction only.
+  await openSeedWindow(tx, workspaceId);
 
   const coopId = uuidv7();
   await tx.insert(schema.coops).values({

@@ -40,6 +40,7 @@ import type {
 import { PAYOUT_ITEM_RANK } from "@fairsplit/contracts";
 import { getLogbook, getMembers, getSnapshot } from "@fairsplit/seed";
 import canonicalize from "canonicalize";
+import { sha256Hex } from "../bytes.js";
 import {
   type CommandData,
   type CommandRequest,
@@ -48,6 +49,17 @@ import {
   type RailLabel,
 } from "../http.js";
 import { freshId, mockHex, mockId, mockToken } from "./ids.js";
+
+/**
+ * IC-02 `linesDigest` as the API signs it: sha256 of the JCS of every member line as `{memberNo, lineSha256}`,
+ * sorted by member number (domain `linesRootJcs`; a UI package computes it here, register section 6).
+ */
+export function linesDigestOf(lines: readonly { memberNo: string; lineSha256: string }[]): string {
+  const sorted = lines
+    .map((l) => ({ memberNo: l.memberNo, lineSha256: l.lineSha256 }))
+    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
+  return sha256Hex(canonicalize(sorted) ?? "");
+}
 
 // ---------------------------------------------------------------- public types
 
@@ -933,6 +945,8 @@ export function createMockWorld(options: MockWorldOptions = {}): MockWorld {
       seasonId,
       rateCardSha256,
       batchSha256,
+      // IC-02 linesDigest over every member line of the run as it stands (the cash lines too), as the API signs it
+      linesDigest: linesDigestOf(engineLines()),
       itemCount: batchItems.length,
       totalCents: batchTotalCents,
       currency: "USD",

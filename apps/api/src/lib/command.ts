@@ -44,7 +44,7 @@ import {
 } from "./commands.js";
 import type { AppContext, AppDeps, AppEnv } from "./context.js";
 import { digestMatches, sha256Hex } from "./digest.js";
-import { IDEMPOTENCY_KEY_RE } from "./idempotency.js";
+import { IDEMPOTENCY_KEY_RE, type IdempotencyHold } from "./idempotency.js";
 import { ApiProblem, problem, type ValidationIssue } from "./problem.js";
 
 // ---------------------------------------------------------------- specs
@@ -371,7 +371,7 @@ async function runRoute(c: AppContext, spec: RouteSpec, handler: AnyHandler): Pr
   const input = parseInput(c, spec, rawBody);
 
   // 5. idempotency (POSTs with a workspace; S3.10)
-  let idem: { key: string; scope: WorkspaceScope } | null = null;
+  let idem: { hold: IdempotencyHold; scope: WorkspaceScope } | null = null;
   if (idemKey !== undefined && spec.method === "POST" && scope) {
     if (!IDEMPOTENCY_KEY_RE.test(idemKey)) {
       throw problem.validation("Idempotency-Key must be 1–255 visible ASCII characters.", [
@@ -405,7 +405,8 @@ async function runRoute(c: AppContext, spec: RouteSpec, handler: AnyHandler): Pr
         },
       );
     }
-    idem = { key: idemKey, scope };
+    // Only this request's hold completes or releases the key (a stale claim never overwrites the result).
+    idem = { hold: { key: claim.key, token: claim.token }, scope };
   }
 
   // 6. handler
@@ -432,9 +433,9 @@ async function runRoute(c: AppContext, spec: RouteSpec, handler: AnyHandler): Pr
   } catch (err) {
     if (idem) {
       const p = toApiProblem(err);
-      if (p.status >= 500) await deps.idempotency.release(idem.scope, idem.key).catch(() => undefined);
+      if (p.status >= 500) await deps.idempotency.release(idem.scope, idem.hold).catch(() => false);
       else
-        await deps.idempotency.complete(idem.scope, idem.key, {
+        await deps.idempotency.complete(idem.scope, idem.hold, {
           status: p.status,
           body: p.toBody(requestId),
         });
@@ -460,7 +461,7 @@ async function runRoute(c: AppContext, spec: RouteSpec, handler: AnyHandler): Pr
     }
   }
   if (idem)
-    await deps.idempotency.complete(idem.scope, idem.key, { status: out.status, body: out.body ?? null });
+    await deps.idempotency.complete(idem.scope, idem.hold, { status: out.status, body: out.body ?? null });
   for (const [k, v] of Object.entries(out.headers)) c.header(k, v);
   if (out.status === 204) return c.body(null, 204);
   return c.json(out.body as object, out.status as 200);

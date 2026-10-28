@@ -37,7 +37,6 @@ import { SETTLE_GET_DELAYS_MS, webhookApplyRule } from "../webhooks/apply.js";
 import { classifyPayPal } from "./errors.js";
 import { confirmFunding } from "./funding.js";
 import { applyItem, type ItemRow, itemStatusOf } from "./items.js";
-import { payoutsHttp } from "./payouts.js";
 
 type Deps = Pick<AppDeps, "db" | "env" | "paypal" | "clock" | "logger">;
 
@@ -136,7 +135,7 @@ export async function settleBatch(
   const scope = systemScope(batch.workspaceId, ACTORS.paypalGet);
   const provenance = deps.paypal.provenance;
   const got = await getPayoutBatch(
-    payoutsHttp(deps.paypal.core.http),
+    deps.paypal.core.http,
     CONTEXT,
     { payout_batch_id: batch.paypalBatchId, page: 1, page_size: 100, total_required: true },
     { priority: "background" },
@@ -295,12 +294,15 @@ export async function processWebhook(
   let fresh: { status: PayoutItemStatus | null; payoutItemId: string | null } | null = null;
   let batchGetDecides = false;
   if (target.kind === "item") {
-    const rule = webhookApplyRule({ eventType, verified });
+    // `webhook_events` has no `delivery` column yet (WS-DATA): nothing records that the certificate was in
+    // date, so the rule fails closed (DELIVERY_NOT_RECORDED) and a fresh GET decides every event, a signed
+    // SUCCEEDED included (MM-1 then follows the +25 s / +90 s settle GET instead of the webhook).
+    const rule = webhookApplyRule({ eventType, verified, delivery: null });
     if (rule.action === "fresh_get_first") {
       const id = resource.payout_item_id ?? target.item.payoutItemId;
       if (id) {
         const got = await getPayoutItem(
-          payoutsHttp(deps.paypal.core.http),
+          deps.paypal.core.http,
           CONTEXT,
           { payout_item_id: id },
           { priority: "background" },

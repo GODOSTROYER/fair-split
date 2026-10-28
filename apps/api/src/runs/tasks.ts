@@ -12,7 +12,12 @@ import { sendApprovalFor } from "../agent/tasks.js";
 import type { AppDeps } from "../lib/context.js";
 import { classifyPayPal, PayPalStepError } from "../money/errors.js";
 import { confirmFunding, ensureInvoiceSent, recordPaymentAndFund } from "../money/funding.js";
-import { payoutsServiceFor, refusedByKillSwitch, sendBack } from "../money/payouts.js";
+import {
+  payoutsRepository,
+  payoutsServiceFor,
+  refusedByKillSwitch,
+  sendBackChecked,
+} from "../money/payouts.js";
 import { advanceRun, processWebhook, settleBatch } from "../money/settle.js";
 import { recomputeRun } from "./engine.js";
 import { ACTORS } from "./events.js";
@@ -85,7 +90,8 @@ export function runTasks(deps: AppDeps): TaskHandlers {
     postPayoutBatch: paypalTask(async (raw, ctx) => {
       const args = TaskArgs.postPayoutBatch.parse(raw);
       const scope = scopeOf(ctx);
-      const service = await payoutsServiceFor(deps, scope);
+      const repo = payoutsRepository(deps, scope);
+      const service = await payoutsServiceFor(deps, scope, { repo: () => repo });
       const outcome = await service.executeApproved(args.runId);
       switch (outcome.kind) {
         case "created":
@@ -104,10 +110,12 @@ export function runTasks(deps: AppDeps): TaskHandlers {
             },
           );
         case "refused": {
-          if (outcome.code === "CIRCUIT_OPEN") {
-            throw new PayPalStepError("CIRCUIT_OPEN", outcome.reason, {
+          // The rows are written (QUEUED: the limiter window; CIRCUIT_OPEN: a 429): the outbox retries and
+          // the post resumes with the same ids.
+          if (outcome.code === "CIRCUIT_OPEN" || outcome.code === "QUEUED") {
+            throw new PayPalStepError(outcome.code, outcome.reason, {
               transient: true,
-              retryAfterMs: 6 * 60_000,
+              retryAfterMs: outcome.code === "CIRCUIT_OPEN" ? 6 * 60_000 : 30_000,
             });
           }
           if (outcome.code === "KILL_SWITCH_ON") {
@@ -122,8 +130,27 @@ export function runTasks(deps: AppDeps): TaskHandlers {
             );
             return { outcome: "refused", code: outcome.code };
           }
-          const state = await sendBack(deps, scope, args.runId, outcome);
-          return { outcome: "refused", code: outcome.code, runState: state };
+          // Nothing was sent. A failed approval check was already sent back by the service (repo.voidApprovals,
+          // a compare-and-set); any other refusal of what this attempt checked (a sandbox guard, the daily cap,
+          // an invalid batch) is sent back under the same compare-and-set: only while the run is APPROVED and
+          // its live approvals are exactly those this attempt checked, so a stale executor never voids a newer
+          // signing, and a run another executor moved to POSTING is left alone.
+          const nonces = repo.checkedNonces(args.runId);
+          const sentBack = nonces
+            ? await sendBackChecked(deps, scope, {
+                runId: args.runId,
+                nonces,
+                code: outcome.code,
+                reason: outcome.reason,
+                senderBatchId: outcome.senderBatchId,
+                at: deps.clock.now(),
+              })
+            : null;
+          const [now] = await deps.db
+            .select({ state: schema.payRuns.state })
+            .from(schema.payRuns)
+            .where(and(eq(schema.payRuns.workspaceId, scope.workspaceId), eq(schema.payRuns.id, args.runId)));
+          return { outcome: "refused", code: outcome.code, runState: sentBack ?? now?.state ?? null };
         }
       }
     }),
@@ -275,6 +302,14 @@ export function lineTasks(deps: AppDeps): TaskHandlers {
             { transient: false },
           );
         case "REFUSED":
+          // PayPal's pacing (the limiter window, the 429 circuit): nothing was sent, the intent stays recorded
+          // and the outbox retries the cancel later.
+          if (outcome.code === "QUEUED" || outcome.code === "CIRCUIT_OPEN") {
+            throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
+              transient: true,
+              retryAfterMs: outcome.code === "CIRCUIT_OPEN" ? 6 * 60_000 : 30_000,
+            });
+          }
           throw new PayPalStepError(
             outcome.code === "KILL_SWITCH_ON" ? "KILL_SWITCH_ON" : "INVALID_TRANSITION",
             outcome.code === "KILL_SWITCH_ON"
