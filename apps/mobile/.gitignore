@@ -1,0 +1,25 @@
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+# Native (Continuous Native Generation: never edit by hand)
+/ios
+/android
+.kotlin/
+*.orig.*
+# Signing material and credentials never live in the repo (EAS credentials hold them)
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+# Local caches and env
+.cache/
+.env*.local
+*.tsbuildinfo

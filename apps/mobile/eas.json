@@ -1,0 +1,45 @@
+{
+  "cli": {
+    "version": ">= 25.3.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "24.22.1",
+      "pnpm": "11.28.6",
+      "env": {
+        "EXPO_PUBLIC_API_ORIGIN": "https://fs-api.onrender.com"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": { "EXPO_PUBLIC_FS_GALLERY": "1" }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "extends": "base",
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" }
+    },
+    "e2e": {
+      "extends": "base",
+      "withoutCredentials": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "ios-sim": {
+      "extends": "base",
+      "ios": { "simulator": true }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
