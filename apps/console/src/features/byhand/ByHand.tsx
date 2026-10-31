@@ -23,7 +23,7 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useCommand, useRunEvents, useStageRun } from "../../data/hooks.js";
-import { focusAndReveal } from "../../lib/focus.js";
+import { focusAndReveal, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
@@ -155,6 +155,26 @@ function ByHandField({
   }, [committed, phase, enterPhase]);
 
   usePrefocus(input, "W-TR-04", ready && !committed);
+
+  // The field, its slab, Skip and Undo skip each go once answered, while they hold the keyboard: focus goes on
+  // in that commit to what replaced them (WCAG 2.4.3). The ink once the value is entered (the Next link under it
+  // when the run already names the next step), Undo skip after Skip, the field after Undo skip; a slab remounted
+  // at rest after a failure takes its own focus back.
+  const [entry, setEntry] = useState<HTMLElement | null>(null);
+  useFocusAfterRemoval(entry, () => {
+    const find = (id: string) => entry?.querySelector<HTMLElement>(`[data-testid="${id}"]`) ?? null;
+    return [find("W-TR-04.next"), find("W-TR-04.committed"), find("W-TR-04.unskip"), input.current];
+  });
+  // Focus left on the ink when the run names the next step a moment later goes on to its Next link: Enter there
+  // takes the judge on. A focus the person moved elsewhere meanwhile stays where they put it.
+  const ink = useRef<HTMLDivElement>(null);
+  const hasNext = Boolean(next && next.screen !== "W-TR-04" && next.actor === "person");
+  useLayoutEffect(() => {
+    const at = ink.current;
+    if (!committed || !hasNext || !at || document.activeElement !== at) return;
+    const link = at.querySelector<HTMLElement>('[data-testid="W-TR-04.next"]');
+    if (link) focusAndReveal(link);
+  }, [committed, hasNext]);
 
   // "Type the whole number" (and back to the mask) hands the keyboard to the field in the commit that switched
   // it: never on a timer, which can fire before React commits.
@@ -300,13 +320,19 @@ function ByHandField({
           )}
         </div>
 
-        <section className="fsc-hand__entry" aria-labelledby={`${inputId}-label`} data-testid="W-TR-04.entry">
+        <section
+          ref={setEntry}
+          className="fsc-hand__entry"
+          aria-labelledby={`${inputId}-label`}
+          data-testid="W-TR-04.entry"
+        >
           <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
             <Glyph name="pencil" size={16} />
             <span>{prompt}</span>
           </p>
           {committed ? (
-            <div className="fsc-hand__committed" data-testid="W-TR-04.committed">
+            // Focusable from script only: the field's focus lands here when the value prints in ink.
+            <div ref={ink} className="fsc-hand__committed" tabIndex={-1} data-testid="W-TR-04.committed">
               <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">
                 {BY_HAND_COPY.inputLabel(serial)}
               </p>
@@ -339,7 +365,7 @@ function ByHandField({
                     : BY_HAND_COPY.committedNet(netAfter)}
                 </p>
               )}
-              {next && next.screen !== "W-TR-04" && next.actor === "person" && (
+              {next && hasNext && (
                 <p className="fsc-hand__next fs-t-label">
                   <span className="fsc-hand__next-mark" aria-hidden />
                   <AppLink href={next.to} className="fs-link" data-testid="W-TR-04.next">
@@ -353,7 +379,12 @@ function ByHandField({
               <p id={`${inputId}-label`} className="fs-t-label">
                 {BY_HAND_COPY.skipped(serial)}
               </p>
-              <button type="button" className="fs-link fs-t-label" onClick={() => setSkipped(false)}>
+              <button
+                type="button"
+                className="fs-link fs-t-label"
+                onClick={() => setSkipped(false)}
+                data-testid="W-TR-04.unskip"
+              >
                 {BY_HAND_COPY.unskip}
               </button>
             </div>
