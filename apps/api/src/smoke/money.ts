@@ -47,7 +47,12 @@ const Slips = z.object({
 const Key = z.object({ keyId: z.string() });
 const Payload = z.object({ payload: ApprovalPayload });
 const Verification = z.object({
-  verification: z.object({ status: z.string(), chain: z.object({ ok: z.boolean(), entries: z.number() }) }),
+  verification: z.object({
+    status: z.string(),
+    chain: z.object({ ok: z.boolean(), entries: z.number() }),
+    checkpoint: z.object({ ok: z.boolean() }),
+    plates: z.record(z.string(), z.object({ ok: z.boolean(), reason: z.string().nullable() })),
+  }),
 });
 
 const ADMIN_PATHS: readonly [string, string][] = [
@@ -368,21 +373,26 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
   });
   const done = await waitForState((st) => st === "SETTLED", 30_000);
   step("money.done", `GET ${runPath}`, done, done?.run.state === "SETTLED");
-  const batch = await call("GET", `${runPath}/batch`, { headers: asTreasurer });
-  const returned = batch.text.includes('"RETURNED"');
+  // ------------------------------------------------------------ verified simulator-signed webhooks; the chain
+  // The simulator answers the cancel RETURNED and says so in a signed PAYMENT.PAYOUTS-ITEM.RETURNED delivery, which
+  // processWebhook files among the run's events (the dispatcher runs it, so give it a moment).
+  const isVerified = (e: { type: string; payload: unknown }) =>
+    e.type === "webhook.received" && (e.payload as { verified?: string }).verified === "self";
+  const isReturned = (e: { type: string; payload: unknown }) =>
+    isVerified(e) && (e.payload as { eventType?: string }).eventType === "PAYMENT.PAYOUTS-ITEM.RETURNED";
+  let events = await readEvents(`${base}${runPath}/events`, asTreasurer);
+  for (let i = 0; i < 15 && !events.some(isReturned); i++) {
+    await sleep(2_000);
+    events = await readEvents(`${base}${runPath}/events`, asTreasurer);
+  }
   record({
     name: "money.returned",
-    target: `GET ${runPath}/batch`,
-    status: batch.status,
-    outcome: returned ? "Rhea's item RETURNED" : "no RETURNED item",
-    ok: batch.status === 200 && returned,
+    target: `GET ${runPath}/events (PAYMENT.PAYOUTS-ITEM.RETURNED)`,
+    status: 200,
+    outcome: events.some(isReturned) ? "Rhea's item RETURNED (verified webhook)" : "no RETURNED event",
+    ok: events.some(isReturned),
   });
-
-  // ------------------------------------------------------------ a verified simulator-signed webhook; the chain
-  const events = await readEvents(`${base}${runPath}/events`, asTreasurer);
-  const verified = events.filter(
-    (e) => e.type === "webhook.received" && (e.payload as { verified?: string }).verified === "self",
-  );
+  const verified = events.filter(isVerified);
   record({
     name: "money.webhooks",
     target: `GET ${runPath}/events (webhook.received)`,
@@ -392,14 +402,23 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
   });
   const proof = await call("GET", `/v1/proof/${s.runSlug}/verification`);
   const v = Verification.safeParse(proof.json);
+  // The chain and its checkpoint decide this check. The plates are reported: plate 6 (payoutItems) wants each
+  // item's status to rest on a verified event, which needs the webhook `delivery` stored (W1); until then a live
+  // run's Proof reads "failed" on that plate alone.
+  const failedPlates = v.success
+    ? Object.entries(v.data.verification.plates)
+        .filter(([, p]) => !p.ok)
+        .map(([k]) => k)
+    : [];
   record({
     name: "money.ledger",
     target: `GET /v1/proof/${s.runSlug}/verification`,
     status: proof.status,
     outcome: v.success
-      ? `chain ${v.data.verification.chain.ok ? "verifies" : "BROKEN"} (${v.data.verification.chain.entries} entries), ${v.data.verification.status}`
+      ? `chain ${v.data.verification.chain.ok ? "verifies" : "BROKEN"} (${v.data.verification.chain.entries} entries), checkpoint ${v.data.verification.checkpoint.ok ? "ok" : "BAD"}; Proof ${v.data.verification.status}${failedPlates.length ? ` (plates not met: ${failedPlates.join(", ")})` : ""}`
       : proof.text.slice(0, 100),
-    ok: proof.status === 200 && v.success && v.data.verification.chain.ok,
+    ok:
+      proof.status === 200 && v.success && v.data.verification.chain.ok && v.data.verification.checkpoint.ok,
   });
   return checks;
 }
