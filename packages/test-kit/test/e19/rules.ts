@@ -12,6 +12,15 @@ const UNTESTED = /\buntested\b|\bunverified\b|\bnot\s+(?:been\s+|yet\s+)?tested\
 
 const either = (...res: readonly RegExp[]): RegExp => new RegExp(res.map((r) => r.source).join("|"), "i");
 
+const MONTH = String.raw`(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?`;
+/**
+ * Where copy writes a run's date: a placeholder ("{date}", "{recorded}", "${d}"; the scanner reads a template
+ * literal's substitution as "{}"), "29 Oct", "Oct 29" or "2026-10-29". The seed's recordedOn fills these, and no
+ * copy may present it as a Claude run's date (§6, seed constants.ts:121).
+ */
+const DATE = String.raw`(?:\$?\{[^}]*\}|\d{1,2}\s+${MONTH}(?:\s+\d{4})?|${MONTH}\s+\d{1,2}(?:,?\s+\d{4})?|\d{4}-\d{2}-\d{2})`;
+const re = (source: string): RegExp => new RegExp(source, "i");
+
 export interface CopyRule {
   readonly id: string;
   /** Why the phrase is banned or must be qualified; printed with every finding. */
@@ -80,10 +89,23 @@ export const RULES: readonly CopyRule[] = [
     id: "recorded-claude-run",
     reason:
       "No recorded Claude run exists (§6): seeded and replayed runs replay a labelled seed stand-in, never a Claude recording",
-    pattern:
-      /\brecorded\s+(?:\d{1,2}\s+[a-z]{3}\s+)?(?:real\s+|live\s+)?(?:Claude\s+)?(?:run|reading|read)s?\b|\bClaude(?:['’]s)?\s+(?:\w+\s+){0,3}?(?:reading|run|reads?)\b[^.;]*?\brecorded\b/i,
+    pattern: either(
+      re(String.raw`\brecorded\s+(?:${DATE}\s+)?(?:real\s+|live\s+)?(?:Claude\s+)?(?:run|reading|read)s?\b`),
+      /\bClaude(?:['’]s)?\s+(?:\w+\s+){0,3}?(?:reading|run|reads?)\b[^.;]*?\brecorded\b/i,
+      re(String.raw`(?<![\w-])${DATE}\s+(?:Claude\s+)?recordings?\b`),
+    ),
     unless: /\bno\s+Claude\s+recording\b|\bnot\s+a\s+Claude\s+recording\b/i,
     liftedBy: "R1 (a recorded read of the hero slips) with C5d's exhibit",
+  },
+  {
+    id: "replay-of-dated-run",
+    reason:
+      "The seed's recordedOn is no run's date (§6, seed constants.ts:121): a replay is of a labelled seed stand-in, never 'the {date} run'",
+    pattern: re(
+      String.raw`\breplay(?:s|ed|ing)?\s+(?:of\s+|from\s+)?(?:the\s+|a\s+)?(?:recorded\s+)?${DATE}\s+(?:Claude\s+)?(?:run|reading|recording)s?\b`,
+    ),
+    unless: /\bstand-in\b|\bseed\b/i,
+    liftedBy: "R2 (recordedOn replaced with R1's real date) with C5d's exhibit",
   },
 
   // ------------------------------------------------------------------ §6: banned or qualified
@@ -294,9 +316,9 @@ const PENDING_T1: readonly Allowance[] = [
 
 /**
  * Console copy waiting on C5a (console honesty copy, ws/console; schedule §3 C5a and §6), one named entry per
- * file, listed from ws/console's tip e5c5806. Q2 does not edit apps/console. While ws/console is unmerged these
- * files are absent and the entries are dormant; once it merges each must match, and each one C5a rewords goes
- * stale and must be deleted here.
+ * file, listed from ws/console's tip e5c5806 and re-checked at 42a9338. Q2 does not edit apps/console. While
+ * ws/console is unmerged these files are absent and the entries are dormant; once it merges each must match, and
+ * each one C5a rewords goes stale and must be deleted here.
  */
 const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phrase: string])[]>> = {
   "apps/console/src/chrome/copy.ts": [
@@ -316,6 +338,7 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
   "apps/console/src/data/describe.ts": [
     ["paypal-confirms-says-simulated", "confirmed by PayPal's postback"],
     ["recorded-claude-run", "the recorded run still plays"],
+    ["replay-of-dated-run", "replay of the {} run"],
   ],
   "apps/console/src/data/errors.ts": [
     ["sandbox-says-simulated", "Only the sandbox is allowed here"],
@@ -348,8 +371,12 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["paypal-confirms-says-simulated", "confirmed by PayPal"],
     ["sandbox-says-simulated", "marked as paid in sandbox"],
   ],
-  "apps/console/src/features/reading/copy.ts": [["recorded-claude-run", "recorded run"]],
+  "apps/console/src/features/reading/copy.ts": [
+    ["recorded-claude-run", "recorded run"],
+    ["recorded-claude-run", "stand-in for the {} recording"],
+  ],
   "apps/console/src/features/season/copy.ts": [
+    ["recorded-claude-run", "in the recorded {} run"],
     ["claudes-draft", "Claude's draft"],
     ["claudes-draft", "Claude drafted the invoice"],
     ["paypal-confirms-says-simulated", "Nothing starts until PayPal confirms"],
@@ -357,8 +384,10 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["sandbox-says-simulated", "in PayPal's sandbox"],
   ],
   "apps/console/src/features/split/shared/copy.ts": [["paypal-confirms-says-simulated", "PayPal confirms"]],
+  "apps/console/src/lib/provenance.ts": [["replay-of-dated-run", "replay of the {} run"]],
   "apps/console/src/stage/Stage.tsx": [
     ["claudes-draft", "Claude drafted"],
+    ["replay-of-dated-run", "invoiceEqualsQuote, replay of the {} run"],
     ["sandbox-says-simulated", "Invoicing v2, PayPal sandbox"],
   ],
 };

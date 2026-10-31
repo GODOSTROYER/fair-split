@@ -14,6 +14,7 @@ export const PLANTED: Readonly<Record<string, string>> = {
   "pr107-merged": "Our Payouts tool follows PR #107, which PayPal merged.",
   "live-payouts": "Live payouts land on members' phones.",
   "recorded-claude-run": "Slip reading replays a recorded Claude run (29 Oct).",
+  "replay-of-dated-run": "Reading 12 photos. Replay of the 29 Oct run.",
   "claudes-draft": "Make Claude's draft overcharge Lantern Bay.",
   "insufficient-funds-test-value":
     "Send PayPal's insufficient-funds test value: a one-item batch it rejects at once.",
@@ -38,6 +39,52 @@ export const PLANTED: Readonly<Record<string, string>> = {
   "one-variable-switch": "Switching PayPal modes is one environment variable.",
   "user-reviewed-merged": "Claude Code wrote the code; the user reviewed and merged.",
 };
+
+/**
+ * More forms a rule must catch beyond its one planted sentence: the placeholders and dates copy fills in (§6
+ * "Console copy.ts:36" and "Stage.tsx:99–102", and seed constants.ts:121, whose recordedOn no copy may present as a
+ * Claude run's date). Each is checked as a markdown paragraph and as a TypeScript string literal.
+ */
+export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] = [
+  ["recorded-claude-run", "Claude wrote the line labels in the recorded {recorded} run."],
+  ["recorded-claude-run", "Claude wrote the line labels in the recorded 29 Oct run."],
+  ["recorded-claude-run", "Slip reading replays a recorded {d} Claude run."],
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: planted copy that prints a template placeholder as text
+  ["recorded-claude-run", "Slip reading replays a recorded ${d} Claude run."],
+  ["recorded-claude-run", "Slip reading replays a recorded 2026-10-29 Claude run."],
+  ["recorded-claude-run", "MM-2 plays the 28 Oct recording."],
+  ["recorded-claude-run", "Replay of the recorded {date} run."],
+  ["replay-of-dated-run", "Reading 12 photos. Replay of the {date} run."],
+  ["replay-of-dated-run", "invoiceEqualsQuote, replay of the {recorded} run"],
+  ["replay-of-dated-run", "Read by Claude (claude-opus-5-5), replay of the 29 Oct run"],
+  ["replay-of-dated-run", "Slip reading replays the Oct 29 Claude run."],
+  ["replay-of-dated-run", "Replayed from the 2026-10-29 run."],
+  ["replay-of-dated-run", "A replay of the {date} recording."],
+];
+
+/** Template literals whose substitution sits where the claim's date goes (the scanner reads each one as "{}"). */
+export const PLANTED_TEMPLATES: readonly (readonly [rule: string, source: string])[] = [
+  [
+    "recorded-claude-run",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const draftNote = (recorded: string) => `Claude wrote the line labels in the recorded ${recorded} run.`;",
+  ],
+  [
+    "recorded-claude-run",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const note = (d: string) => `Slip reading replays a recorded ${d} Claude run.`;",
+  ],
+  [
+    "replay-of-dated-run",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const label = (read: string, on: string) => `${read}, replay of the ${format.dateShort(on)} run`;",
+  ],
+  [
+    "replay-of-dated-run",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const rows = (recorded: string) => [`invoiceEqualsQuote, replay of the ${recorded} run`];",
+  ],
+];
 
 /** Near misses: sentences close to each rule's phrase that the rule must let through. */
 export const CLEAN: Readonly<Record<string, readonly string[]>> = {
@@ -72,6 +119,14 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "Line labels: a placeholder written with the seed (no Claude recording in this build).",
     "Placeholder, seed-written (not a Claude recording).",
     "Recorded by the co-op, {time}.",
+    "Cash received at the bodega, recorded {time}.",
+    "The payment was recorded, then the invoice read back as paid.",
+  ],
+  "replay-of-dated-run": [
+    "Reading 12 photos. Replay of a labelled seed stand-in.",
+    "MM-2: replay of a seed stand-in.",
+    "Replay of the {date} run, a labelled seed stand-in.",
+    "A labelled replay of the step, never a refusal.",
   ],
   "claudes-draft": [
     "Make the invoice draft overcharge Lantern Bay.",
@@ -147,6 +202,7 @@ export const HONEST: readonly string[] = [
   "12 photo hashes (composed in code from the hero flats and code-drawn slips).",
   "Our record of the simulator's signed notices, verified and stored; each payout's status comes from a status check; no nightly reconciliation in this build.",
   "Placeholder, seed-written (not a Claude recording).",
+  "Reading 12 photos. Replay of a labelled seed stand-in.",
   "Confirmed by the simulated PayPal sandbox on {date}.",
   "Sends {n} payouts through the simulated PayPal sandbox. No real money moves.",
   "A status check confirms each item (simulated).",

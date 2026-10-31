@@ -7,7 +7,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { figuresIn, ic03Figures } from "./e19/figures.js";
-import { CLEAN, FIGURES, HONEST, PLANTED, SCRIPTS } from "./e19/planted.js";
+import { CLEAN, FIGURES, HONEST, PLANTED, PLANTED_FORMS, PLANTED_TEMPLATES, SCRIPTS } from "./e19/planted.js";
 import { ALLOWANCES, CONSOLE_MERGED_SENTINEL, FIGURES_RULE, RULES } from "./e19/rules.js";
 import {
   AREAS,
@@ -125,6 +125,22 @@ describe("E-19 rules fire on planted copy", () => {
   it.each(RULES.map((r) => r.id))("%s lets its near misses through", (id) => {
     for (const text of CLEAN[id] ?? []) expect(firing(text), text).not.toContain(id);
   });
+
+  it.each(PLANTED_FORMS.map(([rule, text]) => [rule, text] as const))(
+    "%s fires on the placeholder or date form %j, as markdown and as a TypeScript literal",
+    (rule, text) => {
+      expect(firing(text)).toContain(rule);
+      const literal = `export const copy = { "X-01.line": ${JSON.stringify(text)} };`;
+      expect(lintText("copy.ts", literal).map((f) => f.rule)).toContain(rule);
+    },
+  );
+
+  it.each(PLANTED_TEMPLATES.map(([rule, source]) => [rule, source] as const))(
+    "%s fires on a template literal whose substitution is the date: %s",
+    (rule, source) => {
+      expect(lintText("copy.ts", source).map((f) => f.rule)).toContain(rule);
+    },
+  );
 
   it("the schedule's replacement wording (§6) passes every rule", () => {
     for (const text of HONEST) expect(firing(text), text).toEqual([]);
