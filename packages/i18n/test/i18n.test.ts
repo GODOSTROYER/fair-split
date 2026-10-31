@@ -153,6 +153,13 @@ describe("catalogs", () => {
     expect(pill).not.toMatch(/\{date\}|replay of the .*\brun\b|recorded/i);
   });
 
+  it("names the PayPal webhook's signature as the simulator's (ADR-0002, E-19)", () => {
+    const label = CATALOGS.en["provenance.paypal"];
+    expect(label).toMatch(/\bSimulated PayPal sandbox\b/);
+    expect(label).toMatch(/\bsimulator-signed\b/);
+    expect(label).toMatch(/\bsignature verified\b/);
+  });
+
   it("never says error, fraud or certified, and never shouts", () => {
     for (const lang of LANGS) {
       for (const [key, message] of Object.entries(CATALOGS[lang])) {

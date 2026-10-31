@@ -95,7 +95,7 @@ export const en = {
   "provenance.claude": "Read by Claude ({model})",
   "provenance.engine": "Computed by engine v1, rate card {hash}",
   "provenance.person": "Entered by {name}",
-  "provenance.paypal": "PayPal, webhook, signature verified",
+  "provenance.paypal": "Simulated PayPal sandbox, webhook, simulator-signed, signature verified",
   "paper.synthetic": "Synthetic sample",
   "slab.holdHint": "Hold to approve",
   "slab.holdUntilClick": "Hold until it clicks",
