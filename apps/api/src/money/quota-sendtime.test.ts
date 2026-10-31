@@ -10,19 +10,28 @@
 //   - a held slot carries a quick retry (within the threshold) unchanged, and a POST that lands after a balance
 //     reading is subtracted from it although its rows were written before it;
 //   - a resumed post's peek leaves its own run out (no false wait);
-//   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again;
-//   - I8: the replay rail never marks rows written live as posted.
+//   - a batch PayPal named (POSTED) or one it holds under our ids but not ours (ADOPT_FAILED) takes no slot again,
+//     also when PayPal named it while the resume waited for the lane (re-read under the lane), and the post's turn in
+//     this process's lane is freed either way;
+//   - I8 both ways: the replay rail never marks rows written live as posted, and a live executor never POSTs rows
+//     written as a replay (refused at its read, before any POST); a post's replay label and a live write of its rows
+//     exclude each other (one workspace lock), so a run is never labelled replayed beside a live post;
+//   - a slot is never left open with no post behind it: a fresh post that took one and failed before its write keeps
+//     its place on the retry (its own slot left out of the peek), or frees it when the run replays after all.
 // Each scenario has its own app, so its own judge quota ledger.
 import { randomBytes, randomUUID } from "node:crypto";
-import { schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
+import { appendLedger, schema, systemScope, withWorkspaceTx } from "@fairsplit/db";
 import { enqueue } from "@fairsplit/outbox";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  beginLiveStep,
   estimateBalance,
   JUDGE_QUOTA,
   judgeRail,
+  judgeRuntime,
+  LANE_LOCK,
   NO_JUDGE_QUOTA,
   recordBalanceReading,
   replayDecision,
@@ -33,7 +42,7 @@ import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "..
 import { type PostedBatch, paypalScript } from "../runs/test/paypal.js";
 import { PAYPAL_SANDBOX, paypalError } from "../test/index.js";
 import { estimatedBalanceCents, payoutsServiceFor, postsInLast24h } from "./payouts.js";
-import { railForStep, replayDeps } from "./rail.js";
+import { railForStep, replayDeps, replayStep, runReplays } from "./rail.js";
 import { resumeStalledPosts } from "./resume.js";
 
 const POSTS = `${PAYPAL_SANDBOX}/v1/payments/payouts`;
@@ -569,5 +578,321 @@ describe("D6 (I8): the replay rail never marks rows written live", () => {
     expect(await batchOf(h)).toMatchObject({ status: "SUBMITTED", paypalBatchId: null, provenance: "live" });
     expect(await runState(h)).toBe("POSTING");
     expect(sent).toHaveLength(1);
+  });
+});
+
+describe("D6 (I8) the other way round: rows written as a replay are never POSTed live", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    // another executor of the run, decided replay, writes the rows on the replay rail and stops before its mark
+    const replay = await replayDeps(h.t.deps, replayDecision("hourly_cap", "sandbox", NO_JUDGE_QUOTA));
+    const stopped = await payoutsServiceFor(replay, systemScope(h.world.workspaceId, ACTORS.outbox), {
+      repo: (base) => ({
+        ...base,
+        markPosted: async () => {
+          throw new Error("stopped before its mark");
+        },
+      }),
+    });
+    await expect(stopped.executeApproved(h.world.runId)).rejects.toThrow("stopped before its mark");
+    expect(await batchOf(h)).toMatchObject({
+      provenance: "replay",
+      status: "SUBMITTED",
+      paypalBatchId: null,
+    });
+  });
+  afterAll(async () => h?.close());
+
+  it("a live executeApproved that decided live before those rows were written sends nothing: refused at its read", async () => {
+    const live = await payoutsServiceFor(h.t.deps, systemScope(h.world.workspaceId, ACTORS.outbox));
+    await expect(live.executeApproved(h.world.runId)).rejects.toMatchObject({ code: "QUEUED" });
+    expect(sent).toHaveLength(0);
+    expect(await batchOf(h)).toMatchObject({
+      provenance: "replay",
+      status: "SUBMITTED",
+      paypalBatchId: null,
+    });
+    expect(await postsInLast24h(h.t.deps, h.t.clock.now())).toBe(0);
+  });
+
+  it("the run's post then replays to the end: the replay id lands on rows PayPal never saw", async () => {
+    await runQueued(h, "postPayoutBatch");
+    expect(sent).toHaveLength(0);
+    const batch = await batchOf(h);
+    expect(batch?.provenance).toBe("replay");
+    expect(batch?.paypalBatchId).toMatch(/^RPLY/);
+    expect(await runState(h)).toBe("POSTED");
+    expect(await postsInLast24h(h.t.deps, h.t.clock.now())).toBe(0);
+  });
+});
+
+/** The run's `judge.step.replayed` entries, [step, reason] in order. */
+async function replayedSteps(h: RunsHarness) {
+  return (
+    await h.t.deps.db
+      .select({ payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(
+        and(
+          eq(schema.ledgerEntries.workspaceId, h.world.workspaceId),
+          eq(schema.ledgerEntries.kind, "judge.step.replayed"),
+        ),
+      )
+      .orderBy(asc(schema.ledgerEntries.seq))
+  ).map((e) => {
+    const p = e.payload as { step: string; reason: string };
+    return [p.step, p.reason];
+  });
+}
+
+const postStep = (h: RunsHarness) =>
+  ({ workspaceId: h.world.workspaceId, runId: h.world.runId, step: "post" }) as const;
+
+describe("I8: the replay label first, then a live executor's write: the write is refused, the run replays", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+  });
+  afterAll(async () => h?.close());
+
+  it("A decided live (its slot, the lane); B, its other executor, labels the post replayed; A never writes or POSTs", async () => {
+    const scope = systemScope(h.world.workspaceId, ACTORS.outbox);
+    const a = await railForStep(h.t.deps, postStep(h));
+    if (a.kind !== "live") throw new Error(`A should go live, got ${a.kind}`);
+    // the clock hour fills meanwhile: B decides replay (hourly_cap) and labels the post
+    await others(h, 3, h.t.clock.now());
+    const b = await railForStep(h.t.deps, postStep(h));
+    expect(b).toMatchObject({ kind: "replay", decision: { reason: "hourly_cap" } });
+    try {
+      const service = await payoutsServiceFor(a.deps, scope);
+      await expect(service.executeApproved(h.world.runId)).rejects.toMatchObject({ code: "QUEUED" });
+    } finally {
+      await a.end(null);
+    }
+    expect(sent).toHaveLength(0);
+    expect(await batchOf(h)).toBeUndefined();
+    // B's replay writes and marks the rows: the label tells the truth
+    if (b.kind !== "replay") throw new Error("B replays");
+    const replayed = await payoutsServiceFor(b.deps, scope);
+    expect(await replayed.executeApproved(h.world.runId)).toMatchObject({ kind: "created" });
+    expect(await batchOf(h)).toMatchObject({ provenance: "replay" });
+    expect(sent).toHaveLength(0);
+    expect(await replayedSteps(h)).toEqual([["post", "hourly_cap"]]);
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toEqual({
+      replays: true,
+      reason: "hourly_cap",
+    });
+    // A's slot carried nothing: settled not_posted when the run replayed, so it is in no count
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post_settled", "not_posted"],
+    ]);
+  });
+});
+
+describe("I8: rows written live first, then a replay decided on a stale read: never labelled replayed", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await writeThenPace(h, sent);
+  });
+  afterAll(async () => h?.close());
+
+  it("the replay re-reads the rows under the workspace lock: it waits, labels nothing, frees no slot", async () => {
+    const rail = await replayStep(
+      h.t.deps,
+      postStep(h),
+      replayDecision("hourly_cap", "sandbox", NO_JUDGE_QUOTA),
+    );
+    expect(rail).toMatchObject({ kind: "queued" });
+    expect(await replayedSteps(h)).toEqual([]);
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toEqual({
+      replays: false,
+      reason: null,
+    });
+    expect(shape(await quotaLedger(h))).toEqual([["judge_post", null]]);
+  });
+
+  it("a post label an older build left beside live rows makes no replay: the next hour's resume posts live", async () => {
+    const scope = systemScope(h.world.workspaceId, ACTORS.outbox);
+    await withWorkspaceTx(h.t.deps.db, scope, (tx) =>
+      appendLedger(tx, scope, {
+        kind: "judge.step.replayed",
+        payload: {
+          runId: h.world.runId,
+          step: "post",
+          reason: "hourly_cap",
+          source: {
+            kind: "seed",
+            runSlug: "r37",
+            recordedOn: "2026-10-27",
+            invoiceId: null,
+            payoutBatchId: null,
+          },
+        },
+        runId: h.world.runId,
+        at: h.t.clock.now(),
+      }),
+    );
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toMatchObject({
+      replays: false,
+    });
+    h.t.clock.advance(7 * MIN);
+    await resume(h);
+    expect(sent).toHaveLength(2);
+    expect(await runState(h)).toBe("POSTED");
+    expect(await batchOf(h)).toMatchObject({ provenance: "live" });
+    expect(await runReplays(h.t.deps.db, h.world.workspaceId, h.world.runId)).toMatchObject({
+      replays: false,
+    });
+  });
+});
+
+describe("a fresh post that took its slot and failed before its write keeps its place (the day's 40th)", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    await others(h, JUDGE_QUOTA.dailyMax - 1, new Date(T0 - H));
+    // the attempt takes the 40th slot, then throws before anything is written (the spend lock's wait, say)
+    const first = await railForStep(h.t.deps, postStep(h));
+    if (first.kind !== "live") throw new Error(`the first attempt should go live, got ${first.kind}`);
+    await first.end(null);
+    expect(await batchOf(h)).toBeUndefined();
+  });
+  afterAll(async () => h?.close());
+
+  it("its retry leaves its own open slot out of the peek: it posts live, the old slot superseded", async () => {
+    h.t.clock.advance(5 * MIN);
+    // another judge sees the full day, the run's open slot included
+    expect(await peek(h)).toMatchObject({ mode: "replay", reason: "daily_cap", quota: { used24h: 40 } });
+    await runQueued(h, "postPayoutBatch");
+    expect(sent).toHaveLength(1);
+    expect(await runState(h)).toBe("POSTED");
+    expect(await batchOf(h)).toMatchObject({ provenance: "live" });
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post", null],
+      ["judge_post_settled", "superseded"],
+      ["judge_post_settled", "posted"],
+    ]);
+    expect((await peek(h)).quota.used24h).toBe(40);
+  });
+});
+
+describe("a fresh post that replays after all frees the slot an earlier attempt took and never used", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    const first = await railForStep(h.t.deps, postStep(h));
+    if (first.kind !== "live") throw new Error(`the first attempt should go live, got ${first.kind}`);
+    await first.end(null);
+    // the day fills without it (before the reading, so the spend is the run's own slot alone)
+    await others(h, JUDGE_QUOTA.dailyMax, new Date(T0 - H));
+  });
+  afterAll(async () => h?.close());
+
+  it("the post replays; its unused slot is settled not_posted: in no count and no spend", async () => {
+    h.t.clock.advance(5 * MIN);
+    await runQueued(h, "postPayoutBatch");
+    expect(sent).toHaveLength(0);
+    expect(await batchOf(h)).toMatchObject({ provenance: "replay" });
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post_settled", "not_posted"],
+    ]);
+    expect((await peek(h)).quota.used24h).toBe(40);
+    expect((await estimateBalance(h.t.deps.db, "sandbox", h.t.clock.now())).spentCents).toBe(0);
+  });
+});
+
+describe("a post PayPal answered while it waited for the lane frees its turn in this process's lane", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+  });
+  afterAll(async () => h?.close());
+
+  it("queued (another process holds the lane), posted elsewhere, then done: the next judge step is granted at once", async () => {
+    const owner = h.t.pg?.owner.sql;
+    if (!owner) throw new Error("db");
+    // another fs-api process holds the live lane
+    const elsewhere = await owner.reserve();
+    try {
+      await elsewhere`select pg_advisory_lock(hashtextextended(${LANE_LOCK}, 0))`;
+      expect(await railForStep(h.t.deps, postStep(h))).toMatchObject({ kind: "queued", position: null });
+      await elsewhere`select pg_advisory_unlock(hashtextextended(${LANE_LOCK}, 0))`;
+    } finally {
+      elsewhere.release();
+    }
+    // that process's executor of the run posts the batch
+    const service = await payoutsServiceFor(h.t.deps, systemScope(h.world.workspaceId, ACTORS.outbox));
+    expect(await service.executeApproved(h.world.runId)).toMatchObject({ kind: "created" });
+    expect(sent).toHaveLength(1);
+    expect(await railForStep(h.t.deps, postStep(h))).toMatchObject({ kind: "done", reason: "answered" });
+    // the lane is free here: another judge's step goes live at once (no 90 s lease left behind)
+    const other = await h.t.fixture({ kind: "judge" });
+    const step = await beginLiveStep(h.t.deps, {
+      workspaceId: other.workspaceId,
+      sessionId: null,
+      step: "invoice",
+    });
+    expect(step.kind).toBe("live");
+    if (step.kind === "live") await step.end();
+  });
+});
+
+describe("D5 under the lane: a resume re-reads its batch once it holds the lane", () => {
+  const script = paypalScript();
+  let h: RunsHarness;
+  let sent: Sent[];
+  beforeAll(async () => {
+    ({ h, sent } = await judgeWorld(script));
+    await resolveAll(h);
+    await signBoth(h);
+    await runQueued(h, "postPayoutBatch");
+    expect(await runState(h)).toBe("POSTED");
+  });
+  afterAll(async () => h?.close());
+
+  it("a resume whose earlier read missed PayPal's answer takes no fresh slot: done, and the lane is free again", async () => {
+    h.t.clock.advance(5 * MIN); // the posted slot no longer carries a POST
+    const step = await beginLiveStep(h.t.deps, {
+      workspaceId: h.world.workspaceId,
+      step: "post",
+      runId: h.world.runId,
+      resume: true,
+      amountCents: Number((await batchOf(h))?.totalCents),
+    });
+    if (step.kind === "live") await step.end(null);
+    expect(step).toMatchObject({ kind: "done", reason: "answered" });
+    expect(sent).toHaveLength(1);
+    expect(shape(await quotaLedger(h))).toEqual([
+      ["judge_post", null],
+      ["judge_post_settled", "posted"],
+    ]);
+    expect(judgeRuntime(h.t.deps).lane.view().holder).toBeNull();
   });
 });

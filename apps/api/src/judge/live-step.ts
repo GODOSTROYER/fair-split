@@ -26,6 +26,10 @@
 // under a FRESH slot dated now that every quota still allows with its own run left out (same ids; the floor after its
 // batch and C-21's 40 a day too; the older slot superseded), and otherwise it WAITS (`queued`, `waitingFor` the
 // reason, re-queued by the caller): a switch (kill_payouts too), the simulator, the circuit, a full lane or a quota.
+// Holding the lane, it re-reads its batch first: one PayPal answered while it waited (another executor posted it)
+// is `done`, with no slot taken (D5's check, then act, under the lane).
+// A post's peek leaves its own run out, as the binding decision does: a slot an earlier attempt of it took (and left
+// open, nothing written) is its own place, never a reason to replay it.
 // Outside judge workspaces (showcase, real) nothing here applies: the step is live, with no lane and no
 // quota, and the run slice's own guards (kill switch, limiter, circuit) stand.
 import type { BatchOutcome } from "@fairsplit/paypal-payouts";
@@ -41,6 +45,7 @@ import {
   type LivePostOutcome,
   type LivePostReservation,
   liveDecision,
+  type PostAnswered,
   type QuotaNumbers,
   type RailDecision,
   type ReplayReason,
@@ -127,6 +132,8 @@ export type LiveStep =
       waitingFor?: ReplayReason;
     }
   | { kind: "replay"; decision: RailDecision }
+  /** A resumed post only: PayPal answered its batch while it waited for the lane; nothing to send, no slot taken. */
+  | { kind: "done"; reason: PostAnswered }
   | {
       kind: "live";
       decision: RailDecision;
@@ -226,14 +233,16 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
     };
   };
 
-  // 1. a fresh peek: what replays now never waits in the queue. A resumed post peeks with its own run left out (its
-  //    fresh slot would replace its earlier one) and waits out kill_payouts; it is past the quotas only while its run
-  //    holds a slot that still carries its POST (the binding decision below re-reads all of it under the quota lock).
+  // 1. a fresh peek: what replays now never waits in the queue. A post peeks with its own run left out, as the binding
+  //    decision counts it (a slot an earlier attempt took is its own place; a resume's fresh slot would replace it). A
+  //    resumed post also waits out kill_payouts; it is past the quotas only while its run holds a slot that still
+  //    carries its POST (the binding decision below re-reads all of it under the quota lock).
   const peek = await judgeRail(deps, {
     workspaceId: o.workspaceId,
     sessionId,
     step: o.step,
-    ...(o.resume ? { excludeRunId: o.runId as string, resume: true } : {}),
+    ...(o.step === "post" ? { excludeRunId: o.runId as string } : {}),
+    ...(o.resume ? { resume: true } : {}),
   });
   if (peek.mode === "replay") {
     if (!o.resume) return { kind: "replay", decision: peek };
@@ -274,6 +283,7 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   // 3. the binding decision, holding the lane
   let decision: RailDecision;
   let reservation: LivePostReservation | null = null;
+  let answered: PostAnswered | null = null;
   try {
     if (o.step === "post") {
       const runId = o.runId as string;
@@ -288,12 +298,18 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
       // dated now that the quotas allowed: for a resume, the floor after its batch and C-21's 40 a day too)
       decision = r.decision;
       reservation = r.reservation;
+      answered = r.answered ?? null;
     } else {
       decision = await judgeRail(deps, { workspaceId: o.workspaceId, sessionId, step: o.step });
     }
   } catch (err) {
     await free();
     throw err;
+  }
+  if (answered) {
+    // a resume whose batch PayPal answered while it waited for the lane: nothing to send, no slot taken
+    await free();
+    return { kind: "done", reason: answered };
   }
   if (decision.mode === "replay") {
     await free();

@@ -73,41 +73,70 @@
 >   It is never replayed and never live without a slot. The older slot is settled `superseded`.
 > - Counting: every count looks back 24 h plus the 90 s, so a POST is counted for the whole 24 h after it (and in its
 >   own clock hour). A run counts once however many of its slots are in a window; the spend counts a run through its
->   newest slot, so a post PayPal denies on the fresh slot spends nothing. C-21 counts a batch from its write, and a
->   judge batch also from any live slot of its run in the window. The spend counts a batch written before a balance
->   reading and posted after it from its POST (`batch_posted`), and a written batch still waiting to be posted.
+>   newest slot, so a post PayPal denies on the fresh slot spends nothing. A run is in the public third while any of
+>   its slots in the window was taken without the judge code (a fresh slot that supersedes an uncoded one is uncoded
+>   too), so a public POST whose answer was lost never frees a public place when the session unlocks the code before
+>   its resume. C-21 counts a batch from its write, and a judge batch also from any live slot of its run in the
+>   window. The spend counts a batch written before a balance reading and posted after it from its POST
+>   (`batch_posted`), and a written batch still waiting to be posted.
+> - No slot is left open with no post behind it: a post's peek leaves its own run out (as the binding decision does),
+>   so a slot an earlier attempt took and never used (it threw before its write, e.g. on the spend lock's wait) is its
+>   own place on the retry; and a post that replays settles such slots `not_posted` (`releaseUnusedSlots`).
 > - Only a batch still waiting for PayPal's answer is resumed (SUBMITTED, no PayPal id). One PayPal named or denied,
->   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST.
-> - A written re-route resumed more than 90 s after it was last counted is held to C-21 again (under the spend lock)
->   and counted from that POST (`batch_sent`); while C-21 is full it waits.
+>   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST,
+>   and frees the turn this process's lane kept for an earlier attempt of it. A resume re-reads its batch once it
+>   holds the lane (in `reserveLivePost`, under the quota lock): one PayPal answered while it waited is done too.
+> - A written batch resumed more than 90 s after it was last counted, outside the judge quota, is held to C-21 again
+>   (under the spend lock) and counted from that POST (`batch_sent`); while C-21 is full it waits. That is every
+>   re-route (D7) and a co-op's own primary batch (`guardResumedPrimary`, round 5); a judge primary batch is counted
+>   through its run's fresh slot.
 > - The hourly purge never removes a batch a count still reads. C-21 and the spend count a batch from its row, and
 >   the purge deletes the expired judge workspace's rows. So it waits while C-21 still counts one of its batches (24 h
->   and 90 s after its write, after a live slot of its run, or after a `batch_sent` mark) or the spend does (its write
->   or PayPal naming it, `batch_posted`, within 26 h: the oldest reading the spend counts from). A batch POSTed late
->   is counted for the whole 24 h after that POST, even when its workspace expired before it
+>   and 90 s after its write, after a live slot of its run, or after a `batch_sent` mark) or the spend does (not
+>   DENIED, and written or named by PayPal, `batch_posted`, at or after the latest balance reading on its rail,
+>   whatever its age: the service's floor guard reads that reading however old it is). A replayed batch is in no
+>   count. A batch POSTed late is counted for the whole 24 h after that POST, even when its workspace expired before it
 >   (`judge/quota.ts batchesStillCounted`, read on the database's clock).
 > - Lock order, wherever both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`):
->   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the re-route
->   guard hold only the spend lock, `settleLivePost` only the quota lock. So no two transactions can deadlock. The
->   tests drive the re-route guard on its locked path (a batch last counted a day before) and mix real co-op first
->   writes into the concurrent run.
-> - I8 check-then-act: a post re-reads its rows just before it replays and waits if another executor wrote them live;
->   the repository refuses to write, mark posted or mark rejected live rows on the replay rail.
+>   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the C-21
+>   guard of a resumed send (`countResumedSend`) hold only the spend lock, `settleLivePost` and `releaseUnusedSlots`
+>   only the quota lock. So no two transactions can deadlock. The tests drive the re-route guard on its locked path
+>   (a batch last counted a day before) and mix real co-op first writes into the concurrent run.
+> - Pool bound: the service's guard and `countResumedSend` wait for the spend lock holding no pooled connection (a
+>   try per short transaction, QUEUED after 10 s). Only `reserveLivePost` on a sandbox resume waits holding one, and
+>   it runs only under the single-flight lane, so there is at most one such waiter across every process
+>   (`judge/quota.ts` header, "POOL BOUND").
+> - I8 both ways, for two executors of one run's post that decide differently (a lost outbox heartbeat). Live rows are
+>   never replayed: `replayStep` re-reads the rows in the transaction that writes the post's `judge.step.replayed`
+>   label, under the workspace lock, and waits if they are written live; the repository writes live rows under the same
+>   lock and refuses a run labelled replayed. So a post is never labelled replayed beside a live POST (and `runReplays`
+>   ignores a post label an older build left beside live rows). Rows written as a replay are never POSTed live: the
+>   repository refuses them on a live rail where it reads them for the service (`loadPosting`, the re-route's
+>   `findSupersedingItem`) and at `writeSubmitted`, all before the POST; the run's next attempt replays to the end.
+>   The marks (posted, rejected) refuse the other rail's rows besides.
 > - Earlier rounds: round 1 stopped the resume override (no live post without a slot) and stopped `settleLivePost`
 >   from settling `not_posted` once a batch is written; round 2's 23 h age-out (`heldSlotMaxAgeMs`) is gone: a slot
 >   now carries a POST for 90 s, and a later POST takes a slot dated at it. Round 4: the purge used to wait only 24 h
->   after a batch's write, so a POST made a day after its write could drop out of C-21 within the hour.
+>   after a batch's write, so a POST made a day after its write could drop out of C-21 within the hour. Round 5 (the
+>   15 minors of the final verifiers, M1 to M11): the two I8 races, the public third, the purge's spend wait and its
+>   provenance filter, the co-op resume's C-21 check, the unused slot, the lane on `done`, the pool bound, D5 under
+>   the lane, and the purge tests' C-21 branch.
 > - What is left: a burst's own retries (the service's 1 + 3 + 9 s, PayPalHttp's timeouts) can put its POST up to
 >   about two minutes after its slot, and a fresh burst that straddles the top of an hour counts in the hour it
->   began. A co-op's own (non-judge) primary batch resumed later is still counted by C-21 from its write (outside the
->   judge quota, and not reachable by a judge). Cancel takes no slot and no C-21 count (it sends no batch). The purge
->   reads the counts on the database's clock while the ledger is stamped by the app's; in production they are the
->   same clock, and any skew between them moves the end of its wait by that much.
+>   began. Cancel takes no slot and no C-21 count (it sends no batch). A resumed send's `batch_sent` mark is written
+>   just before the service's own kill-switch read, so a POST the switch then refuses leaves the batch counted by C-21
+>   for 24 h without a send (it over-counts by that one batch, never under). On a rail with no balance reading at all
+>   (the simulated rail before its first; a judge live batch on the sandbox rail always follows one) the spend counts
+>   every batch ever, and the purge waits only 26 h after a batch's write or name. The purge reads the counts on the
+>   database's clock while the ledger is stamped by the app's; in production they are the same clock, and any skew
+>   between them moves the end of its wait by that much.
 > - Tests: `money/quota-sendtime.test.ts` (the drift probe, the hourly wait, one run counted once, denied, the held
->   retry, D4, D5, D6), `money/quota-oracle.test.ts` (send times over three simulated days),
->   `money/quota-purge.test.ts` (a late POST, then the purge: still counted 2 h and 23 h after it),
->   `money/lock-order.pg.test.ts` (D1 and the lock order), `money/reroute-c21.test.ts` (D7), `judge/quota.pg.test.ts`
->   (restamp, hour boundary, D2, D8), `money/quota-resume.test.ts`.
+>   retry, D4, D5 and D5 under the lane, the lane freed on `done`, D6 both ways, the replay label and a live write,
+>   the unused slot kept or freed), `money/quota-oracle.test.ts` (send times over three simulated days),
+>   `money/quota-purge.test.ts` (a late POST, then the purge: still counted 2 h and 23 h after it; the spend from an
+>   old reading; C-21 alone; a replay batch), `money/lock-order.pg.test.ts` (D1, the lock order, waiters holding no
+>   connection), `money/reroute-c21.test.ts` (D7), `money/primary-c21.test.ts` (a co-op's primary resumed a day on),
+>   `judge/quota.pg.test.ts` (restamp, hour boundary, D2, D8, the public third), `money/quota-resume.test.ts`.
 
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
