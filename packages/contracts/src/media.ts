@@ -50,9 +50,18 @@ export const StatementAudioClip = z.strictObject({
 });
 export type StatementAudioClip = z.infer<typeof StatementAudioClip>;
 
-/** One spoken sentence of the statement: its clip, or null when the phone's voice reads it (`deviceLabel`). */
+/** A slip or a rule a sentence names, as fs-api's statement plan lists it. */
+export const AudioMention = z.string().regex(/^(?:slip|rule):[A-Za-z0-9-]+$/);
+
+/**
+ * One spoken sentence of the statement: its clip, or null when the phone's voice reads it (`deviceLabel`). A client
+ * finds its own sentence by `slot` and `mentions` (which deduction or credit), in reading order, never by its words:
+ * only fs-api renders the spoken text, and `textSha256` is fs-api's hash of it (ADR-0011 §3, §6).
+ */
 export const StatementAudioSentence = z.strictObject({
   slot: AudioSlot,
+  /** The slips and rules the sentence names, in order (`rule:R1`, `slip:0403`). */
+  mentions: z.array(AudioMention),
   textSha256: Sha256Hex,
   clip: StatementAudioClip.nullable(),
 });

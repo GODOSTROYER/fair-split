@@ -9,6 +9,7 @@ import {
   StatementAudio,
   StatementAudioClip,
   StatementAudioQuery,
+  StatementAudioSentence,
   SYNTHETIC_VOICE_LABELS,
 } from "./index.js";
 
@@ -93,8 +94,9 @@ describe("IC-11 StatementAudio (GET /v1/media/audio/:lineId)", () => {
     label: "Sintetikong tingog (Gemini TTS)",
     deviceLabel: "Tingog sa telepono",
     sentences: [
-      { slot: "GREETING", textSha256: HASH, clip },
-      { slot: "PAY", textSha256: "b".repeat(64), clip: null },
+      { slot: "GREETING", mentions: [], textSha256: HASH, clip },
+      { slot: "DEDUCTION", mentions: ["rule:R1"], textSha256: "a".repeat(64), clip: null },
+      { slot: "PAY", mentions: [], textSha256: "b".repeat(64), clip: null },
     ],
   } as const;
 
@@ -106,6 +108,17 @@ describe("IC-11 StatementAudio (GET /v1/media/audio/:lineId)", () => {
     expect(StatementAudio.safeParse({ ...answer, cues: [] }).success, "the one-file cues are retired").toBe(
       false,
     );
+  });
+
+  it("names each sentence by its slot and the slips and rules it names, never by its words", () => {
+    const sentence = { slot: "DEDUCTION", mentions: ["rule:R3"], textSha256: HASH, clip: null } as const;
+    expect(StatementAudioSentence.parse(sentence)).toEqual(sentence);
+    const { mentions: _, ...bare } = sentence;
+    expect(StatementAudioSentence.safeParse(bare).success, "mentions present").toBe(false);
+    for (const m of ["fact:NET_USD", "0403", "slip:04 03", ""]) {
+      expect(StatementAudioSentence.safeParse({ ...sentence, mentions: [m] }).success, m).toBe(false);
+    }
+    expect(StatementAudioSentence.safeParse({ ...sentence, text: "words" }).success, "no words").toBe(false);
   });
 
   it("takes an optional language", () => {
