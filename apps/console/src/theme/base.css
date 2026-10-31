@@ -17,7 +17,8 @@
 
   /* The skip link's target: Enter leaves the screen :focus-visible, and a 2 px ring around the whole screen marks
      nothing a person can act on. The landmark is the target; its first control takes the ring from Tab on. */
-  .fsc-console__screen:focus-visible {
+  .fsc-console__screen:focus-visible,
+  main[data-screen]:focus-visible {
     outline: none;
   }
 

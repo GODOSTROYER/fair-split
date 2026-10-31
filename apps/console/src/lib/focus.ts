@@ -529,17 +529,23 @@ interface Held {
  * disabled), leaves focus on its successor by key, else the first control of the nearest container that stayed
  * in the screen or drawer, else the screen's main control. It runs from a mutation observer (or, for a control
  * turned disabled, the focusout that follows), at the first microtask: after the commit's own layout effects,
- * which hand focus on themselves where they know better, and before the browser paints or a key lands. Focus the
- * person let go of (a press on the page) is theirs, and a window that lost focus keeps its focused control.
+ * which hand focus on themselves where they know better, and before the browser paints or a key lands. With
+ * nothing to land on yet (the next page draws a commit later, a lazy route), it waits: the first commit that
+ * draws a place takes the focus, until the person acts or focuses something themselves. Focus the person let go
+ * of (a press on the page) is theirs, and a window that lost focus keeps its focused control.
  */
 export function useFocusGuard(): void {
   useEffect(() => {
     let held: Held | null = null;
+    let waiting = false;
     const record = (target: EventTarget | null) => {
       if (!(target instanceof HTMLElement) || target === document.body) return;
       const chain: Element[] = [];
       for (let at = target.parentElement; at && at !== document.body; at = at.parentElement) chain.push(at);
       held = { place: { el: target, key: focusKey(target) }, chain };
+    };
+    const land = (was: Held) => {
+      if (!returnFocus([was.place, () => neighbourOf(was.chain)]) && focusIsLost()) waiting = true;
     };
     const handOn = () => {
       const was = held;
@@ -549,13 +555,19 @@ export function useFocusGuard(): void {
       if (inGrid && !returnFocus(was.place, { fallback: false })) {
         // The grid draws the cell again on its own, and gives it back its focus: a frame for that, then the rest.
         requestAnimationFrame(() => {
-          if (focusIsLost()) returnFocus([was.place, () => neighbourOf(was.chain)]);
+          if (focusIsLost()) land(was);
         });
         return;
       }
-      returnFocus([was.place, () => neighbourOf(was.chain)]);
+      land(was);
     };
-    const onIn = (event: FocusEvent) => record(event.target);
+    const onIn = (event: FocusEvent) => {
+      waiting = false;
+      record(event.target);
+    };
+    const ownInput = () => {
+      waiting = false;
+    };
     const onOut = (event: FocusEvent) => {
       const el = event.target;
       if (event.relatedTarget !== null || el !== held?.place.el) return;
@@ -569,14 +581,18 @@ export function useFocusGuard(): void {
     };
     const observer = new MutationObserver(() => {
       if (held && !held.place.el.isConnected) handOn();
+      else if (waiting && focusIsLost() && returnFocus(null)) waiting = false;
     });
     record(document.activeElement);
     document.addEventListener("focusin", onIn, true);
     document.addEventListener("focusout", onOut, true);
+    for (const type of ["keydown", "pointerdown"] as const) document.addEventListener(type, ownInput, true);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       document.removeEventListener("focusin", onIn, true);
       document.removeEventListener("focusout", onOut, true);
+      for (const type of ["keydown", "pointerdown"] as const)
+        document.removeEventListener(type, ownInput, true);
       observer.disconnect();
     };
   }, []);
