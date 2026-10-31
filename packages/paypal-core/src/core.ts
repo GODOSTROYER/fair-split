@@ -16,6 +16,7 @@ import {
   type PayPalWebhookVerifier,
   type PostbackFn,
   type RawBody,
+  type SimulatorWebhookTrust,
   type TransmissionStore,
   type VerifyMode,
   type VerifyOptions,
@@ -38,6 +39,11 @@ export interface PayPalCoreOptions {
   retry?: Partial<RetryPolicy>;
   /** Extra PEM trust anchors for webhook certificates (tests, pinning). */
   webhookTrustAnchors?: readonly string[];
+  /**
+   * PP_MODE=simulator only: the in-process simulator's signing trust, which replaces PayPal's cert URL shape and
+   * subject for webhook verification (WebhookVerifierConfig.simulator, ADR-0010). Never set it in sandbox mode.
+   */
+  webhookSimulator?: SimulatorWebhookTrust;
   /** Deliveries signed with an expired PayPal certificate (default 'postback': PayPal confirms each one). */
   webhookExpiredCertPolicy?: ExpiredCertPolicy;
   /** Replay tracking of webhook transmission ids (production: WS-DATA's Postgres store; default in memory). */
@@ -93,6 +99,7 @@ export function createPayPalCore(options: PayPalCoreOptions): PayPalCore {
     limiter: options.limiter,
     ...(options.recorder ? { recorder: options.recorder } : {}),
     ...(options.webhookTrustAnchors ? { trustAnchors: options.webhookTrustAnchors } : {}),
+    ...(options.webhookSimulator ? { simulator: options.webhookSimulator } : {}),
     ...(options.webhookExpiredCertPolicy ? { expiredCertPolicy: options.webhookExpiredCertPolicy } : {}),
     ...(options.webhookTransmissionStore ? { transmissionStore: options.webhookTransmissionStore } : {}),
     ...(knownCertIds.length > 0 ? { knownCertIds } : {}),

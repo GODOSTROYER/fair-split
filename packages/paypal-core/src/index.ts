@@ -115,6 +115,8 @@ export {
   type CertUrlCheck,
   type CertUrlRejection,
   checkCertUrl,
+  checkSimulatorCertUrl,
+  SIMULATOR_CERT_ID_PATTERN,
 } from "./webhook/cert-url.js";
 export {
   type CertCache,
@@ -167,6 +169,7 @@ export {
   type PrewarmResult,
   parseTransmissionTime,
   type RawBody,
+  type SimulatorWebhookTrust,
   TRANSMISSION_ID_PATTERN,
   type TransmissionStore,
   type VerifyFailureReason,
