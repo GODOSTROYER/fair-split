@@ -580,7 +580,7 @@ describe("extract: a failed zoom sends its field to a person, never fails the do
   });
 });
 
-describe("extract: crops come only from reviewed rectangles (C-10)", () => {
+describe("extract: crops come only from reviewed rectangles (C-10)", SLOW, () => {
   it("without a fixture nothing is zoomed: the disagreeing field goes to a person, and no dHash is taken", async () => {
     const a = extraction([row()]);
     const b = extraction([row({ gross_kg: field("64.30", FIELD_RECTS.gross_kg) })]);
