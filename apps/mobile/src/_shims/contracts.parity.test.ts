@@ -10,7 +10,7 @@ import fc from "fast-check";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { approvalPayloadShape } from "../lib/signing";
 import type { AudioClip, audioPlan } from "../lib/statement";
-import type { StatementAudioClip, StatementDTO } from "./api-client";
+import type { StatementAudioClip, StatementAudioSentence, StatementDTO } from "./api-client";
 import {
   APPROVAL_PAYLOAD_KEYS,
   APPROVAL_ROLES,
@@ -134,9 +134,11 @@ describe("the shim's types are @fairsplit/contracts' types", () => {
   it("statement audio (IC-11, ADR-0011): the clips Paminawa plays are the contract's, slot for slot", () => {
     expectTypeOf<StatementAudioClip>().toEqualTypeOf<real.StatementAudioClip>();
     expectTypeOf<AudioClip>().toEqualTypeOf<real.StatementAudioClip>();
+    expectTypeOf<StatementAudioSentence>().toEqualTypeOf<real.StatementAudioSentence>();
+    // the statement keeps fs-api's per-sentence answer as it came, so the phone pairs sentences, never words
     expectTypeOf<
       NonNullable<StatementDTO["audio"]["ceb"]>[number]
-    >().toEqualTypeOf<real.StatementAudioClip>();
+    >().toEqualTypeOf<real.StatementAudioSentence>();
     expectTypeOf<StatementAudio>().toEqualTypeOf<real.StatementAudio>();
     expectTypeOf<Parameters<typeof audioPlan>[0]>().toEqualTypeOf<StatementDTO>();
     expectTypeOf<StatementSlot>().toEqualTypeOf<real.AudioSlot>();

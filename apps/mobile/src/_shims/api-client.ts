@@ -23,6 +23,7 @@ import type {
   RunEvent,
   StatementAudio,
   StatementAudioClip,
+  StatementAudioSentence,
   StatementTemplate,
 } from "./contracts";
 
@@ -72,11 +73,12 @@ export interface StatementHistoryEntry {
 
 /**
  * IC-11 statement audio (ADR-0011), the contract's own types: `StatementAudio` is fs-api's answer to
- * `GET /v1/media/audio/:lineId`, and a `StatementAudioClip` {url, textSha256, label, slot, offsets, durationMs} is a
- * synthetic voice reading one sentence. `textSha256` is the SHA-256 of the exact spoken text it was rendered from,
- * so the phone never plays a clip for a sentence whose words changed (it uses the labelled device voice instead).
+ * `GET /v1/media/audio/:lineId`, one `StatementAudioSentence` {slot, mentions, textSha256, clip} per sentence fs-api
+ * speaks, and a `StatementAudioClip` {url, textSha256, label, slot, offsets, durationMs} is a synthetic voice reading
+ * one of them. `textSha256` is fs-api's SHA-256 of its own spoken words: the phone pairs fs-api's sentences with its
+ * own by slot and mentions and plays a clip only under fs-api's hash for that sentence; it never hashes its own words.
  */
-export type { StatementAudio, StatementAudioClip };
+export type { StatementAudio, StatementAudioClip, StatementAudioSentence };
 
 export interface StatementCredit {
   /** The slip the unruled deduction was written on. */
@@ -122,10 +124,10 @@ export interface StatementDTO {
   expectedDate: string | null;
   sentences: Readonly<Record<Lang, readonly StatementTemplate[]>>;
   /**
-   * Synthetic voice clips per language (IC-11, ADR-0011): fs-api's served clips (`withServedAudio`), or the demo
-   * fixtures' own; empty until the audio days render them.
+   * fs-api's per-sentence audio answer per language (IC-11, ADR-0011 §6), as served (`withServedAudio`) or, in demo
+   * mode, as exported from fs-api's renderer; empty until the audio days render clips.
    */
-  audio: Readonly<Partial<Record<Lang, readonly StatementAudioClip[]>>>;
+  audio: Readonly<Partial<Record<Lang, readonly StatementAudioSentence[]>>>;
 }
 
 export interface CosignHold {

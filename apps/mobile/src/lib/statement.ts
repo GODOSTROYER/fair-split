@@ -6,14 +6,21 @@
  *
  * The same filled sentences feed three readers:
  * - the statement and its English gloss (`glossPairs`: the English sentence with the same template id);
- * - Paminawa (`audioPlan`): each sentence plays its synthetic clip when one was rendered from exactly these words
- *   (`textSha256`) for its slot, otherwise the phone's own voice reads it, labelled; Filipino clips stand in for
- *   Cebuano ones when spike S10 failed ("Audio sa Filipino; teksto sa Cebuano"). The clips are IC-11's (ADR-0011):
- *   fs-api's `GET /v1/media/audio/:lineId` answer goes into the statement with `withServedAudio`;
+ * - Paminawa (`audioPlan`): each sentence plays the synthetic clip fs-api served for it, otherwise the phone's own
+ *   voice reads it, labelled; Filipino clips stand in for Cebuano ones when spike S10 failed ("Audio sa Filipino;
+ *   teksto sa Cebuano"). The clips are IC-11's (ADR-0011): fs-api's `GET /v1/media/audio/:lineId` answer goes into
+ *   the statement with `withServedAudio`, and each sentence finds fs-api's by slot and what it names (§6). These
+ *   sentences are not fs-api's spoken words ("0 4 0 3" where fs-api says "zero four zero three"), so the phone never
+ *   hashes them to check a clip;
  * - the slip chips, which rise when the voice names a slip (`MentionCue`: a character index for the phone's voice,
  *   a time offset for a clip).
  */
-import type { StatementAudio, StatementAudioClip, StatementDTO } from "../_shims/api-client";
+import type {
+  StatementAudio,
+  StatementAudioClip,
+  StatementAudioSentence,
+  StatementDTO,
+} from "../_shims/api-client";
 import {
   type AmountState,
   amountStateOf,
@@ -309,21 +316,70 @@ function cuesFor(spoken: string, mentions: readonly string[], clip: AudioClip | 
   return cues;
 }
 
-function clipFor(
-  clips: readonly AudioClip[] | undefined,
-  sentence: { slot: StatementSlot | null; spoken: string },
-  playable: (url: string) => boolean,
-): AudioClip | null {
-  if (!clips?.length) return null;
-  const hash = sha256Hex(sentence.spoken);
-  return clips.find((c) => c.textSha256 === hash && c.slot === sentence.slot && playable(c.url)) ?? null;
+/** The slots a line can have several of, and what tells them apart: the rule or the slip each one is about. */
+const ABOUT: Partial<Record<StatementSlot, "rule" | "slip">> = { DEDUCTION: "rule", CREDIT: "slip" };
+
+/**
+ * Which sentence this is, whoever rendered it and in whichever language (ADR-0011 §6): its slot, plus the rule or
+ * slip it is about for a deduction or a credit. Never its words. Null when the phone cannot name it.
+ */
+function ownKey(dto: StatementDTO, lang: Lang, s: StatementSentence): string | null {
+  if (!s.slot) return null;
+  const kind = ABOUT[s.slot];
+  if (!kind) return s.slot;
+  const ref = dto.sentences[lang]?.find((t) => t.id === s.id)?.ref;
+  return ref ? `${s.slot}|${kind}:${ref}` : null;
+}
+
+/** The same key for one of fs-api's served sentences, from its slot and mentions. */
+function servedKey(s: StatementAudioSentence): string | null {
+  const kind = ABOUT[s.slot];
+  if (!kind) return s.slot;
+  const about = s.mentions.find((m) => m.startsWith(`${kind}:`));
+  return about ? `${s.slot}|${about}` : null;
 }
 
 /**
- * What reads each sentence. A clip is used only when it was rendered from exactly this sentence's words (its
- * `textSha256`) for this sentence's slot, so changed words never play stale audio; a clip the phone cannot reach
- * (offline, not cached) falls back to the phone's voice. For Cebuano without Cebuano clips, Filipino clips of the
- * same template stand in.
+ * fs-api's served sentence for each of the phone's sentences: the one with the same key, the n-th for the phone's
+ * n-th sentence of that key (reading order among equals); null where fs-api served none.
+ */
+function pairServed(
+  keys: readonly (string | null)[],
+  served: readonly StatementAudioSentence[] | undefined,
+): (StatementAudioSentence | null)[] {
+  const byKey = new Map<string, StatementAudioSentence[]>();
+  for (const s of served ?? []) {
+    const k = servedKey(s);
+    if (k) byKey.set(k, [...(byKey.get(k) ?? []), s]);
+  }
+  const taken = new Map<string, number>();
+  return keys.map((k) => {
+    if (!k) return null;
+    const n = taken.get(k) ?? 0;
+    taken.set(k, n + 1);
+    return byKey.get(k)?.[n] ?? null;
+  });
+}
+
+/**
+ * The clip fs-api served for a sentence, when the phone may play it: recorded for that very sentence (its slot, and
+ * fs-api's `textSha256` for it) and reachable. fs-api's hash is the only one that counts: the phone's own words are
+ * not fs-api's spoken text, so hashing them would prove nothing (ADR-0011 §6).
+ */
+function servedClip(
+  served: StatementAudioSentence | null,
+  playable: (url: string) => boolean,
+): AudioClip | null {
+  const c = served?.clip;
+  if (!served || !c) return null;
+  return c.slot === served.slot && c.textSha256 === served.textSha256 && playable(c.url) ? c : null;
+}
+
+/**
+ * What reads each sentence. A clip is used only when fs-api served it for this very sentence: paired by slot and
+ * what the sentence names, recorded for fs-api's words for it (its `textSha256`), so changed words never play stale
+ * audio (fs-api then serves no clip). A clip the phone cannot reach (offline, not cached) falls back to the phone's
+ * voice. For Cebuano without Cebuano clips, Filipino clips of the same template stand in.
  */
 export function audioPlan(
   dto: StatementDTO,
@@ -338,15 +394,18 @@ export function audioPlan(
 ): AudioPlan {
   const playable = opts.playable ?? (() => true);
   const sentences = statementSentences(dto, lang, opts.rail).sentences.filter(keep(opts.exclude));
-  const own = dto.audio[lang] as readonly AudioClip[] | undefined;
-  const filStandIn = lang === "ceb" && !own?.length && !!dto.audio.fil?.length;
+  const hasClips = (l: Lang) => !!dto.audio[l]?.some((s) => s.clip !== null);
+  const filStandIn = lang === "ceb" && !hasClips("ceb") && hasClips("fil");
   const fil = filStandIn
     ? new Map(statementSentences(dto, "fil", opts.rail).sentences.map((s) => [s.id, s]))
     : null;
-  const filClips = dto.audio.fil as readonly AudioClip[] | undefined;
+  const paired = pairServed(
+    sentences.map((s) => ownKey(dto, lang, s)),
+    dto.audio[filStandIn ? "fil" : lang],
+  );
   const steps = sentences.map((s, index): AudioStep => {
     const standIn = fil?.get(s.id) ?? null;
-    const clip = standIn ? clipFor(filClips, standIn, playable) : clipFor(own, s, playable);
+    const clip = filStandIn && !standIn ? null : servedClip(paired[index] ?? null, playable);
     if (clip) {
       const voiced = standIn ?? s;
       return {
@@ -388,19 +447,19 @@ export function audioPlan(
 }
 
 /**
- * Puts fs-api's answer to `GET /v1/media/audio/:lineId` into the statement: the clips it served become
- * `dto.audio[lang]`, their same-origin URLs resolved against `origin` (the native app's API origin; the web frames
- * are served by fs-api itself). Sentences without a clip add nothing, so the phone's voice reads them. `audioPlan`
- * still checks each clip's hash against the phone's own sentence, so a clip the server matched to other words never
- * plays. An answer for another line changes nothing.
+ * Puts fs-api's answer to `GET /v1/media/audio/:lineId` into the statement as it came: every sentence fs-api speaks,
+ * in reading order, becomes `dto.audio[lang]`, its clip's same-origin URL resolved against `origin` (the native app's
+ * API origin; the web frames are served by fs-api itself). A sentence without a clip is read by the phone's voice.
+ * `audioPlan` pairs these sentences with the phone's own and plays a clip only under fs-api's hash for its sentence.
+ * An answer for another line changes nothing.
  */
 export function withServedAudio(dto: StatementDTO, served: StatementAudio, origin = ""): StatementDTO {
   if (served.lineId.toLowerCase() !== dto.lineId.toLowerCase()) return dto;
   const base = origin.replace(/\/+$/, "");
-  const clips = served.sentences.flatMap((s) =>
-    s.clip ? [{ ...s.clip, url: s.clip.url.startsWith("/") ? `${base}${s.clip.url}` : s.clip.url }] : [],
+  const sentences = served.sentences.map((s) =>
+    s.clip?.url.startsWith("/") ? { ...s, clip: { ...s.clip, url: `${base}${s.clip.url}` } } : s,
   );
-  return { ...dto, audio: { ...dto.audio, [served.lang]: clips } };
+  return { ...dto, audio: { ...dto.audio, [served.lang]: sentences } };
 }
 
 /** Cues from `fired` on, in order, up to the first one not yet reached (each cue fires once). */

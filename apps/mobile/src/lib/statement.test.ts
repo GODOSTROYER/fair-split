@@ -1,6 +1,6 @@
 import { StatementAudio } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
-import type { StatementAudioClip } from "../_shims/api-client";
+import type { StatementAudioClip, StatementAudioSentence, StatementDTO } from "../_shims/api-client";
 import { sha256Hex } from "../_shims/domain";
 import { buildDemoStatement } from "../services/demo-fixtures";
 import { figureRuns, isFigure } from "../ui/figures";
@@ -157,26 +157,43 @@ describe("English gloss (IC-12 gloss, S1.13)", () => {
 });
 
 describe("Paminawa audio plan (register §9, M-MB-03)", () => {
-  /** A clip in the contract's shape (IC-11, ADR-0011) for sentence `i` of a language. */
-  const clip = (
-    lang: "ceb" | "fil" | "en",
-    spoken: string,
+  type L = "ceb" | "fil" | "en";
+  /**
+   * fs-api's hash of its own words for sentence `i` (ADR-0011 §3), deliberately not the hash of the phone's words:
+   * the phone pairs fs-api's sentences with its own by slot and mentions, and never hashes what it renders (§6).
+   */
+  const apiHash = (lang: L, i: number) => sha256Hex(`fs-api's words for ${lang} sentence ${i}`);
+  /** fs-api's served sentence for the phone's sentence `i` (IC-11): which one it is, fs-api's hash, its clip. */
+  const voiced = (
+    lang: L,
     i: number,
     extra: Partial<StatementAudioClip> = {},
-  ): StatementAudioClip => ({
-    url: `https://media.invalid/${lang}/${i}.m4a`,
-    textSha256: sha256Hex(spoken),
-    label: "Sintetikong tingog (Gemini TTS)",
-    slot: statementSentences(dto, lang).sentences[i]?.slot ?? "GREETING",
-    offsets: [],
-    durationMs: 4000,
-    ...extra,
-  });
-  const withClips = (langs: ("ceb" | "fil" | "en")[], mutate?: (spoken: string, i: number) => string) => {
-    const audio: Record<string, StatementAudioClip[]> = {};
+    d: StatementDTO = dto,
+  ): StatementAudioSentence => {
+    const own = statementSentences(d, lang).sentences[i];
+    if (!own?.slot) throw new Error(`no sentence ${i} in ${lang}`);
+    const template = d.sentences[lang].find((t) => t.id === own.id);
+    return {
+      slot: own.slot,
+      mentions: own.slot === "DEDUCTION" ? [`rule:${template?.ref}`] : own.mentions,
+      textSha256: apiHash(lang, i),
+      clip: {
+        url: `https://media.invalid/${lang}/${i}.m4a`,
+        textSha256: apiHash(lang, i),
+        label: "Sintetikong tingog (Gemini TTS)",
+        slot: own.slot,
+        offsets: [],
+        durationMs: 4000,
+        ...extra,
+      },
+    };
+  };
+  /** fs-api's audio for every sentence of `langs`; `otherWords(i)` gives sentence `i` a clip of other words. */
+  const withClips = (langs: L[], otherWords?: (i: number) => boolean) => {
+    const audio: Record<string, StatementAudioSentence[]> = {};
     for (const l of langs) {
-      audio[l] = statementSentences(dto, l).sentences.map((s, i) =>
-        clip(l, mutate ? mutate(s.spoken, i) : s.spoken, i),
+      audio[l] = statementSentences(dto, l).sentences.map((_, i) =>
+        voiced(l, i, otherWords?.(i) ? { textSha256: sha256Hex("other words") } : {}),
       );
     }
     return { ...dto, audio };
@@ -199,7 +216,7 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
 
   it("never plays a clip whose words changed: that sentence falls back to the phone's voice", () => {
     const plan = audioPlan(
-      withClips(["ceb"], (spoken, i) => (i === 2 ? `${spoken} ` : spoken)),
+      withClips(["ceb"], (i) => i === 2),
       "ceb",
       { deviceVoice: true },
     );
@@ -236,8 +253,8 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
     const manifest = {
       ...dto,
       audio: {
-        en: statementSentences(dto, "en").sentences.map((s, i) =>
-          clip("en", s.spoken, i, { offsets: [{ ref: "slip:0403", atMs: 1234 }] }),
+        en: statementSentences(dto, "en").sentences.map((_, i) =>
+          voiced("en", i, { offsets: [{ ref: "slip:0403", atMs: 1234 }] }),
         ),
       },
     };
@@ -246,9 +263,47 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
   });
 
   it("never plays a clip recorded for another slot, even with the same words", () => {
-    const greeting = statementSentences(dto, "ceb").sentences[0]?.spoken ?? "";
-    const misfiled = { ...dto, audio: { ceb: [clip("ceb", greeting, 0, { slot: "HELP" })] } };
+    const misfiled = { ...dto, audio: { ceb: [voiced("ceb", 0, { slot: "HELP" })] } };
     expect(audioPlan(misfiled, "ceb", { deviceVoice: true }).steps[0]?.voice.kind).toBe("device");
+  });
+
+  it("pairs each sentence with fs-api's by slot and the rule it names, so two deductions never swap clips", () => {
+    const en = dto.sentences.en;
+    const r1 = en.find((t) => t.slot === "DEDUCTION" && t.ref === "R1");
+    const two: StatementDTO = {
+      ...dto,
+      amounts: {
+        ...dto.amounts,
+        deductions: [...dto.amounts.deductions, { ruleId: "R3", label: "Loan", cents: 500 }],
+      },
+      sentences: {
+        ...dto.sentences,
+        en: en.flatMap((t) => (t === r1 ? [t, { ...t, id: "deduction-R3", ref: "R3" }] : [t])),
+      },
+    };
+    const own = statementSentences(two, "en").sentences;
+    const [a, b] = [own.findIndex((s) => s.id === r1?.id), own.findIndex((s) => s.id === "deduction-R3")];
+    expect(a >= 0 && b === a + 1).toBe(true);
+    // fs-api reads the loan first: each deduction still plays the clip made for it
+    const served = own.map((_, i) => voiced("en", i, {}, two));
+    const swapped = served.map((s, i) => (i === a ? served[b] : i === b ? served[a] : s) ?? s);
+    const plan = audioPlan({ ...two, audio: { en: swapped } }, "en", { deviceVoice: true });
+    expect(plan.mode).toBe("synthetic");
+    expect(plan.steps[a]?.voice).toMatchObject({ url: `https://media.invalid/en/${a}.m4a` });
+    expect(plan.steps[b]?.voice).toMatchObject({ url: `https://media.invalid/en/${b}.m4a` });
+  });
+
+  it("a sentence fs-api did not serve, or served for another rule, is read by the phone's own voice", () => {
+    const served = statementSentences(dto, "en").sentences.map((_, i) => voiced("en", i));
+    const other = served
+      .filter((s) => s.slot !== "HELP")
+      .map((s) => (s.slot === "DEDUCTION" ? { ...s, mentions: ["rule:R4"] } : s));
+    const plan = audioPlan({ ...dto, audio: { en: other } }, "en", { deviceVoice: true });
+    expect(plan.mode).toBe("mixed");
+    expect(plan.steps.filter((s) => s.voice.kind === "device").map((s) => s.slot)).toEqual([
+      "DEDUCTION",
+      "HELP",
+    ]);
   });
 
   it("fires each cue once, in order, as the voice reaches it", () => {
@@ -443,15 +498,18 @@ describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)
     const sentences = statementSentences(dto, lang).sentences.map((s, i) => {
       const slot = s.slot ?? "unknown";
       const over = clips(slot, i);
+      // fs-api's hash of fs-api's words: never the phone's own (ADR-0011 §6)
+      const words = sha256Hex(`fs-api's ${lang} ${slot}`);
       return {
         slot,
-        textSha256: sha256Hex(s.spoken),
+        mentions: slot === "DEDUCTION" ? ["rule:R1"] : s.mentions,
+        textSha256: words,
         clip:
           over === null
             ? null
             : {
                 url: `/media/audio/M-014/${lang}/${slot}.m4a`,
-                textSha256: sha256Hex(s.spoken),
+                textSha256: words,
                 label: "Sintetikong tingog (Gemini TTS)",
                 slot: s.slot,
                 offsets: [],
@@ -499,7 +557,7 @@ describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)
     });
   });
 
-  it("checks the words again: a served clip whose hash is not this phone's sentence falls back to its voice", () => {
+  it("checks again: a served clip whose hash is not fs-api's for its sentence falls back to the phone's voice", () => {
     const answer = served("ceb", (slot) =>
       slot === "GREETING" ? { textSha256: sha256Hex("other words") } : null,
     );
@@ -519,6 +577,7 @@ describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)
       live,
       served("en", () => null),
     );
-    expect(none.audio.en).toEqual([]);
+    expect(none.audio.en?.every((s) => s.clip === null)).toBe(true);
+    expect(audioPlan(none, "en", { deviceVoice: true }).mode).toBe("device-voice");
   });
 });
