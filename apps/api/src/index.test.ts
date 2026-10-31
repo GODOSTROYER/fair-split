@@ -39,7 +39,7 @@ function boot(env: Record<string, string>): { status: number | null; output: str
   return { status: r.status, output: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 
-/** What render.yaml gives fs-api besides the database: its plain values and the secrets. */
+/** What render.yaml gives fs-api besides the database and the secrets: its plain values. */
 const RENDER_ENV = {
   RENDER: "true",
   RENDER_EXTERNAL_URL: "https://fs-api.onrender.com",
@@ -67,6 +67,10 @@ describe("fs-api entry on Render: fs_app's DATABASE_URL is built at boot (ADR-00
       const r = boot({ ...RENDER_ENV, DATABASE_OWNER_URL: ownerUrl(), FS_APP_DB_PASSWORD: APP_PASSWORD });
       expect(r.status).toBe(1);
       expect(r.output).toContain("FS_COOKIE_SECRET is required in production");
+      // Every secret render.yaml prompts for is named, so a prompt left blank fails the deploy loudly.
+      expect(r.output).toContain("FS_LINK_SIGNING_KEY is required in production");
+      expect(r.output).toContain("FS_LEDGER_SIGNING_KEY is required on Render");
+      expect(r.output).toContain("FS_OPERATOR_PASSWORD_SCRYPT is required on Render");
       expect(r.output).not.toContain("DATABASE_URL is required in production");
       expect(r.output).not.toContain(OWNER_PASSWORD);
       expect(r.output).not.toContain(APP_PASSWORD);

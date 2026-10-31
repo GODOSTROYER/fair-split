@@ -4,6 +4,8 @@
 //   - PP_DEV_MOCKS is on while RENDER=true (or NODE_ENV=production);
 //   - PP_MODE=sandbox lacks PP_CLIENT_ID, PP_CLIENT_SECRET or PP_WEBHOOK_ID;
 //   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed;
+//   - RENDER=true lacks FS_LEDGER_SIGNING_KEY or FS_OPERATOR_PASSWORD_SCRYPT (render.yaml prompts for both, and
+//     Render accepts a blank prompt);
 //   - RENDER=true and nothing names the public origin (PUBLIC_ORIGIN, PUBLIC_BASE_URL or Render's RENDER_EXTERNAL_URL);
 //   - EXECUTOR=workflow lacks RENDER_API_KEY.
 //   - a PP_* e-mail setting (PP_BUSINESS_EMAIL, PP_PAYER_EMAIL, PP_UNCLAIMED_RECEIVER, each PP_RECEIVERS entry)
@@ -150,7 +152,7 @@ export interface ApiEnv {
     cookieSecret: string | undefined;
     /** Ed25519 seed, 64 hex: signs member and brand links. */
     linkSigningKey: string | undefined;
-    /** Ed25519 seed, 64 hex: signs ledger checkpoints (Proof slice); absent → ephemeral `seeded` key. */
+    /** Ed25519 seed, 64 hex: signs ledger checkpoints (Proof slice); absent (never on Render) → ephemeral `seeded` key. */
     ledgerSigningKey: string | undefined;
     operatorPasswordScrypt: string | undefined;
     cronSecret: string | undefined;
@@ -238,10 +240,20 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     if (!r.FS_LINK_SIGNING_KEY)
       warnings.push("FS_LINK_SIGNING_KEY unset: using an ephemeral key (links end on restart)");
   }
-  if (!r.FS_LEDGER_SIGNING_KEY)
+  // On Render these two are Blueprint prompts, and Render accepts a prompt left blank (FS_KILL is meant to be):
+  // without this a blank paste deploys green with /readyz 200, Proof reading Sample or /ops unusable.
+  if (r.RENDER) {
+    if (!r.FS_LEDGER_SIGNING_KEY)
+      problems.push(
+        "FS_LEDGER_SIGNING_KEY is required on Render (unset, Proof reads Sample and changes on every restart)",
+      );
+    if (!r.FS_OPERATOR_PASSWORD_SCRYPT)
+      problems.push("FS_OPERATOR_PASSWORD_SCRYPT is required on Render (unset, no one can sign in to /ops)");
+  } else if (!r.FS_LEDGER_SIGNING_KEY) {
     warnings.push(
       "FS_LEDGER_SIGNING_KEY unset: ledger checkpoints use an ephemeral seeded key (Proof reads Sample)",
     );
+  }
   if (r.EXECUTOR === "workflow" && !r.RENDER_API_KEY) problems.push("EXECUTOR=workflow needs RENDER_API_KEY");
   if (r.FS_ALLOW_OWNER_ROLE && production) {
     warnings.push("FS_ALLOW_OWNER_ROLE is on: only triggers guard history (record the S6 ADR)");

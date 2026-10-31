@@ -23,6 +23,12 @@ const PROD = {
   FS_LINK_SIGNING_KEY: "ab".repeat(32),
 };
 
+/** The two other secrets render.yaml prompts for, which fs-api needs on Render (fake, not key-shaped). */
+const RENDER_PROMPTED = {
+  FS_LEDGER_SIGNING_KEY: "cd".repeat(32),
+  FS_OPERATOR_PASSWORD_SCRYPT: "not-a-real-scrypt-hash-for-tests",
+};
+
 describe("env: boot refusals (S3.13)", () => {
   it("defaults to the simulated rail on a local machine, with warnings instead of refusals", () => {
     const env = parseEnv({});
@@ -215,7 +221,7 @@ describe("env: PP_CERT_ALLOW pins PayPal webhook cert ids for paypal-core", () =
 
 describe("env: FS_TRUSTED_EDGE names the one hop client addresses come from (S3.9)", () => {
   const { NODE_ENV: _n, ...offRender } = PROD;
-  const onRender = { ...offRender, RENDER_EXTERNAL_URL: "https://fs-api.onrender.com" };
+  const onRender = { ...offRender, ...RENDER_PROMPTED, RENDER_EXTERNAL_URL: "https://fs-api.onrender.com" };
 
   it("defaults to none off Render and to render on Render (RENDER=true is set by the platform)", () => {
     expect(parseEnv({}).trustedEdge).toBe("none");
@@ -243,13 +249,18 @@ describe("env: the public origin (links, pairing QR codes, the cookies' Secure f
   const RENDER_URL = "https://fs-api.onrender.com";
 
   it("on Render falls back to RENDER_EXTERNAL_URL, which Render sets on every web service", () => {
-    const env = parseEnv({ ...offRender, RENDER: "true", RENDER_EXTERNAL_URL: RENDER_URL });
+    const env = parseEnv({
+      ...offRender,
+      ...RENDER_PROMPTED,
+      RENDER: "true",
+      RENDER_EXTERNAL_URL: RENDER_URL,
+    });
     expect(env.publicOrigin).toBe(RENDER_URL);
     expect(env.onRender).toBe(true);
   });
 
   it("PUBLIC_ORIGIN, then PUBLIC_BASE_URL, win over RENDER_EXTERNAL_URL (a custom domain)", () => {
-    const base = { ...offRender, RENDER: "true", RENDER_EXTERNAL_URL: RENDER_URL };
+    const base = { ...offRender, ...RENDER_PROMPTED, RENDER: "true", RENDER_EXTERNAL_URL: RENDER_URL };
     expect(parseEnv({ ...base, PUBLIC_ORIGIN: "https://fairsplit.example" }).publicOrigin).toBe(
       "https://fairsplit.example",
     );
@@ -270,5 +281,53 @@ describe("env: the public origin (links, pairing QR codes, the cookies' Secure f
   it("off Render stays on localhost:PORT unless an origin is given", () => {
     expect(parseEnv({ PORT: "9000" }).publicOrigin).toBe("http://localhost:9000");
     expect(parseEnv({ RENDER_EXTERNAL_URL: RENDER_URL }).publicOrigin).toBe(RENDER_URL);
+  });
+});
+
+describe("env: on Render every secret the Blueprint prompts for is required (a blank prompt must not deploy green)", () => {
+  const { NODE_ENV: _n, ...offRender } = PROD;
+  const onRender = { ...offRender, RENDER: "true", RENDER_EXTERNAL_URL: "https://fs-api.onrender.com" };
+  const LEDGER =
+    "FS_LEDGER_SIGNING_KEY is required on Render (unset, Proof reads Sample and changes on every restart)";
+  const OPERATOR = "FS_OPERATOR_PASSWORD_SCRYPT is required on Render (unset, no one can sign in to /ops)";
+
+  it("refuses to boot when the ledger key or the operator hash is unset, naming each", () => {
+    expect(refusal(onRender)).toEqual(expect.arrayContaining([LEDGER, OPERATOR]));
+    const { FS_LEDGER_SIGNING_KEY: _l, ...noLedger } = { ...onRender, ...RENDER_PROMPTED };
+    expect(refusal(noLedger)).toEqual([LEDGER]);
+    const { FS_OPERATOR_PASSWORD_SCRYPT: _o, ...noOperator } = { ...onRender, ...RENDER_PROMPTED };
+    expect(refusal(noOperator)).toEqual([OPERATOR]);
+  });
+
+  it("treats a prompt left blank (empty or whitespace, as Render allows) as unset", () => {
+    for (const blank of ["", "   "]) {
+      expect(
+        refusal({ ...onRender, FS_LEDGER_SIGNING_KEY: blank, FS_OPERATOR_PASSWORD_SCRYPT: blank }),
+      ).toEqual(expect.arrayContaining([LEDGER, OPERATOR]));
+    }
+  });
+
+  it("with all four secrets set it boots without the Sample-ledger warning; refusals never echo a value", () => {
+    const env = parseEnv({ ...onRender, ...RENDER_PROMPTED });
+    expect(env.onRender).toBe(true);
+    expect(env.secrets.ledgerSigningKey).toBe(RENDER_PROMPTED.FS_LEDGER_SIGNING_KEY);
+    expect(env.secrets.operatorPasswordScrypt).toBe(RENDER_PROMPTED.FS_OPERATOR_PASSWORD_SCRYPT);
+    expect(env.warnings.join(" ")).not.toMatch(/FS_LEDGER_SIGNING_KEY/);
+    const problems = refusal({ ...onRender, FS_COOKIE_SECRET: undefined, FS_LINK_SIGNING_KEY: undefined });
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        "FS_COOKIE_SECRET is required in production",
+        "FS_LINK_SIGNING_KEY is required in production",
+        LEDGER,
+        OPERATOR,
+      ]),
+    );
+    expect(problems.join(" ")).not.toContain(PROD.DATABASE_URL);
+  });
+
+  it("off Render, production included, both stay optional: the ledger key only warns, as before", () => {
+    expect(parseEnv({}).warnings.join(" ")).toMatch(/FS_LEDGER_SIGNING_KEY unset/);
+    expect(parseEnv(PROD).warnings.join(" ")).toMatch(/FS_LEDGER_SIGNING_KEY unset/);
+    expect(parseEnv(PROD).secrets.operatorPasswordScrypt).toBeUndefined();
   });
 });
