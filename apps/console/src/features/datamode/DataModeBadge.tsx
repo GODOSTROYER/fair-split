@@ -6,6 +6,7 @@ import { Glyph } from "@fairsplit/ui-web";
 import { useEffect, useRef } from "react";
 import { useAnnounce } from "../../lib/announce.js";
 import { useDataMode } from "../../lib/data-mode.js";
+import { FocusReturn } from "../../lib/focus.js";
 import { useShortcuts } from "../../lib/shortcuts.js";
 
 export const DATA_MODE_COPY = {
@@ -38,6 +39,8 @@ export function DataModeBadge() {
       title={`${DATA_MODE_COPY.badgeNote}${shortcuts.singleKeys ? ` Turn off here, ${DATA_MODE_COPY.keyHint}.` : ""}`}
       data-testid="W-TR-10.datamode"
     >
+      {/* "Turn off" takes the plate away with the focus it holds: back to where it was, never <body>. */}
+      <FocusReturn open leaving={() => document.querySelector('[data-testid="W-TR-10.datamode"]')} />
       <Glyph name="logbook" size={16} />
       <span className="dm-badge__title">{DATA_MODE_COPY.badge}</span>
       <span className="fs-sr">{DATA_MODE_COPY.badgeNote}</span>

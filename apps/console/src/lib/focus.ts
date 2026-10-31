@@ -185,6 +185,26 @@ function isScrollport(el: HTMLElement): boolean {
 const STICKY_EDGES =
   ".fsc-drawer__head, .ag-grid-pinned-top-rows, .ag-grid-pinned-bottom-rows, [data-sticky-edge]";
 
+/**
+ * What floats over the lower part of the stage, above whatever scrolls beneath it: the one-time sound offer. A
+ * control under one is covered; the scrollport it floats over scrolls it clear.
+ */
+const FLOATING = ".fsc-offer, [data-floating-chip]";
+
+/** How far a floating chip over `box`'s column reaches up into a frame whose bottom is `bottom`. */
+function floatingInset(top: number, bottom: number, box: DOMRect, el: Element): number {
+  let inset = 0;
+  for (const chip of document.querySelectorAll<HTMLElement>(FLOATING)) {
+    if (chip.contains(el)) continue;
+    const r = chip.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    if (r.right <= box.left || r.left >= box.right) continue;
+    if (r.top <= top || r.top >= bottom) continue;
+    inset = Math.max(inset, bottom - r.top);
+  }
+  return inset;
+}
+
 /** The nearest scrollport around `el` (not `el` itself). */
 function scrollportOf(el: Element): HTMLElement | null {
   for (let at = el.parentElement; at && at !== document.body; at = at.parentElement) {
@@ -211,7 +231,7 @@ function stickyInsets(scroller: HTMLElement, box: DOMRect, el: Element): { top: 
 
 /**
  * A scrollport's visible box for `el`: inside its borders and scrollbars, less its scroll-padding or what its
- * sticky edges cover, whichever is more.
+ * sticky edges or a chip floating over it cover, whichever is more.
  */
 function frameOf(scroller: HTMLElement, el: Element): Frame | null {
   const box = scroller.getBoundingClientRect();
@@ -220,11 +240,12 @@ function frameOf(scroller: HTMLElement, el: Element): Frame | null {
   const sticky = stickyInsets(scroller, box, el);
   const top = box.top + scroller.clientTop;
   const left = box.left + scroller.clientLeft;
+  const bottom = top + (scroller.clientHeight || box.height);
+  const floating = floatingInset(top, bottom, el.getBoundingClientRect(), el);
   return {
     top: top + Math.max(px(style.scrollPaddingTop), sticky.top),
     left: left + px(style.scrollPaddingLeft),
-    bottom:
-      top + (scroller.clientHeight || box.height) - Math.max(px(style.scrollPaddingBottom), sticky.bottom),
+    bottom: bottom - Math.max(px(style.scrollPaddingBottom), sticky.bottom, floating),
     right: left + (scroller.clientWidth || box.width) - px(style.scrollPaddingRight),
   };
 }
@@ -240,7 +261,9 @@ function outside(box: DOMRect, f: Frame): boolean {
 export function outOfView(el: Element): boolean {
   const box = el.getBoundingClientRect();
   if (box.width === 0 && box.height === 0) return false;
-  if (outside(box, { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth })) return true;
+  const viewport = window.innerHeight;
+  const below = floatingInset(0, viewport, box, el);
+  if (outside(box, { top: 0, left: 0, bottom: viewport - below, right: window.innerWidth })) return true;
   for (let at = el.parentElement; at && at !== document.body; at = at.parentElement) {
     const frame = isScrollport(at) ? frameOf(at, el) : null;
     if (frame && outside(box, frame)) return true;
