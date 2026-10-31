@@ -120,10 +120,11 @@ A published clip's file is `audio/{member_no}/{lang}/s{NN}-{SLOT}-{hash12}.m4a`:
 Because `/media` is cached as immutable, a published name is never reused for other audio; the name follows from
 the slot and the words, and a retake gets a new one. Main's assembly copies a member's clips only as
 `audio/M-???/{ceb,fil,en}/s*.m4a` (and the drafts', §5), and its build fails when the manifest names a file its
-allowlist does not serve, so a name must start with `s` (`GREETING-596b9e42811d.m4a` would fail the Render build). The spike's `s1.m4a` and
-`s5.m4a` keep their names. Draft takes live under `audio/drafts/{member_no}/{lang}/s….m4a` with `draft: true`.
-Every published name passes the route's file rule (§5 rule 2) and the contract's URL pattern; the goldens' fixture
-clips are named this way, and the golden test checks all three patterns.
+allowlist does not serve, so a name must start with `s` (`GREETING-596b9e42811d.m4a` would fail the Render
+build). The spike's `s1.m4a` and `s5.m4a` keep their names. Draft takes live under
+`audio/drafts/{member_no}/{lang}/s….m4a` with `draft: true`. Every published name passes the route's file rule
+(§5 rule 2) and the contract's URL pattern; the goldens' fixture clips are named this way, and the golden test
+checks all three patterns.
 
 ### 5. Clips are served only from the curated folder, never a draft
 
@@ -144,7 +145,8 @@ served folder, reachable as static files by anyone who knows their path, but no 
 refuses `draft: true` and rule 2 refuses any `audio/drafts/…` file even when it is not marked a draft
 (`audio.test.ts`; `media.test.ts` publishes the spike as the assembly does and checks that no answer in any language
 names a draft, though the draft Cebuano greeting has the statement's exact words). Nothing else under `media/audio/`
-(`spike-s10.json`) and nothing else under `media/` is copied.
+(`spike-s10.json`) is copied; of the rest of `media/`, only the allowlist's `photos/?.webp`, `slips/*.webp` and
+`docs/*.webp` images are, and never its prompts, eval labels, masters or code.
 
 ### 6. A mismatch means no clip, never a near one
 
@@ -304,7 +306,8 @@ AU2 (`tools/export-statement-plans.ts`, `media/src/tts`) makes the clips this ro
 - **WS-MEDIA (AU2, AU3):** §8. Entries use statement slots, carry offsets, are identified as §4 says and get the
   names of §4; the spike entries are migrated (`s1` → `GREETING`, `s5` → `PAY`) with their files where they are.
 - **WS-OPS (H1, on main):** `tools/assemble-media.ts` publishes the served folder of §5 unchanged by this ADR. It
-  also copies `audio/drafts/**`, which the route never names but `/media` serves to anyone who guesses a path.
+  also copies the drafts' clips (`audio/drafts/M-???/{ceb,fil,en}/s*.m4a`), which the route never names but
+  `/media` serves to anyone who guesses a path.
   Leaving drafts out of the copy is WS-OPS's call; it would also need the assembly's manifest check to skip draft
   entries, or the published manifest to leave them out.
 - What gets worse: one sentence's mismatch (say, after a template fix) silently costs that sentence its clip. The
