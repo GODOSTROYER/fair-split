@@ -108,6 +108,16 @@ describe("static directories", () => {
     expect(staticDirs({ consoleDir: root }).console).toBe(path.resolve(root));
   });
 
+  it("resolves a relative STATIC_*_DIR against the repository root, not the working directory", () => {
+    // render.yaml sets STATIC_MEDIA_DIR=apps/api/dist/media, the folder tools/assemble-media.ts writes.
+    const dirs = staticDirs({ repoRoot: root, mediaDir: "apps/api/dist/media", appDir: "x/app" });
+    expect(dirs.media).toBe(path.join(root, "apps", "api", "dist", "media"));
+    expect(dirs.app).toBe(path.join(root, "x", "app"));
+    expect(staticDirs({ repoRoot: root, mediaDir: path.join(root, "abs") }).media).toBe(
+      path.join(root, "abs"),
+    );
+  });
+
   it("a missing build shows a labelled placeholder, not an error page", async () => {
     const empty = await createTestApp({
       static: { console: path.join(root, "nope"), app: path.join(root, "nope"), media: root },
