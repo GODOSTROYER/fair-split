@@ -4,14 +4,13 @@
 - **Date:** 31 Oct 2026 (IST)
 - **Author:** WS-API (work package P1, with WS-PPCORE's verifier option and WS-QA's dependency rule)
 - **Touches:** ADR-0002, register §6 (dependency rule) and §8 (webhooks, limits), `.dependency-cruiser.cjs`,
-  `apps/api/src/paypal/**`, `apps/api/src/server.ts`, `packages/paypal-core` (webhook verifier),
-  `apps/api/package.json`, `render.yaml` (H1)
+  `apps/api/src/paypal/**`, `apps/api/src/server.ts`, `apps/api/src/money/settle.ts` (Proof plate 6),
+  `packages/paypal-core` (webhook verifier), `apps/api/package.json`, `render.yaml` (H1)
 
 ## Context
 
 ADR-0002 runs PayPal only on our contract-faithful simulator (`packages/paypal-sim`), labelled "Simulated PayPal
 sandbox" everywhere. Until now fs-api never ran against it:
-
 - In `PP_MODE=simulator` without `PP_SIM_URL`, fs-api used a labelled stub that answers every PayPal call with
   503 `SIMULATOR_NOT_RUNNING`, so Judge Mode replayed every PayPal step (`simulator_not_running`). `render.yaml`
   has no simulator service and no `PP_SIM_URL`, and `apps/api` did not depend on `@fairsplit/paypal-sim`.
@@ -65,6 +64,16 @@ sandbox" everywhere. Until now fs-api never ran against it:
 8. **Restart.** A restart or redeploy forgets every simulator object. Before the server listens, every claimed judge
    session of the previous process ends (claim cleared, tokens revoked, a `judge.session.reset` ledger entry with
    `trigger: "simulator_restarted"`); the judge folder's boot hook refills the pool. Deploy between sessions.
+9. **Every item status rests on a verified event (Proof plate 6).** On a live rail a status can land before PayPal's
+   signed event for it. Our cancel sets Rhea's RETURNED from PayPal's answer, so her signed `PAYOUTS-ITEM.CANCELED`
+   arrives for an item that is already RETURNED. A settle GET can also read a SUCCESS before its SUCCEEDED is
+   processed. Such an event changes nothing, so it used to leave no `webhook.applied` entry, and plate 6 read "failed"
+   on every settled run. `processWebhook` (`money/settle.ts`, WS-API) now records one `webhook.applied` entry when a
+   verified event (not `dev_mock`) names the status its fresh GET confirms and the item already holds, unless a
+   verified entry of the chain already carries that status for the item. It writes no state change and no
+   `item.updated`. Rhea's RETURNED then rests on the signed CANCELED, after our own `payout.cancel` in the chain,
+   which is the order the seeded showcase's ledger has. This does not depend on W1 (storing the webhook
+   `delivery`): W1 only lets a signed SUCCEEDED apply at once, and a CANCELED always waits for a fresh GET.
 
 ## Consequences
 
@@ -73,8 +82,8 @@ sandbox" everywhere. Until now fs-api never ran against it:
   RETURNED, every signed webhook verified and stored, X-FS-Rail `simulated`, the ledger chain verifies, no spec
   violation. The booted smoke walks one judge run's money path (`smoke/money.ts`) to the same end; its reading step
   needs J1's extract replay (on a trial merge with it, 31 Oct, 83 of 83 checks passed from `src/` and from `dist/`).
-  On a live simulator run Proof reads "failed" on plate 6 alone (an item status must rest on a verified event, which
-  needs the webhook `delivery` stored, W1); the chain and its checkpoint verify.
+  Proof verifies all six plates on a live simulator run (decision 9): the hero path asserts it on a world that
+  opens with a judge clone's ledger, and the smoke's `money.ledger` check requires it.
 - WS-PPCORE: the verifier's `simulator` option and `checkSimulatorCertUrl` (tests in `verify.simulator.test.ts`).
 - WS-QA: the dependency rule. WS-OPS (H1): `render.yaml` keeps `PP_MODE=simulator` with no `PP_SIM_URL` and no
   simulator service; the PP_* values may stay as plain `value:` entries (they equal the defaults); no `sync: false`
@@ -98,10 +107,10 @@ sandbox" everywhere. Until now fs-api never ran against it:
 
 ## Alternatives considered
 
-| Option | Why not |
-| ------ | ------- |
-| A separate Render service with `PP_SIM_URL` | The Agent Toolkit's axios calls bypass fs-api's rail and would go to PayPal's real sandbox host with a simulator token; it costs a service, delivers webhooks over the network, and its admin API needs a secret. |
-| Keep the labelled stub (replay every PayPal step) | Honest but weak: the hosted demo's PayPal chain would be replay only, and real workspaces get 503s. |
-| Persist the simulator's state in Postgres | More code in two workstreams for a demo that can deploy between sessions; reset-on-boot is enough. |
-| Trust the simulator's CA as a plain `webhookTrustAnchors` entry | PayPal's structural cert URL check (a paypal.com host, `/v1/notifications/certs/CERT-…`) still refuses the simulator's URL, and a plain anchor would add trust without replacing PayPal's shape. |
-| Expose `/sim/admin` behind `SIM_ADMIN_TOKEN` | Needs a new secret; nothing on the judge path needs the admin API. |
+| Option                                                          | Why not                                                                                                                                                                                                           |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A separate Render service with `PP_SIM_URL`                     | The Agent Toolkit's axios calls bypass fs-api's rail and would go to PayPal's real sandbox host with a simulator token; it costs a service, delivers webhooks over the network, and its admin API needs a secret. |
+| Keep the labelled stub (replay every PayPal step)               | Honest but weak: the hosted demo's PayPal chain would be replay only, and real workspaces get 503s.                                                                                                               |
+| Persist the simulator's state in Postgres                       | More code in two workstreams for a demo that can deploy between sessions; reset-on-boot is enough.                                                                                                                |
+| Trust the simulator's CA as a plain `webhookTrustAnchors` entry | PayPal's structural cert URL check (a paypal.com host, `/v1/notifications/certs/CERT-…`) still refuses the simulator's URL, and a plain anchor would add trust without replacing PayPal's shape.                  |
+| Expose `/sim/admin` behind `SIM_ADMIN_TOKEN`                    | Needs a new secret; nothing on the judge path needs the admin API.                                                                                                                                                |
