@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { readBlueprint } from "../../../tools/lib/blueprint.js";
 import {
   distFiles,
   isSecretEnvName,
@@ -25,8 +26,8 @@ const ENV: NodeJS.ProcessEnv = {
   PP_ENV: "sandbox",
   PP_MODE: "simulator",
   EXPO_PUBLIC_API_ORIGIN: "https://fs-api.onrender.com",
-  COOKIE_KEY: "short",
-  NODE_VERSION: "24.22.1",
+  FS_COOKIE_SECRET: "short",
+  NODE_VERSION: "24.19.0",
 };
 
 let root: string;
@@ -77,7 +78,7 @@ describe("tools/scan-dist (S3.13: secrets never reach apps/*/dist)", () => {
   });
 
   it("ignores public names, PayPal switches and values under 8 characters, even when they ship", () => {
-    tree({ "apps/mobile/dist/app.js": "sandbox simulator short https://fs-api.onrender.com 24.22.1" });
+    tree({ "apps/mobile/dist/app.js": "sandbox simulator short https://fs-api.onrender.com 24.19.0" });
     expect(scanDist(root, ENV).findings).toEqual([]);
     expect(secretNeedles(ENV).map((n) => n.name)).toEqual(["PP_CLIENT_SECRET"]);
     expect(MIN_SECRET_LENGTH).toBe(8);
@@ -142,8 +143,11 @@ describe("tools/scan-dist (S3.13: secrets never reach apps/*/dist)", () => {
       "PP_BUSINESS_EMAIL",
       "ANTHROPIC_API_KEY",
       "RENDER_API_KEY",
-      "STATEMENT_SIGNING_KEY",
-      "OPS_PASSWORD_SCRYPT",
+      "FS_LINK_SIGNING_KEY",
+      "FS_LEDGER_SIGNING_KEY",
+      "FS_COOKIE_SECRET",
+      "CRON_SECRET",
+      "FS_OPERATOR_PASSWORD_SCRYPT",
       "JUDGE_CODE_SHA256",
       "FS_APP_DB_PASSWORD",
       "DATABASE_URL",
@@ -162,5 +166,26 @@ describe("tools/scan-dist (S3.13: secrets never reach apps/*/dist)", () => {
       "FS_KILL",
     ])
       expect(isSecretEnvName(name), name).toBe(false);
+  });
+
+  it("looks for every secret render.yaml hands fs-api's build, the committed simulator PP_* values included", () => {
+    const api = readBlueprint().services?.find((s) => s.name === "fs-api");
+    const secret = (api?.envVars ?? []).filter(
+      (v) => v.sync === false || v.generateValue || v.fromDatabase || v.key?.startsWith("PP_"),
+    );
+    expect(secret.length).toBeGreaterThan(10);
+    for (const v of secret)
+      if (v.key !== "FS_KILL" && v.key !== "PP_ENV" && v.key !== "PP_MODE")
+        expect(isSecretEnvName(v.key ?? ""), v.key).toBe(true);
+    for (const v of api?.envVars ?? [])
+      if (v.value !== undefined && !v.key?.startsWith("PP_"))
+        expect(isSecretEnvName(v.key ?? ""), v.key).toBe(false);
+  });
+
+  it("scans the /media folder the build assembles under apps/api/dist", () => {
+    tree({ "apps/api/dist/media/audio/manifest.json": `{"note":"${CLIENT_SECRET}"}` });
+    expect(scanDist(root, ENV).findings).toEqual([
+      { file: "apps/api/dist/media/audio/manifest.json", what: "env:PP_CLIENT_SECRET" },
+    ]);
   });
 });
