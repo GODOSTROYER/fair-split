@@ -23,6 +23,11 @@ The runbook for entering the values is `apps/tasks/README.md`, "Deploying".
 | `DATABASE_OWNER_URL`            | fs-api          | `fromDatabase`; only migrate uses it, the entry deletes it from `process.env` (ADR-0005)       |
 | `PP_CLIENT_ID` … `PP_RECEIVERS` | fs-api          | Committed plain values: the simulator's fictional `fs-judge` app and accounts                  |
 
+Render accepts a prompt left blank. So that a skipped prompt fails the deploy instead of deploying green, fs-api
+refuses to boot on Render, naming the variable and never a value, without `FS_COOKIE_SECRET`,
+`FS_LINK_SIGNING_KEY`, `FS_LEDGER_SIGNING_KEY` or `FS_OPERATOR_PASSWORD_SCRYPT` (`apps/api/src/env.ts`).
+`JUDGE_CODE_SHA256` and `FS_KILL` may stay blank.
+
 **The `PP_*` values are not secrets.** With `PP_MODE=simulator` they are copies of
 `packages/paypal-sim/data/accounts.json`, fictional values on the reserved `example.org` domain that only the
 in-process simulator accepts; they are not PayPal credentials, and the policy checks each against that file.
