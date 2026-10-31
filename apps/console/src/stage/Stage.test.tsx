@@ -304,6 +304,32 @@ describe("Judge stage", () => {
     await waitFor(() => expect(document.activeElement).toBe(chair));
   });
 
+  it("a co-sign request while the phone is already up over the scrim moves focus from the Member tab to the Chair's", async () => {
+    // The judge raised the phone from its ribbon lane (focus went to the Member tab, the frame it showed), and key 1
+    // is signed meanwhile: the co-sign request switches the phone to the Chair's frame. Focus follows it to the
+    // Chair's tab, not left on the Member tab of a frame the phone no longer shows.
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    const stage = screen.getByTestId("W-JG-01.stage");
+    const lane = screen.getByTestId("W-JG-01.phoneTab");
+    lane.focus();
+    await act(async () => {
+      fireEvent.click(lane);
+    });
+    await waitFor(() => expect(stage.dataset.raised).toBe("user"));
+    const member = screen.getByTestId("W-JG-01.tab.member");
+    await waitFor(() => expect(document.activeElement).toBe(member));
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    const chair = screen.getByTestId("W-JG-01.tab.chair");
+    await waitFor(() => expect(chair.getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(document.activeElement).toBe(chair));
+  });
+
   it.each(["full", "reduced"] as const)(
     "a raise over the scrim takes focus into the phone once the panel can take it, never leaving it on <body> (%s motion)",
     async (motion) => {
@@ -400,7 +426,7 @@ describe("Judge stage", () => {
       // On the real path the judge follows W-TR-07's "fan-out" link: the route change removes it, and focus falls
       // to <body>. M-014's payment lands, MM-1 raises the phone over the scrim (below 1280 px) and focus moves into
       // it, with nothing to hand it back to. Lowering makes the panel inert, and a browser drops the focus it held
-      // to <body> (WCAG 2.4.3): it must go to the screen instead.
+      // to <body> (WCAG 2.4.3): it must go to the screen's main control instead, never the screen itself.
       const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 }, motion });
       await press("W-JG-01.markPaid");
       await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
@@ -451,7 +477,12 @@ describe("Judge stage", () => {
         // The browser's focus fixup: a control under the now-inert panel loses focus to <body>.
         const held = document.activeElement;
         if (held instanceof HTMLElement && held.closest("[inert]")) held.blur();
-        expect(document.activeElement).toBe(main);
+        // The screen's main control: a control in the screen, never the screen itself while it has one.
+        const landed = document.activeElement;
+        expect(landed).not.toBe(document.body);
+        expect(landed).not.toBe(main);
+        expect(main.contains(landed)).toBe(true);
+        expect(landed?.matches("a[href], button, input, [tabindex]")).toBe(true);
       } finally {
         spy.mockRestore();
       }
