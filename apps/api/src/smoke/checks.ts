@@ -330,6 +330,8 @@ export async function runSmoke(target: SmokeTarget): Promise<SmokeReport> {
     "/v1/flags (kill_ai_live off)",
   );
   await command(asTreasurer, "markPaid", { params: { runSlug } }, `/v1/runs/${runSlug}/mark-paid`);
+  // the reading (Judge Mode: the seed's labelled stand-in, about 11 s): a run must not stay at EXTRACTING
+  record(await waitForReading(base, runSlug, bearer));
   await command(
     asTreasurer,
     "resolveHold",
@@ -583,6 +585,53 @@ async function waitForRun(
     await new Promise((r) => setTimeout(r, 500));
   }
   return last;
+}
+
+const ReadingProbe = z.object({
+  run: z.object({ state: z.string() }),
+  holds: z.object({ open: z.number(), blocking: z.number() }),
+});
+
+/**
+ * After Mark paid: waits (up to 40 s; Judge Mode's reading takes about 11 s) for the run to leave FUNDED and
+ * EXTRACTING. Passes once it has (the review opened), or when Mark paid funded nothing (the reading never began);
+ * fails when the run is still reading at the end.
+ */
+async function waitForReading(
+  base: string,
+  runSlug: string,
+  headers: Record<string, string>,
+): Promise<SmokeCheck> {
+  const target = `GET /v1/runs/${runSlug} (the reading)`;
+  const started = Date.now();
+  let last: z.infer<typeof ReadingProbe> | null = null;
+  while (Date.now() - started < 40_000) {
+    const parsed = ReadingProbe.safeParse(
+      await fetch(`${base}/v1/runs/${runSlug}`, { headers })
+        .then((r) => r.json())
+        .catch(() => null),
+    );
+    if (parsed.success) {
+      last = parsed.data;
+      if (last.run.state !== "FUNDED" && last.run.state !== "EXTRACTING") break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  const secs = ((Date.now() - started) / 1000).toFixed(1);
+  if (!last) return { name: "run.reading", target, status: null, outcome: "unreadable", ok: false };
+  const state = last.run.state;
+  const reading = state === "FUNDED" || state === "EXTRACTING";
+  return {
+    name: "run.reading",
+    target,
+    status: 200,
+    outcome: reading
+      ? `still ${state} after ${secs} s`
+      : state === "INVOICED"
+        ? "not started: Mark paid funded nothing (run INVOICED)"
+        : `state ${state} after ${secs} s, holds ${last.holds.open} open / ${last.holds.blocking} blocking`,
+    ok: !reading,
+  };
 }
 
 /** Opens a stream, reads it for a moment, and parses every event as an IC-01 RunEvent (or the Proof aggregate). */
