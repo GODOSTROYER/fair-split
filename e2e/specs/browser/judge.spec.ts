@@ -33,6 +33,20 @@ test("fs-api serves /judge as the console's page with X-Robots-Tag noindex", asy
   expect(res.headers()["cache-control"]).toBe("no-cache");
 });
 
+test("/judge loads in Chromium, noindex, without one /v1 call", async ({ page }) => {
+  // whatever console is served: until the first press nothing on /judge may reach the API
+  const v1: string[] = [];
+  page.on("request", (r) => {
+    if (isV1(r)) v1.push(`${r.method()} ${new URL(r.url()).pathname}`);
+  });
+  const res = await page.goto("/judge");
+  expect(res?.status()).toBe(200);
+  expect(res?.headers()["x-robots-tag"]).toContain("noindex");
+  await expect(page.locator("#root > *").first()).toBeAttached();
+  await page.waitForLoadState("networkidle");
+  expect(v1).toEqual([]);
+});
+
 test("/judge's first view carries noindex and calls no /v1 before the first press", async ({ page }) => {
   test.fixme(!consoleHas("judge"), missingRoute("judge"));
   const v1: string[] = [];
