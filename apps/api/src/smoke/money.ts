@@ -406,9 +406,8 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
   });
   const proof = await call("GET", `/v1/proof/${s.runSlug}/verification`);
   const v = Verification.safeParse(proof.json);
-  // The chain and its checkpoint decide this check. The plates are reported: plate 6 (payoutItems) wants each
-  // item's status to rest on a verified event, which needs the webhook `delivery` stored (W1); until then a live
-  // run's Proof reads "failed" on that plate alone.
+  // G4: the chain, its checkpoint and all six plates. Plate 6 (payoutItems) holds because every item status rests on
+  // one of the simulator's verified events, Rhea's RETURNED on its signed CANCELED after our cancel.
   const failedPlates = v.success
     ? Object.entries(v.data.verification.plates)
         .filter(([, p]) => !p.ok)
@@ -422,7 +421,12 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
       ? `chain ${v.data.verification.chain.ok ? "verifies" : "BROKEN"} (${v.data.verification.chain.entries} entries), checkpoint ${v.data.verification.checkpoint.ok ? "ok" : "BAD"}; Proof ${v.data.verification.status}${failedPlates.length ? ` (plates not met: ${failedPlates.join(", ")})` : ""}`
       : proof.text.slice(0, 100),
     ok:
-      proof.status === 200 && v.success && v.data.verification.chain.ok && v.data.verification.checkpoint.ok,
+      proof.status === 200 &&
+      v.success &&
+      v.data.verification.chain.ok &&
+      v.data.verification.checkpoint.ok &&
+      Object.keys(v.data.verification.plates).length === 6 &&
+      failedPlates.length === 0,
   });
   return checks;
 }
