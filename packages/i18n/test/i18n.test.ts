@@ -124,6 +124,29 @@ describe("catalogs", () => {
     }
   });
 
+  it("says simulated wherever it names the sandbox or PayPal confirming, and moves no real money (E-19)", () => {
+    for (const key of [
+      "money.sandbox",
+      "confirm.body",
+      "run.SETTLING",
+      "W-JG-01.markPaid",
+      "W-JG-01.pill.markPaid",
+      "W-JG-01.pill.confirming",
+      "W-JG-01.state.queued",
+      "W-TR-01.invoice.drafted",
+      "W-TR-07.fees",
+    ] as const) {
+      expect(CATALOGS.en[key], key).toMatch(/simulated/i);
+    }
+    expect(CATALOGS.en["confirm.body"]).toMatch(/No real money moves/);
+    expect(CATALOGS.en["confirm.body"]).not.toMatch(/This moves money/);
+    // The PP_MODE=sandbox variants never claim a real sandbox run: that path is untested (ADR-0002).
+    for (const key of ["W-JG-01.notice", "W-PF-01.heroMarked", "W-PF-01.footer.sandbox"] as const) {
+      expect(CATALOGS.en[key], key).toMatch(/not yet tested/);
+      expect(CATALOGS.en[key], key).not.toMatch(/real PayPal|recorded Claude run/i);
+    }
+  });
+
   it("never says error, fraud or certified, and never shouts", () => {
     for (const lang of LANGS) {
       for (const [key, message] of Object.entries(CATALOGS[lang])) {
