@@ -1,5 +1,6 @@
 // Statements, pure: templates validate (I1), the plan picks the right sentences for the line's state, and the
 // renderer is the only place a number becomes text: display, spoken and SMS, checked on the seed's hero lines.
+import { createHash } from "node:crypto";
 import type { MemberLineState } from "@fairsplit/contracts";
 import { format, mulDivFloor, mulDivHalfUp } from "@fairsplit/domain";
 import { getLine, getMember, getRateCard, getRun, getSeason } from "@fairsplit/seed";
@@ -8,7 +9,7 @@ import { must } from "../proof/testing/world.js";
 import { readingProvenanceOf } from "./facts.js";
 import { gsm7Length } from "./gsm7.js";
 import { type StatementLineFacts, statementPlan } from "./plan.js";
-import { aiNoteVariant, renderStatement } from "./render.js";
+import { aiNoteVariant, renderStatement, spokenScript, spokenTextSha256 } from "./render.js";
 import { TEMPLATE_PLACEHOLDERS, TEMPLATES_V1 } from "./templates.js";
 import type { Lang } from "./types.js";
 import { validateTemplate, validateTemplates } from "./validate.js";
@@ -371,6 +372,24 @@ describe("the AI_NOTE: Claude's reading only when Claude read the slips (T1)", (
     ).toEqual([
       "AI_NOTE.seeded_checking: the demo disclosure is frozen; a committed variant must keep its words",
     ]);
+  });
+
+  it("spokenScript: each spoken sentence with the sha256 of its exact words, deterministic (AU2's export)", () => {
+    for (const lang of LANGS) {
+      const plan = statementPlan(seedFacts("M-014", lang, { readingProvenance: "seeded" }));
+      const script = spokenScript(plan);
+      expect(script.map((s) => s.text)).toEqual(renderStatement(plan).spoken.map((s) => s.text));
+      for (const s of script) {
+        expect(s.textSha256).toBe(createHash("sha256").update(s.text, "utf8").digest("hex"));
+        expect(spokenTextSha256(s.text)).toBe(s.textSha256);
+      }
+      expect(spokenScript(statementPlan(seedFacts("M-014", lang, { readingProvenance: "seeded" })))).toEqual(
+        script,
+      );
+      const note = must(script.find((s) => s.slot === "AI_NOTE"));
+      expect(note.variant).toBe("seeded");
+      expect(note.text).toBe(fill(TEMPLATES_V1[lang]["AI_NOTE.seeded"]));
+    }
   });
 
   it("a line's reading provenance: Claude's only when every reading is live; nothing known is no claim", () => {

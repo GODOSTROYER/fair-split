@@ -3,7 +3,7 @@
 // deterministic formatter (C-22): display ("US$64.45", "about ₱4,028 (estimate)"), spoken (English number words
 // in every language until native review; slip numbers digit by digit) and SMS (GSM-7, the peso written "P").
 import type { Provenance } from "@fairsplit/contracts";
-import { format, mulDivFloor, mulDivHalfUp } from "@fairsplit/domain";
+import { format, mulDivFloor, mulDivHalfUp, sha256Hex } from "@fairsplit/domain";
 import { gsm7Length, SMS_MAX_SEPTETS } from "./gsm7.js";
 import { TEMPLATES_V1 } from "./templates.js";
 import type {
@@ -335,6 +335,23 @@ export function renderStatement(
     spoken: plan.sentences.map((s) => sentence(s, "spoken", plan.lang, templates, reading)),
     sms: renderSms(plan, templates),
   };
+}
+
+/** IC-11's `textSha256`: sha256 of a sentence's exact spoken words (UTF-8, lowercase hex), as the app checks clips. */
+export function spokenTextSha256(text: string): string {
+  return sha256Hex(text);
+}
+
+export interface SpokenSentence extends RenderedSentence {
+  textSha256: string;
+}
+
+/**
+ * The words a statement's audio says, sentence by sentence in plan order, each with its `textSha256`: what the
+ * clips are synthesised from (AU2's export). Pure and deterministic: one plan gives the same words and hashes.
+ */
+export function spokenScript(plan: StatementPlan, templates: TemplateSet = TEMPLATES_V1): SpokenSentence[] {
+  return renderStatement(plan, templates).spoken.map((s) => ({ ...s, textSha256: spokenTextSha256(s.text) }));
 }
 
 /** The peso estimate's centavos for a US amount at the run rate, floored (PayPal lines). */
