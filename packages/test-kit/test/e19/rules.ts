@@ -20,6 +20,12 @@ const MONTH = String.raw`(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z
  */
 const DATE = String.raw`(?:\$?\{[^}]*\}|\d{1,2}\s+${MONTH}(?:\s+\d{4})?|${MONTH}\s+\d{1,2}(?:,?\s+\d{4})?|\d{4}-\d{2}-\d{2})`;
 const re = (source: string): RegExp => new RegExp(source, "i");
+/**
+ * Not right after a negation in the same clause: "no live payouts", "not certified", "is not yet production-ready",
+ * "Nothing here is certified". At most two words may sit between, and punctuation ends the reach, so "No fees, and
+ * live payouts" still fires.
+ */
+const NOT_NEGATED = String.raw`(?<!\b(?:no|not|never|nothing|isn['’]t|aren['’]t|wasn['’]t|weren['’]t)\s+(?:[\w-]+\s+){0,2})`;
 
 export interface CopyRule {
   readonly id: string;
@@ -78,12 +84,14 @@ export const RULES: readonly CopyRule[] = [
   {
     id: "pr107-merged",
     reason: "PayPal's ai-toolkit PR #107 is not merged upstream; never put 'merged' beside it (plan E-19)",
-    pattern: /\bPR\s*#?\s*107\b[^.;]*\bmerged\b|\bmerged\b[^.;]*\bPR\s*#?\s*107\b/i,
+    pattern: re(
+      String.raw`\bPR\s*#?\s*107\b[^.;]*${NOT_NEGATED}\bmerged\b|${NOT_NEGATED}\bmerged\b[^.;]*\bPR\s*#?\s*107\b`,
+    ),
   },
   {
     id: "live-payouts",
     reason: "ADR-0002 and plan E-19: no payout is live; payouts run on the simulated PayPal sandbox",
-    pattern: /\blive\s+payouts?\b/i,
+    pattern: re(String.raw`${NOT_NEGATED}\blive\s+payouts?\b`),
   },
   {
     id: "recorded-claude-run",
@@ -221,7 +229,7 @@ export const RULES: readonly CopyRule[] = [
   {
     id: "certified",
     reason: "Plan E-19: Fair Split claims no certification",
-    pattern: /\bcertified\b/i,
+    pattern: re(String.raw`${NOT_NEGATED}\bcertified\b`),
     token: true,
   },
   {
@@ -233,13 +241,12 @@ export const RULES: readonly CopyRule[] = [
   {
     id: "real-farmers",
     reason: "Plan E-19: every person is synthetic; only 'no real farmer was paid' may name real farmers",
-    pattern: /\breal\s+farmers\b/i,
-    unless: /\bno\s+real\s+farmers?\b/i,
+    pattern: re(String.raw`${NOT_NEGATED}\breal\s+farmers\b(?!\s+(?:are|were)\s+(?:not|never)\b)`),
   },
   {
     id: "production-ready",
     reason: "Plan E-19: a hackathon prototype on a simulated rail is not production-ready",
-    pattern: /\bproduction[\s-]ready\b/i,
+    pattern: re(String.raw`${NOT_NEGATED}\bproduction[\s-]ready\b`),
     token: true,
   },
   {

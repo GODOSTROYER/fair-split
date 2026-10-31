@@ -99,6 +99,17 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ],
   ["replay-as-claude-reading", "Claude reads the slips."],
   ["replay-as-claude-reading", "Claude reads the handwritten weigh slips twice."],
+  // A negation lets these rules through only when it sits just before the phrase, in the same clause.
+  ["live-payouts", "No fees, and live payouts land on members' phones."],
+  ["live-payouts", "There is no doubt we make live payouts."],
+  ["certified", "Certified by Fairtrade."],
+  ["certified", "Not a pilot: certified by Fairtrade."],
+  ["production-ready", "Not a demo: production-ready payroll for co-ops."],
+  ["production-ready", "Fair Split is production-ready."],
+  ["pr107-merged", "PR #107 was merged upstream."],
+  ["pr107-merged", "Not a fork: PayPal merged PR #107."],
+  ["real-farmers", "Real farmers in Davao use it."],
+  ["real-farmers", "Not a mock-up: real farmers use it every season."],
 ];
 
 /** Template literals whose substitution sits where the claim's date goes (the scanner reads each one as "{}"). */
@@ -159,10 +170,17 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
   "pr107-merged": [
     "Claude Code agents wrote, reviewed and merged the code.",
     "Our typed Payouts tool follows PR #107's names.",
+    "Our typed Payouts tool, built on PR #107's schemas, which is not merged upstream.",
+    "PR #107 has not yet been merged.",
+    "PR #107 was never merged.",
+    "PR #107 isn’t merged.",
   ],
   "live-payouts": [
     "Payouts run on the simulated PayPal sandbox.",
     "Claude's live reads were last run on 22 Oct.",
+    "We make no live payouts.",
+    "No live payouts: every payout runs on the simulated PayPal sandbox.",
+    "There are never live payouts in this build.",
   ],
   "recorded-claude-run": [
     "Line labels: a placeholder written with the seed (no Claude recording in this build).",
@@ -226,13 +244,26 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "Every member gets a receipt to check.",
   ],
   "drive-every-state": ["Status checks move each payout."],
-  certified: ["Fairtrade's Standard for Cocoa requires per-member premium receipts."],
+  certified: [
+    "Fairtrade's Standard for Cocoa requires per-member premium receipts.",
+    "Not certified by Fairtrade.",
+    "Nothing here is certified by anyone.",
+    "Fair Split isn't certified.",
+    "The co-op's premiums aren't certified by an auditor.",
+  ],
   "eudr-compliant": ["Plot coordinates are shared with Lantern Bay under the data-sharing agreement."],
   "real-farmers": [
     "A prototype on a simulated PayPal sandbox, with synthetic people: no real farmer was paid.",
     "No real farmers were paid.",
+    "Real farmers are not involved; every person is synthetic.",
+    "Never real farmers: every person is synthetic.",
   ],
-  "production-ready": ["In production to the Philippines, 2% = {production}."],
+  "production-ready": [
+    "In production to the Philippines, 2% = {production}.",
+    "Fair Split is not production-ready; it is a hackathon prototype.",
+    "It isn't yet production-ready.",
+    "This is never production-ready code.",
+  ],
   "instant-gcash": ["Cash at the bodega, not GCash."],
   "carbon-claims": ["Claude writes in pencil. People sign in ink. PayPal makes it carbon."],
   "this-moves-money": [
