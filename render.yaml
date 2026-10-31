@@ -3,45 +3,45 @@
 # (tools/lib/blueprint.ts) by apps/tasks/test/render-blueprint.test.ts and by
 # `corepack pnpm exec tsx tools/lint-render.ts` (CI's render.yaml lint, S3.17).
 #
-# Approved S3.3, S3.13 and S3.14. Four resources in one region: `virginia`, not the default `oregon`
-# (Render's outbound IPs are shared per region, so the region does not protect the PayPal throttle).
-#   fs-api    web, always on: API, SSE, webhooks, console, /app, the outbox dispatcher, the inline
-#             executor (13 of the 16 tasks) and the scheduled jobs the hourly tick enqueues.
-#   fs-tasks  Render Workflows: the three AI tasks (extract, readRateCard, warmCaches).
+# Approved S3.3, S3.13 and S3.14, as revised on 31 Oct (decision D6). Three resources in one region:
+# `virginia`, not the default `oregon` (Render's outbound IPs are shared per region, so the region does not
+# protect the PayPal throttle).
+#   fs-api    web, always on: API, SSE, webhooks, the console, /app, /media, the outbox dispatcher and every
+#             task inline (EXECUTOR=inline), including those the hourly tick enqueues. There is no fs-tasks
+#             (Render Workflows) service: Judge Mode replays the reads, so no task needs one.
 #   fs-cron   a thin trigger at :07 UTC that POSTs fs-api's /internal/cron/tick over the private network.
 #   fs-db     Postgres 18.
-# Every service follows the `deploy` branch, which promote.yml fast-forwards to the latest green `main`.
+# Every service follows `main` with automatic deploys off: each deploy is a manual one, made between judging
+# sessions (the simulator's state resets with the process).
 #
-# Secrets (S3.13). No environment group: Render ignores `sync: false` keys inside groups. Each
-# service declares only the secrets it needs. `sync: false` keys are prompted for once, when the
-# Blueprint is created, and never overwritten by a sync; internal secrets are `generateValue` on
-# fs-api and shared with `fromService … envVarKey`. No key here carries a literal secret.
+# Secrets (S3.13). No environment group: Render ignores `sync: false` keys inside groups. Each service declares
+# only what it needs, under the names fs-api's env.ts reads. Render prompts once, when the Blueprint is
+# created, for exactly the `sync: false` keys: FS_LINK_SIGNING_KEY and FS_LEDGER_SIGNING_KEY (two different
+# 32-byte Ed25519 seeds in lowercase hex), FS_OPERATOR_PASSWORD_SCRYPT (`node tools/ops-hash-password.mjs`),
+# JUDGE_CODE_SHA256 (optional) and FS_KILL (left blank). FS_COOKIE_SECRET, CRON_SECRET and FS_APP_DB_PASSWORD
+# are `generateValue` on fs-api; fs-cron gets CRON_SECRET through `fromService … envVarKey`. The runbook is
+# apps/tasks/README.md, "Deploying".
 #
-# Database roles (S3.4, register §7: the app role cannot UPDATE or DELETE run_events,
-# ledger_entries or agent_sessions).
+# Database roles (S3.4, register §7: the app role cannot UPDATE or DELETE run_events, ledger_entries or
+# agent_sessions; ADR-0005).
 #   - Only fs-api holds the owner's URL, and only as DATABASE_OWNER_URL: `@fairsplit/db migrate`
-#     (preDeployCommand) reads it, and on Render never DATABASE_URL. Migrate creates fs_app with
-#     LOGIN, or resets its password, from FS_APP_DB_PASSWORD (generated below), so the first deploy
-#     needs no manual step.
-#   - No service declares DATABASE_URL. fs-api's boot builds fs_app's from DATABASE_OWNER_URL's host,
-#     port and database plus FS_APP_DB_PASSWORD, deletes the owner's URL from process.env, and
-#     refuses to start if its role can UPDATE ledger_entries (apps/tasks/src/db-env.ts and app-role.ts
-#     are the reference). The value still sits in fs-api's initial environment (/proc/<pid>/environ),
-#     a residual risk ADR-0005 records; fs-db therefore accepts no external connection at all.
-#   - fs-tasks never receives the owner's credentials: it gets fs-db's host, port and database name
-#     and builds fs_app's URL at boot. fs-cron has no database access at all.
-#   This layout departs from the S3.14 snippet (DATABASE_URL on fs-api and fs-tasks): ADR-0005.
+#     (preDeployCommand) reads it, and on Render never DATABASE_URL. Migrate creates fs_app with LOGIN, or
+#     resets its password, from FS_APP_DB_PASSWORD (generated below), so the first deploy needs no manual step.
+#   - No service declares DATABASE_URL. fs-api's entry builds fs_app's from DATABASE_OWNER_URL's host, port and
+#     database plus FS_APP_DB_PASSWORD (`useAppDatabaseUrl`, packages/db/src/cli/app-url.ts), deletes both from
+#     process.env, and refuses to start if its role can UPDATE ledger_entries. The value still sits in fs-api's
+#     initial environment (/proc/<pid>/environ), a residual risk ADR-0005 records; fs-db therefore accepts no
+#     external connection at all. fs-cron has no database access at all.
 #
-# PayPal rail (ADR-0002). PP_MODE=simulator runs PayPal's REST subset through the contract-faithful
-# simulator, labelled as a simulated rail; PP_MODE=sandbox uses the real sandbox once credentials
-# exist. Switching is this one line, so the rail a deploy runs against is always in the repo.
+# PayPal rail (ADR-0002). PP_MODE=simulator runs PayPal's REST subset on the contract-faithful simulator, and
+# every PayPal-derived value is labelled "Simulated PayPal sandbox". The PP_* values below are the simulator's
+# own committed, fictional ones (packages/paypal-sim/data/accounts.json: the fs-judge app, the co-op, Lantern
+# Bay, seven member receivers and Rhea's address with no account); only the simulator accepts them, they are
+# not PayPal credentials, and the policy checks each against that file. PP_MODE=sandbox is untested: it needs
+# the real sandbox app's values as `sync: false` keys in place of these (tools/lib/blueprint.ts).
 #
-# Kill switch (S3.11). `system_flags` (per workspace, read fresh at every task entry, flipped from
-# /ops) is the runtime authority. FS_KILL is the deploy-wide override. It is `sync: false` so that
-# a Blueprint sync never resets it, and it must hold the same value on both executors, fs-api and
-# fs-tasks: no group can share it (S3.13), and `fromService` copies a value only on a Blueprint sync,
-# so set both by hand; `opsPing` reports fs-tasks' value. If they drift, fs-api still decides: its
-# dispatcher keeps every AI task inline under kill_ai_live, and fs-tasks runs only those AI tasks.
+# Kill switch (S3.11). `system_flags` (per workspace, read fresh at every task entry, flipped from /ops) is the
+# runtime authority. FS_KILL is the deploy-wide override, `sync: false` so that a Blueprint sync never resets it.
 version: "1"
 
 services:
@@ -49,15 +49,18 @@ services:
     name: fs-api
     runtime: node
     region: virginia
-    branch: deploy
+    branch: main
     # Paid instance: never spins down, keeps SSE and the LISTEN connection alive (register §6).
     plan: 0.5c-512mb
     numInstances: 1
-    # The last step fails the build if a secret value, or a PayPal, Anthropic or Render key prefix,
-    # reached any apps/*/dist file (S3.13).
+    # The /app export runs in its labelled demo mode: no EXPO_PUBLIC_API_ORIGIN until the phone talks to fs-api.
+    # assemble-media copies the allowlisted /media files (never media/ wholesale) into STATIC_MEDIA_DIR. The last
+    # step fails the build if a secret value, or a PayPal, Anthropic or Render key prefix, reached any
+    # apps/*/dist file, the assembled media included (S3.13).
     buildCommand: >-
       corepack pnpm install --frozen-lockfile &&
       corepack pnpm turbo run build --filter=@fairsplit/api... --filter=@fairsplit/console --filter=@fairsplit/mobile &&
+      corepack pnpm exec tsx tools/assemble-media.ts &&
       corepack pnpm exec tsx tools/scan-dist.ts
     preDeployCommand: corepack pnpm --filter @fairsplit/db migrate
     startCommand: node apps/api/dist/index.js
@@ -65,17 +68,16 @@ services:
     # platform health check on a PayPal outage would restart a healthy process and block deploys.
     healthCheckPath: /healthz
     maxShutdownDelaySeconds: 60
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: "off"
     buildFilter:
       paths:
         - apps/api/**
         - apps/console/**
         - apps/mobile/**
-        # The executor lanes in apps/tasks/src/policy.ts must match fs-api's dispatcher.
-        - apps/tasks/**
         - packages/**
         - media/**
         - assets/**
+        - tools/assemble-media.ts
         - tools/scan-dist.ts
         - package.json
         - pnpm-lock.yaml
@@ -92,9 +94,9 @@ services:
         - packages/eval/**
         - packages/test-kit/**
     envVars:
-      # The repo pin (S3 §1 `.node-version`, eas.json). tools/lib/blueprint.ts enforces it.
+      # The repo pin (CI and docs/versions.md). tools/lib/blueprint.ts enforces it.
       - key: NODE_VERSION
-        value: "24.22.1"
+        value: "24.19.0"
       - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
         value: "0"
       - key: TZ
@@ -106,124 +108,46 @@ services:
       - key: PP_MODE
         value: simulator
       - key: EXECUTOR
-        value: workflow
-      # The owner's URL, for migrate only. fs-api's boot builds fs_app's DATABASE_URL and deletes this
+        value: inline
+      - key: STATIC_MEDIA_DIR
+        value: apps/api/dist/media
+      # The owner's URL, for migrate only. fs-api's entry builds fs_app's DATABASE_URL and deletes this
       # from process.env; /proc/<pid>/environ keeps it (ADR-0005), hence fs-db's empty ipAllowList.
       - key: DATABASE_OWNER_URL
         fromDatabase:
           name: fs-db
           property: connectionString
-      - key: FS_TASKS_SLUG
-        fromService:
-          type: workflow
-          name: fs-tasks
-          property: slug
       - key: FS_APP_DB_PASSWORD
         generateValue: true
-      # An Ed25519 seed (256 random bits).
-      - key: STATEMENT_SIGNING_KEY
-        generateValue: true
-      - key: COOKIE_KEY
+      # HMAC root for cookies and IP hashing; fs-api needs 32+ characters, and Render's value is a base64 256 bits.
+      - key: FS_COOKIE_SECRET
         generateValue: true
       - key: CRON_SECRET
         generateValue: true
+      # The simulator's fs-judge app and seeded accounts (fake, committed; see the header).
       - key: PP_CLIENT_ID
-        sync: false
+        value: SIM-fs-judge-client
       - key: PP_CLIENT_SECRET
-        sync: false
-      - key: PP_WEBHOOK_ID
-        sync: false
+        value: sim-fs-judge-not-a-paypal-secret
       - key: PP_BUSINESS_EMAIL
-        sync: false
+        value: bulawanon.coop@example.org
       - key: PP_PAYER_EMAIL
-        sync: false
+        value: lantern.bay.payables@example.org
       - key: PP_RECEIVERS
-        sync: false
+        value: M-002=florencia.ybanez@example.org,M-007=dionisio.lapinig@example.org,M-014=consolacion.bacus@example.org,M-018=teodoro.pacana@example.org,M-022=pedro.ompad@example.org,M-039=jonathan.ripalda@example.org,M-060=arnel.sumampao@example.org
       - key: PP_UNCLAIMED_RECEIVER
+        value: rhea.jumawan@example.org
+      # Prompted once at creation. Two different Ed25519 seeds, 64 lowercase hex each: member and brand links,
+      # and the ledger checkpoints Proof verifies (unset, Proof would read "Sample" and change on every restart).
+      - key: FS_LINK_SIGNING_KEY
         sync: false
-      - key: ANTHROPIC_API_KEY
+      - key: FS_LEDGER_SIGNING_KEY
         sync: false
-      - key: RENDER_API_KEY
+      # `node tools/ops-hash-password.mjs`: the scrypt hash of the /ops password, never the password.
+      - key: FS_OPERATOR_PASSWORD_SCRYPT
         sync: false
-      - key: EXPO_PUSH_TOKEN
-        sync: false
-      - key: OPS_PASSWORD_SCRYPT
-        sync: false
+      # Optional: the sha256 of the judge code that unlocks the judge-code bucket (runbook one-liner).
       - key: JUDGE_CODE_SHA256
-        sync: false
-      - key: FS_KILL
-        sync: false
-
-  - type: workflow
-    name: fs-tasks
-    runtime: node
-    region: virginia
-    branch: deploy
-    # No `plan` (each task defaults to `flex`), no `preDeployCommand`, no health check: Blueprint
-    # workflows accept none of them. Only fs-api migrates; migrations are expand-then-contract.
-    buildCommand: >-
-      corepack pnpm install --frozen-lockfile &&
-      corepack pnpm turbo run build --filter=@fairsplit/tasks...
-    startCommand: node apps/tasks/dist/index.js
-    autoDeployTrigger: checksPass
-    buildFilter:
-      # The workspace dependency closure of @fairsplit/tasks (a test derives it from package.json).
-      paths:
-        - apps/tasks/**
-        - packages/contracts/**
-        - packages/domain/**
-        - packages/seed/**
-        - packages/db/**
-        - packages/outbox/**
-        - packages/paypal-core/**
-        - packages/paypal-toolkit/**
-        - packages/paypal-payouts/**
-        - packages/ai/**
-        - package.json
-        - pnpm-lock.yaml
-        - pnpm-workspace.yaml
-        - turbo.json
-        - tsconfig.base.json
-      # The bundle reads packages/ai's prompts and packages/db's migrations from this checkout at
-      # runtime (apps/tasks/build/inline-import-meta.ts), so only tests and READMEs are skipped.
-      ignoredPaths:
-        - "**/*.test.ts"
-        - "**/test/**"
-        - "**/README.md"
-    envVars:
-      - key: NODE_VERSION
-        value: "24.22.1"
-      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
-        value: "0"
-      - key: TZ
-        value: UTC
-      - key: LOG_LEVEL
-        value: info
-      # Boot check (S3.13). fs-tasks holds no PayPal credentials; the guard stays in case one is added.
-      - key: PP_ENV
-        value: sandbox
-      # fs_app only: the host, port and name of fs-db, never its owner's user or password. `host` and
-      # `port` are valid for Postgres references (Render's schema; render.com/tutorials/postgres-on-render).
-      - key: FS_DB_HOST
-        fromDatabase:
-          name: fs-db
-          property: host
-      - key: FS_DB_PORT
-        fromDatabase:
-          name: fs-db
-          property: port
-      - key: FS_DB_NAME
-        fromDatabase:
-          name: fs-db
-          property: database
-      # S3.14 UNVERIFIED (S6): whether workflows accept `fromService`. If not, copy fs-api's value in
-      # the Dashboard; fs-tasks refuses to boot until it has one.
-      - key: FS_APP_DB_PASSWORD
-        fromService:
-          type: web
-          name: fs-api
-          envVarKey: FS_APP_DB_PASSWORD
-      - key: ANTHROPIC_API_KEY
         sync: false
       - key: FS_KILL
         sync: false
@@ -232,20 +156,20 @@ services:
     name: fs-cron
     runtime: node
     region: virginia
-    branch: deploy
+    branch: main
     plan: 0.5c-512mb
     # Minute 7 of every hour, UTC (register §6). Must equal CRON_SCHEDULE in apps/tasks/src/cron.ts.
     schedule: "7 * * * *"
     # Nothing to build: the trigger is one dependency-free script.
     buildCommand: "true"
     startCommand: node tools/cron-tick.mjs
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: "off"
     buildFilter:
       paths:
         - tools/cron-tick.mjs
     envVars:
       - key: NODE_VERSION
-        value: "24.22.1"
+        value: "24.19.0"
       - key: FS_API_HOSTPORT
         fromService:
           type: web
