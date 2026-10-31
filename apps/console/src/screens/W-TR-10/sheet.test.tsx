@@ -4,9 +4,9 @@
 
 import { webRoutes } from "@fairsplit/contracts";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { keysLabel, keysSpoken } from "../../features/shortcuts/ShortcutSheet.js";
-import { expectNoAxeViolations, renderConsole } from "../../test/index.js";
+import { expectNoAxeViolations, focusAcrossRemoval, renderConsole } from "../../test/index.js";
 
 describe("W-TR-10 the shortcut sheet", () => {
   it("opens on ?, lists the registered keys by task, and is clean for axe", async () => {
@@ -44,6 +44,54 @@ describe("W-TR-10 the shortcut sheet", () => {
     expect(document.documentElement.hasAttribute("data-datamode")).toBe(false);
     expect(screen.queryByTestId("W-TR-10")).toBeNull();
   });
+
+  it.each(["Escape", "Close"] as const)(
+    "closing by %s hands focus back to where ? was pressed in the commit that removes the sheet, and shows it",
+    async (how) => {
+      await renderConsole({ path: webRoutes.ops() });
+      const ops = await screen.findByTestId("W-OP-01");
+      const opener = within(ops).getAllByRole("button")[0] as HTMLElement;
+      opener.focus();
+      fireEvent.keyDown(opener, { key: "?" });
+      const sheet = await screen.findByTestId("W-TR-10");
+      await waitFor(() => expect(sheet.contains(document.activeElement)).toBe(true));
+      // The reader scrolled while the sheet was open: the opener is above the viewport now.
+      const rect = Element.prototype.getBoundingClientRect;
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+        return this === opener
+          ? ({
+              top: -120,
+              bottom: -90,
+              left: 40,
+              right: 200,
+              width: 160,
+              height: 30,
+              x: 40,
+              y: -120,
+              toJSON: () => ({}),
+            } as DOMRect)
+          : rect.call(this);
+      });
+      const scrolled: Element[] = [];
+      vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+        scrolled.push(this);
+      });
+      const watch = focusAcrossRemoval("W-TR-10");
+      try {
+        if (how === "Escape") fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+        else fireEvent.click(screen.getByTestId("W-TR-10.close"));
+        await waitFor(() => expect(screen.queryByTestId("W-TR-10")).toBeNull());
+        await watch.frame();
+      } finally {
+        watch.restore();
+        vi.restoreAllMocks();
+      }
+      expect(document.activeElement).toBe(opener);
+      expect(watch.samples.length).toBeGreaterThanOrEqual(2);
+      for (const sample of watch.samples) expect(sample).toBe(opener);
+      expect(scrolled).toContain(opener);
+    },
+  );
 
   it("names keys the way they're printed and spoken", () => {
     expect(keysLabel("Mod+K")).toBe("Ctrl K");

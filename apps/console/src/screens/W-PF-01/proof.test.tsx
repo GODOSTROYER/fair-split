@@ -244,6 +244,72 @@ describe("W-PF-01 MM-7, tap a peso", () => {
   });
 });
 
+describe("W-PF-01 MM-7, the peso is back in view when the trace closes", () => {
+  // In a browser the open trace pushes the rows below it down and the reader scrolls on: when the trace folds
+  // away, the peso that opened it sits above the viewport (M-014 at -208 px at 1470, the W-PF-01 hero). Focus goes
+  // back to it, and it scrolls into view the least it can, at once, so the keyboard's ring is never off screen.
+  const ABOVE = { top: -208, bottom: -180, left: 120, right: 220, width: 100, height: 28, x: 120, y: -208 };
+  const closes = {
+    "Close (Enter)": async () => {
+      const close = screen.getByTestId("W-PF-01.trace.back");
+      close.focus();
+      fireEvent.click(close);
+    },
+    "Escape on Close": async () => {
+      const close = screen.getByTestId("W-PF-01.trace.back");
+      close.focus();
+      fireEvent.keyDown(close, { key: "Escape" });
+    },
+    "the slip, Back, then Escape": async () => {
+      fireEvent.click(screen.getByTestId("W-PF-01.trace.slip.0403"));
+      await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("slip"));
+      const back = screen.getByTestId("W-PF-01.trace.back");
+      back.focus();
+      fireEvent.click(back);
+      await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("line"));
+      fireEvent.keyDown(screen.getByTestId("W-PF-01.trace.back"), { key: "Escape" });
+    },
+  };
+
+  it.each(Object.keys(closes))("%s: focus is on the peso, scrolled into view", async (how) => {
+    const close = closes[how as keyof typeof closes];
+    await openProof();
+    openPlate("computed");
+    const lines = await screen.findByTestId("W-PF-01.lines");
+    fireEvent.click(screen.getByTestId("W-PF-01.peso.M-014"));
+    await waitFor(() => expect(lines.dataset.momentPhase).toBe("expanded"), { timeout: 3000 });
+
+    const rect = Element.prototype.getBoundingClientRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      return (this as HTMLElement).dataset?.testid === "W-PF-01.peso.M-014"
+        ? ({ ...ABOVE, toJSON: () => ({}) } as DOMRect)
+        : rect.call(this);
+    });
+    const scrolled: Element[] = [];
+    const options: unknown[] = [];
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element, arg) {
+      scrolled.push(this);
+      options.push(arg);
+    });
+    try {
+      await close();
+      await waitFor(() => expect(screen.getByTestId("W-PF-01.trace.state").dataset.trace).toBe("closed"), {
+        timeout: 3000,
+      });
+      const peso = screen.getByTestId("W-PF-01.peso.M-014");
+      await waitFor(() => expect(document.activeElement).toBe(peso));
+      expect(scrolled).toContain(peso);
+      expect(options[scrolled.indexOf(peso)]).toEqual({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "instant",
+      });
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe("W-PF-01 states", () => {
   it("none: no pay run for an unknown run", async () => {
     const view = await renderConsole({ path: webRoutes.proof("2026A-r999") });
