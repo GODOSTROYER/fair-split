@@ -126,6 +126,8 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 | `format` (`lib/format.ts`)                     | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`         |
 | `useMoment(id, { focal?, mode? })`             | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps` |
 | `provenanceFooter(input)`                      | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                        |
+| `lib/focus.ts`                                 | Every focus move: `returnFocus(targets, { leaving? })` in the commit that removed what held focus (by stable key, then the screen's main control, revealed), `focusAndReveal(el)`, `useFocusAfterRemoval`, `<FocusReturn>` in a dialog's popup |
+| `<Stamp stamp testId?>` (`chrome/Stamp.tsx`)   | A person's ink stamp (ui-web's look, `role="img"` named in full): use it, not ui-web's `InkStamp`                                      |
 | `useShortcut(spec)`, `useShortcuts()`          | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                             |
 | `useDataMode()`                                | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                |
 | `useAnnounce()`                                | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                           |
@@ -153,7 +155,10 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 - **Every state renders**: empty, loading (print beds), error (`CommandNotice`), held, approved, posting, paid,
   parked, cash due, with a reduced-motion variant that keeps every phase.
 - **Accessibility**: WCAG 2.2 AA; axe clean on every state; hold slabs keep their dialog route; visualisations
-  are `aria-hidden` and mirrored in `<Mirrored>` tables; focus is visible (pod ring).
+  are `aria-hidden` and mirrored in `<Mirrored>` tables; focus is visible (pod ring). Every focus move goes through
+  `lib/focus.ts`: never `el.focus()` directly, never from a timer, never to `<body>`; a control that the answer
+  removes hands focus on with `useFocusAfterRemoval`, and a stable `data-testid` (or `data-focus-key`) lets a
+  redrawn opener be found again.
 - **Budgets** (S2.11): route JS ≤300 KB gz; Proof's initial JS ≤110 KB gz; AG Grid only in its own lazy chunk
   (`features/split/SplitAgGrid.tsx` with `theme/grid.ts`, loaded once the grid's container is measured; the static
   table prints the lines until then); Proof's verify code only through a dynamic import of `lib/verify.ts`. Measure
@@ -238,11 +243,39 @@ exist in the catalog: draw the co-sign QR from an API-provided matrix or request
   (`src/data/mock/fidelity.ts`). Reported to WS-API.
 - Renewing the console token has no resume-only path in fs-api. `SessionStore.renew()` sends `createJudgeSession`
   with the judge cookie alone; when the cookie's workspace has ended (a Reset in another tab, or it expired) fs-api
-  mints a new workspace and run under the same session ID, and that renewal uses a slot of the
-  3-new-sessions-an-hour limit. The console refuses the answer (another workspace or run ends the session; the
-  stage returns to `/judge` and says why), but the new workspace has already been created. Needed from WS-API: a
-  renewal that only resumes, answering 401/410 for an ended workspace instead of recreating it, and never
-  counting against the new-session limit.
+  mints a new workspace and run, and that renewal uses a slot of the 3-new-sessions-an-hour limit: under the same
+  session ID after a Reset (the cookie outlives it), under a new session ID and cookie when the workspace expired
+  (the cookie ended with it); when the cookie's session already has a live workspace (the other tab pressed
+  again) it resumes that one and mints nothing. The console refuses the answer (another workspace or run ends the
+  session; the stage returns to `/judge` and says why), but a new workspace may already have been created. Needed
+  from WS-API: a renewal that only resumes, answering 401/410 for an ended workspace instead of recreating it, and
+  never counting against the new-session limit. A Reset in another tab revokes the workspace's tokens, so this
+  tab's next call carrying its token is answered 401 UNAUTHENTICATED: the console ends the session there and then
+  (`onTokenRefused`), without a renewal.
+- fs-api serves neither `GET /v1/ops/session` nor `GET /v1/ops/outbox`: /ops never names the operator in http mode,
+  so the treasurer key's make and register stay off there (their sections say "not served yet"). The registration
+  body is fs-api's `RegisterKeyRequest` (workspace, key, approver and a proof signed by the new key); the showcase
+  workspace comes from `GET /v1/ops/overview`'s ledger heads (kind "showcase"), and nothing is sent while it names
+  none. `GET /v1/credential` (whoami) could answer "who is reading" today. Reported to WS-API.
+- fs-api answers `GET /v1/proof/:runSlug` 404 before it reads the credential (no run posted yet), so a 404 says
+  nothing about a brand link: the console then asks `GET /v1/credential` with the link and shows the brand's
+  header only for a `brand_link`. api-client's mock knows only the links it issued for that read, while the
+  console's mock (`fidelity.ts`) accepts any `fsb_` bearer on the proof read (it checks no signature).
+- The mock's proof read and export always serve the seed's showcase bundle (`snapshot.proof`, provenance
+  "seeded"), even for the session's run: its approvals carry the seed's `linesDigest`, not the two this session
+  signed (fs-api's export lists the session's own). Reported to WS-API.
+- ui-web's `InkStamp` puts `aria-label` on an `<abbr>` (axe aria-prohibited-attr; some readers say only the
+  initials). The console draws its own `<Stamp>` (same look, `role="img"` named in full) everywhere it can;
+  ui-web's `HoldCard` still draws `InkStamp` for a decided hold's resolution stamp (W-TR-06), and the prototype's
+  Primitives page shows ui-web's own. Reported to WS-DS.
+- tokens' `fonts.css` declares the inline FS Stencil face with `font-display: swap`, so the Proof hero's lot mark
+  painted a frame in the fallback face. The console declares the face again with `font-display: block`
+  (`theme/surfaces.css`, 3.7 KB inlined twice in the CSS) and starts it loading at boot on Proof's paths.
+  Needed from WS-DS: `font-display: block` for the inline mark face in tokens, then the console's copy goes.
+- A focus return keeps its target in view for up to 1.5 s while the layout settles (the answer that moved focus
+  often moves the layout a frame later), stopped by the person's own pointer, wheel, touch or key. The in-view
+  check knows the console's sticky edges by name (the drawer's head, AG Grid 35's sticky header and pinned rows,
+  `[data-sticky-edge]`); a new sticky edge needs that attribute.
 - fs-api's console fallback (`apps/api/src/static.ts`, `app.get("*")`) answers 404 to a real brand link: it refuses
   any path with an extension, and a signed `fsb_<payload>.<sig>` token's dot reads as one
   (`path.extname("/b/fsb_x.y")` is `.y`), so `/b/:token` never gets the console's index.html. Its test covers only
