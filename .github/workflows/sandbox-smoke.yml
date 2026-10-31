@@ -1,4 +1,8 @@
-# E-17 nightly live sandbox smoke (S5.5.1, architecture section 15). PLACEHOLDER.
+# E-17 live sandbox smoke (S5.5.1, architecture section 15). PLACEHOLDER, started by hand only.
+#
+# Its nightly schedule is off (Q1): every scheduled run was skipped, because the job is not built and the
+# variable below is unset. Whoever builds E-17 restores a schedule (weekly at most while the repo is private),
+# together with the scenario below.
 #
 # Disabled until the secrets exist: the job runs only when the repository variable
 # SANDBOX_SMOKE_ENABLED is "true", and only on main. It runs from GitHub's network (not Render's) with the
@@ -23,17 +27,18 @@
 # webhook because the dev tunnel is off at night; there is no polling loop.
 name: sandbox-smoke
 
+# Manual runs only (no path filter applies to workflow_dispatch).
 on:
-  schedule:
-    - cron: "17 21 * * *" # 21:17 UTC = 02:47 IST, after the day's merges
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer manual run replaces one still running: the placeholder makes no PayPal call. E-17's builder decides
+# whether a half-run scenario may be cancelled once it does.
 concurrency:
   group: sandbox-smoke
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: "24.19.0"

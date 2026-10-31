@@ -1,17 +1,19 @@
 # CI for every PR and workstream branch (architecture section 15, S5.2.3).
 # Every action is pinned by full commit SHA; the tag and its release date are in the trailing comment
 # and in docs/versions.md. Bump only through a deps PR.
+#
+# No path filter, on purpose: the job reads every path. Biome formats Markdown, tests read docs/, media/ and
+# assets/, and secretlint scans the whole tree, so skipping a docs or asset change would let it reach main
+# unchecked. Minutes are saved instead by cancelling superseded runs (concurrency) and by running no schedule:
+# the nightly run here did nothing but gitleaks, which is now gitleaks.yml (full history weekly).
 name: ci
 
 on:
   pull_request:
   push:
-    branches: [main, "ws/**", "deps/**"]
+    # wp/** is a work-package branch, pushed only to try CI on Linux before the merger splits it into ws/<key>.
+    branches: [main, "ws/**", "deps/**", "wp/**"]
   workflow_dispatch:
-  # Nightly full-history secret scan. gitleaks-action scans only the pushed commits on push and only the PR's
-  # commits on pull_request; it scans the whole history only on schedule and workflow_dispatch.
-  schedule:
-    - cron: "43 20 * * *" # 20:43 UTC = 02:13 IST, after the day's merges
 
 permissions:
   contents: read
@@ -29,7 +31,6 @@ env:
 jobs:
   verify:
     name: lint, types, tests, boundaries, secrets
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -63,6 +64,7 @@ jobs:
             pnpm-store-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install (frozen lockfile)
+        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Work out the diff base
@@ -85,16 +87,22 @@ jobs:
           echo "sha=$base" >> "$GITHUB_OUTPUT"
           echo "Diff base: $base"
 
+      # Each check below runs even when an earlier one failed, so one run reports every failure.
       - name: Biome
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
         run: pnpm exec biome ci --reporter=github .
 
+      # --continue: turbo otherwise stops at the first failing package and hides every other result.
       - name: Typecheck
-        run: pnpm typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
+        run: pnpm exec turbo run typecheck --continue
 
       - name: Test
-        run: pnpm test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
+        run: pnpm exec turbo run test --continue
 
       - name: Dependency rule (dependency-cruiser)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
         run: pnpm deps:check
 
       # No ownership step here: on pull_request GitHub runs the PR's own copy of this file, so a step here could
@@ -102,36 +110,13 @@ jobs:
       # merger's run of main's checker (CONTRIBUTING.md, "Merging"); ADR-0006.
 
       - name: secretlint (whole tree)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
         run: pnpm secrets:scan
 
       - name: Secret guard over changed files
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           git diff -z --name-only --diff-filter=ACMR "$BASE_SHA" HEAD \
             | xargs -0 -r node tools/guard-env.mjs
-
-  gitleaks:
-    # Scope depends on the trigger (gitleaks-action v3): push = the pushed commits, pull_request = the PR's
-    # commits, schedule (nightly) and workflow_dispatch = the full history of the checked-out ref.
-    name: gitleaks (commit range; full history nightly and on manual run)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # On pull_request the action lists the PR's commits (GET /repos/{owner}/{repo}/pulls/{n}/commits), which in a
-    # private repository needs pull-requests: read; without it the 403 fails the job on every PR.
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout (full history)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0 (2026-05-30)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Personal-account repo: no GITLEAKS_LICENSE needed. Comments stay off so the job keeps read-only rights.
-          GITLEAKS_ENABLE_COMMENTS: "false"
