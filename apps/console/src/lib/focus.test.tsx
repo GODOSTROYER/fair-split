@@ -220,6 +220,75 @@ describe("returnFocus reveals what it focuses", () => {
     expect(outOfView(next)).toBe(false);
   });
 
+  it("keeps the target in view while the layout settles: a result line unfolding above it pushes it down a frame later", async () => {
+    const { drawer } = stage();
+    const next = document.createElement("a");
+    next.href = "#next";
+    drawer.append(next);
+    const scroll = vi.fn();
+    next.scrollIntoView = scroll;
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+    box(drawer, { top: 85, height: 558, width: 1036 });
+    box(next, { top: 611, height: 16 });
+    returnFocus(next);
+    expect(document.activeElement).toBe(next);
+    expect(scroll).not.toHaveBeenCalled();
+    // The answer's result line unfolds above Next: 58 px lower, under the drawer's fold.
+    box(next, { top: 669, height: 16 });
+    await frames(2);
+    expect(scroll).toHaveBeenCalledWith({ block: "nearest", inline: "nearest", behavior: "instant" });
+  });
+
+  it("stops keeping it in view once the person scrolls on their own", async () => {
+    const { drawer } = stage();
+    const next = document.createElement("a");
+    next.href = "#next";
+    drawer.append(next);
+    const scroll = vi.fn();
+    next.scrollIntoView = scroll;
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+    box(drawer, { top: 85, height: 558, width: 1036 });
+    box(next, { top: 611, height: 16 });
+    returnFocus(next);
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 120 }));
+    box(next, { top: 900, height: 16 });
+    await frames(3);
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it("a grid cell under the grid's sticky totals row is unseen, and scrolls clear of it", () => {
+    // AG Grid 35 draws its pinned rows sticky inside the scrolling viewport: M-007's cell scrolled to the
+    // viewport's bottom edge sits under the totals row (WCAG 2.4.11), though it is inside the scrollport.
+    document.body.innerHTML = `
+      <main id="fsc-main" tabindex="-1">
+        <div class="ag-grid-viewport" style="overflow: auto">
+          <div class="ag-row" row-id="M-007"><div class="ag-cell" col-id="member" tabindex="-1">M-007</div></div>
+          <div class="ag-grid-pinned-bottom-rows" style="position: sticky; bottom: 0px">Totals</div>
+        </div>
+      </main>`;
+    const viewport = document.querySelector<HTMLElement>(".ag-grid-viewport") as HTMLElement;
+    const totals = document.querySelector<HTMLElement>(".ag-grid-pinned-bottom-rows") as HTMLElement;
+    const cell = document.querySelector<HTMLElement>(".ag-cell") as HTMLElement;
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+    box(viewport, { top: 268, height: 358, width: 910 });
+    box(totals, { top: 585, height: 41, width: 910 });
+    box(cell, { top: 587, height: 39, width: 200 });
+    let scrollTop = 39;
+    Object.defineProperty(viewport, "scrollTop", {
+      configurable: true,
+      get: () => scrollTop,
+      set: (v: number) => {
+        scrollTop = v;
+      },
+    });
+    cell.scrollIntoView = vi.fn();
+    expect(outOfView(cell)).toBe(true);
+    returnFocus(cell);
+    expect(document.activeElement).toBe(cell);
+    // It scrolls on by what the totals row covers (626 - 585 = 41 px), no more.
+    expect(scrollTop).toBe(39 + 41);
+  });
+
   it("leaves a target in view where it is", () => {
     const { slab } = stage();
     const scroll = vi.fn();
