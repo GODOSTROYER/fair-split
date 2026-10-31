@@ -8,6 +8,7 @@
 //   5. sets the cookie, joins the live lane when live (`queuePosition`), and refills the pool behind it.
 // Reset expires the workspace, revokes its tokens and enqueues `judgeReset{button}` (which cancels a parked
 // UNCLAIMED item and purges when it is safe): the next press binds the same session id to a fresh workspace.
+// Renewing the console token (`/renew`) only ever resumes: an ended session is a 401, never a new workspace.
 import { randomUUID } from "node:crypto";
 import { TASKS } from "@fairsplit/contracts";
 import { appendLedger, type DbOrTx, schema, type Tx, uuidv7, workspaceScope } from "@fairsplit/db";
@@ -272,15 +273,20 @@ async function resumeSession(
   if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs, "Too many console tokens for this session.");
   const token = await deps.db.transaction(async (tx) => {
     await tx.execute(sqlLock(o.ws.id));
+    // A Reset takes the same lock: read the workspace again under it, so no token is minted (unrevoked) in a
+    // session that a Reset in another tab ended a moment ago.
+    const ws = await workspaceRow(tx, o.ws.id);
+    if (ws?.kind !== "judge" || !workspaceAlive(ws, o.now)) return null;
     return mintBearerToken(tx, {
-      workspaceId: o.ws.id,
+      workspaceId: ws.id,
       kind: "frame",
       ...CONSOLE_PERSONA,
       sessionId: o.sessionId,
       now: o.now,
-      workspaceExpiresAt: o.ws.expiresAt,
+      workspaceExpiresAt: ws.expiresAt,
     });
   });
+  if (!token) return null;
   return {
     status: 200,
     body: {
@@ -298,6 +304,29 @@ async function resumeSession(
 
 function sqlLock(workspaceId: string) {
   return sql`select pg_advisory_xact_lock(hashtextextended(${`fs:ws-log:${workspaceId}`}, 0))`;
+}
+
+/**
+ * `POST /v1/judge/sessions/:sid/renew`: the console's token renewal, which only ever resumes. A live session gets
+ * the resume answer of createJudgeSession (the same session, workspace and run, a fresh console token; no new
+ * task, model or PayPal call). A session whose workspace has ended (a Reset in any tab, its 24 h expiry, the
+ * purge) is 401 FRAME_TOKEN_EXPIRED, the answer the console already reads as "ended": nothing is minted and no
+ * slot of the new-session limits is taken, because only the press (createJudgeSession) starts a session. The
+ * shell refuses a cookie whose workspace has ended with the same answer before this runs; this checks again,
+ * under the workspace lock.
+ */
+export async function renewJudgeSession(
+  deps: AppDeps,
+  credential: JudgeSessionCredential,
+): Promise<StartedSession["body"]> {
+  const now = deps.clock.now();
+  const ws = await workspaceRow(deps.db, credential.workspaceId);
+  const resumed =
+    ws?.kind === "judge" && workspaceAlive(ws, now)
+      ? await resumeSession(deps, { sessionId: credential.sessionId, ws, now })
+      : null;
+  if (!resumed) throw problem.expired("This judge session has ended. Press again to start a fresh one.");
+  return resumed.body;
 }
 
 /** The judge cookie's session, required to match `:sid` (a judge acts only in their own session). */
