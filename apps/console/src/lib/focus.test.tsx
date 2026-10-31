@@ -741,9 +741,10 @@ describe("useFocusGuard, the root's backstop", () => {
     const view = render(<Screens />);
     const whatsReal = view.getByTestId("whatsReal") as HTMLButtonElement;
     whatsReal.focus();
-    // A browser's focus fixup: the control turns disabled, and focus leaves it for <body> with nowhere to go.
-    whatsReal.disabled = true;
+    // A browser's focus fixup: the control turns disabled, and focus leaves it for <body> with nowhere to go (jsdom
+    // blurs no disabled control, so the blur comes first here, in the same task).
     whatsReal.blur();
+    whatsReal.disabled = true;
     await frames(1);
     expect(document.activeElement).toBe(view.getByTestId("fanout"));
   });
@@ -754,6 +755,8 @@ describe("useFocusGuard, the root's backstop", () => {
     link.focus();
     link.blur();
     expect(document.activeElement).toBe(document.body);
+    // Later (another task): the route changes on its own while focus is still where the person left it.
+    await frames(1);
     act(() => {
       link.click();
     });
