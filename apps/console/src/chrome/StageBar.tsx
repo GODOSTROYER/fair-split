@@ -5,8 +5,9 @@
 // glyphs the lockup and the story sit here instead, the story on its own row.
 
 import { Glyph, useT } from "@fairsplit/ui-web";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import type { PaypalRail } from "../lib/env.js";
+import { useFocusOnLeave } from "../lib/focus.js";
 import { AppLink } from "./AppLink.js";
 import { MOCK_DATA, railNotice, STAGE, story } from "./copy.js";
 import { SoundToggle } from "./SoundToggle.js";
@@ -27,6 +28,32 @@ export interface StageBarProps {
   readonly resetting: boolean;
   readonly onWhatsReal: () => void;
   readonly onReset: () => void;
+}
+
+/**
+ * Reset. While it runs it keeps the keyboard (aria-disabled: a disabled button loses its focus to <body>), and a
+ * second press does nothing. It goes once the session has (the first view is back): in that commit, before its
+ * DOM goes, focus moves to the screen's main control, the first press, so it never falls to <body> (WCAG 2.4.3).
+ */
+function ResetButton({ resetting, onReset }: { readonly resetting: boolean; readonly onReset: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useFocusOnLeave(ref);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="fsc-barlink fsc-barlink--fold"
+      onClick={() => {
+        if (!resetting) onReset();
+      }}
+      aria-disabled={resetting || undefined}
+      aria-busy={resetting || undefined}
+      data-testid="W-JG-01.reset"
+    >
+      <Glyph name="ms:restart-alt" size={16} />
+      <span className="fs-t-label">{STAGE.reset}</span>
+    </button>
+  );
 }
 
 export function StageBar({
@@ -78,19 +105,7 @@ export function StageBar({
           <span className="fs-t-label">{STAGE.whatsReal}</span>
         </button>
         <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
-        {canReset && (
-          <button
-            type="button"
-            className="fsc-barlink fsc-barlink--fold"
-            onClick={onReset}
-            disabled={resetting}
-            aria-busy={resetting || undefined}
-            data-testid="W-JG-01.reset"
-          >
-            <Glyph name="ms:restart-alt" size={16} />
-            <span className="fs-t-label">{STAGE.reset}</span>
-          </button>
-        )}
+        {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
         {proofHref && (
           <AppLink
             href={proofHref}

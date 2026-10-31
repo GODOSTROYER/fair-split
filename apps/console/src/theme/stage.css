@@ -135,7 +135,7 @@
   color: var(--fs-ink);
 }
 
-.fsc-barlink:disabled {
+.fsc-barlink:is(:disabled, [aria-disabled="true"]) {
   color: var(--fs-ink-3);
 }
 

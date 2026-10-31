@@ -67,28 +67,28 @@ function Desk() {
   const sessionFailed = session.status === "failed";
   const commandFailed = markPaid.isError;
 
+  // A press that is spent: ui-web's Slab stays committed once pressed, until it is remounted at rest (a new key).
+  const spent = useRef(false);
+  const rest = useCallback(() => {
+    spent.current = false;
+    setPressed(false);
+    setAttempt((a) => a + 1);
+  }, []);
+
   useEffect(() => {
     if (!pressed || (!sessionFailed && !commandFailed)) return;
-    setPressed(false);
-    setAttempt((a) => a + 1);
-  }, [pressed, sessionFailed, commandFailed]);
+    rest();
+  }, [pressed, sessionFailed, commandFailed, rest]);
 
-  // After Reset (or a session the server ended) the first view returns: the slab is pressable again. ui-web's Slab
-  // stays committed once pressed until it is remounted, so a press spent in a session that has gone (the judge
-  // still on /judge) is remounted at rest, under a new key.
-  const spent = useRef(false);
+  // After Reset (or a session the server ended) the first view returns: the slab is pressable again. A press still
+  // spent (the judge still on /judge) is remounted at rest; one a failure already put back at rest stays as it is,
+  // with the focus Reset handed it.
   useEffect(() => {
-    if (inSession) {
-      spent.current = true;
-      return;
-    }
-    if (session.status !== "none" && session.status !== "ended") return;
+    if (inSession || (session.status !== "none" && session.status !== "ended")) return;
     setPressed(false);
     markPaid.reset();
-    if (!spent.current) return;
-    spent.current = false;
-    setAttempt((a) => a + 1);
-  }, [inSession, session.status, markPaid.reset]);
+    if (spent.current) rest();
+  }, [inSession, session.status, markPaid.reset, rest]);
 
   usePrefocus(slabArea, "W-JG-01", !pressed && !movedOn);
   // The slab remounted at rest (above, or after a failure) takes the focus the spent one held, in that commit.
@@ -137,6 +137,7 @@ function Desk() {
     }
   };
   const press = async () => {
+    spent.current = true;
     setPressed(true);
     let started: Awaited<ReturnType<typeof session.start>>;
     try {
@@ -149,11 +150,7 @@ function Desk() {
     // payment only once the run reads INVOICED. A resumed session already past it has nothing to record; its
     // stream replays where the run is. Reset meanwhile ends the press.
     const readiness = await session.whenInvoiced(started);
-    // A press that ends without recording anything: the slab is remounted at rest, to be pressed again.
-    const rest = () => {
-      setPressed(false);
-      setAttempt((a) => a + 1);
-    };
+    // A press that ends without recording anything: the slab is remounted at rest (rest), to be pressed again.
     if (readiness === "ended") {
       rest();
       return;
