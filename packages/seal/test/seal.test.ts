@@ -91,7 +91,8 @@ describe("seal determinism", () => {
     }
   });
 
-  it("over 300 random batches, no two seals collide at 200 px or at 64 px", () => {
+  // 600 seals take under 1 s alone; under turbo on a 2-core CI runner they took over 5 s.
+  it("over 300 random batches, no two seals collide at 200 px or at 64 px", { timeout: 30_000 }, () => {
     for (const size of [200, 64]) {
       const seen = new Set<string>();
       for (let n = 0; n < 300; n++)
