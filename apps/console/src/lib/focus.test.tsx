@@ -289,6 +289,35 @@ describe("returnFocus reveals what it focuses", () => {
     expect(scrollTop).toBe(39 + 41);
   });
 
+  it("a target under a floating chip (the sound offer) is covered, and its scrollport scrolls it clear", () => {
+    // Below 1280 px the drawer is full width and the one-time sound offer floats over its lower left: Next, given
+    // focus by Count it once, sat under it (WCAG 2.4.11).
+    const { drawer } = stage();
+    const next = document.createElement("a");
+    next.href = "#next";
+    drawer.append(next);
+    const offer = document.createElement("section");
+    offer.className = "fsc-offer";
+    document.body.append(offer);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(956);
+    box(drawer, { top: 85, height: 758, width: 1036, left: 64 });
+    box(offer, { top: 760, height: 48, width: 320, left: 88 });
+    box(next, { top: 770, height: 16, width: 86, left: 104 });
+    let scrollTop = 400;
+    Object.defineProperty(drawer, "scrollTop", {
+      configurable: true,
+      get: () => scrollTop,
+      set: (v: number) => {
+        scrollTop = v;
+      },
+    });
+    next.scrollIntoView = vi.fn();
+    expect(outOfView(next)).toBe(true);
+    returnFocus(next);
+    // Up by what the chip covers below Next's top: 786 - 760 = 26 px.
+    expect(scrollTop).toBe(400 + 26);
+  });
+
   it("leaves a target in view where it is", () => {
     const { slab } = stage();
     const scroll = vi.fn();

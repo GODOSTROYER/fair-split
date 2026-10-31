@@ -125,4 +125,24 @@ describe("W-TR-10 Data mode", () => {
     fireEvent.keyDown(window, { key: "d" });
     expect(document.documentElement.hasAttribute("data-datamode")).toBe(true);
   });
+
+  it("Turn off on the plate takes the plate away: focus goes back to the page, never <body>", async () => {
+    await renderConsole({ path: webRoutes.ops() });
+    const ops = await screen.findByTestId("W-OP-01");
+    const opener = within(ops).getAllByRole("button")[0] as HTMLElement;
+    opener.focus();
+    fireEvent.keyDown(opener, { key: "d" });
+    const off = await screen.findByTestId("W-TR-10.datamode.off");
+    off.focus();
+    const watch = focusAcrossRemoval("W-TR-10.datamode");
+    try {
+      fireEvent.click(off);
+      expect(screen.queryByTestId("W-TR-10.datamode")).toBeNull();
+      await watch.frame();
+    } finally {
+      watch.restore();
+    }
+    expect(document.activeElement).toBe(opener);
+    for (const sample of watch.samples) expect(sample).toBe(opener);
+  });
 });
