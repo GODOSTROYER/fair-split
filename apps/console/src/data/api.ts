@@ -70,12 +70,38 @@ export function closeReasonOf(failure: ClientFailure): "expired" | "unauthorized
   return status === 403 ? "unauthorized" : "not-found";
 }
 
+/** The bearer a request carries, from its Authorization header. */
+function bearerOf(init: RequestInit | undefined): string | null {
+  const header = new Headers(init?.headers).get("authorization");
+  return header?.startsWith("Bearer ") ? header.slice(7) : null;
+}
+
 export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
   let token: string | null = null;
   const failureListeners = new Set<(failure: ClientFailure) => void>();
+  const refusedListeners = new Set<() => void>();
+  const underneath: FetchLike = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  // A 401 UNAUTHENTICATED to a request that carried the console's own token: fs-api no longer knows the token (a
+  // Reset in another tab revoked the workspace's tokens). Only that request's bearer counts: a brand link, a frame
+  // token or the judge cookie alone is refused for itself, and a token renewed meanwhile is not the one refused.
+  const watched: FetchLike = async (input, init) => {
+    const sent = bearerOf(init);
+    const res = await underneath(input, init);
+    if (res.status === 401 && sent !== null && sent === token) {
+      void res
+        .clone()
+        .json()
+        .then((body: { code?: unknown } | null) => {
+          if (body?.code !== "UNAUTHENTICATED" || sent !== token) return;
+          for (const listener of refusedListeners) listener();
+        })
+        .catch(() => undefined);
+    }
+    return res;
+  };
   const api: ApiClient = createApiClient({
     baseUrl: options.baseUrl ?? "",
-    ...(options.fetch ? { fetch: options.fetch } : {}),
+    fetch: watched,
     token: () => token,
     onError: (failure) => {
       for (const listener of failureListeners) listener(failure);
@@ -157,6 +183,10 @@ export function createApiAdapter(options: ApiAdapterOptions): DataAdapter {
     onFailure(listener) {
       failureListeners.add(listener);
       return () => failureListeners.delete(listener);
+    },
+    onTokenRefused(listener) {
+      refusedListeners.add(listener);
+      return () => refusedListeners.delete(listener);
     },
     pending: {
       snapshot: options.snapshot,

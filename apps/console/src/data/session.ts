@@ -69,6 +69,12 @@ export class SessionStore {
     adapter.onFailure((failure) => {
       if (isApiClientError(failure, "FRAME_TOKEN_EXPIRED") && this.state.session) void this.renew();
     });
+    // A Reset in another tab revoked this session's tokens (fs-api answers the console's token 401
+    // UNAUTHENTICATED): the session ended, as when a renewal lands in another workspace. Nothing is renewed (that
+    // would mint a new workspace), and the stage returns to the first press and says why.
+    adapter.onTokenRefused(() => {
+      if (this.state.status === "active" && this.state.session) this.end();
+    });
   }
 
   /** Called after the token is renewed (the hub reopens the streams the lapsed token closed). */

@@ -101,5 +101,10 @@ export interface DataAdapter {
   setToken(token: string | null): void;
   /** Every refusal the client reports (the session renews its token on FRAME_TOKEN_EXPIRED). */
   onFailure(listener: (failure: ClientFailure) => void): () => void;
+  /**
+   * A request that carried the console's own token was answered 401 UNAUTHENTICATED: fs-api no longer knows the
+   * token (a Reset in another tab revoked it), so the session it belonged to is over.
+   */
+  onTokenRefused(listener: () => void): () => void;
   readonly pending: PendingApi;
 }
