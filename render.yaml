@@ -138,12 +138,13 @@ services:
       - key: PP_UNCLAIMED_RECEIVER
         value: rhea.jumawan@example.org
       # Prompted once at creation. Two different Ed25519 seeds, 64 lowercase hex each: member and brand links,
-      # and the ledger checkpoints Proof verifies (unset, Proof would read "Sample" and change on every restart).
+      # and the ledger checkpoints Proof verifies. fs-api refuses to boot on Render with either one blank.
       - key: FS_LINK_SIGNING_KEY
         sync: false
       - key: FS_LEDGER_SIGNING_KEY
         sync: false
-      # `node tools/ops-hash-password.mjs`: the scrypt hash of the /ops password, never the password.
+      # `node tools/ops-hash-password.mjs`: the scrypt hash of the /ops password, never the password. Required
+      # on Render too: left blank, fs-api refuses to boot rather than deploy an /ops no one can sign in to.
       - key: FS_OPERATOR_PASSWORD_SCRYPT
         sync: false
       # Optional: the sha256 of the judge code that unlocks the judge-code bucket (runbook one-liner).

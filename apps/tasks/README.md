@@ -149,6 +149,9 @@ a tested entry, undeployed. The steps below need no install, except where `corep
    `PP_MODE=simulator`, `EXECUTOR=inline`, `STATIC_MEDIA_DIR`). fs-api's public origin is the URL Render gives
    the service (`RENDER_EXTERNAL_URL`); set `PUBLIC_ORIGIN` only for a custom domain. Render does not prompt
    for `sync: false` keys added after creation: set a later one in the Dashboard by hand.
+   Render accepts a prompt left blank, so fs-api refuses to boot on Render without `FS_LINK_SIGNING_KEY`,
+   `FS_LEDGER_SIGNING_KEY` or `FS_OPERATOR_PASSWORD_SCRYPT` (`src/env.ts` in apps/api): a failed deploy whose
+   log says one "is required" means that prompt was skipped. Set it under fs-api → Environment and deploy again.
 3. **PayPal rail (ADR-0002).** `PP_MODE: simulator` runs PayPal's REST subset on the contract-faithful
    simulator, and every PayPal-derived value is labelled "Simulated PayPal sandbox". The `PP_CLIENT_ID`,
    `PP_CLIENT_SECRET`, `PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`, `PP_RECEIVERS` and `PP_UNCLAIMED_RECEIVER` values
