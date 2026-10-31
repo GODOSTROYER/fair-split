@@ -5,7 +5,6 @@
 // synthetic and not a draft, its file is `audio/{its member}/{its lang}/{name}.m4a` and exists in the static media
 // directory, its `text` hashes to its `text_sha256`, and member, language, slot and hash equal the rendered
 // sentence's. Otherwise the sentence has no clip and the phone's voice reads it, labelled; never a near clip.
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
@@ -20,6 +19,7 @@ import {
   SYNTHETIC_VOICE_LABELS,
 } from "@fairsplit/contracts";
 import { z } from "zod";
+import { spokenTextSha256 } from "../../statements/render.js";
 
 /** The only clip files fs-api points at: `audio/{member}/{lang}/{name}.m4a`, relative to the media root. */
 export const AUDIO_CLIP_FILE_RE = /^audio\/(M-\d{3})\/(ceb|fil|en)\/[A-Za-z0-9_-]{1,64}\.m4a$/;
@@ -47,10 +47,9 @@ export type ManifestEntry = z.infer<typeof ManifestEntry>;
 
 const Manifest = z.object({ v: z.literal(1), synthetic: z.literal(true), entries: z.array(z.unknown()) });
 
-/** SHA-256 (lowercase hex) of the UTF-8 bytes of a spoken sentence: no trimming, no normalisation. */
-export function sha256Text(text: string): string {
-  return createHash("sha256").update(text, "utf8").digest("hex");
-}
+// One hash for IC-11's `textSha256` (ADR-0011 §3): T1's `spokenTextSha256`, the SHA-256 (lowercase hex) of a spoken
+// sentence's UTF-8 bytes with no trimming or normalisation, the very helper the manifest producer's `spokenScript`
+// writes `text_sha256` with. The route keeps no hash of its own, so the two can never disagree.
 
 /** The published manifest's entries that parse, one by one (read per request: it is small). */
 export function readAudioManifest(mediaDir: string): ManifestEntry[] {
@@ -83,7 +82,7 @@ function servable(e: ManifestEntry, mediaDir: string): boolean {
   if (e.draft || e.synthetic !== true) return false;
   const m = AUDIO_CLIP_FILE_RE.exec(e.file);
   if (!m || m[1] !== e.member_no || m[2] !== e.lang) return false;
-  if (sha256Text(e.text) !== e.text_sha256) return false;
+  if (spokenTextSha256(e.text) !== e.text_sha256) return false;
   return isFile(path.join(mediaDir, ...e.file.split("/")));
 }
 
@@ -132,7 +131,7 @@ export function resolveStatementAudio(args: {
     .sort((a, b) => (b.e.created_at ?? "").localeCompare(a.e.created_at ?? "") || a.i - b.i)
     .map(({ e }) => e);
   const sentences = args.sentences.map((s) => {
-    const textSha256 = sha256Text(s.text);
+    const textSha256 = spokenTextSha256(s.text);
     const hit = candidates.find((e) => e.slot === s.slot && e.text_sha256 === textSha256);
     // slot, variant and mentions say which sentence this is, so a client pairs it with its own without reading
     // words, and never pairs one form of a slot (PAY.paypal, the seeded AI note) with another (ADR-0011 §6)

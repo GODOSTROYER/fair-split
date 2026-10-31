@@ -5,7 +5,9 @@
 //   const audio = await mediaRoutes(createApiClient({ token: memberLink })).statementAudio({
 //     params: { lineId },
 //     query: { lang: "ceb" },
-//   });                                      // { source, label, deviceLabel, sentences: [{ slot, textSha256, clip }] }
+//   });
+//   // { lineId, memberNo, lang, source, label, deviceLabel,
+//   //   sentences: [{ slot, variant, mentions, textSha256, clip }] }  // one per spoken sentence, in reading order
 //
 // The schemas are `@fairsplit/contracts`' own, which fs-api's route uses too; apps/api's media-client test compares
 // this table with the route the server mounts (method, path, auth class, statuses and both schemas as JSON Schema).

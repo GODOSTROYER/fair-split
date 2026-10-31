@@ -1,16 +1,26 @@
 // Dynamic media: the archived-photo tile (OD-4) and which audio a statement plays, always labelled (I8).
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { type ApiError, type Lang, StatementAudio } from "@fairsplit/contracts";
 import { format } from "@fairsplit/domain";
 import { getPhotos } from "@fairsplit/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
+import { attestCash, loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
+import { spokenTextSha256 } from "../../statements/render.js";
+import { STATEMENT_SLOTS } from "../../statements/types.js";
 import type { StatementView } from "../../statements/view.js";
 import { findRepoRoot, staticDirs } from "../../static.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
-import { AUDIO_CLIP_FILE_RE, type ManifestEntry, sha256Text } from "./audio.js";
+import type { ManifestEntry } from "./audio.js";
 import { archivedTileSvg } from "./index.js";
 
 let t: TestApp;
@@ -33,12 +43,19 @@ function publishManifest(body: unknown): void {
 }
 
 /**
- * What the media/public assembly (H1, ADR-0011 §5) does with media/audio: the manifest and the non-draft clips it
- * lists under audio/{member}/{lang}/, copied to the same relative paths, and nothing else.
+ * The clips main's media assembly (tools/assemble-media.ts, H1; ADR-0011 §5) copies into the served folder
+ * (STATIC_MEDIA_DIR, apps/api/dist/media on Render): its allowlist's `audio/M-???/{ceb,fil,en}/s*.m4a` and
+ * `audio/drafts/M-???/{ceb,fil,en}/s*.m4a`. The drafts are copied too; the route never names one.
  */
+const ASSEMBLED = [
+  /^audio\/M-\d{3}\/(?:ceb|fil|en)\/s[^/]*\.m4a$/,
+  /^audio\/drafts\/M-\d{3}\/(?:ceb|fil|en)\/s[^/]*\.m4a$/,
+];
+
+/** What that assembly does with media/audio: the manifest and the clips it lists, at the same relative paths. */
 function publishSpike(): void {
   for (const e of spike().entries) {
-    if (e.draft || !AUDIO_CLIP_FILE_RE.test(e.file)) continue;
+    if (!ASSEMBLED.some((re) => re.test(e.file))) continue;
     const to = path.join(mediaDir, ...e.file.split("/"));
     mkdirSync(path.dirname(to), { recursive: true });
     copyFileSync(path.join(REPO_MEDIA, ...e.file.split("/")), to);
@@ -95,35 +112,67 @@ describe("GET /media/archived/:photoId.svg", () => {
 
 type Spoken = StatementView["spoken"][number];
 
+/** A clip's file as ADR-0011 §4 names it: `s{NN}-{SLOT}-{hash12}.m4a`, NN the slot's place (GREETING 01 … AI_NOTE 10). */
+function clipFile(memberNo: string, lang: Lang, s: Spoken): string {
+  const nn = String(STATEMENT_SLOTS.indexOf(s.slot) + 1).padStart(2, "0");
+  return `audio/${memberNo}/${lang}/s${nn}-${s.slot}-${spokenTextSha256(s.text).slice(0, 12)}.m4a`;
+}
+
+/** The fixture offsets of the IC-11 goldens (ic11-golden.test.ts): the slips in SOURCES, the name in GREETING. */
+const goldenOffsets = (s: Spoken) =>
+  s.slot === "SOURCES"
+    ? { offsets: s.mentions.map((ref, k) => ({ ref, at_ms: 1_500 + 600 * k })) }
+    : s.slot === "GREETING"
+      ? { offsets: [{ ref: "fact:HONORIFIC_NAME", at_ms: 700 }] }
+      : {};
+
+/** What fs-api and the app must agree on (ic11-golden.test.ts): everything but the line and the words' hashes. */
+const paired = (x: StatementAudio) => ({
+  ...x,
+  lineId: "(line)",
+  sentences: x.sentences.map(({ textSha256: _, clip, ...s }) => ({
+    ...s,
+    clip: clip && { ...clip, textSha256: "(words)" },
+  })),
+});
+
 describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
-  const lineId = () => must(w.lineIds.get("M-014"));
-  const member = () =>
-    t.credentials.bearer(t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: lineId() }));
-  const statement = async (lang: Lang) => {
-    const r = await t.json<StatementView>(`/v1/statements/${lineId()}?lang=${lang}`, { as: member() });
+  const lineId = (memberNo = "M-014") => must(w.lineIds.get(memberNo));
+  const member = (memberNo = "M-014") =>
+    t.credentials.bearer(t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: lineId(memberNo) }));
+  const statement = async (lang: Lang, memberNo = "M-014") => {
+    const r = await t.json<StatementView>(`/v1/statements/${lineId(memberNo)}?lang=${lang}`, {
+      as: member(memberNo),
+    });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     return r.body;
   };
-  const audio = async (lang?: Lang) => {
-    const r = await t.json<StatementAudio>(`/v1/media/audio/${lineId()}${lang ? `?lang=${lang}` : ""}`, {
-      as: member(),
-    });
+  const audio = async (lang?: Lang, memberNo = "M-014") => {
+    const r = await t.json<StatementAudio>(
+      `/v1/media/audio/${lineId(memberNo)}${lang ? `?lang=${lang}` : ""}`,
+      { as: member(memberNo) },
+    );
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     return StatementAudio.parse(r.body);
   };
-  /** Publishes a fixture manifest for M-014: one entry per spoken sentence (or none), its file in the media dir. */
-  const fixture = (lang: Lang, view: StatementView, each: (s: Spoken) => Record<string, unknown> | null) => {
-    const entries = view.spoken.flatMap((s, i) => {
+  /** Publishes a fixture manifest for one line: one entry per spoken sentence (or none), its file in the media dir. */
+  const fixture = (
+    lang: Lang,
+    view: StatementView,
+    each: (s: Spoken) => Record<string, unknown> | null,
+    memberNo = "M-014",
+  ) => {
+    const entries = view.spoken.flatMap((s) => {
       const over = each(s);
       if (!over) return [];
       const e = {
-        member_no: "M-014",
+        member_no: memberNo,
         lang,
         slot: s.slot,
-        file: `audio/M-014/${lang}/${String(i).padStart(2, "0")}-${s.slot}.m4a`,
+        file: clipFile(memberNo, lang, s),
         duration_ms: 6_000,
         text: s.text,
-        text_sha256: sha256Text(s.text),
+        text_sha256: spokenTextSha256(s.text),
         synthetic: true,
         draft: false,
         model: "gemini-3.8-flash-tts",
@@ -151,7 +200,7 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
     expect(a.sentences.map((s) => s.variant)).toEqual(view.spoken.map((s) => s.variant));
     expect(a.sentences.find((s) => s.slot === "PAY")?.variant).toBe("paypal");
     expect(a.sentences.map((s) => s.mentions)).toEqual(view.spoken.map((s) => s.mentions));
-    expect(a.sentences.map((s) => s.textSha256)).toEqual(view.spoken.map((s) => sha256Text(s.text)));
+    expect(a.sentences.map((s) => s.textSha256)).toEqual(view.spoken.map((s) => spokenTextSha256(s.text)));
 
     const greeting = must(view.spoken[0]);
     const real = must(
@@ -161,7 +210,7 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
     expect(real.text).toBe(greeting.text);
     expect(a.sentences[0]?.clip).toEqual({
       url: `/media/${real.file}`,
-      textSha256: sha256Text(greeting.text),
+      textSha256: spokenTextSha256(greeting.text),
       label: "Sintetikong tingog (Gemini TTS)",
       slot: "GREETING",
       offsets: [],
@@ -208,8 +257,8 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
       deviceLabel: "Device voice",
     });
     a.sentences.forEach((s, i) => {
-      expect(s.clip?.url).toBe(`/media/audio/M-014/en/${String(i).padStart(2, "0")}-${s.slot}.m4a`);
-      expect(s.clip?.textSha256).toBe(sha256Text(must(view.spoken[i]).text));
+      expect(s.clip?.url).toBe(`/media/${clipFile("M-014", "en", must(view.spoken[i]))}`);
+      expect(s.clip?.textSha256).toBe(spokenTextSha256(must(view.spoken[i]).text));
       expect(s.clip?.label).toBe("Synthetic voice (Gemini TTS)");
     });
     expect(a.sentences.find((s) => s.slot === "SOURCES")?.clip?.offsets).toEqual(
@@ -222,32 +271,64 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
     const golden = JSON.parse(
       readFileSync(new URL("./ic11-m014.golden.json", import.meta.url), "utf8"),
     ) as Record<Lang, StatementAudio>;
-    /** What fs-api and the app must agree on (ic11-golden.test.ts): everything but the line and the words. */
-    const paired = (x: StatementAudio) => ({
-      ...x,
-      lineId: "(line)",
-      sentences: x.sentences.map(({ textSha256: _, clip, ...s }) => ({
-        ...s,
-        clip: clip && { ...clip, textSha256: "(words)" },
-      })),
-    });
     for (const lang of ["ceb", "fil", "en"] as const) {
-      fixture(lang, await statement(lang), (s) =>
-        s.slot === "SOURCES"
-          ? { offsets: s.mentions.map((ref, k) => ({ ref, at_ms: 1_500 + 600 * k })) }
-          : s.slot === "GREETING"
-            ? { offsets: [{ ref: "fact:HONORIFIC_NAME", at_ms: 700 }] }
-            : {},
-      );
+      fixture(lang, await statement(lang), goldenOffsets);
       expect(paired(await audio(lang)), lang).toEqual(paired(StatementAudio.parse(golden[lang])));
     }
+  });
+
+  it("the route's answers for the cash lines M-031 and M-053 are the IC-11 cash golden's: PAY.cash_nodate, then PAY.cash once the receipt is recorded", async () => {
+    const golden = JSON.parse(readFileSync(new URL("./ic11-cash.golden.json", import.meta.url), "utf8")) as {
+      cases: { memberNo: string; lang: Lang; cashDay: string | null; answer: unknown }[];
+    };
+    const check = async (received: boolean) => {
+      const cases = golden.cases.filter((c) => (c.cashDay !== null) === received);
+      expect(cases.map((c) => c.memberNo)).toEqual(["M-031", "M-053"]);
+      for (const c of cases) {
+        fixture(c.lang, await statement(c.lang, c.memberNo), goldenOffsets, c.memberNo);
+        const a = await audio(c.lang, c.memberNo);
+        expect(a.sentences.find((s) => s.slot === "PAY")?.variant, c.memberNo).toBe(
+          received ? "cash" : "cash_nodate",
+        );
+        // the very clips the golden names (their file names carry the words' hash), on fs-api's real answer
+        expect(paired(a), `${c.memberNo} ${c.lang}`).toEqual(paired(StatementAudio.parse(c.answer)));
+      }
+    };
+    // the showcase world leaves both lines' cash due at the bodega: no receipt yet
+    await check(false);
+    // the clerk records the cash handed over on cash day (the clerk's "Nadawat")
+    await attestCash(t.deps.db, w, ["M-031", "M-053"]);
+    await check(true);
+  });
+
+  it("the drafts main's assembly copies into the served folder are never named by an answer", async () => {
+    publishSpike();
+    const drafts = spike().entries.filter((e) => e.draft);
+    expect(drafts.length).toBeGreaterThan(0);
+    for (const d of drafts) {
+      // copied by the assembly, like any clip its allowlist serves
+      expect(existsSync(path.join(mediaDir, ...d.file.split("/"))), d.file).toBe(true);
+      expect(d.file.startsWith("audio/drafts/"), d.file).toBe(true);
+    }
+    for (const lang of ["ceb", "fil", "en"] as const) {
+      const a = await audio(lang);
+      const urls = a.sentences.flatMap((s) => (s.clip ? [s.clip.url] : []));
+      expect(
+        urls.filter((u) => u.includes("/drafts/")),
+        lang,
+      ).toEqual([]);
+    }
+    // the draft Cebuano greeting has the statement's exact words, yet the answer names the published take
+    const ceb = await audio("ceb");
+    expect(drafts.some((d) => d.lang === "ceb" && d.text_sha256 === ceb.sentences[0]?.textSha256)).toBe(true);
+    expect(ceb.sentences[0]?.clip?.url).toBe("/media/audio/M-014/ceb/s1.m4a");
   });
 
   it("mismatch: no sentence ever gets a clip of other words, under a lying hash, a draft or an unlisted file", async () => {
     const view = await statement("en");
     const mismatches: ((s: Spoken) => Record<string, unknown>)[] = [
-      (s) => ({ text: `${s.text} `, text_sha256: sha256Text(`${s.text} `) }),
-      (s) => ({ text: `${s.text}!`, text_sha256: sha256Text(s.text) }),
+      (s) => ({ text: `${s.text} `, text_sha256: spokenTextSha256(`${s.text} `) }),
+      (s) => ({ text: `${s.text}!`, text_sha256: spokenTextSha256(s.text) }),
       () => ({ draft: true }),
       (s) => ({ slot: s.slot === "HELP" ? "GREETING" : "HELP" }),
       (s) => ({ file: `audio/drafts/M-014/en/${s.slot}.m4a` }),

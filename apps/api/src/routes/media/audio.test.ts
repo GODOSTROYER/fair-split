@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { AUDIO_SLOTS, StatementAudio } from "@fairsplit/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { spokenTextSha256 } from "../../statements/render.js";
 import { STATEMENT_SLOTS } from "../../statements/types.js";
 import {
   AUDIO_CLIP_FILE_RE,
@@ -13,7 +14,6 @@ import {
   readAudioManifest,
   resolveStatementAudio,
   type SpokenSentence,
-  sha256Text,
 } from "./audio.js";
 
 const LINE = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";
@@ -38,7 +38,7 @@ function entry(over: Partial<ManifestEntry> & { text: string; slot: ManifestEntr
     lang: "ceb",
     file: `audio/M-014/ceb/${over.slot}.m4a`,
     duration_ms: 4_000,
-    text_sha256: sha256Text(over.text),
+    text_sha256: spokenTextSha256(over.text),
     synthetic: true,
     draft: false,
     model: "gemini-3.8-flash-tts",
@@ -78,13 +78,15 @@ afterAll(() => rmSync(mediaDir, { recursive: true, force: true }));
 
 describe("textSha256", () => {
   it("is the lowercase hex SHA-256 of the sentence's UTF-8 bytes, nothing trimmed or normalised", () => {
-    expect(sha256Text(GREETING)).toBe("596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b");
-    expect(sha256Text("₱")).toBe(
+    expect(spokenTextSha256(GREETING)).toBe(
+      "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
+    );
+    expect(spokenTextSha256("₱")).toBe(
       createHash("sha256")
         .update(Buffer.from([0xe2, 0x82, 0xb1]))
         .digest("hex"),
     );
-    expect(sha256Text(`${GREETING} `)).not.toBe(sha256Text(GREETING));
+    expect(spokenTextSha256(`${GREETING} `)).not.toBe(spokenTextSha256(GREETING));
   });
 
   it("the contract's slots are the statement plan's slots", () => {
@@ -114,10 +116,10 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
         slot: "GREETING",
         variant: "default",
         mentions: [],
-        textSha256: sha256Text(GREETING),
+        textSha256: spokenTextSha256(GREETING),
         clip: {
           url: "/media/audio/M-014/ceb/GREETING.m4a",
-          textSha256: sha256Text(GREETING),
+          textSha256: spokenTextSha256(GREETING),
           label: "Sintetikong tingog (Gemini TTS)",
           slot: "GREETING",
           offsets: [],
@@ -128,7 +130,7 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
         slot: "SOURCES",
         variant: "default",
         mentions: ["slip:0403", "slip:0419"],
-        textSha256: sha256Text(SOURCES),
+        textSha256: spokenTextSha256(SOURCES),
         clip: expect.objectContaining({
           url: "/media/audio/M-014/ceb/SOURCES.m4a",
           offsets: [
@@ -212,14 +214,14 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
         slot: "GREETING",
         variant: "default",
         mentions: [],
-        textSha256: sha256Text(`${GREETING} `),
+        textSha256: spokenTextSha256(`${GREETING} `),
         clip: null,
       },
     ]);
   });
 
   it("mismatch: a manifest whose text does not hash to its text_sha256 is not trusted", () => {
-    const lying = entry({ slot: "GREETING", text: "Other words.", text_sha256: sha256Text(GREETING) });
+    const lying = entry({ slot: "GREETING", text: "Other words.", text_sha256: spokenTextSha256(GREETING) });
     expect(resolve([lying]).sentences[0]?.clip).toBeNull();
   });
 
@@ -293,6 +295,14 @@ describe("readAudioManifest: media/public/audio/manifest.json, entry by entry", 
           { ...good, synthetic: false },
           { ...good, text_sha256: "A".repeat(64) },
           { ...good, offsets: [{ ref: "slip:0403", at_ms: -1 }] },
+          // one malformed offset ref invalidates the whole entry, not just that offset (ADR-0011 §5 rule 1)
+          {
+            ...good,
+            offsets: [
+              { ref: "fact:HONORIFIC_NAME", at_ms: 700 },
+              { ref: "fact:Honorific", at_ms: 900 },
+            ],
+          },
         ],
       });
       expect(readAudioManifest(dir)).toEqual([good]);
