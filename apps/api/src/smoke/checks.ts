@@ -74,15 +74,24 @@ const OutboxProbe = z.object({
   }),
 });
 
-/** Commands whose success the smoke requires (the rest may also answer with one of their listed refusals). */
+/**
+ * Commands whose success the smoke requires (the rest may also answer with one of their listed refusals). Mark paid is
+ * the judge's funding on the simulated rail: in a judge session a QUEUED, a PayPal refusal or a 5xx is a failure.
+ */
 const MUST_SUCCEED: ReadonlySet<ApiCommandName> = new Set([
   "createJudgeSession",
   "presence",
   "setFlag",
+  "markPaid",
   "capture",
   "createPairing",
   "claimPairing",
 ]);
+/** Of those, the ones whose 5xx fails the smoke too (the others may answer a listed 5xx, e.g. a busy judge pool). */
+const NO_REFUSAL: ReadonlySet<ApiCommandName> = new Set(["markPaid"]);
+
+/** The review a judge run opens with: the seed's holds (H1–H3 block approval, plus one that does not). */
+export const JUDGE_REVIEW_HOLDS = { open: 4, blocking: 3 } as const;
 
 export async function runSmoke(target: SmokeTarget): Promise<SmokeReport> {
   const base = target.baseUrl.replace(/\/+$/, "");
@@ -329,9 +338,16 @@ export async function runSmoke(target: SmokeTarget): Promise<SmokeReport> {
     { body: { flag: "kill_ai_live", on: false } },
     "/v1/flags (kill_ai_live off)",
   );
-  await command(asTreasurer, "markPaid", { params: { runSlug } }, `/v1/runs/${runSlug}/mark-paid`);
-  // the reading (Judge Mode: the seed's labelled stand-in, about 11 s): a run must not stay at EXTRACTING
-  record(await waitForReading(base, runSlug, bearer));
+  const paid = await command(
+    asTreasurer,
+    "markPaid",
+    { params: { runSlug } },
+    `/v1/runs/${runSlug}/mark-paid`,
+  );
+  // the reading (Judge Mode: the seed's labelled stand-in, about 11 s): it must open the review with the seed's holds,
+  // and slip 0462's stained gross and net must wait for a person
+  record(await waitForReading(base, runSlug, bearer, paid !== null));
+  record(await byHand0462(base, seasonCode, bearer));
   await command(
     asTreasurer,
     "resolveHold",
@@ -545,9 +561,12 @@ function finish(checks: SmokeCheck[], covered: Set<ApiCommandName>, run: SmokeRe
 }
 
 /** A refusal passes when it is a listed IC-01 code; a placeholder 501, a 500, drift or no answer fails. */
-function judgeFailure(name: ApiCommandName, e: ClientFailure): Omit<SmokeCheck, "name" | "target"> {
+export function judgeFailure(name: ApiCommandName, e: ClientFailure): Omit<SmokeCheck, "name" | "target"> {
   if (isApiClientError(e)) {
-    const bad = e.status === 501 || e.code === "INTERNAL" || (MUST_SUCCEED.has(name) && e.status < 500);
+    const bad =
+      e.status === 501 ||
+      e.code === "INTERNAL" ||
+      (MUST_SUCCEED.has(name) && (e.status < 500 || NO_REFUSAL.has(name)));
     return {
       status: e.status,
       outcome: `${e.code}${bad ? " (not accepted here)" : " (a listed refusal)"}`,
@@ -593,19 +612,47 @@ const ReadingProbe = z.object({
 });
 
 /**
+ * The reading's verdict in a judge session: Mark paid succeeded, and the run left FUNDED and EXTRACTING for the
+ * review with the seed's holds (JUDGE_REVIEW_HOLDS). A run still INVOICED after Mark paid answered 200 funded
+ * nothing, and fails; so does one still reading, one that ended (HALTED), or a review with other holds.
+ */
+export function readingVerdict(o: {
+  markPaid: boolean;
+  state: string | null;
+  holds: { open: number; blocking: number } | null;
+  secs: string;
+}): { outcome: string; ok: boolean } {
+  if (!o.markPaid) return { outcome: "not started: Mark paid did not succeed", ok: false };
+  if (o.state === null) return { outcome: "unreadable", ok: false };
+  if (o.state === "INVOICED")
+    return { outcome: "Mark paid answered 200 but funded nothing (run still INVOICED)", ok: false };
+  if (o.state === "FUNDED" || o.state === "EXTRACTING")
+    return { outcome: `still ${o.state} after ${o.secs} s`, ok: false };
+  const holds = o.holds ? `holds ${o.holds.open} open / ${o.holds.blocking} blocking` : "no holds";
+  const ok =
+    o.state === "IN_REVIEW" &&
+    o.holds?.open === JUDGE_REVIEW_HOLDS.open &&
+    o.holds.blocking === JUDGE_REVIEW_HOLDS.blocking;
+  return {
+    outcome: `state ${o.state} after ${o.secs} s, ${holds}${ok ? "" : ` (want IN_REVIEW, ${JUDGE_REVIEW_HOLDS.open} open / ${JUDGE_REVIEW_HOLDS.blocking} blocking)`}`,
+    ok,
+  };
+}
+
+/**
  * After Mark paid: waits (up to 40 s; Judge Mode's reading takes about 11 s) for the run to leave FUNDED and
- * EXTRACTING. Passes once it has (the review opened), or when Mark paid funded nothing (the reading never began);
- * fails when the run is still reading at the end.
+ * EXTRACTING, then judges it (readingVerdict).
  */
 async function waitForReading(
   base: string,
   runSlug: string,
   headers: Record<string, string>,
+  markPaid: boolean,
 ): Promise<SmokeCheck> {
   const target = `GET /v1/runs/${runSlug} (the reading)`;
   const started = Date.now();
   let last: z.infer<typeof ReadingProbe> | null = null;
-  while (Date.now() - started < 40_000) {
+  while (markPaid && Date.now() - started < 40_000) {
     const parsed = ReadingProbe.safeParse(
       await fetch(`${base}/v1/runs/${runSlug}`, { headers })
         .then((r) => r.json())
@@ -617,21 +664,77 @@ async function waitForReading(
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  const secs = ((Date.now() - started) / 1000).toFixed(1);
-  if (!last) return { name: "run.reading", target, status: null, outcome: "unreadable", ok: false };
-  const state = last.run.state;
-  const reading = state === "FUNDED" || state === "EXTRACTING";
-  return {
-    name: "run.reading",
-    target,
-    status: 200,
-    outcome: reading
-      ? `still ${state} after ${secs} s`
-      : state === "INVOICED"
-        ? "not started: Mark paid funded nothing (run INVOICED)"
-        : `state ${state} after ${secs} s, holds ${last.holds.open} open / ${last.holds.blocking} blocking`,
-    ok: !reading,
-  };
+  const v = readingVerdict({
+    markPaid,
+    state: last?.run.state ?? null,
+    holds: last?.holds ?? null,
+    secs: ((Date.now() - started) / 1000).toFixed(1),
+  });
+  return { name: "run.reading", target, status: last ? 200 : null, ...v };
+}
+
+const ByHandProbe = z.object({
+  slips: z.array(
+    z.object({
+      fields: z.array(
+        z.object({
+          field: z.string(),
+          displayMerge: z.string(),
+          finalValue: z.string().nullable(),
+          decidedBy: z.string().nullable(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
+ * Slip 0462's verdict: its water stain hides the second character of gross and net in both reads, so a copy of it must
+ * hold both fields with no value decided, waiting for a person (the seed's by-hand item).
+ */
+export function byHandVerdict(body: unknown): { outcome: string; ok: boolean } {
+  const parsed = ByHandProbe.safeParse(body);
+  if (!parsed.success || parsed.data.slips.length === 0) return { outcome: "no slip 0462", ok: false };
+  for (const slip of parsed.data.slips) {
+    const waiting = (name: string) =>
+      slip.fields.find((f) => f.field === name && f.finalValue === null && f.decidedBy === null);
+    const gross = waiting("gross_kg");
+    const net = waiting("net_kg");
+    if (gross && net)
+      return {
+        outcome: `0462 gross ${gross.displayMerge} and net ${net.displayMerge} wait for a person`,
+        ok: true,
+      };
+  }
+  return { outcome: "0462's gross and net do not both wait for a person", ok: false };
+}
+
+/** GET /v1/seasons/:code/slips/0462, judged by byHandVerdict. */
+async function byHand0462(
+  base: string,
+  seasonCode: string,
+  headers: Record<string, string>,
+): Promise<SmokeCheck> {
+  const path = `/v1/seasons/${seasonCode}/slips/0462`;
+  try {
+    const res = await fetch(`${base}${path}`, { headers });
+    const v = byHandVerdict(await res.json().catch(() => null));
+    return {
+      name: "run.byHand",
+      target: `GET ${path}`,
+      status: res.status,
+      ...v,
+      ok: res.status === 200 && v.ok,
+    };
+  } catch (err) {
+    return {
+      name: "run.byHand",
+      target: `GET ${path}`,
+      status: null,
+      outcome: `network: ${message(err)}`,
+      ok: false,
+    };
+  }
 }
 
 /** Opens a stream, reads it for a moment, and parses every event as an IC-01 RunEvent (or the Proof aggregate). */
