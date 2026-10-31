@@ -4,6 +4,7 @@
 //   - PP_DEV_MOCKS is on while RENDER=true (or NODE_ENV=production);
 //   - PP_MODE=sandbox lacks PP_CLIENT_ID, PP_CLIENT_SECRET or PP_WEBHOOK_ID;
 //   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed;
+//   - RENDER=true and nothing names the public origin (PUBLIC_ORIGIN, PUBLIC_BASE_URL or Render's RENDER_EXTERNAL_URL);
 //   - EXECUTOR=workflow lacks RENDER_API_KEY.
 //   - a PP_* e-mail setting (PP_BUSINESS_EMAIL, PP_PAYER_EMAIL, PP_UNCLAIMED_RECEIVER, each PP_RECEIVERS entry)
 //     is not a strict printable-ASCII address, or PP_CERT_ALLOW names something that is not a PayPal cert id;
@@ -50,6 +51,8 @@ const Raw = z.object({
   /** The public origin (links, pairing URLs, CORS-free same-origin checks), e.g. https://fs-api.onrender.com */
   PUBLIC_ORIGIN: nonEmpty,
   PUBLIC_BASE_URL: nonEmpty,
+  /** Set by Render on every web service (https://<name>.onrender.com): the origin when PUBLIC_ORIGIN is unset. */
+  RENDER_EXTERNAL_URL: nonEmpty,
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   /** Which proxy in front of fs-api reports the client's address (none | proxy | cloudflare | render). */
   FS_TRUSTED_EDGE: nonEmpty,
@@ -244,7 +247,12 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     warnings.push("FS_ALLOW_OWNER_ROLE is on: only triggers guard history (record the S6 ADR)");
   }
 
-  const origin = r.PUBLIC_ORIGIN ?? r.PUBLIC_BASE_URL ?? `http://localhost:${r.PORT}`;
+  // Pairing QR codes, member and brand links and the cookies' Secure flag all follow this origin, so on Render it
+  // must be the service's public URL: PUBLIC_ORIGIN for a custom domain, else the URL Render gives the service.
+  const named = r.PUBLIC_ORIGIN ?? r.PUBLIC_BASE_URL ?? r.RENDER_EXTERNAL_URL;
+  if (named === undefined && r.RENDER)
+    problems.push("on Render, PUBLIC_ORIGIN or RENDER_EXTERNAL_URL must name the public origin");
+  const origin = named ?? `http://localhost:${r.PORT}`;
   if (!isHttpUrl(origin)) problems.push("PUBLIC_ORIGIN must be an http(s) origin");
 
   // Render is the platform's own word (it sets RENDER=true on every service): there Cloudflare's edge and

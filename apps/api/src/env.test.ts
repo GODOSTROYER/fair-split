@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { BootRefusal, killEnv, parseEnv, TRUSTED_EDGES } from "./env.js";
 
@@ -89,6 +90,13 @@ describe("env: boot refusals (S3.13)", () => {
     for (const p of problems) {
       expect(p).not.toContain(SECRET_LOOKING);
       expect(p).not.toContain("short");
+    }
+  });
+
+  it("accepts the FS_COOKIE_SECRET Render generates (generateValue: a base64-encoded 256-bit value)", () => {
+    for (const value of [randomBytes(32).toString("base64"), randomBytes(32).toString("base64url")]) {
+      expect(value.length).toBeGreaterThanOrEqual(43);
+      expect(parseEnv({ ...PROD, FS_COOKIE_SECRET: value }).secrets.cookieSecret).toBe(value);
     }
   });
 
@@ -206,7 +214,8 @@ describe("env: PP_CERT_ALLOW pins PayPal webhook cert ids for paypal-core", () =
 });
 
 describe("env: FS_TRUSTED_EDGE names the one hop client addresses come from (S3.9)", () => {
-  const { NODE_ENV: _n, ...onRender } = PROD;
+  const { NODE_ENV: _n, ...offRender } = PROD;
+  const onRender = { ...offRender, RENDER_EXTERNAL_URL: "https://fs-api.onrender.com" };
 
   it("defaults to none off Render and to render on Render (RENDER=true is set by the platform)", () => {
     expect(parseEnv({}).trustedEdge).toBe("none");
@@ -226,5 +235,40 @@ describe("env: FS_TRUSTED_EDGE names the one hop client addresses come from (S3.
     expect(parseEnv(PROD).warnings.join(" ")).toMatch(/FS_TRUSTED_EDGE/);
     expect(parseEnv({ ...PROD, FS_TRUSTED_EDGE: "proxy" }).warnings.join(" ")).not.toMatch(/FS_TRUSTED_EDGE/);
     expect(parseEnv({ ...onRender, RENDER: "true" }).warnings.join(" ")).not.toMatch(/FS_TRUSTED_EDGE/);
+  });
+});
+
+describe("env: the public origin (links, pairing QR codes, the cookies' Secure flag)", () => {
+  const { NODE_ENV: _n, ...offRender } = PROD;
+  const RENDER_URL = "https://fs-api.onrender.com";
+
+  it("on Render falls back to RENDER_EXTERNAL_URL, which Render sets on every web service", () => {
+    const env = parseEnv({ ...offRender, RENDER: "true", RENDER_EXTERNAL_URL: RENDER_URL });
+    expect(env.publicOrigin).toBe(RENDER_URL);
+    expect(env.onRender).toBe(true);
+  });
+
+  it("PUBLIC_ORIGIN, then PUBLIC_BASE_URL, win over RENDER_EXTERNAL_URL (a custom domain)", () => {
+    const base = { ...offRender, RENDER: "true", RENDER_EXTERNAL_URL: RENDER_URL };
+    expect(parseEnv({ ...base, PUBLIC_ORIGIN: "https://fairsplit.example" }).publicOrigin).toBe(
+      "https://fairsplit.example",
+    );
+    expect(parseEnv({ ...base, PUBLIC_BASE_URL: "https://pay.example/x" }).publicOrigin).toBe(
+      "https://pay.example",
+    );
+  });
+
+  it("on Render refuses to boot with no origin at all, rather than print localhost links", () => {
+    expect(refusal({ ...offRender, RENDER: "true" })).toContain(
+      "on Render, PUBLIC_ORIGIN or RENDER_EXTERNAL_URL must name the public origin",
+    );
+    expect(refusal({ ...offRender, RENDER: "true", RENDER_EXTERNAL_URL: "fs-api" })).toContain(
+      "PUBLIC_ORIGIN must be an http(s) origin",
+    );
+  });
+
+  it("off Render stays on localhost:PORT unless an origin is given", () => {
+    expect(parseEnv({ PORT: "9000" }).publicOrigin).toBe("http://localhost:9000");
+    expect(parseEnv({ RENDER_EXTERNAL_URL: RENDER_URL }).publicOrigin).toBe(RENDER_URL);
   });
 });
