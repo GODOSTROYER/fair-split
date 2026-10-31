@@ -147,6 +147,12 @@ describe("catalogs", () => {
     }
   });
 
+  it("gives the seed's recordedOn to no run: the reading pill replays a labelled seed stand-in (E-19)", () => {
+    const pill = CATALOGS.en["W-JG-01.pill.reading"];
+    expect(pill).toMatch(/labelled seed stand-in/);
+    expect(pill).not.toMatch(/\{date\}|replay of the .*\brun\b|recorded/i);
+  });
+
   it("never says error, fraud or certified, and never shouts", () => {
     for (const lang of LANGS) {
       for (const [key, message] of Object.entries(CATALOGS[lang])) {

@@ -144,7 +144,7 @@ export const en = {
   "W-JG-01.lane.people": "People",
   "W-JG-01.lane.paypal": "PayPal",
   "W-JG-01.pill.markPaid": "Next: mark the invoice paid (simulated PayPal sandbox)",
-  "W-JG-01.pill.reading": "Reading 12 photos. Replay of the {date} run.",
+  "W-JG-01.pill.reading": "Reading 12 photos. Replay of a labelled seed stand-in.",
   "W-JG-01.pill.byHand": "Next: enter slip {slip} by hand",
   "W-JG-01.pill.holds": "Next: {count, plural, one {# hold needs} other {# holds need}} you",
   "W-JG-01.pill.approve": "Next: approve {count, plural, one {# payout} other {# payouts}}",
