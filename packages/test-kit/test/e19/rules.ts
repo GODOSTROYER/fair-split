@@ -93,6 +93,13 @@ export const RULES: readonly CopyRule[] = [
       re(String.raw`\brecorded\s+(?:${DATE}\s+)?(?:real\s+|live\s+)?(?:Claude\s+)?(?:run|reading|read)s?\b`),
       /\bClaude(?:['’]s)?\s+(?:\w+\s+){0,3}?(?:reading|run|reads?)\b[^.;]*?\brecorded\b/i,
       re(String.raw`(?<![\w-])${DATE}\s+(?:Claude\s+)?recordings?\b`),
+      // "the audit agent's invoice draft, from the same recording" (§6 What's real: remove it)
+      /\b(?:from|in|of|by)\s+the\s+same\s+recording\b/i,
+      /\brecordings?\s+of\s+(?:the\s+|a\s+)?Claude(?:['’]s)?\s+(?:\w+\s+){0,2}?(?:run|reading|read)s?\b/i,
+      /\brecorded\s+by\s+Claude\b(?!\s+Code)/i,
+      // "Replay, recorded 2026-10-24 (placeholder)" (§6: fs-api agent/recording.ts:42, replay.ts:82)
+      re(String.raw`\breplay\w*\b[^.;]*?\brecorded\s+(?:on\s+)?${DATE}`),
+      re(String.raw`\brecorded\s+(?:on\s+)?${DATE}\s*\(placeholder\)`),
     ),
     unless: /\bno\s+Claude\s+recording\b|\bnot\s+a\s+Claude\s+recording\b/i,
     liftedBy: "R1 (a recorded read of the hero slips) with C5d's exhibit",
@@ -107,12 +114,32 @@ export const RULES: readonly CopyRule[] = [
     unless: /\bstand-in\b|\bseed\b/i,
     liftedBy: "R2 (recordedOn replaced with R1's real date) with C5d's exhibit",
   },
+  {
+    id: "replay-as-claude-reading",
+    reason:
+      "A replay plays a labelled seed stand-in (J1: 'Seed stand-in, not a Claude recording'), never Claude's reading: say Claude 'is built to read' the slips, or what happens 'in a live run' (§6)",
+    pattern: either(
+      /\bClaude['’]s\s+(?:[\w-]+\s+)?(?:readings?|reads?|runs?)\b[^.;]{0,60}?\breplay(?:s|ed|ing)?\b/i,
+      /\breplay(?:s|ed|ing)?\s+(?:of\s+)?(?:the\s+|a\s+)?Claude['’]s\s+(?:[\w-]+\s+)?(?:readings?|reads?|runs?)\b/i,
+      /\bClaude\s+reads\s+(?:them|these|those|their\s+slips?|the\s+(?:[\w-]+\s+){0,2}?slips?)\b/i,
+    ),
+    unless: /\bbuilt\s+to\b|\bin\s+a\s+live\s+run\b|\bstand-in\b/i,
+    liftedBy: "C5d's exhibit of R1's real reading",
+  },
 
   // ------------------------------------------------------------------ §6: banned or qualified
   {
     id: "claudes-draft",
-    reason: "The audit agent is paused (WS-AGENT): there is no Claude draft; say 'the invoice draft' (§6)",
-    pattern: /\bClaude['’]s\s+(?:invoice\s+)?draft\b|\bClaude\s+drafted\b|\bdrafted\s+by\s+Claude\b/i,
+    reason:
+      "The audit agent is paused (WS-AGENT): there is no Claude or agent draft; say 'the invoice draft' or 'placeholder draft (seed-written)' (§6)",
+    pattern: either(
+      /\bClaude['’]s\s+(?:invoice\s+)?drafts?\b/i,
+      /(?<!\bClaude\s+Code\s+)\b(?:audit\s+)?agent['’]s\s+(?:invoice\s+)?drafts?\b/i,
+      /\b(?:Claude|the\s+(?:audit\s+)?agent)\s+(?:is|was)\s+(?:re-?)?drafting\b/i,
+      /\bClaude\s+(?:re-?)?drafts\b/i,
+      /(?<!\bClaude\s+Code\s+)\b(?:Claude|agent)[\s-](?:re-?)?drafted\b/i,
+      /\bdrafted\s+by\s+(?:Claude\b(?!\s+Code)|the\s+(?:audit\s+)?agent\b|an?\s+(?:AI\s+)?agent\b)/i,
+    ),
   },
   {
     id: "insufficient-funds-test-value",
@@ -305,9 +332,9 @@ export const EXCEPTIONS: readonly Allowance[] = [
 
 /**
  * Console copy waiting on C5a (console honesty copy, ws/console; schedule §3 C5a and §6), one named entry per
- * file, listed from ws/console's tip e5c5806 and re-checked at 42a9338. Q2 does not edit apps/console. While
- * ws/console is unmerged these files are absent and the entries are dormant; once it merges each must match, and
- * each one C5a rewords goes stale and must be deleted here.
+ * file, listed from ws/console's tip e5c5806 and re-checked at 42a9338 and e7757ad. Q2 does not edit
+ * apps/console. While ws/console is unmerged these files are absent and the entries are dormant; once it merges
+ * each must match, and each one C5a rewords goes stale and must be deleted here.
  */
 const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phrase: string])[]>> = {
   "apps/console/src/chrome/copy.ts": [
@@ -323,6 +350,8 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["sandbox-says-simulated", "Sandbox accounts"],
     ["claudes-draft", "Make Claude's draft overcharge"],
     ["insufficient-funds-test-value", "insufficient-funds test value"],
+    ["claudes-draft", "The audit agent's invoice draft"],
+    ["recorded-claude-run", "from the same recording"],
   ],
   "apps/console/src/data/describe.ts": [
     ["paypal-confirms-says-simulated", "confirmed by PayPal's postback"],
@@ -364,6 +393,9 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["recorded-claude-run", "recorded run"],
     ["recorded-claude-run", "stand-in for the {} recording"],
   ],
+  "apps/console/src/features/reading/model.ts": [
+    ["replay-as-claude-reading", "Claude's reading replays once"],
+  ],
   "apps/console/src/features/season/copy.ts": [
     ["recorded-claude-run", "in the recorded {} run"],
     ["claudes-draft", "Claude's draft"],
@@ -371,6 +403,10 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["paypal-confirms-says-simulated", "Nothing starts until PayPal confirms"],
     ["sandbox-says-simulated", "Marked as paid in sandbox"],
     ["sandbox-says-simulated", "in PayPal's sandbox"],
+    ["claudes-draft", "Claude is drafting again"],
+    ["replay-as-claude-reading", "Claude's reading of the slips replays next"],
+    ["replay-as-claude-reading", "Claude's reading of them replays now"],
+    ["replay-as-claude-reading", "Claude reads them once the money is in"],
   ],
   "apps/console/src/features/split/shared/copy.ts": [["paypal-confirms-says-simulated", "PayPal confirms"]],
   "apps/console/src/lib/provenance.ts": [["replay-of-dated-run", "replay of the {} run"]],

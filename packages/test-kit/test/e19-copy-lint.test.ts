@@ -30,6 +30,12 @@ const SLOW = 60_000;
 
 /** Rule ids that fire on one plain-text sentence (as a paragraph of markdown). */
 const firing = (text: string): string[] => [...new Set(lintText("planted.md", text).map((f) => f.rule))];
+/** Rule ids that fire on the same text as a string literal in a TypeScript copy module. */
+const literalFiring = (text: string): string[] => [
+  ...new Set(
+    lintText("copy.ts", `export const copy = { "X-01.line": ${JSON.stringify(text)} };`).map((f) => f.rule),
+  ),
+];
 
 const scope = () => scopeFiles(root);
 const scanned = () => [...scope().values()].flat();
@@ -122,16 +128,21 @@ describe("E-19 rules fire on planted copy", () => {
     expect(firing(PLANTED[id] ?? "")).toContain(id);
   });
 
-  it.each(RULES.map((r) => r.id))("%s lets its near misses through", (id) => {
-    for (const text of CLEAN[id] ?? []) expect(firing(text), text).not.toContain(id);
-  });
+  it.each(RULES.map((r) => r.id))(
+    "%s lets its near misses through, as markdown and as a TypeScript literal",
+    (id) => {
+      for (const text of CLEAN[id] ?? []) {
+        expect(firing(text), text).not.toContain(id);
+        expect(literalFiring(text), text).not.toContain(id);
+      }
+    },
+  );
 
   it.each(PLANTED_FORMS.map(([rule, text]) => [rule, text] as const))(
-    "%s fires on the placeholder or date form %j, as markdown and as a TypeScript literal",
+    "%s fires on the planted form %j, as markdown and as a TypeScript literal",
     (rule, text) => {
       expect(firing(text)).toContain(rule);
-      const literal = `export const copy = { "X-01.line": ${JSON.stringify(text)} };`;
-      expect(lintText("copy.ts", literal).map((f) => f.rule)).toContain(rule);
+      expect(literalFiring(text)).toContain(rule);
     },
   );
 

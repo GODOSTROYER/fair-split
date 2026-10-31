@@ -15,6 +15,7 @@ export const PLANTED: Readonly<Record<string, string>> = {
   "live-payouts": "Live payouts land on members' phones.",
   "recorded-claude-run": "Slip reading replays a recorded Claude run (29 Oct).",
   "replay-of-dated-run": "Reading 12 photos. Replay of the 29 Oct run.",
+  "replay-as-claude-reading": "Funded. Claude's reading of the slips replays next.",
   "claudes-draft": "Make Claude's draft overcharge Lantern Bay.",
   "insufficient-funds-test-value":
     "Send PayPal's insufficient-funds test value: a one-item batch it rejects at once.",
@@ -43,7 +44,9 @@ export const PLANTED: Readonly<Record<string, string>> = {
 /**
  * More forms a rule must catch beyond its one planted sentence: the placeholders and dates copy fills in (§6
  * "Console copy.ts:36" and "Stage.tsx:99–102", and seed constants.ts:121, whose recordedOn no copy may present as a
- * Claude run's date). Each is checked as a markdown paragraph and as a TypeScript string literal.
+ * Claude run's date), the paused agent's draft, a recording of Claude, and a replay presented as Claude's reading
+ * (the forms ws/console's What's real and season copy use). Each is checked as a markdown paragraph and as a
+ * TypeScript string literal.
  */
 export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] = [
   ["recorded-claude-run", "Claude wrote the line labels in the recorded {recorded} run."],
@@ -60,6 +63,42 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ["replay-of-dated-run", "Slip reading replays the Oct 29 Claude run."],
   ["replay-of-dated-run", "Replayed from the 2026-10-29 run."],
   ["replay-of-dated-run", "A replay of the {date} recording."],
+  // The paused audit agent's draft, in every form the console and film use (WS-AGENT; §6 "No evidence today").
+  ["claudes-draft", "Claude's drafts overcharge Lantern Bay."],
+  ["claudes-draft", "The audit agent's invoice draft, checked again by the policy lattice."],
+  ["claudes-draft", "The audit agent’s draft, checked again by the policy lattice."],
+  ["claudes-draft", "Policy refused it (invoiceEqualsQuote). Claude is drafting again."],
+  ["claudes-draft", "The Claude-drafted invoice."],
+  ["claudes-draft", "An agent-drafted invoice."],
+  ["claudes-draft", "The invoice was drafted by Claude through PayPal's Agent Toolkit."],
+  ["claudes-draft", "The invoice was drafted by the audit agent."],
+  ["claudes-draft", "Drafted by the agent, checked by the policy lattice."],
+  // A recording of Claude that does not exist (§6 What's real; fs-api agent/replay.ts:82).
+  ["recorded-claude-run", "The invoice draft, from the same recording, checked again by the policy lattice."],
+  ["recorded-claude-run", "Replays a recording of Claude's run."],
+  ["recorded-claude-run", "A reading recorded by Claude on 29 Oct."],
+  ["recorded-claude-run", "A reading recorded by Claude on {date}."],
+  ["recorded-claude-run", "Replay, recorded 2026-10-24 (placeholder)."],
+  ["recorded-claude-run", "Replay, recorded {recordedOn} (placeholder)"],
+  ["recorded-claude-run", "Recorded {} (placeholder)."],
+  // A replay presented as Claude reading the slips (§6; J1 labels them "Seed stand-in, not a Claude recording").
+  [
+    "replay-as-claude-reading",
+    "Claude's reading of them replays now; each photo ticks once its slips are read.",
+  ],
+  [
+    "replay-as-claude-reading",
+    "Photo B waits on the desk. Claude's reading replays once the invoice is paid.",
+  ],
+  ["replay-as-claude-reading", "Claude’s reading of the slips is replayed, sped up."],
+  ["replay-as-claude-reading", "A replay of Claude's reading."],
+  ["replay-as-claude-reading", "Replays Claude's reading of the slips."],
+  [
+    "replay-as-claude-reading",
+    "12 photos in Jessie's block capitals. Claude reads them once the money is in.",
+  ],
+  ["replay-as-claude-reading", "Claude reads the slips."],
+  ["replay-as-claude-reading", "Claude reads the handwritten weigh slips twice."],
 ];
 
 /** Template literals whose substitution sits where the claim's date goes (the scanner reads each one as "{}"). */
@@ -83,6 +122,16 @@ export const PLANTED_TEMPLATES: readonly (readonly [rule: string, source: string
     "replay-of-dated-run",
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
     "export const rows = (recorded: string) => [`invoiceEqualsQuote, replay of the ${recorded} run`];",
+  ],
+  [
+    "replay-as-claude-reading",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const deskNote = (count: number) => `${count} photos, four slips each. Claude reads them once the money is in.`;",
+  ],
+  [
+    "recorded-claude-run",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const label = (on: string) => `Replay, recorded ${on} (placeholder)`;",
   ],
 ];
 
@@ -121,6 +170,9 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "Recorded by the co-op, {time}.",
     "Cash received at the bodega, recorded {time}.",
     "The payment was recorded, then the invoice read back as paid.",
+    "A labelled replay of the step; the cash was recorded on 29 Oct.",
+    "The README was recorded by Claude Code agents in the run log.",
+    "Replays from the same seed stand-in, labelled.",
   ],
   "replay-of-dated-run": [
     "Reading 12 photos. Replay of a labelled seed stand-in.",
@@ -128,9 +180,25 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "Replay of the {date} run, a labelled seed stand-in.",
     "A labelled replay of the step, never a refusal.",
   ],
+  "replay-as-claude-reading": [
+    "The seeded stand-in replays now; each photo ticks once its slips are read.",
+    "We built to have Claude read every slip twice.",
+    "Claude is built to read the slips; this replay is a labelled stand-in.",
+    "In a live run, Claude reads the slips twice.",
+    "Claude reads them in a live run; here the slips replay a labelled stand-in.",
+    "Claude's live reads were last run on 22 Oct on code-drawn test slips.",
+    "Judge Mode replays a labelled seed stand-in for the slip reading; Claude's live reads were last run on 22 Oct.",
+    "Claude reads nothing live; a labelled stand-in plays.",
+  ],
   "claudes-draft": [
     "Make the invoice draft overcharge Lantern Bay.",
     "Placeholder draft (seed-written), checked by the live policy lattice.",
+    "Seed-written draft, created through PayPal’s Agent Toolkit on the simulated PayPal sandbox.",
+    "The audit agent is paused; the invoice draft is seed-written.",
+    "Claude Code agents drafted, reviewed and merged the code.",
+    "The README was drafted by Claude Code agents.",
+    "A Claude Code agent drafted this ADR.",
+    "Draft a proposal for the rate card.",
   ],
   "insufficient-funds-test-value": [
     "Send the simulator's modelled ERRPYO005 (insufficient funds): a one-item batch the simulated PayPal rejects at once.",
