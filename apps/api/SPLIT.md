@@ -7,8 +7,25 @@
 > link revocation into the shared resolver (the `isLinkRevoked` callback is now required, never defaulted); the
 > run, workspace and line streams take `STREAM_READERS` (= the runs slice's `CAN.readRuns`); and the typed client
 > has `judgeRoutes(api)` plus msw mocks for the judge and auth routes, parity-tested against the server
-> (src/routes/client-routes.test.ts). Still open across slices: `extract` has no inline handler in fs-api, and an
-> operator logout is enforced only in the browser (a server-side session epoch needs a WS-DATA table).
+> (src/routes/client-routes.test.ts). Still open across slices: an operator logout is enforced only in the browser
+> (a server-side session epoch needs a WS-DATA table). (`extract` has an inline handler since 31 Oct: below.)
+
+> **The reading, inline (31 Oct, J1).** `extract` runs in fs-api (`src/runs/extract.ts`, registered by `slips`): a
+> seeded workspace's replay photos (A–L) are read from the seed as a labelled stand-in, never a Claude recording.
+> Rows, fields, box-13 marks, slip 0449's quarantined note, the IC-01 `extract.field` / `extract.row` /
+> `extract.quarantined` events and each photo's `rows.accepted` are all provenance `seeded`, actor `system:seed`,
+> "Seed stand-in, not a Claude recording" (`SEED_STAND_IN`; `readingProvenance()` tells a run's reading). Scores are
+> domain `agreement` over two reads that are both the seed's text; slip 0462's stain hides the second character of
+> gross and net, so those two wait for a person at 0.40. One photo per step: each step queues the next one second
+> after its own due time in its own transaction (no request or executor slot waits; a restart resumes from the
+> committed row; the twelve land in about 11 s), a second delivery changes nothing, and the last step queues
+> computeRun once (`compute:{runId}:read`). Funding queues the reading under `extractDedupeKey` (IC-01's key, or its
+> sha256 past five photos): IC-01's key for 12 photos is 451 characters, over the outbox's 200, which made Mark paid
+> fail on every judge clone. A photo with no seed stand-in stays unread (a live reader is not built in this build).
+> `readRateCard`, `warmCaches`, `reconcile` and `pushNotify` complete at once with a labelled "not built in this
+> build" outcome (`src/runs/unbuilt.ts`), so no row of theirs dies. Tests: `src/runs/extract.pg.test.ts` (the hero
+> path on a world without pre-seeded replay rows, `runs/test/world.ts` `replayRows: false`; a judge session's own
+> clone; a second delivery; a restart with the real dispatcher) and the judge-replay twin.
 
 > **Judge rail obeyed (28 Oct, verifier round).** Every PayPal step of a judge workspace (Claude's invoice turn,
 > ensureInvoice, recordPayment, the batch POST, the parked item's cancel, the re-route) asks
@@ -170,7 +187,7 @@ A test for a slice lives next to its code, inside the slice's paths (`*.test.ts`
 | `judge`                                       | JUDGE | `createJudgeSession`, `presence`                            | sessions, pool, Reset, quotas, live lane, "Try to break it", `judgeReset` task                                                                         |
 | `auth`                                        | JUDGE | `createPairing`, `claimPairing`                             | frame tokens (`POST /v1/judge/sessions/:sid/frames`), member `/s/:token` exchange, brand `/b/:token`, `/ops/login`                                     |
 | `rate-cards`                                  | RUNS  | `addDeduction` (always 409, use `problem.rateCardRatified`) | rate-card read and ratify                                                                                                                              |
-| `slips`                                       | RUNS  | `capture`                                                   | extraction dispatch (`extract` task)                                                                                                                   |
+| `slips`                                       | RUNS  | `capture`                                                   | extraction dispatch and the inline `extract` task (the seed's labelled stand-in reading)                                                               |
 | `runs`                                        | RUNS  | `markPaid`, `setFlag`                                       | run reads, quote → invoice → funding, settle GETs, `ensureInvoice`/`recordPayment`/`postPayoutBatch`/`settleBatch`/`processWebhook`/`computeRun` tasks |
 | `holds`                                       | RUNS  | `resolveHold`                                               |                                                                                                                                                        |
 | `fields`                                      | RUNS  | `enterField`                                                |                                                                                                                                                        |
