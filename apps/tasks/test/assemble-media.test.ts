@@ -131,6 +131,46 @@ describe("tools/assemble-media: /media serves an explicit allowlist, never media
     expect(r.problems).toEqual(["slips/link.webp is a symlink; only regular files are served"]);
   });
 
+  it("refuses a public folder that is a symlink, and a media/ that is one, and reads nothing through either", () => {
+    // a public folder linked elsewhere: every file under it would match the allowlist's globs
+    const root = mediaTree({ "elsewhere/secret.webp": "not public" });
+    rmSync(join(root, "media/docs"), { recursive: true, force: true });
+    try {
+      symlinkSync(join(root, "elsewhere"), join(root, "media/docs"), "junction");
+    } catch {
+      return; // no symlink privilege here; the lstat guard is still typed in
+    }
+    const out = temp("fs-media-out-");
+    const r = assembleMedia(root, out);
+    expect(r.problems).toEqual(["docs/ is a symlink; a public folder must be a real folder"]);
+    expect(r.files).toEqual([]);
+    expect(listed(out)).toEqual([]);
+
+    // media/ itself linked to a tree elsewhere
+    const linked = temp("fs-media-linked-");
+    symlinkSync(join(mediaTree(), "media"), join(linked, "media"), "junction");
+    const viaLink = assembleMedia(linked, temp("fs-media-out-"));
+    expect(viaLink.problems).toEqual(["media/ is a symlink; it must be a real folder"]);
+    expect(viaLink.files).toEqual([]);
+  });
+
+  it("refuses a matched file whose path has a segment that starts with a dot, and ignores dot folders", () => {
+    const hidden = assembleMedia(
+      mediaTree({ "media/slips/.x.webp": "hidden", "media/photos/..webp": "hidden" }),
+      temp("fs-media-out-"),
+    );
+    expect(hidden.problems).toEqual([
+      "photos/..webp starts with a dot; hidden files are never served",
+      "slips/.x.webp starts with a dot; hidden files are never served",
+    ]);
+    expect(hidden.files).toEqual([]);
+    // a dot folder (an editor's or a tool's) is not walked at all, and nothing under it is served
+    const out = temp("fs-media-out-");
+    const r = assembleMedia(mediaTree({ "media/slips/.cache/y.webp": "cache" }), out);
+    expect(r.problems).toEqual([]);
+    expect(listed(out)).not.toContain("slips/.cache/y.webp");
+  });
+
   it("replaces the output folder, so a file from an earlier build never lingers", () => {
     const out = temp("fs-media-out-");
     writeFileSync(join(out, "stale.md"), "old");

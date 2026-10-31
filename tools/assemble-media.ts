@@ -6,7 +6,8 @@
 // else:
 //   - an allowlist entry outside the public folders, with `**`, `..`, a backslash or an absolute path, or for a
 //     type other than an .m4a clip, a .webp image or the one audio manifest;
-//   - a matched file that is a symlink;
+//   - media/ or a public folder that is a symlink (nothing is read through it), or a matched file that is one;
+//   - a matched file whose name starts with a dot (folders whose name does are never walked);
 //   - an audio manifest that is not JSON, or that names a clip the allowlist does not serve (it would 404 and
 //     the statement would fall back to the device voice).
 // The output folder is replaced, so nothing from an earlier build lingers.
@@ -107,9 +108,33 @@ export interface AssembleResult {
   readonly problems: readonly string[];
 }
 
-/** Every entry under the public folders of `mediaDir`, media/-relative, without following links. */
-function candidates(mediaDir: string): { rel: string; link: boolean }[] {
-  const out: { rel: string; link: boolean }[] = [];
+/** Whether `path` is a symlink (a Windows junction included); false when it does not exist. */
+function isLink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+interface Candidate {
+  rel: string;
+  link: boolean;
+  /** A file whose name starts with a dot (dot folders are never walked). */
+  hidden: boolean;
+}
+
+/**
+ * Every entry under the public folders of `mediaDir`, media/-relative, without following links: media/ and each
+ * public folder are checked with lstat first (a link there is a problem, and nothing is read through it), and a
+ * folder whose name starts with a dot is not walked.
+ */
+function candidates(mediaDir: string, problems: string[]): Candidate[] {
+  const out: Candidate[] = [];
+  if (isLink(mediaDir)) {
+    problems.push(`${MEDIA_ROOT}/ is a symlink; it must be a real folder`);
+    return out;
+  }
   const walk = (dir: string) => {
     let entries: Dirent[];
     try {
@@ -120,12 +145,18 @@ function candidates(mediaDir: string): { rel: string; link: boolean }[] {
     for (const e of entries) {
       const path = join(dir, e.name);
       const rel = relative(mediaDir, path).split(sep).join("/");
-      if (e.isSymbolicLink()) out.push({ rel, link: true });
-      else if (e.isDirectory()) walk(path);
-      else if (e.isFile()) out.push({ rel, link: false });
+      const hidden = e.name.startsWith(".");
+      if (e.isSymbolicLink()) out.push({ rel, link: true, hidden });
+      else if (e.isDirectory()) {
+        if (!hidden) walk(path);
+      } else if (e.isFile()) out.push({ rel, link: false, hidden });
     }
   };
-  for (const folder of PUBLIC_FOLDERS) walk(join(mediaDir, folder));
+  for (const folder of PUBLIC_FOLDERS) {
+    const dir = join(mediaDir, folder);
+    if (isLink(dir)) problems.push(`${folder}/ is a symlink; a public folder must be a real folder`);
+    else walk(dir);
+  }
   return out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 }
 
@@ -155,9 +186,10 @@ export function assembleMedia(
   const mediaDir = join(root, MEDIA_ROOT);
   const globs = allowlist.map(globRegExp);
   const files: string[] = [];
-  for (const c of candidates(mediaDir)) {
+  for (const c of candidates(mediaDir, problems)) {
     if (!globs.some((g) => g.test(c.rel))) continue;
     if (c.link) problems.push(`${c.rel} is a symlink; only regular files are served`);
+    else if (c.hidden) problems.push(`${c.rel} starts with a dot; hidden files are never served`);
     else files.push(c.rel);
   }
   if (files.includes(MANIFEST)) {
