@@ -10,11 +10,12 @@
 import { Tabs } from "@base-ui/react/tabs";
 import type { SeasonSnapshot } from "@fairsplit/contracts";
 import { PhoneFrame, useT } from "@fairsplit/ui-web";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
 import type { RunView } from "../data/run-view.js";
 import { env } from "../lib/env.js";
+import { useFocusOnLeave } from "../lib/focus.js";
 import { FRAME_PERSONAS, frameSrc } from "./bridge.js";
 import { FramePoster } from "./FramePoster.js";
 import type { PhoneLayout, PhoneSize } from "./layout.js";
@@ -80,6 +81,38 @@ export interface PhoneDockProps {
   readonly snapshot: SeasonSnapshot | undefined;
   /** Phone screen size in px (S1.6: 360 wide on the stage). */
   readonly size: PhoneSize;
+}
+
+/** The tab of the frame the phone shows (found by its persona, never the first tab in document order). */
+function tabFor(persona: FramePersona): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`#fsc-phone-panel [data-testid="W-JG-01.tab.${persona}"]`);
+}
+
+/**
+ * The docked phone's dimmed face (1680 px and up): "Use the phone" raises it, and the button goes with the dim
+ * while it holds the keyboard. In that commit, before it goes, focus moves to the tab of the frame the phone
+ * shows, so the next Tab goes on inside the phone, never back to the skip link from <body> (WCAG 2.4.3).
+ */
+function PhoneScrim({
+  onRaise,
+  tab,
+}: {
+  readonly onRaise: () => void;
+  readonly tab: () => HTMLElement | null;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useFocusOnLeave(ref, tab);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="fsc-dock__scrim"
+      onClick={onRaise}
+      data-testid="W-JG-01.phoneScrim"
+    >
+      <span className="fsc-dock__scrim-label fs-t-label">{STAGE.focusPhone}</span>
+    </button>
+  );
 }
 
 /** The phone lane's words: "Nang Celing: Gisusi pa" (member status words are Cebuano, register §7). */
@@ -208,16 +241,7 @@ export function PhoneDock({
                 })}
               </PhoneFrame>
             </div>
-            {dimmed && (
-              <button
-                type="button"
-                className="fsc-dock__scrim"
-                onClick={onRaise}
-                data-testid="W-JG-01.phoneScrim"
-              >
-                <span className="fsc-dock__scrim-label fs-t-label">{STAGE.focusPhone}</span>
-              </button>
-            )}
+            {dimmed && <PhoneScrim onRaise={onRaise} tab={() => tabFor(shown)} />}
           </div>
         </Tabs.Root>
       </div>
