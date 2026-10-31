@@ -121,22 +121,22 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 
 ### Lib, sound, theme
 
-| API                                            | Use                                                                                                                                     |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `format` (`lib/format.ts`)                     | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`         |
-| `useMoment(id, { focal?, mode? })`             | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps` |
-| `provenanceFooter(input)`                      | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                        |
-| `lib/focus.ts`                                 | Every focus move: `returnFocus` (in the commit, by key, revealed), `focusAndReveal`, `useFocusAfterRemoval`, `<FocusReturn>`            |
-| `<Stamp stamp testId?>` (`chrome/Stamp.tsx`)   | A person's ink stamp (ui-web's look, `role="img"` named in full): use it, not ui-web's `InkStamp`                                       |
-| `useShortcut(spec)`, `useShortcuts()`          | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                             |
-| `useDataMode()`                                | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                |
-| `useAnnounce()`                                | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                           |
-| `lib/verify.ts` (import lazily)                | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                           |
-| `lib/sha256.ts`                                | Synchronous SHA-256 (verify-core needs it sync)                                                                                         |
-| `lib/keys.ts`                                  | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)          |
-| `lib/keystore.ts`                              | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key              |
-| `useSound()`, `playFromFrame()`, `duck()`      | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                                |
-| `theme/grid.ts` (import only from SplitAgGrid) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid in its lazy chunk                               |
+| API                                            | Use                                                                                                                                                                                     |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format` (`lib/format.ts`)                     | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`                                                         |
+| `useMoment(id, { focal?, mode? })`             | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps`                                                 |
+| `provenanceFooter(input)`                      | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                                                                        |
+| `lib/focus.ts`                                 | Every focus move: `returnFocus` (in the commit, by key, revealed), `focusAndReveal`, `useFocusAfterRemoval`, `useFocusOnLeave`, `<FocusReturn>`; `useFocusGuard` is the root's backstop |
+| `<Stamp stamp testId?>` (`chrome/Stamp.tsx`)   | A person's ink stamp (ui-web's look, `role="img"` named in full): use it, not ui-web's `InkStamp`                                                                                       |
+| `useShortcut(spec)`, `useShortcuts()`          | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                                                                             |
+| `useDataMode()`                                | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                                                                |
+| `useAnnounce()`                                | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                                                                           |
+| `lib/verify.ts` (import lazily)                | Proof's "Verify in your browser": domain's verify-core + `browserProofCrypto`                                                                                                           |
+| `lib/sha256.ts`                                | Synchronous SHA-256 (verify-core needs it sync)                                                                                                                                         |
+| `lib/keys.ts`                                  | `signingKeyKind(keyId)`, `isSampleKey(keyId)`: a key's kind from its ID shape (C-13: `-w1` web, `-a1` app, `-demo-{6}`, `-s1`)                                                          |
+| `lib/keystore.ts`                              | The treasurer's persisted `fs-analyn-w1` (kind web): made and registered from /ops; Judge Mode signs with a `web_demo` key                                                              |
+| `useSound()`, `playFromFrame()`, `duck()`      | Sound is the stage's; `feedback.play(event)` from ui-web is the only way to make a sound                                                                                                |
+| `theme/grid.ts` (import only from SplitAgGrid) | `gridTheme` (tokens' AG Grid theme), `GRID_DEFAULTS`, modules registered; keeps AG Grid in its lazy chunk                                                                               |
 
 ## Rules every slice keeps
 
@@ -157,8 +157,12 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 - **Accessibility**: WCAG 2.2 AA; axe clean on every state; hold slabs keep their dialog route; visualisations
   are `aria-hidden` and mirrored in `<Mirrored>` tables; focus is visible (pod ring). Every focus move goes through
   `lib/focus.ts`: never `el.focus()` directly, never from a timer, never to `<body>`; a control that the answer
-  removes hands focus on with `useFocusAfterRemoval`, and a stable `data-testid` (or `data-focus-key`) lets a
-  redrawn opener be found again.
+  removes hands focus on with `useFocusAfterRemoval` (its successor is drawn in the same commit) or
+  `useFocusOnLeave` (its successor is already there: it hands on before its own DOM goes), and a stable
+  `data-testid` (or `data-focus-key`) lets a redrawn opener be found again. Whatever nobody hands on (a link that
+  changes the route takes its screen away) is the root's `useFocusGuard`: the control's successor by key, the
+  first control of the nearest container that stayed, else the screen's main control, before anything paints; with
+  nothing drawn yet it waits for the next commit. Never disable a control that holds focus (`aria-disabled`).
 - **Budgets** (S2.11): route JS ≤300 KB gz; Proof's initial JS ≤110 KB gz; AG Grid only in its own lazy chunk
   (`features/split/SplitAgGrid.tsx` with `theme/grid.ts`, loaded once the grid's container is measured; the static
   table prints the lines until then); Proof's verify code only through a dynamic import of `lib/verify.ts`. Measure
