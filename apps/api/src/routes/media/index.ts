@@ -84,7 +84,7 @@ export default defineRouteFolder({
         summary:
           "Which voice reads each sentence of a statement: its Gemini clip, or the device's voice; labelled",
         description:
-          "IC-11 (ADR-0011): one entry per spoken sentence, in reading order. A sentence has a clip only when a published manifest entry (media/public/audio/manifest.json) has exactly its words (`textSha256`, the SHA-256 of the spoken text), its slot, member and language, and is not a draft; otherwise `clip` is null and the device's voice reads it under `deviceLabel`.",
+          "IC-11 (ADR-0011): one entry per spoken sentence, in reading order, named by its slot, template variant and mentions so a client pairs it with its own sentence without reading words. A sentence has a clip only when a published manifest entry (media/public/audio/manifest.json) has exactly its words (`textSha256`, the SHA-256 of the spoken text), its slot, member and language, and is not a draft; otherwise `clip` is null and the device's voice reads it under `deviceLabel`.",
         request: StatementAudioQuery,
         response: StatementAudio,
         errors: ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "FORBIDDEN"],
@@ -106,6 +106,7 @@ export default defineRouteFolder({
           lang: view.lang,
           sentences: view.spoken.map((s, i) => ({
             slot: s.slot,
+            variant: s.variant,
             text: s.text,
             mentions: s.mentions,
             placeholders: Object.keys(view.plan.sentences[i]?.facts ?? {}),

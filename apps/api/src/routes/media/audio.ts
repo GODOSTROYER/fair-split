@@ -90,6 +90,8 @@ function servable(e: ManifestEntry, mediaDir: string): boolean {
 /** One spoken sentence as the statement view renders it, with what it names. */
 export interface SpokenSentence {
   slot: AudioSlot;
+  /** The template variant rendered (`{slot}.{variant}`: `paypal`, `cash`, `default`, T1's `seeded`). */
+  variant: string;
   text: string;
   /** `slip:0403`, `rule:R1`. */
   mentions: readonly string[];
@@ -132,8 +134,15 @@ export function resolveStatementAudio(args: {
   const sentences = args.sentences.map((s) => {
     const textSha256 = sha256Text(s.text);
     const hit = candidates.find((e) => e.slot === s.slot && e.text_sha256 === textSha256);
-    // slot and mentions say which sentence this is, so a client pairs it with its own without reading words
-    return { slot: s.slot, mentions: [...s.mentions], textSha256, clip: hit ? clipOf(hit, s) : null };
+    // slot, variant and mentions say which sentence this is, so a client pairs it with its own without reading
+    // words, and never pairs one form of a slot (PAY.paypal, the seeded AI note) with another (ADR-0011 §6)
+    return {
+      slot: s.slot,
+      variant: s.variant,
+      mentions: [...s.mentions],
+      textSha256,
+      clip: hit ? clipOf(hit, s) : null,
+    };
   });
   const clipped = sentences.filter((s) => s.clip !== null).length;
   const source =

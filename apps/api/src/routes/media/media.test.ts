@@ -147,6 +147,9 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
     expect(a.label).toBe("Sintetikong tingog (Gemini TTS)");
     expect(a.deviceLabel).toBe("Tingog sa telepono");
     expect(a.sentences.map((s) => s.slot)).toEqual(view.spoken.map((s) => s.slot));
+    // the template variant the statement rendered (PAY.paypal, the AI note's form), so the app pairs by it too
+    expect(a.sentences.map((s) => s.variant)).toEqual(view.spoken.map((s) => s.variant));
+    expect(a.sentences.find((s) => s.slot === "PAY")?.variant).toBe("paypal");
     expect(a.sentences.map((s) => s.mentions)).toEqual(view.spoken.map((s) => s.mentions));
     expect(a.sentences.map((s) => s.textSha256)).toEqual(view.spoken.map((s) => sha256Text(s.text)));
 

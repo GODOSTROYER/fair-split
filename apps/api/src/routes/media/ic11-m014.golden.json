@@ -10,6 +10,7 @@
     "sentences": [
       {
         "slot": "GREETING",
+        "variant": "default",
         "mentions": [],
         "textSha256": "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
         "clip": {
@@ -28,6 +29,7 @@
       },
       {
         "slot": "DELIVERY",
+        "variant": "default",
         "mentions": [],
         "textSha256": "49caa459e2bec2d6e58ad8776a96a3ea52ca33032e6ab4fd866ee878f4c00085",
         "clip": {
@@ -41,6 +43,7 @@
       },
       {
         "slot": "PREMIUM",
+        "variant": "default",
         "mentions": [],
         "textSha256": "97d6108ac9e86caad1a68a43874f75a2a960e333ca1efe86353ab028406989c8",
         "clip": {
@@ -54,6 +57,7 @@
       },
       {
         "slot": "BONUS",
+        "variant": "default",
         "mentions": [],
         "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
         "clip": {
@@ -67,6 +71,7 @@
       },
       {
         "slot": "DEDUCTION",
+        "variant": "default",
         "mentions": ["rule:R1"],
         "textSha256": "f203ddc41bee3066cf575b9bee38a3ff5da3a67a36005dbe18a188e8680c2f07",
         "clip": {
@@ -80,6 +85,7 @@
       },
       {
         "slot": "PAY",
+        "variant": "paypal",
         "mentions": [],
         "textSha256": "951cf7877220320908429ecf06d73f2726e849762964b5a51e1407fcc1361826",
         "clip": {
@@ -93,6 +99,7 @@
       },
       {
         "slot": "SOURCES",
+        "variant": "default",
         "mentions": ["slip:0403", "slip:0419", "slip:0436", "slip:0467"],
         "textSha256": "d5d4f4c29d3604e3848b81196698c4b1a437d14b78816ae894285a3e4303fd50",
         "clip": {
@@ -123,6 +130,7 @@
       },
       {
         "slot": "HELP",
+        "variant": "default",
         "mentions": [],
         "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
         "clip": {
@@ -136,6 +144,7 @@
       },
       {
         "slot": "AI_NOTE",
+        "variant": "default",
         "mentions": [],
         "textSha256": "7fe90b4717c1be8626148b33cf9f158abaff045c32e8adb1c4c8d4e8143814a4",
         "clip": {
@@ -159,6 +168,7 @@
     "sentences": [
       {
         "slot": "GREETING",
+        "variant": "default",
         "mentions": [],
         "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
         "clip": {
@@ -177,6 +187,7 @@
       },
       {
         "slot": "DELIVERY",
+        "variant": "default",
         "mentions": [],
         "textSha256": "aae0210a6e05d9b85298d2573ed1c3e06f4de1621064c9d205ab42ccc3498c98",
         "clip": {
@@ -190,6 +201,7 @@
       },
       {
         "slot": "PREMIUM",
+        "variant": "default",
         "mentions": [],
         "textSha256": "f3f5f872cae0a10977ca23c2164c09a24961ef930fdd5e3cd8f602cf0f311a94",
         "clip": {
@@ -203,6 +215,7 @@
       },
       {
         "slot": "BONUS",
+        "variant": "default",
         "mentions": [],
         "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
         "clip": {
@@ -216,6 +229,7 @@
       },
       {
         "slot": "DEDUCTION",
+        "variant": "default",
         "mentions": ["rule:R1"],
         "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
         "clip": {
@@ -229,6 +243,7 @@
       },
       {
         "slot": "PAY",
+        "variant": "paypal",
         "mentions": [],
         "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
         "clip": {
@@ -242,6 +257,7 @@
       },
       {
         "slot": "SOURCES",
+        "variant": "default",
         "mentions": ["slip:0403", "slip:0419", "slip:0436", "slip:0467"],
         "textSha256": "8afe10f2f29938d52d60ed4c2291df255dc469dc117b1dbdf3e4619de2b8df5a",
         "clip": {
@@ -272,6 +288,7 @@
       },
       {
         "slot": "HELP",
+        "variant": "default",
         "mentions": [],
         "textSha256": "1fb87d9f62b780c1c0941bd8a2143b765ab5ccb6239f937ca85541710808ce12",
         "clip": {
@@ -285,6 +302,7 @@
       },
       {
         "slot": "AI_NOTE",
+        "variant": "default",
         "mentions": [],
         "textSha256": "15e4f0db2f52d7fb02a225a533fd6223ba5ae609af7948f04f8622bc8c4b9475",
         "clip": {
@@ -308,6 +326,7 @@
     "sentences": [
       {
         "slot": "GREETING",
+        "variant": "default",
         "mentions": [],
         "textSha256": "3d724d31bbfccccc84ea9d1f5e9c0b179c02952dbcd7bf8d519582b215e0f643",
         "clip": {
@@ -326,6 +345,7 @@
       },
       {
         "slot": "DELIVERY",
+        "variant": "default",
         "mentions": [],
         "textSha256": "3f42cf9d89538ae032d27b1b4e7d9d29645fbfbc4421dd112bc853bd9373b8a3",
         "clip": {
@@ -339,6 +359,7 @@
       },
       {
         "slot": "PREMIUM",
+        "variant": "default",
         "mentions": [],
         "textSha256": "35ae497bd6ea42418438760a65571b0b0f001e706c52627adb074fb74301d3cc",
         "clip": {
@@ -352,6 +373,7 @@
       },
       {
         "slot": "BONUS",
+        "variant": "default",
         "mentions": [],
         "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
         "clip": {
@@ -365,6 +387,7 @@
       },
       {
         "slot": "DEDUCTION",
+        "variant": "default",
         "mentions": ["rule:R1"],
         "textSha256": "5f6fe4f78a18240e35cca7cea58b3dd52211564e751e323c2c62009b7b06da65",
         "clip": {
@@ -378,6 +401,7 @@
       },
       {
         "slot": "PAY",
+        "variant": "paypal",
         "mentions": [],
         "textSha256": "c8fa80c918dddcef6f74eef64e32dc4fe06b7a7eb89e97120675e6c811f1497c",
         "clip": {
@@ -391,6 +415,7 @@
       },
       {
         "slot": "SOURCES",
+        "variant": "default",
         "mentions": ["slip:0403", "slip:0419", "slip:0436", "slip:0467"],
         "textSha256": "d08aec86da77c59b7b189bf940f8d1e764789d12fbad42320d53c98fb29fa94d",
         "clip": {
@@ -421,6 +446,7 @@
       },
       {
         "slot": "HELP",
+        "variant": "default",
         "mentions": [],
         "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
         "clip": {
@@ -434,6 +460,7 @@
       },
       {
         "slot": "AI_NOTE",
+        "variant": "default",
         "mentions": [],
         "textSha256": "1228a7e05238381bd3eb137325249a77c7598b2393e45355a6361141e6975a48",
         "clip": {

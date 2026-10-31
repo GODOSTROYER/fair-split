@@ -2,12 +2,14 @@
 // statement renderer, in every language, and resolves it against a fixture manifest that has a clip of every spoken
 // sentence. That answer is kept in ic11-m014.golden.json, and the app's half
 // (apps/mobile/src/lib/statement-audio.contract.test.ts) feeds the very same answer to `withServedAudio` and
-// `audioPlan` and expects every sentence to play its clip.
+// `audioPlan` and expects every sentence the phone renders in the same form to play its clip.
 //
-// What the two sides must agree on is which sentences there are: slot, mentions and reading order, and the clip
-// served for each. This test fails when that drifts. The words' hashes are fs-api's own business (the phone pairs
-// sentences, it never hashes words), so they are checked only for consistency; a template change that keeps the
-// sentences needs no new golden. Regenerate it with FS_WRITE_IC11_GOLDEN=1, then format it with Biome.
+// What the two sides must agree on is which sentences there are: slot, variant (which form of the slot: PAY.paypal
+// or PAY.cash, the product or the seeded AI note), mentions and reading order, and the clip served for each. This
+// test fails when that drifts. The words' hashes are fs-api's own business (the phone pairs sentences, it never
+// hashes words), so they are checked only for consistency; a template change that keeps the sentences needs no new
+// golden, a change of variant does (T1's seeded AI note for M-014's seeded run is one). Regenerate it with
+// FS_WRITE_IC11_GOLDEN=1, then format it with Biome.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -110,6 +112,7 @@ function heroAnswer(lang: Lang): StatementAudio {
       lang,
       sentences: spoken.map((s, i) => ({
         slot: s.slot,
+        variant: s.variant,
         text: s.text,
         mentions: s.mentions,
         placeholders: Object.keys(plan.sentences[i]?.facts ?? {}),
@@ -159,6 +162,15 @@ describe("IC-11 golden: fs-api's answer for M-014, as the app receives it (ADR-0
         `fs-api's M-014 ${lang} sentences drifted from ic11-m014.golden.json; if that is intended, ` +
           "rerun with FS_WRITE_IC11_GOLDEN=1 and check the app's half (statement-audio.contract.test.ts)",
       ).toEqual(withoutWords(g[lang]));
+    }
+  });
+
+  it("the golden names each sentence's form as fs-api rendered it: M-014 is paid by PayPal", () => {
+    for (const lang of LANGS) {
+      const spoken = renderStatement(statementPlan(heroFacts(lang))).spoken;
+      const g = golden()[lang];
+      expect(g.sentences.map((s) => s.variant)).toEqual(spoken.map((s) => s.variant));
+      expect(g.sentences.find((s) => s.slot === "PAY")?.variant, lang).toBe("paypal");
     }
   });
 

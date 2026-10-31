@@ -20,8 +20,14 @@ const LINE = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";
 const GREETING = "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.";
 const SOURCES = "Gikan kini sa inyong resibo 0 4 0 3 ug 0 4 1 9.";
 const sentences: SpokenSentence[] = [
-  { slot: "GREETING", text: GREETING, mentions: [], placeholders: ["HONORIFIC_NAME"] },
-  { slot: "SOURCES", text: SOURCES, mentions: ["slip:0403", "slip:0419"], placeholders: ["SLIPS"] },
+  { slot: "GREETING", variant: "default", text: GREETING, mentions: [], placeholders: ["HONORIFIC_NAME"] },
+  {
+    slot: "SOURCES",
+    variant: "default",
+    text: SOURCES,
+    mentions: ["slip:0403", "slip:0419"],
+    placeholders: ["SLIPS"],
+  },
 ];
 
 let mediaDir: string;
@@ -58,6 +64,7 @@ beforeAll(() => {
   for (const rel of [
     "audio/M-014/ceb/GREETING.m4a",
     "audio/M-014/ceb/SOURCES.m4a",
+    "audio/M-014/ceb/PAY.m4a",
     "audio/M-014/ceb/GREETING-old.m4a",
     "audio/M-014/ceb/GREETING-new.m4a",
     "audio/drafts/M-014/ceb/GREETING.m4a",
@@ -105,6 +112,7 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
     expect(a.sentences).toEqual([
       {
         slot: "GREETING",
+        variant: "default",
         mentions: [],
         textSha256: sha256Text(GREETING),
         clip: {
@@ -118,6 +126,7 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
       },
       {
         slot: "SOURCES",
+        variant: "default",
         mentions: ["slip:0403", "slip:0419"],
         textSha256: sha256Text(SOURCES),
         clip: expect.objectContaining({
@@ -132,21 +141,44 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
     ]);
   });
 
-  it("names each sentence by slot and mentions, never by its words, so a client pairs it with its own", () => {
+  it("names each sentence by slot, variant and mentions, never by its words, so a client pairs it with its own", () => {
     const deductions: SpokenSentence[] = ["R1", "R3"].map((rule) => ({
       slot: "DEDUCTION",
+      variant: "default",
       text: `Less something for ${rule === "R1" ? "CBU" : "a loan"}.`,
       mentions: [`rule:${rule}`],
       placeholders: ["DEDUCTION_USD"],
     }));
     const a = resolve([], [...sentences, ...deductions]);
-    expect(a.sentences.map((s) => [s.slot, s.mentions])).toEqual([
-      ["GREETING", []],
-      ["SOURCES", ["slip:0403", "slip:0419"]],
-      ["DEDUCTION", ["rule:R1"]],
-      ["DEDUCTION", ["rule:R3"]],
+    expect(a.sentences.map((s) => [s.slot, s.variant, s.mentions])).toEqual([
+      ["GREETING", "default", []],
+      ["SOURCES", "default", ["slip:0403", "slip:0419"]],
+      ["DEDUCTION", "default", ["rule:R1"]],
+      ["DEDUCTION", "default", ["rule:R3"]],
     ]);
-    expect(Object.keys(a.sentences[0] ?? {}).sort()).toEqual(["clip", "mentions", "slot", "textSha256"]);
+    expect(Object.keys(a.sentences[0] ?? {}).sort()).toEqual([
+      "clip",
+      "mentions",
+      "slot",
+      "textSha256",
+      "variant",
+    ]);
+  });
+
+  it("names the form of the slot fs-api rendered: the cash PAY and the seeded AI note say so", () => {
+    const PAY_CASH = "Ang inyong bayad karong season: ₱3,716.00, cash sa bodega.";
+    const NOTE = "Niini nga demo, ang pagbasa sa mga resibo usa ka tin-aw nga puli.";
+    const a = resolve(
+      [entry({ slot: "PAY", text: PAY_CASH })],
+      [
+        { slot: "PAY", variant: "cash_nodate", text: PAY_CASH, mentions: [], placeholders: ["NET_PHP"] },
+        { slot: "AI_NOTE", variant: "seeded", text: NOTE, mentions: [], placeholders: [] },
+      ],
+    );
+    expect(a.sentences.map((s) => [s.slot, s.variant, s.clip?.url ?? null])).toEqual([
+      ["PAY", "cash_nodate", "/media/audio/M-014/ceb/PAY.m4a"],
+      ["AI_NOTE", "seeded", null],
+    ]);
   });
 
   it("keeps only offsets the sentence has, inside the clip", () => {
@@ -176,7 +208,13 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
       deviceLabel: "Tingog sa telepono",
     });
     expect(a.sentences).toEqual([
-      { slot: "GREETING", mentions: [], textSha256: sha256Text(`${GREETING} `), clip: null },
+      {
+        slot: "GREETING",
+        variant: "default",
+        mentions: [],
+        textSha256: sha256Text(`${GREETING} `),
+        clip: null,
+      },
     ]);
   });
 

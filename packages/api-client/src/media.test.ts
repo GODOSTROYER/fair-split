@@ -17,6 +17,7 @@ const answer = {
   sentences: [
     {
       slot: "GREETING",
+      variant: "default",
       mentions: [],
       textSha256: HASH,
       clip: {
@@ -28,7 +29,7 @@ const answer = {
         durationMs: 4_634,
       },
     },
-    { slot: "PAY", mentions: [], textSha256: "b".repeat(64), clip: null },
+    { slot: "PAY", variant: "paypal", mentions: [], textSha256: "b".repeat(64), clip: null },
   ],
 };
 
@@ -87,6 +88,8 @@ describe("mediaRoutes.statementAudio", () => {
       },
       { ...answer, label: "" },
       { ...answer, url: "/media/audio/M-014/ceb.m4a", cues: [] },
+      // a sentence that does not say which form of its slot it is cannot be paired (ADR-0011 §6)
+      { ...answer, sentences: answer.sentences.map(({ variant: _, ...s }) => s) },
     ]) {
       const e = await serving(bad)
         .media.statementAudio({ params: { lineId: LINE } })
