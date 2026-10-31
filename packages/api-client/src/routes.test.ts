@@ -198,6 +198,25 @@ describe("judgeRoutes: the judge and auth routes outside IC-01", () => {
     expect((await stage.judgeSession()).tamper.changePayoutArmed).toBe(false);
   });
 
+  it("renewal resumes the stage's own session (a fresh console token); a token or another session is refused", async () => {
+    const out = await stage.renewJudgeSession({ params: { sid: MOCK_SESSION_ID }, token: null });
+    expect(out).toMatchObject({
+      sessionId: MOCK_SESSION_ID,
+      workspaceId: mock.world.workspaceId,
+      runSlug: mock.world.runSlug,
+      queuePosition: null,
+    });
+    expect(out.consoleToken).toMatch(/^fst_/);
+    expect((await refusal(console_.renewJudgeSession({ params: { sid: MOCK_SESSION_ID } }))).code).toBe(
+      "FORBIDDEN",
+    );
+    const other = stage.renewJudgeSession({ params: { sid: "0192f8a0-0000-7000-8000-00000000beef" } });
+    expect((await refusal(other)).code).toBe("FORBIDDEN");
+    expect((await refusal(anonymous.renewJudgeSession({ params: { sid: MOCK_SESSION_ID } }))).code).toBe(
+      "UNAUTHENTICATED",
+    );
+  });
+
   it("every route answers at its declared method and path (no unhandled request)", async () => {
     const served = new Set<JudgeRouteName>();
     for (const name of Object.keys(JUDGE_ROUTES) as JudgeRouteName[]) {
