@@ -100,6 +100,38 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ],
   ["replay-as-claude-reading", "Claude reads the slips."],
   ["replay-as-claude-reading", "Claude reads the handwritten weigh slips twice."],
+  ["replay-as-claude-reading", "Claude's handwritten slip reading replays now."],
+  ["replay-as-claude-reading", "The replay of Claude reading the slips."],
+  ["replay-as-claude-reading", "Claude reads the 12 photos."],
+  ["replay-as-claude-reading", "Claude reads photo B."],
+  ["replay-as-claude-reading", "Claude reads {count} slips."],
+  ["replay-as-claude-reading", "Claude reads it once the money is in."],
+  // The seed stand-in shown as Claude reading now, or as what Claude read (ws/console reading/model.ts:417, :437,
+  // :443; byhand/copy.ts:7, :9, :11; reading/copy.ts:37, :62, :65; ratecard/copy.ts:7, :10; describe.ts:274).
+  ["replay-as-claude-reading", "Photo C waits its turn. Claude is reading photo B."],
+  ["replay-as-claude-reading", "Claude is reading the slips."],
+  ["replay-as-claude-reading", "Claude is now reading photo B."],
+  ["replay-as-claude-reading", "Claude was reading photo B when the connection dropped."],
+  ["replay-as-claude-reading", "Claude read the slips twice."],
+  [
+    "replay-as-claude-reading",
+    "A water stain covers one digit of the gross weight. Claude read {reading} ({score}).",
+  ],
+  [
+    "replay-as-claude-reading",
+    "Claude read these rules from its pages; the Secretary and the Chair signed them.",
+  ],
+  ["replay-as-claude-reading", "Claude read them twice."],
+  ["replay-as-claude-reading", "Slip 0462, Lito. Claude wasn't sure of the gross weight and read {reading}."],
+  ["replay-as-claude-reading", "Slip 0462 needs a person to confirm what Claude wasn’t sure of."],
+  ["replay-as-claude-reading", "Claude was not sure of the tare."],
+  ["replay-as-claude-reading", "Slip 0462 needs nothing by hand: Claude's two reads agreed on every field."],
+  [
+    "replay-as-claude-reading",
+    "The two readings were {display}; Claude's zoom read {value}, which agrees with one of them.",
+  ],
+  ["replay-as-claude-reading", "Confirm {value} on slip 0462, as Claude’s zoom read it"],
+  ["replay-as-claude-reading", "Slip 0462: Claude's zoom read agrees with one of the two readings."],
   // A negation lets these rules through only when it sits just before the phrase, in the same clause.
   ["live-payouts", "No fees, and live payouts land on members' phones."],
   ["live-payouts", "There is no doubt we make live payouts."],
@@ -116,6 +148,9 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ["read-twice-by-ai-seeded", "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude)."],
   ["read-twice-by-ai-seeded", "Binasa nang makalawa ng AI (Claude) ang inyong mga resibo."],
   ["read-twice-by-ai-seeded", "Dalawang beses binasa ng AI (Claude) ang inyong mga resibo."],
+  // The console's footer on the replayed rows says the same (ws/console reading/copy.ts:37).
+  ["read-twice-by-ai-seeded", "Read twice by Claude"],
+  ["read-twice-by-ai-seeded", "Each slip was read twice by Claude."],
   // A verified signature beside PayPal or a webhook (§6 film 0:00 "…SUCCEEDED, signature verified"; MM-1).
   ["webhook-verified-says-simulated", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED, signature verified by PayPal."],
   ["webhook-verified-says-simulated", "Webhook, signature verified"],
@@ -151,6 +186,21 @@ export const PLANTED_TEMPLATES: readonly (readonly [rule: string, source: string
     "replay-as-claude-reading",
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
     "export const deskNote = (count: number) => `${count} photos, four slips each. Claude reads them once the money is in.`;",
+  ],
+  [
+    "replay-as-claude-reading",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const status = (id: string, p: string) => `Photo ${id} waits its turn. Claude is reading photo ${p}.`;",
+  ],
+  [
+    "replay-as-claude-reading",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const prompt = (serial: string, reading: string) => `Slip ${serial}. A water stain covers one digit. Claude read ${reading}.`;",
+  ],
+  [
+    "replay-as-claude-reading",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const confirmReads = (d: string, v: string) => `The two readings were ${d}; Claude's zoom read ${v}, which agrees with one of them.`;",
   ],
   [
     "recorded-claude-run",
@@ -228,6 +278,17 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "Claude's live reads were last run on 22 Oct on code-drawn test slips.",
     "Judge Mode replays a labelled seed stand-in for the slip reading; Claude's live reads were last run on 22 Oct.",
     "Claude reads nothing live; a labelled stand-in plays.",
+    "Claude is built to read photo B twice.",
+    "In a live run, Claude is reading photo B while photo C waits its turn.",
+    "In a live run, Claude's two reads agree on every field.",
+    "In a live run, Claude read {reading}; here the slip is a labelled stand-in.",
+    "The two readings agreed on every field.",
+    "Slip 0462 needs a person to confirm the unsure digit.",
+    "Claude Code is reading the repository.",
+    "Claude Code read the ADRs and wrote the lint.",
+    "The README was read by Claude Code agents.",
+    "Read by the clerk, entered by hand.",
+    "Claude readiness is the operator's read here.",
   ],
   "claudes-draft": [
     "Make the invoice draft overcharge Lantern Bay.",
@@ -257,6 +318,7 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer {{TREASURER}} approved this pay.",
     "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo.",
     "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak.",
+    "The ADRs were read twice by Claude Code agents.",
   ],
   "codex-made-photos": [
     "The 10 hero slips (OpenAI's image model via Codex CLI); photos A–L are composed in code from them and code-drawn slips.",

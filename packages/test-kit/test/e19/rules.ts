@@ -135,11 +135,22 @@ export const RULES: readonly CopyRule[] = [
   {
     id: "replay-as-claude-reading",
     reason:
-      "A replay plays a labelled seed stand-in (J1: 'Seed stand-in, not a Claude recording'), never Claude's reading: say Claude 'is built to read' the slips, or what happens 'in a live run' (§6)",
+      "A replay or seeded run plays a labelled seed stand-in (J1: 'Seed stand-in, not a Claude recording'), never Claude's reading, so no copy shows Claude reading it now or names what Claude read: say Claude 'is built to read' the slips, or what happens 'in a live run' (§6: no real model output where a judge looks)",
     pattern: either(
-      /\bClaude['’]s\s+(?:[\w-]+\s+)?(?:readings?|reads?|runs?)\b[^.;]{0,60}?\breplay(?:s|ed|ing)?\b/i,
-      /\breplay(?:s|ed|ing)?\s+(?:of\s+)?(?:the\s+|a\s+)?Claude['’]s\s+(?:[\w-]+\s+)?(?:readings?|reads?|runs?)\b/i,
-      /\bClaude\s+reads\s+(?:them|these|those|their\s+slips?|the\s+(?:[\w-]+\s+){0,2}?slips?)\b/i,
+      // "Claude's reading (of them) replays", "Claude's handwritten slip reading replays now"
+      /\bClaude['’]s\s+(?:[\w-]+\s+){0,2}?(?:readings?|reads?|runs?)\b[^.;]{0,60}?\breplay(?:s|ed|ing)?\b/i,
+      // "a replay of Claude's reading", "the replay of Claude reading the slips"
+      /\breplay(?:s|ed|ing)?\s+(?:of\s+)?(?:the\s+|a\s+)?Claude(?:['’]s\s+(?:[\w-]+\s+)?(?:readings?|reads?|runs?)|\s+reading)\b/i,
+      // "Claude reads them once the money is in", "Claude reads photo B", "Claude reads {count} slips"
+      /\bClaude\s+reads\s+(?:them|these|those|it|their\s+(?:slips?|photos?)|(?:the\s+)?(?:[\w{}-]+\s+){0,2}?(?:slips?|photos?))\b/i,
+      // The stand-in shown as Claude reading now (ws/console reading/model.ts:417 "Claude is reading photo {}")
+      /\bClaude\s+(?:is|was)\s+(?:now\s+|still\s+)?reading\b/i,
+      // ...or as what Claude read (byhand/copy.ts:7 "Claude read {}", ratecard/copy.ts:7 "Claude read these rules")
+      /\bClaude\s+read\s+(?:\{|\d|(?:the|these|those|them|it|its|every|each|all|both|photos?|slips?)\b)/i,
+      // ...what Claude was unsure of (byhand/copy.ts:9, reading/model.ts:443)
+      /\bClaude\s+(?:wasn['’]t|was\s+not|isn['’]t|is\s+not)\s+sure\b/i,
+      // ...Claude's two reads or zoom read (byhand/copy.ts:11, reading/copy.ts:62 and :65, reading/model.ts:437)
+      /\bClaude['’]s\s+(?:(?:two|zoom|first|second|double)\s+)?reads?\b/i,
     ),
     unless: /\bbuilt\s+to\b|\bin\s+a\s+live\s+run\b|\bstand-in\b/i,
     liftedBy: "C5d's exhibit of R1's real reading",
@@ -212,9 +223,10 @@ export const RULES: readonly CopyRule[] = [
     id: "read-twice-by-ai-seeded",
     reason:
       "Seeded runs carry T1's demo AI_NOTE: the product note ('read twice by AI') may exist only beside its seeded variant (§6)",
-    // en, and the ceb and fil product notes (apps/api templates.ts, the app's _shims/seed.ts).
+    // en, and the ceb and fil product notes (apps/api templates.ts, the app's _shims/seed.ts), and the console's
+    // "Read twice by Claude" footer (ws/console reading/copy.ts:37), which makes the same claim.
     pattern:
-      /\bread\s+twice\s+by\s+(?:an?\s+)?AI\b|\bgibasa\s+sa\s+makaduha\s+sa\s+AI\b|\b(?:binasa\s+nang\s+makalawa|dalawang\s+beses\s+binasa)\s+ng\s+AI\b/i,
+      /\bread\s+twice\s+by\s+(?:an?\s+)?(?:AI\b|Claude\b(?!\s+Code))|\bgibasa\s+sa\s+makaduha\s+sa\s+AI\b|\b(?:binasa\s+nang\s+makalawa|dalawang\s+beses\s+binasa)\s+ng\s+AI\b/i,
     unlessInFile: /\bstand-in\s+for\s+Claude\b/i,
   },
   {
@@ -351,7 +363,7 @@ export const EXCEPTIONS: readonly Allowance[] = [
 
 /**
  * Console copy waiting on C5a (console honesty copy, ws/console; schedule §3 C5a and §6), one named entry per
- * file, listed from ws/console's tip e5c5806 and re-checked at 42a9338 and e7757ad. Q2 does not edit
+ * file, listed from ws/console's tip e5c5806 and re-checked at 42a9338, e7757ad and 8724fa6. Q2 does not edit
  * apps/console. While ws/console is unmerged these files are absent and the entries are dormant; once it merges
  * each must match, and each one C5a rewords goes stale and must be deleted here.
  */
@@ -388,6 +400,11 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["paypal-confirms-says-simulated", "once PayPal confirms payment"],
     ["paypal-confirms-says-simulated", "confirmed by PayPal"],
   ],
+  "apps/console/src/features/byhand/copy.ts": [
+    ["replay-as-claude-reading", "Claude read {}"],
+    ["replay-as-claude-reading", "Claude wasn't sure of the gross weight"],
+    ["replay-as-claude-reading", "Claude's two reads agreed on every field"],
+  ],
   "apps/console/src/features/ops/OpsPage.tsx": [["sandbox-says-simulated", "PayPal sandbox"]],
   "apps/console/src/features/ops/opsModel.ts": [
     ["sandbox-says-simulated", "PayPal sandbox"],
@@ -410,12 +427,21 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["paypal-confirms-says-simulated", "confirmed by PayPal"],
     ["sandbox-says-simulated", "marked as paid in sandbox"],
   ],
+  "apps/console/src/features/ratecard/copy.ts": [
+    ["replay-as-claude-reading", "Claude read these rules from its pages"],
+  ],
   "apps/console/src/features/reading/copy.ts": [
     ["recorded-claude-run", "recorded run"],
     ["recorded-claude-run", "stand-in for the {} recording"],
+    ["read-twice-by-ai-seeded", "Read twice by Claude"],
+    ["replay-as-claude-reading", "Claude's zoom read {}, which agrees"],
+    ["replay-as-claude-reading", "as Claude's zoom read it"],
   ],
   "apps/console/src/features/reading/model.ts": [
     ["replay-as-claude-reading", "Claude's reading replays once"],
+    ["replay-as-claude-reading", "Claude is reading photo"],
+    ["replay-as-claude-reading", "Claude's zoom read agrees with one of the two readings"],
+    ["replay-as-claude-reading", "confirm what Claude wasn't sure of"],
   ],
   "apps/console/src/features/season/copy.ts": [
     ["recorded-claude-run", "in the recorded {} run"],
