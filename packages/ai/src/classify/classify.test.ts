@@ -149,7 +149,8 @@ describe("classifyDeduction (AI-6)", () => {
     amount: { netGrams: 60800 },
   };
 
-  it("a ruled line with the right amount raises nothing", async () => {
+  // over 2 s alone on a busy machine, past vitest's default 5 s under turbo
+  it("a ruled line with the right amount raises nothing", { timeout: 30_000 }, async () => {
     answer("R2");
     const out = await classifyDeduction({ ...base, line: "Hauling P91.20" }, deps());
     expect(out).toMatchObject({ status: "MATCH", ruleId: "R2", writtenMinor: 9120, hold: null });

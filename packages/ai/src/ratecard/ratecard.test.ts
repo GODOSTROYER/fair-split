@@ -246,7 +246,10 @@ describe("readRateCard (AI-5) through the gateway", () => {
   afterEach(() => server.resetHandlers());
   afterAll(() => server.close());
 
-  it("sends both pages in one streamed Opus request at medium effort and checks the result", async () => {
+  // renders both pages (sharp): over 2 s alone on a busy machine, past vitest's default 5 s under turbo
+  it("sends both pages in one streamed Opus request at medium effort and checks the result", {
+    timeout: 30_000,
+  }, async () => {
     let body: Record<string, unknown> = {};
     server.use(
       http.post("https://api.anthropic.com/v1/messages", async ({ request }) => {
