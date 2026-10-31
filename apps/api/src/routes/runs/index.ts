@@ -19,6 +19,7 @@ import {
 import { markPaidHandler } from "../../runs/paypal.js";
 import { FlagList, flagList, LineList, lineList, RunView, runView } from "../../runs/reads.js";
 import { runTasks } from "../../runs/tasks.js";
+import { unbuiltTasks } from "../../runs/unbuilt.js";
 
 export default defineRouteFolder({
   folder: "runs",
@@ -119,7 +120,12 @@ export default defineRouteFolder({
       async (ctx) => fundingCheck(ctx.deps, ctx.scope, ctx.credential, ctx.params.runSlug),
     );
   },
-  tasks: (deps) => ({ ...runTasks(deps), ...agentTasks(deps) }),
+  tasks: (deps) => ({
+    ...runTasks(deps),
+    ...agentTasks(deps),
+    // not built in this build: labelled no-ops, so no row dies (runs/unbuilt.ts)
+    ...unbuiltTasks(deps, ["warmCaches", "reconcile", "pushNotify"]),
+  }),
   // A written batch is never abandoned: whatever stopped its POST before this boot (a crash, an outage that
   // outlasted its attempts), it is posted again with the same ids (money/resume.ts; also hourly and on a switch off).
   onBoot: async (deps) => {
