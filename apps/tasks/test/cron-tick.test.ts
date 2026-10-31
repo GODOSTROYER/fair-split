@@ -19,10 +19,22 @@ let server: Server;
 let port = 0;
 let seen: Seen[] = [];
 let replies: number[] = [];
+/** Bodies fs-api answers with, in order (default: a taken tick's, or a refusal's for a 429). */
+let bodies: string[] = [];
+
+const TAKEN = JSON.stringify({
+  at: "2026-11-01T10:07:00.000Z",
+  nextTickFrom: "2026-11-01T10:37:00.000Z",
+  tasks: [
+    { task: "judgeReset", dedupeKey: "reset:pool:2026-11-01T10", created: true },
+    { task: "warmCaches", dedupeKey: "warm:w1", created: false },
+  ],
+});
 
 beforeEach(async () => {
   seen = [];
   replies = [];
+  bodies = [];
   server = createServer(async (req: IncomingMessage, res) => {
     const chunks: Buffer[] = [];
     for await (const c of req) chunks.push(c as Buffer);
@@ -33,8 +45,11 @@ beforeEach(async () => {
       body: Buffer.concat(chunks).toString("utf8"),
     });
     const status = replies.shift() ?? 202;
+    const body = bodies.shift() ?? (status === 429 ? '{"code":"RATE_LIMITED"}' : TAKEN);
     if (status === 302) res.writeHead(302, { location: "http://example.invalid/steal" }).end();
-    else res.writeHead(status, { "content-type": "application/json" }).end('{"enqueued":2}');
+    else if (status === 429)
+      res.writeHead(429, { "content-type": "application/json", "retry-after": "1500" }).end(body);
+    else res.writeHead(status, { "content-type": "application/json" }).end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   port = (server.address() as AddressInfo).port;
@@ -78,6 +93,78 @@ describe("tools/cron-tick.mjs (fs-cron, a thin trigger)", () => {
     expect(r.out).toMatch(/OK 202/);
   });
 
+  it("prints the task names fs-api enqueued, and which were already queued for their slot", async () => {
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("tasks: judgeReset (new), warmCaches (already queued)");
+  });
+
+  it("prints only plain task names from the answer, never other text it carries", async () => {
+    bodies = [
+      JSON.stringify({
+        tasks: [
+          { task: "judgeReset", created: true },
+          { task: "\u001b[31mevil\nline", created: true },
+          { task: "x".repeat(200), created: true },
+          { created: true },
+          "warmCaches",
+        ],
+      }),
+    ];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("tasks: judgeReset (new)");
+    expect(r.out).not.toContain("evil");
+    expect(r.out).not.toContain("x".repeat(50));
+  });
+
+  it("prints the jobs fs-api skipped because it has no handler for them, labelled, and still exits 0", async () => {
+    bodies = [
+      JSON.stringify({
+        at: "2026-11-01T02:07:00.000Z",
+        tasks: [{ task: "judgeReset", dedupeKey: "reset:pool:2026-11-01T02", created: true }],
+        skipped: [
+          {
+            task: "reconcile",
+            dedupeKey: "reconcile:nightly:2026-10-30T00:00:00.000Z",
+            reason: "no handler",
+          },
+          { task: "warmCaches", dedupeKey: "warm:w1", reason: "no handler" },
+        ],
+      }),
+    ];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(
+      "tasks: judgeReset (new); skipped, not enqueued: reconcile (no handler), warmCaches (no handler)",
+    );
+  });
+
+  it("prints only plain names and reasons from the skipped list", async () => {
+    bodies = [
+      JSON.stringify({
+        tasks: [],
+        skipped: [
+          { task: "warmCaches", reason: "\u001b[31mevil\nreason" },
+          { task: "\u001b[31mevil\nline", reason: "no handler" },
+          "reconcile",
+        ],
+      }),
+    ];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("tasks: none listed; skipped, not enqueued: warmCaches");
+    expect(r.out).not.toContain("evil");
+  });
+
+  it("a 2xx without a readable task list still counts as taken", async () => {
+    bodies = ["not json"];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/OK 202/);
+    expect(r.out).toContain("tasks: none listed");
+  });
+
   it("never prints the secret", async () => {
     replies = [503, 401];
     const r = await runTick(env());
@@ -85,10 +172,21 @@ describe("tools/cron-tick.mjs (fs-cron, a thin trigger)", () => {
     expect(r.out).not.toMatch(/Bearer/);
   });
 
-  it("treats 429 as done: fs-api already took a tick in this half hour", async () => {
+  it("a 429 is a refusal: fs-api took a tick less than 30 minutes ago; exit 2, no retry", async () => {
     replies = [429];
-    await expect(runTick(env())).resolves.toMatchObject({ code: 0 });
+    const r = await runTick(env());
+    expect(r.code).toBe(2);
     expect(seen).toHaveLength(1);
+    expect(r.out).toMatch(/REFUSED 429/);
+    expect(r.out).toMatch(/retry after 1500 s/);
+  });
+
+  it("a 429 after a failed attempt (5xx or unreachable) counts as taken: that attempt may have landed", async () => {
+    replies = [503, 429];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(seen).toHaveLength(2);
+    expect(r.out).toMatch(/OK 429/);
   });
 
   it("retries a 5xx, then succeeds", async () => {
