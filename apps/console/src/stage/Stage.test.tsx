@@ -193,6 +193,9 @@ describe("Judge stage", () => {
     const stage = screen.getByTestId("W-JG-01.stage");
     await waitFor(() => expect(stage.dataset.state).toBe("session"));
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    // The judge's keyboard is still on the spent press when the session ends.
+    const spent = screen.getByTestId("W-JG-01.markPaid.face");
+    spent.focus();
     await act(async () => {
       await view.runtime.session.renew();
     });
@@ -200,6 +203,9 @@ describe("Judge stage", () => {
     await waitFor(() => expect(stage.dataset.state).toBe("session-ended"));
     // The notice says the stage is back at the first press: the stage still reads it, and the press works.
     expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
+    // The press at rest is a new slab: focus moved to it, never left on <body>.
+    await waitFor(() => expect(spent.isConnected).toBe(false));
+    expect(document.activeElement).toBe(screen.getByTestId("W-JG-01.markPaid.face"));
     expect(view.router.state.location.pathname).toBe("/judge");
     await waitFor(() =>
       expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true"),
