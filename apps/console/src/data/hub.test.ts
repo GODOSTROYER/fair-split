@@ -224,6 +224,57 @@ describe("judge session", () => {
     expect(runtime.session.getState().status).toBe("none");
   });
 
+  it("a call answered 401 UNAUTHENTICATED on the console's token ends the session: a Reset elsewhere revoked it", async () => {
+    // fs-api's Reset revokes the workspace's tokens, and a revoked console token is answered 401 UNAUTHENTICATED,
+    // not FRAME_TOKEN_EXPIRED: the session is over, not a token to renew (a renewal would mint a new workspace).
+    const world = createTestWorld();
+    const log = recordRequests();
+    const { runtime, adapter } = createTestRuntime(world, [log.handler]);
+    const session = await runtime.session.start();
+    let renewed = 0;
+    runtime.session.onRenewed(() => {
+      renewed += 1;
+    });
+    const starts = () =>
+      log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions").length;
+    world.failNext("markPaid", "UNAUTHENTICATED");
+    await expect(adapter.call("markPaid", { params: { runSlug: session.runSlug } })).rejects.toMatchObject({
+      code: "UNAUTHENTICATED",
+      status: 401,
+    });
+    await expect.poll(() => runtime.session.getState().status).toBe("ended");
+    expect(runtime.session.getState().session).toBeNull();
+    expect(renewed).toBe(0);
+    expect(starts()).toBe(1);
+    // The revoked token is dropped: the next call carries none.
+    await adapter.call("proof", { params: { runSlug: session.runSlug } }).catch(() => undefined);
+    expect(log.sent.at(-1)).toMatchObject({ authorization: null });
+    const notice = stageNoticeFor({
+      session: runtime.session.getState(),
+      view: undefined,
+      autoplay: "off",
+      inSession: false,
+    });
+    expect(notice).toMatchObject({ state: "session-ended", retry: false });
+  });
+
+  it("a 401 UNAUTHENTICATED on a call that did not carry the console's token leaves the session alone", async () => {
+    // A brand link or a wrong /ops password is its own credential, refused for itself.
+    const world = createTestWorld();
+    const { runtime, adapter } = createTestRuntime(world);
+    const session = await runtime.session.start();
+    world.failNext("proof", "UNAUTHENTICATED");
+    await expect(
+      adapter.api.proof({ params: { runSlug: session.runSlug }, token: "fsb_not-a-real-link" }),
+    ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(runtime.session.getState()).toMatchObject({
+      status: "active",
+      session: { sessionId: session.sessionId },
+    });
+    await runtime.session.reset();
+  });
+
   it("a failed start can be dismissed and tried again", async () => {
     const { runtime, adapter } = createTestRuntime();
     const original = adapter.call;

@@ -215,6 +215,25 @@ describe("Judge stage", () => {
     await waitFor(() => expect(stage.dataset.state).toBe("session"));
   });
 
+  it("a Reset in another tab (the console's token answered 401 UNAUTHENTICATED) ends the session and returns to /judge", async () => {
+    const view = await renderConsole({ path: "/judge" });
+    await press("W-JG-01.markPaid");
+    const stage = screen.getByTestId("W-JG-01.stage");
+    await waitFor(() => expect(stage.dataset.state).toBe("session"));
+    const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
+    await view.navigate(`/runs/${runSlug}/split`);
+    expect(view.router.state.location.pathname).toBe(`/runs/${runSlug}/split`);
+    // fs-api revoked the workspace's tokens: the console's next call is refused for its credential.
+    view.world.failNext("markPaid", "UNAUTHENTICATED");
+    await act(async () => {
+      await view.adapter.call("markPaid", { params: { runSlug } }).catch(() => undefined);
+    });
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/judge"));
+    expect(stage.dataset.state).toBe("session-ended");
+    expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
+    expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
+  });
+
   it("a renewal that lands in another workspace ends the session and takes the stage back to /judge", async () => {
     // A Reset in another tab ended this session's workspace: fs-api answers the cookie's renewal with a fresh
     // workspace and run under the same session ID.
