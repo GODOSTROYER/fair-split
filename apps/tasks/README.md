@@ -6,7 +6,7 @@ from the owning workstream (`src/wiring.ts`).
 
 | Entry           | Built file       | Who runs it                                                                                                                                                                 |
 | --------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`). Boot checks, then registers S3.3's three Workflows tasks (`extract`, `readRateCard`, `warmCaches`) plus the `opsPing` and `opsDbPing` probes |
+| `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`, not deployed: see Deploying). Boot checks, then registers S3.3's three Workflows tasks (`extract`, `readRateCard`, `warmCaches`) plus the `opsPing` and `opsDbPing` probes |
 | `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`), for any of the 16 TaskNames: `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                      |
 | `src/cron.ts`   | `dist/cron.js`   | The hourly plan, as a tested reference for fs-api's `/internal/cron/tick`, and a CLI: `node apps/tasks/dist/cron.js --plan --at=<iso>`                                      |
 
@@ -14,9 +14,9 @@ On Render, `fs-cron` runs `tools/cron-tick.mjs`, a dependency-free script that P
 `/internal/cron/tick` over the private network (approved S3.3, S3.14). fs-api enqueues the plan.
 
 The app exports nothing: apps are siblings in the dependency rule, so fs-api must not import it.
-`src/handoff/` (the dispatcher side of S3.3 and the Render idempotency key) and `src/db-env.ts` (boot-time
-database credentials) are tested references for WS-DATA and WS-API to lift into `packages/outbox`,
-`packages/db` and `apps/api` as file moves.
+`src/handoff/` (the dispatcher side of S3.3 and the Render idempotency key) is a tested reference for WS-DATA
+to lift into `packages/outbox`. `src/db-env.ts` (boot-time database credentials) now lives in
+`packages/db/src/cli/app-url.ts`, which fs-api's entry calls; this copy stays for the undeployed fs-tasks entry.
 
 **Build.** `tsdown` bundles the three entries. It inlines every `@fairsplit/*` package (they export
 TypeScript source and have no build step) and leaves npm dependencies external. `test/bundle.test.ts`
@@ -110,50 +110,79 @@ connection errors and 5xx twice and never follows a redirect with the secret.
 
 ## Deploying (render.yaml)
 
-1. **New → Blueprint**, from the `deploy` branch. Render creates `fs-db` (Postgres 18, `0.1c-256mb`),
-   `fs-api` (web, `0.5c-512mb`, `/healthz`), `fs-tasks` (workflow) and `fs-cron` (`7 * * * *`), all in
-   `virginia`, each with `NODE_VERSION=24.22.1`. There is no environment group (S3.13).
-2. Render prompts once for each `sync: false` value:
-   - **fs-api:** `PP_CLIENT_ID`, `PP_CLIENT_SECRET`, `PP_WEBHOOK_ID`, `PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`,
-     `PP_RECEIVERS`, `PP_UNCLAIMED_RECEIVER`, `ANTHROPIC_API_KEY`, `RENDER_API_KEY`, `EXPO_PUSH_TOKEN`,
-     `OPS_PASSWORD_SCRYPT`, `JUDGE_CODE_SHA256`, and `FS_KILL` (leave empty);
-   - **fs-tasks:** `ANTHROPIC_API_KEY` and `FS_KILL` (leave empty).
-   - **Generated:** `FS_APP_DB_PASSWORD`, `STATEMENT_SIGNING_KEY`, `COOKIE_KEY` and `CRON_SECRET`, on
-     fs-api, shared with the others through `fromService`.
-   - Render ignores `sync: false` keys added later, so set any later secret in the Dashboard by hand.
-3. **PayPal rail (ADR-0002).** `PP_MODE: simulator` runs the contract-faithful simulator, labelled as a
-   simulated rail. Once sandbox credentials exist, change that one line to `sandbox`.
-4. **Database roles (S3.4, register §7).** fs-api holds the owner's URL only as `DATABASE_OWNER_URL`,
-   which `@fairsplit/db migrate` reads in the preDeployCommand (on Render it never reads `DATABASE_URL`).
-   Migrate creates `fs_app` with LOGIN, or resets its password, from `FS_APP_DB_PASSWORD`, so the first
-   deploy needs no manual step. No service declares `DATABASE_URL`: fs-api's boot builds fs_app's from the
-   owner URL's host, port and database and then deletes the owner URL from `process.env`
-   (`useAppDatabaseUrl`, the reference for WS-API); fs-tasks builds it from `FS_DB_HOST`, `FS_DB_PORT`,
-   `FS_DB_NAME` and the shared password, and never sees the owner's credentials. Both refuse to start on
-   an ambiguous or half-set environment, and refuse to run a task as a role that can UPDATE
-   `ledger_entries`. This layout departs from the S3.14 snippet; ADR-0005 records why.
+Every task runs inline in fs-api (`EXECUTOR=inline`, decision D6 of the 31 Oct schedule): Judge Mode replays
+the reads, so nothing needs Render Workflows, and `fs-tasks` is not in the Blueprint. `src/index.ts` above stays
+a tested entry, undeployed. The steps below need no install, except where `corepack pnpm` is named.
+
+1. **New → Blueprint**, from `main`. Render creates `fs-db` (Postgres 18, `0.1c-256mb`, no external
+   connections), `fs-api` (web, `0.5c-512mb`, `/healthz`) and `fs-cron` (`7 * * * *`), all in `virginia`, each
+   with `NODE_VERSION=24.19.0` (the CI pin; 24.22.1 was published on 20 Oct, under the 14-day rule). There is no
+   environment group (S3.13). **Automatic deploys are off**: deploy `main` by hand from the Dashboard
+   (Manual Deploy → Deploy latest commit), between judging sessions, because the simulator's state lives in
+   the fs-api process.
+2. Render prompts once, for **exactly these fs-api keys** (`test/render-blueprint.test.ts` asserts the set; if
+   Render shows any other prompt, stop and send a screenshot of the key names only, never values):
+   - `FS_LINK_SIGNING_KEY` and `FS_LEDGER_SIGNING_KEY`: a **different** value in each, 32 random bytes as 64
+     lowercase hex. Make each with:
+
+     ```sh
+     node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+     ```
+
+   - `FS_OPERATOR_PASSWORD_SCRYPT`: the output of `node tools/ops-hash-password.mjs`, run in a terminal in
+     any checkout (no install). It asks twice for an /ops password you choose (12 characters or more),
+     echoes nothing and prints only the scrypt hash to paste. In Git Bash's mintty, run it as
+     `winpty node tools/ops-hash-password.mjs` (or use PowerShell). Keep the password, not the hash, in your
+     password manager.
+   - `JUDGE_CODE_SHA256` (optional, for the film sessions): the hash this one-liner prints. It also prints the
+     judge code itself, once: keep the code in your password manager, paste only the hash. Or leave it blank.
+     `src/runbook.pg.test.ts` in apps/api runs this exact line against `POST /v1/judge/code`.
+
+     ```sh
+     node -e "const c=require('crypto'),code=c.randomBytes(12).toString('base64url');console.log('judge code (keep it, enter it on the judge stage): '+code);console.log('JUDGE_CODE_SHA256: '+c.createHash('sha256').update(code,'utf8').digest('hex'))"
+     ```
+
+   - `FS_KILL`: leave it blank.
+
+   Everything else is generated or committed. **Generated** on fs-api (a base64 256-bit value each):
+   `FS_COOKIE_SECRET`, `CRON_SECRET` (shared with fs-cron through `fromService`) and `FS_APP_DB_PASSWORD`.
+   **Committed** plain values: the PayPal rail, below, and the switches (`PP_ENV=sandbox`,
+   `PP_MODE=simulator`, `EXECUTOR=inline`, `STATIC_MEDIA_DIR`). fs-api's public origin is the URL Render gives
+   the service (`RENDER_EXTERNAL_URL`); set `PUBLIC_ORIGIN` only for a custom domain. Render does not prompt
+   for `sync: false` keys added after creation: set a later one in the Dashboard by hand.
+3. **PayPal rail (ADR-0002).** `PP_MODE: simulator` runs PayPal's REST subset on the contract-faithful
+   simulator, and every PayPal-derived value is labelled "Simulated PayPal sandbox". The `PP_CLIENT_ID`,
+   `PP_CLIENT_SECRET`, `PP_BUSINESS_EMAIL`, `PP_PAYER_EMAIL`, `PP_RECEIVERS` and `PP_UNCLAIMED_RECEIVER` values
+   are the simulator's own committed fakes (`packages/paypal-sim/data/accounts.json`: the `fs-judge` app, the
+   co-op, Lantern Bay, seven members and Rhea's address with no account). Only the simulator accepts them, so
+   they are plain `value:` entries, each checked against that file by `tools/lib/blueprint.ts`. The real
+   sandbox is untested: `PP_MODE: sandbox` would also need the real app's values as `sync: false` keys in
+   their place (the policy then requires exactly that).
+4. **Database roles (S3.4, register §7, ADR-0005).** fs-api holds the owner's URL only as
+   `DATABASE_OWNER_URL`, which `@fairsplit/db migrate` reads in the preDeployCommand (on Render it never reads
+   `DATABASE_URL`). Migrate creates `fs_app` with LOGIN, or resets its password, from `FS_APP_DB_PASSWORD`, so
+   the first deploy needs no manual step. No service declares `DATABASE_URL`: fs-api's entry
+   (`apps/api/src/index.ts`) calls `useAppDatabaseUrl` (`packages/db/src/cli/app-url.ts`, lifted from
+   `src/db-env.ts` here), which builds fs_app's URL from the owner URL's host, port and database and deletes
+   both from `process.env`. It refuses to start on an ambiguous or half-set environment, and as a role that can
+   UPDATE `ledger_entries`.
    - **Residual risk (ADR-0005):** deleting the owner URL from `process.env` does not erase it from the
      process's initial environment (`/proc/self/environ`), so code execution or a file read in fs-api
      could still recover it. `fs-db` therefore sets `ipAllowList: []`: Render then refuses every
      external connection, so a leaked owner URL works only from inside the private network. For `psql`,
      open a Shell on fs-api in the Dashboard.
-   - If S6 finds that workflows do not receive `fromService` values, copy fs-api's `FS_APP_DB_PASSWORD`
-     to fs-tasks by hand; fs-tasks refuses to boot until it has one.
-   - If S6 finds that the owner cannot `CREATE ROLE`, migrate fails the deploy. The S3.4 fallback (the
-     app runs as the owner, with delete-guard triggers) needs an ADR first.
-5. **Kill switch.** `system_flags` is the runtime authority. `FS_KILL` is the deploy-wide override and
-   must hold the same value on fs-api and fs-tasks; `opsPing` reports fs-tasks' value.
-6. Every service deploys on `checksPass`. From 1 to 15 Dec, promote hotfixes by hand (S3.14).
-7. Build filters cover each service's workspace dependency closure and every file its commands run;
-   `test/render-blueprint.test.ts` derives both. fs-api also rebuilds on `apps/tasks/**`, because the
-   executor lanes must match its dispatcher.
+   - If the owner cannot `CREATE ROLE` (S6), migrate fails the deploy. The S3.4 fallback (the app runs as the
+     owner, with delete-guard triggers) needs an ADR first.
+5. **Media.** fs-api serves `/media` from `STATIC_MEDIA_DIR=apps/api/dist/media`, which the build fills with
+   `tools/assemble-media.ts`: only what its `MEDIA_ALLOWLIST` names (the statement clips and their manifest,
+   photos A–L, the hero flats, the BR pages), never `media/` wholesale. A new kind of public file is a new
+   allowlist line; anything else fails the build.
+6. **Kill switch.** `system_flags` is the runtime authority. `FS_KILL` is the deploy-wide override.
+7. Build filters cover fs-api's workspace dependency closure and every file its commands run;
+   `test/render-blueprint.test.ts` derives both. They decide nothing while deploys are manual.
 8. After the first deploy:
-   - `corepack pnpm exec tsx tools/spike-s6.ts --live` measures S6: the `startTask` p50 (10 s or less,
-     else `EXECUTOR=worker`), fs-db reach from the workflow as fs_app (which also proves the owner could
-     create fs_app), and that fs_app can neither create roles nor UPDATE `ledger_entries`. It states
-     whether the verdict covers the full Blueprint or fs-tasks only, until `@fairsplit/api` can build and
-     `@fairsplit/db` has `migrate`.
-   - `corepack pnpm exec tsx tools/health-check.ts --origin=https://<host>`.
+   - `corepack pnpm exec tsx tools/health-check.ts --origin=https://<host>`;
+   - from 1 to 15 Dec, deploy hotfixes by hand from `main` (S3.14).
 
 Render's health check is `/healthz` (liveness). `/readyz` depends on PayPal and the webhook registration,
 which a restart cannot fix, so the health check and `uptime.yml` watch it instead.
@@ -178,6 +207,10 @@ which a restart cannot fix, so the health check and `uptime.yml` watch it instea
   latency and the `opsDbPing` verdicts. `tools/lib/render-blueprint.schema.json` is Render's published
   schema, vendored; refresh it with `tsx tools/spike-s6.ts --refresh-schema`.
 - `tools/cron-tick.mjs`: fs-cron's whole job.
+- `tools/assemble-media.ts`: fs-api's build step that fills `STATIC_MEDIA_DIR` from `MEDIA_ALLOWLIST`
+  (see Deploying, step 5).
+- `tools/ops-hash-password.mjs`: makes `FS_OPERATOR_PASSWORD_SCRYPT` (see Deploying, step 2). No install;
+  `--stdin` reads the first line of standard input instead of the terminal.
 
 ## Shims to swap after WS-CORE merges
 
@@ -193,11 +226,9 @@ independently, and the entry logs `contractsDrift()` at boot once contracts expo
   threshold relies on it: `readRateCard` may run 10 minutes); keep migrate's `DATABASE_OWNER_URL`
   contract, which render.yaml relies on. Once `@fairsplit/db` merges, fs-tasks' role check becomes its
   `assertAppRole`.
-- **WS-API (a gate for the first fs-api deploy, ADR-0005):** call `useAppDatabaseUrl` at boot before
-  anything reads `DATABASE_URL` (render.yaml gives fs-api only `DATABASE_OWNER_URL`, so without it fs-api
-  has no database URL), then the S3.4 role check; serve `/internal/cron/tick` as above; pass the fresh
-  flags to `chooseExecutor`; read `FS_TASKS_SLUG`.
+- **WS-API:** serve `/internal/cron/tick` as above (J2). Done: fs-api's entry calls `useAppDatabaseUrl`
+  before anything reads `DATABASE_URL`, then the S3.4 role check (ADR-0005's gate for the first deploy).
 - **WS-CORE:** confirm or replace `TASK_KEYS` at the IC-01 freeze.
-- **WS-QA:** run `tools/lint-render.ts` in CI; add `.node-version` (`24.22.1`); amend register §8/S1 to
+- **WS-QA:** run `tools/lint-render.ts` in CI; add `.node-version` (`24.19.0`, the pin render.yaml and CI share); amend register §8/S1 to
   tick List Balances on both REST apps. (`yaml` 2.9.1 and `ajv` 8.20.0 came through the deps lane,
   `deps/ops-pins`, and are in `docs/versions.md`.)
