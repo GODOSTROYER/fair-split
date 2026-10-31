@@ -128,7 +128,10 @@ async function rulesTaken(fn: () => Promise<void>): Promise<string[]> {
   return taken;
 }
 
-const NEW_SESSION_RULES = [RATE_RULES.judgeSessionPerCookie.name, RATE_RULES.judgeSessionPerIp.name];
+const NEW_SESSION_RULES: readonly string[] = [
+  RATE_RULES.judgeSessionPerCookie.name,
+  RATE_RULES.judgeSessionPerIp.name,
+];
 
 describe("run lookup: a frame of a judge session reads its own session's run", () => {
   it("the Chair's frame, a member's frame and a paired phone each read their session's runSlug, never another's", async () => {
