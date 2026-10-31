@@ -54,12 +54,21 @@ export type StatementAudioClip = z.infer<typeof StatementAudioClip>;
 export const AudioMention = z.string().regex(/^(?:slip|rule):[A-Za-z0-9-]+$/);
 
 /**
+ * Which form of its slot a sentence is: fs-api's template key is `{slot}.{variant}` (`PAY.paypal`, `PAY.cash`,
+ * `AI_NOTE.default`, T1's `AI_NOTE.seeded`, `HELP.noname`). Two forms of one slot say different things, so a clip of
+ * one is never played for the other (ADR-0011 §6).
+ */
+export const AudioVariant = z.string().regex(/^[a-z_]+$/);
+
+/**
  * One spoken sentence of the statement: its clip, or null when the phone's voice reads it (`deviceLabel`). A client
- * finds its own sentence by `slot` and `mentions` (which deduction or credit), in reading order, never by its words:
- * only fs-api renders the spoken text, and `textSha256` is fs-api's hash of it (ADR-0011 §3, §6).
+ * finds its own sentence by `slot`, `variant` and `mentions` (which deduction or credit), in reading order, never by
+ * its words: only fs-api renders the spoken text, and `textSha256` is fs-api's hash of it (ADR-0011 §3, §6).
  */
 export const StatementAudioSentence = z.strictObject({
   slot: AudioSlot,
+  /** The template variant fs-api rendered for this sentence (`paypal`, `cash`, `default`, `seeded`). */
+  variant: AudioVariant,
   /** The slips and rules the sentence names, in order (`rule:R1`, `slip:0403`). */
   mentions: z.array(AudioMention),
   textSha256: Sha256Hex,

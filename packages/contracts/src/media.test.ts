@@ -94,9 +94,15 @@ describe("IC-11 StatementAudio (GET /v1/media/audio/:lineId)", () => {
     label: "Sintetikong tingog (Gemini TTS)",
     deviceLabel: "Tingog sa telepono",
     sentences: [
-      { slot: "GREETING", mentions: [], textSha256: HASH, clip },
-      { slot: "DEDUCTION", mentions: ["rule:R1"], textSha256: "a".repeat(64), clip: null },
-      { slot: "PAY", mentions: [], textSha256: "b".repeat(64), clip: null },
+      { slot: "GREETING", variant: "default", mentions: [], textSha256: HASH, clip },
+      {
+        slot: "DEDUCTION",
+        variant: "default",
+        mentions: ["rule:R1"],
+        textSha256: "a".repeat(64),
+        clip: null,
+      },
+      { slot: "PAY", variant: "paypal", mentions: [], textSha256: "b".repeat(64), clip: null },
     ],
   } as const;
 
@@ -110,11 +116,26 @@ describe("IC-11 StatementAudio (GET /v1/media/audio/:lineId)", () => {
     );
   });
 
-  it("names each sentence by its slot and the slips and rules it names, never by its words", () => {
-    const sentence = { slot: "DEDUCTION", mentions: ["rule:R3"], textSha256: HASH, clip: null } as const;
+  it("names each sentence by its slot, its variant and the slips and rules it names, never by its words", () => {
+    const sentence = {
+      slot: "DEDUCTION",
+      variant: "default",
+      mentions: ["rule:R3"],
+      textSha256: HASH,
+      clip: null,
+    } as const;
     expect(StatementAudioSentence.parse(sentence)).toEqual(sentence);
     const { mentions: _, ...bare } = sentence;
     expect(StatementAudioSentence.safeParse(bare).success, "mentions present").toBe(false);
+    const { variant: __, ...unnamed } = sentence;
+    expect(StatementAudioSentence.safeParse(unnamed).success, "variant present").toBe(false);
+    // fs-api's template key is `{slot}.{variant}`: the variant names which form of the slot, never words
+    for (const v of ["paypal", "cash_nodate", "seeded_noname"]) {
+      expect(StatementAudioSentence.safeParse({ ...sentence, variant: v }).success, v).toBe(true);
+    }
+    for (const v of ["", "PayPal", "cash nodate", "AI_NOTE.seeded", "v2"]) {
+      expect(StatementAudioSentence.safeParse({ ...sentence, variant: v }).success, v).toBe(false);
+    }
     for (const m of ["fact:NET_USD", "0403", "slip:04 03", ""]) {
       expect(StatementAudioSentence.safeParse({ ...sentence, mentions: [m] }).success, m).toBe(false);
     }
