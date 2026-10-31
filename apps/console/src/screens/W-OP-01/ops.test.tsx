@@ -6,15 +6,18 @@
 
 import { webcrypto } from "node:crypto";
 import { getSnapshot } from "@fairsplit/api-client/seed";
-import { webRoutes } from "@fairsplit/contracts";
+import { DeviceKeyId, Ed25519PublicKeyHex, IsoDateTime, Uuid, webRoutes } from "@fairsplit/contracts";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type JsonBodyType } from "msw";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { DataProvider } from "../../data/provider.js";
 import { KeyPanel } from "../../features/ops/OpsPage.js";
 import { SECTION_PATHS } from "../../features/ops/sections.js";
 import { useTreasurerKey } from "../../features/ops/useOps.js";
+import { jcs, utf8 } from "../../lib/jcs.js";
 import { memoryKeyStore, TREASURER_KEY_ID } from "../../lib/keystore.js";
 import {
   createTestRuntime,
@@ -36,6 +39,41 @@ import {
   SAMPLE_SESSION,
 } from "../../test/ops-fixtures.js";
 import { gate, withHandlers } from "../../test/proof-world.js";
+
+// fs-api's RegisterKeyRequest, copied from apps/api/src/ops/keys.ts:27-36 (the API's own schema, not in
+// @fairsplit/contracts), and its statement bytes from apps/api/src/ops/keys.ts:54-64 (registrationBytes).
+const RegisterKeyRequest = z.strictObject({
+  workspaceId: Uuid,
+  keyId: DeviceKeyId.refine((id) => /-w\d+$/.test(id), "a browser key ID ends in -w{n}"),
+  publicKeyHex: Ed25519PublicKeyHex,
+  approverId: z.string().regex(/^treasurer:[a-z]+$/),
+  proof: z.strictObject({ at: IsoDateTime, signatureHex: z.string().regex(/^[0-9a-f]{128}$/) }),
+});
+type RegisterKeyRequest = z.infer<typeof RegisterKeyRequest>;
+function registrationBytes(r: Omit<RegisterKeyRequest, "proof"> & { at: string }): Uint8Array {
+  return utf8(
+    jcs({
+      purpose: "fairsplit.key.register",
+      v: 1,
+      workspaceId: r.workspaceId.toLowerCase(),
+      keyId: r.keyId,
+      publicKeyHex: r.publicKeyHex,
+      approverId: r.approverId,
+      at: r.at,
+    }),
+  );
+}
+
+const bytesOf = (hex: string) => Uint8Array.from(hex.match(/../g) ?? [], (h) => Number.parseInt(h, 16));
+
+/** The operator's GET /v1/ops/overview names every workspace's ledger head with its kind (apps/api ops/overview.ts). */
+const SHOWCASE_WS = "0192d5a0-0000-7000-8000-000000000002";
+const OVERVIEW = {
+  ledger: [
+    { workspaceId: "019a0000-0000-7000-8000-00000000beef", kind: "judge", seq: 4, entryHash: "a".repeat(64) },
+    { workspaceId: SHOWCASE_WS, kind: "showcase", seq: 91, entryHash: "b".repeat(64) },
+  ],
+};
 
 /** Every S3.15 read beyond health, with the route its "not served yet" names. */
 const SECTIONS = [
@@ -296,8 +334,39 @@ describe("W-OP-01 for the operator", () => {
     await expectNoAxeViolations(view.container);
   });
 
+  it("registers the key with exactly the body fs-api's POST /v1/ops/keys accepts, signed by the new key", async () => {
+    const sent: unknown[] = [];
+    const world = withHandlers(operatorWorld(), [
+      http.get("*/v1/ops/overview", () => HttpResponse.json(OVERVIEW)),
+      http.post("*/v1/ops/keys", async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({ ok: true }, { status: 201 });
+      }),
+    ]);
+    await openOps(world);
+    const panel = screen.getByTestId("W-OP-01.key.panel");
+    await waitFor(() => expect(panel.dataset.access).toBe("operator"));
+    await waitFor(() => expect(panel.dataset.state).toBe("none"));
+    fireEvent.keyDown(screen.getByTestId("W-OP-01.key.make.face"), { key: "Enter" });
+    await waitFor(() => expect(panel.dataset.state).toBe("made"));
+    fireEvent.keyDown(screen.getByTestId("W-OP-01.key.register.face"), { key: "Enter" });
+    await waitFor(() => expect(panel.dataset.state).toBe("registered"));
+    expect(sent).toHaveLength(1);
+    // fs-api's strict schema: no `role`, the showcase workspace, and a proof of possession.
+    const body = RegisterKeyRequest.parse(sent[0]);
+    expect(body).toMatchObject({
+      workspaceId: SHOWCASE_WS,
+      keyId: TREASURER_KEY_ID,
+      approverId: "treasurer:analyn",
+    });
+    // The proof verifies against the public key it registers, over fs-api's statement bytes.
+    const message = registrationBytes({ ...body, at: body.proof.at });
+    expect(ed25519.verify(bytesOf(body.proof.signatureHex), message, bytesOf(body.publicKeyHex))).toBe(true);
+  });
+
   it("makes the key in this browser and registers it, only in the operator's session", async () => {
     const world = withHandlers(operatorWorld(), [
+      http.get("*/v1/ops/overview", () => HttpResponse.json(OVERVIEW)),
       http.post("*/v1/ops/keys", () => HttpResponse.json({ ok: true }, { status: 201 })),
     ]);
     const { view } = await openOps(world);
