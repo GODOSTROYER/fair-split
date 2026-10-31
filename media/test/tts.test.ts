@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -397,6 +398,48 @@ describe("audio manifest (S4.6)", () => {
       entries: [{ ...entry({ lang: "en" }), label: "Voice" }],
     };
     expect(AudioManifest.safeParse(bare).success).toBe(false);
+  });
+
+  it("keeps a clip's mention offsets (IC-11, ADR-0011) and refuses a malformed one", () => {
+    const offsets = [
+      { ref: "fact:HONORIFIC_NAME", at_ms: 700 },
+      { ref: "slip:0403", at_ms: 2200 },
+    ];
+    const m: AudioManifest = { v: 1, synthetic: true, notice: "n", entries: [] };
+    expect(upsertEntry(m, entry({ offsets })).entries[0]?.offsets).toEqual(offsets);
+    expect(upsertEntry(m, entry()).entries[0]?.offsets).toBeUndefined();
+    for (const bad of [
+      { ref: "0403", at_ms: 1 },
+      { ref: "slip:0403", at_ms: -1 },
+      { ref: "fact:net", at_ms: 1 },
+    ]) {
+      const doc = { v: 1, synthetic: true, notice: "n", entries: [entry({ offsets: [bad] })] };
+      expect(AudioManifest.safeParse(doc).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("the committed manifest names statement slots, and each text hashes to its text_sha256 (ADR-0011 §4)", () => {
+    const m = AudioManifest.parse(
+      JSON.parse(readFileSync(join(MEDIA_ROOT, "audio", "manifest.json"), "utf8")),
+    );
+    const slots = [
+      "GREETING",
+      "DELIVERY",
+      "PREMIUM",
+      "BONUS",
+      "DEDUCTION",
+      "CREDIT",
+      "PAY",
+      "SOURCES",
+      "HELP",
+      "AI_NOTE",
+    ];
+    for (const e of m.entries) {
+      expect(slots, `${e.file}: ${e.slot}`).toContain(e.slot);
+      expect(createHash("sha256").update(e.text, "utf8").digest("hex"), e.file).toBe(e.text_sha256);
+      const published = /^audio\/(M-\d{3})\/(ceb|fil|en)\/[A-Za-z0-9_-]{1,64}\.m4a$/.exec(e.file);
+      if (!e.draft) expect([published?.[1], published?.[2]], e.file).toEqual([e.member_no, e.lang]);
+    }
   });
 
   it("has M-014 in Cebuano, Filipino and English from the S10 spike", () => {

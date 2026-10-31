@@ -6,7 +6,7 @@
     {
       "member_no": "M-014",
       "lang": "ceb",
-      "slot": "s1",
+      "slot": "GREETING",
       "file": "audio/drafts/M-014/ceb/s1.m4a",
       "duration_ms": 4505,
       "text": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
@@ -33,7 +33,7 @@
     {
       "member_no": "M-014",
       "lang": "ceb",
-      "slot": "s1",
+      "slot": "GREETING",
       "file": "audio/M-014/ceb/s1.m4a",
       "duration_ms": 4634,
       "text": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
@@ -60,7 +60,7 @@
     {
       "member_no": "M-014",
       "lang": "ceb",
-      "slot": "s5",
+      "slot": "PAY",
       "file": "audio/drafts/M-014/ceb/s5.m4a",
       "duration_ms": 11394,
       "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos, pinaagi sa PayPal.",
@@ -87,7 +87,7 @@
     {
       "member_no": "M-014",
       "lang": "ceb",
-      "slot": "s5",
+      "slot": "PAY",
       "file": "audio/M-014/ceb/s5.m4a",
       "duration_ms": 10997,
       "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos, pinaagi sa PayPal.",
@@ -114,7 +114,7 @@
     {
       "member_no": "M-014",
       "lang": "en",
-      "slot": "s1",
+      "slot": "GREETING",
       "file": "audio/M-014/en/s1.m4a",
       "duration_ms": 3687,
       "text": "Good day, Nang Celing. Thank you for your hard work.",
@@ -141,7 +141,7 @@
     {
       "member_no": "M-014",
       "lang": "en",
-      "slot": "s5",
+      "slot": "PAY",
       "file": "audio/M-014/en/s5.m4a",
       "duration_ms": 10098,
       "text": "Your pay this season: sixty-four dollars and forty-five cents, about four thousand and twenty-eight pesos, by PayPal.",
@@ -168,7 +168,7 @@
     {
       "member_no": "M-014",
       "lang": "fil",
-      "slot": "s1",
+      "slot": "GREETING",
       "file": "audio/M-014/fil/s1.m4a",
       "duration_ms": 4497,
       "text": "Magandang araw po, Nang Celing. Salamat po sa inyong pagsisikap.",
@@ -195,7 +195,7 @@
     {
       "member_no": "M-014",
       "lang": "fil",
-      "slot": "s5",
+      "slot": "PAY",
       "file": "audio/M-014/fil/s5.m4a",
       "duration_ms": 9961,
       "text": "Ang inyong bayad ngayong season: sixty-four dollars and forty-five cents, humigit-kumulang four thousand and twenty-eight pesos, sa PayPal.",

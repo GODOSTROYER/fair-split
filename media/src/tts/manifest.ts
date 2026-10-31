@@ -18,7 +18,11 @@ export function voiceLabel(lang: Lang): (typeof VOICE_LABELS)[Lang] {
   return VOICE_LABELS[lang];
 }
 
-/** One clip per sentence (S4.6 manifest fields, plus the label, draft flag and review state). */
+/**
+ * One clip per sentence (S4.6 manifest fields, plus the label, draft flag and review state). fs-api serves an entry
+ * only from media/public and only when `slot`, `text` and `text_sha256` are exactly the rendered sentence's, with
+ * `slot` a statement slot (GREETING … AI_NOTE) and `file` under `audio/{member_no}/{lang}/` (ADR-0011).
+ */
 export const AudioEntry = z
   .object({
     member_no: z.string().regex(/^M-\d{3}$/),
@@ -39,6 +43,19 @@ export const AudioEntry = z
     draft: z.boolean(),
     review: z.enum(["machine-translated, pending native review", "native-reviewed"]),
     request: z.object({ id: z.string(), latency_ms: z.number(), sentences: z.number().int().positive() }),
+    /**
+     * IC-11 (ADR-0011): where the voice starts saying each thing the sentence names, in ms from the clip's start.
+     * `ref` is one of the sentence's mentions (`slip:0403`, `rule:R1`) or `fact:{PLACEHOLDER}` for an amount or a
+     * name it fills (`fact:NET_USD`, `fact:HONORIFIC_NAME`). Optional: fs-api serves a clip without offsets too.
+     */
+    offsets: z
+      .array(
+        z.strictObject({
+          ref: z.string().regex(/^(?:(?:slip|rule):[A-Za-z0-9-]+|fact:[A-Z][A-Z_]*)$/),
+          at_ms: z.number().int().nonnegative(),
+        }),
+      )
+      .optional(),
   })
   .refine((e) => e.label === VOICE_LABELS[e.lang], {
     message: "label must be the synthetic-voice label for the clip's language (VOICE_LABELS)",
