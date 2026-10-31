@@ -126,8 +126,8 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
 | `format` (`lib/format.ts`)                     | The only number formatter (domain's pure `format.*`): `money`, `kg`, `pesoEstimate`, `hashGroups`, `amountSpoken`… Never `Intl`         |
 | `useMoment(id, { focal?, mode? })`             | The phase machine: `play(act, { eventId }, { skipFeedback?, feedbackIndex? })`, `enter(phase)`, `reset()`, `value(target)`, `rootProps` |
 | `provenanceFooter(input)`                      | "Read by Claude (claude-opus-5-5)", "Computed by engine v1, rate card f2d7 026d", PayPal by rail                                        |
-| `lib/focus.ts`                                 | Every focus move: `returnFocus(targets, { leaving? })` in the commit that removed what held focus (by stable key, then the screen's main control, revealed), `focusAndReveal(el)`, `useFocusAfterRemoval`, `<FocusReturn>` in a dialog's popup |
-| `<Stamp stamp testId?>` (`chrome/Stamp.tsx`)   | A person's ink stamp (ui-web's look, `role="img"` named in full): use it, not ui-web's `InkStamp`                                      |
+| `lib/focus.ts`                                 | Every focus move: `returnFocus` (in the commit, by key, revealed), `focusAndReveal`, `useFocusAfterRemoval`, `<FocusReturn>`            |
+| `<Stamp stamp testId?>` (`chrome/Stamp.tsx`)   | A person's ink stamp (ui-web's look, `role="img"` named in full): use it, not ui-web's `InkStamp`                                       |
 | `useShortcut(spec)`, `useShortcuts()`          | Register keys while mounted (`group`: General, Read, Review, Approve, Run; `scope` for J/K)                                             |
 | `useDataMode()`                                | `{ on, set, toggle }`; `<html data-datamode>` mirrors it                                                                                |
 | `useAnnounce()`                                | One polite live region, throttled to one summary per 5 s ("3 of 8 confirmed")                                                           |
