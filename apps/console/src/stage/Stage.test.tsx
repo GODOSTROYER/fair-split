@@ -289,6 +289,66 @@ describe("Judge stage", () => {
     expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(true);
   });
 
+  it("the co-sign's raise over the scrim puts focus on the Chair's tab, the frame the phone now shows", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    (document.getElementById("fsc-main") as HTMLElement).focus();
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    const chair = screen.getByTestId("W-JG-01.tab.chair");
+    await waitFor(() => expect(chair.getAttribute("aria-selected")).toBe("true"));
+    await waitFor(() => expect(document.activeElement).toBe(chair));
+  });
+
+  it.each(["full", "reduced"] as const)(
+    "a raise over the scrim takes focus into the phone once the panel can take it, never leaving it on <body> (%s motion)",
+    async (motion) => {
+      // Key 1 (the treasurer's held Space on the approve slab) raises the Chair over the scrim below 1280 px: the
+      // console goes inert under the focused slab, and a browser drops that focus to <body>. A panel it does not
+      // render yet (visibility: hidden while a transition's delay runs) refuses the focus without a word, so Stage
+      // must try again once it renders, not once and give up (WCAG 2.4.3). jsdom renders nothing and refuses
+      // nothing: the spy refuses what a browser would, and the panel "renders" when the test says so.
+      const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 }, motion });
+      await press("W-JG-01.markPaid");
+      await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+      const console_ = document.querySelector<HTMLElement>(".fsc-console");
+      (document.getElementById("fsc-main") as HTMLElement).focus();
+
+      let panelRendered = false;
+      const focus = HTMLElement.prototype.focus;
+      const spy = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+        this: HTMLElement,
+        options?: FocusOptions,
+      ) {
+        if (this.closest("[inert]")) return;
+        if (!panelRendered && this.closest("#fsc-phone-panel")) return;
+        focus.call(this, options);
+      });
+      try {
+        act(() => {
+          view.world.settle();
+          view.world.resolveAll();
+          view.world.sign("treasurer");
+        });
+        await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
+        // The browser's focus fixup: the inert console's focused control loses focus to <body>.
+        const held = document.activeElement;
+        if (held instanceof HTMLElement && held.closest("[inert]")) held.blur();
+        expect(document.activeElement).toBe(document.body);
+        // The panel's transition delay is over: it renders, and focus goes to the frame it shows.
+        panelRendered = true;
+        const chair = screen.getByTestId("W-JG-01.tab.chair");
+        await waitFor(() => expect(document.activeElement).toBe(chair));
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
   it("lowering a phone raised over the scrim focuses what raised it once the console is live, even when timers beat React's commit", async () => {
     // Below 1280 px the moment's raise lays the scrim over a console control that held focus. Lowering must hand
     // focus back to it after the commit that lifts the console's inert (a browser refuses focus to an inert
