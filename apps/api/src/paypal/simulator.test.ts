@@ -3,11 +3,13 @@
 // calls and any global fetch to PayPal's sandbox hosts; fs-api's own rail reaches its REST routes in process; its
 // signing trust reaches the webhook verifier in simulator mode only; /paypal-sim serves its public pages and nothing
 // else (no REST API, no admin).
+import { randomBytes, randomUUID } from "node:crypto";
 import { createMemoryLimiter } from "@fairsplit/paypal-core";
 import { createTk, ToolkitError } from "@fairsplit/paypal-toolkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseEnv } from "../env.js";
 import { createTestApp, TEST_ENV, type TestApp } from "../test/index.js";
+import { bootInProcessSimulator, prewarmSimulatorCertificate } from "./boot.js";
 import { createPayPalRail, type PayPalRail } from "./mode.js";
 import {
   runsInProcessSimulator,
@@ -198,6 +200,106 @@ describe("webhook trust: the simulator's cert URL and CA in simulator mode only"
     // PayPal's structural check: here the local http origin fails first (NOT_HTTPS); on a host, HOST_NOT_PAYPAL
     expect(refused).toMatchObject({ mode: false, reason: "CERT_URL_REJECTED" });
     expect(["NOT_HTTPS", "HOST_NOT_PAYPAL"]).toContain(refused.detail);
+  });
+});
+
+describe("boot: the simulator's signing certificate is known before the server takes traffic", () => {
+  // Cert-fetch starvation: every certificate fetch, of any id, spends one of 3 an hour. Forged deliveries naming random
+  // SIMCERT URLs on the public origin could spend all 3 before the first genuine delivery, and every genuine one would
+  // then be refused for the hour. The boot step loads the simulator's own certificate first (paypal/boot.ts).
+  const hex8 = () => randomBytes(4).toString("hex");
+
+  /** A rail on the running simulator with fresh verifier budgets, counting every certificate it fetches. */
+  function freshRail(): { rail: PayPalRail; fetched: string[] } {
+    const pages = s.sim.rail.pages;
+    if (!pages) throw new Error("the simulator has no pages");
+    const fetched: string[] = [];
+    const counted = {
+      ...s.sim.rail,
+      pages: {
+        ...pages,
+        fetch: (request: Request) => {
+          fetched.push(new URL(request.url).pathname);
+          return pages.fetch(request);
+        },
+      },
+    };
+    return {
+      rail: createPayPalRail({
+        paypal: parseEnv({ ...TEST_ENV, ...s.env }).paypal,
+        limiter: createMemoryLimiter(),
+        now: () => s.clock.nowMs(),
+        simulator: counted,
+      }),
+      fetched,
+    };
+  }
+
+  /** Three deliveries naming random SIMCERT URLs on the public origin, each from its own address. */
+  async function forgeThree(r: PayPalRail, genuine: Request, body: string) {
+    const out: (string | null)[] = [];
+    for (let i = 1; i <= 3; i++) {
+      const headers = new Headers(genuine.headers);
+      headers.set(
+        "paypal-cert-url",
+        `${s.sim.rail.pages?.baseUrl}/sim/certs/SIMCERT-${hex8()}-${hex8()}-${hex8()}.pem`,
+      );
+      headers.set("paypal-transmission-id", randomUUID());
+      const v = await r.core.verifier.verifyDetailed(body, headers, r.webhookId ?? "", {
+        clientIp: `198.51.100.${i}`,
+      });
+      expect(v.mode).toBe(false);
+      out.push(v.reason);
+    }
+    return out;
+  }
+
+  it("without the boot step, three forged deliveries starve the first genuine one (the hazard)", async () => {
+    const { deliveries } = await payOneAndCapture("SIMCERT-STARVE-1");
+    const genuine = deliveries[0] as Request;
+    const body = await genuine.clone().text();
+    const { rail: r } = freshRail();
+    expect(await forgeThree(r, genuine, body)).toEqual(Array(3).fill("CERT_FETCH_FAILED"));
+    const refused = await r.core.verifier.verifyDetailed(body, genuine.headers, r.webhookId ?? "", {
+      clientIp: "203.0.113.7",
+    });
+    expect(refused).toMatchObject({ mode: false, reason: "CERT_FETCH_THROTTLED" });
+  });
+
+  it("bootInProcessSimulator loads the certificate first: after three forged deliveries a genuine one verifies with no fetch", async () => {
+    const { deliveries } = await payOneAndCapture("SIMCERT-STARVE-2");
+    const genuine = deliveries[0] as Request;
+    const body = await genuine.clone().text();
+    const certPath = new URL(genuine.headers.get("paypal-cert-url") ?? "").pathname;
+    const { rail: r, fetched } = freshRail();
+    expect(r.pages?.certUrl).toBe(genuine.headers.get("paypal-cert-url"));
+    // this app has no database: the boot's later steps (end sessions, record the balance) fail and are logged
+    const stop = await bootInProcessSimulator({ ...t.deps, paypal: r });
+    stop();
+    expect(fetched).toEqual([certPath]);
+    expect(r.core.verifier.health()).toMatchObject({ knownCertIds: 1, lastKnownGoodCerts: 1 });
+
+    const forged = await forgeThree(r, genuine, body);
+    expect(forged.filter((reason) => reason === "CERT_FETCH_FAILED")).toHaveLength(2);
+    expect(forged[2]).toBe("CERT_FETCH_THROTTLED"); // the hour's 3 are spent, the boot's fetch included
+    const ok = await r.core.verifier.verifyDetailed(body, genuine.headers, r.webhookId ?? "", {
+      clientIp: "203.0.113.7",
+    });
+    expect(ok).toMatchObject({ mode: "self", reason: null });
+    // the genuine certificate was fetched once, at boot; never again for a delivery
+    expect(fetched.filter((p) => p === certPath)).toHaveLength(1);
+  });
+
+  it("a forged delivery still fails every check it failed before: a wrong signature under the known cert is refused", async () => {
+    const { deliveries } = await payOneAndCapture("SIMCERT-STARVE-3");
+    const genuine = deliveries[0] as Request;
+    const body = await genuine.clone().text();
+    const { rail: r } = freshRail();
+    expect(await prewarmSimulatorCertificate({ paypal: r, logger: t.deps.logger })).toBe(true);
+    const tampered = await r.core.verifier.verifyDetailed(`${body} `, genuine.headers, r.webhookId ?? "", {
+      clientIp: "203.0.113.8",
+    });
+    expect(tampered.mode).toBe(false);
   });
 });
 

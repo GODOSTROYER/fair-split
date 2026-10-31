@@ -1,6 +1,11 @@
 // Boot steps of the in-process simulator (PP_MODE=simulator, ADR-0010). Its state lives in this process only, so a
 // restart or a redeploy forgets every invoice, batch and item it held:
 //
+//   0. KNOW ITS CERTIFICATE: the simulator signs with a certificate it made at this boot, so the webhook verifier has
+//      never seen it. Every certificate fetch, of any id, spends one of 3 an hour (paypal-core verify.ts), so forged
+//      deliveries naming random SIMCERT URLs on the public origin could spend all 3 before the first genuine one and
+//      starve it for the hour. One in-process prewarm makes it last-known-good before any outside request: it is
+//      never fetched again, and every delivery is still checked in full (signature, CRC32, chain, window, replay).
 //   1. END THE JUDGE SESSIONS of the previous process: every claimed judge workspace's claim is cleared and its tokens
 //      revoked, as a Reset does (judge/session.ts `resetJudgeSession`), with a `judge.session.reset` ledger entry
 //      saying why. Their runs name PayPal ids the new simulator never issued, so the judge's next press starts a fresh
@@ -21,6 +26,33 @@ const BOOT_ACTOR = { kind: "system", id: "system:paypal-sim-boot", impersonatedB
 export const BALANCE_READING_EVERY_MS = 12 * 3_600_000;
 
 type BootDeps = Pick<AppDeps, "db" | "clock" | "paypal" | "logger">;
+
+/**
+ * Step 0: the simulator's signing certificate into the webhook verifier as a known, loaded certificate (by its cert
+ * URL, through the rail's in-process pages). False when the rail has no simulator certificate or the load failed
+ * (logged; deliveries then load it on first use, as before).
+ */
+export async function prewarmSimulatorCertificate(
+  deps: Pick<AppDeps, "paypal" | "logger">,
+): Promise<boolean> {
+  const certUrl = deps.paypal.pages?.certUrl;
+  if (!certUrl) return false;
+  const log = deps.logger.child({ component: "paypal-sim" });
+  try {
+    const [r] = await deps.paypal.core.verifier.prewarm([certUrl]);
+    if (r?.ok) {
+      log.info({ validTo: r.validTo }, "simulator signing certificate loaded before traffic");
+      return true;
+    }
+    log.warn(
+      { reason: r?.reason ?? null, detail: r?.detail ?? null },
+      "simulator certificate prewarm failed",
+    );
+  } catch (err) {
+    log.warn({ err }, "simulator certificate prewarm failed");
+  }
+  return false;
+}
 
 /** Ends every claimed judge session (step 1 above). Returns the workspaces it ended. */
 export async function endJudgeSessionsAtBoot(deps: BootDeps): Promise<string[]> {
@@ -84,11 +116,12 @@ export async function recordSimulatorBalance(deps: BootDeps): Promise<number> {
 }
 
 /**
- * Both boot steps, then the balance reading every 12 h. Failures are logged and never stop the server (without a
- * reading the quota falls back to the simulator's opening balance, labelled). Returns a stop for the timer.
+ * The boot steps in order, then the balance reading every 12 h. Failures are logged and never stop the server
+ * (without a reading the quota falls back to the simulator's opening balance, labelled). Returns a stop for the timer.
  */
 export async function bootInProcessSimulator(deps: BootDeps): Promise<() => void> {
   const log = deps.logger.child({ component: "paypal-sim" });
+  await prewarmSimulatorCertificate(deps);
   try {
     const ended = await endJudgeSessionsAtBoot(deps);
     if (ended.length > 0) log.info({ ended: ended.length }, "judge sessions of the previous simulator ended");

@@ -306,7 +306,12 @@ export async function startInProcessSimulator(o: StartSimulatorOptions): Promise
     rail: {
       name: "paypal-sim (in process)",
       fetch: (request) => simulator.apiFetch(request),
-      pages: { basePath: SIMULATOR_BASE_PATH, baseUrl: simulator.pagesBaseUrl, fetch: publicFetch },
+      pages: {
+        basePath: SIMULATOR_BASE_PATH,
+        baseUrl: simulator.pagesBaseUrl,
+        certUrl: simulator.certUrl,
+        fetch: publicFetch,
+      },
       webhookTrust: trust,
     },
     webhookId,

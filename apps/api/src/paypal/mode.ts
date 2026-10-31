@@ -67,6 +67,11 @@ export interface SimulatorPages {
   readonly basePath: string;
   /** `{public origin}{basePath}`: where the simulator's certificate and pay-page URLs point. */
   readonly baseUrl: string;
+  /**
+   * The certificate this simulator signs every delivery with (`{baseUrl}/sim/certs/SIMCERT-….pem`, new each boot):
+   * the boot loads it into the webhook verifier before the server takes traffic (paypal/boot.ts).
+   */
+  readonly certUrl?: string;
   fetch(request: Request): Promise<Response>;
 }
 
