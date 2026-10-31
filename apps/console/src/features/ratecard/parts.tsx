@@ -3,8 +3,9 @@
 // was read from, so every printed rule points at its own words on the scan.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, InkStamp, Paper } from "@fairsplit/ui-web";
+import { Glyph, Paper } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
+import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { RATECARD_COPY } from "./copy.js";
 import { type ClauseRef, sealedText } from "./model.js";
@@ -76,7 +77,7 @@ export function HashPlate({
         <ul className="fsc-bolted-plate__acts fs-t-caption">
           {card.ratifications.map((r) => (
             <li key={r.role}>
-              <InkStamp
+              <Stamp
                 stamp={{
                   initials: initials(r.name),
                   name: r.name,

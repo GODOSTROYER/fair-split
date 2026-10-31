@@ -3,8 +3,9 @@
 // people press (the one d3 slab lives in the screen); a signature is ink under its initials stamp.
 
 import { bandCircle, type RingIndex, seal } from "@fairsplit/seal";
-import { Glyph, InkStamp, Seal, type StampView } from "@fairsplit/ui-web";
+import { Glyph, Seal, type StampView } from "@fairsplit/ui-web";
 import { type ReactNode, useMemo, useSyncExternalStore } from "react";
+import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { APPROVE, en } from "../split/shared/copy.js";
 
@@ -174,7 +175,7 @@ export function KeySlot({ name, why, keyLine, keyNote, status, signed, stamp, te
     <li className="fsr-key" data-state={signed ? "signed" : "waiting"} data-testid={testId}>
       <span className="fsr-key__slot" aria-hidden={stamp ? undefined : true}>
         {signed && stamp ? (
-          <InkStamp stamp={stamp} testId={`${testId}.stamp`} />
+          <Stamp stamp={stamp} testId={`${testId}.stamp`} />
         ) : (
           <Glyph name="seal" size={18} />
         )}

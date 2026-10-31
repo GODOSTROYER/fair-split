@@ -11,7 +11,7 @@
 
 import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
-import { AmountDisplay, Glyph, type HoldChange, InkStamp, Print, RailBar, Slab } from "@fairsplit/ui-web";
+import { AmountDisplay, Glyph, type HoldChange, Print, RailBar, Slab } from "@fairsplit/ui-web";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,6 +19,7 @@ import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
+import { Stamp } from "../../chrome/Stamp.js";
 import { isApiClientError } from "../../data/errors.js";
 import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
 import { queryKeys } from "../../data/query.js";
@@ -770,7 +771,7 @@ function StatusBanner({ state, declined, paypalRetry, onReload }: StatusBannerPr
     case "declined":
       return (
         <div className="fsr-banner fsr-banner--ink" role="status" data-testid="W-TR-07.declined">
-          {declined?.stamp && <InkStamp stamp={declined.stamp} />}
+          {declined?.stamp && <Stamp stamp={declined.stamp} />}
           <p className="fsr-banner__text">
             <span className="fs-t-label">{APPROVE.declined(declined?.by?.shortName ?? "The Chair")}: </span>
             <span className="fsr-banner__quote">{declined?.reason}</span>

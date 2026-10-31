@@ -7,11 +7,12 @@
 // plays when the invoice reads back as paid, on the event, never on the press, and the title says it's funded.
 
 import { PAY_RUN_RANK, type PayRunState, webRoutes } from "@fairsplit/contracts";
-import { Glyph, InkStamp, Slab, useT } from "@fairsplit/ui-web";
+import { Glyph, Slab, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
+import { Stamp } from "../../chrome/Stamp.js";
 import { useCommand, useJudgeSession, usePaypalRail, useStageRun } from "../../data/hooks.js";
 import { atLeast } from "../../data/run-view.js";
 import { env } from "../../lib/env.js";
@@ -207,7 +208,7 @@ function Desk() {
         {slab}
         {(pressed || movedOn) && treasurer && (
           <span className="fsc-first__stamp fs-t-caption">
-            <InkStamp
+            <Stamp
               stamp={{
                 initials: treasurer.initials,
                 name: treasurer.name,

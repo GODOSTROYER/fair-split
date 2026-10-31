@@ -6,7 +6,7 @@
 // pencil: Claude chose the labels, every amount is the code's quote (I1).
 
 import { INVOICE_STATUS_LABELS, pickLabel, type SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, InkStamp, useT } from "@fairsplit/ui-web";
+import { Glyph, useT } from "@fairsplit/ui-web";
 import { type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type ReactNode,
@@ -18,6 +18,7 @@ import {
   useState,
 } from "react";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
+import { Stamp } from "../../chrome/Stamp.js";
 import { useRunEvents } from "../../data/hooks.js";
 import type { RunView } from "../../data/run-view.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -369,7 +370,7 @@ export function FundingBlock({
               <div className="fsc-fund__sent">
                 <dt className="fs-sr">Sent by</dt>
                 <dd>
-                  <InkStamp
+                  <Stamp
                     stamp={{
                       initials: treasurer.initials,
                       name: treasurer.name,

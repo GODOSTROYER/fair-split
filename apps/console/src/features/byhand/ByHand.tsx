@@ -7,7 +7,7 @@
 // the field and the slab all sit above the stage's ribbon. Doubt becomes the treasurer's ink.
 
 import { type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
-import { Glyph, InkStamp, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -21,6 +21,7 @@ import {
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
+import { Stamp } from "../../chrome/Stamp.js";
 import { useCommand, useRunEvents, useStageRun } from "../../data/hooks.js";
 import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
@@ -311,7 +312,7 @@ function ByHandField({
               </p>
               <p className="fsc-hand__ink" data-amount-state="ink">
                 {officer && (
-                  <InkStamp
+                  <Stamp
                     stamp={{
                       initials: officer.initials,
                       name: officer.name,

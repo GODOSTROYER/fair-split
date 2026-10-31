@@ -7,9 +7,10 @@
 // doubtful field to a person.
 
 import { type SnapshotOfficer, webRoutes } from "@fairsplit/contracts";
-import { Glyph, InkStamp, Print } from "@fairsplit/ui-web";
+import { Glyph, Print } from "@fairsplit/ui-web";
 import { type CSSProperties, type KeyboardEvent, type RefObject, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
+import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { READING_COPY } from "./copy.js";
 import { ROW_AT, ROW_MS } from "./mm2.js";
@@ -63,7 +64,7 @@ function InkValue({
 }) {
   return (
     <span className="fsc-beds__entered" data-amount-state="ink" data-testid={testId}>
-      {stamp && <InkStamp stamp={stamp} />}
+      {stamp && <Stamp stamp={stamp} />}
       <span className="fs-t-figure">{value}</span>
     </span>
   );

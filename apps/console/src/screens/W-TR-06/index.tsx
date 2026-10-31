@@ -5,7 +5,7 @@
 // returns a fine no rule allows; both resolve as flush ink stamps, with no moment. A hold is never an error.
 
 import { type ResolveHoldRequest, webRoutes } from "@fairsplit/contracts";
-import { Glyph, HoldCard, type HoldView, InkStamp, Print } from "@fairsplit/ui-web";
+import { Glyph, HoldCard, type HoldView, Print } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -13,6 +13,7 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { StageDrawer } from "../../chrome/StageDrawer.js";
+import { Stamp } from "../../chrome/Stamp.js";
 import { useCommand } from "../../data/hooks.js";
 import { livePresence, type RunHold, type RunView } from "../../data/run-view.js";
 import { NoRuleEvidence, TwinCompare, YieldEvidence } from "../../features/holds/Evidence.js";
@@ -494,7 +495,7 @@ function ByHandCard({
         <footer className="fs-hold__actions">
           {decided ? (
             <p className="fs-hold__resolution" data-testid="W-TR-06.card.resolution">
-              {stamp && <InkStamp stamp={stamp} />}
+              {stamp && <Stamp stamp={stamp} />}
               <span className="fs-t-label">{HOLDS.byHandDone(serial)}</span>
             </p>
           ) : (

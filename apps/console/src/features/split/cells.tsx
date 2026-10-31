@@ -5,9 +5,10 @@
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import type { StampView } from "@fairsplit/ui-web";
-import { ConfidenceRing, Glyph, type GlyphName, InkStamp, RuleChip } from "@fairsplit/ui-web";
+import { ConfidenceRing, Glyph, type GlyphName, RuleChip } from "@fairsplit/ui-web";
 import type { CustomCellRendererProps } from "ag-grid-react";
 import type { ReactNode } from "react";
+import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import type { RowConfidence, RowSlip, SplitRow, SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
@@ -245,7 +246,7 @@ function ConfidenceBody({
       const stamp = ctx.stamp(confidence.by, confidence.at);
       return (
         <span className="fsr-conf fsr-conf--hand">
-          {stamp && <InkStamp stamp={stamp} />}
+          {stamp && <Stamp stamp={stamp} />}
           <span className="fs-t-caption">{SPLIT.byHand}</span>
         </span>
       );

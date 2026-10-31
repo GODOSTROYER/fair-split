@@ -7,7 +7,6 @@ import {
   type CapsuleFrame,
   Glyph,
   type GlyphName,
-  InkStamp,
   type MotionPreference,
   ReceiptBar,
   Seal,
@@ -17,6 +16,7 @@ import {
   useMotionMode,
 } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
+import { Stamp } from "../chrome/Stamp.js";
 import { heroLine, RC_SHORT } from "./content.js";
 import { BATCH_SHA256, COOP, HERO, HERO_SLIPS, lineAfter, PEOPLE, SEASON } from "./fixture.js";
 import { phpEstimate } from "./format.js";
@@ -146,8 +146,8 @@ export function MemberStatement({
                 <ol className="mb-history" aria-label={t("M-MB-01.history")}>
                   <li>
                     <span className="mb-history__stamps">
-                      <InkStamp stamp={{ initials: "AS", name: PEOPLE.treasurer.name, at: "10:31" }} />
-                      <InkStamp stamp={{ initials: "EC", name: PEOPLE.chair.name, at: "10:33" }} />
+                      <Stamp stamp={{ initials: "AS", name: PEOPLE.treasurer.name, at: "10:31" }} />
+                      <Stamp stamp={{ initials: "EC", name: PEOPLE.chair.name, at: "10:33" }} />
                     </span>
                     <span className="fs-t-label">{t("M-MB-01.history.approved", { a: "AS", b: "EC" })}</span>
                     <span className="fs-t-caption mb-muted">10:33</span>

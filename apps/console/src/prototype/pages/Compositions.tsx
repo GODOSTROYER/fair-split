@@ -5,7 +5,6 @@ import {
   AmountDisplay,
   Glyph,
   HoldCard,
-  InkStamp,
   MassBalanceDial,
   MomentRoot,
   PhoneFrame,
@@ -15,6 +14,7 @@ import {
   Slab,
 } from "@fairsplit/ui-web";
 import { useEffect, useRef } from "react";
+import { Stamp } from "../../chrome/Stamp.js";
 import { focusAndReveal } from "../../lib/focus.js";
 import { ConsoleFrame, InvoicePlate, KeySlot, RateCardPlate, RunStrip } from "../console.js";
 import { approveConfirm, en, feeFigures, holdH1, RC_SHORT, splitRows, TwinEvidence } from "../content.js";
@@ -313,7 +313,7 @@ function SplitReview() {
                   <td>
                     {r.status === "by-hand" ? (
                       <span className="grid__byhand">
-                        <InkStamp stamp={{ initials: "AS", name: PEOPLE.treasurer.name, at: "10:22" }} />
+                        <Stamp stamp={{ initials: "AS", name: PEOPLE.treasurer.name, at: "10:22" }} />
                         <span className="fs-t-caption">{HOLDS.byHand.logbook}</span>
                       </span>
                     ) : (
