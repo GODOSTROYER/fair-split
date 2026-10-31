@@ -218,6 +218,7 @@ export function lintText(file: string, text: string, rules: readonly CopyRule[] 
       if (s.token && !rule.token) continue;
       const m = rule.pattern.exec(s.text);
       if (!m) continue;
+      if (rule.context && !rule.context.test(s.text)) continue;
       if (rule.unless?.test(s.text)) continue;
       if (rule.unlessInFile?.test(joined)) continue;
       out.push({ rule: rule.id, file, line: s.line, sentence: s.text, match: m[0] });

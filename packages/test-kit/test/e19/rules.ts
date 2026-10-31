@@ -33,6 +33,8 @@ export interface CopyRule {
   readonly reason: string;
   /** Fires when this matches a sentence. */
   readonly pattern: RegExp;
+  /** Fires only when the sentence also matches this (the phrase's subject, such as PayPal or a webhook). */
+  readonly context?: RegExp;
   /** A sentence that also matches this is qualified, so the rule stays quiet. */
   readonly unless?: RegExp;
   /** The rule stays quiet when the same file matches this anywhere (a variant that lives beside it). */
@@ -75,6 +77,14 @@ export const RULES: readonly CopyRule[] = [
     reason: "ADR-0002: no PayPal debug ID exists; only the simulator's sim- debug IDs, labelled as simulated",
     pattern: /\bdebug[\s_-]?ids?\b/i,
     unless: either(SIMULATED, /\bsim-/i),
+  },
+  {
+    id: "webhook-verified-says-simulated",
+    reason:
+      "ADR-0002: the only signed webhooks are the simulator's, so 'signature verified' or 'verified webhook' beside PayPal or a webhook also says simulated or simulator-signed (§6 film 0:00)",
+    pattern: /\bsignatures?[\s-]verified\b|\bverified\s+(?:PayPal\s+|item\s+)?webhooks?\b/i,
+    context: /\bPayPal\b|\bwebhooks?\b/i,
+    unless: SIMULATED,
   },
   {
     id: "pr107-evidence",
@@ -366,6 +376,7 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["paypal-confirms-says-simulated", "confirmed by PayPal's postback"],
     ["recorded-claude-run", "the recorded run still plays"],
     ["replay-of-dated-run", "replay of the {} run"],
+    ["webhook-verified-says-simulated", "webhook, signature verified"],
   ],
   "apps/console/src/data/errors.ts": [
     ["sandbox-says-simulated", "Only the sandbox is allowed here"],
@@ -381,6 +392,7 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
   "apps/console/src/features/ops/opsModel.ts": [
     ["sandbox-says-simulated", "PayPal sandbox"],
     ["recorded-claude-run", "the recorded run still plays"],
+    ["webhook-verified-says-simulated", "Webhook, signature verified"],
   ],
   "apps/console/src/features/ops/sections.ts": [
     ["debug-ids", "debug ID"],
@@ -418,7 +430,10 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["replay-as-claude-reading", "Claude reads them once the money is in"],
   ],
   "apps/console/src/features/split/shared/copy.ts": [["paypal-confirms-says-simulated", "PayPal confirms"]],
-  "apps/console/src/lib/provenance.ts": [["replay-of-dated-run", "replay of the {} run"]],
+  "apps/console/src/lib/provenance.ts": [
+    ["replay-of-dated-run", "replay of the {} run"],
+    ["webhook-verified-says-simulated", "PayPal, webhook, signature verified"],
+  ],
   "apps/console/src/stage/Stage.tsx": [
     ["claudes-draft", "Claude drafted"],
     ["replay-of-dated-run", "invoiceEqualsQuote, replay of the {} run"],

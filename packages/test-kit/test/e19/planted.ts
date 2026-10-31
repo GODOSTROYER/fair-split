@@ -10,6 +10,7 @@ export const PLANTED: Readonly<Record<string, string>> = {
   "live-paypal-says-simulated": "PayPal calls run live against the US test accounts.",
   "real-sandbox": "Real PayPal sandbox calls on US test accounts.",
   "debug-ids": "Every payout carries PayPal's debug IDs for the judges.",
+  "webhook-verified-says-simulated": "PayPal, webhook, signature verified",
   "pr107-evidence": "Payouts v1 typed tool, evidence on PR #107.",
   "pr107-merged": "Our Payouts tool follows PR #107, which PayPal merged.",
   "live-payouts": "Live payouts land on members' phones.",
@@ -115,6 +116,13 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ["read-twice-by-ai-seeded", "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude)."],
   ["read-twice-by-ai-seeded", "Binasa nang makalawa ng AI (Claude) ang inyong mga resibo."],
   ["read-twice-by-ai-seeded", "Dalawang beses binasa ng AI (Claude) ang inyong mga resibo."],
+  // A verified signature beside PayPal or a webhook (§6 film 0:00 "…SUCCEEDED, signature verified"; MM-1).
+  ["webhook-verified-says-simulated", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED, signature verified by PayPal."],
+  ["webhook-verified-says-simulated", "Webhook, signature verified"],
+  ["webhook-verified-says-simulated", "PayPal's signature-verified webhook marks the item paid."],
+  ["webhook-verified-says-simulated", "Within 100 ms of the verified webhook, the statement turns."],
+  ["webhook-verified-says-simulated", "Verified item webhooks flip statements."],
+  ["webhook-verified-says-simulated", "Each verified PayPal webhook is stored."],
 ];
 
 /** Template literals whose substitution sits where the claim's date goes (the scanner reads each one as "{}"). */
@@ -171,6 +179,14 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "No real farmer was paid.",
   ],
   "debug-ids": ["Simulated run IDs (sim- debug IDs)."],
+  "webhook-verified-says-simulated": [
+    "Simulator-signed, signature verified.",
+    "Simulated PayPal sandbox, webhook, simulator-signed, signature verified",
+    "Webhook, signature checked (simulator)",
+    "The simulator's signed webhooks are verified and recorded.",
+    "Both signatures verify over the batch hash.",
+    "The treasurer's signature verified against her registered key.",
+  ],
   "pr107-evidence": ["Our typed Payouts tool, built on PR #107's schemas."],
   "pr107-merged": [
     "Claude Code agents wrote, reviewed and merged the code.",
@@ -314,6 +330,7 @@ export const HONEST: readonly string[] = [
   "A status check confirms each item (simulated).",
   "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer {{TREASURER}} approved this pay.",
   "Simulator-signed, signature verified.",
+  "Simulated PayPal sandbox, webhook, simulator-signed, signature verified",
   "One invoice through PayPal's Agent Toolkit, on a simulated PayPal sandbox. Nothing starts until it reads paid.",
   "Claude is built to read every slip twice; this replay is a labelled stand-in.",
   "The simulated PayPal accepts the batch.",
