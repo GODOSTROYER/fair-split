@@ -1,6 +1,6 @@
 /**
- * Runs Paminawa's machine (`paminawa-machine.ts`): each sentence plays its synthetic clip through expo-audio when one
- * was rendered from exactly its words, otherwise the phone's own voice reads it (labelled). "Hinay" changes a clip's
+ * Runs Paminawa's machine (`paminawa-machine.ts`): each sentence plays through expo-audio the synthetic clip fs-api
+ * served for that very sentence (`audioPlan`, ADR-0011 §6), otherwise the phone's own voice reads it (labelled). "Hinay" changes a clip's
  * rate live (`setPlaybackRate(0.85)`) and restarts a phone-voice sentence at the new pace. While the sheet is open
  * Paminawa owns the audio session: product sounds stay silent (`feedback.narration`), and a clip takes the lock
  * screen (`doNotMix`, S2.10).
