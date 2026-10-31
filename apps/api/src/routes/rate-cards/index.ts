@@ -10,6 +10,7 @@ import {
   rateCardView,
   ratify,
 } from "../../runs/ratecard.js";
+import { unbuiltTasks } from "../../runs/unbuilt.js";
 
 export default defineRouteFolder({
   folder: "rate-cards",
@@ -45,4 +46,6 @@ export default defineRouteFolder({
       async (ctx) => ratify(ctx.deps, ctx.scope, ctx.credential, ctx.params.id, ctx.input.role, ctx.now()),
     );
   },
+  // reading a rate-card photo (AI) is not built in this build: a labelled no-op, so no row dies (runs/unbuilt.ts)
+  tasks: (deps) => unbuiltTasks(deps, ["readRateCard"]),
 });
