@@ -27,9 +27,23 @@ export function hasProofFace(root: HTMLElement = document.documentElement): bool
   return root.dataset[ATTRIBUTE] === PROOF;
 }
 
-/** Before the first render: a cold load of a Proof URL reads in the subset from its first layout. */
+/** The lot mark's face (theme/surfaces.css: FS Stencil 800, inline, font-display: block). */
+export const MARK_FACE = '800 1em "FS Stencil"';
+
+/** Starts the lot mark's face loading now, not at the hero's first layout (a browser loads a face on first use). */
+export function loadMarkFace(): void {
+  const fonts = (document as { fonts?: { load?: (font: string) => Promise<unknown> } }).fonts;
+  fonts?.load?.(MARK_FACE)?.catch(() => undefined);
+}
+
+/**
+ * Before the first render: a cold load of a Proof URL reads in the subset from its first layout, and its lot
+ * mark's face is loading (a data: URI: ready long before the bundle that draws the hero arrives).
+ */
 export function bootFace(pathname: string, root: HTMLElement = document.documentElement): void {
-  setProofFace(isProofPath(pathname), root);
+  const proof = isProofPath(pathname);
+  setProofFace(proof, root);
+  if (proof) loadMarkFace();
 }
 
 /** A Proof surface holds the subset while it is mounted (set and cleared before paint). */
@@ -37,6 +51,7 @@ export function useProofFace(on: boolean): void {
   useLayoutEffect(() => {
     if (!on) return;
     setProofFace(true);
+    loadMarkFace();
     return () => setProofFace(false);
   }, [on]);
 }

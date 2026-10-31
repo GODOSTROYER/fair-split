@@ -143,7 +143,12 @@ describe("Proof's face", () => {
 
   it("a cold Proof load starts the lot mark's face loading before the first render; a console path does not", () => {
     const loads: string[] = [];
-    const fonts = { load: (font: string) => (loads.push(font), Promise.resolve([])) };
+    const fonts = {
+      load: (font: string) => {
+        loads.push(font);
+        return Promise.resolve([]);
+      },
+    };
     Object.defineProperty(document, "fonts", { configurable: true, value: fonts });
     try {
       bootFace("/sign-in");
