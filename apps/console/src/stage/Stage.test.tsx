@@ -8,6 +8,7 @@ import { act, configure, fireEvent, screen, waitFor, within } from "@testing-lib
 import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
+import { focusAcrossRemoval } from "../test/focus.js";
 import { renderConsole } from "../test/render.js";
 import { recordRequests } from "../test/requests.js";
 import { timersBeforeCommit } from "../test/timers.js";
@@ -661,6 +662,118 @@ describe("Judge stage", () => {
     expect(screen.queryByTestId("W-JG-01.phoneScrim")).toBeNull();
     // The viewer raised it: a raise they asked for, recorded as theirs (a moment raises it as "moment").
     expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
+  });
+
+  it.each([
+    [1700, 1000],
+    [2560, 1440],
+  ])(
+    "at %i px 'Use the phone' hands its focus to the frame's tab as it goes, never to <body>",
+    async (width, height) => {
+      await renderConsole({ path: "/judge", viewport: { width, height } });
+      expect(screen.getByTestId("W-JG-01.stage").dataset.layout).toBe("dock");
+      const scrim = screen.getByTestId("W-JG-01.phoneScrim");
+      scrim.focus();
+      const sampled = focusAcrossRemoval("W-JG-01.phoneScrim");
+      try {
+        // Enter or Space on the button, or a press: its click raises the phone, and the button goes.
+        await act(async () => {
+          fireEvent.click(scrim);
+        });
+        await sampled.frame();
+      } finally {
+        sampled.restore();
+      }
+      const tab = screen.getByTestId("W-JG-01.tab.member");
+      expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
+      expect(sampled.removals()).toBe(1);
+      // In the commit (right after removeChild), at the first microtask, and on the next frame.
+      expect(sampled.samples).toEqual([tab, tab]);
+      expect(sampled.settled).toEqual([tab]);
+    },
+  );
+
+  it("Reset after a press PayPal queued (429) hands focus to the press in its commit, never to <body>", async () => {
+    const world = createTestWorld();
+    world.failNext("markPaid", "QUEUED");
+    await renderConsole({ path: "/judge", world });
+    await press("W-JG-01.markPaid");
+    await screen.findByTestId("W-JG-01.error");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest"));
+    const reset = screen.getByTestId("W-JG-01.reset");
+    reset.focus();
+    const sampled = focusAcrossRemoval("W-JG-01.reset");
+    try {
+      // Enter on Reset: its click.
+      await act(async () => {
+        fireEvent.click(reset);
+      });
+      // While it resets, the button stays focusable (a disabled one would lose its focus to <body>).
+      await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
+      await sampled.frame();
+    } finally {
+      sampled.restore();
+    }
+    const face = screen.getByTestId("W-JG-01.markPaid.face");
+    expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready");
+    expect(sampled.removals()).toBe(1);
+    expect(sampled.samples).toEqual([face, face]);
+    expect(sampled.settled).toEqual([face]);
+    expect(document.activeElement).toBe(face);
+  });
+
+  it("Reset after a session that failed to start hands focus to the press, never to <body>", async () => {
+    const world = createTestWorld();
+    world.failNext("createJudgeSession", "RATE_LIMITED");
+    await renderConsole({ path: "/judge", world });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("start-failed"));
+    const reset = screen.getByTestId("W-JG-01.reset");
+    reset.focus();
+    const sampled = focusAcrossRemoval("W-JG-01.reset");
+    try {
+      await act(async () => {
+        fireEvent.click(reset);
+      });
+      await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
+      await sampled.frame();
+    } finally {
+      sampled.restore();
+    }
+    const face = screen.getByTestId("W-JG-01.markPaid.face");
+    expect(sampled.samples).toEqual([face, face]);
+    expect(document.activeElement).toBe(face);
+  });
+
+  it("while Reset runs, its button keeps the keyboard: aria-disabled, never disabled", async () => {
+    const view = await renderConsole({ path: "/judge" });
+    // fs-api takes its time over the Reset: the request is held until the test lets it go.
+    const pending = view.adapter.pending as { resetSession: (sid: string) => Promise<void> };
+    const original = pending.resetSession;
+    let release: () => void = () => undefined;
+    pending.resetSession = (sid) =>
+      new Promise<void>((resolve) => {
+        release = () => resolve();
+      }).then(() => original(sid));
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
+    const reset = screen.getByTestId<HTMLButtonElement>("W-JG-01.reset");
+    reset.focus();
+    await act(async () => {
+      fireEvent.click(reset);
+    });
+    await waitFor(() => expect(view.runtime.session.getState().status).toBe("resetting"));
+    expect(reset.disabled).toBe(false);
+    expect(reset.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(reset);
+    // A second press while it runs sends nothing more.
+    await act(async () => {
+      fireEvent.click(reset);
+    });
+    await act(async () => {
+      release();
+    });
+    await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
   });
 
   it("becomes a phone visit under 1024 px, and follows the window as it resizes", async () => {
