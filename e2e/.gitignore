@@ -1,0 +1,2 @@
+# the stack's embedded Postgres cluster and fs-api pid file
+.cache/
