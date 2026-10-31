@@ -41,6 +41,8 @@ file names and reuses or restarts the cluster.
   57 cash lines, the simulated label on every PayPal-derived value (X-FS-Rail and the DTO labels), Proof (64 of 64
   explained, US$21.14 kept, chain and six plates), Reset within 10 s and a second press.
 - `specs/api/cold-judge-timing.spec.ts`: first press to the payouts POST within 60 s, measured (annotated).
+- `specs/api/paypal-pacing.spec.ts`: Mark paid with PayPal's window full answers 429 QUEUED with its wait
+  (`retryAfterMs`, `Retry-After`). The harness honours it and the run funds.
 - `specs/browser/judge.spec.ts`: /judge's first view (noindex, no /v1 call before the first press), the first press
   funding the run, Reset and a second press.
 - `specs/browser/proof.spec.ts`: /proof/<runSlug> for a settled run renders its six plates; Verify reads Sample,
@@ -49,6 +51,24 @@ file names and reuses or restarts the cluster.
 The browser specs need the console's Judge stage. They read the served build's Vite manifest
 (`lib/console.ts`): with main's console before M3 (only `/prototype`), they are `fixme` naming M3, and they run as
 soon as the build holds `/judge` and `/proof/$runSlug`.
+
+## PayPal's window (`lib/paypal-window.ts`)
+
+fs-api's limiter allows 40 PayPal calls in any 60 s, at most 20 of them background (`packages/db/src/limiter.ts`).
+A full window paces a live step: it answers QUEUED and runs later. A judge run makes 10 live calls, 7 of them in the
+second around INVOICED, and its settle checks can take all 20 background slots. So two presses inside one minute can
+leave the second run's Mark paid without room.
+- Before every judge press, the harness reads the window from the stack's own database (`E2E_DATABASE_URL`, set by
+  global setup, never printed). It waits until the earlier runs' live calls leave room for the whole run, even with
+  the background share full. Waits are printed as `[paypal-window] waited …`. The timing spec presses first, on an
+  idle window, and its clock starts after any wait.
+- A press PayPal still paces is honoured, not failed (`honourQueued` in `lib/api.ts`). The harness waits the
+  `retryAfterMs` the QUEUED answer names, then asks again, unless the queued step already ran on its own.
+- E-01 asserts that the window had room at its press and never filled during its run. Teardown prints the suite's
+  peak (`[stack] PayPal's window peaked at …`), leaving out the pacing spec's labelled filler rows.
+
+Against a hosted origin (`E2E_BASE_URL` set by hand) there is no database, so nothing is read and nothing waits.
+QUEUED is still honoured, and the pacing spec is skipped.
 
 ## Known gaps (test.fixme, each naming its owner)
 
