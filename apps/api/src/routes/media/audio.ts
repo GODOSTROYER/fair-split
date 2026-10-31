@@ -132,7 +132,8 @@ export function resolveStatementAudio(args: {
   const sentences = args.sentences.map((s) => {
     const textSha256 = sha256Text(s.text);
     const hit = candidates.find((e) => e.slot === s.slot && e.text_sha256 === textSha256);
-    return { slot: s.slot, textSha256, clip: hit ? clipOf(hit, s) : null };
+    // slot and mentions say which sentence this is, so a client pairs it with its own without reading words
+    return { slot: s.slot, mentions: [...s.mentions], textSha256, clip: hit ? clipOf(hit, s) : null };
   });
   const clipped = sentences.filter((s) => s.clip !== null).length;
   const source =

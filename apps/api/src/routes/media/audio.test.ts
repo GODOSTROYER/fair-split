@@ -105,6 +105,7 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
     expect(a.sentences).toEqual([
       {
         slot: "GREETING",
+        mentions: [],
         textSha256: sha256Text(GREETING),
         clip: {
           url: "/media/audio/M-014/ceb/GREETING.m4a",
@@ -117,6 +118,7 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
       },
       {
         slot: "SOURCES",
+        mentions: ["slip:0403", "slip:0419"],
         textSha256: sha256Text(SOURCES),
         clip: expect.objectContaining({
           url: "/media/audio/M-014/ceb/SOURCES.m4a",
@@ -128,6 +130,23 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
         }),
       },
     ]);
+  });
+
+  it("names each sentence by slot and mentions, never by its words, so a client pairs it with its own", () => {
+    const deductions: SpokenSentence[] = ["R1", "R3"].map((rule) => ({
+      slot: "DEDUCTION",
+      text: `Less something for ${rule === "R1" ? "CBU" : "a loan"}.`,
+      mentions: [`rule:${rule}`],
+      placeholders: ["DEDUCTION_USD"],
+    }));
+    const a = resolve([], [...sentences, ...deductions]);
+    expect(a.sentences.map((s) => [s.slot, s.mentions])).toEqual([
+      ["GREETING", []],
+      ["SOURCES", ["slip:0403", "slip:0419"]],
+      ["DEDUCTION", ["rule:R1"]],
+      ["DEDUCTION", ["rule:R3"]],
+    ]);
+    expect(Object.keys(a.sentences[0] ?? {}).sort()).toEqual(["clip", "mentions", "slot", "textSha256"]);
   });
 
   it("keeps only offsets the sentence has, inside the clip", () => {
@@ -156,7 +175,9 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
       label: "Tingog sa telepono",
       deviceLabel: "Tingog sa telepono",
     });
-    expect(a.sentences).toEqual([{ slot: "GREETING", textSha256: sha256Text(`${GREETING} `), clip: null }]);
+    expect(a.sentences).toEqual([
+      { slot: "GREETING", mentions: [], textSha256: sha256Text(`${GREETING} `), clip: null },
+    ]);
   });
 
   it("mismatch: a manifest whose text does not hash to its text_sha256 is not trusted", () => {

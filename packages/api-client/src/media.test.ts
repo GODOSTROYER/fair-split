@@ -17,6 +17,7 @@ const answer = {
   sentences: [
     {
       slot: "GREETING",
+      mentions: [],
       textSha256: HASH,
       clip: {
         url: "/media/audio/M-014/ceb/s1.m4a",
@@ -27,7 +28,7 @@ const answer = {
         durationMs: 4_634,
       },
     },
-    { slot: "PAY", textSha256: "b".repeat(64), clip: null },
+    { slot: "PAY", mentions: [], textSha256: "b".repeat(64), clip: null },
   ],
 };
 

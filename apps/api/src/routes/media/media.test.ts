@@ -147,6 +147,7 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
     expect(a.label).toBe("Sintetikong tingog (Gemini TTS)");
     expect(a.deviceLabel).toBe("Tingog sa telepono");
     expect(a.sentences.map((s) => s.slot)).toEqual(view.spoken.map((s) => s.slot));
+    expect(a.sentences.map((s) => s.mentions)).toEqual(view.spoken.map((s) => s.mentions));
     expect(a.sentences.map((s) => s.textSha256)).toEqual(view.spoken.map((s) => sha256Text(s.text)));
 
     const greeting = must(view.spoken[0]);
@@ -212,6 +213,31 @@ describe("GET /v1/media/audio/:lineId (IC-11, ADR-0011)", () => {
       sources.mentions.map((ref, i) => ({ ref, atMs: 1_000 + 400 * i })),
     );
     expect(a.sentences[0]?.clip?.offsets).toEqual([{ ref: "fact:HONORIFIC_NAME", atMs: 700 }]);
+  });
+
+  it("the route's answer for M-014 is the IC-11 golden the app's test plays (apart from line id and hashes)", async () => {
+    const golden = JSON.parse(
+      readFileSync(new URL("./ic11-m014.golden.json", import.meta.url), "utf8"),
+    ) as Record<Lang, StatementAudio>;
+    /** What fs-api and the app must agree on (ic11-golden.test.ts): everything but the line and the words. */
+    const paired = (x: StatementAudio) => ({
+      ...x,
+      lineId: "(line)",
+      sentences: x.sentences.map(({ textSha256: _, clip, ...s }) => ({
+        ...s,
+        clip: clip && { ...clip, textSha256: "(words)" },
+      })),
+    });
+    for (const lang of ["ceb", "fil", "en"] as const) {
+      fixture(lang, await statement(lang), (s) =>
+        s.slot === "SOURCES"
+          ? { offsets: s.mentions.map((ref, k) => ({ ref, at_ms: 1_500 + 600 * k })) }
+          : s.slot === "GREETING"
+            ? { offsets: [{ ref: "fact:HONORIFIC_NAME", at_ms: 700 }] }
+            : {},
+      );
+      expect(paired(await audio(lang)), lang).toEqual(paired(StatementAudio.parse(golden[lang])));
+    }
   });
 
   it("mismatch: no sentence ever gets a clip of other words, under a lying hash, a draft or an unlisted file", async () => {
