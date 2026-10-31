@@ -394,6 +394,71 @@ describe("Judge stage", () => {
     expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
   });
 
+  it.each(["full", "reduced"] as const)(
+    "MM-1's raise over the scrim from <body> lowers with Escape to the screen, never leaving focus on <body> (%s motion)",
+    async (motion) => {
+      // On the real path the judge follows W-TR-07's "fan-out" link: the route change removes it, and focus falls
+      // to <body>. M-014's payment lands, MM-1 raises the phone over the scrim (below 1280 px) and focus moves into
+      // it, with nothing to hand it back to. Lowering makes the panel inert, and a browser drops the focus it held
+      // to <body> (WCAG 2.4.3): it must go to the screen instead.
+      const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 }, motion });
+      await press("W-JG-01.markPaid");
+      await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+      const stage = screen.getByTestId("W-JG-01.stage");
+      const console_ = document.querySelector<HTMLElement>(".fsc-console");
+      const panel = document.getElementById("fsc-phone-panel") as HTMLElement;
+      const main = document.getElementById("fsc-main") as HTMLElement;
+      // Key 1 raises the Chair; the judge lowers it and the Chair co-signs.
+      act(() => {
+        view.world.settle();
+        view.world.resolveAll();
+        view.world.sign("treasurer");
+      });
+      await waitFor(() => expect(stage.dataset.raised).toBe("user"));
+      await act(async () => {
+        fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      });
+      await waitFor(() => expect(stage.dataset.raised).toBeUndefined());
+      // The followed link is gone: focus is on <body> when M-014's payment lands.
+      (document.activeElement as HTMLElement | null)?.blur();
+      expect(document.activeElement).toBe(document.body);
+      act(() => {
+        view.world.cosign();
+      });
+      await waitFor(() => expect(stage.dataset.raised).toBe("user"));
+      await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
+      await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
+      expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
+
+      const focus = HTMLElement.prototype.focus;
+      const refused: string[] = [];
+      const spy = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+        this: HTMLElement,
+        options?: FocusOptions,
+      ) {
+        if (this.closest("[inert]")) {
+          refused.push(this.id || this.dataset.testid || this.tagName);
+          return;
+        }
+        focus.call(this, options);
+      });
+      try {
+        await act(async () => {
+          fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+        });
+        expect(stage.dataset.raised).toBeUndefined();
+        expect(panel.hasAttribute("inert")).toBe(true);
+        // The browser's focus fixup: a control under the now-inert panel loses focus to <body>.
+        const held = document.activeElement;
+        if (held instanceof HTMLElement && held.closest("[inert]")) held.blur();
+        expect(document.activeElement).toBe(main);
+      } finally {
+        spy.mockRestore();
+      }
+      expect(refused).toEqual([]);
+    },
+  );
+
   it("an ended session lowers a phone raised over the scrim and keeps focus off <body>, even when timers beat React's commit", async () => {
     // The session ends from an effect (a renewal that landed in another workspace), not from a key or a press: its
     // lowering commits at default priority, after a zero-delay timer can fire. Focus goes back to what raised the
