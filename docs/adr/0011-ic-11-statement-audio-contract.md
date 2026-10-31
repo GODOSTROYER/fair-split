@@ -53,10 +53,13 @@ Offsets are optional: a clip with none still plays, and the app estimates a chip
 ### 2. The route: `GET /v1/media/audio/:lineId?lang=`
 
 Same readers as the statement (`readableStatement`). The answer is `StatementAudio`:
-`{lineId, memberNo, lang, source, label, deviceLabel, sentences: [{slot, mentions, textSha256, clip | null}]}`, one
-entry per spoken sentence in reading order. `mentions` are the slips and rules the sentence names, as fs-api's plan
-lists them (`rule:R1` for a deduction, `slip:0403` for a credit or the sources); with `slot` they say which sentence
-it is without its words (§6). `source` is `gemini` when every sentence has a clip, `mixed` when some do
+`{lineId, memberNo, lang, source, label, deviceLabel, sentences: [{slot, variant, mentions, textSha256, clip | null}]}`,
+one entry per spoken sentence in reading order. `variant` is the template variant fs-api rendered for the sentence
+(its template key is `{slot}.{variant}`: `PAY.paypal`, `PAY.cash`, `PAY.cash_nodate`, `AI_NOTE.default`, T1's
+`AI_NOTE.seeded`, `HELP.noname`; `AudioVariant`, `^[a-z_]+$`). `mentions` are the slips and rules the sentence
+names, as fs-api's plan lists them (`rule:R1` for a deduction, `slip:0403` for a credit or the sources). Together,
+`slot`, `variant` and `mentions` say which sentence it is without its words (§6). `source` is `gemini` when every
+sentence has a clip, `mixed` when some do
 and `device` when none do. `label` is the synthetic label unless `source` is `device`; `deviceLabel` ("Tingog sa
 telepono", "Boses ng telepono", "Device voice") names the phone's voice for every sentence without a clip. The old
 one-file answer (`url`, `durationMs`, `cues[]`) is retired. The labels come from fs-api's own tables, never from
@@ -118,33 +121,52 @@ serves the nearest clip, an older take of other words, or a clip of another sent
 The phone never compares a clip with its own rendering of a sentence (§3). It plays a clip only for the sentence
 fs-api served it for:
 1. **Pairing.** Each of the phone's sentences is paired with the served sentence of the same key, the n-th for its
-   n-th sentence of that key (reading order among equals). The key is the slot, plus, for the slots a line can have
-   several of, what the sentence is about: a `DEDUCTION` by its rule (the template's `ref` against the served
-   `rule:` mention), a `CREDIT` by its slip (`slip:` mention). So two deductions never swap clips, whatever order
-   either side lists them in. A phone sentence with no served partner, or a served sentence the phone does not
-   have, gets no clip.
+   n-th sentence of that key (reading order among equals). The key is the slot and the form of the slot
+   (`{slot}.{variant}`), plus, for the slots a line can have several of, what the sentence is about: a `DEDUCTION`
+   by its rule (the template's `ref` against the served `rule:` mention), a `CREDIT` by its slip (`slip:` mention).
+   - The variant is in the key because two forms of one slot say different things. `PAY.paypal` sends US$64.45 to
+     PayPal with a peso estimate, `PAY.cash` pays exact pesos at the bodega on a date. The product AI note says
+     Claude read the slips twice, while T1's `AI_NOTE.seeded` says the readings are a labelled stand-in. A phone
+     that showed one form and played the other's clip would speak words the screen contradicts. The live item track
+     can flip the phone's PAY to cash (capsule `cash-due` or `cash-received`) after fs-api spoke the PayPal form; the
+     phone then has no `PAY.cash` partner and reads that sentence with its own voice.
+   - The phone names its sentences' forms as fs-api does (`templateVariant`): a PAY template's variant is its rail
+     (`paypal` when none is named, or `cash`), and any other template is `default` unless it names another form
+     (`noname`, `written`, `seeded`).
+   - So two deductions never swap clips, whatever order either side lists them in, and no form of a slot borrows
+     another form's clip. A phone sentence with no served partner, or a served sentence the phone does not have,
+     gets no clip.
 2. **The check.** The paired sentence's clip plays only if its `slot` and `textSha256` equal that served sentence's
    own `slot` and `textSha256` (a clip recorded for other words, even when an answer was put together wrongly, is
    never played), and the phone can reach its URL.
 3. Otherwise the phone's voice reads the sentence, labelled as such.
 
-The statement and its audio answer are read for the same line (`withServedAudio` ignores another line's answer) and
-read again together when the line changes. (The app's S10 fallback, Filipino clips under Cebuano text with the label
+The statement and its audio answer are read for the same line (`withServedAudio` ignores another line's answer). They
+are read again together when the line changes, and the audio is read again whenever the pay kind or the capsule
+changes, so the PAY clip follows the PAY sentence on screen. Until that read lands, pairing by form keeps the stale
+clip silent. An amount that changes while the form stays the same is covered by reading again, not by the key (see
+the facts digest under Alternatives). The app's S10 fallback, Filipino clips under Cebuano text with the label
 "Audio sa Filipino; teksto sa Cebuano", is a separate, labelled choice the app makes: Cebuano sentences paired with
-the Filipino answer by the same keys. The route never makes it.)
+the Filipino answer by the same keys. The route never makes it.
 
 A cross-package test holds both sides to this. `apps/api/src/routes/media/ic11-golden.test.ts` renders M-014 with
 fs-api's renderer in all three languages and resolves it against a fixture manifest with a clip for every sentence.
 It keeps the result as `ic11-m014.golden.json`, and the media route test checks that the real route serves the same.
 `apps/mobile/src/lib/statement-audio.contract.test.ts` passes that answer through `withServedAudio` and `audioPlan`
-with the app's own M-014 statement and expects mode `synthetic` with every sentence clipped. It also checks that
-fs-api's hashes are not the hashes of the phone's words. The golden test compares everything but the words' hashes
-(slot, mentions, order, clips), so it fails when the sentences drift apart. A template change that keeps the
-sentences needs no new golden; `FS_WRITE_IC11_GOLDEN=1` regenerates it.
+with the app's own M-014 statement:
+- every sentence the phone shows in the form fs-api spoke plays its clip;
+- with the rail moved to cash, the PAY sentence gets the phone's voice and every other sentence keeps its clip;
+- fs-api's hashes are not the hashes of the phone's words.
+
+The golden test compares everything but the words' hashes (slot, variant, mentions, order, clips), so it fails
+when the sentences drift apart. A template change that keeps the sentences needs no new golden.
+`FS_WRITE_IC11_GOLDEN=1` regenerates it. A change of variant needs a new golden. T1 is one: once it merges, M-014's
+seeded run speaks `AI_NOTE.seeded`, and the app's half then expects the phone's product note to get the phone's
+voice until the app's templates name the seeded form.
 
 ### 7. Where the shape lives
 
-`packages/contracts/src/media.ts` defines `AUDIO_SLOTS`, `AudioOffset`, `AudioMention`, `StatementAudioClip`,
+`packages/contracts/src/media.ts` defines `AUDIO_SLOTS`, `AudioOffset`, `AudioMention`, `AudioVariant`, `StatementAudioClip`,
 `StatementAudioSentence`, `StatementAudio`, `StatementAudioQuery` and the two label tables. fs-api's route uses
 these schemas as its request and response. `@fairsplit/api-client` exposes the route as `MEDIA_ROUTES` and
 `mediaRoutes(api).statementAudio`, and an fs-api test compares that table with the mounted route as JSON Schema.
@@ -157,28 +179,36 @@ manifest reader stays in fs-api (`apps/api/src/routes/media/audio.ts`); the writ
 - **WS-API (AU1):** the route, its reader and the route tests: a real manifest entry (M-014's Cebuano greeting)
   is served with a matched hash, the spike's other sentences show the honest no-clip result, a fixture manifest
   serves matching clips with offsets, and every mismatch in §5 and §6 yields no clip. It also keeps the cross-package
-  golden of §6.
+  golden of §6, and regenerates it when a variant changes (after T1 merges: `FS_WRITE_IC11_GOLDEN=1 vitest run
+  src/routes/media/ic11-golden.test.ts` in `apps/api`, then `biome format --write` on the golden).
 - **WS-CORE:** the new `media.ts` exports. `StatementSlot` in `domain.ts` (AI-8's older list without PAY and
   AI_NOTE) is unchanged; `AUDIO_SLOTS` is the plan's list.
 - **WS-APP:** the clip type is the contract's. `dto.audio[lang]` is the route's per-sentence answer as served
-  (`StatementAudioSentence[]`), not a list of clips. `audioPlan` pairs sentences and checks clips as §6 says, and
-  never hashes the phone's own words. It reads `offsets` (`atMs`) instead of `mentions` (`offsetMs`).
-  `withServedAudio` puts the route's answer into `dto.audio[lang]`.
+  (`StatementAudioSentence[]`), not a list of clips. `audioPlan` pairs sentences by slot, variant and what they
+  name, and checks clips as §6 says. It never hashes the phone's own words. It reads `offsets` (`atMs`) instead of
+  `mentions` (`offsetMs`). `withServedAudio` puts the route's answer into `dto.audio[lang]`. The app's templates
+  name their forms as fs-api does (`StatementTemplate.variant`, read by `templateVariant`).
   - **K1c (live mode):** call `GET /v1/media/audio/:lineId?lang=` with the same credential as the statement read,
     and put the answer into the statement with `withServedAudio(dto, answer, apiOrigin)`. Read it again whenever
-    the statement is read again. Never compute a `textSha256` on the phone, and never keep only the clips: the
-    pairing needs every served sentence (`slot`, `mentions`).
+    the statement is read again, and whenever the pay kind (`view.payKind`) or the capsule changes: the bayad
+    screen's rail follows the live item track, so a PayPal line that turns `cash-due` needs fs-api's `PAY.cash`
+    clip. Never compute a `textSha256` on the phone, and never keep only the clips: the pairing needs every served
+    sentence (`slot`, `variant`, `mentions`).
   - **K1d (demo fixtures):** `audio[lang]` in `buildDemoStatement` must be fs-api's answer for the hero line in this
     shape, exported from fs-api's renderer and manifest (AU2's export, or `ic11-m014.golden.json` until real clips
-    exist): sentences `{slot, mentions, textSha256, clip}` with fs-api's hashes and same-origin `/media/audio/…`
-    URLs. It must never be hashes of the app's own sentences. The demo's `DEDUCTION` and `CREDIT` templates keep a
-    `ref` equal to the rule or slip that fs-api's sentence names.
+    exist): sentences `{slot, variant, mentions, textSha256, clip}` with fs-api's hashes and same-origin
+    `/media/audio/…` URLs. It must never be hashes of the app's own sentences. The demo's `DEDUCTION` and `CREDIT`
+    templates keep a `ref` equal to the rule or slip that fs-api's sentence names. Each demo template names the
+    form fs-api renders for it: on a seeded run the AI note is T1's `seeded` form (with T1's words). The app's
+    present AI note is the product form (`default`, "read twice by AI (Claude)"), so it never plays a seeded clip.
 - **WS-MEDIA (AU2, AU3):** entries use statement slots, carry offsets and get unique file names (§4); the spike
   entries are migrated (`s1` → `GREETING`, `s5` → `PAY`) with their files where they are.
 - **WS-OPS (H1):** the `media/public/audio/` assembly in §5.
 - What gets worse: one sentence's mismatch (say, after a template fix) silently costs that sentence its clip. The
   answer says so per sentence (`clip: null`, `source: mixed`), and the plan's audio days regenerate from the frozen
-  text. S4.6's single file per statement is not built.
+  text. A line whose pay kind flips reads its PAY sentence with the phone's voice until the audio is read again,
+  and a seeded run's AI note does the same until the app shows the seeded form. S4.6's single file per statement
+  is not built.
 
 ## Alternatives considered
 
@@ -191,3 +221,5 @@ manifest reader stays in fs-api (`apps/api/src/routes/media/audio.ts`); the writ
 | Keep the DTO in fs-api and copy it into the app | Two hand-kept copies drift, which is how the three shapes above came about                                              |
 | The phone re-hashes its own sentence            | Its renderer writes other words for the same facts (§3), so it would throw away most clips fs-api rightly served        |
 | Pair sentences by reading position alone        | Two deductions listed in another order would swap clips and speak the wrong amount; the key names the rule or slip      |
+| Pair PAY and AI_NOTE by slot alone              | One form's clip would play under another's words: PayPal pay under the cash sentence, the Claude claim on a seeded run  |
+| A digest of each sentence's facts in the key    | The phone would have to re-derive fs-api's integer facts (peso estimate, rounding), the same drift as re-hashing words  |
