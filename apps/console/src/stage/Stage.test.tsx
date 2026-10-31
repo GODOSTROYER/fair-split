@@ -9,6 +9,7 @@ import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { renderConsole } from "../test/render.js";
+import { timersBeforeCommit } from "../test/timers.js";
 import { resizeTo } from "../test/viewport.js";
 import { createTestWorld } from "../test/world.js";
 import { frameCaption } from "./PhoneDock.js";
@@ -286,6 +287,120 @@ describe("Judge stage", () => {
     expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
     expect(screen.getByTestId("W-JG-01.phoneBackdrop")).toBeTruthy();
     expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(true);
+  });
+
+  it("lowering a phone raised over the scrim focuses what raised it once the console is live, even when timers beat React's commit", async () => {
+    // Below 1280 px the moment's raise lays the scrim over a console control that held focus. Lowering must hand
+    // focus back to it after the commit that lifts the console's inert (a browser refuses focus to an inert
+    // control, and the phone's panel goes inert in that same commit, so focus would fall to <body>, WCAG 2.4.3).
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    const console_ = document.querySelector<HTMLElement>(".fsc-console");
+    const opener = document.getElementById("fsc-main") as HTMLElement;
+    opener.focus();
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
+    await waitFor(() =>
+      expect(document.getElementById("fsc-phone-panel")?.contains(document.activeElement)).toBe(true),
+    );
+
+    // jsdom focuses an inert control anyway: record, for every focus, whether the browser would have refused it.
+    const focus = HTMLElement.prototype.focus;
+    const refused: string[] = [];
+    const spy = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+      this: HTMLElement,
+      options?: FocusOptions,
+    ) {
+      if (this.closest("[inert]")) refused.push(this.id || this.dataset.testid || this.tagName);
+      focus.call(this, options);
+    });
+    const restoreTimers = timersBeforeCommit();
+    try {
+      await act(async () => {
+        fireEvent.keyDown(document.body, { key: "Escape" });
+      });
+      await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(false));
+      await waitFor(() => expect(document.activeElement).toBe(opener));
+    } finally {
+      restoreTimers();
+      spy.mockRestore();
+    }
+    expect(refused).toEqual([]);
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
+  });
+
+  it("an ended session lowers a phone raised over the scrim and keeps focus off <body>, even when timers beat React's commit", async () => {
+    // The session ends from an effect (a renewal that landed in another workspace), not from a key or a press: its
+    // lowering commits at default priority, after a zero-delay timer can fire. Focus goes back to what raised the
+    // phone only once the console is live again, never to an inert control (a browser refuses it).
+    const world = createTestWorld();
+    let starts = 0;
+    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+      starts += 1;
+      if (starts === 1) return undefined;
+      const answer = await getResponse([...world.mock.handlers], request.clone());
+      if (!answer?.ok) return answer;
+      const body = (await answer.json()) as Record<string, unknown>;
+      return HttpResponse.json(
+        {
+          ...body,
+          workspaceId: "019a0000-0000-7000-8000-00000000beef",
+          runId: "019a0000-0000-7000-8000-00000000cafe",
+          runSlug: "2026A-r38",
+          consoleToken: "fst_another-workspace",
+        },
+        { status: answer.status, headers: answer.headers },
+      );
+    });
+    const view = await renderConsole({
+      path: "/judge",
+      viewport: { width: 1100, height: 800 },
+      world,
+      handlers: [elsewhere],
+    });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    const console_ = document.querySelector<HTMLElement>(".fsc-console");
+    const opener = document.getElementById("fsc-main") as HTMLElement;
+    opener.focus();
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
+
+    const focus = HTMLElement.prototype.focus;
+    const refused: string[] = [];
+    const spy = vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (
+      this: HTMLElement,
+      options?: FocusOptions,
+    ) {
+      if (this.closest("[inert]")) refused.push(this.id || this.dataset.testid || this.tagName);
+      focus.call(this, options);
+    });
+    const restoreTimers = timersBeforeCommit();
+    try {
+      // Outside act(): React schedules the ended session's commits as a browser would, not in one synchronous flush.
+      const renewed = view.runtime.session.renew();
+      await waitFor(() => expect(view.router.state.location.pathname).toBe("/judge"));
+      await renewed;
+      await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(false));
+      await waitFor(() => expect(document.activeElement).not.toBe(document.body));
+    } finally {
+      restoreTimers();
+      spy.mockRestore();
+    }
+    expect(starts).toBe(2);
+    expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session-ended");
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
+    expect(refused).toEqual([]);
+    expect(console_?.contains(document.activeElement)).toBe(true);
   });
 
   it("docks the phone under a scrim from 1680 px, and the scrim hands it focus", async () => {

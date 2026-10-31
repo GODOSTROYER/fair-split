@@ -82,9 +82,17 @@ describe("W-TR-06 hold drawer", () => {
       clearMomentTrace();
       const view = await inReview(webRoutes.holdDrawer(RUN, "H1"));
       await waitFor(() => expect(sinceOpen()).toContain("ready"), WAIT);
+      const face = screen.getByTestId("W-TR-06.countOnce.face");
+      face.focus();
       press("W-TR-06.countOnce");
       await waitFor(() => expect(stateOf()).toBe("resolved"), WAIT);
       await waitFor(() => expect(tracedPhases("MM-3").slice(-1)[0]).toBe("resolved"), WAIT);
+      // The answer takes "Count it once" away: focus stays in the drawer, never on <body> (WCAG 2.4.3).
+      await waitFor(() => expect(face.isConnected).toBe(false), WAIT);
+      await waitFor(
+        () => expect(screen.getByTestId("W-TR-06.drawer").contains(document.activeElement)).toBe(true),
+        WAIT,
+      );
       const phases = sinceOpen();
       expect(phases.slice(phases.indexOf("pressed"))).toEqual([
         "pressed",
