@@ -4,8 +4,9 @@
 //   - a trace closes: `focusIfLost`, from a layout effect after the commit that removed it, hands focus back to
 //     the peso that opened it;
 //   - a drawer closes: `restoreFocus`, from the drawer's own cleanup, hands focus back to what opened it;
-//   - the phone lowers from over the scrim: Stage, from a layout effect after that commit (the console is live
-//     again), focuses what raised it;
+//   - the phone lowers from over the scrim: `focusBack`, from a layout effect after that commit (the console is
+//     live again), focuses what raised it, or the screen when nothing did (MM-1 raises it while focus is on
+//     <body>) and the panel going inert still holds focus;
 //   - the phone rises over the scrim (the console goes inert under the focused control): `focusInto`, from a
 //     layout effect after that commit, moves focus into the phone, and tries again each frame while the browser
 //     refuses it (a panel it does not render yet) and focus is lost.
@@ -19,6 +20,36 @@ import { useEffect, useRef } from "react";
 function focusLost(): boolean {
   const active = document.activeElement;
   return active === null || active === document.body;
+}
+
+/** Connected and not under an inert subtree: a browser lets it take focus. */
+function live(el: HTMLElement | null | undefined): el is HTMLElement {
+  return Boolean(el?.isConnected && !el.closest("[inert]"));
+}
+
+/**
+ * From a layout effect after the commit that lowered what held focus (the phone over the scrim: its panel goes
+ * inert in that commit, the console under it is live again): focuses `opener` when it is still there and live.
+ * Otherwise, when focus is lost or still held under an inert subtree (a browser drops it to <body> at its next
+ * style update), focuses the first live of `fallbacks` (the screen, or a drawer that covers it). A focus the person
+ * moved somewhere live is left alone.
+ */
+export function focusBack(
+  opener: HTMLElement | null | undefined,
+  ...fallbacks: readonly (() => HTMLElement | null)[]
+): void {
+  if (live(opener)) {
+    opener.focus({ preventScroll: true });
+    return;
+  }
+  if (!focusLost() && !document.activeElement?.closest("[inert]")) return;
+  for (const fallback of fallbacks) {
+    const found = fallback();
+    if (live(found)) {
+      found.focus({ preventScroll: true });
+      return;
+    }
+  }
 }
 
 /**

@@ -33,7 +33,7 @@ import {
 } from "../data/hooks.js";
 import { itemCounts } from "../data/run-view.js";
 import { env } from "../lib/env.js";
-import { focusInto } from "../lib/focus.js";
+import { focusBack, focusInto } from "../lib/focus.js";
 import { format } from "../lib/format.js";
 import { DirectorProvider } from "../lib/moment.js";
 import { useSearchParam } from "../lib/search-param.js";
@@ -171,20 +171,27 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     },
     [raiseByViewer],
   );
-  const lowerTo = useRef<HTMLElement | null>(null);
+  // A lowering on its way: what raised the phone (null when nothing did: MM-1 rises while focus is on <body>).
+  const lowerTo = useRef<{ readonly opener: HTMLElement | null } | null>(null);
   const lowerPhone = useCallback(() => {
     const opener = raisedByRef.current === "user" ? raiseOpener.current : null;
     raiseOpener.current = null;
-    if (opener) lowerTo.current = opener;
+    if (raisedByRef.current !== null) lowerTo.current = { opener };
     setRaisedBy(null);
   }, []);
   // Focus goes back to what raised the phone after the commit that lowered it, when the console under the scrim is
-  // live again (WCAG 2.4.3). Never on a timer: one that fires before that commit finds the console still inert, the
-  // browser refuses the focus, and the phone's panel going inert then drops focus to <body> (lib/focus.ts).
+  // live again; with nothing to go back to, focus still held by the panel going inert goes to the screen (or the
+  // drawer covering it), never to <body> (WCAG 2.4.3). Never on a timer: one that fires before that commit finds
+  // the console still inert, the browser refuses the focus, and the panel then drops it to <body> (lib/focus.ts).
   useLayoutEffect(() => {
-    const opener = lowerTo.current;
+    const lowering = lowerTo.current;
     lowerTo.current = null;
-    if (raisedBy === null && opener?.isConnected) opener.focus({ preventScroll: true });
+    if (raisedBy !== null || !lowering) return;
+    focusBack(
+      lowering.opener,
+      () => document.getElementById("fsc-main"),
+      () => document.querySelector<HTMLElement>(".fsc-console .fsc-drawer"),
+    );
   }, [raisedBy]);
 
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
