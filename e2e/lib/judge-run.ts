@@ -202,16 +202,25 @@ export async function settledRun(base: string) {
     if (rhea) await api.post(`/v1/lines/${rhea.id}/pay-cash`, {}, s.asTreasurer);
   }
   const settled = await waitForRun(api, s, (r) => r.run.state === "SETTLED", 60_000);
+  // Rhea's cancel: the simulator signs a CANCELED delivery, which fs-api verifies and files among the run's events
+  await events.waitFor(
+    (e) => e.type === "webhook.received" && e.payload.eventType === "PAYMENT.PAYOUTS-ITEM.CANCELED",
+    60_000,
+  );
   await events.stop();
   if (settled?.run.state !== "SETTLED") throw new Error(`run ended at ${settled?.run.state}`);
   // Proof counts a SUCCESS item as PayPal-verified once its simulator-signed webhook is stored, a moment after the
-  // status checks settle the run: wait for all seven, so a page opened now shows the finished record
+  // status checks settle the run, and its verification rests on them: wait for both, so a page opened now shows the
+  // finished record
   const until = Date.now() + 60_000;
   while (Date.now() < until) {
     const m = (await api.get(`/v1/proof/${s.runSlug}/metrics`)).json as {
       paid?: { paypalVerified?: { members?: number } };
     } | null;
-    if (m?.paid?.paypalVerified?.members === 7) break;
+    const v = (await api.get(`/v1/proof/${s.runSlug}/verification`)).json as {
+      verification?: { status?: string };
+    } | null;
+    if (m?.paid?.paypalVerified?.members === 7 && v?.verification?.status === "sample") break;
     await sleep(500);
   }
   return { api, s };

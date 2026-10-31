@@ -177,6 +177,14 @@ test("both keys again: the batch posts; 7 PayPal lines and 57 cash, Rhea UNCLAIM
     30_000,
   );
   expect(returned?.provenance).toBe("simulated_rail");
+  const canceled = await events.waitFor(
+    (e) =>
+      e.type === "webhook.received" &&
+      e.payload.eventType === "PAYMENT.PAYOUTS-ITEM.CANCELED" &&
+      e.payload.verified === "self",
+    60_000,
+  );
+  expect(canceled?.provenance, "the simulator's signed CANCELED delivery, verified").toBe("simulated_rail");
   const settled = await waitForRun(api, s, (r) => r.run.state === "SETTLED", 60_000);
   expect(settled?.run.state).toBe("SETTLED");
   expect(settled?.lines).toEqual({ PAID: 7, OFF_RAIL_DUE: 57 });
@@ -250,6 +258,26 @@ test("Proof: 64 of 64 explained, US$21.14 kept, the chain and all six plates mat
     rails: { paypalMembers: 7, cashMembers: 57 },
     paid: { paypalVerified: { members: 7 } },
   });
+  // the checkpoint and plate 6 rest on the last verified notices, which may land just after the run settles
+  const status = async () => {
+    const r = (await api.get(`/v1/proof/${s.runSlug}/verification`)).json as {
+      verification?: {
+        status?: string;
+        checkpoint?: { ok: boolean; reason: string | null };
+        plates?: Record<string, { ok: boolean; reason: string | null }>;
+      };
+    } | null;
+    const failing = Object.entries(r?.verification?.plates ?? {}).filter(([, p]) => !p.ok);
+    // the status, then whatever keeps it from Sample (named in the failure message if it never gets there)
+    return [
+      r?.verification?.status,
+      `checkpoint ${r?.verification?.checkpoint?.ok ? "ok" : (r?.verification?.checkpoint?.reason ?? "?")}`,
+      ...failing.map(([k, p]) => `${k}: ${p.reason}`),
+    ].join("; ");
+  };
+  await expect
+    .poll(status, { timeout: 30_000, intervals: [500, 1_000, 2_000] })
+    .toBe("sample; checkpoint ok");
   const proof = await api.get(`/v1/proof/${s.runSlug}/verification`);
   expect(proof.status).toBe(200);
   const v = proof.json as {
@@ -266,14 +294,14 @@ test("Proof: 64 of 64 explained, US$21.14 kept, the chain and all six plates mat
   expect(v.provenance).toBe("simulated_rail");
   // browser demo keys sign in Judge Mode: Proof reads "Sample", never a verified production signature
   expect(v.demoMode).toBe(true);
-  expect(v.verification.status).toBe("sample");
-  expect(v.verification.sampleKeys.sort()).toEqual([keys.treasurer.keyId, keys.chair.keyId].sort());
-  expect(v.verification.chain.ok).toBe(true);
-  expect(v.verification.checkpoint.ok).toBe(true);
   expect(Object.keys(v.verification.plates).sort()).toEqual(
     ["computed", "paid", "payoutItems", "ratified", "read", "twoKeys"].sort(),
   );
   expect(Object.entries(v.verification.plates).filter(([, p]) => !p.ok)).toEqual([]);
+  expect(v.verification.chain.ok).toBe(true);
+  expect(v.verification.checkpoint).toMatchObject({ ok: true });
+  expect(v.verification.status).toBe("sample");
+  expect(v.verification.sampleKeys.sort()).toEqual([keys.treasurer.keyId, keys.chair.keyId].sort());
 });
 
 test.fixme("approvals signed with a browser demo key read 'Demo key (this browser)'", async () => {

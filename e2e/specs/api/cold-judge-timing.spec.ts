@@ -26,6 +26,7 @@ test("first press to the payouts POST within 60 s", async ({ origin }) => {
       ", ",
     );
     test.info().annotations.push({ type: "timing", description: `first press → ${timeline}` });
+    process.stdout.write(`[timing] first press → ${timeline}\n`);
     expect(posting, "the run reaches POSTING").not.toBeNull();
     expect(posted, "PayPal (simulated) answers the POST").not.toBeNull();
     expect(posted?.provenance).toBe("simulated_rail");
