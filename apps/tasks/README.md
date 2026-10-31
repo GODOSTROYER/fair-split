@@ -4,11 +4,11 @@ Owner: WS-OPS. This package wires the IC-01 `TaskName` registry to executors. It
 each task is a thin wrapper that validates its ids, reads the kill flags and calls a handler injected
 from the owning workstream (`src/wiring.ts`).
 
-| Entry           | Built file       | Who runs it                                                                                                                                                                 |
-| --------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry           | Built file       | Who runs it                                                                                                                                                                                              |
+| --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`, not deployed: see Deploying). Boot checks, then registers S3.3's three Workflows tasks (`extract`, `readRateCard`, `warmCaches`) plus the `opsPing` and `opsDbPing` probes |
-| `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`), for any of the 16 TaskNames: `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                      |
-| `src/cron.ts`   | `dist/cron.js`   | The hourly plan, as a tested reference for fs-api's `/internal/cron/tick`, and a CLI: `node apps/tasks/dist/cron.js --plan --at=<iso>`                                      |
+| `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`), for any of the 16 TaskNames: `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                                                   |
+| `src/cron.ts`   | `dist/cron.js`   | The hourly plan, as a tested reference for fs-api's `/internal/cron/tick`, and a CLI: `node apps/tasks/dist/cron.js --plan --at=<iso>`                                                                   |
 
 On Render, `fs-cron` runs `tools/cron-tick.mjs`, a dependency-free script that POSTs fs-api's
 `/internal/cron/tick` over the private network (approved S3.3, S3.14). fs-api enqueues the plan.
@@ -113,7 +113,6 @@ connection errors and 5xx twice and never follows a redirect with the secret.
 Every task runs inline in fs-api (`EXECUTOR=inline`, decision D6 of the 31 Oct schedule): Judge Mode replays
 the reads, so nothing needs Render Workflows, and `fs-tasks` is not in the Blueprint. `src/index.ts` above stays
 a tested entry, undeployed. The steps below need no install, except where `corepack pnpm` is named.
-
 1. **New → Blueprint**, from `main`. Render creates `fs-db` (Postgres 18, `0.1c-256mb`, no external
    connections), `fs-api` (web, `0.5c-512mb`, `/healthz`) and `fs-cron` (`7 * * * *`), all in `virginia`, each
    with `NODE_VERSION=24.19.0` (the CI pin; 24.22.1 was published on 20 Oct, under the 14-day rule). There is no
