@@ -82,7 +82,9 @@
   text-align: left;
 }
 
+/* Its line box is held at its settled height while the seed that names the lot is still on its way. */
 .pf-hero__lot {
+  min-block-size: 2.5rem;
   margin-top: 24px;
   color: var(--fs-ink);
   font-family: var(--fs-font-mark);
@@ -1378,6 +1380,7 @@
 
 @media (max-width: 560px) {
   .pf-hero__lot {
+    min-block-size: 2rem;
     font-size: 2rem;
     line-height: 2rem;
   }

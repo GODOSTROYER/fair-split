@@ -92,11 +92,12 @@ export function ProofHero({
           />
         }
       />
-      {lotCode && (
-        <p className="pf-hero__lot" data-testid="W-PF-01.lot">
-          {lotCode}
-        </p>
-      )}
+      {/* The lot mark's line is held from the first frame (proof.css reserves its box): on a slow link the bundle
+          lands before the seed that names the lot, and the code fills the line in place, so nothing under it
+          moves. Empty, it says nothing to a screen reader. */}
+      <p className="pf-hero__lot" data-testid="W-PF-01.lot" aria-hidden={lotCode ? undefined : true}>
+        {lotCode ?? ""}
+      </p>
       {/* The money is the hero: the amount takes its own line at hero size, inside the one sentence. */}
       <Title id="W-PF-01-title" className="pf-hero__title">
         <span className="pf-hero__before">{before.trim()}</span>{" "}

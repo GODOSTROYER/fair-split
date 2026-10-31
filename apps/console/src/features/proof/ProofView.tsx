@@ -63,6 +63,14 @@ function slipsOf(snapshot: SeasonSnapshot | undefined) {
   return new Map((snapshot?.slips ?? []).map((s) => [s.serial, s] as const));
 }
 
+/**
+ * The season as people read it ("2026-A") from the card's code ("2026A"), as the seed labels it: the hero's
+ * sentence reads the same before the seed lands and after, so it never re-wraps.
+ */
+export function seasonLabelOf(code: string): string {
+  return /^\d{4}[A-Z]$/.test(code) ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+}
+
 function marksOf(snapshot: SeasonSnapshot | undefined) {
   const marks = new Map<string, string>();
   for (const slip of snapshot?.slips ?? []) for (const m of slip.marks) marks.set(m.markId, m.text);
@@ -141,7 +149,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
       )}
       <ProofHero
         bundle={bundle}
-        seasonLabel={snapshot?.season.label ?? bundle.rateCard.canonical.season}
+        seasonLabel={snapshot?.season.label ?? seasonLabelOf(bundle.rateCard.canonical.season)}
         lotCode={snapshot?.lot.lotCode ?? null}
         rail={rail}
         verification={verification}
