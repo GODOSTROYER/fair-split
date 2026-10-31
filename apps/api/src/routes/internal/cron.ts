@@ -10,6 +10,10 @@
 // in this build). This is apps/tasks/src/cron.ts's tested plan, lifted here with the real IC-01 `TASKS` keys
 // (apps cannot import apps).
 //
+// Only a job this process has a handler for is enqueued. A row without one would be claimed, fail `no handler
+// registered` on every attempt and go dead, so the tick skips that job and labels it `no handler` in its answer, its
+// tick record and the log (until J1's labelled no-ops land, warmCaches and the nightly reconcile are skipped so).
+//
 // At most one tick is taken per 30 minutes, decided in Postgres: the tick holds a transaction advisory lock while
 // it reads the last tick's time and writes its own record (`reconciliation_reports{health}`, source `cronTick`), so
 // of two fs-api processes ticking at once exactly one is taken; the other answers 429 with Retry-After and enqueues
@@ -42,6 +46,8 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
 export type CronTaskName = "judgeReset" | "reconcile" | "warmCaches";
+/** Every task a tick may enqueue. */
+export const CRON_TASK_NAMES: readonly CronTaskName[] = ["judgeReset", "reconcile", "warmCaches"];
 
 export type CronJob = {
   [T in CronTaskName]: {
@@ -110,16 +116,35 @@ export interface TickTask {
   readonly created: boolean;
 }
 
+/** Why a job of the plan was not enqueued: no handler for its task is registered in this process. */
+export const SKIPPED_NO_HANDLER = "no handler";
+
+export interface SkippedTask {
+  readonly task: CronTaskName;
+  readonly dedupeKey: string;
+  readonly reason: typeof SKIPPED_NO_HANDLER;
+}
+
 export type TickOutcome =
-  | { readonly kind: "accepted"; readonly at: Date; readonly tasks: readonly TickTask[] }
+  | {
+      readonly kind: "accepted";
+      readonly at: Date;
+      readonly tasks: readonly TickTask[];
+      readonly skipped: readonly SkippedTask[];
+    }
   | { readonly kind: "refused"; readonly lastAt: Date; readonly retryAfterMs: number };
 
 /**
  * Takes the tick at `now` (the app clock) or refuses it. One transaction: the advisory lock serialises ticks from
  * every process, the last tick's time is read after the lock (READ COMMITTED: a fresh snapshot per statement, so a
  * tick that committed while this one waited is seen), and the plan's rows and the tick record commit together.
+ * `handles` says whether this process runs a task: a job whose task it does not run is skipped and labelled.
  */
-export async function takeCronTick(db: Db, now: Date): Promise<TickOutcome> {
+export async function takeCronTick(
+  db: Db,
+  now: Date,
+  handles: (task: CronTaskName) => boolean,
+): Promise<TickOutcome> {
   const plan = planCronTick(now);
   const rr = schema.reconciliationReports;
   return db.transaction(
@@ -146,16 +171,21 @@ export async function takeCronTick(db: Db, now: Date): Promise<TickOutcome> {
         };
       }
       const tasks: TickTask[] = [];
+      const skipped: SkippedTask[] = [];
       for (const j of plan) {
+        if (!handles(j.name)) {
+          skipped.push({ task: j.name, dedupeKey: j.dedupeKey, reason: SKIPPED_NO_HANDLER });
+          continue;
+        }
         const r = await enqueue(tx, j.name, j.args, j.dedupeKey);
         tasks.push({ task: j.name, dedupeKey: j.dedupeKey, created: r.inserted });
       }
       await tx.insert(rr).values({
         kind: TICK_REPORT.kind,
         windowEnd: now,
-        summary: { source: TICK_REPORT.source, at: now.toISOString(), tasks },
+        summary: { source: TICK_REPORT.source, at: now.toISOString(), tasks, skipped },
       });
-      return { kind: "accepted", at: now, tasks };
+      return { kind: "accepted", at: now, tasks, skipped };
     },
     { isolationLevel: "read committed" },
   );

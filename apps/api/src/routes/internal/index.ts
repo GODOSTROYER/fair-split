@@ -1,7 +1,9 @@
 // src/routes/internal: service endpoints only fs-cron calls (never the console, the app or a judge).
 //
 //   POST /internal/cron/tick   fs-cron's hourly trigger (tools/cron-tick.mjs): `Authorization: Bearer <CRON_SECRET>`
-//                              202 {at, nextTickFrom, tasks: [{task, dedupeKey, created}]} the hour's plan enqueued
+//                              202 {at, nextTickFrom, tasks: [{task, dedupeKey, created}], skipped: [{task,
+//                                  dedupeKey, reason: "no handler"}]} the hour's plan enqueued, except the jobs
+//                                  this process has no handler for (skipped and labelled, never enqueued)
 //                              401 a missing or wrong secret (no detail, nothing read or written)
 //                              404 CRON_SECRET unset or shorter than 16 characters: the route is not there
 //                              429 a tick was taken less than 30 minutes ago (Retry-After); nothing enqueued
@@ -12,6 +14,7 @@
 import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
 import {
+  CRON_TASK_NAMES,
   CRON_TICK_PATH,
   configuredCronSecret,
   cronSecretMatches,
@@ -36,7 +39,9 @@ export default defineRouteFolder({
         throw problem.unauthenticated("Unauthenticated.");
       }
       c.header("Cache-Control", "no-store");
-      const out = await takeCronTick(deps.db, deps.clock.now());
+      // a row no handler here would run only goes dead: such a job is skipped and labelled instead
+      const runtime = deps.outbox;
+      const out = await takeCronTick(deps.db, deps.clock.now(), (task) => runtime?.handles(task) ?? false);
       if (out.kind === "refused") {
         log.info(
           { lastAt: out.lastAt.toISOString(), retryAfterMs: out.retryAfterMs },
@@ -48,11 +53,18 @@ export default defineRouteFolder({
         );
       }
       log.info({ tasks: out.tasks }, "cron tick taken");
+      if (out.skipped.length > 0) {
+        log.warn(
+          { skipped: out.skipped },
+          "cron tick: no handler is registered here for these jobs, so they were skipped (labelled), not enqueued",
+        );
+      }
       return c.json(
         {
           at: out.at.toISOString(),
           nextTickFrom: new Date(out.at.getTime() + TICK_MIN_INTERVAL_MS).toISOString(),
           tasks: out.tasks,
+          skipped: out.skipped,
         },
         202,
       );
@@ -62,6 +74,13 @@ export default defineRouteFolder({
     if (!configuredCronSecret(deps.env.secrets.cronSecret)) {
       deps.logger.warn(
         "CRON_SECRET is unset or shorter than 16 characters: POST /internal/cron/tick answers 404, so no hourly judgeReset pass runs",
+      );
+    }
+    const unhandled = CRON_TASK_NAMES.filter((task) => !deps.outbox?.handles(task));
+    if (unhandled.length > 0) {
+      deps.logger.warn(
+        { unhandled },
+        "cron tick: no handler is registered for these tasks, so every tick skips them (labelled 'no handler')",
       );
     }
   },

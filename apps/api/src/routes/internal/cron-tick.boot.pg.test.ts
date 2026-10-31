@@ -2,15 +2,17 @@
 // LISTEN bus, the outbox dispatcher, the listening port, the folders' boot hooks) on a fresh migrated database of
 // the run's embedded cluster, then `node tools/cron-tick.mjs` exactly as Render's fs-cron runs it. The first run
 // takes the tick, the second within 30 minutes is refused, and the judgeReset pass the tick enqueued is run by the
-// booted server's own dispatcher.
+// booted server's own dispatcher. A job the booted server has no handler for (warmCaches and reconcile until J1's
+// labelled no-ops land) is skipped and labelled rather than enqueued, so no row of the tick goes dead.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { TaskName } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
 import { openTestDb, type TestDb } from "@fairsplit/db/testing";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type RunningServer, startServer } from "../../server.js";
 
@@ -98,8 +100,13 @@ describe("tools/cron-tick.mjs against a booted fs-api", () => {
     const r = await cronTick();
     expect(r.code, r.out).toBe(0);
     expect(r.out).toMatch(/OK 202 \(attempt 1\); tasks: judgeReset \(new\)/);
-    // every pass's jobs (the nightly reconcile joins them from 02:00 to 05:59 UTC)
-    expect(r.out).toMatch(/warmCaches \((new|already queued)\)/);
+    // every pass's jobs (the nightly reconcile joins them from 02:00 to 05:59 UTC): enqueued when the booted server
+    // has a handler for it, otherwise skipped and labelled
+    if (running.deps.outbox?.handles("warmCaches")) {
+      expect(r.out).toMatch(/tasks: [^;]*warmCaches \((new|already queued)\)/);
+    } else {
+      expect(r.out).toMatch(/; skipped, not enqueued: [^;]*warmCaches \(no handler\)/);
+    }
     expect(r.out).not.toContain(SECRET);
   });
 
@@ -128,5 +135,46 @@ describe("tools/cron-tick.mjs against a booted fs-api", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.dedupeKey).toMatch(/^reset:pool:\d{4}-\d{2}-\d{2}T\d{2}$/);
     expect(rows[0]?.state).toBe("done");
+  });
+
+  it("every row the tick enqueued ends done, and the jobs it skipped (no handler here) have no row to go dead", async () => {
+    const rr = schema.reconciliationReports;
+    const [record] = await db.owner.db
+      .select({ summary: rr.summary })
+      .from(rr)
+      .where(and(eq(rr.kind, "health"), isNull(rr.workspaceId), sql`${rr.summary}->>'source' = 'cronTick'`));
+    const summary = record?.summary as {
+      tasks: { task: string; dedupeKey: string }[];
+      skipped: { task: string; dedupeKey: string; reason: string }[];
+    };
+    expect(summary.tasks.map((x) => x.task)).toContain("judgeReset");
+    for (const s of summary.skipped) {
+      expect(running.deps.outbox?.handles(s.task as TaskName), s.task).toBe(false);
+      expect(s.reason).toBe("no handler");
+    }
+    for (const s of summary.tasks)
+      expect(running.deps.outbox?.handles(s.task as TaskName), s.task).toBe(true);
+
+    const ot = schema.taskOutbox;
+    const keys = summary.tasks.map((x) => x.dedupeKey);
+    const until = Date.now() + 90_000;
+    let rows: { name: string; state: string }[] = [];
+    while (Date.now() < until) {
+      rows = await db.owner.db
+        .select({ name: ot.name, state: ot.state })
+        .from(ot)
+        .where(inArray(ot.dedupeKey, keys));
+      if (rows.length === keys.length && rows.every((x) => x.state === "done" || x.state === "dead")) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    expect(Object.fromEntries(rows.map((x) => [x.name, x.state]))).toEqual(
+      Object.fromEntries(summary.tasks.map((x) => [x.task, "done"])),
+    );
+    const skippedKeys = summary.skipped.map((x) => x.dedupeKey);
+    if (skippedKeys.length > 0) {
+      expect(
+        await db.owner.db.select({ id: ot.id }).from(ot).where(inArray(ot.dedupeKey, skippedKeys)),
+      ).toEqual([]);
+    }
   });
 });
