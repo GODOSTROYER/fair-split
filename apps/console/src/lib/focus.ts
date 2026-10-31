@@ -5,7 +5,10 @@
 //     the peso that opened it;
 //   - a drawer closes: `restoreFocus`, from the drawer's own cleanup, hands focus back to what opened it;
 //   - the phone lowers from over the scrim: Stage, from a layout effect after that commit (the console is live
-//     again), focuses what raised it.
+//     again), focuses what raised it;
+//   - the phone rises over the scrim (the console goes inert under the focused control): `focusInto`, from a
+//     layout effect after that commit, moves focus into the phone, and tries again each frame while the browser
+//     refuses it (a panel it does not render yet) and focus is lost.
 // Each acts after React has committed the removal, and only when focus fell to <body> (a control the person or a
 // new screen focused meanwhile keeps it; the phone's opener takes focus back from the panel going inert). A timer
 // alone is never the wait: on a loaded machine it can fire before React commits, find the control still focused
@@ -65,6 +68,41 @@ export function focusIfLost(
   if (!focusLost()) return;
   const found = target?.isConnected ? target : fallback();
   found?.focus({ preventScroll: true });
+}
+
+/** How long `focusInto` keeps trying: well past any transition's delay, even on a loaded machine. */
+export const FOCUS_INTO_PATIENCE_MS = 2000;
+
+/**
+ * Moves focus into `container`, to `target()`: now (call it after the commit that made the container live), then
+ * again each animation frame while it has not landed there, up to `patienceMs`. A browser refuses focus to a
+ * control it does not render (visibility: hidden while a transition's delay runs) without a word, and the control
+ * that held focus may be going inert, so focus would fall to <body>. It keeps trying only while focus is lost (on
+ * <body>, or held under an inert subtree) or still where it was at the call; a focus the person moved somewhere
+ * live is left alone. Returns the cancel (for the effect's cleanup).
+ */
+export function focusInto(
+  container: HTMLElement,
+  target: () => HTMLElement | null,
+  patienceMs: number = FOCUS_INTO_PATIENCE_MS,
+): () => void {
+  const from = document.activeElement;
+  const deadline = performance.now() + patienceMs;
+  let frame = 0;
+  const attempt = () => {
+    frame = 0;
+    if (!container.isConnected) return;
+    const active = document.activeElement;
+    if (active && container.contains(active)) return;
+    if (!focusLost() && active !== from && !active?.closest("[inert]")) return;
+    target()?.focus({ preventScroll: true });
+    if (container.contains(document.activeElement)) return;
+    if (performance.now() < deadline) frame = requestAnimationFrame(attempt);
+  };
+  attempt();
+  return () => {
+    if (frame) cancelAnimationFrame(frame);
+  };
 }
 
 /**

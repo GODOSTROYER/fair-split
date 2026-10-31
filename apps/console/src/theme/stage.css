@@ -784,17 +784,23 @@
     visibility 0s linear var(--fs-dur-drawer-out);
 }
 
+/* Reduced, the panel fades instead of sliding. On the way up it is visible at once, as in full motion: Stage moves
+   focus into it in the commit that raised it, and a browser refuses focus to a control it does not render (with the
+   console under the scrim inert, focus would fall to <body>, WCAG 2.4.3). Only the way down waits for the fade. */
 @media (prefers-reduced-motion: reduce) {
-  .fsc-stage[data-layout="tab"] .fsc-dock__panel,
-  .fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
+  .fsc-stage[data-layout="tab"] .fsc-dock__panel {
     transform: none;
     transition:
       opacity var(--fs-dur-reduced) linear,
-      visibility 0s linear var(--fs-dur-reduced);
+      visibility 0s linear;
   }
 
   .fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
     opacity: 0;
+    transform: none;
+    transition:
+      opacity var(--fs-dur-reduced) linear,
+      visibility 0s linear var(--fs-dur-reduced);
   }
 }
 

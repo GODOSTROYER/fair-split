@@ -33,6 +33,7 @@ import {
 } from "../data/hooks.js";
 import { itemCounts } from "../data/run-view.js";
 import { env } from "../lib/env.js";
+import { focusInto } from "../lib/focus.js";
 import { format } from "../lib/format.js";
 import { DirectorProvider } from "../lib/moment.js";
 import { useSearchParam } from "../lib/search-param.js";
@@ -263,14 +264,20 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     return () => link?.removeEventListener("click", skipToScreen);
   }, []);
 
+  // Over the scrim, focus moves into the phone, to the tab of the frame it shows (the Chair's, for a co-sign), in
+  // the commit that raised it: the console under it goes inert, and a browser would drop that focus to <body>. If
+  // the panel cannot take focus yet, focusInto tries again each frame until it can (WCAG 2.4.3).
   const consoleUnderScrim = layout.phone === "tab" && raisedBy === "user";
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!consoleUnderScrim) return;
     const panel = document.getElementById("fsc-phone-panel");
-    if (panel?.contains(document.activeElement)) return;
-    panel
-      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], [role="tab"]')
-      ?.focus({ preventScroll: true });
+    if (!panel || panel.contains(document.activeElement)) return;
+    return focusInto(
+      panel,
+      () =>
+        panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
+        panel.querySelector<HTMLElement>('[role="tab"]'),
+    );
   }, [consoleUnderScrim]);
 
   const onReset = async () => {
