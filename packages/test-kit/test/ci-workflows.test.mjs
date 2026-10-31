@@ -49,7 +49,8 @@ describe("CI on Linux (Q1)", () => {
     for (const wf of workflows()) {
       const c = block(read(wf), "concurrency", 0);
       expect(c, wf).toMatch(/\n {2}group: \S/);
-      expect(c, wf).toMatch(/\n {2}cancel-in-progress: true$/m);
+      // true, or an expression that is true for the triggers where a newer run covers an older one
+      expect(c, wf).toMatch(/\n {2}cancel-in-progress: (true|\$\{\{ .+ \}\})$/m);
     }
   });
 
@@ -68,7 +69,10 @@ describe("CI on Linux (Q1)", () => {
           expect(body, `${wf} ${name}`).not.toMatch(/paths/);
           continue;
         }
-        expect(body, `${wf} ${name}`).toMatch(/\n {4}paths(-ignore)?:\n( {6}- "[^"]+"\n?)+/);
+        // a block list or a flow list, with at least one pattern
+        expect(body, `${wf} ${name}`).toMatch(
+          /\n {4}paths(-ignore)?:(\n {6}- \S.*)+|\n {4}paths(-ignore)?: \[\s*\S/,
+        );
         filtered++;
       }
     }
