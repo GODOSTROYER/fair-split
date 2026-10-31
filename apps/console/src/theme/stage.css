@@ -1194,6 +1194,13 @@
   left: calc(64px + 24px);
 }
 
+/* While the offer floats over the lower left, the screen and the drawer keep room at their foot, so a control the
+   console focuses there (Next after Count it once, a grid row) can scroll clear of it (lib/focus.ts scrolls it
+   above the chip, WCAG 2.4.11). Room at the foot moves nothing above it. */
+.fsc-stage:has(.fsc-offer) :is(.fsc-console__screen, .fsc-drawer__body) {
+  padding-bottom: 120px;
+}
+
 /* ---------------------------------------------------------------- phone visit (under 1024 px) */
 
 .fsc-stage[data-layout="phone-visit"] {
