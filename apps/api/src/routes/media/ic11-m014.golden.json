@@ -144,12 +144,12 @@
       },
       {
         "slot": "AI_NOTE",
-        "variant": "default",
+        "variant": "seeded",
         "mentions": [],
-        "textSha256": "7fe90b4717c1be8626148b33cf9f158abaff045c32e8adb1c4c8d4e8143814a4",
+        "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
         "clip": {
           "url": "/media/audio/M-014/ceb/08-AI_NOTE.m4a",
-          "textSha256": "7fe90b4717c1be8626148b33cf9f158abaff045c32e8adb1c4c8d4e8143814a4",
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
           "label": "Sintetikong tingog (Gemini TTS)",
           "slot": "AI_NOTE",
           "offsets": [],
@@ -302,12 +302,12 @@
       },
       {
         "slot": "AI_NOTE",
-        "variant": "default",
+        "variant": "seeded",
         "mentions": [],
-        "textSha256": "15e4f0db2f52d7fb02a225a533fd6223ba5ae609af7948f04f8622bc8c4b9475",
+        "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
         "clip": {
           "url": "/media/audio/M-014/fil/08-AI_NOTE.m4a",
-          "textSha256": "15e4f0db2f52d7fb02a225a533fd6223ba5ae609af7948f04f8622bc8c4b9475",
+          "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
           "label": "Sintetikong boses (Gemini TTS)",
           "slot": "AI_NOTE",
           "offsets": [],
@@ -460,12 +460,12 @@
       },
       {
         "slot": "AI_NOTE",
-        "variant": "default",
+        "variant": "seeded",
         "mentions": [],
-        "textSha256": "1228a7e05238381bd3eb137325249a77c7598b2393e45355a6361141e6975a48",
+        "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
         "clip": {
           "url": "/media/audio/M-014/en/08-AI_NOTE.m4a",
-          "textSha256": "1228a7e05238381bd3eb137325249a77c7598b2393e45355a6361141e6975a48",
+          "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
           "label": "Synthetic voice (Gemini TTS)",
           "slot": "AI_NOTE",
           "offsets": [],
