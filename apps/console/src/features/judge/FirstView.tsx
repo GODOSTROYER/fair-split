@@ -8,13 +8,14 @@
 
 import { PAY_RUN_RANK, type PayRunState, webRoutes } from "@fairsplit/contracts";
 import { Glyph, InkStamp, Slab, useT } from "@fairsplit/ui-web";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { useCommand, useJudgeSession, usePaypalRail, useStageRun } from "../../data/hooks.js";
 import { atLeast } from "../../data/run-view.js";
 import { env } from "../../lib/env.js";
+import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
 import { HashPlate } from "../ratecard/parts.js";
@@ -71,14 +72,31 @@ function Desk() {
     setAttempt((a) => a + 1);
   }, [pressed, sessionFailed, commandFailed]);
 
-  // After Reset (or a session the server ended) the first view returns: the slab is pressable again.
+  // After Reset (or a session the server ended) the first view returns: the slab is pressable again. ui-web's Slab
+  // stays committed once pressed until it is remounted, so a press spent in a session that has gone (the judge
+  // still on /judge) is remounted at rest, under a new key.
+  const spent = useRef(false);
   useEffect(() => {
-    if (inSession || (session.status !== "none" && session.status !== "ended")) return;
+    if (inSession) {
+      spent.current = true;
+      return;
+    }
+    if (session.status !== "none" && session.status !== "ended") return;
     setPressed(false);
     markPaid.reset();
+    if (!spent.current) return;
+    spent.current = false;
+    setAttempt((a) => a + 1);
   }, [inSession, session.status, markPaid.reset]);
 
   usePrefocus(slabArea, "W-JG-01", !pressed && !movedOn);
+  // The slab remounted at rest (above, or after a failure) takes the focus the spent one held, in that commit.
+  const [actionEl, setActionEl] = useState<HTMLDivElement | null>(null);
+  const actionRef = useCallback((el: HTMLDivElement | null) => {
+    slabArea.current = el;
+    setActionEl(el);
+  }, []);
+  useFocusAfterRemoval(actionEl, () => actionEl?.querySelector<HTMLElement>(".fs-slab__face") ?? null);
 
   if (!snapshot) return null;
   const season = snapshot.season.label;
@@ -180,7 +198,7 @@ function Desk() {
   const action = (
     <div
       className="fsc-first__action"
-      ref={slabArea}
+      ref={actionRef}
       data-testid="W-JG-01.action"
       data-state={phase}
       aria-busy={phase === "starting" || phase === "recording" ? true : undefined}
