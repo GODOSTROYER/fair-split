@@ -28,6 +28,7 @@ import type {
 export type {
   ApprovalPayload,
   ApprovalRole,
+  AudioOffset,
   BatchDigest,
   BatchItem,
   DeviceKeyKind,
@@ -40,6 +41,9 @@ export type {
   Provenance,
   Rail,
   Role,
+  StatementAudio,
+  StatementAudioClip,
+  StatementAudioSentence,
 } from "@fairsplit/contracts";
 
 /* ------------------------------------------------------------------ languages, roles */

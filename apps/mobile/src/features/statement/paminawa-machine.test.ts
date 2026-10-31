@@ -61,7 +61,16 @@ describe("Paminawa's player (M-MB-03)", () => {
     const withOne = {
       ...dto,
       audio: {
-        ceb: [{ url: "https://media.invalid/g.m4a", textSha256: sha256Hex(spoken[0] ?? ""), label: "x" }],
+        ceb: [
+          {
+            url: "https://media.invalid/g.m4a",
+            textSha256: sha256Hex(spoken[0] ?? ""),
+            label: "x",
+            slot: "GREETING" as const,
+            offsets: [],
+            durationMs: 4000,
+          },
+        ],
       },
     };
     const plan = audioPlan(withOne, "ceb", { deviceVoice: false });

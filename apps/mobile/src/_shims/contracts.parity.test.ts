@@ -9,6 +9,8 @@ import * as real from "@fairsplit/contracts";
 import fc from "fast-check";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { approvalPayloadShape } from "../lib/signing";
+import type { AudioClip, audioPlan } from "../lib/statement";
+import type { StatementAudioClip, StatementDTO } from "./api-client";
 import {
   APPROVAL_PAYLOAD_KEYS,
   APPROVAL_ROLES,
@@ -25,6 +27,9 @@ import {
   type LineState,
   RUN_STATES,
   type RunState,
+  STATEMENT_SLOTS,
+  type StatementAudio,
+  type StatementSlot,
 } from "./contracts";
 
 describe("app code imports @fairsplit/contracts for its types only", () => {
@@ -124,6 +129,18 @@ describe("the shim's types are @fairsplit/contracts' types", () => {
     expectTypeOf<(typeof DEVICE_KEY_KINDS)[number]>().toEqualTypeOf<real.DeviceKeyKind>();
     expectTypeOf<(typeof APPROVAL_PAYLOAD_KEYS)[number]>().toEqualTypeOf<keyof real.ApprovalPayload>();
     expectTypeOf<real.ErrorCode>().toExtend<ApiErrorCode>();
+  });
+
+  it("statement audio (IC-11, ADR-0011): the clips Paminawa plays are the contract's, slot for slot", () => {
+    expectTypeOf<StatementAudioClip>().toEqualTypeOf<real.StatementAudioClip>();
+    expectTypeOf<AudioClip>().toEqualTypeOf<real.StatementAudioClip>();
+    expectTypeOf<
+      NonNullable<StatementDTO["audio"]["ceb"]>[number]
+    >().toEqualTypeOf<real.StatementAudioClip>();
+    expectTypeOf<StatementAudio>().toEqualTypeOf<real.StatementAudio>();
+    expectTypeOf<Parameters<typeof audioPlan>[0]>().toEqualTypeOf<StatementDTO>();
+    expectTypeOf<StatementSlot>().toEqualTypeOf<real.AudioSlot>();
+    expect([...STATEMENT_SLOTS]).toEqual([...real.AUDIO_SLOTS]);
   });
 });
 

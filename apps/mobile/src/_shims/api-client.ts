@@ -21,6 +21,8 @@ import type {
   ProofLine,
   Provenance,
   RunEvent,
+  StatementAudio,
+  StatementAudioClip,
   StatementTemplate,
 } from "./contracts";
 
@@ -69,17 +71,12 @@ export interface StatementHistoryEntry {
 }
 
 /**
- * One clip from `media/audio/manifest.json` (IC-11) as fs-api serves it: a synthetic voice reading one sentence.
- * `textSha256` is the sha256 of the exact spoken text it was rendered from, so the phone never plays a clip for a
- * sentence whose words changed (it uses the labelled device voice instead).
+ * IC-11 statement audio (ADR-0011), the contract's own types: `StatementAudio` is fs-api's answer to
+ * `GET /v1/media/audio/:lineId`, and a `StatementAudioClip` {url, textSha256, label, slot, offsets, durationMs} is a
+ * synthetic voice reading one sentence. `textSha256` is the SHA-256 of the exact spoken text it was rendered from,
+ * so the phone never plays a clip for a sentence whose words changed (it uses the labelled device voice instead).
  */
-export interface StatementAudioClip {
-  url: string;
-  textSha256: string;
-  /** "Sintetikong tingog (Gemini TTS)": the manifest's own label, shown while it plays. */
-  label: string;
-  durationMs?: number;
-}
+export type { StatementAudio, StatementAudioClip };
 
 export interface StatementCredit {
   /** The slip the unruled deduction was written on. */
@@ -124,7 +121,10 @@ export interface StatementDTO {
   cashDay: string | null;
   expectedDate: string | null;
   sentences: Readonly<Record<Lang, readonly StatementTemplate[]>>;
-  /** Synthetic voice clips per language (IC-11); empty until WS-MEDIA renders them. */
+  /**
+   * Synthetic voice clips per language (IC-11, ADR-0011): fs-api's served clips (`withServedAudio`), or the demo
+   * fixtures' own; empty until the audio days render them.
+   */
   audio: Readonly<Partial<Record<Lang, readonly StatementAudioClip[]>>>;
 }
 

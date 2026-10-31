@@ -1,4 +1,6 @@
+import { StatementAudio } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
+import type { StatementAudioClip } from "../_shims/api-client";
 import { sha256Hex } from "../_shims/domain";
 import { buildDemoStatement } from "../services/demo-fixtures";
 import { figureRuns, isFigure } from "../ui/figures";
@@ -23,6 +25,7 @@ import {
   statementCacheKey,
   statementSentences,
   statementValues,
+  withServedAudio,
 } from "./statement";
 
 const dto = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00" });
@@ -154,15 +157,23 @@ describe("English gloss (IC-12 gloss, S1.13)", () => {
 });
 
 describe("Paminawa audio plan (register §9, M-MB-03)", () => {
-  const clip = (lang: "ceb" | "fil" | "en", spoken: string, i: number, extra: object = {}) => ({
+  /** A clip in the contract's shape (IC-11, ADR-0011) for sentence `i` of a language. */
+  const clip = (
+    lang: "ceb" | "fil" | "en",
+    spoken: string,
+    i: number,
+    extra: Partial<StatementAudioClip> = {},
+  ): StatementAudioClip => ({
     url: `https://media.invalid/${lang}/${i}.m4a`,
     textSha256: sha256Hex(spoken),
     label: "Sintetikong tingog (Gemini TTS)",
+    slot: statementSentences(dto, lang).sentences[i]?.slot ?? "GREETING",
+    offsets: [],
     durationMs: 4000,
     ...extra,
   });
   const withClips = (langs: ("ceb" | "fil" | "en")[], mutate?: (spoken: string, i: number) => string) => {
-    const audio: Record<string, ReturnType<typeof clip>[]> = {};
+    const audio: Record<string, StatementAudioClip[]> = {};
     for (const l of langs) {
       audio[l] = statementSentences(dto, l).sentences.map((s, i) =>
         clip(l, mutate ? mutate(s.spoken, i) : s.spoken, i),
@@ -226,12 +237,18 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
       ...dto,
       audio: {
         en: statementSentences(dto, "en").sentences.map((s, i) =>
-          clip("en", s.spoken, i, { mentions: [{ ref: "slip:0403", offsetMs: 1234 }] }),
+          clip("en", s.spoken, i, { offsets: [{ ref: "slip:0403", atMs: 1234 }] }),
         ),
       },
     };
     const exact = audioPlan(manifest, "en", { deviceVoice: true }).steps.find((s) => s.slot === "SOURCES");
     expect(exact?.cues[0]?.offsetMs).toBe(1234);
+  });
+
+  it("never plays a clip recorded for another slot, even with the same words", () => {
+    const greeting = statementSentences(dto, "ceb").sentences[0]?.spoken ?? "";
+    const misfiled = { ...dto, audio: { ceb: [clip("ceb", greeting, 0, { slot: "HELP" })] } };
+    expect(audioPlan(misfiled, "ceb", { deviceVoice: true }).steps[0]?.voice.kind).toBe("device");
   });
 
   it("fires each cue once, in order, as the voice reaches it", () => {
@@ -411,5 +428,97 @@ describe("the copy kept on this phone (security review: a statement is read back
     // None of them is ever a key the phone keeps a copy under now.
     const now = statementCacheKey({ identity: "a1b2c3d4e5f60718", linkToken: null });
     expect(legacyStatementCacheKeys({ persona: "member:M-014", linkLineId: LINE })).not.toContain(now);
+  });
+});
+
+describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)", () => {
+  const ORIGIN = "https://fs.test";
+  /** A live statement: fs-api's line IDs are UUIDs (the demo's are labelled slugs). */
+  const live = { ...dto, lineId: "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f" };
+  /** The route's answer for the hero line in `lang`, as the contract parses it: `clips` picks which sentences have one. */
+  const served = (
+    lang: "ceb" | "fil" | "en",
+    clips: (slot: string, i: number) => Partial<StatementAudioClip> | null,
+  ) => {
+    const sentences = statementSentences(dto, lang).sentences.map((s, i) => {
+      const slot = s.slot ?? "unknown";
+      const over = clips(slot, i);
+      return {
+        slot,
+        textSha256: sha256Hex(s.spoken),
+        clip:
+          over === null
+            ? null
+            : {
+                url: `/media/audio/M-014/${lang}/${slot}.m4a`,
+                textSha256: sha256Hex(s.spoken),
+                label: "Sintetikong tingog (Gemini TTS)",
+                slot: s.slot,
+                offsets: [],
+                durationMs: 4_634,
+                ...over,
+              },
+      };
+    });
+    const some = sentences.some((s) => s.clip);
+    return StatementAudio.parse({
+      lineId: live.lineId,
+      memberNo: dto.member.memberNo,
+      lang,
+      source: sentences.every((s) => s.clip) ? "gemini" : some ? "mixed" : "device",
+      label: some ? "Sintetikong tingog (Gemini TTS)" : "Tingog sa telepono",
+      deviceLabel: "Tingog sa telepono",
+      sentences,
+    });
+  };
+
+  it("plays the served greeting clip from fs-api's origin and reads the rest with the phone's voice", () => {
+    const answer = served("ceb", (slot) => (slot === "GREETING" ? {} : null));
+    const plan = audioPlan(withServedAudio(live, answer, ORIGIN), "ceb", { deviceVoice: true });
+    expect(plan.mode).toBe("mixed");
+    expect(plan.steps[0]?.voice).toEqual({
+      kind: "clip",
+      url: `${ORIGIN}/media/audio/M-014/ceb/GREETING.m4a`,
+      lang: "ceb",
+      label: "Sintetikong tingog (Gemini TTS)",
+      durationMs: 4_634,
+    });
+    expect(plan.steps.slice(1).every((s) => s.voice.kind === "device")).toBe(true);
+  });
+
+  it("plays every sentence when every one has a clip, with the served mention offsets", () => {
+    const answer = served("en", (slot) =>
+      slot === "SOURCES" ? { offsets: [{ ref: "slip:0403", atMs: 1_500 }] } : {},
+    );
+    const plan = audioPlan(withServedAudio(live, answer), "en", { deviceVoice: true });
+    expect(plan.mode).toBe("synthetic");
+    expect(plan.steps[0]?.voice).toMatchObject({ kind: "clip", url: "/media/audio/M-014/en/GREETING.m4a" });
+    expect(plan.steps.find((s) => s.slot === "SOURCES")?.cues[0]).toMatchObject({
+      ref: "slip:0403",
+      offsetMs: 1_500,
+    });
+  });
+
+  it("checks the words again: a served clip whose hash is not this phone's sentence falls back to its voice", () => {
+    const answer = served("ceb", (slot) =>
+      slot === "GREETING" ? { textSha256: sha256Hex("other words") } : null,
+    );
+    expect(audioPlan(withServedAudio(live, answer, ORIGIN), "ceb", { deviceVoice: true }).mode).toBe(
+      "device-voice",
+    );
+  });
+
+  it("keeps the statement as it is for another line's answer, and keeps the other languages' clips", () => {
+    const answer = served("ceb", () => ({}));
+    expect(withServedAudio(live, { ...answer, lineId: "0190f3c2-6c1e-7c3a-8d2b-000000000000" })).toBe(live);
+    const fil = served("fil", () => ({}));
+    const both = withServedAudio(withServedAudio(live, answer), fil);
+    expect(both.audio.ceb?.length).toBe(answer.sentences.length);
+    expect(both.audio.fil?.length).toBe(fil.sentences.length);
+    const none = withServedAudio(
+      live,
+      served("en", () => null),
+    );
+    expect(none.audio.en).toEqual([]);
   });
 });
