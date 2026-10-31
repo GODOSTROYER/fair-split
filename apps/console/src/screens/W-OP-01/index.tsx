@@ -8,7 +8,7 @@ import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { usePaypalRail } from "../../data/hooks.js";
 import { OpsPage } from "../../features/ops/OpsPage.js";
 import { opsVerdict } from "../../features/ops/opsModel.js";
-import { useHealth, useOperator, useTreasurerKey } from "../../features/ops/useOps.js";
+import { useHealth, useOperator, useShowcaseWorkspace, useTreasurerKey } from "../../features/ops/useOps.js";
 import type { OpsScreenProps } from "../contract.js";
 import "../../features/ops/ops.css";
 
@@ -17,7 +17,9 @@ export function Screen(_props: OpsScreenProps) {
   const health = useHealth();
   const { operator } = useOperator();
   // Nothing touches WebCrypto or IndexedDB unless the operator is signed in.
-  const treasurerKey = useTreasurerKey({ enabled: operator });
+  // The key is registered in the showcase workspace (fs-api refuses a judge workspace), named by the overview.
+  const workspaceId = useShowcaseWorkspace();
+  const treasurerKey = useTreasurerKey({ enabled: operator, workspaceId });
   const verdict = opsVerdict(health.live, health.ready);
   return (
     <ScreenRoot id="W-OP-01" state={verdict.state} as="main" labelledBy="W-OP-01-title" className="op-root">

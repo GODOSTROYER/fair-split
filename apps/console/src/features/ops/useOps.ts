@@ -6,6 +6,7 @@ import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { z } from "zod";
 import { useAdapter } from "../../data/hooks.js";
+import { utf8 } from "../../lib/jcs.js";
 import {
   ed25519Supported,
   type KeyStore,
@@ -16,7 +17,19 @@ import {
   TREASURER_APPROVER,
   TREASURER_KEY_ID,
 } from "../../lib/keystore.js";
-import { classifyFailure, Healthz, OPS_PATHS, OutboxRead, type ReadOutcome, Readyz } from "./opsModel.js";
+import { toHex } from "../../lib/sha256.js";
+import {
+  classifyFailure,
+  Healthz,
+  OPS_PATHS,
+  OutboxRead,
+  OverviewWorkspaces,
+  type ReadOutcome,
+  Readyz,
+  type RegisterKeyBody,
+  registrationStatement,
+  showcaseWorkspace,
+} from "./opsModel.js";
 import {
   BalanceRead,
   ClaudeRead,
@@ -72,6 +85,34 @@ export function useHealth() {
 
 export function useOutbox() {
   return useOpsRead("outbox", OPS_PATHS.outbox, OutboxRead);
+}
+
+/** The showcase workspace (the treasurer key's), from the operator's overview; null until it names one. */
+export function useShowcaseWorkspace(): string | null {
+  const read = useOpsRead("overview", OPS_PATHS.overview, OverviewWorkspaces).data;
+  return read?.kind === "ok" ? showcaseWorkspace(read.data) : null;
+}
+
+/**
+ * The registration fs-api's POST /v1/ops/keys takes: the key, the showcase workspace, and a proof of possession
+ * (the new key's Ed25519 signature over the registration statement, made in this browser; its private half never
+ * leaves WebCrypto).
+ */
+export async function registrationBody(
+  key: StoredKey,
+  workspaceId: string,
+  at: string,
+  subtle: SubtleCrypto,
+): Promise<RegisterKeyBody> {
+  const statement = {
+    workspaceId,
+    keyId: key.keyId,
+    publicKeyHex: key.publicKeyHex,
+    approverId: key.approverId,
+  };
+  const bytes = utf8(registrationStatement({ ...statement, at }));
+  const signature = await subtle.sign({ name: "Ed25519" }, key.keys.privateKey, bytes as BufferSource);
+  return { ...statement, proof: { at, signatureHex: toHex(new Uint8Array(signature)) } };
 }
 
 /**
@@ -151,11 +192,15 @@ export interface TreasurerKeyOptions {
    * make and register do nothing: a judge never makes a key named fs-analyn-w1 in their own browser.
    */
   readonly enabled?: boolean;
+  /** The workspace the key is registered in (the showcase's, from the overview); none yet, registering fails. */
+  readonly workspaceId?: string | null;
 }
 
 export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey {
   const adapter = useAdapter();
   const enabled = options.enabled ?? true;
+  const workspaceRef = useRef(options.workspaceId ?? null);
+  workspaceRef.current = options.workspaceId ?? null;
   const storeRef = useRef<KeyStore | null>(options.store ?? null);
   const subtle = options.subtle ?? globalThis.crypto?.subtle;
   const [phase, setPhase] = useState<KeyPhase>({ kind: "checking" });
@@ -242,15 +287,15 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
     setPhase({ kind: "registering", key });
     void (async () => {
       try {
+        const workspaceId = workspaceRef.current;
+        if (!workspaceId) {
+          throw new Error("The showcase workspace isn't known yet: GET /v1/ops/overview didn't name one.");
+        }
+        if (!subtle) throw new Error("This browser has no WebCrypto.");
         await adapter.api.request({
           method: "POST",
           path: OPS_PATHS.registerKey,
-          body: {
-            keyId: key.keyId,
-            approverId: key.approverId,
-            role: "treasurer",
-            publicKeyHex: key.publicKeyHex,
-          },
+          body: await registrationBody(key, workspaceId, new Date().toISOString(), subtle),
           name: "registerKey",
         });
         const registered: StoredKey = { ...key, registeredAt: new Date().toISOString() };
@@ -266,7 +311,7 @@ export function useTreasurerKey(options: TreasurerKeyOptions = {}): TreasurerKey
         else setPhase({ kind: "failed", key, error });
       }
     })();
-  }, [adapter, enabled, store]);
+  }, [adapter, enabled, store, subtle]);
 
   return useMemo(() => ({ phase, durable, make, register }), [phase, durable, make, register]);
 }

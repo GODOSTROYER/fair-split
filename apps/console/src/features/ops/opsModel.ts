@@ -16,6 +16,7 @@ import {
 } from "@fairsplit/contracts";
 import { z } from "zod";
 import type { DataSource, PaypalRail } from "../../lib/env.js";
+import { jcs } from "../../lib/jcs.js";
 
 // ------------------------------------------------------------------------------------------------ reads
 
@@ -24,8 +25,46 @@ export const OPS_PATHS = {
   healthz: "/healthz",
   readyz: "/readyz",
   outbox: "/v1/ops/outbox",
+  /** fs-api's operator overview: every workspace's ledger head with its kind (apps/api ops/overview.ts). */
+  overview: "/v1/ops/overview",
   registerKey: "/v1/ops/keys",
 } as const;
+
+/** What /ops reads of the overview: which workspace is the showcase, the one the treasurer's key belongs to. */
+export const OverviewWorkspaces = z.looseObject({
+  ledger: z.array(z.looseObject({ workspaceId: z.string(), kind: z.string() })),
+});
+export type OverviewWorkspaces = z.infer<typeof OverviewWorkspaces>;
+
+/** The showcase workspace's ID from the overview, or null when it names none. */
+export function showcaseWorkspace(overview: OverviewWorkspaces | undefined): string | null {
+  return overview?.ledger.find((head) => head.kind === "showcase")?.workspaceId ?? null;
+}
+
+/** fs-api's proof-of-possession statement purpose (apps/api ops/keys.ts KEY_REGISTRATION_PURPOSE). */
+export const KEY_REGISTRATION_PURPOSE = "fairsplit.key.register";
+
+/** POST /v1/ops/keys, as fs-api's strict RegisterKeyRequest takes it (apps/api ops/keys.ts). */
+export interface RegisterKeyBody {
+  readonly workspaceId: string;
+  readonly keyId: string;
+  readonly publicKeyHex: string;
+  readonly approverId: string;
+  readonly proof: { readonly at: string; readonly signatureHex: string };
+}
+
+/** The statement the new key signs: JCS{purpose, v, workspaceId (lower case), keyId, publicKeyHex, approverId, at}. */
+export function registrationStatement(r: Omit<RegisterKeyBody, "proof"> & { readonly at: string }): string {
+  return jcs({
+    purpose: KEY_REGISTRATION_PURPOSE,
+    v: 1,
+    workspaceId: r.workspaceId.toLowerCase(),
+    keyId: r.keyId,
+    publicKeyHex: r.publicKeyHex,
+    approverId: r.approverId,
+    at: r.at,
+  });
+}
 
 export const Healthz = z.looseObject({
   status: z.string(),
