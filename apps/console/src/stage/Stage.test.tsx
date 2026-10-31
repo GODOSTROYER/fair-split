@@ -9,6 +9,7 @@ import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { renderConsole } from "../test/render.js";
+import { recordRequests } from "../test/requests.js";
 import { timersBeforeCommit } from "../test/timers.js";
 import { resizeTo } from "../test/viewport.js";
 import { createTestWorld } from "../test/world.js";
@@ -140,6 +141,72 @@ describe("Judge stage", () => {
     expect(view.world.events()).toEqual([]);
     expect(runSlug).toBe(view.world.runSlug);
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
+  });
+
+  it("after Reset on /judge the first press is pressable again: a second press starts a second session", async () => {
+    const log = recordRequests();
+    const view = await renderConsole({ path: "/judge", handlers: [log.handler] });
+    const starts = () =>
+      log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions").length;
+    await press("W-JG-01.markPaid");
+    const stage = screen.getByTestId("W-JG-01.stage");
+    await waitFor(() => expect(stage.dataset.state).toBe("session"));
+    expect(starts()).toBe(1);
+    // The press is over (the payment is recorded and the run funded): the slab is spent, drawn committed.
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
+    });
+    await waitFor(() => expect(stage.dataset.state).toBe("ready"));
+    expect(view.router.state.location.pathname).toBe("/judge");
+    // The slab is at rest, not the spent press: nothing says it can't be pressed.
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true"),
+    );
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(starts()).toBe(2));
+    await waitFor(() => expect(stage.dataset.state).toBe("session"));
+  });
+
+  it("after a session ends on /judge (a renewal that lands elsewhere), a press starts a fresh session", async () => {
+    const world = createTestWorld();
+    let starts = 0;
+    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+      starts += 1;
+      if (starts !== 2) return undefined;
+      const answer = await getResponse([...world.mock.handlers], request.clone());
+      if (!answer?.ok) return answer;
+      const body = (await answer.json()) as Record<string, unknown>;
+      return HttpResponse.json(
+        {
+          ...body,
+          workspaceId: "019a0000-0000-7000-8000-00000000beef",
+          runId: "019a0000-0000-7000-8000-00000000cafe",
+          runSlug: "2026A-r38",
+          consoleToken: "fst_another-workspace",
+        },
+        { status: answer.status, headers: answer.headers },
+      );
+    });
+    const view = await renderConsole({ path: "/judge", world, handlers: [elsewhere] });
+    await press("W-JG-01.markPaid");
+    const stage = screen.getByTestId("W-JG-01.stage");
+    await waitFor(() => expect(stage.dataset.state).toBe("session"));
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    await act(async () => {
+      await view.runtime.session.renew();
+    });
+    expect(starts).toBe(2);
+    await waitFor(() => expect(stage.dataset.state).toBe("session-ended"));
+    // The notice says the stage is back at the first press: the stage still reads it, and the press works.
+    expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
+    expect(view.router.state.location.pathname).toBe("/judge");
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true"),
+    );
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(starts).toBe(3));
+    await waitFor(() => expect(stage.dataset.state).toBe("session"));
   });
 
   it("a renewal that lands in another workspace ends the session and takes the stage back to /judge", async () => {
