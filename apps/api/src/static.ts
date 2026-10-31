@@ -2,8 +2,11 @@
 // `/media` (STATIC_MEDIA_DIR; on Render the curated folder `tools/assemble-media.ts` writes from an explicit
 // allowlist, never media/ wholesale). API, webhook and internal paths never fall through to a page. Hashed build assets are cached
 // as immutable, `index.html` never is; client-side routes (`/judge`, `/season/…`, `/runs/…`, `/proof/…`,
-// `/b/…`, `/ops`, `/prototype`) get the console's index.html, and `/app/*` routes get the app's.
-import { existsSync, readFileSync, statSync } from "node:fs";
+// `/b/…`, `/ops`, `/prototype`) get the console's index.html, and `/app/*` routes get the app's. A brand link
+// `/b/:token` gets it whatever its token holds (the signed `fsb_<payload>.<sig>` has a dot). Media is immutable only
+// under a content-hashed name: the audio manifest and every other media file keep their name across a retake or a
+// new build, so they are revalidated on every use (no-cache, a weak ETag, 304).
+import { existsSync, readFileSync, type Stats, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -73,11 +76,68 @@ function wantsHtml(c: Context): boolean {
 }
 
 function isFile(p: string): boolean {
+  return fileStats(p) !== null;
+}
+
+function fileStats(p: string): Stats | null {
   try {
-    return statSync(p).isFile();
+    const s = statSync(p);
+    return s.isFile() ? s : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** A content hash in a file's name (`s1.4f1c9a2e.m4a`, `A-0123abcd.webp`): its bytes never change under it. */
+const CONTENT_HASHED = /[.-][0-9a-f]{8,64}\.[A-Za-z0-9]+$/;
+
+/** serveStatic's own refusals (a dot segment, a doubled or back slash): such a path is never a file here either. */
+const UNSAFE_PATH = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
+
+/**
+ * The media file a request names, resolved the way serveStatic resolves it, or null (no such file, a percent
+ * sign serveStatic refuses, or a path that would leave the root). Only used to read the file's size and mtime.
+ */
+function mediaFile(root: string, requestPath: string): Stats | null {
+  const rel = requestPath.replace(/^\/media/, "");
+  if (rel.includes("%") || UNSAFE_PATH.test(rel)) return null;
+  const base = path.resolve(root);
+  const file = path.resolve(base, `.${rel}`);
+  if (!file.startsWith(base + path.sep)) return null;
+  return fileStats(file);
+}
+
+/** A weak validator from the file's size and mtime: every build rewrites the folder, so a new build is a new tag. */
+function weakEtag(s: Stats): string {
+  return `W/"${s.size.toString(16)}-${Math.floor(s.mtimeMs).toString(16)}"`;
+}
+
+function etagMatches(header: string | undefined, etag: string): boolean {
+  if (!header) return false;
+  const opaque = (tag: string) => tag.trim().replace(/^W\//, "");
+  return header.split(",").some((tag) => tag.trim() === "*" || opaque(tag) === opaque(etag));
+}
+
+/**
+ * Media that may change under the same URL between deploys: `no-cache` with a weak ETag, and a 304 when the
+ * client already holds these bytes (If-None-Match). Ranges still work (serveStatic answers them).
+ */
+function revalidated(serve: MiddlewareHandler, root: string): MiddlewareHandler {
+  return async (c, next) => {
+    const method = c.req.method;
+    const stats = method === "GET" || method === "HEAD" ? mediaFile(root, c.req.path) : null;
+    if (!stats) return serve(c, next);
+    const etag = weakEtag(stats);
+    if (etagMatches(c.req.header("if-none-match"), etag)) {
+      return c.body(null, 304, { ETag: etag, "Cache-Control": NO_CACHE });
+    }
+    const res = await serve(c, next);
+    if (res instanceof Response && res.status < 300) {
+      res.headers.set("Cache-Control", NO_CACHE);
+      res.headers.set("ETag", etag);
+    }
+    return res;
+  };
 }
 
 function placeholder(title: string, hint: string): string {
@@ -109,15 +169,38 @@ function assetPolicy(hashedDir: string) {
         : "public, max-age=300";
 }
 
+/** The console's index.html (never cached), or a labelled placeholder when the console is not built. */
+function consolePage(dirs: StaticDirs) {
+  const index = path.join(dirs.console, "index.html");
+  return (c: Context) => {
+    if (isFile(index)) return htmlFile(index, NO_CACHE)(c);
+    return c.html(
+      placeholder(
+        "Fair Split console not built",
+        "Run <code>corepack pnpm --filter @fairsplit/console build</code>.",
+      ),
+      200,
+    );
+  };
+}
+
 export function mountStatic(app: Hono<AppEnv>, dirs: StaticDirs): void {
-  // /media: immutable files (audio clips, archived-photo tiles). Ranges are supported for audio seeking.
-  app.use(
-    "/media/*",
-    cached(
-      serveStatic({ root: dirs.media, rewriteRequestPath: (p) => p.replace(/^\/media/, "") }),
-      () => IMMUTABLE,
-    ),
+  // /media: audio clips, their manifest and the photos. A content-hashed name is immutable; anything else keeps its
+  // name when its bytes change (the manifest on every clip, a clip on a retake), so it is revalidated on every use.
+  // Ranges are supported for audio seeking either way.
+  const mediaFiles = serveStatic({ root: dirs.media, rewriteRequestPath: (p) => p.replace(/^\/media/, "") });
+  const immutableMedia = cached(mediaFiles, () => IMMUTABLE);
+  const revalidatedMedia = revalidated(mediaFiles, dirs.media);
+  app.use("/media/*", (c, next) =>
+    (CONTENT_HASHED.test(path.posix.basename(c.req.path)) ? immutableMedia : revalidatedMedia)(c, next),
   );
+
+  // /b/:token: an operator's brand link opens the console's brand view (W-BR-01), which reads the link's facts from
+  // `GET /v1/credential`. Served before the console's files and its page fallback, which reads the dot of a signed
+  // `fsb_<payload>.<sig>` as a file extension and answers 404. The token is never a file path: nothing here reads
+  // a file by it, so a token full of `..` or slashes still opens only this page. It is never logged (requestContext).
+  const consoleIndex = consolePage(dirs);
+  app.get("/b/:token", (c) => (wantsHtml(c) ? consoleIndex(c) : c.notFound()));
 
   // /s/:token: a member's printed or texted link opens the app's statement (S3.3). The token is a signed
   // link (`fsm_…`); it is only forwarded, never logged (access logs drop it: see requestContext) or verified
@@ -165,16 +248,9 @@ export function mountStatic(app: Hono<AppEnv>, dirs: StaticDirs): void {
       return next();
     return consoleFiles(c, next);
   });
+  // A path with an extension is a file that does not exist: 404, never index.html.
   app.get("*", (c) => {
     if (isApiPath(c.req.path) || !wantsHtml(c) || path.extname(c.req.path) !== "") return c.notFound();
-    const index = path.join(dirs.console, "index.html");
-    if (isFile(index)) return htmlFile(index, NO_CACHE)(c);
-    return c.html(
-      placeholder(
-        "Fair Split console not built",
-        "Run <code>corepack pnpm --filter @fairsplit/console build</code>.",
-      ),
-      200,
-    );
+    return consoleIndex(c);
   });
 }
