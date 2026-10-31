@@ -52,3 +52,43 @@ export function checkCertUrl(value: string, allowedHosts: readonly string[]): Ce
   const certId = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
   return { ok: true, url, cacheKey: `${url.origin}${url.pathname}`, certId };
 }
+
+/**
+ * The simulator's cert id shape (packages/paypal-sim: `SIMCERT-` and the first 24 hex digits of its leaf's SHA-256
+ * fingerprint). Never PayPal's: PayPal's ids are CERT-….
+ */
+export const SIMULATOR_CERT_ID_PATTERN = /^SIMCERT-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8}$/;
+const SIMULATOR_CERT_FILE = /\/(SIMCERT-[0-9a-f]{8}-[0-9a-f]{8}-[0-9a-f]{8})\.pem$/;
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * `paypal-cert-url` in PP_MODE=simulator only (ADR-0002, ADR-0010): the in-process simulator serves its chain at
+ * `{host app}/paypal-sim/sim/certs/SIMCERT-….pem`, never on a PayPal host, so PayPal's structural check cannot
+ * pass it. This check takes its place, and nothing else does: the URL must match `pattern` (the simulator's
+ * `certUrlPattern`, built from the host app's own public URL) as a whole, use https (plain http only on a loopback
+ * host, for local development), carry no credentials, query or fragment, and name a SIMCERT id. PayPal's own cert
+ * URLs fail here (HOST_NOT_ALLOWED): a verifier in simulator mode trusts the simulator alone.
+ */
+export function checkSimulatorCertUrl(value: string, pattern: RegExp): CertUrlCheck {
+  if (value.length === 0 || value.length > MAX_CERT_URL_LENGTH) return { ok: false, reason: "NOT_A_URL" };
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return { ok: false, reason: "NOT_A_URL" };
+  }
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname))) {
+    return { ok: false, reason: "NOT_HTTPS" };
+  }
+  if (url.username !== "" || url.password !== "") return { ok: false, reason: "HAS_CREDENTIALS" };
+  if (url.search !== "" || url.hash !== "" || value.includes("?") || value.includes("#")) {
+    return { ok: false, reason: "HAS_QUERY_OR_FRAGMENT" };
+  }
+  // A fresh, anchored copy of the pattern: a global or sticky flag must never make this check stateful.
+  if (!new RegExp(`^(?:${pattern.source})$`, pattern.flags.replace(/[gy]/g, "")).test(value)) {
+    return { ok: false, reason: "HOST_NOT_ALLOWED" };
+  }
+  const file = SIMULATOR_CERT_FILE.exec(url.pathname);
+  if (!file?.[1]) return { ok: false, reason: "BAD_PATH" };
+  return { ok: true, url, cacheKey: `${url.origin}${url.pathname}`, certId: file[1] };
+}
