@@ -243,6 +243,13 @@ exist in the catalog: draw the co-sign QR from an API-provided matrix or request
   stage returns to `/judge` and says why), but the new workspace has already been created. Needed from WS-API: a
   renewal that only resumes, answering 401/410 for an ended workspace instead of recreating it, and never
   counting against the new-session limit.
+- fs-api's console fallback (`apps/api/src/static.ts`, `app.get("*")`) answers 404 to a real brand link: it refuses
+  any path with an extension, and a signed `fsb_<payload>.<sig>` token's dot reads as one
+  (`path.extname("/b/fsb_x.y")` is `.y`), so `/b/:token` never gets the console's index.html. Its test covers only
+  `/b/fsb_x` (`/s/:token` has its own route, which allows the dot). Needed from WS-API: serve index.html for
+  `/b/:token` whatever the token holds. Proof's face script (`/face.js`, a classic same-origin script, so
+  HTML_CSP's `script-src 'self'` allows it) is served as `text/javascript` with `public, max-age=300`; nothing
+  else is needed from fs-api for it.
 - ui-web lacks SplitFan, FundingArc, RunStrip, RunLog, SlipViewer, FlightLayer, TwinCompare, ByHandField,
   QRPairCard, VerifyPanel, PlotField, EvalWaffle, PrintStatement, Drawer and DigitSwap: build them in your
   `features/` folder on ui-web's primitives and tokens.
