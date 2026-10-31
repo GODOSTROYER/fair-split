@@ -222,4 +222,34 @@ describe("resolveCommand", () => {
     expect(args[0]?.replaceAll("\\", "/")).toMatch(/corepack\/dist\/corepack\.js$/);
     expect(resolveCommand("git", ["status"])).toEqual(["git", ["status"]]);
   });
+
+  // Windows installs corepack beside node.exe; Linux and macOS tarballs put it under ../lib/node_modules.
+  it("finds corepack.js in each platform's Node layout", () => {
+    const found = (platform: NodeJS.Platform, execPath: string) => {
+      const seen: string[] = [];
+      const exists = (p: string) => {
+        seen.push(p.replaceAll("\\", "/"));
+        return seen.length === 1;
+      };
+      const [cmd, args] = resolveCommand("corepack", ["pnpm", "test"], { platform, execPath, exists });
+      return { cmd, js: args[0]?.replaceAll("\\", "/"), rest: args.slice(1), seen };
+    };
+    const win = found("win32", "C:\\Program Files\\nodejs\\node.exe");
+    expect(win.cmd).toBe("C:\\Program Files\\nodejs\\node.exe");
+    expect(win.js).toBe("C:/Program Files/nodejs/node_modules/corepack/dist/corepack.js");
+    expect(win.rest).toEqual(["pnpm", "test"]);
+    for (const platform of ["linux", "darwin"] as const) {
+      const unix = found(platform, "/opt/hostedtoolcache/node/24.19.0/x64/bin/node");
+      expect(unix.cmd).toBe("/opt/hostedtoolcache/node/24.19.0/x64/bin/node");
+      expect(unix.js).toBe(
+        "/opt/hostedtoolcache/node/24.19.0/x64/lib/node_modules/corepack/dist/corepack.js",
+      );
+      expect(unix.rest).toEqual(["pnpm", "test"]);
+    }
+  });
+
+  it("falls back to the bare command when this Node ships no corepack", () => {
+    const host = { platform: "linux" as const, execPath: "/usr/bin/node", exists: () => false };
+    expect(resolveCommand("corepack", ["pnpm"], host)).toEqual(["corepack", ["pnpm"]]);
+  });
 });
