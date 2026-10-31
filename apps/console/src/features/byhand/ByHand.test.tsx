@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearMomentTrace,
   expectNoAxeViolations,
+  focusAcrossRemoval,
   momentPhase,
   type RenderedConsole,
   renderConsole,
@@ -244,5 +245,88 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     await renderConsole({ path: "/season/2026-A/by-hand/0457" });
     expect((await screen.findByTestId("W-TR-04")).dataset.state).toBe("empty");
     expect(screen.getByTestId("W-TR-04.prompt").textContent).toMatch(/needs nothing by hand/);
+  });
+});
+
+// The field, its slab, Skip and Undo skip each go once they are answered, while they hold the keyboard: the hero
+// path's by-hand step (the Season's "Enter slip 0462 by hand" leads here). Focus goes on before anything paints,
+// to what replaced them: the ink (the value in Analyn's ink, then the Next link under it once the run names the
+// next step), Undo skip, the field again. Never <body>.
+describe("W-TR-04 by hand: focus once the field is answered", { timeout: 60_000 }, () => {
+  afterEach(() => {
+    delete window.__fsMock;
+    vi.restoreAllMocks();
+  });
+
+  /** Fills 64.80, puts the keyboard on `control`, presses Enter there, and samples focus as the field goes. */
+  async function commitBy(control: "W-TR-04.input" | "W-TR-04.commit.face", motion: "full" | "reduced") {
+    await readRun(motion);
+    typeDigit("4");
+    const el = screen.getByTestId(control);
+    el.focus();
+    const sampled = focusAcrossRemoval("W-TR-04.input");
+    try {
+      await act(async () => {
+        fireEvent.keyDown(el, { key: "Enter" });
+      });
+      // Each frame until the run names the next step (its Next link under the ink), then one more.
+      for (let i = 0; i < 120 && !screen.queryByTestId("W-TR-04.next"); i++) await sampled.frame();
+      await sampled.frame();
+      return sampled;
+    } finally {
+      sampled.restore();
+    }
+  }
+
+  /** Focus went from the field to the ink, then to the Next link: never anywhere else, never <body>. */
+  function expectInkThenNext(sampled: ReturnType<typeof focusAcrossRemoval>) {
+    const ink = screen.getByTestId("W-TR-04.committed");
+    const next = screen.getByTestId("W-TR-04.next");
+    expect(sampled.removals()).toBe(1);
+    expect(sampled.settled).toHaveLength(1);
+    expect([ink, next]).toContain(sampled.settled[0]);
+    const after = sampled.samples.slice(1);
+    for (const at of after) expect([ink, next]).toContain(at);
+    expect(after.at(-1)).toBe(next);
+    expect(document.activeElement).toBe(next);
+  }
+
+  it("Enter in the field: focus lands on the ink, then the Next link under it, never on <body>", async () => {
+    expectInkThenNext(await commitBy("W-TR-04.input", "full"));
+  });
+
+  it("Enter on the slab, in reduced motion: the same, the ink and then the Next link", async () => {
+    expectInkThenNext(await commitBy("W-TR-04.commit.face", "reduced"));
+  });
+
+  it("Skip hands focus to Undo skip, and Undo skip hands it back to the field", async () => {
+    await readRun();
+    const skip = screen.getByTestId("W-TR-04.skip");
+    skip.focus();
+    const skipping = focusAcrossRemoval("W-TR-04.skip");
+    try {
+      await act(async () => {
+        fireEvent.click(skip);
+      });
+      await skipping.frame();
+    } finally {
+      skipping.restore();
+    }
+    const unskip = screen.getByTestId("W-TR-04.unskip");
+    expect(skipping.settled).toEqual([unskip]);
+    expect(skipping.samples.slice(1)).toEqual([unskip]);
+
+    const undoing = focusAcrossRemoval("W-TR-04.unskip");
+    try {
+      await act(async () => {
+        fireEvent.click(unskip);
+      });
+      await undoing.frame();
+    } finally {
+      undoing.restore();
+    }
+    const input = screen.getByTestId("W-TR-04.input");
+    expect(undoing.settled).toEqual([input]);
+    expect(undoing.samples.slice(1)).toEqual([input]);
   });
 });
