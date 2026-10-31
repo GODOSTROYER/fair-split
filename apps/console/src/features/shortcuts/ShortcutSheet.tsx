@@ -5,6 +5,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Glyph } from "@fairsplit/ui-web";
 import { useDataMode } from "../../lib/data-mode.js";
+import { FocusReturn } from "../../lib/focus.js";
 import {
   isSingleKey,
   SHORTCUT_GROUPS,
@@ -129,10 +130,13 @@ export function ShortcutSheetView({ open, onOpenChange }: ShortcutSheetViewProps
       <Dialog.Portal>
         <Dialog.Backdrop className="fsc-sheet__scrim" />
         <Dialog.Popup
+          finalFocus={false}
           className="fsc-sheet fsc-sheet--narrow sc-sheet"
           data-testid="W-TR-10"
           data-state={open ? "open" : "closed"}
         >
+          {/* Closing hands focus back to where "?" was pressed, through the console's one return (lib/focus.ts). */}
+          <FocusReturn open={open} leaving={() => document.querySelector('[data-testid="W-TR-10"]')} />
           <header className="fsc-sheet__head">
             <Dialog.Title className="fs-t-title-1">{SHEET_COPY.title}</Dialog.Title>
             <Dialog.Close className="fsc-sheet__close" data-testid="W-TR-10.close">

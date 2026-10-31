@@ -126,6 +126,9 @@ export function PhoneDock({
       {layout === "tab" && raised && raisedBy !== "moment" && (
         <div
           className="fsc-dock__backdrop"
+          // A press on the backdrop never moves focus to <body> first (a browser's default for a surface that
+          // takes none): focus stays in the phone until the lowering hands it back.
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onLower}
           aria-hidden
           data-testid="W-JG-01.phoneBackdrop"

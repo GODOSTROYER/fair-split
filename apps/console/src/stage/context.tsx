@@ -5,6 +5,7 @@
 import { createContext, type RefObject, useContext, useEffect } from "react";
 import type { NextStep } from "../chrome/next-step.js";
 import type { FramePersona } from "../data/adapter.js";
+import { focusAndReveal, registerScreenControl } from "../lib/focus.js";
 import type { ConsoleScreenId } from "../lib/screens.js";
 import type { StageDirector } from "./director.js";
 import type { StageLayout } from "./layout.js";
@@ -59,20 +60,6 @@ export function useNextStep(): NextStep | null {
   return useContext(StageContext)?.next ?? null;
 }
 
-/** True when `el` is not wholly inside its scrolling screen (or the window): a focused control there is unseen. */
-function outOfView(el: HTMLElement): boolean {
-  const box = el.getBoundingClientRect();
-  if (box.width === 0 && box.height === 0) return false;
-  const scroller = el.closest<HTMLElement>(".fsc-console__screen, .fsc-drawer");
-  const frame = scroller?.getBoundingClientRect() ?? {
-    top: 0,
-    bottom: window.innerHeight,
-    left: 0,
-    right: window.innerWidth,
-  };
-  return box.top < frame.top || box.bottom > frame.bottom || box.left < frame.left || box.right > frame.right;
-}
-
 /**
  * Focuses `ref` when the run pill's next step is this screen (S1.6: "the control for the step it names is
  * pre-focused"). Focus never jumps the page; if the control sits outside its screen's view, the screen scrolls
@@ -90,7 +77,8 @@ export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleS
       ? el
       : el.querySelector<HTMLElement>(".fs-slab__face, button, a, input, [tabindex]:not([tabindex='-1'])");
     if (!target) return;
-    target.focus({ preventScroll: true });
-    if (outOfView(target)) target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    focusAndReveal(target);
+    // While it is the step, it is the screen's main control: a focus return with nothing better lands on it.
+    return registerScreenControl(target);
   }, [isStep, stepId, when, ref]);
 }

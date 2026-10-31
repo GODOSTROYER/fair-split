@@ -14,6 +14,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { useRunEvents, useStageRun } from "../../data/hooks.js";
+import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { CLAUDE_MODEL } from "../../lib/provenance.js";
@@ -232,7 +233,8 @@ export function ReadingRoom({
     const nextSerial = serials[Math.min(serials.length - 1, Math.max(0, index + delta))];
     if (!nextSerial) return;
     setActiveRow(nextSerial);
-    tableRef.current?.querySelector<HTMLElement>(`[data-serial="${nextSerial}"]`)?.focus();
+    const row = tableRef.current?.querySelector<HTMLElement>(`[data-serial="${nextSerial}"]`);
+    if (row) focusAndReveal(row);
   };
   useShortcut({
     id: "reading.next-row",

@@ -560,6 +560,8 @@
   width: var(--fs-console-drawer);
   max-width: 100%;
   overflow: hidden auto;
+  /* A control scrolled into view (a focus return) clears the sticky head (56 px) and the bottom edge. */
+  scroll-padding-block: 72px 16px;
   border-left: 1px solid var(--fs-rule);
   background: var(--fs-plate-2);
   box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);

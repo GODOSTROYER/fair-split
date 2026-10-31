@@ -15,6 +15,7 @@ import type {
   RowClickedEvent,
 } from "ag-grid-community";
 import { lazy, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useShortcut } from "../../lib/shortcuts.js";
 import { NARROW_GRID_PX } from "../../stage/layout.js";
@@ -281,7 +282,8 @@ export function SplitGrid({
         const at = trs.findIndex((tr) => tr === document.activeElement);
         const next =
           at < 0 ? (step > 0 ? 0 : trs.length - 1) : Math.max(0, Math.min(trs.length - 1, at + step));
-        trs[next]?.focus();
+        const tr = trs[next];
+        if (tr) focusAndReveal(tr);
         return;
       }
       const focused = api.getFocusedCell();

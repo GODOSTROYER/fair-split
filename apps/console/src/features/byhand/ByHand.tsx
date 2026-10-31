@@ -8,11 +8,21 @@
 
 import { type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { Glyph, InkStamp, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
-import { type ChangeEvent, type KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { useCommand, useRunEvents, useStageRun } from "../../data/hooks.js";
+import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
@@ -145,6 +155,15 @@ function ByHandField({
 
   usePrefocus(input, "W-TR-04", ready && !committed);
 
+  // "Type the whole number" (and back to the mask) hands the keyboard to the field in the commit that switched
+  // it: never on a timer, which can fire before React commits.
+  const focusField = useRef(false);
+  useLayoutEffect(() => {
+    if (!focusField.current) return;
+    focusField.current = false;
+    if (input.current) focusAndReveal(input.current);
+  });
+
   // The slot is selected so one keystroke replaces it: now, and again after a click has placed its caret.
   const selectSlot = useCallback(() => {
     const el = input.current;
@@ -219,7 +238,7 @@ function ByHandField({
     setValue(gross);
     setFromLogbook(true);
     setAnyway(false);
-    input.current?.focus();
+    if (input.current) focusAndReveal(input.current);
   };
 
   const member = snapshot.members.find((m) => m.memberNo === field.slip.memberNo);
@@ -411,7 +430,7 @@ function ByHandField({
                       setWhole((w) => !w);
                       setValue(whole ? mask.template : "");
                       setFromLogbook(false);
-                      setTimeout(() => input.current?.focus(), 0);
+                      focusField.current = true;
                     }}
                     data-testid="W-TR-04.typeWhole"
                   >

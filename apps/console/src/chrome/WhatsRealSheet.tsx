@@ -5,6 +5,7 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Glyph } from "@fairsplit/ui-web";
+import { FocusReturn } from "../lib/focus.js";
 import { stageCaption, TRY_TO_BREAK, type WhatsRealFacts, whatsReal } from "./copy.js";
 import { ChromeSlot } from "./slots.js";
 
@@ -20,7 +21,17 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
     <Dialog.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fsc-sheet__scrim" />
-        <Dialog.Popup className="fsc-sheet" data-testid="W-JG-01.whatsReal" data-rail={facts.rail}>
+        <Dialog.Popup
+          finalFocus={false}
+          className="fsc-sheet"
+          data-testid="W-JG-01.whatsReal"
+          data-rail={facts.rail}
+        >
+          {/* Closing hands focus back to What's real's button, through the console's one return (lib/focus.ts). */}
+          <FocusReturn
+            open={open}
+            leaving={() => document.querySelector('[data-testid="W-JG-01.whatsReal"]')}
+          />
           <header className="fsc-sheet__head">
             <Dialog.Title className="fs-t-title-1">What's real</Dialog.Title>
             <Dialog.Close className="fsc-sheet__close" data-testid="W-JG-01.whatsReal.close">

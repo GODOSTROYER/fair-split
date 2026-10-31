@@ -24,7 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { focusIfLost, useFocusAfterRemoval } from "../../lib/focus.js";
+import { returnFocus, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useViewportWidth } from "../../stage/layout.js";
@@ -135,13 +135,15 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
     }
   }, [mm7.phase, trace]);
 
-  // After the commit that removed the trace (never on a timer, which can fire before React commits, find the
-  // Close still focused and give up), focus returns to the peso that opened it if it fell to <body> (WCAG 2.4.3).
+  // In the commit that removed the trace (never on a timer, which can fire before React commits, find the Close
+  // still focused and give up), focus returns to the peso that opened it if it fell to <body> (WCAG 2.4.3). The
+  // trace pushed the rows below it down while it was open, so the peso is often above the viewport by now: it
+  // scrolls back into view, so the keyboard's ring is never off screen (WCAG 2.4.7).
   useLayoutEffect(() => {
     const memberNo = refocus.current;
     if (trace !== null || memberNo === null) return;
     refocus.current = null;
-    focusIfLost(document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
+    returnFocus(() => document.querySelector<HTMLElement>(`[data-testid="W-PF-01.peso.${memberNo}"]`));
   }, [trace]);
 
   // Back from the slip (Escape on a zoom button) takes the zoom controls away: focus lands on the trace's Back.

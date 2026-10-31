@@ -33,7 +33,7 @@ import {
 } from "../data/hooks.js";
 import { itemCounts } from "../data/run-view.js";
 import { env } from "../lib/env.js";
-import { focusBack, focusInto } from "../lib/focus.js";
+import { type FocusPlace, focusAndReveal, focusInto, rememberFocus, returnFocus } from "../lib/focus.js";
 import { format } from "../lib/format.js";
 import { DirectorProvider } from "../lib/moment.js";
 import { useSearchParam } from "../lib/search-param.js";
@@ -59,7 +59,7 @@ function skipToScreen(event: MouseEvent): void {
   const main = document.getElementById("fsc-main");
   if (!main) return;
   event.preventDefault();
-  main.focus({ preventScroll: true });
+  focusAndReveal(main);
 }
 
 /** The stage's `data-state` (S1.6), most specific first. */
@@ -147,16 +147,18 @@ export function Stage({ children }: { readonly children: ReactNode }) {
 
   // The viewer's own raise (1024-1679 px) lays a scrim over the console: the console goes inert under it, focus
   // moves into the phone, and lowering hands focus back to whatever raised it.
-  const raiseOpener = useRef<HTMLElement | null>(null);
+  const raiseOpener = useRef<FocusPlace | null>(null);
   const raisedByRef = useRef(raisedBy);
   raisedByRef.current = raisedBy;
   const raiseByViewer = useCallback(() => {
-    if (raisedByRef.current !== "user") {
-      const active = document.activeElement;
-      raiseOpener.current = active instanceof HTMLElement && active !== document.body ? active : null;
-    }
+    if (raisedByRef.current !== "user") raiseOpener.current = rememberFocus();
     setRaisedBy("user");
   }, []);
+  // A raise that asks for a frame while the phone is already up over the scrim (the co-sign request switches it
+  // to the Chair's): focus follows to that frame's tab.
+  const askedFrame = useRef(false);
+  const shown = useRef(persona);
+  shown.current = persona;
   // A moment, a step or a frame raises the phone beside the screen: the console stays lit, so the moment reads
   // on both screens at once. Below 1280 px there is no room beside it (the screen would be 488 px: the approve
   // column ran under the phone, the fan's labels overlapped), so the phone rises over the scrim, as S1.6's table
@@ -167,31 +169,31 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     (p: FramePersona) => {
       setPersona(p);
       if (roomBeside.current) setRaisedBy("moment");
-      else raiseByViewer();
+      else {
+        askedFrame.current = p !== shown.current;
+        raiseByViewer();
+      }
     },
     [raiseByViewer],
   );
   // A lowering on its way: what raised the phone (null when nothing did: MM-1 rises while focus is on <body>).
-  const lowerTo = useRef<{ readonly opener: HTMLElement | null } | null>(null);
+  const lowerTo = useRef<{ readonly opener: FocusPlace | null } | null>(null);
   const lowerPhone = useCallback(() => {
     const opener = raisedByRef.current === "user" ? raiseOpener.current : null;
     raiseOpener.current = null;
     if (raisedByRef.current !== null) lowerTo.current = { opener };
     setRaisedBy(null);
   }, []);
-  // Focus goes back to what raised the phone after the commit that lowered it, when the console under the scrim is
-  // live again; with nothing to go back to, focus still held by the panel going inert goes to the screen (or the
-  // drawer covering it), never to <body> (WCAG 2.4.3). Never on a timer: one that fires before that commit finds
-  // the console still inert, the browser refuses the focus, and the panel then drops it to <body> (lib/focus.ts).
+  // Focus goes back to what raised the phone (or its successor, redrawn) in the commit that lowered it, when the
+  // console under the scrim is live again; with nothing to go back to, focus still held by the panel going inert
+  // goes to the screen's main control (or the drawer covering it), never to <body> (WCAG 2.4.3). Never on a timer:
+  // one that fires before that commit finds the console still inert, the browser refuses the focus, and the panel
+  // then drops it to <body> (lib/focus.ts).
   useLayoutEffect(() => {
     const lowering = lowerTo.current;
     lowerTo.current = null;
     if (raisedBy !== null || !lowering) return;
-    focusBack(
-      lowering.opener,
-      () => document.getElementById("fsc-main"),
-      () => document.querySelector<HTMLElement>(".fsc-console .fsc-drawer"),
-    );
+    returnFocus(lowering.opener);
   }, [raisedBy]);
 
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
@@ -273,19 +275,26 @@ export function Stage({ children }: { readonly children: ReactNode }) {
 
   // Over the scrim, focus moves into the phone, to the tab of the frame it shows (the Chair's, for a co-sign), in
   // the commit that raised it: the console under it goes inert, and a browser would drop that focus to <body>. If
-  // the panel cannot take focus yet, focusInto tries again each frame until it can (WCAG 2.4.3).
+  // the panel cannot take focus yet, focusInto tries again each frame until it can (WCAG 2.4.3). The tab is found
+  // by the frame's persona, never the first tab in document order (the Member's). Already up, a raise that asks
+  // for another frame moves focus to that frame's tab; a tab the judge picks keeps the focus they gave it.
   const consoleUnderScrim = layout.phone === "tab" && raisedBy === "user";
   useLayoutEffect(() => {
+    const asked = askedFrame.current;
+    askedFrame.current = false;
     if (!consoleUnderScrim) return;
     const panel = document.getElementById("fsc-phone-panel");
-    if (!panel || panel.contains(document.activeElement)) return;
-    return focusInto(
-      panel,
-      () =>
-        panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
-        panel.querySelector<HTMLElement>('[role="tab"]'),
-    );
-  }, [consoleUnderScrim]);
+    if (!panel) return;
+    const tab = () =>
+      panel.querySelector<HTMLElement>(`[role="tab"][data-testid="W-JG-01.tab.${shown.current}"]`) ??
+      panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (panel.contains(document.activeElement)) {
+      const to = tab();
+      if (asked && to && document.activeElement !== to) focusAndReveal(to);
+      return;
+    }
+    return focusInto(panel, tab);
+  }, [consoleUnderScrim, persona]);
 
   const onReset = async () => {
     setAutoplay("off");

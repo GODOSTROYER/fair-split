@@ -15,6 +15,7 @@ import {
   Slab,
 } from "@fairsplit/ui-web";
 import { useEffect, useRef } from "react";
+import { focusAndReveal } from "../../lib/focus.js";
 import { ConsoleFrame, InvoicePlate, KeySlot, RateCardPlate, RunStrip } from "../console.js";
 import { approveConfirm, en, feeFigures, holdH1, RC_SHORT, splitRows, TwinEvidence } from "../content.js";
 import {
@@ -56,7 +57,8 @@ function JudgeStage() {
   const slab = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // The next step's slab is pre-focused (S1 §1.5).
-    slab.current?.querySelector<HTMLButtonElement>(".fs-slab__face")?.focus({ preventScroll: true });
+    const face = slab.current?.querySelector<HTMLButtonElement>(".fs-slab__face");
+    if (face) focusAndReveal(face);
   }, []);
   return (
     <div className="stage" data-testid="W-JG-01" data-state="ready">

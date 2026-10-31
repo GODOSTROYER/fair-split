@@ -5,8 +5,14 @@
 // the stage (component tests) it renders in place.
 
 import { Glyph } from "@fairsplit/ui-web";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { restoreFocus, useFocusAfterRemoval } from "../lib/focus.js";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type FocusPlace,
+  focusAndReveal,
+  rememberFocus,
+  returnFocus,
+  useFocusAfterRemoval,
+} from "../lib/focus.js";
 import { useShortcut } from "../lib/shortcuts.js";
 import { useOptionalStage } from "../stage/context.js";
 import type { DrawerMode } from "../stage/layout.js";
@@ -44,17 +50,36 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
     run: () => close.current(),
   });
 
+  // Covering the screen (full width below 1280 px, over the scrim from 1600 px), the drawer takes the keyboard:
+  // the screen under it is inert, so Tab never lands on a control the drawer hides (S1.12, WCAG 2.4.11). Pushing
+  // it aside (1280-1599 px), the screen stays live beside it. Declared before the focus effect below: closing,
+  // React runs this cleanup first, so the screen is live again by the time focus goes back to it.
+  const covers = Boolean(stage && target) && (resolved === "push-full" || resolved === "overlay");
+  useLayoutEffect(() => {
+    if (!covers) return;
+    const main = document.getElementById("fsc-main");
+    if (!main) return;
+    main.setAttribute("inert", "");
+    return () => main.removeAttribute("inert");
+  }, [covers]);
+
+  // What opened the drawer (a grid row, a link), with its key, as the drawer first renders: before anything
+  // inside it takes focus.
+  const opener = useRef<FocusPlace | null | undefined>(undefined);
+  if (opener.current === undefined) opener.current = rememberFocus();
+
   // Focus lands on the drawer's title when it opens (its name is read out; no ring frames the whole drawer),
-  // unless something inside already took it (a pre-focused slab). Closing hands focus back to what opened it
-  // (a grid row, a link), or to the screen when that is gone (WCAG 2.4.3).
-  useEffect(() => {
+  // unless something inside already took it (a pre-focused slab). Closing hands focus back to what opened it, to
+  // its successor when the grid drew that row again, or to the screen when it is gone (WCAG 2.4.3): in the commit
+  // that removes the drawer, before its DOM goes, so no frame is painted with focus on <body>.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const active = document.activeElement;
-    const opener =
-      active instanceof HTMLElement && active !== document.body && !el.contains(active) ? active : null;
-    if (!el.contains(document.activeElement)) (title.current ?? el).focus({ preventScroll: true });
-    return () => restoreFocus(opener, () => document.getElementById("fsc-main"));
+    if (!el.contains(document.activeElement)) focusAndReveal(title.current ?? el);
+    const from = opener.current ?? null;
+    return () => {
+      returnFocus(from, { leaving: el });
+    };
   }, []);
 
   // The same drawer moving to another subject ("Next: hold H2") reads its new name out.
@@ -64,7 +89,7 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
     named.current = label;
     const el = ref.current;
     if (el && (el.contains(document.activeElement) || document.activeElement === document.body)) {
-      (title.current ?? el).focus({ preventScroll: true });
+      focusAndReveal(title.current ?? el);
     }
   }, [label]);
 
@@ -72,23 +97,14 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
   const [aside, setAside] = useState<HTMLElement | null>(null);
   useFocusAfterRemoval(aside, () => aside?.querySelector<HTMLElement>("[data-focus-after]") ?? title.current);
 
-  // Covering the screen (full width below 1280 px, over the scrim from 1600 px), the drawer takes the keyboard:
-  // the screen under it is inert, so Tab never lands on a control the drawer hides (S1.12, WCAG 2.4.11). Pushing
-  // it aside (1280-1599 px), the screen stays live beside it.
-  const covers = Boolean(stage && target) && (resolved === "push-full" || resolved === "overlay");
-  useEffect(() => {
-    if (!covers) return;
-    const main = document.getElementById("fsc-main");
-    if (!main) return;
-    main.setAttribute("inert", "");
-    return () => main.removeAttribute("inert");
-  }, [covers]);
-
   const drawer = (
     <>
       {resolved === "overlay" && (
         <div
           className="fsc-drawer-scrim"
+          // A press on the scrim never moves focus to <body> first (a browser's default for a surface that takes
+          // none): focus stays in the drawer until the close hands it back.
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => close.current()}
           aria-hidden
           data-testid={`${testId}.scrim`}
