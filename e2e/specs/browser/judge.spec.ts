@@ -19,6 +19,15 @@ interface SessionView {
   rail: { mode: string; rail: string; label: string };
 }
 
+/**
+ * The first view has loaded and had time to make any call it would make. Not "networkidle": with a ws/console build
+ * it never came once in two runs (the /app frames send HEAD / pings, some aborted), and the spec timed out at 4 min.
+ */
+async function settled(page: Page): Promise<void> {
+  await page.waitForLoadState("load");
+  await page.waitForTimeout(3_000);
+}
+
 /** The judge session the page's own cookie holds, read through the page's request context. */
 async function sessionOf(page: Page): Promise<SessionView> {
   const r = await page.request.get("/v1/judge/session");
@@ -44,7 +53,7 @@ test("/judge loads in Chromium, noindex, without one /v1 call", async ({ page })
   expect(res?.status()).toBe(200);
   expect(res?.headers()["x-robots-tag"]).toContain("noindex");
   await expect(page.locator("#root > *").first()).toBeAttached();
-  await page.waitForLoadState("networkidle");
+  await settled(page);
   expect(v1).toEqual([]);
 });
 
@@ -61,8 +70,7 @@ test("/judge's first view carries noindex and calls no /v1 before the first pres
   await expect(firstPress(page)).toBeVisible();
   await expect(page.getByRole("banner")).toContainText("Simulated PayPal sandbox");
   // the first view settles (fonts, the seed's figures, the /app frames, lazy route chunks) without one API call
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(2_000);
+  await settled(page);
   expect(v1).toEqual([]);
 });
 
