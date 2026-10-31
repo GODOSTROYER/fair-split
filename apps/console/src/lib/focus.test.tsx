@@ -763,4 +763,69 @@ describe("useFocusGuard, the root's backstop", () => {
     await frames(1);
     expect(document.activeElement).toBe(document.body);
   });
+
+  /** A link that leaves for a page drawn a commit later (a lazy route): nothing to land on in between. */
+  function LaterPage() {
+    const [at, setAt] = useState<"stage" | "between" | "proof">("stage");
+    return (
+      <>
+        <Guard />
+        {at === "stage" && (
+          <main id="fsc-main" tabIndex={-1}>
+            <a
+              href="/proof/2026A-r37"
+              data-testid="proofChip"
+              onClick={(event) => {
+                event.preventDefault();
+                setAt("between");
+              }}
+            >
+              Proof
+            </a>
+          </main>
+        )}
+        {at === "proof" && (
+          <main tabIndex={-1} data-testid="proof">
+            <p>Loading the Proof.</p>
+          </main>
+        )}
+        <button type="button" data-testid="arrive" hidden onClick={() => setAt("proof")}>
+          arrive
+        </button>
+      </>
+    );
+  }
+
+  it("with nothing to land on yet (the next page draws a commit later), focus lands on it as soon as it is drawn", async () => {
+    const view = render(<LaterPage />);
+    const chip = view.getByTestId("proofChip");
+    chip.focus();
+    act(() => {
+      chip.click();
+    });
+    await frames(1);
+    expect(document.activeElement).toBe(document.body);
+    act(() => {
+      view.getByTestId("arrive").click();
+    });
+    await frames(1);
+    // The page's landmark: it has no control yet (still loading).
+    expect(document.activeElement).toBe(view.getByTestId("proof"));
+  });
+
+  it("stops waiting once the person acts: their own key press keeps focus where the browser puts it", async () => {
+    const view = render(<LaterPage />);
+    const chip = view.getByTestId("proofChip");
+    chip.focus();
+    act(() => {
+      chip.click();
+    });
+    await frames(1);
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    act(() => {
+      view.getByTestId("arrive").click();
+    });
+    await frames(1);
+    expect(document.activeElement).toBe(document.body);
+  });
 });

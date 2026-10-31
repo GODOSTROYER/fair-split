@@ -13,6 +13,7 @@ import { timersBeforeCommit } from "../test/timers.js";
 import { CommandNotice } from "./CommandNotice.js";
 import { DataTable, Mirrored } from "./DataTable.js";
 import { PrintBed } from "./PrintBed.js";
+import { ScreenRoot } from "./ScreenRoot.js";
 import { StageDrawer } from "./StageDrawer.js";
 
 describe("StageDrawer", () => {
@@ -288,5 +289,25 @@ describe("PrintBed", () => {
     expect(beds).toHaveLength(2);
     expect([...beds].every((b) => b.getAttribute("aria-hidden") === "true")).toBe(true);
     expect(beds[1]?.textContent).toBe("Photo B");
+  });
+});
+
+describe("ScreenRoot", () => {
+  it("a page's own landmark (Proof, the brand view, /ops) takes focus from script: a hand-off with no control yet lands there", () => {
+    render(
+      <ScreenRoot id="W-PF-01" state="loading" as="main">
+        <p>Loading the Proof.</p>
+      </ScreenRoot>,
+    );
+    expect(screen.getByTestId("W-PF-01").getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("a console screen inside the stage stays a plain section: the stage's #fsc-main is its landmark", () => {
+    render(
+      <ScreenRoot id="W-TR-04" state="empty">
+        <p>Slip 0457 needs nothing by hand.</p>
+      </ScreenRoot>,
+    );
+    expect(screen.getByTestId("W-TR-04").hasAttribute("tabindex")).toBe(false);
   });
 });
