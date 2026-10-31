@@ -24,6 +24,7 @@ import {
   clearMomentTrace,
   createTestWorld,
   expectNoAxeViolations,
+  focusAcrossRemoval,
   renderConsole,
   seedSnapshot,
   type TestWorld,
@@ -662,6 +663,47 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-2");
       expect(screen.queryByTestId("W-TR-07.retrying")).toBeNull();
       await expectNoAxeViolations(root);
+    },
+    SLOW,
+  );
+
+  it(
+    "'see the fan-out' takes its screen away with the focus it held: focus goes on to the fan-out's screen, never <body>",
+    async () => {
+      const { view, root } = await readyToApprove();
+      await signKey1(root);
+      const chair = createMockDriver(view.world.mock.world, { settle: false });
+      act(() => {
+        chair.cosign();
+      });
+      await waitFor(() => expect(root.dataset.state).toBe("approved"), { timeout: 5_000 });
+      act(() => {
+        view.world.advance(1);
+      });
+      await waitFor(() => expect(root.dataset.state).toBe("posting"), { timeout: 5_000 });
+      const link = screen.getByTestId("W-TR-07.fanout");
+      link.focus();
+      const sampled = focusAcrossRemoval("W-TR-07.fanout");
+      try {
+        // Enter on the link, or a press: its click, which pushes the route (AppLink).
+        await act(async () => {
+          fireEvent.click(link);
+        });
+        await screen.findByTestId("W-TR-08");
+        await sampled.frame();
+        await sampled.frame();
+      } finally {
+        sampled.restore();
+      }
+      expect(view.router.state.location.pathname).toBe(webRoutes.fanout(RUN));
+      expect(sampled.removals()).toBe(1);
+      const main = document.getElementById("fsc-main");
+      // Before anything could paint, and on each frame after: on a control of the new screen.
+      for (const at of [...sampled.settled, ...sampled.samples.slice(1)]) {
+        expect(at).not.toBe(document.body);
+        expect(at === main || Boolean(main?.contains(at))).toBe(true);
+      }
+      expect(screen.getByTestId("W-TR-08").contains(document.activeElement)).toBe(true);
     },
     SLOW,
   );
