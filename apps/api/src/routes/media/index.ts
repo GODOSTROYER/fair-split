@@ -3,20 +3,20 @@
 //
 //   GET /media/archived/:photoId.svg          OD-4's hatched "archived photo" tile for P01–P54, with its read date
 //                                             (those photos are never generated; the tile says so, with a word)
-//   GET /v1/media/audio/:lineId?lang=         which audio a statement plays: the synthetic Gemini clip from the
-//                                             IC-11 manifest when there is one, else the device's own voice,
-//                                             always labelled (I8). Same readers as the statement.
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { Lang, PhotoId } from "@fairsplit/contracts";
+//   GET /v1/media/audio/:lineId?lang=         which voice reads each spoken sentence of a statement (IC-11,
+//                                             ADR-0011): the synthetic Gemini clip whose exact words match, from
+//                                             media/public's manifest, else the device's own voice; always
+//                                             labelled (I8). Same readers as the statement.
+import { PhotoId, StatementAudio, StatementAudioQuery } from "@fairsplit/contracts";
 import { format } from "@fairsplit/domain";
 import { getPhotos } from "@fairsplit/seed";
-import { z } from "zod";
 import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
 import { documentRawRoute } from "../../proof/openapi.js";
 import { readableStatement } from "../../statements/access.js";
+import { statementView } from "../../statements/view.js";
 import { staticDirs } from "../../static.js";
+import { readAudioManifest, resolveStatementAudio } from "./audio.js";
 
 const ARCHIVED_RE = /^(P\d{2})\.svg$/;
 
@@ -42,64 +42,6 @@ export function archivedTileSvg(photoId: string, readOn: string | null): string 
     `<text x="800" y="660" text-anchor="middle" font-family="Mona Sans, system-ui, sans-serif" font-size="34" fill="#4a4339">${escapeXml(sub)}</text>`,
     "</svg>",
   ].join("");
-}
-
-const AudioCue = z.strictObject({
-  slot: z.string(),
-  start_ms: z.int().nonnegative(),
-  end_ms: z.int().nonnegative(),
-  mentions: z.array(z.strictObject({ ref: z.string(), at_ms: z.int().nonnegative() })),
-});
-
-const ManifestEntry = z.object({
-  member_no: z.string(),
-  lang: Lang,
-  file: z.string().regex(/^[A-Za-z0-9/_.-]+$/),
-  duration_ms: z.int().nonnegative(),
-  synthetic: z.literal(true),
-  voice: z.string(),
-  model: z.string(),
-  cue_source: z.string().optional(),
-  cues: z.array(AudioCue),
-});
-
-const DEVICE_VOICE: Readonly<Record<z.infer<typeof Lang>, string>> = {
-  ceb: "Tingog sa telepono",
-  fil: "Boses ng telepono",
-  en: "Device voice",
-};
-const SYNTHETIC_VOICE: Readonly<Record<z.infer<typeof Lang>, string>> = {
-  ceb: "Sintetikong tingog (Gemini TTS)",
-  fil: "Sintetikong boses (Gemini TTS)",
-  en: "Synthetic voice (Gemini TTS)",
-};
-
-export const StatementAudio = z.strictObject({
-  lineId: z.uuid(),
-  memberNo: z.string(),
-  lang: Lang,
-  source: z.enum(["gemini", "device"]),
-  /** Always shown with the player (I8: a synthetic voice is never unlabelled). */
-  label: z.string(),
-  url: z.string().nullable(),
-  durationMs: z.int().nonnegative().nullable(),
-  cues: z.array(AudioCue),
-});
-
-/** IC-11 `media/audio/manifest.json` under the static media directory, if it is there (read per request: tiny). */
-function manifestEntries(mediaDir: string): z.infer<typeof ManifestEntry>[] {
-  const file = path.join(mediaDir, "audio", "manifest.json");
-  if (!existsSync(file)) return [];
-  try {
-    const raw = JSON.parse(readFileSync(file, "utf8")) as unknown;
-    const list = Array.isArray(raw) ? raw : ((raw as { entries?: unknown[] }).entries ?? []);
-    return list.flatMap((e) => {
-      const p = ManifestEntry.safeParse(e);
-      return p.success ? [p.data] : [];
-    });
-  } catch {
-    return [];
-  }
 }
 
 export default defineRouteFolder({
@@ -139,8 +81,11 @@ export default defineRouteFolder({
         path: "/v1/media/audio/:lineId",
         auth: "public",
         name: "statementAudio",
-        summary: "Which audio a statement plays, always labelled (Gemini clip or the device's voice)",
-        request: z.strictObject({ lang: Lang.optional() }),
+        summary:
+          "Which voice reads each sentence of a statement: its Gemini clip, or the device's voice; labelled",
+        description:
+          "IC-11 (ADR-0011): one entry per spoken sentence, in reading order. A sentence has a clip only when a published manifest entry (media/public/audio/manifest.json) has exactly its words (`textSha256`, the SHA-256 of the spoken text), its slot, member and language, and is not a draft; otherwise `clip` is null and the device's voice reads it under `deviceLabel`.",
+        request: StatementAudioQuery,
         response: StatementAudio,
         errors: ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "FORBIDDEN"],
       },
@@ -152,33 +97,22 @@ export default defineRouteFolder({
           ctx.params.lineId,
           ctx.input.lang,
         );
-        const lang = sc.facts.lang;
-        const dirs = staticDirs(ctx.deps.env.static);
-        const entry = manifestEntries(dirs.media).find(
-          (e) => e.member_no === sc.facts.memberNo && e.lang === lang,
-        );
-        if (!entry) {
-          return {
-            lineId: sc.facts.lineId,
-            memberNo: sc.facts.memberNo,
-            lang,
-            source: "device" as const,
-            label: DEVICE_VOICE[lang],
-            url: null,
-            durationMs: null,
-            cues: [],
-          };
-        }
-        return {
-          lineId: sc.facts.lineId,
-          memberNo: sc.facts.memberNo,
-          lang,
-          source: "gemini" as const,
-          label: SYNTHETIC_VOICE[lang],
-          url: `/media/audio/${entry.file}`,
-          durationMs: entry.duration_ms,
-          cues: entry.cues,
-        };
+        // The very sentences the statement speaks (its committed variants and, on seeded runs, the seeded ones).
+        const view = await statementView(ctx.deps.db, sc);
+        const mediaDir = staticDirs(ctx.deps.env.static).media;
+        return resolveStatementAudio({
+          lineId: view.lineId,
+          memberNo: view.memberNo,
+          lang: view.lang,
+          sentences: view.spoken.map((s, i) => ({
+            slot: s.slot,
+            text: s.text,
+            mentions: s.mentions,
+            placeholders: Object.keys(view.plan.sentences[i]?.facts ?? {}),
+          })),
+          entries: readAudioManifest(mediaDir),
+          mediaDir,
+        });
       },
     );
   },
