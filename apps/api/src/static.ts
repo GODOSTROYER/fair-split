@@ -1,5 +1,6 @@
 // One origin serves everything (S3.3): the console SPA at `/`, the Expo web export at `/app`, static media at
-// `/media`. API, webhook and internal paths never fall through to a page. Hashed build assets are cached
+// `/media` (STATIC_MEDIA_DIR; on Render the curated folder `tools/assemble-media.ts` writes from an explicit
+// allowlist, never media/ wholesale). API, webhook and internal paths never fall through to a page. Hashed build assets are cached
 // as immutable, `index.html` never is; client-side routes (`/judge`, `/season/…`, `/runs/…`, `/proof/…`,
 // `/b/…`, `/ops`, `/prototype`) get the console's index.html, and `/app/*` routes get the app's.
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -35,10 +36,12 @@ export function staticDirs(env: {
   mediaDir?: string | undefined;
 }): StaticDirs {
   const root = findRepoRoot(env.repoRoot);
+  // A relative STATIC_*_DIR is a repository path (render.yaml: STATIC_MEDIA_DIR=apps/api/dist/media), whatever
+  // the working directory; an absolute one is used as given.
   return {
-    console: path.resolve(env.consoleDir ?? path.join(root, "apps", "console", "dist")),
-    app: path.resolve(env.appDir ?? path.join(root, "apps", "mobile", "dist")),
-    media: path.resolve(env.mediaDir ?? path.join(root, "media", "public")),
+    console: path.resolve(root, env.consoleDir ?? path.join("apps", "console", "dist")),
+    app: path.resolve(root, env.appDir ?? path.join("apps", "mobile", "dist")),
+    media: path.resolve(root, env.mediaDir ?? path.join("media", "public")),
   };
 }
 
