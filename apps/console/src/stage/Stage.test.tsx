@@ -745,16 +745,19 @@ describe("Judge stage", () => {
     expect(document.activeElement).toBe(face);
   });
 
-  it("while Reset runs, its button keeps the keyboard: aria-disabled, never disabled", async () => {
+  it("while Reset runs, its button can still hold the keyboard (aria-disabled, never disabled), and a second press sends nothing", async () => {
     const view = await renderConsole({ path: "/judge" });
     // fs-api takes its time over the Reset: the request is held until the test lets it go.
     const pending = view.adapter.pending as { resetSession: (sid: string) => Promise<void> };
     const original = pending.resetSession;
     let release: () => void = () => undefined;
-    pending.resetSession = (sid) =>
-      new Promise<void>((resolve) => {
+    let sent = 0;
+    pending.resetSession = (sid) => {
+      sent += 1;
+      return new Promise<void>((resolve) => {
         release = () => resolve();
       }).then(() => original(sid));
+    };
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
     const reset = screen.getByTestId<HTMLButtonElement>("W-JG-01.reset");
@@ -763,17 +766,19 @@ describe("Judge stage", () => {
       fireEvent.click(reset);
     });
     await waitFor(() => expect(view.runtime.session.getState().status).toBe("resetting"));
+    // A disabled button loses its focus to <body> (a browser's focus fixup): this one stays focusable.
     expect(reset.disabled).toBe(false);
     expect(reset.getAttribute("aria-disabled")).toBe("true");
-    expect(document.activeElement).toBe(reset);
-    // A second press while it runs sends nothing more.
+    expect(reset.getAttribute("aria-busy")).toBe("true");
     await act(async () => {
       fireEvent.click(reset);
     });
+    expect(sent).toBe(1);
     await act(async () => {
       release();
     });
     await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
+    expect(sent).toBe(1);
   });
 
   it("becomes a phone visit under 1024 px, and follows the window as it resizes", async () => {
