@@ -141,6 +141,62 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     await expectNoAxeViolations(view.container);
   });
 
+  describe("fs-api answers the proof read 404 before it checks the link (no run posted yet)", () => {
+    // fs-api looks the run up before it reads the credential, so a 404 says nothing about the link. The console
+    // asks who the link is (GET /v1/credential) before it shows anything as granted.
+    const NO_RUN = http.get(PROOF_READ, () =>
+      HttpResponse.json(
+        { code: "NOT_FOUND", status: 404, message: "No pay run with that slug.", requestId: "req_404" },
+        { status: 404 },
+      ),
+    );
+
+    it("an invalid link never shows the brand's header: it says the link isn't valid", async () => {
+      const world = withHandlers(createTestWorld(), [NO_RUN]);
+      const view = await renderConsole({ path: "/b/not-a-real-token", world });
+      const root = await screen.findByTestId("W-BR-01");
+      await waitFor(() => expect(root.dataset.state).not.toBe("loading"));
+      expect(root.dataset.state).toBe("error");
+      expect(screen.getByTestId("W-BR-01.error").textContent).toContain(
+        "This brand link isn't valid any more",
+      );
+      expect(screen.queryByTestId("W-BR-01.header")).toBeNull();
+      expect(document.body.textContent).not.toContain("Proof for Lantern Bay Chocolate Co.");
+      expect(document.body.textContent).not.toContain("Shared with");
+      await expectNoAxeViolations(view.container);
+    });
+
+    it("a link fs-api names as the brand's still opens the brand's view, with nothing posted yet", async () => {
+      // fs-api's whoami for a verified brand link (apps/api routes/auth "/v1/credential").
+      const BRAND_LINK = http.get("*/v1/credential", ({ request }) =>
+        request.headers.get("authorization") === `Bearer ${TOKEN}`
+          ? HttpResponse.json({
+              kind: "brand_link",
+              role: "brand",
+              persona: "brand",
+              actor: "brand:lantern-bay",
+              impersonatedBy: null,
+              workspaceId: "0192d5a0-0000-7000-8000-000000000002",
+              sessionId: null,
+              lineId: null,
+              memberNo: null,
+              brand: "lantern-bay",
+              runSlug: null,
+              expiresAt: "2026-12-01T00:00:00.000Z",
+            })
+          : undefined,
+      );
+      const world = withHandlers(createTestWorld(), [NO_RUN, BRAND_LINK]);
+      await renderConsole({ path: PATH, world });
+      const root = await screen.findByTestId("W-BR-01");
+      await waitFor(() => expect(root.dataset.state).not.toBe("loading"));
+      expect(root.dataset.state).not.toBe("error");
+      expect(screen.getByTestId("W-BR-01.header").textContent).toContain(
+        "Proof for Lantern Bay Chocolate Co.",
+      );
+    });
+  });
+
   it("error: a link that earns only the public tier (member IDs) did not grant the brand's view", async () => {
     const bundle = getSnapshot().proof;
     const world = withHandlers(createTestWorld(), [
