@@ -1,6 +1,9 @@
 // Boot: parse env (refusals first), connect as fs_app (a ledger-writable role is refused), start the LISTEN
 // bus, build the PayPal rail for PP_MODE, assemble deps, build the app, start the outbox dispatcher, listen
-// on 0.0.0.0:$PORT, then run the folders' boot hooks. SIGTERM drains: SSE streams end (clients replay from
+// on 0.0.0.0:$PORT, then run the folders' boot hooks. PP_MODE=simulator without PP_SIM_URL runs the PayPal
+// simulator in this process first (paypal/simulator.ts, ADR-0010): PP_* default to its committed fs-judge app,
+// its webhook is registered to our own /webhooks/paypal, its pages are served at /paypal-sim, and before the
+// server listens the previous process's judge sessions end and the simulated balance is read (paypal/boot.ts). SIGTERM drains: SSE streams end (clients replay from
 // Last-Event-ID), the dispatcher finishes in-flight tasks, connections close (Render waits up to 60 s).
 import { createWebhookTransmissionStore, paypalCoreLimiter } from "@fairsplit/db";
 import { type ServerType, serve } from "@hono/node-server";
@@ -16,7 +19,14 @@ import { dbIdempotencyStore } from "./lib/idempotency.js";
 import { createKeyedRateLimiter } from "./lib/rate-limit.js";
 import { createLogger } from "./middleware/logger.js";
 import { assertPartiesAscii } from "./money/policy.js";
+import { bootInProcessSimulator } from "./paypal/boot.js";
 import { createPayPalRail } from "./paypal/mode.js";
+import {
+  type InProcessPayPalSimulator,
+  runsInProcessSimulator,
+  startInProcessSimulator,
+  withSimulatorDefaults,
+} from "./paypal/simulator.js";
 import { createSseHub } from "./sse/hub.js";
 
 export interface RunningServer {
@@ -29,7 +39,9 @@ export interface RunningServer {
 }
 
 export async function startServer(source: EnvSource = process.env): Promise<RunningServer> {
-  const env = parseEnv(source);
+  const parsed = parseEnv(source);
+  const inProcess = runsInProcessSimulator(parsed.paypal);
+  const env: ApiEnv = inProcess ? { ...parsed, paypal: withSimulatorDefaults(parsed.paypal) } : parsed;
   try {
     assertPartiesAscii(env);
   } catch (err) {
@@ -41,16 +53,35 @@ export async function startServer(source: EnvSource = process.env): Promise<Runn
   for (const w of env.warnings) logger.warn(w);
   const data = await openDataLayer(env, logger);
 
+  let sim: InProcessPayPalSimulator | null = null;
+  if (inProcess) {
+    try {
+      sim = await startInProcessSimulator({
+        paypal: env.paypal,
+        publicOrigin: env.publicOrigin,
+        source,
+        log: (level, message) => logger[level]({ component: "paypal-sim" }, message),
+      });
+    } catch (err) {
+      await data.close();
+      throw new BootRefusal([
+        `the in-process PayPal simulator did not start: ${err instanceof Error ? err.message : String(err)}`,
+      ]);
+    }
+  }
+
   // WS-DATA's adapters: every PayPal attempt takes a slot of the shared Postgres limiter and completes its
   // `paypal_calls` row; a verified webhook's transmission id is claimed in `webhook_transmissions`, so a replayed
   // delivery is refused in every process (the hourly cron purges expired ids).
   const pp = paypalCoreLimiter(data.limiter);
   const paypal = createPayPalRail({
-    paypal: env.paypal,
+    // in process, the webhook id is the one the simulator minted for our route at this boot
+    paypal: sim ? { ...env.paypal, webhookId: sim.webhookId } : env.paypal,
     limiter: pp.limiter,
     recorder: pp.recorder,
     logger,
     webhookTransmissionStore: createWebhookTransmissionStore(data.database.db),
+    ...(sim ? { simulator: sim.rail } : {}),
   });
   const keys = createCredentialKeys(env.secrets);
   const store = appCredentialStore(data.database.db);
@@ -84,6 +115,10 @@ export async function startServer(source: EnvSource = process.env): Promise<Runn
       startedAt,
     },
   });
+
+  // the simulator's deliveries reach our own /webhooks/paypal in process, through the real route
+  sim?.deliverTo((request) => app.fetch(request));
+  const stopSimulatorBoot = sim ? await bootInProcessSimulator(deps) : null;
 
   outboxWiring = wireOutbox({
     env,
@@ -122,6 +157,8 @@ export async function startServer(source: EnvSource = process.env): Promise<Runn
       await deps.sse.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await outboxWiring?.stop().catch((err) => logger.warn({ err }, "dispatcher stop failed"));
+      stopSimulatorBoot?.();
+      await sim?.stop().catch((err) => logger.warn({ err }, "simulator stop failed"));
       await data.close();
       logger.info("fs-api stopped");
     })();
