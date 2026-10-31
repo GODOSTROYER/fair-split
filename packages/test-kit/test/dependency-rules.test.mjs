@@ -5,6 +5,7 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,6 +22,20 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const depcruiseBin = resolve(repoRoot, "node_modules/dependency-cruiser/bin/dependency-cruiser.mjs");
 const biomeBin = resolve(repoRoot, "node_modules/@biomejs/biome/bin/biome");
 const config = resolve(repoRoot, ".dependency-cruiser.cjs");
+const CODE_DIRS = ["apps", "packages", "tools", "e2e"];
+
+/** The targets the root package.json's deps:check script passes to depcruise. */
+function depsCheckTargets() {
+  const script = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")).scripts["deps:check"];
+  const tokens = script.split(/\s+/);
+  expect(tokens[0]).toBe("depcruise");
+  const targets = [];
+  for (let i = 1; i < tokens.length; i++) {
+    if (tokens[i] === "--config") i++;
+    else targets.push(tokens[i].replace(/^"|"$/g, ""));
+  }
+  return targets;
+}
 
 /** Runs dependency-cruiser over `targets` with cwd `root`; returns the JSON result. */
 function cruise(root, targets) {
@@ -416,12 +431,28 @@ describe("Biome keeps every edge that dependency-cruiser calls type-only erased"
   }, 60_000);
 });
 
+describe("the deps:check targets", () => {
+  // A glob target makes depcruise list the whole repo with readdirSync({ recursive: true }) before any exclude
+  // applies: node_modules, and the embedded test clusters under .cache, whose folders vanish while suites drop
+  // databases (ENOENT mid-walk). Plain directories go through depcruise's walk, which skips excluded folders.
+  it("are plain directories, never a glob", () => {
+    const targets = depsCheckTargets();
+    expect(targets.length).toBeGreaterThan(0);
+    for (const t of targets) expect(t).toMatch(/^[a-z0-9-]+$/);
+  });
+
+  it("cover every top-level code directory that exists", () => {
+    const present = CODE_DIRS.filter((d) => existsSync(resolve(repoRoot, d)));
+    expect([...depsCheckTargets()].sort()).toEqual(present.sort());
+  });
+});
+
 describe("the real tree", () => {
   // The whole-tree cruise is CPU-bound: about 90 s alone on a busy Windows machine, and over 300 s beside test-kit's
   // other files while other workstreams build on the same machine. It always ends, and a timeout here says nothing
   // about the rules, so the budget is ten minutes.
   it("passes deps:check over apps, packages, tools and e2e", () => {
-    const result = cruise(repoRoot, ["{apps,packages,tools,e2e}"]);
+    const result = cruise(repoRoot, depsCheckTargets());
     expect(result.summary.violations).toEqual([]);
     const sources = result.modules.map((m) => m.source);
     expect(sources).toContain("tools/check-ownership.mjs");

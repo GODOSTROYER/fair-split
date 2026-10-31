@@ -15,7 +15,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "deps:check": "depcruise --config .dependency-cruiser.cjs \"{apps,packages,tools,e2e}\"",
+    "deps:check": "depcruise --config .dependency-cruiser.cjs apps packages tools",
     "secrets:scan": "secretlint \"**/*\"",
     "prepare": "lefthook install || true",
     "ownership:check": "node tools/check-ownership.mjs"
