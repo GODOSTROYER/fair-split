@@ -3,8 +3,11 @@
 // signing times and the verifier's 5-minute window agree), its speed 0 (processing and deliveries run on the next
 // tick; `sim.idle()` waits for them), and its deliveries go to the test app's own /webhooks/paypal in process.
 // One simulator per test file: its interceptor is process-wide (vitest runs each file in its own process).
-import { schema } from "@fairsplit/db";
+import { appendLedger, type Db, schema, systemScope } from "@fairsplit/db";
+import { getSnapshot } from "@fairsplit/seed";
+import { and, eq } from "drizzle-orm";
 import { parseEnv } from "../../env.js";
+import { openingLedger } from "../../judge/world.js";
 import type { RunsHarness } from "../../runs/test/app.js";
 import { type SeedWorldOptions, seedWorld } from "../../runs/test/world.js";
 import {
@@ -81,6 +84,7 @@ export async function startSimRuns(
   const pg = t.pg;
   if (!pg) throw new Error("the simulator runs harness needs Postgres");
   const world = await seedWorld(pg.app.db, o.world ?? {});
+  await writeCloneLedger(pg.app.db, world.workspaceId);
   // the server records it at boot (paypal/boot.ts): Judge Mode's quota counts from the simulator's balance
   await recordSimulatorBalance(t.deps);
   const ws = world.workspaceId;
@@ -104,6 +108,66 @@ export async function startSimRuns(
   };
 }
 
+/**
+ * The ledger a judge pool clone opens with (judge/world.ts `openingLedger`: the card's certification and
+ * ratification, then the archived photos' reads, with this world's document ids), so Proof's Ratified and Read
+ * plates hold here as they do for a hosted judge run. The runs world still pre-seeds the replay photos' rows (J1's
+ * extract replay writes them by reading instead); for each replay photo whose rows are already there, the seed's
+ * own `rows.accepted` for that read stands in for the entry the reading writes. An entry the workspace's ledger
+ * already holds (its card ratified, a photo's read accepted) is not written again, and a photo with no rows yet
+ * (the reading has not run) gets none.
+ */
+async function writeCloneLedger(db: Db, workspaceId: string): Promise<void> {
+  const s = getSnapshot();
+  const ws = (t: { workspaceId: unknown }) =>
+    eq(t.workspaceId as typeof schema.documents.workspaceId, workspaceId);
+  await db.transaction(async (tx) => {
+    const docs = await tx
+      .select({ id: schema.documents.id, photoCode: schema.documents.photoCode })
+      .from(schema.documents)
+      .where(ws(schema.documents));
+    const docOf = new Map(docs.map((d) => [d.photoCode, d.id]));
+    const withRows = new Set(
+      (
+        await tx
+          .selectDistinct({ documentId: schema.slipRows.documentId })
+          .from(schema.slipRows)
+          .where(ws(schema.slipRows))
+      ).map((r) => r.documentId),
+    );
+    const held = await tx
+      .select({ kind: schema.ledgerEntries.kind, payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(ws(schema.ledgerEntries));
+    const heldKinds = new Set(held.map((e) => e.kind));
+    const accepted = new Set(
+      held
+        .filter((e) => e.kind === "rows.accepted")
+        .map((e) => (e.payload as { documentId?: string }).documentId),
+    );
+    const replayReads = s.proof.ledger.filter(
+      (e) => e.kind === "rows.accepted" && (e.payload as { provenance?: unknown }).provenance === "replay",
+    );
+    const scope = systemScope(workspaceId, { kind: "system", id: "system:seed" });
+    for (const e of [...openingLedger(s), ...replayReads]) {
+      const payload = { ...(e.payload as Record<string, unknown>) };
+      if (e.kind === "rows.accepted") {
+        const id = docOf.get(String(payload.photoId));
+        if (!id || !withRows.has(id) || accepted.has(id)) continue;
+        payload.documentId = id;
+      } else if (heldKinds.has(e.kind)) {
+        continue;
+      }
+      await appendLedger(tx, scope, {
+        kind: e.kind,
+        payload,
+        actor: { kind: e.actorKind, id: e.actorId, impersonatedBy: e.impersonatedBy },
+        at: new Date(e.at),
+      });
+    }
+  });
+}
+
 /** The webhook rows the simulator's deliveries left (`webhook_events`), oldest first. */
 export async function storedWebhooks(t: TestApp) {
   return t.deps.db
@@ -116,4 +180,18 @@ export async function storedWebhooks(t: TestApp) {
     })
     .from(schema.webhookEvents)
     .orderBy(schema.webhookEvents.receivedAt, schema.webhookEvents.createdAt);
+}
+
+/**
+ * Runs every queued `processWebhook` task, as the outbox worker would moments after each delivery (the route
+ * enqueues them before it knows the workspace, so `runQueued` does not see them). Returns how many ran.
+ */
+export async function runWebhooks(t: TestApp): Promise<number> {
+  const rows = await t.deps.db
+    .select({ id: schema.taskOutbox.id })
+    .from(schema.taskOutbox)
+    .where(and(eq(schema.taskOutbox.name, "processWebhook"), eq(schema.taskOutbox.state, "queued")))
+    .orderBy(schema.taskOutbox.id);
+  for (const r of rows) await t.deps.outbox?.runTask(r.id);
+  return rows.length;
 }

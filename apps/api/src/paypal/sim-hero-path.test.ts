@@ -7,8 +7,9 @@
 // /webhooks/paypal and are verified (RSA-SHA256 over the CRC32, its cert URL and CA, freshness, transmission ids) and
 // stored; the settle GET reads 7 SUCCESS and 1 UNCLAIMED; "Pay in cash at the bodega" cancels her item (RETURNED) and
 // the run settles. The ledger chain verifies, every event is an IC-01 RunEvent, and every PayPal-derived row and event
-// says `simulated_rail` (I8). The simulator found nothing off its vendored specs.
-import { RunEvent } from "@fairsplit/contracts";
+// says `simulated_rail` (I8). Proof's six plates all hold: each item's status, Rhea's RETURNED included, rests on a
+// verified `webhook.applied` entry (G4). The simulator found nothing off its vendored specs.
+import { type ChainVerification, RunEvent } from "@fairsplit/contracts";
 import { schema, verifyChain } from "@fairsplit/db";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
@@ -16,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { settleBatch } from "../money/settle.js";
 import { type RunsHarness, resolveAll, runQueued, signBoth } from "../runs/test/app.js";
 import type { InProcessPayPalSimulator } from "./simulator.js";
-import { startSimRuns, storedWebhooks } from "./test/sim.js";
+import { runWebhooks, startSimRuns, storedWebhooks } from "./test/sim.js";
 
 const figures = getSnapshot().figures;
 let h: RunsHarness & { sim: InProcessPayPalSimulator };
@@ -111,6 +112,8 @@ describe("the hero path on the in-process simulator rail (no msw)", () => {
     expect(batch?.provenance).toBe("simulated_rail");
 
     await h.sim.idle(); // the simulator processes the batch and delivers its webhooks
+    // the outbox applies them within moments, well before the +25 s settle GET
+    expect(await runWebhooks(h.t)).toBeGreaterThan(0);
     await settleBatch(h.t.deps, { batchId: batch?.id as string, n: 1 }, { workspaceId: h.world.workspaceId });
     run = await runView();
     expect(run.body.run.state).toBe("NEEDS_FOLLOW_UP");
@@ -194,10 +197,50 @@ describe("the hero path on the in-process simulator rail (no msw)", () => {
       }),
     ).toHaveLength(1);
     await h.sim.idle();
+    expect(await runWebhooks(h.t)).toBe(1);
     const canceled = (await storedWebhooks(h.t)).filter(
       (r) => r.eventType === "PAYMENT.PAYOUTS-ITEM.CANCELED",
     );
-    expect(canceled).toEqual([expect.objectContaining({ verified: "self", provenance: "simulated_rail" })]);
+    expect(canceled).toEqual([
+      expect.objectContaining({ verified: "self", provenance: "simulated_rail", status: "applied" }),
+    ]);
+  });
+
+  it("G4: Rhea's RETURNED rests on the simulator's verified CANCELED event, after our own cancel", async () => {
+    const ledger = await h.t.deps.db
+      .select({ kind: schema.ledgerEntries.kind, payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(eq(schema.ledgerEntries.workspaceId, h.world.workspaceId))
+      .orderBy(schema.ledgerEntries.seq);
+    const rhea = ledger.filter((e) => {
+      const p = e.payload as { senderItemId?: string };
+      return (
+        (e.kind === "webhook.applied" || e.kind === "payout.cancel") && p.senderItemId?.endsWith("-M-031")
+      );
+    });
+    expect(
+      rhea.map((e) => {
+        const p = e.payload as { eventType?: string; status?: string; verified?: string };
+        return e.kind === "payout.cancel" ? "payout.cancel" : `${p.eventType} ${p.status} ${p.verified}`;
+      }),
+    ).toEqual([
+      "PAYMENT.PAYOUTS-ITEM.UNCLAIMED UNCLAIMED self",
+      "payout.cancel",
+      "PAYMENT.PAYOUTS-ITEM.CANCELED RETURNED self",
+    ]);
+  });
+
+  it("G4: Proof verifies all six plates, payout items included, on the simulated rail", async () => {
+    const r = await h.t.json<{ attestedBy: string; verification: ChainVerification }>(
+      `/v1/proof/${h.world.runSlug}/verification`,
+    );
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const v = r.body.verification;
+    expect(v.chain.ok).toBe(true);
+    expect(v.checkpoint.ok).toBe(true);
+    const failed = Object.entries(v.plates).filter(([, p]) => !p.ok);
+    expect(failed, JSON.stringify(failed)).toEqual([]);
+    expect(["verified", "sample"]).toContain(v.status);
   });
 
   it("inv.i7/i8: the ledger chain verifies; every event is an IC-01 RunEvent; PayPal-derived ones say simulated_rail", async () => {
