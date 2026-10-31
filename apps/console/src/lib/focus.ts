@@ -54,7 +54,8 @@ const TABBABLE = [
 ].join(", ");
 
 /** The console's scrollports by name, for a document without its styles (component tests). */
-const SCROLLPORTS = ".fsc-console__screen, .fsc-drawer, [data-scrollport]";
+const SCROLLPORTS =
+  ".fsc-console__screen, .fsc-drawer, .ag-grid-viewport, .ag-body-viewport, [data-scrollport]";
 
 function attr(name: string, value: string): string {
   return `[${name}="${value.replace(/["\\]/g, "\\$&")}"]`;
@@ -174,49 +175,149 @@ function px(value: string): number {
 function isScrollport(el: HTMLElement): boolean {
   if (el.matches(SCROLLPORTS)) return true;
   const style = getComputedStyle(el);
-  return /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
+  return /auto|scroll/.test(`${style.overflow} ${style.overflowX} ${style.overflowY}`);
 }
 
-/** A scrollport's visible box: inside its borders and scrollbars, less its scroll-padding (a sticky head's room). */
-function frameOf(el: HTMLElement): Frame | null {
-  const box = el.getBoundingClientRect();
+/**
+ * What sticks to a scrollport's top or bottom edge and covers what scrolls under it: the drawer's head, AG Grid's
+ * header with the pinned decision row, and its pinned totals row. A focused control under one is unseen too.
+ */
+const STICKY_EDGES =
+  ".fsc-drawer__head, .ag-grid-pinned-top-rows, .ag-grid-pinned-bottom-rows, [data-sticky-edge]";
+
+/** The nearest scrollport around `el` (not `el` itself). */
+function scrollportOf(el: Element): HTMLElement | null {
+  for (let at = el.parentElement; at && at !== document.body; at = at.parentElement) {
+    if (isScrollport(at)) return at;
+  }
+  return null;
+}
+
+/** How far `scroller`'s sticky edges reach in from its top and bottom (one holding `el` covers nothing). */
+function stickyInsets(scroller: HTMLElement, box: DOMRect, el: Element): { top: number; bottom: number } {
+  let top = 0;
+  let bottom = 0;
+  for (const edge of scroller.querySelectorAll<HTMLElement>(STICKY_EDGES)) {
+    if (edge.contains(el) || scrollportOf(edge) !== scroller) continue;
+    const style = getComputedStyle(edge);
+    if (style.position !== "sticky" && style.position !== "fixed") continue;
+    const r = edge.getBoundingClientRect();
+    if (r.height === 0) continue;
+    if (style.top !== "auto" && style.top !== "") top = Math.max(top, r.bottom - box.top);
+    else if (style.bottom !== "auto" && style.bottom !== "") bottom = Math.max(bottom, box.bottom - r.top);
+  }
+  return { top, bottom };
+}
+
+/**
+ * A scrollport's visible box for `el`: inside its borders and scrollbars, less its scroll-padding or what its
+ * sticky edges cover, whichever is more.
+ */
+function frameOf(scroller: HTMLElement, el: Element): Frame | null {
+  const box = scroller.getBoundingClientRect();
   if (box.width === 0 && box.height === 0) return null;
-  const style = getComputedStyle(el);
-  const top = box.top + el.clientTop;
-  const left = box.left + el.clientLeft;
+  const style = getComputedStyle(scroller);
+  const sticky = stickyInsets(scroller, box, el);
+  const top = box.top + scroller.clientTop;
+  const left = box.left + scroller.clientLeft;
   return {
-    top: top + px(style.scrollPaddingTop),
+    top: top + Math.max(px(style.scrollPaddingTop), sticky.top),
     left: left + px(style.scrollPaddingLeft),
-    bottom: top + (el.clientHeight || box.height) - px(style.scrollPaddingBottom),
-    right: left + (el.clientWidth || box.width) - px(style.scrollPaddingRight),
+    bottom:
+      top + (scroller.clientHeight || box.height) - Math.max(px(style.scrollPaddingBottom), sticky.bottom),
+    right: left + (scroller.clientWidth || box.width) - px(style.scrollPaddingRight),
   };
 }
 
-/** True when `el` is not wholly inside the viewport and every scrollport around it: focused there, it is unseen. */
+function outside(box: DOMRect, f: Frame): boolean {
+  return box.top < f.top || box.bottom > f.bottom || box.left < f.left || box.right > f.right;
+}
+
+/**
+ * True when `el` is not wholly inside the viewport and every scrollport around it, clear of their sticky edges:
+ * focused there, it is unseen or covered (WCAG 2.4.11).
+ */
 export function outOfView(el: Element): boolean {
   const box = el.getBoundingClientRect();
   if (box.width === 0 && box.height === 0) return false;
-  const frames: Frame[] = [{ top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth }];
+  if (outside(box, { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth })) return true;
   for (let at = el.parentElement; at && at !== document.body; at = at.parentElement) {
-    const frame = isScrollport(at) ? frameOf(at) : null;
-    if (frame) frames.push(frame);
+    const frame = isScrollport(at) ? frameOf(at, el) : null;
+    if (frame && outside(box, frame)) return true;
   }
-  return frames.some(
-    (f) => box.top < f.top || box.bottom > f.bottom || box.left < f.left || box.right > f.right,
-  );
+  return false;
 }
 
-/** Scrolls `el` into view the least it can, at once, when it is out of view. */
+/**
+ * After scrollIntoView (which knows scroll-padding but not what sticks over an edge): each scrollport around
+ * `el` scrolls on, the least it can, until its sticky edges no longer cover it.
+ */
+function clearStickyEdges(el: Element): void {
+  for (let at = el.parentElement; at && at !== document.body; at = at.parentElement) {
+    if (!isScrollport(at)) continue;
+    const frame = frameOf(at, el);
+    if (!frame) continue;
+    const box = el.getBoundingClientRect();
+    if (box.top < frame.top) at.scrollTop -= frame.top - box.top;
+    else if (box.bottom > frame.bottom)
+      at.scrollTop += Math.min(box.bottom - frame.bottom, box.top - frame.top);
+  }
+}
+
+/** Scrolls `el` into view the least it can, at once, clear of sticky edges, when it is out of view. */
 export function reveal(el: Element): void {
   if (!outOfView(el)) return;
   el.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "instant" });
+  clearStickyEdges(el);
 }
 
-/** Focuses `el` without the browser's jump, then reveals it. False when the browser refused the focus. */
+/**
+ * How long a focused control is kept in view while the layout around it settles: the answer that moved focus
+ * often moves the layout a frame or two later (Count it once's result line unfolds above Next, the grid draws
+ * its ten columns again once the drawer has gone), which can carry the control out of its scrollport.
+ */
+export const REVEAL_SETTLE_MS = 1500;
+
+/** What stops the settling at once: the person scrolling or acting on their own. */
+const OWN_INPUT = ["pointerdown", "wheel", "touchstart", "keydown"] as const;
+
+let settling: (() => void) | null = null;
+
+/** Keeps `el` in view each animation frame while it holds focus, for `ms`, unless the person acts first. */
+function keepInView(el: HTMLElement, ms: number = REVEAL_SETTLE_MS): void {
+  settling?.();
+  if (typeof requestAnimationFrame !== "function") return;
+  const until = performance.now() + ms;
+  let frame = 0;
+  const stop = () => {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    for (const type of OWN_INPUT) window.removeEventListener(type, stop, true);
+    if (settling === stop) settling = null;
+  };
+  const tick = () => {
+    frame = 0;
+    if (document.activeElement !== el || performance.now() > until) {
+      stop();
+      return;
+    }
+    reveal(el);
+    frame = requestAnimationFrame(tick);
+  };
+  for (const type of OWN_INPUT) window.addEventListener(type, stop, true);
+  settling = stop;
+  frame = requestAnimationFrame(tick);
+}
+
+/**
+ * Focuses `el` without the browser's jump, then reveals it, and keeps it in view while the layout settles. False
+ * when the browser refused the focus.
+ */
 export function focusAndReveal(el: HTMLElement): boolean {
   el.focus({ preventScroll: true });
   if (document.activeElement !== el) return false;
   reveal(el);
+  keepInView(el);
   return true;
 }
 
