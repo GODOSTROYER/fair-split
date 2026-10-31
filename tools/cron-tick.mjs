@@ -10,8 +10,10 @@
 // `127.0.0.1:8787`) and CRON_SECRET (shared from fs-api, at least 16 characters). Contract with fs-api
 // (apps/api/src/routes/internal): `POST /internal/cron/tick`, `Authorization: Bearer <CRON_SECRET>`,
 // JSON body `{"at": "<ISO time>"}`; a taken tick answers 202 `{at, nextTickFrom, tasks: [{task,
-// dedupeKey, created}]}`, a tick within 30 minutes of the last answers 429 with Retry-After.
-// Exit codes: 0 fs-api took the tick (2xx; the enqueued task names are printed), or answered 429 to a
+// dedupeKey, created}], skipped: [{task, dedupeKey, reason: "no handler"}]}` (`skipped`: jobs of the
+// plan fs-api has no handler for, so it did not enqueue them), a tick within 30 minutes of the last
+// answers 429 with Retry-After.
+// Exit codes: 0 fs-api took the tick (2xx; the enqueued and the skipped task names are printed), or answered 429 to a
 // retry after an attempt that failed (that attempt's tick most likely landed); 2 refused: a 429 on the
 // first attempt (a tick was taken less than 30 minutes ago, nothing was enqueued); 1 anything else, so
 // the Render cron run shows as failed. Connection errors and 5xx are retried twice
@@ -27,6 +29,8 @@ const HOSTPORT = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?:\d{1,5}$/;
 const MAX_BODY_BYTES = 16_384;
 /** Only plain task names (IC-01 TaskName shape) are ever printed from fs-api's answer. */
 const TASK_NAME = /^[A-Za-z][A-Za-z0-9]{0,39}$/;
+/** Only plain lower-case words are printed as the reason fs-api skipped a job (`no handler`). */
+const REASON = /^[a-z][a-z ]{0,39}$/;
 const RETRY_AFTER = /^\d{1,6}$/;
 
 /**
@@ -57,7 +61,8 @@ async function readCapped(res) {
 }
 
 /**
- * `judgeReset (new), warmCaches (already queued)` from a taken tick's answer, or `none listed`.
+ * `judgeReset (new), warmCaches (already queued)` from a taken tick's answer, or `none listed`; then, when fs-api
+ * skipped jobs it has no handler for, `; skipped, not enqueued: reconcile (no handler)`.
  * @param {string} text
  */
 export function describeTasks(text) {
@@ -68,18 +73,28 @@ export function describeTasks(text) {
   } catch {
     return "none listed";
   }
-  const tasks =
-    parsed && typeof parsed === "object" && Array.isArray(/** @type {{tasks?: unknown}} */ (parsed).tasks)
-      ? /** @type {unknown[]} */ (/** @type {{tasks: unknown[]}} */ (parsed).tasks)
-      : [];
+  /** @param {string} key */
+  const listed = (key) => {
+    const v =
+      parsed && typeof parsed === "object" ? /** @type {Record<string, unknown>} */ (parsed)[key] : undefined;
+    return Array.isArray(v) ? v : [];
+  };
   const names = [];
-  for (const t of tasks) {
+  for (const t of listed("tasks")) {
     if (!t || typeof t !== "object") continue;
     const { task, created } = /** @type {{task?: unknown, created?: unknown}} */ (t);
     if (typeof task !== "string" || !TASK_NAME.test(task)) continue;
     names.push(created === true ? `${task} (new)` : created === false ? `${task} (already queued)` : task);
   }
-  return names.length > 0 ? names.join(", ") : "none listed";
+  const skipped = [];
+  for (const t of listed("skipped")) {
+    if (!t || typeof t !== "object") continue;
+    const { task, reason } = /** @type {{task?: unknown, reason?: unknown}} */ (t);
+    if (typeof task !== "string" || !TASK_NAME.test(task)) continue;
+    skipped.push(typeof reason === "string" && REASON.test(reason) ? `${task} (${reason})` : task);
+  }
+  const enqueued = names.length > 0 ? names.join(", ") : "none listed";
+  return skipped.length > 0 ? `${enqueued}; skipped, not enqueued: ${skipped.join(", ")}` : enqueued;
 }
 
 /** @param {string | undefined} value */

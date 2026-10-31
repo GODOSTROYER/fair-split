@@ -118,6 +118,45 @@ describe("tools/cron-tick.mjs (fs-cron, a thin trigger)", () => {
     expect(r.out).not.toContain("x".repeat(50));
   });
 
+  it("prints the jobs fs-api skipped because it has no handler for them, labelled, and still exits 0", async () => {
+    bodies = [
+      JSON.stringify({
+        at: "2026-11-01T02:07:00.000Z",
+        tasks: [{ task: "judgeReset", dedupeKey: "reset:pool:2026-11-01T02", created: true }],
+        skipped: [
+          {
+            task: "reconcile",
+            dedupeKey: "reconcile:nightly:2026-10-30T00:00:00.000Z",
+            reason: "no handler",
+          },
+          { task: "warmCaches", dedupeKey: "warm:w1", reason: "no handler" },
+        ],
+      }),
+    ];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(
+      "tasks: judgeReset (new); skipped, not enqueued: reconcile (no handler), warmCaches (no handler)",
+    );
+  });
+
+  it("prints only plain names and reasons from the skipped list", async () => {
+    bodies = [
+      JSON.stringify({
+        tasks: [],
+        skipped: [
+          { task: "warmCaches", reason: "\u001b[31mevil\nreason" },
+          { task: "\u001b[31mevil\nline", reason: "no handler" },
+          "reconcile",
+        ],
+      }),
+    ];
+    const r = await runTick(env());
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("tasks: none listed; skipped, not enqueued: warmCaches");
+    expect(r.out).not.toContain("evil");
+  });
+
   it("a 2xx without a readable task list still counts as taken", async () => {
     bodies = ["not json"];
     const r = await runTick(env());
