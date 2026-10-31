@@ -9,7 +9,8 @@
  * - Paminawa (`audioPlan`): each sentence plays the synthetic clip fs-api served for it, otherwise the phone's own
  *   voice reads it, labelled; Filipino clips stand in for Cebuano ones when spike S10 failed ("Audio sa Filipino;
  *   teksto sa Cebuano"). The clips are IC-11's (ADR-0011): fs-api's `GET /v1/media/audio/:lineId` answer goes into
- *   the statement with `withServedAudio`, and each sentence finds fs-api's by slot and what it names (§6). These
+ *   the statement with `withServedAudio`, and each sentence finds fs-api's by slot, the form of the slot (its
+ *   template variant: the PayPal or the cash PAY, the product or the seeded AI note) and what it names (§6). These
  *   sentences are not fs-api's spoken words ("0 4 0 3" where fs-api says "zero four zero three"), so the phone never
  *   hashes them to check a clip;
  * - the slip chips, which rise when the voice names a slip (`MentionCue`: a character index for the phone's voice,
@@ -192,7 +193,7 @@ export function applicableTemplates(
   rail: PayRail,
 ): readonly StatementTemplate[] {
   return (dto.sentences[lang] ?? []).filter((s) => {
-    if (s.slot === "PAY") return (s.variant ?? "paypal") === rail;
+    if (s.slot === "PAY") return templateVariant(s) === rail;
     if (s.slot === "DEDUCTION") return dto.amounts.deductions.some((d) => d.ruleId === s.ref);
     if (s.slot === "CREDIT") return dto.amounts.credits.some((c) => c.slip === s.ref);
     return true;
@@ -320,23 +321,35 @@ function cuesFor(spoken: string, mentions: readonly string[], clip: AudioClip | 
 const ABOUT: Partial<Record<StatementSlot, "rule" | "slip">> = { DEDUCTION: "rule", CREDIT: "slip" };
 
 /**
- * Which sentence this is, whoever rendered it and in whichever language (ADR-0011 §6): its slot, plus the rule or
- * slip it is about for a deduction or a credit. Never its words. Null when the phone cannot name it.
+ * Which form of its slot a template is, as fs-api names it (`{slot}.{variant}`): PAY's rail (`paypal` when the
+ * template names none, as `applicableTemplates` reads it), otherwise `default` unless the template names one.
+ */
+export function templateVariant(t: Pick<StatementTemplate, "slot" | "variant">): string {
+  return t.variant ?? (t.slot === "PAY" ? "paypal" : "default");
+}
+
+/**
+ * Which sentence this is, whoever rendered it and in whichever language (ADR-0011 §6): its slot and the form of the
+ * slot (`PAY.paypal` is not `PAY.cash`, the product AI note is not T1's seeded one), plus the rule or slip it is about
+ * for a deduction or a credit. Never its words. Null when the phone cannot name it.
  */
 function ownKey(dto: StatementDTO, lang: Lang, s: StatementSentence): string | null {
   if (!s.slot) return null;
+  const template = dto.sentences[lang]?.find((t) => t.id === s.id);
+  if (!template) return null;
+  const form = `${s.slot}.${templateVariant(template)}`;
   const kind = ABOUT[s.slot];
-  if (!kind) return s.slot;
-  const ref = dto.sentences[lang]?.find((t) => t.id === s.id)?.ref;
-  return ref ? `${s.slot}|${kind}:${ref}` : null;
+  if (!kind) return form;
+  return template.ref ? `${form}|${kind}:${template.ref}` : null;
 }
 
-/** The same key for one of fs-api's served sentences, from its slot and mentions. */
+/** The same key for one of fs-api's served sentences, from its slot, variant and mentions. */
 function servedKey(s: StatementAudioSentence): string | null {
+  const form = `${s.slot}.${s.variant}`;
   const kind = ABOUT[s.slot];
-  if (!kind) return s.slot;
+  if (!kind) return form;
   const about = s.mentions.find((m) => m.startsWith(`${kind}:`));
-  return about ? `${s.slot}|${about}` : null;
+  return about ? `${form}|${about}` : null;
 }
 
 /**
@@ -376,10 +389,12 @@ function servedClip(
 }
 
 /**
- * What reads each sentence. A clip is used only when fs-api served it for this very sentence: paired by slot and
- * what the sentence names, recorded for fs-api's words for it (its `textSha256`), so changed words never play stale
- * audio (fs-api then serves no clip). A clip the phone cannot reach (offline, not cached) falls back to the phone's
- * voice. For Cebuano without Cebuano clips, Filipino clips of the same template stand in.
+ * What reads each sentence. A clip is used only when fs-api served it for this very sentence: paired by slot, the
+ * form of the slot and what the sentence names, recorded for fs-api's words for it (its `textSha256`), so changed
+ * words never play stale audio (fs-api then serves no clip). The form is the one the phone shows now: when `rail`
+ * moves the line to the bodega after fs-api spoke its PayPal PAY, the cash sentence has no clip until fs-api's audio
+ * is read again. A clip the phone cannot reach (offline, not cached) falls back to the phone's voice. For Cebuano
+ * without Cebuano clips, Filipino clips of the same template stand in.
  */
 export function audioPlan(
   dto: StatementDTO,
@@ -451,7 +466,8 @@ export function audioPlan(
  * in reading order, becomes `dto.audio[lang]`, its clip's same-origin URL resolved against `origin` (the native app's
  * API origin; the web frames are served by fs-api itself). A sentence without a clip is read by the phone's voice.
  * `audioPlan` pairs these sentences with the phone's own and plays a clip only under fs-api's hash for its sentence.
- * An answer for another line changes nothing.
+ * An answer for another line changes nothing. Read the answer again whenever the statement is read again and
+ * whenever the pay kind or the capsule changes (ADR-0011, K1c), so the clips follow the sentences on screen.
  */
 export function withServedAudio(dto: StatementDTO, served: StatementAudio, origin = ""): StatementDTO {
   if (served.lineId.toLowerCase() !== dto.lineId.toLowerCase()) return dto;

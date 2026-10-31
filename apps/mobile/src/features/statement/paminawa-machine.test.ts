@@ -65,6 +65,7 @@ describe("Paminawa's player (M-MB-03)", () => {
         ceb: [
           {
             slot: "GREETING" as const,
+            variant: "default",
             mentions: [],
             textSha256: words,
             clip: {

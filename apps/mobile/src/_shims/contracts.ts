@@ -486,7 +486,12 @@ export type StatementSlot = (typeof STATEMENT_SLOTS)[number];
 export interface StatementTemplate {
   id: string;
   slot: StatementSlot;
-  variant?: "paypal" | "cash";
+  /**
+   * Which form of its slot this is, named as fs-api names it (its template key is `{slot}.{variant}`), so Paminawa
+   * plays only fs-api's clip of this very form (ADR-0011 §6). PAY's variant is its rail (`paypal`, the default, or
+   * `cash`); any other slot's is `default` unless named (`noname`, `written`, T1's `seeded` AI note).
+   */
+  variant?: string;
   ref?: string;
   text: string;
 }

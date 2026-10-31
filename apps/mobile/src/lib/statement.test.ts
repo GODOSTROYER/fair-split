@@ -25,6 +25,7 @@ import {
   statementCacheKey,
   statementSentences,
   statementValues,
+  templateVariant,
   withServedAudio,
 } from "./statement";
 
@@ -169,12 +170,15 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
     i: number,
     extra: Partial<StatementAudioClip> = {},
     d: StatementDTO = dto,
+    rail: "paypal" | "cash" = "paypal",
   ): StatementAudioSentence => {
-    const own = statementSentences(d, lang).sentences[i];
+    const own = statementSentences(d, lang, rail).sentences[i];
     if (!own?.slot) throw new Error(`no sentence ${i} in ${lang}`);
     const template = d.sentences[lang].find((t) => t.id === own.id);
     return {
       slot: own.slot,
+      // the form fs-api rendered (`{slot}.{variant}`): the PAY of the line's rail, the default form of the rest
+      variant: own.slot === "PAY" ? rail : "default",
       mentions: own.slot === "DEDUCTION" ? [`rule:${template?.ref}`] : own.mentions,
       textSha256: apiHash(lang, i),
       clip: {
@@ -305,6 +309,76 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
       "HELP",
     ]);
   });
+
+  it("names each template's form as fs-api does (`{slot}.{variant}`): PAY by its rail, the rest default", () => {
+    for (const lang of ["ceb", "fil", "en"] as const) {
+      for (const rail of ["paypal", "cash"] as const) {
+        const forms = applicableTemplates(dto, lang, rail).map((t) => `${t.slot}.${templateVariant(t)}`);
+        expect(forms, `${lang} ${rail}`).toEqual([
+          "GREETING.default",
+          "DELIVERY.default",
+          "PREMIUM.default",
+          "BONUS.default",
+          "DEDUCTION.default",
+          `PAY.${rail}`,
+          "SOURCES.default",
+          "HELP.default",
+          // the product note ("read twice by AI (Claude)"): never paired with T1's seeded AI_NOTE.seeded
+          "AI_NOTE.default",
+        ]);
+      }
+    }
+    expect(templateVariant({ slot: "PAY" })).toBe("paypal");
+    expect(templateVariant({ slot: "AI_NOTE", variant: "seeded" })).toBe("seeded");
+  });
+
+  it("never plays fs-api's PayPal PAY clip for the cash PAY sentence when the line moves to the bodega", () => {
+    // fs-api spoke the statement while the line was on PayPal; the live item track then turned the capsule to cash
+    const served = withClips(["en"]);
+    const cash = audioPlan(served, "en", { deviceVoice: true, rail: "cash" });
+    const pay = cash.steps.find((s) => s.slot === "PAY");
+    expect(pay?.spoken).toContain("in cash at the bodega");
+    expect(pay?.voice).toEqual({ kind: "device" });
+    expect(cash.mode).toBe("mixed");
+    expect(cash.steps.filter((s) => s.voice.kind === "device").map((s) => s.slot)).toEqual(["PAY"]);
+    // the PayPal sentence still plays it, and fs-api's cash PAY clip plays for the cash sentence
+    expect(
+      audioPlan(served, "en", { deviceVoice: true }).steps.find((s) => s.slot === "PAY")?.voice.kind,
+    ).toBe("clip");
+    const cashServed = {
+      ...dto,
+      audio: {
+        en: statementSentences(dto, "en", "cash").sentences.map((_, i) => voiced("en", i, {}, dto, "cash")),
+      },
+    };
+    const onCash = audioPlan(cashServed, "en", { deviceVoice: true, rail: "cash" });
+    expect(onCash.mode).toBe("synthetic");
+    expect(
+      audioPlan(cashServed, "en", { deviceVoice: true }).steps.find((s) => s.slot === "PAY")?.voice,
+    ).toEqual({
+      kind: "device",
+    });
+  });
+
+  it.each([
+    ["AI_NOTE", "seeded"],
+    ["AI_NOTE", "seeded_checking"],
+    ["AI_NOTE", "checking"],
+    ["HELP", "noname"],
+    ["GREETING", "seeded"],
+  ] as const)(
+    "never plays fs-api's %s.%s clip under the phone's other form of that slot",
+    (slot, variant) => {
+      const served = withClips(["ceb"]);
+      const other = {
+        ...served,
+        audio: { ceb: served.audio.ceb?.map((s) => (s.slot === slot ? { ...s, variant } : s)) },
+      };
+      const plan = audioPlan(other, "ceb", { deviceVoice: true });
+      expect(plan.mode).toBe("mixed");
+      expect(plan.steps.filter((s) => s.voice.kind !== "clip").map((s) => s.slot)).toEqual([slot]);
+    },
+  );
 
   it("fires each cue once, in order, as the voice reaches it", () => {
     const sources = audioPlan(dto, "en", { deviceVoice: true }).steps.find((s) => s.slot === "SOURCES");
@@ -502,6 +576,7 @@ describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)
       const words = sha256Hex(`fs-api's ${lang} ${slot}`);
       return {
         slot,
+        variant: slot === "PAY" ? "paypal" : "default",
         mentions: slot === "DEDUCTION" ? ["rule:R1"] : s.mentions,
         textSha256: words,
         clip:

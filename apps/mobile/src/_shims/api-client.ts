@@ -73,10 +73,11 @@ export interface StatementHistoryEntry {
 
 /**
  * IC-11 statement audio (ADR-0011), the contract's own types: `StatementAudio` is fs-api's answer to
- * `GET /v1/media/audio/:lineId`, one `StatementAudioSentence` {slot, mentions, textSha256, clip} per sentence fs-api
- * speaks, and a `StatementAudioClip` {url, textSha256, label, slot, offsets, durationMs} is a synthetic voice reading
- * one of them. `textSha256` is fs-api's SHA-256 of its own spoken words: the phone pairs fs-api's sentences with its
- * own by slot and mentions and plays a clip only under fs-api's hash for that sentence; it never hashes its own words.
+ * `GET /v1/media/audio/:lineId`, one `StatementAudioSentence` {slot, variant, mentions, textSha256, clip} per
+ * sentence fs-api speaks, and a `StatementAudioClip` {url, textSha256, label, slot, offsets, durationMs} is a
+ * synthetic voice reading one of them. `textSha256` is fs-api's SHA-256 of its own spoken words: the phone pairs
+ * fs-api's sentences with its own by slot, variant and mentions and plays a clip only under fs-api's hash for that
+ * sentence; it never hashes its own words.
  */
 export type { StatementAudio, StatementAudioClip, StatementAudioSentence };
 
