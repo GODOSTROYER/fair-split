@@ -1,7 +1,8 @@
 // The fs-api app factory: one Hono app (with @hono/zod-openapi's registry) wired in a fixed order.
 //
 //   request context (id, logger, deps) → security headers → errors → /healthz, /readyz → /openapi.json, /docs
-//   → /webhooks/paypal (WS-PPCORE's route) → SSE (/v1/runs|workspaces|lines/…/events) → every route folder
+//   → /webhooks/paypal (WS-PPCORE's route) → /paypal-sim (the in-process simulator's public pages, simulator mode
+//   only) → SSE (/v1/runs|workspaces|lines/…/events) → every route folder
 //   (IC-01 commands, 501 until a slice fills them in, plus the folders' extra routes) → static (/media, /app, console)
 //
 // `createApp` takes fully built deps, so the server (src/server.ts) and the test harness (src/test) build
@@ -14,6 +15,7 @@ import { onError, onNotFound } from "./middleware/errors.js";
 import { requestContext } from "./middleware/request.js";
 import { securityHeaders } from "./middleware/security.js";
 import { buildOpenApiDocument, DOCS_CSP, docsHtml, SchemaCatalog } from "./openapi.js";
+import { mountSimulatorPages } from "./paypal/pages.js";
 import { createWebhookHandler, mountPayPalWebhooks } from "./paypal/webhooks.js";
 import {
   type AnyFolderModule,
@@ -90,6 +92,7 @@ export function createApp(o: CreateAppOptions): FairSplitApp {
     app,
     o.webhookHandler ?? createWebhookHandler({ db: deps.db, rail: deps.paypal, logger: deps.logger }),
   );
+  mountSimulatorPages(app, deps.paypal.pages);
   mountSseRoutes(m);
   const registry = mountRegistry(m, o.folders ?? ROUTE_FOLDER_MODULES);
 

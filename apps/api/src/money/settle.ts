@@ -6,7 +6,9 @@
 //
 // `processWebhook` applies a stored, verified event under WS-PPCORE's contract (webhooks/apply.ts): a
 // signature-verified PAYOUTS-ITEM.SUCCEEDED applies at once (MM-1); anything else changes no state until a
-// fresh GET says what to change. Every applied event is a `webhook.applied` ledger entry (Proof plate 6).
+// fresh GET says what to change. Every applied event is a `webhook.applied` ledger entry (Proof plate 6). So is a
+// verified event that confirms the status its item already holds (`confirmsHeldStatus`), so that every status rests
+// on a verified event even when it landed first: our cancel's RETURNED, or a SUCCESS the settle GET read first.
 import {
   type PayoutBatchStatus,
   type PayoutItemStatus,
@@ -373,7 +375,15 @@ export async function processWebhook(
             payoutItemId: fresh?.payoutItemId ?? resource.payout_item_id ?? null,
             transactionStatus: resource.transaction_status ?? null,
           });
-          if (applied.applied) {
+          if (
+            applied.applied ||
+            (await confirmsHeldStatus(tx, scope, item, {
+              said: status,
+              applied,
+              eventType: eventTypeOk,
+              verified,
+            }))
+          ) {
             await proofLedger(
               tx,
               scope,
@@ -427,6 +437,49 @@ export async function processWebhook(
     }
     await ctx.complete(tx);
   });
+}
+
+/**
+ * Whether a verified item event that changed nothing confirms the status its item already holds, and so is the
+ * event that status rests on (Proof plate 6: every item status is the forward-only fold of verified
+ * `webhook.applied` entries). A status can land before PayPal's signed event for it: our cancel sets RETURNED from
+ * PayPal's answer before its signed CANCELED arrives, and the settle GET can read a SUCCESS before its SUCCEEDED is
+ * processed. The event confirms it when the item already holds the status the event names and the GET (or, for a
+ * signed SUCCEEDED applied at once, the event) said, the event is not `dev_mock`, and no verified event of the chain
+ * carries that status for the item yet. RETURNED follows our own `payout.cancel` in the chain, as plate 6 asks,
+ * because only our cancel sets it. Nothing changes and no `item.updated` is written; only the ledger entry is.
+ */
+async function confirmsHeldStatus(
+  tx: Tx,
+  scope: WorkspaceScope,
+  item: ItemRow,
+  e: {
+    /** What the fresh GET (or a signed SUCCEEDED applied at once) said. */
+    said: PayoutItemStatus;
+    applied: Awaited<ReturnType<typeof applyItem>>;
+    eventType: WebhookEventType;
+    verified: WebhookVerified;
+  },
+): Promise<boolean> {
+  const { said, applied } = e;
+  if (applied.applied || applied.reason !== "NOT_HIGHER" || e.verified === "dev_mock") return false;
+  if (said !== applied.current || itemStatusOf(e.eventType) !== said) return false;
+  const l = schema.ledgerEntries;
+  const [rests] = await tx
+    .select({ seq: l.seq })
+    .from(l)
+    .where(
+      and(
+        eq(l.workspaceId, scope.workspaceId),
+        eq(l.kind, "webhook.applied"),
+        sql`${l.payload}->>'resource' = 'payout_item'`,
+        sql`${l.payload}->>'senderItemId' = ${item.senderItemId}`,
+        sql`${l.payload}->>'status' = ${applied.current}`,
+        sql`${l.payload}->>'verified' <> 'dev_mock'`,
+      ),
+    )
+    .limit(1);
+  return rests === undefined;
 }
 
 /** The settle GET at once, keyed to the event that asked for it (its follow-ups dedupe with the regular chain). */

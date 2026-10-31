@@ -43,6 +43,7 @@ import {
   getSeason,
   getSlips,
 } from "@fairsplit/seed";
+import type { StoredHoldFacts } from "../../runs/engine.js";
 import { storedPublicKeyOf } from "../keys.js";
 
 export interface ShowcaseOptions {
@@ -255,6 +256,18 @@ export async function loadShowcase(db: Db, opts: ShowcaseOptions = {}): Promise<
 
   const holdRows = getHolds().map((h) => {
     const eh = engineHolds.find((e) => e.key === h.key);
+    // `engine_params` holds what the runs engine stores there (runs/engine.ts `StoredHoldFacts`): the hold's key,
+    // member, serials, rows and documents, with the engine's own facts under `params`.
+    const facts: StoredHoldFacts | Record<string, never> = eh
+      ? {
+          key: eh.key,
+          memberNo: eh.memberNo,
+          serials: [...eh.serials],
+          rowIds: [...eh.rowIds],
+          documentIds: [...eh.documentIds],
+          params: eh.params,
+        }
+      : {};
     return {
       workspaceId,
       runId: run.id,
@@ -263,7 +276,7 @@ export async function loadShowcase(db: Db, opts: ShowcaseOptions = {}): Promise<
       kind: h.kind,
       gate: h.gate,
       state: "RESOLVED" as const,
-      engineParams: eh?.params ?? {},
+      engineParams: facts,
       claudeLine: h.claudeLine,
       evidence: { serials: h.serials },
       raisedBy: "engine",

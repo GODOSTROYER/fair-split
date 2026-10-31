@@ -4,7 +4,7 @@ import { type ApiError, PAYOUT_ITEM_RANK, type PayoutItemStatus } from "@fairspl
 import { appendEvent, schema } from "@fairsplit/db";
 import { format, senderItemId } from "@fairsplit/domain";
 import { getFigures, getLines, getRun } from "@fairsplit/seed";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ProofMetrics } from "../../proof/metrics.js";
 import { foldProgress, PROOF_PROGRESS_EVENT, ProofProgress } from "../../proof/stream.js";
@@ -56,6 +56,35 @@ describe("GET /v1/proof/:runSlug/metrics", () => {
     });
     const text = JSON.stringify(m);
     for (const it of getRun().items) expect(text).not.toContain(it.receiver);
+  });
+
+  it("counts the duplicate once from the engine's facts, stored under params or flat", async () => {
+    const [dup] = await t.deps.db
+      .select({ id: schema.holds.id, engineParams: schema.holds.engineParams })
+      .from(schema.holds)
+      .where(and(eq(schema.holds.runId, w.runId), eq(schema.holds.kind, "DUPLICATE_SLIP")));
+    const stored = must(dup).engineParams as { params?: { movedCents?: number } };
+    // the runs engine's shape (runs/engine.ts StoredHoldFacts): the engine's facts sit under `params`
+    expect(stored.params?.movedCents).toBe(getFigures().redirectedDuplicateCents);
+    const kept = async () =>
+      (await t.json<ProofMetrics>(`/v1/proof/${w.runSlug}/metrics`)).body.holds.keptForMembers;
+    expect(await kept()).toEqual({
+      cents: getFigures().redirectedCents,
+      display: format.money(getFigures().redirectedCents),
+    });
+    // a row written flat (the facts at the top level of engine_params) reads the same
+    await t.deps.db
+      .update(schema.holds)
+      .set({ engineParams: stored.params })
+      .where(eq(schema.holds.id, must(dup).id));
+    try {
+      expect((await kept()).cents).toBe(getFigures().redirectedCents);
+    } finally {
+      await t.deps.db
+        .update(schema.holds)
+        .set({ engineParams: stored })
+        .where(eq(schema.holds.id, must(dup).id));
+    }
   });
 
   it("cash handed over at the bodega moves members from due to attested", async () => {
