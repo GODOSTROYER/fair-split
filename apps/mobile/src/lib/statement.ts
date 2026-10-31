@@ -10,7 +10,7 @@
  *   voice reads it, labelled; Filipino clips stand in for Cebuano ones when spike S10 failed ("Audio sa Filipino;
  *   teksto sa Cebuano"). The clips are IC-11's (ADR-0011): fs-api's `GET /v1/media/audio/:lineId` answer goes into
  *   the statement with `withServedAudio`, and each sentence finds fs-api's by slot, the form of the slot (its
- *   template variant: the PayPal or the cash PAY, the product or the seeded AI note) and what it names (§6). These
+ *   template variant: fs-api's PAY form (`payForm`), the product or the seeded AI note) and what it names (§6). These
  *   sentences are not fs-api's spoken words ("0 4 0 3" where fs-api says "zero four zero three"), so the phone never
  *   hashes them to check a clip;
  * - the slip chips, which rise when the voice names a slip (`MentionCue`: a character index for the phone's voice,
@@ -24,6 +24,7 @@ import type {
 } from "../_shims/api-client";
 import {
   type AmountState,
+  AUDIO_CLIP_URL_RE,
   amountStateOf,
   ITEM_STATUS_RANK,
   type Lang,
@@ -128,6 +129,44 @@ export function spokenSerial(serial: string): string {
 /** Which PAY sentence applies: a line that moved to the bodega reads the cash variant. */
 export type PayRail = "paypal" | "cash";
 
+/** The line's own rail, when nothing (the capsule) has moved it. */
+const railOf = (dto: StatementDTO): PayRail => (dto.rail === "CASH" ? "cash" : "paypal");
+
+/**
+ * The forms of PAY fs-api renders (`PAY.{form}`: apps/api statements/plan.ts, templates.ts): `paypal`, or `paypal_usd`
+ * when the run has no rate; `cash` once the clerk recorded the cash received (it names the receipt's day),
+ * `cash_nodate` until then, or `cash_usd` when the run has no rate; `checking` while the line is checked; `excluded`.
+ */
+export type PayForm = "paypal" | "paypal_usd" | "cash" | "cash_nodate" | "cash_usd" | "checking" | "excluded";
+
+/** Each rail's forms, in the order the phone falls back to when its templates lack the form fs-api renders. */
+const RAIL_FORMS: Readonly<Record<PayRail, readonly PayForm[]>> = {
+  paypal: ["paypal", "paypal_usd"],
+  cash: ["cash", "cash_nodate", "cash_usd"],
+};
+
+/** Lines fs-api still checks (its plan: no amount yet, PAY.checking). */
+const CHECKING_LINES: readonly LineState[] = ["COMPUTED", "READY", "HELD"];
+
+/** When the clerk recorded the cash handed over (the receipt), or null: the day fs-api's PAY.cash names. */
+export function cashReceivedAt(dto: StatementDTO): string | null {
+  return dto.history.filter((h) => h.kind === "received").at(-1)?.at ?? null;
+}
+
+/**
+ * The PAY form fs-api renders for this line, chosen as its statement plan chooses it (ADR-0011 §6): `checking` or
+ * `excluded` by the line's state; otherwise within the rail's forms, by whether the run records a rate (`paypal` or
+ * `paypal_usd`; `cash_usd` without one) and, at the bodega, whether a cash receipt exists (`cash`, dated by it) or not
+ * yet (`cash_nodate`). `rail` is the rail the phone shows (the capsule can move a PayPal line to the bodega).
+ */
+export function payForm(dto: StatementDTO, rail: PayRail = railOf(dto)): PayForm {
+  if (CHECKING_LINES.includes(dto.lineState)) return "checking";
+  if (dto.lineState === "EXCLUDED") return "excluded";
+  const rate = Number(dto.fx.phpPerUsd) > 0;
+  if (rail === "cash") return !rate ? "cash_usd" : cashReceivedAt(dto) ? "cash" : "cash_nodate";
+  return rate ? "paypal" : "paypal_usd";
+}
+
 /**
  * Engine values for one template, in the member's language. Values that depend on the sentence (which deduction,
  * which credit) come from its `ref`.
@@ -136,7 +175,7 @@ export function statementValues(
   dto: StatementDTO,
   lang: Lang,
   s?: Pick<StatementTemplate, "slot" | "ref">,
-  rail: PayRail = dto.rail === "CASH" ? "cash" : "paypal",
+  rail: PayRail = railOf(dto),
 ): Record<string, PlaceholderValue> {
   const a = dto.amounts;
   const serials = dto.slips.map((x) => x.serial);
@@ -168,7 +207,9 @@ export function statementValues(
     },
     TREASURER: { display: dto.treasurer.first },
   };
-  if (dto.cashDay) values.CASH_DATE = { display: format.date(dto.cashDay, lang) };
+  // the day the clerk recorded the cash received (fs-api's PAY.cash says that day), else the run's cash day
+  const cashDate = cashReceivedAt(dto) ?? dto.cashDay;
+  if (cashDate) values.CASH_DATE = { display: format.date(cashDate, lang) };
   if (deduction) {
     values.DEDUCTION_USD = usd(deduction.cents);
     values.RULE_LABEL = { display: deduction.label };
@@ -186,14 +227,31 @@ export function statementValues(
   return values;
 }
 
-/** Templates that apply to this line: the right PAY variant, and one DEDUCTION or CREDIT per item it names. */
+/**
+ * The PAY template the phone shows: the one of the form fs-api renders (`payForm`), else, when the phone's templates
+ * lack that form, the first it has of the rail's forms. Such a stand-in is read by the phone's own voice and never
+ * paired with a clip (`ownKey`): fs-api spoke another form's words.
+ */
+function payTemplate(
+  templates: readonly StatementTemplate[],
+  form: PayForm,
+  rail: PayRail,
+): StatementTemplate | undefined {
+  const pays = templates.filter((t) => t.slot === "PAY");
+  const of = (f: string) => pays.find((t) => templateVariant(t) === f);
+  return of(form) ?? RAIL_FORMS[rail].map(of).find((t) => t !== undefined);
+}
+
+/** Templates that apply to this line: its PAY form's, and one DEDUCTION or CREDIT per item it names. */
 export function applicableTemplates(
   dto: StatementDTO,
   lang: Lang,
   rail: PayRail,
 ): readonly StatementTemplate[] {
-  return (dto.sentences[lang] ?? []).filter((s) => {
-    if (s.slot === "PAY") return templateVariant(s) === rail;
+  const all = dto.sentences[lang] ?? [];
+  const pay = payTemplate(all, payForm(dto, rail), rail);
+  return all.filter((s) => {
+    if (s.slot === "PAY") return s === pay;
     if (s.slot === "DEDUCTION") return dto.amounts.deductions.some((d) => d.ruleId === s.ref);
     if (s.slot === "CREDIT") return dto.amounts.credits.some((c) => c.slip === s.ref);
     return true;
@@ -202,7 +260,7 @@ export function applicableTemplates(
 
 /** The member's sentences, filled; rejected ones are dropped and reported so the server can regenerate them. */
 export function statementSentences(dto: StatementDTO, lang: Lang, rail?: PayRail) {
-  const r: PayRail = rail ?? (dto.rail === "CASH" ? "cash" : "paypal");
+  const r: PayRail = rail ?? railOf(dto);
   const filled = applicableTemplates(dto, lang, r).map((s) =>
     fillSentence(s, statementValues(dto, lang, s, r)),
   );
@@ -321,8 +379,8 @@ function cuesFor(spoken: string, mentions: readonly string[], clip: AudioClip | 
 const ABOUT: Partial<Record<StatementSlot, "rule" | "slip">> = { DEDUCTION: "rule", CREDIT: "slip" };
 
 /**
- * Which form of its slot a template is, as fs-api names it (`{slot}.{variant}`): PAY's rail (`paypal` when the
- * template names none, as `applicableTemplates` reads it), otherwise `default` unless the template names one.
+ * Which form of its slot a template is, as fs-api names it (`{slot}.{variant}`): for PAY one of fs-api's forms
+ * (`PayForm`; `paypal` when the template names none), otherwise `default` unless the template names one.
  */
 export function templateVariant(t: Pick<StatementTemplate, "slot" | "variant">): string {
   return t.variant ?? (t.slot === "PAY" ? "paypal" : "default");
@@ -330,13 +388,15 @@ export function templateVariant(t: Pick<StatementTemplate, "slot" | "variant">):
 
 /**
  * Which sentence this is, whoever rendered it and in whichever language (ADR-0011 §6): its slot and the form of the
- * slot (`PAY.paypal` is not `PAY.cash`, the product AI note is not T1's seeded one), plus the rule or slip it is about
- * for a deduction or a credit. Never its words. Null when the phone cannot name it.
+ * slot (`PAY.cash_nodate` is not `PAY.cash`, the product AI note is not T1's seeded one), plus the rule or slip it is
+ * about for a deduction or a credit. Never its words. Null when the phone cannot name it, and for a PAY template that
+ * only stands in for the form fs-api renders for this line (`pay`, from `payForm`): the phone's voice reads that one.
  */
-function ownKey(dto: StatementDTO, lang: Lang, s: StatementSentence): string | null {
+function ownKey(dto: StatementDTO, lang: Lang, s: StatementSentence, pay: PayForm): string | null {
   if (!s.slot) return null;
   const template = dto.sentences[lang]?.find((t) => t.id === s.id);
   if (!template) return null;
+  if (s.slot === "PAY" && templateVariant(template) !== pay) return null;
   const form = `${s.slot}.${templateVariant(template)}`;
   const kind = ABOUT[s.slot];
   if (!kind) return form;
@@ -391,10 +451,12 @@ function servedClip(
 /**
  * What reads each sentence. A clip is used only when fs-api served it for this very sentence: paired by slot, the
  * form of the slot and what the sentence names, recorded for fs-api's words for it (its `textSha256`), so changed
- * words never play stale audio (fs-api then serves no clip). The form is the one the phone shows now: when `rail`
- * moves the line to the bodega after fs-api spoke its PayPal PAY, the cash sentence has no clip until fs-api's audio
- * is read again. A clip the phone cannot reach (offline, not cached) falls back to the phone's voice. For Cebuano
- * without Cebuano clips, Filipino clips of the same template stand in.
+ * words never play stale audio (fs-api then serves no clip). PAY's form is the one fs-api renders for the line as
+ * the phone holds it (`payForm`: `PAY.cash_nodate` at the bodega until a receipt, then the dated `PAY.cash`); when
+ * `rail` moves the line to the bodega after fs-api spoke its PayPal PAY, the cash sentence has no clip until the
+ * statement and its audio are read again. A PAY template that only stands in for a form the phone has no template of
+ * is read by the phone's voice. A clip the phone cannot reach (offline, not cached) falls back to the phone's voice.
+ * For Cebuano without Cebuano clips, Filipino clips of the same template stand in.
  */
 export function audioPlan(
   dto: StatementDTO,
@@ -414,8 +476,9 @@ export function audioPlan(
   const fil = filStandIn
     ? new Map(statementSentences(dto, "fil", opts.rail).sentences.map((s) => [s.id, s]))
     : null;
+  const pay = payForm(dto, opts.rail ?? railOf(dto));
   const paired = pairServed(
-    sentences.map((s) => ownKey(dto, lang, s)),
+    sentences.map((s) => ownKey(dto, lang, s, pay)),
     dto.audio[filStandIn ? "fil" : lang],
   );
   const steps = sentences.map((s, index): AudioStep => {
@@ -466,15 +529,20 @@ export function audioPlan(
  * in reading order, becomes `dto.audio[lang]`, its clip's same-origin URL resolved against `origin` (the native app's
  * API origin; the web frames are served by fs-api itself). A sentence without a clip is read by the phone's voice.
  * `audioPlan` pairs these sentences with the phone's own and plays a clip only under fs-api's hash for its sentence.
- * An answer for another line changes nothing. Read the answer again whenever the statement is read again and
- * whenever the pay kind or the capsule changes (ADR-0011, K1c), so the clips follow the sentences on screen.
+ * A clip whose URL is not a same-origin IC-11 clip path of this member and language (the contract's
+ * `AUDIO_CLIP_URL_RE`) is dropped: its sentence is read by the phone's voice. An answer for another line changes
+ * nothing. The statement and its audio are read together, never the audio alone (ADR-0011 §6, K1c): the facts every
+ * clipped sentence shows come from the same fs-api read as the clip that says them.
  */
 export function withServedAudio(dto: StatementDTO, served: StatementAudio, origin = ""): StatementDTO {
   if (served.lineId.toLowerCase() !== dto.lineId.toLowerCase()) return dto;
   const base = origin.replace(/\/+$/, "");
-  const sentences = served.sentences.map((s) =>
-    s.clip?.url.startsWith("/") ? { ...s, clip: { ...s.clip, url: `${base}${s.clip.url}` } } : s,
-  );
+  const folder = `/media/audio/${served.memberNo}/${served.lang}/`;
+  const sentences = served.sentences.map((s) => {
+    if (!s.clip) return s;
+    if (!AUDIO_CLIP_URL_RE.test(s.clip.url) || !s.clip.url.startsWith(folder)) return { ...s, clip: null };
+    return { ...s, clip: { ...s.clip, url: `${base}${s.clip.url}` } };
+  });
   return { ...dto, audio: { ...dto.audio, [served.lang]: sentences } };
 }
 

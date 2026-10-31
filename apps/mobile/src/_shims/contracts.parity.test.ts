@@ -15,6 +15,7 @@ import {
   APPROVAL_PAYLOAD_KEYS,
   APPROVAL_ROLES,
   type ApiErrorCode,
+  AUDIO_CLIP_URL_RE,
   DEVICE_KEY_KINDS,
   deviceKeyIdFitsKind,
   HOLD_KINDS,
@@ -143,6 +144,23 @@ describe("the shim's types are @fairsplit/contracts' types", () => {
     expectTypeOf<Parameters<typeof audioPlan>[0]>().toEqualTypeOf<StatementDTO>();
     expectTypeOf<StatementSlot>().toEqualTypeOf<real.AudioSlot>();
     expect([...STATEMENT_SLOTS]).toEqual([...real.AUDIO_SLOTS]);
+  });
+
+  it("statement audio: the phone checks a clip URL with the contract's own pattern (ADR-0011 §1)", () => {
+    expect(AUDIO_CLIP_URL_RE.source).toBe(real.AUDIO_CLIP_URL_RE.source);
+    expect(AUDIO_CLIP_URL_RE.flags).toBe(real.AUDIO_CLIP_URL_RE.flags);
+    for (const url of [
+      "/media/audio/M-014/ceb/s01-GREETING-596b9e42811d.m4a",
+      "/media/audio/M-031/en/s07-PAY-0a1b2c3d4e5f-t2.m4a",
+      "https://evil.example/a.m4a",
+      "//evil.example/media/audio/M-014/ceb/s1.m4a",
+      "/media/../../etc/x.m4a",
+      "/media/audio/drafts/M-014/ceb/s1.m4a",
+      "/media/audio/M-014/ceb/s1.m4a?x=1",
+      "/media/audio/M-014/ceb/s1.M4A",
+    ]) {
+      expect(AUDIO_CLIP_URL_RE.test(url), url).toBe(real.AUDIO_CLIP_URL_RE.test(url));
+    }
   });
 });
 

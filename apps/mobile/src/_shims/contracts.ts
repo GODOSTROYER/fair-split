@@ -463,7 +463,7 @@ export function amountStateOf(line: LineState, run: { approved: boolean }): Amou
 
 /**
  * Statement slots in reading order (approved plan "AI system: Statements"). DEDUCTION repeats once per ruled
- * deduction and CREDIT appears at most once; PAY has a PayPal and a cash variant.
+ * deduction and CREDIT appears at most once; PAY takes one of fs-api's forms (`payForm` in lib/statement.ts).
  */
 export const STATEMENT_SLOTS = [
   "GREETING",
@@ -480,6 +480,13 @@ export const STATEMENT_SLOTS = [
 export type StatementSlot = (typeof STATEMENT_SLOTS)[number];
 
 /**
+ * IC-11's only valid clip URL (ADR-0011 §1): a same-origin `/media/audio/{memberNo}/{lang}/{name}.m4a`. A copy of
+ * `@fairsplit/contracts`' `AUDIO_CLIP_URL_RE` (the parity test holds it to the package's), because the app imports the
+ * contract's types only: `withServedAudio` drops a served clip whose URL fails it.
+ */
+export const AUDIO_CLIP_URL_RE = /^\/media\/audio\/M-\d{3}\/(?:ceb|fil|en)\/[A-Za-z0-9_-]{1,64}\.m4a$/;
+
+/**
  * One sentence template: words and `{{PLACEHOLDERS}}` only, never a digit (I1). `ref` names the deduction rule
  * (`R1`) or the slip a DEDUCTION or CREDIT sentence is about.
  */
@@ -488,8 +495,9 @@ export interface StatementTemplate {
   slot: StatementSlot;
   /**
    * Which form of its slot this is, named as fs-api names it (its template key is `{slot}.{variant}`), so Paminawa
-   * plays only fs-api's clip of this very form (ADR-0011 §6). PAY's variant is its rail (`paypal`, the default, or
-   * `cash`); any other slot's is `default` unless named (`noname`, `written`, T1's `seeded` AI note).
+   * plays only fs-api's clip of this very form (ADR-0011 §6). PAY's forms are fs-api's seven: `paypal` (the default
+   * when none is named), `paypal_usd`, `cash` (dated by the receipt), `cash_nodate`, `cash_usd`, `checking` and
+   * `excluded`; any other slot's is `default` unless named (`noname`, `written`, T1's `seeded` AI note).
    */
   variant?: string;
   ref?: string;
