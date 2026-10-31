@@ -1,0 +1,85 @@
+# E1: the e2e suite (e2e/, Playwright, Chromium only) on Ubuntu, on pushes to main and by hand. It runs apart from
+# ci.yml because it boots a whole stack (embedded Postgres, fs-api on the in-process PayPal simulator, the console
+# and the /app export served by fs-api) and takes minutes the 2,000 free Actions minutes have to cover (replan,
+# operating rules). Keyless: no secret is read; PayPal is the simulator (ADR-0002, ADR-0010) and the reading is the
+# seed's labelled stand-in. Every action is pinned by full commit SHA, the same pins as ci.yml (docs/versions.md).
+name: e2e
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "e2e/**"
+      - "apps/**"
+      - "packages/**"
+      - "media/public/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.19.0"
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  TURBO_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+
+jobs:
+  e2e:
+    name: e2e (Playwright, Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 (2026-07-14)
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Enable pnpm through corepack (version from package.json packageManager)
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 (2026-06-26)
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-node${{ env.NODE_VERSION }}-
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # On the runner only: Playwright's Chromium build for @playwright/test 1.64.1 and its system libraries.
+      # Local runs use the build already installed and never download one.
+      - name: Install Chromium for Playwright
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Build the console and the /app export
+        run: pnpm exec turbo run build --filter=@fairsplit/console --filter=@fairsplit/mobile
+
+      - name: e2e (the stack is started and torn down by the suite's global setup)
+        env:
+          E2E_SKIP_BUILD: "1"
+        run: pnpm e2e
