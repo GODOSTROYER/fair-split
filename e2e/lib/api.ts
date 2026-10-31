@@ -66,6 +66,63 @@ export class Api {
   }
 }
 
+export interface Attempt {
+  answer: Answer;
+  /** Client clock, ms since the epoch: when the request was sent and when its answer arrived. */
+  sentAt: number;
+  answeredAt: number;
+}
+
+export interface Paced {
+  /** Every answer, first to last. */
+  attempts: Attempt[];
+  /** The last answer. */
+  final: Answer;
+  /** The queued step ran on its own (the outbox retries it when its wait ends) before it was pressed again. */
+  ranFromQueue: boolean;
+}
+
+/** For a 429 QUEUED answer, how long it asks the caller to wait (retryAfterMs, else Retry-After); otherwise null. */
+export function queuedRetry(a: Answer): number | null {
+  const b = a.json as { code?: string; retryAfterMs?: number } | null;
+  if (a.status !== 429 || b?.code !== "QUEUED") return null;
+  if (typeof b.retryAfterMs === "number" && b.retryAfterMs > 0) return b.retryAfterMs;
+  const header = Number(a.headers.get("retry-after"));
+  return Number.isFinite(header) && header > 0 ? header * 1000 : 1_000;
+}
+
+/** Past the wait a QUEUED answer names, so the step's own retry time has come when the press asks again. */
+const QUEUED_SLACK_MS = 200;
+
+/**
+ * A press that honours PayPal's pacing. A 429 QUEUED answer means the step is written and waits its turn (fs-api's
+ * limiter window or the live lane): nothing was sent, and the answer says when to ask again. The press waits that
+ * long, as the stage's "You're next, about N s" does. Then `ran()` says whether the outbox already ran the queued step
+ * (it retries it when that wait ends); if not, the press asks again. A 409 to a repeat press is the same race: the
+ * step ran between `ran()` and the press. Gives up after `maxMs` with the last answer.
+ */
+export async function honourQueued(
+  press: () => Promise<Answer>,
+  ran: () => Promise<boolean>,
+  maxMs: number,
+): Promise<Paced> {
+  const until = Date.now() + maxMs;
+  const attempts: Attempt[] = [];
+  for (;;) {
+    const sentAt = Date.now();
+    const answer = await press();
+    attempts.push({ answer, sentAt, answeredAt: Date.now() });
+    const wait = queuedRetry(answer);
+    if (wait === null) {
+      const raced = attempts.length > 1 && answer.status === 409 && (await ran());
+      return { attempts, final: answer, ranFromQueue: raced };
+    }
+    if (Date.now() + wait > until) return { attempts, final: answer, ranFromQueue: false };
+    await sleep(wait + QUEUED_SLACK_MS);
+    if (await ran()) return { attempts, final: answer, ranFromQueue: true };
+  }
+}
+
 /** The answer's JSON as T, or a failure that names the request and shows the start of the body. */
 export function body<T>(a: Answer, what: string): T {
   if (a.json === null) throw new Error(`${what}: ${a.status} with no JSON body: ${a.text.slice(0, 200)}`);

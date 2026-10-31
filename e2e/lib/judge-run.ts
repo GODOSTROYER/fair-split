@@ -7,14 +7,20 @@ import {
   Api,
   chairFrame,
   firstPress,
+  honourQueued,
   type JudgeSession,
+  type Paced,
+  queuedRetry,
   type RunEvent,
+  type RunProbe,
   registerSigner,
   type Signer,
   sign,
   sleep,
   waitForRun,
 } from "./api.js";
+import { expect } from "./fixtures.js";
+import { RUN_LIVE_CALLS, roomFor, type WindowReading } from "./paypal-window.js";
 
 export interface Arrival extends RunEvent {
   /** Client clock, ms since the epoch, when the event arrived on the stream. */
@@ -166,19 +172,58 @@ export async function bothKeys(api: Api, s: JudgeSession, o: Officers): Promise<
 /** A run state at or past `state` on the way to settled (or the I4 send-back's return to review). */
 export const POSTED_OR_LATER = ["POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED"];
 
-/** The press, the invoice, Mark paid and the reading, to IN_REVIEW. */
+/**
+ * A press PayPal paced was honoured: every answer but the last was QUEUED, named its wait (retryAfterMs and
+ * Retry-After), and the next request waited at least that long. The last answer is not QUEUED, unless the queued step
+ * ran on its own (then it is QUEUED, or 409 because the run had already moved on).
+ */
+export function expectHonoured(p: Paced): void {
+  const last = p.attempts.length - 1;
+  p.attempts.forEach((a, i) => {
+    const wait = queuedRetry(a.answer);
+    const said = `attempt ${i + 1} of ${p.attempts.length} answered ${a.answer.status} ${a.answer.text.slice(0, 160)}`;
+    if (i === last) {
+      if (p.ranFromQueue) expect(wait !== null || a.answer.status === 409, said).toBe(true);
+      else expect(wait, said).toBeNull();
+      return;
+    }
+    expect(wait, said).not.toBeNull();
+    expect(a.answer.headers.get("retry-after"), "QUEUED carries Retry-After").not.toBeNull();
+    const next = p.attempts[i + 1];
+    if (next && wait !== null) expect(next.sentAt - a.answeredAt).toBeGreaterThanOrEqual(wait);
+  });
+}
+
+/** Mark paid, honouring PayPal's pacing: the queued recordPayment step has run once the run is past INVOICED. */
+export function markPaid(api: Api, s: JudgeSession): Promise<Paced> {
+  return honourQueued(
+    () => api.post(`/v1/runs/${s.runSlug}/mark-paid`, {}, s.asTreasurer),
+    async () => {
+      const r = await api.get(`/v1/runs/${s.runSlug}`, s.asTreasurer);
+      return r.status === 200 && !["DRAFT", "QUOTED", "INVOICED"].includes((r.json as RunProbe).run.state);
+    },
+    120_000,
+  );
+}
+
+/**
+ * The press, the invoice, Mark paid and the reading, to IN_REVIEW. The press first waits for room in PayPal's window
+ * for the whole run (lib/paypal-window.ts), so an earlier run's calls never pace this one.
+ */
 export async function pressToReview(api: Api) {
+  const room = await roomFor(RUN_LIVE_CALLS);
+  const window: WindowReading | null = room?.after ?? null;
   const s = await firstPress(api);
   const events = collectRunEvents(api, s);
   const invoiced = await waitForRun(api, s, (r) => r.run.state === "INVOICED", 60_000);
-  const markPaid = await api.post(`/v1/runs/${s.runSlug}/mark-paid`, {}, s.asTreasurer);
+  const paid = await markPaid(api, s);
   const reviewed = await waitForRun(
     api,
     s,
     (r) => !["INVOICED", "FUNDED", "EXTRACTING", "COMPUTED"].includes(r.run.state),
     120_000,
   );
-  return { s, events, invoiced, markPaid, reviewed };
+  return { s, events, room, window, invoiced, paid, reviewed };
 }
 
 /** A whole run without the tamper, to SETTLED with Rhea paid in cash (for specs that need a settled run). */

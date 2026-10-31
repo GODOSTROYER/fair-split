@@ -45,6 +45,11 @@ export interface StackOptions {
 
 export interface Stack {
   origin: string;
+  /**
+   * The stack's own database (the local cluster's admin login on fs_e2e). The specs read PayPal's window from it
+   * (lib/paypal-window.ts); it is passed to them in the environment, never printed.
+   */
+  databaseUrl: string;
   /** Where the console fs-api serves came from (apps/console/dist or E2E_CONSOLE_DIR). */
   consoleDir: string;
   pid: number;
@@ -255,6 +260,7 @@ export async function startStack(o: StackOptions = {}): Promise<Stack> {
     log(`fs-api up at ${origin} (pid ${child.pid}), console from ${consoleDir}`);
     return {
       origin,
+      databaseUrl: url,
       consoleDir,
       pid: child.pid ?? 0,
       output: () => output.join(""),

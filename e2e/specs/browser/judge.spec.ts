@@ -5,6 +5,7 @@
 import type { Page, Request, Response } from "@playwright/test";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, test } from "../../lib/fixtures.js";
+import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
 
 const isV1 = (r: Request) => new URL(r.url()).pathname.startsWith("/v1/");
 const firstPress = (page: Page) => page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
@@ -67,6 +68,7 @@ test("/judge's first view carries noindex and calls no /v1 before the first pres
 
 test("the first press starts a judge session on the simulated rail and funds the run", async ({ page }) => {
   test.fixme(!consoleHas("judge"), missingRoute("judge"));
+  await roomFor(PRESS_LIVE_CALLS);
   await page.goto("/judge");
   const started = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
@@ -82,6 +84,8 @@ test("the first press starts a judge session on the simulated rail and funds the
 
 test("Reset brings the first view back within 10 s and a second press works", async ({ page }) => {
   test.fixme(!consoleHas("judge"), missingRoute("judge"));
+  // room in PayPal's window for both presses to FUNDED, so nothing waits between Reset and the second press
+  await roomFor(2 * PRESS_LIVE_CALLS);
   await page.goto("/judge");
   await firstPress(page).click();
   await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({

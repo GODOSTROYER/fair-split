@@ -3,18 +3,21 @@
 // specs/browser). Keyless and on the in-process simulator: the reading is the seed's labelled stand-in, every
 // PayPal step is "Simulated PayPal sandbox", and nothing may claim a live Claude reading.
 //
-// Asserted, in order: the first press and its rail; INVOICED, Mark paid and the reading to IN_REVIEW with 4 open /
-// 3 blocking holds and slip 0462's by-hand field; the review; the I4 refusal (change_payout armed before key 2:
-// both keys in, the POST re-hashes the batch, refuses, sends nothing and voids both approvals); both keys again,
-// the POST, 7 PayPal and 57 cash lines (Rhea UNCLAIMED → cash); the phases in order; the simulated label on every
-// PayPal-derived value; Proof (64 of 64 explained, US$21.14 kept, chain, checkpoint and all six plates); Reset
-// within 10 s and a second press that works.
+// Asserted, in order: the first press and its rail, with room in PayPal's window for the run (the timing spec's run
+// just before leaves it busy, so the press waits for its calls to age out); INVOICED, Mark paid (any QUEUED answer
+// honoured) and the reading to IN_REVIEW with 4 open / 3 blocking holds and slip 0462's by-hand field; the review; the
+// I4 refusal (change_payout armed before key 2: both keys in, the POST re-hashes the batch, refuses, sends nothing and
+// voids both approvals); both keys again, the POST, 7 PayPal and 57 cash lines (Rhea UNCLAIMED → cash); the phases in
+// order; PayPal's window never full; the simulated label on every PayPal-derived value; Proof (64 of 64 explained,
+// US$21.14 kept, chain, checkpoint and all six plates); Reset within 10 s and a second press that works.
+import { LIMITER_DEFAULTS } from "@fairsplit/db";
 import { getSnapshot } from "@fairsplit/seed";
 import { Api, type JudgeSession, type RunProbe, waitForRun } from "../../lib/api.js";
 import { expect, test } from "../../lib/fixtures.js";
 import {
   bothKeys,
   type Collector,
+  expectHonoured,
   type Officers,
   officers,
   POSTED_OR_LATER,
@@ -22,6 +25,15 @@ import {
   runState,
   workTheReview,
 } from "../../lib/judge-run.js";
+import {
+  describePeak,
+  describeWindow,
+  liveRoom,
+  PRESS_LIVE_CALLS,
+  peakWindow,
+  RUN_LIVE_CALLS,
+  roomFor,
+} from "../../lib/paypal-window.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -83,10 +95,23 @@ test("the first press starts a judge run on the simulated rail", async ({ origin
     runSlug: s.runSlug,
     rail: { mode: "live", reason: null, rail: "simulated", label: SIMULATED_LABEL },
   });
+  // PayPal's window had room for this whole run when the judge pressed (the timing spec's run left it just before)
+  if (start.window) {
+    expect(start.window.live, describeWindow(start.window)).toBeLessThanOrEqual(liveRoom(RUN_LIVE_CALLS));
+    expect(start.window.circuitOpen).toBe(false);
+  }
   expect(start.invoiced?.run.state).toBe("INVOICED");
   expect(start.invoiced?.invoice).toMatchObject({ provenance: "simulated_rail" });
-  expect(start.markPaid.status).toBe(200);
-  expect(start.markPaid.json).toMatchObject({ provenance: "simulated_rail" });
+  // Mark paid: any QUEUED answer (PayPal's sandbox pacing us) named its wait and was honoured (specs/api/paypal-pacing)
+  expectHonoured(start.paid);
+  test.info().annotations.push({
+    type: "mark-paid",
+    description: start.paid.attempts.map((a) => a.answer.status).join(" → "),
+  });
+  if (!start.paid.ranFromQueue) {
+    expect(start.paid.final.status).toBe(200);
+    expect(start.paid.final.json).toMatchObject({ provenance: "simulated_rail" });
+  }
 });
 
 test("the reading reaches IN_REVIEW with 4 open / 3 blocking holds and slip 0462 by hand", async () => {
@@ -204,6 +229,15 @@ test("the run's phases arrive in order", async () => {
   expect(phases).toEqual(PHASES);
 });
 
+test("PayPal's window never filled while the run went from the first press to settled", async () => {
+  // fs-api's limiter: 40 calls in any 60 s; a full window paces a live step (QUEUED). Read from the stack's database.
+  const peak = await peakWindow(new Date(s.pressedAt));
+  test.skip(peak === null, "PayPal's window is read from the stack's own database (none with E2E_BASE_URL)");
+  if (!peak) return;
+  test.info().annotations.push({ type: "paypal-window", description: `peak ${describePeak(peak)}` });
+  expect(peak.peak, describePeak(peak)).toBeLessThan(LIMITER_DEFAULTS.perWindow);
+});
+
 test("every PayPal-derived value is labelled simulated (X-FS-Rail and the DTO labels)", async () => {
   // every /v1 answer this run had
   const v1 = api.exchanges.filter((x) => x.path.startsWith("/v1/"));
@@ -316,6 +350,8 @@ test.fixme("approvals signed with a browser demo key read 'Demo key (this browse
 
 test("Reset ends the session within 10 s and a second press works", async () => {
   await events.stop();
+  // room in PayPal's window for the second press to INVOICED, before the clock starts (lib/paypal-window.ts)
+  await roomFor(PRESS_LIVE_CALLS);
   const pressed = Date.now();
   const reset = await api.post(`/v1/judge/sessions/${s.sessionId}/reset`, {}, s.asJudge);
   const resetMs = Date.now() - pressed;
