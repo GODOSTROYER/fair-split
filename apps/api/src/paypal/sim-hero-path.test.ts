@@ -243,6 +243,16 @@ describe("the hero path on the in-process simulator rail (no msw)", () => {
     expect(["verified", "sample"]).toContain(v.status);
   });
 
+  it("IC-03: Proof's 'kept for members' is the duplicate slip counted once plus the multa returned as credit", async () => {
+    const r = await h.t.json<{ holds: { keptForMembers: { cents: number; display: string } } }>(
+      `/v1/proof/${h.world.runSlug}/metrics`,
+    );
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    // the live engine stores a hold's facts under `engine_params.params` (runs/engine.ts StoredHoldFacts)
+    expect(r.body.holds.keptForMembers.cents).toBe(figures.redirectedCents);
+    expect(figures.redirectedCents).toBe(2_114);
+  });
+
   it("inv.i7/i8: the ledger chain verifies; every event is an IC-01 RunEvent; PayPal-derived ones say simulated_rail", async () => {
     expect((await verifyChain(h.t.deps.db, h.world.workspaceId)).ok).toBe(true);
     const events = await h.t.deps.db
