@@ -275,7 +275,7 @@ export interface Allowance {
    * The work package whose merge removes the need. Once it lands the sentence no longer fires, the allowance
    * goes stale and the lint fails until the entry is deleted. Absent: a lasting exception, still stale-checked.
    */
-  readonly pending?: "C5a" | "T1";
+  readonly pending?: "C5a";
 }
 
 /**
@@ -300,17 +300,6 @@ export const EXCEPTIONS: readonly Allowance[] = [
     file: "apps/console/src/features/ratecard/copy.ts",
     phrase: "₱150",
     why: "MM-4's sample deduction, typed into the bolted rate card so the server refuses it; never computed or paid",
-  },
-];
-
-/** T1 (wp/t1-ai-note-seeded) adds the seeded AI_NOTE beside the product note in apps/api/src/statements. */
-const PENDING_T1: readonly Allowance[] = [
-  {
-    rule: "read-twice-by-ai-seeded",
-    file: "apps/api/src/statements/templates.ts",
-    phrase: "read twice by AI",
-    why: "T1 adds the seeded variant of each AI_NOTE form beside the product note",
-    pending: "T1",
   },
 ];
 
@@ -395,10 +384,9 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
 /** The file whose arrival means ws/console has merged: from then on every console allowance must match. */
 export const CONSOLE_MERGED_SENTINEL = "apps/console/src/chrome/copy.ts";
 
-/** Every allowance: the lasting exceptions, then the entries pending T1 and C5a. */
+/** Every allowance: the lasting exceptions, then the entries pending C5a. */
 export const ALLOWANCES: readonly Allowance[] = [
   ...EXCEPTIONS,
-  ...PENDING_T1,
   ...Object.entries(PENDING_C5A).flatMap(([file, entries]) =>
     entries.map(([rule, phrase]) => ({
       rule,
