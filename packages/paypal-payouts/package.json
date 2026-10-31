@@ -12,7 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "spike:s2-payouts": "tsx spikes/s2-payout-read-schemas.ts",
     "gen:read-schemas": "tsx scripts/gen-read-schemas.ts"
   },
