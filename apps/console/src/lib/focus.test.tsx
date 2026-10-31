@@ -2,13 +2,17 @@
 // returnFocus: hands focus back when it is lost, to the opener or its successor by stable key (a redrawn row),
 // else the screen's main control, and #fsc-main only when the screen has no control; never to <body>, never to
 // anything inside what is going away; and a target outside the viewport or its scrollport is scrolled into view
-// the least it can, at once. useFocusAfterRemoval: a control the answer removed hands focus on in that commit.
-// focusInto: focus moves into a container that has just gone live (the phone raised over the scrim), and keeps
-// trying each frame while a browser refuses it (a control it does not render yet) and focus is lost.
+// the least it can, at once. useFocusAfterRemoval: a control the answer removed hands focus on in that commit, to
+// its successor by key first. useFocusOnLeave: what goes hands focus on before its DOM goes. useFocusGuard: the
+// root's backstop, so whatever takes the focused control away (a route change, a control nobody hands on from)
+// leaves focus on its successor, the nearest control that stayed, or the screen's, before anything paints.
+// registerScreenControl takes a getter, never stale. focusInto: focus moves into a container that has just gone
+// live (the phone raised over the scrim), and keeps trying each frame while a browser refuses it.
 
 import { act, render } from "@testing-library/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { focusAcrossRemoval } from "../test/focus.js";
 import {
   focusAndReveal,
   focusInto,
@@ -18,6 +22,8 @@ import {
   rememberFocus,
   returnFocus,
   useFocusAfterRemoval,
+  useFocusGuard,
+  useFocusOnLeave,
 } from "./focus.js";
 
 function frames(n: number): Promise<void> {
@@ -452,6 +458,306 @@ describe("focusInto", () => {
     cancel();
     cancelled.state.rendered = true;
     await frames(3);
+    expect(document.activeElement).toBe(document.body);
+  });
+});
+
+describe("registerScreenControl", () => {
+  it("takes a getter, so the control the screen drew again (a slab remounted at rest) stays its main control", () => {
+    const { slab, first } = stage();
+    let current: HTMLElement = slab;
+    const unregister = registerScreenControl(() => current);
+    try {
+      current = redraw(slab);
+      first.focus();
+      first.remove();
+      returnFocus(null);
+      // Not the screen's first control, and not the element the step registered before it was drawn again.
+      expect(document.activeElement).toBe(current);
+      expect(slab.isConnected).toBe(false);
+    } finally {
+      unregister();
+    }
+  });
+});
+
+describe("useFocusAfterRemoval tries the removed control's successor first", () => {
+  it("a slab remounted under a new key takes the focus the spent one held, before the target given", () => {
+    function Press() {
+      const [root, setRoot] = useState<HTMLElement | null>(null);
+      const [attempt, setAttempt] = useState(0);
+      useFocusAfterRemoval(root, () => root?.querySelector<HTMLElement>('[data-testid="other"]') ?? null);
+      return (
+        <section ref={setRoot}>
+          <button key={attempt} type="button" data-testid="slab" onClick={() => setAttempt((a) => a + 1)}>
+            Mark Lantern Bay's payment received
+          </button>
+          <button type="button" data-testid="other">
+            Open the rate card
+          </button>
+        </section>
+      );
+    }
+    const view = render(<Press />);
+    const spent = view.getByTestId("slab");
+    spent.focus();
+    act(() => {
+      spent.click();
+    });
+    expect(spent.isConnected).toBe(false);
+    expect(document.activeElement).toBe(view.getByTestId("slab"));
+  });
+});
+
+describe("useFocusOnLeave", () => {
+  function Scrim({ onPress }: { readonly onPress: () => void }) {
+    const ref = useRef<HTMLButtonElement>(null);
+    useFocusOnLeave(ref, () => document.querySelector<HTMLElement>('[data-testid="tab.member"]'));
+    return (
+      <button ref={ref} type="button" data-testid="scrim" onClick={onPress}>
+        Use the phone
+      </button>
+    );
+  }
+  function Dock() {
+    const [raised, setRaised] = useState(false);
+    return (
+      <div>
+        <button type="button" role="tab" data-testid="tab.member">
+          Member
+        </button>
+        {!raised && <Scrim onPress={() => setRaised(true)} />}
+      </div>
+    );
+  }
+
+  it("hands focus on in the layout cleanup of what goes: in the commit, before its DOM is taken away", async () => {
+    const view = render(<Dock />);
+    const scrim = view.getByTestId("scrim");
+    const sampled = focusAcrossRemoval("scrim");
+    try {
+      scrim.focus();
+      act(() => {
+        scrim.click();
+      });
+      await sampled.frame();
+      const tab = view.getByTestId("tab.member");
+      expect(sampled.removals()).toBe(1);
+      // Right after removeChild, then on the next frame: the tab, never <body>.
+      expect(sampled.samples).toEqual([tab, tab]);
+      expect(sampled.settled).toEqual([tab]);
+    } finally {
+      sampled.restore();
+    }
+  });
+
+  it("leaves alone a focus that was somewhere else when it goes", () => {
+    const view = render(
+      <>
+        <button type="button" data-testid="elsewhere">
+          What's real
+        </button>
+        <Dock />
+      </>,
+    );
+    const elsewhere = view.getByTestId("elsewhere");
+    elsewhere.focus();
+    act(() => {
+      view.getByTestId("scrim").click();
+    });
+    expect(document.activeElement).toBe(elsewhere);
+  });
+});
+
+describe("useFocusGuard, the root's backstop", () => {
+  function Guard() {
+    useFocusGuard();
+    return null;
+  }
+
+  /** Two screens in one <main>: a link on the first replaces it with the second (a route change), nothing more. */
+  function Screens() {
+    const [at, setAt] = useState<"approve" | "fanout">("approve");
+    return (
+      <>
+        <Guard />
+        <header>
+          <button type="button" data-testid="whatsReal">
+            What's real
+          </button>
+        </header>
+        <main id="fsc-main" tabIndex={-1}>
+          {at === "approve" ? (
+            <section key="approve">
+              <a
+                href="/runs/2026A-r37/fanout"
+                data-testid="fanout"
+                onClick={(event) => {
+                  event.preventDefault();
+                  setAt("fanout");
+                }}
+              >
+                see the fan-out
+              </a>
+            </section>
+          ) : (
+            <section key="fanout">
+              <h1>The fan-out</h1>
+              <button type="button" data-testid="payCash">
+                Pay in cash
+              </button>
+            </section>
+          )}
+        </main>
+      </>
+    );
+  }
+
+  it("a control a commit takes away, that nothing hands on (a route change), gives focus to the new screen's control before anything paints", async () => {
+    const view = render(<Screens />);
+    const link = view.getByTestId("fanout");
+    link.focus();
+    const sampled = focusAcrossRemoval("fanout");
+    try {
+      act(() => {
+        link.click();
+      });
+      await sampled.frame();
+      const payCash = view.getByTestId("payCash");
+      expect(sampled.removals()).toBe(1);
+      expect(sampled.settled).toEqual([payCash]);
+      expect(sampled.samples.slice(1)).toEqual([payCash]);
+    } finally {
+      sampled.restore();
+    }
+  });
+
+  it("a control drawn again (the same key) takes its focus back, not the screen's first control", async () => {
+    function Redrawn() {
+      const [n, setN] = useState(0);
+      return (
+        <>
+          <Guard />
+          <main id="fsc-main" tabIndex={-1}>
+            <button type="button" data-testid="first">
+              Open hold H1
+            </button>
+            <button key={n} type="button" data-testid="slab" onClick={() => setN((x) => x + 1)}>
+              Pay in cash
+            </button>
+          </main>
+        </>
+      );
+    }
+    const view = render(<Redrawn />);
+    const slab = view.getByTestId("slab");
+    slab.focus();
+    act(() => {
+      slab.click();
+    });
+    await frames(1);
+    expect(slab.isConnected).toBe(false);
+    expect(document.activeElement).toBe(view.getByTestId("slab"));
+  });
+
+  it("inside the screen, the nearest container that stayed hands focus to its first control", async () => {
+    function Entry() {
+      const [done, setDone] = useState(false);
+      return (
+        <>
+          <Guard />
+          <main id="fsc-main" tabIndex={-1}>
+            <a href="#season" data-testid="season">
+              Season 2026-A
+            </a>
+            <section data-testid="entry">
+              {done ? (
+                <p>
+                  Entered by Analyn.{" "}
+                  <a href="#next" data-testid="next">
+                    Decide the holds
+                  </a>
+                </p>
+              ) : (
+                <input data-testid="field" onKeyDown={(event) => event.key === "Enter" && setDone(true)} />
+              )}
+            </section>
+          </main>
+        </>
+      );
+    }
+    const view = render(<Entry />);
+    const field = view.getByTestId("field");
+    field.focus();
+    act(() => {
+      field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await frames(1);
+    expect(field.isConnected).toBe(false);
+    expect(document.activeElement).toBe(view.getByTestId("next"));
+  });
+
+  it("outside the screen (the stage's bar), a control that goes hands focus to the screen's main control", async () => {
+    function Bar() {
+      const [canReset, setCanReset] = useState(true);
+      return (
+        <>
+          <Guard />
+          <header>
+            {canReset && (
+              <button type="button" data-testid="reset" onClick={() => setCanReset(false)}>
+                Reset
+              </button>
+            )}
+          </header>
+          <main id="fsc-main" tabIndex={-1}>
+            <a href="#card" data-testid="card">
+              Open the rate card
+            </a>
+            <button type="button" data-testid="press">
+              Mark Lantern Bay's payment received
+            </button>
+          </main>
+        </>
+      );
+    }
+    const view = render(<Bar />);
+    const press = view.getByTestId("press");
+    const unregister = registerScreenControl(() => press);
+    try {
+      const reset = view.getByTestId("reset");
+      reset.focus();
+      act(() => {
+        reset.click();
+      });
+      await frames(1);
+      expect(document.activeElement).toBe(press);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("a focused control the browser stops letting take focus (turned disabled) hands focus on too", async () => {
+    const view = render(<Screens />);
+    const whatsReal = view.getByTestId("whatsReal") as HTMLButtonElement;
+    whatsReal.focus();
+    // A browser's focus fixup: the control turns disabled, and focus leaves it for <body> with nowhere to go.
+    whatsReal.disabled = true;
+    whatsReal.blur();
+    await frames(1);
+    expect(document.activeElement).toBe(view.getByTestId("fanout"));
+  });
+
+  it("leaves alone a focus the person let go to <body> (a press on the page), even when that control goes later", async () => {
+    const view = render(<Screens />);
+    const link = view.getByTestId("fanout");
+    link.focus();
+    link.blur();
+    expect(document.activeElement).toBe(document.body);
+    act(() => {
+      link.click();
+    });
+    await frames(1);
     expect(document.activeElement).toBe(document.body);
   });
 });
