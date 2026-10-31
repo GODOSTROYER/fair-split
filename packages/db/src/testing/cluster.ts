@@ -7,7 +7,7 @@
  *   It binds 127.0.0.1 on a free port with trust auth, fsync off. Everything it writes stays in the worktree:
  *   TEMP/TMP point into .cache while initdb runs.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -15,7 +15,11 @@ import path from "node:path";
 export interface TestCluster {
   adminUrl: string;
   source: "embedded" | "external";
+  /** the server log of an embedded cluster */
+  logFile?: string;
   stop(): Promise<void>;
+  /** stop() for where nothing can be awaited, such as a process 'exit' listener */
+  stopSync(): void;
 }
 
 interface Binaries {
@@ -85,7 +89,7 @@ function runningPort(dataDir: string): number | null {
 
 export async function startTestCluster(opts: { cacheDir?: string } = {}): Promise<TestCluster> {
   const external = process.env.FS_TEST_DATABASE_URL;
-  if (external) return { adminUrl: external, source: "external", stop: async () => {} };
+  if (external) return { adminUrl: external, source: "external", stop: async () => {}, stopSync: () => {} };
 
   const cacheDir = path.resolve(opts.cacheDir ?? path.join(process.cwd(), ".cache"));
   const dataDir = path.join(cacheDir, "pg", "pg17");
@@ -110,6 +114,12 @@ export async function startTestCluster(opts: { cacheDir?: string } = {}): Promis
     );
   }
 
+  const logFile = path.join(cacheDir, "pg", "pg17.log");
+  const stopArgs = ["stop", "-D", dataDir, "-m", "fast", "-w", "-t", "30"];
+  const stop = async () => {
+    await run(bin.pg_ctl, stopArgs, env, 60_000).catch(() => {});
+  };
+
   // a cluster left running by an aborted run is reused rather than fought over
   let port = runningPort(dataDir);
   let reachable = false;
@@ -130,31 +140,21 @@ export async function startTestCluster(opts: { cacheDir?: string } = {}): Promis
       "-c max_connections=300",
       "-c deadlock_timeout=200ms",
     ].join(" ");
-    await run(
-      bin.pg_ctl,
-      [
-        "start",
-        "-D",
-        dataDir,
-        "-w",
-        "-t",
-        "60",
-        "-l",
-        path.join(cacheDir, "pg", "pg17.log"),
-        "-o",
-        serverOpts,
-      ],
-      env,
-    );
+    try {
+      await run(bin.pg_ctl, ["start", "-D", dataDir, "-w", "-t", "60", "-l", logFile, "-o", serverOpts], env);
+    } catch (e) {
+      await stop(); // pg_ctl may give up waiting on a server that did start: leave none behind
+      throw e;
+    }
   }
 
   return {
     adminUrl: `postgres://postgres@127.0.0.1:${port}/postgres`,
     source: "embedded",
-    stop: async () => {
-      await run(bin.pg_ctl, ["stop", "-D", dataDir, "-m", "fast", "-w", "-t", "30"], env, 60_000).catch(
-        () => {},
-      );
+    logFile,
+    stop,
+    stopSync: () => {
+      spawnSync(bin.pg_ctl, stopArgs, { env, windowsHide: true, stdio: "ignore", timeout: 60_000 });
     },
   };
 }
