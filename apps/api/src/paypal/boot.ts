@@ -6,6 +6,13 @@
 //      deliveries naming random SIMCERT URLs on the public origin could spend all 3 before the first genuine one and
 //      starve it for the hour. One in-process prewarm makes it last-known-good before any outside request: it is
 //      never fetched again, and every delivery is still checked in full (signature, CRC32, chain, window, replay).
+//   ½. RECORD THE STRANDED BATCHES: a batch the previous simulator accepted (it has a PayPal id, provenance
+//      `simulated_rail`) with an item not yet terminal can never be settled: the simulator now running never issued
+//      it. Each is recorded once in its workspace's ledger as `payout.stranded` (money/settle.ts STRANDED_BATCH): in a
+//      judge workspace "The simulated PayPal sandbox restarted; this demo run ended" (outcome `demo_run_ended`), in any
+//      other workspace `left_for_a_person` (logged at error: a person decides). No item is marked paid, failed or
+//      returned that the simulator did not report, and no run moves; its settle GETs then end without a PayPal call.
+//      A batch with no PayPal id yet (POSTING) is not stranded: money/resume.ts posts its very ids to this simulator.
 //   1. END THE JUDGE SESSIONS of the previous process: every claimed judge workspace's claim is cleared and its tokens
 //      revoked, as a Reset does (judge/session.ts `resetJudgeSession`), with a `judge.session.reset` ledger entry
 //      saying why. Their runs name PayPal ids the new simulator never issued, so the judge's next press starts a fresh
@@ -16,10 +23,14 @@
 //      simulator's real (simulated) balance instead of the US$100,000 opening, and repeated every 12 h, well inside
 //      the reading's 26 h freshness (judge/quota.ts).
 import { appendLedger, schema, systemScope } from "@fairsplit/db";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNotNull, sql } from "drizzle-orm";
 import { revokeWorkspaceTokens, sessionOfWorkspace } from "../credentials/issue/tokens.js";
 import { recordBalanceReading } from "../judge/quota.js";
 import type { AppDeps } from "../lib/context.js";
+import { isStrandedBatch, STRANDED_BATCH } from "../money/settle.js";
+
+/** Item statuses still waiting for PayPal's word (fs_purge_workspace refuses while one is held). */
+const OPEN_ITEM = ["SUBMITTED", "PENDING", "ONHOLD", "UNCLAIMED"] as const;
 
 const BOOT_ACTOR = { kind: "system", id: "system:paypal-sim-boot", impersonatedBy: null } as const;
 /** How often the simulated balance is read again (a reading counts for 26 h). */
@@ -52,6 +63,80 @@ export async function prewarmSimulatorCertificate(
     log.warn({ err }, "simulator certificate prewarm failed");
   }
   return false;
+}
+
+export interface StrandedBatch {
+  batchId: string;
+  workspaceId: string;
+  outcome: (typeof STRANDED_BATCH)["judge" | "other"]["outcome"];
+}
+
+/** Records every batch the previous simulator stranded, once each (step ½ above). Returns the ones it recorded. */
+export async function recordStrandedBatchesAtBoot(deps: BootDeps): Promise<StrandedBatch[]> {
+  const b = schema.payoutBatches;
+  const i = schema.payoutItems;
+  const w = schema.workspaces;
+  const candidates = await deps.db
+    .select({
+      id: b.id,
+      workspaceId: b.workspaceId,
+      runId: b.runId,
+      senderBatchId: b.senderBatchId,
+      paypalBatchId: b.paypalBatchId,
+      kind: w.kind,
+    })
+    .from(b)
+    .innerJoin(w, eq(w.id, b.workspaceId))
+    .where(
+      and(
+        eq(b.provenance, deps.paypal.provenance),
+        isNotNull(b.paypalBatchId),
+        exists(
+          deps.db
+            .select({ one: sql`1` })
+            .from(i)
+            .where(
+              and(eq(i.workspaceId, b.workspaceId), eq(i.batchId, b.id), inArray(i.status, [...OPEN_ITEM])),
+            ),
+        ),
+      ),
+    );
+  const recorded: StrandedBatch[] = [];
+  for (const c of candidates) {
+    const at = deps.clock.now();
+    const judge = c.kind === "judge";
+    const outcome = judge ? STRANDED_BATCH.judge.outcome : STRANDED_BATCH.other.outcome;
+    const done = await deps.db.transaction(async (tx) => {
+      // lock order (db/tx.ts): the workspace lock before its rows; then once per batch, whatever boots at once
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`fs:ws-log:${c.workspaceId}`}, 0))`,
+      );
+      if (await isStrandedBatch(tx, c.workspaceId, c.id)) return false;
+      const items = await tx
+        .select({ status: i.status })
+        .from(i)
+        .where(and(eq(i.workspaceId, c.workspaceId), eq(i.batchId, c.id)));
+      const openItems = items.filter((x) => (OPEN_ITEM as readonly string[]).includes(x.status)).length;
+      if (openItems === 0) return false;
+      await appendLedger(tx, systemScope(c.workspaceId, BOOT_ACTOR), {
+        kind: STRANDED_BATCH.kind,
+        payload: {
+          runId: c.runId,
+          batchId: c.id,
+          senderBatchId: c.senderBatchId,
+          paypalBatchId: c.paypalBatchId,
+          openItems,
+          reason: STRANDED_BATCH.reason,
+          outcome,
+        },
+        runId: c.runId,
+        at,
+      });
+      return true;
+    });
+    if (done) recorded.push({ batchId: c.id, workspaceId: c.workspaceId, outcome });
+  }
+  return recorded;
 }
 
 /** Ends every claimed judge session (step 1 above). Returns the workspaces it ended. */
@@ -122,6 +207,21 @@ export async function recordSimulatorBalance(deps: BootDeps): Promise<number> {
 export async function bootInProcessSimulator(deps: BootDeps): Promise<() => void> {
   const log = deps.logger.child({ component: "paypal-sim" });
   await prewarmSimulatorCertificate(deps);
+  try {
+    const stranded = await recordStrandedBatchesAtBoot(deps);
+    const demo = stranded.filter((s) => s.outcome === STRANDED_BATCH.judge.outcome);
+    const left = stranded.filter((s) => s.outcome !== STRANDED_BATCH.judge.outcome);
+    if (demo.length > 0) log.info({ batches: demo.length }, STRANDED_BATCH.judge.label);
+    if (left.length > 0) {
+      // a co-op's run is never rewritten: say loudly that a person must decide
+      log.error(
+        { batches: left.map((s) => ({ batchId: s.batchId, workspaceId: s.workspaceId })) },
+        STRANDED_BATCH.other.label,
+      );
+    }
+  } catch (err) {
+    log.warn({ err }, "recording the batches the previous simulator held failed");
+  }
   try {
     const ended = await endJudgeSessionsAtBoot(deps);
     if (ended.length > 0) log.info({ ended: ended.length }, "judge sessions of the previous simulator ended");

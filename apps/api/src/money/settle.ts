@@ -1,5 +1,7 @@
 // Settlement (S3.6.5, S3.6.6). We never poll: a payout batch is read at +25 s (Judge Mode) or +90 s after the
-// POST, again at +90 s and +10 min only while an item is open, and at once on a PAYOUTSBATCH.SUCCESS event.
+// POST, again at +90 s and +10 min only while an item is open, and at once on a PAYOUTSBATCH.SUCCESS event. A
+// follow-up that comes due once every item is terminal reads nothing, and a batch a restart of the in-process
+// simulator stranded (STRANDED_BATCH, recorded at boot by paypal/boot.ts) is never read again.
 // Every status lands through `applyItem` (forward-only ranks; RETURNED only after our cancel), and the run
 // follows: POSTED → SETTLING on the first sign of processing; SETTLED when every item is terminal and
 // handled; NEEDS_FOLLOW_UP while an item is parked (Rhea's UNCLAIMED) or failed, until a person moves it.
@@ -54,6 +56,46 @@ const BATCH: Readonly<Record<string, PayoutBatchStatus>> = {
 };
 /** Follow-up settle GETs: +90 s, then +10 min, only while an item is open. */
 export const FOLLOW_UP_DELAYS_MS: readonly number[] = [SETTLE_GET_DELAYS_MS.standard, 10 * 60_000];
+
+/**
+ * A batch the previous in-process simulator accepted and a restart stranded (ADR-0010: the simulator's state lives in
+ * the process, so the one running now never issued it and no GET can say anything about it). paypal/boot.ts records
+ * each such batch once, at boot, as a `payout.stranded` ledger entry in its workspace (ids, counts and the codes below
+ * only, S3.12). Nothing else changes: every item keeps the last status the simulator reported (none is marked paid,
+ * failed or returned), the run stays where it stood, and the batch's settle GETs end at once with no PayPal call
+ * instead of retrying until dead. A judge workspace's demo run ends there (its session is ended at the same boot);
+ * any other workspace is left as it stands for a person, never rewritten.
+ */
+export const STRANDED_BATCH = {
+  kind: "payout.stranded",
+  reason: "simulator_restarted",
+  judge: {
+    outcome: "demo_run_ended",
+    label: "The simulated PayPal sandbox restarted; this demo run ended",
+  },
+  other: {
+    outcome: "left_for_a_person",
+    label:
+      "The simulated PayPal sandbox restarted and no longer holds this batch: its items keep the last status it reported, nothing is marked paid, failed or returned, and a person decides what happens to each line",
+  },
+} as const;
+
+/** Whether `batchId` was recorded stranded in its workspace's ledger (STRANDED_BATCH). */
+export async function isStrandedBatch(db: DbOrTx, workspaceId: string, batchId: string): Promise<boolean> {
+  const l = schema.ledgerEntries;
+  const [row] = await db
+    .select({ seq: l.seq })
+    .from(l)
+    .where(
+      and(
+        eq(l.workspaceId, workspaceId),
+        eq(l.kind, STRANDED_BATCH.kind),
+        sql`${l.payload}->>'batchId' = ${batchId}`,
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
 const PARKED_OR_FAILED: ReadonlySet<PayoutItemStatus> = new Set(["UNCLAIMED", "FAILED", "BLOCKED", "ONHOLD"]);
 
 function cents(v: unknown): number | null {
@@ -135,6 +177,30 @@ export async function settleBatch(
       ),
     );
   if (!batch?.paypalBatchId) return;
+  // stranded by a restart of the in-process simulator: no GET can learn anything; nothing is marked (STRANDED_BATCH)
+  if (await isStrandedBatch(deps.db, batch.workspaceId, batch.id)) {
+    deps.logger.info(
+      { batchId: batch.id, n: args.n, reason: STRANDED_BATCH.reason },
+      "settle GET skipped: the batch was stranded by a simulator restart",
+    );
+    return;
+  }
+  // a follow-up (+90 s, +10 min) exists only for open items: once every item is terminal it has nothing to read
+  if (args.n > 1) {
+    const held = await deps.db
+      .select({ status: schema.payoutItems.status })
+      .from(schema.payoutItems)
+      .where(
+        and(eq(schema.payoutItems.workspaceId, batch.workspaceId), eq(schema.payoutItems.batchId, batch.id)),
+      );
+    if (held.length > 0 && held.every((i) => itemMachine.isTerminal(i.status as PayoutItemStatus))) {
+      deps.logger.debug(
+        { batchId: batch.id, n: args.n },
+        "follow-up settle GET skipped: every item is terminal",
+      );
+      return;
+    }
+  }
   const scope = systemScope(batch.workspaceId, ACTORS.paypalGet);
   // A replayed batch (Judge Mode's replay rail) is settled by the replay too: no PayPal call, rows `replay`.
   const rail =
