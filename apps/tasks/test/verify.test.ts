@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readBlueprint } from "../../../tools/lib/blueprint.js";
 import {
   childEnv,
   describeSkipped,
@@ -90,8 +91,10 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
       "PAYPAL_CLIENT_SECRET",
       "KILL_PAYOUTS",
       "CRON_SECRET",
-      "COOKIE_KEY",
-      "OPS_PASSWORD_SCRYPT",
+      "FS_COOKIE_SECRET",
+      "FS_LINK_SIGNING_KEY",
+      "FS_LEDGER_SIGNING_KEY",
+      "FS_OPERATOR_PASSWORD_SCRYPT",
       "JUDGE_CODE_SHA256",
       "EXPO_PUSH_TOKEN",
       "PGPASSWORD",
@@ -118,6 +121,25 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
     expect(Object.keys(env).sort()).toEqual(
       [...kept, "CI", "COREPACK_ENABLE_DOWNLOAD_PROMPT", "EXECUTOR", "FORCE_COLOR"].sort(),
     );
+  });
+
+  it("drops every secret and app setting render.yaml declares, so a clean clone never sees a deploy's values", () => {
+    let checked = 0;
+    for (const s of readBlueprint().services ?? [])
+      for (const v of s.envVars ?? []) {
+        const key = v.key ?? "";
+        if (
+          v.sync === false ||
+          v.generateValue ||
+          v.fromDatabase ||
+          v.fromService ||
+          /^(PP_|FS_)/.test(key)
+        ) {
+          expect(isDroppedEnv(key), `${s.name}.${key}`).toBe(true);
+          checked++;
+        }
+      }
+    expect(checked).toBeGreaterThan(15);
   });
 
   it("--db reaches only the test step, as FS_TEST_DATABASE_URL, and never appears in what it reports", () => {

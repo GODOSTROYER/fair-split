@@ -28,33 +28,34 @@ describe("tools/lint-render (CI's render.yaml lint)", () => {
     expect(lines).toEqual(["render.yaml schema: PASS", "render.yaml policy: PASS"]);
   });
 
-  it("fails a schema error (a workflow with a plan) and a policy error (a literal secret)", () => {
-    const schemaBad = variant(
-      "    # No `plan` (each task defaults to `flex`)",
-      "    plan: flex\n    # No `plan` (each task defaults to `flex`)",
-    );
+  it("fails a schema error (a misspelt field) and a policy error (a literal secret)", () => {
+    const schemaBad = variant("    healthCheckPath: /healthz", "    healthcheckPath: /healthz");
     expect(lintRender(schemaBad).schema.length).toBeGreaterThan(0);
     rmSync(dir as string, { recursive: true, force: true });
     const policyBad = variant(
-      "      - key: ANTHROPIC_API_KEY\n        sync: false\n      - key: RENDER_API_KEY",
-      "      - key: ANTHROPIC_API_KEY\n        value: not-a-real-key\n      - key: RENDER_API_KEY",
+      "      - key: FS_LEDGER_SIGNING_KEY\n        sync: false",
+      "      - key: FS_LEDGER_SIGNING_KEY\n        value: not-a-real-key",
     );
     const result = lintRender(policyBad);
-    expect(result.policy).toContain("fs-api: ANTHROPIC_API_KEY must not have a literal value");
+    expect(result.policy).toContain("fs-api: FS_LEDGER_SIGNING_KEY must not have a literal value");
     const lines: string[] = [];
     expect(main([`--file=${policyBad}`], (l) => lines.push(l))).toBe(1);
     expect(lines).toContain("render.yaml policy: FAIL");
   });
 
-  it("fails a build filter that skips the prompts: fs-tasks ignoring `**/*.md` again", () => {
-    const file = variant('        - "**/README.md"\n    envVars:', '        - "**/*.md"\n    envVars:');
+  it("fails a build filter that skips the prompts: fs-api ignoring `**/*.md` again", () => {
+    const file = variant('        - "**/README.md"\n', '        - "**/*.md"\n');
     const { schema, policy } = lintRender(file);
     expect(schema).toEqual([]);
-    expect(policy).toEqual([
-      "fs-tasks: ignoredPaths skips packages/ai/src/read/prompts/a.v1.md, a file read at runtime",
-      "fs-tasks: ignoredPaths skips packages/ai/src/ratecard/prompts/ratecard.v1.md, a file read at runtime",
-      "fs-tasks: ignoredPaths skips packages/ai/src/classify/prompts/classify.v1.md, a file read at runtime",
-    ]);
+    expect(policy).toEqual(
+      expect.arrayContaining([
+        "fs-api: ignoredPaths skips packages/ai/src/read/prompts/a.v1.md, a file read at runtime",
+        "fs-api: ignoredPaths skips packages/ai/src/ratecard/prompts/ratecard.v1.md, a file read at runtime",
+        "fs-api: ignoredPaths skips packages/ai/src/classify/prompts/classify.v1.md, a file read at runtime",
+      ]),
+    );
+    // Every other finding is one more Markdown file inside fs-api's dependency closure (the other prompts, …).
+    for (const p of policy) expect(p).toMatch(/^fs-api: ignoredPaths skips \S+\.md, /);
   });
 
   it("formats each section and parses its one flag strictly", () => {

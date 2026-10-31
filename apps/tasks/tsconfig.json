@@ -15,6 +15,7 @@
     "../../tools/health-check.ts",
     "../../tools/spike-s6.ts",
     "../../tools/scan-dist.ts",
+    "../../tools/assemble-media.ts",
     "../../tools/lint-render.ts",
     "../../tools/lib/**/*.ts"
   ]
