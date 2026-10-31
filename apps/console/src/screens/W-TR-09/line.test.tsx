@@ -5,12 +5,31 @@
 import { webRoutes } from "@fairsplit/contracts";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { expectNoAxeViolations, renderConsole } from "../../test/index.js";
+import { expectNoAxeViolations, focusAcrossRemoval, renderConsole } from "../../test/index.js";
 
-// The split behind the drawer has its own suite; a stand-in keeps the drawer's tests and axe runs quick.
-vi.mock("../../features/split/SplitGrid.js", () => ({
-  SplitGrid: () => <div data-testid="W-TR-05.grid" />,
-}));
+// The split behind the drawer has its own suite; a stand-in keeps the drawer's tests and axe runs quick. Like AG
+// Grid, it draws M-014's row again (a new element, the same row and column IDs) whenever the split re-renders.
+vi.mock("../../features/split/SplitGrid.js", () => {
+  let draws = 0;
+  return {
+    SplitGrid: () => {
+      draws += 1;
+      return (
+        <div data-testid="W-TR-05.grid">
+          <div key={draws} className="ag-row" row-id="M-014">
+            <div className="ag-cell" col-id="member" tabIndex={-1}>
+              M-014
+            </div>
+          </div>
+        </div>
+      );
+    },
+  };
+});
+
+/** M-014's member cell as the grid draws it now. */
+const memberCell = () =>
+  document.querySelector<HTMLElement>('.ag-row[row-id="M-014"] .ag-cell[col-id="member"]');
 
 const RUN = "2026A-r37";
 const SLOW = 120_000;
@@ -18,6 +37,45 @@ const WAIT = { timeout: 8_000 };
 const stateOf = () => screen.queryByTestId("W-TR-09")?.dataset.state;
 
 describe("W-TR-09 member line", () => {
+  it.each(["Escape", "Close", "the scrim"] as const)(
+    "closing by %s hands focus to M-014's cell in the commit that removes the drawer, never <body>",
+    async (how) => {
+      const view = await renderConsole({ path: webRoutes.split(RUN), viewport: { width: 1920 } });
+      await waitFor(() => expect(memberCell()).not.toBeNull(), WAIT);
+      memberCell()?.focus();
+      await view.navigate(webRoutes.memberLine(RUN, "M-014"));
+      await waitFor(() => expect(stateOf()).toBe("paid"), WAIT);
+      expect(screen.getByTestId("W-TR-09.drawer").contains(document.activeElement)).toBe(true);
+      const watch = focusAcrossRemoval("W-TR-09.drawer");
+      try {
+        if (how === "Escape") fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+        else if (how === "Close") {
+          const close = screen.getByTestId("W-TR-09.drawer.close");
+          close.focus();
+          fireEvent.click(close);
+        } else {
+          const scrim = screen.getByTestId("W-TR-09.drawer.scrim");
+          // Pressing the scrim never takes focus off the drawer first (a browser's default moves it to <body>).
+          expect(fireEvent.mouseDown(scrim)).toBe(false);
+          fireEvent.click(scrim);
+        }
+        await waitFor(() => expect(screen.queryByTestId("W-TR-09.drawer")).toBeNull(), WAIT);
+        expect(watch.removals()).toBe(1);
+        await watch.frame();
+      } finally {
+        watch.restore();
+      }
+      const cell = memberCell();
+      expect(document.activeElement).toBe(cell);
+      // In the commit and on the frame after it: always the row's cell (as the grid drew it then), never <body>.
+      for (const sample of watch.samples) {
+        expect(sample).not.toBe(document.body);
+        expect(sample?.matches('.ag-row[row-id="M-014"] .ag-cell[col-id="member"]')).toBe(true);
+      }
+    },
+    SLOW,
+  );
+
   it(
     "Nang Celing on the showcase: paid, 43.69 + 21.85 − CBU 1.09 = 64.45, about ₱4,028, her four slips",
     async () => {

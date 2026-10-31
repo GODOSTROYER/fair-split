@@ -8,6 +8,7 @@ import { ApiClientError } from "../data/errors.js";
 import { DataModeProvider } from "../lib/data-mode.js";
 import { ShortcutsProvider } from "../lib/shortcuts.js";
 import { expectNoAxeViolations } from "../test/axe.js";
+import { focusAcrossRemoval } from "../test/focus.js";
 import { timersBeforeCommit } from "../test/timers.js";
 import { CommandNotice } from "./CommandNotice.js";
 import { DataTable, Mirrored } from "./DataTable.js";
@@ -127,6 +128,62 @@ describe("StageDrawer", () => {
       }
     }
   });
+
+  it.each(["Escape", "Close", "the scrim"] as const)(
+    "closing by %s, focus is on the opener in the commit that removes the drawer and on the frame after, never on <body>",
+    async (how) => {
+      function Harness() {
+        const [open, setOpen] = useState(false);
+        return (
+          <ShortcutsProvider>
+            <main id="fsc-main" tabIndex={-1}>
+              <button type="button" data-testid="opener" onClick={() => setOpen(true)}>
+                Row M-007
+              </button>
+            </main>
+            {open && (
+              <StageDrawer
+                label="Hold H1"
+                onClose={() => setOpen(false)}
+                testId="W-TR-06.drawer"
+                mode="overlay"
+              >
+                <p>Slip 0457 is in two photos.</p>
+              </StageDrawer>
+            )}
+          </ShortcutsProvider>
+        );
+      }
+      render(<Harness />);
+      const opener = screen.getByTestId("opener");
+      opener.focus();
+      fireEvent.click(opener);
+      expect(document.activeElement?.textContent).toBe("Hold H1");
+      const watch = focusAcrossRemoval("W-TR-06.drawer");
+      const restoreTimers = timersBeforeCommit();
+      try {
+        if (how === "Escape") fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+        else if (how === "Close") {
+          const close = screen.getByTestId("W-TR-06.drawer.close");
+          close.focus();
+          fireEvent.click(close);
+        } else {
+          const scrim = screen.getByTestId("W-TR-06.drawer.scrim");
+          // Pressing the scrim never takes focus off the drawer first (a browser's default moves it to <body>).
+          expect(fireEvent.mouseDown(scrim)).toBe(false);
+          fireEvent.click(scrim);
+        }
+        expect(screen.queryByTestId("W-TR-06.drawer")).toBeNull();
+        expect(watch.removals()).toBe(1);
+        await watch.frame();
+        await watch.frame();
+      } finally {
+        restoreTimers();
+        watch.restore();
+      }
+      expect(watch.samples).toEqual([opener, opener, opener]);
+    },
+  );
 
   it("pushes instead of covering below 1600 px: no scrim", () => {
     render(

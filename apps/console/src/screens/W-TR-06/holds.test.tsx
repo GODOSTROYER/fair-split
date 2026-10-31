@@ -8,13 +8,38 @@ import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { clearMomentTrace, expectNoAxeViolations, renderConsole, tracedPhases } from "../../test/index.js";
+import {
+  clearMomentTrace,
+  expectNoAxeViolations,
+  focusAcrossRemoval,
+  renderConsole,
+  tracedPhases,
+} from "../../test/index.js";
 
 // The split behind the drawer is W-TR-05's to test (its grid has its own suite, with the MM-3 wave); here it is a
-// stand-in, so the drawer's tests and axe runs do not pay for 64 rows of AG Grid in jsdom.
-vi.mock("../../features/split/SplitGrid.js", () => ({
-  SplitGrid: () => <div data-testid="W-TR-05.grid" />,
-}));
+// stand-in, so the drawer's tests and axe runs do not pay for 64 rows of AG Grid in jsdom. Like AG Grid, it draws
+// M-007's row again (a new element with the same row and column IDs) every time the split re-renders.
+vi.mock("../../features/split/SplitGrid.js", () => {
+  let draws = 0;
+  return {
+    SplitGrid: () => {
+      draws += 1;
+      return (
+        <div data-testid="W-TR-05.grid">
+          <div key={draws} className="ag-row" row-id="M-007" data-draw={draws}>
+            <div className="ag-cell" col-id="member" tabIndex={-1}>
+              M-007
+            </div>
+          </div>
+        </div>
+      );
+    },
+  };
+});
+
+/** M-007's member cell as the grid draws it now. */
+const heldCell = () =>
+  document.querySelector<HTMLElement>('.ag-row[row-id="M-007"] .ag-cell[col-id="member"]');
 
 const RUN = "2026A-r37";
 const SLOW = 120_000;
@@ -109,6 +134,80 @@ describe("W-TR-06 hold drawer", () => {
       expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(/Resolved by AS/);
       expect(screen.getByTestId("W-TR-06.next").textContent).toBe("Next: hold H2");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
+    },
+    SLOW,
+  );
+
+  it.each(["full", "reduced"] as const)(
+    "Count it once from M-007's row: focus lands on Next inside the drawer's scrollport, and closing hands it back to M-007's cell, redrawn (%s motion)",
+    async (motion) => {
+      // In a browser the drawer scrolls (its scrollport ends at 863 px at 1470), and Next is drawn under its fold
+      // (top 1028): focus there is unseen unless it scrolls into view. Closing, the row that opened the drawer was
+      // drawn again when H1 resolved: focus finds it by its row and column, never the screen, never <body>.
+      clearMomentTrace();
+      const view = await inReview(webRoutes.split(RUN), motion);
+      await waitFor(() => expect(heldCell()).not.toBeNull(), WAIT);
+      const original = heldCell();
+      original?.focus();
+      await view.navigate(webRoutes.holdDrawer(RUN, "H1"));
+      await waitFor(() => expect(sinceOpen()).toContain("ready"), WAIT);
+      const drawer = screen.getByTestId("W-TR-06.drawer");
+      expect(drawer.contains(document.activeElement)).toBe(true);
+
+      const rect = Element.prototype.getBoundingClientRect;
+      const at = (top: number, height: number, width = 560) =>
+        ({
+          top,
+          height,
+          width,
+          left: 900,
+          bottom: top + height,
+          right: 900 + width,
+          x: 900,
+          y: top,
+          toJSON: () => ({}),
+        }) as DOMRect;
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+        if (this.matches?.(".fsc-drawer")) return at(49, 814);
+        if ((this as HTMLElement).dataset?.testid === "W-TR-06.next") return at(1028, 16, 120);
+        return rect.call(this);
+      });
+      vi.spyOn(window, "innerHeight", "get").mockReturnValue(1200);
+      const scrolled: Element[] = [];
+      vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+        scrolled.push(this);
+      });
+      try {
+        const face = screen.getByTestId("W-TR-06.countOnce.face");
+        face.focus();
+        press("W-TR-06.countOnce");
+        await waitFor(() => expect(stateOf()).toBe("resolved"), WAIT);
+        await waitFor(() => expect(face.isConnected).toBe(false), WAIT);
+        const next = await screen.findByTestId("W-TR-06.next");
+        await waitFor(() => expect(document.activeElement).toBe(next), WAIT);
+        expect(scrolled).toContain(next);
+      } finally {
+        vi.restoreAllMocks();
+      }
+
+      const watch = focusAcrossRemoval("W-TR-06.drawer");
+      try {
+        fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+        await waitFor(() => expect(screen.queryByTestId("W-TR-06.drawer")).toBeNull(), WAIT);
+        await watch.frame();
+      } finally {
+        watch.restore();
+      }
+      const cell = heldCell();
+      expect(document.activeElement).toBe(cell);
+      // The cell focused is the row as drawn now: the one that opened the drawer was drawn again meanwhile.
+      expect(original?.isConnected).toBe(false);
+      expect(watch.samples.length).toBeGreaterThanOrEqual(2);
+      // In the commit and on the frame after it: always the row's cell (as the grid drew it then), never <body>.
+      for (const sample of watch.samples) {
+        expect(sample).not.toBe(document.body);
+        expect(sample?.matches('.ag-row[row-id="M-007"] .ag-cell[col-id="member"]')).toBe(true);
+      }
     },
     SLOW,
   );
