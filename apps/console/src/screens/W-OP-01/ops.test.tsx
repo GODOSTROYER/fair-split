@@ -364,6 +364,24 @@ describe("W-OP-01 for the operator", () => {
     expect(ed25519.verify(bytesOf(body.proof.signatureHex), message, bytesOf(body.publicKeyHex))).toBe(true);
   });
 
+  it("sends nothing while the overview names no showcase workspace: the registration fails and says so", async () => {
+    const sent: unknown[] = [];
+    const world = withHandlers(operatorWorld(), [
+      http.post("*/v1/ops/keys", async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({ ok: true }, { status: 201 });
+      }),
+    ]);
+    await openOps(world);
+    const panel = screen.getByTestId("W-OP-01.key.panel");
+    await waitFor(() => expect(panel.dataset.state).toBe("none"));
+    fireEvent.keyDown(screen.getByTestId("W-OP-01.key.make.face"), { key: "Enter" });
+    await waitFor(() => expect(panel.dataset.state).toBe("made"));
+    fireEvent.keyDown(screen.getByTestId("W-OP-01.key.register.face"), { key: "Enter" });
+    await waitFor(() => expect(panel.dataset.state).toBe("failed"));
+    expect(sent).toEqual([]);
+  });
+
   it("makes the key in this browser and registers it, only in the operator's session", async () => {
     const world = withHandlers(operatorWorld(), [
       http.get("*/v1/ops/overview", () => HttpResponse.json(OVERVIEW)),
@@ -388,6 +406,7 @@ function KeyHarness() {
   const key = useTreasurerKey({
     store: memoryKeyStore(),
     subtle: webcrypto.subtle as unknown as SubtleCrypto,
+    workspaceId: SHOWCASE_WS,
   });
   return <KeyPanel treasurerKey={key} operator registry={{ kind: "not-served", at: 1 }} />;
 }
