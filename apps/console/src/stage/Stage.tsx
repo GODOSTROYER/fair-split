@@ -8,7 +8,7 @@
 import { type LogLane, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { useMotionMode } from "@fairsplit/ui-web";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ConnectionBanner } from "../chrome/ConnectionBanner.js";
 import { ConsoleRail } from "../chrome/ConsoleRail.js";
 import { STAGE, stageCaption, story } from "../chrome/copy.js";
@@ -170,12 +170,21 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     },
     [raiseByViewer],
   );
+  const lowerTo = useRef<HTMLElement | null>(null);
   const lowerPhone = useCallback(() => {
     const opener = raisedByRef.current === "user" ? raiseOpener.current : null;
     raiseOpener.current = null;
+    if (opener) lowerTo.current = opener;
     setRaisedBy(null);
-    if (opener) setTimeout(() => opener.isConnected && opener.focus({ preventScroll: true }), 0);
   }, []);
+  // Focus goes back to what raised the phone after the commit that lowered it, when the console under the scrim is
+  // live again (WCAG 2.4.3). Never on a timer: one that fires before that commit finds the console still inert, the
+  // browser refuses the focus, and the phone's panel going inert then drops focus to <body> (lib/focus.ts).
+  useLayoutEffect(() => {
+    const opener = lowerTo.current;
+    lowerTo.current = null;
+    if (raisedBy === null && opener?.isConnected) opener.focus({ preventScroll: true });
+  }, [raisedBy]);
 
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
   const lastStep = useRef(next.id);

@@ -3,10 +3,13 @@
 //     zoom controls): `useFocusAfterRemoval` moves focus to the place that now says what happened;
 //   - a trace closes: `focusIfLost`, from a layout effect after the commit that removed it, hands focus back to
 //     the peso that opened it;
-//   - a drawer closes: `restoreFocus`, from the drawer's own cleanup, hands focus back to what opened it.
+//   - a drawer closes: `restoreFocus`, from the drawer's own cleanup, hands focus back to what opened it;
+//   - the phone lowers from over the scrim: Stage, from a layout effect after that commit (the console is live
+//     again), focuses what raised it.
 // Each acts after React has committed the removal, and only when focus fell to <body> (a control the person or a
-// new screen focused meanwhile keeps it). A timer alone is never the wait: on a loaded machine it can fire before
-// React commits, find the control still focused, and give up just before focus falls to <body>.
+// new screen focused meanwhile keeps it; the phone's opener takes focus back from the panel going inert). A timer
+// alone is never the wait: on a loaded machine it can fire before React commits, find the control still focused
+// (or the console still inert), and give up just before focus falls to <body>.
 
 import { useEffect, useRef } from "react";
 
