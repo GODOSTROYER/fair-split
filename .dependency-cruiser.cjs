@@ -8,6 +8,8 @@
 // formatting, the Proof verifier) and seed (the seeded season), so UI code reaches them only through it.
 // fs-api imports api-client's HTTP command table (`/http`, built from contracts) so server and client cannot
 // drift; its tests and smoke CLI drive it through the typed client (ADR-0009).
+// fs-api runs the PayPal simulator (packages/paypal-sim) in process in PP_MODE=simulator, through ONE adapter
+// file, apps/api/src/paypal/simulator.ts; nothing else in any app imports the simulator (ADR-0010).
 // Cross-package imports go through a package's declared "exports" (no deep imports), and
 // domain stays pure (no node:fs / node:net style IO).
 // Every import must be declared in the importing package's own package.json; the packages AGENTS.md
@@ -46,6 +48,8 @@ const UI_PACKAGE_DIRS = ["api-client", "tokens", "motion", "seal", "i18n", "ui-w
 /** What api-client may import besides the UI packages (ADR-0009). Both are pure: domain-is-pure holds. */
 const API_CLIENT_ALSO = ["domain", "seed"];
 const SERVER_APPS = ["api", "tasks"];
+/** The one file of any app that may import the PayPal simulator (ADR-0010). */
+const SIMULATOR_ADAPTER = "apps/api/src/paypal/simulator.ts";
 const UI_APPS = ["console", "mobile"];
 
 /** AGENTS.md "Excluded on purpose" (npm names; a trailing slash means the whole scope). */
@@ -286,8 +290,23 @@ module.exports = {
       from: { path: `^apps/(${alt(SERVER_APPS)})/`, pathNot: SERVER_APPS.flatMap(serverTestCode) },
       to: {
         path: "^(packages|apps)/([^/]+)/",
-        pathNot: [`^packages/(${alt(SERVER_PACKAGES)})/`, "^apps/$1/", "^packages/api-client/src/http\\.ts$"],
+        pathNot: [
+          `^packages/(${alt(SERVER_PACKAGES)})/`,
+          "^apps/$1/",
+          "^packages/api-client/src/http\\.ts$",
+          // narrowed to one adapter file by paypal-sim-only-through-the-api-adapter
+          "^packages/paypal-sim/",
+        ],
       },
+    },
+    {
+      name: "paypal-sim-only-through-the-api-adapter",
+      comment:
+        `Only ${SIMULATOR_ADAPTER} imports @fairsplit/paypal-sim: fs-api runs the simulator in process in ` +
+        "PP_MODE=simulator, and every other file (fs-api's tests included) reaches it through that adapter (ADR-0010)",
+      severity: "error",
+      from: { path: "^apps/", pathNot: `^${esc(SIMULATOR_ADAPTER)}$` },
+      to: { path: "^packages/paypal-sim/" },
     },
     ...SERVER_APPS.map((app) => ({
       name: "layer-server-apps-tests",
