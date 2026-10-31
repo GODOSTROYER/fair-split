@@ -60,7 +60,9 @@ describe("repo docs", () => {
 
   it("every workflow pins actions by full commit SHA", () => {
     const workflows = readdirSync(resolve(root, ".github/workflows")).filter((f) => /\.ya?ml$/.test(f));
-    expect(workflows).toEqual(expect.arrayContaining(["ci.yml", "ownership.yml", "sandbox-smoke.yml"]));
+    expect(workflows).toEqual(
+      expect.arrayContaining(["ci.yml", "gitleaks.yml", "ownership.yml", "sandbox-smoke.yml"]),
+    );
     for (const wf of workflows.map((f) => `.github/workflows/${f}`)) {
       const uses = [...read(wf).matchAll(/uses:\s*(\S+)/g)].map((m) => m[1]);
       expect(uses.length).toBeGreaterThan(0);
@@ -96,7 +98,11 @@ describe("repo docs", () => {
   });
 
   it("no merge queue: CI has no merge_group trigger and nothing describes a merge train (ADR-0006)", () => {
-    for (const f of [".github/workflows/ci.yml", ".github/workflows/sandbox-smoke.yml"]) {
+    for (const f of [
+      ".github/workflows/ci.yml",
+      ".github/workflows/gitleaks.yml",
+      ".github/workflows/sandbox-smoke.yml",
+    ]) {
       expect(read(f), f).not.toMatch(/merge_group|merge train/);
     }
     for (const f of ["CONTRIBUTING.md", "docs/adr/0000-template.md"]) {
@@ -108,8 +114,9 @@ describe("repo docs", () => {
   });
 
   it("gitleaks can list a PR's commits in this private repository (pull-requests: read)", () => {
-    const ci = read(".github/workflows/ci.yml");
-    const job = ci.slice(ci.indexOf("\n  gitleaks:\n"));
+    const wf = read(".github/workflows/gitleaks.yml");
+    const job = wf.slice(wf.indexOf("\n  gitleaks:\n"));
+    expect(job.length).toBeGreaterThan(20);
     expect(job).toMatch(/\n {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n/);
     expect(job).not.toMatch(/:\s*write\b/);
   });
@@ -125,9 +132,10 @@ describe("repo docs", () => {
   });
 
   it("gitleaks also runs on a schedule, the only automatic trigger on which it scans full history", () => {
-    const ci = read(".github/workflows/ci.yml");
-    expect(ci).toMatch(/^ {2}schedule:\n {4}- cron: "[^"]+"/m);
-    expect(ci).toMatch(/verify:\n\s+name: [^\n]+\n\s+if: \$\{\{ github\.event_name != 'schedule' \}\}/);
+    const wf = read(".github/workflows/gitleaks.yml");
+    expect(wf).toMatch(/^ {2}schedule:\n {4}- cron: "[^"]+"/m);
+    // ci.yml has no schedule left: its nightly run did nothing but gitleaks (Q1).
+    expect(read(".github/workflows/ci.yml")).not.toMatch(/^ {2}schedule:/m);
     expect(read("docs/security.md")).not.toMatch(/\| gitleaks\s+\| Full git history/);
   });
 

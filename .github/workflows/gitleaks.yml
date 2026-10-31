@@ -1,0 +1,77 @@
+# Secret scan of the git history with gitleaks (architecture section 15; docs/security.md, "Layers").
+# Every action is pinned by full commit SHA; the tag and its release date are in the trailing comment and in
+# docs/versions.md. Bump only through a deps PR.
+#
+# Scope depends on the trigger (gitleaks-action v3): push = the pushed commits, pull_request = the PR's commits,
+# schedule and workflow_dispatch = the full history of the checked-out ref. The full-history scan runs weekly,
+# not nightly, while the repository is private: it reports the findings the user is triaging until then.
+# .github/.gitleaks.toml keeps every default rule and allowlists only the PayPal simulator's fictional app
+# credentials.
+name: gitleaks
+
+on:
+  # gitleaks reads patches, and git shows no patch for a binary file, so a binary-only change has nothing to scan.
+  pull_request:
+    paths-ignore:
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.webp"
+      - "**/*.ttf"
+      - "**/*.woff2"
+      - "**/*.mp3"
+      - "**/*.m4a"
+      - "**/*.mp4"
+      - "**/*.wav"
+  push:
+    # wp/** is a work-package branch, pushed only to try CI on Linux before the merger splits it into ws/<key>.
+    branches: [main, "ws/**", "deps/**", "wp/**"]
+    paths-ignore:
+      - "**/*.png"
+      - "**/*.jpg"
+      - "**/*.webp"
+      - "**/*.ttf"
+      - "**/*.woff2"
+      - "**/*.mp3"
+      - "**/*.m4a"
+      - "**/*.mp4"
+      - "**/*.wav"
+  workflow_dispatch:
+  schedule:
+    - cron: "43 20 * * 0" # Sundays 20:43 UTC = Mondays 02:13 IST, after the weekend's merges
+
+permissions:
+  contents: read
+
+# A push run scans only that push's commits, so no push run may be cancelled or replaced by a later one: each
+# gets its own group. A PR run scans all of the PR's commits and a scheduled or manual run the whole history,
+# so a newer one covers everything a superseded one would have, and it is cancelled.
+concurrency:
+  group: gitleaks-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    name: gitleaks (pushed or PR commits; full history weekly and on manual run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # On pull_request the action lists the PR's commits (GET /repos/{owner}/{repo}/pulls/{n}/commits), which in a
+    # private repository needs pull-requests: read; without it the 403 fails the job on every PR.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (2026-07-20)
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0 (2026-05-30)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Personal-account repo: no GITLEAKS_LICENSE needed. Comments stay off so the job keeps read-only rights.
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          # v3.0.0's default version, pinned: .github/.gitleaks.toml relies on its allowlist semantics.
+          GITLEAKS_VERSION: "8.24.3"
+          GITLEAKS_CONFIG: .github/.gitleaks.toml
