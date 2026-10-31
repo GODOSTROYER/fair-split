@@ -4,10 +4,12 @@
 // live, then: the invoice (Agent Toolkit on the simulator), Mark paid, the reading, slip 0462 by hand and H1–H3, both
 // keys (browser demo keys with proof of possession, the Chair's through its own frame token), the POST, the settle
 // GETs (7 SUCCESS, Rhea UNCLAIMED), Rhea's cash move (cancel → RETURNED), a verified simulator-signed webhook in the
-// run's events, X-FS-Rail `simulated` on the way, and the Proof chain. Nothing here prints a token or a cookie.
+// run's events, X-FS-Rail `simulated` on the way, the Proof chain with its six plates, and Proof's "kept for
+// members" against the register's figure. Nothing here prints a token or a cookie.
 import { generateKeyPairSync } from "node:crypto";
 import { ApprovalPayload } from "@fairsplit/contracts";
 import { approvalBytes, ed25519Sign, jcs } from "@fairsplit/domain";
+import { getSnapshot } from "@fairsplit/seed";
 import { z } from "zod";
 import { demoKeyStatement } from "../judge/keys.js";
 import type { SmokeCheck } from "./checks.js";
@@ -53,6 +55,9 @@ const Verification = z.object({
     checkpoint: z.object({ ok: z.boolean() }),
     plates: z.record(z.string(), z.object({ ok: z.boolean(), reason: z.string().nullable() })),
   }),
+});
+const Metrics = z.object({
+  holds: z.object({ keptForMembers: z.object({ cents: z.number(), display: z.string() }) }),
 });
 
 const ADMIN_PATHS: readonly [string, string][] = [
@@ -427,6 +432,20 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
       v.data.verification.checkpoint.ok &&
       Object.keys(v.data.verification.plates).length === 6 &&
       failedPlates.length === 0,
+  });
+  // IC-03: Proof's "kept for members" on the live run is the register's figure: the duplicate slip counted once
+  // (the engine's movedCents) plus the multa returned as credit
+  const metrics = await call("GET", `/v1/proof/${s.runSlug}/metrics`);
+  const kept = Metrics.safeParse(metrics.json);
+  const wantKept = getSnapshot().figures.redirectedCents;
+  record({
+    name: "money.kept",
+    target: `GET /v1/proof/${s.runSlug}/metrics`,
+    status: metrics.status,
+    outcome: kept.success
+      ? `kept for members ${kept.data.holds.keptForMembers.display} (${kept.data.holds.keptForMembers.cents} cents, register ${wantKept})`
+      : metrics.text.slice(0, 100),
+    ok: metrics.status === 200 && kept.success && kept.data.holds.keptForMembers.cents === wantKept,
   });
   return checks;
 }
