@@ -2,6 +2,7 @@
 // SMS preview (plan "Statements", S4.5). It is the only place a statement number becomes text, always through the
 // deterministic formatter (C-22): display ("US$64.45", "about ₱4,028 (estimate)"), spoken (English number words
 // in every language until native review; slip numbers digit by digit) and SMS (GSM-7, the peso written "P").
+import type { Provenance } from "@fairsplit/contracts";
 import { format, mulDivFloor, mulDivHalfUp } from "@fairsplit/domain";
 import { gsm7Length, SMS_MAX_SEPTETS } from "./gsm7.js";
 import { TEMPLATES_V1 } from "./templates.js";
@@ -266,14 +267,37 @@ function templateOf(templates: TemplateSet, lang: Lang, key: string): string {
   return t;
 }
 
+/** Each product AI_NOTE form and its demo twin (T1). */
+const AI_NOTE_DEMO: Readonly<Record<string, string>> = {
+  default: "seeded",
+  noname: "seeded_noname",
+  checking: "seeded_checking",
+};
+const AI_NOTE_DEMO_VARIANTS = new Set(Object.values(AI_NOTE_DEMO));
+
+/**
+ * The AI_NOTE variant a statement may carry. Only a real Claude reading (`live`) keeps the product note ("Your
+ * slips were read twice by AI (Claude)…"); seeded, replayed, unknown or missing readings take its demo twin ("In
+ * this demo, the slip readings are a labelled stand-in…"). A demo note is never upgraded, and a form with no demo
+ * twin is refused rather than shown as the claim.
+ */
+export function aiNoteVariant(variant: string, reading: Provenance | null | undefined): string {
+  if (AI_NOTE_DEMO_VARIANTS.has(variant) || reading === "live") return variant;
+  const demo = AI_NOTE_DEMO[variant];
+  if (!demo) throw new StatementRenderError(`AI_NOTE.${variant} has no demo variant`);
+  return demo;
+}
+
 function sentence(
   s: PlannedSentence,
   mode: Exclude<RenderMode, "sms">,
   lang: Lang,
   templates: TemplateSet,
+  reading: Provenance | null | undefined,
 ): RenderedSentence {
-  const text = fillTemplate(templateOf(templates, lang, `${s.slot}.${s.variant}`), s.facts, mode, lang);
-  return { slot: s.slot, variant: s.variant, text, mentions: [...s.mentions] };
+  const variant = s.slot === "AI_NOTE" ? aiNoteVariant(s.variant, reading) : s.variant;
+  const text = fillTemplate(templateOf(templates, lang, `${s.slot}.${variant}`), s.facts, mode, lang);
+  return { slot: s.slot, variant, text, mentions: [...s.mentions] };
 }
 
 export interface RenderedSms {
@@ -300,14 +324,15 @@ export function renderSms(plan: StatementPlan, templates: TemplateSet = TEMPLATE
   return { text, gsm7Length: n, fits: n !== null && n <= SMS_MAX_SEPTETS };
 }
 
-/** The pure renderer: display, spoken and SMS from one plan. */
+/** The pure renderer: display, spoken and SMS from one plan (the AI_NOTE by the plan's reading provenance). */
 export function renderStatement(
   plan: StatementPlan,
   templates: TemplateSet = TEMPLATES_V1,
 ): RenderedStatement {
+  const reading = plan.readingProvenance;
   return {
-    display: plan.sentences.map((s) => sentence(s, "display", plan.lang, templates)),
-    spoken: plan.sentences.map((s) => sentence(s, "spoken", plan.lang, templates)),
+    display: plan.sentences.map((s) => sentence(s, "display", plan.lang, templates, reading)),
+    spoken: plan.sentences.map((s) => sentence(s, "spoken", plan.lang, templates, reading)),
     sms: renderSms(plan, templates),
   };
 }

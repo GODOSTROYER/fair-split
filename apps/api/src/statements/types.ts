@@ -5,6 +5,7 @@
 //
 // I1: templates are words and {{PLACEHOLDERS}} only (no digit, no number word); every number a member reads is
 // an integer fact (cents, centavos, grams, basis points) that code formats at render time.
+import { Provenance } from "@fairsplit/contracts";
 import { z } from "zod";
 
 export const STATEMENT_SLOTS = [
@@ -110,6 +111,11 @@ export const StatementPlan = z.strictObject({
   templateV: z.string(),
   sentences: z.array(PlannedSentence),
   sms: z.strictObject({ variant: SmsVariant, facts: z.partialRecord(Placeholder, Fact) }),
+  /**
+   * Where the line's slip readings came from (I8). Only `live`, a real Claude reading, lets the AI_NOTE say
+   * Claude read the slips; anything else, null or absent takes the demo note (T1, `aiNoteVariant`).
+   */
+  readingProvenance: Provenance.nullable().optional(),
 });
 export type StatementPlan = z.infer<typeof StatementPlan>;
 

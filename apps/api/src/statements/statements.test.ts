@@ -5,9 +5,10 @@ import { format, mulDivFloor, mulDivHalfUp } from "@fairsplit/domain";
 import { getLine, getMember, getRateCard, getRun, getSeason } from "@fairsplit/seed";
 import { describe, expect, it } from "vitest";
 import { must } from "../proof/testing/world.js";
+import { readingProvenanceOf } from "./facts.js";
 import { gsm7Length } from "./gsm7.js";
 import { type StatementLineFacts, statementPlan } from "./plan.js";
-import { renderStatement } from "./render.js";
+import { aiNoteVariant, renderStatement } from "./render.js";
 import { TEMPLATE_PLACEHOLDERS, TEMPLATES_V1 } from "./templates.js";
 import type { Lang } from "./types.js";
 import { validateTemplate, validateTemplates } from "./validate.js";
@@ -94,7 +95,8 @@ describe("statement templates (I1: words and placeholders only)", () => {
 describe("statementPlan and renderStatement", () => {
   it("the hero line (M-014, PayPal, paid) reads money first, every amount from code", () => {
     const line = must(getLine("M-014"));
-    const r = text("M-014", "en");
+    // a real reading: the product AI_NOTE (seeded and unknown readings: "the AI_NOTE" below)
+    const r = text("M-014", "en", { readingProvenance: "live" });
     const pay = must(r.display.find((s) => s.slot === "PAY"));
     const pesos = Math.floor(mulDivFloor(line.netCents, FX.num, FX.den) / 100);
     expect(pay.variant).toBe("paypal");
@@ -222,6 +224,163 @@ describe("statementPlan and renderStatement", () => {
     const r = text("M-014", "en", { slipSerials: many });
     expect(r.sms.fits).toBe(true);
     expect(statementPlan(seedFacts("M-014", "en", { slipSerials: many })).sms.variant).toBe("paid_short");
+  });
+});
+
+describe("the AI_NOTE: Claude's reading only when Claude read the slips (T1)", () => {
+  const LANGS = ["en", "ceb", "fil"] as const;
+  /** Each AI_NOTE form, by the line facts that pick it. */
+  const FORMS = {
+    default: {},
+    noname: { treasurer: null },
+    checking: { state: "COMPUTED" },
+  } as const satisfies Record<string, Partial<StatementLineFacts>>;
+  const DEMO = { default: "seeded", noname: "seeded_noname", checking: "seeded_checking" } as const;
+  const fill = (t: string | undefined) => must(t).replace("{{TREASURER}}", "Analyn");
+  const noteOf = (r: ReturnType<typeof renderStatement>) => ({
+    display: must(r.display.find((s) => s.slot === "AI_NOTE")),
+    spoken: must(r.spoken.find((s) => s.slot === "AI_NOTE")),
+  });
+  const render = (lang: Lang, over: Partial<StatementLineFacts>) =>
+    renderStatement(statementPlan(seedFacts("M-014", lang, over)));
+
+  it("the demo wording, word for word (§6), in English", () => {
+    const en = (over: Partial<StatementLineFacts>) =>
+      noteOf(render("en", { readingProvenance: "seeded", ...over })).display.text;
+    expect(en({})).toBe(
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay.",
+    );
+    expect(en(FORMS.noname)).toBe(
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and the treasurer approved this pay.",
+    );
+    expect(en(FORMS.checking)).toBe(
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones.",
+    );
+  });
+
+  it("the demo wording in Cebuano and Filipino (machine-translated, chipped like every ceb and fil key)", () => {
+    const note = (lang: Lang, over: Partial<StatementLineFacts>) =>
+      noteOf(render(lang, { readingProvenance: "seeded", ...over })).display.text;
+    expect(note("ceb", {})).toBe(
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+    );
+    expect(note("ceb", FORMS.noname)).toBe(
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan sa tesorero kini nga bayad.",
+    );
+    expect(note("ceb", FORMS.checking)).toBe(
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo.",
+    );
+    expect(note("fil", {})).toBe(
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer Analyn ang bayad na ito.",
+    );
+    expect(note("fil", FORMS.noname)).toBe(
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ng ingat-yaman ang bayad na ito.",
+    );
+    expect(note("fil", FORMS.checking)).toBe(
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak.",
+    );
+  });
+
+  it("a seeded reading takes the demo variant in every language and form, display and spoken alike", () => {
+    for (const lang of LANGS) {
+      for (const [form, over] of Object.entries(FORMS) as [
+        keyof typeof FORMS,
+        Partial<StatementLineFacts>,
+      ][]) {
+        const plan = statementPlan(seedFacts("M-014", lang, { readingProvenance: "seeded", ...over }));
+        expect(plan.readingProvenance).toBe("seeded");
+        const n = noteOf(renderStatement(plan));
+        const want = fill(TEMPLATES_V1[lang][`AI_NOTE.${DEMO[form]}`]);
+        expect(n.display.variant, `${lang} ${form}`).toBe(DEMO[form]);
+        expect(n.display.text, `${lang} ${form}`).toBe(want);
+        expect(n.spoken.variant).toBe(DEMO[form]);
+        expect(n.spoken.text, `${lang} ${form} spoken`).toBe(want);
+        expect(n.display.text).toContain("demo");
+        expect(n.display.text).not.toContain("AI (Claude)");
+      }
+    }
+  });
+
+  it("a real (live) reading keeps the product AI_NOTE in every language and form", () => {
+    for (const lang of LANGS) {
+      for (const [form, over] of Object.entries(FORMS) as [
+        keyof typeof FORMS,
+        Partial<StatementLineFacts>,
+      ][]) {
+        const plan = statementPlan(seedFacts("M-014", lang, { readingProvenance: "live", ...over }));
+        expect(plan.readingProvenance).toBe("live");
+        const n = noteOf(renderStatement(plan));
+        const want = fill(TEMPLATES_V1[lang][`AI_NOTE.${form}`]);
+        expect(n.display.variant, `${lang} ${form}`).toBe(form);
+        expect(n.display.text, `${lang} ${form}`).toBe(want);
+        expect(n.spoken.text, `${lang} ${form} spoken`).toBe(want);
+        expect(n.display.text).toContain("AI (Claude)");
+      }
+    }
+  });
+
+  it("an unknown or missing reading provenance takes the demo variant, never the Claude claim", () => {
+    for (const lang of LANGS) {
+      for (const p of [undefined, null, "replay", "simulated_rail"] as const) {
+        const plan = statementPlan(seedFacts("M-014", lang, { readingProvenance: p }));
+        expect(plan.readingProvenance ?? null).toBe(p ?? null);
+        const n = noteOf(renderStatement(plan));
+        expect(n.display.variant, `${lang} ${String(p)}`).toBe("seeded");
+        expect(n.spoken.variant).toBe("seeded");
+      }
+      // renderStatement decides on its own: a plan that names the product note but carries no reading
+      // provenance (made elsewhere, or stored before T1) still renders the demo note
+      const live = statementPlan(seedFacts("M-014", lang, { readingProvenance: "live" }));
+      const { readingProvenance: _dropped, ...bare } = live;
+      expect(bare.sentences.find((s) => s.slot === "AI_NOTE")?.variant).toBe("default");
+      const n = noteOf(renderStatement(bare));
+      expect(n.display.variant).toBe("seeded");
+      expect(n.display.text).toBe(fill(TEMPLATES_V1[lang]["AI_NOTE.seeded"]));
+    }
+  });
+
+  it("the variant choice never upgrades a demo note to the claim, and refuses a form it does not know", () => {
+    expect(aiNoteVariant("seeded", "live")).toBe("seeded");
+    expect(aiNoteVariant("seeded_checking", "live")).toBe("seeded_checking");
+    expect(aiNoteVariant("default", "live")).toBe("default");
+    expect(aiNoteVariant("noname", "seeded")).toBe("seeded_noname");
+    expect(() => aiNoteVariant("short", undefined)).toThrow(/no demo variant/);
+  });
+
+  it("the SMS carries no AI_NOTE: the same GSM-7 text, in one message, whichever the reading", () => {
+    for (const lang of LANGS) {
+      for (const no of ["M-014", "M-053", "M-018"]) {
+        const seeded = text(no, lang, { readingProvenance: "seeded" }).sms;
+        const live = text(no, lang, { readingProvenance: "live" }).sms;
+        expect(seeded).toEqual(live);
+        expect(seeded.fits, `${no} ${lang}`).toBe(true);
+        expect(seeded.text).not.toMatch(/Claude|demo/);
+      }
+    }
+  });
+
+  it("inv.i1.no-model-numbers: the demo texts pass every validator, and the demo disclosure is frozen", () => {
+    for (const lang of LANGS) {
+      for (const key of ["AI_NOTE.seeded", "AI_NOTE.seeded_noname", "AI_NOTE.seeded_checking"]) {
+        expect(validateTemplate(key, must(TEMPLATES_V1[lang][key]), lang), `${lang} ${key}`).toEqual([]);
+      }
+    }
+    // a committed variant may not swap the disclosure for the claim (or reword it at all)
+    expect(
+      validateTemplate("AI_NOTE.seeded_checking", must(TEMPLATES_V1.en["AI_NOTE.checking"]), "en"),
+    ).toEqual([
+      "AI_NOTE.seeded_checking: the demo disclosure is frozen; a committed variant must keep its words",
+    ]);
+  });
+
+  it("a line's reading provenance: Claude's only when every reading is live; nothing known is no claim", () => {
+    expect(readingProvenanceOf([])).toBeNull();
+    expect(readingProvenanceOf(["live", "live"])).toBe("live");
+    expect(readingProvenanceOf(["live", "seeded"])).toBe("seeded");
+    expect(readingProvenanceOf(["live", "replay"])).toBe("replay");
+    expect(readingProvenanceOf(["replay", "seeded"])).toBe("seeded");
+    expect(readingProvenanceOf(["simulated_rail"])).toBe("simulated_rail");
+    expect(readingProvenanceOf(["live", "something-else"])).toBe("seeded");
   });
 });
 
