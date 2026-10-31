@@ -71,14 +71,18 @@ export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleS
   const stepId = next?.id;
   useEffect(() => {
     if (!isStep || !when) return;
-    const el = ref.current;
-    if (!el) return;
-    const target = el.matches("button, a, input, [tabindex]")
-      ? el
-      : el.querySelector<HTMLElement>(".fs-slab__face, button, a, input, [tabindex]:not([tabindex='-1'])");
+    const target = controlOf(ref.current);
     if (!target) return;
     focusAndReveal(target);
-    // While it is the step, it is the screen's main control: a focus return with nothing better lands on it.
-    return registerScreenControl(target);
+    // While it is the step, it is the screen's main control: a focus return with nothing better lands on it. Read
+    // when focus returns, so a control drawn again meanwhile (the press remounted at rest) is the one it finds.
+    return registerScreenControl(() => controlOf(ref.current));
   }, [isStep, stepId, when, ref]);
+}
+
+/** The control a step pre-focuses: `el` itself, or the slab face or first control inside it. */
+function controlOf(el: HTMLElement | null): HTMLElement | null {
+  if (!el) return null;
+  if (el.matches("button, a, input, [tabindex]")) return el;
+  return el.querySelector<HTMLElement>(".fs-slab__face, button, a, input, [tabindex]:not([tabindex='-1'])");
 }

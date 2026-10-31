@@ -16,8 +16,11 @@
 //     sticky head never covers it). The scroll is instant: a focus return never animates, in reduced motion or not.
 //   - Polite. It moves focus only when focus is lost: on <body>, under an inert subtree, or inside what is going
 //     away. A control the person (or a new screen) focused meanwhile keeps it.
+//   - Backed. Each part that knows its successor hands focus on itself (useFocusOnLeave before its DOM goes,
+//     useFocusAfterRemoval in the commit after). Whatever is left (a link that changes the route takes its screen
+//     away; a control nobody hands on from) is the root's useFocusGuard: before anything paints, never <body>.
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 /** A place focus can go back to: the element, and a stable key that finds its successor once it is redrawn. */
 export interface FocusPlace {
@@ -124,14 +127,25 @@ function resolve(target: FocusTarget, leaving: Element | null): HTMLElement | nu
 
 // ------------------------------------------------------------------------------------------- the screen
 
-let stepControl: HTMLElement | null = null;
+type ControlSource = HTMLElement | (() => HTMLElement | null | undefined);
 
-/** usePrefocus: the control the run pill's step pre-focuses is its screen's main control while it is the step. */
-export function registerScreenControl(el: HTMLElement): () => void {
-  stepControl = el;
+let stepControl: ControlSource | null = null;
+
+/**
+ * usePrefocus: the control the run pill's step pre-focuses is its screen's main control while it is the step. A
+ * getter is read when focus returns, so a control the screen drew again meanwhile (the press remounted at rest)
+ * is the one found, never the element that was there when the step began.
+ */
+export function registerScreenControl(control: ControlSource): () => void {
+  stepControl = control;
   return () => {
-    if (stepControl === el) stepControl = null;
+    if (stepControl === control) stepControl = null;
   };
+}
+
+function stepControlEl(): HTMLElement | null {
+  if (!stepControl) return null;
+  return (typeof stepControl === "function" ? stepControl() : stepControl) ?? null;
 }
 
 function screenRoot(): HTMLElement | null {
@@ -142,9 +156,8 @@ function screenRoot(): HTMLElement | null {
 export function screenControl(leaving: Element | null = null): HTMLElement | null {
   const main = screenRoot();
   if (!isLive(main, leaving)) return null;
-  if (stepControl && main.contains(stepControl) && isLive(stepControl, leaving) && rendered(stepControl)) {
-    return stepControl;
-  }
+  const step = stepControlEl();
+  if (step && main.contains(step) && isLive(step, leaving) && rendered(step)) return step;
   for (const el of main.querySelectorAll<HTMLElement>(TABBABLE)) {
     if (isLive(el, leaving) && rendered(el)) return el;
   }
@@ -392,13 +405,22 @@ export function returnFocus(
   return landed;
 }
 
+/** The removed control as a place: its successor by key (the same control drawn again) is found first. */
+function placeOf(el: Element): FocusPlace | null {
+  return el instanceof HTMLElement ? { el, key: focusKey(el) } : null;
+}
+
 /**
  * Watches `root` (an element from a callback ref): when the control focused inside it is removed and focus fell
- * to <body>, focuses `target()` (or the screen's main control). It checks after every commit of the component that
- * calls it (a layout effect), and after any other commit that changes `root` (a mutation observer, still before
- * the browser paints). A focus the person moved elsewhere is left alone.
+ * to <body>, focuses that control's successor by key (the slab remounted at rest under a new key), else
+ * `target()` (or the screen's main control). It checks after every commit of the component that calls it (a
+ * layout effect), and after any other commit that changes `root` (a mutation observer, still before the browser
+ * paints). A focus the person moved elsewhere is left alone.
  */
-export function useFocusAfterRemoval(root: HTMLElement | null, target: () => FocusTarget): void {
+export function useFocusAfterRemoval(
+  root: HTMLElement | null,
+  target: () => FocusTarget | readonly FocusTarget[],
+): void {
   const targetRef = useRef(target);
   targetRef.current = target;
   const rootRef = useRef(root);
@@ -410,7 +432,7 @@ export function useFocusAfterRemoval(root: HTMLElement | null, target: () => Foc
     watched.current = null;
     // `root` itself went (the trace folded away): what owned it hands focus back, not this watch.
     if (!rootRef.current?.isConnected) return;
-    returnFocus(targetRef.current());
+    returnFocus([placeOf(last), ...listOf(targetRef.current())]);
   });
 
   useEffect(() => {
@@ -440,6 +462,124 @@ export function useFocusAfterRemoval(root: HTMLElement | null, target: () => Foc
   useLayoutEffect(() => {
     after.current();
   });
+}
+
+/**
+ * Hands focus on from the element in `ref` when it leaves while it holds focus (Reset once the session has gone,
+ * "Use the phone" once the phone rises): from its layout cleanup, which React runs before it takes the element's
+ * DOM away, so focus is on `targets()` (or the screen's main control) in that commit, never on <body>, not even
+ * between removeChild and the next microtask. For a successor already in the document; one that the same commit
+ * inserts (the committed value's Next link) is useFocusAfterRemoval's. A focus held elsewhere is left alone.
+ */
+export function useFocusOnLeave(
+  ref: RefObject<HTMLElement | null>,
+  targets: () => FocusTarget | readonly FocusTarget[] = () => null,
+): void {
+  const latest = useRef(targets);
+  latest.current = targets;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    return () => {
+      if (el) returnFocus(latest.current(), { leaving: el });
+    };
+  }, [ref]);
+}
+
+// ------------------------------------------------------------------------------------------- the guard
+
+/** Library focus plumbing, never a place to land: Base UI's and AG Grid's focus guards. */
+const NOT_A_PLACE = "[data-base-ui-focus-guard], .ag-tab-guard, [aria-hidden='true']";
+
+/** Where a removed control's neighbours may take its focus: inside a screen, or a drawer beside it. */
+const REGIONS = "#fsc-main, main, .fsc-drawer";
+
+/** AG Grid draws a cell again on its own and focuses the new one: the grid's own focus, given a frame. */
+const GRID = ".ag-root-wrapper";
+
+/** It can no longer hold focus: gone from the document, turned disabled, hidden, or no longer rendered. */
+function cannotHoldFocus(el: HTMLElement): boolean {
+  return !el.isConnected || el.matches(":disabled") || el.closest("[hidden]") !== null || !rendered(el);
+}
+
+/**
+ * The control nearest where a removed one stood: the first control in the nearest container that stayed, inside
+ * a screen or a drawer, outside a grid (the screen or the drawer itself is the screen's main control's turn).
+ */
+function neighbourOf(chain: readonly Element[]): HTMLElement | null {
+  for (const at of chain) {
+    if (!at.isConnected || at.closest(GRID)) continue;
+    if (at.matches(REGIONS) || !at.closest(REGIONS)) return null;
+    for (const el of at.querySelectorAll<HTMLElement>(TABBABLE)) {
+      if (isLive(el) && rendered(el) && !el.closest(NOT_A_PLACE)) return el;
+    }
+  }
+  return null;
+}
+
+interface Held {
+  readonly place: FocusPlace;
+  /** Its ancestors when it took focus, nearest first: the containers that may still stand once it has gone. */
+  readonly chain: readonly Element[];
+}
+
+/**
+ * The console's backstop, mounted once at the root (every surface: the stage, Proof, the brand view, /ops): the
+ * focused control taken away by a commit that hands nothing on (a link that changes the route takes its screen,
+ * and itself, away; a control a screen swaps for its answer), or one the browser stops letting hold focus (turned
+ * disabled), leaves focus on its successor by key, else the first control of the nearest container that stayed
+ * in the screen or drawer, else the screen's main control. It runs from a mutation observer (or, for a control
+ * turned disabled, the focusout that follows), at the first microtask: after the commit's own layout effects,
+ * which hand focus on themselves where they know better, and before the browser paints or a key lands. Focus the
+ * person let go of (a press on the page) is theirs, and a window that lost focus keeps its focused control.
+ */
+export function useFocusGuard(): void {
+  useEffect(() => {
+    let held: Held | null = null;
+    const record = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement) || target === document.body) return;
+      const chain: Element[] = [];
+      for (let at = target.parentElement; at && at !== document.body; at = at.parentElement) chain.push(at);
+      held = { place: { el: target, key: focusKey(target) }, chain };
+    };
+    const handOn = () => {
+      const was = held;
+      if (!was || !focusIsLost()) return;
+      held = null;
+      const inGrid = was.chain.some((at) => at.matches(GRID) && at.isConnected);
+      if (inGrid && !returnFocus(was.place, { fallback: false })) {
+        // The grid draws the cell again on its own, and gives it back its focus: a frame for that, then the rest.
+        requestAnimationFrame(() => {
+          if (focusIsLost()) returnFocus([was.place, () => neighbourOf(was.chain)]);
+        });
+        return;
+      }
+      returnFocus([was.place, () => neighbourOf(was.chain)]);
+    };
+    const onIn = (event: FocusEvent) => record(event.target);
+    const onOut = (event: FocusEvent) => {
+      const el = event.target;
+      if (event.relatedTarget !== null || el !== held?.place.el) return;
+      // Focus left for nowhere: a press on the page, the window losing focus, or the browser's focus fixup (the
+      // control turned disabled or stopped rendering). Told apart at the next microtask, before anything paints.
+      queueMicrotask(() => {
+        if (held?.place.el !== el || !focusIsLost()) return;
+        if (cannotHoldFocus(held.place.el)) handOn();
+        else if (document.activeElement === document.body) held = null;
+      });
+    };
+    const observer = new MutationObserver(() => {
+      if (held && !held.place.el.isConnected) handOn();
+    });
+    record(document.activeElement);
+    document.addEventListener("focusin", onIn, true);
+    document.addEventListener("focusout", onOut, true);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      document.removeEventListener("focusin", onIn, true);
+      document.removeEventListener("focusout", onOut, true);
+      observer.disconnect();
+    };
+  }, []);
 }
 
 /**
