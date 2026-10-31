@@ -377,14 +377,14 @@ export const messages = defineMessages({
     en: "Sign this batch?",
   },
   "M-BD-02.confirmBody": {
-    ceb: "{n} ka bayad, {amount}, pinaagi sa PayPal. Kini magpadala og kwarta. Sunod: ang fingerprint o PIN.",
-    fil: "{n} bayad, {amount}, sa PayPal. Magpapadala ito ng pera. Susunod: ang fingerprint o PIN.",
-    en: "{n} payouts, {amount}, by PayPal. This moves money. Next: your fingerprint or PIN.",
+    ceb: "Mopadala og {n} ka bayad, {amount}, pinaagi sa simulated PayPal sandbox. Walay tinuod nga kwarta nga molihok. Sunod: ang fingerprint o PIN.",
+    fil: "Magpapadala ng {n} bayad, {amount}, sa simulated PayPal sandbox. Walang totoong perang gagalaw. Susunod: ang fingerprint o PIN.",
+    en: "Sends {n} payouts, {amount}, through the simulated PayPal sandbox. No real money moves. Next: your fingerprint or PIN.",
   },
   "M-BD-02.confirmBodyDemo": {
-    ceb: "{n} ka bayad, {amount}, pinaagi sa PayPal. Kini magpadala og kwarta. Ang demo key sa browser ang mopirma.",
-    fil: "{n} bayad, {amount}, sa PayPal. Magpapadala ito ng pera. Ang demo key ng browser ang pipirma.",
-    en: "{n} payouts, {amount}, by PayPal. This moves money. The browser's demo key signs.",
+    ceb: "Mopadala og {n} ka bayad, {amount}, pinaagi sa simulated PayPal sandbox. Walay tinuod nga kwarta nga molihok. Ang demo key sa browser ang mopirma.",
+    fil: "Magpapadala ng {n} bayad, {amount}, sa simulated PayPal sandbox. Walang totoong perang gagalaw. Ang demo key ng browser ang pipirma.",
+    en: "Sends {n} payouts, {amount}, through the simulated PayPal sandbox. No real money moves. The browser's demo key signs.",
   },
   "M-BD-02.confirmSign": { ceb: "Pirmahi", fil: "Pirmahan", en: "Sign" },
   "M-BD-02.srLabel": {

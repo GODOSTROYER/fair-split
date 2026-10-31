@@ -54,14 +54,14 @@ describe("the statement for each demo stage (S1.9 states)", () => {
     expect(v.word).toBe("Gipadala na, naghulat sa PayPal");
   });
 
-  it("paid: landed, dated by PayPal's confirmation, and PayPal is named as the one who confirmed", () => {
+  it("paid: landed, dated by the confirmation, and the simulated PayPal sandbox is named as the one who confirmed", () => {
     const v = view(at("paid"), "en");
     expect(v.amountState).toBe("landed");
     expect(v.tone).toBe("landed");
     expect(v.word).toBe("Paid, 30 Oct");
     expect(v.detail).toEqual({ key: "M-MB-01.paid", args: { date: "30 Oct 2026", time: "09:12" } });
     expect(t("en", v.detail?.key ?? "M-MB-01.paid", v.detail?.args)).toBe(
-      "PayPal confirmed the payment on 30 Oct 2026 at 09:12.",
+      "Confirmed by the simulated PayPal sandbox on 30 Oct 2026 at 09:12.",
     );
   });
 

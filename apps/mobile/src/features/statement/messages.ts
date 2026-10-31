@@ -44,14 +44,14 @@ export const messages = defineMessages({
     en: "One line is still being checked. Treasurer {name} decides by {date}.",
   },
   "M-MB-01.sent": {
-    ceb: "Mabayad na kini kon mokumpirma na ang PayPal.",
-    fil: "Bayad na po ito kapag kinumpirma na ng PayPal.",
-    en: "It is paid once PayPal confirms payment.",
+    ceb: "Mabayad na kini kon mokumpirma na ang simulated PayPal sandbox.",
+    fil: "Bayad na po ito kapag kinumpirma na ng simulated PayPal sandbox.",
+    en: "It is paid once the simulated PayPal sandbox confirms payment.",
   },
   "M-MB-01.paid": {
-    ceb: "Gikumpirma sa PayPal ang bayad sa {date}, {time}.",
-    fil: "Kinumpirma po ng PayPal ang bayad noong {date}, {time}.",
-    en: "PayPal confirmed the payment on {date} at {time}.",
+    ceb: "Gikumpirma sa simulated PayPal sandbox ang bayad sa {date}, {time}.",
+    fil: "Kinumpirma po ng simulated PayPal sandbox ang bayad noong {date}, {time}.",
+    en: "Confirmed by the simulated PayPal sandbox on {date} at {time}.",
   },
   "M-MB-01.cashDue": {
     ceb: "Cash sa bodega, {date}. Gikan sa {usd} sa {rate} matag dolyar.",
@@ -253,7 +253,7 @@ export const messages = defineMessages({
   /* ------------------------------------------------------------ demo controls (labelled, I8) */
   "M-MB-01.demoTitle": same("Demo controls: simulated PayPal events, labelled"),
   "M-MB-01.demoSend": same("Approve and send"),
-  "M-MB-01.demoConfirm": same("PayPal confirms"),
+  "M-MB-01.demoConfirm": same("Simulated PayPal confirms"),
   "M-MB-01.demoUnclaimed": same("PayPal: unclaimed"),
   "M-MB-01.demoCash": same("Move to cash"),
   "M-MB-01.demoReceived": same("Cash received"),
