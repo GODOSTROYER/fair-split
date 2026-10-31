@@ -129,6 +129,34 @@ describe("Proof's face", () => {
     await waitFor(() => expect(rootReadsProof()).toBe(false));
   });
 
+  it("the lot mark's face (FS Stencil, inline) blocks rather than swaps: no frame in the fallback face", () => {
+    // tokens' fonts.css declares FS Stencil with font-display: swap, so a cold /proof/2026A-r37 painted the lot mark
+    // one frame in FS Sans Proof 800 (256 px wide) before it snapped to Stencil (194 px): a layout shift on the
+    // hero. The face is a 3.7 KB data: URI, so a block period costs nothing.
+    const faces = [...surfaces.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1] ?? "");
+    const stencil = faces.filter((f) => /font-family:\s*"FS Stencil"/.test(f));
+    expect(stencil).toHaveLength(1);
+    expect(stencil[0]).toMatch(/FSStencil\.woff2/);
+    expect(stencil[0]).toMatch(/font-weight:\s*800/);
+    expect(stencil[0]).toMatch(/font-display:\s*block/);
+  });
+
+  it("a cold Proof load starts the lot mark's face loading before the first render; a console path does not", () => {
+    const loads: string[] = [];
+    const fonts = { load: (font: string) => (loads.push(font), Promise.resolve([])) };
+    Object.defineProperty(document, "fonts", { configurable: true, value: fonts });
+    try {
+      bootFace("/sign-in");
+      expect(loads).toEqual([]);
+      bootFace(webRoutes.proof(RUN));
+      expect(loads).toEqual(['800 1em "FS Stencil"']);
+      bootFace("/b/fsb_0123456789abcdef.mock");
+      expect(loads).toHaveLength(2);
+    } finally {
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
   it("a Proof URL that ends on the not-found page keeps the subset; the console then gets its own face", async () => {
     bootFace("/proof/not-a-run");
     const view = await renderConsole({ path: "/proof/not-a-run" });
