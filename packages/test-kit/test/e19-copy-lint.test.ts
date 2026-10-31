@@ -66,6 +66,11 @@ describe("E-19 public copy", () => {
           "apps/mobile/src/features/statement/messages.ts",
         ]),
       );
+      // §6 names both homes of the statement's AI_NOTE: the API's templates and the app's demo shim.
+      expect(areas.get("statement templates")).toEqual([
+        "apps/api/src/statements/templates.ts",
+        "apps/mobile/src/_shims/seed.ts",
+      ]);
       expect(scanned().some((f) => /\.test\./.test(f))).toBe(false);
     },
     SLOW,
@@ -165,6 +170,22 @@ describe("E-19 rules fire on planted copy", () => {
 };`;
     expect(lintText("templates.ts", product).map((f) => f.rule)).toEqual(["read-twice-by-ai-seeded"]);
     expect(lintText("templates.ts", both)).toEqual([]);
+  });
+
+  it("reads the product AI_NOTE in ceb and fil too, and passes it beside the seeded variant", () => {
+    const shim = `export const statementTemplates = {
+  ceb: [{ slot: "AI_NOTE", text: "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude)." }],
+  fil: [{ slot: "AI_NOTE", text: "Dalawang beses binasa ng AI (Claude) ang inyong mga resibo." }],
+  en: [{ slot: "AI_NOTE", text: "Your slips were read twice by AI (Claude)." }],
+};`;
+    expect(lintText("seed.ts", shim).map((f) => [f.line, f.rule])).toEqual([
+      [2, "read-twice-by-ai-seeded"],
+      [3, "read-twice-by-ai-seeded"],
+      [4, "read-twice-by-ai-seeded"],
+    ]);
+    const beside = `${shim}
+export const seeded = "In this demo, the slip readings are a labelled stand-in for Claude's double reading.";`;
+    expect(lintText("seed.ts", beside)).toEqual([]);
   });
 });
 

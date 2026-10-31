@@ -52,8 +52,12 @@ export const AREAS: readonly Area[] = [
     name: "app catalogs",
     walk: { dir: "apps/mobile/src", match: /\/messages\.ts$|^apps\/mobile\/src\/_shims\/i18n\.ts$/ },
   },
-  // The statement's AI_NOTE (T1): the product note may exist only beside its seeded variant.
-  { name: "statement templates", files: ["apps/api/src/statements/templates.ts"] },
+  // The statement's AI_NOTE (T1): the product note may exist only beside its seeded variant. §6 names both homes:
+  // the API's templates and the app's demo statement shim, which K1d replaces with T1's seeded plan.
+  {
+    name: "statement templates",
+    files: ["apps/api/src/statements/templates.ts", "apps/mobile/src/_shims/seed.ts"],
+  },
 ];
 
 const SKIP_DIRS = new Set(["node_modules", "dist", ".turbo", "coverage", "test", "__tests__"]);

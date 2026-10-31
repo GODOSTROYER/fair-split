@@ -110,6 +110,11 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ["pr107-merged", "Not a fork: PayPal merged PR #107."],
   ["real-farmers", "Real farmers in Davao use it."],
   ["real-farmers", "Not a mock-up: real farmers use it every season."],
+  // The product AI_NOTE in each language the statement speaks (apps/api templates.ts, the app's _shims/seed.ts).
+  ["read-twice-by-ai-seeded", "Your slips were read twice by an AI."],
+  ["read-twice-by-ai-seeded", "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude)."],
+  ["read-twice-by-ai-seeded", "Binasa nang makalawa ng AI (Claude) ang inyong mga resibo."],
+  ["read-twice-by-ai-seeded", "Dalawang beses binasa ng AI (Claude) ang inyong mga resibo."],
 ];
 
 /** Template literals whose substitution sits where the claim's date goes (the scanner reads each one as "{}"). */
@@ -234,6 +239,8 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
   ],
   "read-twice-by-ai-seeded": [
     "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer {{TREASURER}} approved this pay.",
+    "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo.",
+    "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak.",
   ],
   "codex-made-photos": [
     "The 10 hero slips (OpenAI's image model via Codex CLI); photos A–L are composed in code from them and code-drawn slips.",
