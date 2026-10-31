@@ -155,6 +155,49 @@
 >   connection), `money/reroute-c21.test.ts` (D7), `money/primary-c21.test.ts` (a co-op's primary resumed a day on),
 >   `judge/quota.pg.test.ts` (restamp, hour boundary, D2, D8, the public third), `money/quota-resume.test.ts`.
 
+> **Cron tick (J2, 1 Nov).** `POST /internal/cron/tick` (folder `src/routes/internal`, registered as `internal`) is
+> what fs-cron's `node tools/cron-tick.mjs` calls at :07 UTC every hour over the private network.
+>
+> - Auth: `Authorization: Bearer <CRON_SECRET>`, compared in constant time (sha256 of both sides through
+>   `timingSafeEqual`) before anything else runs: no credential resolution, no body read, no database. A missing or
+>   wrong secret is a bare 401 `UNAUTHENTICATED`. With CRON_SECRET unset or shorter than 16 characters the route
+>   answers the ordinary 404 (`No route for POST /internal/cron/tick`) and boot logs a warning: never an open tick.
+>   CRON_SECRET was already in `src/env.ts` (`secrets.cronSecret`); nothing there changed.
+> - The plan (`internal/cron.ts` `planCronTick`, apps/tasks/src/cron.ts lifted with the IC-01 `TASKS` keys): every
+>   tick offers `judgeReset{trigger: cron, workspaceId: null, slot: <UTC hour>}` (`reset:pool:2026-11-01T10`) and
+>   `warmCaches{slot: w<23-hour window>}`; ticks from 02:00 to 05:59 UTC also offer `reconcile{nightly}` keyed by the
+>   UTC date (`windowStart` = 48 h before that midnight). All of them are system rows (`workspace_id` null) enqueued
+>   in ONE transaction with the tick record; a slot's row that already exists is not queued twice (`created: false`).
+> - Only a job this process has a handler for is enqueued (`OutboxRuntime.handles(task)`, from the handlers
+>   `wireOutbox` was given). A row without one would be claimed, fail `no handler registered` eight times and go
+>   dead, so the tick skips that job and labels it `{task, dedupeKey, reason: "no handler"}` in the answer's and the
+>   tick record's `skipped`, logs a warning, and boot warns which cron tasks have no handler. Until J1's labelled
+>   no-ops for `reconcile` and `warmCaches` are merged, those two are skipped this way; once they are registered, the
+>   tick enqueues them with no change here. A process with no outbox wired (some tests) skips every job.
+> - At most one tick per 30 minutes, decided in Postgres: `takeCronTick` takes `pg_advisory_xact_lock('fs:cron-tick')`
+>   (READ COMMITTED, `lock_timeout` 10 s), reads the last tick from `reconciliation_reports` (kind `health`, no
+>   workspace, `summary.source = 'cronTick'`, `window_end` = the tick's app-clock time), and refuses with 429
+>   `RATE_LIMITED` plus `Retry-After` when it is under 30 minutes old, enqueueing and recording nothing. Two fs-api
+>   processes ticking at once: exactly one is taken. No new table or migration.
+> - Answers: 202 `{at, nextTickFrom, tasks: [{task, dedupeKey, created}], skipped: [{task, dedupeKey, reason}]}`;
+>   401; 404; 429. The route is raw Hono, so it is not in the public OpenAPI document.
+> - The judgeReset pass is the judge folder's existing handler (`judge/reset-task.ts`), unchanged except that its
+>   cron pass now also runs WS-DATA's `purgeExpiredTransmissions(db, now)` (expired `webhook_transmissions` ids, by
+>   the app clock the verifier uses) and reports `transmissionsPurged`. `reconcile` and `warmCaches` handlers are not
+>   registered here (J1 registers labelled no-ops); until they exist the tick skips those jobs (labelled, above).
+> - `tools/cron-tick.mjs` (WS-OPS): env `FS_API_HOSTPORT` (`host:port`, render.yaml's `hostport`) and `CRON_SECRET`;
+>   prints the enqueued task names, then any skipped ones (`skipped, not enqueued: warmCaches (no handler)`); exit 0
+>   taken, 2 refused (a 429 on the first attempt), 1 anything else (a 429 answering a retry after a failed attempt
+>   counts as taken).
+> - Tests: `routes/internal/cron.test.ts` (plan, secret check, 401/404 before any database access, not in OpenAPI),
+>   `routes/internal/cron.pg.test.ts` (enqueued rows and record, the 30-minute refusal, three concurrent HTTP ticks,
+>   six ticks over two connection pools, the dispatcher running judgeReset end to end with the purge, a nightly
+>   pass with only judgeReset registered: reconcile and warmCaches skipped and labelled, no row of theirs, no dead
+>   row; a process without an outbox skipping everything), `routes/internal/cron-tick.boot.pg.test.ts`
+>   (`startServer()` booted for real, then `node tools/cron-tick.mjs`: 401, taken, refused, the server's own
+>   dispatcher finishing every row the tick enqueued, and no row for a job it skipped);
+>   apps/tasks/test/cron-tick.test.ts for the script against a stand-in.
+
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
 Every dependency a slice needs is already installed; if one is missing, report it (do not add it).
@@ -197,6 +240,7 @@ A test for a slice lives next to its code, inside the slice's paths (`*.test.ts`
 | `proof`                                       | PROOF | `proof`, `proofJson`, `proofExport`                         | public Proof SSE (`/v1/proof/:runSlug/events`)                                                                                                         |
 | `statements`                                  | PROOF | `createReviewRequest`                                       | statement reads, `explain` task                                                                                                                        |
 | `wellknown`, `brand`, `print`, `ops`, `media` | PROOF | none                                                        | `/.well-known/fairsplit-keys.json`, brand view and CSV, 80 mm print data, `/ops`, dynamic media                                                        |
+| `internal`                                    | JUDGE | none                                                        | `POST /internal/cron/tick` (fs-cron's hourly trigger; enqueues judgeReset, reconcile, warmCaches)                                                      |
 | (shell) `src/sse`                             | SHELL | `runEvents`, `workspaceEvents`                              | `/v1/lines/:lineId/events`                                                                                                                             |
 
 Until a handler is filled in, its command answers **501** with an IC-01 body

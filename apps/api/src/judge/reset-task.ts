@@ -6,12 +6,14 @@
 //          2. purges expired judge workspaces that are safe to remove,
 //          3. retires pooled workspaces of an older seed and refills the pool to 3,
 //          4. resumes every written batch whose POST stopped (money/resume.ts, the hourly catch-up),
-//          5. writes a `reconciliation_reports{health}` summary for /ops.
+//          5. drops webhook transmission ids whose replay claim has expired (`purgeExpiredTransmissions`, by the
+//             app clock the webhook verifier judges freshness with),
+//          6. writes a `reconciliation_reports{health}` summary for /ops.
 // Cancels are never made here: they are `cancelUnclaimed` outbox rows (I7), run by the run slice's handler
 // through `PayoutsService.cancelUnclaimed`, which re-checks the kill switch before any PayPal call.
 // (S3.9 step 5, the webhook-registration and Claude-budget checks, belongs to WS-PPCORE and WS-READ.)
 import { TASKS, TaskArgs } from "@fairsplit/contracts";
-import { schema } from "@fairsplit/db";
+import { purgeExpiredTransmissions, schema } from "@fairsplit/db";
 import { enqueue, type TaskContext } from "@fairsplit/outbox";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
@@ -34,6 +36,8 @@ export interface JudgeResetReport {
   poolRetired: number;
   /** Written batches whose POST had stopped, re-queued with their ids (cron only). */
   postsResumed: number;
+  /** Expired `webhook_transmissions` ids dropped (cron only). */
+  transmissionsPurged: number;
   skipped?: "locked";
 }
 
@@ -120,6 +124,7 @@ export async function runJudgeReset(
       poolCreated: 0,
       poolRetired: 0,
       postsResumed: 0,
+      transmissionsPurged: 0,
     };
     deps.logger.info({ ...report, outboxId: task?.outboxId }, "judge reset (button)");
     return report;
@@ -134,6 +139,7 @@ export async function runJudgeReset(
     const poolRetired = await retireStalePool(deps.db);
     const poolCreated = await refillPool(deps.db, POOL_TARGET);
     const postsResumed = await resumeStalledPosts(deps);
+    const transmissionsPurged = await purgeExpiredTransmissions(deps.db, now);
     const r: JudgeResetReport = {
       trigger: "cron",
       cancelsEnqueued,
@@ -142,6 +148,7 @@ export async function runJudgeReset(
       poolCreated,
       poolRetired,
       postsResumed,
+      transmissionsPurged,
     };
     await deps.db.insert(schema.reconciliationReports).values({
       kind: "health",
@@ -158,6 +165,7 @@ export async function runJudgeReset(
     poolCreated: 0,
     poolRetired: 0,
     postsResumed: 0,
+    transmissionsPurged: 0,
     skipped: "locked",
   };
   deps.logger.info({ ...out, outboxId: task?.outboxId }, "judge reset (cron)");

@@ -25,6 +25,7 @@ import auth from "./auth/index.js";
 import brand from "./brand/index.js";
 import fields from "./fields/index.js";
 import holds from "./holds/index.js";
+import internal from "./internal/index.js";
 import judge from "./judge/index.js";
 import lines from "./lines/index.js";
 import media from "./media/index.js";
@@ -60,6 +61,7 @@ export const ROUTE_FOLDER_MODULES: readonly AnyFolderModule[] = [
   print,
   ops,
   media,
+  internal,
 ];
 
 export interface CommandStatus {

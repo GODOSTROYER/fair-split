@@ -58,6 +58,7 @@ export const ROUTE_FOLDERS = {
   print: "proof",
   ops: "proof",
   media: "proof",
+  internal: "judge",
 } as const satisfies Record<string, SliceName>;
 
 export type RouteFolder = keyof typeof ROUTE_FOLDERS;

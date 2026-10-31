@@ -128,6 +128,7 @@ export function wireOutbox(o: {
       get started() {
         return started;
       },
+      handles: (task) => typeof o.handlers[task] === "function",
     },
     async start() {
       await outbox.dispatcher.start();
