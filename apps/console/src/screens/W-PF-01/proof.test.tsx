@@ -14,6 +14,7 @@ import type { ProgressCounts } from "../../features/proof/model.js";
 import { proofState } from "../../features/proof/ProofView.js";
 import type { Verification } from "../../features/proof/useVerification.js";
 import type { VerifyOutcome } from "../../features/proof/verify.js";
+import { cascaded, readRules } from "../../test/css.js";
 import {
   createTestWorld,
   expectNoAxeViolations,
@@ -68,6 +69,69 @@ describe("W-PF-01 loads without waiting on the seed", () => {
     });
     await screen.findByTestId("W-PF-01");
     await waitFor(() => expect(log.sent.some((r) => r.path === `/v1/proof/${RUN}`)).toBe(true));
+  });
+
+  // fs-api serves the seed's chunk uncompressed, so on a slow link the bundle lands first and the hero paints
+  // before the seed that names the lot. The lot mark's line is there from the hero's first frame and fills in
+  // place, so the sentence, the progress line and Verify never jump down when the code arrives, and the season
+  // reads the same before and after (no re-wrap).
+  it("holds the lot mark's line from the hero's first frame, and fills it in place when the seed lands", async () => {
+    let land: (seed: typeof snapshot) => void = () => undefined;
+    const late = new Promise<typeof snapshot>((resolve) => {
+      land = resolve;
+    });
+    const firstFrame: { lot: Element | null; title: string | null }[] = [];
+    const watch = new MutationObserver(() => {
+      const title = document.getElementById("W-PF-01-title");
+      if (title && firstFrame.length === 0) {
+        firstFrame.push({
+          lot: document.querySelector('[data-testid="W-PF-01.lot"]'),
+          title: title.textContent,
+        });
+      }
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    try {
+      await renderConsole({ path: webRoutes.proof(RUN), snapshot: () => late });
+      const hero = await screen.findByTestId("W-PF-01.hero");
+      const lot = within(hero).getByTestId("W-PF-01.lot");
+      const title = document.getElementById("W-PF-01-title") as HTMLElement;
+      expect(firstFrame).toHaveLength(1);
+      expect(firstFrame[0]?.lot).toBe(lot);
+      // Waiting, the line is empty and says nothing to a screen reader.
+      expect(lot.textContent).toBe("");
+      expect(lot.getAttribute("aria-hidden")).toBe("true");
+      const sentence = title.textContent;
+      expect(sentence).toContain("Season 2026-A");
+      await act(async () => {
+        land(snapshot);
+      });
+      await waitFor(() => expect(lot.textContent).toBe(snapshot.lot.lotCode));
+      expect(within(hero).getByTestId("W-PF-01.lot")).toBe(lot);
+      expect(lot.hasAttribute("aria-hidden")).toBe(false);
+      expect(title.textContent).toBe(sentence);
+    } finally {
+      watch.disconnect();
+    }
+  });
+
+  it("reserves the lot mark's line box at its settled height: 2.5rem, and 2rem up to 560 px", () => {
+    const rules = readRules("src/features/proof/proof.css");
+    const lot = document.createElement("p");
+    lot.className = "pf-hero__lot";
+    document.body.append(lot);
+    try {
+      for (const [width, size] of [
+        [1470, "2.5rem"],
+        [390, "2rem"],
+      ] as const) {
+        const medium = { width, motion: "full" } as const;
+        expect(cascaded(rules, lot, "line-height", medium)).toBe(size);
+        expect(cascaded(rules, lot, "min-block-size", medium)).toBe(size);
+      }
+    } finally {
+      lot.remove();
+    }
   });
 });
 
