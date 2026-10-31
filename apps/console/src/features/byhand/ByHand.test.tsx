@@ -269,6 +269,9 @@ describe("W-TR-04 by hand: focus once the field is answered", { timeout: 60_000 
       await act(async () => {
         fireEvent.keyDown(el, { key: "Enter" });
       });
+      // The value prints in ink when the server's field.entered arrives, and the field goes in that commit.
+      await waitFor(() => expect(sampled.removals()).toBe(1));
+      expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed");
       // Each frame until the run names the next step (its Next link under the ink), then one more.
       for (let i = 0; i < 120 && !screen.queryByTestId("W-TR-04.next"); i++) await sampled.frame();
       await sampled.frame();
