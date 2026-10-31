@@ -1,10 +1,12 @@
 // IC-11 statement audio (ADR-0011): which synthetic clip, if any, reads each spoken sentence of a statement.
 //
-// The published manifest is `${STATIC_MEDIA_DIR}/audio/manifest.json` (default media/public; H1 assembles it from
-// media/audio). A sentence gets a clip only when an entry passes every rule of ADR-0011 §5: it parses, it is
-// synthetic and not a draft, its file is `audio/{its member}/{its lang}/{name}.m4a` and exists in the static media
-// directory, its `text` hashes to its `text_sha256`, and member, language, slot and hash equal the rendered
-// sentence's. Otherwise the sentence has no clip and the phone's voice reads it, labelled; never a near clip.
+// The published manifest is `${STATIC_MEDIA_DIR}/audio/manifest.json`: on Render the folder tools/assemble-media.ts
+// writes (apps/api/dist/media) from media/audio by its allowlist, drafts included; unset, media/public. A sentence
+// gets a clip only when an entry passes every rule of ADR-0011 §5: it parses (one malformed offset spoils the whole
+// entry), it is synthetic and not a draft, its file is `audio/{its member}/{its lang}/{name}.m4a` (never
+// `audio/drafts/…`) and exists in the static media directory, its `text` hashes to its `text_sha256`, and member,
+// language, slot and hash equal the rendered sentence's. Otherwise the sentence has no clip and the phone's voice
+// reads it, labelled; never a near clip.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {

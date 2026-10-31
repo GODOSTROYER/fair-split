@@ -5,8 +5,8 @@
 //                                             (those photos are never generated; the tile says so, with a word)
 //   GET /v1/media/audio/:lineId?lang=         which voice reads each spoken sentence of a statement (IC-11,
 //                                             ADR-0011): the synthetic Gemini clip whose exact words match, from
-//                                             media/public's manifest, else the device's own voice; always
-//                                             labelled (I8). Same readers as the statement.
+//                                             the published manifest (STATIC_MEDIA_DIR), else the device's own
+//                                             voice; always labelled (I8). Same readers as the statement.
 import { PhotoId, StatementAudio, StatementAudioQuery } from "@fairsplit/contracts";
 import { format } from "@fairsplit/domain";
 import { getPhotos } from "@fairsplit/seed";
@@ -84,7 +84,7 @@ export default defineRouteFolder({
         summary:
           "Which voice reads each sentence of a statement: its Gemini clip, or the device's voice; labelled",
         description:
-          "IC-11 (ADR-0011): one entry per spoken sentence, in reading order, named by its slot, template variant and mentions so a client pairs it with its own sentence without reading words. A sentence has a clip only when a published manifest entry (media/public/audio/manifest.json) has exactly its words (`textSha256`, the SHA-256 of the spoken text), its slot, member and language, and is not a draft; otherwise `clip` is null and the device's voice reads it under `deviceLabel`.",
+          "IC-11 (ADR-0011): one entry per spoken sentence, in reading order, named by its slot, template variant and mentions so a client pairs it with its own sentence without reading words. A sentence has a clip only when a published manifest entry (STATIC_MEDIA_DIR/audio/manifest.json, apps/api/dist/media on Render) has exactly its words (`textSha256`, the SHA-256 of the spoken text), its slot, member and language, and is not a draft; otherwise `clip` is null and the device's voice reads it under `deviceLabel`.",
         request: StatementAudioQuery,
         response: StatementAudio,
         errors: ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "FORBIDDEN"],

@@ -264,7 +264,7 @@ describe("a sentence gets a clip only when every rule of ADR-0011 §5 holds", ()
   });
 });
 
-describe("readAudioManifest: media/public/audio/manifest.json, entry by entry", () => {
+describe("readAudioManifest: the published audio/manifest.json (STATIC_MEDIA_DIR), entry by entry", () => {
   it("reads nothing when the file is missing, unreadable or a bare array", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "fs-audio-m-"));
     try {
