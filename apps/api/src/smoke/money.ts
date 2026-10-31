@@ -374,23 +374,27 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
   const done = await waitForState((st) => st === "SETTLED", 30_000);
   step("money.done", `GET ${runPath}`, done, done?.run.state === "SETTLED");
   // ------------------------------------------------------------ verified simulator-signed webhooks; the chain
-  // The simulator answers the cancel RETURNED and says so in a signed PAYMENT.PAYOUTS-ITEM.RETURNED delivery, which
-  // processWebhook files among the run's events (the dispatcher runs it, so give it a moment).
-  const isVerified = (e: { type: string; payload: unknown }) =>
+  // The simulator answers the cancel with the item RETURNED (item.updated M-031 → RETURNED), and signs a
+  // PAYMENT.PAYOUTS-ITEM.CANCELED delivery that processWebhook files among the run's events (the dispatcher runs it).
+  const isVerified = (e: RunEventLite) =>
     e.type === "webhook.received" && (e.payload as { verified?: string }).verified === "self";
-  const isReturned = (e: { type: string; payload: unknown }) =>
-    isVerified(e) && (e.payload as { eventType?: string }).eventType === "PAYMENT.PAYOUTS-ITEM.RETURNED";
-  let events = await readEvents(`${base}${runPath}/events`, asTreasurer);
-  for (let i = 0; i < 15 && !events.some(isReturned); i++) {
+  const isReturned = (e: RunEventLite) => {
+    const p = e.payload as { memberNo?: string; to?: string };
+    return e.type === "item.updated" && p.memberNo === "M-031" && p.to === "RETURNED";
+  };
+  const isCanceledWebhook = (e: RunEventLite) =>
+    isVerified(e) && (e.payload as { eventType?: string }).eventType === "PAYMENT.PAYOUTS-ITEM.CANCELED";
+  let events = await readAllEvents(`${base}${runPath}/events`, asTreasurer);
+  for (let i = 0; i < 15 && !(events.some(isReturned) && events.some(isCanceledWebhook)); i++) {
     await sleep(2_000);
-    events = await readEvents(`${base}${runPath}/events`, asTreasurer);
+    events = await readAllEvents(`${base}${runPath}/events`, asTreasurer);
   }
   record({
     name: "money.returned",
-    target: `GET ${runPath}/events (PAYMENT.PAYOUTS-ITEM.RETURNED)`,
+    target: `GET ${runPath}/events (item.updated M-031)`,
     status: 200,
-    outcome: events.some(isReturned) ? "Rhea's item RETURNED (verified webhook)" : "no RETURNED event",
-    ok: events.some(isReturned),
+    outcome: `${events.some(isReturned) ? "Rhea's item RETURNED" : "no RETURNED item"}; the simulator's CANCELED webhook ${events.some(isCanceledWebhook) ? "verified" : "not seen"}`,
+    ok: events.some(isReturned) && events.some(isCanceledWebhook),
   });
   const verified = events.filter(isVerified);
   record({
@@ -423,16 +427,41 @@ export async function runMoneyPath(target: MoneyTarget): Promise<SmokeCheck[]> {
   return checks;
 }
 
-/** Reads a run's SSE history for a moment (`Last-Event-ID: 0` replays it) and parses each `data:` line. */
+interface RunEventLite {
+  id: string | null;
+  type: string;
+  provenance: string;
+  payload: unknown;
+}
+
+/** A stream replays at most this many events after its Last-Event-ID (sse/hub.ts). */
+const REPLAY_PAGE = 500;
+
+/** The run's whole event history: page after page of replays, each from the last id the one before ended at. */
+async function readAllEvents(url: string, headers: Record<string, string>): Promise<RunEventLite[]> {
+  const all: RunEventLite[] = [];
+  let from = "0";
+  for (let page = 0; page < 20; page++) {
+    const got = await readEvents(url, headers, from);
+    all.push(...got);
+    const last = got.at(-1)?.id;
+    if (got.length < REPLAY_PAGE || !last || last === from) break;
+    from = last;
+  }
+  return all;
+}
+
+/** Reads a run's SSE replay after `from` for a moment and parses each `data:` line. */
 async function readEvents(
   url: string,
   headers: Record<string, string>,
-): Promise<{ type: string; provenance: string; payload: unknown }[]> {
+  from: string,
+): Promise<RunEventLite[]> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 2_500);
-  const out: { type: string; provenance: string; payload: unknown }[] = [];
+  const out: RunEventLite[] = [];
   try {
-    const res = await fetch(url, { headers: { ...headers, "last-event-id": "0" }, signal: ac.signal });
+    const res = await fetch(url, { headers: { ...headers, "last-event-id": from }, signal: ac.signal });
     const reader = res.body?.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -447,12 +476,18 @@ async function readEvents(
         if (line.startsWith("data:")) {
           try {
             const e = JSON.parse(line.slice(5).trim()) as {
+              id?: string | number;
               type?: string;
               provenance?: string;
               payload?: unknown;
             };
             if (typeof e.type === "string") {
-              out.push({ type: e.type, provenance: String(e.provenance), payload: e.payload ?? null });
+              out.push({
+                id: e.id === undefined ? null : String(e.id),
+                type: e.type,
+                provenance: String(e.provenance),
+                payload: e.payload ?? null,
+              });
             }
           } catch {
             // a keep-alive or a partial line

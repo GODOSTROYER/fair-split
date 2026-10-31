@@ -180,6 +180,24 @@ describe("the hero path on the in-process simulator rail (no msw)", () => {
       priority: "background",
     });
     expect(atSim.ok && atSim.body.transaction_status).toBe("RETURNED");
+    // the run's own record of it, and the simulator's signed word for the cancel
+    const returned = await h.t.deps.db
+      .select({ payload: schema.runEvents.payload, provenance: schema.runEvents.provenance })
+      .from(schema.runEvents)
+      .where(
+        and(eq(schema.runEvents.workspaceId, h.world.workspaceId), eq(schema.runEvents.type, "item.updated")),
+      );
+    expect(
+      returned.filter((e) => {
+        const p = e.payload as { memberNo?: string; to?: string };
+        return p.memberNo === "M-031" && p.to === "RETURNED" && e.provenance === "simulated_rail";
+      }),
+    ).toHaveLength(1);
+    await h.sim.idle();
+    const canceled = (await storedWebhooks(h.t)).filter(
+      (r) => r.eventType === "PAYMENT.PAYOUTS-ITEM.CANCELED",
+    );
+    expect(canceled).toEqual([expect.objectContaining({ verified: "self", provenance: "simulated_rail" })]);
   });
 
   it("inv.i7/i8: the ledger chain verifies; every event is an IC-01 RunEvent; PayPal-derived ones say simulated_rail", async () => {
