@@ -1,4 +1,119 @@
-# AU3 statement audio handoff: incomplete, waiting on ASR service
+# AU3 round 3: partial publication, hero PAY still refused
+
+All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
+Seeded AI notes are a labelled stand-in for Claude; nothing claims a live Claude reading or a Claude-drafted invoice.
+Cebuano and Filipino wording, pronunciation and naturalness remain pending native review.
+
+## Result at 2026-11-01 08:57:33 UTC / 2026-11-01 14:27:33 IST
+
+**M-014 Cebuano is 8/9; 29/101 planned variants are verified and published.** Round 3 added
+28 variants beyond the original BONUS. PAY.paypal remains missing, text hash
+`951cf7877220320908429ecf06d73f2726e849762964b5a51e1407fcc1361826`.
+No frozen text, numeric fact, threshold, offset assertion or failed transcript was altered to obtain a pass.
+Every missing clip keeps the labelled device voice. The enabled full API completion guard was run RED
+specifically on PAY. Its baseline skip is unchanged in the API diff because all nine clips are not published.
+The passing subset test checks eight real hero AAC files, curated assembly, labels and served byte hashes.
+
+| Planned request, original order | Verified / planned |
+| ------------------------------- | -----------------: |
+| M-014:ceb                       |                8/9 |
+| M-014:fil                       |                5/9 |
+| M-014:en                        |                3/9 |
+| M-007:ceb                       |                4/9 |
+| M-060:fil                       |                1/9 |
+| M-018:ceb                       |               2/10 |
+| M-039:en                        |                0/9 |
+| M-022:ceb                       |                2/9 |
+| M-002:ceb                       |                2/9 |
+| M-031:en                        |               0/10 |
+| M-053:ceb                       |                2/9 |
+
+## Verification and fallback
+
+Default ASR order is **gemini-3.8-flash -> gemini-3.6-flash -> gemini-2.5-flash**. The current top model
+remains first. Live models.list through the key-pool module was checked at 2026-11-01 07:22:26.500 UTC.
+[Google pricing](https://ai.google.dev/gemini-api/docs/pricing) marks all three free of charge; the
+[3.6 model page](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash) accepts audio, and the 2.5
+pricing row includes audio input. 3.5 Flash was listed but has no current free pricing row; no entitlement
+was inferred from inventory alone.
+- Transient 408/500/502/503/504, UNAVAILABLE or overloaded replies try the next approved model.
+  SDK retries remain off; every physical request goes through KeyPool and its real ledger.
+- Six consecutive failures or six failures in eight calls open that model's circuit for the run;
+  healthy lower models retain their own history. Backoff is bounded. Permanent input errors do not
+  switch models. A model-specific account 404 excludes only that account/model pair and immediately
+  tries the next eligible key. Other models, per-key caps, attempt budgets and scrubbing are preserved.
+- The timestamp recogniser never sees the reference sentence. It asks for spoken number words.
+  CER stays **0.12** with the same unique, contiguous, non-overlapping and in-bounds anchor checks.
+  Every accepted exact AAC/text hash records its actual ASR model in `audio/statement-verification.json`.
+- Original cached sentences were tried before new speech. A refused cached sentence can get one
+  separately cached verbatim retake. A service error never authorises a new TTS take. Original WAVs
+  and immutable published paths are retained. No WAV is committed.
+- PAY was also tried with the approved Achird, Vindemiatrix and Gacrux voices after Sulafat failed.
+  None passed. Refusals included translated fee words or differing tokenisation within a frozen anchor.
+  The rejected AAC candidates and all generated takes remain in the ignored cache.
+
+After the live 3.8 and 3.6 circuits opened, a continuation retained those observed outages and used
+approved 2.5 ASR in plan order, without repeatedly probing the same outages on each process restart.
+This operational choice is explicit in `statement-validation.json`; normal CLI defaults stay highest-first.
+The continuation saved **18** verified variants, then stopped at **2026-11-01T08:49:53.883Z** on the usable 2.5 accounts'
+self-imposed caps. A subsequent cache-only pass tried every planned sentence through the normal pipeline
+with generation disabled. It recovered **11** clips from exact AAC transcription caches, including shared
+HELP and seeded AI_NOTE text. **0 network requests; the real quota ledger SHA-256 stayed unchanged.**
+
+## Exact blockers and eligibility
+
+Observed errors are retained separately from quality refusals:
+- 3.8: **504 DEADLINE_EXCEEDED**, `Deadline expired before operation could complete.` Also 503 UNAVAILABLE.
+- 3.6: **503 UNAVAILABLE**, `This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.`
+- Seven 2.5 accounts: **404 NOT_FOUND**, `This model models/gemini-2.5-flash is no longer available to new users.`
+  Other accounts served 2.5 successfully, so a refusal is account/model-specific.
+- Final stop: **PoolExhaustedError**; no ready 2.5 key until `2026-11-02T08:00:00.000Z`; five usable
+  accounts at their self-imposed daily cap. No 429 occurred in round 3.
+
+Fallback quota eligibility: **2 November 2026, 08:00:00 UTC / 13:30:00 IST**.
+Higher ASR models retain quota but service recovery has **no known time**. A reset does not guarantee
+account access, service availability or verification quality. Every unpublished planned sentence has
+its reason and fallback reset in the validation file. Every key/model has `nextEligibleAt` or an explicit
+unknown access-recovery reason. The original cloud-stop time and the later offline-recovery time are separate.
+
+| Model                | Counted requests this Pacific day | Remaining eligible-account reservations |
+| -------------------- | --------------------------------: | --------------------------------------: |
+| gemini-3.8-flash-tts |                                38 |                                      82 |
+| gemini-3.8-flash     |                                42 |                                      78 |
+| gemini-3.6-flash     |                                27 |                                      93 |
+| gemini-2.5-flash     |                                66 |                                       0 |
+
+These are self-imposed **10 per key/model/day** caps, not measured Google entitlements. Counts include
+refusals and interrupted reservations conservatively; none was refunded. Used totals include refused
+accounts; remaining reservations exclude account/model pairs refused this run. Billing was never enabled.
+
+## Resume and open work
+
+Preserve `.env`, `media/.cache/tts/` and `media/audio/.quota.json` in this worktree. After eligibility and
+service recovery, retry the hero first. No re-export, change to frozen text or new dependency is needed:
+
+```powershell
+corepack pnpm --filter @fairsplit/media tts statements --only M-014:ceb
+corepack pnpm --filter @fairsplit/media tts statements
+```
+
+Enable the full-completion guard only after PAY passes independent verification and all nine hero clips
+are published. Native review remains open. Default CLI readiness accepts all three approved provenance
+models and skips exact already-verified clips. The API evidence allowlist matches those three models;
+its regression still rejects CER 0.121 and an unapproved paid model.
+
+## Round 3 checks
+
+Tests-first RED receipts covered transient fallback, permanent refusal, ordered 2.5 fallback,
+account-specific availability, cached quality retake, no new TTS during service failure, partial outages
+and combined service errors. Media code suite: **377 tests passed**, 33 files. Enabled API full guard:
+**1 failed, 2 passed**, specifically missing PAY. Final API media suite: **38 passed, 1 originally skipped**,
+five files; scratch Postgres stopped. Both package typechecks, Biome and dependency gate passed.
+Final post-publication media and per-scope ownership receipts are in the builder report.
+
+---
+
+## Previous handoff (historical)
 
 All people, payroll facts and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
 Seeded AI notes describe a stand-in for Claude; nothing claims a live reading or an invoice drafted by Claude.
