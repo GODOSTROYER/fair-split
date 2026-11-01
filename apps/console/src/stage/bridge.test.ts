@@ -153,3 +153,40 @@ describe("IC-12 FrameBridge, stage side", () => {
     expect(frame.sent.map((s) => (s.message as { t: string }).t)).toContain("fs.reset");
   });
 });
+
+describe("frame reload and reset races", () => {
+  it("resends the current credential when the same iframe reloads", async () => {
+    const host = new FakeHost();
+    const frame = frameWindow();
+    const same = grant(Date.now() + 3600_000);
+    const bridge = new StageBridge({ host, tokenFor: async () => same });
+    bridge.start();
+    bridge.attach("chair", frame.window);
+    host.deliver({ ...READY, frameId: "chair" }, frame.window);
+    await vi.waitFor(() => expect(frame.sent).toHaveLength(1));
+    host.deliver({ ...READY, frameId: "chair" }, frame.window);
+    await vi.waitFor(() => expect(frame.sent).toHaveLength(2));
+    bridge.stop();
+  });
+
+  it("never delivers a credential that was minted before Reset", async () => {
+    const host = new FakeHost();
+    const frame = frameWindow();
+    let finish!: (value: FrameTokenGrant) => void;
+    const bridge = new StageBridge({
+      host,
+      tokenFor: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    bridge.start();
+    bridge.attach("chair", frame.window);
+    host.deliver(READY, frame.window);
+    bridge.reset();
+    finish(grant(Date.now() + 3600_000));
+    await Promise.resolve();
+    expect(frame.sent.map(({ message }) => (message as { t: string }).t)).toEqual(["fs.reset"]);
+    bridge.stop();
+  });
+});

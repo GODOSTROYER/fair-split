@@ -3,14 +3,16 @@
 // then confirm. Nothing here formats money: that is lib/format.
 
 import { judgeRoutes, type ReplayReason } from "@fairsplit/api-client";
-import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
+import { PAY_RUN_RANK, type RunEvent, type SeasonSnapshot } from "@fairsplit/contracts";
 import { type UseMutationOptions, type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { PaypalRail } from "../lib/env.js";
 import type { CallableName, CommandInput, CommandResponse, GetCommandName, StreamStatus } from "./adapter.js";
 import { type DescribeContext, describeContext } from "./describe.js";
 import type { CommandError } from "./errors.js";
+import { isApiClientError } from "./errors.js";
 import type { EventMeta } from "./hub.js";
+import { pacedCall } from "./pacing.js";
 import { useDataRuntime } from "./provider.js";
 import { firstViewQuery, queryKeys, runViewQuery, snapshotQuery } from "./query.js";
 import type { RunView } from "./run-view.js";
@@ -25,12 +27,63 @@ export function useCommand<N extends CallableName>(
   name: N,
   options: Omit<UseMutationOptions<CommandResponse<N>, CommandError<N>, CommandInput<N>>, "mutationFn"> = {},
 ) {
-  const { adapter } = useDataRuntime();
-  return useMutation<CommandResponse<N>, CommandError<N>, CommandInput<N>>({
+  const { adapter, session } = useDataRuntime();
+  const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
+  const [queue, setQueue] = useState<{ workspace: string | undefined; ms: number } | null>(null);
+  const attempt = useRef(0);
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (state.status !== "active") abort.current?.abort();
+    return () => {
+      abort.current?.abort();
+    };
+  }, [state.session?.workspaceId, state.status]);
+  const mutation = useMutation<CommandResponse<N>, CommandError<N>, CommandInput<N>>({
     ...options,
     mutationKey: ["command", name],
-    mutationFn: (input) => adapter.call(name, input),
+    mutationFn: async (input) => {
+      const workspace = session.getState().session?.workspaceId;
+      const serial = ++attempt.current;
+      abort.current?.abort();
+      const controller = new AbortController();
+      abort.current = controller;
+      const current = () =>
+        session.getState().session?.workspaceId === workspace && session.getState().status !== "resetting";
+      return pacedCall(
+        async () => {
+          try {
+            return await adapter.call(name, input);
+          } catch (error) {
+            // A duplicate Mark paid races the first payment: read its run before calling it a refusal.
+            if (name === "markPaid" && isApiClientError(error) && error.status === 409) {
+              const status = await judgeRoutes(adapter.api).judgeSession();
+              const rank = status.runState ? PAY_RUN_RANK[status.runState] : 0;
+              if (
+                status.runSlug === (input as { params?: { runSlug?: string } }).params?.runSlug &&
+                rank >= PAY_RUN_RANK.FUNDED &&
+                rank < 99
+              ) {
+                return { runState: status.runState } as CommandResponse<N>;
+              }
+            }
+            throw error;
+          }
+        },
+        (ms) => {
+          if (serial === attempt.current) setQueue(ms === null ? null : { workspace, ms });
+        },
+        current,
+        controller.signal,
+      );
+    },
   });
+  return {
+    ...mutation,
+    queuedMs:
+      queue?.workspace === state.session?.workspaceId && state.status === "active"
+        ? (queue?.ms ?? null)
+        : null,
+  };
 }
 
 /** A GET command as a query (approvalPayload, proof, proofJson, proofExport). */

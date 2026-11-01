@@ -40,7 +40,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.invoice.amount").dataset.amountState).toBe("hollow");
     expect(screen.getByTestId("W-JG-01.pool.amount").dataset.amountState).toBe("hollow");
     const draft = screen.getByTestId("W-JG-01.invoice.draft");
-    expect(draft.dataset.provenance).toBe("claude");
+    expect(draft.dataset.provenance).toBe("seeded");
     const figures = draft.querySelectorAll<HTMLElement>("[data-amount-state]");
     expect(figures).toHaveLength(3);
     for (const f of figures) expect(f.dataset.amountState).toBe("pencil");
@@ -172,7 +172,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     await renderConsole({ path: "/judge", world });
     await press("W-JG-01.markPaid");
     const notice = await screen.findByTestId("W-JG-01.error");
-    expect(notice.textContent).toMatch(/PayPal asked us to slow down/);
+    expect(notice.textContent).toMatch(/The simulated PayPal rate limit paused calls/);
     await waitFor(() => expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest"));
   });
 });
@@ -282,5 +282,74 @@ describe("Play it for me", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("paused");
     expect(view.router.state.location.pathname).toMatch(/\/approve$/);
     expect(view.world.approvals()).toHaveLength(0);
+  });
+});
+
+describe("server payment pacing", () => {
+  it("a 409 rereads the session and accepts an already funded run without an error banner", async () => {
+    const world = createTestWorld();
+    await renderConsole({
+      path: "/judge",
+      world,
+      handlers: [
+        http.post("*/v1/runs/:slug/mark-paid", () => {
+          world.markPaid();
+          return HttpResponse.json(
+            { code: "VERSION_CONFLICT", status: 409, message: "Already funded" },
+            { status: 409 },
+          );
+        }),
+      ],
+    });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("is funded"));
+    expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
+  });
+  it("shows a QUEUED delay, then retries exactly once", async () => {
+    let calls = 0;
+    await renderConsole({
+      path: "/judge",
+      handlers: [
+        http.post("*/v1/runs/:slug/mark-paid", () => {
+          calls++;
+          return calls === 1
+            ? HttpResponse.json(
+                { code: "QUEUED", status: 429, message: "Paced", retryAfterMs: 700 },
+                { status: 429 },
+              )
+            : undefined;
+        }),
+      ],
+    });
+    await press("W-JG-01.markPaid");
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.status").textContent).toContain("You're next, about 1 s"),
+    );
+    await waitFor(() => expect(calls).toBe(2));
+    expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
+  });
+  it("Reset removes the queue caption and cancels its deferred payment press", async () => {
+    let calls = 0;
+    await renderConsole({
+      path: "/judge",
+      handlers: [
+        http.post("*/v1/runs/:slug/mark-paid", () => {
+          calls++;
+          return HttpResponse.json(
+            { code: "QUEUED", status: 429, message: "Paced", retryAfterMs: 700 },
+            { status: 429 },
+          );
+        }),
+      ],
+    });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.status").textContent).toContain("You're next"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
+    });
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("ready to pay"));
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(calls).toBe(1);
+    expect(screen.queryByText(/You're next/)).toBeNull();
   });
 });

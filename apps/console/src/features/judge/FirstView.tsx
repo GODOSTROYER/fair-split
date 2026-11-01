@@ -13,6 +13,7 @@ import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
+import { isApiClientError } from "../../data/errors.js";
 import { useCommand, useJudgeSession, usePaypalRail, useStageRun } from "../../data/hooks.js";
 import { atLeast } from "../../data/run-view.js";
 import { env } from "../../lib/env.js";
@@ -200,7 +201,10 @@ function Desk() {
     );
   }
 
-  const status = statusLine[phase];
+  const status =
+    markPaid.queuedMs === null
+      ? statusLine[phase]
+      : `You're next, about ${Math.ceil(markPaid.queuedMs / 1000)} s`;
   const action = (
     <div
       className="fsc-first__action"
@@ -241,7 +245,10 @@ function Desk() {
           {movedOn ? FIRST_VIEW_COPY.movedOn : FIRST_VIEW_COPY.pressNote(rail)}
         </p>
       )}
-      <CommandNotice error={markPaid.error} testId="W-JG-01.error" />
+      <CommandNotice
+        error={isApiClientError(markPaid.error) && markPaid.error.status === 409 ? null : markPaid.error}
+        testId="W-JG-01.error"
+      />
     </div>
   );
 

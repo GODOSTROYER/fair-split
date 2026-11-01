@@ -37,7 +37,7 @@ describe("Judge stage", () => {
     expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/i);
     expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toMatch(/FS-2026A-r37/);
     expect(screen.getByTestId("W-JG-01.caption").textContent).toMatch(
-      /Slip reading replays a recorded Claude run/,
+      /Seed stand-in, not a Claude recording/,
     );
     expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
     expect(callSpy).not.toHaveBeenCalled();
@@ -695,6 +695,7 @@ describe("Judge stage", () => {
   it("Reset after a press PayPal queued (429) hands focus to the press in its commit, never to <body>", async () => {
     const world = createTestWorld();
     world.failNext("markPaid", "QUEUED");
+    world.failNext("markPaid", "QUEUED");
     await renderConsole({ path: "/judge", world });
     await press("W-JG-01.markPaid");
     await screen.findByTestId("W-JG-01.error");
@@ -737,9 +738,10 @@ describe("Judge stage", () => {
       let release: () => void = () => undefined;
       const held = http.post("*/v1/runs/:runSlug/mark-paid", async () => {
         markPaids += 1;
-        if (markPaids === 2) await new Promise<void>((go) => (release = go));
+        if (markPaids === 3) await new Promise<void>((go) => (release = go));
         return undefined;
       });
+      world.failNext("markPaid", "QUEUED");
       world.failNext("markPaid", "QUEUED");
       await renderConsole({ path: "/judge", world, handlers: [log.handler, held] });
       const starts = () =>
@@ -753,9 +755,10 @@ describe("Judge stage", () => {
 
       // The retry, pressed twice: the second press lands on whatever slab is drawn then.
       world.failNext("markPaid", code);
+      if (code === "QUEUED") world.failNext("markPaid", code);
       await press("W-JG-01.markPaid");
       await press("W-JG-01.markPaid");
-      await waitFor(() => expect(markPaids).toBe(2));
+      await waitFor(() => expect(markPaids).toBe(3));
       // In flight, the retry's slab stays committed: nothing put it back at rest on the first press's error.
       expect(slab().dataset.state).toBe("committed");
       await act(async () => {

@@ -193,7 +193,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const treasurer = snapshot?.officers.find((o) => o.role === "TREASURER");
   const approverId = treasurer?.persona ?? "treasurer:analyn";
   const workspaceId = session?.workspaceId ?? null;
-  const keyScope = `${session?.sessionId ?? runSlug}:${approverId}`;
+  const keyScope = `${workspaceId ?? runSlug}:${approverId}`;
   const register = useCallback(
     (made: BrowserKey) => {
       if (!workspaceId) return Promise.reject(new Error("A demo key needs a judge session."));
@@ -599,6 +599,11 @@ export function Screen({ runSlug }: RunScreenProps) {
             onRetry={reloadPayload}
             retryLabel={APPROVE.payloadRetry}
           />
+        )}
+        {submit.queuedMs !== null && (
+          <p role="status" data-testid="W-TR-07.queued">
+            You're next, about {Math.ceil(submit.queuedMs / 1000)} s
+          </p>
         )}
         {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
 

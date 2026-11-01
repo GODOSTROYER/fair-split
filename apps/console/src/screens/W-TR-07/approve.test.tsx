@@ -205,7 +205,7 @@ describe("W-TR-07 approve", () => {
 
       const approval = view.world.approvals().find((a) => a.role === "treasurer");
       if (!approval) throw new Error("no treasurer approval");
-      const held = heldSessionKey(`${session.sessionId}:treasurer:analyn`);
+      const held = heldSessionKey(`${session.workspaceId}:treasurer:analyn`);
       if (!held) throw new Error("no session key");
       const key = await held;
       expect(approval.keyId).toBe(key.keyId);

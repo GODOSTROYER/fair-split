@@ -84,7 +84,6 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
   if (!snapshot) return { MACHINE: null, PEOPLE: null, PAYPAL: null };
   const run = snapshot.run;
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER")?.shortName ?? "The treasurer";
-  const recorded = format.dateShort(run.recordedOn);
   const row = (lane: LogLane, words: string, detail: string, at: string): LogRow => ({
     id: `seed-${lane}`,
     lane,
@@ -98,8 +97,8 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
   return {
     MACHINE: row(
       "MACHINE",
-      `Claude drafted ${snapshot.payer.shortName}'s invoice; policy allowed it`,
-      `invoiceEqualsQuote, replay of the ${recorded} run`,
+      "Placeholder draft (seed-written), checked by the live policy lattice",
+      "Line labels: a placeholder written with the seed (no Claude recording in this build)",
       run.recordedOn,
     ),
     PEOPLE: row(
@@ -111,7 +110,9 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
     PAYPAL: row(
       "PAYPAL",
       `Invoice ${run.invoice.invoiceNumber}: sent to ${snapshot.payer.shortName}`,
-      rail === "simulator" ? "Invoicing v2, simulated PayPal sandbox" : "Invoicing v2, PayPal sandbox",
+      rail === "simulator"
+        ? "Invoicing v2, simulated PayPal sandbox"
+        : "Invoicing v2, untested PayPal sandbox",
       run.invoice.invoiceDate,
     ),
   };

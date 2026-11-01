@@ -4,6 +4,7 @@
 
 import { judgeRoutes } from "@fairsplit/api-client";
 import type { PayRunState } from "@fairsplit/contracts";
+import { forgetBrowserKeys } from "../features/approve/keys.js";
 import type { DataAdapter } from "./adapter.js";
 import { type CommandError, isApiClientError } from "./errors.js";
 
@@ -218,6 +219,7 @@ export class SessionStore {
     }
     this.cancelRenewal();
     this.adapter.setToken(null);
+    forgetBrowserKeys();
     this.set(NONE);
   }
 
@@ -225,6 +227,7 @@ export class SessionStore {
   private end(): void {
     this.cancelRenewal();
     this.adapter.setToken(null);
+    forgetBrowserKeys();
     this.set({ status: "ended", session: null, error: null });
   }
 

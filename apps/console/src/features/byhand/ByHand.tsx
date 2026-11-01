@@ -8,6 +8,7 @@
 
 import { type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { Glyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
+import { useQuery } from "@tanstack/react-query";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -18,11 +19,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { z } from "zod";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
-import { useCommand, useRunEvents, useStageRun } from "../../data/hooks.js";
+import { useAdapter, useCommand, useJudgeSession, useRunEvents, useStageRun } from "../../data/hooks.js";
 import { focusAndReveal, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
@@ -107,6 +109,8 @@ function ByHandField({
   readonly field: NonNullable<ReturnType<typeof byHandField>>;
 }) {
   const mode = useMotionMode();
+  const adapter = useAdapter();
+  const session = useJudgeSession();
   const { runSlug, view, inSession } = useStageRun();
   const moment = useMoment("MM-2");
   // A failed entry puts the slab back at rest (remounted), so she can press again.
@@ -134,9 +138,48 @@ function ByHandField({
   const entered =
     Object.values(view?.fields ?? {}).find((f) => f.serial === serial && f.field === field.field) ?? null;
   const committed = entered !== null || hold?.resolution === "ENTERED_BY_HAND";
-  const ready = inSession && hold !== undefined && hold.state === "OPEN";
+  const holdReady = inSession && hold !== undefined && hold.state === "OPEN";
   // The session run's own field, never the showcase's (./field-id.ts); none until something names it.
-  const fieldId = resolveFieldId({ view, snapshot, serial, field: field.field, fields: mockWorldFields() });
+  const servedFields = useQuery({
+    queryKey: ["by-hand-fields", session.session?.workspaceId, runSlug, serial, view?.state],
+    enabled: inSession && view?.state === "IN_REVIEW" && adapter.source === "http",
+    queryFn: async ({ signal }) => {
+      const read = await adapter.api.request({
+        name: "slip",
+        path: `/v1/seasons/${encodeURIComponent(snapshot.season.label)}/slips/${encodeURIComponent(serial)}`,
+        signal,
+        schema: z.looseObject({
+          slips: z.array(
+            z.looseObject({
+              serial: z.string(),
+              fields: z.array(
+                z.looseObject({
+                  id: z.string(),
+                  slipRowId: z.string(),
+                  field: z.string(),
+                  finalValue: z.string().nullable(),
+                }),
+              ),
+            }),
+          ),
+        }),
+      });
+      return read.slips.flatMap((slip) => slip.fields.map((f) => ({ ...f, serial: slip.serial })));
+    },
+    retry: false,
+  });
+  const ready =
+    holdReady ||
+    (inSession &&
+      adapter.source === "http" &&
+      (servedFields.data?.some((f) => f.field === field.field && f.finalValue === null) ?? false));
+  const fieldId = resolveFieldId({
+    view,
+    snapshot,
+    serial,
+    field: field.field,
+    fields: adapter.source === "http" ? (servedFields.data ?? null) : mockWorldFields(),
+  });
   const p = preview(value, tare, witness);
   const state: ByHandState = byHandState({ committed, skipped, value, preview: p });
 
