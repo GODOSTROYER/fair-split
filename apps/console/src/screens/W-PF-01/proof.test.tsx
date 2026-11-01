@@ -135,6 +135,85 @@ describe("W-PF-01 loads without waiting on the seed", () => {
   });
 });
 
+/** A CSS length the cascade gives (rem, px, vw, unitless; clamp, min, max) in px at `width` and `em` px. */
+function lengthPx(value: string, width: number, em: number): number {
+  const v = value.trim();
+  const call = /^(clamp|min|max)\((.*)\)$/.exec(v);
+  if (call) {
+    const args: string[] = [];
+    let depth = 0;
+    let start = 0;
+    const inner = call[2] ?? "";
+    for (let i = 0; i < inner.length; i++) {
+      if (inner[i] === "(") depth++;
+      else if (inner[i] === ")") depth--;
+      else if (inner[i] === "," && depth === 0) {
+        args.push(inner.slice(start, i));
+        start = i + 1;
+      }
+    }
+    args.push(inner.slice(start));
+    const [a = 0, b = 0, c = 0] = args.map((arg) => lengthPx(arg, width, em));
+    if (call[1] === "clamp") return Math.max(a, Math.min(b, c));
+    const all = args.map((arg) => lengthPx(arg, width, em));
+    return call[1] === "min" ? Math.min(...all) : Math.max(...all);
+  }
+  const m = /^(-?[\d.]+)(rem|px|vw|em)?$/.exec(v);
+  if (!m) throw new Error(`lengthPx cannot read "${v}"`);
+  const n = Number.parseFloat(m[1] ?? "");
+  switch (m[2]) {
+    case "rem":
+      return n * 16;
+    case "px":
+      return n;
+    case "vw":
+      return (n * width) / 100;
+    default:
+      return n * em;
+  }
+}
+
+describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
+  // The amount never breaks (white-space: nowrap), so at hero size (72 px) it alone would widen the hero, and the
+  // page, past a 320 px viewport. Measured in Chromium in FS Sans Proof at stretch 75 % and weight 800: the seed's
+  // US$4,333.50 advances 4.929 em, a twelve-character US$88,888.88 5.438 em.
+  const TWELVE_CHARACTERS_EM = 5.438;
+  const rules = [
+    ...readRules("../../packages/tokens/src/generated/theme.web.css"),
+    // Proof's own stylesheet loads after the theme's.
+    ...readRules("src/features/proof/proof.css").map((rule) => ({ ...rule, order: rule.order + 100_000 })),
+  ];
+
+  it("scales the hero amount down to fit the column at 320 and 360 px, and keeps 4.5rem where it fits", () => {
+    const hero = document.createElement("section");
+    hero.className = "pf-hero";
+    const title = document.createElement("h1");
+    title.className = "pf-hero__title";
+    const amount = document.createElement("span");
+    amount.className = "pf-hero__amount fs-t-amount-hero";
+    title.append(amount);
+    hero.append(title);
+    document.body.append(hero);
+    try {
+      for (const width of [320, 360, 375, 390, 480, 560, 768, 1470]) {
+        const medium = { width, motion: "full" } as const;
+        expect(cascaded(rules, amount, "white-space", medium)).toBe("nowrap");
+        const size = lengthPx(cascaded(rules, amount, "font-size", medium) ?? "", width, 16);
+        const leading = lengthPx(cascaded(rules, amount, "line-height", medium) ?? "", width, size);
+        // The Proof surface's column: 680 px, inside a 16 px gutter on each side.
+        const column = Math.min(680, width - 2 * 16);
+        expect(TWELVE_CHARACTERS_EM * size, `at ${width} px`).toBeLessThanOrEqual(column);
+        // The line box follows the figure: never a 72 px line around a smaller amount.
+        expect(leading, `at ${width} px`).toBe(size);
+        if (width > 560) expect(size, `at ${width} px`).toBe(72);
+        else expect(size, `at ${width} px`).toBeGreaterThanOrEqual(40);
+      }
+    } finally {
+      hero.remove();
+    }
+  });
+});
+
 async function openProof(options: Parameters<typeof renderConsole>[0] = {}) {
   const view = await renderConsole({ path: webRoutes.proof(RUN), ...options });
   const root = await screen.findByTestId("W-PF-01");
