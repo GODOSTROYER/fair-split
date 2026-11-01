@@ -442,6 +442,7 @@ it("preserves both PAY hashes and keeps draft entries out of the served manifest
   const other = { ...one.entries[0], text: "PayPal is due.", text_sha256: hash("PayPal is due.") };
   const { upsertEntry } = await import("../src/tts/manifest.js");
   expect(upsertEntry(one, other as NonNullable<(typeof one.entries)[0]>).entries).toHaveLength(2);
+  d.timed.push(timestamped(plain.text, []));
   const draft = await synthesizePlannedStatement(r, d, one, { draft: true });
   expect(draft).toEqual(one);
   expect(existsSync(join(d.mediaRoot, "audio", "drafts", "manifest.json"))).toBe(true);
@@ -463,4 +464,31 @@ it("selects the approved order, rejects unknown filters and supports an offline 
     keys: [],
   });
   expect(code).toBe(0);
+});
+
+it("inv.i8.cached-refusal-retake: only a refused cached sentence permits one separately cached TTS retake", async () => {
+  const d = deps(synthToneWav([{ ms: 4000, tone: true }]));
+  const req = { model: TTS_MODEL, voice: DEFAULT_VOICE, style: STYLE_NOTE, text: sentence.text };
+  const original = await requestOnce(d, req);
+  d.takes.push(synthToneWav([{ ms: 4500, tone: true }]));
+  d.timed.push(timestamped("Wrong sentence entirely.", []), timestamped(sentence.text, []));
+  const out = await synthesizePlannedStatement(request, d, empty);
+  expect(out.entries).toHaveLength(1);
+  expect(d.calls).toHaveLength(2);
+  expect(readFileSync(original.path)).toEqual(original.wav);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips[0],
+  ).toMatchObject({ method: "per-sentence-asr", cer: 0, asrModel: ASR_MODEL });
+});
+
+it("inv.i8.cached-service-outage: unavailable verification never authorizes new TTS", async () => {
+  const d = deps(synthToneWav([{ ms: 4000, tone: true }]));
+  await requestOnce(d, { model: TTS_MODEL, voice: DEFAULT_VOICE, style: STYLE_NOTE, text: sentence.text });
+  d.asrErrors.push(
+    ...Array.from({ length: 3 * ASR_MODELS.length }, () =>
+      Object.assign(new Error("UNAVAILABLE"), { status: 503 }),
+    ),
+  );
+  await expect(synthesizePlannedStatement(request, d, empty)).rejects.toThrow(/unavailable/i);
+  expect(d.calls).toHaveLength(1);
 });

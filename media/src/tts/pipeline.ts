@@ -65,8 +65,14 @@ export function isRequestCached(deps: Pick<TtsDeps, "cacheDir">, req: TtsRequest
   return existsSync(join(deps.cacheDir, `${key}.wav`)) && existsSync(join(deps.cacheDir, `${key}.json`));
 }
 
-export async function requestOnce(deps: TtsDeps, req: TtsRequest): Promise<CachedWav> {
-  const key = sha256(JSON.stringify(buildTtsParams(req)));
+export async function requestOnce(
+  deps: TtsDeps,
+  req: TtsRequest,
+  opts: { retake?: boolean } = {},
+): Promise<CachedWav> {
+  // A quality-refused cached sentence gets one separately cached retake; original bytes stay intact.
+  const params = buildTtsParams(req);
+  const key = sha256(JSON.stringify(opts.retake ? [params, "quality-retake-1"] : params));
   const wavPath = join(deps.cacheDir, `${key}.wav`);
   const metaPath = join(deps.cacheDir, `${key}.json`);
   if (existsSync(wavPath) && existsSync(metaPath)) {

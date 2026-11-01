@@ -20,7 +20,7 @@ import {
 import { isRequestCached, requestOnce, type TtsDeps } from "./pipeline.js";
 import { APPROVED_STATEMENT_REQUESTS } from "./plan.js";
 import { LANGS, STYLE_NOTE } from "./statement.js";
-import { type ListeningDeps, listen } from "./statement-asr.js";
+import { AsrUnavailableError, type ListeningDeps, listen } from "./statement-asr.js";
 import { parseWav } from "./wav.js";
 
 const SLOTS = [
@@ -416,19 +416,29 @@ export async function synthesizePlannedStatement(
     }
   };
   const cachedAttempts = new Set<string>();
-  const trySentence = async (sentence: PlannedStatement["sentences"][number]) => {
-    const single = await requestOnce(deps, { ...base, text: sentence.text });
+  const trySentence = async (sentence: PlannedStatement["sentences"][number], retake = false) => {
+    const single = await requestOnce(deps, { ...base, text: sentence.text }, { retake });
     const duration = parseWav(single.wav).durationMs / 1000;
-    const candidates = await recoverable(() =>
-      prepare(
+    let candidates: Candidate[] | null;
+    try {
+      candidates = await prepare(
         single,
         [{ start: 0, end: duration }],
         [0],
         [{ sentence: 0, refs: [], text: sentence.text }],
         [sentence],
         "per-sentence-asr",
-      ),
-    );
+      );
+    } catch (error) {
+      if (
+        error instanceof GeminiCallError &&
+        error.kind === "other" &&
+        ([408, 500, 502, 503, 504].includes(error.status ?? 0) ||
+          /UNAVAILABLE|overloaded/i.test(error.message))
+      )
+        throw new AsrUnavailableError([error.message]);
+      throw error;
+    }
     if (candidates) await publish(candidates);
     return candidates;
   };
@@ -439,9 +449,11 @@ export async function synthesizePlannedStatement(
     await trySentence(sentence);
   }
   if (request.sentences.every(ready)) return draft ? manifest : target;
-  const take = await requestOnce(deps, { ...base, text: marked.text });
-  const full = await tryTake(take, marked.segments, request.sentences);
-  if (full) await publish(full);
+  if (!cachedAttempts.size) {
+    const take = await requestOnce(deps, { ...base, text: marked.text });
+    const full = await tryTake(take, marked.segments, request.sentences);
+    if (full) await publish(full);
+  }
   if (!request.sentences.every(ready)) {
     deps.log?.(
       `[fallback] ${request.member_no}:${request.lang}: split not verified; one request per sentence`,
@@ -449,12 +461,9 @@ export async function synthesizePlannedStatement(
     const failed: string[] = [];
     for (const sentence of request.sentences) {
       if (ready(sentence)) continue;
-      if (cachedAttempts.has(sentence.textSha256)) {
+      // New speech is allowed only after the original cached take failed this same strict check.
+      if (!(await trySentence(sentence, cachedAttempts.has(sentence.textSha256))))
         failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
-        continue;
-      }
-      // Plain speech avoids relying on the failed marker grammar. ASR timestamps locate its anchors.
-      if (!(await trySentence(sentence))) failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
     }
     if (failed.length) throw new StatementVerificationError(failed);
   }
