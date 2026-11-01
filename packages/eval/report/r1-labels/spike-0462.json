@@ -1,0 +1,93 @@
+{
+  "case": "spike-0462",
+  "set": "dev",
+  "kind": "slip_page",
+  "image": "masters/spike-0462.jpg",
+  "fixture": "fixtures/spike-0462.json",
+  "slips": [
+    {
+      "slot": "ONLY",
+      "serial": "0462",
+      "copy": "WHITE_ORIGINAL",
+      "fields": {
+        "serial": {
+          "value": "0462",
+          "visible": "0462",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/15/2026",
+          "visible": "07/15/2026",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-060",
+          "visible": "M-060",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "ARNEL SUMAMPAO",
+          "visible": "ARNEL SUMAMPAO",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "value": "P-060-A",
+          "visible": "P-060-A",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "value": "1 PP",
+          "visible": "1 PP",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "value": "64.80",
+          "visible": "6?.80",
+          "expect": "HUMAN"
+        },
+        "tare_kg": {
+          "value": "0.30",
+          "visible": "0.30",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "64.50",
+          "visible": "6?.50",
+          "expect": "HUMAN"
+        },
+        "mc_pct": {
+          "value": "7.0",
+          "visible": "7.0",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "value": "0.00",
+          "visible": "0.00",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "value": "64.50",
+          "visible": "64.50",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "value": "JD",
+          "visible": "JD",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": ["LOW_CONFIDENCE"],
+      "duplicate_of": null,
+      "injection": null
+    }
+  ],
+  "rate_card": null,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "reviewed_at": "2026-10-22T12:20:00.000Z"
+}

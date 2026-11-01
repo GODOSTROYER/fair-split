@@ -1,0 +1,72 @@
+{
+  "v": 1,
+  "cache_key": "bbfc7c80340f2c20b7e61b8d6bc5d2e0b60cfde989aabe6f09f1131f1b9895b3",
+  "purpose": "zoom",
+  "model": "claude-opus-5-5",
+  "model_served": "claude-opus-5-5",
+  "effort": "medium",
+  "variant": "ZOOM",
+  "prompt_v": "zoom.v2",
+  "schema_v": "zoomread.v1",
+  "input_sha": "a57d4da8697dabd743dd53df5a4807f6dbfd0db48ab3ff17894640e778b111b5",
+  "sent_sha": null,
+  "prompt_sha": "32cfa5cd8c8247c0ee5fc2f9f6f7fdba07d99cf346f7a788b96963834dda3255",
+  "usage": {
+    "input_tokens": 260,
+    "output_tokens": 375,
+    "cache_read_input_tokens": 1444,
+    "cache_creation_input_tokens": 0,
+    "thinking_tokens": 312,
+    "iterations": null
+  },
+  "cost_micros": 8829,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011CgbJg5uir43AW3gNL7sQD",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "thinking",
+        "thinking": "",
+        "signature": "REDACTED"
+      },
+      {
+        "type": "text",
+        "text": "{\"box\":{\"x1\":184,\"y1\":82,\"x2\":322,\"y2\":116},\"value_text\":\"6??.80\",\"legibility\":\"SMUDGED\",\"overwritten_from\":\"\"}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 260,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1444,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 375,
+      "output_tokens_details": {
+        "thinking_tokens": 312
+      },
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard"
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 6253,
+      "d": "{\"box\":{\"x1\":184,\"y1\":82,\"x2\":322,\"y2\":116},\"value_text\":\"6??.80\",\"legibility\":\"SMUDGED\",\"overwritten_from\":\"\"}"
+    }
+  ],
+  "recorded_at": "2026-11-01T01:01:50.702Z",
+  "latency_ms": 6253,
+  "first_delta_ms": 6253,
+  "provenance": "live"
+}

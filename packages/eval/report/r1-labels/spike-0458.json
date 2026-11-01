@@ -1,0 +1,104 @@
+{
+  "case": "spike-0458",
+  "set": "dev",
+  "kind": "slip_page",
+  "image": "masters/spike-0458.jpg",
+  "fixture": "fixtures/spike-0458.json",
+  "slips": [
+    {
+      "slot": "ONLY",
+      "serial": "0458",
+      "copy": "WHITE_ORIGINAL",
+      "fields": {
+        "serial": {
+          "value": "0458",
+          "visible": "0458",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "07/14/2026",
+          "visible": "07/14/2026",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-018",
+          "visible": "M-018",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "TEODORO PACAÑA",
+          "visible": "TEODORO PACAÑA",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "value": "P-018-A",
+          "visible": "P-018-A",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "value": "1 PP",
+          "visible": "1 PP",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "value": "61.10",
+          "visible": "61.10",
+          "expect": "AUTO"
+        },
+        "tare_kg": {
+          "value": "0.30",
+          "visible": "0.30",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "60.80",
+          "visible": "60.80",
+          "expect": "AUTO"
+        },
+        "mc_pct": {
+          "value": "6.9",
+          "visible": "6.9",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "value": "0.00",
+          "visible": "0.00",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "value": "60.80",
+          "visible": "60.80",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "value": "JD",
+          "visible": "JD",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [
+        {
+          "visible": "HAULING ₱91.20",
+          "rule": "R2",
+          "expect": "AUTO"
+        },
+        {
+          "visible": "MULTA (ABSENT GA) ₱200",
+          "rule": "NO_MATCH",
+          "expect": "AUTO"
+        }
+      ],
+      "traps": ["NO_RULE", "RULED_DEDUCTION"],
+      "duplicate_of": null,
+      "injection": null
+    }
+  ],
+  "rate_card": null,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "reviewed_at": "2026-10-22T12:20:00.000Z"
+}

@@ -1,0 +1,643 @@
+{
+  "v": 1,
+  "cache_key": "35ea15e27faa022a69f4f855f1f56c0e64d17122efec03409de0de24dfe8e8f8",
+  "purpose": "read",
+  "model": "claude-opus-5-5",
+  "model_served": "claude-opus-5-5",
+  "effort": "low",
+  "variant": "A",
+  "prompt_v": "a.v1",
+  "schema_v": "extraction.v1",
+  "input_sha": "8ad8a2d3c1c1664d37215e1dace905ee668c888034525959e86bab25bac324c4",
+  "sent_sha": "e8f00ba5fe2a9f83112f0d85a3c7bb38eaa67ed6ee3ee6d091c83277db1312ad",
+  "prompt_sha": "aaafb346c3f2d97ea9d70fe057806c137d3aef52302aabf4da19a89a1e638f9a",
+  "usage": {
+    "input_tokens": 2100,
+    "output_tokens": 1089,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 3801,
+    "thinking_tokens": 0,
+    "iterations": null
+  },
+  "cost_micros": 49185,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011CgbJaPBrhZge3RuKbExP4",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"page\":{\"rotation\":\"0\",\"issues\":[]},\"rows\":[{\"slip_box\":{\"x1\":92,\"y1\":42,\"x2\":1068,\"y2\":1235},\"copy\":\"WHITE_ORIGINAL\",\"serial\":{\"box\":{\"x1\":874,\"y1\":143,\"x2\":1015,\"y2\":182},\"value_text\":\"0419\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"line_no\":{\"box\":{\"x1\":0,\"y1\":0,\"x2\":0,\"y2\":0},\"value_text\":\"\",\"legibility\":\"ABSENT\",\"overwritten_from\":\"\"},\"date\":{\"box\":{\"x1\":474,\"y1\":247,\"x2\":610,\"y2\":282},\"value_text\":\"6/10/26\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"member_no\":{\"box\":{\"x1\":474,\"y1\":297,\"x2\":600,\"y2\":332},\"value_text\":\"M-014\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"member_name\":{\"box\":{\"x1\":474,\"y1\":345,\"x2\":882,\"y2\":381},\"value_text\":\"CONSOLACION BACUS\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"plot_no\":{\"box\":{\"x1\":472,\"y1\":395,\"x2\":636,\"y2\":431},\"value_text\":\"P-014-A\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"sacks\":{\"box\":{\"x1\":474,\"y1\":447,\"x2\":560,\"y2\":482},\"value_text\":\"1 PP\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"gross_kg\":{\"box\":{\"x1\":472,\"y1\":498,\"x2\":572,\"y2\":533},\"value_text\":\"37.10\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"tare_kg\":{\"box\":{\"x1\":474,\"y1\":552,\"x2\":564,\"y2\":587},\"value_text\":\"0.30\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"net_kg\":{\"box\":{\"x1\":472,\"y1\":604,\"x2\":574,\"y2\":640},\"value_text\":\"36.80\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"mc_pct\":{\"box\":{\"x1\":474,\"y1\":661,\"x2\":540,\"y2\":697},\"value_text\":\"6.6\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"mc_less_kg\":{\"box\":{\"x1\":474,\"y1\":716,\"x2\":558,\"y2\":750},\"value_text\":\"0.00\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"payable_kg\":{\"box\":{\"x1\":472,\"y1\":769,\"x2\":568,\"y2\":805},\"value_text\":\"36.80\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"grade\":{\"box\":{\"x1\":470,\"y1\":825,\"x2\":522,\"y2\":860},\"value_text\":\"G1\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"clerk_initials\":{\"box\":{\"x1\":832,\"y1\":1035,\"x2\":906,\"y2\":1085},\"value_text\":\"JD\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"deductions\":[],\"signature\":\"SIGNED\"}],\"anomalies\":[]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 2100,
+      "cache_creation_input_tokens": 3801,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3801,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 1089,
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard",
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      }
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 9124,
+      "d": "{\"page\":{\"rot"
+    },
+    {
+      "ms": 9430,
+      "d": "ation\":\"0\",\"issues\":"
+    },
+    {
+      "ms": 9432,
+      "d": "[]},\"rows\":["
+    },
+    {
+      "ms": 9432,
+      "d": "{\"slip_box\":{"
+    },
+    {
+      "ms": 9432,
+      "d": "\"x1\":92"
+    },
+    {
+      "ms": 9432,
+      "d": ",\"y1\":42"
+    },
+    {
+      "ms": 9433,
+      "d": ",\"x2\":1068"
+    },
+    {
+      "ms": 9433,
+      "d": ",\"y2\":1235"
+    },
+    {
+      "ms": 9464,
+      "d": "},\"copy\":\""
+    },
+    {
+      "ms": 9506,
+      "d": "WHITE_ORI"
+    },
+    {
+      "ms": 9551,
+      "d": "GINAL\",\"serial\":"
+    },
+    {
+      "ms": 9599,
+      "d": "{\"box"
+    },
+    {
+      "ms": 9649,
+      "d": "\":{\"x1\":874,"
+    },
+    {
+      "ms": 9816,
+      "d": "\"y1\":143"
+    },
+    {
+      "ms": 9816,
+      "d": ",\"x2\":1015"
+    },
+    {
+      "ms": 9816,
+      "d": ",\"y2\":182},\""
+    },
+    {
+      "ms": 9853,
+      "d": "value_text\":\"0419\",\""
+    },
+    {
+      "ms": 9911,
+      "d": "legibility\":\"CLE"
+    },
+    {
+      "ms": 9956,
+      "d": "AR\",\"overwritten_"
+    },
+    {
+      "ms": 10002,
+      "d": "from\":\"\"},\"line_no"
+    },
+    {
+      "ms": 10063,
+      "d": "\":{\"box\":{\"x"
+    },
+    {
+      "ms": 10102,
+      "d": "1\":0,\"y1\":"
+    },
+    {
+      "ms": 10156,
+      "d": "0,\"x2\":0,"
+    },
+    {
+      "ms": 10202,
+      "d": "\"y2\":0},\"value"
+    },
+    {
+      "ms": 10257,
+      "d": "_text\":\"\",\"legibility"
+    },
+    {
+      "ms": 10309,
+      "d": "\":\"ABSENT\",\""
+    },
+    {
+      "ms": 10366,
+      "d": "overwritten_from\":\"\""
+    },
+    {
+      "ms": 10403,
+      "d": "},\"date\":{\"box\":"
+    },
+    {
+      "ms": 10457,
+      "d": "{\"x1\":474,\""
+    },
+    {
+      "ms": 10501,
+      "d": "y1\":247"
+    },
+    {
+      "ms": 10557,
+      "d": ",\"x2\":610,\""
+    },
+    {
+      "ms": 10604,
+      "d": "y2\":282},\"value_"
+    },
+    {
+      "ms": 10665,
+      "d": "text\":\"6/10/26"
+    },
+    {
+      "ms": 10705,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 10761,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 10807,
+      "d": "_from\":\"\"},\"member_"
+    },
+    {
+      "ms": 10853,
+      "d": "no\":{\"box\":{\""
+    },
+    {
+      "ms": 10902,
+      "d": "x1\":474,\"y1"
+    },
+    {
+      "ms": 10960,
+      "d": "\":297"
+    },
+    {
+      "ms": 11007,
+      "d": ",\"x2\":600"
+    },
+    {
+      "ms": 11052,
+      "d": ",\"y2\":332"
+    },
+    {
+      "ms": 11114,
+      "d": "},\"value_text\":\"M"
+    },
+    {
+      "ms": 11160,
+      "d": "-014\",\"legibility\":\""
+    },
+    {
+      "ms": 11206,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 11266,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 11304,
+      "d": "member_name\":{\"box\":"
+    },
+    {
+      "ms": 11358,
+      "d": "{\"x1\":474,\""
+    },
+    {
+      "ms": 11404,
+      "d": "y1\":345,\"x2"
+    },
+    {
+      "ms": 11451,
+      "d": "\":882,\"y2\":381"
+    },
+    {
+      "ms": 11501,
+      "d": "},\"value_text\":\"C"
+    },
+    {
+      "ms": 11552,
+      "d": "ONSOLACION BAC"
+    },
+    {
+      "ms": 11602,
+      "d": "US\",\"legibility\":\""
+    },
+    {
+      "ms": 11655,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 11701,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 11753,
+      "d": "plot_no\":{\"box"
+    },
+    {
+      "ms": 11802,
+      "d": "\":{\"x1\":472"
+    },
+    {
+      "ms": 11852,
+      "d": ",\"y1\":395"
+    },
+    {
+      "ms": 11902,
+      "d": ",\"x2\":636,\""
+    },
+    {
+      "ms": 11952,
+      "d": "y2\":431"
+    },
+    {
+      "ms": 12004,
+      "d": "},\"value_text\":\"P"
+    },
+    {
+      "ms": 12065,
+      "d": "-014-A\",\"legibility"
+    },
+    {
+      "ms": 12110,
+      "d": "\":\"CLEAR\",\""
+    },
+    {
+      "ms": 12152,
+      "d": "overwritten_from\":\"\""
+    },
+    {
+      "ms": 12203,
+      "d": "},\"sacks\":{\""
+    },
+    {
+      "ms": 12252,
+      "d": "box\":{\"x1\":474"
+    },
+    {
+      "ms": 12302,
+      "d": ",\"y1\":447"
+    },
+    {
+      "ms": 12358,
+      "d": ",\"x2\":560,\""
+    },
+    {
+      "ms": 12402,
+      "d": "y2\":482},\"value_"
+    },
+    {
+      "ms": 12454,
+      "d": "text\":\"1 PP\",\""
+    },
+    {
+      "ms": 12502,
+      "d": "legibility\":\"CLE"
+    },
+    {
+      "ms": 12552,
+      "d": "AR\",\"overwritten_"
+    },
+    {
+      "ms": 12602,
+      "d": "from\":\"\"},\"g"
+    },
+    {
+      "ms": 12651,
+      "d": "ross_kg\":{\"box"
+    },
+    {
+      "ms": 12721,
+      "d": "\":{\"x1\":472,"
+    },
+    {
+      "ms": 12764,
+      "d": "\"y1\":498,\"x"
+    },
+    {
+      "ms": 12814,
+      "d": "2\":572,\"y2\":"
+    },
+    {
+      "ms": 12864,
+      "d": "533"
+    },
+    {
+      "ms": 12908,
+      "d": "},\"value_text\":\"37"
+    },
+    {
+      "ms": 12951,
+      "d": ".10\",\"legibility\":\""
+    },
+    {
+      "ms": 13001,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 13065,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 13101,
+      "d": "tare_kg\":{\""
+    },
+    {
+      "ms": 13152,
+      "d": "box\":{\"x1\":474"
+    },
+    {
+      "ms": 13202,
+      "d": ",\"y1\":552,\""
+    },
+    {
+      "ms": 13251,
+      "d": "x2\":564"
+    },
+    {
+      "ms": 13308,
+      "d": ",\"y2\":587},\""
+    },
+    {
+      "ms": 13352,
+      "d": "value_text\":\"0.30"
+    },
+    {
+      "ms": 13404,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 13455,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 13501,
+      "d": "_from\":\"\"},\"net_"
+    },
+    {
+      "ms": 13551,
+      "d": "kg\":{\"box\":{"
+    },
+    {
+      "ms": 13602,
+      "d": "\"x1\":472,\"y"
+    },
+    {
+      "ms": 13652,
+      "d": "1\":604,\"x2\":"
+    },
+    {
+      "ms": 13703,
+      "d": "574,\"y2\":640"
+    },
+    {
+      "ms": 13752,
+      "d": "},\"value_text\":\"36"
+    },
+    {
+      "ms": 13802,
+      "d": ".80\",\"legibility\":\""
+    },
+    {
+      "ms": 13852,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 13903,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 13953,
+      "d": "mc_pct\":{\""
+    },
+    {
+      "ms": 14008,
+      "d": "box\":{\"x1\":474"
+    },
+    {
+      "ms": 14053,
+      "d": ",\"y1\":661"
+    },
+    {
+      "ms": 14104,
+      "d": ",\"x2\":540,\""
+    },
+    {
+      "ms": 14161,
+      "d": "y2\":697},\"value_"
+    },
+    {
+      "ms": 14202,
+      "d": "text\":\"6.6\",\"leg"
+    },
+    {
+      "ms": 14253,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 14313,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 14356,
+      "d": "\":\"\"},\"mc_less"
+    },
+    {
+      "ms": 14404,
+      "d": "_kg\":{\"box\":"
+    },
+    {
+      "ms": 14454,
+      "d": "{\"x1\":474,\""
+    },
+    {
+      "ms": 14514,
+      "d": "y1\":716"
+    },
+    {
+      "ms": 14561,
+      "d": ",\"x2\":558,\""
+    },
+    {
+      "ms": 14608,
+      "d": "y2\":750},\"value_"
+    },
+    {
+      "ms": 14666,
+      "d": "text\":\"0.00\",\"leg"
+    },
+    {
+      "ms": 14706,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 14755,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 14808,
+      "d": "\":\"\"},\"payable_k"
+    },
+    {
+      "ms": 14854,
+      "d": "g\":{\"box\":{\""
+    },
+    {
+      "ms": 14906,
+      "d": "x1\":472,\"y1"
+    },
+    {
+      "ms": 14957,
+      "d": "\":769,\"x2\":568"
+    },
+    {
+      "ms": 15008,
+      "d": ",\"y2\":805},\""
+    },
+    {
+      "ms": 15067,
+      "d": "value_text\":\"36.80"
+    },
+    {
+      "ms": 15114,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 15161,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 15206,
+      "d": "_from\":\"\"},\"grade"
+    },
+    {
+      "ms": 15262,
+      "d": "\":{\"box\":{\"x"
+    },
+    {
+      "ms": 15303,
+      "d": "1\":470"
+    },
+    {
+      "ms": 15363,
+      "d": ",\"y1\":825"
+    },
+    {
+      "ms": 15407,
+      "d": ",\"x2\":522,\""
+    },
+    {
+      "ms": 15469,
+      "d": "y2\":860},\"value_"
+    },
+    {
+      "ms": 15513,
+      "d": "text\":\"G1\",\"legib"
+    },
+    {
+      "ms": 15553,
+      "d": "ility\":\"CLEAR"
+    },
+    {
+      "ms": 15617,
+      "d": "\",\"overwritten_from\":"
+    },
+    {
+      "ms": 15660,
+      "d": "\"\"},\"clerk_init"
+    },
+    {
+      "ms": 15706,
+      "d": "ials\":{\"box\":{\""
+    },
+    {
+      "ms": 15756,
+      "d": "x1\":832,\"y1"
+    },
+    {
+      "ms": 15803,
+      "d": "\":1035,\"x2\":"
+    },
+    {
+      "ms": 15860,
+      "d": "906,\"y2\":1085"
+    },
+    {
+      "ms": 15912,
+      "d": "},\"value_text\":\"J"
+    },
+    {
+      "ms": 15956,
+      "d": "D\",\"legibility\":\"C"
+    },
+    {
+      "ms": 16016,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 16065,
+      "d": "ten_from\":\"\"},\"de"
+    },
+    {
+      "ms": 16110,
+      "d": "ductions\":[],\"signature"
+    },
+    {
+      "ms": 16165,
+      "d": "\":\"SIGNED\""
+    },
+    {
+      "ms": 16205,
+      "d": "}],\"anomalies\":"
+    },
+    {
+      "ms": 16281,
+      "d": "[]}"
+    }
+  ],
+  "recorded_at": "2026-11-01T01:00:32.772Z",
+  "latency_ms": 16291,
+  "first_delta_ms": 9124,
+  "provenance": "live"
+}
