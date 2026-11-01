@@ -7,7 +7,8 @@
 // Clones the committed tree (never the working copy), then runs, stopping at the first failure:
 //   install    corepack pnpm install --frozen-lockfile
 //   typecheck  corepack pnpm typecheck
-//   lint       corepack pnpm lint            (only with --lint)
+//   lint       corepack pnpm exec biome ci .
+//   deps:check corepack pnpm deps:check
 //   test       corepack pnpm test
 //   build      corepack pnpm build
 // Children get a scrubbed environment (`isDroppedEnv`): no API keys, no PayPal or database
@@ -24,7 +25,7 @@ import { isMain } from "../apps/tasks/src/main.js";
 import { REPO_ROOT } from "./lib/blueprint.js";
 
 export interface VerifyStep {
-  readonly id: "clone" | "checkout" | "install" | "typecheck" | "lint" | "test" | "build";
+  readonly id: "clone" | "checkout" | "install" | "typecheck" | "lint" | "deps:check" | "test" | "build";
   readonly command: string;
   readonly args: readonly string[];
   /** Relative to the clone directory, or "." for the parent when cloning. */
@@ -35,6 +36,7 @@ export interface VerifyOptions {
   readonly source: string;
   readonly dir: string;
   readonly ref?: string | undefined;
+  /** Retained for existing callers; lint is always part of verification. */
   readonly lint?: boolean;
   /** Postgres for the integration tier, given to the test step as FS_TEST_DATABASE_URL. */
   readonly db?: string | undefined;
@@ -69,7 +71,8 @@ export function planVerify(opts: VerifyOptions): VerifyStep[] {
     steps.push({ id: "checkout", command: "git", args: ["checkout", "--quiet", opts.ref], inClone: true });
   steps.push({ id: "install", ...pnpm("install", "--frozen-lockfile"), inClone: true });
   steps.push({ id: "typecheck", ...pnpm("typecheck"), inClone: true });
-  if (opts.lint) steps.push({ id: "lint", ...pnpm("lint"), inClone: true });
+  steps.push({ id: "lint", ...pnpm("exec", "biome", "ci", "."), inClone: true });
+  steps.push({ id: "deps:check", ...pnpm("deps:check"), inClone: true });
   steps.push({ id: "test", ...pnpm("test"), inClone: true });
   steps.push({ id: "build", ...pnpm("build"), inClone: true });
   return steps;
@@ -235,7 +238,7 @@ export interface CliOptions {
 }
 
 export function parseArgs(argv: readonly string[]): CliOptions {
-  const o: CliOptions = { source: REPO_ROOT, keep: false, lint: false, json: false };
+  const o: CliOptions = { source: REPO_ROOT, keep: false, lint: true, json: false };
   for (const a of argv) {
     const [k, v] = a.includes("=")
       ? [a.slice(0, a.indexOf("=")), a.slice(a.indexOf("=") + 1)]

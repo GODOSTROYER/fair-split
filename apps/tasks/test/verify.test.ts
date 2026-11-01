@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readBlueprint } from "../../../tools/lib/blueprint.js";
+import { REPO_ROOT, readBlueprint } from "../../../tools/lib/blueprint.js";
 import {
   childEnv,
   describeSkipped,
@@ -16,9 +18,25 @@ import {
 const opts = { source: "https://github.com/example/fair-split.git", dir: "/tmp/fs-verify/fair-split" };
 
 describe("tools/verify (clean-clone verification, gate G7)", () => {
-  it("plans clone, install, typecheck, test, build in that order", () => {
+  it("plans all keyless replay gates by default, including frozen install, biome ci and deps", () => {
     const steps = planVerify(opts);
-    expect(steps.map((s) => s.id)).toEqual(["clone", "install", "typecheck", "test", "build"]);
+    expect(steps.map((s) => s.id)).toEqual([
+      "clone",
+      "install",
+      "typecheck",
+      "lint",
+      "deps:check",
+      "test",
+      "build",
+    ]);
+    expect(steps.find((s) => s.id === "lint")).toMatchObject({
+      command: "corepack",
+      args: ["pnpm", "exec", "biome", "ci", "."],
+    });
+    expect(steps.find((s) => s.id === "deps:check")).toMatchObject({
+      command: "corepack",
+      args: ["pnpm", "deps:check"],
+    });
     expect(steps[0]).toMatchObject({
       command: "git",
       args: ["clone", "--quiet", "--no-hardlinks", opts.source, opts.dir],
@@ -27,9 +45,34 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
     expect(steps[1]).toMatchObject({ command: "corepack", args: ["pnpm", "install", "--frozen-lockfile"] });
   });
 
-  it("checks out a ref and adds lint when asked", () => {
+  it("checks out a ref and retains the legacy --lint option without duplicating lint", () => {
     const ids = planVerify({ ...opts, ref: "abc123", lint: true }).map((s) => s.id);
-    expect(ids).toEqual(["clone", "checkout", "install", "typecheck", "lint", "test", "build"]);
+    expect(ids).toEqual(["clone", "checkout", "install", "typecheck", "lint", "deps:check", "test", "build"]);
+  });
+
+  it("publishes the root verification aliases", () => {
+    const root = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
+    expect(root.scripts.verify).toBe("tsx tools/verify.ts");
+    expect(root.scripts["verify-proof"]).toBe("tsx tools/verify-proof.ts");
+  });
+
+  it("ignores the local verification scratch directory", () => {
+    const ignored = readFileSync(join(REPO_ROOT, ".gitignore"), "utf8").split(/\r?\n/);
+    expect(ignored).toContain(".codex-scratch/");
+  });
+
+  it.each(["lint", "deps:check"] as const)("stops at a failing %s gate before tests", (gate) => {
+    const seen: string[] = [];
+    const rs = runVerify(opts, {
+      runner: (step) => {
+        seen.push(step.id);
+        return { exitCode: step.id === gate ? 1 : 0, output: "verification mismatch" };
+      },
+      env: {},
+    });
+    expect(rs.at(-1)).toMatchObject({ id: gate, ok: false, exitCode: 1 });
+    expect(seen).not.toContain("test");
+    expect(seen).not.toContain("build");
   });
 
   it("stops at the first failure and keeps the failing output tail", () => {
@@ -157,7 +200,14 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
         env: { FS_TEST_DATABASE_URL: "postgres://developer-own/db" },
       },
     );
-    expect(seen).toEqual({ clone: undefined, install: undefined, typecheck: undefined, test: db });
+    expect(seen).toEqual({
+      clone: undefined,
+      install: undefined,
+      typecheck: undefined,
+      lint: undefined,
+      "deps:check": undefined,
+      test: db,
+    });
     expect(JSON.stringify(rs)).not.toContain("not-a-real-password");
     expect(rs.at(-1)?.tail).toBe("connect <--db> refused: password <--db> rejected");
   });
@@ -200,6 +250,7 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
   });
 
   it("parses CLI flags", () => {
+    expect(parseArgs([]).lint).toBe(true);
     expect(parseArgs(["--source=../x", "--ref=main", "--dir=out", "--keep", "--lint", "--json"])).toEqual({
       source: "../x",
       ref: "main",
