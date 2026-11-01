@@ -243,7 +243,12 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
                 accessibilityHint={playable ? tr("M-MB-03.playFrom") : undefined}
                 aria-selected={current}
                 testID={`M-MB-03.sentence.${i}`}
-                dataSet={{ state: current ? "current" : "idle" }}
+                dataSet={{
+                  state: current ? "current" : "idle",
+                  audioSource: plan.steps[i]?.voice.kind ?? "none",
+                  audioUrl: plan.steps[i]?.voice.kind === "clip" ? plan.steps[i]?.voice.url : "",
+                  audioSlot: p.sentence.slot ?? "",
+                }}
                 style={({ pressed }) => [styles.sentence, pressed && { backgroundColor: t.color.pencilWash }]}
               >
                 <GlossedSentence

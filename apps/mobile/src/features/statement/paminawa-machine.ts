@@ -21,6 +21,13 @@ import {
 /** "Hinay": 0.85× (S1.9, design §8 Audio). */
 export const SLOW_RATE = 0.85;
 
+/** The same IDs can carry different server text after a refresh or a language change. */
+export function playbackPlanKey(plan: AudioPlan): string {
+  return JSON.stringify(
+    plan.steps.map((s) => [s.id, s.spoken, s.voice.kind === "clip" ? s.voice.url : s.voice.kind]),
+  );
+}
+
 export interface PaminawaState {
   status: "idle" | "playing" | "paused" | "ended";
   /** The sentence on screen and in the voice. */

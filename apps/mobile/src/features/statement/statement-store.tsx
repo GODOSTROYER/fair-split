@@ -28,6 +28,7 @@ import { prefs } from "../../platform/kv";
 import { bootQuery } from "../../platform/query";
 import { identityKey } from "../../services/session";
 import { useApp } from "../../state/app";
+import { memberEvent } from "./live";
 import { previewLine } from "./preview";
 import { parseReview, type ReviewRecord, reviewPrefKey, serializeReview } from "./review";
 
@@ -223,17 +224,17 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       }
       if (e.type !== "item.updated" || !senderItemId) return;
       const before = trackRef.current.status;
-      const r = reduceItemEvent(
-        trackRef.current,
-        e as RunEvent<"item.updated", ItemUpdatedPayload>,
-        senderItemId,
-      );
+      const adapted = demo ? (e as RunEvent<"item.updated", ItemUpdatedPayload>) : memberEvent(e);
+      if (!adapted) return;
+      const r = reduceItemEvent(trackRef.current, adapted, senderItemId);
       if (r.effect !== "applied") return; // a repeat or a stale event changes nothing, silently
       trackRef.current = r.track;
       setTrack(r.track);
       if (r.track.status === "SUCCESS" && before !== "SUCCESS") {
         setPaid({ eventId: e.id, at: e.at, receivedAt: Date.now() });
       }
+      // Read statement words and clips together after a forward update (IC-11).
+      void load();
     });
   }, [api, live, lineId, senderItemId, load]);
 

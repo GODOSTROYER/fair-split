@@ -41,6 +41,7 @@ export interface ReceiptRow {
 }
 
 export function receiptRows(dto: StatementDTO): ReceiptRow[] {
+  if (dto.formatted) return dto.formatted.receiptRows;
   const a = dto.amounts;
   const rows: ReceiptRow[] = [
     {
@@ -124,6 +125,7 @@ const isCents = (n: number) => Number.isSafeInteger(n) && n >= 0;
 
 /** Money is conserved on the phone too: the receipt must add up to the net, in whole non-negative cents. */
 export function lineConservation(dto: StatementDTO): Conservation {
+  if (dto.formatted) return dto.formatted.conservation;
   const a = dto.amounts;
   const parts = [
     a.premiumCents,
@@ -168,6 +170,8 @@ export interface HeroFigures {
 }
 
 export function heroFigures(dto: StatementDTO, lang: Lang, kind: PayKind): HeroFigures {
+  const served = dto.formattedByLang?.[lang] ?? dto.formatted;
+  if (served) return served.hero[kind];
   const net = dto.amounts.netCents;
   const r = dto.fx.phpPerUsd;
   if (kind === "cash") {
@@ -211,6 +215,7 @@ export interface ShareFigures {
 
 /** Members never see a per-kg rate (S2.2.1): the premium reads as her share of the co-op's verified kilos. */
 export function shareFigures(dto: StatementDTO): ShareFigures {
+  if (dto.formatted) return dto.formatted.share;
   const k = dto.kilos;
   return {
     kg: format.kg(k.netGrams),

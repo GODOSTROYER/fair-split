@@ -19,7 +19,7 @@ import type { StatementDTO } from "../_shims/api-client";
 import type { Lang } from "../_shims/contracts";
 import { format, sha256Hex } from "../_shims/domain";
 import { namedMembers } from "../_shims/seed";
-import { buildDemoStatement } from "../services/demo-fixtures";
+import { buildDemoStatement as buildExportedDemoStatement } from "../services/demo-fixtures";
 import { withNoDate } from "../test/pay-forms";
 import { type AudioPlan, audioPlan, statementSentences, withServedAudio } from "./statement";
 
@@ -28,6 +28,10 @@ const CASH_GOLDEN = new URL("../../../api/src/routes/media/ic11-cash.golden.json
 const golden = JSON.parse(readFileSync(GOLDEN, "utf8")) as Record<string, unknown>;
 const LANGS = ["ceb", "fil", "en"] as const;
 const ORIGIN = "https://fs.test";
+/** Deliberate legacy template fixture: exercise interpolation and hand-built audio hashes independently of AU2's export. */
+function buildDemoStatement(opts: Parameters<typeof buildExportedDemoStatement>[0]) {
+  return { ...buildExportedDemoStatement(opts), rendered: undefined, audio: {} };
+}
 /** The app's own statement of the hero line, as a paid PayPal line. */
 const hero = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00" });
 const served = (lang: (typeof LANGS)[number]) => StatementAudio.parse(golden[lang]);

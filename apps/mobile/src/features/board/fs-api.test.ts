@@ -177,7 +177,8 @@ describe("fs-api phone adapter", () => {
   it("keeps frames on labelled demo until a board token arrives; reset returns to demo", () => {
     expect(boardApiMode("http://localhost", true, null)).toBe("demo");
     expect(boardApiMode("http://localhost", true, { role: "board", bearer: "frame-token" })).toBe("live");
-    expect(boardApiMode("http://localhost", true, { role: "clerk", bearer: "frame-token" })).toBe("live");
+    expect(boardApiMode("http://localhost", true, { role: "clerk", bearer: "frame-token" })).toBe("demo");
+    expect(boardApiMode("http://localhost", true, { role: "member", bearer: "frame-token" })).toBe("live");
     expect(boardApiMode(null, true, { role: "board", bearer: "frame-token" })).toBe("demo");
     expect(boardApiMode("http://localhost", false, null)).toBe("live");
   });

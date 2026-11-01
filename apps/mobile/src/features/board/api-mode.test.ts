@@ -8,9 +8,12 @@ describe("frame API handoff", () => {
   it("labels the local preview until a frame token, then uses HTTP for each persona", () => {
     expect(boardApiMode("http://localhost", true, null)).toBe("demo");
     expect(boardApiMode("http://localhost", true, { role: "board", bearer: "demo-session" })).toBe("demo");
-    for (const role of ["board", "member", "clerk"]) {
+    for (const role of ["board", "member"]) {
       expect(boardApiMode("http://localhost", true, { role, bearer: "accepted-frame-token" })).toBe("live");
     }
+    expect(boardApiMode("http://localhost", true, { role: "clerk", bearer: "accepted-frame-token" })).toBe(
+      "demo",
+    );
   });
 
   it("drops local screen state on demo-to-HTTP and workspace/persona transitions without keying on a secret", () => {

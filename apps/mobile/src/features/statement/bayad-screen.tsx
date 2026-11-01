@@ -41,6 +41,7 @@ import { Txt } from "../../ui/text";
 import { InviteRing, StatusCapsule, useBayadNa } from "./capsule";
 import { DemoTray } from "./demo-tray";
 import { historyRows, type LineView, lineView, receiptStates, sealSigners } from "./line-view";
+import { statementRail } from "./live";
 import { traceState } from "./mm7";
 import { PaminawaPanel, useVoiceLabel } from "./paminawa-panel";
 import { COLUMN, GlossedSentence, HistoryMark, LangBar } from "./parts";
@@ -240,6 +241,12 @@ function Statement({
         ) : null}
 
         <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-01.card">
+          <View testID="M-MB-01.rail" dataSet={{ rail: statementRail(dto, lang).kind }}>
+            <Txt kind="label">{statementRail(dto, lang).chip}</Txt>
+          </View>
+          <Txt kind="caption" color="ink2" testID="M-MB-01.railCopy">
+            {statementRail(dto, lang).copy}
+          </Txt>
           {/* 1. The co-op and the season, then the greeting by her registry honorific. */}
           <View style={styles.head}>
             <Txt kind="label" color="ink2">

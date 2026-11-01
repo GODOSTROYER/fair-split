@@ -2,7 +2,7 @@ import { StatementAudio } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
 import type { StatementAudioClip, StatementAudioSentence, StatementDTO } from "../_shims/api-client";
 import { sha256Hex } from "../_shims/domain";
-import { buildDemoStatement } from "../services/demo-fixtures";
+import { buildDemoStatement as buildExportedDemoStatement } from "../services/demo-fixtures";
 import { withNoDate } from "../test/pay-forms";
 import { figureRuns, isFigure } from "../ui/figures";
 import { EMPTY_TRACK } from "./item-status";
@@ -31,6 +31,10 @@ import {
   withServedAudio,
 } from "./statement";
 
+/** Deliberate legacy template fixture: exercise interpolation and hand-built audio hashes independently of AU2's export. */
+function buildDemoStatement(opts: Parameters<typeof buildExportedDemoStatement>[0]) {
+  return { ...buildExportedDemoStatement(opts), rendered: undefined, audio: {} };
+}
 const dto = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00" });
 
 describe("statement sentences", () => {
