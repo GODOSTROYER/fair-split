@@ -218,6 +218,7 @@ export const PROVENANCE_LABELS: Readonly<Record<Provenance, Words>> = {
 export const PROOF_STATUS_LABELS: Readonly<Record<ProofStatus, Words>> = {
   verified: { en: "Verified", ceb: "Napamatud-an", fil: "Napatunayan" },
   sample: { en: "Sample", ceb: "Sample lang", fil: "Sample lamang" },
+  replay: { en: "Replayed (labelled)", ceb: "Gipasubli (gilabelan)", fil: "Ni-replay (may label)" },
   failed: { en: "Does not match", ceb: "Dili motugma", fil: "Hindi tugma" },
 };
 

@@ -716,6 +716,7 @@ export const PROOF_LEDGER_KINDS = [
   "approval.signed",
   "payout.submitting",
   "payout.cancel",
+  "payout.item.replayed",
   "webhook.applied",
 ] as const;
 export const ProofLedgerKind = z.enum(PROOF_LEDGER_KINDS);
@@ -807,6 +808,16 @@ export const LedgerPayloads = {
     payoutItemId: z.string(),
     afterCancel: z.enum(["cash", "reroute"]),
   }),
+  /** A replay status CAS, recorded in the same transaction; never a verified webhook notice. */
+  "payout.item.replayed": z.strictObject({
+    runId: z.string(),
+    senderItemId: z.string(),
+    payoutItemId: z.string().nullable(),
+    from: PayoutItemStatus,
+    status: PayoutItemStatus,
+    provenance: z.literal("replay"),
+    source: z.enum(["post_response", "status_check", "cancel", "webhook"]),
+  }),
   "webhook.applied": z.discriminatedUnion("resource", [
     z.strictObject({
       ...webhookApplied,
@@ -877,8 +888,10 @@ export const ProofItem = z.strictObject({
   currency: z.literal("USD"),
   payoutItemId: z.string().nullable(),
   status: PayoutItemStatus,
-  /** The verified webhook event the status rests on (null only while SUBMITTED or PENDING). */
+  /** Verified webhook event; null while pending or when labelled replay ledger facts attest it. */
   eventId: z.string().nullable(),
+  /** A replay marker requires matching recorded ledger evidence, never a verified notice. */
+  provenance: z.literal("replay").optional(),
 });
 export type ProofItem = z.infer<typeof ProofItem>;
 
@@ -937,7 +950,12 @@ export type ProofBundle = z.infer<typeof ProofBundle>;
 export const PlateName = z.enum(["paid", "ratified", "read", "computed", "twoKeys", "payoutItems"]);
 export type PlateName = z.infer<typeof PlateName>;
 
-export const PlateResult = z.strictObject({ ok: z.boolean(), reason: z.string().nullable() });
+export const PlateResult = z.strictObject({
+  ok: z.boolean(),
+  reason: z.string().nullable(),
+  /** Consistent recorded outcomes, distinct from verified matches and mismatches. */
+  state: z.literal("replay").optional(),
+});
 export type PlateResult = z.infer<typeof PlateResult>;
 
 export const ChainVerification = z.strictObject({
@@ -945,9 +963,12 @@ export const ChainVerification = z.strictObject({
   ok: z.boolean(),
   /**
    * "verified": every check passed with published keys. "sample": every check passed in demo mode,
-   * but a seeded or demo key signed (rendered "Sample", never "Verified"). "failed": anything else.
+   * but a seeded or demo key signed (rendered "Sample", never "Verified"). "replay": consistent
+   * recorded payout outcomes, labelled and never verified. "failed": anything else.
    */
   status: ProofStatus,
+  /** Honest count when payout outcomes replay; existing fully checked results need no extra copy. */
+  verdict: z.string().optional(),
   chain: z.strictObject({ ok: z.boolean(), entries: z.int().nonnegative(), brokenAtSeq: z.int().nullable() }),
   checkpoint: z.strictObject({
     ok: z.boolean(),
