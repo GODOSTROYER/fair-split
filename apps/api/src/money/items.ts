@@ -11,7 +11,7 @@ import {
 import { type Actor, type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
 import { itemMachine, lineMachine } from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
-import { emit } from "../runs/events.js";
+import { emit, proofLedger } from "../runs/events.js";
 import { cause, moveLine } from "../runs/machine.js";
 
 export type ItemRow = typeof schema.payoutItems.$inferSelect;
@@ -24,6 +24,7 @@ export interface ApplyItem {
   eventId: string | null;
   provenance: Provenance;
   actor: Actor;
+  at: Date;
   payoutItemId?: string | null;
   transactionStatus?: string | null;
   feeCents?: number | null;
@@ -83,6 +84,26 @@ export async function applyItem(
       and(eq(schema.memberLines.workspaceId, scope.workspaceId), eq(schema.memberLines.id, item.lineId)),
     );
   const memberNo = line?.memberNo ?? "M-000";
+  if (a.provenance === "replay") {
+    // This is the application's record of an applied replay, never a fabricated verified notice.
+    // The successful status CAS and this entry commit together, so retries cannot invent another transition.
+    if (!line) throw new Error("A replay item must belong to a run line before its status can be recorded.");
+    await proofLedger(
+      tx,
+      scope,
+      "payout.item.replayed",
+      {
+        runId: line.line.runId,
+        senderItemId: row.senderItemId,
+        payoutItemId: row.payoutItemId,
+        from: current,
+        status: a.status,
+        provenance: "replay",
+        source: a.source,
+      },
+      { runId: line.line.runId, at: a.at, actor: a.actor },
+    );
+  }
   await emit(
     tx,
     scope,

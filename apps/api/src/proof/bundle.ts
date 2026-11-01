@@ -873,7 +873,9 @@ async function readItems(
     const status = r.status as PayoutItemStatus;
     const fold = folds.get(r.senderItemId);
     // The event the status rests on: the last verified event that moved this item, if it moved it here.
-    const eventId = fold && fold.status === status ? fold.lastEventId : null;
+    const replayed =
+      r.provenance === "replay" || batch.provenance === "replay" || run.provenance === "replay";
+    const eventId = !replayed && fold && fold.status === status ? fold.lastEventId : null;
     items.push({
       senderItemId: r.senderItemId,
       receiver: r.receiver,
@@ -882,6 +884,7 @@ async function readItems(
       payoutItemId: r.payoutItemId ?? null,
       status,
       eventId,
+      ...(replayed ? { provenance: "replay" as const } : {}),
     });
     facts.push({
       senderItemId: r.senderItemId,
@@ -923,7 +926,12 @@ export function foldItemEvents(ledger: readonly LedgerEntry[]): Map<string, Item
     const p = LedgerPayloads["webhook.applied"].safeParse(e.payload);
     if (!p.success || p.data.resource !== "payout_item") continue;
     const ev = p.data;
-    if (ev.verified === "dev_mock" || itemStatusFromEvent(ev.eventType) !== ev.status) continue;
+    if (
+      ev.verified === "dev_mock" ||
+      ev.provenance === "replay" ||
+      itemStatusFromEvent(ev.eventType) !== ev.status
+    )
+      continue;
     const cur = out.get(ev.senderItemId) ?? { status: "SUBMITTED" as PayoutItemStatus, lastEventId: null };
     const applied = applyItemStatus(cur.status, ev.status, {
       cancelRequested: cancelled.has(ev.senderItemId),

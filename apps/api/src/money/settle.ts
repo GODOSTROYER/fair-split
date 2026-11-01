@@ -236,6 +236,7 @@ export async function settleBatch(
       const next = itemStatusOf(view.transaction_status);
       if (!item || !next) continue;
       await applyItem(tx, scope, item, {
+        at: deps.clock.now(),
         status: next,
         source: "status_check",
         eventId: null,
@@ -524,6 +525,7 @@ export async function processWebhook(
             return;
           }
           const applied = await applyItem(tx, scope, item, {
+            at: deps.clock.now(),
             status,
             source: fresh ? "status_check" : "webhook",
             eventId: row.paypalEventId,

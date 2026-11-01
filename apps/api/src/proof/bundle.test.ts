@@ -88,6 +88,15 @@ describe("foldItemEvents", () => {
     );
     expect(foldItemEvents(mocked).size).toBe(0);
   });
+
+  it("inv.i8.replayed-notices: replay-labelled notices never count as verified item evidence", () => {
+    const replayed = getProof().ledger.map((e) =>
+      e.kind === "webhook.applied"
+        ? { ...e, payload: { ...(e.payload as object), provenance: "replay" } }
+        : e,
+    );
+    expect(foldItemEvents(replayed).size).toBe(0);
+  });
 });
 
 describe("labels and tiers", () => {
