@@ -436,7 +436,7 @@ await t.close();
   fs-api reads the `link.revoked` ledger entries through `appCredentialStore`; an index on
   `ledger_entries((payload->>'jti')) where kind = 'link.revoked'` would keep it fast), no judge session table (the session id lives in the cookie and `frame_tokens.session_id`), no Postgres store for webhook
   transmission ids (paypal-core keeps them in memory). W1 adds nullable `webhook_events.delivery` jsonb
-  (migration 0018): `src/paypal/webhooks.ts` stores the verified delivery and receipt time in the same
+  (migration 0019, after HD2's published 0018): `src/paypal/webhooks.ts` stores the verified delivery and receipt time in the same
   transaction as the event and its outbox task. Legacy rows keep NULL and require a fresh GET.
   `orphan` with an error reason records notices deferred to settlement or blocked by stranded/identity
   checks; `appliedAt` is set only for an actual application or held-status corroboration.
