@@ -42,7 +42,17 @@ export function digestLines(batch: BatchView, view: LineList): CosignLine[] {
     lineSha256: l.lineSha256,
     canonical: l.canonical,
     batchLineSha256:
-      matching && l.runId === batch.runId
+      matching &&
+      l.runId === batch.runId &&
+      l.premiumCents === l.canonical.premiumCents &&
+      l.bonusCents === l.canonical.bonusCents &&
+      l.deductions.length === l.canonical.deductions.length &&
+      l.deductions.every((d, i) => {
+        const canonical = l.canonical.deductions[i];
+        return (
+          d.ruleId === canonical?.ruleId && d.amountCents === canonical.amountCents && d.ref === canonical.ref
+        );
+      })
         ? (batch.memberLines.find((m) => m.memberNo === l.memberNo)?.lineSha256 ?? null)
         : null,
   }));

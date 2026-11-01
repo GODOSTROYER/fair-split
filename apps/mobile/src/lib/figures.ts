@@ -41,6 +41,7 @@ export interface ReceiptRow {
 }
 
 export function receiptRows(dto: StatementDTO): ReceiptRow[] {
+  if (!dto.amounts) return [];
   if (dto.formatted) return dto.formatted.receiptRows;
   const a = dto.amounts;
   const rows: ReceiptRow[] = [
@@ -107,6 +108,7 @@ export function receiptBarWeights(dto: StatementDTO): {
   credited: number;
 } {
   const a = dto.amounts;
+  if (!a) return { premium: 0, bonus: 0, deducted: 0, credited: 0 };
   const deducted = a.deductions.reduce((s, d) => s + d.cents, 0);
   const credited = a.credits.reduce((s, c) => s + c.cents, 0);
   return { premium: a.premiumCents, bonus: Math.max(0, a.bonusCents - deducted), deducted, credited };
@@ -124,7 +126,8 @@ export interface Conservation {
 const isCents = (n: number) => Number.isSafeInteger(n) && n >= 0;
 
 /** Money is conserved on the phone too: the receipt must add up to the net, in whole non-negative cents. */
-export function lineConservation(dto: StatementDTO): Conservation {
+export function lineConservation(dto: StatementDTO): Conservation | null {
+  if (!dto.amounts) return null;
   if (dto.formatted) return dto.formatted.conservation;
   const a = dto.amounts;
   const parts = [
@@ -169,9 +172,10 @@ export interface HeroFigures {
   rate: string;
 }
 
-export function heroFigures(dto: StatementDTO, lang: Lang, kind: PayKind): HeroFigures {
+export function heroFigures(dto: StatementDTO, lang: Lang, kind: PayKind): HeroFigures | null {
+  if (!dto.amounts) return null;
   const served = dto.formattedByLang?.[lang] ?? dto.formatted;
-  if (served) return served.hero[kind];
+  if (served) return served.hero?.[kind] ?? null;
   const net = dto.amounts.netCents;
   const r = dto.fx.phpPerUsd;
   if (kind === "cash") {
@@ -360,6 +364,7 @@ export function equationTerms(dto: StatementDTO): EquationTerm[] {
 
 /** The trace for one receipt segment, or null when the line has no such segment. */
 export function traceFor(dto: StatementDTO, id: TraceId, lang: Lang): Trace | null {
+  if (!dto.amounts && id !== "fees") return null;
   const all = dto.slips.map((s) => s.serial);
   const share = shareFigures(dto);
   if (id === "premium") {
@@ -368,12 +373,12 @@ export function traceFor(dto: StatementDTO, id: TraceId, lang: Lang): Trace | nu
   if (id === "bonus") {
     return { id, grade1Kg: share.grade1Kg, allGrade1: share.allGrade1, slips: all };
   }
-  if (id === "net") {
+  if (id === "net" && dto.amounts) {
     return {
       id,
       terms: equationTerms(dto),
       total: format.usd(dto.amounts.netCents),
-      conserved: lineConservation(dto).ok,
+      conserved: lineConservation(dto)?.ok ?? false,
       slips: [],
     };
   }
@@ -389,7 +394,7 @@ export function traceFor(dto: StatementDTO, id: TraceId, lang: Lang): Trace | nu
     };
   }
   if (id.startsWith("ded:")) {
-    const d = dto.amounts.deductions.find((x) => `ded:${x.ruleId}` === id);
+    const d = dto.amounts?.deductions.find((x) => `ded:${x.ruleId}` === id);
     if (!d) return null;
     return {
       id: `ded:${d.ruleId}`,
@@ -401,7 +406,7 @@ export function traceFor(dto: StatementDTO, id: TraceId, lang: Lang): Trace | nu
       slips: [],
     };
   }
-  const c = dto.amounts.credits.find((x) => `credit:${x.slip}` === id);
+  const c = dto.amounts?.credits.find((x) => `credit:${x.slip}` === id);
   if (!c) return null;
   return {
     id: `credit:${c.slip}`,

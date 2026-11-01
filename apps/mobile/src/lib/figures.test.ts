@@ -24,6 +24,8 @@ import {
 
 const NOW = "2026-10-30T09:12:00+08:00";
 const paid = buildDemoStatement({ stage: "paid", now: NOW });
+const paidAmounts = paid.amounts;
+if (!paidAmounts) throw new Error("Missing paid fixture amounts");
 
 /** Reads a formatted amount back to cents ("−1.09" → −109, "US$4,333.50" → 433350). */
 function centsOf(text: string): number {
@@ -60,8 +62,8 @@ describe("the hero line M-014 (register §2): US$64.45 = 43.69 + 21.85 − CBU 1
       netCents: 12784,
     });
     expect(receiptRows(other).map((r) => r.amount)).toEqual(["88.57", "41.34", "−2.07", "US$127.84"]);
-    expect(heroFigures(other, "en", "paypal").amount).toBe("US$127.84");
-    expect(heroFigures(other, "ceb", "cash").amount).toBe("₱7,990.00");
+    expect(heroFigures(other, "en", "paypal")?.amount).toBe("US$127.84");
+    expect(heroFigures(other, "ceb", "cash")?.amount).toBe("₱7,990.00");
   });
 
   it("shows about ₱4,028 (floored estimate) under a PayPal amount, in the member's language", () => {
@@ -70,8 +72,8 @@ describe("the hero line M-014 (register §2): US$64.45 = 43.69 + 21.85 − CBU 1
       estimate: "mga ₱4,028 (gibanabana)",
       rate: "₱62.50",
     });
-    expect(heroFigures(paid, "fil", "paypal").estimate).toBe("humigit-kumulang ₱4,028 (tantiya)");
-    expect(heroFigures(paid, "en", "paypal").spoken).toBe(
+    expect(heroFigures(paid, "fil", "paypal")?.estimate).toBe("humigit-kumulang ₱4,028 (tantiya)");
+    expect(heroFigures(paid, "en", "paypal")?.spoken).toBe(
       "sixty-four dollars and forty-five cents, about four thousand twenty-eight pesos, estimate",
     );
   });
@@ -81,7 +83,7 @@ describe("the hero line M-014 (register §2): US$64.45 = 43.69 + 21.85 − CBU 1
     expect(payKindOf(cash, "cash-due")).toBe("cash");
     const hero = heroFigures(cash, "ceb", "cash");
     expect(hero).toMatchObject({ amount: "₱4,028.13", usd: "US$64.45", rate: "₱62.50", estimate: null });
-    expect(hero.spoken).toBe("four thousand twenty-eight pesos and thirteen centavos, cash");
+    expect(hero?.spoken).toBe("four thousand twenty-eight pesos and thirteen centavos, cash");
   });
 
   it("decides the rail from the line, and from a return to the bodega", () => {
@@ -169,19 +171,19 @@ describe("inv.i3.member-line: money is conserved on the phone", () => {
           netCents,
         });
         const c = lineConservation(dto);
-        return c.ok === (a.drift === 0 && netCents >= 0) && c.computedCents === exact;
+        return c?.ok === (a.drift === 0 && netCents >= 0) && c?.computedCents === exact;
       }),
     );
   });
 
   it("refuses fractional or negative cents", () => {
-    expect(lineConservation(withAmounts(paid, { ...paid.amounts, premiumCents: 4369.5 })).ok).toBe(false);
+    expect(lineConservation(withAmounts(paid, { ...paidAmounts, premiumCents: 4369.5 }))?.ok).toBe(false);
     const negative = withAmounts(paid, {
-      ...paid.amounts,
+      ...paidAmounts,
       deductions: [{ ruleId: "R1", label: "CBU", cents: -109 }],
       netCents: 6663,
     });
-    expect(lineConservation(negative).ok).toBe(false);
+    expect(lineConservation(negative)?.ok).toBe(false);
   });
 
   it("inv.i1.receipt-figures: every printed amount reads back to exactly its row's cents", () => {
@@ -279,7 +281,7 @@ describe("MM-7 traces: every amount says where it comes from", () => {
       "−1.46",
       "+3.20",
     ]);
-    const broken = withAmounts(paid, { ...paid.amounts, netCents: 6446 });
+    const broken = withAmounts(paid, { ...paidAmounts, netCents: 6446 });
     expect(traceFor(broken, "net", "en")).toMatchObject({ conserved: false });
   });
 

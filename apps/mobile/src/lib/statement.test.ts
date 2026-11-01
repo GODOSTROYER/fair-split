@@ -36,6 +36,8 @@ function buildDemoStatement(opts: Parameters<typeof buildExportedDemoStatement>[
   return { ...buildExportedDemoStatement(opts), rendered: undefined, audio: {} };
 }
 const dto = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00" });
+const amounts = dto.amounts;
+if (!amounts) throw new Error("Missing paid fixture amounts");
 
 describe("statement sentences", () => {
   it("renders the hero line in Cebuano, one sentence per slot, PayPal variant", () => {
@@ -361,8 +363,8 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
     const two: StatementDTO = {
       ...dto,
       amounts: {
-        ...dto.amounts,
-        deductions: [...dto.amounts.deductions, { ruleId: "R3", label: "Loan", cents: 500 }],
+        ...amounts,
+        deductions: [...amounts.deductions, { ruleId: "R3", label: "Loan", cents: 500 }],
       },
       sentences: {
         ...dto.sentences,

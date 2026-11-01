@@ -18,6 +18,7 @@
   "dependencies": {
     "@expo-google-fonts/atkinson-hyperlegible-next": "catalog:",
     "@expo-google-fonts/mona-sans": "catalog:",
+    "@fairsplit/api-client": "workspace:*",
     "@fairsplit/contracts": "workspace:*",
     "@fairsplit/seal": "workspace:*",
     "@noble/curves": "catalog:",

@@ -20,7 +20,9 @@ const approval = buildDemoApproval(dto, {
   exp: new Date(now.getTime() + 30 * 60_000).toISOString(),
 });
 
-function server(tamper: false | true | "netCents" | "rail" = false) {
+function server(
+  tamper: false | true | "netCents" | "rail" | "premiumCents" | "bonusCents" | "deductions" = false,
+) {
   const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
     const path = String(url).replace("http://localhost", "");
     let body: unknown;
@@ -53,6 +55,13 @@ function server(tamper: false | true | "netCents" | "rail" = false) {
           canonical: l.canonical,
           ...(l.rail === "CASH" && tamper === "netCents" ? { netCents: l.netCents + 1 } : {}),
           ...(l.rail === "CASH" && tamper === "rail" ? { rail: "PAYPAL" } : {}),
+          ...(l.rail === "CASH" && tamper === "premiumCents"
+            ? { premiumCents: l.canonical.premiumCents + 1 }
+            : {}),
+          ...(l.rail === "CASH" && tamper === "bonusCents" ? { bonusCents: l.canonical.bonusCents + 1 } : {}),
+          ...(l.rail === "CASH" && tamper === "deductions"
+            ? { deductions: [...l.canonical.deductions, { ruleId: "R1", amountCents: 1, ref: null }] }
+            : {}),
           lineSha256: tamper === true ? "f".repeat(64) : l.lineSha256,
           runId: dto.runId,
           provenance: "seeded",
@@ -182,7 +191,7 @@ describe("fs-api phone adapter", () => {
     expect(boardApiMode(null, true, { role: "board", bearer: "frame-token" })).toBe("demo");
     expect(boardApiMode("http://localhost", false, null)).toBe("live");
   });
-  it.each(["netCents", "rail"] as const)(
+  it.each(["netCents", "rail", "premiumCents", "bonusCents", "deductions"] as const)(
     "inv.i4.cash-%s: refuses /lines display tampering with unchanged hashes",
     async (field) => {
       const { api } = server(field);
