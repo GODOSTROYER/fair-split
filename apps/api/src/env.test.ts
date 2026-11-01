@@ -33,6 +33,28 @@ const RENDER_PROMPTED = {
 };
 
 describe("env: boot refusals (S3.13)", () => {
+  it("allows a bounded hourly quota override only on a local test simulator", () => {
+    expect(parseEnv({}).judgeHourlyMax).toBeUndefined();
+    expect(
+      parseEnv({ NODE_ENV: "test", PP_MODE: "simulator", FS_TEST_JUDGE_HOURLY_MAX: "40" }).judgeHourlyMax,
+    ).toBe(40);
+    for (const value of ["0", "41", "1.5", "invalid", ""]) {
+      expect(refusal({ NODE_ENV: "test", FS_TEST_JUDGE_HOURLY_MAX: value }).join(" ")).toContain(
+        "FS_TEST_JUDGE_HOURLY_MAX",
+      );
+    }
+    for (const source of [
+      {},
+      PROD,
+      { NODE_ENV: "test", PP_MODE: "sandbox" },
+      { ...PROD, ...RENDER_PROMPTED, NODE_ENV: "test", RENDER: "true" },
+    ]) {
+      expect(refusal({ ...source, FS_TEST_JUDGE_HOURLY_MAX: "40" }).join(" ")).toContain(
+        "FS_TEST_JUDGE_HOURLY_MAX is allowed only with NODE_ENV=test, PP_MODE=simulator and off Render",
+      );
+    }
+  });
+
   it("defaults to the simulated rail on a local machine, with warnings instead of refusals", () => {
     const env = parseEnv({});
     expect(env.paypal.mode).toBe("simulator");

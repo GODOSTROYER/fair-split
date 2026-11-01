@@ -61,6 +61,8 @@ const Raw = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   /** Which proxy in front of fs-api reports the client's address (none | proxy | cloudflare | render). */
   FS_TRUSTED_EDGE: nonEmpty,
+  /** Local simulator e2e stacks may lift only the shared hourly cap; never accepted in production. */
+  FS_TEST_JUDGE_HOURLY_MAX: z.coerce.number().int().min(1).max(40).optional(),
 
   DATABASE_URL: nonEmpty,
   /** A direct (non-pooled) URL for the LISTEN connection; defaults to DATABASE_URL. */
@@ -124,6 +126,8 @@ export interface ApiEnv {
   logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   /** The hop whose report of the client's address per-IP throttles believe (src/lib/client-ip.ts). */
   trustedEdge: TrustedEdge;
+  /** FS_TEST_JUDGE_HOURLY_MAX: test simulator only; unset preserves the production quota. */
+  judgeHourlyMax?: number | undefined;
   database: {
     url: string | undefined;
     listenUrl: string | undefined;
@@ -186,6 +190,15 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
   const problems: string[] = [];
   const warnings: string[] = [];
   const production = r.NODE_ENV === "production" || r.RENDER;
+
+  if (
+    r.FS_TEST_JUDGE_HOURLY_MAX !== undefined &&
+    (r.NODE_ENV !== "test" || r.PP_MODE !== "simulator" || r.RENDER)
+  ) {
+    problems.push(
+      "FS_TEST_JUDGE_HOURLY_MAX is allowed only with NODE_ENV=test, PP_MODE=simulator and off Render",
+    );
+  }
 
   const ppEnv = r.PP_ENV ?? r.PAYPAL_ENV;
   if (ppEnv !== undefined && ppEnv !== "sandbox") {
@@ -311,6 +324,7 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     publicOrigin: new URL(origin).origin,
     logLevel: r.LOG_LEVEL,
     trustedEdge,
+    judgeHourlyMax: r.FS_TEST_JUDGE_HOURLY_MAX,
     database: {
       url: r.DATABASE_URL,
       listenUrl: r.LISTEN_DATABASE_URL ?? r.DATABASE_URL,
