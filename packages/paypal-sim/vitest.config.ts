@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    fsModuleCachePath: "./node_modules/.vitest-cache",
     include: ["test/**/*.test.ts"],
     // Refuses listen() on a fixed port in every test: servers bind port 0 and read the bound port back.
     setupFiles: ["test/setup.ts"],
