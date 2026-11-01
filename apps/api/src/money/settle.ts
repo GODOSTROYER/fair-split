@@ -31,13 +31,19 @@ import {
 } from "@fairsplit/db";
 import { itemMachine } from "@fairsplit/domain";
 import { enqueue, type TaskContext } from "@fairsplit/outbox";
+import {
+  parseWebhookEnvelope,
+  type ResourceRef,
+  resourceRefOf,
+  storedWebhookApplyRule,
+} from "@fairsplit/paypal-core";
 import { getPayoutBatch, getPayoutItem } from "@fairsplit/paypal-payouts";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { ACTORS, emit, proofLedger } from "../runs/events.js";
 import { lockRun } from "../runs/load.js";
 import { cause, moveRun } from "../runs/machine.js";
-import { SETTLE_GET_DELAYS_MS, webhookApplyRule } from "../webhooks/apply.js";
+import { SETTLE_GET_DELAYS_MS } from "../webhooks/apply.js";
 import { classifyPayPal } from "./errors.js";
 import { confirmFunding } from "./funding.js";
 import { applyItem, type ItemRow, itemStatusOf } from "./items.js";
@@ -263,37 +269,23 @@ export async function settleBatch(
 
 // ---------------------------------------------------------------- processWebhook
 
-interface WebhookResource {
-  id?: string;
-  invoice?: { id?: string };
-  payout_item_id?: string;
-  payout_batch_id?: string;
-  transaction_status?: string;
-  payout_item?: { sender_item_id?: string };
-  batch_header?: {
-    payout_batch_id?: string;
-    batch_status?: string;
-    sender_batch_header?: { sender_batch_id?: string };
-  };
-}
-
 type Resolved =
-  | { kind: "item"; workspaceId: string; item: ItemRow; runId: string }
+  | { kind: "item"; workspaceId: string; item: ItemRow; runId: string; paypalBatchId: string }
   | { kind: "batch"; workspaceId: string; batchId: string; runId: string }
   | { kind: "invoice"; workspaceId: string; runId: string; invoiceNumber: string }
   | { kind: "orphan" };
 
-async function resolve(db: DbOrTx, eventType: string, r: WebhookResource): Promise<Resolved> {
-  if (eventType.startsWith("INVOICING.INVOICE.")) {
-    const id = r.invoice?.id ?? r.id;
+async function resolve(db: DbOrTx, r: ResourceRef): Promise<Resolved> {
+  if (r.kind === "invoice") {
+    const id = r.invoiceId;
     if (!id) return { kind: "orphan" };
     const [inv] = await db.select().from(schema.invoices).where(eq(schema.invoices.paypalInvoiceId, id));
     return inv
       ? { kind: "invoice", workspaceId: inv.workspaceId, runId: inv.runId, invoiceNumber: inv.invoiceNumber }
       : { kind: "orphan" };
   }
-  if (eventType.startsWith("PAYMENT.PAYOUTSBATCH.")) {
-    const id = r.batch_header?.payout_batch_id;
+  if (r.kind === "payout_batch") {
+    const id = r.payoutBatchId;
     if (!id) return { kind: "orphan" };
     const [b] = await db
       .select()
@@ -303,10 +295,10 @@ async function resolve(db: DbOrTx, eventType: string, r: WebhookResource): Promi
       ? { kind: "batch", workspaceId: b.workspaceId, batchId: b.id, runId: b.runId }
       : { kind: "orphan" };
   }
-  if (eventType.startsWith("PAYMENT.PAYOUTS-ITEM.")) {
+  if (r.kind === "payout_item") {
     // Items join through their batch first (never by sender_item_id alone, S3.6.5).
-    const batchId = r.payout_batch_id;
-    const senderItemId = r.payout_item?.sender_item_id;
+    const batchId = r.payoutBatchId;
+    const senderItemId = r.senderItemId;
     if (!batchId) return { kind: "orphan" };
     const [b] = await db
       .select()
@@ -317,10 +309,14 @@ async function resolve(db: DbOrTx, eventType: string, r: WebhookResource): Promi
       .select()
       .from(schema.payoutItems)
       .where(and(eq(schema.payoutItems.workspaceId, b.workspaceId), eq(schema.payoutItems.batchId, b.id)));
-    const item =
-      items.find((i) => r.payout_item_id && i.payoutItemId === r.payout_item_id) ??
-      items.find((i) => senderItemId && i.senderItemId === senderItemId);
-    return item ? { kind: "item", workspaceId: b.workspaceId, item, runId: b.runId } : { kind: "orphan" };
+    const item = senderItemId
+      ? items.find((i) => i.senderItemId === senderItemId)
+      : items.find((i) => r.payoutItemId && i.payoutItemId === r.payoutItemId);
+    // All supplied identities must agree. An unknown PayPal item ID may bind to our pre-POST sender
+    // ID, but must never redirect a delivery from an already-bound item to another sender.
+    if (!item || (r.payoutItemId && item.payoutItemId && r.payoutItemId !== item.payoutItemId))
+      return { kind: "orphan" };
+    return { kind: "item", workspaceId: b.workspaceId, item, runId: b.runId, paypalBatchId: batchId };
   }
   return { kind: "orphan" };
 }
@@ -334,18 +330,21 @@ export async function processWebhook(
     .select()
     .from(schema.webhookEvents)
     .where(eq(schema.webhookEvents.id, args.webhookEventId));
-  if (!row || row.status === "applied" || row.status === "rejected") return;
-  let body: { id?: string; event_type?: string; resource?: WebhookResource } = {};
-  try {
-    body = JSON.parse(row.raw) as typeof body;
-  } catch {
-    // unreadable: stored as an orphan below
-  }
-  const eventType = body.event_type ?? row.eventType;
+  if (
+    !row ||
+    row.status === "applied" ||
+    row.status === "rejected" ||
+    row.paypalEventId !== args.paypalEventId
+  )
+    return;
+  const parsed = parseWebhookEnvelope(row.raw);
+  const consistent =
+    parsed.ok && parsed.event.id === row.paypalEventId && parsed.event.event_type === row.eventType;
+  const eventType = row.eventType;
   const typed = WebhookEventTypeSchema.safeParse(eventType);
   const verified = (row.verified ?? "fetched") as WebhookVerified;
-  const resource = body.resource ?? {};
-  const target = typed.success ? await resolve(deps.db, eventType, resource) : ({ kind: "orphan" } as const);
+  const resource = consistent ? resourceRefOf(parsed.event) : ({ kind: "other" } as const);
+  const target = typed.success ? await resolve(deps.db, resource) : ({ kind: "orphan" } as const);
   const provenance = deps.paypal.provenance;
 
   if (target.kind === "orphan") {
@@ -365,13 +364,24 @@ export async function processWebhook(
   // items only in the settle GET), the event changes nothing and the batch GET decides.
   let fresh: { status: PayoutItemStatus | null; payoutItemId: string | null } | null = null;
   let batchGetDecides = false;
+  const storedRuleFor = (item: ItemRow, paypalBatchId: string) =>
+    storedWebhookApplyRule({
+      eventType,
+      verified,
+      delivery: row.delivery,
+      raw: row.raw,
+      paypalEventId: row.paypalEventId,
+      receivedAt: row.receivedAt,
+      item: {
+        payoutBatchId: paypalBatchId,
+        payoutItemId: item.payoutItemId,
+        senderItemId: item.senderItemId,
+      },
+    });
   if (target.kind === "item") {
-    // `webhook_events` has no `delivery` column yet (WS-DATA): nothing records that the certificate was in
-    // date, so the rule fails closed (DELIVERY_NOT_RECORDED) and a fresh GET decides every event, a signed
-    // SUCCEEDED included (MM-1 then follows the +25 s / +90 s settle GET instead of the webhook).
-    const rule = webhookApplyRule({ eventType, verified, delivery: null });
+    const rule = storedRuleFor(target.item, target.paypalBatchId);
     if (rule.action === "fresh_get_first") {
-      const id = resource.payout_item_id ?? target.item.payoutItemId;
+      const id = target.item.payoutItemId ?? (resource.kind === "payout_item" ? resource.payoutItemId : null);
       if (id) {
         const got = await getPayoutItem(
           deps.paypal.core.http,
@@ -401,6 +411,17 @@ export async function processWebhook(
   }
 
   await withWorkspaceTx(deps.db, scope, async (tx) => {
+    // Outbox retries can race after the first read. Recheck under the workspace lock before any
+    // event/ledger effect; the same stored event is applied once even with concurrent workers.
+    const [stored] = await tx
+      .select({ status: schema.webhookEvents.status })
+      .from(schema.webhookEvents)
+      .where(eq(schema.webhookEvents.id, row.id))
+      .for("update");
+    if (!stored || stored.status === "applied" || stored.status === "rejected") {
+      await ctx.complete(tx);
+      return;
+    }
     await tx
       .update(schema.webhookEvents)
       .set({
@@ -432,14 +453,27 @@ export async function processWebhook(
           .where(eq(schema.payoutItems.id, target.item.id))
           .for("update");
         if (item) {
+          // Resolution was outside this transaction. A GET or another delivery may have bound an
+          // item ID meanwhile: validate the current locked identity before trusting any body field.
+          if (
+            item.senderItemId !== target.item.senderItemId ||
+            (fresh
+              ? item.payoutItemId !== null && fresh.payoutItemId !== item.payoutItemId
+              : storedRuleFor(item, target.paypalBatchId).action !== "apply_now")
+          ) {
+            await settleGetSoon(tx, deps, target.workspaceId, item.batchId, row.paypalEventId);
+            await ctx.complete(tx);
+            return;
+          }
           const applied = await applyItem(tx, scope, item, {
             status,
             source: fresh ? "status_check" : "webhook",
             eventId: row.paypalEventId,
             provenance,
             actor: ACTORS.paypalWebhook,
-            payoutItemId: fresh?.payoutItemId ?? resource.payout_item_id ?? null,
-            transactionStatus: resource.transaction_status ?? null,
+            payoutItemId:
+              fresh?.payoutItemId ?? (resource.kind === "payout_item" ? resource.payoutItemId : null),
+            transactionStatus: fresh ? fresh.status : "SUCCESS",
           });
           if (
             applied.applied ||
@@ -461,7 +495,11 @@ export async function processWebhook(
                 provenance,
                 resource: "payout_item",
                 senderItemId: item.senderItemId,
-                payoutItemId: fresh?.payoutItemId ?? resource.payout_item_id ?? item.payoutItemId ?? "",
+                payoutItemId:
+                  fresh?.payoutItemId ??
+                  (resource.kind === "payout_item" ? resource.payoutItemId : null) ??
+                  item.payoutItemId ??
+                  "",
                 status,
               },
               { runId, at, actor: ACTORS.paypalWebhook },
