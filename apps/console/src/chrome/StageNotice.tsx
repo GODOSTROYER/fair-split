@@ -66,7 +66,7 @@ export function stageNoticeFor({
   const replayed = payoutReplayed(view);
   const forecast =
     !posted && replayReason !== null
-      ? `Your next run’s PayPal steps will replay, labelled (simulated PayPal sandbox).${replayLabel ? ` ${replayLabel}` : ""}`
+      ? `This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox).${replayLabel ? ` ${replayLabel}` : ""}`
       : null;
   const replayText = replayed ? "Replayed (labelled): earlier simulated PayPal sandbox run" : forecast;
   const replaySuffix = inSession && replayText ? ` ${replayText}` : "";

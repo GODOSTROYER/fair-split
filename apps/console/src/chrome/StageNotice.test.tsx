@@ -141,7 +141,7 @@ it.each(["hourly_cap", "daily_cap", "session_cap", "public_share", "lane_full"] 
       replayLabel: "Replay: quota reached",
     });
     expect(notice?.text).toBe(
-      "Your next run’s PayPal steps will replay, labelled (simulated PayPal sandbox). Replay: quota reached",
+      "This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox). Replay: quota reached",
     );
     expect(notice?.state).toBe("replay");
   },
@@ -157,7 +157,7 @@ it.each(["autoplay", "paused"] as const)("keeps the quota replay label visible d
       replayReason: "hourly_cap",
       replayLabel: "Replay: this hour is full",
     })?.text,
-  ).toContain("Your next run’s PayPal steps will replay, labelled");
+  ).toContain("This run’s PayPal payouts will replay, labelled");
 });
 
 it("inv.i8.refreshes the API rail label as soon as a payout replay arrives", async () => {
