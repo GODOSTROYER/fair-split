@@ -21,6 +21,7 @@ import {
   planStep,
   resolveTarget,
 } from "./autoplay-plan.js";
+import { continueProof } from "./proof-autoplay.js";
 import "./judge.css";
 
 /**
@@ -154,6 +155,7 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
           }
           void moveTo(el).then(() => {
             if (cancelled) return;
+            continueProof(latest.current.next.to.split("/").at(-1) ?? "");
             setAutoplay("off");
             pressOn(el);
           });

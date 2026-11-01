@@ -257,3 +257,13 @@
     opacity: 0;
   }
 }
+
+.fsc-tampers {
+  display: grid;
+  gap: 12px;
+  margin-block: 16px;
+}
+.fsc-tampers .fs-flat {
+  white-space: normal;
+  text-align: left;
+}

@@ -5,6 +5,7 @@
 
 import { StageAutoplay } from "../../features/judge/Autoplay.js";
 import { FirstView } from "../../features/judge/FirstView.js";
+import { TamperControls } from "../../features/judge/TamperControls.js";
 import type { JudgeScreenProps, StageExtrasProps } from "../contract.js";
 
 export function Screen(_props: JudgeScreenProps) {
@@ -13,5 +14,10 @@ export function Screen(_props: JudgeScreenProps) {
 
 /** Always mounted inside the stage: "Play it for me" and its cursor (ChromePortal). */
 export function StageExtras(_props: StageExtrasProps) {
-  return <StageAutoplay />;
+  return (
+    <>
+      <StageAutoplay />
+      <TamperControls />
+    </>
+  );
 }

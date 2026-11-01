@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useDocumentTitle } from "../../chrome/Fallbacks.js";
 import { Surface } from "../../chrome/Surface.js";
 import { snapshotQuery } from "../../data/query.js";
+import { ProofAutoplay } from "../../features/judge/ProofAutoplay.js";
 import { requireRunSlug } from "../../lib/route-params.js";
 import { Screen } from "../../screens/W-PF-01/index.js";
 
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/proof/$runSlug")({
     return (
       <Surface theme="adlaw" face="proof" className="fsc-surface fsc-surface--proof">
         <Screen runSlug={runSlug} />
+        <ProofAutoplay runSlug={runSlug} />
       </Surface>
     );
   },
