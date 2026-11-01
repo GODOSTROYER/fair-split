@@ -722,6 +722,67 @@ describe("Judge stage", () => {
     expect(document.activeElement).toBe(face);
   });
 
+  // A retry pressed twice (a double click, Enter twice) after a press PayPal queued: the retry's own answer is
+  // held, then refused too. The first press's error must not kick the retry's slab back to rest while it is in
+  // flight (a second press would commit that fresh slab and send nothing), and the slab the retry committed is
+  // put back at rest by its own failure, by Reset and by a session the server ended.
+  it.each([
+    { ending: "Reset", code: "QUEUED" },
+    { ending: "an ended session (401 UNAUTHENTICATED)", code: "UNAUTHENTICATED" },
+  ] as const)(
+    "a retry pressed twice after a 429 that fails again leaves the press pressable after $ending",
+    async ({ code }) => {
+      const world = createTestWorld();
+      const log = recordRequests();
+      let markPaids = 0;
+      let release: () => void = () => undefined;
+      const held = http.post("*/v1/runs/:runSlug/mark-paid", async () => {
+        markPaids += 1;
+        if (markPaids === 2) await new Promise<void>((go) => (release = go));
+        return undefined;
+      });
+      world.failNext("markPaid", "QUEUED");
+      await renderConsole({ path: "/judge", world, handlers: [log.handler, held] });
+      const starts = () =>
+        log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions").length;
+      const stage = screen.getByTestId("W-JG-01.stage");
+      const slab = () => screen.getByTestId("W-JG-01.markPaid");
+      await press("W-JG-01.markPaid");
+      await screen.findByTestId("W-JG-01.error");
+      await waitFor(() => expect(slab().dataset.state).toBe("rest"));
+      expect(starts()).toBe(1);
+
+      // The retry, pressed twice: the second press lands on whatever slab is drawn then.
+      world.failNext("markPaid", code);
+      await press("W-JG-01.markPaid");
+      await press("W-JG-01.markPaid");
+      await waitFor(() => expect(markPaids).toBe(2));
+      // In flight, the retry's slab stays committed: nothing put it back at rest on the first press's error.
+      expect(slab().dataset.state).toBe("committed");
+      await act(async () => {
+        release();
+      });
+      if (code === "QUEUED") {
+        await screen.findByTestId("W-JG-01.error");
+        // Its own failure puts the slab back at rest, pressable, before any Reset.
+        await waitFor(() => expect(slab().dataset.state).toBe("rest"));
+        expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true");
+        await act(async () => {
+          fireEvent.click(screen.getByTestId("W-JG-01.reset"));
+        });
+        await waitFor(() => expect(stage.dataset.state).toBe("ready"));
+      } else {
+        await waitFor(() => expect(stage.dataset.state).toBe("session-ended"));
+        expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
+      }
+      await waitFor(() => expect(slab().dataset.state).toBe("rest"));
+      expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true");
+      await press("W-JG-01.markPaid");
+      await waitFor(() => expect(starts()).toBe(2));
+      await waitFor(() => expect(stage.dataset.state).toBe("session"));
+    },
+  );
+
   it("Reset after a session that failed to start hands focus to the press, never to <body>", async () => {
     const world = createTestWorld();
     world.failNext("createJudgeSession", "RATE_LIMITED");
