@@ -5,6 +5,7 @@ import {
   AmountDisplay,
   Glyph,
   HoldCard,
+  InkStamp,
   MassBalanceDial,
   MomentRoot,
   PhoneFrame,
@@ -14,8 +15,6 @@ import {
   Slab,
 } from "@fairsplit/ui-web";
 import { useEffect, useRef } from "react";
-import { Stamp } from "../../chrome/Stamp.js";
-import { focusAndReveal } from "../../lib/focus.js";
 import { ConsoleFrame, InvoicePlate, KeySlot, RateCardPlate, RunStrip } from "../console.js";
 import { approveConfirm, en, feeFigures, holdH1, RC_SHORT, splitRows, TwinEvidence } from "../content.js";
 import {
@@ -57,8 +56,7 @@ function JudgeStage() {
   const slab = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // The next step's slab is pre-focused (S1 §1.5).
-    const face = slab.current?.querySelector<HTMLButtonElement>(".fs-slab__face");
-    if (face) focusAndReveal(face);
+    slab.current?.querySelector<HTMLButtonElement>(".fs-slab__face")?.focus({ preventScroll: true });
   }, []);
   return (
     <div className="stage" data-testid="W-JG-01" data-state="ready">
@@ -313,7 +311,7 @@ function SplitReview() {
                   <td>
                     {r.status === "by-hand" ? (
                       <span className="grid__byhand">
-                        <Stamp stamp={{ initials: "AS", name: PEOPLE.treasurer.name, at: "10:22" }} />
+                        <InkStamp stamp={{ initials: "AS", name: PEOPLE.treasurer.name, at: "10:22" }} />
                         <span className="fs-t-caption">{HOLDS.byHand.logbook}</span>
                       </span>
                     ) : (
