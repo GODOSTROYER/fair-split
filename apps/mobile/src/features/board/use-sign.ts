@@ -75,7 +75,7 @@ export function useSign() {
   const [presence, setPresence] = useState<BiometricClass | null | undefined>(undefined);
   const persona = session?.persona ?? null;
   const pairing = session ? pairingId(session) : null;
-  const nativeUnsupported = nativeVaultRefusal(demo, keyVault.kind) !== null;
+  const nativeUnsupported = nativeVaultRefusal(demo !== null, keyVault.kind) !== null;
   const joined = signPhase(c.status, c.key1, flow);
   // A phone with no screen lock is told before the hold, not after it (`presence` is null once probed).
   const phase = nativeUnsupported ? "closed" : joined === "ready" && presence === null ? "no-lock" : joined;
@@ -192,7 +192,7 @@ export function useSign() {
         // I4 at the instant of the release: the gate reads the latest batch, not the one this slab was drawn with,
         // and the pairing the signature started under.
         refusal: () =>
-          nativeVaultRefusal(demo, keyVault.kind) ??
+          nativeVaultRefusal(demo !== null, keyVault.kind) ??
           pairingRefusal(pairing, pairedNow) ??
           refusalFailure(c.commitRefusal()),
         payload: c.freshPayload,

@@ -35,7 +35,7 @@ describe("native live enrollment boundary", () => {
   it("wires the refusal before signing and keeps the slab closed with translated recovery copy", () => {
     const hook = readFileSync(new URL("./use-sign.ts", import.meta.url), "utf8");
     const screen = readFileSync(new URL("./sign-screen.tsx", import.meta.url), "utf8");
-    expect(hook).toContain("nativeVaultRefusal(demo, keyVault.kind)");
+    expect(hook).toContain("nativeVaultRefusal(demo !== null, keyVault.kind)");
     const commit = hook.slice(hook.indexOf("const commit ="));
     expect(commit.indexOf("if (nativeUnsupported)")).toBeGreaterThanOrEqual(0);
     expect(commit.indexOf("if (nativeUnsupported)")).toBeLessThan(commit.indexOf("keyVault.sign("));
