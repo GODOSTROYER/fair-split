@@ -318,41 +318,72 @@ export function reveal(el: Element): void {
 }
 
 /**
- * How long a focused control is kept in view while the layout around it settles: the answer that moved focus
- * often moves the layout a frame or two later (Count it once's result line unfolds above Next, the grid draws
- * its ten columns again once the drawer has gone), which can carry the control out of its scrollport.
+ * How long a focused control is also checked each animation frame while the layout around it settles: the answer
+ * that moved focus often moves things a frame or two later, some by transform alone (a drawer sliding in), which
+ * no layout watch sees.
  */
 export const REVEAL_SETTLE_MS = 1500;
 
-/** What stops the settling at once: the person scrolling or acting on their own. */
+/** What stops the keeping at once: the person scrolling or acting on their own. */
 const OWN_INPUT = ["pointerdown", "wheel", "touchstart", "keydown"] as const;
 
 let settling: (() => void) | null = null;
 
-/** Keeps `el` in view each animation frame while it holds focus, for `ms`, unless the person acts first. */
+/**
+ * What a layout change that could move `el` resizes: `el`, each of its ancestors (content that unfolds above it
+ * grows the one they share), and the children of each scrollport it is in (a sticky head beside its ancestors).
+ */
+function layoutAround(el: HTMLElement): Element[] {
+  const watched = new Set<Element>([el]);
+  for (let at = el.parentElement; at; at = at.parentElement) {
+    watched.add(at);
+    if (at === document.body || at === document.documentElement || !isScrollport(at)) continue;
+    for (const child of at.children) watched.add(child);
+  }
+  return [...watched];
+}
+
+/**
+ * Keeps `el` in view for as long as it holds focus and the person has not scrolled or acted: on every layout change
+ * around it, with no cut-off (the answer that moved focus may move the layout seconds later: Count it once's result
+ * line unfolds above Next when MM-3 reaches its wave, later still on a slow machine), and each animation frame for
+ * `ms` while it settles. A ResizeObserver's callback runs after layout and before paint, so a control the layout
+ * moved is back in view in the frame that moved it.
+ */
 function keepInView(el: HTMLElement, ms: number = REVEAL_SETTLE_MS): void {
   settling?.();
-  if (typeof requestAnimationFrame !== "function") return;
   const until = performance.now() + ms;
   let frame = 0;
+  let layout: ResizeObserver | null = null;
   const stop = () => {
     if (frame) cancelAnimationFrame(frame);
     frame = 0;
+    layout?.disconnect();
+    layout = null;
     for (const type of OWN_INPUT) window.removeEventListener(type, stop, true);
     if (settling === stop) settling = null;
   };
+  const holds = () => document.activeElement === el && el.isConnected;
   const tick = () => {
     frame = 0;
-    if (document.activeElement !== el || performance.now() > until) {
+    if (!holds()) {
       stop();
       return;
     }
     reveal(el);
-    frame = requestAnimationFrame(tick);
+    if (performance.now() <= until) frame = requestAnimationFrame(tick);
   };
   for (const type of OWN_INPUT) window.addEventListener(type, stop, true);
   settling = stop;
-  frame = requestAnimationFrame(tick);
+  if (typeof ResizeObserver === "function") {
+    const watch = new ResizeObserver(() => {
+      if (holds()) reveal(el);
+      else stop();
+    });
+    layout = watch;
+    for (const target of layoutAround(el)) watch.observe(target);
+  }
+  if (typeof requestAnimationFrame === "function") frame = requestAnimationFrame(tick);
 }
 
 /**
