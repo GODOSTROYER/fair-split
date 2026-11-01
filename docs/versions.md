@@ -113,6 +113,7 @@ Each row above that a `deps/*` PR added after the first check, with its consumer
 | `jsdom`                  | 30.1.2          | orchestrator merge (27 Oct 2026); published 04 Oct 2026 | `apps/console`, `packages/ui-web` (dev) | DOM for Vitest component tests                                                           |
 | `embedded-postgres`      | 17.10.0-beta.17 | orchestrator merge (27 Oct 2026); published 05 Jun 2026 | `packages/db`, `packages/outbox` (dev)  | Real Postgres in tests on Windows without Docker; production stays Postgres 18 on Render |
 | `ajv-formats`            | 3.0.1           | orchestrator merge (27 Oct 2026); published 30 Mar 2024 | `packages/paypal-sim`                   | `format` keywords when validating against PayPal's OpenAPI schemas                       |
+| `axe-core`               | 4.13.0          | orchestrator merge (28 Oct 2026); published 05 Aug 2026 | `apps/console` (dev)                    | Engine for the console's axe checks in Vitest; matches `@axe-core/playwright` 4.13.0     |
 
 Publish dates checked on 22 Oct 2026 with `npm view <pkg> time --json`. `yaml` is an optional peer of
 `vite`, so the lockfile also records it in the peer suffix of every importer's `vite`, `vitest` and `msw`
