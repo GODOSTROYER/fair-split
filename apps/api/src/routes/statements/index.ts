@@ -7,8 +7,11 @@
 //   GET  /v1/statements/:lineId/review-requests  (slice)               same readers
 //   task explain {lineId, lang}                                         records the template words a statement uses
 import { Lang as ContractLang, ReviewRequestDTO } from "@fairsplit/contracts";
+import { schema } from "@fairsplit/db";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { reply } from "../../lib/command.js";
+import { problem } from "../../lib/problem.js";
 import { defineRouteFolder } from "../../lib/slice.js";
 import { readableStatement } from "../../statements/access.js";
 import { explainTask } from "../../statements/explain.js";
@@ -36,6 +39,35 @@ export default defineRouteFolder({
     },
   },
   routes: (r) => {
+    r.route(
+      {
+        method: "GET",
+        path: "/v1/members/me/statement-line",
+        auth: "frame_or_session",
+        name: "memberStatementLine",
+        summary: "The paired member's latest statement line in this workspace",
+        response: z.strictObject({ lineId: z.uuid() }),
+        errors: ["FORBIDDEN", "NOT_FOUND"],
+      },
+      async (ctx) => {
+        const credential = ctx.credential;
+        if (credential.role !== "member" || !credential.memberId) throw problem.forbidden();
+        const [line] = await ctx.deps.db
+          .select({ lineId: schema.memberLines.id })
+          .from(schema.memberLines)
+          .where(
+            and(
+              eq(schema.memberLines.workspaceId, credential.workspaceId),
+              eq(schema.memberLines.memberId, credential.memberId),
+            ),
+          )
+          .orderBy(desc(schema.memberLines.createdAt), desc(schema.memberLines.id))
+          .limit(1);
+        if (!line) throw problem.notFound("No statement line for this member.");
+        return line;
+      },
+    );
+
     r.route(
       {
         method: "GET",
