@@ -1,0 +1,91 @@
+// Private-stack-only quota fixtures. These rows explicitly model other judges' reservations; no PayPal call is
+// made. Only this fixture's exact row IDs are removed, even when a run or an assertion fails.
+import { randomUUID } from "node:crypto";
+import postgres from "postgres";
+import { Api, type JudgeSession, waitForRun } from "./api.js";
+import { expect } from "./fixtures.js";
+import { bothKeys, officers, pressToReview, workTheReview } from "./judge-run.js";
+import { E2E_HOURLY_CAP } from "./quota-config.js";
+
+async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> {
+  const url = process.env.E2E_DATABASE_URL;
+  if (!url) throw new Error("quota fixtures require the private test stack (E2E_DATABASE_URL)");
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < E2E_HOURLY_CAP; i++) {
+      const id = randomUUID();
+      await sql`
+        insert into reconciliation_reports (id, kind, window_end, summary)
+        values (${id}, 'balance', clock_timestamp(), ${sql.json({
+          v: 1,
+          entry: "judge_post",
+          runId: randomUUID(),
+          workspaceId: randomUUID(),
+          sessionId: null,
+          coded: true,
+          amountCents: 0,
+          rail: "simulated",
+          e2eFixture: "hourly-quota-filler",
+        })})`;
+      ids.push(id);
+    }
+    return await run();
+  } finally {
+    try {
+      for (const id of ids) await sql`delete from reconciliation_reports where id = ${id}`;
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+  }
+}
+
+/** Invoice funding is simulated and verified; the quota deliberately fills only before the payout POST. */
+export async function withReplayedPayout<T>(
+  origin: string,
+  check: (api: Api, session: JudgeSession) => Promise<T>,
+): Promise<T> {
+  const api = new Api(origin);
+  const { s, events, reviewed } = await pressToReview(api);
+  try {
+    expect(reviewed?.run.state).toBe("IN_REVIEW");
+    await workTheReview(api, s);
+    const keys = await officers(api, s);
+    return await withFullHourlyQuota(async () => {
+      const lane = await api.get("/v1/judge/lane");
+      expect(lane.status).toBe(200);
+      expect(lane.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
+      const approvals = await bothKeys(api, s, keys);
+      expect(approvals.map((a) => a.status)).toEqual([201, 201]);
+      const followUp = await waitForRun(
+        api,
+        s,
+        (r) => ["NEEDS_FOLLOW_UP", "SETTLED"].includes(r.run.state),
+        120_000,
+      );
+      // The run and invoice retain their simulator funding provenance; the payout's own items/events label replay.
+      expect(followUp?.run.provenance).toBe("simulated_rail");
+      expect(followUp?.invoice?.provenance).toBe("simulated_rail");
+      if (followUp?.run.state === "NEEDS_FOLLOW_UP") {
+        const lines = (await api.get(`/v1/runs/${s.runSlug}/lines`, s.asTreasurer)).json as {
+          lines: { id: string; state: string }[];
+        };
+        const rhea = lines.lines.find((line) => line.state === "UNCLAIMED");
+        expect(rhea, "recorded Rhea still needs an explicit move to cash").toBeDefined();
+        if (rhea) {
+          const paidCash = await api.post(`/v1/lines/${rhea.id}/pay-cash`, {}, s.asTreasurer);
+          expect(paidCash.status).toBe(200);
+        }
+      }
+      const settled = await waitForRun(api, s, (r) => r.run.state === "SETTLED", 60_000);
+      expect(settled?.run.state).toBe("SETTLED");
+      expect(
+        await events.waitFor((e) => e.type === "item.updated" && e.provenance === "replay", 10_000),
+      ).not.toBeNull();
+      return check(api, s);
+    });
+  } finally {
+    await events.stop();
+    await api.post(`/v1/judge/sessions/${s.sessionId}/reset`, {}, s.asJudge);
+  }
+}
