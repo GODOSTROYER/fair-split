@@ -31,8 +31,8 @@ refuses to boot on Render, naming the variable and never a value, without `FS_CO
 **The `PP_*` values are not secrets.** With `PP_MODE=simulator` they are copies of
 `packages/paypal-sim/data/accounts.json`, fictional values on the reserved `example.org` domain that only the
 in-process simulator accepts; they are not PayPal credentials, and the policy checks each against that file.
-secretlint and `tools/guard-env.mjs` pass them; gitleaks may report the client secret, and its allowlist entry
-must name that file and `render.yaml` only. A real sandbox app (`PP_MODE=sandbox`, untested) would be a secret:
+secretlint and `tools/guard-env.mjs` pass them. `.github/.gitleaks.toml` allowlists exactly the simulator apps'
+client ids and secrets, and only in that file and `render.yaml` (both conditions must hold). A real sandbox app (`PP_MODE=sandbox`, untested) would be a secret:
 its values must then be `sync: false` prompts, never committed (the policy requires it).
 
 ## Layers that stop a leak
@@ -42,7 +42,7 @@ its values must then be `sync: false` prompts, never committed (the policy requi
 | `.gitignore`              | `.env*` (except `.env.example`), keystores, credential JSONs, Firebase files                                 | Every commit                                      |
 | `tools/guard-env.mjs`     | Any `.env` file; Anthropic, Google and PayPal secret patterns                                                | lefthook pre-commit; CI on changed files          |
 | secretlint                | The recommended preset: staged files at pre-commit (via `tools/run-staged.mjs`), the whole tree in CI        | lefthook pre-commit; CI                           |
-| gitleaks                  | Push: the pushed commits. PR: the PR's commits. Nightly and manual run: all history reachable from the ref   | CI `gitleaks` job (`gitleaks/gitleaks-action` v3) |
+| gitleaks                  | Push: the pushed commits. PR: the PR's commits. Weekly and manual run: all history reachable from the ref    | `gitleaks.yml` (`gitleaks/gitleaks-action` v3)    |
 | Fixture scrubber          | Tokens → `REDACTED`, emails → `sb-<hash>@sandbox.fairsplit.invalid`                                          | `@fairsplit/test-kit`; CI re-checks every fixture |
 | `tools/scan-dist.ts`      | Secret env values present at build time and PayPal, Anthropic, Render and Google key shapes in `apps/*/dist` | The last step of fs-api's Render build            |
 | `tools/assemble-media.ts` | `/media` serves only what `MEDIA_ALLOWLIST` names, never `media/` (prompts, labels, masters)                 | fs-api's Render build, before the dist scan       |
@@ -100,11 +100,13 @@ and confirm the service is healthy (`/readyz`). Rotating `FS_COOKIE_SECRET` ends
 
 ### 3. Re-run gitleaks
 
-Run gitleaks over the full history and confirm it is clean. A push or PR run of CI's `gitleaks` job does **not**
-do this: on those triggers gitleaks-action scans only the pushed or PR commits. Use one of:
-- GitHub → Actions → `ci` → **Run workflow** on `main` (workflow_dispatch: the action scans all history reachable
-  from `main`), then on each rewritten `ws/*` branch; or wait for the nightly scheduled run (20:43 UTC, `main`).
-- Locally, in the rewritten mirror: `gitleaks git --log-opts="--all" .` (every branch and tag).
+Run gitleaks over the full history and confirm it is clean. A push or PR run of the `gitleaks` workflow does
+**not** do this: on those triggers gitleaks-action scans only the pushed or PR commits. Use one of:
+- GitHub → Actions → `gitleaks` → **Run workflow** on `main` (workflow_dispatch: the action scans all history
+  reachable from `main`), then on each rewritten `ws/*` branch; or wait for the weekly scheduled run (Sundays
+  20:43 UTC, `main`).
+- Locally, in the rewritten mirror: `gitleaks git --config .github/.gitleaks.toml --log-opts="--all" .` (every
+  branch and tag).
   Re-run secretlint (`corepack pnpm secrets:scan`). If the secret showed in a film take or screenshot, re-shoot or
   blur it (risk R17).
 
