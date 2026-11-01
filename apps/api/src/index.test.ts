@@ -1,10 +1,11 @@
 // The entry Render starts (`node apps/api/dist/index.js`, here src/index.ts through tsx). On Render fs-api gets
 // only the owner's DATABASE_OWNER_URL and FS_APP_DB_PASSWORD (render.yaml, ADR-0005): the entry builds fs_app's
 // DATABASE_URL from them before the boot checks, and refuses by name, never by value, when it cannot.
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { waitForChild } from "./test/child.js";
 
 const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // Assembled at runtime, so no credential-bearing URL sits in the source for the secret guards. Port 9 refuses.
@@ -15,12 +16,14 @@ const ownerUrl = () => {
   u.password = OWNER_PASSWORD;
   return u.toString();
 };
-/** Each case boots the entry through tsx (a cold transform of the whole server), which is slow on a busy machine. */
-const BOOT_TIMEOUT_MS = 120_000;
+// Each child cold-transforms the whole server through tsx. Allow CPU contention in parallel turbo runs,
+// but fail explicitly at the deadline and reap the child before the test's own timeout can interrupt it.
+const CHILD_TIMEOUT_MS = 180_000;
+const BOOT_TIMEOUT_MS = CHILD_TIMEOUT_MS + 10_000;
 const APP_PASSWORD = ["app", "password", "not", "real", "0123"].join("-");
 
-function boot(env: Record<string, string>): { status: number | null; output: string } {
-  const r = spawnSync(process.execPath, ["--import", "tsx", "src/index.ts"], {
+function boot(env: Record<string, string>): Promise<{ status: number; output: string }> {
+  const child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
     cwd: API_ROOT,
     env: {
       PATH: process.env.PATH,
@@ -32,11 +35,10 @@ function boot(env: Record<string, string>): { status: number | null; output: str
       PORT: "0",
       ...env,
     },
-    encoding: "utf8",
-    timeout: 110_000,
+    stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-  return { status: r.status, output: `${r.stdout ?? ""}${r.stderr ?? ""}` };
+  return waitForChild(child, CHILD_TIMEOUT_MS);
 }
 
 /** What render.yaml gives fs-api besides the database and the secrets: its plain values. */
@@ -51,8 +53,8 @@ const RENDER_ENV = {
 describe("fs-api entry on Render: fs_app's DATABASE_URL is built at boot (ADR-0005)", () => {
   it(
     "refuses, naming FS_APP_DB_PASSWORD and never the owner's URL, when only the owner URL is set",
-    () => {
-      const r = boot({ ...RENDER_ENV, DATABASE_OWNER_URL: ownerUrl() });
+    async () => {
+      const r = await boot({ ...RENDER_ENV, DATABASE_OWNER_URL: ownerUrl() });
       expect(r.status).toBe(1);
       expect(r.output).toContain("fs-api refuses to boot");
       expect(r.output).toContain("FS_APP_DB_PASSWORD");
@@ -63,8 +65,12 @@ describe("fs-api entry on Render: fs_app's DATABASE_URL is built at boot (ADR-00
 
   it(
     "with DATABASE_OWNER_URL and FS_APP_DB_PASSWORD, DATABASE_URL is no longer missing",
-    () => {
-      const r = boot({ ...RENDER_ENV, DATABASE_OWNER_URL: ownerUrl(), FS_APP_DB_PASSWORD: APP_PASSWORD });
+    async () => {
+      const r = await boot({
+        ...RENDER_ENV,
+        DATABASE_OWNER_URL: ownerUrl(),
+        FS_APP_DB_PASSWORD: APP_PASSWORD,
+      });
       expect(r.status).toBe(1);
       expect(r.output).toContain("FS_COOKIE_SECRET is required in production");
       // Every secret render.yaml prompts for is named, so a prompt left blank fails the deploy loudly.
