@@ -12,6 +12,7 @@ import type {
 import { KeyId as KeyIdSchema, Legibility } from "@fairsplit/contracts";
 import type { schema } from "@fairsplit/db";
 import { mergeDisplay } from "@fairsplit/domain";
+import { resolveLineCanonical } from "../proof/bundle.js";
 import { approvalRoleOf, iso, isoOrNull, provenanceOf, railOf, toInt } from "./codes.js";
 import { engineLineOf, holdFacts, resolutionOf } from "./engine.js";
 import type { HoldRow, LineRow } from "./machine.js";
@@ -86,6 +87,17 @@ export function lineDto(row: LineRow, memberNo: string): MemberLineDTO {
   };
 }
 
+/** /lines additionally carries the exact preimage. A corrupt stored hash is kept so the phone refuses it. */
+export function lineWithCanonicalDto(row: LineRow, memberNo: string, rateCardSha256: string) {
+  const line = lineDto(row, memberNo);
+  const resolved = resolveLineCanonical(
+    { ...row, memberNo },
+    rateCardSha256,
+    line.trace.map((s) => s.slice(5)),
+  );
+  return { ...line, canonical: resolved.canonical };
+}
+
 function read(v: unknown): { valueText: string; legibility: Legibility } | null {
   if (!v || typeof v !== "object") return null;
   const r = v as { valueText?: unknown; legibility?: unknown };
@@ -122,11 +134,13 @@ export function fieldDto(row: FieldRow): SlipFieldDTO {
 }
 
 const keyLabel = (keyId: string): string =>
-  /-w\d+$/.test(keyId)
-    ? "Demo key (this browser)"
-    : /-s\d+$/.test(keyId)
-      ? "Sample key (seeded)"
-      : "Device key";
+  /-demo-[a-z0-9]{6}$/.test(keyId)
+    ? "Browser demo key"
+    : /-w\d+$/.test(keyId)
+      ? "Demo key (this browser)"
+      : /-s\d+$/.test(keyId)
+        ? "Sample key (seeded)"
+        : "Device key";
 
 export function approvalDto(row: ApprovalRow): ApprovalDTO {
   const keyId: KeyId = KeyIdSchema.safeParse(row.keyId).success ? (row.keyId as string) : "fs-unknown-s0";

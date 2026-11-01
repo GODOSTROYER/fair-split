@@ -29,11 +29,13 @@ import type { HoldState } from "../../ui/hold";
 import { useMoment } from "../../ui/moment";
 import { TIMELINE } from "../../ui/motion";
 import { useCosign } from "./cosign-context";
+import { createFrameKeyAdapter, createFrameKeyRegistry } from "./frame-key";
 import type { BoardKey } from "./messages";
 import {
   commitSignature,
   failureCue,
   flowReducer,
+  nativeVaultRefusal,
   pairingRefusal,
   refusalFailure,
   SIGN_MOMENT_PHASE,
@@ -47,6 +49,7 @@ import { useT } from "./use-t";
  * idempotent; a key is never assumed registered under a pairing that did not register it).
  */
 const registered = createKeyRegistry();
+const frameKeys = createFrameKeyRegistry();
 
 const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
   offline: "M-BD-01.offline",
@@ -61,7 +64,7 @@ const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
 
 export function useSign() {
   const c = useCosign();
-  const { api, session, online, currentSession } = useApp();
+  const { api, session, online, currentSession, demo } = useApp();
   const tr = useT();
   const [flow, dispatch] = useReducer(flowReducer, "idle");
   /** Remounts the slab so it springs back to rest after a failed signature. */
@@ -72,9 +75,10 @@ export function useSign() {
   const [presence, setPresence] = useState<BiometricClass | null | undefined>(undefined);
   const persona = session?.persona ?? null;
   const pairing = session ? pairingId(session) : null;
+  const nativeUnsupported = nativeVaultRefusal(demo !== null, keyVault.kind) !== null;
   const joined = signPhase(c.status, c.key1, flow);
   // A phone with no screen lock is told before the hold, not after it (`presence` is null once probed).
-  const phase = joined === "ready" && presence === null ? "no-lock" : joined;
+  const phase = nativeUnsupported ? "closed" : joined === "ready" && presence === null ? "no-lock" : joined;
   const momentTarget = SIGN_MOMENT_PHASE[phase];
   const mm5 = useMoment("MM-5", momentTarget);
   const { set: setMoment, phase: momentPhase } = mm5;
@@ -89,6 +93,7 @@ export function useSign() {
   }, [persona, pairing]);
 
   useEffect(() => {
+    if (nativeUnsupported) return;
     let alive = true;
     void readKey().then((k) => {
       if (!alive) return;
@@ -99,7 +104,7 @@ export function useSign() {
     return () => {
       alive = false;
     };
-  }, [readKey]);
+  }, [nativeUnsupported, readKey]);
 
   // Phases follow the flow; `signed-2` alone is started by the signature itself (a real event id). The first phase
   // is announced too, so the judge stage knows the Chair's sheet is open (IC-12 `fs.moment`).
@@ -146,57 +151,83 @@ export function useSign() {
   );
 
   const commit = useCallback(async () => {
+    // Native enrollment is a separate protocol: refuse before a fingerprint, approval signature or registration.
+    if (nativeUnsupported) {
+      announce(tr("M-BD-02.nativeEnrollment"));
+      return;
+    }
     dispatch({ type: "commit" });
     const dto = c.dto;
     // Signed only under a paired session's own pairing, never under a stand-in persona.
-    if (!dto || !persona || !pairing) return fail("error");
+    if (!dto || !session || !persona || !pairing) return fail("error");
     const amount = format.usd(dto.totalCents);
     // The pairing as it is at each step, read from the shell (not this render): paired again, nothing leaves.
     const pairedNow = () => {
       const s = currentSession();
       return s ? pairingId(s) : null;
     };
+    const sign = (message: Uint8Array) =>
+      keyVault.sign({
+        persona,
+        pairing,
+        message,
+        prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
+        detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
+        cancelLabel: tr("common.cancel"),
+      });
+    const frameKey = demo
+      ? null
+      : createFrameKeyAdapter({
+          api,
+          registry: frameKeys,
+          session,
+          currentSession,
+          vaultKind: keyVault.kind,
+          sign,
+          runSlug: c.runSlug,
+        });
     let r: CosignResult;
     try {
       r = await commitSignature({
         // I4 at the instant of the release: the gate reads the latest batch, not the one this slab was drawn with,
         // and the pairing the signature started under.
-        refusal: () => pairingRefusal(pairing, pairedNow) ?? refusalFailure(c.commitRefusal()),
+        refusal: () =>
+          nativeVaultRefusal(demo !== null, keyVault.kind) ??
+          pairingRefusal(pairing, pairedNow) ??
+          refusalFailure(c.commitRefusal()),
         payload: c.freshPayload,
         sign: (approval, expected, recheck) =>
-          cosign(approval, expected, {
-            now: () => new Date(),
-            online: () => online,
-            recheck,
-            sign: (message) =>
-              keyVault.sign({
-                persona,
-                pairing,
-                message,
-                prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
-                detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
-                cancelLabel: tr("common.cancel"),
-              }),
-            isRegistered: (id) => registered.has(pairing, id),
-            register: async (k) => {
-              const res = await api.registerDeviceKey({
-                keyId: k.keyId,
-                publicKey: k.publicKeyHex,
-                kind: deviceKeyKindOf(keyVault.kind),
-                biometricClass: k.biometricClass,
-              });
-              if (res.ok) registered.add(pairing, k.keyId);
-              return res;
+          cosign(
+            approval,
+            { ...expected, approverId: persona },
+            {
+              now: () => new Date(),
+              online: () => online,
+              recheck,
+              sign,
+              isRegistered: (id) => (frameKey ? frameKey.isRegistered(id) : registered.has(pairing, id)),
+              register: async (k) => {
+                if (frameKey) return frameKey.register(k);
+                const res = await api.registerDeviceKey({
+                  keyId: k.keyId,
+                  publicKey: k.publicKeyHex,
+                  kind: deviceKeyKindOf(keyVault.kind),
+                  biometricClass: k.biometricClass,
+                });
+                if (res.ok) registered.add(pairing, k.keyId);
+                return res;
+              },
+              submit: (body) => (frameKey ? frameKey.submit(body) : api.postApproval(c.runSlug, body)),
             },
-            submit: (body) => api.postApproval(c.runSlug, body),
-          }),
+          ),
       });
     } catch {
       // A key store or a network layer that throws is a failed attempt like any other: nothing was sent.
       return fail("error");
     }
     if (!r.ok) return fail(r.state);
-    setKey(r.key);
+    const signedKey = { ...r.key, keyId: frameKey?.serverKeyId(r.key.keyId) ?? r.key.keyId };
+    setKey(signedKey);
     dispatch({ type: "result", ok: true });
     mm5.start(r.submission.signature, "signed-2");
     c.markSigned();
@@ -205,8 +236,8 @@ export function useSign() {
       feedback.play("seal.complete");
     });
     mm5.timers.at(TIMELINE["MM-5"].inkedAfterMs, () => dispatch({ type: "inked" }));
-    announce(tr("M-BD-02.signed", { key: r.key.keyId }));
-  }, [api, c, currentSession, fail, mm5, online, persona, pairing, tr]);
+    announce(tr("M-BD-02.signed", { key: signedKey.keyId }));
+  }, [api, c, currentSession, demo, fail, mm5, nativeUnsupported, online, persona, pairing, session, tr]);
 
   /** After a fix outside the app (a screen lock set) or a refused batch: back to a slab that can be held. */
   const retry = useCallback(() => {
@@ -227,5 +258,19 @@ export function useSign() {
     retry();
   }, [readKey, retry]);
 
-  return { c, phase, flow, mm5, attempt, key, upcoming, presence, onHoldState, commit, retry, newKey };
+  return {
+    c,
+    phase,
+    flow,
+    mm5,
+    attempt,
+    key,
+    upcoming,
+    presence,
+    nativeUnsupported,
+    onHoldState,
+    commit,
+    retry,
+    newKey,
+  };
 }

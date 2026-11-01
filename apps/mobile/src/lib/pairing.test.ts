@@ -81,7 +81,7 @@ describe("parsePairingInput", () => {
 
 const ORIGIN = "https://fs-api.test";
 const requests: PairClaimRequest[] = [];
-let reply: "ok" | "expired" | "used" | "unknown" | "bare410" = "ok";
+let reply: "ok" | "expired" | "used" | "token-invalid" | "unknown" | "bare410" = "ok";
 
 const server = setupServer(
   http.post(`${ORIGIN}/v1/pairing/claim`, async ({ request }) => {
@@ -89,18 +89,17 @@ const server = setupServer(
     if (reply === "expired")
       return HttpResponse.json({ error: { code: "PAIRING_EXPIRED" } }, { status: 410 });
     if (reply === "used") return HttpResponse.json({ error: { code: "PAIRING_USED" } }, { status: 409 });
+    if (reply === "token-invalid")
+      return HttpResponse.json({ code: "PAIRING_TOKEN_INVALID" }, { status: 410 });
     if (reply === "unknown")
       return HttpResponse.json({ error: { code: "PAIRING_INVALID" } }, { status: 404 });
     if (reply === "bare410") return new HttpResponse("gone", { status: 410 });
     return HttpResponse.json({
-      kind: "device",
-      bearer: "dbt_device_bearer_for_tests",
+      token: "dbt_device_bearer_for_tests",
       expiresAt: "2026-11-30T00:00:00Z",
       workspaceId: "ws_showcase",
-      persona: "board:ernesto",
+      persona: "ernesto",
       role: "board",
-      displayName: "Ernesto P. Cabahug",
-      lang: "ceb",
     });
   }),
 );
@@ -132,18 +131,19 @@ describe("claimPairing (msw)", () => {
         kind: "device",
       },
     });
-    expect(requests).toEqual([{ token: TOKEN, device: { platform: "android", appVersion: "0.1.0" } }]);
+    expect(requests).toEqual([{ token: TOKEN }]);
   });
 
   it("sends the 6-digit code when the camera is denied", async () => {
     await claimPairing(parsePairingInput("418207"), deps);
-    expect(requests[0]).toEqual({ code6: "418207", device: { platform: "android", appVersion: "0.1.0" } });
+    expect(requests[0]).toEqual({ code6: "418207" });
   });
 
   it.each([
     ["expired", "expired"],
     ["bare410", "expired"],
     ["used", "used"],
+    ["token-invalid", "used"],
     ["unknown", "invalid"],
   ] as const)("maps a %s reply to the %s state", async (kind, state) => {
     reply = kind;

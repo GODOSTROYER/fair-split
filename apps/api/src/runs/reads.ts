@@ -8,6 +8,7 @@ import {
   InvoiceStatus,
   IsoDate,
   IsoDateTime,
+  LineCanonical,
   MemberLineDTO,
   PayRun,
   PayRunState,
@@ -31,7 +32,7 @@ import { z } from "zod";
 import type { AppDeps } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
 import { iso, provenanceOf, toInt } from "./codes.js";
-import { approvalDto, fieldDto, holdDto, lineDto } from "./dto.js";
+import { approvalDto, fieldDto, holdDto, lineWithCanonicalDto } from "./dto.js";
 import { flagDto } from "./flags.js";
 import { cardById, invoiceOfRun, runBySlug } from "./load.js";
 import type { RunRow } from "./machine.js";
@@ -74,7 +75,10 @@ export const HoldList = z.strictObject({
   runVersion: z.int().nonnegative(),
   holds: z.array(HoldDTO),
 });
-export const LineList = z.strictObject({ runSlug: RunSlug, lines: z.array(MemberLineDTO) });
+export const LineList = z.strictObject({
+  runSlug: RunSlug,
+  lines: z.array(MemberLineDTO.extend({ canonical: LineCanonical })),
+});
 export const ApprovalList = z.strictObject({ runSlug: RunSlug, approvals: z.array(ApprovalDTO) });
 export const FlagList = z.strictObject({ flags: z.array(SystemFlagDTO) });
 
@@ -325,7 +329,10 @@ export async function lineList(
     .innerJoin(schema.members, eq(schema.members.id, schema.memberLines.memberId))
     .where(and(eq(schema.memberLines.workspaceId, scope.workspaceId), eq(schema.memberLines.runId, run.id)))
     .orderBy(asc(schema.members.memberNo));
-  return { runSlug: run.runSlug, lines: rows.map((r) => lineDto(r.line, r.memberNo)) };
+  return {
+    runSlug: run.runSlug,
+    lines: rows.map((r) => lineWithCanonicalDto(r.line, r.memberNo, run.rateCardSha256)),
+  };
 }
 
 export async function approvalList(

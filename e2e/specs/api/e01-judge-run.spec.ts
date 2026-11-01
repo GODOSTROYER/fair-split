@@ -338,14 +338,12 @@ test("Proof: 64 of 64 explained, US$21.14 kept, the chain and all six plates mat
   expect(v.verification.sampleKeys.sort()).toEqual([keys.treasurer.keyId, keys.chair.keyId].sort());
 });
 
-test.fixme("approvals signed with a browser demo key read 'Demo key (this browser)'", async () => {
-  // WS-API (apps/api/src/runs/dto.ts keyLabel): the label matches keyIds ending -w<digits>, but POST
-  // /v1/judge/keys mints fs-<persona>-demo-<6 base36> (judge/keys.ts), so both demo keys read "Device key" in
-  // GET /v1/runs/:slug/approvals and the approval answers. Un-fixme when the two agree.
+test("approvals signed with a browser demo key read 'Browser demo key'", async () => {
   const approvals = (await api.get(`/v1/runs/${s.runSlug}/approvals`, s.asTreasurer)).json as {
     approvals: { keyLabel: string }[];
   };
-  expect(approvals.approvals.every((a) => a.keyLabel === "Demo key (this browser)")).toBe(true);
+  expect(approvals.approvals.length).toBeGreaterThan(0);
+  expect(approvals.approvals.every((a) => a.keyLabel === "Browser demo key")).toBe(true);
 });
 
 test("Reset ends the session within 10 s and a second press works", async () => {

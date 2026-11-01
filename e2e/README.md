@@ -16,13 +16,15 @@ a browser. CI installs it on the runner (`.github/workflows/e2e.yml`, pushes to 
 Global setup (`stack/global-setup.ts`) starts it once and its returned teardown stops it, after the last spec, on a
 failure and on Ctrl-C; a process `exit` listener stops it if the runner ends any other way.
 1. `turbo run build` for the console and the `/app` export (cached). `E2E_SKIP_BUILD=1` skips it.
-2. An embedded Postgres 17 under `e2e/.cache/stack` (gitignored), through `@fairsplit/db/testing` as fs-api's smoke
-   does, or `FS_TEST_DATABASE_URL`; a fresh `fs_e2e` database with every migration.
+2. Curated media assembled with `tools/assemble-media.ts` under `.codex-scratch/e2e-stack/media`, then an embedded
+   Postgres 17 under `.codex-scratch/e2e-stack` (gitignored), through `@fairsplit/db/testing` as fs-api's smoke does,
+   or `FS_TEST_DATABASE_URL`; a fresh `fs_e2e` database with every migration.
 3. fs-api from `apps/api/src/index.ts` (tsx) on a free port, `PP_MODE=simulator`: PayPal is fs-api's in-process
    simulator (ADR-0010), so every PayPal-derived value reads "Simulated PayPal sandbox". Its environment is a
    whitelist with throwaway signing keys made for the run: no `ANTHROPIC_API_KEY`, so the reading is the seed's
    labelled stand-in.
-4. fs-api serves the console at `/`, the `/app` export and `/media` from that one origin.
+4. fs-api serves the console at `/`, the `/app` export and the curated folder at `/media` from that one origin
+   (`STATIC_MEDIA_DIR` points to the assembled folder).
 
 A run that was killed hard (no teardown) leaves fs-api and the cluster up; the next start ends the fs-api its pid
 file names and reuses or restarts the cluster.
@@ -35,6 +37,7 @@ file names and reuses or restarts the cluster.
 
 ## The specs
 
+- `specs/api/media.spec.ts`: curated console photo and slip URLs return nonempty WebP images.
 - `specs/api/e01-judge-run.spec.ts`: E-01 v1 (a). One judge run through fs-api with the treasurer and the Chair
   scripted (browser demo keys, proof of possession): the phases in order, 4 open / 3 blocking holds and 0462 by
   hand, the I4 refusal (change_payout armed before key 2: refused after both keys, approvals voided), 7 PayPal and
@@ -47,6 +50,18 @@ file names and reuses or restarts the cluster.
   funding the run, Reset and a second press.
 - `specs/browser/proof.spec.ts`: /proof/<runSlug> for a settled run renders its six plates; Verify reads Sample,
   six of six.
+- `specs/browser/phone-cosign.spec.ts`: the real `/app` Chair export against fs-api's routes. API helpers take a
+  keyless judge run through the review and key 1; a test-owned same-origin parent performs the IC-12 `fs.ready` /
+  `fs.token` handshake with a real frame token (no token in the URL). The phone displays its checked batch hash and
+  the count of all checked member lines, registers its browser key with proof of possession and signs key 2. The event stream proves
+  `APPROVED` to `POSTING`. An explicit adversarial `/lines` response fixture proves an inconsistent cash-line root
+  signs and submits nothing. Separately, the real `change_payout` judge route proves fs-api refuses the changed
+  payout after key 2, voids both approvals and allows a fresh review and signing. This test does not claim that the
+  console stage performs the handoff, or that the route changes a line before signing; those gaps are fixmes below.
+
+For the stage handoff, `/frames` returns separate `role: "board"` and `persona: "ernesto"` fields. IC-12 requires
+the qualified `persona: "board:ernesto"`; form it as `${role}:${persona}` when building `fs.token`. Pass
+`ws: workspaceId` and `exp: Date.parse(expiresAt)`, and send only to the same-origin Chair window after `fs.ready`.
 
 The browser specs need the console's Judge stage. They read the served build's Vite manifest
 (`lib/console.ts`): with main's console before M3 (only `/prototype`), they are `fixme` naming M3, and they run as
@@ -72,12 +87,14 @@ QUEUED is still honoured, and the pacing spec is skipped.
 
 ## Known gaps (test.fixme, each naming its owner)
 
-| Spec                                            | Waits for                                                                                          |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| API: approvals read "Demo key (this browser)"   | WS-API: `runs/dto.ts` keyLabel expects `-w<digits>`, `judge/keys.ts` mints `fs-<persona>-demo-<6>` |
-| API: the cold judge in the browser within 60 s  | C5b: Play it for me in http mode; key 2 through C5c or K1a                                         |
-| Browser: slip 0462 by hand                      | C5b: the by-hand page stays "hasn't been read in this run yet" in http mode                        |
-| Browser: Play it for me to the POST             | C5b (and C5c/K1a for key 2)                                                                        |
-| Browser: Try to break it, the I4 refusal shown  | C5b: no tamper controls in http mode                                                               |
-| Browser: Proof's holds caught and US$21.14 kept | C5b: Proof reads the holds from the seed, not `/v1/proof/:runSlug/metrics`                         |
-| Browser: every stage spec, with main's console  | M3: ws/console merged                                                                              |
+| Spec                                            | Waits for                                                                                                                                                                                                                              |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API: approvals read "Demo key (this browser)"   | WS-API: `runs/dto.ts` keyLabel expects `-w<digits>`, `judge/keys.ts` mints `fs-<persona>-demo-<6>`                                                                                                                                     |
+| API: the cold judge in the browser within 60 s  | C5b: Play it for me in http mode; key 2 through C5c or K1a                                                                                                                                                                             |
+| Browser: slip 0462 by hand                      | C5b: the by-hand page stays "hasn't been read in this run yet" in http mode                                                                                                                                                            |
+| Browser: Play it for me to the POST             | C5b (and C5c/K1a for key 2)                                                                                                                                                                                                            |
+| Browser: Try to break it, the I4 refusal shown  | C5b: no tamper controls in http mode                                                                                                                                                                                                   |
+| Browser: Proof's holds caught and US$21.14 kept | C5b: Proof reads the holds from the seed, not `/v1/proof/:runSlug/metrics`                                                                                                                                                             |
+| Browser: every stage spec, with main's console  | M3: ws/console merged                                                                                                                                                                                                                  |
+| Phone: console stage hands the Chair its token  | WS-CONSOLE/M3: mint `board:ernesto` via `POST /v1/judge/sessions/:sid/frames`; keep it in memory; send IC-12 `fs.token` after the Chair iframe's same-origin `fs.ready`, resend after reload, and discard it/send `fs.reset` on Reset  |
+| Phone: judge-route line drift before key 2      | WS-API: `change_payout` mutates only inside `postPayoutBatch`, after both signatures, then restores the line on refusal. No existing judge route exposes pre-sign drift; the client guard uses an explicitly labelled response fixture |

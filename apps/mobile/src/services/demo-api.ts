@@ -223,7 +223,7 @@ export function createDemoApi(deps: { now: () => Date; randomBytes: (n: number) 
       });
       return { ok: true, value: { accepted: true } };
     },
-    declineApproval: () => ok({ ok: true as const }),
+    declineApproval: () => ok({ runState: "IN_REVIEW" as const }),
     async registerDeviceKey(body) {
       // A key's ID has its kind's shape (contracts `deviceKeyIdFitsKind`), so a demo key never takes an app key's ID.
       if (!deviceKeyIdFitsKind(body.kind, body.keyId))

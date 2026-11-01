@@ -12,9 +12,13 @@ export const BUILD = {
 
 /**
  * `EXPO_PUBLIC_API_ORIGIN`: an https origin, or `same-origin` when fs-api serves this web export at /app.
- * Unset means demo mode: the whole API runs in memory and every screen says "Demo data" (I8).
+ * Unset means demo mode outside the stage. Embedded web frames always use their own origin once an accepted
+ * IC-12 token switches them from labelled local preview to fs-api; a build setting cannot redirect that token.
  */
-export function apiOrigin(): string | null {
+export function apiOrigin(framed = false): string | null {
+  if (framed && Platform.OS === "web") {
+    return typeof window !== "undefined" && window.location ? window.location.origin : null;
+  }
   const v = process.env.EXPO_PUBLIC_API_ORIGIN?.trim();
   if (!v) return null;
   if (v === "same-origin") {

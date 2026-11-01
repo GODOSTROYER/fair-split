@@ -139,7 +139,7 @@ export const messages = defineMessages({
   "M-ON-01.pair.used": {
     ceb: "Nagamit na kini nga code. Pangayo og bag-o sa treasurer.",
     fil: "Nagamit na po ang code na ito. Humingi ng bago sa treasurer.",
-    en: "This code was already used. Ask the treasurer for a new one.",
+    en: "This pairing code was already used. Ask the treasurer for a new one.",
   },
   "M-ON-01.pair.invalid": {
     ceb: "Dili kini QR o code sa Fair Split. Susiha ug sulayi pag-usab.",

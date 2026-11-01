@@ -3,8 +3,8 @@
 // every sentence, is apps/api/src/routes/media/ic11-m014.golden.json (fs-api's ic11-golden.test.ts and its route
 // test keep it equal to what fs-api serves). Here it goes through `withServedAudio` and `audioPlan` as a live answer
 // would, against the app's own M-014 statement: every sentence the phone shows in the form fs-api spoke plays the
-// clip fs-api served for it, and a sentence in another form (the cash PAY, the product AI note under fs-api's seeded
-// one) gets the phone's voice, never the other form's clip.
+// clip fs-api served for it, and a sentence in another form (such as a cash PAY) gets the phone's voice, never the
+// other form's clip.
 //
 // The phone's renderer does not write fs-api's words ("resibo 0 4 0 3" where fs-api says "resibo zero four zero
 // three"), so a phone that hashed its own sentences would throw these clips away. It pairs sentences instead.
@@ -33,10 +33,9 @@ const hero = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00
 const served = (lang: (typeof LANGS)[number]) => StatementAudio.parse(golden[lang]);
 /**
  * The form of each slot the app's hero statement shows (its templates' `{slot}.{variant}`): the PayPal PAY and the
- * default form of the rest, the product AI note among them. fs-api speaks T1's seeded AI note for this seeded line
- * once T1 has merged; the app shows the seeded note only when its templates name it.
+ * seeded AI note and the default form of the rest. fs-api speaks T1's seeded AI note for this seeded line too.
  */
-const phoneForm = (slot: string) => (slot === "PAY" ? "paypal" : "default");
+const phoneForm = (slot: string) => (slot === "PAY" ? "paypal" : slot === "AI_NOTE" ? "seeded" : "default");
 
 describe("IC-11: the clips fs-api serves for M-014 play on the phone (ADR-0011 ยง6)", () => {
   it.each(LANGS)(
@@ -44,10 +43,9 @@ describe("IC-11: the clips fs-api serves for M-014 play on the phone (ADR-0011 ย
     (lang) => {
       const answer = served(lang);
       expect(answer.memberNo).toBe(hero.member.memberNo);
-      // fs-api and the phone agree on the form of every slot but, at most, the AI note (product or seeded)
+      // fs-api and the phone agree on every form, including T1's seeded AI note.
       for (const s of answer.sentences) {
-        if (s.slot === "AI_NOTE") expect(["default", "seeded"]).toContain(s.variant);
-        else expect(s.variant, `${lang} ${s.slot}`).toBe(phoneForm(s.slot));
+        expect(s.variant, `${lang} ${s.slot}`).toBe(phoneForm(s.slot));
       }
       const live = { ...hero, lineId: answer.lineId };
       const plan = audioPlan(withServedAudio(live, answer, ORIGIN), lang, { deviceVoice: true });
@@ -68,8 +66,8 @@ describe("IC-11: the clips fs-api serves for M-014 play on the phone (ADR-0011 ย
         );
       });
       const clipped = plan.steps.filter((s) => s.voice.kind === "clip").length;
-      expect(clipped).toBeGreaterThanOrEqual(plan.steps.length - 1);
-      expect(plan.mode).toBe(clipped === plan.steps.length ? "synthetic" : "mixed");
+      expect(clipped).toBe(plan.steps.length);
+      expect(plan.mode).toBe("synthetic");
       const sources = answer.sentences.find((s) => s.slot === "SOURCES")?.clip;
       expect(sources?.offsets.length).toBeGreaterThan(0);
       expect(plan.steps.find((s) => s.slot === "SOURCES")?.cues.map((c) => [c.ref, c.offsetMs])).toEqual(
@@ -185,9 +183,9 @@ describe("IC-11: the cash lines' PAY clip plays only under the PAY form fs-api s
       const plan = play(phoneLine(due.answer, null), due.answer);
       expect(plan.steps.map((s) => s.slot)).toEqual(due.answer.sentences.map((s) => s.slot));
       expect(pay(plan)).toMatchObject({ id: "pay-cash-nodate", voice: payClip(due.answer) });
-      // every sentence of the form fs-api spoke plays its clip; the AI note is fs-api's seeded one, not the phone's
-      expect(plan.steps.filter((s) => s.voice.kind !== "clip").map((s) => s.slot)).toEqual(["AI_NOTE"]);
-      expect(plan.mode).toBe("mixed");
+      // T1's seeded AI note now matches the phone's seeded form too.
+      expect(plan.steps.filter((s) => s.voice.kind !== "clip").map((s) => s.slot)).toEqual([]);
+      expect(plan.mode).toBe("synthetic");
       // with a receipt on the phone (its dated sentence), the no-date clip is never played
       const dated = play(phoneLine(due.answer, receivedOn), due.answer);
       expect(pay(dated)).toMatchObject({ id: "pay-cash", voice: { kind: "device" } });
@@ -225,10 +223,7 @@ describe("IC-11: the cash lines' PAY clip plays only under the PAY form fs-api s
           id: "pay-cash",
           voice: { kind: "device" },
         });
-        expect(plan.steps.filter((s) => s.voice.kind !== "clip").map((s) => s.slot)).toEqual([
-          "PAY",
-          "AI_NOTE",
-        ]);
+        expect(plan.steps.filter((s) => s.voice.kind !== "clip").map((s) => s.slot)).toEqual(["PAY"]);
       }
     },
   );

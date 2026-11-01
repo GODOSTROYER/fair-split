@@ -1,5 +1,5 @@
 /**
- * TEMPORARY SHIM: replace with @fairsplit/seal `seal(batchSha256, size)` after WS-DS merges.
+ * Mobile geometry adapter over @fairsplit/seal; the shared package owns every drawn path.
  *
  * A literal implementation of the revised S2.7 seal, so the Chair can compare the phone's seal with the console's by
  * eye: five hypotrochoid rings whose parameters come from the 32 bytes of the batch hash; rings 0–2 belong to key 1
@@ -10,6 +10,8 @@
  * - x = (N−M)cos t + p cos((N−M)t/M), y = (N−M)sin t − p sin((N−M)t/M), t ∈ [0, 2πM], 40N samples.
  * - The polar radius is remapped linearly into the ring's band, then the ring turns by 2π·b[10+i]/256/N.
  */
+
+import { seal as sharedSeal } from "@fairsplit/seal";
 
 export interface SealRing {
   /** SVG path data, in a `size × size` box centred on (size/2, size/2). */
@@ -54,12 +56,6 @@ export function digestBytes(hex: string): number[] {
   return out;
 }
 
-const round2 = (v: number) => Math.round(v * 100) / 100;
-const num = (v: number) => {
-  const r = round2(v);
-  return Object.is(r, -0) ? "0" : String(r);
-};
-
 export interface RingParameters {
   lobes: number;
   turns: number;
@@ -69,7 +65,9 @@ export interface RingParameters {
 
 /** Ring parameters from the hash bytes: `byteIndex` picks which ring's bytes drive it. */
 export function ringParameters(b: readonly number[], byteIndex: number, small = false): RingParameters {
-  const lobes = small ? 6 + ((b[byteIndex] ?? 0) % 7) : 10 + ((b[byteIndex] ?? 0) % 11);
+  let lobes = small ? 6 + ((b[byteIndex] ?? 0) % 7) : 10 + ((b[byteIndex] ?? 0) % 11);
+  // @fairsplit/seal steps 6/12 to 7/11: neither permitted turn (2 or 3) is coprime with 6/12.
+  if (small && (lobes === 6 || lobes === 12)) lobes = lobes === 6 ? 7 : 11;
   const lo = 2;
   const hi = small ? 3 : 5;
   let turns = lo + ((b[5 + byteIndex] ?? 0) % (hi - lo + 1));
@@ -79,56 +77,18 @@ export function ringParameters(b: readonly number[], byteIndex: number, small = 
   return { lobes, turns, pen, rotation };
 }
 
-function ring(params: RingParameters, band: readonly [number, number], size: number, owner: 1 | 2): SealRing {
-  const { lobes: N, turns: M, pen: p, rotation } = params;
-  const k = N - M;
-  const unit = size / 200;
-  const c = size / 2;
-  const [lo, hi] = band;
-  const inner = k - p;
-  const span = 2 * p;
-  const samples = 40 * N;
-  const tMax = 2 * Math.PI * M;
-  const coords: string[] = [];
-  let length = 0;
-  let first: [number, number] | null = null;
-  let prev: [number, number] | null = null;
-  for (let s = 0; s < samples; s++) {
-    const t = (tMax * s) / samples;
-    const x = k * Math.cos(t) + p * Math.cos((k * t) / M);
-    const y = k * Math.sin(t) - p * Math.sin((k * t) / M);
-    const rho = Math.hypot(x, y);
-    const theta = Math.atan2(y, x) + rotation;
-    const radius = (lo + ((rho - inner) / span) * (hi - lo)) * unit;
-    const px = round2(c + radius * Math.cos(theta));
-    const py = round2(c + radius * Math.sin(theta));
-    coords.push(`${num(px)} ${num(py)}`);
-    if (prev) length += Math.hypot(px - prev[0], py - prev[1]);
-    else first = [px, py];
-    prev = [px, py];
-  }
-  if (first && prev) length += Math.hypot(first[0] - prev[0], first[1] - prev[1]);
-  return {
-    d: `M${coords[0]}L${coords.slice(1).join(" ")}Z`,
-    length: round2(length),
-    owner,
-    bandRadius: ((lo + hi) / 2) * unit,
-    band: [lo * unit, hi * unit],
-    points: samples,
-  };
-}
-
 /** Grows the seal for a batch hash at a pixel size: five rings, or two below 96 px. */
 export function seal(batchSha256: string, size: number): SealRing[] {
+  digestBytes(batchSha256);
   if (!(size > 0) || !Number.isFinite(size)) throw new RangeError("The seal needs a positive size");
-  const b = digestBytes(batchSha256);
-  if (size < SMALL_SEAL_MAX) {
-    return [
-      ring(ringParameters(b, 0, true), SMALL_BANDS[0] ?? [30, 62], size, 1),
-      ring(ringParameters(b, 3, true), SMALL_BANDS[1] ?? [70, 98], size, 2),
-    ];
-  }
-  return BANDS.map((band, i) => ring(ringParameters(b, i), band, size, i < 3 ? 1 : 2));
+  return sharedSeal(batchSha256, size).rings.map((ring) => ({
+    d: ring.d,
+    length: ring.length,
+    owner: ring.owner,
+    bandRadius: (ring.band[0] + ring.band[1]) / 2,
+    band: ring.band,
+    points: ring.points,
+  }));
 }
 
 /** Stroke width for the guilloché lines: max(1 device px, 0.75·size/200) (S2.7). */

@@ -221,7 +221,7 @@ describe("render.yaml against Fair Split's deployment rules (approved S3.3, S3.1
     expect(problems).toMatch(/fs-api must set autoDeployTrigger: off \(deploys are manual\)/);
   });
 
-  it("H1: the /app export sets no EXPO_PUBLIC_API_ORIGIN, so it stays in its labelled demo mode (K1a flips this)", () => {
+  it("K1a: /app targets same-origin fs-api; the runtime waits for an IC-12 token before switching frames", () => {
     for (const s of bp.services ?? []) {
       expect(
         keys(s).filter((k) => k?.startsWith("EXPO_PUBLIC_")),
@@ -229,6 +229,8 @@ describe("render.yaml against Fair Split's deployment rules (approved S3.3, S3.1
       ).toEqual([]);
       expect(s.buildCommand ?? "", s.name).not.toContain("EXPO_PUBLIC_API_ORIGIN");
     }
+    const exporter = readFileSync(join(REPO_ROOT, "apps/mobile/scripts/export-web.mjs"), "utf8");
+    expect(exporter).toMatch(/EXPO_PUBLIC_API_ORIGIN:\s*"same-origin"/);
   });
 
   it("fs-api's public origin is the one Render gives it (RENDER_EXTERNAL_URL): no PUBLIC_ORIGIN is pinned", () => {

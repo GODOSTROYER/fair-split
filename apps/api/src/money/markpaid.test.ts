@@ -97,12 +97,20 @@ describe("markPaid: refusals and retries (MM-S)", () => {
       .update(schema.taskOutbox)
       .set({ runAfter: new Date(Date.now() - 1_000) })
       .where(eq(schema.taskOutbox.dedupeKey, `pay:${TEST_INVOICE_ID}:r1`));
-    const r = await press();
-    expect(r).toMatchObject({
-      invoiceStatus: "MARKED_AS_PAID",
-      runState: "EXTRACTING",
-      provenance: "simulated_rail",
-    });
+    await expect(press()).rejects.toMatchObject({ code: "QUEUED" });
+    const [pending] = await owner
+      .select()
+      .from(schema.taskOutbox)
+      .where(eq(schema.taskOutbox.dedupeKey, `pay:${TEST_INVOICE_ID}:r1`));
+    if (!pending) throw new Error("pending payment missing");
+    await h.t.deps.outbox?.runTask(pending.id);
+    const [run] = await owner.select().from(schema.payRuns).where(eq(schema.payRuns.id, h.world.runId));
+    const [invoice] = await owner
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.runId, h.world.runId));
+    expect(run?.state).toBe("EXTRACTING");
+    expect(invoice).toMatchObject({ status: "MARKED_AS_PAID", provenance: "simulated_rail" });
     expect(script.calls.filter((c) => c === "record_payment")).toHaveLength(1);
   });
 });

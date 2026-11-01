@@ -6,7 +6,7 @@
 import { schema } from "@fairsplit/db";
 import { and, eq } from "drizzle-orm";
 import { HttpResponse, http } from "msw";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type RunsHarness, startRuns } from "../runs/test/app.js";
 import { paypalScript, TEST_INVOICE_ID, TOOLKIT_HOST } from "../runs/test/paypal.js";
 import { seedWorld } from "../runs/test/world.js";
@@ -93,15 +93,112 @@ describe("a retry GETs first (S3.10)", () => {
           eq(schema.taskOutbox.name, "recordPayment"),
         ),
       );
-    const r = await press(h);
-    expect(r).toMatchObject({
-      invoiceStatus: "MARKED_AS_PAID",
-      runState: "EXTRACTING",
-      provenance: "simulated_rail",
-    });
+    // Even when due, a re-press observes the pending task; the outbox owns the retry.
+    await expect(press(h)).rejects.toMatchObject({ code: "QUEUED" });
+    const [pending] = await owner
+      .select()
+      .from(schema.taskOutbox)
+      .where(
+        and(
+          eq(schema.taskOutbox.workspaceId, h.world.workspaceId),
+          eq(schema.taskOutbox.name, "recordPayment"),
+          eq(schema.taskOutbox.state, "queued"),
+        ),
+      );
+    if (!pending) throw new Error("pending payment missing");
+    await h.t.deps.outbox?.runTask(pending.id);
+    expect(await runState(h)).toBe("EXTRACTING");
+    expect(await invoiceRow(h)).toMatchObject({ status: "MARKED_AS_PAID", provenance: "simulated_rail" });
     expect(recorded).toBe(1);
     expect((await invoiceRow(h)).paymentRecordedAt).not.toBeNull();
     expect(await ledgerKinds(h, "invoice.funded")).toHaveLength(1);
+  });
+});
+
+describe("inv.i7.mark-paid-pending: repeated presses share the in-flight payment", () => {
+  const script = paypalScript({ invoiceStatus: "UNPAID" });
+  let h: RunsHarness;
+  let retryAfterMs: number;
+  let pendingId: string;
+  let frozenNow: ReturnType<typeof vi.spyOn>;
+
+  beforeAll(async () => {
+    h = await startRuns({ paypal: script.handlers, world: { runState: "INVOICED" } });
+    frozenNow = vi.spyOn(Date, "now").mockReturnValue(Date.now());
+    h.paypal?.use(http.post(`${INVOICE}/payments`, () => paypalError(500, "INTERNAL_SERVICE_ERROR")));
+  });
+  afterAll(async () => {
+    frozenNow?.mockRestore();
+    await h?.close();
+  });
+
+  const request = () =>
+    h.t.json<{ code: string; retryAfterMs: number }>(`/v1/runs/${h.world.runSlug}/mark-paid`, {
+      method: "POST",
+      body: {},
+      as: h.t.credentials.bearer(h.tokens.treasurer),
+    });
+
+  it("gives the original queued answer a margin after the outbox retry", async () => {
+    const r = await request();
+    expect(r.body.code).toBe("QUEUED");
+    retryAfterMs = r.body.retryAfterMs;
+    const rows = await h.t.deps.db
+      .select()
+      .from(schema.taskOutbox)
+      .where(
+        and(
+          eq(schema.taskOutbox.workspaceId, h.world.workspaceId),
+          eq(schema.taskOutbox.name, "recordPayment"),
+        ),
+      );
+    const pending = rows.find((row) => row.state === "queued");
+    if (!pending) throw new Error("pending recordPayment missing");
+    pendingId = pending.id;
+    expect(retryAfterMs - (pending.runAfter.getTime() - Date.now())).toBeGreaterThanOrEqual(250);
+  });
+
+  it.each(["queued", "dispatched", "running"] as const)(
+    "re-press while %s returns the same QUEUED without another task or intent",
+    async (state) => {
+      await h.t.pg?.owner.db
+        .update(schema.taskOutbox)
+        .set({ state })
+        .where(eq(schema.taskOutbox.id, pendingId));
+      const before = await h.t.deps.db
+        .select()
+        .from(schema.taskOutbox)
+        .where(eq(schema.taskOutbox.workspaceId, h.world.workspaceId));
+      const r = await request();
+      expect(r.status).toBe(429);
+      expect(r.body).toMatchObject({ code: "QUEUED", retryAfterMs });
+      expect(
+        await h.t.deps.db
+          .select()
+          .from(schema.taskOutbox)
+          .where(eq(schema.taskOutbox.workspaceId, h.world.workspaceId)),
+      ).toEqual(before);
+      expect(await ledgerKinds(h, "invoice.mark_paid_requested")).toHaveLength(1);
+    },
+  );
+
+  it("a due queued re-press still leaves retry execution to the outbox", async () => {
+    await h.t.pg?.owner.db
+      .update(schema.taskOutbox)
+      .set({
+        state: "queued",
+        runAfter: new Date(Date.now() - 1_000),
+      })
+      .where(eq(schema.taskOutbox.id, pendingId));
+    const before = await h.t.deps.db
+      .select()
+      .from(schema.taskOutbox)
+      .where(eq(schema.taskOutbox.id, pendingId));
+    expect((await request()).body.code).toBe("QUEUED");
+    expect(
+      await h.t.deps.db.select().from(schema.taskOutbox).where(eq(schema.taskOutbox.id, pendingId)),
+    ).toEqual(before);
+    expect(await ledgerKinds(h, "invoice.mark_paid_requested")).toHaveLength(1);
   });
 });
 

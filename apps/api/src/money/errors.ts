@@ -64,7 +64,7 @@ export function classifyPayPal(err: unknown, what: string): PayPalStepError {
     return err.reason === "CIRCUIT_OPEN"
       ? new PayPalStepError(
           "CIRCUIT_OPEN",
-          "PayPal's sandbox is pacing us; PayPal steps wait a few minutes.",
+          "The simulated PayPal sandbox is pacing us; PayPal steps wait a few minutes.",
           {
             retryAfterMs: err.retryAfterMs,
             transient: true,
@@ -79,7 +79,7 @@ export function classifyPayPal(err: unknown, what: string): PayPalStepError {
     if (err.status === 429) {
       return new PayPalStepError(
         "CIRCUIT_OPEN",
-        "PayPal's sandbox is pacing us; PayPal steps wait a few minutes.",
+        "The simulated PayPal sandbox is pacing us; PayPal steps wait a few minutes.",
         {
           debugId: err.debugId,
           retryAfterMs: CIRCUIT_MS,
@@ -106,7 +106,7 @@ export function classifyPayPal(err: unknown, what: string): PayPalStepError {
     if (err.status === 429) {
       return new PayPalStepError(
         "CIRCUIT_OPEN",
-        "PayPal's sandbox is pacing us; PayPal steps wait a few minutes.",
+        "The simulated PayPal sandbox is pacing us; PayPal steps wait a few minutes.",
         {
           debugId: err.debugId,
           retryAfterMs: CIRCUIT_MS,

@@ -6,7 +6,11 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const cli = require.resolve("expo/bin/cli");
-const env = { ...process.env, EXPO_WEB_BASE: process.env.EXPO_WEB_BASE || "/app" };
+const env = {
+  ...process.env,
+  EXPO_WEB_BASE: process.env.EXPO_WEB_BASE || "/app",
+  EXPO_PUBLIC_API_ORIGIN: "same-origin",
+};
 
 const result = spawnSync(
   process.execPath,
