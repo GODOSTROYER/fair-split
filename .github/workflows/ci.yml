@@ -101,6 +101,10 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
         run: pnpm exec turbo run test --continue
 
+      - name: API performance (serial)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
+        run: pnpm --filter @fairsplit/api perf
+
       - name: Dependency rule (dependency-cruiser)
         if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.base.outcome == 'success' }}
         run: pnpm deps:check

@@ -111,6 +111,17 @@ describe("CI on Linux (Q1)", () => {
     expect(ci).not.toMatch(/uses: gitleaks\//);
   });
 
+  it("ci.yml runs the API's strict performance gate serially after the parallel tests", () => {
+    const ci = read(".github/workflows/ci.yml");
+    const parallel = ci.indexOf("run: pnpm exec turbo run test --continue\n");
+    const perf = ci.indexOf("run: pnpm --filter @fairsplit/api perf\n");
+    expect(parallel).toBeGreaterThan(0);
+    expect(perf).toBeGreaterThan(parallel);
+    expect(ci.slice(parallel, perf)).toMatch(
+      /- name: API performance \(serial\)\n {8}if: \$\{\{ !cancelled\(\) && steps\.install\.outcome == 'success' && steps\.base\.outcome == 'success' \}\}\n {8}$/,
+    );
+  });
+
   it("gitleaks scans the pushed or PR commits on every push and PR, and the whole history weekly", () => {
     const wf = read(".github/workflows/gitleaks.yml");
     const t = triggers(".github/workflows/gitleaks.yml");

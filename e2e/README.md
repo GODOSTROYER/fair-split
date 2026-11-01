@@ -16,13 +16,15 @@ a browser. CI installs it on the runner (`.github/workflows/e2e.yml`, pushes to 
 Global setup (`stack/global-setup.ts`) starts it once and its returned teardown stops it, after the last spec, on a
 failure and on Ctrl-C; a process `exit` listener stops it if the runner ends any other way.
 1. `turbo run build` for the console and the `/app` export (cached). `E2E_SKIP_BUILD=1` skips it.
-2. An embedded Postgres 17 under `e2e/.cache/stack` (gitignored), through `@fairsplit/db/testing` as fs-api's smoke
-   does, or `FS_TEST_DATABASE_URL`; a fresh `fs_e2e` database with every migration.
+2. Curated media assembled with `tools/assemble-media.ts` under `.codex-scratch/e2e-stack/media`, then an embedded
+   Postgres 17 under `.codex-scratch/e2e-stack` (gitignored), through `@fairsplit/db/testing` as fs-api's smoke does,
+   or `FS_TEST_DATABASE_URL`; a fresh `fs_e2e` database with every migration.
 3. fs-api from `apps/api/src/index.ts` (tsx) on a free port, `PP_MODE=simulator`: PayPal is fs-api's in-process
    simulator (ADR-0010), so every PayPal-derived value reads "Simulated PayPal sandbox". Its environment is a
    whitelist with throwaway signing keys made for the run: no `ANTHROPIC_API_KEY`, so the reading is the seed's
    labelled stand-in.
-4. fs-api serves the console at `/`, the `/app` export and `/media` from that one origin.
+4. fs-api serves the console at `/`, the `/app` export and the curated folder at `/media` from that one origin
+   (`STATIC_MEDIA_DIR` points to the assembled folder).
 
 A run that was killed hard (no teardown) leaves fs-api and the cluster up; the next start ends the fs-api its pid
 file names and reuses or restarts the cluster.
@@ -35,6 +37,7 @@ file names and reuses or restarts the cluster.
 
 ## The specs
 
+- `specs/api/media.spec.ts`: curated console photo and slip URLs return nonempty WebP images.
 - `specs/api/e01-judge-run.spec.ts`: E-01 v1 (a). One judge run through fs-api with the treasurer and the Chair
   scripted (browser demo keys, proof of possession): the phases in order, 4 open / 3 blocking holds and 0462 by
   hand, the I4 refusal (change_payout armed before key 2: refused after both keys, approvals voided), 7 PayPal and
