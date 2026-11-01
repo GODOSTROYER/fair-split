@@ -137,7 +137,10 @@ function Desk() {
     }
   };
   const press = async () => {
-    spent.current = true;
+    // This press owns the command's answer from here: an earlier press's error must not read as this one's and
+    // put its slab back at rest while it is in flight (a second click would then commit that fresh slab, and
+    // send nothing).
+    markPaid.reset();
     setPressed(true);
     let started: Awaited<ReturnType<typeof session.start>>;
     try {
@@ -187,7 +190,12 @@ function Desk() {
         depth="d2"
         tone="chalk"
         testId="W-JG-01.markPaid"
-        onCommit={() => void start()}
+        onCommit={() => {
+          // Every commit spends this slab, a press that gets through or one ignored while another is in flight:
+          // Reset, an ended session or the press's own failure remounts it at rest.
+          spent.current = true;
+          void start();
+        }}
       />
     );
   }
