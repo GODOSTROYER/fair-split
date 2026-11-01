@@ -13,7 +13,7 @@ import type { ApprovalPayloadDTO } from "../../_shims/api-client";
 import type { ScreenStateOf } from "../../_shims/contracts";
 import type { MomentPhase } from "../../_shims/moments";
 import type { FeedbackEvent } from "../../_shims/motion";
-import type { CosignFailure, CosignResult, ExpectedBatch } from "../../lib/signing";
+import type { CosignFailure, CosignResult, ExpectedBatch, KeyVault } from "../../lib/signing";
 import type { HoldState } from "../../ui/hold";
 import type { CommitRefusal, FreshPayload, RequestStatus } from "./cosign-model";
 
@@ -213,6 +213,11 @@ export function refusalFailure(r: CommitRefusal | null): CosignFailure | null {
  */
 export function pairingRefusal(startedUnder: string, current: () => string | null): CosignFailure | null {
   return current() === startedUnder ? null : "error";
+}
+
+/** Live device keys need the separate native enrollment protocol before any presence prompt or signature. */
+export function nativeVaultRefusal(demo: boolean, vaultKind: KeyVault["kind"]): CosignFailure | null {
+  return !demo && vaultKind !== "demo" ? "error" : null;
 }
 
 /**
