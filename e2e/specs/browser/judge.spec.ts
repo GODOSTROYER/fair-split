@@ -273,6 +273,16 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
   await page.setViewportSize({ width: 1920, height: 1080 });
   const { api, s } = await startBrowserJudge(page, origin);
   try {
+    // Inspect a real seeded hold before the API helper resolves it. Merlyn's open plot hold is pinned.
+    await page.getByTestId("W-JG-01.rail.split").click();
+    await page.getByTestId("W-TR-05.row.M-053").click();
+    const hold = page.getByTestId("W-TR-06.card");
+    await expect(hold).toContainText("Seed stand-in, not a Claude recording");
+    await expect(hold.locator("dt").filter({ hasText: /^Claude$/ })).toHaveCount(0);
+    await expect(hold.locator('[data-provenance="seeded"]')).toContainText(
+      "Her deliveries suggest a second plot",
+    );
+    await page.getByTestId("W-TR-06.drawer.close").click();
     await workTheReview(api, s);
     const keys = await officers(api, s);
     await withFullHourlyQuota(async () => {
