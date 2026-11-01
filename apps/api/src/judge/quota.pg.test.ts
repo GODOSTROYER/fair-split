@@ -185,7 +185,7 @@ describe("the binding decision (reserveLivePost)", () => {
     expect(raced.filter((r) => r.reservation !== null)).toHaveLength(1);
     for (const r of raced.filter((x) => x.reservation === null)) {
       expect(r.decision).toMatchObject({ mode: "replay", reason: "hourly_cap" });
-      expect(r.decision.label).toBe("Replay: this hour's live payouts are used up");
+      expect(r.decision.label).toBe("Replay: this hour's simulated PayPal sandbox payouts are used up");
     }
     expect((await facts()).postsThisHour).toBe(JUDGE_QUOTA.hourlyMax);
   });
@@ -417,7 +417,7 @@ describe("the balance", () => {
     expect(await post()).toMatchObject({
       mode: "replay",
       reason: "balance_unknown",
-      label: "Replay: the sandbox balance has not been read in the last day",
+      label: "Replay: the simulated PayPal sandbox balance has not been read in the last day",
       quota: { dailyCap: 0, balance: { cents: null, source: "unknown", at: null } },
     });
     const now = t.clock.nowMs();

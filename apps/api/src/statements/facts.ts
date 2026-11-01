@@ -116,7 +116,7 @@ export async function loadStatementContext(
     .orderBy(asc(schema.memberships.createdAt))
     .limit(1);
   const [item] = await db
-    .select({ status: schema.payoutItems.status })
+    .select({ status: schema.payoutItems.status, provenance: schema.payoutItems.provenance })
     .from(schema.payoutItems)
     .where(and(eq(schema.payoutItems.workspaceId, workspaceId), eq(schema.payoutItems.lineId, lineId)))
     .orderBy(desc(schema.payoutItems.createdAt))
@@ -193,7 +193,8 @@ export async function loadStatementContext(
     runId: run.id,
     runSlug: run.runSlug,
     rail: row.rail === "ON" ? "PAYPAL" : "CASH",
-    provenance: run.provenance as Provenance,
+    // A run can start on the simulator and replay only at POST. Label this member's actual item evidence.
+    provenance: item?.provenance === "replay" ? "replay" : (run.provenance as Provenance),
   };
 }
 
