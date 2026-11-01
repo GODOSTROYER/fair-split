@@ -1,0 +1,707 @@
+{
+  "v": 1,
+  "cache_key": "2ded3c938bc0975ded149c7fa3a3a2b48c1d258f1d15c3d42a5b6d869629d627",
+  "purpose": "read",
+  "model": "claude-opus-5-5",
+  "model_served": "claude-opus-5-5",
+  "effort": "low",
+  "variant": "B",
+  "prompt_v": "b.v1",
+  "schema_v": "extraction.v1",
+  "input_sha": "ac46dd3a16ba0fb77716125e519ff43e9d39b141d1b0b8c5a0cc331eadb61655",
+  "sent_sha": "f57e88e96ce10832b81e0f36d675689c0f401de71d315d52ff7b6906cfa85a4c",
+  "prompt_sha": "20e603bcc294b1357341c429b30ed4f7086fd3a50b5cb69a51fd6d03d45dc2a4",
+  "usage": {
+    "input_tokens": 2067,
+    "output_tokens": 1232,
+    "cache_read_input_tokens": 3842,
+    "cache_creation_input_tokens": 0,
+    "thinking_tokens": 0,
+    "iterations": null
+  },
+  "cost_micros": 33677,
+  "stop_reason": "end_turn",
+  "message": {
+    "model": "claude-opus-5-5",
+    "id": "msg_011CgbJcgy14kwZ6h3WbyhPQ",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"page\":{\"rotation\":\"0\",\"issues\":[]},\"rows\":[{\"slip_box\":{\"x1\":62,\"y1\":185,\"x2\":978,\"y2\":1400},\"copy\":\"WHITE_ORIGINAL\",\"serial\":{\"box\":{\"x1\":796,\"y1\":280,\"x2\":932,\"y2\":316},\"value_text\":\"0458\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"line_no\":{\"box\":{\"x1\":0,\"y1\":0,\"x2\":0,\"y2\":0},\"value_text\":\"\",\"legibility\":\"ABSENT\",\"overwritten_from\":\"\"},\"date\":{\"box\":{\"x1\":456,\"y1\":382,\"x2\":712,\"y2\":420},\"value_text\":\"07/14/2026\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"member_no\":{\"box\":{\"x1\":458,\"y1\":434,\"x2\":590,\"y2\":472},\"value_text\":\"M-018\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"member_name\":{\"box\":{\"x1\":456,\"y1\":484,\"x2\":814,\"y2\":522},\"value_text\":\"TEODORO PACAÑA\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"plot_no\":{\"box\":{\"x1\":460,\"y1\":536,\"x2\":640,\"y2\":576},\"value_text\":\"P-018-A\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"sacks\":{\"box\":{\"x1\":458,\"y1\":590,\"x2\":556,\"y2\":628},\"value_text\":\"1 PP\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"gross_kg\":{\"box\":{\"x1\":460,\"y1\":644,\"x2\":568,\"y2\":682},\"value_text\":\"61.10\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"tare_kg\":{\"box\":{\"x1\":460,\"y1\":698,\"x2\":554,\"y2\":736},\"value_text\":\"0.30\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"net_kg\":{\"box\":{\"x1\":458,\"y1\":752,\"x2\":572,\"y2\":790},\"value_text\":\"60.80\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"mc_pct\":{\"box\":{\"x1\":458,\"y1\":808,\"x2\":522,\"y2\":846},\"value_text\":\"6.9\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"mc_less_kg\":{\"box\":{\"x1\":460,\"y1\":866,\"x2\":552,\"y2\":904},\"value_text\":\"0.00\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"payable_kg\":{\"box\":{\"x1\":458,\"y1\":922,\"x2\":572,\"y2\":962},\"value_text\":\"60.80\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"grade\":{\"box\":{\"x1\":456,\"y1\":978,\"x2\":512,\"y2\":1016},\"value_text\":\"G1\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"clerk_initials\":{\"box\":{\"x1\":690,\"y1\":1196,\"x2\":752,\"y2\":1244},\"value_text\":\"JD\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},\"deductions\":[{\"box\":{\"x1\":446,\"y1\":1036,\"x2\":738,\"y2\":1074},\"value_text\":\"HAULING ₱91.20\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"},{\"box\":{\"x1\":446,\"y1\":1086,\"x2\":866,\"y2\":1124},\"value_text\":\"MULTA (ABSENT GA) ₱200\",\"legibility\":\"CLEAR\",\"overwritten_from\":\"\"}],\"signature\":\"SIGNED\"}],\"anomalies\":[]}"
+      }
+    ],
+    "container": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 2067,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 3842,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 1232,
+      "service_tier": "standard",
+      "inference_geo": "global",
+      "speed": "standard",
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      }
+    },
+    "diagnostics": null
+  },
+  "replay_timeline": [
+    {
+      "ms": 2526,
+      "d": "{\"page\":{\"rot"
+    },
+    {
+      "ms": 2572,
+      "d": "ation\":\"0\",\"issues\":"
+    },
+    {
+      "ms": 2627,
+      "d": "[]},\"rows\":["
+    },
+    {
+      "ms": 2688,
+      "d": "{\"slip_box\":{"
+    },
+    {
+      "ms": 2719,
+      "d": "\"x1\":62"
+    },
+    {
+      "ms": 2779,
+      "d": ",\"y1\":185,\""
+    },
+    {
+      "ms": 2822,
+      "d": "x2\":978,\"y2"
+    },
+    {
+      "ms": 2873,
+      "d": "\":1400},\"copy\":"
+    },
+    {
+      "ms": 2926,
+      "d": "\"WHITE_OR"
+    },
+    {
+      "ms": 2989,
+      "d": "IGINAL\",\"serial"
+    },
+    {
+      "ms": 3027,
+      "d": "\":{\"box"
+    },
+    {
+      "ms": 3385,
+      "d": "\":{\"x1\":796"
+    },
+    {
+      "ms": 3386,
+      "d": ",\"y1\":280"
+    },
+    {
+      "ms": 3387,
+      "d": ",\"x2\":932,\""
+    },
+    {
+      "ms": 3387,
+      "d": "y2\":316},\"value_"
+    },
+    {
+      "ms": 3387,
+      "d": "text\":\"0458\",\"legib"
+    },
+    {
+      "ms": 3388,
+      "d": "ility\":\"CLEAR"
+    },
+    {
+      "ms": 3388,
+      "d": "\",\"overwritten_from\":"
+    },
+    {
+      "ms": 3420,
+      "d": "\"\"},\"line_no\":{"
+    },
+    {
+      "ms": 3482,
+      "d": "\"box\":{\"x1\":"
+    },
+    {
+      "ms": 3529,
+      "d": "0,\"y1\":0,"
+    },
+    {
+      "ms": 3579,
+      "d": "\"x2\":0,\"y"
+    },
+    {
+      "ms": 3631,
+      "d": "2\":0},\"value_text"
+    },
+    {
+      "ms": 3809,
+      "d": "\":\"\",\"legibility\":\""
+    },
+    {
+      "ms": 3810,
+      "d": "ABSENT\",\"overw"
+    },
+    {
+      "ms": 3810,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 3824,
+      "d": "date\":{\"box\":{\""
+    },
+    {
+      "ms": 3880,
+      "d": "x1\":456"
+    },
+    {
+      "ms": 3920,
+      "d": ",\"y1\":382"
+    },
+    {
+      "ms": 3977,
+      "d": ",\"x2\":712,\""
+    },
+    {
+      "ms": 4019,
+      "d": "y2\":420},\"value_"
+    },
+    {
+      "ms": 4076,
+      "d": "text\":\"07/14/2"
+    },
+    {
+      "ms": 4128,
+      "d": "026\",\"legibility\":\"C"
+    },
+    {
+      "ms": 4170,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 4224,
+      "d": "ten_from\":\"\"},\"member"
+    },
+    {
+      "ms": 4270,
+      "d": "_no\":{\"box\":{"
+    },
+    {
+      "ms": 4324,
+      "d": "\"x1\":458"
+    },
+    {
+      "ms": 4371,
+      "d": ",\"y1\":434,\""
+    },
+    {
+      "ms": 4419,
+      "d": "x2\":590"
+    },
+    {
+      "ms": 4470,
+      "d": ",\"y2\":472},\""
+    },
+    {
+      "ms": 4520,
+      "d": "value_text\":\"M-018"
+    },
+    {
+      "ms": 4568,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 4620,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 4677,
+      "d": "_from\":\"\"},\"member_"
+    },
+    {
+      "ms": 4723,
+      "d": "name\":{\"box\":{\""
+    },
+    {
+      "ms": 4769,
+      "d": "x1\":456,\"y1"
+    },
+    {
+      "ms": 4817,
+      "d": "\":484,\"x2\":814"
+    },
+    {
+      "ms": 4878,
+      "d": ",\"y2\":522"
+    },
+    {
+      "ms": 4926,
+      "d": "},\"value_text\":\"T"
+    },
+    {
+      "ms": 4971,
+      "d": "EODORO PACA"
+    },
+    {
+      "ms": 5034,
+      "d": "ÑA\",\"legibility\":\""
+    },
+    {
+      "ms": 5080,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 5124,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 5179,
+      "d": "plot_no\":{\"box"
+    },
+    {
+      "ms": 5233,
+      "d": "\":{\"x1\":460"
+    },
+    {
+      "ms": 5270,
+      "d": ",\"y1\":536,\""
+    },
+    {
+      "ms": 5320,
+      "d": "x2\":640,\"y2"
+    },
+    {
+      "ms": 5372,
+      "d": "\":576},\"value_text\":"
+    },
+    {
+      "ms": 5435,
+      "d": "\"P-018-A\",\"leg"
+    },
+    {
+      "ms": 5479,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 5526,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 5570,
+      "d": "\":\"\"},\"sac"
+    },
+    {
+      "ms": 5618,
+      "d": "ks\":{\"box\":{\""
+    },
+    {
+      "ms": 5689,
+      "d": "x1\":458,\"y1"
+    },
+    {
+      "ms": 5721,
+      "d": "\":590,\"x2\":556"
+    },
+    {
+      "ms": 5774,
+      "d": ",\"y2\":628},\""
+    },
+    {
+      "ms": 5820,
+      "d": "value_text\":\"1 P"
+    },
+    {
+      "ms": 5870,
+      "d": "P\",\"legibility\":\"C"
+    },
+    {
+      "ms": 5922,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 5970,
+      "d": "ten_from\":\"\"},\"g"
+    },
+    {
+      "ms": 6023,
+      "d": "ross_kg\":{\"box"
+    },
+    {
+      "ms": 6075,
+      "d": "\":{\"x1\":460,"
+    },
+    {
+      "ms": 6130,
+      "d": "\"y1\":644"
+    },
+    {
+      "ms": 6176,
+      "d": ",\"x2\":568,\""
+    },
+    {
+      "ms": 6227,
+      "d": "y2\":682},\"value_"
+    },
+    {
+      "ms": 6283,
+      "d": "text\":\"61.10\",\"leg"
+    },
+    {
+      "ms": 6329,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 6374,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 6431,
+      "d": "\":\"\"},\"tare_k"
+    },
+    {
+      "ms": 6481,
+      "d": "g\":{\"box\":{\""
+    },
+    {
+      "ms": 6527,
+      "d": "x1\":460,\"y1"
+    },
+    {
+      "ms": 6580,
+      "d": "\":698,\"x2\":554"
+    },
+    {
+      "ms": 6629,
+      "d": ",\"y2\":736},\""
+    },
+    {
+      "ms": 6670,
+      "d": "value_text\":\"0.30"
+    },
+    {
+      "ms": 6739,
+      "d": "\",\"legibility\":\"CL"
+    },
+    {
+      "ms": 6773,
+      "d": "EAR\",\"overwritten"
+    },
+    {
+      "ms": 6822,
+      "d": "_from\":\"\"},\"net_"
+    },
+    {
+      "ms": 6878,
+      "d": "kg\":{\"box\":{"
+    },
+    {
+      "ms": 6928,
+      "d": "\"x1\":458,\"y"
+    },
+    {
+      "ms": 6974,
+      "d": "1\":752,\"x2\":"
+    },
+    {
+      "ms": 7026,
+      "d": "572,\"y2\":790},"
+    },
+    {
+      "ms": 7079,
+      "d": "\"value_text\":\"60."
+    },
+    {
+      "ms": 7129,
+      "d": "80\",\"legibility\":\"C"
+    },
+    {
+      "ms": 7172,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 7226,
+      "d": "ten_from\":\"\"},\"m"
+    },
+    {
+      "ms": 7283,
+      "d": "c_pct\":{\"box"
+    },
+    {
+      "ms": 7328,
+      "d": "\":{\"x1\":458,"
+    },
+    {
+      "ms": 7380,
+      "d": "\"y1\":808"
+    },
+    {
+      "ms": 7421,
+      "d": ",\"x2\":522,\""
+    },
+    {
+      "ms": 7486,
+      "d": "y2\":846},\"value_"
+    },
+    {
+      "ms": 7531,
+      "d": "text\":\"6.9\",\"leg"
+    },
+    {
+      "ms": 7575,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 7622,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 7682,
+      "d": "\":\"\"},\"mc_less"
+    },
+    {
+      "ms": 7723,
+      "d": "_kg\":{\"box\":"
+    },
+    {
+      "ms": 7769,
+      "d": "{\"x1\":460"
+    },
+    {
+      "ms": 7820,
+      "d": ",\"y1\":866,\""
+    },
+    {
+      "ms": 7873,
+      "d": "x2\":552,\"y2"
+    },
+    {
+      "ms": 7922,
+      "d": "\":904},\"value_text\":"
+    },
+    {
+      "ms": 7969,
+      "d": "\"0.00\",\"legibility"
+    },
+    {
+      "ms": 8034,
+      "d": "\":\"CLEAR\",\""
+    },
+    {
+      "ms": 8082,
+      "d": "overwritten_from\":\"\""
+    },
+    {
+      "ms": 8127,
+      "d": "},\"pay"
+    },
+    {
+      "ms": 8173,
+      "d": "able_kg\":{\"box"
+    },
+    {
+      "ms": 8219,
+      "d": "\":{\"x1\":458,"
+    },
+    {
+      "ms": 8273,
+      "d": "\"y1\":922"
+    },
+    {
+      "ms": 8327,
+      "d": ",\"x2\":572,\""
+    },
+    {
+      "ms": 8376,
+      "d": "y2\":962"
+    },
+    {
+      "ms": 8421,
+      "d": "},\"value_text\":\"60"
+    },
+    {
+      "ms": 8470,
+      "d": ".80\",\"legibility\":\""
+    },
+    {
+      "ms": 8519,
+      "d": "CLEAR\",\"overw"
+    },
+    {
+      "ms": 8571,
+      "d": "ritten_from\":\"\"},\""
+    },
+    {
+      "ms": 8621,
+      "d": "grade\":{\"box\":{"
+    },
+    {
+      "ms": 8673,
+      "d": "\"x1\":456,\"y"
+    },
+    {
+      "ms": 8724,
+      "d": "1\":978,\"x2\":"
+    },
+    {
+      "ms": 8772,
+      "d": "512,\"y2\":1016"
+    },
+    {
+      "ms": 8833,
+      "d": "},\"value_text\":\"G"
+    },
+    {
+      "ms": 8878,
+      "d": "1\",\"legibility\":\"C"
+    },
+    {
+      "ms": 8926,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 8972,
+      "d": "ten_from\":\"\"},\"cl"
+    },
+    {
+      "ms": 9018,
+      "d": "erk_initials\":{\""
+    },
+    {
+      "ms": 9087,
+      "d": "box\":{\"x1\":690"
+    },
+    {
+      "ms": 9124,
+      "d": ",\"y1\":1196"
+    },
+    {
+      "ms": 9187,
+      "d": ",\"x2\":752,\""
+    },
+    {
+      "ms": 9229,
+      "d": "y2\":1244},\"value"
+    },
+    {
+      "ms": 9278,
+      "d": "_text\":\"JD\",\"leg"
+    },
+    {
+      "ms": 9325,
+      "d": "ibility\":\"CLEA"
+    },
+    {
+      "ms": 9374,
+      "d": "R\",\"overwritten_from"
+    },
+    {
+      "ms": 9424,
+      "d": "\":\"\"},\"deductions\":"
+    },
+    {
+      "ms": 9479,
+      "d": "[{\"box\":{\"x"
+    },
+    {
+      "ms": 9538,
+      "d": "1\":446,\"y1\":"
+    },
+    {
+      "ms": 9569,
+      "d": "1036,\"x2\":738"
+    },
+    {
+      "ms": 9623,
+      "d": ",\"y2\":1074"
+    },
+    {
+      "ms": 9677,
+      "d": "},\"value_text\":\"H"
+    },
+    {
+      "ms": 9723,
+      "d": "AULING ₱91."
+    },
+    {
+      "ms": 9783,
+      "d": "20\",\"legibility\":\"C"
+    },
+    {
+      "ms": 9829,
+      "d": "LEAR\",\"overwrit"
+    },
+    {
+      "ms": 9876,
+      "d": "ten_from\":\"\"},{\""
+    },
+    {
+      "ms": 9923,
+      "d": "box\":{\"x1\":446"
+    },
+    {
+      "ms": 9980,
+      "d": ",\"y1\":"
+    },
+    {
+      "ms": 10031,
+      "d": "1086,\"x2\":866"
+    },
+    {
+      "ms": 10071,
+      "d": ",\"y2\":1124},"
+    },
+    {
+      "ms": 10132,
+      "d": "\"value_text\":\"MUL"
+    },
+    {
+      "ms": 10178,
+      "d": "TA (ABSENT"
+    },
+    {
+      "ms": 10223,
+      "d": " GA) ₱200\",\""
+    },
+    {
+      "ms": 10269,
+      "d": "legibility\":\"CLE"
+    },
+    {
+      "ms": 10331,
+      "d": "AR\",\"overwritten_"
+    },
+    {
+      "ms": 10375,
+      "d": "from\":\"\"}],\"signature"
+    },
+    {
+      "ms": 10423,
+      "d": "\":\"SIGNED\""
+    },
+    {
+      "ms": 10482,
+      "d": "}],\"anomalies\":"
+    },
+    {
+      "ms": 10527,
+      "d": "[]}"
+    }
+  ],
+  "recorded_at": "2026-11-01T01:01:04.483Z",
+  "latency_ms": 10530,
+  "first_delta_ms": 2526,
+  "provenance": "live"
+}

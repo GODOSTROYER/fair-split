@@ -2,7 +2,29 @@
 
 The labelled extraction eval (spec S4.8). It runs every labelled case through the production
 pipeline (`extract()` for slips and logbook pages, `readRateCard()` for rate cards) and scores it
-against what a person checked is visibly written on the image (C-24).
+against the visible labels supplied for each image. R1 uses provisional agent-checked labels,
+not labels reviewed by a person; its results must keep that qualification.
+
+## R1 recorded hero-slip exhibit
+
+[The honest report](report/R1.md) covers ten synthetic Codex-made hero flats read on 1 Nov 2026,
+plus an unscored four-up exhibit. [R1.json](report/R1.json) includes every scored field, A/B/zoom
+transcriptions, review routing, served models and recording keys. [R1-ledger.json](report/R1-ledger.json)
+preserves the gateway ledger: one live pass, 38 accepted responses, US$0.971418 recorded token cost.
+The A-only baseline ties the double read on this small provisional sample; no improvement is claimed.
+Judge Mode continues to replay its labelled seed stand-in. The audit agent is paused.
+
+Reproduce both R1 artifacts offline (kill flag on, replay only, zero live calls):
+
+```sh
+corepack pnpm --filter @fairsplit/eval exec tsx src/r1.ts
+corepack pnpm --filter @fairsplit/eval exec vitest run src/r1.test.ts
+```
+
+The report explicitly excludes PP-OCRv5, the 40-case set and payroll-level injection guarantees.
+The four-up has no truth label and contributes no scored rows. The generic report's recorded cost
+covers scored cases only; R1's ledger total includes the four-up. PayPal was not called by R1;
+the product rail is **Simulated PayPal sandbox**.
 
 ## Run
 
@@ -15,6 +37,7 @@ corepack pnpm --filter @fairsplit/eval eval:live
 
 # Options: --mode replay|live|batch --set test|dev --cap-usd N --media DIR --labels DIR
 #          --recordings DIR --out DIR --registry FILE --allow-empty --no-zoom --no-screen --history
+#          --unscored IMAGE (relative to media root; repeatable; excluded from scoring)
 ```
 
 Exit code 0 means every bar is met: exact-row rate >= 0.85, zero unsafe auto-accepts, injection

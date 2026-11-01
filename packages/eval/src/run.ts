@@ -13,10 +13,10 @@ import {
   staticFlags,
 } from "@fairsplit/ai/gateway";
 import type { ReadDeps } from "@fairsplit/ai/read";
-import { loadCases, repoRoot } from "./cases.js";
+import { loadCases, preflightCases, repoRoot, unscoredCase } from "./cases.js";
 import { loadRegistry, registryFromLabels, runCases } from "./pipeline.js";
 import { type EvalReport, versions, writeReport } from "./report.js";
-import { BARS, barsMet, score } from "./score.js";
+import { BARS, barsMet, type CaseRun, score } from "./score.js";
 
 const PKG = fileURLToPath(new URL("../", import.meta.url));
 
@@ -32,6 +32,7 @@ export interface EvalOptions {
   zoom: boolean;
   screen: boolean;
   history: boolean;
+  unscoredImages: string[];
   /**
    * The member registry the validators check against: the seed snapshot's members (`--registry`).
    * Without it the registry is built from the labels and the report is marked provisional.
@@ -55,6 +56,7 @@ export function defaultOptions(over: Partial<EvalOptions> = {}): EvalOptions {
     zoom: true,
     screen: true,
     history: false,
+    unscoredImages: [],
     ...over,
   };
 }
@@ -90,7 +92,10 @@ export function parseArgs(argv: readonly string[]): Partial<EvalOptions> {
     else if (a === "--no-screen") out.screen = false;
     else if (a === "--history") out.history = true;
     else if (a === "--registry") out.registryPath = val();
-    else throw new Error(`unknown argument ${a}`);
+    else if (a === "--unscored") {
+      out.unscoredImages ??= [];
+      out.unscoredImages.push(val());
+    } else throw new Error(`unknown argument ${a}`);
   }
   return out;
 }
@@ -139,6 +144,8 @@ function displayPath(p: string): string {
 
 export interface EvalOutcome {
   report: EvalReport;
+  runs: CaseRun[];
+  exhibits: CaseRun[];
   exitCode: number;
   paths: { latest: string; history: string | null } | null;
 }
@@ -146,18 +153,29 @@ export interface EvalOutcome {
 export async function runEval(o: EvalOptions): Promise<EvalOutcome> {
   if (o.mode === "batch") throw new Error("--mode batch (Message Batches) is not built yet; use --mode live");
   const loaded = loadCases({ mediaRoot: o.mediaRoot, labelsDir: o.labelsDir, set: o.set });
+  const exhibitLabels = o.unscoredImages.map((image) => unscoredCase(o.mediaRoot, image));
+  await preflightCases(loaded, exhibitLabels);
   const { gateway, deps } = gatewayFor(o);
   const registry = o.registryPath ? loadRegistry(o.registryPath) : registryFromLabels(loaded.cases);
-  const runs = await runCases(loaded.cases, {
+  const allRuns = await runCases([...loaded.cases, ...exhibitLabels], {
     mediaRoot: o.mediaRoot,
     deps: { gateway, ...deps },
     validation: { registry },
     zoom: o.zoom,
     screen: o.screen,
   });
+  const runs = allRuns.slice(0, loaded.cases.length);
+  const exhibits = allRuns.slice(loaded.cases.length);
   const scored = score(runs);
   const bars = barsMet(scored.metrics);
-  const failures = [...bars.failures, ...loaded.invalid.map((x) => `invalid label ${x.file}`)];
+  const exhibitFailures = exhibits
+    .filter((x) => x.error)
+    .map((x) => `unscored exhibit ${x.label.case}: ${x.error}`);
+  const failures = [
+    ...bars.failures,
+    ...loaded.invalid.map((x) => `invalid label ${x.file}`),
+    ...exhibitFailures,
+  ];
   const report: EvalReport = {
     v: 1,
     generated_at: (o.now ?? (() => new Date()))().toISOString(),
@@ -170,13 +188,14 @@ export async function runEval(o: EvalOptions): Promise<EvalOutcome> {
     baseline: {
       name: "ppu-paddle-ocr 6.6.1 (V5_EN_SERVER_MODEL)",
       status: "not_run",
-      reason: "the OCR-only baseline lands with the labelled test set (S4.11: 30–31 Oct)",
+      reason: "PP-OCRv5 was not run; no OCR-only comparison is claimed",
     },
     bars: BARS,
-    green: bars.green && loaded.invalid.length === 0,
+    green: bars.green && loaded.invalid.length === 0 && exhibitFailures.length === 0,
     failures,
     versions: versions(),
     invalid_labels: loaded.invalid,
+    unscored_exhibits: exhibits.map((x) => ({ image: x.label.image, status: "not scored", error: x.error })),
     registry: {
       source: o.registryPath ? "file" : "labels",
       members: registry.size,
@@ -189,7 +208,7 @@ export async function runEval(o: EvalOptions): Promise<EvalOutcome> {
   const empty = loaded.cases.length === 0;
   const paths = writeReport(o.outDir, report, o.history || o.mode === "live");
   const exitCode = report.green ? 0 : empty && o.allowEmpty ? 0 : 1;
-  return { report, exitCode, paths };
+  return { report, runs, exhibits, exitCode, paths };
 }
 
 async function main(): Promise<void> {
