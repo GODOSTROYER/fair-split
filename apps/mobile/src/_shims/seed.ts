@@ -148,6 +148,8 @@ export const heroLine = {
  * Statement templates (S1.11 as amended by the approved plan): one sentence per slot, words and placeholders only,
  * no digits. PAY has a PayPal and a cash variant; the cash one is used if the line moves to the bodega. The PayPal
  * peso is the run-rate estimate; PayPal's conversion fee and GCash's are shown as their own receipt segment.
+ * AI_NOTE copies T1's seeded, seeded_noname and seeded_checking forms from fs-api's templates.ts; these demo
+ * readings are stand-ins. Cebuano and Filipino remain machine-translated, pending native review (OD-2).
  */
 export const statementTemplates: Readonly<Record<Lang, readonly StatementTemplate[]>> = {
   ceb: [
@@ -186,7 +188,20 @@ export const statementTemplates: Readonly<Record<Lang, readonly StatementTemplat
     {
       id: "ai-note",
       slot: "AI_NOTE",
-      text: "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude). Ang mga pagbasa nga dili sigurado gisusi sa usa ka tawo, ug si Treasurer {{TREASURER}} ang miaprobar niini nga bayad.",
+      variant: "seeded",
+      text: "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer {{TREASURER}} kini nga bayad.",
+    },
+    {
+      id: "ai-note-noname",
+      slot: "AI_NOTE",
+      variant: "seeded_noname",
+      text: "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan sa tesorero kini nga bayad.",
+    },
+    {
+      id: "ai-note-checking",
+      slot: "AI_NOTE",
+      variant: "seeded_checking",
+      text: "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo.",
     },
   ],
   fil: [
@@ -229,7 +244,20 @@ export const statementTemplates: Readonly<Record<Lang, readonly StatementTemplat
     {
       id: "ai-note",
       slot: "AI_NOTE",
-      text: "Dalawang beses binasa ng AI (Claude) ang inyong mga resibo. Ang mga pagbasang hindi tiyak ay sinuri ng isang tao, at inaprubahan ni Treasurer {{TREASURER}} ang bayad na ito.",
+      variant: "seeded",
+      text: "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer {{TREASURER}} ang bayad na ito.",
+    },
+    {
+      id: "ai-note-noname",
+      slot: "AI_NOTE",
+      variant: "seeded_noname",
+      text: "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ng ingat-yaman ang bayad na ito.",
+    },
+    {
+      id: "ai-note-checking",
+      slot: "AI_NOTE",
+      variant: "seeded_checking",
+      text: "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak.",
     },
   ],
   en: [
@@ -264,7 +292,20 @@ export const statementTemplates: Readonly<Record<Lang, readonly StatementTemplat
     {
       id: "ai-note",
       slot: "AI_NOTE",
-      text: "Your slips were read twice by AI (Claude). Readings it was unsure of were checked by a person, and Treasurer {{TREASURER}} approved this pay.",
+      variant: "seeded",
+      text: "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer {{TREASURER}} approved this pay.",
+    },
+    {
+      id: "ai-note-noname",
+      slot: "AI_NOTE",
+      variant: "seeded_noname",
+      text: "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and the treasurer approved this pay.",
+    },
+    {
+      id: "ai-note-checking",
+      slot: "AI_NOTE",
+      variant: "seeded_checking",
+      text: "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones.",
     },
   ],
 };

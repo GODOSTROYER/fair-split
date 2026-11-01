@@ -250,8 +250,17 @@ export function applicableTemplates(
 ): readonly StatementTemplate[] {
   const all = dto.sentences[lang] ?? [];
   const pay = payTemplate(all, payForm(dto, rail), rail);
+  // The demo carries T1's three forms; live DTOs already contain fs-api's selected form.
+  const notes = all.filter((s) => s.slot === "AI_NOTE");
+  const seededForm = !lineApproved(dto)
+    ? "seeded_checking"
+    : dto.treasurer.first.trim()
+      ? "seeded"
+      : "seeded_noname";
+  const note = notes.find((s) => s.variant === seededForm) ?? notes[0];
   return all.filter((s) => {
     if (s.slot === "PAY") return s === pay;
+    if (s.slot === "AI_NOTE") return s === note;
     if (s.slot === "DEDUCTION") return dto.amounts.deductions.some((d) => d.ruleId === s.ref);
     if (s.slot === "CREDIT") return dto.amounts.credits.some((c) => c.slip === s.ref);
     return true;

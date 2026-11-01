@@ -57,7 +57,7 @@ describe("statement sentences", () => {
       "Ang inyong bayad karong season: US$64.45, sa inyong PayPal. Kung ilisan sa peso, mga ₱4,028.",
       "Gikan kini sa inyong resibo 0403, 0419, 0436 ug 0467.",
       "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
-      "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude). Ang mga pagbasa nga dili sigurado gisusi sa usa ka tawo, ug si Treasurer Analyn ang miaprobar niini nga bayad.",
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
     ]);
   });
 
@@ -110,6 +110,36 @@ describe("statement sentences", () => {
     const text = sentences.map((s) => s.display).join(" ");
     for (const figure of ["US$43.69", "US$21.85", "US$1.09", "US$64.45", "₱4,028", "148.0 kg"]) {
       expect(text).toContain(figure);
+    }
+  });
+});
+
+describe("inv.i8.demo-ai-note: seeded readings are labelled in every statement form", () => {
+  const expected = {
+    en: [
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay.",
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and the treasurer approved this pay.",
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones.",
+    ],
+    ceb: [
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan sa tesorero kini nga bayad.",
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo.",
+    ],
+    fil: [
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer Analyn ang bayad na ito.",
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ng ingat-yaman ang bayad na ito.",
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak.",
+    ],
+  };
+  it.each(["en", "ceb", "fil"] as const)("uses T1's named, noname and checking copy in %s", (lang) => {
+    const withoutName = { ...dto, treasurer: { first: "", name: "", initials: "" } };
+    const checking = buildDemoStatement({ stage: "checking", now: "2026-10-30T09:12:00+08:00" });
+    for (const [i, statement] of [dto, withoutName, checking].entries()) {
+      const notes = statementSentences(statement, lang).sentences.filter((s) => s.slot === "AI_NOTE");
+      expect(notes.map((s) => s.display)).toEqual([expected[lang][i]]);
+      const template = applicableTemplates(statement, lang, "paypal").find((s) => s.slot === "AI_NOTE");
+      expect(template?.variant).toBe(["seeded", "seeded_noname", "seeded_checking"][i]);
     }
   });
 });
@@ -228,7 +258,7 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
       slot: own.slot,
       // the form fs-api rendered (`{slot}.{variant}`): PAY's as fs-api's plan picks it for this line and rail
       // (PAY.paypal for the paid hero, PAY.cash_nodate at the bodega before a receipt), the default form of the rest
-      variant: own.slot === "PAY" ? payForm(d, rail) : "default",
+      variant: own.slot === "PAY" ? payForm(d, rail) : templateVariant(template ?? { slot: "AI_NOTE" }),
       mentions: own.slot === "DEDUCTION" ? [`rule:${template?.ref}`] : own.mentions,
       textSha256: apiHash(lang, i),
       clip: {
@@ -360,7 +390,7 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
     ]);
   });
 
-  it("names each template's form as fs-api does (`{slot}.{variant}`): the demo's PAY forms, the rest default", () => {
+  it("names each template's form as fs-api does (`{slot}.{variant}`): PAY forms, the seeded AI note and defaults", () => {
     for (const lang of ["ceb", "fil", "en"] as const) {
       for (const rail of ["paypal", "cash"] as const) {
         const forms = applicableTemplates(dto, lang, rail).map((t) => `${t.slot}.${templateVariant(t)}`);
@@ -373,8 +403,7 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
           `PAY.${rail}`,
           "SOURCES.default",
           "HELP.default",
-          // the product note ("read twice by AI (Claude)"): never paired with T1's seeded AI_NOTE.seeded
-          "AI_NOTE.default",
+          "AI_NOTE.seeded",
         ]);
       }
     }
@@ -448,7 +477,7 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
   });
 
   it.each([
-    ["AI_NOTE", "seeded"],
+    ["AI_NOTE", "default"],
     ["AI_NOTE", "seeded_checking"],
     ["AI_NOTE", "checking"],
     ["HELP", "noname"],
@@ -663,7 +692,10 @@ describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)
       const words = sha256Hex(`fs-api's ${lang} ${slot}`);
       return {
         slot,
-        variant: slot === "PAY" ? "paypal" : "default",
+        variant:
+          slot === "PAY"
+            ? "paypal"
+            : templateVariant(dto.sentences[lang].find((t) => t.id === s.id) ?? { slot: "AI_NOTE" }),
         mentions: slot === "DEDUCTION" ? ["rule:R1"] : s.mentions,
         textSha256: words,
         clip:

@@ -6,6 +6,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
+    fsModuleCachePath: "./node_modules/.vitest-cache",
     include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
     environment: "node",
     restoreMocks: true,
