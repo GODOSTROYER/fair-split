@@ -211,7 +211,7 @@
 /* The Judge stage's desk: the invoice on the left; on the right the pool as one strip and, under it, the paper
    the invoice pays out over, so the slips lie in the first screen beside the money. */
 .fsc-fund[data-layout="desk"] {
-  grid-template-columns: minmax(480px, 5fr) minmax(0, 7fr);
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   grid-template-rows: auto 1fr;
   column-gap: 48px;
   row-gap: 24px;
@@ -290,7 +290,7 @@
 /* A narrow strip keeps one band: the parts stack as three short lines beside the total. */
 @container (max-width: 600px) {
   .fsc-fund__strip {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     gap: 24px;
   }
@@ -313,6 +313,15 @@
     border-top: 1px solid var(--fs-rule);
     border-left: 0;
   }
+}
+
+/* Long labels and the invoice action stay within their own plate beside the photos. */
+.fsc-fund__plate,
+.fsc-fund__action,
+.fsc-fund__total {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .fsc-fund__plate {
@@ -904,4 +913,16 @@
   .fsc-mark[data-size="hero"] .fsc-mark__season {
     font-size: 3.5rem;
   }
+}
+
+.fsc-fund__action > *,
+.fsc-first__slab > .fs-slab {
+  min-width: 0;
+  max-width: 100%;
+}
+.fsc-fund__invoice .fs-slab__label {
+  white-space: normal;
+}
+.fsc-fund__invoice .fs-t-amount-hero {
+  font-size: clamp(2rem, 3.7vw, 4.5rem);
 }

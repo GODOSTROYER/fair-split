@@ -33,6 +33,80 @@
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 6px 10px rgb(0 0 0 / 0.3));
 }
 
+.fsc-mat__image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.fsc-mat__outline {
+  position: absolute;
+  border: 1px solid var(--fs-pencil);
+  pointer-events: none;
+}
+
+.fsc-bench__source {
+  margin: 8px 0 0;
+  color: var(--fs-ink-3);
+}
+
+.fsc-heroes {
+  padding-top: 20px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-heroes__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 28px;
+}
+
+.fsc-heroes__tile {
+  min-width: 0;
+}
+
+.fsc-heroes__tile > img {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  background: var(--fs-plate-2);
+}
+
+.fsc-heroes__tile summary {
+  cursor: pointer;
+}
+
+.fsc-heroes__table-scroll {
+  overflow-x: auto;
+}
+
+.fsc-heroes__comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fsc-heroes__comparison dd {
+  margin: 6px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsc-heroes table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fsc-heroes :is(th, td) {
+  padding: 6px;
+  border-bottom: 1px solid var(--fs-rule);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 /* ---------------------------------------------------------------- one slip */
 
 .fsc-slip {

@@ -1,3 +1,4 @@
+import { payoutReplayed } from "../data/payout-replay.js";
 // The Judge stage (S1.6, design §6 J1): one bar on top (the honesty line, the run pill in its centre, What's
 // real, Sound, Reset and Proof), the console (rail and the screen) on the left, one phone frame on the right,
 // and the ribbon along the bottom: the newest log row of each lane, the phone's lane between 1024 and 1679 px,
@@ -24,7 +25,7 @@ import { WhatsRealSheet } from "../chrome/WhatsRealSheet.js";
 import type { FramePersona } from "../data/adapter.js";
 import type { LogRow } from "../data/describe.js";
 import {
-  useJudgeReplayReason,
+  useJudgeReplayRail,
   useJudgeSession,
   usePaypalRail,
   useRunEvents,
@@ -64,6 +65,7 @@ function skipToScreen(event: MouseEvent): void {
 
 /** The stage's `data-state` (S1.6), most specific first. */
 export type StageState =
+  | "replay"
   | "phone-visit"
   | "resetting"
   | "session-ended"
@@ -84,7 +86,6 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
   if (!snapshot) return { MACHINE: null, PEOPLE: null, PAYPAL: null };
   const run = snapshot.run;
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER")?.shortName ?? "The treasurer";
-  const recorded = format.dateShort(run.recordedOn);
   const row = (lane: LogLane, words: string, detail: string, at: string): LogRow => ({
     id: `seed-${lane}`,
     lane,
@@ -98,8 +99,8 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
   return {
     MACHINE: row(
       "MACHINE",
-      `Claude drafted ${snapshot.payer.shortName}'s invoice; policy allowed it`,
-      `invoiceEqualsQuote, replay of the ${recorded} run`,
+      "Placeholder draft (seed-written), checked by the live policy lattice",
+      "Line labels: a placeholder written with the seed (no Claude recording in this build)",
       run.recordedOn,
     ),
     PEOPLE: row(
@@ -111,7 +112,9 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
     PAYPAL: row(
       "PAYPAL",
       `Invoice ${run.invoice.invoiceNumber}: sent to ${snapshot.payer.shortName}`,
-      rail === "simulator" ? "Invoicing v2, simulated PayPal sandbox" : "Invoicing v2, PayPal sandbox",
+      rail === "simulator"
+        ? "Invoicing v2, simulated PayPal sandbox"
+        : "Invoicing v2, untested PayPal sandbox",
       run.invoice.invoiceDate,
     ),
   };
@@ -247,8 +250,17 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const counts = view ? itemCounts(view) : { total: 0, confirmed: 0 };
   const seeded = useMemo(() => firstViewRows(snapshot, rail), [snapshot, rail]);
   const visit = layout.phone === "phone-visit";
-  const replayReason = useJudgeReplayReason();
-  const notice = stageNoticeFor({ session, view, autoplay, inSession, replayReason });
+  const replayRail = useJudgeReplayRail();
+  const replayReason = replayRail?.reason ?? null;
+  const replayed = payoutReplayed(view);
+  const notice = stageNoticeFor({
+    session,
+    view,
+    autoplay,
+    inSession,
+    replayReason,
+    replayLabel: replayRail?.label,
+  });
   const stageState: StageState = visit ? "phone-visit" : (notice?.state ?? (inSession ? "session" : "ready"));
 
   const api = useMemo<StageApi>(
@@ -355,6 +367,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
             }
             proofHref={runSlug ? webRoutes.proof(runSlug) : null}
             confirmed={counts.confirmed}
+            replayed={replayed}
             total={counts.total || payouts}
             canReset={inSession || session.status === "failed"}
             resetting={session.status === "resetting"}

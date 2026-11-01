@@ -15,6 +15,7 @@ import { CASH_DASHARRAY, type CashLine, FAN, type FanThread, type FanView } from
 
 export interface SplitFanProps {
   readonly fan: FanView;
+  readonly replayed?: boolean;
   /** Lines whose last change was a live event, with the delay the stage director gave their landing. */
   readonly animate: ReadonlyMap<string, number>;
   /** The 201 just arrived live: the sent threads draw from 0 to 70%, staggered. */
@@ -64,7 +65,7 @@ function MovedLine({ line, live, maskId }: { line: CashLine; live: number | unde
   );
 }
 
-export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps) {
+export function SplitFan({ fan, animate, drawing, mode, cashDay, replayed = false }: SplitFanProps) {
   const uid = useId().replaceAll(":", "");
   const geometry = useMemo(() => seal(fan.sealHash, FAN.seal.size), [fan.sealHash]);
   const half = FAN.seal.size / 2;
@@ -218,7 +219,10 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
               <span className="fsr-fan__name fs-t-caption">{FANOUT.movedToCash(t.name)}</span>
             ) : (
               <>
-                <span className="fsr-fan__name fs-t-caption">{t.name}</span>
+                <span className="fsr-fan__name fs-t-caption">
+                  {t.name}
+                  {replayed ? " · Replayed (labelled)" : ""}
+                </span>
                 <span className="fsr-fan__amount fs-t-figure" data-amount-state={t.amountState}>
                   {format.money(t.cents)}
                 </span>
@@ -235,7 +239,7 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
               style={at(t.capAt.x + 12, t.capAt.y)}
               data-testid={`W-TR-08.chip.${t.memberNo}`}
             >
-              {FANOUT.parkedChip}
+              {replayed ? "Replayed" : FANOUT.parkedChip}
             </span>
           ))}
         {fan.cashLines.length > 0 && (

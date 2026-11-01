@@ -158,7 +158,7 @@ export function limiterRows(read: LimiterRead): OpsRow[] {
       detail:
         shared.count === 0
           ? "A 429 while our own count was under the cap would mean another tenant on Render's shared IPs."
-          : `A 429 while our own count was under the cap.${shared.lastAt ? ` Last ${at(shared.lastAt)}` : ""}${shared.lastDebugId ? `, debug ID ${shared.lastDebugId}` : ""}.`,
+          : `A 429 while our own count was under the cap.${shared.lastAt ? ` Last ${at(shared.lastAt)}` : ""}${shared.lastDebugId ? `, simulated debug ID ${shared.lastDebugId}` : ""}.`,
     },
   ];
 }
@@ -313,7 +313,7 @@ export function evalRows(report: EvalReport): OpsRow[] {
 const RECON_KIND_WORDS = {
   hot: "Hot path: the batch GET after posting",
   catchup: "Catch-up",
-  nightly: "Nightly Transaction Search",
+  nightly: "No nightly reconciliation in this build",
   health: "Hourly health check",
 } as const;
 
@@ -341,7 +341,7 @@ export function reconciliationRows(read: ReconciliationRead): OpsRow[] {
         label: "Last run",
         value: "None yet",
         tone: "quiet",
-        detail: "The nightly Transaction Search runs at 02:07 UTC.",
+        detail: "No nightly reconciliation in this build.",
       },
     ];
   }

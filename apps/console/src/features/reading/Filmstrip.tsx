@@ -47,7 +47,7 @@ export function Filmstrip({ season, replay, earlier, active, testId }: Filmstrip
               data-testid={`${testId}.${photo.photoId}`}
             >
               <span className="fsc-film__thumb" aria-hidden>
-                <PhotoMat slips={slips} detail="thumb" />
+                <PhotoMat photoId={photo.photoId} slips={slips} detail="thumb" />
               </span>
               <span className="fsc-film__label fs-t-caption" aria-hidden>
                 {photo.photoId}

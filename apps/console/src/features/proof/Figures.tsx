@@ -12,9 +12,13 @@ import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { FEES_COPY, FIGURE_COPY } from "./copy.js";
 import type { FeeFigures, ProofFigures } from "./metrics.js";
+import { type LineStates, mergeItems, type ProofItemView, paidTiers } from "./model.js";
 
 export interface FiguresProps {
   readonly bundle: ProofBundle;
+  readonly replayed?: boolean;
+  readonly items?: readonly ProofItemView[];
+  readonly lineStates?: LineStates;
   readonly figures: ProofFigures;
   readonly rail: PaypalRail;
   /** The SSE event that last moved the counts: a figure re-prints only on a real event. */
@@ -32,9 +36,21 @@ function widthOf(cents: number, total: number): string {
   return total > 0 ? `${((cents * 100) / total).toFixed(3)}%` : "0%";
 }
 
-export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresProps) {
+export function Figures({
+  bundle,
+  figures,
+  rail,
+  progressEvent,
+  fees,
+  replayed = false,
+  items,
+  lineStates = {},
+}: FiguresProps) {
   const id = useId();
-  const { tiers, rails } = figures;
+  const { rails } = figures;
+  const tiers = replayed
+    ? paidTiers(bundle.lines, items ?? mergeItems(bundle.batch.items), lineStates, true)
+    : figures.tiers;
   const share = pct(rails.paypalValueBp);
   // The event the page opened on is history: only a newer one re-prints a figure (motion is evidence).
   const firstEvent = useRef(progressEvent);
@@ -72,7 +88,7 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
         </div>
 
         <div className="pf-ledger__row pf-ledger__row--tiers" data-testid="W-PF-01.metric.paid">
-          <dt>{FIGURE_COPY.paid}</dt>
+          <dt>{replayed ? "Replay statuses and cash, in three tiers" : FIGURE_COPY.paid}</dt>
           <dd>
             <Mirrored
               testId="W-PF-01.tierbar"
@@ -98,7 +114,7 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
               }
               table={
                 <DataTable
-                  caption="Paid, in three tiers"
+                  caption={replayed ? "Replay statuses and cash, in three tiers" : "Paid, in three tiers"}
                   testId="W-PF-01.tierbar.table"
                   columns={[
                     { key: "tier", label: "Tier" },
@@ -109,7 +125,9 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
                     {
                       key: "paypal",
                       cells: {
-                        tier: FIGURE_COPY.tierPaypal(rail),
+                        tier: replayed
+                          ? "Replayed payout statuses (simulated PayPal sandbox): successful in the source run"
+                          : FIGURE_COPY.tierPaypal(rail),
                         members: tiers.paypal.members,
                         amount: format.money(tiers.paypal.cents),
                       },
@@ -137,7 +155,11 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
             <ul className="pf-tiers">
               <li className="pf-tier" data-tier="paypal" data-testid="W-PF-01.tier.paypal">
                 <span className="pf-tier__swatch" aria-hidden />
-                <span className="pf-tier__words">{FIGURE_COPY.tierPaypal(rail)}</span>
+                <span className="pf-tier__words">
+                  {replayed
+                    ? "Replayed payout statuses (simulated PayPal sandbox): successful in the source run"
+                    : FIGURE_COPY.tierPaypal(rail)}
+                </span>
                 <span
                   className="pf-tier__count"
                   key={`m-${moved ?? "h"}`}
@@ -174,7 +196,9 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
                 <span className="pf-tier__words">
                   {FIGURE_COPY.tierDue}
                   <span className="pf-tier__sub">
-                    {FIGURE_COPY.dueNote(tiers.due.cash.members, tiers.due.paypal.members)}
+                    {replayed
+                      ? "The payout statuses are replayed from an earlier simulated run. No new payout notice is claimed."
+                      : FIGURE_COPY.dueNote(tiers.due.cash.members, tiers.due.paypal.members)}
                   </span>
                 </span>
                 <span className="pf-tier__count">{FIGURE_COPY.members(tiers.due.members)}</span>
@@ -214,10 +238,12 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
                   </span>
                 </span>
                 <span className="pf-ledger__note">
-                  {FIGURE_COPY.holdsNote(
-                    format.money(figures.holds.duplicateCents),
-                    format.money(figures.holds.creditCents),
-                  )}
+                  {figures.holds.duplicateCents !== null && figures.holds.creditCents !== null
+                    ? FIGURE_COPY.holdsNote(
+                        format.money(figures.holds.duplicateCents),
+                        format.money(figures.holds.creditCents),
+                      )
+                    : "From this run's public Proof metrics: duplicate slips counted once and unruled fines returned as credits."}
                 </span>
               </>
             ) : (
@@ -245,7 +271,7 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
               }
               table={
                 <DataTable
-                  caption="PayPal and cash this season"
+                  caption="PayPal (simulated sandbox) and cash this season"
                   testId="W-PF-01.railbar.table"
                   columns={[
                     { key: "rail", label: "Rail" },
@@ -257,7 +283,7 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
                     {
                       key: "paypal",
                       cells: {
-                        rail: "PayPal",
+                        rail: "PayPal (simulated sandbox)",
                         members: rails.paypalMembers,
                         value: format.money(rails.paypalCents),
                         share,
@@ -283,9 +309,17 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
           <dt>{FIGURE_COPY.timing()}</dt>
           <dd>
             <span className="pf-ledger__value">
-              {figures.timingMs === null ? FIGURE_COPY.timingPending : format.elapsedWords(figures.timingMs)}
+              {replayed
+                ? "Replayed, no timing"
+                : figures.timingMs === null
+                  ? FIGURE_COPY.timingPending
+                  : format.elapsedWords(figures.timingMs)}
             </span>
-            <span className="pf-ledger__note">{FIGURE_COPY.timingNote}</span>
+            <span className="pf-ledger__note">
+              {replayed
+                ? "Payout timing is replayed from an earlier simulated PayPal sandbox run."
+                : FIGURE_COPY.timingNote}
+            </span>
           </dd>
         </div>
       </dl>
@@ -294,24 +328,30 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
       <details className="pf-fees" data-testid="W-PF-01.fees">
         <summary className="pf-fees__summary">
           <span className="pf-fees__title">{FEES_COPY.heading}</span>
-          <span className="pf-fees__lede">{FEES_COPY.summary}</span>
+          <span className="pf-fees__lede">
+            {replayed ? "Replayed simulated payout fees and this run’s invoice" : FEES_COPY.summary}
+          </span>
         </summary>
         <ul className="pf-fees__list">
           <li>
             {bundle.invoice.status === "MARKED_AS_PAID" ? FEES_COPY.invoiceMarked : FEES_COPY.invoicePaid}
           </li>
           <li>
-            {fees
-              ? FEES_COPY.payouts(rail, format.money(fees.cents), fees.payments)
-              : FEES_COPY.payoutsPending}
+            {replayed
+              ? "Payout fee data is replayed from the earlier simulated PayPal sandbox run; no new payout charge is claimed."
+              : fees
+                ? FEES_COPY.payouts(rail, format.money(fees.cents), fees.payments)
+                : FEES_COPY.payoutsPending}
           </li>
           <li>
-            {FEES_COPY.disbursement(
-              format.money(bundle.rateCard.canonical.pricing.disbursementCents),
-              format.money(
-                Math.max(0, bundle.rateCard.canonical.pricing.disbursementCents - (fees?.cents ?? 0)),
-              ),
-            )}
+            {replayed
+              ? "The disbursement line is the engine’s budget; a replay does not establish a new simulator balance."
+              : FEES_COPY.disbursement(
+                  format.money(bundle.rateCard.canonical.pricing.disbursementCents),
+                  format.money(
+                    Math.max(0, bundle.rateCard.canonical.pricing.disbursementCents - (fees?.cents ?? 0)),
+                  ),
+                )}
           </li>
           <li>{FEES_COPY.production}</li>
         </ul>

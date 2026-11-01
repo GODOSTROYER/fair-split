@@ -4,10 +4,12 @@
 // colour: the stage pacing itself, a reset or a paused switch is information, not failure.
 
 import type { ReplayReason } from "@fairsplit/api-client";
+import { PAY_RUN_RANK } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import { Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { errorView } from "../data/errors.js";
 import type { JudgeSessionApi } from "../data/hooks.js";
+import { payoutReplayed } from "../data/payout-replay.js";
 import type { RunView } from "../data/run-view.js";
 import type { AutoplayState } from "../stage/context.js";
 import { STAGE_NOTICE } from "./copy.js";
@@ -23,7 +25,8 @@ export type NoticeState =
   | "circuit"
   | "balance-low"
   | "ai-off"
-  | "paypal-off";
+  | "paypal-off"
+  | "replay";
 
 export interface StageNoticeView {
   readonly state: NoticeState;
@@ -43,6 +46,7 @@ export interface StageNoticeInput {
   readonly inSession: boolean;
   /** Why the API replays PayPal steps for this session (GET /v1/judge/session `rail.reason`), if it does. */
   readonly replayReason?: ReplayReason | null;
+  readonly replayLabel?: string | null;
 }
 
 /** The notice the stage shows, or null. Pure, so the stage's `data-state` follows it exactly. */
@@ -52,8 +56,20 @@ export function stageNoticeFor({
   autoplay,
   inSession,
   replayReason = null,
+  replayLabel = null,
 }: StageNoticeInput): StageNoticeView | null {
   const none: readonly string[] = [];
+  const posted =
+    view !== undefined &&
+    ((PAY_RUN_RANK[view.state] >= PAY_RUN_RANK.POSTING && PAY_RUN_RANK[view.state] < 99) ||
+      Object.keys(view.items ?? {}).length > 0);
+  const replayed = payoutReplayed(view);
+  const forecast =
+    !posted && replayReason !== null
+      ? `This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox).${replayLabel ? ` ${replayLabel}` : ""}`
+      : null;
+  const replayText = replayed ? "Replayed (labelled): earlier simulated PayPal sandbox run" : forecast;
+  const replaySuffix = inSession && replayText ? ` ${replayText}` : "";
   if (session.status === "resetting") {
     return {
       state: "resetting",
@@ -98,13 +114,19 @@ export function stageNoticeFor({
     return {
       state: "autoplay",
       glyph: "ms:play-arrow",
-      text: STAGE_NOTICE.autoplay,
+      text: `${STAGE_NOTICE.autoplay}${replaySuffix}`,
       refs: none,
       retry: false,
     };
   }
   if (autoplay === "paused") {
-    return { state: "paused", glyph: "ms:pause", text: STAGE_NOTICE.paused, refs: none, retry: false };
+    return {
+      state: "paused",
+      glyph: "ms:pause",
+      text: `${STAGE_NOTICE.paused}${replaySuffix}`,
+      refs: none,
+      retry: false,
+    };
   }
   const place = session.session?.queuePosition ?? null;
   if (inSession && place !== null && place > 0) {
@@ -118,11 +140,20 @@ export function stageNoticeFor({
     };
   }
   // PayPal's sandbox said slow down (the 6-minute circuit), or its balance is too low to post: S1.6's states.
-  if (inSession && replayReason === "circuit_open") {
+  if (inSession && !posted && replayReason === "circuit_open") {
     return { state: "circuit", glyph: "rail", text: STAGE_NOTICE.circuit, refs: none, retry: false };
   }
-  if (inSession && replayReason === "balance_low") {
+  if (inSession && !posted && replayReason === "balance_low") {
     return { state: "balance-low", glyph: "rail", text: STAGE_NOTICE.balanceLow, refs: none, retry: false };
+  }
+  if (inSession && replayText) {
+    return {
+      state: "replay",
+      glyph: "rail",
+      text: replayText,
+      refs: none,
+      retry: false,
+    };
   }
   if (inSession && view?.flags.kill_ai_live) {
     return { state: "ai-off", glyph: "pencil", text: STAGE_NOTICE.aiOff, refs: none, retry: false };

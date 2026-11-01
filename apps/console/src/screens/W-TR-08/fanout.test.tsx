@@ -6,6 +6,7 @@
 import type { RunEvent } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { queryKeys } from "../../data/query.js";
 import { applyRunEvent, type RunView } from "../../data/run-view.js";
@@ -41,7 +42,7 @@ describe("W-TR-08 run: the honest fan-out", () => {
       const view = await approved();
       expect(toneOf("M-014")).toBe("unsent");
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 to send by PayPal once both keys sign. 56 in cash at the bodega. On PayPal: 8.7% of value.",
+        "8 to send through the simulated PayPal sandbox once both keys sign. 56 in cash at the bodega. On simulated PayPal: 8.7% of value.",
       );
       act(() => {
         view.world.cosign();
@@ -52,6 +53,9 @@ describe("W-TR-08 run: the honest fan-out", () => {
       for (const m of ["M-014", "M-007", "M-060", "M-018", "M-039", "M-022", "M-002"])
         expect(toneOf(m)).toBe("landed");
       expect(toneOf("M-031")).toBe("parked");
+      expect(screen.getByTestId("W-JG-01.proofChip").textContent).toContain(
+        "confirmed in the simulated sandbox",
+      );
       // Signature 6: one seal, 64 lines, eight PayPal threads and 56 dashed cash lines, each its own path.
       const fan = screen.getByTestId("W-TR-08.fan");
       expect(fan.querySelectorAll("path.fsr-fan__thread")).toHaveLength(8);
@@ -72,11 +76,11 @@ describe("W-TR-08 run: the honest fan-out", () => {
       );
       const rhea = screen.getByTestId("W-TR-08.parked");
       expect(rhea.textContent).toMatch(
-        /Rhea Jumawan's address has no PayPal account, so PayPal parked US\$26\.65/,
+        /Rhea Jumawan's address has no PayPal account, so the simulated PayPal sandbox parked US\$26\.65/,
       );
       // The count says what the stage's Proof counter says: sent, confirmed, parked, and cash.
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 sent by PayPal, 7 confirmed, 1 parked. 56 in cash at the bodega. On PayPal: 8.7% of value.",
+        "8 sent through the simulated PayPal sandbox, 7 confirmed, 1 parked. 56 in cash at the bodega. On simulated PayPal: 8.7% of value.",
       );
       expect(screen.queryByTestId("W-TR-08.denied")).toBeNull();
       const log = screen.getByTestId("W-TR-08.lane.PAYPAL");
@@ -119,10 +123,10 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members, cash at the bodega/);
       expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 sent by PayPal, 7 confirmed. 57 in cash at the bodega. On PayPal: 8.1% of value.",
+        "8 sent through the simulated PayPal sandbox, 7 confirmed. 57 in cash at the bodega. On simulated PayPal: 8.1% of value.",
       );
       expect(screen.getByTestId("W-TR-08.status").textContent).toBe(
-        "7 paid by PayPal. 57 in cash. US$21.14 kept for members.",
+        "7 paid by the simulated PayPal sandbox. 57 in cash. US$21.14 kept for members.",
       );
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
       expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));
@@ -215,4 +219,83 @@ describe("W-TR-08 run: the honest fan-out", () => {
     },
     SLOW,
   );
+});
+
+it("shows the paced cancellation delay and retries payCash once before moving Rhea to cash", async () => {
+  let attempts = 0;
+  const view = await renderConsole({
+    path: webRoutes.fanout(RUN),
+    motion: "reduced",
+    handlers: [
+      http.post("*/v1/lines/:lineId/pay-cash", () => {
+        attempts++;
+        return attempts === 1
+          ? HttpResponse.json(
+              { code: "QUEUED", status: 429, message: "Cancellation paced", retryAfterMs: 700 },
+              { status: 429 },
+            )
+          : undefined;
+      }),
+    ],
+  });
+  await view.startSession();
+  act(() => {
+    view.world.markPaid();
+    view.world.resolveAll();
+    view.world.sign("treasurer");
+    view.world.cosign();
+  });
+  await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+  fireEvent.keyDown(screen.getByTestId("W-TR-08.payCash.face"), { key: "Enter" });
+  await waitFor(() =>
+    expect(screen.getByTestId("W-TR-08.queued").textContent).toBe("You're next, about 1 s"),
+  );
+  await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
+  expect(attempts).toBe(2);
+  expect(view.world.line("M-031")?.state).toBe("OFF_RAIL_DUE");
+  expect(screen.queryByTestId("W-TR-08.queued")).toBeNull();
+  expect(screen.queryByTestId("W-TR-08.error")).toBeNull();
+});
+
+it("inv.i8.keeps Rhea’s cash status when the payout items replayed", async () => {
+  const rendered = await renderConsole({ path: webRoutes.fanout(RUN), motion: "reduced" });
+  await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
+  act(() => {
+    rendered.runtime.client.setQueryData<RunView>(queryKeys.run(RUN), (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        events: [
+          {
+            id: "999",
+            ws: "test",
+            runId: old.runId,
+            type: "item.updated",
+            provenance: "replay",
+            at: "2026-11-01T00:00:00Z",
+            actor: { kind: "paypal", id: "simulator", impersonatedBy: null },
+            payload: {
+              memberNo: "M-014",
+              senderItemId: "r37-M-014",
+              from: "PENDING",
+              to: "SUCCESS",
+              payoutItemId: "RPLY-test",
+              eventId: null,
+              source: "status_check",
+            },
+          } as RunEvent,
+        ],
+      };
+    });
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId("W-TR-08.table").textContent).toContain("Replayed (labelled)"),
+  );
+  const table = screen.getByTestId("W-TR-08.table");
+  const cash = within(table)
+    .getByRole("rowheader", { name: /Rhea Jumawan/ })
+    .closest("tr");
+  expect(cash?.textContent).toContain("Cash due");
+  expect(cash?.textContent).not.toContain("Replayed");
+  expect(table.textContent).toContain("Replayed (labelled)");
 });

@@ -18,9 +18,11 @@ import {
   AUTOPLAY_STEP_MS,
   type AutoplayPlan,
   aimAt,
+  isAt,
   planStep,
   resolveTarget,
 } from "./autoplay-plan.js";
+import { continueProof } from "./proof-autoplay.js";
 import "./judge.css";
 
 /**
@@ -31,6 +33,8 @@ import "./judge.css";
 export const autoplayTiming = {
   stepMs: AUTOPLAY_STEP_MS,
   stuckTicks: 4,
+  routeRetryMs: 100,
+  routeWaitMs: 10_000,
   busyMs: INVOICE_WAIT.deadlineMs + 15_000,
 };
 
@@ -108,6 +112,7 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let idle = 0;
     let busySince: number | null = null;
+    let navigation: { readonly to: string; readonly startedAt: number } | null = null;
     const keyOf = (step: StageApi["next"]) => `${step.id}|${step.to}|${step.text}`;
     let lastStep = keyOf(latest.current.next);
     const later = (fn: () => void, ms = autoplayTiming.stepMs) => {
@@ -137,9 +142,21 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
         lastStep = keyOf(step);
         idle = 0;
       }
+      if (navigation?.to !== step.to) navigation = null;
+      if (navigation) {
+        if (Date.now() - navigation.startedAt >= autoplayTiming.routeWaitMs) {
+          stop(AUTOPLAY_COPY.stuck, null);
+          return;
+        }
+        if (!isAt({ pathname: path, search: query }, navigation.to)) {
+          later(tick, autoplayTiming.routeRetryMs);
+          return;
+        }
+      }
       const plan: AutoplayPlan = planStep(step, { pathname: path, search: query });
       switch (plan.kind) {
         case "wait":
+          navigation = null;
           later(tick);
           return;
         case "turn":
@@ -154,6 +171,7 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
           }
           void moveTo(el).then(() => {
             if (cancelled) return;
+            continueProof(latest.current.next.to.split("/").at(-1) ?? "");
             setAutoplay("off");
             pressOn(el);
           });
@@ -165,12 +183,16 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
           if (document.querySelector('[data-testid="W-JG-01.stage"] [aria-busy="true"]')) {
             busySince ??= Date.now();
             if (Date.now() - busySince >= autoplayTiming.busyMs) stop(AUTOPLAY_COPY.stuck, null);
-            else later(tick);
+            else later(tick, navigation ? autoplayTiming.routeRetryMs : autoplayTiming.stepMs);
             return;
           }
           busySince = null;
           const el = resolveTarget(document, plan.kind === "go" ? [plan.selector] : plan.selectors);
           if (!el) {
+            if (navigation) {
+              later(tick, autoplayTiming.routeRetryMs);
+              return;
+            }
             idle += 1;
             if (idle >= autoplayTiming.stuckTicks) stop(AUTOPLAY_COPY.stuck, null);
             else later(tick);
@@ -183,8 +205,16 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
           }
           void moveTo(el).then(() => {
             if (cancelled) return;
-            pressOn(el);
-            later(tick);
+            if (plan.kind === "go") {
+              // Navigation is not an action: follow the mounted route promptly, with a finite loading wait.
+              navigation = { to: plan.to, startedAt: Date.now() };
+              pressOn(el);
+              later(tick, autoplayTiming.routeRetryMs);
+            } else {
+              navigation = null;
+              pressOn(el);
+              later(tick);
+            }
           });
           return;
         }

@@ -83,14 +83,20 @@ function laneOf(event: RunEvent): LogLane {
   return "MACHINE";
 }
 
-function provenanceNote(provenance: Provenance, ctx: DescribeContext): string | null {
+function provenanceNote(provenance: Provenance, type: RunEventType): string | null {
   switch (provenance) {
     case "replay":
-      return `replay of the ${format.dateShort(ctx.recordedOn)} run`;
+      return type.startsWith("extract.")
+        ? "Seed stand-in, not a Claude recording"
+        : type === "item.updated" || type === "invoice.state"
+          ? "Labelled replay of an earlier simulated run (including a seed snapshot)"
+          : type === "run.state"
+            ? "Reached on replayed payout statuses"
+            : "Labelled replay of an earlier demo event";
     case "simulated_rail":
       return "simulated PayPal sandbox";
     case "seeded":
-      return "seeded sample";
+      return type.startsWith("extract.") ? "Seed stand-in, not a Claude recording" : "Seeded demo event";
     case "live":
       return null;
   }
@@ -100,9 +106,9 @@ function verification(event: RunEventOf<"webhook.received">): string {
   if (event.provenance === "simulated_rail") return "simulated webhook, signature checked";
   switch (event.payload.verified) {
     case "self":
-      return "webhook, signature verified";
+      return "webhook, signature checked";
     case "postback":
-      return "webhook, confirmed by PayPal's postback";
+      return "webhook, postback checked";
     case "dev_mock":
       return "webhook, development mock, not verified";
     case "fetched":
@@ -130,7 +136,7 @@ export const FLAG_WORDS: Readonly<Record<SystemFlagName, { readonly on: string; 
   kill_payouts: { on: "Payouts paused by the co-op", off: "Payouts resumed" },
   kill_paypal_live: { on: "PayPal calls paused; PayPal steps replay, labelled", off: "PayPal calls resumed" },
   kill_ai_live: {
-    on: "Live slip reading paused; the recorded run still plays",
+    on: "Live slip reading paused; the labelled seed stand-in still plays",
     off: "Live slip reading resumed",
   },
 };
@@ -189,7 +195,7 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
     provenance: event.provenance,
     duplicate: false,
   };
-  const note = provenanceNote(event.provenance, ctx);
+  const note = provenanceNote(event.provenance, event.type);
   switch (event.type) {
     case "run.state": {
       const words = pickLabel(RUN_STATE_LABELS[event.payload.to], "en", {
@@ -206,13 +212,15 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
       const amount = ctx.itemAmount(p.senderItemId);
       const status = pickLabel(PAYOUT_ITEM_STATUS_LABELS[p.to], "en");
       const words =
-        p.to === "SUCCESS"
-          ? join(`Paid ${name} ${amount ?? ""}`.trim())
-          : p.to === "UNCLAIMED"
-            ? `${name}'s address has no PayPal account. Parked`
-            : p.to === "RETURNED" && p.source === "cancel"
-              ? `${name}: returned to the co-op's PayPal balance`
-              : `${name}: ${status.toLowerCase()}`;
+        event.provenance === "replay"
+          ? `${name}: Replayed (labelled), simulated ${p.to.toLowerCase()}`
+          : p.to === "SUCCESS"
+            ? join(`Paid ${name} ${amount ?? ""}`.trim())
+            : p.to === "UNCLAIMED"
+              ? `${name}'s address has no PayPal account. Parked`
+              : p.to === "RETURNED" && p.source === "cancel"
+                ? `${name}: returned to the co-op's simulated PayPal balance`
+                : `${name}: ${status.toLowerCase()}`;
       const eventName =
         p.to === "SUCCESS"
           ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
@@ -221,7 +229,17 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
             : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
       // The whole item ID: it is what a person matches against PayPal's own records.
       const item = p.payoutItemId ? `item ${p.payoutItemId}` : null;
-      return { ...base, lane: "PAYPAL", words, detail: join(eventName, item, itemSource(p.source), note) };
+      return {
+        ...base,
+        lane: "PAYPAL",
+        words,
+        detail: join(
+          eventName,
+          item,
+          event.provenance === "replay" ? "Replayed status" : itemSource(p.source),
+          note,
+        ),
+      };
     }
     case "hold.raised": {
       const p = event.payload;
@@ -271,7 +289,10 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
       return {
         ...base,
         words: `Read slip ${p.serial}${p.memberNo ? ` for ${p.memberNo}` : ""}`,
-        detail: join("Read by Claude (claude-opus-5-5)", note),
+        detail:
+          event.provenance === "seeded" || event.provenance === "replay"
+            ? "Seed stand-in, not a Claude recording"
+            : join("In a live run: read by Claude (claude-opus-5-5)", note),
       };
     }
     case "extract.quarantined":

@@ -38,7 +38,7 @@ export const SERVER_VERIFICATION_PATH = "/v1/proof/:runSlug/verification";
 /** Where the trust anchors came from: the API's published keys, or (mock data only) the seed's sample keys. */
 export type TrustSource = "published" | "seed";
 
-export type CheckState = "matches" | "differs" | "server" | "withheld";
+export type CheckState = "matches" | "differs" | "server" | "withheld" | "replay";
 
 export interface PlateCheck {
   readonly state: CheckState;
@@ -46,7 +46,7 @@ export interface PlateCheck {
 }
 
 /** "partial": five plates checked here, the sixth needs receivers this tier withholds. */
-export type Verdict = "verified" | "sample" | "failed" | "partial";
+export type Verdict = "verified" | "sample" | "failed" | "partial" | "replay";
 
 export type FailurePlace = PlateName | "chain" | "checkpoint";
 
@@ -79,7 +79,11 @@ export function outcomeOf(
 ): VerifyOutcome {
   const checks = {} as Record<PlateName, PlateCheck>;
   for (const plate of PLATES) {
-    const result = v.plates[plate];
+    const result = plate === "payoutItems" && ctx.withheld ? ctx.server : v.plates[plate];
+    if (result?.ok && result.state === "replay") {
+      checks[plate] = { state: "replay", reason: result.reason };
+      continue;
+    }
     if (plate === "payoutItems" && ctx.withheld) {
       checks[plate] = ctx.server
         ? ctx.server.ok
@@ -88,9 +92,9 @@ export function outcomeOf(
         : { state: "withheld", reason: null };
       continue;
     }
-    checks[plate] = result.ok
+    checks[plate] = result?.ok
       ? { state: "matches", reason: null }
-      : { state: "differs", reason: result.reason };
+      : { state: "differs", reason: result?.reason ?? null };
   }
   let failure: VerifyOutcome["failure"] = null;
   if (!v.chain.ok) {
@@ -111,13 +115,16 @@ export function outcomeOf(
     if (plate) failure = { where: plate, reason: checks[plate].reason ?? "This plate does not match." };
   }
   const anyWithheld = PLATES.some((p) => checks[p].state === "withheld");
+  const replay = PLATES.some((p) => checks[p].state === "replay");
   const verdict: Verdict = failure
     ? "failed"
-    : anyWithheld
-      ? "partial"
-      : v.sampleKeys.length > 0
-        ? "sample"
-        : "verified";
+    : replay
+      ? "replay"
+      : anyWithheld
+        ? "partial"
+        : v.sampleKeys.length > 0
+          ? "sample"
+          : "verified";
   return {
     verdict,
     checks,

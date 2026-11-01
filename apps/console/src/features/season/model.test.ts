@@ -154,3 +154,10 @@ describe("the next step as a sentence", () => {
     expect(nextSentence("Next: approve 8 payouts")).toBe("Approve 8 payouts");
   });
 });
+
+it("inv.i8.desk-note: identifies code-composed photos before and after funding", async () => {
+  const { FIRST_VIEW_COPY } = await import("./copy.js");
+  for (const funded of [false, true]) {
+    expect(FIRST_VIEW_COPY.deskNote(12, funded)).toContain("composed in code");
+  }
+});

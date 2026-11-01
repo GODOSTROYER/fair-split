@@ -1,9 +1,10 @@
 // Proof's metrics (S1.8, in order): lines explained, premium allocated, paid in three tiers, holds caught and what
 // they kept for members, PayPal against cash, and invoice to last confirmation. Every figure is computed in this
 // page from the bundle it was served (the same record "Verify in your browser" re-checks), the run's line states
-// and the season's seeded hold figures, so nothing here is typed and nothing waits on a metrics route.
+// and the run's served metrics on fs-api. Mock mode alone uses the season's seeded hold figures.
 
 import type { HoldKind, ProofBundle, SeasonSnapshot } from "@fairsplit/contracts";
+import { z } from "zod";
 import {
   explainedLines,
   holdsCaught,
@@ -23,10 +24,19 @@ export interface HoldFigures {
   readonly caught: number;
   readonly keptCents: number;
   /** What counting the duplicate once gave back to the other members. */
-  readonly duplicateCents: number;
+  readonly duplicateCents: number | null;
   /** Fines no rule allows, returned as credits. */
-  readonly creditCents: number;
+  readonly creditCents: number | null;
 }
+
+/** Only public aggregates are consumed; the metrics endpoint deliberately exposes no member data. */
+export const ServedHoldMetrics = z.looseObject({
+  runSlug: z.string(),
+  holds: z.looseObject({
+    caught: z.int().nonnegative(),
+    keptForMembers: z.looseObject({ cents: z.int().nonnegative() }),
+  }),
+});
 
 export interface ProofFigures {
   readonly lines: { readonly total: number; readonly explained: number };

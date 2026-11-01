@@ -75,6 +75,7 @@ function Cell({
 
 /** The wash a live change earns: jade only for PayPal's word, pencil only for the engine's recompute. */
 function statusWash(row: SplitRow, ctx: GridContext) {
+  if (row.replayed) return null;
   if (!row.statusEventId || row.statusCause !== "paypal" || !ctx.isLive(row.statusEventId)) return null;
   return { cause: "paypal" as const, key: row.statusEventId, delayMs: 0 };
 }
@@ -481,6 +482,7 @@ const STATUS_LOOK: Readonly<
 export function statusWords(row: SplitRow): string {
   if (row.status.kind === "held") return SPLIT.held;
   if (row.status.kind === "reserved") return SPLIT.reserved;
+  if (row.replayed) return "Replayed (labelled, simulated)";
   return en(`console.status.${row.state}`);
 }
 
@@ -505,7 +507,9 @@ export function StatusCell({ data, context }: Props) {
       ? { tone: "canary" as const, glyph: "hanging-scale-fill" as GlyphName }
       : data.status.kind === "reserved"
         ? { tone: "canary" as const, glyph: "logbook-fill" as GlyphName }
-        : (STATUS_LOOK[data.state] ?? { tone: "ink" as const, glyph: "ms:check" as GlyphName });
+        : data.replayed
+          ? { tone: "ink" as const, glyph: "rail" as GlyphName }
+          : (STATUS_LOOK[data.state] ?? { tone: "ink" as const, glyph: "ms:check" as GlyphName });
   return (
     <Cell className="fsr-cell--status" wash={statusWash(data, context)}>
       <span

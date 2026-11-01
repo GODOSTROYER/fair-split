@@ -193,7 +193,7 @@ describe("one tap for the zoom's read, and a rescan for a blurred photo (S1.7)",
     ).toBe("confirm-one");
     expect(
       statusSentence({ photo: photoJ, rows: printed, reading: false, started: true, snapshot }),
-    ).toContain("Slip 0462: Claude's zoom read agrees with one of the two readings.");
+    ).toContain("Slip 0462: the stand-in's zoom value agrees with one of its two readings.");
   });
 
   it("a hold that names only the member never takes the tap: it could be another of her slips", () => {
@@ -358,7 +358,7 @@ describe("the room's state and its bench", () => {
     const printed = rowsForPhoto({ view, snapshot, photo });
     expect(
       statusSentence({ photo, rows: printed, reading: true, started: true, snapshot, readingPhoto: "A" }),
-    ).toBe("Photo C waits its turn. Claude is reading photo A.");
+    ).toBe("Photo C waits its turn. The seed stand-in is playing photo A.");
   });
 
   it("follows the reading while nothing is pinned, and keeps the photo the URL names", () => {

@@ -36,8 +36,9 @@ const PAYPAL_SOURCE: Readonly<Record<"webhook" | "status_check" | "post_response
 export function provenanceFooter(input: FooterInput): string {
   switch (input.kind) {
     case "claude": {
-      const read = `Read by Claude (${input.model ?? CLAUDE_MODEL})`;
-      return input.replayOf ? `${read}, replay of the ${format.dateShort(input.replayOf)} run` : read;
+      return input.replayOf
+        ? "Seed stand-in, not a Claude recording"
+        : `In a live run: read by Claude (${input.model ?? CLAUDE_MODEL})`;
     }
     case "engine":
       return `Computed by engine ${input.version ?? ENGINE_VERSION}, rate card ${format.hashGroups(input.rateCardSha256)}`;
@@ -49,11 +50,11 @@ export function provenanceFooter(input: FooterInput): string {
       if (input.source === "webhook") {
         return simulated
           ? "Simulated PayPal sandbox, webhook, signature checked"
-          : "PayPal, webhook, signature verified";
+          : "PayPal webhook, signature checked (untested rail in this build)";
       }
       return simulated ? `Simulated PayPal sandbox, ${source}` : `PayPal, ${source}`;
     }
     case "seeded":
-      return "Seeded sample";
+      return "Seed stand-in, not a Claude recording";
   }
 }

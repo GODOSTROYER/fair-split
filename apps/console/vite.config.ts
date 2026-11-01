@@ -4,6 +4,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { msw } from "msw/vite";
 import { type Connect, defineConfig, loadEnv, type Plugin } from "vite";
+import { exhibitDefines, previewMedia } from "./scripts/exhibit-data.js";
 
 // The console SPA (register §6). The router plugin must run before the React plugin.
 //
@@ -43,7 +44,7 @@ export default defineConfig(({ command, mode }) => {
   const apiOrigin = process.env.FS_API_DEV_ORIGIN ?? "http://127.0.0.1:8787";
   return {
     envPrefix: "VITE_PUBLIC_",
-    define: { __FS_DATA__: JSON.stringify(data) },
+    define: { __FS_DATA__: JSON.stringify(data), ...exhibitDefines() },
     // contracts carries its own copy of zod 4.6.7 (the root hoists zod 3 for paypal-*); one copy is enough.
     resolve: { dedupe: ["zod"] },
     // The mock's handlers come from @fairsplit/api-client's source (imports "msw") while the worker starts from
@@ -53,7 +54,7 @@ export default defineConfig(({ command, mode }) => {
       tanstackRouter({ target: "react", autoCodeSplitting: true, quoteStyle: "double", semicolons: true }),
       react(),
       tailwindcss(),
-      ...(data === "mock" ? [msw({ mode: "worker-only" }), appStub()] : []),
+      ...(data === "mock" ? [msw({ mode: "worker-only" }), appStub(), previewMedia()] : []),
     ],
     server:
       data === "http"

@@ -99,14 +99,28 @@ export function memberOf(snapshot: SeasonSnapshot, memberNo: string | null): Sna
  */
 export function factsFor(snapshot: SeasonSnapshot, view: RunView, hold: RunHold): EngineHold | undefined {
   const basis = splitBasis(view);
+  // API mark IDs are UUIDs; the snapshot's engine keeps the seed mark IDs. Match that same member and
+  // slip when keys differ, taking facts only from the engine output for the run's current basis.
+  const serials = seededHold(snapshot, hold)?.serials ?? [];
+  const find = (output: ReturnType<typeof engineOutput>): EngineHold | undefined => {
+    const exact = engineHold(output, hold.key);
+    if (exact) return exact;
+    const matches = output.holds.filter(
+      (candidate) =>
+        candidate.kind === hold.kind &&
+        candidate.memberNo === hold.memberNo &&
+        candidate.serials.some((serial) => serials.includes(serial)),
+    );
+    return matches.length === 1 ? matches[0] : undefined;
+  };
   if (isOpenHold(hold)) {
-    const now = engineHold(engineOutput(snapshot, basis), hold.key);
+    const now = find(engineOutput(snapshot, basis));
     if (now) return now;
   }
   return (
-    engineHold(snapshot.checkpoints.resolved, hold.key) ??
-    engineHold(snapshot.checkpoints.byHand, hold.key) ??
-    engineHold(snapshot.checkpoints.read, hold.key)
+    find(snapshot.checkpoints.resolved) ??
+    find(snapshot.checkpoints.byHand) ??
+    find(snapshot.checkpoints.read)
   );
 }
 
@@ -221,10 +235,14 @@ export function noRuleFacts(
     amount: m.writtenCentavos === null ? null : format.money(m.writtenCentavos, "PHP"),
   }));
   const hauling = slip?.marks.find((m) => m.ruleId === "R2");
+  const mark =
+    slip?.marks.find((m) => hold.key === `NO_RULE:${m.markId}`) ??
+    slip?.marks.find((m) => m.ruleId === "NO_MATCH");
+  const writtenCentavos = typeof p.writtenCentavos === "number" ? p.writtenCentavos : mark?.writtenCentavos;
   return {
-    text: str(p.text),
-    written: str(p.writtenDisplay),
-    credit: str(p.creditDisplay),
+    text: str(p.text, mark?.text ?? ""),
+    written: str(p.writtenDisplay, writtenCentavos == null ? "" : format.pesoWhole(writtenCentavos)),
+    credit: str(p.creditDisplay, typeof p.creditCents === "number" ? format.money(p.creditCents) : ""),
     creditCents: num(p.creditCents),
     serial,
     marks,

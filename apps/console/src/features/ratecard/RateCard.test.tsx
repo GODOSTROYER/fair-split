@@ -58,7 +58,7 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(banded).toHaveLength(1);
     expect(banded[0]?.textContent).toMatch(/^R3 Loan repayment/);
     expect(screen.getByTestId("W-TR-02.footer").textContent).toBe(
-      "Read by Claude (claude-opus-5-5). Quote found on page 2.",
+      "Seed stand-in, not a Claude recording. Seeded quote on page 2.",
     );
     await expectNoAxeViolations(view.container);
   });

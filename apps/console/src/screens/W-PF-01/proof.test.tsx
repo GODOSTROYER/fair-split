@@ -58,6 +58,35 @@ const matched: VerifyOutcome = {
   head: "91:x",
 };
 
+describe("Proof replay and simulation labels", () => {
+  it("inv.i8.shows replay separately from matches and gives simulator anchors no dashboard instruction", () => {
+    const reason =
+      "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices";
+    const outcome = {
+      ...matched,
+      verdict: "replay",
+      checks: { ...matched.checks, payoutItems: { state: "replay", reason } },
+      anchors: { ...matched.anchors, invoiceNumber: "SIM-INVOICE", senderBatchId: "SIM-BATCH" },
+    } as VerifyOutcome;
+    render(
+      <VerifyPanel
+        verification={{
+          state: { kind: "done", outcome, at: "2026-11-01T00:00:00Z", pressId: "test" },
+          verify: () => undefined,
+        }}
+      />,
+    );
+    expect(screen.getByTestId("W-PF-01.checks.payoutItems").dataset.state).toBe("replay");
+    expect(screen.getByTestId("W-PF-01.verdict.word").textContent).toBe(
+      "five of six match; one replayed, labelled",
+    );
+    expect(screen.getByTestId("W-PF-01.verdict").textContent).toContain(reason);
+    expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain("Six of six match");
+    expect(screen.getByTestId("W-PF-01.verdict.anchors").textContent).toContain("Simulated PayPal sandbox");
+    expect(screen.getByTestId("W-PF-01.verdict.anchors").textContent).not.toContain("Match it in PayPal");
+  });
+});
+
 describe("W-PF-01 loads without waiting on the seed", () => {
   it("renders and sends its own read while the seeded snapshot is still loading", async () => {
     const log = recordRequests();
@@ -257,9 +286,11 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     expect(screen.getByTestId("W-PF-01.tier.due.amount").dataset.amountState).toBe("hollow");
     expect(screen.getByTestId("W-PF-01.metric.kept").textContent).toContain("US$21.14");
     expect(screen.getByTestId("W-PF-01.metric.holds").textContent).toContain("3 caught");
-    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
+    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe(
+      "7 of 64 members, 8.1% of value (simulated PayPal sandbox)",
+    );
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
-      "7 of 8 confirmed by PayPal, 1 returned to the co-op, cash due at the bodega.",
+      "7 of 8 confirmed by PayPal (simulated sandbox), 1 returned to the co-op, cash due at the bodega.",
     );
     expect(screen.getByTestId("W-PF-01.progress").dataset.state).toBe("settled");
     // Nothing PayPal is unlabelled (I8): the simulated rail is named on the page.
@@ -521,7 +552,7 @@ describe("W-PF-01 states", () => {
     );
     expect(progress.textContent).toContain("1 parked for a decision.");
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
-      "Waiting for PayPal. 7 of 8 confirmed.",
+      "Simulated PayPal sandbox: waiting, 7 of 8 confirmed.",
     );
     await expectNoAxeViolations(view.container);
 
@@ -535,7 +566,9 @@ describe("W-PF-01 states", () => {
       "7 of 8 PayPal payouts confirmed in the simulated sandbox. 1 moved to cash.",
     );
     expect(root.dataset.state).toBe("progress");
-    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
+    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe(
+      "7 of 64 members, 8.1% of value (simulated PayPal sandbox)",
+    );
   });
 
   it("failed: a record edited after it was signed fails in this browser, names the plate and withholds the figures", async () => {
@@ -569,7 +602,7 @@ describe("W-PF-01 on a 375 px phone", () => {
     const cells = row.querySelectorAll(":scope > th, :scope > td");
     expect(cells).toHaveLength(3);
     // The rail sits under the member, the status under the net: nothing is left in a column off to the side.
-    expect(cells[0]?.textContent).toBe("M-014PayPal");
+    expect(cells[0]?.textContent).toBe("M-014Simulated PayPal sandbox");
     expect(cells[2]?.querySelector('[data-testid="W-PF-01.peso.M-014"]')).toBeTruthy();
     expect(cells[2]?.querySelector(".fs-chip")).toBeTruthy();
 
@@ -703,4 +736,22 @@ describe("W-PF-01 failed: a record that doesn't match", () => {
     expect(screen.getByTestId("W-PF-01.verdict.failure").textContent).toContain("Plate 6, Payout items");
     expect(screen.getByTestId("W-PF-01.checks.payoutItems").dataset.state).toBe("differs");
   });
+});
+
+it("inv.i8.an envelope replay label alone never relabels this run's payout evidence", async () => {
+  await renderConsole({
+    path: webRoutes.proof(RUN),
+    handlers: [
+      http.get("*/v1/proof/:runSlug", () =>
+        HttpResponse.json({
+          bundle: snapshot.proof,
+          provenance: "replay",
+          redacted: true,
+        }),
+      ),
+    ],
+  });
+  const progress = await screen.findByTestId("W-PF-01.progress");
+  expect(progress.textContent).toContain("confirmed in the simulated sandbox");
+  expect(progress.textContent).not.toContain("statuses replayed");
 });

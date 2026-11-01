@@ -30,7 +30,7 @@ export interface ProgressFacts {
 }
 
 function railWhere(rail: PaypalRail): string {
-  return rail === "simulator" ? "in the simulated sandbox" : "in PayPal's sandbox";
+  return rail === "simulator" ? "in the simulated sandbox" : "on the configured PayPal rail (not simulated)";
 }
 
 /** " 1 moved to cash." and " 1 parked for a decision.": the items PayPal did not pay, said plainly. */
@@ -75,12 +75,12 @@ export function invoiceWords(status: InvoiceStatus): string {
 export function railName(rail: PaypalRail): string {
   return rail === "simulator"
     ? "Simulated PayPal sandbox, contract-tested against PayPal's OpenAPI specs"
-    : "PayPal sandbox";
+    : "PayPal sandbox (not simulated)";
 }
 
 /** The short form, for chips and table cells. */
 export function railShort(rail: PaypalRail): string {
-  return rail === "simulator" ? "Simulated PayPal sandbox" : "PayPal sandbox";
+  return rail === "simulator" ? "Simulated PayPal sandbox" : "PayPal sandbox (not simulated)";
 }
 
 export function provenanceWords(provenance: Provenance): string {
@@ -89,6 +89,7 @@ export function provenanceWords(provenance: Provenance): string {
 
 /** "Verified", "Sample", "Does not match": the contracts' words; a partial check has its own. */
 export function verdictWord(verdict: Verdict): string {
+  if (verdict === "replay") return "five of six match; one replayed, labelled";
   if (verdict === "partial") return "Five of six checked here";
   return pickLabel(PROOF_STATUS_LABELS[verdict], "en");
 }
@@ -112,7 +113,10 @@ export const VERIFY_COPY = {
   keysPublished: "Keys: /.well-known/fairsplit-keys.json, fetched apart from this record.",
   keysSeed: "Keys: the seed's published sample keys, because this mock API serves no keys document.",
   keysFailed: "The published keys didn't load, so nothing was checked.",
-  anchorsLead: "Match it in PayPal:",
+  anchorsLead: (rail: PaypalRail) =>
+    rail === "simulator"
+      ? "Simulated PayPal sandbox identifiers (no PayPal dashboard):"
+      : "Match it on the configured PayPal rail (not simulated):",
   checkState: {
     idle: "Not checked yet",
     checking: () => t("W-PF-01.checking"),
@@ -120,6 +124,7 @@ export const VERIFY_COPY = {
     server: "Matches, checked by Fair Split's server",
     withheld: "Needs the full record",
     differs: "Does not match",
+    replay: "Replayed, labelled",
   },
   serverNote:
     "Receivers are withheld from the public Proof, so Fair Split's server ran this check over the full record.",
@@ -140,8 +145,10 @@ export const STATE_COPY = {
   notPosted: "This run's Proof is published once both keys are signed and the batch is posted to PayPal.",
   noneHint: "A Proof appears for a run once its payout batch is posted.",
   showcase: "Open the season's Proof",
-  progress: (confirmed: number, total: number) => `Waiting for PayPal. ${confirmed} of ${total} confirmed.`,
-  settled: (confirmed: number, total: number) => `${confirmed} of ${total} confirmed by PayPal.`,
+  progress: (confirmed: number, total: number) =>
+    `Simulated PayPal sandbox: waiting, ${confirmed} of ${total} confirmed.`,
+  settled: (confirmed: number, total: number) =>
+    `${confirmed} of ${total} confirmed by PayPal (simulated sandbox).`,
   /** Items PayPal returned: their cash is due until the clerk attests it (paid only then). */
   returned: (returned: number, cashPaid: number) =>
     cashPaid >= returned
@@ -170,7 +177,9 @@ export const FIGURE_COPY = {
   premiumBreach: (amount: string) => `${amount} reached premium, which R0 forbids.`,
   paid: "Paid, in three tiers",
   tierPaypal: (rail: PaypalRail) =>
-    rail === "simulator" ? "Confirmed by PayPal (simulated sandbox)" : "Confirmed by PayPal",
+    rail === "simulator"
+      ? "Confirmed by PayPal (simulated sandbox)"
+      : "Configured PayPal rail (not simulated)",
   tierAttested: "Cash, attested at the bodega",
   tierDue: "Due",
   tierReserved: "Reserved, carried over",
@@ -186,31 +195,32 @@ export const FIGURE_COPY = {
   holdsKept: (amount: string) => `${amount} kept for members`,
   holdsNote: (duplicate: string, credit: string) =>
     `A duplicate slip counted once (${duplicate}) and a fine no rule allows, returned (${credit}).`,
-  holdsUnknown: "This run's holds aren't in this browser's copy of the season.",
-  rails: () => t("W-PF-01.metric.paypal"),
+  holdsUnknown: "This run's hold metrics are unavailable.",
+  rails: () => `${t("W-PF-01.metric.paypal")} (simulated sandbox)`,
   onPaypal: (count: number, total: number, share: string) =>
-    t("W-PF-01.metric.paypalValue", { count, total, share }),
-  railsPaypal: (members: number, share: string) => `${members} on PayPal this season, ${share} of value`,
+    `${t("W-PF-01.metric.paypalValue", { count, total, share })} (simulated PayPal sandbox)`,
+  railsPaypal: (members: number, share: string) =>
+    `${members} on PayPal (simulated sandbox) this season, ${share} of value`,
   railsCash: (members: number) => `${members} in cash at the bodega`,
   railsWord: "Cash",
   timing: () => t("W-PF-01.metric.time"),
   timingPending: "Still running",
   timingNote: "From the record's own timestamps: invoice funded to the last payout notice.",
-  source: "Computed in this page from the record above.",
+  source: "Computed from this record; fs-api supplies this run's public hold metrics.",
 } as const;
 
 export const FEES_COPY = {
   heading: "Fees",
-  summary: "What PayPal charged, and who pays it",
-  invoiceMarked: "Invoice: marked as paid in sandbox, so PayPal charged no fee.",
-  invoicePaid: "Invoice: PayPal's fee is pending reconciliation.",
+  summary: "Simulated PayPal sandbox fees and who budgets for them",
+  invoiceMarked: "Invoice: marked as paid in the Simulated PayPal sandbox, so the simulator charged no fee.",
+  invoicePaid: "Invoice: the simulated PayPal sandbox fee is not reported in this record.",
   payouts: (rail: PaypalRail, fee: string, n: number) =>
     rail === "simulator"
       ? `Payouts: the simulated sandbox reported ${fee} for ${n} payments.`
       : `Payouts: PayPal reported ${fee} for ${n} payments.`,
-  payoutsPending: "Payouts: PayPal's fee is pending reconciliation.",
+  payoutsPending: "Payouts: the simulated PayPal sandbox fee is not reported in this record.",
   disbursement: (line: string, unused: string) =>
-    `From the ${line} co-op disbursement line. Unused: ${unused}, still in the co-op's PayPal balance.`,
+    `From the ${line} co-op disbursement line. Unused: ${unused}, modelled in the co-op's simulated PayPal balance.`,
   production:
     "In production a Philippine co-op pays PayPal PH's fees: receiving 4.40% + US$0.30, payouts 2% capped at ₱50 each, conversion 3.0%.",
 } as const;

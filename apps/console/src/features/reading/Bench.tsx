@@ -8,6 +8,7 @@ import type { SnapshotPhoto } from "@fairsplit/contracts";
 import { type MotionMode, Paper } from "@fairsplit/ui-web";
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useState } from "react";
 import { READING_COPY } from "./copy.js";
+import { photoBandFrac, photoExhibit, photoFieldFrac } from "./exhibits.js";
 import { PhotoMat } from "./PhotoMat.js";
 import {
   boxFrac,
@@ -34,15 +35,18 @@ export interface BenchZoom {
 export const FIT: BenchZoom = { scale: 1, fx: 0.5, fy: 0.5 };
 
 /** The band across a slip at its net-kilos line. */
-export function bandFrac(position: SlipPosition): Frac {
+export function bandFrac(position: SlipPosition, photoId?: string, serial?: string): Frac {
+  const projected = photoId && serial ? photoBandFrac(photoId, serial) : null;
+  if (projected) return projected;
   const slip = slipFrac(position);
   const box = boxFrac(position, "net_kg");
   return { left: slip.left, top: box?.top ?? slip.top, width: slip.width, height: box?.height ?? 0 };
 }
 
 /** Zoom on one slip's net box (Space on a row: "opens the crop"). */
-export function zoomOnSlip(position: SlipPosition): BenchZoom {
-  const box = boxFrac(position, "net_kg");
+export function zoomOnSlip(position: SlipPosition, photoId?: string, serial?: string): BenchZoom {
+  const box =
+    (photoId && serial ? photoFieldFrac(photoId, serial, "net_kg") : null) ?? boxFrac(position, "net_kg");
   if (!box) return FIT;
   return {
     scale: ZOOM_STEPS[ZOOM_STEPS.length - 1] ?? 1,
@@ -71,6 +75,7 @@ export interface BenchProps {
 }
 
 export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId, aside }: BenchProps) {
+  const composition = photoExhibit(photo.photoId);
   const [tracking, setTracking] = useState(false);
   const bandSlip = band ? slips.find((s) => s.slip.serial === band) : undefined;
   const outlined = outline ? slips.find((s) => s.slip.serial === outline) : undefined;
@@ -133,7 +138,11 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
       aria-labelledby={`${testId}-title`}
       data-testid={testId}
       data-photo={photo.photoId}
-      style={{ ["--fsc-photo-aspect" as string]: String(PHOTO_W / PHOTO_H) }}
+      style={{
+        ["--fsc-photo-aspect" as string]: String(
+          composition ? composition.width / composition.height : PHOTO_W / PHOTO_H,
+        ),
+      }}
     >
       <header className="fsc-bench__head">
         <h2 id={`${testId}-title`} className="fs-t-label fsc-bench__title">
@@ -190,12 +199,14 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
               data-scale={s}
             >
               <PhotoMat
+                photoId={photo.photoId}
                 slips={slips}
                 detail="full"
                 outline={outlined ? { serial: outlined.slip.serial, field: "net_kg" } : null}
               >
                 {slips.map(({ position, slip }) => {
-                  const box = boxFrac(position, "net_kg");
+                  const box =
+                    photoFieldFrac(photo.photoId, slip.serial, "net_kg") ?? boxFrac(position, "net_kg");
                   return box ? (
                     <span
                       key={slip.serial}
@@ -210,7 +221,7 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
                     className="fsc-bench__band"
                     data-testid={`${testId}.band`}
                     data-serial={bandSlip.slip.serial}
-                    style={fracStyle(bandFrac(bandSlip.position))}
+                    style={fracStyle(bandFrac(bandSlip.position, photo.photoId, bandSlip.slip.serial))}
                   />
                 )}
               </PhotoMat>
@@ -218,6 +229,12 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
           </div>
         </Paper>
       </div>
+      {photoExhibit(photo.photoId) && (
+        <p className="fs-t-caption fsc-bench__source">
+          {photoExhibit(photo.photoId)?.label}. Photos A–L are composed in code from synthetic hero flats and
+          code-drawn slips.
+        </p>
+      )}
     </section>
   );
 }

@@ -33,7 +33,7 @@ const WAITING: Readonly<Record<FramePersona, FrameStatus>> = {
 export function useStageBridge(prefs: FramePrefs, handlers: StageBridgeHandlers = {}): StageBridgeApi {
   const { adapter } = useDataRuntime();
   const session = useJudgeSession();
-  const sessionId = session.session?.sessionId ?? null;
+  const sessionId = session.status === "active" ? (session.session?.sessionId ?? null) : null;
   const sessionRef = useRef(sessionId);
   sessionRef.current = sessionId;
   const handlersRef = useRef(handlers);
@@ -71,7 +71,10 @@ export function useStageBridge(prefs: FramePrefs, handlers: StageBridgeHandlers 
   // A session starts: every ready frame gets its token. A session ends: every frame drops it.
   const previous = useRef<string | null>(null);
   useEffect(() => {
-    if (sessionId && sessionId !== previous.current) void bridge.refreshTokens();
+    if (sessionId && sessionId !== previous.current) {
+      if (previous.current) bridge.reset();
+      void bridge.refreshTokens();
+    }
     if (!sessionId && previous.current) bridge.reset();
     previous.current = sessionId;
   }, [bridge, sessionId]);

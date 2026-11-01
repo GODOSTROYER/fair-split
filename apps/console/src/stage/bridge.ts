@@ -149,6 +149,7 @@ export class StageBridge {
   private readonly frames = new Map<FramePersona, FrameEntry>();
   private prefs: FramePrefs | null = null;
   private started = false;
+  private generation = 0;
   private readonly now: () => number;
   private readonly origin: string;
 
@@ -216,6 +217,7 @@ export class StageBridge {
 
   /** Tells every ready frame to drop its session (Reset). */
   reset(): void {
+    this.generation += 1;
     for (const entry of this.frames.values()) {
       if (entry.refresh) clearTimeout(entry.refresh);
       entry.refresh = null;
@@ -248,6 +250,8 @@ export class StageBridge {
     const message = parsed.data;
     switch (message.t) {
       case "fs.ready":
+        // A reload erased the frame memory even if its Window and token expiry stayed the same.
+        entry.tokenExp = null;
         entry.ready = true;
         entry.frameId = message.frameId;
         entry.build = message.build ?? null;
@@ -268,13 +272,14 @@ export class StageBridge {
   };
 
   private async sendToken(entry: FrameEntry): Promise<void> {
+    const generation = this.generation;
     let grant: FrameTokenGrant | null;
     try {
       grant = await this.options.tokenFor(entry.persona);
     } catch {
       return;
     }
-    if (!grant || this.frames.get(entry.persona) !== entry) return;
+    if (!grant || generation !== this.generation || this.frames.get(entry.persona) !== entry) return;
     if (entry.tokenExp !== null && grant.exp <= entry.tokenExp) return; // never resend a staler token
     entry.tokenExp = grant.exp;
     this.post(entry, {

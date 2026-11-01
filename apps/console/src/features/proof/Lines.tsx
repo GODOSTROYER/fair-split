@@ -39,6 +39,7 @@ export interface MemberLabel {
 
 export interface LinesProps {
   readonly bundle: ProofBundle;
+  readonly replayed?: boolean;
   readonly items: readonly ProofItemView[];
   readonly lineStates: LineStates;
   readonly slips: ReadonlyMap<string, SnapshotSlip>;
@@ -62,7 +63,17 @@ export const LINES_FOLD_PX = 560;
 
 type Trace = { readonly memberNo: string; readonly serial: string | null } | null;
 
-export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, card, names }: LinesProps) {
+export function Lines({
+  bundle,
+  items,
+  lineStates,
+  slips,
+  ruleNames,
+  markNames,
+  card,
+  names,
+  replayed = false,
+}: LinesProps) {
   const mm7 = useMoment("MM-7");
   const [trace, setTrace] = useState<Trace>(null);
   const presses = useRef(0);
@@ -238,6 +249,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                 <LineRows
                   key={line.memberNo}
                   line={line}
+                  replayed={replayed && line.rail === "PAYPAL"}
                   state={state}
                   label={names?.get(line.memberNo)}
                   names={names !== null}
@@ -499,6 +511,7 @@ function breakAfterAt(receiver: string): ReactNode {
 }
 
 interface LineRowsProps {
+  readonly replayed?: boolean;
   readonly line: ProofLine;
   readonly state: MemberLineState;
   readonly label: MemberLabel | undefined;
@@ -514,6 +527,7 @@ interface LineRowsProps {
 }
 
 function LineRows({
+  replayed = false,
   line,
   state,
   label,
@@ -530,10 +544,14 @@ function LineRows({
   const cash = line.rail === "CASH" || state === "OFF_RAIL_DUE" || state === "OFF_RAIL_PAID";
   const rail = (
     <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
-      <span>{cash ? "Cash" : "PayPal"}</span>
+      <span>{cash ? "Cash" : "Simulated PayPal sandbox"}</span>
     </span>
   );
-  const status = <StatusChip state={state} surface="console" />;
+  const status = replayed ? (
+    <span className="fs-chip">Replayed (labelled, simulated)</span>
+  ) : (
+    <StatusChip state={state} surface="console" />
+  );
   const peso = (
     <button
       type="button"

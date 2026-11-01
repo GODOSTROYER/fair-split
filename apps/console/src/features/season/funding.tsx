@@ -335,7 +335,7 @@ export function FundingBlock({
             {action}
           </div>
         )}
-        <div className="fsc-fund__draft" data-provenance="claude" data-testid={`${screen}.invoice.draft`}>
+        <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
           <p className="fsc-fund__draft-head fs-t-label">
             <Glyph name="pencil" size={16} />
             {SEASON_COPY.draftBy}

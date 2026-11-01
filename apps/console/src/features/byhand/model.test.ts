@@ -143,3 +143,15 @@ describe("the entry's field ID", () => {
     expect(showcase).not.toContain(fromRead);
   });
 });
+
+it("resolves a server field by its session slip serial even when row IDs differ from the showcase", () => {
+  expect(
+    resolveFieldId({
+      view: undefined,
+      snapshot,
+      serial: "0462",
+      field: "gross_kg",
+      fields: [{ id: "session-field", slipRowId: "session-row", serial: "0462", field: "gross_kg" }],
+    }),
+  ).toBe("session-field");
+});

@@ -215,6 +215,11 @@ export function Beds({
                     <td className="fsc-beds__member">
                       <span className="fsc-beds__print">{row.memberName}</span>
                       {row.memberNo && <span className="fsc-beds__no fs-t-caption">{row.memberNo}</span>}
+                      {row.standIn && (
+                        <span className="fsc-beds__no fs-t-caption">
+                          Seed stand-in, not a Claude recording
+                        </span>
+                      )}
                     </td>
                     <td className="fsc-beds__net" data-numeric="" data-flight-target={serial}>
                       {row.entered || row.confirmed ? (
@@ -235,12 +240,16 @@ export function Beds({
                           data-amount-state="you"
                           data-testid={`${testId}.zoom.${serial}`}
                         >
-                          <Print
-                            value={row.netKg}
-                            provenance="claude"
-                            state="pencil"
-                            confidence={row.score ?? 0}
-                          />
+                          {row.standIn ? (
+                            <span className="fs-t-figure">{row.netKg}</span>
+                          ) : (
+                            <Print
+                              value={row.netKg}
+                              provenance="claude"
+                              state="pencil"
+                              confidence={row.score ?? 0}
+                            />
+                          )}
                         </span>
                       ) : row.pending.length > 0 ? (
                         <AppLink
@@ -250,12 +259,16 @@ export function Beds({
                           aria-label={READING_COPY.byHand(serial)}
                           data-amount-state="you"
                         >
-                          <Print
-                            value={row.netKg}
-                            provenance="claude"
-                            state="pencil"
-                            confidence={row.score ?? 0}
-                          />
+                          {row.standIn ? (
+                            <span className="fs-t-figure">{row.netKg}</span>
+                          ) : (
+                            <Print
+                              value={row.netKg}
+                              provenance="claude"
+                              state="pencil"
+                              confidence={row.score ?? 0}
+                            />
+                          )}
                         </AppLink>
                       ) : (
                         <span className="fsc-beds__print fs-t-figure" data-amount-state="pencil">

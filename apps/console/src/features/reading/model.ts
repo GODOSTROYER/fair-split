@@ -78,6 +78,7 @@ export interface ReadingRow {
    */
   readonly illegible: boolean;
   readonly source: "event" | "seed";
+  readonly standIn: boolean;
   readonly eventId: string | null;
   readonly quarantined: boolean;
   /** The other photo this serial appears in (slip 0457: B's white original and D's pink copy). */
@@ -258,13 +259,17 @@ export function rowsForPhoto({ view, snapshot, photo }: RowsInput): (ReadingRow 
         mcPct: fieldText(event.fields, "mc_pct", slip.boxes["9"]),
         grade: fieldText(event.fields, "grade", slip.boxes["12"]),
         // A stand-in row built from the seed carries placeholder scores: no reading reported them, so none shows.
-        score: event.provenance !== "seeded" && scores.length > 0 ? Math.min(...scores) : null,
+        score:
+          event.provenance !== "seeded" && event.provenance !== "replay" && scores.length > 0
+            ? Math.min(...scores)
+            : null,
         pending: decided ? [] : pending,
         entered,
         zoomAgreed: decided ? null : agreed,
         confirmed,
         illegible: illegibleFields(event.fields),
         source: "event",
+        standIn: event.provenance === "seeded" || event.provenance === "replay",
         eventId: event.eventId,
         quarantined: quarantine.has(slip.serial),
         twinPhoto,
@@ -290,7 +295,6 @@ function seededRow(input: {
   const waiting = hold !== undefined && (hold.state === "OPEN" || hold.state === "ASKED_CHAIR") && !entered;
   const scores = waiting ? pendingScores(snapshot, slip.serial) : {};
   const pending = Object.keys(scores) as SlipFieldName[];
-  const minScore = pending.length > 0 ? Math.min(...pending.map((f) => scores[f] ?? 1)) : null;
   return {
     serial: slip.serial,
     photoId: photo.photoId,
@@ -302,13 +306,14 @@ function seededRow(input: {
       entered?.value ?? (waiting ? (stainedReading(slip, "net_kg") ?? slip.boxes["8"]) : slip.boxes["8"]),
     mcPct: slip.boxes["9"],
     grade: slip.boxes["12"],
-    score: minScore,
+    score: null,
     pending,
     entered,
     zoomAgreed: null,
     confirmed: null,
     illegible: false,
     source: "seed",
+    standIn: true,
     eventId: null,
     quarantined: quarantine.has(slip.serial),
     twinPhoto,
@@ -410,11 +415,11 @@ export function statusSentence({
     return `Photo ${id} was read on ${when}. Its four rows count in the season's kilos.`;
   }
   if (!started) {
-    return `Photo ${id} waits on the desk. Claude's reading replays once Lantern Bay's invoice is paid.`;
+    return `Photo ${id} waits on the desk. The labelled seed stand-in plays once Lantern Bay's invoice is paid.`;
   }
   const done = readCount(rows);
   if (reading && done === 0 && readingPhoto && readingPhoto !== id) {
-    return `Photo ${id} waits its turn. Claude is reading photo ${readingPhoto}.`;
+    return `Photo ${id} waits its turn. The seed stand-in is playing photo ${readingPhoto}.`;
   }
   if (photoIsBlurred(rows)) {
     const clerk = snapshot.officers.find((o) => o.role === "CLERK")?.shortName ?? "the clerk";
@@ -434,13 +439,13 @@ export function statusSentence({
     }
     if (row.quarantined) parts.push(quarantineNotice(snapshot, row.serial));
     if (row.zoomAgreed) {
-      parts.push(`Slip ${row.serial}: Claude's zoom read agrees with one of the two readings.`);
+      parts.push(`Slip ${row.serial}: the stand-in's zoom value agrees with one of its two readings.`);
     } else if (row.pending.length > 0) {
       const slip = snapshot.slips.find((s) => s.serial === row.serial);
       parts.push(
         slip?.artifacts.includes("WATER_STAIN")
           ? `Slip ${row.serial} needs a person: a water stain covers one digit.`
-          : `Slip ${row.serial} needs a person to confirm what Claude wasn't sure of.`,
+          : `Slip ${row.serial} needs a person to confirm the doubtful seed stand-in value.`,
       );
     }
   }

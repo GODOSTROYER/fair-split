@@ -1,3 +1,4 @@
+import { PAYOUT_REPLAY_NOTE, payoutReplayed, payoutReplaySummary } from "../../data/payout-replay.js";
 // The Proof column (S1.8 P1, design §6), shared by W-PF-01 and the brand view W-BR-01: the hero and its Verify,
 // the six-plate chain, where the money went, the plot field and the footers. One 680 px reading column on Adlaw;
 // every state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
@@ -78,6 +79,7 @@ function marksOf(snapshot: SeasonSnapshot | undefined) {
 }
 
 export function ProofView({ page, verification, rail, names = null, level = "h1" }: ProofViewProps) {
+  const replayed = payoutReplayed(page.runView, null, page.bundle);
   const Heading = level;
   const announce = useAnnounce();
   const { bundle, facts, figures, snapshot } = page;
@@ -97,8 +99,12 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
     const id = page.progressEvent;
     if (!id || id === lastAnnounced.current || page.progress.total === 0) return;
     lastAnnounced.current = id;
-    announce(`${page.progress.confirmed} of ${page.progress.total} confirmed by PayPal.`);
-  }, [page.progressEvent, page.progress, announce]);
+    announce(
+      replayed
+        ? payoutReplaySummary(page.progress.confirmed, page.progress.total)
+        : STATE_COPY.liveSettled(page.progress, rail),
+    );
+  }, [page.progressEvent, page.progress, announce, rail, replayed]);
 
   if (page.phase === "loading") return <ProofLoading />;
   if (page.phase === "error") {
@@ -162,9 +168,11 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
           >
             <Glyph name={settled ? "seal-fill" : "rail"} size={16} />
             <span>
-              {settled
-                ? STATE_COPY.liveSettled(page.progress, rail)
-                : STATE_COPY.liveProgress(page.progress, rail)}
+              {replayed
+                ? payoutReplaySummary(page.progress.confirmed, page.progress.total)
+                : settled
+                  ? STATE_COPY.liveSettled(page.progress, rail)
+                  : STATE_COPY.liveProgress(page.progress, rail)}
             </span>
             <span className="pf-progress__source">
               {page.live ? STATE_COPY.sourceSession : STATE_COPY.sourcePublic}
@@ -180,7 +188,8 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         progress={page.progress}
         verify={verification.state}
         rail={rail}
-        provenance={page.provenance}
+        provenance={replayed ? "replay" : page.provenance}
+        replayed={replayed}
         slips={slips}
         ruleNames={ruleNames}
         markNames={markNames}
@@ -195,13 +204,19 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         <Figures
           bundle={bundle}
           figures={figures}
+          items={page.items}
+          lineStates={page.lineStates}
+          replayed={replayed}
           rail={rail}
           progressEvent={page.progressEvent}
           fees={page.fees}
         />
       )}
       <PlotField bundle={bundle} />
-      <ProofFooter rail={rail} provenance={page.provenance ? provenanceWords(page.provenance) : null} />
+      <ProofFooter
+        rail={rail}
+        provenance={replayed ? PAYOUT_REPLAY_NOTE : page.provenance ? provenanceWords(page.provenance) : null}
+      />
     </>
   );
 }

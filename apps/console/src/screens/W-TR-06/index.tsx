@@ -338,6 +338,7 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       <HoldCard
         key={slabKey}
         hold={card}
+        readingProvenance="seeded"
         gate={hold.gate}
         actions={actions}
         {...(stamp ? { resolution: stamp } : {})}

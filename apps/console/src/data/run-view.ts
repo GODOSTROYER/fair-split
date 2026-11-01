@@ -37,6 +37,8 @@ export interface RunLine {
 }
 
 export interface RunItem {
+  /** Kept independently of the bounded event log. */
+  readonly provenance?: Provenance;
   readonly senderItemId: string;
   readonly memberNo: string;
   readonly status: PayoutItemStatus;
@@ -235,6 +237,7 @@ export function showcaseView(snapshot: SeasonSnapshot): RunView {
       rank: PAYOUT_ITEM_RANK[item.status],
       payoutItemId: item.payoutItemId,
       source: "seed",
+      provenance: "seeded",
       eventId: item.eventId,
       at: null,
     };
@@ -311,7 +314,15 @@ function applyRunState(view: RunView, e: RunEventOf<"run.state">): RunView {
   const { from, to } = e.payload;
   // Compare-and-set (the server's FSM may legitimately move back to IN_REVIEW when approvals are voided),
   // or a forward catch-up after a gap. Anything else is stale.
-  if (from === current || PAY_RUN_RANK[to] > PAY_RUN_RANK[current]) return { ...view, state: to };
+  if (from === current || PAY_RUN_RANK[to] > PAY_RUN_RANK[current]) {
+    const voided =
+      to === "IN_REVIEW" && ["TREASURER_APPROVED", "AWAITING_BOARD", "APPROVED", "POSTING"].includes(from);
+    return {
+      ...view,
+      state: to,
+      ...(voided ? { approvals: { ...view.approvals, treasurer: null, chair: null } } : {}),
+    };
+  }
   return view;
 }
 
@@ -329,6 +340,7 @@ function applyItem(view: RunView, e: RunEventOf<"item.updated">): RunView {
       rank,
       payoutItemId: p.payoutItemId ?? current?.payoutItemId ?? null,
       source: p.source,
+      provenance: e.provenance,
       eventId: e.id,
       at: e.at,
     },

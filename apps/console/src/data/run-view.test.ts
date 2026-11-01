@@ -189,3 +189,26 @@ describe("run view reducer", () => {
     expect(lineAmountState(at(events.length), "M-014")).toBe("landed");
   });
 });
+
+it("inv.i4 a refused signed batch returns to review with both approvals voided", () => {
+  const approved = { ...showcaseView(snapshot), state: "APPROVED" as const };
+  expect(approved.approvals.treasurer).not.toBeNull();
+  const next = applyRunEvent(approved, {
+    id: "999999",
+    runId: approved.runId,
+    ws: "ws",
+    at: "2026-11-01T10:00:00Z",
+    provenance: "live",
+    actor: { kind: "system", id: "outbox", impersonatedBy: null },
+    type: "run.state",
+    payload: {
+      runId: approved.runId,
+      from: "APPROVED",
+      to: "IN_REVIEW",
+      cause: { code: "SEND_BACK", ref: "DIGEST_MISMATCH" },
+    },
+  } as RunEvent);
+  expect(next.state).toBe("IN_REVIEW");
+  expect(next.approvals.treasurer).toBeNull();
+  expect(next.approvals.chair).toBeNull();
+});

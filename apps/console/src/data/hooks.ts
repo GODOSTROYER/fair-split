@@ -3,14 +3,17 @@
 // then confirm. Nothing here formats money: that is lib/format.
 
 import { judgeRoutes, type ReplayReason } from "@fairsplit/api-client";
-import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
+import { PAY_RUN_RANK, type RunEvent, type SeasonSnapshot } from "@fairsplit/contracts";
 import { type UseMutationOptions, type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { PaypalRail } from "../lib/env.js";
 import type { CallableName, CommandInput, CommandResponse, GetCommandName, StreamStatus } from "./adapter.js";
 import { type DescribeContext, describeContext } from "./describe.js";
 import type { CommandError } from "./errors.js";
+import { isApiClientError } from "./errors.js";
 import type { EventMeta } from "./hub.js";
+import { pacedCall } from "./pacing.js";
+import { payoutReplayed } from "./payout-replay.js";
 import { useDataRuntime } from "./provider.js";
 import { firstViewQuery, queryKeys, runViewQuery, snapshotQuery } from "./query.js";
 import type { RunView } from "./run-view.js";
@@ -25,12 +28,63 @@ export function useCommand<N extends CallableName>(
   name: N,
   options: Omit<UseMutationOptions<CommandResponse<N>, CommandError<N>, CommandInput<N>>, "mutationFn"> = {},
 ) {
-  const { adapter } = useDataRuntime();
-  return useMutation<CommandResponse<N>, CommandError<N>, CommandInput<N>>({
+  const { adapter, session } = useDataRuntime();
+  const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
+  const [queue, setQueue] = useState<{ workspace: string | undefined; ms: number } | null>(null);
+  const attempt = useRef(0);
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (state.status !== "active") abort.current?.abort();
+    return () => {
+      abort.current?.abort();
+    };
+  }, [state.session?.workspaceId, state.status]);
+  const mutation = useMutation<CommandResponse<N>, CommandError<N>, CommandInput<N>>({
     ...options,
     mutationKey: ["command", name],
-    mutationFn: (input) => adapter.call(name, input),
+    mutationFn: async (input) => {
+      const workspace = session.getState().session?.workspaceId;
+      const serial = ++attempt.current;
+      abort.current?.abort();
+      const controller = new AbortController();
+      abort.current = controller;
+      const current = () =>
+        session.getState().session?.workspaceId === workspace && session.getState().status !== "resetting";
+      return pacedCall(
+        async () => {
+          try {
+            return await adapter.call(name, input);
+          } catch (error) {
+            // A duplicate Mark paid races the first payment: read its run before calling it a refusal.
+            if (name === "markPaid" && isApiClientError(error) && error.status === 409) {
+              const status = await judgeRoutes(adapter.api).judgeSession();
+              const rank = status.runState ? PAY_RUN_RANK[status.runState] : 0;
+              if (
+                status.runSlug === (input as { params?: { runSlug?: string } }).params?.runSlug &&
+                rank >= PAY_RUN_RANK.FUNDED &&
+                rank < 99
+              ) {
+                return { runState: status.runState } as CommandResponse<N>;
+              }
+            }
+            throw error;
+          }
+        },
+        (ms) => {
+          if (serial === attempt.current) setQueue(ms === null ? null : { workspace, ms });
+        },
+        current,
+        controller.signal,
+      );
+    },
   });
+  return {
+    ...mutation,
+    queuedMs:
+      queue?.workspace === state.session?.workspaceId && state.status === "active"
+        ? (queue?.ms ?? null)
+        : null,
+  };
 }
 
 /** A GET command as a query (approvalPayload, proof, proofJson, proofExport). */
@@ -90,19 +144,48 @@ export function useJudgeSession(): JudgeSessionApi {
  * Why the API replays PayPal steps for this judge session (S3.9, GET /v1/judge/session `rail.reason`), or null:
  * read while a session is active and every 15 s after, so the stage can name the circuit and a low balance.
  */
-export function useJudgeReplayReason(): ReplayReason | null {
-  const { adapter, session } = useDataRuntime();
+export function useJudgeReplayRail() {
+  const { adapter, session, client } = useDataRuntime();
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const sessionId = state.status === "active" ? (state.session?.sessionId ?? null) : null;
+  const runKey = sessionId ? `${sessionId}:${state.session?.workspaceId}` : null;
+  const run = useQuery<RunView>({
+    queryKey: queryKeys.run(state.session?.runSlug ?? "first-view"),
+    enabled: false,
+  }).data;
+  const replayed = payoutReplayed(run);
   const query = useQuery({
-    queryKey: ["judge-session-status", sessionId] as const,
+    queryKey: ["judge-session-status", sessionId, state.session?.workspaceId] as const,
     queryFn: () => judgeRoutes(adapter.api).judgeSession(),
     enabled: sessionId !== null,
     refetchInterval: 15_000,
     staleTime: 10_000,
     retry: false,
   });
-  return sessionId !== null ? (query.data?.rail.reason ?? null) : null;
+  const retainedKey = ["payout-replay-rail", runKey] as const;
+  const retained = useQuery<NonNullable<typeof query.data>["rail"]>({
+    queryKey: retainedKey,
+    enabled: false,
+    gcTime: 30 * 60_000,
+  }).data;
+  const rail = query.data?.rail;
+  useEffect(() => {
+    if (runKey && rail?.mode === "replay") client.setQueryData(["payout-replay-rail", runKey], rail);
+  }, [client, runKey, rail]);
+  const refreshedReplay = useRef<string | null>(null);
+  const { refetch } = query;
+  useEffect(() => {
+    if (!runKey || !replayed || refreshedReplay.current === runKey) return;
+    refreshedReplay.current = runKey;
+    void refetch();
+  }, [runKey, replayed, refetch]);
+  if (sessionId === null) return null;
+  // Quotas can reopen while this run still contains replayed payouts. Keep the API's original label for it.
+  return replayed && retained ? retained : (rail ?? null);
+}
+
+export function useJudgeReplayReason(): ReplayReason | null {
+  return useJudgeReplayRail()?.reason ?? null;
 }
 
 /** The status of a stream nobody asked for. One constant: useSyncExternalStore needs a stable snapshot. */

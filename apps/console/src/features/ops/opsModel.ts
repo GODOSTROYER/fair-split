@@ -167,11 +167,11 @@ function uptimeWords(s: number): string {
 }
 
 export function railLabelWords(rail: "simulated" | "sandbox" | undefined): string {
-  if (rail === "sandbox") return "PayPal sandbox";
+  if (rail === "sandbox") return "PayPal sandbox (untested in this build)";
   return "Simulated PayPal sandbox";
 }
 
-const NOT_SERVED = "Not served yet";
+const NOT_SERVED = "Not served in this build";
 
 export function healthRows(
   live: ReadOutcome<Healthz> | undefined,
@@ -382,11 +382,11 @@ export const FLAG_WORDS: Readonly<
   },
   kill_paypal_live: {
     name: "PayPal calls",
-    effect: "PayPal steps replay the last real run, labelled, instead of calling PayPal.",
+    effect: "Simulated PayPal steps use a labelled replay instead of calling the simulator.",
   },
   kill_ai_live: {
     name: "Live slip reading",
-    effect: "Claude reads nothing live; the recorded run still plays.",
+    effect: "Claude reads nothing live; the labelled seed stand-in still plays.",
   },
 };
 
@@ -463,7 +463,9 @@ const SOURCE_WORDS: Readonly<
   Record<"webhook" | "status_check" | "post_response" | "cancel", (rail: PaypalRail) => string>
 > = {
   webhook: (rail) =>
-    rail === "simulator" ? "Webhook, signature checked (simulator)" : "Webhook, signature verified",
+    rail === "simulator"
+      ? "Webhook, signature checked (simulator)"
+      : "Webhook, signature checked (untested rail)",
   status_check: () => "Status check",
   post_response: () => "PayPal's answer to the batch",
   cancel: () => "Our cancel",

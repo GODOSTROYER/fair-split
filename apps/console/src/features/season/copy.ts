@@ -31,21 +31,21 @@ export const SEASON_COPY = {
   disbursementNote: "Payout costs, never shared",
   invoice: (number: string) => `Invoice ${number}`,
   invoiceTotal: "Lantern Bay pays",
-  draftBy: "Claude's draft",
-  draftNote: (recorded: string) =>
-    `Claude wrote the line labels in the recorded ${recorded} run. Every amount is the engine's quote, and policy checked the draft equals it before anything was sent.`,
+  draftBy: "Placeholder draft (seed-written)",
+  draftNote: (_recorded: string) =>
+    "Line labels: a placeholder written with the seed (no Claude recording in this build). Every amount is the engine's quote, checked by the live policy lattice before anything is sent.",
   memo: (note: string) => `Memo: ${note}`,
   autoCancel: (date: string) => `Auto-cancels ${date} if unpaid.`,
   sentBy: (name: string) => `Sent by ${name}`,
   funded: "Funded",
   waiting: "Waiting for payment",
   photos: (count: number) => `The desk: ${count} photos to read`,
-  photosNote: "Four slips a photo, in Jessie's hand. Open one in the reading room.",
+  photosNote: "Four synthetic slips a photo, composed in code. Open one in the reading room.",
   photoLabel: (id: string, serials: string, read: boolean) =>
     `Photo ${id}: slips ${serials}${read ? ", read" : ""}. Synthetic sample.`,
   evalTitle: "Reading eval",
   evalEmpty:
-    "No eval report reaches the console yet. When it does, 40 labelled synthetic cases fill these cells: ink for an exact row, a canary outline for a case sent to a person, red for an unsafe auto-accept.",
+    "No payroll eval report is served here. The reading room separately shows the ten real hero-slip readings with provisional, agent-checked labels.",
   evalCaption: (exact: string, baseline: string, unsafe: number, date: string) =>
     `40 labelled synthetic cases. Exact rows ${exact} against an OCR-only baseline of ${baseline}. Unsafe auto-accepts ${unsafe}. Run ${date}.`,
   evalCase: "Case",
@@ -57,13 +57,14 @@ export const SEASON_COPY = {
 /** The season's S1 states, in words. */
 export const SEASON_STATE_COPY = {
   unratified: "Ratify a rate card before the first slip.",
-  drafted: "Claude drafted the invoice. Send it to Lantern Bay once you've checked it.",
+  drafted: "The invoice is a seed-written placeholder. Send it to Lantern Bay once you've checked it.",
   "draft-refused":
-    "Claude's draft didn't match the code's quote, so policy refused it (invoiceEqualsQuote). Claude is drafting again.",
+    "The invoice draft didn't match the code's quote, so policy refused it (invoiceEqualsQuote). No invoice was sent.",
   waiting: "Sent to Lantern Bay. Waiting for payment.",
-  unverified: "A payment notice arrived that we couldn't verify. Nothing starts until PayPal confirms.",
+  unverified:
+    "A payment notice arrived that we couldn't verify. Nothing starts until the simulated PayPal sandbox confirms.",
   fundedPaid: "Paid by Lantern Bay.",
-  fundedMarked: "Marked as paid in sandbox.",
+  fundedMarked: "Marked as paid in the simulated PayPal sandbox.",
   autoCancelled: (date: string) => `Invoice auto-cancelled on ${date}. Send a new one.`,
   offline: (time: string | null) =>
     time
@@ -75,7 +76,7 @@ export const SEASON_STATE_COPY = {
 export function fundedSource(rail: PaypalRail): string {
   return rail === "simulator"
     ? "The payment was recorded, then the invoice read back as paid with nothing due."
-    : "The payment was recorded in PayPal's sandbox, then the invoice read back as paid with nothing due.";
+    : "The payment was recorded on the untested PayPal sandbox rail, then the invoice read back as paid with nothing due.";
 }
 
 /** The first view's single action (W-JG-01), and what happens while it runs. */
@@ -85,11 +86,11 @@ export const FIRST_VIEW_COPY = {
   pressNote: (rail: PaypalRail) =>
     rail === "simulator"
       ? "Records Lantern Bay's payment in the simulated PayPal sandbox, then reads the invoice back. Nothing starts until it reads as paid."
-      : "Records Lantern Bay's payment in PayPal's sandbox, then reads the invoice back. Nothing starts until it reads as paid.",
+      : "Records Lantern Bay's payment on the untested PayPal sandbox rail, then reads the invoice back. Nothing starts until it reads as paid.",
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
   pending: "Recording the payment, then reading the invoice back.",
-  funded: "Funded. Claude's reading of the slips replays next.",
+  funded: "Funded. The labelled seed stand-in for slip reading plays next.",
   movedOn: "The invoice is paid. The run has moved on.",
   openNext: "Go to the next step",
   rules: "The rules, bolted before the first slip",
@@ -99,7 +100,7 @@ export const FIRST_VIEW_COPY = {
   synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>
     funded
-      ? `${count} photos, four slips each, in Jessie's blue block capitals. Claude's reading of them replays now; each photo ticks once its slips are read.`
-      : `${count} photos, four slips each, in Jessie's blue block capitals. Claude reads them once the money is in.`,
+      ? `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. The labelled seed stand-in plays now; each photo ticks once its slips are read.`
+      : `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. The labelled seed stand-in plays once the money is in.`,
   stamp: (name: string) => `Pressed by ${name}`,
 } as const;

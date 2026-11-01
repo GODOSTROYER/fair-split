@@ -14,6 +14,7 @@ import type { RunView } from "../../data/run-view.js";
 /** One field as a read of the run's fields names it (the shape of IC-01's SlipFieldDTO it needs). */
 export interface FieldRef {
   readonly id: string;
+  readonly serial?: string;
   readonly slipRowId: string;
   readonly field: string;
 }
@@ -33,5 +34,5 @@ export function resolveFieldId({ view, snapshot, serial, field, fields }: FieldI
   if (!fields) return null;
   // The read names fields by their slip row; the run's rows for this serial (white original and any copy).
   const rows = new Set(snapshot.slips.filter((s) => s.serial === serial).map((s) => s.rowId));
-  return fields.find((f) => f.field === field && rows.has(f.slipRowId))?.id ?? null;
+  return fields.find((f) => f.field === field && (f.serial === serial || rows.has(f.slipRowId)))?.id ?? null;
 }

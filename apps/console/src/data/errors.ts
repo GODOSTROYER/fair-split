@@ -51,16 +51,17 @@ export const ERROR_WORDS: Readonly<Record<ErrorCode, string>> = {
   RESOLUTION_NOT_ALLOWED: "That decision doesn't apply to this hold.",
   INVALID_TRANSITION: "The run has moved on. Showing where it is now.",
   VERSION_CONFLICT: "This changed a moment ago. Showing the latest.",
-  SANDBOX_GUARD: "Only the sandbox is allowed here.",
-  QUEUED: "PayPal's sandbox is pacing us. You're in the queue.",
-  CIRCUIT_OPEN: "PayPal asked us to slow down. PayPal steps replay, labelled.",
+  SANDBOX_GUARD: "Only the simulated PayPal sandbox is allowed here.",
+  QUEUED:
+    "The simulated PayPal sandbox is pacing us (PayPal's documented limit, modelled). You're in the queue.",
+  CIRCUIT_OPEN: "The simulated PayPal rate limit paused calls. PayPal steps replay, labelled.",
   RATE_LIMITED: "Too many tries at once. Wait a moment, then try again.",
   IDEMPOTENCY_KEY_REUSED: "That upload was already received.",
   CONTENT_DIGEST_MISMATCH: "The photo changed on the way. Send it again.",
   POLICY_DENIED: "Policy refused it.",
   PAYPAL_REJECTED: "PayPal rejected it.",
   PAYPAL_UNAVAILABLE: "PayPal didn't answer in time.",
-  AI_LIVE_DISABLED: "Live slip reading is off. The recorded run still plays.",
+  AI_LIVE_DISABLED: "Live slip reading is off. The labelled seed stand-in still plays.",
   AI_BUDGET: "Today's live reading budget is spent.",
   VALIDATION_FAILED: "That doesn't fit what this step takes.",
   NOT_FOUND: "That isn't here any more.",
@@ -103,7 +104,7 @@ export function errorView(error: unknown): ErrorView {
   if (isApiClientError(error)) {
     const refs: string[] = [];
     if (error.requestId) refs.push(`Request ${error.requestId}`);
-    if (error.paypalDebugId) refs.push(`PayPal debug ID ${error.paypalDebugId}`);
+    if (error.paypalDebugId) refs.push(`Simulated PayPal debug ID ${error.paypalDebugId}`);
     const title = error.notImplemented ? NOT_BUILT_WORDS : ERROR_WORDS[error.code];
     return {
       title,
