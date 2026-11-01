@@ -84,7 +84,14 @@ test("over-quota payout: five plates match and payout statuses read Replayed (la
     );
     const verdict = page.getByTestId("W-PF-01.verdict");
     await expect(verdict).toHaveAttribute("data-state", "replay");
-    await expect(verdict).toContainText(/five of six match; one replayed, labelled/i);
-    await expect(verdict).not.toContainText(/mismatch|verified/i);
+    // Check the verdict, not the surrounding exact replay reason and sample-key disclaimer.
+    const verdictWord = page.getByTestId("W-PF-01.verdict.word");
+    await expect(verdictWord).toHaveAttribute("data-verdict", "replay");
+    await expect(verdictWord).toHaveText("five of six match; one replayed, labelled");
+    await expect(verdictWord).not.toContainText(/mismatch|verified/i);
+    await expect(page.getByTestId("W-PF-01.verdict.failure")).toHaveCount(0);
+    for (const plate of PLATES.filter((plate) => plate !== "payoutItems")) {
+      await expect(page.getByTestId(`W-PF-01.check.${plate}`)).toHaveAttribute("data-state", "matches");
+    }
   });
 });
