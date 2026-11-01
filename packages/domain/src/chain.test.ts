@@ -216,7 +216,210 @@ const ALL_OK = {
   payoutItems: { ok: true, reason: null },
 };
 
+/** Same recorded outcomes, explicitly replayed instead of simulator-signed notices. */
+function replayedProof(): ProofBundle {
+  const p = honestProof();
+  const states = new Map<string, string>();
+  return withCheckpoint({
+    ...p,
+    batch: { ...p.batch, items: p.batch.items.map((it) => ({ ...it, eventId: null, provenance: "replay" })) },
+    ledger: buildLedger(
+      p.ledger.map((e) => {
+        if (e.kind !== "webhook.applied") return e;
+        const ev = e.payload as Extract<LedgerPayload<"webhook.applied">, { resource: "payout_item" }>;
+        const from = states.get(ev.senderItemId) ?? "SUBMITTED";
+        states.set(ev.senderItemId, ev.status);
+        return plain(
+          "payout.item.replayed",
+          {
+            runId: p.runId,
+            senderItemId: ev.senderItemId,
+            payoutItemId: ev.payoutItemId,
+            from,
+            status: ev.status,
+            provenance: "replay",
+            source: ev.status === "RETURNED" ? "cancel" : "post_response",
+          },
+          e.at,
+        );
+      }),
+    ),
+  });
+}
+
 describe("verifyChain(proof): the chain and the six Proof plates", () => {
+  it("inv.i8.replayed-proof reports recorded statuses without claiming verified notices", () => {
+    const v = verify(replayedProof());
+    expect(v.status).toBe("replay");
+    expect(v.ok).toBe(false);
+    expect(v.plates.payoutItems).toEqual({
+      ok: true,
+      state: "replay",
+      reason:
+        "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+    });
+    expect(v).toHaveProperty("verdict", "five of six match; one replayed, labelled");
+    expect(Object.values(v.plates).filter((p) => p.ok && p.reason === null)).toHaveLength(5);
+  });
+
+  it("inv.i8.replayed-proof requires recorded evidence and preserves item consistency checks", () => {
+    const p = replayedProof();
+    const alter = (change: (p: ProofBundle) => ProofBundle) => verify(withCheckpoint(change(p)));
+    for (const v of [
+      alter((p) => ({
+        ...p,
+        ledger: buildLedger(p.ledger.filter((e) => e.kind !== "payout.item.replayed")),
+      })),
+      alter((p) => ({ ...p, ledger: buildLedger(p.ledger.filter((e) => e.kind !== "payout.cancel")) })),
+      alter((p) => ({
+        ...p,
+        batch: { ...p.batch, items: p.batch.items.map((it) => ({ ...it, status: "SUCCESS" })) },
+      })),
+      alter((p) => ({
+        ...p,
+        ledger: buildLedger(
+          p.ledger.map((e) =>
+            e.kind === "payout.item.replayed"
+              ? { ...e, payload: { ...(e.payload as object), runId: "another-run" } }
+              : e,
+          ),
+        ),
+      })),
+      alter((p) => ({
+        ...p,
+        ledger: buildLedger(
+          p.ledger.map((e) =>
+            e.kind === "payout.item.replayed"
+              ? { ...e, payload: { ...(e.payload as object), from: "PENDING" } }
+              : e,
+          ),
+        ),
+      })),
+    ]) {
+      expect(v.status).toBe("failed");
+      expect(v.plates.payoutItems.ok).toBe(false);
+      expect(v.plates.payoutItems).not.toHaveProperty("state", "replay");
+    }
+    expect(verify({ ...p, batch: { ...p.batch, note: "tampered" } }).status).toBe("failed");
+    const brokenChain = {
+      ...p,
+      ledger: p.ledger.map((e, i) => (i === 0 ? { ...e, entryHash: "0".repeat(64) } : e)),
+    };
+    expect(verify(brokenChain).status).toBe("failed");
+  });
+
+  it("inv.i8.replay evidence itself labels the plate even if item metadata is omitted", () => {
+    const p = replayedProof();
+    const items = p.batch.items.map(({ provenance: _provenance, ...it }) => it);
+    expect(verify({ ...p, batch: { ...p.batch, items } }).status).toBe("replay");
+  });
+
+  it("inv.i8.replay can record pending before an item is assigned its recorded ID", () => {
+    const p = replayedProof();
+    const first = p.batch.items[0];
+    if (!first) throw new Error("fixture must have an item");
+    const ledger = buildLedger(
+      p.ledger.flatMap((e) => {
+        if (e.kind !== "payout.item.replayed") return [e];
+        const ev = e.payload as LedgerPayload<"payout.item.replayed">;
+        if (ev.senderItemId !== first.senderItemId) return [e];
+        return [
+          fact("payout.item.replayed", { ...ev, payoutItemId: null, status: "PENDING" }, e.at),
+          fact("payout.item.replayed", { ...ev, from: "PENDING" }, e.at),
+        ];
+      }),
+    );
+    expect(verify(withCheckpoint({ ...p, ledger })).status).toBe("replay");
+    const wrongId = buildLedger(
+      ledger.map((e) =>
+        e.kind === "payout.item.replayed" &&
+        (e.payload as LedgerPayload<"payout.item.replayed">).status === "PENDING"
+          ? { ...e, payload: { ...(e.payload as object), payoutItemId: "WRONG-ITEM" } }
+          : e,
+      ),
+    );
+    expect(verify(withCheckpoint({ ...p, ledger: wrongId })).status).toBe("failed");
+    const unnamedTerminal = buildLedger(
+      p.ledger.map((e) =>
+        e.kind === "payout.item.replayed"
+          ? { ...e, payload: { ...(e.payload as object), payoutItemId: null } }
+          : e,
+      ),
+    );
+    expect(verify(withCheckpoint({ ...p, ledger: unnamedTerminal })).status).toBe("failed");
+  });
+
+  it("inv.i8.replay marks submitted items only after recorded replay post intent", () => {
+    const p = replayedProof();
+    const items = p.batch.items.map((it) => ({ ...it, status: "SUBMITTED" as const, payoutItemId: null }));
+    const intent = plain("judge.step.replayed", { runId: p.runId, step: "post" }, T("02:10:30"));
+    const facts = p.ledger.filter((e) => e.kind !== "payout.item.replayed" && e.kind !== "payout.cancel");
+    const ledger = buildLedger(facts.flatMap((e) => (e.kind === "payout.submitting" ? [intent, e] : [e])));
+    expect(verify(withCheckpoint({ ...p, batch: { ...p.batch, items }, ledger })).status).toBe("replay");
+    const noIntent = buildLedger(facts);
+    expect(verify(withCheckpoint({ ...p, batch: { ...p.batch, items }, ledger: noIntent })).status).toBe(
+      "failed",
+    );
+    const lateIntent = buildLedger([...facts, intent]);
+    expect(verify(withCheckpoint({ ...p, batch: { ...p.batch, items }, ledger: lateIntent })).status).toBe(
+      "failed",
+    );
+    const pending = items.map((it) => ({ ...it, status: "PENDING" as const }));
+    expect(verify(withCheckpoint({ ...p, batch: { ...p.batch, items: pending }, ledger })).status).toBe(
+      "failed",
+    );
+  });
+
+  it("inv.i8.replayed terminal outcomes require a recorded item ID even if metadata omits it", () => {
+    const p = replayedProof();
+    const items = p.batch.items.map((it) => ({ ...it, payoutItemId: null }));
+    const ledger = buildLedger(
+      p.ledger.map((e) =>
+        e.kind === "payout.item.replayed"
+          ? { ...e, payload: { ...(e.payload as object), payoutItemId: null } }
+          : e,
+      ),
+    );
+    expect(verify(withCheckpoint({ ...p, batch: { ...p.batch, items }, ledger })).status).toBe("failed");
+  });
+
+  it("inv.i8.a replayed webhook never qualifies as a verified notice", () => {
+    const p = honestProof();
+    const ledger = buildLedger(
+      p.ledger.map((e) =>
+        e.kind === "webhook.applied"
+          ? { ...e, payload: { ...(e.payload as object), provenance: "replay" } }
+          : e,
+      ),
+    );
+    expect(verify(withCheckpoint({ ...p, ledger })).plates.payoutItems.ok).toBe(false);
+  });
+
+  it("inv.i8.malformed current-item replay evidence fails closed even without metadata", () => {
+    const p = honestProof();
+    const first = p.batch.items[0];
+    if (!first) throw new Error("fixture must have an item");
+    const items = p.batch.items.map((it) => ({ ...it, status: "PENDING" as const, eventId: null }));
+    const facts = p.ledger.filter((e) => e.kind !== "webhook.applied" && e.kind !== "payout.cancel");
+    const ledger = buildLedger([
+      ...facts,
+      plain("payout.item.replayed", {
+        runId: p.runId,
+        senderItemId: first.senderItemId,
+        status: "PENDING",
+        provenance: "replay",
+      }),
+    ]);
+    expect(verify(withCheckpoint({ ...p, batch: { ...p.batch, items }, ledger })).plates.payoutItems.ok).toBe(
+      false,
+    );
+  });
+
+  it("inv.i8.replay metadata cannot relabel a verified item history", () => {
+    const p = honestProof();
+    const items = p.batch.items.map((it) => ({ ...it, provenance: "replay" as const }));
+    expect(verify({ ...p, batch: { ...p.batch, items } }).plates.payoutItems.ok).toBe(false);
+  });
   it("verifies an honest proof, with the same result through injected crypto", () => {
     const v = verify(honestProof());
     expect(v.plates).toEqual(ALL_OK);

@@ -483,6 +483,15 @@ describe("ledger payloads the Proof binds (S3.12)", () => {
       note: "Fair Split 2026-A, batch bbbbbbbb",
     },
     "payout.cancel": { senderItemId: "r37-M-031", payoutItemId: "ITEM6", afterCancel: "cash" },
+    "payout.item.replayed": {
+      runId: "run-1",
+      senderItemId: "r37-M-014",
+      payoutItemId: "REPLAY-ITEM1",
+      from: "SUBMITTED",
+      status: "SUCCESS",
+      provenance: "replay",
+      source: "post_response",
+    },
     "webhook.applied": {
       resource: "payout_item",
       eventId: "WH-1",
@@ -513,6 +522,17 @@ describe("ledger payloads the Proof binds (S3.12)", () => {
       expect(schema.safeParse({ ...without, overrides: bad }).success, String(bad)).toBe(false);
     }
     expect(schema.safeParse({ ...without, overrides: 2 }).success).toBe(true);
+  });
+
+  it("inv.i8.replay evidence cannot claim verification or omit its recorded provenance", () => {
+    const schema = LedgerPayloads["payout.item.replayed"];
+    const sample = samples["payout.item.replayed"] as Record<string, unknown>;
+    expect(schema.safeParse(sample).success).toBe(true);
+    expect(schema.safeParse({ ...sample, provenance: "simulated_rail" }).success).toBe(false);
+    expect(schema.safeParse({ ...sample, verified: "self" }).success).toBe(false);
+    expect(schema.safeParse({ ...sample, source: "unknown" }).success).toBe(false);
+    const { provenance: _provenance, ...without } = sample;
+    expect(schema.safeParse(without).success).toBe(false);
   });
 
   it("types webhook.applied by resource", () => {

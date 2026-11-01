@@ -527,29 +527,96 @@ function platePayoutItems(p: ProofBundle, c: ProofCrypto): PlateResult {
   }
 
   const events = attestedEntries(p.ledger, "webhook.applied");
+  for (const e of p.ledger) {
+    if (e.kind !== "payout.item.replayed") continue;
+    const q = e.payload;
+    if (q === null || typeof q !== "object" || Array.isArray(q)) continue;
+    if (
+      (q.runId === p.runId || b.items.some((it) => it.senderItemId === q.senderItemId)) &&
+      !LedgerPayloads["payout.item.replayed"].safeParse(q).success
+    ) {
+      return fail("An item status does not match its labelled replay record.");
+    }
+  }
+  const replays = attestedEntries(p.ledger, "payout.item.replayed");
   const cancels = attestedEntries(p.ledger, "payout.cancel");
+  const replayPostSelected = p.ledger.some((e) => {
+    const q = e.payload;
+    return (
+      e.kind === "judge.step.replayed" &&
+      e.seq < submitting.seq &&
+      q !== null &&
+      typeof q === "object" &&
+      !Array.isArray(q) &&
+      q.runId === p.runId &&
+      q.step === "post"
+    );
+  });
+  let replayed = false;
   for (const it of b.items) {
     let status: PayoutItemStatus = "SUBMITTED";
     let lastEventId: string | null = null;
-    for (const e of events) {
+    let itemReplayed = false;
+    const itemReplays = replays.filter((e) => e.payload.senderItemId === it.senderItemId);
+    const itemEvents = events.filter(
+      (e) => e.payload.resource === "payout_item" && e.payload.senderItemId === it.senderItemId,
+    );
+    for (const e of [...itemEvents, ...itemReplays].sort((a, b) => a.seq - b.seq)) {
       const ev = e.payload;
-      if (ev.resource !== "payout_item" || ev.senderItemId !== it.senderItemId) continue;
+      const cancelRequested = cancels.some(
+        (x) => x.payload.senderItemId === it.senderItemId && x.seq > submitting.seq && x.seq < e.seq,
+      );
+      if ("source" in ev) {
+        if (
+          ev.runId !== p.runId ||
+          e.seq < submitting.seq ||
+          (ev.payoutItemId === null && ev.status !== "PENDING") ||
+          (ev.payoutItemId !== it.payoutItemId && !(ev.payoutItemId === null && ev.status === "PENDING")) ||
+          ev.from !== status
+        )
+          return fail("An item status does not match its labelled replay record.");
+        const applied = applyItemStatus(status, ev.status, { cancelRequested });
+        if (!applied.applied) return fail("An item status does not match its labelled replay record.");
+        status = applied.next;
+        lastEventId = null;
+        itemReplayed = true;
+        continue;
+      }
+      if (ev.resource !== "payout_item") continue;
       if (
         e.seq < submitting.seq ||
         ev.verified === "dev_mock" ||
+        ev.provenance === "replay" ||
+        it.provenance === "replay" ||
+        itemReplayed ||
         itemStatusFromEvent(ev.eventType) !== ev.status ||
         ev.payoutItemId !== it.payoutItemId
       ) {
         return fail("An item status does not rest on a verified event.");
       }
-      const cancelRequested = cancels.some(
-        (x) => x.payload.senderItemId === it.senderItemId && x.seq > submitting.seq && x.seq < e.seq,
-      );
       const applied = applyItemStatus(status, ev.status, { cancelRequested });
       if (applied.applied) {
         status = applied.next;
         lastEventId = ev.eventId;
       }
+    }
+    if (itemReplayed || it.provenance === "replay") {
+      // Before the replay POST returns, no status was applied: the chain attests intent only.
+      if (
+        !itemReplayed &&
+        replayPostSelected &&
+        it.status === "SUBMITTED" &&
+        it.eventId === null &&
+        it.payoutItemId === null
+      ) {
+        replayed = true;
+        continue;
+      }
+      if (!itemReplayed || status !== it.status || it.eventId !== null) {
+        return fail("An item status does not match its labelled replay record.");
+      }
+      replayed = true;
+      continue;
     }
     const rests =
       lastEventId === null
@@ -557,6 +624,13 @@ function platePayoutItems(p: ProofBundle, c: ProofCrypto): PlateResult {
         : status === it.status && lastEventId === it.eventId;
     if (!rests) return fail("An item status does not rest on a verified event.");
   }
+  if (replayed)
+    return {
+      ok: true,
+      state: "replay",
+      reason:
+        "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+    };
   return PASS;
 }
 
@@ -619,14 +693,17 @@ export function verifyChainWith(
   const consistent = chain.ok && checkpoint.ok && Object.values(plates).every((p) => p.ok);
   const status: ProofStatus = !consistent
     ? "failed"
-    : sample.size === 0
-      ? "verified"
-      : demoMode
-        ? "sample"
-        : "failed";
+    : plates.payoutItems.state === "replay"
+      ? "replay"
+      : sample.size === 0
+        ? "verified"
+        : demoMode
+          ? "sample"
+          : "failed";
   return {
     ok: status === "verified",
     status,
+    ...(status === "replay" ? { verdict: "five of six match; one replayed, labelled" } : {}),
     chain: { ok: chain.ok, entries: ledger.length, brokenAtSeq: chain.brokenAtSeq },
     checkpoint,
     plates,
