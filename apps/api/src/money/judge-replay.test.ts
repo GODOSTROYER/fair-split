@@ -232,7 +232,7 @@ describe("a judge run whose PayPal steps replay (balance under the floor) calls 
           ok: true,
           state: "replay",
           reason:
-            "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+            "Replayed (labelled): these statuses come from an earlier simulated run (including a seed snapshot), not fresh simulator notices",
         },
       },
     });

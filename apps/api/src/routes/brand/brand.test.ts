@@ -38,7 +38,7 @@ describe("GET /v1/brand/:runSlug", () => {
     });
     expect(v.invoice).toMatchObject({
       invoiceNumber: `FS-${w.runSlug}`,
-      statusWords: "Marked as paid in sandbox",
+      statusWords: "Marked as paid in the simulated PayPal sandbox",
       payerViewUrl: null,
     });
     expect(v.proofReady).toBe(true);

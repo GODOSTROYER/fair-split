@@ -150,7 +150,7 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
     expect(result.code, result.output).toBe(0);
     expect(result.output.match(/: Matches/g)).toHaveLength(6);
     expect(result.output).toContain(
-      "Payout items and batchSha256: Matches (checked by the server: payout receivers are withheld on the public Proof)",
+      "Payout items and batchSha256: Matches (checked by the server: payout receivers are withheld on this Proof tier)",
     );
     expect(result.output).toContain("Six of six match");
     expect(result.output).toContain("Sample, never Verified");
