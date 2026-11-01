@@ -257,6 +257,8 @@ export interface KeyModelStatus {
   cap: number;
   remaining: number;
   cooling: { until: string; scope: "minute" | "day" } | null;
+  /** Generation refused this model on this account for this run; other models remain eligible. */
+  unavailable?: string;
 }
 
 export interface PoolStatus {
@@ -278,6 +280,7 @@ export class KeyPool<C> {
   readonly #slots: readonly Slot[];
   readonly #clients = new Map<string, C>();
   readonly #dropped = new Map<string, string>();
+  readonly #modelUnavailable = new Map<string, string>();
   readonly #streak = new Map<string, number>();
   readonly #ledger: QuotaLedger;
   readonly #makeClient: (apiKey: string) => C;
@@ -409,12 +412,13 @@ export class KeyPool<C> {
         const used = keyCounts(q, day, s.id, m).requests;
         const c = q.keys?.[s.id]?.cooling[m];
         const cooling = c && Date.parse(c.until) > now.getTime() ? { until: c.until, scope: c.scope } : null;
-        const remaining = dropped ? 0 : Math.max(0, cap - used);
-        byModel[m] = { used, cap, remaining, cooling };
+        const unavailable = this.#modelUnavailable.get(`${s.id} ${m}`);
+        const remaining = dropped || unavailable ? 0 : Math.max(0, cap - used);
+        byModel[m] = { used, cap, remaining, cooling, ...(unavailable ? { unavailable } : {}) };
         total[m] ??= { used: 0, cap: 0, remaining: 0 };
         const t = total[m];
         t.used += used;
-        if (!dropped) t.cap += cap;
+        if (!dropped && !unavailable) t.cap += cap;
         t.remaining += remaining;
       }
       return { id: s.id, dropped, models: byModel };
@@ -471,9 +475,21 @@ export class KeyPool<C> {
     const n = this.#slots.length;
     for (;;) {
       const order = Array.from({ length: n }, (_, i) => (this.#cursor + i) % n).filter(
-        (i) => !this.#dropped.has((this.#slots[i] as Slot).id),
+        (i) =>
+          !this.#dropped.has((this.#slots[i] as Slot).id) &&
+          !this.#modelUnavailable.has(`${(this.#slots[i] as Slot).id} ${model}`),
       );
       if (!order.length) {
+        const unavailable = this.#slots.filter((s) => this.#modelUnavailable.has(`${s.id} ${model}`));
+        if (unavailable.length)
+          throw new GeminiCallError(
+            `No eligible account can access ${model}: ${unavailable
+              .map((s) => `${s.id}: ${this.#modelUnavailable.get(`${s.id} ${model}`)}`)
+              .join("; ")}`,
+            404,
+            "other",
+            unavailable[0]?.id ?? "pool",
+          );
         throw new PoolExhaustedError(
           `Every Gemini key was refused this run (dropped: ${this.dropped()
             .map((d) => d.id)
@@ -563,6 +579,12 @@ export class KeyPool<C> {
       return;
     }
     await this.#ledger.settle(model, slot.id, { ok: false, message });
+    if (info.status === 404 && /model.*(?:no longer available|not found|not supported)/i.test(message)) {
+      const reason = `HTTP 404: ${message}`;
+      this.#modelUnavailable.set(`${slot.id} ${model}`, reason);
+      this.#log(`[pool] key ${slot.id} cannot access ${model} this run (${reason}); moving to the next key`);
+      return;
+    }
     throw new GeminiCallError(message, info.status, "other", slot.id);
   }
 }
@@ -583,6 +605,7 @@ export function formatPoolStatus(s: PoolStatus): string {
       const notes = [
         k.dropped ? `dropped this run (${k.dropped})` : "",
         st.cooling ? `cooling (${st.cooling.scope}) until ${st.cooling.until}` : "",
+        st.unavailable ? `model unavailable this run (${st.unavailable})` : "",
       ].filter(Boolean);
       lines.push(
         `  ${k.id}  ${st.used} used, ${st.remaining} remaining${notes.length ? `  ${notes.join("; ")}` : ""}`,

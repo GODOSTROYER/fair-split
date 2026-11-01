@@ -773,3 +773,38 @@ describe("no key value leaves memory: tts models, the entry point, truncation an
     expectNoKey(text, [google, ...KEYS]);
   });
 });
+
+it("inv.i8.model-account-refusal: skips a 404 account only for that model and settles every attempt", async () => {
+  const h = harness(2);
+  const seen: string[] = [];
+  const result = await h.pool.run("gemini-2.5-flash", async (_client, id) => {
+    seen.push(id);
+    if (id === IDS[0])
+      throw Object.assign(new Error(`This model is no longer available to new users ${KEYS[0]}`), {
+        status: 404,
+      });
+    return "verified";
+  });
+  expect(result).toBe("verified");
+  expect(seen).toEqual([IDS[0], IDS[1]]);
+  expect(await h.pool.run(ASR_MODEL, async (_client, id) => id)).toBe(IDS[0]);
+  expect(h.pool.dropped()).toEqual([]);
+  const status = await h.pool.status([ASR_MODEL, "gemini-2.5-flash"]);
+  expect(status.keys[0]?.models["gemini-2.5-flash"]).toMatchObject({
+    used: 1,
+    remaining: 0,
+    unavailable: expect.stringContaining("404"),
+  });
+  expect((await h.ledger.today("gemini-2.5-flash")).requests).toBe(2);
+  expect((await h.ledger.today("gemini-2.5-flash")).failed).toBe(1);
+  expect(JSON.stringify(status) + h.logs.join("\n")).not.toContain(KEYS[0]);
+});
+it("inv.i8.model-account-exhaustion: every account's model refusal remains a service error rather than quota", async () => {
+  const h = harness(2);
+  await expect(
+    h.pool.run("gemini-2.5-flash", async () => {
+      throw Object.assign(new Error("This model is no longer available to new users"), { status: 404 });
+    }),
+  ).rejects.toMatchObject({ name: "GeminiCallError", status: 404, kind: "other" });
+  expect((await h.ledger.today("gemini-2.5-flash")).requests).toBe(2);
+});
