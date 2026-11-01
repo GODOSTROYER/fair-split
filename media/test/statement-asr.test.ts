@@ -235,7 +235,7 @@ it("inv.i8.asr-fallback-order: tries 2.5 only after both higher free models fail
   for (const model of calls) expect((await ledger.today(model)).requests).toBe(1);
 });
 
-it("inv.i8.asr-retired-fallback: a listed but unavailable model is disabled while higher transient models recover", async () => {
+it("inv.i8.asr-retired-fallback: a listed model refused on one account does not prevent higher transient models recovering", async () => {
   mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
   const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-retired-"));
   roots.push(root);
@@ -274,4 +274,51 @@ it("inv.i8.asr-retired-fallback: a listed but unavailable model is disabled whil
   );
   expect(result.model).toBe(ASR_MODEL);
   expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash", "gemini-2.5-flash", ASR_MODEL]);
+});
+
+it("inv.i8.asr-account-availability: a 404 on one pooled key does not exclude a model for other keys", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-account-"));
+  roots.push(root);
+  let time = Date.now();
+  let lower = 0;
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, i) => `offline-${i}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep: async (ms) => {
+        time += ms;
+      },
+      makeClient: () => ({
+        models: {
+          generateContent: async (p: Record<string, unknown>) => {
+            if (p.model !== "gemini-2.5-flash")
+              throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+            if (++lower === 1)
+              throw Object.assign(new Error("This model is no longer available to new users"), {
+                status: 404,
+              });
+            expect(JSON.stringify(p)).toContain("Write numbers and currency amounts as spoken words");
+            return { text: '{"words":[{"text":"Hello","start":0.1,"end":0.5}]}' };
+          },
+        },
+      }),
+    },
+  );
+  const result = await listen(
+    {
+      asrPool: pool,
+      cacheDir: root,
+      asrSleep: async (ms) => {
+        time += ms;
+      },
+    },
+    Buffer.from("accounts"),
+    "audio/mp4",
+    "en",
+    true,
+  );
+  expect(result.model).toBe("gemini-2.5-flash");
+  expect(lower).toBe(2);
 });

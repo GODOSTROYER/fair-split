@@ -29,7 +29,7 @@ export class AsrUnavailableError extends Error {
 /** Never send the reference text to the recogniser: an independent check of the actual bytes. */
 export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, lang: string, timed = false) {
   const prompt = timed
-    ? `Transcribe this ${lang} audio verbatim in its original language. Return JSON only: {"words":[{"text":"word","start":0.0,"end":0.3}]}. One spoken word per item, with its start and end in seconds from the audio beginning. Include every word, no translation or commentary. Do not infer unspoken words.`
+    ? `Transcribe this ${lang} audio verbatim in its original language. Return JSON only: {"words":[{"text":"word","start":0.0,"end":0.3}]}. One spoken word per item, with its start and end in seconds from the audio beginning. Include every word, no translation or commentary. Write numbers and currency amounts as spoken words, never symbols or digits. Do not infer unspoken words.`
     : asrPrompt(lang);
   const models = deps.asrModels ?? ASR_MODELS;
   if (!models.length || models.some((model) => !ASR_MODELS.includes(model)))
@@ -85,10 +85,12 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
           error.status === 404 &&
           /no longer available|not found|not supported/i.test(error.message)
         ) {
-          state.failures = 6;
+          state.failures++;
           state.detail = `${model}: HTTP 404 ${error.message}`;
           lastError = error;
-          deps.log?.(`[asr] ${state.detail}; disabled for this run`);
+          deps.log?.(
+            `[asr] ${state.detail}; account refused this model; retry through the next pool key after higher models`,
+          );
           continue;
         }
         if (
