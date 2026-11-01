@@ -20,7 +20,7 @@ import { createHttpApi, type FairSplitApi } from "../_shims/api-client";
 import type { FramePrefs, Lang } from "../_shims/contracts";
 import { LANGS } from "../_shims/contracts";
 import type { ThemeName } from "../_shims/tokens.native";
-import { boardApiMode } from "../features/board/api-mode";
+import { boardApiMode, sessionSurfaceKey } from "../features/board/api-mode";
 import { keyVault } from "../platform/key-vault";
 import { prefs, secrets } from "../platform/kv";
 import { bootQuery } from "../platform/query";
@@ -136,7 +136,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Judge resets seen by this frame (`fs.reset`); demo data starts a fresh workspace after each. */
   const resets = useRef(0);
 
-  const origin = apiOrigin();
+  const origin = apiOrigin(inFrame);
   const localDemo = useMemo(() => createDemoApi({ now: () => new Date(), randomBytes }), []);
   const http = useMemo(
     () => (origin ? createHttpApi({ origin, getBearer: () => bearerRef.current, streamingFetch }) : null),
@@ -314,7 +314,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       framePrefs,
     ],
   );
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  // In-flight preview/workspace reads belong to the old mounted role state and cannot populate the new session.
+  return (
+    <AppContext.Provider key={sessionSurfaceKey(api.mode, session)} value={value}>
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 export function useApp(): AppValue {
