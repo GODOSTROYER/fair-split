@@ -73,7 +73,13 @@ export function parseCashDay(v: unknown): CashDayDTO | null {
   if (!str(o.runSlug) || !str(o.cashDay) || Number.isNaN(Date.parse(o.cashDay))) return null;
   if (!str(o.phpPerUsd) || !/^\d+(\.\d{1,2})?$/.test(o.phpPerUsd)) return null;
   if (!Array.isArray(o.lines)) return null;
-  const provenance = o.provenance === "seeded" || o.provenance === "replay" ? o.provenance : "live";
+  const provenance =
+    o.provenance === "seeded" ||
+    o.provenance === "replay" ||
+    o.provenance === "simulated_rail" ||
+    o.provenance === "live"
+      ? o.provenance
+      : "unknown";
   const treasurer =
     o.treasurer && typeof o.treasurer === "object"
       ? text((o.treasurer as Record<string, unknown>).first)

@@ -32,7 +32,8 @@ export interface CashDayDTO {
   cashDay: string;
   /** The run's recorded rate ("62.50"): cash pesos are exact at it, half-up to the centavo. */
   phpPerUsd: string;
-  provenance: Provenance;
+  /** Unknown/missing server provenance stays explicit; never promote it to a live claim. */
+  provenance: Provenance | "unknown";
   lines: CashLineDTO[];
   /** The station this phone pays out at ("Purok 2 pickup"), when the co-op names one. */
   station: string | null;
