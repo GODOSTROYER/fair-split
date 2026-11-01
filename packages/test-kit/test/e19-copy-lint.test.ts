@@ -152,7 +152,7 @@ describe("E-19 rules fire on planted copy", () => {
   );
 
   it.each(PLANTED_TEMPLATES.map(([rule, source]) => [rule, source] as const))(
-    "%s fires on a template literal whose substitution is the date: %s",
+    "%s fires on a planted template literal: %s",
     (rule, source) => {
       expect(lintText("copy.ts", source).map((f) => f.rule)).toContain(rule);
     },
@@ -303,5 +303,36 @@ describe("E-19 scanner", () => {
     expect(judge(elsewhere, [allowance], new Set(["a.md", "b.md"])).violations).toHaveLength(1);
     expect(judge([], [allowance], new Set(["a.md"])).stale).toEqual([allowance]);
     expect(judge([], [allowance], new Set()).dormant).toEqual([allowance]);
+  });
+
+  it("keeps each rate-card footer allowance tied to its own literal and stale-checks them separately", () => {
+    const file = "apps/console/src/features/ratecard/copy.ts";
+    const allowances = ALLOWANCES.filter(
+      (a) => a.file === file && ["Quote found on page", "Every rule quotes the page"].includes(a.phrase),
+    );
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: source fixture with template placeholders
+    const page = "export const page = `Read by Claude (${model}). Quote found on page ${page}.`;";
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: source fixture with a template placeholder
+    const idle = "export const idle = `Read by Claude (${model}). Every rule quotes the page it came from.`;";
+    const scanned = new Set([file]);
+    const findings = lintText(file, `${page}\n${idle}`);
+    expect(allowances).toHaveLength(2);
+    expect(findings.map((f) => f.rule)).toEqual(["replay-as-claude-reading", "replay-as-claude-reading"]);
+    expect(judge(findings, allowances, scanned)).toMatchObject({ violations: [], stale: [] });
+    // Literal matching is opt-in: ordinary allowances still cover only their own sentence.
+    const sentenceOnly = allowances.map((a) => ({ ...a, inLiteral: undefined }));
+    expect(judge(findings, sentenceOnly, scanned).violations).toHaveLength(2);
+    for (const [remaining, removed] of [
+      [page, allowances[1]],
+      [idle, allowances[0]],
+    ] as const) {
+      const verdict = judge(lintText(file, remaining), allowances, scanned);
+      expect(verdict.violations).toEqual([]);
+      expect(verdict.stale).toEqual([removed]);
+    }
+    // A marker in another literal must not excuse a bare Claude claim.
+    const separated =
+      'export const read = "Read by Claude ({})"; export const note = "Quote found on page {}.";';
+    expect(judge(lintText(file, separated), allowances, scanned).violations).toHaveLength(1);
   });
 });

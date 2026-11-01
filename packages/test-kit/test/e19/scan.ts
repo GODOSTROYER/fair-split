@@ -11,6 +11,8 @@ import { type Allowance, type CopyRule, FIGURES_RULE, RULES } from "./rules.js";
 export interface Sentence {
   readonly text: string;
   readonly line: number;
+  /** The containing source literal, so an allowance can distinguish identical sentences in different footers. */
+  readonly literal?: string;
   /** A literal with no whitespace (a word, key or code value): only `token` rules read it. */
   readonly token: boolean;
 }
@@ -20,6 +22,7 @@ export interface Finding {
   readonly file: string;
   readonly line: number;
   readonly sentence: string;
+  readonly literal?: string;
   readonly match: string;
 }
 
@@ -182,7 +185,7 @@ export function sourceSentences(file: string, text: string): Sentence[] {
     if (!value || DOTTED_KEY.test(value) || ENUM_VALUE.test(value)) return;
     const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
     const token = !/\s/.test(value);
-    for (const s of token ? [value] : sentences(value)) out.push({ text: s, line, token });
+    for (const s of token ? [value] : sentences(value)) out.push({ text: s, line, token, literal: value });
   };
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isLiteralTypeNode(node)) return;
@@ -221,7 +224,7 @@ export function lintText(file: string, text: string, rules: readonly CopyRule[] 
       if (rule.context && !rule.context.test(s.text)) continue;
       if (rule.unless?.test(s.text)) continue;
       if (rule.unlessInFile?.test(joined)) continue;
-      out.push({ rule: rule.id, file, line: s.line, sentence: s.text, match: m[0] });
+      out.push({ rule: rule.id, file, line: s.line, sentence: s.text, literal: s.literal, match: m[0] });
     }
     for (const f of figuresIn(s.text)) {
       if (!figures.has(f))
@@ -236,7 +239,9 @@ export function lintFiles(root: string, files: readonly string[]): Finding[] {
 }
 
 export const allowanceCovers = (a: Allowance, f: Finding): boolean =>
-  a.rule === f.rule && a.file === f.file && f.sentence.toLowerCase().includes(a.phrase.toLowerCase());
+  a.rule === f.rule &&
+  a.file === f.file &&
+  (a.inLiteral ? (f.literal ?? f.sentence) : f.sentence).toLowerCase().includes(a.phrase.toLowerCase());
 
 export interface Verdict {
   /** Findings no allowance covers: each one fails the lint. */

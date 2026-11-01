@@ -107,12 +107,14 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ["replay-as-claude-reading", "Claude reads {count} slips."],
   ["replay-as-claude-reading", "Claude reads it once the money is in."],
   // The seed stand-in shown as Claude reading now, or as what Claude read (ws/console reading/model.ts:417, :437,
-  // :443; byhand/copy.ts:7, :9, :11; reading/copy.ts:37, :62, :65; ratecard/copy.ts:7, :10; describe.ts:274).
+  // :443; byhand/copy.ts:7, :9, :11; reading/copy.ts:62, :65; ratecard/copy.ts:7).
   ["replay-as-claude-reading", "Photo C waits its turn. Claude is reading photo B."],
   ["replay-as-claude-reading", "Claude is reading the slips."],
   ["replay-as-claude-reading", "Claude is now reading photo B."],
   ["replay-as-claude-reading", "Claude was reading photo B when the connection dropped."],
   ["replay-as-claude-reading", "Claude read the slips twice."],
+  // Provenance footers also claim what Claude read (ratecard/copy.ts:10-11, describe.ts:274, provenance.ts:39).
+  ["replay-as-claude-reading", "Read by Claude (claude-opus-5-5)"],
   [
     "replay-as-claude-reading",
     "A water stain covers one digit of the gross weight. Claude read {reading} ({score}).",
@@ -160,8 +162,14 @@ export const PLANTED_FORMS: readonly (readonly [rule: string, text: string])[] =
   ["webhook-verified-says-simulated", "Each verified PayPal webhook is stored."],
 ];
 
-/** Template literals whose substitution sits where the claim's date goes (the scanner reads each one as "{}"). */
+/** Template literals with dates, models and other placeholders (the scanner reads each substitution as "{}"). */
 export const PLANTED_TEMPLATES: readonly (readonly [rule: string, source: string])[] = [
+  ["replay-as-claude-reading", "export const footer = `Read by Claude (claude-opus-5-5)`;"],
+  [
+    "replay-as-claude-reading",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
+    "export const footer = (model: string) => `Read by Claude (${model})`;",
+  ],
   [
     "recorded-claude-run",
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the fixture is source code with a template literal
@@ -287,6 +295,8 @@ export const CLEAN: Readonly<Record<string, readonly string[]>> = {
     "Claude Code is reading the repository.",
     "Claude Code read the ADRs and wrote the lint.",
     "The README was read by Claude Code agents.",
+    "Read by Claude Code agents",
+    "In a live run, read by Claude",
     "Read by the clerk, entered by hand.",
     "Claude readiness is the operator's read here.",
   ],

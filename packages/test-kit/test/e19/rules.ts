@@ -147,6 +147,8 @@ export const RULES: readonly CopyRule[] = [
       /\bClaude\s+(?:is|was)\s+(?:now\s+|still\s+)?reading\b/i,
       // ...or as what Claude read (byhand/copy.ts:7 "Claude read {}", ratecard/copy.ts:7 "Claude read these rules")
       /\bClaude\s+read\s+(?:\{|\d|(?:the|these|those|them|it|its|every|each|all|both|photos?|slips?)\b)/i,
+      // ...or the provenance footer credits the stand-in to Claude (describe.ts, ratecard/copy.ts, provenance.ts).
+      /\bread\s+by\s+(?:Claude\b(?!\s+Code)|claude-opus-[\w.-]+)/i,
       // ...what Claude was unsure of (byhand/copy.ts:9, reading/model.ts:443)
       /\bClaude\s+(?:wasn['’]t|was\s+not|isn['’]t|is\s+not)\s+sure\b/i,
       // ...Claude's two reads or zoom read (byhand/copy.ts:11, reading/copy.ts:62 and :65, reading/model.ts:437)
@@ -326,8 +328,10 @@ export interface Allowance {
   readonly rule: string;
   /** Repo-relative path, forward slashes. */
   readonly file: string;
-  /** A phrase of the flagged sentence (a case-insensitive substring). */
+  /** A phrase of the flagged sentence (a case-insensitive substring), or its literal when inLiteral is set. */
   readonly phrase: string;
+  /** Opt in only when a footer's distinguishing phrase is in another sentence of the same source literal. */
+  readonly inLiteral?: true;
   readonly why: string;
   /**
    * The work package whose merge removes the need. Once it lands the sentence no longer fires, the allowance
@@ -341,6 +345,18 @@ export interface Allowance {
  * match its sentence, so a reworded line drops its exception.
  */
 export const EXCEPTIONS: readonly Allowance[] = [
+  {
+    rule: "replay-as-claude-reading",
+    file: "packages/i18n/src/catalog/en.ts",
+    phrase: "Read by Claude ({model})",
+    why: "the product provenance label for a live reading, not the console's seeded or replayed stand-in",
+  },
+  {
+    rule: "replay-as-claude-reading",
+    file: "apps/mobile/src/features/clerk/messages.ts",
+    phrase: "Read by Claude; a person checks anything unsure",
+    why: "the clerk's live-reading provenance note, with human review of uncertain fields",
+  },
   {
     rule: "certified",
     file: "apps/console/src/features/ratecard/copy.ts",
@@ -363,11 +379,13 @@ export const EXCEPTIONS: readonly Allowance[] = [
 
 /**
  * Console copy waiting on C5a (console honesty copy, ws/console; schedule §3 C5a and §6), one named entry per
- * file, listed from ws/console's tip e5c5806 and re-checked at 42a9338, e7757ad and 8724fa6. Q2 does not edit
- * apps/console. While ws/console is unmerged these files are absent and the entries are dormant; once it merges
+ * file, re-checked at ws/console tip f0370c921ba24ec3713b65f171f3b7c27be1f69d. Q2 does not edit apps/console.
+ * While ws/console is unmerged these files are absent and the entries are dormant; once it merges
  * each must match, and each one C5a rewords goes stale and must be deleted here.
  */
-const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phrase: string])[]>> = {
+const PENDING_C5A: Readonly<
+  Record<string, readonly (readonly [rule: string, phrase: string, inLiteral?: true])[]>
+> = {
   "apps/console/src/chrome/copy.ts": [
     ["sandbox-says-simulated", "PayPal sandbox calls"],
     ["recorded-claude-run", "replays a recorded Claude run"],
@@ -385,6 +403,7 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
     ["recorded-claude-run", "from the same recording"],
   ],
   "apps/console/src/data/describe.ts": [
+    ["replay-as-claude-reading", "Read by Claude (claude-opus-5-5)"],
     ["paypal-confirms-says-simulated", "confirmed by PayPal's postback"],
     ["recorded-claude-run", "the recorded run still plays"],
     ["replay-of-dated-run", "replay of the {} run"],
@@ -429,8 +448,11 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
   ],
   "apps/console/src/features/ratecard/copy.ts": [
     ["replay-as-claude-reading", "Claude read these rules from its pages"],
+    ["replay-as-claude-reading", "Quote found on page", true],
+    ["replay-as-claude-reading", "Every rule quotes the page", true],
   ],
   "apps/console/src/features/reading/copy.ts": [
+    ["replay-as-claude-reading", "Read by Claude ({}), replay of a recorded run from {}"],
     ["recorded-claude-run", "recorded run"],
     ["recorded-claude-run", "stand-in for the {} recording"],
     ["read-twice-by-ai-seeded", "Read twice by Claude"],
@@ -457,6 +479,7 @@ const PENDING_C5A: Readonly<Record<string, readonly (readonly [rule: string, phr
   ],
   "apps/console/src/features/split/shared/copy.ts": [["paypal-confirms-says-simulated", "PayPal confirms"]],
   "apps/console/src/lib/provenance.ts": [
+    ["replay-as-claude-reading", "Read by Claude ({})"],
     ["replay-of-dated-run", "replay of the {} run"],
     ["webhook-verified-says-simulated", "PayPal, webhook, signature verified"],
   ],
@@ -494,10 +517,11 @@ export const ALLOWANCES: readonly Allowance[] = [
   ...EXCEPTIONS,
   ...PENDING_K1D,
   ...Object.entries(PENDING_C5A).flatMap(([file, entries]) =>
-    entries.map(([rule, phrase]) => ({
+    entries.map(([rule, phrase, inLiteral]) => ({
       rule,
       file,
       phrase,
+      inLiteral,
       why: "C5a rewords the console's honesty copy (schedule §3 C5a, §6)",
       pending: "C5a" as const,
     })),
