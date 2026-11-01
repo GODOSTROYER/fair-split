@@ -41,6 +41,7 @@ export const AREAS: readonly Area[] = [
   { name: "README", files: ["README.md"] },
   { name: "Devpost text", files: ["docs/devpost.md"], optional: true },
   { name: "film script", files: ["video/script.ts"], optional: true },
+  { name: "judge rail notices", files: ["apps/api/src/judge/quota.ts"] },
   // REVIEW.md is rendered from these catalogs, so it is not read twice.
   { name: "i18n catalogs", walk: { dir: "packages/i18n/src", match: /\.ts$/ } },
   {
