@@ -3,7 +3,9 @@
 //   - PP_ENV (or the scaffold's PAYPAL_ENV) is anything but `sandbox`, or is missing in production;
 //   - PP_DEV_MOCKS is on while RENDER=true (or NODE_ENV=production);
 //   - PP_MODE=sandbox lacks PP_CLIENT_ID, PP_CLIENT_SECRET or PP_WEBHOOK_ID;
-//   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed;
+//   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed (FS_OPERATOR_PASSWORD_SCRYPT
+//     must be a scrypt PHC string, ./scrypt-phc.ts), or one seed is set for both FS_LINK_SIGNING_KEY and
+//     FS_LEDGER_SIGNING_KEY; on Render with no database source, the problem names DATABASE_OWNER_URL;
 //   - RENDER=true lacks FS_LEDGER_SIGNING_KEY or FS_OPERATOR_PASSWORD_SCRYPT (render.yaml prompts for both, and
 //     Render accepts a blank prompt);
 //   - RENDER=true and nothing names the public origin (PUBLIC_ORIGIN, PUBLIC_BASE_URL or Render's RENDER_EXTERNAL_URL);
@@ -15,6 +17,7 @@
 import { requireAsciiEmail } from "@fairsplit/domain";
 import { CERT_ID_PATTERN, checkCertUrl, PAYPAL_API_HOSTS } from "@fairsplit/paypal-core";
 import { z } from "zod";
+import { isScryptPhc } from "./scrypt-phc.js";
 
 export type PayPalMode = "simulator" | "sandbox";
 
@@ -227,13 +230,31 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     if (v !== undefined && !HEX64.test(v))
       problems.push(`${name} must be a 32-byte Ed25519 seed in lowercase hex`);
   }
+  // one Ed25519 key must never sign both member and brand links and the ledger checkpoints Proof verifies
+  if (r.FS_LINK_SIGNING_KEY !== undefined && r.FS_LINK_SIGNING_KEY === r.FS_LEDGER_SIGNING_KEY) {
+    problems.push(
+      "FS_LINK_SIGNING_KEY and FS_LEDGER_SIGNING_KEY must be two different seeds (links and ledger checkpoints never share a key)",
+    );
+  }
+  // a password pasted at the Blueprint prompt instead of its hash would deploy green with /ops refusing everyone
+  if (r.FS_OPERATOR_PASSWORD_SCRYPT !== undefined && !isScryptPhc(r.FS_OPERATOR_PASSWORD_SCRYPT)) {
+    problems.push(
+      "FS_OPERATOR_PASSWORD_SCRYPT must be a scrypt hash in PHC form ($scrypt$ln=..,r=..,p=..$salt$hash) as tools/ops-hash-password.mjs prints it, never the password itself (value not shown)",
+    );
+  }
   if (r.JUDGE_CODE_SHA256 !== undefined && !HEX64.test(r.JUDGE_CODE_SHA256)) {
     problems.push("JUDGE_CODE_SHA256 must be a lowercase hex sha256");
   }
   if (production) {
     if (!r.FS_COOKIE_SECRET) problems.push("FS_COOKIE_SECRET is required in production");
     if (!r.FS_LINK_SIGNING_KEY) problems.push("FS_LINK_SIGNING_KEY is required in production");
-    if (!r.DATABASE_URL) problems.push("DATABASE_URL is required in production");
+    // Render never sets DATABASE_URL: index.ts builds it from DATABASE_OWNER_URL and FS_APP_DB_PASSWORD (ADR-0005)
+    if (!r.DATABASE_URL)
+      problems.push(
+        r.RENDER
+          ? "on Render, DATABASE_OWNER_URL and FS_APP_DB_PASSWORD are required (render.yaml sets both from fs-db; fs-api builds fs_app's DATABASE_URL from them)"
+          : "DATABASE_URL is required in production",
+      );
   } else {
     if (!r.FS_COOKIE_SECRET)
       warnings.push("FS_COOKIE_SECRET unset: using an ephemeral key (sessions end on restart)");

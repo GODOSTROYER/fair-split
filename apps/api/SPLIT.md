@@ -48,6 +48,33 @@
 > - _Not built:_ a Chair app key (kind `app`, proof of possession). It is needed only if the native APK (N1) goes
 >   ahead.
 
+> **Hardening after H1/J1/P1 (1 Nov, HD1).** _A restart while a run is in flight (in-process simulator)._ The
+> simulator's state lives in the process, so after a restart a batch the previous simulator accepted is one the
+> simulator now running never issued. The rule: at boot, before the server listens (`src/paypal/boot.ts` step ½),
+> every batch with a PayPal id, provenance `simulated_rail` and an item not yet terminal is recorded once in its
+> workspace's ledger as `payout.stranded` (`src/money/settle.ts` `STRANDED_BATCH`: ids, the open-item count, reason
+> `simulator_restarted`). In a judge workspace the outcome is `demo_run_ended`, "The simulated PayPal sandbox
+> restarted; this demo run ended" (its session is ended at the same boot, as before). In any other workspace (a co-op,
+> the showcase) it is `left_for_a_person`, logged at error with the workspace and batch ids: nothing there is
+> rewritten. In both, no item is marked paid, failed or returned that the simulator did not report, no run moves, and
+> the batch's settle GETs then end at once with no PayPal call (they used to retry until dead). A follow-up settle GET
+> whose items are all terminal reads nothing either. A batch with no PayPal id yet (POSTING) is not stranded:
+> `money/resume.ts` posts its very ids to the new simulator. **Still open:** the stranded judge workspace itself is
+> kept, not purged: `fs_purge_workspace` (WS-DATA, migrations/0014) refuses while an item is not terminal, and fs-api
+> never fakes a terminal status to get past it; the hourly pass defers it every time. The pool refill does not depend
+> on it. WS-DATA follow-up: let the purge take a judge workspace whose open items all belong to `payout.stranded`
+> batches. Note `purgeExpiredJudgeWorkspaces` takes the 20 oldest candidates a pass, so 20 or more such workspaces
+> would stop the purge of every other one (order deferred ones last, or skip them). A stranded UNCLAIMED item may still
+> get one `cancelUnclaimed` attempt from the hourly pass, which the new simulator answers 404. Deploy between sessions
+> (ADR-0010). Tests: `src/paypal/restart.pg.test.ts` (judge and showcase), `src/money/settle-followup.test.ts`.
+> _Also:_ the boot loads the simulator's own signing certificate into the webhook verifier before traffic (forged
+> SIMCERT URLs can no longer spend the hourly fetch budget first); only the `SIM_*` tuning variables reach the
+> in-process simulator (`SIMULATOR_TUNING_VARIABLES`; the rest are ignored and named in a boot warning); boot refuses
+> an `FS_OPERATOR_PASSWORD_SCRYPT` that is not a scrypt PHC string (`src/scrypt-phc.ts`) and one seed for both signing
+> keys; a seeded run whose reading cannot finish (a photo with no seed stand-in) is HALTED with cause
+> `NO_SEED_STAND_IN` naming the document, instead of waiting at EXTRACTING forever; the smoke requires Mark paid to
+> succeed, the review to open with 4 open / 3 blocking holds and slip 0462 by hand.
+
 > **Judge rail obeyed (28 Oct, verifier round).** Every PayPal step of a judge workspace (Claude's invoice turn,
 > ensureInvoice, recordPayment, the batch POST, the parked item's cancel, the re-route) asks
 > `src/money/rail.ts` `railForStep` / `railForItem` before any PayPal call: `beginLiveStep` (a fresh `judgeRail`,

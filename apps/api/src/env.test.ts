@@ -23,10 +23,13 @@ const PROD = {
   FS_LINK_SIGNING_KEY: "ab".repeat(32),
 };
 
-/** The two other secrets render.yaml prompts for, which fs-api needs on Render (fake, not key-shaped). */
+/**
+ * The two other secrets render.yaml prompts for, which fs-api needs on Render (fake: the operator hash has the PHC
+ * shape boot checks, assembled at runtime, and hashes no password).
+ */
 const RENDER_PROMPTED = {
   FS_LEDGER_SIGNING_KEY: "cd".repeat(32),
-  FS_OPERATOR_PASSWORD_SCRYPT: "not-a-real-scrypt-hash-for-tests",
+  FS_OPERATOR_PASSWORD_SCRYPT: ["$scrypt", "ln=15,r=8,p=1", "A".repeat(22), "B".repeat(43)].join("$"),
 };
 
 describe("env: boot refusals (S3.13)", () => {
@@ -323,6 +326,46 @@ describe("env: on Render every secret the Blueprint prompts for is required (a b
       ]),
     );
     expect(problems.join(" ")).not.toContain(PROD.DATABASE_URL);
+  });
+
+  it("refuses an operator hash that is not a scrypt PHC string (a pasted password), naming it, never the value", () => {
+    for (const pasted of [SECRET_LOOKING, "$scrypt$ln=15,r=8,p=1$short$short", "plain password 123"]) {
+      const problems = refusal({ ...onRender, ...RENDER_PROMPTED, FS_OPERATOR_PASSWORD_SCRYPT: pasted });
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toMatch(/^FS_OPERATOR_PASSWORD_SCRYPT must be a scrypt hash in PHC form/);
+      expect(problems.join(" ")).not.toContain(pasted);
+    }
+  });
+
+  it("refuses one seed for both FS_LINK_SIGNING_KEY and FS_LEDGER_SIGNING_KEY, naming both, never the seed", () => {
+    const same = "e7".repeat(32);
+    const problems = refusal({
+      ...onRender,
+      ...RENDER_PROMPTED,
+      FS_LINK_SIGNING_KEY: same,
+      FS_LEDGER_SIGNING_KEY: same,
+    });
+    expect(problems).toEqual([
+      "FS_LINK_SIGNING_KEY and FS_LEDGER_SIGNING_KEY must be two different seeds (links and ledger checkpoints never share a key)",
+    ]);
+    expect(problems.join(" ")).not.toContain(same);
+    // off Render too: one key must never sign both
+    expect(refusal({ FS_LINK_SIGNING_KEY: same, FS_LEDGER_SIGNING_KEY: same })).toHaveLength(1);
+    expect(parseEnv({ ...onRender, ...RENDER_PROMPTED }).secrets.linkSigningKey).not.toBe(
+      RENDER_PROMPTED.FS_LEDGER_SIGNING_KEY,
+    );
+  });
+
+  it("with no database source on Render, names DATABASE_OWNER_URL and FS_APP_DB_PASSWORD (Render sets no DATABASE_URL)", () => {
+    const { DATABASE_URL: _d, ...noDatabase } = { ...onRender, ...RENDER_PROMPTED };
+    const problems = refusal(noDatabase);
+    expect(problems).toEqual([
+      "on Render, DATABASE_OWNER_URL and FS_APP_DB_PASSWORD are required (render.yaml sets both from fs-db; fs-api builds fs_app's DATABASE_URL from them)",
+    ]);
+    expect(problems.join(" ")).not.toMatch(/DATABASE_URL is required/);
+    // off Render, production still names DATABASE_URL
+    const { DATABASE_URL: _p, ...prodNoDb } = PROD;
+    expect(refusal(prodNoDb)).toContain("DATABASE_URL is required in production");
   });
 
   it("off Render, production included, both stay optional: the ledger key only warns, as before", () => {

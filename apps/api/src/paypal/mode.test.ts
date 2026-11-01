@@ -95,6 +95,17 @@ describe("PayPal mode seam (ADR-0002)", () => {
     expect(simulate).not.toHaveBeenCalled();
     expect(network).toHaveBeenCalledTimes(3);
   });
+
+  it("routeToSimulator captures a sandbox host whatever its case or a trailing dot: none reaches the network", async () => {
+    const simulate = vi.fn(async (req: Request) => stubResponse(req));
+    const network = vi.fn(async () => new Response("net"));
+    const f = routeToSimulator(network, simulate);
+    await f("https://API-M.SANDBOX.PAYPAL.COM/v1/x");
+    await f("https://api-m.sandbox.paypal.com./v1/x");
+    await f("https://Api.Sandbox.PayPal.Com./v1/x");
+    expect(network).not.toHaveBeenCalled();
+    expect(simulate).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("sandbox mode", () => {

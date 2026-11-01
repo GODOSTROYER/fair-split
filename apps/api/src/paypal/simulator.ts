@@ -46,6 +46,41 @@ export const SIMULATOR_WEBHOOK_PATH = "/webhooks/paypal";
  */
 export const SIMULATED_BUSINESS_BALANCE_USD = "1000000.00";
 
+/**
+ * The SIM_* variables the in-process simulator takes from the environment: tuning only (ADR-0010 decision 7: its
+ * pace, latency, the modelled 50/min limit, fees and reporting lag). Everything else is fs-api's to fix in process
+ * mode: where event links point (SIM_API_BASE_URL), where it may deliver (SIM_WEBHOOK_ORIGINS, loopback), whether it
+ * checks PayPal's contract (SIM_STRICT), its admin API (SIM_ADMIN_TOKEN), proxy trust, mount, state and delivery
+ * order. A set value of those is ignored, and named (never echoed) in one boot warning.
+ */
+export const SIMULATOR_TUNING_VARIABLES = [
+  "SIM_SPEED",
+  "SIM_LATENCY_MS",
+  "SIM_RATE_LIMIT_PER_MIN",
+  "SIM_RATE_LIMIT_BLOCK_S",
+  "SIM_PAYOUT_FEE_CENTS",
+  "SIM_REPORTING_LAG_S",
+  "SIM_INVOICE_FEE_BPS",
+  "SIM_INVOICE_FEE_CENTS",
+] as const;
+
+const TUNING: ReadonlySet<string> = new Set(SIMULATOR_TUNING_VARIABLES);
+
+/** The allowlisted SIM_* variables of `source`, and the names of the other SIM_* ones it sets (sorted). */
+export function simulatorTuningEnv(source: Readonly<Record<string, string | undefined>>): {
+  env: Record<string, string>;
+  ignored: string[];
+} {
+  const env: Record<string, string> = {};
+  const ignored: string[] = [];
+  for (const [k, v] of Object.entries(source)) {
+    if (!k.startsWith("SIM_") || v === undefined) continue;
+    if (TUNING.has(k)) env[k] = v;
+    else ignored.push(k);
+  }
+  return { env, ignored: ignored.sort() };
+}
+
 /** The PP_* values the in-process simulator answers to (all public simulator values, never PayPal's). */
 export interface SimulatorPayPalDefaults {
   clientId: string;
@@ -156,7 +191,7 @@ export interface StartSimulatorOptions {
   paypal: ApiEnv["paypal"];
   /** fs-api's public origin: the cert URL, the pay pages and the webhook target live on it. */
   publicOrigin: string;
-  /** The SIM_* tuning variables (SIM_SPEED, SIM_LATENCY_MS, …), read by the simulator itself. */
+  /** The environment: only its SIM_* tuning variables (SIMULATOR_TUNING_VARIABLES) reach the simulator. */
   source?: Readonly<Record<string, string | undefined>>;
   /** fs-api's clock, so signing times and the verifier's 5-minute window agree (tests pass their fake clock). */
   now?: () => number;
@@ -221,8 +256,19 @@ export async function startInProcessSimulator(o: StartSimulatorOptions): Promise
     }
     return globalThis.fetch(url, init);
   };
-  const simEnv: Record<string, string | undefined> = { PP_MODE: "simulator", PP_CLIENT_ID: clientId };
-  for (const [k, v] of Object.entries(o.source ?? {})) if (k.startsWith("SIM_")) simEnv[k] = v;
+  // only the tuning variables reach the simulator (SIMULATOR_TUNING_VARIABLES); the rest are fixed below
+  const tuning = simulatorTuningEnv(o.source ?? {});
+  if (tuning.ignored.length > 0) {
+    o.log?.(
+      "warn",
+      `ignored SIM_* settings fs-api fixes for the in-process simulator: ${tuning.ignored.join(", ")}`,
+    );
+  }
+  const simEnv: Record<string, string | undefined> = {
+    ...tuning.env,
+    PP_MODE: "simulator",
+    PP_CLIENT_ID: clientId,
+  };
   const specDir = packageFile("../spec/");
   const overrides: SimulatorOptions = {
     publicBaseUrl: origin,
@@ -260,7 +306,12 @@ export async function startInProcessSimulator(o: StartSimulatorOptions): Promise
     rail: {
       name: "paypal-sim (in process)",
       fetch: (request) => simulator.apiFetch(request),
-      pages: { basePath: SIMULATOR_BASE_PATH, baseUrl: simulator.pagesBaseUrl, fetch: publicFetch },
+      pages: {
+        basePath: SIMULATOR_BASE_PATH,
+        baseUrl: simulator.pagesBaseUrl,
+        certUrl: simulator.certUrl,
+        fetch: publicFetch,
+      },
       webhookTrust: trust,
     },
     webhookId,

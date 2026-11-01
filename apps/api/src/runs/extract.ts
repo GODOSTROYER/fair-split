@@ -16,10 +16,15 @@
 // once (`compute:{runId}:read`; the funding's computeRun found the photos unread and computed nothing).
 //
 // A photo with no seed stand-in (a capture in a real workspace, anything whose hash is not the seed's) is not read:
-// a live reader is not built in this build, so it stays unread and the outcome says so.
+// a live reader is not built in this build, so it stays unread and the outcome says so. In a seeded workspace that
+// would leave the run reading forever (computeRun waits for every photo of the season), so a step that meets such a
+// photo for a run still FUNDED or EXTRACTING HALTs it instead (the run machine's HALT edge, below POSTING), with the
+// IC-01 `run.state` cause NO_SEED_STAND_IN naming the document and `halted_reason` set, and reads nothing more: no
+// row, field or event is invented for any photo. A judge's Reset then starts a fresh workspace.
 import { createHash } from "node:crypto";
 import {
   type FieldRead,
+  type PayRunState,
   RunEventPayloads,
   type RunEventType,
   type SlipFieldName,
@@ -40,12 +45,13 @@ import {
   type WorkspaceScope,
   withWorkspaceTx,
 } from "@fairsplit/db";
-import { AUTO_ACCEPT, agreement } from "@fairsplit/domain";
+import { AUTO_ACCEPT, agreement, runMachine } from "@fairsplit/domain";
 import { enqueue, type TaskContext, type TaskHandler } from "@fairsplit/outbox";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { proofLedger } from "./events.js";
+import { cause, moveRun } from "./machine.js";
 import { report } from "./now.js";
 
 /** How the stand-in is labelled wherever it lands (rows, events, ledger, the task's outcome). */
@@ -63,6 +69,21 @@ export const READING_PACE = { photoGapMs: 1_000, minGapMs: 180 } as const;
 
 const NOT_BUILT =
   "Live slip reading is not built in this build: this photo has no seed stand-in, so it stays unread.";
+
+/**
+ * How a seeded run whose reading cannot finish ends: HALTED, the `run.state` cause code naming the first such
+ * document as its ref, `pay_runs.halted_reason`, and the label for the outcome and any surface that shows it.
+ */
+export const NO_SEED_STAND_IN = {
+  code: "NO_SEED_STAND_IN",
+  haltedReason: "no_seed_stand_in",
+  label:
+    "This run's reading cannot finish: a slip photo has no seed stand-in, and live slip reading is not built in this build. The run halted; nothing was read for that photo.",
+} as const;
+/** The halt is fs-api's own decision about the reading, not a replay of the seed. */
+const READING_ACTOR = { kind: "system", id: "system:reading", impersonatedBy: null } as const satisfies Actor;
+/** The run states a reading serves (runs/capture.ts READING_STATES). */
+const READING: ReadonlySet<string> = new Set(["FUNDED", "EXTRACTING"]);
 
 /** The fields a slip's reading reports (S4.2's required slip fields): the printed serial and boxes 1–12. */
 const READ_FIELDS: readonly (readonly [SlipFieldName, keyof SnapshotSlip["boxes"] | null])[] = [
@@ -336,6 +357,31 @@ async function readPhoto(
   return rows.length;
 }
 
+/** The first of `docs` (in the task's order) that no row has been read from, or null when every one is read. */
+async function unreadOf(
+  tx: Tx,
+  ws: string,
+  docs: readonly { id: string }[],
+  order: readonly string[],
+): Promise<string | null> {
+  const read = await tx
+    .selectDistinct({ documentId: schema.slipRows.documentId })
+    .from(schema.slipRows)
+    .where(
+      and(
+        eq(schema.slipRows.workspaceId, ws),
+        inArray(
+          schema.slipRows.documentId,
+          docs.map((d) => d.id),
+        ),
+      ),
+    );
+  const done = new Set(read.map((r) => r.documentId));
+  const unread = docs.filter((d) => !done.has(d.id)).map((d) => d.id);
+  unread.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  return unread[0] ?? null;
+}
+
 /** The outcome a step leaves for /ops and an inline caller (runs/now.ts `report`). */
 interface StepOutcome {
   photo: string | null;
@@ -343,6 +389,10 @@ interface StepOutcome {
   remaining: number;
   notBuilt: number;
   computeQueued: boolean;
+  /** The run this step HALTed because its reading cannot finish (NO_SEED_STAND_IN), else null. */
+  halted: string | null;
+  /** The run named had already ended (a halted reading stops), so the step read nothing. */
+  runEnded: boolean;
 }
 
 async function step(deps: AppDeps, raw: unknown, ctx: TaskContext): Promise<StepOutcome> {
@@ -384,7 +434,64 @@ async function step(deps: AppDeps, raw: unknown, ctx: TaskContext): Promise<Step
       : [];
     const notBuilt = docs.length - standIns.length;
     const [head, ...rest] = standIns;
-    const out: StepOutcome = { photo: null, rows: 0, remaining: rest.length, notBuilt, computeQueued: false };
+    const out: StepOutcome = {
+      photo: null,
+      rows: 0,
+      remaining: rest.length,
+      notBuilt,
+      computeQueued: false,
+      halted: null,
+      runEnded: false,
+    };
+    if (args.runId) {
+      const [run] = await tx
+        .select({
+          id: schema.payRuns.id,
+          state: schema.payRuns.state,
+          version: schema.payRuns.version,
+          seasonId: schema.payRuns.seasonId,
+        })
+        .from(schema.payRuns)
+        .where(and(eq(schema.payRuns.workspaceId, ws), eq(schema.payRuns.id, args.runId)))
+        .for("update");
+      if (run && runMachine.isTerminal(run.state as PayRunState)) {
+        // the run this reading served has ended (a halted reading stops): nothing more is read for it
+        out.remaining = 0;
+        out.runEnded = true;
+        await ctx.complete(tx);
+        return out;
+      }
+      // a photo computeRun would wait for (the run's season, a slip photo, not a duplicate, unread) that this build
+      // cannot read: the reading can never finish, so the run HALTs now, naming it, instead of reading on forever
+      const standInIds = new Set<string>(standIns.map((d) => d.id));
+      const blocking = SEEDED_WORKSPACES.has(workspace?.kind ?? "real")
+        ? docs.filter(
+            (d) =>
+              !standInIds.has(d.id) &&
+              d.kind === "slip_photo" &&
+              d.exactDuplicateOf === null &&
+              d.seasonId !== null &&
+              d.seasonId === run?.seasonId,
+          )
+        : [];
+      const unread = blocking.length > 0 ? await unreadOf(tx, ws, blocking, args.documentIds) : null;
+      if (run && READING.has(run.state) && unread) {
+        await moveRun(tx, scope, {
+          id: run.id,
+          from: run.state as PayRunState,
+          to: "HALTED",
+          version: run.version,
+          cause: cause(NO_SEED_STAND_IN.code, unread),
+          provenance: "live",
+          actor: READING_ACTOR,
+          patch: { haltedReason: NO_SEED_STAND_IN.haltedReason },
+        });
+        out.halted = run.id;
+        out.remaining = 0;
+        await ctx.complete(tx);
+        return out;
+      }
+    }
     if (head) {
       out.photo = head.photoCode;
       // this step's photo, locked: a second delivery waits here, then finds it read and writes nothing
@@ -437,7 +544,17 @@ async function step(deps: AppDeps, raw: unknown, ctx: TaskContext): Promise<Step
 export function extractTask(deps: AppDeps): TaskHandler {
   return async (raw, ctx) => {
     const out = await step(deps, raw, ctx);
-    if (out.notBuilt > 0) {
+    if (out.halted) {
+      deps.logger.error(
+        {
+          outboxId: ctx.outboxId,
+          workspaceId: ctx.workspaceId,
+          runId: out.halted,
+          cause: NO_SEED_STAND_IN.code,
+        },
+        NO_SEED_STAND_IN.label,
+      );
+    } else if (out.notBuilt > 0) {
       deps.logger.warn({ outboxId: ctx.outboxId, photos: out.notBuilt }, NOT_BUILT);
     }
     if (out.photo && out.remaining === 0) {
@@ -451,7 +568,7 @@ export function extractTask(deps: AppDeps): TaskHandler {
       detail: {
         ...out,
         provenance: SEED_STAND_IN.provenance,
-        label: out.photo ? SEED_STAND_IN.label : NOT_BUILT,
+        label: out.halted ? NO_SEED_STAND_IN.label : out.photo ? SEED_STAND_IN.label : NOT_BUILT,
       },
     });
   };

@@ -67,6 +67,11 @@ export interface SimulatorPages {
   readonly basePath: string;
   /** `{public origin}{basePath}`: where the simulator's certificate and pay-page URLs point. */
   readonly baseUrl: string;
+  /**
+   * The certificate this simulator signs every delivery with (`{baseUrl}/sim/certs/SIMCERT-….pem`, new each boot):
+   * the boot loads it into the webhook verifier before the server takes traffic (paypal/boot.ts).
+   */
+  readonly certUrl?: string;
   fetch(request: Request): Promise<Response>;
 }
 
@@ -186,14 +191,20 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
 
 const SANDBOX_HOSTS = new Set<string>(PAYPAL_API_HOSTS.sandbox);
 
-/** Sends requests for PayPal's sandbox hosts to `simulate`; everything else goes to the network. */
+/**
+ * Sends requests for PayPal's sandbox hosts to `simulate`; everything else goes to the network. The host is compared
+ * as DNS does (the URL parser lower-cases it; a fully qualified name's trailing dot is dropped here), so
+ * `https://api-m.sandbox.paypal.com./…` cannot slip past the simulator to the real sandbox.
+ */
 export function routeToSimulator(
   network: FetchLike,
   simulate: (req: Request) => Promise<Response>,
 ): FetchLike {
   return async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input.toString());
-    if (url.protocol === "https:" && SANDBOX_HOSTS.has(url.hostname)) {
+    const host = url.hostname.replace(/\.+$/, "");
+    if (url.protocol === "https:" && SANDBOX_HOSTS.has(host)) {
+      url.hostname = host;
       return simulate(new Request(url, init));
     }
     return network(input, init);
