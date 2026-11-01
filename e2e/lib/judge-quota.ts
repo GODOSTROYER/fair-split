@@ -40,6 +40,51 @@ export async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> 
   }
 }
 
+/** Fill only the unused slots: the next real payout must take the hour's final live reservation. */
+export async function withLastHourlySlot<T>(api: Api, run: () => Promise<T>): Promise<T> {
+  const url = process.env.E2E_DATABASE_URL;
+  if (!url) throw new Error("quota fixtures require the private test stack (E2E_DATABASE_URL)");
+  const lane = await api.get("/v1/judge/lane");
+  expect(lane.status).toBe(200);
+  const { quota } = (lane.json as { rail: { quota: { hourlyCap: number; usedThisHour: number } } }).rail;
+  expect(quota.hourlyCap).toBe(E2E_HOURLY_CAP);
+  expect(quota.usedThisHour).toBeLessThan(E2E_HOURLY_CAP);
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  const ids: string[] = [];
+  try {
+    for (let i = quota.usedThisHour; i < E2E_HOURLY_CAP - 1; i++) {
+      const id = randomUUID();
+      await sql`
+        insert into reconciliation_reports (id, kind, window_end, summary)
+        values (${id}, 'balance', clock_timestamp(), ${sql.json({
+          v: 1,
+          entry: "judge_post",
+          runId: randomUUID(),
+          workspaceId: randomUUID(),
+          sessionId: null,
+          coded: true,
+          amountCents: 0,
+          rail: "simulated",
+          e2eFixture: "last-hourly-slot-filler",
+        })})`;
+      ids.push(id);
+    }
+    // The public lane peek has a two-second cache; money-moving decisions always read fresh quota facts.
+    await expect
+      .poll(async () => (await api.get("/v1/judge/lane")).json, { intervals: [2_100], timeout: 10_000 })
+      .toMatchObject({
+        rail: { mode: "live", reason: null, quota: { usedThisHour: E2E_HOURLY_CAP - 1 } },
+      });
+    return await run();
+  } finally {
+    try {
+      for (const id of ids) await sql`delete from reconciliation_reports where id = ${id}`;
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+  }
+}
+
 /** Invoice funding is simulated and verified; the quota deliberately fills only before the payout POST. */
 export async function withReplayedPayout<T>(
   origin: string,

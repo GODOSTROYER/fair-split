@@ -7,7 +7,7 @@ import { waitForRun } from "../../lib/api.js";
 import { startBrowserJudge, stopBrowserJudge } from "../../lib/browser-judge.js";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, test } from "../../lib/fixtures.js";
-import { withFullHourlyQuota } from "../../lib/judge-quota.js";
+import { withFullHourlyQuota, withLastHourlySlot } from "../../lib/judge-quota.js";
 import { bothKeys, collectRunEvents, officers, runState, workTheReview } from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
 
@@ -167,6 +167,24 @@ test("the console signs with a fresh registered key after Reset changes the work
       const signed = await answer;
       expect(signed.status()).toBe(201);
       ids.push((signed.request().postDataJSON() as { keyId: string }).keyId);
+      // The labelled Proof chip must fit at the default 1280 px viewport without pushing Reset behind the phone.
+      await expect
+        .poll(() =>
+          page.getByRole("banner").evaluate((banner) => {
+            const controls = Array.from(banner.querySelectorAll("a, button"));
+            const right = Math.max(...controls.map((control) => control.getBoundingClientRect().right));
+            const reset = banner.querySelector('[data-testid="W-JG-01.reset"]');
+            if (!reset) return { fits: false, resetReceivesPointer: false };
+            const rect = reset.getBoundingClientRect();
+            const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+            return {
+              fits: right <= window.innerWidth,
+              resetReceivesPointer: hit !== null && reset.contains(hit),
+            };
+          }),
+        )
+        .toEqual({ fits: true, resetReceivesPointer: true });
+      await page.screenshot({ path: test.info().outputPath("reset-key1-layout.png") });
       await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
       await expect(firstPress(page)).toBeEnabled();
       reset = true;
@@ -283,18 +301,36 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       "Her deliveries suggest a second plot",
     );
     await page.getByTestId("W-TR-06.drawer.close").click();
+    // The API UUID key differs from the seed mark key; the displayed engine credit must still survive.
+    const liveHolds = (await api.get(`/v1/runs/${s.runSlug}/holds`, s.asTreasurer)).json as {
+      holds: { label: string; key: string; engineParams: { creditCents?: number } }[];
+    };
+    expect(liveHolds.holds.find((entry) => entry.label === "H3")).toMatchObject({
+      key: expect.stringMatching(/^NO_RULE:[0-9a-f-]+$/),
+      engineParams: { creditCents: 320 },
+    });
+    await page.getByTestId("W-TR-05.row.M-018").click();
+    await expect(hold).toContainText("US$3.20 correction credit");
+    await expect(page.getByTestId("W-TR-06.returnCredit.face")).toHaveAccessibleName(/US\$3\.20/);
+    await page.getByTestId("W-TR-06.drawer.close").click();
     await workTheReview(api, s);
     const keys = await officers(api, s);
     await withFullHourlyQuota(async () => {
       const lane = await api.get("/v1/judge/lane");
       expect(lane.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
-      const label = (lane.json as { rail: { label: string } }).rail.label;
+      await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(
+        /Your next run[’']s PayPal steps will replay, labelled/,
+        { timeout: 30_000 },
+      );
+      await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/statuses replayed/i);
       expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
       expect(
         (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
       ).toBe("NEEDS_FOLLOW_UP");
       await page.getByTestId("W-JG-01.rail.run").click();
-      await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(label);
+      await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(
+        "Replayed (labelled): earlier simulated PayPal sandbox run",
+      );
       const chip = page.getByTestId("W-JG-01.proofChip");
       await expect(chip).toContainText(/replayed/i);
       await expect(chip).not.toContainText(/confirmed|verified/i);
@@ -319,8 +355,106 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         await expect(row).toContainText(/replay/i);
         await expect(row).not.toContainText(/confirmed|verified/i);
       }
+      const lines = (await api.get(`/v1/runs/${s.runSlug}/lines`, s.asTreasurer)).json as {
+        lines: { id: string; state: string }[];
+      };
+      const rhea = lines.lines.find((line) => line.state === "UNCLAIMED");
+      expect(rhea).toBeDefined();
+      if (rhea) expect((await api.post(`/v1/lines/${rhea.id}/pay-cash`, {}, s.asTreasurer)).status).toBe(200);
+      expect((await waitForRun(api, s, (run) => run.run.state === "SETTLED", 60_000))?.run.state).toBe(
+        "SETTLED",
+      );
+      const rheaRow = page.getByTestId("W-TR-08.table").getByRole("row", { name: /Rhea Jumawan/ });
+      await expect(rheaRow).toContainText("Cash due");
+      await expect(rheaRow).not.toContainText("Replayed");
+      await expect(statusCells).toHaveCount(7);
+      await chip.click();
+      await expect(page.getByTestId("W-PF-01.progress")).toContainText(
+        /payout statuses replayed \(labelled\)/i,
+      );
+      await expect(page.getByTestId("W-PF-01.metric.timing")).toContainText("Replayed, no timing");
+      await expect(page.getByTestId("W-PF-01.metric.timing")).not.toContainText("Still running");
     });
   } finally {
+    await stopBrowserJudge(page, api, s);
+  }
+});
+
+test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after its own post fills quota", async ({
+  page,
+  origin,
+}) => {
+  test.skip(!process.env.E2E_DATABASE_URL, "quota filler is restricted to the private test stack database");
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin);
+  const events = collectRunEvents(api, s);
+  try {
+    await workTheReview(api, s);
+    const keys = await officers(api, s);
+    await withLastHourlySlot(api, async () => {
+      // Before posting, no item evidence exists: a quota peek must never invent replayed statuses.
+      await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/replayed/i);
+      expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
+      expect(
+        (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
+      ).toBe("NEEDS_FOLLOW_UP");
+      const item = await events.waitFor((event) => event.type === "item.updated", 10_000);
+      expect(item?.provenance).toBe("simulated_rail");
+      const browserQuota = page.waitForResponse(
+        async (response) => {
+          if (new URL(response.url()).pathname !== "/v1/judge/session" || response.status() !== 200)
+            return false;
+          const peek = (await response.json()) as { rail: { reason: string | null } };
+          return peek.rail.reason === "hourly_cap";
+        },
+        { timeout: 30_000 },
+      );
+      const session = await api.get("/v1/judge/session", s.asJudge);
+      expect(session.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
+      await browserQuota;
+      await page.getByTestId("W-JG-01.rail.run").click();
+      const chip = page.getByTestId("W-JG-01.proofChip");
+      await expect(chip).toContainText(/confirmed/i);
+      await expect(chip).toContainText("in the simulated sandbox");
+      await expect(chip).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-TR-08.status")).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-TR-08.share")).toContainText(/confirmed/i);
+      await expect(page.getByTestId("W-TR-08.share")).toContainText(/simulated PayPal sandbox/i);
+      await expect(page.getByTestId("W-TR-08.table")).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-JG-01.notice.state")).toHaveCount(0);
+      const lines = (await api.get(`/v1/runs/${s.runSlug}/lines`, s.asTreasurer)).json as {
+        lines: { id: string; state: string }[];
+      };
+      const rhea = lines.lines.find((line) => line.state === "UNCLAIMED");
+      expect(rhea).toBeDefined();
+      if (rhea) expect((await api.post(`/v1/lines/${rhea.id}/pay-cash`, {}, s.asTreasurer)).status).toBe(200);
+      expect((await waitForRun(api, s, (run) => run.run.state === "SETTLED", 60_000))?.run.state).toBe(
+        "SETTLED",
+      );
+      await expect(chip).toContainText(/confirmed/i);
+      await chip.click();
+      const hero = page.getByTestId("W-PF-01.progress");
+      await expect(hero).toContainText("confirmed in the simulated sandbox");
+      await expect(hero).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).toContainText(/confirmed/i);
+      await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-PF-01.footer")).not.toContainText(/Replayed \(labelled\)/i);
+      await page
+        .getByTestId("W-PF-01.verify")
+        .getByRole("button", { name: /Verify in your browser/ })
+        .click();
+      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("Six of six match", {
+        timeout: 30_000,
+      });
+      await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "matches");
+      expect(
+        events.events
+          .filter((event) => event.type === "item.updated")
+          .every((event) => event.provenance === "simulated_rail"),
+      ).toBe(true);
+    });
+  } finally {
+    await events.stop();
     await stopBrowserJudge(page, api, s);
   }
 });
