@@ -20,6 +20,7 @@ import {
   describeError,
   formatKeyChecks,
   formatPoolStatus,
+  GeminiCallError,
   KeyPool,
   keyId,
   keysForScrubbing,
@@ -34,6 +35,12 @@ import { type StatementResult, synthesizeStatement } from "./pipeline.js";
 import { requestPlan } from "./plan.js";
 import { pacificDay, QuotaLedger, SELF_IMPOSED_DAILY_CAP } from "./quota.js";
 import { joinForRequest, LANGS, type Lang, m014SpikeStatement, STYLE_NOTE } from "./statement.js";
+import {
+  loadStatementPlans,
+  StatementSplitError,
+  selectRequests,
+  synthesizePlannedStatement,
+} from "./statements.js";
 
 const USAGE = `tools/tts.ts — Gemini TTS for member statements (AI-10). Every clip is a synthetic voice.
 Requests go out on the user's Gemini keys from .env (GEMINI_API_KEY, then GEMINI_API_KEYS_FALLBACK), round
@@ -51,6 +58,9 @@ robin, each within its own free-tier limits (user decision, 1 Nov; ADR-0014).
   tts plan [--keys <count>]        S10 request plan: requests needed, days they take at the pool's capacity,
                                   verdict (no API call); written into media/audio/spike-s10.json
   tts asr                         listening proxy: transcribe the spike requests with ${ASR_MODEL} and score them
+  tts statements [--dry-run] [--only M-014:ceb] [--draft]
+                                  exact exported API sentences, one pooled request per member/language;
+                                  refuses ambiguous splits; drafts have a separate, unserved manifest
   tts spike [--voice Sulafat] [--langs ceb,fil,en] [--draft-langs ceb]
                                   S10: M-014's greeting and pay sentences, one request per language on
                                   ${TTS_MODEL}, plus drafts on ${TTS_DRAFT_MODEL}; writes
@@ -100,6 +110,9 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
       "draft-langs": { type: "string" },
       source: { type: "string" },
       keys: { type: "string" },
+      only: { type: "string" },
+      "dry-run": { type: "boolean" },
+      draft: { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -119,6 +132,69 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
     });
   const models = [...new Set([TTS_MODEL, TTS_DRAFT_MODEL, ASR_MODEL])];
   switch (cmd) {
+    case "statements": {
+      const plans = await loadStatementPlans(mediaRoot);
+      const selected = selectRequests(plans.requests, values.only);
+      console.log(`${selected.length} planned request(s), ${TTS_MODEL}, ${values.draft ? "draft" : "final"}`);
+      for (const r of selected) console.log(`${r.member_no}:${r.lang} ${r.sentences.length} sentences`);
+      if (values["dry-run"]) return 0;
+      if (!hasFfmpeg()) throw new Error("ffmpeg is required for statement splitting");
+      const p = pool();
+      const manifestPath = join(mediaRoot, "audio", "manifest.json");
+      let manifest = await loadAudioManifest(manifestPath);
+      for (const request of selected) {
+        try {
+          manifest = await synthesizePlannedStatement(
+            request,
+            {
+              pool: p,
+              mediaRoot,
+              cacheDir: join(mediaRoot, ".cache", "tts"),
+              maxAttempts: 1,
+            },
+            manifest,
+            {
+              ...(values.voice === undefined ? {} : { voice: values.voice }),
+              draft: values.draft ?? false,
+            },
+          );
+          if (!values.draft) await saveAudioManifest(manifestPath, manifest);
+        } catch (error) {
+          const status = await p.status([TTS_MODEL]);
+          const detail = describeError(error, keys());
+          const quotaRefused = error instanceof GeminiCallError && error.kind === "rate";
+          const report = {
+            outcome:
+              error instanceof StatementSplitError
+                ? "split_refused"
+                : quotaRefused
+                  ? "quota_refused"
+                  : "generation_failed",
+            quotaRefused,
+            ...(error instanceof StatementSplitError
+              ? {
+                  expectedSegments: error.expectedSegments,
+                  detectedInteriorPauses: error.detectedInteriorPauses,
+                }
+              : {}),
+            request: `${request.member_no}:${request.lang}`,
+            model: TTS_MODEL,
+            at: new Date().toISOString(),
+            detail,
+            dailyResetsAt: status.resetsAt,
+            cooling: status.keys.flatMap((k) =>
+              k.models[TTS_MODEL]?.cooling ? [{ keyId: k.id, ...k.models[TTS_MODEL]?.cooling }] : [],
+            ),
+            synthetic: true,
+            notice: "Generation stopped. Missing clips use labelled device voice. No automatic retry.",
+          };
+          await writeJson(join(mediaRoot, "audio", "statement-validation.json"), report);
+          console.error(`${detail}${quotaRefused ? `; daily cap reset ${status.resetsAt}` : ""}`);
+          return 2;
+        }
+      }
+      return 0;
+    }
     case "keys": {
       const results = await checkKeys(keys(), deps.fetch ?? fetch);
       console.log(formatKeyChecks(results));
