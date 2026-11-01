@@ -170,6 +170,13 @@ it("preserves both PAY hashes and keeps draft entries out of the served manifest
   };
   const r = { ...request, sentences: [plain] };
   const one = await synthesizePlannedStatement(r, d, empty);
+  const legacyDraft = {
+    ...one.entries[0],
+    draft: true,
+    file: "audio/drafts/M-014/ceb/s07-PAY-legacy.m4a",
+  } as NonNullable<(typeof one.entries)[0]>;
+  const cleaned = await synthesizePlannedStatement(r, d, { ...one, entries: [...one.entries, legacyDraft] });
+  expect(cleaned.entries.every((e) => !e.draft)).toBe(true);
   const other = { ...one.entries[0], text: "PayPal is due.", text_sha256: hash("PayPal is due.") };
   const { upsertEntry } = await import("../src/tts/manifest.js");
   expect(upsertEntry(one, other as NonNullable<(typeof one.entries)[0]>).entries).toHaveLength(2);

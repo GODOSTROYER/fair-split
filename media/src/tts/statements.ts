@@ -134,7 +134,9 @@ export async function synthesizePlannedStatement(
   const marked = markRequest(request);
   const draft = opts.draft ?? false;
   const draftPath = join(deps.mediaRoot, "audio", "drafts", "manifest.json");
-  let target = draft ? await loadAudioManifest(draftPath) : manifest;
+  let target = draft
+    ? await loadAudioManifest(draftPath)
+    : { ...manifest, entries: manifest.entries.filter((entry) => !entry.draft) };
   const ready = (s: z.infer<typeof Sentence>) =>
     target.entries.some(
       (e) =>
@@ -146,7 +148,7 @@ export async function synthesizePlannedStatement(
         e.draft === draft &&
         existsSync(join(deps.mediaRoot, e.file)),
     );
-  if (request.sentences.every(ready)) return manifest;
+  if (request.sentences.every(ready)) return draft ? manifest : target;
   const voice = opts.voice ?? DEFAULT_VOICE;
   const take = await requestOnce(deps, { text: marked.text, model: TTS_MODEL, voice, style: STYLE_NOTE });
   const duration = parseWav(take.wav).durationMs / 1000;
