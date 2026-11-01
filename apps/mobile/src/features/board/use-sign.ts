@@ -197,25 +197,29 @@ export function useSign() {
           refusalFailure(c.commitRefusal()),
         payload: c.freshPayload,
         sign: (approval, expected, recheck) =>
-          cosign(approval, expected, {
-            now: () => new Date(),
-            online: () => online,
-            recheck,
-            sign,
-            isRegistered: (id) => (frameKey ? frameKey.isRegistered(id) : registered.has(pairing, id)),
-            register: async (k) => {
-              if (frameKey) return frameKey.register(k);
-              const res = await api.registerDeviceKey({
-                keyId: k.keyId,
-                publicKey: k.publicKeyHex,
-                kind: deviceKeyKindOf(keyVault.kind),
-                biometricClass: k.biometricClass,
-              });
-              if (res.ok) registered.add(pairing, k.keyId);
-              return res;
+          cosign(
+            approval,
+            { ...expected, approverId: persona },
+            {
+              now: () => new Date(),
+              online: () => online,
+              recheck,
+              sign,
+              isRegistered: (id) => (frameKey ? frameKey.isRegistered(id) : registered.has(pairing, id)),
+              register: async (k) => {
+                if (frameKey) return frameKey.register(k);
+                const res = await api.registerDeviceKey({
+                  keyId: k.keyId,
+                  publicKey: k.publicKeyHex,
+                  kind: deviceKeyKindOf(keyVault.kind),
+                  biometricClass: k.biometricClass,
+                });
+                if (res.ok) registered.add(pairing, k.keyId);
+                return res;
+              },
+              submit: (body) => (frameKey ? frameKey.submit(body) : api.postApproval(c.runSlug, body)),
             },
-            submit: (body) => (frameKey ? frameKey.submit(body) : api.postApproval(c.runSlug, body)),
-          }),
+          ),
       });
     } catch {
       // A key store or a network layer that throws is a failed attempt like any other: nothing was sent.

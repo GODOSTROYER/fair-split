@@ -1,4 +1,4 @@
-import type { ApprovalDTO, MemberLineDTO, PayRun } from "@fairsplit/contracts";
+import type { ApprovalDTO, MemberLineDTO, PayRun, ProofLine } from "@fairsplit/contracts";
 import type { CosignLine, CosignRequestDTO } from "../../_shims/api-client";
 
 /** Only the fields consumed from fs-api's validated BatchView/RunView/LineList. */
@@ -25,10 +25,10 @@ export interface RunView {
 }
 export interface LineList {
   runSlug: string;
-  lines: MemberLineDTO[];
+  lines: (MemberLineDTO & { canonical: ProofLine["canonical"] })[];
 }
 
-/** A line hash is compared with the independent /batch listing; no missing canonical preimage is invented. */
+/** The actual /lines preimage is rehashed, as well as compared with the independent /batch listing. */
 export function digestLines(batch: BatchView, view: LineList): CosignLine[] {
   const matching =
     view.runSlug === batch.runSlug &&
@@ -40,6 +40,7 @@ export function digestLines(batch: BatchView, view: LineList): CosignLine[] {
     rail: l.rail,
     netCents: l.netCents,
     lineSha256: l.lineSha256,
+    canonical: l.canonical,
     batchLineSha256:
       matching && l.runId === batch.runId
         ? (batch.memberLines.find((m) => m.memberNo === l.memberNo)?.lineSha256 ?? null)

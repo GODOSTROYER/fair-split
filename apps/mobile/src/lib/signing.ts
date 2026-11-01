@@ -1,8 +1,8 @@
 /**
  * Board co-sign (M-BD-01/02, MM-5 "Two keys"), the pure half. The phone never takes the server's word for what it
  * signs. With WS-CORE's own digest functions (`_shims/domain-core.ts`) it recomputes `batchSha256` from the items,
- * `linesDigest` from every member line (register §8 as amended, I4). Local canonical fixtures additionally
- * rehash line preimages; fs-api's flat /lines hashes are cross-checked with /batch (option B, ADR-0012). It
+ * `linesDigest` from every member line (register §8 as amended, I4). Every /lines canonical preimage is
+ * rehashed and cross-checked with /batch before its displayed rail or amount is trusted. It
  * checks that each payout is exactly one PayPal line's net (I3), draws the seal from its own hash, and refuses an
  * approval payload whose own items and lines do not give its digests, or that is not exactly the batch the Chair
  * opened. Only then does it ask for the fingerprint or device PIN. The key is Ed25519: `fs-ernesto-a1` (then `-a2`,
@@ -40,6 +40,7 @@ export const PAYLOAD_FRESH_MS = 2 * 60 * 1000;
 
 export interface ExpectedBatch {
   runId: string;
+  seasonId: string;
   rateCardSha256: string;
   /** Recomputed on the phone from the items on screen, never copied from the server's claim. */
   batchSha256: string;
@@ -138,9 +139,10 @@ function isLine(v: unknown): v is CosignLine {
     isInt(l.netCents) &&
     typeof l.lineSha256 === "string" &&
     HEX64.test(l.lineSha256) &&
-    (l.source === "fs-api-lines"
-      ? l.canonical === undefined && l.batchLineSha256 === l.lineSha256
-      : !!l.canonical && typeof l.canonical === "object" && !Array.isArray(l.canonical))
+    !!l.canonical &&
+    typeof l.canonical === "object" &&
+    !Array.isArray(l.canonical) &&
+    (l.source !== "fs-api-lines" || l.batchLineSha256 === l.lineSha256)
   );
 }
 
@@ -159,15 +161,6 @@ export function checkLines(lines: unknown, rateCardSha256: string): LinesCheck {
   }
   const summary: LinesSummary = { count: 0, paypal: { count: 0, cents: 0 }, cash: { count: 0, cents: 0 } };
   for (const l of lines) {
-    // Option B (ADR-0012): the frozen /lines DTO gives hashes, not canonical preimages. Each must
-    // match /batch.memberLines before the independently recomputed root may bind the approval.
-    if (l.source === "fs-api-lines") {
-      const rail = l.rail === "PAYPAL" ? summary.paypal : summary.cash;
-      rail.count++;
-      rail.cents += l.netCents;
-      summary.count++;
-      continue;
-    }
     const c = l.canonical as unknown as Record<string, unknown>;
     let hash: string;
     try {
@@ -226,6 +219,7 @@ export function checkCosignRequest(req: CosignRequestDTO): RequestCheck {
   if (
     !req ||
     typeof req.runId !== "string" ||
+    typeof req.seasonId !== "string" ||
     typeof req.senderBatchId !== "string" ||
     typeof req.rateCardSha256 !== "string" ||
     !HEX64.test(req.rateCardSha256) ||
@@ -259,6 +253,7 @@ export function checkCosignRequest(req: CosignRequestDTO): RequestCheck {
     lines: lines.summary,
     expected: {
       runId: req.runId,
+      seasonId: req.seasonId,
       rateCardSha256: req.rateCardSha256,
       batchSha256: recomputed.batchSha256,
       linesDigest: lines.linesDigest,
@@ -332,7 +327,11 @@ export function approvalPayloadShape(raw: unknown): ApprovalPayload | null {
  * recomputed from its content; the payouts are exactly the PayPal lines. Then that it is the batch the Chair opened,
  * for his role, inside its time window. Any difference is a mismatch: nothing is signed.
  */
-export function checkApprovalPayload(raw: unknown, expected: ExpectedBatch, now: Date): PayloadCheck {
+export function checkApprovalPayload(
+  raw: unknown,
+  expected: ExpectedBatch & { approverId?: string },
+  now: Date,
+): PayloadCheck {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, problem: "malformed" };
   const dto = raw as Partial<Record<keyof ApprovalPayloadDTO, unknown>>;
   const payload = approvalPayloadShape(dto.payload);
@@ -367,6 +366,8 @@ export function checkApprovalPayload(raw: unknown, expected: ExpectedBatch, now:
   if (!itemsMatchLines(items, dto.lines as readonly CosignLine[])) return mismatch;
   if (
     payload.runId !== expected.runId ||
+    payload.seasonId !== expected.seasonId ||
+    (expected.approverId !== undefined && payload.approverId !== expected.approverId) ||
     payload.batchSha256 !== expected.batchSha256 ||
     payload.linesDigest !== expected.linesDigest ||
     payload.rateCardSha256 !== expected.rateCardSha256 ||
@@ -908,10 +909,11 @@ const offlineCode = (r: { code: string; status?: number }) => r.code === "NETWOR
  */
 export async function cosign(
   approval: unknown,
-  expected: ExpectedBatch,
+  expected: ExpectedBatch & { approverId: string },
   deps: CosignDeps,
 ): Promise<CosignResult> {
   if (!deps.online()) return { ok: false, state: "offline", detail: "offline" };
+  if (!expected.approverId) return { ok: false, state: "mismatch", detail: "approver" };
   const check = checkApprovalPayload(approval, expected, deps.now());
   if (!check.ok) {
     const state: CosignFailure =

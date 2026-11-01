@@ -155,9 +155,9 @@ export type CosignLine = Pick<ProofLine, "memberNo" | "rail" | "netCents" | "lin
   (
     | { canonical: ProofLine["canonical"]; source?: undefined }
     | {
-        /** Option B: /lines exposes stored hashes, not full canonical line preimages (ADR-0012). */
+        /** The additive /lines preimage is rehashed locally and cross-checked with /batch. */
         source: "fs-api-lines";
-        canonical?: undefined;
+        canonical: ProofLine["canonical"];
         batchLineSha256: string | null;
       }
   );

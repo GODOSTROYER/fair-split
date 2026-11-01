@@ -71,8 +71,10 @@ const NOW = new Date("2026-10-29T10:20:00+08:00");
 const P1 = "pairing-ernesto-1";
 const P2 = "pairing-ernesto-2";
 
-const expected: ExpectedBatch = {
+const expected: ExpectedBatch & { approverId: string } = {
   runId,
+  seasonId,
+  approverId: people.chair.approverId,
   rateCardSha256,
   batchSha256,
   linesDigest,
@@ -120,6 +122,26 @@ function firstItem(): CosignRequestDTO["items"][number] {
 }
 
 describe("approval payload", () => {
+  it.each([{ approverId: "board:someone-else" }, { seasonId: "other-season" }])(
+    "inv.i6.payload-identity: refuses %j before any key is touched",
+    async (change) => {
+      const sign = vi.fn();
+      const register = vi.fn();
+      const submit = vi.fn();
+      const result = await cosign(approval(change), expected, {
+        now: () => NOW,
+        online: () => true,
+        sign,
+        register,
+        submit,
+        isRegistered: () => false,
+      });
+      expect(result).toMatchObject({ ok: false, state: "mismatch" });
+      expect(sign).not.toHaveBeenCalled();
+      expect(register).not.toHaveBeenCalled();
+      expect(submit).not.toHaveBeenCalled();
+    },
+  );
   it("matches the register's figures: 8 items, US$368.39, and binds all 64 member lines", () => {
     expect(batchItems).toHaveLength(8);
     expect(batchTotalCents).toBe(36839);
@@ -331,7 +353,8 @@ describe("co-sign request, recomputed on the phone (I4)", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.recomputed).toEqual({ batchSha256, itemCount: 8, totalCents: 36839 });
-    expect(r.expected).toEqual(expected);
+    const { approverId: _, ...batch } = expected;
+    expect(r.expected).toEqual(batch);
     expect(r.lines).toEqual({
       count: 64,
       paypal: { count: 8, cents: 36839 },

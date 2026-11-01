@@ -34,21 +34,29 @@ export type RequestStatus = ScreenStateOf<"M-BD-01">;
 export interface OpenedBatch {
   batchSha256: string;
   linesDigest: string;
+  seasonId: string;
 }
 
 export function openedFrom(check: RequestCheck | null): OpenedBatch | null {
   return check?.ok
-    ? { batchSha256: check.recomputed.batchSha256, linesDigest: check.expected.linesDigest }
+    ? {
+        batchSha256: check.recomputed.batchSha256,
+        linesDigest: check.expected.linesDigest,
+        seasonId: check.expected.seasonId,
+      }
     : null;
 }
 
 /** An expected batch (a payload's target) is the batch the Chair opened. */
 export function matchesOpened(
-  expected: Pick<ExpectedBatch, "batchSha256" | "linesDigest">,
+  expected: Pick<ExpectedBatch, "batchSha256" | "linesDigest" | "seasonId">,
   opened: OpenedBatch | null,
 ): boolean {
   return (
-    !!opened && expected.batchSha256 === opened.batchSha256 && expected.linesDigest === opened.linesDigest
+    !!opened &&
+    expected.batchSha256 === opened.batchSha256 &&
+    expected.linesDigest === opened.linesDigest &&
+    expected.seasonId === opened.seasonId
   );
 }
 

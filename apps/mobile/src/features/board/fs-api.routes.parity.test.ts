@@ -82,7 +82,7 @@ describe("fs-api route and shape parity", () => {
     ]) {
       expect(batch, field).toMatch(new RegExp(`\\b${field}:`));
     }
-    expect(reads).toContain("lines: z.array(MemberLineDTO)");
+    expect(reads).toContain("MemberLineDTO.extend({ canonical: LineCanonical })");
     const keys = source("judge/keys.ts");
     for (const field of ["publicKeyHex", "signatureHex", "keyId", "approverId", "kind", "label"])
       expect(keys).toMatch(new RegExp(`\\b${field}:`));

@@ -20,7 +20,7 @@ const approval = buildDemoApproval(dto, {
   exp: new Date(now.getTime() + 30 * 60_000).toISOString(),
 });
 
-function server(tamper = false) {
+function server(tamper: false | true | "netCents" | "rail" = false) {
   const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
     const path = String(url).replace("http://localhost", "");
     let body: unknown;
@@ -50,8 +50,10 @@ function server(tamper = false) {
         runSlug: dto.runSlug,
         lines: dto.lines.map((l) => ({
           ...l.canonical,
-          canonical: undefined,
-          lineSha256: tamper ? "f".repeat(64) : l.lineSha256,
+          canonical: l.canonical,
+          ...(l.rail === "CASH" && tamper === "netCents" ? { netCents: l.netCents + 1 } : {}),
+          ...(l.rail === "CASH" && tamper === "rail" ? { rail: "PAYPAL" } : {}),
+          lineSha256: tamper === true ? "f".repeat(64) : l.lineSha256,
           runId: dto.runId,
           provenance: "seeded",
         })),
@@ -157,6 +159,8 @@ describe("fs-api phone adapter", () => {
       p.ok ? p.value : null,
       {
         runId: dto.runId,
+        seasonId: dto.seasonId,
+        approverId: "board:ernesto",
         rateCardSha256: dto.rateCardSha256,
         batchSha256: dto.batchSha256,
         linesDigest: dto.linesDigest,
@@ -173,8 +177,41 @@ describe("fs-api phone adapter", () => {
   it("keeps frames on labelled demo until a board token arrives; reset returns to demo", () => {
     expect(boardApiMode("http://localhost", true, null)).toBe("demo");
     expect(boardApiMode("http://localhost", true, { role: "board", bearer: "frame-token" })).toBe("live");
-    expect(boardApiMode("http://localhost", true, { role: "clerk", bearer: "frame-token" })).toBe("demo");
+    expect(boardApiMode("http://localhost", true, { role: "clerk", bearer: "frame-token" })).toBe("live");
     expect(boardApiMode(null, true, { role: "board", bearer: "frame-token" })).toBe("demo");
     expect(boardApiMode("http://localhost", false, null)).toBe("live");
   });
+  it.each(["netCents", "rail"] as const)(
+    "inv.i4.cash-%s: refuses /lines display tampering with unchanged hashes",
+    async (field) => {
+      const { api } = server(field);
+      const request = await api.getCosignRequest(dto.runSlug);
+      if (!request.ok) throw new Error(request.code);
+      expect(checkCosignRequest(request.value).ok).toBe(false);
+      const p = await api.getApprovalPayload(dto.runSlug, "chair");
+      const sign = vi.fn();
+      const register = vi.fn();
+      const submit = vi.fn();
+      expect(
+        await cosign(
+          p.ok ? p.value : null,
+          {
+            runId: dto.runId,
+            seasonId: dto.seasonId,
+            approverId: "board:ernesto",
+            rateCardSha256: dto.rateCardSha256,
+            batchSha256: dto.batchSha256,
+            linesDigest: dto.linesDigest,
+            totalCents: dto.totalCents,
+            itemCount: dto.itemCount,
+            role: "chair",
+          },
+          { now: () => now, online: () => true, sign, register, submit, isRegistered: () => false },
+        ),
+      ).toMatchObject({ ok: false, state: "mismatch" });
+      expect(sign).not.toHaveBeenCalled();
+      expect(register).not.toHaveBeenCalled();
+      expect(submit).not.toHaveBeenCalled();
+    },
+  );
 });
