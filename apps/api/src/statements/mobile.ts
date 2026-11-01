@@ -6,7 +6,7 @@ import { and, asc, desc, eq, inArray, type SQLWrapper, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { StatementContext } from "./facts.js";
 import { honorificOf } from "./facts.js";
-import type { StatementLineFacts } from "./plan.js";
+import { payKindOf, type StatementLineFacts } from "./plan.js";
 import { estimateText, pesoEstimateCentavos, pesoExactCentavos, renderFact } from "./render.js";
 
 const Hero = z.object({
@@ -56,13 +56,15 @@ export const MobileStatement = z.object({
     })
     .nullable(),
   kilos: z.object({ netGrams: z.int(), grade1Grams: z.int(), coopVerifiedGrams: z.int() }),
-  amounts: z.object({
-    premiumCents: z.int(),
-    bonusCents: z.int(),
-    netCents: z.int(),
-    deductions: z.array(z.object({ ruleId: z.string(), label: z.string(), cents: z.int() })),
-    credits: z.array(z.object({ slip: z.string(), writtenCentavos: z.int(), cents: z.int() })),
-  }),
+  amounts: z
+    .object({
+      premiumCents: z.int(),
+      bonusCents: z.int(),
+      netCents: z.int(),
+      deductions: z.array(z.object({ ruleId: z.string(), label: z.string(), cents: z.int() })),
+      credits: z.array(z.object({ slip: z.string(), writtenCentavos: z.int(), cents: z.int() })),
+    })
+    .nullable(),
   fx: z.object({ phpPerUsd: z.string() }),
   slips: z.array(
     z.object({
@@ -85,10 +87,10 @@ export const MobileStatement = z.object({
   expectedDate: z.string().nullable(),
   spokenHashes: z.array(z.string()),
   formatted: z.object({
-    hero: z.object({ paypal: Hero, cash: Hero }),
+    hero: z.object({ paypal: Hero, cash: Hero }).nullable(),
     receiptRows: z.array(ReceiptRow),
     share: z.object({ kg: z.string(), coopKg: z.string(), grade1Kg: z.string(), allGrade1: z.boolean() }),
-    conservation: z.object({ ok: z.boolean(), computedCents: z.int(), netCents: z.int() }),
+    conservation: z.object({ ok: z.boolean(), computedCents: z.int(), netCents: z.int() }).nullable(),
   }),
 });
 export type MobileStatement = z.infer<typeof MobileStatement>;
@@ -116,6 +118,16 @@ export function mobileFigures(
   f: StatementLineFacts,
   coopVerifiedGrams: number,
 ): MobileStatement["formatted"] {
+  const share = {
+    kg: format.kg(f.verifiedG),
+    coopKg: format.kg(coopVerifiedGrams),
+    grade1Kg: format.kg(f.grade1G),
+    allGrade1: f.verifiedG === f.grade1G,
+  };
+  const pay = payKindOf(f);
+  if (pay !== "cash" && pay !== "paypal") {
+    return { hero: null, receiptRows: [], share, conservation: null };
+  }
   const usd = format.money(f.netCents);
   const rate = f.fx ? format.money(mulDivHalfUp(100, f.fx.num, f.fx.den), "PHP") : "";
   const base = { cents: f.netCents, usd, rate };
@@ -169,12 +181,7 @@ export function mobileFigures(
       },
     },
     receiptRows,
-    share: {
-      kg: format.kg(f.verifiedG),
-      coopKg: format.kg(coopVerifiedGrams),
-      grade1Kg: format.kg(f.grade1G),
-      allGrade1: f.verifiedG === f.grade1G,
-    },
+    share,
     conservation: { ok: computedCents === f.netCents, computedCents, netCents: f.netCents },
   };
 }
@@ -264,6 +271,8 @@ export async function loadMobileStatement(
     .where(and(scoped(schema.memberLines), eq(schema.memberLines.runId, ctx.runId)));
   const coopVerifiedGrams = Number(totals?.grams ?? 0);
   const f = ctx.facts;
+  const pay = payKindOf(f);
+  const amountsVisible = pay === "cash" || pay === "paypal";
   const history: MobileStatement["history"] = [];
   for (const e of events) {
     const p = e.payload as Record<string, unknown>;
@@ -304,17 +313,23 @@ export async function loadMobileStatement(
     lineState: f.state === "PAID" && !verified ? "PAYPAL_PENDING" : f.state,
     item: item ? { ...item, status: itemStatus, updatedAt: item.updatedAt.toISOString(), verified } : null,
     kilos: { netGrams: f.verifiedG, grade1Grams: f.grade1G, coopVerifiedGrams },
-    amounts: {
-      premiumCents: f.premiumCents,
-      bonusCents: f.bonusCents,
-      netCents: f.netCents,
-      deductions: f.deductions.map((d) => ({ ruleId: d.ruleId, label: d.category, cents: d.amountCents })),
-      credits: f.credits.map((c) => ({
-        slip: c.serial ?? "",
-        writtenCentavos: c.phpCentavos ?? 0,
-        cents: c.amountCents,
-      })),
-    },
+    amounts: amountsVisible
+      ? {
+          premiumCents: f.premiumCents,
+          bonusCents: f.bonusCents,
+          netCents: f.netCents,
+          deductions: f.deductions.map((d) => ({
+            ruleId: d.ruleId,
+            label: d.category,
+            cents: d.amountCents,
+          })),
+          credits: f.credits.map((c) => ({
+            slip: c.serial ?? "",
+            writtenCentavos: c.phpCentavos ?? 0,
+            cents: c.amountCents,
+          })),
+        }
+      : null,
     fx: { phpPerUsd: fx },
     slips: slips
       .filter((s) => f.slipSerials.includes(s.serial) && s.deliveredOn !== null && s.netGrams !== null)

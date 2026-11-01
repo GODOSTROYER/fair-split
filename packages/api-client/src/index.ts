@@ -85,3 +85,12 @@ export {
   type Subscription,
   subscribe,
 } from "./sse.js";
+export {
+  MemberStatementLine,
+  MobileStatement,
+  STATEMENT_ROUTES,
+  StatementQuery,
+  type StatementRouteMethods,
+  StatementView,
+  statementRoutes,
+} from "./statements.js";

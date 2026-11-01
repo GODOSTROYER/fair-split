@@ -28,6 +28,43 @@ beforeAll(async () => {
 afterAll(async () => t.close());
 
 describe("GET /v1/statements/:lineId", () => {
+  it.each(["COMPUTED", "READY", "HELD", "EXCLUDED"] as const)(
+    "inv.i1.mobile-visibility: %s uses the same money visibility as the statement",
+    async (state) => {
+      const [source] = await t.deps.db.select().from(schema.payRuns).where(eq(schema.payRuns.id, w.runId));
+      const [original] = await t.deps.db
+        .select()
+        .from(schema.memberLines)
+        .where(eq(schema.memberLines.id, line("M-031")));
+      if (!source || !original) throw new Error("missing statement fixture");
+      const [run] = await t.deps.db
+        .insert(schema.payRuns)
+        .values({
+          workspaceId: w.workspaceId,
+          seasonId: source.seasonId,
+          rateCardId: source.rateCardId,
+          seasonCode: source.seasonCode,
+          currency: source.currency,
+          rateCardSha256: source.rateCardSha256,
+          provenance: "seeded",
+        })
+        .returning({ id: schema.payRuns.id });
+      if (!run) throw new Error("missing provisional run");
+      const lineId = randomUUID();
+      await t.deps.db.insert(schema.memberLines).values({ ...original, id: lineId, runId: run.id, state });
+      const token = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
+      const response = await t.json<StatementView>(`/v1/statements/${lineId}?lang=en`, {
+        as: t.credentials.bearer(token),
+      });
+      expect(response.status).toBe(200);
+      expect(response.body.amount).toBeNull();
+      expect(response.body.mobile.amounts).toBeNull();
+      expect(response.body.mobile.formatted.hero).toBeNull();
+      expect(response.body.mobile.formatted.receiptRows).toEqual([]);
+      expect(response.body.mobile.formatted.conservation).toBeNull();
+    },
+  );
+
   it("inv.i8.mobile-simulator-status: a simulator POST status in a seeded run does not claim paid", async () => {
     const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
     const where = and(
@@ -134,8 +171,8 @@ describe("GET /v1/statements/:lineId", () => {
     expect(v.provenance).toBe("seeded");
     expect(v.mobile.lineId).toBe(line("M-014"));
     expect(v.mobile.member.memberNo).toBe("M-014");
-    expect(v.mobile.formatted.hero.paypal.amount).toBe(format.money(must(getLine("M-014")).netCents));
-    expect(v.mobile.formatted.conservation.ok).toBe(true);
+    expect(v.mobile.formatted.hero?.paypal.amount).toBe(format.money(must(getLine("M-014")).netCents));
+    expect(v.mobile.formatted.conservation?.ok).toBe(true);
     expect(v.mobile.spokenHashes).toEqual(
       v.spoken.map((sentence) => createHash("sha256").update(sentence.text).digest("hex")),
     );

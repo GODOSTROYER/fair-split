@@ -31,7 +31,10 @@ beforeAll(async () => {
   // the app clock starts at the real time, so the database clock (purge, limiter) agrees with it
   t = await createTestApp({ db: "postgres", clock: new Date() });
 });
-afterAll(async () => t.close());
+afterAll(async () => {
+  await judgeRuntime(t.deps).idle();
+  await t.close();
+});
 beforeEach(() => t.deps.rateLimits.reset());
 
 function owner() {
@@ -565,6 +568,11 @@ describe("Try to break it", () => {
   });
 });
 
+// These three cases create an additional migrated database (CREATE DATABASE ... TEMPLATE can wait on a
+// checkpoint under load). The code cases also build several seeded worlds and finish the background pool
+// refill before closing that database. Cache expiry and guess cooldowns already use the injected clock;
+// allow real database work the same 120 s budget as the kill-switch integration cases, not wall-clock sleeps.
+const SLOW = 120_000;
 describe("the judge session view, the lane and the judge code", () => {
   it("inv.i8.labelled: GET /v1/judge/session shows the run, the labelled rail decision and the lane", async () => {
     const s = await startSession({ ip: "203.0.113.100" });
@@ -612,157 +620,174 @@ describe("the judge session view, the lane and the judge code", () => {
     expect(pub.body.rail.mode).toBe("replay");
   });
 
-  it("GET /v1/judge/lane is throttled per network and serves its public view from a 2 s cache", async () => {
-    const app = await createTestApp({ db: "postgres", clock: new Date() });
-    try {
-      type Lane = { rail: { quota: { balance: { source: string } } } };
-      const ip = { "cf-connecting-ip": "198.51.100.77" };
-      const source = async () =>
-        (await app.json<Lane>("/v1/judge/lane", { headers: ip })).body.rail.quota.balance.source;
-      expect(await source()).toBe("simulator_opening");
-      await recordBalanceReading(app.deps.db, {
-        rail: "simulated",
-        availableCents: 100_000_000,
-        asOf: app.clock.now(),
-        source: "searchBalances",
-      });
-      expect(await source()).toBe("simulator_opening"); // the same view, from the cache
-      app.clock.advance(2_001);
-      expect(await source()).toBe("reading");
-      for (let i = 0; i < 57; i++) await app.json("/v1/judge/lane", { headers: ip });
-      const limited = await app.json<ApiError>("/v1/judge/lane", { headers: ip });
-      expect(limited.status).toBe(429);
-      expect(ApiError.parse(limited.body).code).toBe("RATE_LIMITED");
-      const elsewhere = await app.json("/v1/judge/lane", {
-        headers: { "cf-connecting-ip": "198.51.100.78" },
-      });
-      expect(elsewhere.status).toBe(200);
-    } finally {
-      await app.close();
-    }
-  });
+  it(
+    "GET /v1/judge/lane is throttled per network and serves its public view from a 2 s cache",
+    async () => {
+      const app = await createTestApp({ db: "postgres", clock: new Date() });
+      try {
+        type Lane = { rail: { quota: { balance: { source: string } } } };
+        const ip = { "cf-connecting-ip": "198.51.100.77" };
+        const source = async () =>
+          (await app.json<Lane>("/v1/judge/lane", { headers: ip })).body.rail.quota.balance.source;
+        expect(await source()).toBe("simulator_opening");
+        await recordBalanceReading(app.deps.db, {
+          rail: "simulated",
+          availableCents: 100_000_000,
+          asOf: app.clock.now(),
+          source: "searchBalances",
+        });
+        expect(await source()).toBe("simulator_opening"); // the same view, from the cache
+        app.clock.advance(2_001);
+        expect(await source()).toBe("reading");
+        for (let i = 0; i < 57; i++) await app.json("/v1/judge/lane", { headers: ip });
+        const limited = await app.json<ApiError>("/v1/judge/lane", { headers: ip });
+        expect(limited.status).toBe(429);
+        expect(ApiError.parse(limited.body).code).toBe("RATE_LIMITED");
+        const elsewhere = await app.json("/v1/judge/lane", {
+          headers: { "cf-connecting-ip": "198.51.100.78" },
+        });
+        expect(elsewhere.status).toBe(200);
+      } finally {
+        await app.close();
+      }
+    },
+    SLOW,
+  );
 
-  it("unlocks the judge-code bucket with the right code only (403 otherwise, 429 when guessing)", async () => {
-    const code = "lantern-bay-judges";
-    const app = await createTestApp({
-      db: "postgres",
-      clock: new Date(),
-      env: { JUDGE_CODE_SHA256: createHash("sha256").update(code).digest("hex") },
-    });
-    try {
-      const r0 = await app.json<SessionBody>("/v1/judge/sessions", { method: "POST", body: {} });
-      const cookie = cookieFrom(r0.headers.get("set-cookie"));
-      const as = app.credentials.judge(cookie);
-      const wrong = await app.json<ApiError>("/v1/judge/code", {
-        method: "POST",
-        body: { code: "nope" },
-        as,
+  it(
+    "unlocks the judge-code bucket with the right code only (403 otherwise, 429 when guessing)",
+    async () => {
+      const code = "lantern-bay-judges";
+      const app = await createTestApp({
+        db: "postgres",
+        clock: new Date(),
+        env: { JUDGE_CODE_SHA256: createHash("sha256").update(code).digest("hex") },
       });
-      expect(wrong.status).toBe(403);
-      const ok = await app.json<{ ok: boolean }>("/v1/judge/code", { method: "POST", body: { code }, as });
-      expect(ok.body).toEqual({ ok: true, bucket: "judge_code" });
-      const view = await app.json<{ rail: { quota: { coded: boolean } } }>("/v1/judge/session", { as });
-      expect(view.body.rail.quota.coded).toBe(true);
-      for (let i = 0; i < 3; i++)
-        await app.json("/v1/judge/code", { method: "POST", body: { code: "x" }, as });
-      const limited = await app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code }, as });
-      expect(limited.status).toBe(429);
+      try {
+        const r0 = await app.json<SessionBody>("/v1/judge/sessions", { method: "POST", body: {} });
+        const cookie = cookieFrom(r0.headers.get("set-cookie"));
+        const as = app.credentials.judge(cookie);
+        const wrong = await app.json<ApiError>("/v1/judge/code", {
+          method: "POST",
+          body: { code: "nope" },
+          as,
+        });
+        expect(wrong.status).toBe(403);
+        const ok = await app.json<{ ok: boolean }>("/v1/judge/code", { method: "POST", body: { code }, as });
+        expect(ok.body).toEqual({ ok: true, bucket: "judge_code" });
+        const view = await app.json<{ rail: { quota: { coded: boolean } } }>("/v1/judge/session", { as });
+        expect(view.body.rail.quota.coded).toBe(true);
+        for (let i = 0; i < 3; i++)
+          await app.json("/v1/judge/code", { method: "POST", body: { code: "x" }, as });
+        const limited = await app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code }, as });
+        expect(limited.status).toBe(429);
 
-      // the unlock belongs to the session, not its workspace: a Reset and the purge never drop it
-      const s0 = CreateJudgeSessionResponse.parse(r0.body);
-      await app.json(`/v1/judge/sessions/${s0.sessionId}/reset`, { method: "POST", body: {}, as });
-      const ownerSql = app.pg?.owner.sql;
-      if (!ownerSql) throw new Error("no database");
-      // the database's 24 hours are over for s0's workspace
-      await setWorkspaceExpiry(ownerSql, s0.workspaceId, new Date(Date.now() - 60_000));
-      await app.deps.db.execute(sql`select fs_purge_workspace(${s0.workspaceId}::uuid)`);
-      const r1 = await app.json<SessionBody>("/v1/judge/sessions", {
-        method: "POST",
-        body: {},
-        headers: { cookie: `${JUDGE_COOKIE.name}=${cookie}` },
-      });
-      expect(r1.status).toBe(201);
-      const s1 = CreateJudgeSessionResponse.parse(r1.body);
-      expect(s1.sessionId).toBe(s0.sessionId);
-      expect(s1.workspaceId).not.toBe(s0.workspaceId);
-      const after = await app.json<{ rail: { quota: { coded: boolean } } }>("/v1/judge/session", {
-        as: app.credentials.judge(cookieFrom(r1.headers.get("set-cookie"))),
-      });
-      expect(after.body.rail.quota.coded).toBe(true);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("judge-code guesses are capped per session and in all: new networks or spoofed headers buy no new guesses", async () => {
-    const code = "lantern-bay-judges";
-    const app = await createTestApp({
-      db: "postgres",
-      clock: new Date(),
-      env: { JUDGE_CODE_SHA256: createHash("sha256").update(code).digest("hex") },
-    });
-    try {
-      // each session starts from its own network (the edge's CF-Connecting-IP, which the test env trusts)
-      let net = 0;
-      const start = async () => {
-        net++;
-        const r = await app.json("/v1/judge/sessions", {
+        // the unlock belongs to the session, not its workspace: a Reset and the purge never drop it
+        const s0 = CreateJudgeSessionResponse.parse(r0.body);
+        await app.json(`/v1/judge/sessions/${s0.sessionId}/reset`, { method: "POST", body: {}, as });
+        const ownerSql = app.pg?.owner.sql;
+        if (!ownerSql) throw new Error("no database");
+        // the database's 24 hours are over for s0's workspace
+        await setWorkspaceExpiry(ownerSql, s0.workspaceId, new Date(Date.now() - 60_000));
+        await app.deps.db.execute(sql`select fs_purge_workspace(${s0.workspaceId}::uuid)`);
+        const r1 = await app.json<SessionBody>("/v1/judge/sessions", {
           method: "POST",
           body: {},
-          headers: { "cf-connecting-ip": `198.18.0.${net}` },
+          headers: { cookie: `${JUDGE_COOKIE.name}=${cookie}` },
         });
-        expect(r.status).toBe(201);
-        return app.credentials.judge(cookieFrom(r.headers.get("set-cookie")));
-      };
-      const guess = (
-        as: ReturnType<typeof app.credentials.judge>,
-        headers: Record<string, string>,
-        c = "nope",
-      ) => app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code: c }, as, headers });
-
-      // 1. one session, every guess from a different real network: five, then 429 even for the right code
-      const a = await start();
-      for (let i = 0; i < 5; i++) {
-        expect((await guess(a, { "cf-connecting-ip": `198.19.1.${i}` })).status).toBe(403);
+        expect(r1.status).toBe(201);
+        const s1 = CreateJudgeSessionResponse.parse(r1.body);
+        expect(s1.sessionId).toBe(s0.sessionId);
+        expect(s1.workspaceId).not.toBe(s0.workspaceId);
+        const after = await app.json<{ rail: { quota: { coded: boolean } } }>("/v1/judge/session", {
+          as: app.credentials.judge(cookieFrom(r1.headers.get("set-cookie"))),
+        });
+        expect(after.body.rail.quota.coded).toBe(true);
+      } finally {
+        await judgeRuntime(app.deps).idle();
+        await app.close();
       }
-      const perSession = await guess(a, { "cf-connecting-ip": "198.19.1.99" }, code);
-      expect(perSession.status).toBe(429);
-      expect(ApiError.parse(perSession.body).code).toBe("RATE_LIMITED");
+    },
+    SLOW,
+  );
 
-      // 2. one network rotating True-Client-IP and the leftmost X-Forwarded-For entries over fresh sessions: the
-      //    hop Render's proxy appended (rightmost) is the network, five guesses a minute
-      app.deps.rateLimits.reset();
-      const sessions = [await start(), await start(), await start()];
-      for (let i = 0; i < 5; i++) {
-        const spoof = { "true-client-ip": `203.0.113.${i}`, "x-forwarded-for": `198.20.0.${i}, 192.0.2.200` };
-        expect((await guess(sessions[i % 2] as typeof a, spoof)).status).toBe(403);
-      }
-      const spoofed = await guess(
-        sessions[2] as typeof a,
-        { "true-client-ip": "203.0.113.99", "x-forwarded-for": "198.20.0.99, 192.0.2.200" },
-        code,
-      );
-      expect(spoofed.status).toBe(429);
+  it(
+    "judge-code guesses are capped per session and in all: new networks or spoofed headers buy no new guesses",
+    async () => {
+      const code = "lantern-bay-judges";
+      const app = await createTestApp({
+        db: "postgres",
+        clock: new Date(),
+        env: { JUDGE_CODE_SHA256: createHash("sha256").update(code).digest("hex") },
+      });
+      try {
+        // each session starts from its own network (the edge's CF-Connecting-IP, which the test env trusts)
+        let net = 0;
+        const start = async () => {
+          net++;
+          const r = await app.json("/v1/judge/sessions", {
+            method: "POST",
+            body: {},
+            headers: { "cf-connecting-ip": `198.18.0.${net}` },
+          });
+          expect(r.status).toBe(201);
+          return app.credentials.judge(cookieFrom(r.headers.get("set-cookie")));
+        };
+        const guess = (
+          as: ReturnType<typeof app.credentials.judge>,
+          headers: Record<string, string>,
+          c = "nope",
+        ) => app.json<ApiError>("/v1/judge/code", { method: "POST", body: { code: c }, as, headers });
 
-      // 3. many sessions on many networks: thirty guesses a minute in all, then even the right code waits
-      app.deps.rateLimits.reset();
-      for (let s = 0; s < 6; s++) {
-        const j = await start();
+        // 1. one session, every guess from a different real network: five, then 429 even for the right code
+        const a = await start();
         for (let i = 0; i < 5; i++) {
-          expect((await guess(j, { "cf-connecting-ip": `198.19.${10 + s}.${i}` })).status).toBe(403);
+          expect((await guess(a, { "cf-connecting-ip": `198.19.1.${i}` })).status).toBe(403);
         }
+        const perSession = await guess(a, { "cf-connecting-ip": "198.19.1.99" }, code);
+        expect(perSession.status).toBe(429);
+        expect(ApiError.parse(perSession.body).code).toBe("RATE_LIMITED");
+
+        // 2. one network rotating True-Client-IP and the leftmost X-Forwarded-For entries over fresh sessions: the
+        //    hop Render's proxy appended (rightmost) is the network, five guesses a minute
+        app.deps.rateLimits.reset();
+        const sessions = [await start(), await start(), await start()];
+        for (let i = 0; i < 5; i++) {
+          const spoof = {
+            "true-client-ip": `203.0.113.${i}`,
+            "x-forwarded-for": `198.20.0.${i}, 192.0.2.200`,
+          };
+          expect((await guess(sessions[i % 2] as typeof a, spoof)).status).toBe(403);
+        }
+        const spoofed = await guess(
+          sessions[2] as typeof a,
+          { "true-client-ip": "203.0.113.99", "x-forwarded-for": "198.20.0.99, 192.0.2.200" },
+          code,
+        );
+        expect(spoofed.status).toBe(429);
+
+        // 3. many sessions on many networks: thirty guesses a minute in all, then even the right code waits
+        app.deps.rateLimits.reset();
+        for (let s = 0; s < 6; s++) {
+          const j = await start();
+          for (let i = 0; i < 5; i++) {
+            expect((await guess(j, { "cf-connecting-ip": `198.19.${10 + s}.${i}` })).status).toBe(403);
+          }
+        }
+        const late = await start();
+        const global = await guess(late, { "cf-connecting-ip": "198.19.99.1" }, code);
+        expect(global.status).toBe(429);
+        expect(Number(global.headers.get("retry-after"))).toBeGreaterThan(0);
+        app.clock.advance(60_001);
+        const ok = await guess(late, { "cf-connecting-ip": "198.19.99.2" }, code);
+        expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+      } finally {
+        await judgeRuntime(app.deps).idle();
+        await app.close();
       }
-      const late = await start();
-      const global = await guess(late, { "cf-connecting-ip": "198.19.99.1" }, code);
-      expect(global.status).toBe(429);
-      expect(Number(global.headers.get("retry-after"))).toBeGreaterThan(0);
-      app.clock.advance(60_001);
-      const ok = await guess(late, { "cf-connecting-ip": "198.19.99.2" }, code);
-      expect(ok.status, JSON.stringify(ok.body)).toBe(200);
-    } finally {
-      await app.close();
-    }
-  });
+    },
+    SLOW,
+  );
 });
 
 describe("demo signing keys", () => {
