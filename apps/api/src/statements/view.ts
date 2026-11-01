@@ -15,8 +15,15 @@ import { format } from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { StatementContext } from "./facts.js";
+import { loadMobileStatement, MobileStatement } from "./mobile.js";
 import { payKindOf, statementPlan } from "./plan.js";
-import { estimateText, pesoEstimateCentavos, pesoExactCentavos, renderStatement } from "./render.js";
+import {
+  estimateText,
+  pesoEstimateCentavos,
+  pesoExactCentavos,
+  renderStatement,
+  spokenTextSha256,
+} from "./render.js";
 import { TEMPLATES_V1 } from "./templates.js";
 import { Lang, RenderedSentence, StatementPlan, type TemplateSet } from "./types.js";
 import { validateTemplate } from "./validate.js";
@@ -53,6 +60,8 @@ export const StatementView = z.strictObject({
   }),
   source: z.enum(["template", "model"]),
   provenance: Provenance,
+  /** Additive app projection; amounts are formatted only on fs-api. */
+  mobile: MobileStatement,
 });
 export type StatementView = z.infer<typeof StatementView>;
 
@@ -136,5 +145,10 @@ export async function statementView(db: DbOrTx, ctx: StatementContext): Promise<
     sms: { ...rendered.sms, label: "Preview, not sent" },
     source: committed?.source ?? "template",
     provenance: ctx.provenance,
+    mobile: await loadMobileStatement(
+      db,
+      ctx,
+      rendered.spoken.map((sentence) => spokenTextSha256(sentence.text)),
+    ),
   };
 }

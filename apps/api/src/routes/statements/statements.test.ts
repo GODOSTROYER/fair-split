@@ -1,7 +1,7 @@
 // Statements and re-check requests at the HTTP boundary, on embedded Postgres with the seed's showcase run:
 // who may read a statement, createReviewRequest with every listed error, the ledger entry it appends in the same
 // transaction (and the Proof still verifies after it), and the `explain` task through the real outbox.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { type ApiError, ProofResponse, ReviewRequestDTO, TASKS } from "@fairsplit/contracts";
 import { schema, withWorkspaceTx } from "@fairsplit/db";
 import { format, sha256Hex, verifyChain } from "@fairsplit/domain";
@@ -28,6 +28,93 @@ beforeAll(async () => {
 afterAll(async () => t.close());
 
 describe("GET /v1/statements/:lineId", () => {
+  it("inv.i8.mobile-simulator-status: a simulator POST status in a seeded run does not claim paid", async () => {
+    const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
+    const where = and(
+      eq(schema.payoutItems.workspaceId, w.workspaceId),
+      eq(schema.payoutItems.lineId, line("M-014")),
+    );
+    const [original] = await t.deps.db
+      .select({
+        status: schema.payoutItems.status,
+        statusRank: schema.payoutItems.statusRank,
+        provenance: schema.payoutItems.provenance,
+      })
+      .from(schema.payoutItems)
+      .where(where)
+      .limit(1);
+    if (!original) throw new Error("missing hero item");
+    await t.deps.db.update(schema.payoutItems).set({ provenance: "simulated_rail" }).where(where);
+    try {
+      const response = await t.json<StatementView>(`/v1/statements/${line("M-014")}`, {
+        as: t.credentials.bearer(link),
+      });
+      expect(response.status).toBe(200);
+      expect(response.body.mobile.item).toMatchObject({ status: "PENDING", verified: false });
+      expect(response.body.mobile.lineState).toBe("PAYPAL_PENDING");
+    } finally {
+      await t.deps.db.update(schema.payoutItems).set(original).where(where);
+    }
+  });
+
+  it("inv.i5.mobile-submitted: a newly submitted item has a rankable pending phone status", async () => {
+    const isolated = await createTestApp({ db: "postgres", taskHandlers: {} });
+    try {
+      const isolatedWorld = await loadShowcase(isolated.deps.db);
+      const lineId = isolatedWorld.lineIds.get("M-014") as string;
+      const [original] = await isolated.deps.db
+        .select()
+        .from(schema.payoutItems)
+        .where(
+          and(
+            eq(schema.payoutItems.workspaceId, isolatedWorld.workspaceId),
+            eq(schema.payoutItems.lineId, lineId),
+          ),
+        )
+        .limit(1);
+      if (!original) throw new Error("missing hero item");
+      const id = randomUUID();
+      // A new attempt, rather than moving a settled item backwards through the I5 database guard.
+      await isolated.deps.db.insert(schema.payoutItems).values({
+        ...original,
+        id,
+        senderItemId: `k1cd-${id}`,
+        payoutItemId: null,
+        status: "SUBMITTED",
+        statusRank: 0,
+        provenance: "simulated_rail",
+        createdAt: new Date(Date.now() + 1000),
+      });
+      const link = isolated.credentials.memberLink({ workspaceId: isolatedWorld.workspaceId, lineId });
+      const submitted = await isolated.json<StatementView>(`/v1/statements/${lineId}`, {
+        as: isolated.credentials.bearer(link),
+      });
+      expect(submitted.status).toBe(200);
+      expect(submitted.body.mobile.item).toMatchObject({ status: "PENDING", verified: false });
+    } finally {
+      await isolated.close();
+    }
+  });
+
+  it("the member lookup returns only the paired member's newest workspace line", async () => {
+    const token = await t.credentials.frameToken({
+      workspaceId: w.workspaceId,
+      role: "member",
+      persona: "M-014",
+      memberId: memberId("M-014"),
+    });
+    const response = await t.json<{ lineId: string }>("/v1/members/me/statement-line", {
+      as: t.credentials.bearer(token),
+    });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ lineId: line("M-014") });
+    expect((await t.json("/v1/members/me/statement-line")).status).toBe(401);
+    const clerk = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "clerk" });
+    expect((await t.json("/v1/members/me/statement-line", { as: t.credentials.bearer(clerk) })).status).toBe(
+      403,
+    );
+  });
+
   it("the member's own link reads it in their registry language, money first, numbers from code", async () => {
     const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
     const r = await t.json<StatementView>(`/v1/statements/${line("M-014")}`, {
@@ -45,6 +132,13 @@ describe("GET /v1/statements/:lineId", () => {
     expect(v.display[0]?.text).toContain(must(getMember("M-014")).addressAs.ceb);
     expect(v.sms.label).toBe("Preview, not sent");
     expect(v.provenance).toBe("seeded");
+    expect(v.mobile.lineId).toBe(line("M-014"));
+    expect(v.mobile.member.memberNo).toBe("M-014");
+    expect(v.mobile.formatted.hero.paypal.amount).toBe(format.money(must(getLine("M-014")).netCents));
+    expect(v.mobile.formatted.conservation.ok).toBe(true);
+    expect(v.mobile.spokenHashes).toEqual(
+      v.spoken.map((sentence) => createHash("sha256").update(sentence.text).digest("hex")),
+    );
   });
 
   it("?lang=en switches language; English carries no review chip", async () => {
