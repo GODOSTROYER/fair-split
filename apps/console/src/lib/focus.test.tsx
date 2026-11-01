@@ -915,6 +915,30 @@ describe("useFocusGuard, the root's backstop", () => {
     expect(proof.hasAttribute("tabindex")).toBe(false);
   });
 
+  it.each(["pointerdown", "keydown"])(
+    "returns a landmark's lent tabindex in capture on the person's first %s, before browser focus",
+    async (type) => {
+      const view = render(<LaterPage />);
+      const chip = view.getByTestId("proofChip");
+      chip.focus();
+      act(() => chip.click());
+      await frames(1);
+      act(() => view.getByTestId("arrive").click());
+      await frames(1);
+      const proof = view.getByTestId("proof");
+      expect(document.activeElement).toBe(proof);
+      expect(proof.getAttribute("tabindex")).toBe("-1");
+      const paragraph = proof.querySelector("p");
+      if (!paragraph) throw new Error("Proof paragraph missing");
+      const atTarget = vi.fn(() => proof.hasAttribute("tabindex"));
+      paragraph.addEventListener(type, atTarget);
+      paragraph.dispatchEvent(new Event(type, { bubbles: true }));
+      expect(atTarget).toHaveBeenCalledOnce();
+      expect(atTarget).toHaveReturnedWith(false);
+      expect(proof.hasAttribute("tabindex")).toBe(false);
+    },
+  );
+
   it("a landmark that already has its own tabindex (the stage's #fsc-main) keeps it after focus leaves", async () => {
     const view = render(
       <>

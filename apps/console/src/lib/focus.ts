@@ -406,7 +406,7 @@ function listOf(targets: FocusTarget | readonly FocusTarget[]): readonly FocusTa
 
 /**
  * Focuses a landmark (a page's <main>, which ScreenRoot draws with no tabindex) from script, for as long as it holds
- * focus: tabindex="-1" is lent as focus lands and taken back once focus has moved on, as for a skip link's target.
+ * focus: tabindex="-1" is lent as focus lands and taken back on the person's first action or when focus moves on.
  * A static tabindex would let a click in the page's text focus the landmark, which moves the sequential focus
  * starting point to the top of the page (the next Tab jumps up). One with a tabindex of its own (the stage's
  * #fsc-main) keeps it. A blur while the window loses focus leaves focus where it was, so the loan stands.
@@ -415,16 +415,24 @@ function focusLandmark(el: HTMLElement): boolean {
   if (el.hasAttribute("tabindex")) return focusAndReveal(el);
   el.setAttribute("tabindex", "-1");
   const giveBack = () => {
+    el.removeAttribute("tabindex");
+    el.removeEventListener("blur", onBlur);
+    document.removeEventListener("pointerdown", giveBack, true);
+    document.removeEventListener("keydown", giveBack, true);
+  };
+  const onBlur = () => {
     queueMicrotask(() => {
-      if (document.activeElement === el) el.addEventListener("blur", giveBack, { once: true });
-      else el.removeAttribute("tabindex");
+      if (document.activeElement !== el) giveBack();
     });
   };
   if (!focusAndReveal(el)) {
     el.removeAttribute("tabindex");
     return false;
   }
-  el.addEventListener("blur", giveBack, { once: true });
+  el.addEventListener("blur", onBlur);
+  // Before mousedown's default focus step: clicking plain text must not re-focus its landmark ancestor.
+  document.addEventListener("pointerdown", giveBack, true);
+  document.addEventListener("keydown", giveBack, true);
   return true;
 }
 
