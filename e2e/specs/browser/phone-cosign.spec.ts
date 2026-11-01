@@ -1,5 +1,9 @@
 // K1a: the real /app export signs through fs-api in E1's keyless simulator stack. The console in this
 // tree has no Judge stage yet: a test-owned parent performs IC-12, without mocking the phone or API.
+
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { StatementAudio } from "@fairsplit/contracts";
 import type { FrameLocator, Page } from "@playwright/test";
 import { Api, type JudgeSession, registerSigner, sign, waitForRun } from "../../lib/api.js";
 import { expect, test } from "../../lib/fixtures.js";
@@ -98,6 +102,72 @@ async function signInPhone(phone: FrameLocator, page: Page, slug: string, batchH
   expect(submission.payload.batchSha256).toBe(batchHash);
   expect(submission.keyId).toMatch(/^fs-ernesto-demo-[a-z0-9]{6}$/);
   expect(await answer.json()).toMatchObject({ runState: "APPROVED" });
+}
+
+/** Member IC-12 transition over the same unmodified /app export as the Chair. */
+async function openMember(page: Page, api: Api, s: JudgeSession) {
+  const minted = await api.post(
+    `/v1/judge/sessions/${s.sessionId}/frames`,
+    { persona: "member:M-014" },
+    s.asJudge,
+  );
+  expect(minted.status).toBe(201);
+  const credential = minted.json as FrameToken;
+  expect(credential.role).toBe("member");
+  expect(credential.persona).toBe("M-014");
+  await page.goto("/");
+  await page.evaluate(() => {
+    document.body.replaceChildren();
+    const member = document.createElement("iframe");
+    member.name = "member";
+    member.title = "Member phone (test IC-12 parent)";
+    member.width = "430";
+    member.height = "900";
+    window.addEventListener("message", (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.source === member.contentWindow &&
+        event.data?.v === 1 &&
+        event.data?.t === "fs.ready" &&
+        event.data?.frameId === "member"
+      )
+        member.dataset.ready = "true";
+    });
+    member.src = "/app/?demo=member&motion=reduced";
+    document.body.append(member);
+  });
+  const phone = page.frameLocator('iframe[name="member"]');
+  await expect(page.locator('iframe[name="member"]')).toHaveAttribute("data-ready", "true");
+  await expect(phone.getByTestId("M-MB-01")).toBeVisible();
+  await expect(phone.getByTestId("demo-label").first()).toBeVisible();
+  const audioResponse = page.waitForResponse((r) => {
+    const url = new URL(r.url());
+    return url.pathname.startsWith("/v1/media/audio/") && url.searchParams.get("lang") === "ceb";
+  });
+  await page.evaluate((c) => {
+    const member = document.querySelector<HTMLIFrameElement>('iframe[name="member"]');
+    member?.contentWindow?.postMessage(
+      {
+        v: 1,
+        t: "fs.token",
+        token: c.token,
+        exp: Date.parse(c.expiresAt),
+        persona: `${c.role}:${c.persona}`,
+        ws: c.workspaceId,
+      },
+      window.location.origin,
+    );
+    member?.contentWindow?.postMessage(
+      { v: 1, t: "fs.prefs", tier: "low", sound: false, reducedMotion: true, gloss: true },
+      window.location.origin,
+    );
+  }, credential);
+  await expect(phone.getByTestId("demo-label")).toHaveCount(0);
+  const answer = await audioResponse;
+  expect(answer.status()).toBe(200);
+  const audio = StatementAudio.parse(await answer.json());
+  expect(audio.memberNo).toBe("M-014");
+  return { phone, audio };
 }
 
 test("inv.i4.phone: checks every line, refuses inconsistent roots, signs key 2 and survives the armed POST refusal", async ({
@@ -222,6 +292,45 @@ test("inv.i4.phone: checks every line, refuses inconsistent roots, signs key 2 a
         `/v1/runs/${s.runSlug}/approvals`,
       ])
         expect(reads.has(path), path).toBe(true);
+    });
+
+    await test.step("the live Member frame shows the judge line, simulated rail and its exact published voice", async () => {
+      const pageErrors: string[] = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      const { phone, audio } = await openMember(page, api, s);
+      await expect(phone.getByTestId("M-MB-01.rail")).toHaveText("Simulated PayPal sandbox");
+      await expect(phone.getByTestId("M-MB-01.amount")).toContainText("US$64.45");
+      for (const [row, figure] of [
+        ["premium", "43.69"],
+        ["bonus", "21.85"],
+        ["ded-R1", "−1.09"],
+      ] as const)
+        await expect(phone.getByTestId(`M-MB-01.receipt.${row}.amount`)).toHaveText(figure);
+      await page
+        .locator('iframe[name="member"]')
+        .screenshot({ path: join(tmpdir(), "fair-split-k1cd-member.png") });
+
+      await phone.getByTestId("M-MB-01.paminawa").click();
+      await expect(phone.getByTestId("M-MB-03")).toBeVisible();
+      const published = audio.sentences.flatMap((sentence) =>
+        sentence.clip ? [{ sentence, clip: sentence.clip }] : [],
+      );
+      if (published.length > 0) {
+        for (const { sentence, clip } of published) {
+          expect(clip.textSha256).toBe(sentence.textSha256);
+          const row = phone.locator(
+            `[data-testid^="M-MB-03.sentence."][data-audio-slot="${sentence.slot}"][data-audio-url$="${clip.url}"]`,
+          );
+          await expect(row).toHaveAttribute("data-audio-source", "clip");
+        }
+        await expect(phone.getByTestId("M-MB-03.voice")).toContainText("Gemini TTS");
+      } else {
+        await expect(
+          phone.locator('[data-testid^="M-MB-03.sentence."][data-audio-source="device"]').first(),
+        ).toBeVisible();
+        await expect(phone.getByTestId("M-MB-03.voice")).toContainText(audio.deviceLabel);
+      }
+      expect(pageErrors).toEqual([]);
     });
   } finally {
     await page.goto("about:blank"); // close the phone's SSE and presence before releasing the judge lane
