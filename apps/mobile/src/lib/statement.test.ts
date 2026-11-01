@@ -1,6 +1,9 @@
+import { StatementAudio } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
+import type { StatementAudioClip, StatementAudioSentence, StatementDTO } from "../_shims/api-client";
 import { sha256Hex } from "../_shims/domain";
 import { buildDemoStatement } from "../services/demo-fixtures";
+import { withNoDate } from "../test/pay-forms";
 import { figureRuns, isFigure } from "../ui/figures";
 import { EMPTY_TRACK } from "./item-status";
 import {
@@ -17,12 +20,15 @@ import {
   lineApproved,
   MONEY_SLOTS,
   mergeTrack,
+  payForm,
   readFailureOf,
   sentenceFor,
   spokenSerial,
   statementCacheKey,
   statementSentences,
   statementValues,
+  templateVariant,
+  withServedAudio,
 } from "./statement";
 
 const dto = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00" });
@@ -108,6 +114,53 @@ describe("statement sentences", () => {
   });
 });
 
+describe("PAY's form, as fs-api's statement plan picks it (ADR-0011 §6)", () => {
+  const NOW = "2026-10-30T09:12:00+08:00";
+  const at = (stage: Parameters<typeof buildDemoStatement>[0]["stage"]) =>
+    buildDemoStatement({ stage, now: NOW });
+  const noRate = (d: StatementDTO): StatementDTO => ({ ...d, fx: { phpPerUsd: "" } });
+
+  it("by the line, its rail, the run's rate and the cash receipt: the seven forms fs-api renders", () => {
+    expect(payForm(at("paid"))).toBe("paypal");
+    expect(payForm(at("sent"))).toBe("paypal");
+    expect(payForm(noRate(at("paid")))).toBe("paypal_usd");
+    // at the bodega: no receipt yet, then the clerk's receipt (it names the day), or no run rate at all
+    expect(payForm(at("cash-due"))).toBe("cash_nodate");
+    expect(payForm(at("cash-received"))).toBe("cash");
+    expect(payForm(noRate(at("cash-due")))).toBe("cash_usd");
+    // the capsule moved a PayPal line to the bodega: still no receipt
+    expect(payForm(at("paid"), "cash")).toBe("cash_nodate");
+    // still being checked, or held, or excluded from the run
+    expect(payForm(at("checking"))).toBe("checking");
+    expect(payForm({ ...at("checking"), lineState: "HELD" })).toBe("checking");
+    expect(payForm({ ...at("paid"), lineState: "EXCLUDED" })).toBe("excluded");
+  });
+
+  it("shows the template of that form, else the rail's own as a stand-in, and names the receipt's day", () => {
+    const pay = (d: StatementDTO, rail?: "paypal" | "cash") =>
+      applicableTemplates(d, "en", rail ?? (d.rail === "CASH" ? "cash" : "paypal")).filter(
+        (t) => t.slot === "PAY",
+      );
+    // with a no-date template, a line at the bodega shows it until the receipt, then the dated one
+    expect(pay(withNoDate(at("cash-due"))).map((t) => t.id)).toEqual(["pay-cash-nodate"]);
+    expect(pay(withNoDate(at("cash-received"))).map((t) => t.id)).toEqual(["pay-cash"]);
+    expect(pay(withNoDate(at("paid"))).map((t) => t.id)).toEqual(["pay"]);
+    // the demo's templates have no no-date form: the dated one stands in (the phone's voice reads it)
+    expect(pay(at("cash-due")).map((t) => t.id)).toEqual(["pay-cash"]);
+    // the dated sentence names the day the clerk recorded the cash received, the day fs-api's PAY.cash says
+    const received = {
+      ...at("cash-received"),
+      history: [
+        ...at("cash-received").history.filter((h) => h.kind !== "received"),
+        { kind: "received" as const, at: "2026-11-05T10:00:00+08:00" },
+      ],
+    };
+    expect(statementSentences(received, "en").sentences.find((s) => s.slot === "PAY")?.display).toBe(
+      "Your pay this season: ₱4,028.13, in cash at the bodega on 5 Nov 2026.",
+    );
+  });
+});
+
 describe("statement segments", () => {
   it("splits words from engine values so money can be set in the figure face", () => {
     const premium = statementSentences(dto, "en").sentences.find((s) => s.slot === "PREMIUM");
@@ -154,18 +207,47 @@ describe("English gloss (IC-12 gloss, S1.13)", () => {
 });
 
 describe("Paminawa audio plan (register §9, M-MB-03)", () => {
-  const clip = (lang: "ceb" | "fil" | "en", spoken: string, i: number, extra: object = {}) => ({
-    url: `https://media.invalid/${lang}/${i}.m4a`,
-    textSha256: sha256Hex(spoken),
-    label: "Sintetikong tingog (Gemini TTS)",
-    durationMs: 4000,
-    ...extra,
-  });
-  const withClips = (langs: ("ceb" | "fil" | "en")[], mutate?: (spoken: string, i: number) => string) => {
-    const audio: Record<string, ReturnType<typeof clip>[]> = {};
+  type L = "ceb" | "fil" | "en";
+  /**
+   * fs-api's hash of its own words for sentence `i` (ADR-0011 §3), deliberately not the hash of the phone's words:
+   * the phone pairs fs-api's sentences with its own by slot and mentions, and never hashes what it renders (§6).
+   */
+  const apiHash = (lang: L, i: number) => sha256Hex(`fs-api's words for ${lang} sentence ${i}`);
+  /** fs-api's served sentence for the phone's sentence `i` (IC-11): which one it is, fs-api's hash, its clip. */
+  const voiced = (
+    lang: L,
+    i: number,
+    extra: Partial<StatementAudioClip> = {},
+    d: StatementDTO = dto,
+    rail: "paypal" | "cash" = "paypal",
+  ): StatementAudioSentence => {
+    const own = statementSentences(d, lang, rail).sentences[i];
+    if (!own?.slot) throw new Error(`no sentence ${i} in ${lang}`);
+    const template = d.sentences[lang].find((t) => t.id === own.id);
+    return {
+      slot: own.slot,
+      // the form fs-api rendered (`{slot}.{variant}`): PAY's as fs-api's plan picks it for this line and rail
+      // (PAY.paypal for the paid hero, PAY.cash_nodate at the bodega before a receipt), the default form of the rest
+      variant: own.slot === "PAY" ? payForm(d, rail) : "default",
+      mentions: own.slot === "DEDUCTION" ? [`rule:${template?.ref}`] : own.mentions,
+      textSha256: apiHash(lang, i),
+      clip: {
+        url: `https://media.invalid/${lang}/${i}.m4a`,
+        textSha256: apiHash(lang, i),
+        label: "Sintetikong tingog (Gemini TTS)",
+        slot: own.slot,
+        offsets: [],
+        durationMs: 4000,
+        ...extra,
+      },
+    };
+  };
+  /** fs-api's audio for every sentence of `langs`; `otherWords(i)` gives sentence `i` a clip of other words. */
+  const withClips = (langs: L[], otherWords?: (i: number) => boolean) => {
+    const audio: Record<string, StatementAudioSentence[]> = {};
     for (const l of langs) {
-      audio[l] = statementSentences(dto, l).sentences.map((s, i) =>
-        clip(l, mutate ? mutate(s.spoken, i) : s.spoken, i),
+      audio[l] = statementSentences(dto, l).sentences.map((_, i) =>
+        voiced(l, i, otherWords?.(i) ? { textSha256: sha256Hex("other words") } : {}),
       );
     }
     return { ...dto, audio };
@@ -188,7 +270,7 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
 
   it("never plays a clip whose words changed: that sentence falls back to the phone's voice", () => {
     const plan = audioPlan(
-      withClips(["ceb"], (spoken, i) => (i === 2 ? `${spoken} ` : spoken)),
+      withClips(["ceb"], (i) => i === 2),
       "ceb",
       { deviceVoice: true },
     );
@@ -225,14 +307,165 @@ describe("Paminawa audio plan (register §9, M-MB-03)", () => {
     const manifest = {
       ...dto,
       audio: {
-        en: statementSentences(dto, "en").sentences.map((s, i) =>
-          clip("en", s.spoken, i, { mentions: [{ ref: "slip:0403", offsetMs: 1234 }] }),
+        en: statementSentences(dto, "en").sentences.map((_, i) =>
+          voiced("en", i, { offsets: [{ ref: "slip:0403", atMs: 1234 }] }),
         ),
       },
     };
     const exact = audioPlan(manifest, "en", { deviceVoice: true }).steps.find((s) => s.slot === "SOURCES");
     expect(exact?.cues[0]?.offsetMs).toBe(1234);
   });
+
+  it("never plays a clip recorded for another slot, even with the same words", () => {
+    const misfiled = { ...dto, audio: { ceb: [voiced("ceb", 0, { slot: "HELP" })] } };
+    expect(audioPlan(misfiled, "ceb", { deviceVoice: true }).steps[0]?.voice.kind).toBe("device");
+  });
+
+  it("pairs each sentence with fs-api's by slot and the rule it names, so two deductions never swap clips", () => {
+    const en = dto.sentences.en;
+    const r1 = en.find((t) => t.slot === "DEDUCTION" && t.ref === "R1");
+    const two: StatementDTO = {
+      ...dto,
+      amounts: {
+        ...dto.amounts,
+        deductions: [...dto.amounts.deductions, { ruleId: "R3", label: "Loan", cents: 500 }],
+      },
+      sentences: {
+        ...dto.sentences,
+        en: en.flatMap((t) => (t === r1 ? [t, { ...t, id: "deduction-R3", ref: "R3" }] : [t])),
+      },
+    };
+    const own = statementSentences(two, "en").sentences;
+    const [a, b] = [own.findIndex((s) => s.id === r1?.id), own.findIndex((s) => s.id === "deduction-R3")];
+    expect(a >= 0 && b === a + 1).toBe(true);
+    // fs-api reads the loan first: each deduction still plays the clip made for it
+    const served = own.map((_, i) => voiced("en", i, {}, two));
+    const swapped = served.map((s, i) => (i === a ? served[b] : i === b ? served[a] : s) ?? s);
+    const plan = audioPlan({ ...two, audio: { en: swapped } }, "en", { deviceVoice: true });
+    expect(plan.mode).toBe("synthetic");
+    expect(plan.steps[a]?.voice).toMatchObject({ url: `https://media.invalid/en/${a}.m4a` });
+    expect(plan.steps[b]?.voice).toMatchObject({ url: `https://media.invalid/en/${b}.m4a` });
+  });
+
+  it("a sentence fs-api did not serve, or served for another rule, is read by the phone's own voice", () => {
+    const served = statementSentences(dto, "en").sentences.map((_, i) => voiced("en", i));
+    const other = served
+      .filter((s) => s.slot !== "HELP")
+      .map((s) => (s.slot === "DEDUCTION" ? { ...s, mentions: ["rule:R4"] } : s));
+    const plan = audioPlan({ ...dto, audio: { en: other } }, "en", { deviceVoice: true });
+    expect(plan.mode).toBe("mixed");
+    expect(plan.steps.filter((s) => s.voice.kind === "device").map((s) => s.slot)).toEqual([
+      "DEDUCTION",
+      "HELP",
+    ]);
+  });
+
+  it("names each template's form as fs-api does (`{slot}.{variant}`): the demo's PAY forms, the rest default", () => {
+    for (const lang of ["ceb", "fil", "en"] as const) {
+      for (const rail of ["paypal", "cash"] as const) {
+        const forms = applicableTemplates(dto, lang, rail).map((t) => `${t.slot}.${templateVariant(t)}`);
+        expect(forms, `${lang} ${rail}`).toEqual([
+          "GREETING.default",
+          "DELIVERY.default",
+          "PREMIUM.default",
+          "BONUS.default",
+          "DEDUCTION.default",
+          `PAY.${rail}`,
+          "SOURCES.default",
+          "HELP.default",
+          // the product note ("read twice by AI (Claude)"): never paired with T1's seeded AI_NOTE.seeded
+          "AI_NOTE.default",
+        ]);
+      }
+    }
+    expect(templateVariant({ slot: "PAY" })).toBe("paypal");
+    expect(templateVariant({ slot: "AI_NOTE", variant: "seeded" })).toBe("seeded");
+  });
+
+  it("never plays fs-api's PayPal PAY clip for the cash PAY sentence when the line moves to the bodega", () => {
+    // fs-api spoke the statement while the line was on PayPal; the live item track then turned the capsule to cash
+    const served = withClips(["en"]);
+    const cash = audioPlan(served, "en", { deviceVoice: true, rail: "cash" });
+    const pay = cash.steps.find((s) => s.slot === "PAY");
+    expect(pay?.spoken).toContain("in cash at the bodega");
+    expect(pay?.voice).toEqual({ kind: "device" });
+    expect(cash.mode).toBe("mixed");
+    expect(cash.steps.filter((s) => s.voice.kind === "device").map((s) => s.slot)).toEqual(["PAY"]);
+    // the PayPal sentence still plays it
+    expect(
+      audioPlan(served, "en", { deviceVoice: true }).steps.find((s) => s.slot === "PAY")?.voice.kind,
+    ).toBe("clip");
+  });
+
+  it("plays fs-api's cash PAY clip only under the same cash form: PAY.cash_nodate until a receipt, then PAY.cash", () => {
+    // fs-api, read again with the line at the bodega and no receipt yet, speaks PAY.cash_nodate
+    const nodate = withNoDate(dto);
+    const due = {
+      ...nodate,
+      audio: {
+        en: statementSentences(nodate, "en", "cash").sentences.map((_, i) =>
+          voiced("en", i, {}, nodate, "cash"),
+        ),
+      },
+    };
+    expect(due.audio.en.find((s) => s.slot === "PAY")?.variant).toBe("cash_nodate");
+    const onDue = audioPlan(due, "en", { deviceVoice: true, rail: "cash" });
+    expect(onDue.mode).toBe("synthetic");
+    expect(onDue.steps.find((s) => s.slot === "PAY")).toMatchObject({ id: "pay-cash-nodate" });
+    // on PayPal the line shows its PayPal sentence, which never plays the cash clip
+    expect(audioPlan(due, "en", { deviceVoice: true }).steps.find((s) => s.slot === "PAY")?.voice).toEqual({
+      kind: "device",
+    });
+    // the demo's own templates lack the no-date form: its dated cash sentence stands in, read by the phone's voice
+    const standIn = audioPlan({ ...dto, audio: due.audio }, "en", { deviceVoice: true, rail: "cash" });
+    expect(standIn.steps.find((s) => s.slot === "PAY")).toMatchObject({
+      id: "pay-cash",
+      voice: { kind: "device" },
+    });
+    expect(standIn.steps.filter((s) => s.voice.kind === "device").map((s) => s.slot)).toEqual(["PAY"]);
+    // once the clerk records the cash received, fs-api speaks the dated PAY.cash, and the dated sentence plays it
+    const received = withNoDate(
+      buildDemoStatement({ stage: "cash-received", now: "2026-10-30T09:12:00+08:00" }),
+    );
+    const paid = {
+      ...received,
+      audio: {
+        en: statementSentences(received, "en").sentences.map((_, i) => voiced("en", i, {}, received, "cash")),
+      },
+    };
+    expect(paid.audio.en.find((s) => s.slot === "PAY")?.variant).toBe("cash");
+    const onReceived = audioPlan(paid, "en", { deviceVoice: true });
+    expect(onReceived.mode).toBe("synthetic");
+    expect(onReceived.steps.find((s) => s.slot === "PAY")).toMatchObject({ id: "pay-cash" });
+    // and a phone still without the receipt shows the no-date sentence, which never plays the dated clip
+    const noReceipt = { ...paid, history: paid.history.filter((h) => h.kind !== "received") };
+    expect(
+      audioPlan(noReceipt, "en", { deviceVoice: true }).steps.find((s) => s.slot === "PAY"),
+    ).toMatchObject({
+      id: "pay-cash-nodate",
+      voice: { kind: "device" },
+    });
+  });
+
+  it.each([
+    ["AI_NOTE", "seeded"],
+    ["AI_NOTE", "seeded_checking"],
+    ["AI_NOTE", "checking"],
+    ["HELP", "noname"],
+    ["GREETING", "seeded"],
+  ] as const)(
+    "never plays fs-api's %s.%s clip under the phone's other form of that slot",
+    (slot, variant) => {
+      const served = withClips(["ceb"]);
+      const other = {
+        ...served,
+        audio: { ceb: served.audio.ceb?.map((s) => (s.slot === slot ? { ...s, variant } : s)) },
+      };
+      const plan = audioPlan(other, "ceb", { deviceVoice: true });
+      expect(plan.mode).toBe("mixed");
+      expect(plan.steps.filter((s) => s.voice.kind !== "clip").map((s) => s.slot)).toEqual([slot]);
+    },
+  );
 
   it("fires each cue once, in order, as the voice reaches it", () => {
     const sources = audioPlan(dto, "en", { deviceVoice: true }).steps.find((s) => s.slot === "SOURCES");
@@ -411,5 +644,140 @@ describe("the copy kept on this phone (security review: a statement is read back
     // None of them is ever a key the phone keeps a copy under now.
     const now = statementCacheKey({ identity: "a1b2c3d4e5f60718", linkToken: null });
     expect(legacyStatementCacheKeys({ persona: "member:M-014", linkLineId: LINE })).not.toContain(now);
+  });
+});
+
+describe("the clips fs-api serves (GET /v1/media/audio/:lineId, IC-11, ADR-0011)", () => {
+  const ORIGIN = "https://fs.test";
+  /** A live statement: fs-api's line IDs are UUIDs (the demo's are labelled slugs). */
+  const live = { ...dto, lineId: "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f" };
+  /** The route's answer for the hero line in `lang`, as the contract parses it: `clips` picks which sentences have one. */
+  const served = (
+    lang: "ceb" | "fil" | "en",
+    clips: (slot: string, i: number) => Partial<StatementAudioClip> | null,
+  ) => {
+    const sentences = statementSentences(dto, lang).sentences.map((s, i) => {
+      const slot = s.slot ?? "unknown";
+      const over = clips(slot, i);
+      // fs-api's hash of fs-api's words: never the phone's own (ADR-0011 §6)
+      const words = sha256Hex(`fs-api's ${lang} ${slot}`);
+      return {
+        slot,
+        variant: slot === "PAY" ? "paypal" : "default",
+        mentions: slot === "DEDUCTION" ? ["rule:R1"] : s.mentions,
+        textSha256: words,
+        clip:
+          over === null
+            ? null
+            : {
+                url: `/media/audio/M-014/${lang}/${slot}.m4a`,
+                textSha256: words,
+                label: "Sintetikong tingog (Gemini TTS)",
+                slot: s.slot,
+                offsets: [],
+                durationMs: 4_634,
+                ...over,
+              },
+      };
+    });
+    const some = sentences.some((s) => s.clip);
+    return StatementAudio.parse({
+      lineId: live.lineId,
+      memberNo: dto.member.memberNo,
+      lang,
+      source: sentences.every((s) => s.clip) ? "gemini" : some ? "mixed" : "device",
+      label: some ? "Sintetikong tingog (Gemini TTS)" : "Tingog sa telepono",
+      deviceLabel: "Tingog sa telepono",
+      sentences,
+    });
+  };
+
+  it("plays the served greeting clip from fs-api's origin and reads the rest with the phone's voice", () => {
+    const answer = served("ceb", (slot) => (slot === "GREETING" ? {} : null));
+    const plan = audioPlan(withServedAudio(live, answer, ORIGIN), "ceb", { deviceVoice: true });
+    expect(plan.mode).toBe("mixed");
+    expect(plan.steps[0]?.voice).toEqual({
+      kind: "clip",
+      url: `${ORIGIN}/media/audio/M-014/ceb/GREETING.m4a`,
+      lang: "ceb",
+      label: "Sintetikong tingog (Gemini TTS)",
+      durationMs: 4_634,
+    });
+    expect(plan.steps.slice(1).every((s) => s.voice.kind === "device")).toBe(true);
+  });
+
+  it("plays every sentence when every one has a clip, with the served mention offsets", () => {
+    const answer = served("en", (slot) =>
+      slot === "SOURCES" ? { offsets: [{ ref: "slip:0403", atMs: 1_500 }] } : {},
+    );
+    const plan = audioPlan(withServedAudio(live, answer), "en", { deviceVoice: true });
+    expect(plan.mode).toBe("synthetic");
+    expect(plan.steps[0]?.voice).toMatchObject({ kind: "clip", url: "/media/audio/M-014/en/GREETING.m4a" });
+    expect(plan.steps.find((s) => s.slot === "SOURCES")?.cues[0]).toMatchObject({
+      ref: "slip:0403",
+      offsetMs: 1_500,
+    });
+  });
+
+  it("checks again: a served clip whose hash is not fs-api's for its sentence falls back to the phone's voice", () => {
+    const answer = served("ceb", (slot) =>
+      slot === "GREETING" ? { textSha256: sha256Hex("other words") } : null,
+    );
+    expect(audioPlan(withServedAudio(live, answer, ORIGIN), "ceb", { deviceVoice: true }).mode).toBe(
+      "device-voice",
+    );
+  });
+
+  it("drops a served clip whose URL is not a same-origin IC-11 clip of this member and language", () => {
+    const answer = served("ceb", (slot) => (slot === "GREETING" ? {} : null));
+    // the app imports the contract's types only, so a malformed answer reaches it unparsed
+    const tampered = (url: string) => ({
+      ...answer,
+      sentences: answer.sentences.map((s, i) => (i === 0 && s.clip ? { ...s, clip: { ...s.clip, url } } : s)),
+    });
+    for (const url of [
+      "https://evil.example/a.m4a",
+      "//evil.example/media/audio/M-014/ceb/GREETING.m4a",
+      "/media/../../etc/x.m4a",
+      "/media/audio/M-014/ceb/../../M-007/ceb/GREETING.m4a",
+      "/media/audio/drafts/M-014/ceb/s1.m4a",
+      "/media/audio/M-014/ceb/GREETING.m4a?x=1",
+      "/media/audio/M-014/ceb/GREETING.M4A",
+      "/media/audio/M-014/ceb/a\\b.m4a",
+      // another member's or another language's folder
+      "/media/audio/M-007/ceb/GREETING.m4a",
+      "/media/audio/M-014/fil/GREETING.m4a",
+    ]) {
+      for (const origin of ["", ORIGIN]) {
+        const d = withServedAudio(live, tampered(url), origin);
+        expect(d.audio.ceb?.[0]?.clip, url).toBeNull();
+        expect(audioPlan(d, "ceb", { deviceVoice: true }).steps[0]?.voice, url).toEqual({ kind: "device" });
+      }
+    }
+    // a clip under the contract's pattern still plays
+    const ok = withServedAudio(
+      live,
+      tampered("/media/audio/M-014/ceb/s01-GREETING-596b9e42811d.m4a"),
+      ORIGIN,
+    );
+    expect(audioPlan(ok, "ceb", { deviceVoice: true }).steps[0]?.voice).toMatchObject({
+      kind: "clip",
+      url: `${ORIGIN}/media/audio/M-014/ceb/s01-GREETING-596b9e42811d.m4a`,
+    });
+  });
+
+  it("keeps the statement as it is for another line's answer, and keeps the other languages' clips", () => {
+    const answer = served("ceb", () => ({}));
+    expect(withServedAudio(live, { ...answer, lineId: "0190f3c2-6c1e-7c3a-8d2b-000000000000" })).toBe(live);
+    const fil = served("fil", () => ({}));
+    const both = withServedAudio(withServedAudio(live, answer), fil);
+    expect(both.audio.ceb?.length).toBe(answer.sentences.length);
+    expect(both.audio.fil?.length).toBe(fil.sentences.length);
+    const none = withServedAudio(
+      live,
+      served("en", () => null),
+    );
+    expect(none.audio.en?.every((s) => s.clip === null)).toBe(true);
+    expect(audioPlan(none, "en", { deviceVoice: true }).mode).toBe("device-voice");
   });
 });

@@ -1,8 +1,8 @@
 /**
  * M-MB-03 Paminawa (S1.9, design §6 M3): her statement read aloud one sentence at a time. The transcript is set at
  * 22 sp with the sentence being read in ink and underlined; play and pause at 72 dp; "Hinay" at 0.85×; language
- * chips; and an honest label for the voice: "Sintetikong tingog (Gemini TTS)" for clips rendered from exactly these
- * words, "Tingog sa telepono" when the phone reads, "Audio sa Filipino; teksto sa Cebuano" when spike S10 failed, or
+ * chips; and an honest label for the voice: "Sintetikong tingog (Gemini TTS)" for the clips fs-api served for these
+ * sentences, "Tingog sa telepono" when the phone reads, "Audio sa Filipino; teksto sa Cebuano" when spike S10 failed, or
  * text only when this phone has no voice for the language. When a sentence names a slip, its chip rises 8 dp and is
  * lit for 1.2 s. It plays by itself only for "Paminawon una", never under TalkBack and never on the web.
  */
