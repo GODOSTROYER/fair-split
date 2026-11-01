@@ -23,7 +23,7 @@ const Verification = z.object({
       file: z.string().min(1),
       textSha256: z.string().regex(/^[0-9a-f]{64}$/),
       audioSha256: z.string().regex(/^[0-9a-f]{64}$/),
-      asrModel: z.literal("gemini-3.8-flash"),
+      asrModel: z.enum(["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"]),
       cer: z.number().min(0).max(0.12),
       threshold: z.literal(0.12),
       transcript: z.string().trim().min(1),
@@ -204,4 +204,16 @@ it("inv.i8.au3-published-subset: verified M-014 Cebuano clips are served exactly
     await app?.close();
     rmSync(assembled, { recursive: true, force: true });
   }
+});
+
+it("inv.i8.au3-asr-models: fallback evidence keeps the same quality gate and excludes unapproved models", () => {
+  const evidence = JSON.parse(readFileSync(path.join(media, "audio", "statement-verification.json"), "utf8"));
+  const clip = must(evidence.clips[0]);
+  for (const asrModel of ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"]) {
+    expect(Verification.safeParse({ v: 1, clips: [{ ...clip, asrModel }] }).success).toBe(true);
+    expect(Verification.safeParse({ v: 1, clips: [{ ...clip, asrModel, cer: 0.121 }] }).success).toBe(false);
+  }
+  expect(Verification.safeParse({ v: 1, clips: [{ ...clip, asrModel: "gemini-4-argon" }] }).success).toBe(
+    false,
+  );
 });
