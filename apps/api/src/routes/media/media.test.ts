@@ -30,10 +30,17 @@ let mediaDir: string;
 /** The repository's media/ (the source tree; it is never served itself). */
 const REPO_MEDIA = path.join(findRepoRoot(), "media");
 
-/** The committed IC-11 manifest, media/audio/manifest.json. */
+/** The immutable historical S10 spike, isolated from newly published statement takes. */
 function spike(): { entries: ManifestEntry[] } {
-  return JSON.parse(readFileSync(path.join(REPO_MEDIA, "audio", "manifest.json"), "utf8")) as {
-    entries: ManifestEntry[];
+  const report = JSON.parse(readFileSync(path.join(REPO_MEDIA, "audio", "spike-s10.json"), "utf8")) as {
+    runs: { results: { clips: (Omit<ManifestEntry, "slot"> & { slot: "s1" | "s5" })[] }[] }[];
+  };
+  return {
+    entries: report.runs.flatMap((run) =>
+      run.results.flatMap((result) =>
+        result.clips.map((clip) => ({ ...clip, slot: clip.slot === "s1" ? "GREETING" : "PAY" })),
+      ),
+    ),
   };
 }
 
@@ -60,7 +67,12 @@ function publishSpike(): void {
     mkdirSync(path.dirname(to), { recursive: true });
     copyFileSync(path.join(REPO_MEDIA, ...e.file.split("/")), to);
   }
-  publishManifest(JSON.parse(readFileSync(path.join(REPO_MEDIA, "audio", "manifest.json"), "utf8")));
+  publishManifest({
+    v: 1,
+    synthetic: true,
+    notice: "Historical synthetic S10 spike.",
+    entries: spike().entries,
+  });
 }
 
 beforeAll(async () => {
