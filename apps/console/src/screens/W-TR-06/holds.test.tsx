@@ -8,9 +8,11 @@ import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { REVEAL_SETTLE_MS } from "../../lib/focus.js";
 import {
   clearMomentTrace,
   expectNoAxeViolations,
+  fakeResizeObserver,
   focusAcrossRemoval,
   renderConsole,
   tracedPhases,
@@ -207,6 +209,62 @@ describe("W-TR-06 hold drawer", () => {
       for (const sample of watch.samples) {
         expect(sample).not.toBe(document.body);
         expect(sample?.matches('.ag-row[row-id="M-007"] .ag-cell[col-id="member"]')).toBe(true);
+      }
+    },
+    SLOW,
+  );
+
+  it(
+    "Count it once: a result line that unfolds above Next after the settle window (MM-3's wave on a slow machine) still brings Next back into the drawer",
+    async () => {
+      // At 1100 × 768 the drawer's scrollport is 85..643 and Next sits at 611 once it takes focus. On a machine four
+      // times slower, MM-3 reaches its wave, and the result line is drawn above Next, 2.4 s later: Next is pushed
+      // 58 px down, under the fold, long after any time-boxed watch has ended (WCAG 2.4.7, 2.4.11).
+      const layout = fakeResizeObserver();
+      clearMomentTrace();
+      await inReview(webRoutes.holdDrawer(RUN, "H1"));
+      await waitFor(() => expect(sinceOpen()).toContain("ready"), WAIT);
+      let nextTop = 611;
+      const rect = Element.prototype.getBoundingClientRect;
+      const at = (top: number, height: number, width = 1036) =>
+        ({
+          top,
+          height,
+          width,
+          left: 64,
+          bottom: top + height,
+          right: 64 + width,
+          x: 64,
+          y: top,
+          toJSON: () => ({}),
+        }) as DOMRect;
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+        if (this.matches?.(".fsc-drawer")) return at(85, 558);
+        if ((this as HTMLElement).dataset?.testid === "W-TR-06.next") return at(nextTop, 16, 120);
+        return rect.call(this);
+      });
+      vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+      const scrolled: Element[] = [];
+      vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+        scrolled.push(this);
+      });
+      try {
+        const face = screen.getByTestId("W-TR-06.countOnce.face");
+        face.focus();
+        press("W-TR-06.countOnce");
+        const next = await screen.findByTestId("W-TR-06.next");
+        await waitFor(() => expect(document.activeElement).toBe(next), WAIT);
+        // The settle window has ended; nothing has moved Next yet.
+        const now = performance.now();
+        vi.spyOn(performance, "now").mockReturnValue(now + REVEAL_SETTLE_MS + 924);
+        await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
+        scrolled.length = 0;
+        nextTop = 669;
+        layout.resized(screen.getByTestId("W-TR-06"));
+        expect(scrolled).toEqual([next]);
+      } finally {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
       }
     },
     SLOW,

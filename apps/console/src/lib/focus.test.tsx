@@ -13,11 +13,13 @@ import { act, render } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { focusAcrossRemoval } from "../test/focus.js";
+import { fakeResizeObserver } from "../test/layout.js";
 import {
   focusAndReveal,
   focusInto,
   focusKey,
   outOfView,
+  REVEAL_SETTLE_MS,
   registerScreenControl,
   rememberFocus,
   returnFocus,
@@ -55,6 +57,7 @@ function box(el: Element, rect: { top: number; left?: number; width?: number; he
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.replaceChildren();
 });
 
@@ -260,6 +263,73 @@ describe("returnFocus reveals what it focuses", () => {
     box(next, { top: 900, height: 16 });
     await frames(3);
     expect(scroll).not.toHaveBeenCalled();
+  });
+
+  /** W-TR-06 in its drawer: the hold screen with Next under the card, where the result line unfolds above it. */
+  function holdDrawer() {
+    const { drawer, first } = stage();
+    const screenRoot = document.createElement("section");
+    const card = document.createElement("article");
+    const nextLine = document.createElement("p");
+    const next = document.createElement("a");
+    next.href = "#next";
+    next.textContent = "Next: approve the split";
+    nextLine.append(next);
+    screenRoot.append(card, nextLine);
+    drawer.append(screenRoot);
+    const scroll = vi.fn();
+    next.scrollIntoView = scroll;
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(768);
+    box(drawer, { top: 85, height: 558, width: 1036 });
+    box(next, { top: 611, height: 16 });
+    return { drawer, screenRoot, card, next, scroll, first };
+  }
+
+  /** Count it once's result line, drawn when MM-3 reaches its wave: it pushes Next 58 px down, under the fold. */
+  function resultLineUnfolds(screenRoot: HTMLElement, next: HTMLElement) {
+    const result = document.createElement("p");
+    result.textContent = "Counted once: 312.0 kg.";
+    screenRoot.insertBefore(result, next.parentElement);
+    box(next, { top: 669, height: 16 });
+  }
+
+  it("keeps the target in view past the settle window: a result line drawn 2.4 s later (MM-3's wave on a slow machine) scrolls Next back into the drawer", async () => {
+    const layout = fakeResizeObserver();
+    const { screenRoot, next, scroll } = holdDrawer();
+    const start = performance.now();
+    returnFocus(next);
+    expect(document.activeElement).toBe(next);
+    expect(scroll).not.toHaveBeenCalled();
+    // The settle window ends: no frame watches Next any more.
+    vi.spyOn(performance, "now").mockReturnValue(start + REVEAL_SETTLE_MS + 924);
+    await frames(3);
+    resultLineUnfolds(screenRoot, next);
+    layout.resized(screenRoot);
+    expect(scroll).toHaveBeenCalledWith({ block: "nearest", inline: "nearest", behavior: "instant" });
+  });
+
+  it("a layout change after the person scrolled on their own is theirs: Next is left where they put it", async () => {
+    const layout = fakeResizeObserver();
+    const { screenRoot, next, scroll } = holdDrawer();
+    returnFocus(next);
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 120 }));
+    resultLineUnfolds(screenRoot, next);
+    layout.resized(screenRoot);
+    await frames(2);
+    expect(scroll).not.toHaveBeenCalled();
+    expect(layout.watching()).toBe(0);
+  });
+
+  it("once focus has moved on, a layout change brings nothing back into view, and the watch ends", async () => {
+    const layout = fakeResizeObserver();
+    const { screenRoot, next, scroll, first } = holdDrawer();
+    returnFocus(next);
+    first.focus();
+    resultLineUnfolds(screenRoot, next);
+    layout.resized(screenRoot);
+    await frames(2);
+    expect(scroll).not.toHaveBeenCalled();
+    expect(layout.watching()).toBe(0);
   });
 
   it("a grid cell under the grid's sticky totals row is unseen, and scrolls clear of it", () => {
