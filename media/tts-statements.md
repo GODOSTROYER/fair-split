@@ -1,8 +1,70 @@
-# AU3 statement audio handoff: incomplete, waiting on ASR quota
+# AU3 statement audio handoff: incomplete, waiting on ASR service
 
 All people, payroll facts and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
 Seeded AI notes describe a stand-in for Claude; nothing claims a live reading or an invoice drafted by Claude.
 Cebuano and Filipino wording and pronunciation remain pending native review.
+
+## Resume result: 1 November 2026, 07:13:27.915 UTC / 12:43:27.915 IST
+
+The clock was checked at **07:02:21 UTC**, after every key's recorded eligibility. The resume used
+`tts statements --only M-014:ceb`. It stopped cleanly on **six consecutive transient ASR service
+failures**, not spent quota: **0 successful ASRs, 0 new TTS requests, 0 new published clips**.
+There was no 429 in this run. The existing BONUS remains the only verified hero clip, so **1/9 hero
+clips and 1/101 planned sentence variants are published**. The remaining eight hero slots are GREETING,
+DELIVERY, PREMIUM, DEDUCTION, PAY, SOURCES, HELP and AI_NOTE. All 100 unpublished variants are explicitly
+`waiting_on_service` in `audio/statement-validation.json`, in the original plan order. The later members
+were not sent to Gemini while the verification service was failing.
+
+The full marked take and **all nine plain hero sentence retakes are still cached**. The resume checked
+the cached GREETING and DELIVERY retakes before any full-take split or new TTS. Each exhausted three
+ASR attempts, with 5 s then 15 s backoff. Actual requests remain counted, one per key on the first six
+keys; none was refunded. The run now stops after six consecutive transient ASR failures across candidates,
+and a successful response resets that streak. Already in-flight parallel full-take checks settle before
+reporting, so six is the serial recovery bound, not a claim that parallel calls can never exceed it.
+SDK retries remain off. Failed candidates never enter the final manifest.
+
+The run loaded the CLI before the new service-outage reporting change. Its report classification was
+corrected offline from its recorded `AsrUnavailableError`, retaining the original time, counts and clip
+evidence; `classificationNote` records that correction. Future CLI runs report `service_unavailable`
+and the ASR model directly. This is not a quota refusal or a completed audio release.
+
+### Eligibility and remaining allowance at that stop
+
+All twelve keys were eligible again by **07:13:27.915 UTC / 12:43:27.915 IST on 1 November**; none was
+cooling or dropped. Service recovery has no known timestamp. Each key's `nextEligibleAt` and both models'
+daily resets are recorded in the validation report. The next daily reset is **2 November 2026,
+08:00:00 UTC / 13:30:00 IST** (the Pacific DST change makes this a 25-hour day).
+
+| Key ID   | ASR used / remaining | TTS used / remaining |
+| -------- | -------------------: | -------------------: |
+| 545f0873 |                1 / 9 |               0 / 10 |
+| 8e1e9260 |                1 / 9 |               0 / 10 |
+| 517676af |                1 / 9 |               0 / 10 |
+| fd587165 |                1 / 9 |               0 / 10 |
+| 7db4615b |                1 / 9 |               0 / 10 |
+| faf5bfce |                1 / 9 |               0 / 10 |
+| 33c5ca33 |               0 / 10 |               0 / 10 |
+| 9d872d9a |               0 / 10 |               0 / 10 |
+| 0a246b54 |               0 / 10 |               0 / 10 |
+| 663ea821 |               0 / 10 |               0 / 10 |
+| 2d984c38 |               0 / 10 |               0 / 10 |
+| faa4c5a0 |               0 / 10 |               0 / 10 |
+
+These are the existing self-imposed caps, not measured Google entitlements: **114 ASR and 120 TTS
+reservations remain**. Do not repeatedly restart the command against the same outage to drain them.
+When service recovers, use the Resume commands below, hero first; no re-export or new TTS is needed to
+retry its nine cached sentences. Enable the full-completion test only when all nine clips pass verification.
+
+### Verification in this resume
+
+- Regression tests ran RED before the cache/backoff, service-report and successful-recovery changes.
+- Media suite: **366 tests passed**, 33 files. Tests use synthetic audio and stubbed clients offline.
+- API media suite: **37 tests passed, 1 skipped**, 5 files, one scratch Postgres stopped afterward.
+- The full-completion guard was temporarily enabled and ran RED on missing GREETING, before database
+  startup. Its original skip and assertions are unchanged pending all nine clips; no API commit is needed.
+- Both package typechecks, Biome on changed source/tests and the dependency gate passed.
+
+## Earlier run, before the 07:00 UTC reset (historical)
 
 ## Published and verified
 

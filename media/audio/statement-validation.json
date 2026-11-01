@@ -1,29 +1,31 @@
 {
-  "outcome": "quota_refused",
-  "quotaRefused": true,
+  "outcome": "service_unavailable",
+  "quotaRefused": false,
   "request": "M-014:ceb",
   "model": "gemini-3.8-flash",
-  "at": "2026-11-01T04:05:28.442Z",
-  "detail": "PoolExhaustedError: No Gemini key is ready for gemini-3.8-flash until 2026-11-01T07:00:00.000Z (2026-11-01 00:00 Pacific); 12 keys: 10 at the daily cap, 2 cooling after a 429. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
-  "dailyResetsAt": "2026-11-01T07:00:00.000Z",
+  "at": "2026-11-01T07:13:27.915Z",
+  "detail": "AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained.",
+  "dailyResetsAt": "2026-11-02T08:00:00.000Z",
   "keyResets": [
     {
       "keyId": "545f0873",
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 2,
+          "used": 0,
           "cap": 10,
-          "remaining": 8,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 1,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -32,18 +34,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
+          "used": 0,
+          "cap": 10,
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
+        },
+        "gemini-3.8-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
-        },
-        "gemini-3.8-flash": {
-          "used": 10,
-          "cap": 10,
-          "remaining": 0,
-          "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -52,18 +56,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
+          "used": 0,
+          "cap": 10,
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
+        },
+        "gemini-3.8-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
-        },
-        "gemini-3.8-flash": {
-          "used": 10,
-          "cap": 10,
-          "remaining": 0,
-          "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -72,18 +78,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
+          "used": 0,
+          "cap": 10,
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
+        },
+        "gemini-3.8-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
-        },
-        "gemini-3.8-flash": {
-          "used": 10,
-          "cap": 10,
-          "remaining": 0,
-          "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -96,14 +104,16 @@
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 1,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -112,21 +122,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
+          "used": 0,
+          "cap": 10,
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
+        },
+        "gemini-3.8-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
-        },
-        "gemini-3.8-flash": {
-          "used": 2,
-          "cap": 10,
-          "remaining": 8,
-          "cooling": {
-            "until": "2026-11-01T07:00:00.403Z",
-            "scope": "day"
-          },
-          "resetsAt": "2026-11-01T07:00:00.403Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -139,17 +148,16 @@
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 2,
+          "used": 0,
           "cap": 10,
-          "remaining": 8,
-          "cooling": {
-            "until": "2026-11-01T07:00:00.000Z",
-            "scope": "day"
-          },
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -162,14 +170,16 @@
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -178,18 +188,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 1,
+          "used": 0,
           "cap": 10,
-          "remaining": 9,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -198,18 +210,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 1,
+          "used": 0,
           "cap": 10,
-          "remaining": 9,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -218,18 +232,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 1,
+          "used": 0,
           "cap": 10,
-          "remaining": 9,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     },
@@ -238,18 +254,20 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 1,
+          "used": 0,
           "cap": 10,
-          "remaining": 9,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         },
         "gemini-3.8-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-01T07:00:00.000Z"
+          "resetsAt": "2026-11-02T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-01T07:13:27.915Z"
         }
       }
     }
@@ -260,39 +278,57 @@
       "sentences": [
         {
           "textSha256": "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "49caa459e2bec2d6e58ad8776a96a3ea52ca33032e6ab4fd866ee878f4c00085",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "97d6108ac9e86caad1a68a43874f75a2a960e333ca1efe86353ab028406989c8",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
-          "status": "published"
+          "status": "published",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "f203ddc41bee3066cf575b9bee38a3ff5da3a67a36005dbe18a188e8680c2f07",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "951cf7877220320908429ecf06d73f2726e849762964b5a51e1407fcc1361826",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "d5d4f4c29d3604e3848b81196698c4b1a437d14b78816ae894285a3e4303fd50",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -301,39 +337,57 @@
       "sentences": [
         {
           "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "aae0210a6e05d9b85298d2573ed1c3e06f4de1621064c9d205ab42ccc3498c98",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "f3f5f872cae0a10977ca23c2164c09a24961ef930fdd5e3cd8f602cf0f311a94",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "8afe10f2f29938d52d60ed4c2291df255dc469dc117b1dbdf3e4619de2b8df5a",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "1fb87d9f62b780c1c0941bd8a2143b765ab5ccb6239f937ca85541710808ce12",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -342,39 +396,57 @@
       "sentences": [
         {
           "textSha256": "3d724d31bbfccccc84ea9d1f5e9c0b179c02952dbcd7bf8d519582b215e0f643",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "3f42cf9d89538ae032d27b1b4e7d9d29645fbfbc4421dd112bc853bd9373b8a3",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "35ae497bd6ea42418438760a65571b0b0f001e706c52627adb074fb74301d3cc",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "5f6fe4f78a18240e35cca7cea58b3dd52211564e751e323c2c62009b7b06da65",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "c8fa80c918dddcef6f74eef64e32dc4fe06b7a7eb89e97120675e6c811f1497c",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "d08aec86da77c59b7b189bf940f8d1e764789d12fbad42320d53c98fb29fa94d",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -383,39 +455,57 @@
       "sentences": [
         {
           "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "7d09e78695c1c84002ccd8bb0564d0c5613b2a2fe887a5c975233c986aed44a4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "8dad46ecec62b512aa236918dc33aef9bf743883e569f9e71000efbe935bcd68",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "d096a6a79cdef1413bf92bd50e266a50dc8dfdfb9210fc4a515222162cbce195",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "664a29bd032b417addcbbb3ffc72f8afc12a0ef577d459801b276f9b0fb7c10d",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "cf991d62ef3188a5922884c9ddfe3b9bdd45aa71618efc4bc66e3ee25aa8f5f8",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -424,39 +514,57 @@
       "sentences": [
         {
           "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "1a87c959fab6b4f2f15f220d65e147523772ed5b7f1240cea171e65bf9c66f26",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "99b13ab8c0f3e7c0ed20e4d5246ef5633144c7a03c1506b41f010db359e00fba",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "6735db397358045a0258dec8451f6eb1a5371499e00aa2c06e693eb8cc02016d",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "079a8d5b93b577d44a1ac84202ba41a85a7fecd51fc7173b10389767d6e12cd6",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "84498f0db072bb0c6a9259e4af1976696edbf9989c122a11ec8ed7219aa574c4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "1fb87d9f62b780c1c0941bd8a2143b765ab5ccb6239f937ca85541710808ce12",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -465,43 +573,63 @@
       "sentences": [
         {
           "textSha256": "6a8701862ebc396ad122d7610d6f4dce926f2ead6227e2b621ac1aeccd72d6df",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "8bcd03a5b50571071bb7819c2460d362d9e18d908665b1d8ef36d3057bd945a3",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "a8d577afcb594d5999bee44e82d944f8fc791ef001ff0a5ba7764b061eaf990f",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "575a5b4532b1727a95039cc2d98e0c05dd77e72bc86e67533b178a523751560d",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "CREDIT",
+          "variant": "written"
         },
         {
           "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "b8ef4820a5002860612157b08fa8bb0f369a9c1bd103f35ff64ab03fbcb23ecc",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -510,39 +638,57 @@
       "sentences": [
         {
           "textSha256": "53ea7e4fb6e58ff5f091a5666d640c03c3098151ddb109af053274a0530a931a",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "0a4a8eb6db584552891859d81a5b7d936e76387e2e575a14a8993f4b00763b72",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "1ed8fdb508567ff400ae5bdac3077d95de98a7b6afdfe61c371ee536b1696b44",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "a5ce5362f3ad092b3b28e17c186a573b12cdc34ff2cd75980cf466422529f970",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "fc069027fbd4a0429a2ed3e12a348d690fe0035e99ea1133b27048f52a7e7d71",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "cc823bfda9b4926d7605b30956d45898fbc6a00b3cbbb546184f5215bb3fd5f1",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "d7c515180a4cb4d638e185299b0a41ff25248e401916bc0fcc7f8c1bc19cc590",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -551,39 +697,57 @@
       "sentences": [
         {
           "textSha256": "6e64a8426d62ab06213aa61705d221bcd9f0372a38ef8c9706507584d7f2d9b8",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "f32bdf5ce7c62dad0c1b9d7938d7c0a0f7a1382429138d9e85e7fed9090d7acb",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "617ddfea7dbfea495a211187e9f324d7933c35d30776ab0644639c491b931710",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "d3eabddda28bccd1a975995c8b8fba616149e4b59c17619ed7269d0396037067",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "65623f26432ccc681d739920444b0aca4de2b1325da85306dac06ab937ba5035",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "97e6934a131f7cd0ff5dd903ea921c1eb89d2256f233770b2c0ae1ed531cb553",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -592,39 +756,57 @@
       "sentences": [
         {
           "textSha256": "1e08b3d0a7cd3c092bb9436c4595fe85472de93b8edb6c7830e768d72926e40d",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "fc67cd1273ade177def045b36de79c0945510d50bac78e1c38b388c09194c1c0",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "d6cc125f3d0af2762fa576a38eb54f7bb4845928a67ca46b1b696313fadb48fa",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "b6e3018261b374bf395c24be5f702d92cf2d84e18ccb76828e3da6fea4fa26ff",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "6eef8c42d484603659316aa41f523a1f2d1358f61e8f1a0eb010396c824e5119",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "2075aac58caeaa659506992b7111ae32fd930008d8cc5b1cbf48682f99744b89",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -633,43 +815,63 @@
       "sentences": [
         {
           "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "95b870d17372538218a832f630d8ffdb241a68a9459af39a32ae47f5dc1b25b7",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "paypal"
         },
         {
           "textSha256": "c7578b9696a8197636e493183cb54b3feb5104215e00c9f06d681d311ddd2ea7",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "cash_nodate"
         },
         {
           "textSha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     },
@@ -678,39 +880,57 @@
       "sentences": [
         {
           "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "GREETING",
+          "variant": "default"
         },
         {
           "textSha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DELIVERY",
+          "variant": "default"
         },
         {
           "textSha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PREMIUM",
+          "variant": "default"
         },
         {
           "textSha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "BONUS",
+          "variant": "default"
         },
         {
           "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "DEDUCTION",
+          "variant": "default"
         },
         {
           "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "PAY",
+          "variant": "cash_nodate"
         },
         {
           "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "SOURCES",
+          "variant": "default"
         },
         {
           "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "HELP",
+          "variant": "default"
         },
         {
           "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
-          "status": "waiting_on_quota"
+          "status": "waiting_on_service",
+          "slot": "AI_NOTE",
+          "variant": "seeded"
         }
       ]
     }
@@ -718,5 +938,18 @@
   "failures": [],
   "cooling": [],
   "synthetic": true,
-  "notice": "Generation stopped. Missing clips use labelled device voice. Requests used the key pool within each key's free limits."
+  "notice": "Generation stopped. Missing clips use labelled device voice. Requests used the key pool within each key's free limits.",
+  "classificationNote": "This run loaded the CLI before the service-outage reporting fix; classification corrected from its AsrUnavailableError, with original time, key counts and clip evidence retained.",
+  "resume": {
+    "heroPublished": 1,
+    "heroRequired": 9,
+    "totalPublished": 1,
+    "totalRequired": 101,
+    "fullTakeCached": true,
+    "cachedHeroSentenceRetakes": 9,
+    "asrRequests": 6,
+    "asrSucceeded": 0,
+    "newTtsRequests": 0,
+    "blocker": "Six consecutive transient ASR service failures; no quota refusal. Do not spend further requests on the same persistent failure. Resume the hero first when the service recovers."
+  }
 }
