@@ -2,7 +2,8 @@
 //
 //   1. the console build and the /app export (`turbo run build`, cached; E2E_SKIP_BUILD=1 skips it, and
 //      E2E_CONSOLE_DIR serves another console build, such as a branch's, instead of apps/console/dist);
-//   2. an embedded Postgres 17 under e2e/.cache/stack (gitignored; @fairsplit/db/testing, as fs-api's smoke does, or
+//   2. curated public media assembled under .codex-scratch/e2e-stack, then an embedded Postgres 17 there
+//      (gitignored; @fairsplit/db/testing, as fs-api's smoke does, or
 //      FS_TEST_DATABASE_URL when CI provides a Postgres), a fresh `fs_e2e` database, every migration applied;
 //   3. fs-api in its own process (src/index.ts through tsx), PP_MODE=simulator: PayPal answers through fs-api's
 //      in-process simulator (ADR-0010), so every PayPal-derived value is "Simulated PayPal sandbox". Keyless: no
@@ -25,11 +26,13 @@ import { startTestCluster, withDatabase } from "@fairsplit/db/testing";
 // declares that context's type, so the program needs it to typecheck. Nothing from it runs here.
 import type {} from "@fairsplit/db/testing/global-setup";
 import postgres from "postgres";
+import { assembleMedia } from "../../tools/assemble-media.js";
 
 export const E2E_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const REPO_ROOT = path.resolve(E2E_ROOT, "..");
 const API_ROOT = path.join(REPO_ROOT, "apps", "api");
-const CACHE_DIR = path.join(E2E_ROOT, ".cache", "stack");
+const CACHE_DIR = path.join(REPO_ROOT, ".codex-scratch", "e2e-stack");
+const MEDIA_DIR = path.join(CACHE_DIR, "media");
 const PID_FILE = path.join(CACHE_DIR, "fs-api.pid");
 const DATABASE = "fs_e2e";
 
@@ -170,6 +173,12 @@ export async function startStack(o: StackOptions = {}): Promise<Stack> {
     if (!existsSync(path.join(dir, "index.html"))) throw new Error(`no ${what} build at ${dir}`);
   }
 
+  // Global setup and the manual stack use the same allowlist as Render; never serve the media source tree.
+  const media = assembleMedia(REPO_ROOT, MEDIA_DIR);
+  if (media.problems.length > 0)
+    throw new Error(`curated media assembly failed: ${media.problems.join("; ")}`);
+  log(`assembled ${media.files.length} curated media files`);
+
   const cluster = await openCluster(log);
   let child: ChildProcess | null = null;
   let stopped = false;
@@ -233,6 +242,7 @@ export async function startStack(o: StackOptions = {}): Promise<Stack> {
       FS_REPO_ROOT: REPO_ROOT,
       STATIC_CONSOLE_DIR: consoleDir,
       STATIC_APP_DIR: appDir,
+      STATIC_MEDIA_DIR: MEDIA_DIR,
     };
     child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
       cwd: API_ROOT,
