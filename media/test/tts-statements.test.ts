@@ -475,6 +475,8 @@ it("inv.i8.cached-refusal-retake: only a refused cached sentence permits one sep
   const out = await synthesizePlannedStatement(request, d, empty);
   expect(out.entries).toHaveLength(1);
   expect(d.calls).toHaveLength(2);
+  expect(JSON.stringify(d.calls[1])).toContain("Read every word verbatim");
+  expect(out.entries[0]?.style).toContain("Read every word verbatim");
   expect(readFileSync(original.path)).toEqual(original.wav);
   expect(
     JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips[0],

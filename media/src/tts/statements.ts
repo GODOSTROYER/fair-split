@@ -229,6 +229,7 @@ export async function synthesizePlannedStatement(
     segments: Segment[],
     sentences: PlannedStatement["sentences"],
     method: string,
+    style = STYLE_NOTE,
   ): Promise<Candidate[] | null> => {
     const results: Candidate[] = [];
     const audio: Buffer[] = [];
@@ -263,7 +264,7 @@ export async function synthesizePlannedStatement(
         text_sha256: sentence.textSha256,
         model: TTS_MODEL,
         voice,
-        style: STYLE_NOTE,
+        style,
         codec: { codec: "aac", bit_rate_kbps: 32, channels: 1 },
         created_at: (deps.now?.() ?? new Date()).toISOString(),
         synthetic: true,
@@ -417,7 +418,14 @@ export async function synthesizePlannedStatement(
   };
   const cachedAttempts = new Set<string>();
   const trySentence = async (sentence: PlannedStatement["sentences"][number], retake = false) => {
-    const single = await requestOnce(deps, { ...base, text: sentence.text }, { retake });
+    const speech = {
+      ...base,
+      text: sentence.text,
+      style: retake
+        ? `${base.style}. Read every word verbatim, including English number words; do not translate, substitute or omit any word.`
+        : base.style,
+    };
+    const single = await requestOnce(deps, speech, { retake });
     const duration = parseWav(single.wav).durationMs / 1000;
     let candidates: Candidate[] | null;
     try {
@@ -428,6 +436,7 @@ export async function synthesizePlannedStatement(
         [{ sentence: 0, refs: [], text: sentence.text }],
         [sentence],
         "per-sentence-asr",
+        speech.style,
       );
     } catch (error) {
       if (
