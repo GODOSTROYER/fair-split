@@ -8,7 +8,7 @@ from the owning workstream (`src/wiring.ts`).
 | --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/index.ts`  | `dist/index.js`  | Render Workflows (`fs-tasks`, not deployed: see Deploying). Boot checks, then registers S3.3's three Workflows tasks (`extract`, `readRateCard`, `warmCaches`) plus the `opsPing` and `opsDbPing` probes |
 | `src/inline.ts` | `dist/inline.js` | Local runs and CI (`EXECUTOR=inline`), for any of the 16 TaskNames: `corepack pnpm --filter @fairsplit/tasks inline <task> <outboxId>`                                                                   |
-| `src/cron.ts`   | `dist/cron.js`   | The hourly plan, as a tested reference for fs-api's `/internal/cron/tick`, and a CLI: `node apps/tasks/dist/cron.js --plan --at=<iso>`                                                                   |
+| `src/cron.ts`   | `dist/cron.js`   | Retired compatibility entry: exits 1 and points to the only plan, `apps/api/src/routes/internal/cron.ts`, and the thin trigger `node tools/cron-tick.mjs`.                                               |
 
 On Render, `fs-cron` runs `tools/cron-tick.mjs`, a dependency-free script that POSTs fs-api's
 `/internal/cron/tick` over the private network (approved S3.3, S3.14). fs-api enqueues the plan.
