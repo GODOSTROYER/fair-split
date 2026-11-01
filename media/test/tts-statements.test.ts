@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import { ASR_MODEL, type GenerateContentClient } from "../src/tts/asr.js";
 import { main } from "../src/tts/cli.js";
-import { probeAudio } from "../src/tts/ffmpeg.js";
+import { encodeAac, probeAudio } from "../src/tts/ffmpeg.js";
 import { TTS_MODEL } from "../src/tts/gemini.js";
-import { KeyPool } from "../src/tts/keys.js";
+import { KeyPool, PoolExhaustedError } from "../src/tts/keys.js";
 import { AUDIO_NOTICE, type AudioManifest } from "../src/tts/manifest.js";
 import { APPROVED_STATEMENT_REQUESTS } from "../src/tts/plan.js";
 import { QuotaLedger } from "../src/tts/quota.js";
@@ -13,7 +14,15 @@ import { markRequest, selectRequests, synthesizePlannedStatement } from "../src/
 import { synthToneWav } from "../src/tts/wav.js";
 import { REPO_ROOT } from "../src/util/env.js";
 
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const hash = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
+const timestamped = (text: string, starts: number[]) =>
+  JSON.stringify({
+    words: text.split(" ").map((text, i) => ({
+      text,
+      start: starts[i] ?? i * 0.25 + 0.1,
+      end: (starts[i] ?? i * 0.25 + 0.1) + 0.15,
+    })),
+  });
 const sentence = {
   slot: "SOURCES" as const,
   variant: "default",
@@ -39,18 +48,79 @@ function deps(wav: Buffer) {
   const root = mkdtempSync(join(scratch, "fs-au2-"));
   roots.push(root);
   const calls: unknown[] = [];
+  const transcripts: string[] = [];
+  const timed: string[] = [];
+  const asrByAudio = new Map<string, string>();
+  const takes: Buffer[] = [];
+  const asrErrors: Error[] = [];
+  const concurrency = { active: 0, max: 0, barrier: 0 };
+  let release: (() => void) | undefined;
+  const together = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let time = Date.now();
+  const now = () => new Date(time);
   const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
-    ledger: new QuotaLedger(join(root, "quota.json")),
+    ledger: new QuotaLedger(join(root, "quota.json"), now),
+    now,
+    sleep: async (ms) => {
+      time += ms;
+    },
     makeClient: () => ({
+      models: {
+        generateContent: async (params: Record<string, unknown>) => {
+          const error = asrErrors.shift();
+          if (error) throw error;
+          concurrency.active++;
+          concurrency.max = Math.max(concurrency.max, concurrency.active);
+          const contents = params.contents as { parts: { inlineData?: { data: string } }[] }[];
+          const data = contents[0]?.parts.find((part) => part.inlineData)?.inlineData?.data;
+          const keyed = data && asrByAudio.get(hash(Buffer.from(data, "base64")));
+          const text =
+            keyed ||
+            ((params.config as { responseMimeType?: string })?.responseMimeType
+              ? (timed.shift() ?? '{"words":[]}')
+              : (transcripts.shift() ?? sentence.text));
+          if (concurrency.barrier) {
+            if (concurrency.active >= concurrency.barrier) release?.();
+            await together;
+          }
+          concurrency.active--;
+          return { text };
+        },
+      },
       interactions: {
         create: async (params: Record<string, unknown>) => {
           calls.push(params);
-          return { output_audio: { data: wav.toString("base64"), mime_type: "audio/wav" } };
+          return {
+            output_audio: { data: (takes.shift() ?? wav).toString("base64"), mime_type: "audio/wav" },
+          };
         },
       },
     }),
   });
-  return { pool, mediaRoot: root, cacheDir: join(root, "cache"), calls };
+  return {
+    pool,
+    asrPool: pool,
+    mediaRoot: root,
+    cacheDir: join(root, "cache"),
+    calls,
+    transcripts,
+    asrErrors,
+    timed,
+    asrByAudio,
+    wav,
+    takes,
+    concurrency,
+  };
+}
+
+async function groundTruthClip(d: ReturnType<typeof deps>, start: number, end: number) {
+  const source = join(d.mediaRoot, "fixture.wav");
+  const encoded = join(d.mediaRoot, `fixture-${start}-${end}.m4a`);
+  writeFileSync(source, d.wav);
+  await encodeAac(source, encoded, { start, end });
+  return hash(readFileSync(encoded));
 }
 
 it("inserts measured pause markers without changing the hashed words, and checks mention order", () => {
@@ -78,6 +148,7 @@ it("uses one pooled request and synthetic WAV pause boundaries for clip-relative
       { ms: 1000, tone: true },
     ]),
   );
+  d.timed.push(timestamped(sentence.text, [0, 0.5, 2.2, 2.5, 3, 3.5, 4.4, 4.7]));
   const out = await synthesizePlannedStatement(request, d, empty);
   expect(d.calls).toHaveLength(1);
   expect(d.calls[0]).toMatchObject({ model: TTS_MODEL });
@@ -107,14 +178,114 @@ it("uses one pooled request and synthetic WAV pause boundaries for clip-relative
   expect(retake.entries[0]?.file).toBe(e?.file.replace(/\.m4a$/, "-t2.m4a"));
   expect(readFileSync(join(d.mediaRoot, e?.file ?? ""))).toEqual(original);
   expect(d.calls).toHaveLength(1);
+  writeFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), '{"v":1,"clips":[]}');
+  // A legacy manifest entry without verification evidence cannot suppress the ASR gate.
+  const transitions: AudioManifest[] = [];
+  const restored = await synthesizePlannedStatement(request, d, out, {
+    onProgress: async (m) => {
+      transitions.push(m);
+    },
+  });
+  expect(transitions[0]?.entries).toHaveLength(0);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "archive", "manifest.json"), "utf8")).entries.some(
+      (x: { file: string }) => x.file === out.entries[0]?.file,
+    ),
+  ).toBe(true);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips,
+  ).toHaveLength(1);
+  const evidencePath = join(d.mediaRoot, "audio", "statement-verification.json");
+  const bad = JSON.parse(readFileSync(evidencePath, "utf8"));
+  bad.clips[0].cer = -1;
+  writeFileSync(evidencePath, JSON.stringify(bad));
+  const rechecked = await synthesizePlannedStatement(request, d, restored);
+  expect(
+    JSON.parse(readFileSync(evidencePath, "utf8")).clips.find(
+      (c: { file: string }) => c.file === rechecked.entries[0]?.file,
+    ).cer,
+  ).toBeGreaterThanOrEqual(0);
 });
 
-it("refuses sentence/marker-count mismatches without per-sentence retries or manifest writes", async () => {
+it("falls back per sentence on unverified splits, refusing wrong speech without publishing", async () => {
   const d = deps(synthToneWav([{ ms: 3000, tone: true }]));
-  await expect(synthesizePlannedStatement(request, d, empty)).rejects.toThrow(/split/);
-  expect(d.calls).toHaveLength(1);
-  expect(existsSync(join(d.mediaRoot, "audio"))).toBe(false);
+  d.transcripts.push("Wrong words.");
+  await expect(synthesizePlannedStatement(request, d, empty)).rejects.toThrow(/verif/);
+  expect(d.calls).toHaveLength(2);
+  expect(existsSync(join(d.mediaRoot, "audio", "M-014"))).toBe(false);
   expect(empty.entries).toHaveLength(0);
+});
+
+it("rejects a count-perfect split when the encoded clip's own transcription is wrong", async () => {
+  const d = deps(
+    synthToneWav([
+      { ms: 1000, tone: true },
+      { ms: 1200, tone: false },
+      { ms: 1000, tone: true },
+      { ms: 1200, tone: false },
+      { ms: 1000, tone: true },
+    ]),
+  );
+  d.transcripts.push("Entirely different words.", "Still wrong words.");
+  await expect(synthesizePlannedStatement(request, d, empty)).rejects.toThrow(/verif/);
+  expect(existsSync(join(d.mediaRoot, "audio", "M-014"))).toBe(false);
+});
+it("never publishes guessed mention positions when sentence words match but timestamp anchors do not", async () => {
+  const d = deps(
+    synthToneWav([
+      { ms: 1000, tone: true },
+      { ms: 1200, tone: false },
+      { ms: 1000, tone: true },
+      { ms: 1200, tone: false },
+      { ms: 1000, tone: true },
+    ]),
+  );
+  await expect(synthesizePlannedStatement(request, d, empty)).rejects.toThrow(/verification/);
+  expect(existsSync(join(d.mediaRoot, "audio", "M-014"))).toBe(false);
+});
+
+it("publishes an independently verified per-sentence retake with measured mention offsets and progress", async () => {
+  const d = deps(synthToneWav([{ ms: 3000, tone: true }]));
+  d.takes.push(synthToneWav([{ ms: 3000, tone: true }]), synthToneWav([{ ms: 4000, tone: true }]));
+  d.timed.push(
+    '{"words":[]}',
+    JSON.stringify({
+      words: sentence.text
+        .split(" ")
+        .map((text, i) => ({ text, start: i * 0.25 + 0.1, end: i * 0.25 + 0.3 })),
+    }),
+  );
+  const progress: AudioManifest[] = [];
+  const out = await synthesizePlannedStatement(request, d, empty, {
+    onProgress: async (m) => {
+      progress.push(m);
+    },
+  });
+  expect(d.calls).toHaveLength(2);
+  expect(out.entries[0]?.offsets).toEqual([
+    { ref: "slip:04", at_ms: 600 },
+    { ref: "slip:05", at_ms: 1600 },
+  ]);
+  expect(progress).toHaveLength(1);
+  const evidence = JSON.parse(
+    readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8"),
+  );
+  expect(evidence.clips[0]).toMatchObject({ method: "per-sentence-asr", cer: 0, transcript: sentence.text });
+});
+
+it("moves to sentence retakes after bounded ASR unavailability while preserving quota exceptions", async () => {
+  const d = deps(synthToneWav([{ ms: 3000, tone: true }]));
+  d.takes.push(synthToneWav([{ ms: 3000, tone: true }]), synthToneWav([{ ms: 4000, tone: true }]));
+  d.asrErrors.push(...Array.from({ length: 3 }, () => Object.assign(new Error("busy"), { status: 503 })));
+  d.timed.push(
+    JSON.stringify({
+      words: sentence.text
+        .split(" ")
+        .map((text, i) => ({ text, start: i * 0.25 + 0.1, end: i * 0.25 + 0.3 })),
+    }),
+  );
+  expect((await synthesizePlannedStatement(request, d, empty)).entries).toHaveLength(1);
+  expect(d.calls).toHaveLength(2);
 });
 
 it("splits two sentences into distinct slot clips and resets offsets to each clip's media clock", async () => {
@@ -145,9 +316,13 @@ it("splits two sentences into distinct slot clips and resets offsets to each cli
     mentionSpans: [{ ref: "rule:R1", spoken: "R one", start: 0 }],
     placeholders: [{ name: "RULE_ID", spoken: "R one", start: 0 }],
   };
+  d.asrByAudio.set(await groundTruthClip(d, 0, 3.35), timestamped(greeting.text, [0.1, 0.5, 2.2]));
+  d.asrByAudio.set(await groundTruthClip(d, 4.25, 5.4), timestamped(pay.text, [0.15, 0.4, 0.7]));
+  d.concurrency.barrier = 2;
   const out = await synthesizePlannedStatement({ ...request, sentences: [greeting, pay] }, d, empty);
   expect(d.calls).toHaveLength(1);
   expect(out.entries).toHaveLength(2);
+  expect(d.concurrency.max).toBe(2);
   expect(out.entries.find((e) => e.slot === "GREETING")?.offsets).toEqual([
     { ref: "fact:HONORIFIC_NAME", at_ms: 2200 },
   ]);
@@ -156,6 +331,67 @@ it("splits two sentences into distinct slot clips and resets offsets to each cli
     { ref: "rule:R1", at_ms: 150 },
   ]);
   expect(out.entries.find((e) => e.slot === "DEDUCTION")?.duration_ms).toBeLessThan(1400);
+});
+
+it("preserves an independently verified sentence before propagating another sentence's quota exhaustion", async () => {
+  const d = deps(
+    synthToneWav([
+      { ms: 1000, tone: true },
+      { ms: 1200, tone: false },
+      { ms: 1000, tone: true },
+    ]),
+  );
+  const plain = (slot: "GREETING" | "PAY", text: string) => ({
+    ...sentence,
+    slot,
+    text,
+    textSha256: hash(text),
+    mentions: [],
+    mentionSpans: [],
+    placeholders: [],
+  });
+  const greeting = plain("GREETING", "Hello farmer.");
+  const pay = plain("PAY", "Your pay follows.");
+  const greetingAudio = await groundTruthClip(d, 0, 1.15);
+  const payAudio = await groundTruthClip(d, 2.05, 3.2);
+  const exhausted = new PoolExhaustedError(
+    "offline daily cap",
+    ASR_MODEL,
+    new Date("2026-11-02T08:00:00.000Z"),
+  );
+  const asrPool = {
+    async run<T>(_model: string, fn: (client: GenerateContentClient) => Promise<T>): Promise<T> {
+      return fn({
+        models: {
+          generateContent: async (params) => {
+            const contents = params.contents as { parts: { inlineData?: { data: string } }[] }[];
+            const data = contents[0]?.parts.find((part) => part.inlineData)?.inlineData?.data;
+            const digest = hash(Buffer.from(data ?? "", "base64"));
+            if (digest === payAudio) throw exhausted;
+            if (digest === greetingAudio) return { text: greeting.text };
+            throw new Error("unrecognised synthetic clip bytes");
+          },
+        },
+      });
+    },
+  } as unknown as typeof d.asrPool;
+  const progress: AudioManifest[] = [];
+  await expect(
+    synthesizePlannedStatement({ ...request, sentences: [greeting, pay] }, { ...d, asrPool }, empty, {
+      onProgress: async (manifest) => {
+        progress.push(manifest);
+      },
+    }),
+  ).rejects.toBe(exhausted);
+  expect(progress).toHaveLength(1);
+  expect(progress[0]?.entries).toHaveLength(1);
+  expect(progress[0]?.entries[0]).toMatchObject({ slot: "GREETING", text_sha256: greeting.textSha256 });
+  const published = progress[0]?.entries[0];
+  expect(published && existsSync(join(d.mediaRoot, published.file))).toBe(true);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips,
+  ).toHaveLength(1);
+  expect(d.calls).toHaveLength(1);
 });
 
 it("preserves both PAY hashes and keeps draft entries out of the served manifest", async () => {
@@ -169,6 +405,7 @@ it("preserves both PAY hashes and keeps draft entries out of the served manifest
     mentionSpans: [],
   };
   const r = { ...request, sentences: [plain] };
+  d.transcripts.push(plain.text);
   const one = await synthesizePlannedStatement(r, d, empty);
   const legacyDraft = {
     ...one.entries[0],
@@ -177,6 +414,11 @@ it("preserves both PAY hashes and keeps draft entries out of the served manifest
   } as NonNullable<(typeof one.entries)[0]>;
   const cleaned = await synthesizePlannedStatement(r, d, { ...one, entries: [...one.entries, legacyDraft] });
   expect(cleaned.entries.every((e) => !e.draft)).toBe(true);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "drafts", "manifest.json"), "utf8")).entries.some(
+      (e: { file: string }) => e.file === legacyDraft.file,
+    ),
+  ).toBe(true);
   const other = { ...one.entries[0], text: "PayPal is due.", text_sha256: hash("PayPal is due.") };
   const { upsertEntry } = await import("../src/tts/manifest.js");
   expect(upsertEntry(one, other as NonNullable<(typeof one.entries)[0]>).entries).toHaveLength(2);
