@@ -164,6 +164,14 @@ export const RULES: readonly CopyRule[] = [
 
   // ------------------------------------------------------------------ §6: banned or qualified
   {
+    id: "seeded-hold-claude-voice",
+    reason:
+      "Seeded and replayed hold cards use the labelled seed stand-in; their voice must never credit a seed-written sentence to Claude",
+    pattern: /\bClaude\s*:|\bClaude\s+says\b|\b(?:voice|label)\s*[:=]\s*["']?Claude\b/i,
+    context: /(?=[\s\S]*\bholds?\b)(?=[\s\S]*\b(?:seed(?:ed)?|replay(?:ed)?)\b)/i,
+    unless: /\bstand-in\b/i,
+  },
+  {
     id: "claudes-draft",
     reason:
       "The audit agent is paused (WS-AGENT): there is no Claude or agent draft; say 'the invoice draft' or 'placeholder draft (seed-written)' (§6)",
@@ -240,7 +248,7 @@ export const RULES: readonly CopyRule[] = [
     reason:
       "Photos A–L are composed in code from the hero flats and code-drawn slips, not made by Codex (§6, Z5)",
     pattern:
-      /\bCodex[\s-]made\b[^.;]*\b(?:photos?|A\s*[–-]\s*L)\b|\b(?:photos?|A\s*[–-]\s*L)\b[^.;]*\bCodex[\s-]made\b/i,
+      /\bCodex[\s-]made\b(?!\s+hero\s+flats\b)[^.;]*\b(?:photos?|A\s*[–-]\s*L)\b|\b(?:photos?|A\s*[–-]\s*L)\b[^.;]*\bCodex[\s-]made\b(?!\s+hero\s+flats\b)/i,
   },
 
   // ------------------------------------------------------------------ the plan's E-19 word list (S5.7.1)

@@ -74,6 +74,22 @@ test("over-quota payout: five plates match and payout statuses read Replayed (la
     expect(verification.plates.payoutItems.state).toBe("replay");
     expect(verification.plates.payoutItems.reason).toBeTruthy();
     await page.goto(`/proof/${s.runSlug}`);
+    // Honesty cannot depend on pressing Verify: a public judge sees these surfaces immediately.
+    const hero = page.getByTestId("W-PF-01.progress");
+    await expect(hero).toContainText(/payout statuses replayed \(labelled\)/i);
+    await expect(hero).not.toContainText(/confirmed|verified/i);
+    const payouts = page.getByTestId("W-PF-01.plate.payoutItems");
+    await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).toContainText(/replayed \(labelled\)/i);
+    await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).not.toContainText(/confirmed|verified/i);
+    await page.getByTestId("W-PF-01.plate.payoutItems.toggle").click();
+    await expect(payouts).toContainText(/earlier simulated PayPal sandbox run/i);
+    await expect(page.getByTestId("W-PF-01.figures")).toContainText(
+      /Replayed payout statuses \(simulated PayPal sandbox\)/i,
+    );
+    await expect(payouts).not.toContainText(/confirmed by PayPal|signed item notices/i);
+    await expect(page.getByTestId("W-PF-01.footer")).toContainText(
+      "Replayed (labelled): earlier simulated PayPal sandbox run",
+    );
     await page
       .getByTestId("W-PF-01.verify")
       .getByRole("button", { name: /Verify in your browser/ })

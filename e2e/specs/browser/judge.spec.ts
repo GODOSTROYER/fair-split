@@ -7,6 +7,7 @@ import { waitForRun } from "../../lib/api.js";
 import { startBrowserJudge, stopBrowserJudge } from "../../lib/browser-judge.js";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, test } from "../../lib/fixtures.js";
+import { withFullHourlyQuota } from "../../lib/judge-quota.js";
 import { bothKeys, collectRunEvents, officers, runState, workTheReview } from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
 
@@ -260,6 +261,55 @@ test("Try to break it: all four controls refuse attacks and the changed payout v
       ),
     ).toEqual([true, true]);
     await expect(result).toContainText("Both approvals voided");
+  } finally {
+    await stopBrowserJudge(page, api, s);
+  }
+});
+
+test("a quota-replayed run labels the stage, payout summary, chips and log before opening Proof", async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin);
+  try {
+    await workTheReview(api, s);
+    const keys = await officers(api, s);
+    await withFullHourlyQuota(async () => {
+      const lane = await api.get("/v1/judge/lane");
+      expect(lane.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
+      const label = (lane.json as { rail: { label: string } }).rail.label;
+      expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
+      expect(
+        (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
+      ).toBe("NEEDS_FOLLOW_UP");
+      await page.getByTestId("W-JG-01.rail.run").click();
+      await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(label);
+      const chip = page.getByTestId("W-JG-01.proofChip");
+      await expect(chip).toContainText(/replayed/i);
+      await expect(chip).not.toContainText(/confirmed|verified/i);
+      await expect(page.getByTestId("W-TR-08.status")).toContainText(/replayed \(labelled\)/i);
+      const summary = page.getByTestId("W-TR-08.share");
+      await expect(summary).toContainText(/payout statuses replayed \(labelled\)/i);
+      await expect(summary).toContainText(/earlier simulated PayPal sandbox run/i);
+      await expect(summary).not.toContainText(/confirmed|verified|sent by PayPal/i);
+      const statusCells = page.getByTestId("W-TR-08.table").getByRole("cell", { name: /Replayed/i });
+      await expect(statusCells).toHaveCount(8);
+      for (const status of await statusCells.all()) await expect(status).toContainText(/Replayed/i);
+      const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
+      await expect(parkedChip).toHaveCount(1);
+      await expect(parkedChip).toHaveText("Replayed");
+      const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
+      await expect(payoutLog).toContainText(/replay of an earlier simulated/i);
+      await expect(payoutLog).not.toContainText(/Confirmed by a status check|replay of the seed stand-in/i);
+      const replayRows = payoutLog.locator('[data-provenance="replay"]');
+      // Every replay event is labelled in its own row, including an unsuccessful recorded item.
+      await expect(replayRows.first()).toBeAttached();
+      for (const row of await replayRows.all()) {
+        await expect(row).toContainText(/replay/i);
+        await expect(row).not.toContainText(/confirmed|verified/i);
+      }
+    });
   } finally {
     await stopBrowserJudge(page, api, s);
   }

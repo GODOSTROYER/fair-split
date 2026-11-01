@@ -7,7 +7,7 @@ import { expect } from "./fixtures.js";
 import { bothKeys, officers, pressToReview, workTheReview } from "./judge-run.js";
 import { E2E_HOURLY_CAP } from "./quota-config.js";
 
-async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> {
+export async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> {
   const url = process.env.E2E_DATABASE_URL;
   if (!url) throw new Error("quota fixtures require the private test stack (E2E_DATABASE_URL)");
   const sql = postgres(url, { max: 1, onnotice: () => {} });

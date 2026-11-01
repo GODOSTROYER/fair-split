@@ -178,6 +178,28 @@ describe("E-19 rules fire on planted copy", () => {
     );
   });
 
+  it("a seeded or replayed hold voice cannot credit its sentence to Claude", () => {
+    for (const text of [
+      "Seeded hold voice: Claude: The clerk noted a fine.",
+      "Replayed hold card: Claude says the office kept a pink copy.",
+      "Claude: Her deliveries suggest a second plot (seeded hold).",
+    ]) {
+      expect(firing(text)).toContain("seeded-hold-claude-voice");
+      expect(literalFiring(text)).toContain("seeded-hold-claude-voice");
+    }
+    expect(firing("Seeded hold voice: Seed stand-in, not a Claude recording.")).toEqual([]);
+    expect(firing("Claude's real reading of this slip, recorded 1 Nov 2026")).toEqual([]);
+  });
+
+  it("names Codex-made hero flats as inputs to code composition, never as completed photos", () => {
+    const honest = "12 photos composed in code from Codex-made hero flats and code-drawn slips.";
+    expect(firing(honest)).toEqual([]);
+    expect(literalFiring(honest)).toEqual([]);
+    expect(firing("Codex-made photos composed in code from hero flats and code-drawn slips.")).toContain(
+      "codex-made-photos",
+    );
+  });
+
   it("the product AI_NOTE passes only beside its seeded variant (T1)", () => {
     const product = 'export const en = { "AI_NOTE.default": "Your slips were read twice by AI (Claude)." };';
     const both = `export const en = {
