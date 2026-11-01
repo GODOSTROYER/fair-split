@@ -1390,6 +1390,14 @@
     line-height: 1.875rem;
   }
 
+  /* The amount never breaks, so on a phone it scales with the viewport instead of widening the hero and the page
+     (WCAG 1.4.10): a twelve-character amount (US$88,888.88, 5.44 em) still fits a 320 px viewport's 288 px
+     column. It stays at hero size from 450 px and never goes below the app's 48 px hero (design §2.3). */
+  .pf-hero .pf-hero__amount {
+    font-size: clamp(3rem, 16vw, 4.5rem);
+    line-height: 1;
+  }
+
   .pf-ledger__row {
     grid-template-columns: minmax(0, 1fr);
   }
