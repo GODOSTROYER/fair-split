@@ -271,8 +271,12 @@ export default defineRouteFolder({
         const now = ctx.now();
         const ws = await workspaceRow(deps.db, cred.workspaceId);
         if (!workspaceAlive(ws, now)) throw problem.expired("This judge session has ended.");
-        const minted = await withWorkspaceTx(deps.db, cred.workspaceId, (tx) =>
-          mintBearerToken(tx, {
+        const minted = await withWorkspaceTx(deps.db, cred.workspaceId, async (tx) => {
+          // Reset holds this same workspace lock. Its claim must still be alive after we acquire it,
+          // otherwise a frame queued behind Reset would escape that Reset's token revocation.
+          const current = await workspaceRow(tx, cred.workspaceId);
+          if (!workspaceAlive(current, ctx.now())) throw problem.expired("This judge session has ended.");
+          return mintBearerToken(tx, {
             workspaceId: cred.workspaceId,
             kind: "frame",
             role: resolved.ref.role,
@@ -280,9 +284,9 @@ export default defineRouteFolder({
             memberId: resolved.ref.memberId,
             sessionId: cred.sessionId,
             now,
-            workspaceExpiresAt: ws.expiresAt,
-          }),
-        );
+            workspaceExpiresAt: current.expiresAt,
+          });
+        });
         return reply(201, {
           token: minted.token,
           role: resolved.ref.role,

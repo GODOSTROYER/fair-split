@@ -7,7 +7,7 @@
 
 import type { Role } from "@fairsplit/contracts";
 import { type Db, schema } from "@fairsplit/db";
-import { and, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, ne, or } from "drizzle-orm";
 import type { Clock } from "../../lib/clock.js";
 import { type ApiProblem, problem } from "../../lib/problem.js";
 import {
@@ -99,7 +99,10 @@ export function createCredentialResolver(deps: {
     const row = await store.findTokenBySha256(opaqueTokenSha256(token));
     if (!row || row.revokedAt) return invalid(problem.unauthenticated());
     if (row.expiresAt.getTime() <= now.getTime()) return invalid(problem.expired());
-    if (row.workspaceExpiresAt && row.workspaceExpiresAt.getTime() <= now.getTime()) {
+    if (
+      (row.workspaceExpiresAt && row.workspaceExpiresAt.getTime() <= now.getTime()) ||
+      !(await store.workspaceAlive(row.workspaceId, now))
+    ) {
       return invalid(problem.expired("This session's workspace has ended. Start again."));
     }
     return ok({
@@ -217,15 +220,18 @@ export function dbCredentialStore(
       return row ? { ...row, role: row.role as Role } : null;
     },
     async workspaceAlive(workspaceId, now) {
-      // In use: it never expires, or it is claimed and unexpired. A judge workspace whose session ended (a Reset
-      // clears the claim; the database never moves an expiry earlier) is not, whatever its expiry says.
+      // An expiry applies to every workspace, but only judges have claims. A judge workspace whose session ended
+      // (Reset clears its claim; the database never moves an expiry earlier) is not alive, whatever its expiry says.
       const [row] = await db
         .select({ id: ws.id })
         .from(ws)
         .where(
           and(
             eq(ws.id, workspaceId),
-            or(isNull(ws.expiresAt), and(isNotNull(ws.claimedAt), gt(ws.expiresAt, now))),
+            or(
+              isNull(ws.expiresAt),
+              and(gt(ws.expiresAt, now), or(ne(ws.kind, "judge"), isNotNull(ws.claimedAt))),
+            ),
           ),
         )
         .limit(1);
