@@ -104,12 +104,22 @@ export function focusKey(el: Element): string | null {
   return el.id ? attr("id", el.id) : null;
 }
 
-/** Remembers where focus is (or `el`) to hand it back later; null on <body> or inside `leaving`. */
+/**
+ * Where useFocusGuard put focus, until the person acts or focus moves on: nobody chose it (a route change landed
+ * on the new screen's first control while its step's control is not drawn yet), so it is no one's opener.
+ */
+let placed: Element | null = null;
+
+/**
+ * Remembers where focus is (or `el`) to hand it back later; null on <body>, inside `leaving`, or where the
+ * backstop put it (a phone a moment raises over the scrim meanwhile lowers to the step's control instead).
+ */
 export function rememberFocus(
   el: Element | null = document.activeElement,
   leaving?: Element | null,
 ): FocusPlace | null {
   if (!(el instanceof HTMLElement) || el === document.body || leaving?.contains(el)) return null;
+  if (el === placed) return null;
   return { el, key: focusKey(el) };
 }
 
@@ -545,7 +555,13 @@ export function useFocusGuard(): void {
       held = { place: { el: target, key: focusKey(target) }, chain };
     };
     const land = (was: Held) => {
-      if (!returnFocus([was.place, () => neighbourOf(was.chain)]) && focusIsLost()) waiting = true;
+      const at = returnFocus([was.place, () => neighbourOf(was.chain)]);
+      if (!at) {
+        if (focusIsLost()) waiting = true;
+        return;
+      }
+      // The control drawn again is still the person's place; anywhere else is the backstop's.
+      placed = was.place.key && at.matches(was.place.key) ? null : at;
     };
     const handOn = () => {
       const was = held;
@@ -563,10 +579,12 @@ export function useFocusGuard(): void {
     };
     const onIn = (event: FocusEvent) => {
       waiting = false;
+      if (event.target !== placed) placed = null;
       record(event.target);
     };
     const ownInput = () => {
       waiting = false;
+      placed = null;
     };
     const onOut = (event: FocusEvent) => {
       const el = event.target;
@@ -580,8 +598,15 @@ export function useFocusGuard(): void {
       });
     };
     const observer = new MutationObserver(() => {
-      if (held && !held.place.el.isConnected) handOn();
-      else if (waiting && focusIsLost() && returnFocus(null)) waiting = false;
+      if (held && !held.place.el.isConnected) {
+        handOn();
+        return;
+      }
+      if (!waiting || !focusIsLost()) return;
+      const at = returnFocus(null);
+      if (!at) return;
+      waiting = false;
+      placed = at;
     });
     record(document.activeElement);
     document.addEventListener("focusin", onIn, true);
@@ -594,6 +619,7 @@ export function useFocusGuard(): void {
       for (const type of ["keydown", "pointerdown"] as const)
         document.removeEventListener(type, ownInput, true);
       observer.disconnect();
+      placed = null;
     };
   }, []);
 }
