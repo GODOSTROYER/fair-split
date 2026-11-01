@@ -12,6 +12,8 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
+    "verify": "tsx tools/verify.ts",
+    "verify-proof": "tsx tools/verify-proof.ts",
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
@@ -22,6 +24,8 @@
     "ownership:check": "node tools/check-ownership.mjs"
   },
   "devDependencies": {
+    "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/domain": "workspace:*",
     "turbo": "catalog:",
     "typescript": "catalog:",
     "@biomejs/biome": "catalog:",
