@@ -13,6 +13,7 @@ import {
 import { ALLOWED_RESOLUTIONS, linesDigest } from "@fairsplit/domain";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { BRAND_ROUTES } from "../brand.js";
 import { contentDigest } from "../bytes.js";
 import { createApiClient } from "../client.js";
 import { ApiClientError, ContractError } from "../errors.js";
@@ -104,7 +105,10 @@ describe("msw handlers: parity with API_COMMANDS", () => {
     const json = (Object.keys(API_COMMANDS) as ApiCommandName[]).filter((n) => !isSseCommand(n));
     expect([...JSON_COMMAND_NAMES].sort()).toEqual(json.sort());
     expect(mock.handlers).toHaveLength(
-      json.length + Object.keys(SSE_PATHS).length + Object.keys(JUDGE_ROUTES).length,
+      json.length +
+        Object.keys(SSE_PATHS).length +
+        Object.keys(JUDGE_ROUTES).length +
+        Object.keys(BRAND_ROUTES).length,
     );
     // a judge or auth route never shadows a command (and the other way round)
     for (const route of Object.values(JUDGE_ROUTES)) {

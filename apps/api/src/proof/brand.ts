@@ -1,5 +1,5 @@
-// The brand view (W-BR-01 / W-PF-02, C-23): the Proof with names, masked receivers on screen, and a CSV export
-// that is the only place names, full receivers and plot coordinates appear (shared with the brand under the
+// The brand view (W-BR-01 / W-PF-02, C-23): the Proof with names and masked receivers, and a CSV export
+// that carries names, masked receivers and plot coordinates (shared with the brand under the
 // data-sharing agreement, never published). Readable with the brand's link, or by the brand persona, the
 // treasurer, the Chair or a judge acting in the run's own workspace.
 import {
@@ -42,7 +42,7 @@ export const BrandMember = z.strictObject({
   net: MoneyDTO,
   state: z.string(),
   stateWords: z.string(),
-  /** Masked on screen (C-23); complete only in the CSV export. */
+  /** Masked in the view and CSV export (the current builder brief's privacy boundary). */
   receiverMasked: z.string().nullable(),
   senderItemId: z.string().nullable(),
   payoutItemId: z.string().nullable(),
@@ -350,6 +350,7 @@ const CSV_HEADER = [
   "name",
   "language",
   "rail",
+  "provenance",
   "verified_kg",
   "grade1_kg",
   "premium_usd",
@@ -393,7 +394,12 @@ async function readBrandCsv(db: DbOrTx, run: ProofRun): Promise<string> {
         csvText(r.memberNo),
         csvText(r.name),
         csvText(r.lang),
-        csvText(r.rail),
+        csvText(
+          r.rail === "CASH" || ["OFF_RAIL_DUE", "OFF_RAIL_PAID"].includes(r.state)
+            ? "cash"
+            : "Simulated PayPal sandbox",
+        ),
+        csvText(facts.provenance),
         csvNumber(format.kgNumber(r.verifiedG, 1).replaceAll(",", "")),
         csvNumber(format.kgNumber(r.grade1G, 1).replaceAll(",", "")),
         csvNumber(minorToDecimal(r.premiumCents)),
@@ -407,7 +413,7 @@ async function readBrandCsv(db: DbOrTx, run: ProofRun): Promise<string> {
         csvText(r.item?.senderItemId ?? ""),
         csvText(r.item?.payoutItemId ?? ""),
         csvText(r.item?.status ?? ""),
-        csvText(r.item?.receiver ?? ""),
+        csvText(r.item ? format.maskEmail(r.item.receiver) : ""),
         csvText(r.item?.eventId ?? ""),
         csvText(
           r.plots

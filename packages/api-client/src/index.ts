@@ -7,6 +7,7 @@
 // Statement audio (IC-11, ADR-0011): `mediaRoutes(api).statementAudio`, typed with the contract's StatementAudio.
 // Subpaths: `/http` (the HTTP contract the server shares), `/format` (cents and grams, C-22), `/verify` (Proof
 // "Verify in your browser"), `/msw` (a seeded, stateful mock of fs-api for UI development and tests).
+export { BRAND_ROUTES, BrandMember, type BrandRouteMethods, BrandView, brandRoutes } from "./brand.js";
 export {
   contentDigest,
   fromHex,
