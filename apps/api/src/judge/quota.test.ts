@@ -65,6 +65,30 @@ describe("the daily live-post formula", () => {
 });
 
 describe("live or replay", () => {
+  it("uses the test stack's hourly cap without lifting daily, session or public quotas", () => {
+    const configured = facts({ hourlyMax: 8, postsThisHour: 3 });
+    expect(decideRail(configured, NOW, "post", "simulated")).toMatchObject({
+      mode: "live",
+      quota: { hourlyCap: 8, sessionCap: 3, dailyCap: 6, publicCap: 2 },
+    });
+    expect(decideRail({ ...configured, postsThisHour: 8 }, NOW, "post", "simulated")).toMatchObject({
+      mode: "replay",
+      reason: "hourly_cap",
+      quota: { hourlyCap: 8 },
+    });
+    for (const [over, reason] of [
+      [{ posts24h: 6 }, "daily_cap"],
+      [{ sessionPosts24h: 3 }, "session_cap"],
+      [{ publicPosts24h: 2 }, "public_share"],
+    ] as const) {
+      expect(decideRail({ ...configured, ...over }, NOW, "post", "simulated")).toMatchObject({
+        mode: "replay",
+        reason,
+      });
+    }
+    expect(decideRail(facts({ postsThisHour: 3 }), NOW, "post", "simulated").reason).toBe("hourly_cap");
+  });
+
   it("inv.i8.labels: a pacing replay names the simulated PayPal sandbox", () => {
     const decision = decideRail(
       facts({ circuitOpenUntil: new Date(NOW.getTime() + 60_000) }),

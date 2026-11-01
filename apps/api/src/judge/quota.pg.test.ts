@@ -142,6 +142,33 @@ async function facts(deps: AppDeps = t.deps) {
 }
 
 describe("the binding decision (reserveLivePost)", () => {
+  it("the test-only hourly cap governs both the peek and atomic reservations", async () => {
+    await open({
+      env: { FS_TEST_JUDGE_HOURLY_MAX: "4" },
+      simulator: { name: "quota-test-sim", fetch: noPayPal },
+    });
+    await recordBalanceReading(t.deps.db, {
+      rail: "simulated",
+      availableCents: ONE_MILLION,
+      asOf: t.clock.now(),
+      source: "searchBalances",
+    });
+    const workspaceId = await judgeWorkspace();
+    const peek = () => judgeRail(t.deps, { workspaceId, sessionId: null, step: "post" });
+    for (let i = 0; i < 4; i++) {
+      expect(await peek()).toMatchObject({ mode: "live", quota: { hourlyCap: 4 } });
+      expect((await reserve(t.deps, { workspaceId })).decision).toMatchObject({
+        mode: "live",
+        quota: { hourlyCap: 4, usedThisHour: i + 1 },
+      });
+    }
+    expect(await peek()).toMatchObject({ mode: "replay", reason: "hourly_cap" });
+    expect(await reserve(t.deps, { workspaceId })).toMatchObject({
+      decision: { mode: "replay", reason: "hourly_cap", quota: { hourlyCap: 4 } },
+      reservation: null,
+    });
+  });
+
   it("inv.quota.cas: judges at cap−1 posting at once from two processes: exactly one reserves", async () => {
     await open();
     await reading(ONE_MILLION);

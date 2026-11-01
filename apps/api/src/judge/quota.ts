@@ -164,6 +164,8 @@ export interface QuotaFacts {
   posts24h: number;
   /** Live judge posts since the start of the current UTC hour. */
   postsThisHour: number;
+  /** A validated local test simulator override, otherwise the production hourly cap. */
+  hourlyMax?: number | undefined;
   /** This session's live posts in the rolling 24 h. */
   sessionPosts24h: number;
   /** Live posts in the rolling 24 h by sessions without a judge code. */
@@ -232,7 +234,7 @@ export function decideRail(f: QuotaFacts, now: Date, step: JudgeStep, rail: Rail
   const quota: QuotaNumbers = {
     dailyCap,
     used24h: f.posts24h,
-    hourlyCap: JUDGE_QUOTA.hourlyMax,
+    hourlyCap: f.hourlyMax ?? JUDGE_QUOTA.hourlyMax,
     usedThisHour: f.postsThisHour,
     sessionCap: JUDGE_QUOTA.perSession24h,
     sessionUsed: f.sessionPosts24h,
@@ -250,7 +252,7 @@ export function decideRail(f: QuotaFacts, now: Date, step: JudgeStep, rail: Rail
     if (f.balance.cents < JUDGE_QUOTA.replayFloorCents) return replay("balance_low");
     // the step that posts reserves one; the steps before it check that one is still left for this run
     if (f.posts24h >= dailyCap) return replay("daily_cap");
-    if (f.postsThisHour >= JUDGE_QUOTA.hourlyMax) return replay("hourly_cap");
+    if (f.postsThisHour >= quota.hourlyCap) return replay("hourly_cap");
     if (f.sessionPosts24h >= JUDGE_QUOTA.perSession24h) return replay("session_cap");
     if (!f.coded && f.publicPosts24h >= publicCap) return replay("public_share");
   }
@@ -660,6 +662,7 @@ export async function quotaFacts(
     circuitOpenUntil: limiter.circuitOpenUntil,
     balance,
     ...counts,
+    hourlyMax: deps.env.judgeHourlyMax,
     coded: o.sessionId !== null && (await isCodedSession(db, o.sessionId)),
   };
 }

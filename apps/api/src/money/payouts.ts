@@ -648,6 +648,7 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
           .where(and(eq(schema.payoutItems.workspaceId, ws), eq(schema.payoutItems.batchId, batch.id)));
         for (const item of items) {
           await applyItem(tx, scope, item, {
+            at: deps.clock.now(),
             status: "PENDING",
             source: "post_response",
             eventId: null,
@@ -887,6 +888,7 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
         ];
         if (!known.includes(status)) return;
         await applyItem(tx, scope, item, {
+          at: deps.clock.now(),
           status: status as Parameters<typeof applyItem>[3]["status"],
           source: update.source === "cancel" ? "cancel" : "status_check",
           eventId: null,

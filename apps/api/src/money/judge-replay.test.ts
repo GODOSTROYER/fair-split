@@ -5,12 +5,13 @@
 // Rhea and pays the rest, and her cash move settles the run: through the very same code (the lattice, I4, the state
 // machine), with zero PayPal calls, and every PayPal-derived row and event labelled `replay` (I8). As in a judge
 // clone, the replay photos start unread: the reading is the seed's labelled stand-in (runs/extract.ts), `seeded`.
-import { RunEvent } from "@fairsplit/contracts";
-import { schema, verifyChain } from "@fairsplit/db";
+import { type ChainVerification, type ProofBundle, RunEvent } from "@fairsplit/contracts";
+import { appendLedger, schema, systemScope, verifyChain } from "@fairsplit/db";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { liveSpend } from "../judge/quota.js";
+import { openingLedger } from "../judge/world.js";
 import { type RunsHarness, readSlips, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
 import { settleBatch } from "./settle.js";
@@ -24,6 +25,29 @@ beforeAll(async () => {
     paypal: script.handlers,
     world: { runState: "INVOICED", replayRows: false },
     balanceCents: 500_000,
+  });
+  // A real judge clone opens with the card's ratification and archived photo reads. The runs-only
+  // harness omits them; include that same production prefix so this test checks all six Proof plates.
+  await h.t.deps.db.transaction(async (tx) => {
+    const docs = await tx
+      .select({ id: schema.documents.id, photoCode: schema.documents.photoCode })
+      .from(schema.documents)
+      .where(eq(schema.documents.workspaceId, h.world.workspaceId));
+    const docOf = new Map(docs.map((d) => [d.photoCode, d.id]));
+    for (const e of openingLedger()) {
+      const payload = { ...(e.payload as Record<string, unknown>) };
+      if (e.kind === "rows.accepted") {
+        const documentId = docOf.get(String(payload.photoId));
+        if (!documentId) throw new Error("The archived photo must exist in the judge world.");
+        payload.documentId = documentId;
+      }
+      await appendLedger(tx, systemScope(h.world.workspaceId), {
+        kind: e.kind,
+        payload,
+        actor: { kind: e.actorKind, id: e.actorId, impersonatedBy: e.impersonatedBy },
+        at: new Date(e.at),
+      });
+    }
   });
 });
 afterAll(async () => h?.close());
@@ -172,6 +196,50 @@ describe("a judge run whose PayPal steps replay (balance under the floor) calls 
     expect(moves.map((e) => e.provenance)).toEqual(Array(moves.length).fill("replay"));
     // a replay reached no one: it is neither a live post of the judge quota nor spend of the business account
     expect(await liveSpend(h.t.deps.db, "sandbox", null)).toBe(0);
+  });
+
+  it("inv.i8.replay-proof: recorded item statuses are labelled replay, never verified notices", async () => {
+    const entries = await h.t.deps.db
+      .select({ kind: schema.ledgerEntries.kind, payload: schema.ledgerEntries.payload })
+      .from(schema.ledgerEntries)
+      .where(eq(schema.ledgerEntries.workspaceId, h.world.workspaceId));
+    const replay = entries.filter((e) => e.kind === "payout.item.replayed");
+    expect(replay.length).toBeGreaterThanOrEqual(figures.batchItemCount);
+    expect(replay.every((e) => (e.payload as { provenance: string }).provenance === "replay")).toBe(true);
+    expect(entries.filter((e) => e.kind === "webhook.applied")).toEqual([]);
+
+    const proof = await h.t.json<{ bundle: ProofBundle }>(`/v1/proof/${h.world.runSlug}`, {
+      as: h.t.credentials.bearer(h.tokens.treasurer),
+    });
+    expect(proof.status).toBe(200);
+    expect(proof.body.bundle.batch.items.every((i) => i.eventId === null)).toBe(true);
+    expect(proof.body.bundle.batch.items.every((i) => "provenance" in i && i.provenance === "replay")).toBe(
+      true,
+    );
+
+    const result = await h.t.json<{ verification: ChainVerification }>(
+      `/v1/proof/${h.world.runSlug}/verification`,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body.verification.checkpoint).toMatchObject({ ok: true });
+    expect(Object.entries(result.body.verification.plates).filter(([, p]) => !p.ok)).toEqual([]);
+    expect(result.body.verification).toMatchObject({
+      ok: false,
+      status: "replay",
+      verdict: "five of six match; one replayed, labelled",
+      plates: {
+        payoutItems: {
+          ok: true,
+          state: "replay",
+          reason:
+            "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+        },
+      },
+    });
+    const metrics = await h.t.json<{ paid: { paypalVerified: { members: number } } }>(
+      `/v1/proof/${h.world.runSlug}/metrics`,
+    );
+    expect(metrics.body.paid.paypalVerified.members).toBe(0);
   });
 });
 
