@@ -141,6 +141,7 @@
 
 .fsc-proofchip {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
   min-height: 32px;
@@ -151,7 +152,7 @@
   background: var(--fs-plate-2);
   color: var(--fs-ink);
   text-decoration: none;
-  white-space: nowrap;
+  white-space: normal;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -764,6 +765,8 @@
 
 .fsc-stage[data-layout="tab"] .fsc-dock__panel {
   position: absolute;
+  max-height: 100%;
+  overflow: auto;
   right: 24px;
   bottom: 0;
   z-index: 1;
@@ -1286,6 +1289,48 @@
 /* 1024–1679 px: the raised phone sits above drawers (the phone lane in the ribbon never covers either). */
 .fsc-stage[data-layout="tab"] .fsc-dock {
   z-index: calc(var(--fs-z-drawer) + 1);
+}
+
+/* Keep the rail label and every action inside the viewport when the labelled Proof chip grows. */
+@media (min-width: 1024px) and (max-width: 1679px) {
+  .fsc-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .fsc-bar > .fsc-bar__honest {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .fsc-bar > .fsc-bar__pill {
+    grid-row: 1;
+    grid-column: 1;
+    justify-content: flex-start;
+  }
+
+  .fsc-bar > .fsc-bar__actions {
+    grid-row: 1;
+    grid-column: 2;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .fsc-bar[data-lockup] {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fsc-bar[data-lockup] > .fsc-bar__pill {
+    grid-column: 2;
+  }
+
+  .fsc-bar[data-lockup] > .fsc-bar__actions {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .fsc-bar[data-lockup] > .fsc-bar__honest {
+    grid-row: 3;
+  }
 }
 
 /* Narrower than the pill, its run state and the links side by side with the honesty line: the run state
