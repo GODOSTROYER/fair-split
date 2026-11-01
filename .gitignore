@@ -16,6 +16,7 @@ GoogleService-Info.plist
 *-credentials*.json
 credentials.json
 # local artefacts
+.codex-scratch/
 media/raw/
 video/render/
 playwright-report/
