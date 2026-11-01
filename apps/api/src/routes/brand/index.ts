@@ -1,5 +1,5 @@
 // src/routes/brand: owned by the PROOF slice (apps/api/SPLIT.md).
-// The brand view: names, masked receivers, CSV export (C-23: the only place names, full receivers and plot
+// The brand view: names, masked receivers, CSV export (C-23: the only place names and plot
 // coordinates appear, under the data-sharing agreement). Until the run's batch is posted (proofReady) the view
 // is the invoice alone (no member, name, amount or receiver; zero totals) and the export answers 404.
 //
@@ -28,7 +28,7 @@ export default defineRouteFolder({
         name: "view",
         summary: "The brand's view of a run: names and masked receivers, totals and hashes",
         description:
-          "Readable with the brand's signed link (`Authorization: Bearer fsb_…`) or by the brand persona, the treasurer, the Chair or a judge in the run's workspace. Receivers are masked here (C-23); the CSV export carries them in full. Before the batch is posted (`proofReady: false`) the view is the invoice alone: no members, zero totals, no batch hash or ledger head.",
+          "Readable with the brand's signed link (`Authorization: Bearer fsb_…`) or by the brand persona, the treasurer, the Chair or a judge in the run's workspace. Receivers are masked here and in the CSV export. Before the batch is posted (`proofReady: false`) the view is the invoice alone: no members, zero totals, no batch hash or ledger head.",
         response: BrandView,
         errors: ["UNAUTHENTICATED", "FRAME_TOKEN_EXPIRED", "FORBIDDEN"],
       },
@@ -48,9 +48,9 @@ export default defineRouteFolder({
       path: "/v1/brand/{runSlug}/export.csv",
       operationId: "brand.exportCsv",
       tag: "brand",
-      summary: "The brand's CSV export: names, full receivers, hashes and plots, one row per member line",
+      summary: "The brand's CSV export: names, masked receivers, hashes and plots, one row per member line",
       description:
-        "The only place names, full receivers and plot coordinates appear (C-23, under the data-sharing agreement). UTF-8 with a byte-order mark; text cells a spreadsheet would run as a formula are neutralised. Same readers as the brand view; 404 (details.reason PROOF_NOT_READY) until the batch is posted.",
+        "Names, masked receivers and plot coordinates (C-23, under the data-sharing agreement). The rail is labelled Simulated PayPal sandbox or cash; provenance is seeded, replay, simulated_rail or live. UTF-8 with a byte-order mark; text cells a spreadsheet would run as a formula are neutralised. Same readers as the brand view; 404 (details.reason PROOF_NOT_READY) until the batch is posted.",
       auth: "public",
       contentType: "text/csv",
       body: { type: "string" },
