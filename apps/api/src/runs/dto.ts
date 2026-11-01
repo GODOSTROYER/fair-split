@@ -12,6 +12,7 @@ import type {
 import { KeyId as KeyIdSchema, Legibility } from "@fairsplit/contracts";
 import type { schema } from "@fairsplit/db";
 import { mergeDisplay } from "@fairsplit/domain";
+import { resolveLineCanonical } from "../proof/bundle.js";
 import { approvalRoleOf, iso, isoOrNull, provenanceOf, railOf, toInt } from "./codes.js";
 import { engineLineOf, holdFacts, resolutionOf } from "./engine.js";
 import type { HoldRow, LineRow } from "./machine.js";
@@ -84,6 +85,17 @@ export function lineDto(row: LineRow, memberNo: string): MemberLineDTO {
     trace: serials.map((s) => `slip:${s}`),
     provenance: provenanceOf(row.provenance),
   };
+}
+
+/** /lines additionally carries the exact preimage. A corrupt stored hash is kept so the phone refuses it. */
+export function lineWithCanonicalDto(row: LineRow, memberNo: string, rateCardSha256: string) {
+  const line = lineDto(row, memberNo);
+  const resolved = resolveLineCanonical(
+    { ...row, memberNo },
+    rateCardSha256,
+    line.trace.map((s) => s.slice(5)),
+  );
+  return { ...line, canonical: resolved.canonical };
 }
 
 function read(v: unknown): { valueText: string; legibility: Legibility } | null {
