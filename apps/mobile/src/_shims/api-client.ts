@@ -14,6 +14,7 @@ import {
   type LineList,
   type RunView,
 } from "../features/board/fs-api-view";
+import { readMemberStatement } from "../features/statement/http-statement";
 import type {
   ApiErrorCode,
   AppRole,
@@ -31,6 +32,7 @@ import type {
   StatementAudio,
   StatementAudioClip,
   StatementAudioSentence,
+  StatementSlot,
   StatementTemplate,
 } from "./contracts";
 
@@ -97,6 +99,18 @@ export interface StatementCredit {
 }
 
 export interface StatementDTO {
+  /** fs-api has already selected and rendered this sentence set. */
+  served?: true;
+  spokenHashes?: readonly string[];
+  formatted?: {
+    hero: Record<"paypal" | "cash", import("../lib/figures").HeroFigures>;
+    receiptRows: import("../lib/figures").ReceiptRow[];
+    share: import("../lib/figures").ShareFigures;
+    conservation: import("../lib/figures").Conservation;
+  };
+  formattedByLang?: Readonly<Partial<Record<Lang, NonNullable<StatementDTO["formatted"]>>>>;
+  paypalRail?: string | null;
+  rendered?: Readonly<Partial<Record<Lang, readonly RenderedStatementSentence[]>>>;
   lineId: string;
   runId: string;
   runSlug: string;
@@ -136,6 +150,16 @@ export interface StatementDTO {
    * mode, as exported from fs-api's renderer; empty until the audio days render clips.
    */
   audio: Readonly<Partial<Record<Lang, readonly StatementAudioSentence[]>>>;
+}
+
+export interface RenderedStatementSentence {
+  id: string;
+  slot: StatementSlot;
+  variant: string;
+  display: string;
+  spoken: string;
+  mentions: readonly string[];
+  textSha256: string;
 }
 
 export interface CosignHold {
@@ -308,6 +332,7 @@ async function errorCode(res: Response): Promise<ApiErrorCode> {
 }
 
 export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
+  let responseRail: string | null = null;
   const origin = opts.origin.replace(/\/+$/, "");
   // Resolved per call, so polyfills and test interceptors installed later are honoured.
   const doFetch: typeof fetch = (input, init) => (opts.fetch ?? globalThis.fetch)(input, init);
@@ -331,6 +356,7 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
       return { ok: false, code: "NETWORK" } as const;
     }
     if (!res.ok) return { ok: false, code: await errorCode(res), status: res.status } as const;
+    if (res.headers.has("X-FS-Rail")) responseRail = res.headers.get("X-FS-Rail");
     return { ok: true, value: (await res.json()) as T } as const;
   }
 
@@ -364,7 +390,12 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
         return { ok: false, code: "PAIRING_INVALID", status: r.status };
       return r;
     },
-    getStatement: () => call<StatementDTO>("GET", "/v1/members/me/statement"), // shim-defined
+    getStatement: () =>
+      readMemberStatement(
+        <T>(path: string) => call<T>("GET", path),
+        () => responseRail,
+        origin,
+      ),
     getStatementByLink: (token) =>
       call<StatementDTO>("GET", `/v1/statements/link/${encodeURIComponent(token)}`), // shim-defined
     async getOpenCosignRun() {

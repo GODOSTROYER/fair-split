@@ -17,7 +17,13 @@ import {
   stopSpeaking,
   type VoiceChoice,
 } from "../../platform/speech";
-import { PAMINAWA_START, type PaminawaEvent, type PaminawaState, paminawaReducer } from "./paminawa-machine";
+import {
+  PAMINAWA_START,
+  type PaminawaEvent,
+  type PaminawaState,
+  paminawaReducer,
+  playbackPlanKey,
+} from "./paminawa-machine";
 
 /** Status updates from a clip, often enough for a chip to rise within a word of its mention. */
 const CLIP_UPDATE_MS = 100;
@@ -56,10 +62,7 @@ export function usePaminawa(
   voiceRef.current = opts.voice;
 
   // A new language or a different set of clips starts again from the top.
-  const planKey = useMemo(
-    () => plan.steps.map((s) => `${s.id}:${s.voice.kind === "clip" ? s.voice.url : s.voice.kind}`).join("|"),
-    [plan],
-  );
+  const planKey = useMemo(() => playbackPlanKey(plan), [plan]);
   useEffect(() => {
     send({ type: "reset" });
   }, [planKey]);

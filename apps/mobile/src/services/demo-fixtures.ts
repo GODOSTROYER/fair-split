@@ -1,5 +1,5 @@
 /**
- * Demo DTOs built from the seed fixture (src/_shims/seed.ts). Used when the app runs without fs-api
+ * Demo DTOs use seed facts and AU2's committed fs-api statement export. Used when the app runs without fs-api
  * (`EXPO_PUBLIC_API_ORIGIN` unset) and by unit tests. Everything here is labelled "Demo data" in the UI (I8).
  */
 import type {
@@ -33,6 +33,7 @@ import {
   senderBatchId,
   statementTemplates,
 } from "../_shims/seed";
+import { withDemoStatementExport } from "./demo-statement-export";
 
 /**
  * The hero line's demo path: still checking → sent → PayPal confirms; or PayPal parks it (unclaimed), the treasurer
@@ -96,7 +97,7 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
   const { stage, now } = opts;
   const itemStatus = ITEM_STATUS[stage];
   const history = demoHistory(stage, now, opts.sentAt ?? now);
-  return {
+  return withDemoStatementExport({
     lineId: "line_2026A_r37_M-014",
     runId,
     runSlug,
@@ -145,7 +146,7 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
     expectedDate: stage === "checking" ? cashDayIso : null,
     sentences: statementTemplates,
     audio: {},
-  };
+  });
 }
 
 /** The co-sign request for the seed's run r37: its eight payouts and all 64 member lines (`seed-run.json`). */

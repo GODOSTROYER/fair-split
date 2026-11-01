@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../../_shims/domain";
 import { type AudioPlan, audioPlan } from "../../lib/statement";
-import { buildDemoStatement } from "../../services/demo-fixtures";
+import { buildDemoStatement as buildExportedDemoStatement } from "../../services/demo-fixtures";
 import {
   canPlay,
   PAMINAWA_START,
@@ -9,9 +9,14 @@ import {
   type PaminawaState,
   paminawaReducer,
   paminawaScreenState,
+  playbackPlanKey,
   SLOW_RATE,
 } from "./paminawa-machine";
 
+/** Deliberate legacy template fixture: exercise interpolation and hand-built audio hashes independently of AU2's export. */
+function buildDemoStatement(opts: Parameters<typeof buildExportedDemoStatement>[0]) {
+  return { ...buildExportedDemoStatement(opts), rendered: undefined, audio: {} };
+}
 const dto = buildDemoStatement({ stage: "paid", now: "2026-10-30T09:12:00+08:00" });
 const device = audioPlan(dto, "en", { deviceVoice: true });
 const textOnly = audioPlan(dto, "ceb", { deviceVoice: false });
@@ -23,6 +28,14 @@ function run(plan: AudioPlan, events: PaminawaEvent[], from: PaminawaState = PAM
 const sourcesIndex = device.steps.findIndex((s) => s.slot === "SOURCES");
 
 describe("Paminawa's player (M-MB-03)", () => {
+  it("resets playback when server words or device-voice language changes under the same sentence IDs", () => {
+    const changed = {
+      ...device,
+      steps: device.steps.map((s) => ({ ...s, spoken: `Bagong teksto: ${s.spoken}` })),
+    };
+    expect(playbackPlanKey(changed)).not.toBe(playbackPlanKey(device));
+    expect(playbackPlanKey({ ...device, steps: [...device.steps] })).toBe(playbackPlanKey(device));
+  });
   it("plays sentence by sentence, each start with a new token, and ends after the last", () => {
     const s1 = run(device, [{ type: "play" }]);
     expect(s1).toMatchObject({ status: "playing", index: 0, token: 1 });

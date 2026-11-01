@@ -250,6 +250,7 @@ export function applicableTemplates(
 ): readonly StatementTemplate[] {
   const all = dto.sentences[lang] ?? [];
   const pay = payTemplate(all, payForm(dto, rail), rail);
+  if (dto.served) return all.filter((s) => s.slot !== "PAY" || s === pay);
   // The demo carries T1's three forms; live DTOs already contain fs-api's selected form.
   const notes = all.filter((s) => s.slot === "AI_NOTE");
   const seededForm = !lineApproved(dto)
@@ -270,9 +271,27 @@ export function applicableTemplates(
 /** The member's sentences, filled; rejected ones are dropped and reported so the server can regenerate them. */
 export function statementSentences(dto: StatementDTO, lang: Lang, rail?: PayRail) {
   const r: PayRail = rail ?? railOf(dto);
-  const filled = applicableTemplates(dto, lang, r).map((s) =>
-    fillSentence(s, statementValues(dto, lang, s, r)),
-  );
+  const filled = applicableTemplates(dto, lang, r).map((s) => {
+    const exact =
+      dto.rendered?.[lang]?.find((x) => x.id === s.id && x.variant === templateVariant(s)) ??
+      dto.rendered?.[lang]?.find(
+        (x) =>
+          x.slot === s.slot &&
+          x.variant === templateVariant(s) &&
+          (!s.ref || x.mentions.includes(`${s.slot === "DEDUCTION" ? "rule" : "slip"}:${s.ref}`)),
+      );
+    if (exact)
+      return {
+        ok: true as const,
+        id: s.id,
+        slot: s.slot,
+        display: exact.display,
+        spoken: exact.spoken,
+        mentions: [...exact.mentions],
+        segments: [{ text: exact.display, value: true }],
+      };
+    return fillSentence(s, statementValues(dto, lang, s, r));
+  });
   return {
     sentences: filled.filter((f): f is Extract<FilledSentence, { ok: true }> => f.ok),
     rejected: filled.filter((f): f is Extract<FilledSentence, { ok: false }> => !f.ok),
@@ -371,9 +390,16 @@ function cuesFor(spoken: string, mentions: readonly string[], clip: AudioClip | 
   let from = 0;
   for (const ref of mentions) {
     const serial = ref.replace(/^slip:/, "");
-    const at = spoken.indexOf(spokenSerial(serial), from);
+    const digitWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+    const numeric = spokenSerial(serial);
+    const spelled = serial
+      .split("")
+      .map((digit) => digitWords[Number(digit)] ?? digit)
+      .join(" ");
+    const numericAt = spoken.indexOf(numeric, from);
+    const at = numericAt >= 0 ? numericAt : spoken.indexOf(spelled, from);
     const charIndex = at >= 0 ? at : from;
-    if (at >= 0) from = at + spokenSerial(serial).length;
+    if (at >= 0) from = at + (numericAt >= 0 ? numeric.length : spelled.length);
     const known = clip?.offsets.find((o) => o.ref === ref)?.atMs;
     const estimated =
       clip?.durationMs && spoken.length > 0
@@ -409,6 +435,7 @@ function ownKey(dto: StatementDTO, lang: Lang, s: StatementSentence, pay: PayFor
   const form = `${s.slot}.${templateVariant(template)}`;
   const kind = ABOUT[s.slot];
   if (!kind) return form;
+  if (dto.served && s.slot === "CREDIT" && templateVariant(template) === "plain") return form;
   return template.ref ? `${form}|${kind}:${template.ref}` : null;
 }
 
@@ -417,6 +444,7 @@ function servedKey(s: StatementAudioSentence): string | null {
   const form = `${s.slot}.${s.variant}`;
   const kind = ABOUT[s.slot];
   if (!kind) return form;
+  if (s.slot === "CREDIT" && s.variant === "plain") return form;
   const about = s.mentions.find((m) => m.startsWith(`${kind}:`));
   return about ? `${form}|${about}` : null;
 }
@@ -492,7 +520,14 @@ export function audioPlan(
   );
   const steps = sentences.map((s, index): AudioStep => {
     const standIn = fil?.get(s.id) ?? null;
-    const clip = filStandIn && !standIn ? null : servedClip(paired[index] ?? null, playable);
+    const exact = dto.rendered?.[filStandIn ? "fil" : lang]?.find(
+      (x) => x.slot === (standIn ?? s).slot && x.spoken === (standIn ?? s).spoken,
+    );
+    const partner = paired[index] ?? null;
+    const clip =
+      (filStandIn && !standIn) || (exact && exact.textSha256 !== partner?.textSha256)
+        ? null
+        : servedClip(partner, playable);
     if (clip) {
       const voiced = standIn ?? s;
       return {

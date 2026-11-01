@@ -341,7 +341,7 @@ describe("the live cash list (msw)", () => {
     expect(
       parseCashDay({ runSlug: "r", cashDay: "2026-10-30", phpPerUsd: "62.50", lines: [] }),
     ).toMatchObject({
-      provenance: "live",
+      provenance: "unknown",
       lines: [],
       station: null,
       treasurer: null,
@@ -357,4 +357,22 @@ describe("the live cash list (msw)", () => {
       }),
     ).toMatchObject({ station: null, treasurer: null });
   });
+
+  it.each([undefined, null, "future-rail", "", 1])(
+    "inv.i8.cash-unknown-provenance: %s never becomes live",
+    (provenance) => {
+      expect(
+        parseCashDay({ runSlug: "r", cashDay: "2026-10-30", phpPerUsd: "62.50", lines: [], provenance }),
+      ).toMatchObject({ provenance: "unknown" });
+    },
+  );
+
+  it.each(["seeded", "replay", "simulated_rail", "live"])(
+    "inv.i8.cash-known-provenance: preserves %s",
+    (provenance) => {
+      expect(
+        parseCashDay({ runSlug: "r", cashDay: "2026-10-30", phpPerUsd: "62.50", lines: [], provenance }),
+      ).toMatchObject({ provenance });
+    },
+  );
 });

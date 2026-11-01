@@ -386,9 +386,9 @@ export const messages = defineMessages({
     en: "The synthetic voice is on its way.",
   },
   "M-MB-03.mixed": {
-    ceb: "Sintetikong tingog ug tingog sa telepono",
-    fil: "Sintetikong boses at boses ng telepono",
-    en: "Synthetic voice and the phone's own voice",
+    ceb: "Sintetikong tingog (Gemini TTS) ug tingog sa telepono",
+    fil: "Sintetikong boses (Gemini TTS) at boses ng telepono",
+    en: "Synthetic voice (Gemini TTS) and the phone's own voice",
   },
   "M-MB-03.filipinoAudio": {
     ceb: "Audio sa Filipino; teksto sa Cebuano",
