@@ -29,7 +29,7 @@ import { ACTORS } from "./events.js";
 import { readKill } from "./flags.js";
 import { lockRun } from "./load.js";
 import { cause, moveLine, moveRun } from "./machine.js";
-import { attemptsOf, deferDelayMs, deferTask, earlierAttempt, report } from "./now.js";
+import { attemptsOf, deferDelayMs, deferTask, earlierAttempt, outboxRetryAfterMs, report } from "./now.js";
 
 function scopeOf(ctx: TaskContext, actor: Actor = ACTORS.outbox) {
   if (!ctx.workspaceId) throw new Error(`${ctx.name} needs the workspace of its outbox row`);
@@ -62,7 +62,7 @@ function paypalTask(
             code: step.code,
             message: step.message,
             debugId: step.opts.debugId ?? null,
-            retryAfterMs: Math.max(1_000, next.runAfter.getTime() - Date.now()),
+            retryAfterMs: outboxRetryAfterMs(next.runAfter),
           });
           return;
         }

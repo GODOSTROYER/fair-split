@@ -15,7 +15,7 @@ import { factLedger } from "./events.js";
 import { assertNotKilled } from "./flags.js";
 import { casGuard, invalidTransition, invoiceOfRun, lockRun, runById, runBySlug } from "./load.js";
 import { cause, moveLine } from "./machine.js";
-import { enqueuePress, reportProblem, runNow } from "./now.js";
+import { enqueuePress, outboxRetryAfterMs, reportProblem, runNow } from "./now.js";
 
 // ---------------------------------------------------------------- markPaid
 
@@ -51,6 +51,25 @@ export const markPaidHandler: CommandHandler<"markPaid"> = async (ctx) => {
     if (!invoice?.paypalInvoiceId || !invoice.sentAt) {
       throw invalidTransition(run.state as PayRunState, "The invoice has not been sent yet.");
     }
+    // A re-press only observes an unfinished payment; it must not dispatch it again or add another intent.
+    // Keep this after the state guard: funding that already moved the run forward still refuses a press.
+    const t = schema.taskOutbox;
+    const [pending] = await tx
+      .select({ id: t.id, state: t.state, runAfter: t.runAfter })
+      .from(t)
+      .where(
+        and(
+          eq(t.workspaceId, scope.workspaceId),
+          eq(t.name, "recordPayment"),
+          inArray(t.state, ["queued", "dispatched", "running"]),
+          sql`${t.args}->>'runId' = ${run.id}`,
+        ),
+      )
+      .limit(1);
+    if (pending)
+      throw new ApiProblem("QUEUED", "The PayPal step is queued and will be retried shortly.", {
+        retryAfterMs: outboxRetryAfterMs(pending.runAfter),
+      });
     await factLedger(
       tx,
       scope,
