@@ -58,7 +58,7 @@ export const en = {
   "run.APPROVED": "Approved",
   "run.POSTING": "Posting to PayPal",
   "run.POSTED": "Posted",
-  "run.SETTLING": "PayPal confirming",
+  "run.SETTLING": "Simulated PayPal confirming",
   "run.NEEDS_FOLLOW_UP": "Needs a decision",
   "run.SETTLED": "Settled",
   "run.CLOSED": "Closed",
@@ -90,11 +90,12 @@ export const en = {
 
   // ---------------------------------------------------------------- money, provenance and materials
   "money.estimate": "about {php} (estimate)",
-  "money.sandbox": "Sandbox amounts are in US dollars. Peso figures are estimates at {rate}.",
+  "money.sandbox":
+    "Amounts in the simulated PayPal sandbox are in US dollars. Peso figures are estimates at {rate}.",
   "provenance.claude": "Read by Claude ({model})",
   "provenance.engine": "Computed by engine v1, rate card {hash}",
   "provenance.person": "Entered by {name}",
-  "provenance.paypal": "PayPal, webhook, signature verified",
+  "provenance.paypal": "Simulated PayPal sandbox, webhook, simulator-signed, signature verified",
   "paper.synthetic": "Synthetic sample",
   "slab.holdHint": "Hold to approve",
   "slab.holdUntilClick": "Hold until it clicks",
@@ -112,7 +113,7 @@ export const en = {
   "seal.title": "Batch seal {hash}",
   "confirm.title": "Approve {count, plural, one {# payout} other {# payouts}}",
   "confirm.body":
-    "{amount} to {count, plural, one {# member} other {# members}} by PayPal. This moves money and cannot be undone.",
+    "Sends {count, plural, one {# payout} other {# payouts}}, {amount}, through the simulated PayPal sandbox. No real money moves. This cannot be undone.",
   "confirm.recipients": "Recipients",
   "confirm.approve": "Approve with my key",
   "confirm.cancel": "Not now",
@@ -121,9 +122,9 @@ export const en = {
   // ADR-0002: PayPal steps run on the contract-faithful simulator (PP_MODE=simulator) until sandbox
   // credentials exist; the stage says which rail it is on.
   "W-JG-01.notice":
-    "Judge Mode. Real PayPal sandbox calls on US test accounts. Slip reading replays a recorded Claude run ({date}). People, slips and the co-op are synthetic.",
+    "Judge Mode. PayPal steps call PayPal’s own sandbox on US test accounts, a path not yet tested in this build. Slip reading replays a labelled seed stand-in, not a Claude recording. People, slips and the co-op are synthetic.",
   "W-JG-01.notice.simulator":
-    "Judge Mode. PayPal steps run on a simulated PayPal sandbox, contract-tested against PayPal’s OpenAPI specs. Slip reading replays a recorded Claude run ({date}). People, slips and the co-op are synthetic.",
+    "Judge Mode. PayPal steps run on a simulated PayPal sandbox, contract-tested against PayPal’s OpenAPI specs. Slip reading replays a labelled seed stand-in, not a Claude recording. People, slips and the co-op are synthetic.",
   "W-JG-01.whatsReal": "What’s real",
   "W-JG-01.sound": "Sound",
   "W-JG-01.soundOff": "Sound off",
@@ -137,21 +138,22 @@ export const en = {
   "W-JG-01.tab.clerk": "Clerk",
   "W-JG-01.ready": "Season {season} is ready to pay.",
   "W-JG-01.photos": "{count, plural, one {# photo} other {# photos}} to read",
-  "W-JG-01.markPaid": "Mark Lantern Bay’s invoice paid (sandbox)",
+  "W-JG-01.markPaid": "Mark Lantern Bay’s invoice paid (simulated PayPal sandbox)",
   "W-JG-01.ribbon": "Run log",
   "W-JG-01.lane.machine": "Machine",
   "W-JG-01.lane.people": "People",
   "W-JG-01.lane.paypal": "PayPal",
-  "W-JG-01.pill.markPaid": "Next: mark the invoice paid (sandbox)",
-  "W-JG-01.pill.reading": "Reading 12 photos. Replay of the {date} run.",
+  "W-JG-01.pill.markPaid": "Next: mark the invoice paid (simulated PayPal sandbox)",
+  "W-JG-01.pill.reading": "Reading 12 photos. Replay of a labelled seed stand-in.",
   "W-JG-01.pill.byHand": "Next: enter slip {slip} by hand",
   "W-JG-01.pill.holds": "Next: {count, plural, one {# hold needs} other {# holds need}} you",
   "W-JG-01.pill.approve": "Next: approve {count, plural, one {# payout} other {# payouts}}",
   "W-JG-01.pill.cosign": "Next: Ernesto co-signs. Use the Chair frame or your phone.",
-  "W-JG-01.pill.confirming": "PayPal is confirming payments",
+  "W-JG-01.pill.confirming": "The simulated PayPal sandbox is confirming payments",
   "W-JG-01.pill.rhea": "Next: decide on Rhea’s payment",
   "W-JG-01.pill.done": "Done. Open Proof.",
-  "W-JG-01.state.queued": "PayPal’s sandbox is pacing us. You’re next, about {seconds} s.",
+  "W-JG-01.state.queued":
+    "The simulated PayPal sandbox is pacing us (PayPal’s documented limit, modelled). You’re next, about {seconds} s.",
   "W-JG-01.state.resetting": "Starting a fresh run. About {seconds} s.",
 
   // ---------------------------------------------------------------- W-TR-01 Season (shown on the stage)
@@ -168,7 +170,8 @@ export const en = {
   "W-TR-01.pool.disbursement": "Disbursement",
   "W-TR-01.invoice": "Invoice {number}",
   "W-TR-01.invoice.memo": "Memo: Season {season}, RC {hash}, lot {lot}",
-  "W-TR-01.invoice.drafted": "Drafted by Claude with the PayPal Agent Toolkit. Sent by Analyn.",
+  "W-TR-01.invoice.drafted":
+    "Seed-written draft, created through PayPal’s Agent Toolkit on the simulated PayPal sandbox. Sent by Analyn.",
   "W-TR-01.invoice.autoCancel": "Auto-cancels {date} if unpaid.",
   "W-TR-01.invoice.waiting": "Sent to Lantern Bay. Waiting for payment.",
   "W-TR-02.bolted": "sha256 {hash}, sealed {date} by {card}",
@@ -239,7 +242,7 @@ export const en = {
   "W-TR-07.payouts": "{count, plural, one {# payout} other {# payouts}} by PayPal",
   "W-TR-07.cash": "{count, plural, one {# member} other {# members}}, {amount}, cash at the bodega on {date}",
   "W-TR-07.fees":
-    "PayPal fees: sandbox {sandboxEach} × {count} = {sandboxTotal}. In production to the Philippines, 2% = {production}. Both covered by Lantern Bay’s {disbursement} disbursement line.",
+    "PayPal fees: simulated sandbox fee {sandboxEach} × {count} = {sandboxTotal}, estimate. In production to the Philippines, 2% = {production}. Both covered by Lantern Bay’s {disbursement} disbursement line.",
   "W-TR-07.feesLabel": "Published rates, not fees PayPal reported",
   "W-TR-07.safe":
     "{holds, plural, one {# hold} other {# holds}} resolved. {byHand, plural, one {# field} other {# fields}} entered by hand. Shrink {shrink}, inside {limit}. {explained} of {lines} lines explained. Rate card unchanged since {date}.",
@@ -265,7 +268,7 @@ export const en = {
   // ---------------------------------------------------------------- W-PF-01 Proof
   "W-PF-01.heroPaid": "Lantern Bay paid {amount} for Season {season}. Here is where it went.",
   "W-PF-01.heroMarked":
-    "Lantern Bay’s {amount} invoice for Season {season} was marked paid in sandbox. Here is where it went.",
+    "Lantern Bay’s {amount} invoice for Season {season} was marked paid in PayPal’s own sandbox, a path not yet tested in this build. Here is where it went.",
   "W-PF-01.heroMarked.simulator":
     "Lantern Bay’s {amount} invoice for Season {season} was marked paid in a simulated PayPal sandbox. Here is where it went.",
   "W-PF-01.verify": "Verify in your browser",
@@ -297,8 +300,9 @@ export const en = {
   "W-PF-01.plots":
     "Positions are abstract. Plot coordinates are shared with Lantern Bay under the data-sharing agreement, never published.",
   "W-PF-01.footer.recon":
-    "Reconciliation with PayPal’s Transaction Search runs nightly; new transactions can take up to 3 hours to appear there.",
-  "W-PF-01.footer.sandbox": "A sandbox prototype on a synthetic Davao cacao co-op. No real farmer was paid.",
+    "No nightly reconciliation in this build: PayPal’s Transaction Search is not checked.",
+  "W-PF-01.footer.sandbox":
+    "A prototype on PayPal’s own sandbox, a path not yet tested in this build, and a synthetic Davao cacao co-op. No real farmer was paid.",
   "W-PF-01.footer.simulator":
     "A prototype on a simulated PayPal sandbox, contract-tested against PayPal’s OpenAPI specs, and a synthetic Davao cacao co-op. No real farmer was paid.",
   "W-PF-01.footer.priorArt":

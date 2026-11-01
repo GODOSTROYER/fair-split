@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +14,7 @@ import {
   TTS_MODEL,
   TtsError,
 } from "../src/tts/gemini.js";
+import { KeyPool } from "../src/tts/keys.js";
 import {
   type AudioEntry,
   AudioManifest,
@@ -149,13 +151,16 @@ describe("silence splitting (S4.6)", () => {
   });
 });
 
+/** A key id as the pool names keys (first 8 hex of the key's sha256); the ledger never sees a key. */
+const KEY_ID = "0a1b2c3d";
+
 describe("quota ledger and pacing", () => {
   it("counts per Pacific day, which turns over at Pacific midnight", () => {
     expect(pacificDay(new Date("2026-10-23T06:59:00Z"))).toBe("2026-10-22");
     expect(pacificDay(new Date("2026-10-23T07:00:00Z"))).toBe("2026-10-23");
   });
 
-  it("paces requests to one model, refuses past the cap, and records the limit a 429 states", async () => {
+  it("paces requests on one key to one model, refuses past the key's cap, and records the limit a 429 states", async () => {
     let now = Date.parse("2026-10-22T08:00:00Z");
     const waits: number[] = [];
     const ledger = new QuotaLedger(
@@ -166,11 +171,11 @@ describe("quota ledger and pacing", () => {
         now += ms;
       },
     );
-    expect(await ledger.reserve(TTS_MODEL)).toBe(0);
+    expect(await ledger.reserve(TTS_MODEL, KEY_ID)).toBe(0);
     now += 5_000;
-    expect(await ledger.reserve(TTS_MODEL)).toBe(DEFAULT_MIN_INTERVAL_MS - 5_000);
+    expect(await ledger.reserve(TTS_MODEL, KEY_ID)).toBe(DEFAULT_MIN_INTERVAL_MS - 5_000);
     expect(waits).toEqual([DEFAULT_MIN_INTERVAL_MS - 5_000]);
-    await ledger.settle(TTS_MODEL, {
+    await ledger.settle(TTS_MODEL, KEY_ID, {
       ok: false,
       rateLimited: true,
       message:
@@ -183,7 +188,7 @@ describe("quota ledger and pacing", () => {
     const { writeJson } = await import("../src/util/json.js");
     await writeJson(ledger.path, q);
     now += 60_000;
-    await expect(ledger.reserve(TTS_MODEL)).rejects.toBeInstanceOf(QuotaExceededError);
+    await expect(ledger.reserve(TTS_MODEL, KEY_ID)).rejects.toBeInstanceOf(QuotaExceededError);
     expect(parseRpm("nothing here")).toBeNull();
   });
 });
@@ -241,6 +246,8 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
   afterAll(() => server.close());
 
   const client = () => new GoogleGenAI({ apiKey: "test-key-not-a-secret" }) as unknown as InteractionsClient;
+  const pool = (ledger: QuotaLedger) =>
+    new KeyPool<InteractionsClient>(["test-key-not-a-secret"], { ledger, makeClient: () => client() });
 
   it("sends one request with the voice, the style as speech metadata, and returns the WAV", async () => {
     const r = await synthesize(client(), {
@@ -290,7 +297,7 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
           voice: "Sulafat",
           draft: false,
         },
-        { client: client(), ledger, mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
+        { pool: pool(ledger), mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
         empty,
       );
       expect(result.split).toEqual({ ok: true, fallback: false });
@@ -319,7 +326,7 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
           voice: "Sulafat",
           draft: false,
         },
-        { client: client(), ledger, mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
+        { pool: pool(ledger), mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
         empty,
       );
       expect(bodies.length).toBe(before);
@@ -397,6 +404,48 @@ describe("audio manifest (S4.6)", () => {
       entries: [{ ...entry({ lang: "en" }), label: "Voice" }],
     };
     expect(AudioManifest.safeParse(bare).success).toBe(false);
+  });
+
+  it("keeps a clip's mention offsets (IC-11, ADR-0011) and refuses a malformed one", () => {
+    const offsets = [
+      { ref: "fact:HONORIFIC_NAME", at_ms: 700 },
+      { ref: "slip:0403", at_ms: 2200 },
+    ];
+    const m: AudioManifest = { v: 1, synthetic: true, notice: "n", entries: [] };
+    expect(upsertEntry(m, entry({ offsets })).entries[0]?.offsets).toEqual(offsets);
+    expect(upsertEntry(m, entry()).entries[0]?.offsets).toBeUndefined();
+    for (const bad of [
+      { ref: "0403", at_ms: 1 },
+      { ref: "slip:0403", at_ms: -1 },
+      { ref: "fact:net", at_ms: 1 },
+    ]) {
+      const doc = { v: 1, synthetic: true, notice: "n", entries: [entry({ offsets: [bad] })] };
+      expect(AudioManifest.safeParse(doc).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("the committed manifest names statement slots, and each text hashes to its text_sha256 (ADR-0011 §4)", () => {
+    const m = AudioManifest.parse(
+      JSON.parse(readFileSync(join(MEDIA_ROOT, "audio", "manifest.json"), "utf8")),
+    );
+    const slots = [
+      "GREETING",
+      "DELIVERY",
+      "PREMIUM",
+      "BONUS",
+      "DEDUCTION",
+      "CREDIT",
+      "PAY",
+      "SOURCES",
+      "HELP",
+      "AI_NOTE",
+    ];
+    for (const e of m.entries) {
+      expect(slots, `${e.file}: ${e.slot}`).toContain(e.slot);
+      expect(createHash("sha256").update(e.text, "utf8").digest("hex"), e.file).toBe(e.text_sha256);
+      const published = /^audio\/(M-\d{3})\/(ceb|fil|en)\/[A-Za-z0-9_-]{1,64}\.m4a$/.exec(e.file);
+      if (!e.draft) expect([published?.[1], published?.[2]], e.file).toEqual([e.member_no, e.lang]);
+    }
   });
 
   it("has M-014 in Cebuano, Filipino and English from the S10 spike", () => {

@@ -27,6 +27,7 @@ import { enqueue } from "@fairsplit/outbox";
 import { and, eq, isNull, notExists, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { ACTORS, emit, proofLedger } from "../runs/events.js";
+import { extractDedupeKey } from "../runs/extract.js";
 import { lockRun, runById } from "../runs/load.js";
 import { cause, moveRun, type RunRow } from "../runs/machine.js";
 import { PayPalStepError } from "./errors.js";
@@ -380,7 +381,8 @@ export async function fund(
     );
   if (unread.length > 0) {
     const args = { documentIds: unread.map((d) => d.id).slice(0, 200), runId };
-    await enqueue(tx, "extract", args, TASKS.extract.dedupeKey(args), { workspaceId: scope.workspaceId });
+    // IC-01's key names every photo: past five it outgrows the outbox's 200 characters (runs/extract.ts)
+    await enqueue(tx, "extract", args, extractDedupeKey(args), { workspaceId: scope.workspaceId });
   }
   const computeArgs = { runId, version: reading.version };
   await enqueue(tx, "computeRun", computeArgs, TASKS.computeRun.dedupeKey(computeArgs), {

@@ -44,8 +44,12 @@ import {
 } from "./constants.js";
 import { NAMED, type SlipSpec } from "./named.js";
 import { MEN_FIRST, SURNAMES, WOMEN_FIRST } from "./names.js";
+import rawPhotoHashes from "./photo-hashes.json" with { type: "json" };
 import { rng } from "./prng.js";
 import { buildRateCard } from "./ratecard.js";
+
+// Generated from the served A–L WebP bytes. Kept as data so seed consumers need no media filesystem.
+const replayPhotoHashes: Readonly<Record<string, string>> = rawPhotoHashes;
 
 type Position = "TL" | "TR" | "BL" | "BR";
 const POSITIONS: Position[] = ["TL", "TR", "BL", "BR"];
@@ -622,6 +626,10 @@ export function buildWorld(): World {
       }),
     };
     const replay = replayIds.includes(pid);
+    const manifestSha256 = replay ? replayPhotoHashes[pid] : jcsSha256(manifest);
+    if (!manifestSha256 || !/^[0-9a-f]{64}$/.test(manifestSha256)) {
+      throw new Error(`replay photo ${pid} needs its composed WebP byte hash`);
+    }
     return {
       photoId: pid,
       documentId: documentId.get(pid) as string,
@@ -631,7 +639,8 @@ export function buildWorld(): World {
       capturedOn: photoDates.get(pid) as string,
       readOn: replay ? null : (photoDates.get(pid) as string),
       readProvenance: replay ? "replay" : "seeded",
-      manifestSha256: jcsSha256(manifest),
+      // Replay photos bind real composed files; archived P01–P54 retain their labelled slip manifests.
+      manifestSha256,
     };
   });
 

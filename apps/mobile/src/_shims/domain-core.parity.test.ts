@@ -79,7 +79,8 @@ describe("domain-core is @fairsplit/domain's code (register §6 keeps the packag
     );
   });
 
-  it("sha256Hex hashes exactly like node:crypto, for text and for bytes", () => {
+  // 500 fast-check runs take about 1 s alone; under turbo on a 2-core CI runner they took over 5 s.
+  it("sha256Hex hashes exactly like node:crypto, for text and for bytes", { timeout: 30_000 }, () => {
     const node = (d: string | Uint8Array) => createHash("sha256").update(d).digest("hex");
     expect(sha256Hex("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     expect(sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");

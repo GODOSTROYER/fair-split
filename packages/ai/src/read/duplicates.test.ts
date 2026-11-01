@@ -42,7 +42,10 @@ async function smokeSlips(): Promise<Array<{ doc: string; serial: string; crop: 
   return out;
 }
 
-describe("duplicate signals (S4.2): a hash of a slip never makes a duplicate on its own", () => {
+// Hashes of real slip crops (sharp): over 2 s alone on a busy machine, past vitest's default 5 s under turbo.
+describe("duplicate signals (S4.2): a hash of a slip never makes a duplicate on its own", {
+  timeout: 30_000,
+}, () => {
   it("template-identical slips with different ink are not duplicates, though their hashes are close", async () => {
     const slips = await smokeSlips();
     expect(slips.map((s) => s.serial)).toEqual(["0901", "0902", "0903", "0904"]);

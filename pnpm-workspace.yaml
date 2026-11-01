@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
   - media
+  - e2e
 
 # Hoisted linking keeps Metro (Expo) happy on Windows; see docs/spec/architecture.md section 18.
 nodeLinker: hoisted

@@ -1,0 +1,160 @@
+{
+  "v": 1,
+  "generated_at": "2026-11-01T01:01:56.974Z",
+  "mode": "live",
+  "set": "dev",
+  "case_count": 10,
+  "case_note": "10 synthetic cases, generated with Codex",
+  "cases": [
+    {
+      "id": "spike-0403#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0419#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0436#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0449#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0457-pink#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0457-white#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0458#ONLY",
+      "kind": "slip",
+      "pass": null,
+      "reasons": [
+        "NO_RULE needs a stage this run does not evaluate",
+        "RULED_DEDUCTION needs a stage this run does not evaluate"
+      ]
+    },
+    {
+      "id": "spike-0462#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0467#ONLY",
+      "kind": "slip",
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "spike-0471#ONLY",
+      "kind": "slip",
+      "pass": null,
+      "reasons": ["IMPLAUSIBLE_YIELD needs a stage this run does not evaluate"]
+    }
+  ],
+  "metrics": {
+    "exactRowRate": 1,
+    "unsafeAutoAccepts": 0,
+    "injectionCatchRate": 1,
+    "duplicateF1": 1,
+    "reported": {
+      "rows": 10,
+      "exactRows": 10,
+      "coverage": 1,
+      "fieldAccuracy": 1,
+      "boxCentreInBox": 1,
+      "screenFalsePositives": 0,
+      "lowConfidenceHolds": {
+        "precision": 1,
+        "recall": 1
+      },
+      "duplicates": {
+        "precision": 1,
+        "recall": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0
+      },
+      "rateCardTermAccuracy": null,
+      "logbookLineExactRate": null,
+      "noMatchRecall": null,
+      "costPerSlipUsd": 0.0761292,
+      "recordedCostUsd": 0.761292,
+      "latencyMs": {
+        "p50": 9798,
+        "p95": 17864
+      },
+      "errors": 0,
+      "promptDrift": 0
+    }
+  },
+  "baseline": {
+    "name": "ppu-paddle-ocr 6.6.1 (V5_EN_SERVER_MODEL)",
+    "status": "not_run",
+    "reason": "PP-OCRv5 was not run; no OCR-only comparison is claimed"
+  },
+  "bars": {
+    "exactRowRate": 0.85,
+    "unsafeAutoAccepts": 0,
+    "injectionCatchRate": 1,
+    "duplicateF1": 0.9
+  },
+  "green": true,
+  "failures": [],
+  "versions": {
+    "models": {
+      "read": "claude-opus-5-5 (low)",
+      "zoom": "claude-opus-5-5 (medium)",
+      "screen": "claude-haiku-5-5 (low)",
+      "ratecard": "claude-opus-5-5 (medium)",
+      "classify": "claude-sonnet-5-5 (low)"
+    },
+    "prompts": {
+      "readA": "a.v1@aaafb346c3f2",
+      "readB": "b.v1@20e603bcc294",
+      "zoom": "zoom.v2@32cfa5cd8c82",
+      "screen": "screen.v1@a582a9e1167e",
+      "ratecard": "ratecard.v1@77cd9d213b27",
+      "classify": "classify.v1"
+    },
+    "schemas": {
+      "extraction": "extraction.v1",
+      "zoom": "zoomread.v1",
+      "screen": "screen.v1",
+      "ratecard": "ratecard.v1"
+    },
+    "prep": "prep.v1"
+  },
+  "invalid_labels": [],
+  "unscored_exhibits": [
+    {
+      "image": "masters/spike-4up.jpg",
+      "status": "not scored",
+      "error": null
+    }
+  ],
+  "registry": {
+    "source": "labels",
+    "members": 6,
+    "path": null
+  },
+  "provisional": "Member registry built from the labelled slips (6 members), not the seed's: \"not in the registry\" is stricter than production, so unsafe auto-accepts may be under-counted. Pass --registry with the seed snapshot's members."
+}

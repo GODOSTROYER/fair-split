@@ -65,6 +65,16 @@ describe("the daily live-post formula", () => {
 });
 
 describe("live or replay", () => {
+  it("inv.i8.labels: a pacing replay names the simulated PayPal sandbox", () => {
+    const decision = decideRail(
+      facts({ circuitOpenUntil: new Date(NOW.getTime() + 60_000) }),
+      NOW,
+      "fund",
+      "simulated",
+    );
+    expect(decision.label).toContain("simulated PayPal sandbox is pacing us");
+  });
+
   it("is live when every guard allows it, with the rail's own words (I8)", () => {
     expect(decideRail(facts(), NOW, "session", "sandbox")).toMatchObject({
       mode: "live",

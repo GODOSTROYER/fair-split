@@ -4,8 +4,10 @@
 //   - no number word (English stays the spoken number language in every statement, so English number words are
 //     refused in all three languages, plus each language's own); currency nouns ("dollar", "piso") are allowed;
 //   - placeholders all in the enum, and exactly the set the template key declares;
-//   - no "error" or "fraud" in member copy (S1.11 word list).
-import { TEMPLATE_PLACEHOLDERS } from "./templates.js";
+//   - no "error" or "fraud" in member copy (S1.11 word list);
+//   - the demo AI_NOTE (T1, `AI_NOTE.seeded*`) keeps its v1 words exactly: no committed variant may reword the
+//     disclosure that the slip readings are a stand-in, or swap in the Claude claim.
+import { TEMPLATE_PLACEHOLDERS, TEMPLATES_V1 } from "./templates.js";
 import { type Lang, PLACEHOLDERS, type TemplateSet } from "./types.js";
 
 const EN_NUMBER_WORDS = [
@@ -112,6 +114,9 @@ export function validateTemplate(key: string, text: string, lang: Lang): string[
     if (a !== b) problems.push(`${key}: placeholders {${a}} differ from the declared {${b}}`);
   } else {
     problems.push(`${key}: not a known template key`);
+  }
+  if (key.startsWith("AI_NOTE.seeded") && text !== TEMPLATES_V1[lang][key]) {
+    problems.push(`${key}: the demo disclosure is frozen; a committed variant must keep its words`);
   }
   return problems;
 }

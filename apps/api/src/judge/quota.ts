@@ -28,14 +28,26 @@
 // (`JUDGE_QUOTA.restampAfterMs`): the run's slot carries a retry only while it is that young and in the same clock
 // hour; a post that resumes later (a pace, a kill switch, the circuit, an outage) takes a FRESH slot dated now, checked
 // against every cap with its run's own slots left out, or waits; the older slot is settled `superseded`. Every count
-// looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot.
+// looks back 24 h plus that lease and takes each run once, and the spend takes each run through its newest slot. A run
+// counts in the public third while any of its slots in the window was taken by a session without the judge code (a
+// fresh slot that supersedes an uncoded one is uncoded too), so a public POST never frees a public place by a later
+// unlock. A slot is never left open with no post behind it: a post that replays settles the slots its earlier attempts
+// took and never used `not_posted` (`releaseUnusedSlots`).
 // C-21 and the spend read the batch rows too, so the hourly purge keeps a judge workspace while either still counts
-// one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write.
+// one of its batches (`batchesStillCounted`): a POST sent late is counted from then, not from its write, and the spend
+// from the latest balance reading on the batch's rail, whatever its age (the service's floor guard reads that one).
 //
 // LOCK ORDER, everywhere both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`,
 // money/payouts.ts `SPEND_LOCK`): lane → quota → spend → workspace → rows. A resumed post's fresh slot holds both (its
 // C-21 count and its insert); the service's spend guard and `countResumedSend` hold only the spend lock, and
 // `settleLivePost` only the quota lock, so nothing waits for the quota lock while holding the spend lock.
+// POOL BOUND for the spend-lock waits: the service's guard and `countResumedSend` wait holding no pooled connection
+// (each try of `pg_try_advisory_*` takes one only for the try, and gives up as QUEUED after 10 s). The one blocking
+// wait left is `reserveLivePost` on a sandbox resume, which holds its transaction's connection (and the quota lock)
+// while it waits for the spend lock; it runs only under the live lane, which is single-flight across every process, so
+// at most one such waiter exists at a time. The spend-lock holder needs at most two connections (its reserved lock
+// connection and its write's transaction), the lane holder one more, so no pool of DB_POOL_MAX ≥ 4 (default 10) can be
+// drained by waiters while the holder waits for a connection.
 //
 // The balance is the latest reading on this rail minus every live post since it. On the sandbox rail a
 // reading older than 26 h is no reading: PayPal steps replay (`balance_unknown`) instead of assuming the
@@ -112,7 +124,7 @@ const QUOTA_REASONS = new Set<ReplayReason>([
 export const REPLAY_COPY: Readonly<Record<ReplayReason, string>> = {
   kill_switch: "PayPal calls are paused by the kill switch",
   simulator_not_running: "the PayPal simulator is not running",
-  circuit_open: "PayPal's sandbox is pacing us",
+  circuit_open: "the simulated PayPal sandbox is pacing us",
   lane_full: "too many live runs are waiting",
   balance_unknown: "the sandbox balance has not been read in the last day",
   balance_low: "the sandbox balance is low",
@@ -306,6 +318,19 @@ const lockQuota = (tx: DbOrTx) =>
 /** The spend lock until the transaction ends. Never taken before the quota lock in the same transaction. */
 const lockSpend = (tx: DbOrTx) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${PAYOUT_SPEND_LOCK}, 0))`);
+
+/** The spend lock until the transaction ends, if it is free now (false: another transaction holds it). */
+async function tryLockSpend(tx: DbOrTx): Promise<boolean> {
+  const [row] = (await tx.execute(
+    sql`select pg_try_advisory_xact_lock(hashtextextended(${PAYOUT_SPEND_LOCK}, 0)) as locked`,
+  )) as unknown as { locked: boolean }[];
+  return row?.locked === true;
+}
+
+/** How long `countResumedSend` asks for the spend lock before the send waits as a task (as the service's guard). */
+const SPEND_LOCK_WAIT_MS = 10_000;
+/** Between two tries of the spend lock (no connection is held meanwhile). */
+const SPEND_LOCK_POLL_MS = 25;
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -558,8 +583,10 @@ interface PostCounts {
  * judge batch written live in it whose run has no such reservation in it (a safety net: older rows, a slot an older
  * build freed after the write, or a caller that skipped the protocol). Each run once, however many of its slots are in
  * the window (a fresh slot dated at a resumed POST supersedes the one taken at the write; both may be in it), dated
- * by its newest slot for the clock hour: a slot carries a POST only in its own clock hour. A replayed batch
- * (provenance `replay`) reached no one: never a post.
+ * by its newest slot for the clock hour: a slot carries a POST only in its own clock hour. A run is in the public third
+ * while ANY of its slots in the window was uncoded: a POST a public session made (its answer lost, say) stays public
+ * when the session unlocks the judge code before the resume. A replayed batch (provenance `replay`) reached no one:
+ * never a post.
  */
 async function countPosts(
   db: DbOrTx,
@@ -570,8 +597,9 @@ async function countPosts(
   const runs = new Map<string, { at: number; sessionId: string | null; coded: boolean }>();
   for (const r of await readReservations(db, { since: from })) {
     if (r.outcome === "not_posted" || r.runId === o.excludeRunId) continue;
-    // oldest first: the run's newest slot in the window stands
-    runs.set(r.runId, { at: r.reservedAt.getTime(), sessionId: r.sessionId, coded: r.coded });
+    // oldest first: the run's newest slot in the window dates it; it is coded only while every one of them was
+    const coded = r.coded && (runs.get(r.runId)?.coded ?? true);
+    runs.set(r.runId, { at: r.reservedAt.getTime(), sessionId: r.sessionId, coded });
   }
   const unreserved = (await db.execute(sql`
     select pb.run_id::text as run_id, pb.submitted_at as at,
@@ -732,23 +760,39 @@ function c21Counts(now: Date) {
 /**
  * Whether a count still reads a batch row of this workspace at `now` (the purge passes the database's clock): C-21
  * (`liveBatchesInLast24h`: its write, a live slot of its run or a `batch_sent` mark, as far back as 24 h and a lane
- * lease), or the spend (`liveSpend`: its write or PayPal naming it, `batch_posted`, after a balance reading, which is
- * at most `JUDGE_QUOTA.readingMaxAgeMs` old). Both count a batch from its `payout_batches` row, which the purge's
- * cascade deletes, so the hourly purge keeps the workspace while this holds (judge/pool.ts). The ledger rows it reads
- * are system rows: the purge never removes them.
+ * lease), or the spend (`liveSpend`, as both balance estimates call it: a batch not DENIED, written or named by PayPal,
+ * `batch_posted`, at or after the latest balance reading on its rail, or still waiting to be posted). The spend's
+ * reading is the latest one WHATEVER its age: the service's floor guard (money/payouts.ts `estimatedBalanceCents`)
+ * reads it however old it is, and the judge estimate reads the same one while it is fresh. On a rail with no reading
+ * at all the spend counts every batch ever; the purge then waits `JUDGE_QUOTA.readingMaxAgeMs` after the write or the
+ * name (SPLIT.md: a judge live batch on the sandbox rail needs a reading, so this is the simulated rail's, where no
+ * floor binds). A replayed batch (provenance `replay`) is in no count. Both count a batch from its `payout_batches`
+ * row, which the purge's cascade deletes, so the hourly purge keeps the workspace while this holds (judge/pool.ts). The
+ * ledger rows it reads are system rows: the purge never removes them.
  */
 export async function batchesStillCounted(db: DbOrTx, workspaceId: string, now: Date): Promise<boolean> {
-  const spendFrom = new Date(now.getTime() - JUDGE_QUOTA.readingMaxAgeMs).toISOString();
+  const noReading = new Date(now.getTime() - JUDGE_QUOTA.readingMaxAgeMs).toISOString();
   const [row] = (await db.execute(sql`
+    with spend_from as (
+      select p.provenance,
+             coalesce((select max(r.window_end) from reconciliation_reports r
+                        where r.kind = ${LEDGER_KIND} and r.workspace_id is null
+                          and r.summary->>'entry' = 'reading' and r.summary->>'rail' = p.rail),
+                      ${noReading}::timestamptz) as at
+        from (values ('live', 'sandbox'), ('simulated_rail', 'simulated')) as p(provenance, rail))
     select exists (
       select 1 from payout_batches pb
-       where pb.workspace_id = ${workspaceId}
+        join spend_from f on f.provenance = pb.provenance
+       where pb.workspace_id = ${workspaceId} and pb.provenance <> 'replay'
          and (${c21Counts(now)}
-              or pb.submitted_at >= ${spendFrom}::timestamptz
-              or pb.id::text in (
-                   select m.summary->>'batchId' from reconciliation_reports m
-                    where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_posted'
-                      and m.window_end >= ${spendFrom}::timestamptz))) as counted`)) as unknown as {
+              or (pb.status <> 'DENIED'
+                  and (pb.submitted_at >= f.at
+                       or (pb.status = 'SUBMITTED' and pb.paypal_batch_id is null)
+                       or pb.id::text in (
+                            select m.summary->>'batchId' from reconciliation_reports m
+                             where m.kind = ${LEDGER_KIND} and m.workspace_id is null
+                               and m.summary->>'entry' = 'batch_posted'
+                               and m.window_end >= f.at))))) as counted`)) as unknown as {
     counted: boolean;
   }[];
   return row?.counted === true;
@@ -787,6 +831,10 @@ async function writeSettlement(
  * a first write: the balance less its batch stays at or above the floor, and C-21's 40 live batches a day, counted
  * under the spend lock (taken after the quota lock: the header's lock order) together with the slot's insert. A
  * fresh post that will not go live frees a slot an earlier attempt of it took and never used (nothing written).
+ * A resume re-reads its batch here, holding the lane and the quota lock: one PayPal answered meanwhile (another
+ * executor posted it while this one waited for the lane) takes no slot (`answered`), as `railForStep` would have
+ * decided had it read the batch then. A fresh slot that supersedes a slot a session without the judge code took is
+ * uncoded too (the run stays in the public third), and is checked against the public share as such.
  * A live decision always carries its reservation. Call it while holding the live lane (`beginLiveStep`
  * does both); settle it afterwards.
  */
@@ -800,7 +848,12 @@ export async function reserveLivePost(
     /** The run's primary batch is already written live: the post resumes it (never a first write). */
     resume?: boolean;
   },
-): Promise<{ decision: RailDecision; reservation: LivePostReservation | null }> {
+): Promise<{
+  decision: RailDecision;
+  reservation: LivePostReservation | null;
+  /** A resume only: PayPal already answered the batch (or holds it as ADOPT_FAILED); no slot was taken. */
+  answered?: PostAnswered;
+}> {
   if (!Number.isSafeInteger(o.amountCents) || o.amountCents < 0) {
     throw new RangeError("reserveLivePost: amountCents is the batch total in whole cents");
   }
@@ -816,7 +869,15 @@ export async function reserveLivePost(
       { workspaceId: o.workspaceId, sessionId: o.sessionId, now, excludeRunId: o.runId },
       tx,
     );
-    const decision = decideRail(facts, now, "post", rail);
+    const open = (await readReservations(tx, { runId: o.runId })).filter((r) => r.outcome === null);
+    // a run a public session posted stays public: the slot that supersedes an uncoded one is uncoded too
+    const coded = facts.coded && open.every((r) => r.coded);
+    const decision = decideRail({ ...facts, coded }, now, "post", rail);
+    if (o.resume) {
+      // D5 under the lane: the batch read before the lane was taken may have been answered since
+      const answered = await postAnswered(tx, o.runId);
+      if (answered) return { decision, reservation: null, answered };
+    }
     const held = await heldReservation(tx, o.runId, now);
     if (held) {
       if (decision.mode === "live" || isQuotaReplay(decision)) {
@@ -824,7 +885,6 @@ export async function reserveLivePost(
       }
       return { decision, reservation: null };
     }
-    const open = (await readReservations(tx, { runId: o.runId })).filter((r) => r.outcome === null);
     const none = async (d: RailDecision) => {
       if (!o.resume && open.length > 0 && !(await writtenLiveBatch(tx, o.runId))) {
         // a fresh post that will not go live: the slot an earlier attempt took sent nothing (no rows are written)
@@ -858,7 +918,7 @@ export async function reserveLivePost(
           runId: o.runId,
           workspaceId: o.workspaceId,
           sessionId: o.sessionId,
-          coded: facts.coded,
+          coded,
           amountCents: o.amountCents,
           rail,
         },
@@ -879,7 +939,7 @@ export async function reserveLivePost(
       runId: o.runId,
       workspaceId: o.workspaceId,
       sessionId: o.sessionId,
-      coded: facts.coded,
+      coded,
       amountCents: o.amountCents,
       rail,
       reservedAt: now,
@@ -890,7 +950,7 @@ export async function reserveLivePost(
       used24h: decision.quota.used24h + 1,
       usedThisHour: decision.quota.usedThisHour + 1,
       sessionUsed: decision.quota.sessionUsed + (o.sessionId ? 1 : 0),
-      publicUsed: decision.quota.publicUsed + (facts.coded ? 0 : 1),
+      publicUsed: decision.quota.publicUsed + (coded ? 0 : 1),
     };
     return { decision: { ...decision, quota }, reservation };
   });
@@ -918,12 +978,56 @@ export async function postSettled(db: DbOrTx, runId: string): Promise<boolean> {
  * The run's primary batch as written on a live rail (rows SUBMITTED or further; a replayed batch reached no one),
  * or null while nothing is written.
  */
-async function writtenLiveBatch(db: DbOrTx, runId: string): Promise<{ status: string } | null> {
+async function writtenLiveBatch(
+  db: DbOrTx,
+  runId: string,
+): Promise<{ status: string; paypalBatchId: string | null } | null> {
   const rows = (await db.execute(sql`
-    select pb.status from payout_batches pb
+    select pb.status, pb.paypal_batch_id from payout_batches pb
      where pb.run_id = ${runId} and pb.kind = 'primary' and pb.provenance <> 'replay'
-     limit 1`)) as unknown as { status: string }[];
-  return rows[0] ?? null;
+     limit 1`)) as unknown as { status: string; paypal_batch_id: string | null }[];
+  const row = rows[0];
+  return row ? { status: row.status, paypalBatchId: row.paypal_batch_id } : null;
+}
+
+/**
+ * Why a written judge post is not posted again: `answered`, PayPal named its batch (POSTED or further) or denied it;
+ * `adopt_failed`, PayPal holds a batch under its ids that is not ours (its slot settled `posted`): it needs a person.
+ */
+export type PostAnswered = "answered" | "adopt_failed";
+
+/**
+ * Whether the run's live primary batch was answered by PayPal (`PostAnswered`), or still waits for its POST (null, as
+ * while nothing is written). money/rail.ts asks it before the lane; `reserveLivePost` again once the lane is held.
+ */
+export async function postAnswered(db: DbOrTx, runId: string): Promise<PostAnswered | null> {
+  const written = await writtenLiveBatch(db, runId);
+  if (!written) return null;
+  if (written.paypalBatchId !== null || written.status !== "SUBMITTED") return "answered";
+  return (await postSettled(db, runId)) ? "adopt_failed" : null;
+}
+
+/**
+ * A post that replays never goes live (its run replays to the end, or the quotas decided it): every slot an earlier
+ * attempt of it took and never used (open, and nothing written live: the attempt threw before its write) is settled
+ * `not_posted`, so no slot with no post behind it weighs on the judge counts or the spend. Under the quota lock, and
+ * nothing is settled once rows are written live (they wait to be posted with the same ids). Returns how many.
+ */
+export async function releaseUnusedSlots(
+  deps: Pick<AppDeps, "db" | "clock">,
+  runId: string,
+): Promise<number> {
+  // most replayed posts never took a slot: no lock for them
+  if (!(await readReservations(deps.db, { runId })).some((r) => r.outcome === null)) return 0;
+  return deps.db.transaction(async (tx) => {
+    await lockQuota(tx);
+    if (await writtenLiveBatch(tx, runId)) return 0;
+    const open = (await readReservations(tx, { runId })).filter((r) => r.outcome === null);
+    for (const r of open) {
+      await writeSettlement(tx, deps.clock.now(), { reservationId: r.id, runId, outcome: "not_posted" });
+    }
+    return open.length;
+  });
 }
 
 /**
@@ -983,35 +1087,50 @@ export async function settleLivePost(
  * first write. A batch counted within the last lane lease (written, or marked sent) goes out as it is. Otherwise,
  * under the spend lock, it goes out only while the other live batches of the 24 h are fewer than 40, and is marked
  * sent now (a `batch_sent` system row), so C-21 counts it for the 24 h after this POST (`liveBatchesInLast24h`).
- * Takes only the spend lock, never the quota lock (the header's lock order). Opens its own transaction.
+ * Takes only the spend lock, never the quota lock (the header's lock order), and waits for it holding no pooled
+ * connection (the header's pool bound): each try is a short transaction of its own, and after 10 s it answers `busy`
+ * (the send waits as a task, as the service's guard does).
  */
 export async function countResumedSend(
   db: Db,
   o: { provenance: string; batchId: string; now: Date },
-): Promise<{ ok: true } | { ok: false; count: number }> {
-  return db.transaction(async (tx) => {
-    const [batch] = (await tx.execute(sql`
-      select pb.submitted_at as at,
-             (select max(m.window_end) from reconciliation_reports m
-               where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_sent'
-                 and m.summary->>'batchId' = pb.id::text) as sent
-        from payout_batches pb
-       where pb.id = ${o.batchId}`)) as unknown as { at: Date | string; sent: Date | string | null }[];
-    // nothing written: the service's own guard at the first write applies
-    if (!batch) return { ok: true } as const;
-    const counted = Math.max(asDate(batch.at).getTime(), batch.sent ? asDate(batch.sent).getTime() : 0);
-    if (o.now.getTime() - counted < JUDGE_QUOTA.restampAfterMs) return { ok: true } as const;
-    await lockSpend(tx);
-    const count = await liveBatchesInLast24h(tx, o.provenance, o.now, { excludeBatchId: o.batchId });
-    if (count >= JUDGE_QUOTA.dailyMax) return { ok: false, count } as const;
-    await tx.insert(schema.reconciliationReports).values({
-      kind: LEDGER_KIND,
-      windowEnd: o.now,
-      summary: { v: 1, entry: "batch_sent", batchId: o.batchId, provenance: o.provenance },
+): Promise<ResumedSendCount> {
+  const deadline = Date.now() + SPEND_LOCK_WAIT_MS;
+  for (;;) {
+    const out = await db.transaction(async (tx): Promise<ResumedSendCount | null> => {
+      const [batch] = (await tx.execute(sql`
+        select pb.submitted_at as at,
+               (select max(m.window_end) from reconciliation_reports m
+                 where m.kind = ${LEDGER_KIND} and m.workspace_id is null and m.summary->>'entry' = 'batch_sent'
+                   and m.summary->>'batchId' = pb.id::text) as sent
+          from payout_batches pb
+         where pb.id = ${o.batchId}`)) as unknown as { at: Date | string; sent: Date | string | null }[];
+      // nothing written: the service's own guard at the first write applies
+      if (!batch) return { ok: true };
+      const counted = Math.max(asDate(batch.at).getTime(), batch.sent ? asDate(batch.sent).getTime() : 0);
+      if (o.now.getTime() - counted < JUDGE_QUOTA.restampAfterMs) return { ok: true };
+      // busy: this try ends here and its connection goes back to the pool while the send waits
+      if (!(await tryLockSpend(tx))) return null;
+      const count = await liveBatchesInLast24h(tx, o.provenance, o.now, { excludeBatchId: o.batchId });
+      if (count >= JUDGE_QUOTA.dailyMax) return { ok: false, count };
+      await tx.insert(schema.reconciliationReports).values({
+        kind: LEDGER_KIND,
+        windowEnd: o.now,
+        summary: { v: 1, entry: "batch_sent", batchId: o.batchId, provenance: o.provenance },
+      });
+      return { ok: true };
     });
-    return { ok: true } as const;
-  });
+    if (out) return out;
+    if (Date.now() > deadline) return { ok: false, busy: true };
+    await new Promise((r) => setTimeout(r, SPEND_LOCK_POLL_MS));
+  }
 }
+
+/**
+ * `countResumedSend`'s answer: the send may go out (counted); C-21 is full (`count` others in the 24 h); or another
+ * post held the spend lock for the whole wait (`busy`). Either refusal makes the written batch wait as a task.
+ */
+export type ResumedSendCount = { ok: true } | { ok: false; count: number } | { ok: false; busy: true };
 
 /** True for a workspace of kind `judge` (quotas and the lane apply only there). */
 export async function isJudgeWorkspace(db: DbOrTx, workspaceId: string): Promise<boolean> {

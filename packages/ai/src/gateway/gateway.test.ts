@@ -480,7 +480,10 @@ describe("ClaudeGateway: register §9 controls are explicit", () => {
 });
 
 describe("ClaudeGateway: recordings on disk and scrubbing", () => {
-  it("stores scrubbed recordings once per key and ignores its own .cache dir", async () => {
+  // over 2 s alone on a busy machine, past vitest's default 5 s under turbo
+  it("stores scrubbed recordings once per key and ignores its own .cache dir", {
+    timeout: 30_000,
+  }, async () => {
     const dir = await mkdtemp(join(tmpdir(), "fs-gw-"));
     try {
       const cache = join(dir, ".cache", "recordings");
@@ -510,7 +513,8 @@ describe("ClaudeGateway: recordings on disk and scrubbing", () => {
 });
 
 describe("ClaudeGateway: Files API", () => {
-  it("uploads each distinct image once and sends file_id references", async () => {
+  // over 2 s alone on a busy machine, past vitest's default 5 s under turbo
+  it("uploads each distinct image once and sends file_id references", { timeout: 30_000 }, async () => {
     const png = await sharp({ create: { width: 56, height: 28, channels: 3, background: "#fff" } })
       .png()
       .toBuffer();

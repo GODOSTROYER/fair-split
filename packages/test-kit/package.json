@@ -12,13 +12,14 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@fairsplit/contracts": "workspace:*",
     "msw": "catalog:"
   },
   "devDependencies": {
+    "@fairsplit/seed": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/node": "catalog:"

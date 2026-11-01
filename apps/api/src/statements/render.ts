@@ -2,7 +2,8 @@
 // SMS preview (plan "Statements", S4.5). It is the only place a statement number becomes text, always through the
 // deterministic formatter (C-22): display ("US$64.45", "about ₱4,028 (estimate)"), spoken (English number words
 // in every language until native review; slip numbers digit by digit) and SMS (GSM-7, the peso written "P").
-import { format, mulDivFloor, mulDivHalfUp } from "@fairsplit/domain";
+import type { Provenance } from "@fairsplit/contracts";
+import { format, mulDivFloor, mulDivHalfUp, sha256Hex } from "@fairsplit/domain";
 import { gsm7Length, SMS_MAX_SEPTETS } from "./gsm7.js";
 import { TEMPLATES_V1 } from "./templates.js";
 import type {
@@ -266,14 +267,37 @@ function templateOf(templates: TemplateSet, lang: Lang, key: string): string {
   return t;
 }
 
+/** Each product AI_NOTE form and its demo twin (T1). */
+const AI_NOTE_DEMO: Readonly<Record<string, string>> = {
+  default: "seeded",
+  noname: "seeded_noname",
+  checking: "seeded_checking",
+};
+const AI_NOTE_DEMO_VARIANTS = new Set(Object.values(AI_NOTE_DEMO));
+
+/**
+ * The AI_NOTE variant a statement may carry. Only a real Claude reading (`live`) keeps the product note ("Your
+ * slips were read twice by AI (Claude)…"); seeded, replayed, unknown or missing readings take its demo twin ("In
+ * this demo, the slip readings are a labelled stand-in…"). A demo note is never upgraded, and a form with no demo
+ * twin is refused rather than shown as the claim.
+ */
+export function aiNoteVariant(variant: string, reading: Provenance | null | undefined): string {
+  if (AI_NOTE_DEMO_VARIANTS.has(variant) || reading === "live") return variant;
+  const demo = AI_NOTE_DEMO[variant];
+  if (!demo) throw new StatementRenderError(`AI_NOTE.${variant} has no demo variant`);
+  return demo;
+}
+
 function sentence(
   s: PlannedSentence,
   mode: Exclude<RenderMode, "sms">,
   lang: Lang,
   templates: TemplateSet,
+  reading: Provenance | null | undefined,
 ): RenderedSentence {
-  const text = fillTemplate(templateOf(templates, lang, `${s.slot}.${s.variant}`), s.facts, mode, lang);
-  return { slot: s.slot, variant: s.variant, text, mentions: [...s.mentions] };
+  const variant = s.slot === "AI_NOTE" ? aiNoteVariant(s.variant, reading) : s.variant;
+  const text = fillTemplate(templateOf(templates, lang, `${s.slot}.${variant}`), s.facts, mode, lang);
+  return { slot: s.slot, variant, text, mentions: [...s.mentions] };
 }
 
 export interface RenderedSms {
@@ -300,16 +324,38 @@ export function renderSms(plan: StatementPlan, templates: TemplateSet = TEMPLATE
   return { text, gsm7Length: n, fits: n !== null && n <= SMS_MAX_SEPTETS };
 }
 
-/** The pure renderer: display, spoken and SMS from one plan. */
+/** The pure renderer: display, spoken and SMS from one plan (the AI_NOTE by the plan's reading provenance). */
 export function renderStatement(
   plan: StatementPlan,
   templates: TemplateSet = TEMPLATES_V1,
 ): RenderedStatement {
+  const reading = plan.readingProvenance;
   return {
-    display: plan.sentences.map((s) => sentence(s, "display", plan.lang, templates)),
-    spoken: plan.sentences.map((s) => sentence(s, "spoken", plan.lang, templates)),
+    display: plan.sentences.map((s) => sentence(s, "display", plan.lang, templates, reading)),
+    spoken: plan.sentences.map((s) => sentence(s, "spoken", plan.lang, templates, reading)),
     sms: renderSms(plan, templates),
   };
+}
+
+/**
+ * IC-11's `textSha256`: sha256 of a sentence's exact spoken words (UTF-8, lowercase hex). The one hash (ADR-0011 §3):
+ * the manifest producer writes `text_sha256` with it (`spokenScript`) and the media route matches clips by it; the
+ * app never hashes words, it pairs fs-api's sentences with its own.
+ */
+export function spokenTextSha256(text: string): string {
+  return sha256Hex(text);
+}
+
+export interface SpokenSentence extends RenderedSentence {
+  textSha256: string;
+}
+
+/**
+ * The words a statement's audio says, sentence by sentence in plan order, each with its `textSha256`: what the
+ * clips are synthesised from (AU2's export). Pure and deterministic: one plan gives the same words and hashes.
+ */
+export function spokenScript(plan: StatementPlan, templates: TemplateSet = TEMPLATES_V1): SpokenSentence[] {
+  return renderStatement(plan, templates).spoken.map((s) => ({ ...s, textSha256: spokenTextSha256(s.text) }));
 }
 
 /** The peso estimate's centavos for a US amount at the run rate, floored (PayPal lines). */

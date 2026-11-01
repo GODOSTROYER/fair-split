@@ -1,7 +1,7 @@
 /**
  * Paminawa's device-voice reader (M-MB-03 `device-voice`): the phone's own voice reads one sentence and reports the
- * words it reaches, so the slip chips rise as each serial is named. It is used only where no synthetic clip was
- * rendered from exactly these words, and the UI always says it is the phone's voice (I8).
+ * words it reaches, so the slip chips rise as each serial is named. It is used only where fs-api served no synthetic
+ * clip for the sentence (ADR-0011 §6), and the UI always says it is the phone's voice (I8).
  *
  * Phones rarely ship a Cebuano voice, so Cebuano is read with the best Filipino voice (`services/voice.ts` makes the
  * same choice for the first-run samples). When the phone has no voice for the language family at all, `findVoice`

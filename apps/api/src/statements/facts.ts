@@ -1,9 +1,16 @@
 // A member line's statement facts, read from the server's records (never from a request, never from a model):
 // the line's engine numbers, the member's registry entry, the run's recorded rate, the ratified card's buyer and
-// resolution, the co-op and its treasurer, and the line's PayPal item. Every number is an integer.
-import type { Lang, MemberLineState, PayoutItemStatus, Provenance } from "@fairsplit/contracts";
+// resolution, the co-op and its treasurer, the line's PayPal item, and where its slip readings came from (the
+// AI_NOTE says Claude read them only when Claude did, T1). Every number is an integer.
+import {
+  type Lang,
+  type MemberLineState,
+  type PayoutItemStatus,
+  PROVENANCES,
+  type Provenance,
+} from "@fairsplit/contracts";
 import { type DbOrTx, schema } from "@fairsplit/db";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { parseCanonical } from "../proof/bundle.js";
 import type { StatementLineFacts } from "./plan.js";
 
@@ -21,6 +28,22 @@ export interface StatementContext {
 
 const CATEGORY_OF = { R1: "CBU", R3: "LOAN", R4: "ADVANCE" } as const;
 const ACCEPTED_ROWS = ["AUTO_ACCEPTED", "CONFIRMED"] as const;
+
+/** The labels a reading can carry other than `live`, the least real first. */
+const NOT_LIVE: readonly Provenance[] = ["seeded", "replay", "simulated_rail"];
+const KNOWN_PROVENANCE = new Set<string>(PROVENANCES);
+
+/**
+ * A line's reading provenance, from its slip rows' labels (I8): `live` only when every reading is live (a real
+ * Claude reading); otherwise the least real label present, an unknown label counting as `seeded`; null when there
+ * is no reading at all. The AI_NOTE claims Claude's reading only for `live` (render.ts `aiNoteVariant`).
+ */
+export function readingProvenanceOf(labels: readonly string[]): Provenance | null {
+  if (labels.length === 0) return null;
+  if (labels.every((p) => p === "live")) return "live";
+  if (labels.some((p) => !KNOWN_PROVENANCE.has(p))) return "seeded";
+  return NOT_LIVE.find((p) => labels.includes(p)) ?? "seeded";
+}
 
 /** Loads one line of one workspace (null when it is not there: another workspace's line looks absent). */
 export async function loadStatementContext(
@@ -121,6 +144,20 @@ export async function loadStatementContext(
       );
     slipSerials = [...new Set(slips.map((x) => x.serial))].sort();
   }
+  // Only this member's non-rejected readings support their AI_NOTE. No own reading means no provenance claim,
+  // even when somebody else's slips were read live. Judge and showcase readings take the demo AI_NOTE.
+  const readings = await db
+    .selectDistinct({ provenance: schema.slipRows.provenance })
+    .from(schema.slipRows)
+    .where(
+      and(
+        eq(schema.slipRows.workspaceId, workspaceId),
+        eq(schema.slipRows.seasonId, run.seasonId),
+        eq(schema.slipRows.memberId, row.memberId),
+        ne(schema.slipRows.state, "REJECTED"),
+      ),
+    );
+  const readingProvenance = readingProvenanceOf(readings.map((x) => x.provenance));
   const statementLang = lang ?? (row.memberLang as Lang);
   const facts: StatementLineFacts = {
     lineId: row.id,
@@ -146,6 +183,7 @@ export async function loadStatementContext(
         : null,
     cashDay: receipt ? receipt.paidAt.toISOString().slice(0, 10) : null,
     itemStatus: (item?.status as PayoutItemStatus | undefined) ?? null,
+    readingProvenance,
   };
   return {
     facts,

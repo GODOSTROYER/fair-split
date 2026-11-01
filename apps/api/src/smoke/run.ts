@@ -3,11 +3,15 @@
 //   1. an embedded Postgres 17 (apps/api/.cache/smoke, gitignored; the test clusters are never touched), a fresh
 //      `fs_smoke` database, every migration applied as the owner (Render's preDeployCommand does the same);
 //   2. fs-api in its own process (`src/index.ts` through tsx, or the bundle with `--dist` after `pnpm build`),
-//      PP_MODE=simulator: PayPal answers through the labelled stub (503 SIMULATOR_NOT_RUNNING, nothing pays), or
-//      through a running WS-PPSIM simulator with `--sim-url <origin>`; the smoke calls nothing else;
+//      PP_MODE=simulator: PayPal answers through fs-api's IN-PROCESS simulator (ADR-0010; PP_* default to its
+//      committed fs-judge app), or through a running WS-PPSIM simulator with `--sim-url <origin>`; the smoke calls
+//      nothing else;
 //   3. throwaway secrets made here for this run only (cookie and link keys, an operator password and a judge
 //      code), passed to the child's environment and never printed;
-//   4. the checks in ./checks.ts, then the process, the database and the cluster are stopped.
+//   4. the checks in ./checks.ts, then the money path in ./money.ts (a second judge session from the first press to
+//      a settled run on the simulator: 7 SUCCESS, Rhea UNCLAIMED → cancel → RETURNED, a verified simulator-signed
+//      webhook, X-FS-Rail simulated, the Proof chain; `--no-money` skips it), then the process, the database and the
+//      cluster are stopped.
 //
 // `--url <origin>` smokes an already running fs-api instead (no boot; operator checks need
 // FS_SMOKE_OPERATOR_PASSWORD, the judge-code check FS_SMOKE_JUDGE_CODE). `--json <file>` writes the report.
@@ -24,6 +28,7 @@ import { startTestCluster, withDatabase } from "@fairsplit/db/testing";
 import postgres from "postgres";
 import { hashOperatorPassword } from "../credentials/issue/operator.js";
 import { runSmoke, type SmokeReport } from "./checks.js";
+import { runMoneyPath } from "./money.js";
 
 const API_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DATABASE = "fs_smoke";
@@ -158,28 +163,43 @@ async function main(): Promise<number> {
       "sim-url": { type: "string" },
       json: { type: "string" },
       "show-logs": { type: "boolean", default: false },
+      "no-money": { type: "boolean", default: false },
     },
   });
   const log = (line: string) => process.stdout.write(`${line}\n`);
+  /** The money path after the checks: its checks join the report and decide it too. */
+  const withMoney = async (report: SmokeReport, baseUrl: string): Promise<SmokeReport> => {
+    if (values["no-money"]) return report;
+    log("");
+    log("money path (a second judge session on the simulator rail):");
+    const money = await runMoneyPath({ baseUrl, log });
+    return { ...report, checks: [...report.checks, ...money], ok: report.ok && money.every((c) => c.ok) };
+  };
   if (values.url) {
-    const report = await runSmoke({
-      baseUrl: values.url,
-      operatorPassword: process.env.FS_SMOKE_OPERATOR_PASSWORD,
-      judgeCode: process.env.FS_SMOKE_JUDGE_CODE,
-      log,
-    });
+    const report = await withMoney(
+      await runSmoke({
+        baseUrl: values.url,
+        operatorPassword: process.env.FS_SMOKE_OPERATOR_PASSWORD,
+        judgeCode: process.env.FS_SMOKE_JUDGE_CODE,
+        log,
+      }),
+      values.url,
+    );
     print(report, log);
     if (values.json) writeFileSync(values.json, JSON.stringify(report, null, 2));
     return report.ok ? 0 : 1;
   }
   const server = await boot({ dist: values.dist ?? false, simUrl: values["sim-url"], log });
   try {
-    const report = await runSmoke({
-      baseUrl: server.origin,
-      operatorPassword: server.operatorPassword,
-      judgeCode: server.judgeCode,
-      log,
-    });
+    const report = await withMoney(
+      await runSmoke({
+        baseUrl: server.origin,
+        operatorPassword: server.operatorPassword,
+        judgeCode: server.judgeCode,
+        log,
+      }),
+      server.origin,
+    );
     print(report, log);
     if (values.json) writeFileSync(values.json, JSON.stringify(report, null, 2));
     if (!report.ok || values["show-logs"]) log(`--- fs-api output (warn and above) ---\n${server.output()}`);

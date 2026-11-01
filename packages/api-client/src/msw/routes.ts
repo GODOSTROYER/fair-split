@@ -6,9 +6,11 @@
 import type { Role } from "@fairsplit/contracts";
 import { delay, type HttpHandler, HttpResponse, http } from "msw";
 import type { z } from "zod";
+import { BRAND_ROUTES } from "../brand.js";
 import { uuidv7 } from "../bytes.js";
 import { compilePath } from "../http.js";
-import { JUDGE_ROUTES, type JudgeRouteName, type RouteSpec, type TamperKind } from "../routes.js";
+import { JUDGE_ROUTES, type RouteSpec, type TamperKind } from "../routes.js";
+import { mockBrandView } from "./brand.js";
 import {
   baseHeaders,
   callerOf,
@@ -19,10 +21,12 @@ import {
   validationProblem,
 } from "./handlers.js";
 import { mockHex } from "./ids.js";
-import { MOCK_SESSION_ID, type MockCaller, MockProblem } from "./world.js";
+import { MOCK_CONSOLE_TOKEN, MOCK_SESSION_ID, type MockCaller, MockProblem } from "./world.js";
 
 const HOUR = 60 * 60_000;
 const OPS_COOKIE = "fs_ops=mock-operator-session";
+const ROUTES = { ...JUDGE_ROUTES, ...BRAND_ROUTES };
+type RouteName = keyof typeof ROUTES;
 
 const TAMPER_LABEL: Readonly<Record<TamperKind, string>> = {
   amount: "Simulated tamper: Claude's draft overcharges Lantern Bay by US$1,000.00",
@@ -62,7 +66,7 @@ function bearerOf(request: Request): string | null {
   return /^Bearer[ ]+(\S+)$/i.exec(request.headers.get("authorization") ?? "")?.[1] ?? null;
 }
 
-/** The judge and auth routes' handlers over `o.world`. */
+/** The judge, auth and brand routes' handlers over `o.world`. */
 export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
   const { world } = o;
   const judgeCode = o.judgeCode ?? "judge-code";
@@ -132,7 +136,20 @@ export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
     };
   };
 
-  const answers: { readonly [K in JudgeRouteName]: (call: RouteCall) => Answer } = {
+  const answers: { readonly [K in RouteName]: (call: RouteCall) => Answer } = {
+    view: (call) => {
+      if (call.bearer?.startsWith("fsb_")) {
+        const link = links.get(call.bearer.slice(4).split(".")[0] ?? "");
+        if (link?.kind !== "brand" || link.revoked)
+          throw new MockProblem("UNAUTHENTICATED", "This brand link is not valid.");
+      } else {
+        if (call.bearer?.startsWith("fsm_")) throw new MockProblem("FORBIDDEN", "The brand's readers only.");
+        requireRole(call, ["brand", "treasurer", "board", "judge"], "The brand view");
+      }
+      if (call.params.runSlug !== world.runSlug)
+        throw new MockProblem("NOT_FOUND", "No such run for this link.");
+      return { status: 200, body: mockBrandView(world) };
+    },
     judgeSession: (call) => {
       requireCaller(call);
       return {
@@ -164,6 +181,22 @@ export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
           workspaceId: world.workspaceId,
           endedAt: iso(),
           revokedTokens,
+        },
+      };
+    },
+    renewJudgeSession: (call) => {
+      // the mock's one session never ends (its Reset starts the world over in place): renewal always resumes it
+      requireOwnSession(call);
+      return {
+        status: 200,
+        body: {
+          sessionId: MOCK_SESSION_ID,
+          workspaceId: world.workspaceId,
+          runId: world.runId,
+          runSlug: world.runSlug,
+          consoleToken: MOCK_CONSOLE_TOKEN,
+          expiresAt: iso(2 * HOUR),
+          queuePosition: null,
         },
       };
     },
@@ -361,8 +394,8 @@ export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
     },
   };
 
-  return (Object.keys(JUDGE_ROUTES) as JudgeRouteName[]).map((name) => {
-    const route: RouteSpec = JUDGE_ROUTES[name];
+  return (Object.keys(ROUTES) as RouteName[]).map((name) => {
+    const route: RouteSpec = ROUTES[name];
     const compiled = compilePath(route.path);
     const method = route.method === "GET" ? http.get : http.post;
     return method(urlPattern(route.path, o.baseUrl), async ({ request }) => {

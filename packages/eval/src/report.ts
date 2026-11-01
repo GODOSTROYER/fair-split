@@ -28,6 +28,7 @@ export interface EvalReport {
     prep: string;
   };
   invalid_labels: Array<{ file: string; error: string }>;
+  unscored_exhibits: Array<{ image: string; status: "not scored"; error: string | null }>;
   /** Where the validators' member registry came from: the seed snapshot (a file) or the labels. */
   registry: { source: "file" | "labels"; members: number; path: string | null };
   /** Why the numbers are not yet the production measure (null when they are). */

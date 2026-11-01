@@ -157,6 +157,8 @@ export const webhookEvents = pgTable(
     resourceKey: text("resource_key"),
     verified: text("verified", { enum: WEBHOOK_VERIFIED }),
     raw: text("raw").notNull(),
+    /** Verified delivery; NULL for historical rows. Consumers must validate every field before applying it. */
+    delivery: jsonb("delivery"),
     status: text("status", { enum: WEBHOOK_STATUSES }).notNull(),
     attempts: integer("attempts").notNull().default(0),
     receivedAt: tstz("received_at").notNull().defaultNow(),

@@ -7,8 +7,73 @@
 > link revocation into the shared resolver (the `isLinkRevoked` callback is now required, never defaulted); the
 > run, workspace and line streams take `STREAM_READERS` (= the runs slice's `CAN.readRuns`); and the typed client
 > has `judgeRoutes(api)` plus msw mocks for the judge and auth routes, parity-tested against the server
-> (src/routes/client-routes.test.ts). Still open across slices: `extract` has no inline handler in fs-api, and an
-> operator logout is enforced only in the browser (a server-side session epoch needs a WS-DATA table).
+> (src/routes/client-routes.test.ts). Still open across slices: an operator logout is enforced only in the browser
+> (a server-side session epoch needs a WS-DATA table). (`extract` has an inline handler since 31 Oct: below.)
+
+> **The reading, inline (31 Oct, J1).** `extract` runs in fs-api (`src/runs/extract.ts`, registered by `slips`): a
+> seeded workspace's replay photos (A–L) are read from the seed as a labelled stand-in, never a Claude recording.
+> Rows, fields, box-13 marks, slip 0449's quarantined note, the IC-01 `extract.field` / `extract.row` /
+> `extract.quarantined` events and each photo's `rows.accepted` are all provenance `seeded`, actor `system:seed`,
+> "Seed stand-in, not a Claude recording" (`SEED_STAND_IN`; `readingProvenance()` tells a run's reading). Scores are
+> domain `agreement` over two reads that are both the seed's text; slip 0462's stain hides the second character of
+> gross and net, so those two wait for a person at 0.40. One photo per step: each step queues the next one second
+> after its own due time in its own transaction (no request or executor slot waits; a restart resumes from the
+> committed row; the twelve land in about 11 s), a second delivery changes nothing, and the last step queues
+> computeRun once (`compute:{runId}:read`). Funding queues the reading under `extractDedupeKey` (IC-01's key, or its
+> sha256 past five photos): IC-01's key for 12 photos is 451 characters, over the outbox's 200, which made Mark paid
+> fail on every judge clone. A photo with no seed stand-in stays unread (a live reader is not built in this build).
+> `readRateCard`, `warmCaches`, `reconcile` and `pushNotify` complete at once with a labelled "not built in this
+> build" outcome (`src/runs/unbuilt.ts`), so no row of theirs dies. Tests: `src/runs/extract.pg.test.ts` (the hero
+> path on a world without pre-seeded replay rows, `runs/test/world.ts` `replayRows: false`; a judge session's own
+> clone; a second delivery; a restart with the real dispatcher) and the judge-replay twin.
+
+> **What the phone needs (1 Nov, K1b). IC-08 stays frozen: every change here is additive.** No existing route,
+> request or response shape changed.
+> - _Run lookup._ A frame of a judge session (the Chair's `board:ernesto`, a member's) and a phone paired in it
+>   already read their own session's run from `GET /v1/judge/session` (`runSlug`, `runState`; the Chair's request is
+>   open when `runState` is `AWAITING_BOARD`): a frame token carries the session id it was minted under, and the read
+>   is scoped to the credential's own workspace. No new field was added (strict clients would refuse one). Tests
+>   (`routes/judge/phone.pg.test.ts`) pin it with two sessions: neither's frames ever see the other's run.
+> - _Renewal._ New route `POST /v1/judge/sessions/:sid/renew` (`renewJudgeSession` in api-client's `JUDGE_ROUTES`,
+>   with its msw answer): the judge cookie of that session; 200 with createJudgeSession's resume answer for a live
+>   session; 401 FRAME_TOKEN_EXPIRED once the workspace has ended (Reset, expiry, purge), minting nothing and taking
+>   no slot of the new-session limits. createJudgeSession is unchanged: a press still starts a fresh workspace after
+>   a Reset. The console's `SessionStore.renew()` must move to this route (it still renews through createJudgeSession).
+> - _Brand links._ `GET /b/:token` serves the console's index.html whatever the token holds (`static.ts`), the signed
+>   dotted `fsb_<payload>.<sig>` included; a missing file with an extension is still a 404.
+> - _Media caching._ `/media` is immutable only under a content-hashed name (`s1.4f1c9a2e.m4a`); the audio manifest
+>   and every other media file are `no-cache` with a weak ETag (size and mtime) and answer 304 to If-None-Match.
+>   This narrows S3.3's "`/media/*` immutable", because the manifest, a retaken clip and a regenerated photo keep
+>   their names. `/media/archived/*` tiles (routes/media) keep their own immutable policy.
+> - _Not built:_ a Chair app key (kind `app`, proof of possession). It is needed only if the native APK (N1) goes
+>   ahead.
+
+> **Hardening after H1/J1/P1 (1 Nov, HD1).** _A restart while a run is in flight (in-process simulator)._ The
+> simulator's state lives in the process, so after a restart a batch the previous simulator accepted is one the
+> simulator now running never issued. The rule: at boot, before the server listens (`src/paypal/boot.ts` step ½),
+> every batch with a PayPal id, provenance `simulated_rail` and an item not yet terminal is recorded once in its
+> workspace's ledger as `payout.stranded` (`src/money/settle.ts` `STRANDED_BATCH`: ids, the open-item count, reason
+> `simulator_restarted`). In a judge workspace the outcome is `demo_run_ended`, "The simulated PayPal sandbox
+> restarted; this demo run ended" (its session is ended at the same boot, as before). In any other workspace (a co-op,
+> the showcase) it is `left_for_a_person`, logged at error with the workspace and batch ids: nothing there is
+> rewritten. In both, no item is marked paid, failed or returned that the simulator did not report, no run moves, and
+> the batch's settle GETs then end at once with no PayPal call (they used to retry until dead). A follow-up settle GET
+> whose items are all terminal reads nothing either. A batch with no PayPal id yet (POSTING) is not stranded:
+> `money/resume.ts` posts its very ids to the new simulator. **Still open:** the stranded judge workspace itself is
+> kept, not purged: `fs_purge_workspace` (WS-DATA, migrations/0014) refuses while an item is not terminal, and fs-api
+> never fakes a terminal status to get past it; the hourly pass defers it every time. The pool refill does not depend
+> on it. WS-DATA follow-up: let the purge take a judge workspace whose open items all belong to `payout.stranded`
+> batches. Note `purgeExpiredJudgeWorkspaces` takes the 20 oldest candidates a pass, so 20 or more such workspaces
+> would stop the purge of every other one (order deferred ones last, or skip them). A stranded UNCLAIMED item may still
+> get one `cancelUnclaimed` attempt from the hourly pass, which the new simulator answers 404. Deploy between sessions
+> (ADR-0010). Tests: `src/paypal/restart.pg.test.ts` (judge and showcase), `src/money/settle-followup.test.ts`.
+> _Also:_ the boot loads the simulator's own signing certificate into the webhook verifier before traffic (forged
+> SIMCERT URLs can no longer spend the hourly fetch budget first); only the `SIM_*` tuning variables reach the
+> in-process simulator (`SIMULATOR_TUNING_VARIABLES`; the rest are ignored and named in a boot warning); boot refuses
+> an `FS_OPERATOR_PASSWORD_SCRYPT` that is not a scrypt PHC string (`src/scrypt-phc.ts`) and one seed for both signing
+> keys; a seeded run whose reading cannot finish (a photo with no seed stand-in) is HALTED with cause
+> `NO_SEED_STAND_IN` naming the document, instead of waiting at EXTRACTING forever; the smoke requires Mark paid to
+> succeed, the review to open with 4 open / 3 blocking holds and slip 0462 by hand.
 
 > **Judge rail obeyed (28 Oct, verifier round).** Every PayPal step of a judge workspace (Claude's invoice turn,
 > ensureInvoice, recordPayment, the batch POST, the parked item's cancel, the re-route) asks
@@ -73,41 +138,113 @@
 >   It is never replayed and never live without a slot. The older slot is settled `superseded`.
 > - Counting: every count looks back 24 h plus the 90 s, so a POST is counted for the whole 24 h after it (and in its
 >   own clock hour). A run counts once however many of its slots are in a window; the spend counts a run through its
->   newest slot, so a post PayPal denies on the fresh slot spends nothing. C-21 counts a batch from its write, and a
->   judge batch also from any live slot of its run in the window. The spend counts a batch written before a balance
->   reading and posted after it from its POST (`batch_posted`), and a written batch still waiting to be posted.
+>   newest slot, so a post PayPal denies on the fresh slot spends nothing. A run is in the public third while any of
+>   its slots in the window was taken without the judge code (a fresh slot that supersedes an uncoded one is uncoded
+>   too), so a public POST whose answer was lost never frees a public place when the session unlocks the code before
+>   its resume. C-21 counts a batch from its write, and a judge batch also from any live slot of its run in the
+>   window. The spend counts a batch written before a balance reading and posted after it from its POST
+>   (`batch_posted`), and a written batch still waiting to be posted.
+> - No slot is left open with no post behind it: a post's peek leaves its own run out (as the binding decision does),
+>   so a slot an earlier attempt took and never used (it threw before its write, e.g. on the spend lock's wait) is its
+>   own place on the retry; and a post that replays settles such slots `not_posted` (`releaseUnusedSlots`).
 > - Only a batch still waiting for PayPal's answer is resumed (SUBMITTED, no PayPal id). One PayPal named or denied,
->   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST.
-> - A written re-route resumed more than 90 s after it was last counted is held to C-21 again (under the spend lock)
->   and counted from that POST (`batch_sent`); while C-21 is full it waits.
+>   or one PayPal holds under our ids but not as ours (ADOPT_FAILED), completes its task with no slot and no POST,
+>   and frees the turn this process's lane kept for an earlier attempt of it. A resume re-reads its batch once it
+>   holds the lane (in `reserveLivePost`, under the quota lock): one PayPal answered while it waited is done too.
+> - A written batch resumed more than 90 s after it was last counted, outside the judge quota, is held to C-21 again
+>   (under the spend lock) and counted from that POST (`batch_sent`); while C-21 is full it waits. That is every
+>   re-route (D7) and a co-op's own primary batch (`guardResumedPrimary`, round 5); a judge primary batch is counted
+>   through its run's fresh slot.
 > - The hourly purge never removes a batch a count still reads. C-21 and the spend count a batch from its row, and
 >   the purge deletes the expired judge workspace's rows. So it waits while C-21 still counts one of its batches (24 h
->   and 90 s after its write, after a live slot of its run, or after a `batch_sent` mark) or the spend does (its write
->   or PayPal naming it, `batch_posted`, within 26 h: the oldest reading the spend counts from). A batch POSTed late
->   is counted for the whole 24 h after that POST, even when its workspace expired before it
+>   and 90 s after its write, after a live slot of its run, or after a `batch_sent` mark) or the spend does (not
+>   DENIED, and written or named by PayPal, `batch_posted`, at or after the latest balance reading on its rail,
+>   whatever its age: the service's floor guard reads that reading however old it is). A replayed batch is in no
+>   count. A batch POSTed late is counted for the whole 24 h after that POST, even when its workspace expired before it
 >   (`judge/quota.ts batchesStillCounted`, read on the database's clock).
 > - Lock order, wherever both are held: the quota lock (`fs:judge-quota`), then the spend lock (`fs:payout-spend`):
->   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the re-route
->   guard hold only the spend lock, `settleLivePost` only the quota lock. So no two transactions can deadlock. The
->   tests drive the re-route guard on its locked path (a batch last counted a day before) and mix real co-op first
->   writes into the concurrent run.
-> - I8 check-then-act: a post re-reads its rows just before it replays and waits if another executor wrote them live;
->   the repository refuses to write, mark posted or mark rejected live rows on the replay rail.
+>   lane, quota, spend, workspace, rows. A resume's fresh slot holds both; the service's spend guard and the C-21
+>   guard of a resumed send (`countResumedSend`) hold only the spend lock, `settleLivePost` and `releaseUnusedSlots`
+>   only the quota lock. So no two transactions can deadlock. The tests drive the re-route guard on its locked path
+>   (a batch last counted a day before) and mix real co-op first writes into the concurrent run.
+> - Pool bound: the service's guard and `countResumedSend` wait for the spend lock holding no pooled connection (a
+>   try per short transaction, QUEUED after 10 s). Only `reserveLivePost` on a sandbox resume waits holding one, and
+>   it runs only under the single-flight lane, so there is at most one such waiter across every process
+>   (`judge/quota.ts` header, "POOL BOUND").
+> - I8 both ways, for two executors of one run's post that decide differently (a lost outbox heartbeat). Live rows are
+>   never replayed: `replayStep` re-reads the rows in the transaction that writes the post's `judge.step.replayed`
+>   label, under the workspace lock, and waits if they are written live; the repository writes live rows under the same
+>   lock and refuses a run labelled replayed. So a post is never labelled replayed beside a live POST (and `runReplays`
+>   ignores a post label an older build left beside live rows). Rows written as a replay are never POSTed live: the
+>   repository refuses them on a live rail where it reads them for the service (`loadPosting`, the re-route's
+>   `findSupersedingItem`) and at `writeSubmitted`, all before the POST; the run's next attempt replays to the end.
+>   The marks (posted, rejected) refuse the other rail's rows besides.
 > - Earlier rounds: round 1 stopped the resume override (no live post without a slot) and stopped `settleLivePost`
 >   from settling `not_posted` once a batch is written; round 2's 23 h age-out (`heldSlotMaxAgeMs`) is gone: a slot
 >   now carries a POST for 90 s, and a later POST takes a slot dated at it. Round 4: the purge used to wait only 24 h
->   after a batch's write, so a POST made a day after its write could drop out of C-21 within the hour.
+>   after a batch's write, so a POST made a day after its write could drop out of C-21 within the hour. Round 5 (the
+>   15 minors of the final verifiers, M1 to M11): the two I8 races, the public third, the purge's spend wait and its
+>   provenance filter, the co-op resume's C-21 check, the unused slot, the lane on `done`, the pool bound, D5 under
+>   the lane, and the purge tests' C-21 branch.
 > - What is left: a burst's own retries (the service's 1 + 3 + 9 s, PayPalHttp's timeouts) can put its POST up to
 >   about two minutes after its slot, and a fresh burst that straddles the top of an hour counts in the hour it
->   began. A co-op's own (non-judge) primary batch resumed later is still counted by C-21 from its write (outside the
->   judge quota, and not reachable by a judge). Cancel takes no slot and no C-21 count (it sends no batch). The purge
->   reads the counts on the database's clock while the ledger is stamped by the app's; in production they are the
->   same clock, and any skew between them moves the end of its wait by that much.
+>   began. Cancel takes no slot and no C-21 count (it sends no batch). A resumed send's `batch_sent` mark is written
+>   just before the service's own kill-switch read, so a POST the switch then refuses leaves the batch counted by C-21
+>   for 24 h without a send (it over-counts by that one batch, never under). On a rail with no balance reading at all
+>   (the simulated rail before its first; a judge live batch on the sandbox rail always follows one) the spend counts
+>   every batch ever, and the purge waits only 26 h after a batch's write or name. The purge reads the counts on the
+>   database's clock while the ledger is stamped by the app's; in production they are the same clock, and any skew
+>   between them moves the end of its wait by that much.
 > - Tests: `money/quota-sendtime.test.ts` (the drift probe, the hourly wait, one run counted once, denied, the held
->   retry, D4, D5, D6), `money/quota-oracle.test.ts` (send times over three simulated days),
->   `money/quota-purge.test.ts` (a late POST, then the purge: still counted 2 h and 23 h after it),
->   `money/lock-order.pg.test.ts` (D1 and the lock order), `money/reroute-c21.test.ts` (D7), `judge/quota.pg.test.ts`
->   (restamp, hour boundary, D2, D8), `money/quota-resume.test.ts`.
+>   retry, D4, D5 and D5 under the lane, the lane freed on `done`, D6 both ways, the replay label and a live write,
+>   the unused slot kept or freed), `money/quota-oracle.test.ts` (send times over three simulated days),
+>   `money/quota-purge.test.ts` (a late POST, then the purge: still counted 2 h and 23 h after it; the spend from an
+>   old reading; C-21 alone; a replay batch), `money/lock-order.pg.test.ts` (D1, the lock order, waiters holding no
+>   connection), `money/reroute-c21.test.ts` (D7), `money/primary-c21.test.ts` (a co-op's primary resumed a day on),
+>   `judge/quota.pg.test.ts` (restamp, hour boundary, D2, D8, the public third), `money/quota-resume.test.ts`.
+
+> **Cron tick (J2, 1 Nov).** `POST /internal/cron/tick` (folder `src/routes/internal`, registered as `internal`) is
+> what fs-cron's `node tools/cron-tick.mjs` calls at :07 UTC every hour over the private network.
+>
+> - Auth: `Authorization: Bearer <CRON_SECRET>`, compared in constant time (sha256 of both sides through
+>   `timingSafeEqual`) before anything else runs: no credential resolution, no body read, no database. A missing or
+>   wrong secret is a bare 401 `UNAUTHENTICATED`. With CRON_SECRET unset or shorter than 16 characters the route
+>   answers the ordinary 404 (`No route for POST /internal/cron/tick`) and boot logs a warning: never an open tick.
+>   CRON_SECRET was already in `src/env.ts` (`secrets.cronSecret`); nothing there changed.
+> - The plan (`internal/cron.ts` `planCronTick`, apps/tasks/src/cron.ts lifted with the IC-01 `TASKS` keys): every
+>   tick offers `judgeReset{trigger: cron, workspaceId: null, slot: <UTC hour>}` (`reset:pool:2026-11-01T10`) and
+>   `warmCaches{slot: w<23-hour window>}`; ticks from 02:00 to 05:59 UTC also offer `reconcile{nightly}` keyed by the
+>   UTC date (`windowStart` = 48 h before that midnight). All of them are system rows (`workspace_id` null) enqueued
+>   in ONE transaction with the tick record; a slot's row that already exists is not queued twice (`created: false`).
+> - Only a job this process has a handler for is enqueued (`OutboxRuntime.handles(task)`, from the handlers
+>   `wireOutbox` was given). A row without one would be claimed, fail `no handler registered` eight times and go
+>   dead, so the tick skips that job and labels it `{task, dedupeKey, reason: "no handler"}` in the answer's and the
+>   tick record's `skipped`, logs a warning, and boot warns which cron tasks have no handler. Until J1's labelled
+>   no-ops for `reconcile` and `warmCaches` are merged, those two are skipped this way; once they are registered, the
+>   tick enqueues them with no change here. A process with no outbox wired (some tests) skips every job.
+> - At most one tick per 30 minutes, decided in Postgres: `takeCronTick` takes `pg_advisory_xact_lock('fs:cron-tick')`
+>   (READ COMMITTED, `lock_timeout` 10 s), reads the last tick from `reconciliation_reports` (kind `health`, no
+>   workspace, `summary.source = 'cronTick'`, `window_end` = the tick's app-clock time), and refuses with 429
+>   `RATE_LIMITED` plus `Retry-After` when it is under 30 minutes old, enqueueing and recording nothing. Two fs-api
+>   processes ticking at once: exactly one is taken. No new table or migration.
+> - Answers: 202 `{at, nextTickFrom, tasks: [{task, dedupeKey, created}], skipped: [{task, dedupeKey, reason}]}`;
+>   401; 404; 429. The route is raw Hono, so it is not in the public OpenAPI document.
+> - The judgeReset pass is the judge folder's existing handler (`judge/reset-task.ts`), unchanged except that its
+>   cron pass now also runs WS-DATA's `purgeExpiredTransmissions(db, now)` (expired `webhook_transmissions` ids, by
+>   the app clock the verifier uses) and reports `transmissionsPurged`. `reconcile` and `warmCaches` handlers are not
+>   registered here (J1 registers labelled no-ops); until they exist the tick skips those jobs (labelled, above).
+> - `tools/cron-tick.mjs` (WS-OPS): env `FS_API_HOSTPORT` (`host:port`, render.yaml's `hostport`) and `CRON_SECRET`;
+>   prints the enqueued task names, then any skipped ones (`skipped, not enqueued: warmCaches (no handler)`); exit 0
+>   taken, 2 refused (a 429 on the first attempt), 1 anything else (a 429 answering a retry after a failed attempt
+>   counts as taken).
+> - Tests: `routes/internal/cron.test.ts` (plan, secret check, 401/404 before any database access, not in OpenAPI),
+>   `routes/internal/cron.pg.test.ts` (enqueued rows and record, the 30-minute refusal, three concurrent HTTP ticks,
+>   six ticks over two connection pools, the dispatcher running judgeReset end to end with the purge, a nightly
+>   pass with only judgeReset registered: reconcile and warmCaches skipped and labelled, no row of theirs, no dead
+>   row; a process without an outbox skipping everything), `routes/internal/cron-tick.boot.pg.test.ts`
+>   (`startServer()` booted for real, then `node tools/cron-tick.mjs`: 401, taken, refused, the server's own
+>   dispatcher finishing every row the tick enqueued, and no row for a job it skipped);
+>   apps/tasks/test/cron-tick.test.ts for the script against a stand-in.
 
 The shell (WS-API, branch `ws/api`) is finished and **frozen**. Three slices now fill in handlers in parallel
 worktrees. Each slice edits only its own paths, never `package.json`, the lockfile or a shared file below.
@@ -141,7 +278,7 @@ A test for a slice lives next to its code, inside the slice's paths (`*.test.ts`
 | `judge`                                       | JUDGE | `createJudgeSession`, `presence`                            | sessions, pool, Reset, quotas, live lane, "Try to break it", `judgeReset` task                                                                         |
 | `auth`                                        | JUDGE | `createPairing`, `claimPairing`                             | frame tokens (`POST /v1/judge/sessions/:sid/frames`), member `/s/:token` exchange, brand `/b/:token`, `/ops/login`                                     |
 | `rate-cards`                                  | RUNS  | `addDeduction` (always 409, use `problem.rateCardRatified`) | rate-card read and ratify                                                                                                                              |
-| `slips`                                       | RUNS  | `capture`                                                   | extraction dispatch (`extract` task)                                                                                                                   |
+| `slips`                                       | RUNS  | `capture`                                                   | extraction dispatch and the inline `extract` task (the seed's labelled stand-in reading)                                                               |
 | `runs`                                        | RUNS  | `markPaid`, `setFlag`                                       | run reads, quote → invoice → funding, settle GETs, `ensureInvoice`/`recordPayment`/`postPayoutBatch`/`settleBatch`/`processWebhook`/`computeRun` tasks |
 | `holds`                                       | RUNS  | `resolveHold`                                               |                                                                                                                                                        |
 | `fields`                                      | RUNS  | `enterField`                                                |                                                                                                                                                        |
@@ -151,6 +288,7 @@ A test for a slice lives next to its code, inside the slice's paths (`*.test.ts`
 | `proof`                                       | PROOF | `proof`, `proofJson`, `proofExport`                         | public Proof SSE (`/v1/proof/:runSlug/events`)                                                                                                         |
 | `statements`                                  | PROOF | `createReviewRequest`                                       | statement reads, `explain` task                                                                                                                        |
 | `wellknown`, `brand`, `print`, `ops`, `media` | PROOF | none                                                        | `/.well-known/fairsplit-keys.json`, brand view and CSV, 80 mm print data, `/ops`, dynamic media                                                        |
+| `internal`                                    | JUDGE | none                                                        | `POST /internal/cron/tick` (fs-cron's hourly trigger; enqueues judgeReset, reconcile, warmCaches)                                                      |
 | (shell) `src/sse`                             | SHELL | `runEvents`, `workspaceEvents`                              | `/v1/lines/:lineId/events`                                                                                                                             |
 
 Until a handler is filled in, its command answers **501** with an IC-01 body
@@ -297,4 +435,8 @@ await t.close();
 - **db**: no table for revoked member links (`dbCredentialStore(db, { isLinkRevoked })` takes a required callback;
   fs-api reads the `link.revoked` ledger entries through `appCredentialStore`; an index on
   `ledger_entries((payload->>'jti')) where kind = 'link.revoked'` would keep it fast), no judge session table (the session id lives in the cookie and `frame_tokens.session_id`), no Postgres store for webhook
-  transmission ids (paypal-core keeps them in memory), no `webhook_events.delivery` column.
+  transmission ids (paypal-core keeps them in memory). W1 adds nullable `webhook_events.delivery` jsonb
+  (migration 0019, after HD2's published 0018): `src/paypal/webhooks.ts` stores the verified delivery and receipt time in the same
+  transaction as the event and its outbox task. Legacy rows keep NULL and require a fresh GET.
+  `orphan` with an error reason records notices deferred to settlement or blocked by stranded/identity
+  checks; `appliedAt` is set only for an actual application or held-status corroboration.

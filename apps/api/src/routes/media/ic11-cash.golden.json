@@ -1,0 +1,699 @@
+{
+  "about": "IC-11 (ADR-0011): fs-api's GET /v1/media/audio/:lineId answers for the planned cash lines M-031 (en) and M-053 (ceb), while the cash is due (PAY.cash_nodate) and once a receipt is recorded (PAY.cash, dated), rendered by fs-api's statement renderer and resolved against a fixture manifest with a clip of every sentence. lineId is the member's seed UUID, not a demo line id. Written by apps/api/src/routes/media/ic11-golden.test.ts; read by apps/mobile/src/lib/statement-audio.contract.test.ts.",
+  "cases": [
+    {
+      "case": "M-031 en, cash due (no receipt yet)",
+      "memberNo": "M-031",
+      "lang": "en",
+      "state": "OFF_RAIL_DUE",
+      "cashDay": null,
+      "answer": {
+        "lineId": "016b10c3-dd1f-70e1-aa36-5697aef92a6e",
+        "memberNo": "M-031",
+        "lang": "en",
+        "source": "gemini",
+        "label": "Synthetic voice (Gemini TTS)",
+        "deviceLabel": "Device voice",
+        "sentences": [
+          {
+            "slot": "GREETING",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+            "clip": {
+              "url": "/media/audio/M-031/en/s01-GREETING-5001953557bd.m4a",
+              "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "GREETING",
+              "offsets": [
+                {
+                  "ref": "fact:HONORIFIC_NAME",
+                  "atMs": 700
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DELIVERY",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
+            "clip": {
+              "url": "/media/audio/M-031/en/s02-DELIVERY-cc4e94bbd7de.m4a",
+              "textSha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "DELIVERY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PREMIUM",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
+            "clip": {
+              "url": "/media/audio/M-031/en/s03-PREMIUM-4de0ae12447f.m4a",
+              "textSha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "PREMIUM",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "BONUS",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
+            "clip": {
+              "url": "/media/audio/M-031/en/s04-BONUS-0a9dc628bff8.m4a",
+              "textSha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "BONUS",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DEDUCTION",
+            "variant": "default",
+            "mentions": ["rule:R1"],
+            "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+            "clip": {
+              "url": "/media/audio/M-031/en/s05-DEDUCTION-0b624a25a176.m4a",
+              "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "DEDUCTION",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PAY",
+            "variant": "cash_nodate",
+            "mentions": [],
+            "textSha256": "c7578b9696a8197636e493183cb54b3feb5104215e00c9f06d681d311ddd2ea7",
+            "clip": {
+              "url": "/media/audio/M-031/en/s07-PAY-c7578b9696a8.m4a",
+              "textSha256": "c7578b9696a8197636e493183cb54b3feb5104215e00c9f06d681d311ddd2ea7",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "PAY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "SOURCES",
+            "variant": "default",
+            "mentions": ["slip:0335", "slip:0373"],
+            "textSha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
+            "clip": {
+              "url": "/media/audio/M-031/en/s08-SOURCES-962635a1c238.m4a",
+              "textSha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "SOURCES",
+              "offsets": [
+                {
+                  "ref": "slip:0335",
+                  "atMs": 1500
+                },
+                {
+                  "ref": "slip:0373",
+                  "atMs": 2100
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "HELP",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+            "clip": {
+              "url": "/media/audio/M-031/en/s09-HELP-d93b3ff231e1.m4a",
+              "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "HELP",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "AI_NOTE",
+            "variant": "seeded",
+            "mentions": [],
+            "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+            "clip": {
+              "url": "/media/audio/M-031/en/s10-AI_NOTE-f6fe08315997.m4a",
+              "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "AI_NOTE",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case": "M-031 en, cash received (a receipt, dated)",
+      "memberNo": "M-031",
+      "lang": "en",
+      "state": "OFF_RAIL_PAID",
+      "cashDay": "2026-10-30",
+      "answer": {
+        "lineId": "016b10c3-dd1f-70e1-aa36-5697aef92a6e",
+        "memberNo": "M-031",
+        "lang": "en",
+        "source": "gemini",
+        "label": "Synthetic voice (Gemini TTS)",
+        "deviceLabel": "Device voice",
+        "sentences": [
+          {
+            "slot": "GREETING",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+            "clip": {
+              "url": "/media/audio/M-031/en/s01-GREETING-5001953557bd.m4a",
+              "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "GREETING",
+              "offsets": [
+                {
+                  "ref": "fact:HONORIFIC_NAME",
+                  "atMs": 700
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DELIVERY",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
+            "clip": {
+              "url": "/media/audio/M-031/en/s02-DELIVERY-cc4e94bbd7de.m4a",
+              "textSha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "DELIVERY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PREMIUM",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
+            "clip": {
+              "url": "/media/audio/M-031/en/s03-PREMIUM-4de0ae12447f.m4a",
+              "textSha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "PREMIUM",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "BONUS",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
+            "clip": {
+              "url": "/media/audio/M-031/en/s04-BONUS-0a9dc628bff8.m4a",
+              "textSha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "BONUS",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DEDUCTION",
+            "variant": "default",
+            "mentions": ["rule:R1"],
+            "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+            "clip": {
+              "url": "/media/audio/M-031/en/s05-DEDUCTION-0b624a25a176.m4a",
+              "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "DEDUCTION",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PAY",
+            "variant": "cash",
+            "mentions": [],
+            "textSha256": "41c1f617535191b0170e9b499e75cf1538c9ea103fb7915d363e35ca958545c8",
+            "clip": {
+              "url": "/media/audio/M-031/en/s07-PAY-41c1f6175351.m4a",
+              "textSha256": "41c1f617535191b0170e9b499e75cf1538c9ea103fb7915d363e35ca958545c8",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "PAY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "SOURCES",
+            "variant": "default",
+            "mentions": ["slip:0335", "slip:0373"],
+            "textSha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
+            "clip": {
+              "url": "/media/audio/M-031/en/s08-SOURCES-962635a1c238.m4a",
+              "textSha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "SOURCES",
+              "offsets": [
+                {
+                  "ref": "slip:0335",
+                  "atMs": 1500
+                },
+                {
+                  "ref": "slip:0373",
+                  "atMs": 2100
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "HELP",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+            "clip": {
+              "url": "/media/audio/M-031/en/s09-HELP-d93b3ff231e1.m4a",
+              "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "HELP",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "AI_NOTE",
+            "variant": "seeded",
+            "mentions": [],
+            "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+            "clip": {
+              "url": "/media/audio/M-031/en/s10-AI_NOTE-f6fe08315997.m4a",
+              "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+              "label": "Synthetic voice (Gemini TTS)",
+              "slot": "AI_NOTE",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case": "M-053 ceb, cash due (no receipt yet)",
+      "memberNo": "M-053",
+      "lang": "ceb",
+      "state": "OFF_RAIL_DUE",
+      "cashDay": null,
+      "answer": {
+        "lineId": "016b10c3-dd35-7add-8510-1e9eb26ec7c2",
+        "memberNo": "M-053",
+        "lang": "ceb",
+        "source": "gemini",
+        "label": "Sintetikong tingog (Gemini TTS)",
+        "deviceLabel": "Tingog sa telepono",
+        "sentences": [
+          {
+            "slot": "GREETING",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s01-GREETING-06233f5976bd.m4a",
+              "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "GREETING",
+              "offsets": [
+                {
+                  "ref": "fact:HONORIFIC_NAME",
+                  "atMs": 700
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DELIVERY",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s02-DELIVERY-a67e86af0e24.m4a",
+              "textSha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "DELIVERY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PREMIUM",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s03-PREMIUM-5f170246d64d.m4a",
+              "textSha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "PREMIUM",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "BONUS",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s04-BONUS-33fb4c827084.m4a",
+              "textSha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "BONUS",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DEDUCTION",
+            "variant": "default",
+            "mentions": ["rule:R1"],
+            "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s05-DEDUCTION-5a12cd17b7af.m4a",
+              "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "DEDUCTION",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PAY",
+            "variant": "cash_nodate",
+            "mentions": [],
+            "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s07-PAY-b622aad6a940.m4a",
+              "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "PAY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "SOURCES",
+            "variant": "default",
+            "mentions": [
+              "slip:0374",
+              "slip:0399",
+              "slip:0407",
+              "slip:0428",
+              "slip:0459",
+              "slip:0471",
+              "slip:0487",
+              "slip:0489"
+            ],
+            "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s08-SOURCES-e30d8950bfe1.m4a",
+              "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "SOURCES",
+              "offsets": [
+                {
+                  "ref": "slip:0374",
+                  "atMs": 1500
+                },
+                {
+                  "ref": "slip:0399",
+                  "atMs": 2100
+                },
+                {
+                  "ref": "slip:0407",
+                  "atMs": 2700
+                },
+                {
+                  "ref": "slip:0428",
+                  "atMs": 3300
+                },
+                {
+                  "ref": "slip:0459",
+                  "atMs": 3900
+                },
+                {
+                  "ref": "slip:0471",
+                  "atMs": 4500
+                },
+                {
+                  "ref": "slip:0487",
+                  "atMs": 5100
+                },
+                {
+                  "ref": "slip:0489",
+                  "atMs": 5700
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "HELP",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s09-HELP-091f4998832d.m4a",
+              "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "HELP",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "AI_NOTE",
+            "variant": "seeded",
+            "mentions": [],
+            "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s10-AI_NOTE-e11f2fda7915.m4a",
+              "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "AI_NOTE",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "case": "M-053 ceb, cash received (a receipt, dated)",
+      "memberNo": "M-053",
+      "lang": "ceb",
+      "state": "OFF_RAIL_PAID",
+      "cashDay": "2026-10-30",
+      "answer": {
+        "lineId": "016b10c3-dd35-7add-8510-1e9eb26ec7c2",
+        "memberNo": "M-053",
+        "lang": "ceb",
+        "source": "gemini",
+        "label": "Sintetikong tingog (Gemini TTS)",
+        "deviceLabel": "Tingog sa telepono",
+        "sentences": [
+          {
+            "slot": "GREETING",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s01-GREETING-06233f5976bd.m4a",
+              "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "GREETING",
+              "offsets": [
+                {
+                  "ref": "fact:HONORIFIC_NAME",
+                  "atMs": 700
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DELIVERY",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s02-DELIVERY-a67e86af0e24.m4a",
+              "textSha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "DELIVERY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PREMIUM",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s03-PREMIUM-5f170246d64d.m4a",
+              "textSha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "PREMIUM",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "BONUS",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s04-BONUS-33fb4c827084.m4a",
+              "textSha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "BONUS",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "DEDUCTION",
+            "variant": "default",
+            "mentions": ["rule:R1"],
+            "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s05-DEDUCTION-5a12cd17b7af.m4a",
+              "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "DEDUCTION",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "PAY",
+            "variant": "cash",
+            "mentions": [],
+            "textSha256": "036b5511787731c0dff55f165189fc0364e431ec4c5b1655df8cab4fe077fd2f",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s07-PAY-036b55117877.m4a",
+              "textSha256": "036b5511787731c0dff55f165189fc0364e431ec4c5b1655df8cab4fe077fd2f",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "PAY",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "SOURCES",
+            "variant": "default",
+            "mentions": [
+              "slip:0374",
+              "slip:0399",
+              "slip:0407",
+              "slip:0428",
+              "slip:0459",
+              "slip:0471",
+              "slip:0487",
+              "slip:0489"
+            ],
+            "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s08-SOURCES-e30d8950bfe1.m4a",
+              "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "SOURCES",
+              "offsets": [
+                {
+                  "ref": "slip:0374",
+                  "atMs": 1500
+                },
+                {
+                  "ref": "slip:0399",
+                  "atMs": 2100
+                },
+                {
+                  "ref": "slip:0407",
+                  "atMs": 2700
+                },
+                {
+                  "ref": "slip:0428",
+                  "atMs": 3300
+                },
+                {
+                  "ref": "slip:0459",
+                  "atMs": 3900
+                },
+                {
+                  "ref": "slip:0471",
+                  "atMs": 4500
+                },
+                {
+                  "ref": "slip:0487",
+                  "atMs": 5100
+                },
+                {
+                  "ref": "slip:0489",
+                  "atMs": 5700
+                }
+              ],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "HELP",
+            "variant": "default",
+            "mentions": [],
+            "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s09-HELP-091f4998832d.m4a",
+              "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "HELP",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          },
+          {
+            "slot": "AI_NOTE",
+            "variant": "seeded",
+            "mentions": [],
+            "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+            "clip": {
+              "url": "/media/audio/M-053/ceb/s10-AI_NOTE-e11f2fda7915.m4a",
+              "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+              "label": "Sintetikong tingog (Gemini TTS)",
+              "slot": "AI_NOTE",
+              "offsets": [],
+              "durationMs": 6000
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -12,6 +12,9 @@ import type { Lang } from "./statement.js";
  *   55 members.
  * - Film narration: ten spoken beats (plan, Demo video); S4.6 keeps Gemini finals to at most three a day
  *   on 6–8 Nov, with drafts on Kokoro.
+ * - Capacity (ADR-0014): the user's Gemini keys, round robin, each within its own free-tier limits, so a
+ *   day holds the per-key daily limit times the number of keys. Drafts and finals use the same model,
+ *   so drafts come out of the same per-key daily caps.
  */
 
 export interface PlannedRequest {
@@ -78,14 +81,35 @@ export interface RequestPlan {
   };
   /** Days at the self-imposed ledger cap, which is not a measured limit. */
   daysAtSelfImposedCap: { cap: number; approvedPlanStatements: number; registerFullPlanStatements: number };
+  /** The key pool's daily capacity (ADR-0014): each key's own limit, summed. */
+  pool: {
+    keys: number;
+    /** The recorded daily limit per key, or the self-imposed cap while none is recorded. */
+    perKeyDailyLimit: number;
+    poolDailyLimit: number;
+    draftsShareCaps: string;
+  };
   verdict: string;
 }
 
-export function requestPlan(dailyLimit: DailyLimit, selfImposedCap: number): RequestPlan {
+export function requestPlan(
+  dailyLimit: DailyLimit,
+  selfImposedCap: number,
+  opts: { keys?: number } = {},
+): RequestPlan {
+  const keys = opts.keys ?? 1;
+  if (!Number.isInteger(keys) || keys < 1)
+    throw new Error(`the key pool holds a whole number of keys: ${keys}`);
   const approved = APPROVED_STATEMENT_REQUESTS.length;
   const full = approved + REGISTER_OTHER_MEMBERS;
-  const known = dailyLimit.value;
+  const perKey = dailyLimit.value;
+  const known = perKey === null ? null : perKey * keys;
+  const rate = known === null ? "" : `${known} a day${keys > 1 ? ` (${keys} keys × ${perKey} each)` : ""}`;
   const minimum = Math.ceil(approved / STATEMENT_DAYS);
+  const atLeast =
+    keys > 1
+      ? `at least ${minimum} a day across the ${keys} keys (${Math.ceil(minimum / keys)} per key)`
+      : `at least ${minimum} a day`;
   return {
     requests: {
       approvedPlanStatements: approved,
@@ -103,14 +127,21 @@ export function requestPlan(dailyLimit: DailyLimit, selfImposedCap: number): Req
     },
     daysAtSelfImposedCap: {
       cap: selfImposedCap,
-      approvedPlanStatements: daysNeeded(approved, selfImposedCap),
-      registerFullPlanStatements: daysNeeded(full, selfImposedCap),
+      approvedPlanStatements: daysNeeded(approved, selfImposedCap * keys),
+      registerFullPlanStatements: daysNeeded(full, selfImposedCap * keys),
+    },
+    pool: {
+      keys,
+      perKeyDailyLimit: perKey ?? selfImposedCap,
+      poolDailyLimit: (perKey ?? selfImposedCap) * keys,
+      draftsShareCaps:
+        "drafts and finals both use the same model, so drafts come out of the same per-key daily caps",
     },
     verdict:
       known === null
-        ? `UNKNOWN: the daily limit has not been read. The approved plan needs ${approved} statement requests, so it fits 3–4 Nov only if the free tier allows at least ${minimum} a day; otherwise fall back to labelled Filipino audio or device speech.`
+        ? `UNKNOWN: the daily limit has not been read. The approved plan needs ${approved} statement requests, so it fits 3–4 Nov only if the free tier allows ${atLeast}; otherwise fall back to labelled Filipino audio or device speech.`
         : known >= minimum
-          ? `FITS: ${approved} statement requests at ${known} a day take ${daysNeeded(approved, known)} day(s) of the 2 planned.`
-          : `DOES NOT FIT: ${approved} statement requests at ${known} a day take ${daysNeeded(approved, known)} days, more than the 2 planned; the user chooses labelled device speech for the rest or a paid tier (S10 fallback).`,
+          ? `FITS: ${approved} statement requests at ${rate} take ${daysNeeded(approved, known)} day(s) of the 2 planned.`
+          : `DOES NOT FIT: ${approved} statement requests at ${rate} take ${daysNeeded(approved, known)} days, more than the 2 planned; the user chooses labelled device speech for the rest (S10 fallback).`,
   };
 }

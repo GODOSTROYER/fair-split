@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { REPO_ROOT, readBlueprint } from "../../../tools/lib/blueprint.js";
 import {
   childEnv,
   describeSkipped,
@@ -15,9 +18,25 @@ import {
 const opts = { source: "https://github.com/example/fair-split.git", dir: "/tmp/fs-verify/fair-split" };
 
 describe("tools/verify (clean-clone verification, gate G7)", () => {
-  it("plans clone, install, typecheck, test, build in that order", () => {
+  it("plans all keyless replay gates by default, including frozen install, biome ci and deps", () => {
     const steps = planVerify(opts);
-    expect(steps.map((s) => s.id)).toEqual(["clone", "install", "typecheck", "test", "build"]);
+    expect(steps.map((s) => s.id)).toEqual([
+      "clone",
+      "install",
+      "typecheck",
+      "lint",
+      "deps:check",
+      "test",
+      "build",
+    ]);
+    expect(steps.find((s) => s.id === "lint")).toMatchObject({
+      command: "corepack",
+      args: ["pnpm", "exec", "biome", "ci", "."],
+    });
+    expect(steps.find((s) => s.id === "deps:check")).toMatchObject({
+      command: "corepack",
+      args: ["pnpm", "deps:check"],
+    });
     expect(steps[0]).toMatchObject({
       command: "git",
       args: ["clone", "--quiet", "--no-hardlinks", opts.source, opts.dir],
@@ -26,9 +45,34 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
     expect(steps[1]).toMatchObject({ command: "corepack", args: ["pnpm", "install", "--frozen-lockfile"] });
   });
 
-  it("checks out a ref and adds lint when asked", () => {
+  it("checks out a ref and retains the legacy --lint option without duplicating lint", () => {
     const ids = planVerify({ ...opts, ref: "abc123", lint: true }).map((s) => s.id);
-    expect(ids).toEqual(["clone", "checkout", "install", "typecheck", "lint", "test", "build"]);
+    expect(ids).toEqual(["clone", "checkout", "install", "typecheck", "lint", "deps:check", "test", "build"]);
+  });
+
+  it("publishes the root verification aliases", () => {
+    const root = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
+    expect(root.scripts.verify).toBe("tsx tools/verify.ts");
+    expect(root.scripts["verify-proof"]).toBe("tsx tools/verify-proof.ts");
+  });
+
+  it("ignores the local verification scratch directory", () => {
+    const ignored = readFileSync(join(REPO_ROOT, ".gitignore"), "utf8").split(/\r?\n/);
+    expect(ignored).toContain(".codex-scratch/");
+  });
+
+  it.each(["lint", "deps:check"] as const)("stops at a failing %s gate before tests", (gate) => {
+    const seen: string[] = [];
+    const rs = runVerify(opts, {
+      runner: (step) => {
+        seen.push(step.id);
+        return { exitCode: step.id === gate ? 1 : 0, output: "verification mismatch" };
+      },
+      env: {},
+    });
+    expect(rs.at(-1)).toMatchObject({ id: gate, ok: false, exitCode: 1 });
+    expect(seen).not.toContain("test");
+    expect(seen).not.toContain("build");
   });
 
   it("stops at the first failure and keeps the failing output tail", () => {
@@ -90,8 +134,10 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
       "PAYPAL_CLIENT_SECRET",
       "KILL_PAYOUTS",
       "CRON_SECRET",
-      "COOKIE_KEY",
-      "OPS_PASSWORD_SCRYPT",
+      "FS_COOKIE_SECRET",
+      "FS_LINK_SIGNING_KEY",
+      "FS_LEDGER_SIGNING_KEY",
+      "FS_OPERATOR_PASSWORD_SCRYPT",
       "JUDGE_CODE_SHA256",
       "EXPO_PUSH_TOKEN",
       "PGPASSWORD",
@@ -120,6 +166,25 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
     );
   });
 
+  it("drops every secret and app setting render.yaml declares, so a clean clone never sees a deploy's values", () => {
+    let checked = 0;
+    for (const s of readBlueprint().services ?? [])
+      for (const v of s.envVars ?? []) {
+        const key = v.key ?? "";
+        if (
+          v.sync === false ||
+          v.generateValue ||
+          v.fromDatabase ||
+          v.fromService ||
+          /^(PP_|FS_)/.test(key)
+        ) {
+          expect(isDroppedEnv(key), `${s.name}.${key}`).toBe(true);
+          checked++;
+        }
+      }
+    expect(checked).toBeGreaterThan(15);
+  });
+
   it("--db reaches only the test step, as FS_TEST_DATABASE_URL, and never appears in what it reports", () => {
     const db = ["postgres://verify", "not-a-real-password@localhost:5432/fs"].join(":");
     const seen: Record<string, string | undefined> = {};
@@ -135,7 +200,14 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
         env: { FS_TEST_DATABASE_URL: "postgres://developer-own/db" },
       },
     );
-    expect(seen).toEqual({ clone: undefined, install: undefined, typecheck: undefined, test: db });
+    expect(seen).toEqual({
+      clone: undefined,
+      install: undefined,
+      typecheck: undefined,
+      lint: undefined,
+      "deps:check": undefined,
+      test: db,
+    });
     expect(JSON.stringify(rs)).not.toContain("not-a-real-password");
     expect(rs.at(-1)?.tail).toBe("connect <--db> refused: password <--db> rejected");
   });
@@ -178,6 +250,7 @@ describe("tools/verify (clean-clone verification, gate G7)", () => {
   });
 
   it("parses CLI flags", () => {
+    expect(parseArgs([]).lint).toBe(true);
     expect(parseArgs(["--source=../x", "--ref=main", "--dir=out", "--keep", "--lint", "--json"])).toEqual({
       source: "../x",
       ref: "main",
@@ -199,5 +272,35 @@ describe("resolveCommand", () => {
     expect(args.slice(-2)).toEqual(["pnpm", "test"]);
     expect(args[0]?.replaceAll("\\", "/")).toMatch(/corepack\/dist\/corepack\.js$/);
     expect(resolveCommand("git", ["status"])).toEqual(["git", ["status"]]);
+  });
+
+  // Windows installs corepack beside node.exe; Linux and macOS tarballs put it under ../lib/node_modules.
+  it("finds corepack.js in each platform's Node layout", () => {
+    const found = (platform: NodeJS.Platform, execPath: string) => {
+      const seen: string[] = [];
+      const exists = (p: string) => {
+        seen.push(p.replaceAll("\\", "/"));
+        return seen.length === 1;
+      };
+      const [cmd, args] = resolveCommand("corepack", ["pnpm", "test"], { platform, execPath, exists });
+      return { cmd, js: args[0]?.replaceAll("\\", "/"), rest: args.slice(1), seen };
+    };
+    const win = found("win32", "C:\\Program Files\\nodejs\\node.exe");
+    expect(win.cmd).toBe("C:\\Program Files\\nodejs\\node.exe");
+    expect(win.js).toBe("C:/Program Files/nodejs/node_modules/corepack/dist/corepack.js");
+    expect(win.rest).toEqual(["pnpm", "test"]);
+    for (const platform of ["linux", "darwin"] as const) {
+      const unix = found(platform, "/opt/hostedtoolcache/node/24.19.0/x64/bin/node");
+      expect(unix.cmd).toBe("/opt/hostedtoolcache/node/24.19.0/x64/bin/node");
+      expect(unix.js).toBe(
+        "/opt/hostedtoolcache/node/24.19.0/x64/lib/node_modules/corepack/dist/corepack.js",
+      );
+      expect(unix.rest).toEqual(["pnpm", "test"]);
+    }
+  });
+
+  it("falls back to the bare command when this Node ships no corepack", () => {
+    const host = { platform: "linux" as const, execPath: "/usr/bin/node", exists: () => false };
+    expect(resolveCommand("corepack", ["pnpm"], host)).toEqual(["corepack", ["pnpm"]]);
   });
 });

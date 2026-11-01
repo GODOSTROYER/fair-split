@@ -1,0 +1,93 @@
+{
+  "case": "spike-0471",
+  "set": "dev",
+  "kind": "slip_page",
+  "image": "masters/spike-0471.jpg",
+  "fixture": "fixtures/spike-0471.json",
+  "slips": [
+    {
+      "slot": "ONLY",
+      "serial": "0471",
+      "copy": "WHITE_ORIGINAL",
+      "fields": {
+        "serial": {
+          "value": "0471",
+          "visible": "0471",
+          "expect": "AUTO"
+        },
+        "date": {
+          "value": "7/9/26",
+          "visible": "7/9/26",
+          "expect": "AUTO"
+        },
+        "member_no": {
+          "value": "M-053",
+          "visible": "M-053",
+          "expect": "AUTO"
+        },
+        "member_name": {
+          "value": "MERLYN PONCE",
+          "visible": "MERLYN PONCE",
+          "expect": "AUTO"
+        },
+        "plot_no": {
+          "value": "P-053-B",
+          "visible": "P-053-B",
+          "expect": "AUTO"
+        },
+        "sacks": {
+          "value": "1 PP",
+          "visible": "1 PP",
+          "expect": "AUTO"
+        },
+        "gross_kg": {
+          "value": "41.50",
+          "visible": "41.50",
+          "expect": "AUTO"
+        },
+        "tare_kg": {
+          "value": "0.30",
+          "visible": "0.30",
+          "expect": "AUTO"
+        },
+        "net_kg": {
+          "value": "41.20",
+          "visible": "41.20",
+          "expect": "AUTO"
+        },
+        "mc_pct": {
+          "value": "6.2",
+          "visible": "6.2",
+          "expect": "AUTO"
+        },
+        "mc_less_kg": {
+          "value": "0.00",
+          "visible": "0.00",
+          "expect": "AUTO"
+        },
+        "payable_kg": {
+          "value": "41.20",
+          "visible": "41.20",
+          "expect": "AUTO"
+        },
+        "grade": {
+          "value": "G1",
+          "visible": "G1",
+          "expect": "AUTO"
+        },
+        "clerk_initials": {
+          "value": "JD",
+          "visible": "JD",
+          "expect": "AUTO"
+        }
+      },
+      "deductions": [],
+      "traps": ["IMPLAUSIBLE_YIELD"],
+      "duplicate_of": null,
+      "injection": null
+    }
+  ],
+  "rate_card": null,
+  "reviewer": "Claude (WS-MEDIA agent), visual check; the user's label review is still required",
+  "reviewed_at": "2026-10-22T12:40:00.000Z"
+}

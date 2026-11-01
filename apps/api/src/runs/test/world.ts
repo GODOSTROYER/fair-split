@@ -18,6 +18,11 @@ export interface SeedWorldOptions {
   runState?: PayRunState;
   /** Whether slip 0462 waits for a person (true, the read checkpoint) or was entered by hand already. */
   pending0462?: boolean;
+  /**
+   * Whether the replay photos' (A–L) rows are written up front (true, the default) or left for the `extract`
+   * task to read, as in a judge clone (judge/world.ts): false writes only the earlier photos' rows.
+   */
+  replayRows?: boolean;
   /** The invoice at PayPal (id, sent): for INVOICED and later. */
   invoice?: {
     paypalInvoiceId: string;
@@ -175,9 +180,10 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
   );
 
   // Evidence: the 66 photos and their 264 slip rows (seeded facts; only 0462's kilos wait for a person). A
-  // real world has none: its card was ratified now, after every seeded slip date (I2).
+  // real world has none: its card was ratified now, after every seeded slip date (I2). Without `replayRows`
+  // the replay photos are there but unread, as in a judge clone.
   const photos = real ? [] : s.photos;
-  const slips = real ? [] : s.slips;
+  const slips = real ? [] : s.slips.filter((x) => (o.replayRows ?? true) || !x.replaySet);
   const docs =
     photos.length === 0
       ? []
@@ -274,7 +280,8 @@ export async function seedWorld(db: Db, o: SeedWorldOptions = {}): Promise<SeedW
           slipRowId: schema.slipFields.slipRowId,
         });
   const row0462 = slipRow.get("0462:WHITE_ORIGINAL") as string;
-  const f = (name: string) => fields.find((x) => x.slipRowId === row0462 && x.field === name)?.id as string;
+  // "" until the reading writes slip 0462 (replayRows: false); runs/test/app.ts `readSlips` fills them in then
+  const f = (name: string) => fields.find((x) => x.slipRowId === row0462 && x.field === name)?.id ?? "";
   const marks = slips.flatMap((x) =>
     x.marks.map((m) => ({
       workspaceId,

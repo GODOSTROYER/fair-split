@@ -25,8 +25,11 @@ useMswServer();
 
 const DAY = 86_400_000;
 const MINUTE = 60_000;
-const pki = createTestPki();
-const leaf = pki.issueLeaf();
+// Some tests pin the clock to 29 Oct 2026. Date the test certificates from before
+// that day, so they stay valid at the pinned clock whatever today is.
+const VALID_FROM = new Date(Date.parse("2026-10-01T00:00:00Z"));
+const pki = createTestPki({ notBefore: VALID_FROM });
+const leaf = pki.issueLeaf({ notBefore: VALID_FROM });
 const pems = new Map<string, string>();
 let certFetches = 0;
 

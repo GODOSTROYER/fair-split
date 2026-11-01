@@ -1,0 +1,1002 @@
+{
+  "v": 2,
+  "id": "J",
+  "group": "replay-composed",
+  "synthetic": true,
+  "image": {
+    "master": "photos/J.webp",
+    "display": "photos/J.webp",
+    "width": 1200,
+    "height": 1600,
+    "sha256": "93498d0adbc5d3f977b461102c3a8e0417ea1c824bf19f8d2dc811f5a52d7775"
+  },
+  "review": {
+    "status": "draft",
+    "method": "Source fixture crops projected by recorded homographies; code-drawn boxes from slip-v1.json",
+    "reviewer": null,
+    "reviewedAt": null,
+    "notes": [
+      "Composition has no human review or live Claude reading. Hero-flat text is retained; manifest lists differences from seed. Behavioural traps have not been tested on these compositions."
+    ],
+    "cropIssues": [],
+    "session": null
+  },
+  "kind": "slip_photo",
+  "template": "slip-v1",
+  "slips": [
+    {
+      "slot": "TL",
+      "serial": "0453",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.07251410679930839,
+          0.0716050460770006
+        ],
+        [
+          0.4692894909252456,
+          0.08161956979706224
+        ],
+        [
+          0.4574858932006916,
+          0.4783949539229995
+        ],
+        [
+          0.06071050907475442,
+          0.46838043020293785
+        ]
+      ],
+      "rect": {
+        "x1": 0.06071050907475442,
+        "y1": 0.0716050460770006,
+        "x2": 0.4692894909252456,
+        "y2": 0.4783949539229995
+      },
+      "fields": {
+        "serial": {
+          "x1": 0.3883999463958661,
+          "y1": 0.11532644962438426,
+          "x2": 0.4483883979237388,
+          "y2": 0.132699643547431,
+          "value": "0453",
+          "requested": "0453",
+          "visible": "0453",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "date": {
+          "x1": 0.21098504142365615,
+          "y1": 0.1382474880736465,
+          "x2": 0.4436061958394852,
+          "y2": 0.1611673259672979,
+          "value": "6/29/26",
+          "requested": "6/29/26",
+          "visible": "6/29/26",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "member_no": {
+          "x1": 0.21046568312377578,
+          "y1": 0.15530882959106182,
+          "x2": 0.4430986411373294,
+          "y2": 0.1786254428688391,
+          "value": "M-024",
+          "requested": "M-024",
+          "visible": "M-024",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "member_name": {
+          "x1": 0.20995812842161996,
+          "y1": 0.17276694649260305,
+          "x2": 0.442579282837449,
+          "y2": 0.19568678438625442,
+          "value": "MANUEL FLORES",
+          "requested": "MANUEL FLORES",
+          "visible": "MANUEL FLORES",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "plot_no": {
+          "x1": 0.20945057371946413,
+          "y1": 0.18982828801001833,
+          "x2": 0.4420717281352932,
+          "y2": 0.21274812590366973,
+          "value": "P-024-B",
+          "requested": "P-024-B",
+          "visible": "P-024-B",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "sacks": {
+          "x1": 0.20893121541958376,
+          "y1": 0.20688962952743364,
+          "x2": 0.4415641734331374,
+          "y2": 0.23020624280521096,
+          "value": "1 PP",
+          "requested": "1 PP",
+          "visible": "1 PP",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "gross_kg": {
+          "x1": 0.20842366071742793,
+          "y1": 0.22434774642897487,
+          "x2": 0.44104481513325705,
+          "y2": 0.24726758432262627,
+          "value": "38.90",
+          "requested": "38.90",
+          "visible": "38.90",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "tare_kg": {
+          "x1": 0.20789249881982302,
+          "y1": 0.24140908794639018,
+          "x2": 0.44053726043110114,
+          "y2": 0.2651224766082935,
+          "value": "0.30",
+          "requested": "0.30",
+          "visible": "0.30",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "net_kg": {
+          "x1": 0.20734953332449352,
+          "y1": 0.2592639802320574,
+          "x2": 0.4400060985334962,
+          "y2": 0.2833741442780866,
+          "value": "38.60",
+          "requested": "38.60",
+          "visible": "38.60",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "mc_pct": {
+          "x1": 0.20680656782916404,
+          "y1": 0.27751564790185046,
+          "x2": 0.4394631330381668,
+          "y2": 0.3016258119478797,
+          "value": "6.2",
+          "requested": "6.2",
+          "visible": "6.2",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "mc_less_kg": {
+          "x1": 0.20626360233383456,
+          "y1": 0.2957673155716436,
+          "x2": 0.4389201675428373,
+          "y2": 0.3198774796176728,
+          "value": "0.00",
+          "requested": "0.00",
+          "visible": "0.00",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "payable_kg": {
+          "x1": 0.20573244043622962,
+          "y1": 0.31401898324143673,
+          "x2": 0.4383772020475078,
+          "y2": 0.33773237190334,
+          "value": "38.60",
+          "requested": "38.60",
+          "visible": "38.60",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "grade": {
+          "x1": 0.2051776713431756,
+          "y1": 0.3318738755271039,
+          "x2": 0.43784604014990286,
+          "y2": 0.356380814957259,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "clerk_initials": {
+          "x1": 0.3176221340448464,
+          "y1": 0.3982621488660717,
+          "x2": 0.43595746451397427,
+          "y2": 0.44446495023321714,
+          "value": "JD",
+          "requested": "JD",
+          "visible": "JD",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        }
+      },
+      "deductions": [
+        {
+          "x1": 0.20465241124443295,
+          "y1": 0.3505223185810229,
+          "x2": 0.4372912710568488,
+          "y2": 0.3740373195508632,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        {
+          "x1": 0.2041271511456903,
+          "y1": 0.36817882317462713,
+          "x2": 0.43676601095810613,
+          "y2": 0.39169382414446746,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        }
+      ],
+      "signature": {
+        "x1": 0.0847149835629213,
+        "y1": 0.3923836234423955,
+        "x2": 0.30621191390479274,
+        "y2": 0.4411902009767569,
+        "value": "SIGNED",
+        "requested": "SIGNED",
+        "visible": "SIGNED",
+        "legibility": "UNVERIFIED",
+        "expect": "AUTO",
+        "checkedBy": null
+      },
+      "anomalies": [],
+      "traps": [],
+      "trapChecks": [],
+      "duplicateOf": null
+    },
+    {
+      "slot": "TR",
+      "serial": "0454",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.5282421835902602,
+          0.07951965887406146
+        ],
+        [
+          0.9251626480464744,
+          0.07355987666972456
+        ],
+        [
+          0.9417578164097399,
+          0.4704803411259387
+        ],
+        [
+          0.5448373519535257,
+          0.4764401233302755
+        ]
+      ],
+      "rect": {
+        "x1": 0.5282421835902602,
+        "y1": 0.07355987666972456,
+        "x2": 0.9417578164097399,
+        "y2": 0.4764401233302755
+      },
+      "fields": {
+        "serial": {
+          "x1": 0.8472721203079255,
+          "y1": 0.10958070758100068,
+          "x2": 0.9074739967108881,
+          "y2": 0.1263514934898998,
+          "value": "0454",
+          "requested": "0454",
+          "visible": "0454",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "date": {
+          "x1": 0.6717875802419754,
+          "y1": 0.1370278174505228,
+          "x2": 0.904699644188481,
+          "y2": 0.15758187001167712,
+          "value": "6/29/26",
+          "requested": "6/29/26",
+          "visible": "6/29/26",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "member_no": {
+          "x1": 0.6725011724815958,
+          "y1": 0.15409539742214004,
+          "x2": 0.9054298315964647,
+          "y2": 0.1750463704477505,
+          "value": "M-063",
+          "requested": "M-063",
+          "visible": "M-063",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "member_name": {
+          "x1": 0.6732313598895795,
+          "y1": 0.17155989785821343,
+          "x2": 0.9061434238360851,
+          "y2": 0.1921139504193677,
+          "value": "JAIME MANLANGIT",
+          "requested": "JAIME MANLANGIT",
+          "visible": "JAIME MANLANGIT",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "plot_no": {
+          "x1": 0.6739449521291999,
+          "y1": 0.18862747782983066,
+          "x2": 0.9068570160757056,
+          "y2": 0.20918153039098494,
+          "value": "P-063-A",
+          "requested": "P-063-A",
+          "visible": "P-063-A",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "sacks": {
+          "x1": 0.6746585443688203,
+          "y1": 0.20569505780144787,
+          "x2": 0.9075872034836893,
+          "y2": 0.22664603082705836,
+          "value": "1 PP",
+          "requested": "1 PP",
+          "visible": "1 PP",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "gross_kg": {
+          "x1": 0.675388731776804,
+          "y1": 0.2231595582375213,
+          "x2": 0.9083007957233097,
+          "y2": 0.24371361079867557,
+          "value": "44.30",
+          "requested": "44.30",
+          "visible": "44.30",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "tare_kg": {
+          "x1": 0.6761023240164243,
+          "y1": 0.2402271382091385,
+          "x2": 0.9090475782996567,
+          "y2": 0.2615750316992052,
+          "value": "0.30",
+          "requested": "0.30",
+          "visible": "0.30",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "net_kg": {
+          "x1": 0.6768491065927713,
+          "y1": 0.25808855910966816,
+          "x2": 0.9098109560443669,
+          "y2": 0.2798333730641911,
+          "value": "44.00",
+          "requested": "44.00",
+          "visible": "44.00",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "mc_pct": {
+          "x1": 0.6776124843374816,
+          "y1": 0.276346900474654,
+          "x2": 0.9105743337890772,
+          "y2": 0.2980917144291769,
+          "value": "6.2",
+          "requested": "6.2",
+          "visible": "6.2",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "mc_less_kg": {
+          "x1": 0.6783758620821918,
+          "y1": 0.2946052418396399,
+          "x2": 0.9113377115337873,
+          "y2": 0.31635005579416275,
+          "value": "0.00",
+          "requested": "0.00",
+          "visible": "0.00",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "payable_kg": {
+          "x1": 0.679139239826902,
+          "y1": 0.31286358320462565,
+          "x2": 0.9120844941101341,
+          "y2": 0.3342114766946923,
+          "value": "44.00",
+          "requested": "44.00",
+          "visible": "44.00",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "grade": {
+          "x1": 0.6798860224032489,
+          "y1": 0.3307250041051553,
+          "x2": 0.9128644670232077,
+          "y2": 0.3528667385241344,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "clerk_initials": {
+          "x1": 0.7976481840336735,
+          "y1": 0.3942322784181496,
+          "x2": 0.9165485943998527,
+          "y2": 0.43925474479415627,
+          "value": "JD",
+          "requested": "JD",
+          "visible": "JD",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        }
+      },
+      "deductions": [
+        {
+          "x1": 0.6806659953163224,
+          "y1": 0.3493802659345974,
+          "x2": 0.913602952015373,
+          "y2": 0.37052969919243595,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        {
+          "x1": 0.6814044803084878,
+          "y1": 0.36704322660289895,
+          "x2": 0.9143414370075383,
+          "y2": 0.3881926598607375,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        }
+      ],
+      "signature": {
+        "x1": 0.5646558713978759,
+        "y1": 0.3961811271989677,
+        "x2": 0.7867556025226705,
+        "y2": 0.44275313694810203,
+        "value": "SIGNED",
+        "requested": "SIGNED",
+        "visible": "SIGNED",
+        "legibility": "UNVERIFIED",
+        "expect": "AUTO",
+        "checkedBy": null
+      },
+      "anomalies": [],
+      "traps": [],
+      "trapChecks": [],
+      "duplicateOf": null
+    },
+    {
+      "slot": "BL",
+      "serial": "0462",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.05806496508514186,
+          0.5396236382311567
+        ],
+        [
+          0.4549799332879594,
+          0.5334613935660261
+        ],
+        [
+          0.4719350349148581,
+          0.9303763617688436
+        ],
+        [
+          0.07502006671204058,
+          0.9365386064339739
+        ]
+      ],
+      "rect": {
+        "x1": 0.05806496508514186,
+        "y1": 0.5334613935660261,
+        "x2": 0.4719350349148581,
+        "y2": 0.9365386064339739
+      },
+      "fields": {
+        "serial": {
+          "x1": 0.3742733987764267,
+          "y1": 0.568637358506102,
+          "x2": 0.4302708440077155,
+          "y2": 0.5796612165813233,
+          "value": "0462",
+          "requested": "0462",
+          "visible": "0462",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "date": {
+          "x1": 0.21868317928437025,
+          "y1": 0.604888099185283,
+          "x2": 0.43579390791104816,
+          "y2": 0.6243281297496478,
+          "value": "07/15/2026",
+          "requested": "07/15/2026",
+          "visible": "07/15/2026",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_no": {
+          "x1": 0.21951644813503807,
+          "y1": 0.621583847543224,
+          "x2": 0.43648211440879753,
+          "y2": 0.6409404564489244,
+          "value": "M-060",
+          "requested": "M-060",
+          "visible": "M-060",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "member_name": {
+          "x1": 0.22039850124907645,
+          "y1": 0.6381722575896186,
+          "x2": 0.4371731126041841,
+          "y2": 0.6576767514268326,
+          "value": "ARNEL SUMAMPAO",
+          "requested": "ARNEL SUMAMPAO",
+          "visible": "ARNEL SUMAMPAO",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "plot_no": {
+          "x1": 0.2212669755560666,
+          "y1": 0.6555242540449017,
+          "x2": 0.43791987825240986,
+          "y2": 0.6745366659296073,
+          "value": "P-060-A",
+          "requested": "P-060-A",
+          "visible": "P-060-A",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "sacks": {
+          "x1": 0.22212482854626484,
+          "y1": 0.6726734626431606,
+          "x2": 0.438607019536833,
+          "y2": 0.6911962986743527,
+          "value": "1 PP",
+          "requested": "1 PP",
+          "visible": "1 PP",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "gross_kg": {
+          "x1": 0.22295039178517623,
+          "y1": 0.6892110560696034,
+          "x2": 0.4393757682427437,
+          "y2": 0.7088930595502765,
+          "value": "64.80",
+          "requested": "6?.80",
+          "visible": "6?.80",
+          "legibility": "SMUDGED",
+          "expect": "HUMAN",
+          "checkedBy": "agent"
+        },
+        "tare_kg": {
+          "x1": 0.22387499749822892,
+          "y1": 0.7065950254247079,
+          "x2": 0.4400667431254132,
+          "y2": 0.7257450057360653,
+          "value": "0.30",
+          "requested": "0.30",
+          "visible": "0.30",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "net_kg": {
+          "x1": 0.2247158383188998,
+          "y1": 0.7234145354224163,
+          "x2": 0.4408400618119187,
+          "y2": 0.7436702021559144,
+          "value": "64.50",
+          "requested": "6?.50",
+          "visible": "6?.50",
+          "legibility": "SMUDGED",
+          "expect": "HUMAN",
+          "checkedBy": "agent"
+        },
+        "mc_pct": {
+          "x1": 0.22558222264008235,
+          "y1": 0.7407106476282778,
+          "x2": 0.44160903372703303,
+          "y2": 0.7614790188579283,
+          "value": "7.0",
+          "requested": "7.0",
+          "visible": "7.0",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "mc_less_kg": {
+          "x1": 0.22652740590070047,
+          "y1": 0.758478423787616,
+          "x2": 0.44229826788729804,
+          "y2": 0.7783605494517791,
+          "value": "0.00",
+          "requested": "0.00",
+          "visible": "0.00",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "payable_kg": {
+          "x1": 0.22737028092389555,
+          "y1": 0.7753270578716056,
+          "x2": 0.44305760248110104,
+          "y2": 0.7958977357749398,
+          "value": "64.50",
+          "requested": "64.50",
+          "visible": "64.50",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "grade": {
+          "x1": 0.22825016159893247,
+          "y1": 0.7928687132042692,
+          "x2": 0.4437617691400181,
+          "y2": 0.8133664110898644,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        "clerk_initials": {
+          "x1": 0.30474668779489267,
+          "y1": 0.8463348625789475,
+          "x2": 0.43756986174456264,
+          "y2": 0.8926399428601026,
+          "value": "JD",
+          "requested": "JD",
+          "visible": "JD",
+          "legibility": "CLEAR",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      },
+      "deductions": [
+        {
+          "x1": 0.2291195046208479,
+          "y1": 0.8102085904813654,
+          "x2": 0.4443888012964865,
+          "y2": 0.8281391064208158,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        },
+        {
+          "x1": 0.22989778450418455,
+          "y1": 0.8248341597503902,
+          "x2": 0.444972305783258,
+          "y2": 0.8413962172907019,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "ABSENT",
+          "expect": "AUTO",
+          "checkedBy": "agent"
+        }
+      ],
+      "signature": {
+        "x1": 0.10651160174637445,
+        "y1": 0.8492977268224187,
+        "x2": 0.29611056452699175,
+        "y2": 0.8979010909002284,
+        "value": "SIGNED",
+        "requested": "SIGNED",
+        "visible": "SIGNED",
+        "legibility": "CLEAR",
+        "expect": "AUTO",
+        "checkedBy": "agent"
+      },
+      "anomalies": [],
+      "traps": [
+        "WATER_STAIN"
+      ],
+      "trapChecks": [
+        {
+          "trap": "WATER_STAIN",
+          "status": "UNVERIFIED",
+          "by": null,
+          "at": null,
+          "evidence": ""
+        }
+      ],
+      "duplicateOf": null
+    },
+    {
+      "slot": "BR",
+      "serial": "0463",
+      "copy": "WHITE_ORIGINAL",
+      "quad": [
+        [
+          0.5424489263469995,
+          0.5316392115762982
+        ],
+        [
+          0.939227508559498,
+          0.5415822062112032
+        ],
+        [
+          0.9275510736530005,
+          0.9383607884237017
+        ],
+        [
+          0.530772491440502,
+          0.9284177937887967
+        ]
+      ],
+      "rect": {
+        "x1": 0.530772491440502,
+        "y1": 0.5316392115762982,
+        "x2": 0.939227508559498,
+        "y2": 0.9383607884237017
+      },
+      "fields": {
+        "serial": {
+          "x1": 0.8583538555791537,
+          "y1": 0.5753036796833471,
+          "x2": 0.9183377003072883,
+          "y2": 0.5926662721670828,
+          "value": "0463",
+          "requested": "0463",
+          "visible": "0463",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "date": {
+          "x1": 0.680946683181324,
+          "y1": 0.5982567692434768,
+          "x2": 0.9135642404766149,
+          "y2": 0.6211349001400336,
+          "value": "7/4/26",
+          "requested": "7/4/26",
+          "visible": "7/4/26",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "member_no": {
+          "x1": 0.680432920045438,
+          "y1": 0.6153182482786141,
+          "x2": 0.9130621537756356,
+          "y2": 0.6385931577573836,
+          "value": "M-037",
+          "requested": "M-037",
+          "visible": "M-037",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "member_name": {
+          "x1": 0.6799308333444587,
+          "y1": 0.6327765058959641,
+          "x2": 0.9125483906397497,
+          "y2": 0.655654636792521,
+          "value": "WILFREDO QUIÑONES",
+          "requested": "WILFREDO QUIÑONES",
+          "visible": "WILFREDO QUIÑONES",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "plot_no": {
+          "x1": 0.6794287466434793,
+          "y1": 0.6498379849311016,
+          "x2": 0.9120463039387703,
+          "y2": 0.6727161158276584,
+          "value": "P-037-A",
+          "requested": "P-037-A",
+          "visible": "P-037-A",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "sacks": {
+          "x1": 0.6789149835075934,
+          "y1": 0.666899463966239,
+          "x2": 0.9115442172377909,
+          "y2": 0.6901743734450083,
+          "value": "1 PP",
+          "requested": "1 PP",
+          "visible": "1 PP",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "gross_kg": {
+          "x1": 0.678412896806614,
+          "y1": 0.684357721583589,
+          "x2": 0.911030454101905,
+          "y2": 0.7072358524801459,
+          "value": "37.35",
+          "requested": "37.35",
+          "visible": "37.35",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "tare_kg": {
+          "x1": 0.6778874572358216,
+          "y1": 0.7014192006187263,
+          "x2": 0.9105283674009256,
+          "y2": 0.7250908886797083,
+          "value": "0.30",
+          "requested": "0.30",
+          "visible": "0.30",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "net_kg": {
+          "x1": 0.6773503412301227,
+          "y1": 0.7192742368182888,
+          "x2": 0.9100029278301331,
+          "y2": 0.7433427034614832,
+          "value": "37.05",
+          "requested": "37.05",
+          "visible": "37.05",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "mc_pct": {
+          "x1": 0.6768132252244239,
+          "y1": 0.7375260516000637,
+          "x2": 0.9094658118244343,
+          "y2": 0.7615945182432582,
+          "value": "6.7",
+          "requested": "6.7",
+          "visible": "6.7",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "mc_less_kg": {
+          "x1": 0.6762761092187249,
+          "y1": 0.7557778663818386,
+          "x2": 0.9089286958187355,
+          "y2": 0.779846333025033,
+          "value": "0.00",
+          "requested": "0.00",
+          "visible": "0.00",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "payable_kg": {
+          "x1": 0.6757506696479325,
+          "y1": 0.7740296811636136,
+          "x2": 0.9083915798130365,
+          "y2": 0.7977013692245956,
+          "value": "37.05",
+          "requested": "37.05",
+          "visible": "37.05",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "grade": {
+          "x1": 0.6752018772073272,
+          "y1": 0.791884717363176,
+          "x2": 0.9078661402422441,
+          "y2": 0.8163499625885828,
+          "value": "G1",
+          "requested": "G1",
+          "visible": "G1",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        "clerk_initials": {
+          "x1": 0.7876754974997093,
+          "y1": 0.8582527589612983,
+          "x2": 0.9059979106572046,
+          "y2": 0.9044348078397576,
+          "value": "JD",
+          "requested": "JD",
+          "visible": "JD",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        }
+      },
+      "deductions": [
+        {
+          "x1": 0.6746822758539881,
+          "y1": 0.8105333107271635,
+          "x2": 0.9073173478016388,
+          "y2": 0.8340066094970391,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        },
+        {
+          "x1": 0.6741626745006489,
+          "y1": 0.8281899576356196,
+          "x2": 0.9067977464482997,
+          "y2": 0.8516632564054953,
+          "value": "",
+          "requested": "",
+          "visible": "",
+          "legibility": "UNVERIFIED",
+          "expect": "AUTO",
+          "checkedBy": null
+        }
+      ],
+      "signature": {
+        "x1": 0.5547664697409727,
+        "y1": 0.852416221110609,
+        "x2": 0.7762513142737175,
+        "y2": 0.9011834485941437,
+        "value": "SIGNED",
+        "requested": "SIGNED",
+        "visible": "SIGNED",
+        "legibility": "UNVERIFIED",
+        "expect": "AUTO",
+        "checkedBy": null
+      },
+      "anomalies": [],
+      "traps": [],
+      "trapChecks": [],
+      "duplicateOf": null
+    }
+  ]
+}

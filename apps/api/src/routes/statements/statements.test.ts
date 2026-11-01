@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { commitmentSalt } from "../../ledger/commitments.js";
 import { loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
 import { REVIEW_LEDGER_KIND, type ReviewOpening } from "../../statements/review.js";
-import { TEMPLATES_V1 } from "../../statements/templates.js";
+import { REVIEW_CHIP, TEMPLATES_V1 } from "../../statements/templates.js";
 import type { StatementView } from "../../statements/view.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
 
@@ -110,6 +110,101 @@ describe("GET /v1/statements/:lineId", () => {
     const r = await t.json<ApiError>(`/v1/statements/${line("M-014")}`, { as: t.credentials.bearer(link) });
     expect(r.status).toBe(401);
     expect(r.body.code).toBe("FRAME_TOKEN_EXPIRED");
+  });
+
+  it("T1: the showcase's seeded readings take the demo AI_NOTE (chipped in Cebuano); the Claude claim never shows", async () => {
+    const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
+    for (const lang of ["ceb", "fil", "en"] as const) {
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-014")}?lang=${lang}`, {
+        as: t.credentials.bearer(link),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBe("seeded");
+      const want = must(TEMPLATES_V1[lang]["AI_NOTE.seeded"]).replace("{{TREASURER}}", "Analyn");
+      for (const s of [...r.body.display, ...r.body.spoken].filter((x) => x.slot === "AI_NOTE")) {
+        expect(s.variant).toBe("seeded");
+        expect(s.text).toBe(want);
+      }
+      expect(r.body.display.map((s) => s.text).join(" ")).not.toContain("AI (Claude)");
+      expect(r.body.reviewChip).toBe(lang === "en" ? null : REVIEW_CHIP);
+    }
+  });
+
+  it("T1: a line whose slips Claude read live keeps the product AI_NOTE (M-031)", async () => {
+    const ownRows = and(
+      eq(schema.slipRows.workspaceId, w.workspaceId),
+      eq(schema.slipRows.memberId, memberId("M-031")),
+    );
+    await t.deps.db.update(schema.slipRows).set({ provenance: "live" }).where(ownRows);
+    try {
+      const token = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-031")}?lang=en`, {
+        as: t.credentials.bearer(token),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBe("live");
+      const note = must(r.body.display.find((s) => s.slot === "AI_NOTE"));
+      expect(note.variant).toBe("default");
+      expect(note.text).toBe(must(TEMPLATES_V1.en["AI_NOTE.default"]).replace("{{TREASURER}}", "Analyn"));
+    } finally {
+      await t.deps.db.update(schema.slipRows).set({ provenance: "seeded" }).where(ownRows);
+    }
+  });
+
+  it("inv.i8.labels: rejected readings cannot change the member's reading provenance", async () => {
+    const ownRows = and(
+      eq(schema.slipRows.workspaceId, w.workspaceId),
+      eq(schema.slipRows.memberId, memberId("M-014")),
+    );
+    const rows = await t.deps.db.select().from(schema.slipRows).where(ownRows);
+    expect(rows.length).toBeGreaterThan(1);
+    try {
+      await t.deps.db.update(schema.slipRows).set({ provenance: "live" }).where(ownRows);
+      await t.deps.db
+        .update(schema.slipRows)
+        .set({ state: "REJECTED", provenance: "seeded" })
+        .where(eq(schema.slipRows.id, must(rows[0]).id));
+      const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-014")}?lang=en`, {
+        as: t.credentials.bearer(link),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBe("live");
+      expect(r.body.display.find((s) => s.slot === "AI_NOTE")?.variant).toBe("default");
+    } finally {
+      for (const row of rows) {
+        await t.deps.db
+          .update(schema.slipRows)
+          .set({ state: row.state, provenance: row.provenance })
+          .where(eq(schema.slipRows.id, row.id));
+      }
+    }
+  });
+
+  it("inv.i8.labels: no own non-rejected reading means null provenance and the demo note", async () => {
+    const ownRows = and(
+      eq(schema.slipRows.workspaceId, w.workspaceId),
+      eq(schema.slipRows.memberId, memberId("M-031")),
+    );
+    const rows = await t.deps.db.select().from(schema.slipRows).where(ownRows);
+    expect(rows.length).toBeGreaterThan(0);
+    try {
+      await t.deps.db.update(schema.slipRows).set({ state: "REJECTED" }).where(ownRows);
+      const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-031") });
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-031")}?lang=en`, {
+        as: t.credentials.bearer(link),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBeNull();
+      expect(r.body.display.find((s) => s.slot === "AI_NOTE")?.variant).toBe("seeded");
+    } finally {
+      for (const row of rows) {
+        await t.deps.db
+          .update(schema.slipRows)
+          .set({ state: row.state })
+          .where(eq(schema.slipRows.id, row.id));
+      }
+    }
   });
 
   it("inv.i1.no-model-numbers: a stored sentence with a digit is never shown; the v1 words are", async () => {
@@ -465,6 +560,9 @@ describe("the explain task", () => {
       .where(and(eq(schema.statements.lineId, line("M-018")), eq(schema.statements.lang, "fil")));
     const sentences = row?.sentences as { id: string; text: string; placeholders: string[] }[];
     expect(sentences.map((s) => s.id)).toContain("CREDIT.written");
+    // T1: a seeded run records the demo AI_NOTE, the words its statement shows
+    expect(sentences.map((s) => s.id)).toContain("AI_NOTE.seeded");
+    expect(sentences.map((s) => s.id)).not.toContain("AI_NOTE.default");
     for (const s of sentences) {
       expect(s.text).not.toMatch(/\p{Nd}/u);
       expect(s.text).toBe(TEMPLATES_V1.fil[s.id]);

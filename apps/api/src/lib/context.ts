@@ -1,5 +1,6 @@
 // What every handler can reach: `AppDeps` (built once at boot, or by the test harness) and the per-request
 // variables the shell's middleware sets on the Hono context.
+import type { TaskName } from "@fairsplit/contracts";
 import type { Db } from "@fairsplit/db";
 import type { Context } from "hono";
 import type { Logger } from "pino";
@@ -24,6 +25,11 @@ export interface OutboxRuntime {
   /** Resolves when no inline task is queued or running. */
   idle(): Promise<void>;
   readonly started: boolean;
+  /**
+   * True when this process's outbox has a handler registered for `task`. A row without one fails `no handler
+   * registered` on every attempt and goes dead, so a scheduler (the cron tick) asks first and labels the job instead.
+   */
+  handles(task: TaskName): boolean;
 }
 
 export interface AppDeps {

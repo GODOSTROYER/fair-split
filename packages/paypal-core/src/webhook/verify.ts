@@ -8,6 +8,10 @@
 //               certificate at `paypal-cert-url`; `paypal-auth-algo` must be SHA256withRSA.
 // Simulator ("mock") events are signed with the literal webhook id `WEBHOOK_ID`; we accept them
 // only when dev mocks are switched on (PP_DEV_MOCKS=1, never on fs-judge) and label them 'dev_mock'.
+// Our own PayPal simulator (packages/paypal-sim, PP_MODE=simulator, ADR-0010) signs real deliveries the same
+// way with a leaf its own CA issued, served from the host app (`…/paypal-sim/sim/certs/SIMCERT-….pem`). Only a
+// verifier given that trust (`simulator`) accepts it, and such a verifier accepts nothing else: PayPal's cert URL
+// shape and subject are replaced by the simulator's URL pattern and a required chain to its CA.
 //
 // Certificate fetches are PayPal calls like any other: they take a token from the injected limiter
 // (purpose `webhooks.cert`, background priority), are written to `paypal_calls` by the injected
@@ -94,7 +98,13 @@ import {
   readHeader,
 } from "../types.js";
 import { isTimeoutError } from "../util.js";
-import { CERT_ID_PATTERN, checkCertUrl } from "./cert-url.js";
+import {
+  CERT_ID_PATTERN,
+  type CertUrlCheck,
+  checkCertUrl,
+  checkSimulatorCertUrl,
+  SIMULATOR_CERT_ID_PATTERN,
+} from "./cert-url.js";
 import {
   type CertCache,
   checkCertValidity,
@@ -270,6 +280,14 @@ export interface VerifyOptions {
 
 export type RawBody = Uint8Array | ArrayBuffer | string;
 
+/** The simulator's webhook signing trust (WebhookVerifierConfig.simulator). */
+export interface SimulatorWebhookTrust {
+  /** The simulator's `certUrlPattern`: its pages base on the host app, then /sim/certs/SIMCERT-….pem. */
+  certUrlPattern: RegExp;
+  /** The simulator's CA (PEM); at least one. */
+  trustAnchors: readonly string[];
+}
+
 export interface WebhookVerifierConfig {
   env?: PayPalEnv;
   /** Hosts allowed in `paypal-cert-url`. Default: the env's API hosts. Each must be a paypal.com host. */
@@ -278,6 +296,14 @@ export interface WebhookVerifierConfig {
   certSubjects?: readonly string[];
   /** PEM certificates the leaf must chain to. Off by default (trust comes from TLS to PayPal). */
   trustAnchors?: readonly string[];
+  /**
+   * PP_MODE=simulator only (ADR-0002, ADR-0010): the in-process PayPal simulator's signing trust, which REPLACES
+   * PayPal's. `paypal-cert-url` must match `certUrlPattern` (./cert-url.ts `checkSimulatorCertUrl`; PayPal's own
+   * cert URLs are refused), and the leaf must chain to one of `trustAnchors` (the simulator's CA), which stands in
+   * for PayPal's certificate subject. Everything else is unchanged: CRC32 + RSA-SHA256, the 5-minute window, the
+   * transmission-id replay check, the fetch budgets and the limiter. Never set it outside simulator mode.
+   */
+  simulator?: SimulatorWebhookTrust;
   /** Accept simulator events signed with the literal `WEBHOOK_ID`, labelled 'dev_mock'. Dev only. */
   devMocks?: boolean;
   postback?: PostbackFn;
@@ -540,8 +566,20 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   if (bad.length > 0) {
     throw new PayPalConfigError("INVALID_HOST", "certificate hosts must be paypal.com hosts");
   }
-  const subjects = config.certSubjects ?? PAYPAL_CERT_SUBJECTS[env];
-  const anchors = config.trustAnchors?.flatMap((pem) => parsePemChain(pem));
+  const simulator = config.simulator ?? null;
+  if (simulator && simulator.trustAnchors.length === 0) {
+    throw new PayPalConfigError(
+      "INVALID_VALUE",
+      "the simulator trust needs at least one trust anchor (its CA)",
+    );
+  }
+  // Simulator mode: the simulator's CA is the one anchor and stands in for the subject check (the config's comment).
+  const subjects = simulator ? null : (config.certSubjects ?? PAYPAL_CERT_SUBJECTS[env]);
+  const anchors = (simulator ? simulator.trustAnchors : config.trustAnchors)?.flatMap((pem) =>
+    parsePemChain(pem),
+  );
+  const checkUrl = (value: string): CertUrlCheck =>
+    simulator ? checkSimulatorCertUrl(value, simulator.certUrlPattern) : checkCertUrl(value, certHosts);
   const fetchImpl = config.fetch ?? defaultFetch;
   const now = config.now ?? Date.now;
   const transmissions = config.transmissionStore ?? createMemoryTransmissionStore({ now });
@@ -569,7 +607,8 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   const leafOptions = (at: number) => ({ at, subjects, ...(anchors ? { trustAnchors: anchors } : {}) });
 
   const budget: CertFetchBudget = { ...DEFAULT_CERT_FETCH_BUDGET, ...config.certFetchBudget };
-  const expectedIds = config.expectedCertIdPattern ?? PAYPAL_CERT_ID_PATTERN;
+  const expectedIds =
+    config.expectedCertIdPattern ?? (simulator ? SIMULATOR_CERT_ID_PATTERN : PAYPAL_CERT_ID_PATTERN);
   /** Every certificate fetch, of any id: at most totalPerHour in any 60 minutes. */
   const totalWindow = hourWindow(budget.totalPerHour, now);
   /** Fetches of known ids that are not loaded yet, held back out of totalWindow. */
@@ -912,7 +951,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
       );
     }
 
-    const urlCheck = checkCertUrl(certUrl, certHosts);
+    const urlCheck = checkUrl(certUrl);
     if (!urlCheck.ok) return fail("CERT_URL_REJECTED", urlCheck.reason);
     const certKey = urlCheck.cacheKey;
     const certId = urlCheck.certId;
@@ -1071,7 +1110,7 @@ export function createPayPalWebhookVerifier(config: WebhookVerifierConfig = {}):
   async function prewarm(certUrls: readonly string[]): Promise<PrewarmResult[]> {
     const results: PrewarmResult[] = [];
     for (const value of [...new Set(certUrls)].slice(0, MAX_PREWARM)) {
-      const check = checkCertUrl(value, certHosts);
+      const check = checkUrl(value);
       if (!check.ok) {
         results.push({
           certUrl: value.slice(0, 200),

@@ -1,8 +1,8 @@
 // `statementPlan(facts)`: which sentences a member's statement has, in S1.11's slot order, with integer facts
 // and mentions. Pure: the line's state, rail and engine numbers decide everything; no model is asked (AI-8 drafts
 // variants offline only). Lines still being checked show no amount (M-MB-01 `checking`).
-import type { MemberLineState, PayoutItemStatus } from "@fairsplit/contracts";
-import { pesoEstimateCentavos, pesoExactCentavos, renderSms } from "./render.js";
+import type { MemberLineState, PayoutItemStatus, Provenance } from "@fairsplit/contracts";
+import { aiNoteVariant, pesoEstimateCentavos, pesoExactCentavos, renderSms } from "./render.js";
 import { PAYPAL_FX_FEE_BP, TEMPLATE_V, TEMPLATES_V1 } from "./templates.js";
 import type {
   Fact,
@@ -48,6 +48,11 @@ export interface StatementLineFacts {
   cashDay: string | null;
   /** The PayPal item's status, for "paid" against "sent". */
   itemStatus: PayoutItemStatus | null;
+  /**
+   * Where the line's slip readings came from (`readingProvenanceOf`, facts.ts). Only `live`, a real Claude
+   * reading, keeps the product AI_NOTE; seeded, replayed, null or absent take the demo note (T1).
+   */
+  readingProvenance?: Provenance | null;
 }
 
 const CHECKING: readonly MemberLineState[] = ["COMPUTED", "READY", "HELD"];
@@ -155,9 +160,12 @@ export function statementPlan(f: StatementLineFacts, templates: TemplateSet = TE
     );
   }
   sentences.push(f.treasurer ? s("HELP", "default", { TREASURER: text(f.treasurer) }) : s("HELP", "noname"));
-  if (kind === "checking" || kind === "excluded") sentences.push(s("AI_NOTE", "checking"));
-  else if (f.treasurer) sentences.push(s("AI_NOTE", "default", { TREASURER: text(f.treasurer) }));
-  else sentences.push(s("AI_NOTE", "noname"));
+  // the plan names the note renderStatement will say, so `explain` records the words actually shown
+  const reading = f.readingProvenance ?? null;
+  const note = (form: "default" | "noname" | "checking") => aiNoteVariant(form, reading);
+  if (kind === "checking" || kind === "excluded") sentences.push(s("AI_NOTE", note("checking")));
+  else if (f.treasurer) sentences.push(s("AI_NOTE", note("default"), { TREASURER: text(f.treasurer) }));
+  else sentences.push(s("AI_NOTE", note("noname")));
 
   const plan: StatementPlan = {
     lineId: f.lineId,
@@ -165,6 +173,7 @@ export function statementPlan(f: StatementLineFacts, templates: TemplateSet = TE
     templateV: TEMPLATE_V,
     sentences,
     sms: smsPlan(f, kind),
+    readingProvenance: reading,
   };
   // The SMS must fit one GSM-7 message: fall back to the short form (no slips, no name) when it does not.
   if (

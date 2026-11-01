@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../../_shims/domain";
-import { type AudioPlan, audioPlan, statementSentences } from "../../lib/statement";
+import { type AudioPlan, audioPlan } from "../../lib/statement";
 import { buildDemoStatement } from "../../services/demo-fixtures";
 import {
   canPlay,
@@ -57,11 +57,27 @@ describe("Paminawa's player (M-MB-03)", () => {
   });
 
   it("skips a sentence with no voice when others have clips", () => {
-    const spoken = statementSentences(dto, "ceb").sentences.map((s) => s.spoken);
+    // fs-api's answer (IC-11): only the greeting has a clip, under fs-api's hash of its own words
+    const words = sha256Hex("fs-api's words for the greeting");
     const withOne = {
       ...dto,
       audio: {
-        ceb: [{ url: "https://media.invalid/g.m4a", textSha256: sha256Hex(spoken[0] ?? ""), label: "x" }],
+        ceb: [
+          {
+            slot: "GREETING" as const,
+            variant: "default",
+            mentions: [],
+            textSha256: words,
+            clip: {
+              url: "https://media.invalid/g.m4a",
+              textSha256: words,
+              label: "x",
+              slot: "GREETING" as const,
+              offsets: [],
+              durationMs: 4000,
+            },
+          },
+        ],
       },
     };
     const plan = audioPlan(withOne, "ceb", { deviceVoice: false });

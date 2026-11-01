@@ -4,9 +4,14 @@
  * proxy only; pronunciation and naturalness still need a person's listening test (OD-2).
  */
 
+import { MODEL_CHOICE } from "./gemini.js";
 import { numberWords, spokenPhp, spokenUsd } from "./spoken.js";
 
-export const ASR_MODEL = "gemini-3.8-flash";
+/**
+ * The highest-end free-tier text model that takes audio input (pricing page read 1 Nov 2026; the choice
+ * and its source are recorded in gemini.ts, MODEL_CHOICE). Requests go through the key pool like TTS.
+ */
+export const ASR_MODEL = MODEL_CHOICE.asr;
 
 export interface GenerateContentClient {
   models: {

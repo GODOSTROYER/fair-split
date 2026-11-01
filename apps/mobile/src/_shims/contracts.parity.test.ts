@@ -9,10 +9,13 @@ import * as real from "@fairsplit/contracts";
 import fc from "fast-check";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { approvalPayloadShape } from "../lib/signing";
+import type { AudioClip, audioPlan } from "../lib/statement";
+import type { StatementAudioClip, StatementAudioSentence, StatementDTO } from "./api-client";
 import {
   APPROVAL_PAYLOAD_KEYS,
   APPROVAL_ROLES,
   type ApiErrorCode,
+  AUDIO_CLIP_URL_RE,
   DEVICE_KEY_KINDS,
   deviceKeyIdFitsKind,
   HOLD_KINDS,
@@ -25,6 +28,9 @@ import {
   type LineState,
   RUN_STATES,
   type RunState,
+  STATEMENT_SLOTS,
+  type StatementAudio,
+  type StatementSlot,
 } from "./contracts";
 
 describe("app code imports @fairsplit/contracts for its types only", () => {
@@ -124,6 +130,37 @@ describe("the shim's types are @fairsplit/contracts' types", () => {
     expectTypeOf<(typeof DEVICE_KEY_KINDS)[number]>().toEqualTypeOf<real.DeviceKeyKind>();
     expectTypeOf<(typeof APPROVAL_PAYLOAD_KEYS)[number]>().toEqualTypeOf<keyof real.ApprovalPayload>();
     expectTypeOf<real.ErrorCode>().toExtend<ApiErrorCode>();
+  });
+
+  it("statement audio (IC-11, ADR-0011): the clips Paminawa plays are the contract's, slot for slot", () => {
+    expectTypeOf<StatementAudioClip>().toEqualTypeOf<real.StatementAudioClip>();
+    expectTypeOf<AudioClip>().toEqualTypeOf<real.StatementAudioClip>();
+    expectTypeOf<StatementAudioSentence>().toEqualTypeOf<real.StatementAudioSentence>();
+    // the statement keeps fs-api's per-sentence answer as it came, so the phone pairs sentences, never words
+    expectTypeOf<
+      NonNullable<StatementDTO["audio"]["ceb"]>[number]
+    >().toEqualTypeOf<real.StatementAudioSentence>();
+    expectTypeOf<StatementAudio>().toEqualTypeOf<real.StatementAudio>();
+    expectTypeOf<Parameters<typeof audioPlan>[0]>().toEqualTypeOf<StatementDTO>();
+    expectTypeOf<StatementSlot>().toEqualTypeOf<real.AudioSlot>();
+    expect([...STATEMENT_SLOTS]).toEqual([...real.AUDIO_SLOTS]);
+  });
+
+  it("statement audio: the phone checks a clip URL with the contract's own pattern (ADR-0011 §1)", () => {
+    expect(AUDIO_CLIP_URL_RE.source).toBe(real.AUDIO_CLIP_URL_RE.source);
+    expect(AUDIO_CLIP_URL_RE.flags).toBe(real.AUDIO_CLIP_URL_RE.flags);
+    for (const url of [
+      "/media/audio/M-014/ceb/s01-GREETING-596b9e42811d.m4a",
+      "/media/audio/M-031/en/s07-PAY-0a1b2c3d4e5f-t2.m4a",
+      "https://evil.example/a.m4a",
+      "//evil.example/media/audio/M-014/ceb/s1.m4a",
+      "/media/../../etc/x.m4a",
+      "/media/audio/drafts/M-014/ceb/s1.m4a",
+      "/media/audio/M-014/ceb/s1.m4a?x=1",
+      "/media/audio/M-014/ceb/s1.M4A",
+    ]) {
+      expect(AUDIO_CLIP_URL_RE.test(url), url).toBe(real.AUDIO_CLIP_URL_RE.test(url));
+    }
   });
 });
 

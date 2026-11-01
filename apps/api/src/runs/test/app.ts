@@ -4,7 +4,7 @@ import type { ApprovalPayload } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
 import { approvalBytes, batchDigest, ed25519Sign } from "@fairsplit/domain";
 import { senderBatchId, senderItemId } from "@fairsplit/paypal-payouts";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { HttpHandler } from "msw";
 import { recordBalanceReading } from "../../judge/quota.js";
 import { createPayPalMock, createTestApp, type PayPalMock, type TestApp } from "../../test/index.js";
@@ -168,6 +168,49 @@ export async function signBoth(h: RunsHarness) {
     },
   });
   return { batchSha256: t.batchSha256, keys: { analyn, ernesto } };
+}
+
+/**
+ * Plays the reading (`extract`, runs/extract.ts) to its end, inline: each step's row is due one pace after the
+ * last, so the test makes it due now (time passing, as the dispatcher sees it) and runs it. Then the world learns
+ * the ids the reading gave slip 0462's fields and the rows. Returns how many steps ran.
+ */
+export async function readSlips(h: RunsHarness, o: { maxSteps?: number } = {}): Promise<number> {
+  const t = schema.taskOutbox;
+  const ws = h.world.workspaceId;
+  let steps = 0;
+  for (let i = 0; i < (o.maxSteps ?? 50); i++) {
+    const [row] = await h.t.deps.db
+      .select({ id: t.id })
+      .from(t)
+      .where(and(eq(t.workspaceId, ws), eq(t.name, "extract"), eq(t.state, "queued")))
+      .orderBy(t.runAfter)
+      .limit(1);
+    if (!row) break;
+    await h.t.deps.db.update(t).set({ runAfter: sql`now()` }).where(eq(t.id, row.id));
+    await h.t.deps.outbox?.runTask(row.id);
+    steps++;
+  }
+  await learnSlips(h);
+  return steps;
+}
+
+/** The world's slip ids (rows, slip 0462's fields) as the database holds them now. */
+export async function learnSlips(h: RunsHarness): Promise<void> {
+  const ws = h.world.workspaceId;
+  const rows = await h.t.deps.db
+    .select({ id: schema.slipRows.id, serial: schema.slipRows.serial, copy: schema.slipRows.copyColor })
+    .from(schema.slipRows)
+    .where(eq(schema.slipRows.workspaceId, ws));
+  for (const r of rows) h.world.slipRow.set(`${r.serial}:${r.copy}`, r.id);
+  const row0462 = h.world.slipRow.get("0462:WHITE_ORIGINAL");
+  if (!row0462) return;
+  const fields = await h.t.deps.db
+    .select({ id: schema.slipFields.id, field: schema.slipFields.field })
+    .from(schema.slipFields)
+    .where(and(eq(schema.slipFields.workspaceId, ws), eq(schema.slipFields.slipRowId, row0462)));
+  const id = (name: string) => fields.find((f) => f.field === name)?.id ?? "";
+  h.world.fields0462 = { gross: id("gross_kg"), tare: id("tare_kg"), net: id("net_kg") };
 }
 
 /** Runs every queued outbox row of one task in this workspace, inline. */

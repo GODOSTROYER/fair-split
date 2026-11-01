@@ -2,6 +2,7 @@
 // and kill switches (IC-04).
 
 export * from "./bus.js";
+export * from "./cli/app-url.js";
 export * from "./client.js";
 export * from "./errors.js";
 export * from "./events.js";

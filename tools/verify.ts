@@ -7,7 +7,8 @@
 // Clones the committed tree (never the working copy), then runs, stopping at the first failure:
 //   install    corepack pnpm install --frozen-lockfile
 //   typecheck  corepack pnpm typecheck
-//   lint       corepack pnpm lint            (only with --lint)
+//   lint       corepack pnpm exec biome ci .
+//   deps:check corepack pnpm deps:check
 //   test       corepack pnpm test
 //   build      corepack pnpm build
 // Children get a scrubbed environment (`isDroppedEnv`): no API keys, no PayPal or database
@@ -19,12 +20,12 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, posix, resolve, win32 } from "node:path";
 import { isMain } from "../apps/tasks/src/main.js";
 import { REPO_ROOT } from "./lib/blueprint.js";
 
 export interface VerifyStep {
-  readonly id: "clone" | "checkout" | "install" | "typecheck" | "lint" | "test" | "build";
+  readonly id: "clone" | "checkout" | "install" | "typecheck" | "lint" | "deps:check" | "test" | "build";
   readonly command: string;
   readonly args: readonly string[];
   /** Relative to the clone directory, or "." for the parent when cloning. */
@@ -35,6 +36,7 @@ export interface VerifyOptions {
   readonly source: string;
   readonly dir: string;
   readonly ref?: string | undefined;
+  /** Retained for existing callers; lint is always part of verification. */
   readonly lint?: boolean;
   /** Postgres for the integration tier, given to the test step as FS_TEST_DATABASE_URL. */
   readonly db?: string | undefined;
@@ -69,7 +71,8 @@ export function planVerify(opts: VerifyOptions): VerifyStep[] {
     steps.push({ id: "checkout", command: "git", args: ["checkout", "--quiet", opts.ref], inClone: true });
   steps.push({ id: "install", ...pnpm("install", "--frozen-lockfile"), inClone: true });
   steps.push({ id: "typecheck", ...pnpm("typecheck"), inClone: true });
-  if (opts.lint) steps.push({ id: "lint", ...pnpm("lint"), inClone: true });
+  steps.push({ id: "lint", ...pnpm("exec", "biome", "ci", "."), inClone: true });
+  steps.push({ id: "deps:check", ...pnpm("deps:check"), inClone: true });
   steps.push({ id: "test", ...pnpm("test"), inClone: true });
   steps.push({ id: "build", ...pnpm("build"), inClone: true });
   return steps;
@@ -107,11 +110,32 @@ export type StepRunner = (
   env: NodeJS.ProcessEnv,
 ) => { exitCode: number | null; output: string };
 
-/** Node ships corepack as a script next to the binary; running it with node avoids a shell on Windows. */
-export function resolveCommand(command: string, args: readonly string[]): [string, string[]] {
+/** Where to look for Node's own corepack; tests pass another platform's layout. */
+export interface NodeHost {
+  readonly platform: NodeJS.Platform;
+  readonly execPath: string;
+  readonly exists: (path: string) => boolean;
+}
+
+const THIS_NODE: NodeHost = { platform: process.platform, execPath: process.execPath, exists: existsSync };
+
+/**
+ * Node ships corepack as a script; running it with node needs no shell (Windows would need one for corepack.cmd).
+ * Windows installs keep it beside node.exe; the Linux and macOS tarballs keep it under `<prefix>/lib/node_modules`,
+ * with node in `<prefix>/bin`. A Node with no bundled corepack gets the bare command, found on PATH.
+ */
+export function resolveCommand(
+  command: string,
+  args: readonly string[],
+  host: NodeHost = THIS_NODE,
+): [string, string[]] {
   if (command === "corepack") {
-    const js = join(dirname(process.execPath), "node_modules", "corepack", "dist", "corepack.js");
-    if (existsSync(js)) return [process.execPath, [js, ...args]];
+    const p = host.platform === "win32" ? win32 : posix;
+    const bin = p.dirname(host.execPath);
+    const modules =
+      host.platform === "win32" ? p.join(bin, "node_modules") : p.join(bin, "..", "lib", "node_modules");
+    const js = p.join(modules, "corepack", "dist", "corepack.js");
+    if (host.exists(js)) return [host.execPath, [js, ...args]];
   }
   return [command, [...args]];
 }
@@ -214,7 +238,7 @@ export interface CliOptions {
 }
 
 export function parseArgs(argv: readonly string[]): CliOptions {
-  const o: CliOptions = { source: REPO_ROOT, keep: false, lint: false, json: false };
+  const o: CliOptions = { source: REPO_ROOT, keep: false, lint: true, json: false };
   for (const a of argv) {
     const [k, v] = a.includes("=")
       ? [a.slice(0, a.indexOf("=")), a.slice(a.indexOf("=") + 1)]

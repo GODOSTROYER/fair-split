@@ -4,14 +4,17 @@
 // transport differs: in simulator mode requests to PayPal's sandbox hosts are routed to the simulator.
 //
 //   simulator + PP_SIM_URL   → a running @fairsplit/paypal-sim (`tools/paypal-sim.ts`, WS-PPSIM)
-//   simulator, no PP_SIM_URL → the labelled STUB below: every PayPal call answers 503 SIMULATOR_NOT_RUNNING
+//   simulator, no PP_SIM_URL → the server runs paypal-sim IN PROCESS (./simulator.ts, ADR-0010) and passes it here
+//                              as `simulator`; without one (tests, `createTestApp()`) the labelled STUB below
+//                              answers every PayPal call with 503 SIMULATOR_NOT_RUNNING
 //   sandbox                  → the real api-m.sandbox.paypal.com
 //
 // I8: whatever the mode, everything derived from PayPal carries `rail.provenance` (`simulated_rail` or `live`)
 // and every API response carries the `X-FS-Rail` header (`simulated` | `sandbox`). A Judge Mode step decided
 // replay runs on a REPLAY rail derived from this one (paypal/replay.ts): provenance `replay`, no network.
-// When packages/paypal-sim lands, `inProcessSimulator(sim)` below is the one place that plugs its
-// fetch-compatible handler in (no change to callers).
+// An in-process simulator also brings its public pages (served at /paypal-sim, and answered here in process for the
+// webhook verifier's certificate fetch) and its webhook signing trust, which the verifier gets in simulator mode only:
+// a sandbox-mode rail never trusts the simulator's certificate URL or CA.
 import {
   createPayPalCore,
   type FetchLike,
@@ -21,6 +24,7 @@ import {
   type PayPalCallRecorder,
   type PayPalCore,
   type PayPalLimiter,
+  type SimulatorWebhookTrust,
   type TransmissionStore,
 } from "@fairsplit/paypal-core";
 import type { ApiEnv, PayPalMode } from "../env.js";
@@ -49,8 +53,26 @@ export interface PayPalRail {
   /** OAuth, PayPalHttp and the webhook verifier, wired to the shared limiter and recorder. */
   readonly core: PayPalCore;
   readonly webhookId: string | null;
+  /**
+   * The in-process simulator's public pages (mounted at `basePath`: certificate chain, labelled invoice and pay
+   * pages, health; never its REST API or admin). Null on every other rail.
+   */
+  readonly pages: SimulatorPages | null;
   /** For /readyz and /ops: no secrets. */
   describe(): RailDescription;
+}
+
+export interface SimulatorPages {
+  /** The mount, e.g. `/paypal-sim`. */
+  readonly basePath: string;
+  /** `{public origin}{basePath}`: where the simulator's certificate and pay-page URLs point. */
+  readonly baseUrl: string;
+  /**
+   * The certificate this simulator signs every delivery with (`{baseUrl}/sim/certs/SIMCERT-….pem`, new each boot):
+   * the boot loads it into the webhook verifier before the server takes traffic (paypal/boot.ts).
+   */
+  readonly certUrl?: string;
+  fetch(request: Request): Promise<Response>;
 }
 
 export interface RailDescription {
@@ -66,7 +88,12 @@ export interface RailDescription {
 /** A fetch-compatible simulator handler (paypal-sim's Hono app exposes one). */
 export interface InProcessSimulator {
   name: string;
+  /** PayPal's REST routes (what the sandbox hosts answer). */
   fetch(request: Request): Promise<Response>;
+  /** The simulator's public pages, when it has any (./simulator.ts: paypal-sim's `publicFetch`). */
+  pages?: SimulatorPages;
+  /** Its webhook signing trust: the verifier gets it in simulator mode only (ADR-0010). */
+  webhookTrust?: SimulatorWebhookTrust;
 }
 
 export interface CreateRailOptions {
@@ -93,11 +120,17 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
   const network: FetchLike = o.fetch ?? ((input, init) => globalThis.fetch(input, init));
   let simulator: SimulatorTransport | null = null;
   let transport: FetchLike = network;
+  let pages: SimulatorPages | null = null;
+  let webhookSimulator: SimulatorWebhookTrust | undefined;
   if (mode === "simulator") {
     const sim = o.simulator;
     if (sim) {
       simulator = { kind: "in_process", name: sim.name };
-      transport = routeToSimulator(network, (req) => sim.fetch(req));
+      pages = sim.pages ?? null;
+      webhookSimulator = sim.webhookTrust;
+      // the simulator's own pages (the webhook certificate) are answered in process too, never over the network
+      const local = pages ? routeToPages(network, pages) : network;
+      transport = routeToSimulator(local, (req) => sim.fetch(req));
     } else if (o.paypal.simUrl) {
       const base = o.paypal.simUrl.replace(/\/+$/, "");
       simulator = { kind: "remote", url: base };
@@ -128,6 +161,8 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
     ...(o.now ? { now: o.now } : {}),
     ...(o.sleep ? { sleep: o.sleep } : {}),
     ...(o.webhookTrustAnchors?.length ? { webhookTrustAnchors: o.webhookTrustAnchors } : {}),
+    // simulator mode only (`webhookSimulator` is never set on a sandbox rail): the simulator's cert URL and CA
+    ...(webhookSimulator ? { webhookSimulator } : {}),
     ...(o.webhookTransmissionStore ? { webhookTransmissionStore: o.webhookTransmissionStore } : {}),
   });
 
@@ -142,6 +177,7 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
     simulator,
     core,
     webhookId: o.paypal.webhookId ?? null,
+    pages,
     describe: () => ({
       mode,
       label,
@@ -155,16 +191,32 @@ export function createPayPalRail(o: CreateRailOptions): PayPalRail {
 
 const SANDBOX_HOSTS = new Set<string>(PAYPAL_API_HOSTS.sandbox);
 
-/** Sends requests for PayPal's sandbox hosts to `simulate`; everything else goes to the network. */
+/**
+ * Sends requests for PayPal's sandbox hosts to `simulate`; everything else goes to the network. The host is compared
+ * as DNS does (the URL parser lower-cases it; a fully qualified name's trailing dot is dropped here), so
+ * `https://api-m.sandbox.paypal.com./…` cannot slip past the simulator to the real sandbox.
+ */
 export function routeToSimulator(
   network: FetchLike,
   simulate: (req: Request) => Promise<Response>,
 ): FetchLike {
   return async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input.toString());
-    if (url.protocol === "https:" && SANDBOX_HOSTS.has(url.hostname)) {
+    const host = url.hostname.replace(/\.+$/, "");
+    if (url.protocol === "https:" && SANDBOX_HOSTS.has(host)) {
+      url.hostname = host;
       return simulate(new Request(url, init));
     }
+    return network(input, init);
+  };
+}
+
+/** Answers requests under the simulator's pages base URL (`{origin}/paypal-sim/…`) from `pages`, in process. */
+function routeToPages(network: FetchLike, pages: SimulatorPages): FetchLike {
+  const prefix = `${pages.baseUrl.replace(/\/+$/, "")}/`;
+  return async (input, init) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.startsWith(prefix)) return pages.fetch(new Request(url, init));
     return network(input, init);
   };
 }

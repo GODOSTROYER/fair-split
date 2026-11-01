@@ -3,14 +3,15 @@
 // US$5,000, under the US$10,000 floor: every PayPal step of a judge run is a labelled replay. A session decided
 // replay drafts and sends its invoice, "Mark paid" funds the run, both keys post the batch, the settle GET parks
 // Rhea and pays the rest, and her cash move settles the run: through the very same code (the lattice, I4, the state
-// machine), with zero PayPal calls, and every PayPal-derived row and event labelled `replay` (I8).
+// machine), with zero PayPal calls, and every PayPal-derived row and event labelled `replay` (I8). As in a judge
+// clone, the replay photos start unread: the reading is the seed's labelled stand-in (runs/extract.ts), `seeded`.
 import { RunEvent } from "@fairsplit/contracts";
 import { schema, verifyChain } from "@fairsplit/db";
 import { getSnapshot } from "@fairsplit/seed";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { liveSpend } from "../judge/quota.js";
-import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
+import { type RunsHarness, readSlips, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
 import { settleBatch } from "./settle.js";
 
@@ -19,7 +20,11 @@ const script = paypalScript();
 let h: RunsHarness;
 
 beforeAll(async () => {
-  h = await startRuns({ paypal: script.handlers, world: { runState: "INVOICED" }, balanceCents: 500_000 });
+  h = await startRuns({
+    paypal: script.handlers,
+    world: { runState: "INVOICED", replayRows: false },
+    balanceCents: 500_000,
+  });
 });
 afterAll(async () => h?.close());
 
@@ -69,12 +74,17 @@ describe("a judge run whose PayPal steps replay (balance under the floor) calls 
     expect(funded.filter((e) => to(e) === "FUNDED").map((e) => e.provenance)).toEqual(["replay"]);
   });
 
-  it("the engine opens the review on the funded run", async () => {
+  it("the seed's reading replays, photo by photo, and the engine opens the review on the funded run", async () => {
+    await runQueued(h, "computeRun"); // the funding's: the photos are unread, nothing to compute yet
+    expect(await readSlips(h)).toBe(12);
     await runQueued(h, "computeRun");
-    const run = await h.t.json<{ run: { state: string } }>(`/v1/runs/${h.world.runSlug}`, {
-      as: h.t.credentials.bearer(h.tokens.treasurer),
-    });
+    const run = await h.t.json<{ run: { state: string }; holds: { open: number; blocking: number } }>(
+      `/v1/runs/${h.world.runSlug}`,
+      { as: h.t.credentials.bearer(h.tokens.treasurer) },
+    );
     expect(run.body.run.state).toBe("IN_REVIEW");
+    expect(run.body.holds).toMatchObject({ open: 4, blocking: 3 });
+    expect(script.calls).toEqual([]);
   });
 
   it("both keys post the batch exactly as signed, replayed: no POST reaches PayPal, the rows say replay", async () => {

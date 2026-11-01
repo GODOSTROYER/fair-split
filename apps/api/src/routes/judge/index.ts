@@ -1,10 +1,10 @@
 // src/routes/judge: owned by the JUDGE slice (apps/api/SPLIT.md).
-// Judge sessions (cookie 24 h, pooled workspace clone, a fresh runSeq, Reset), the live-or-replay decision
-// and the single-flight live lane, the labelled "Try to break it" controls, the judge code, demo signing
-// keys, presence (1 Hz, an event at most every 5 s) and the `judgeReset` task.
+// Judge sessions (cookie 24 h, pooled workspace clone, a fresh runSeq, a resume-only token renewal, Reset), the
+// live-or-replay decision and the single-flight live lane, the labelled "Try to break it" controls, the judge code,
+// demo signing keys, presence (1 Hz, an event at most every 5 s) and the `judgeReset` task.
 // IC-01 commands here: createJudgeSession, presence.
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { PayRunState } from "@fairsplit/contracts";
+import { CreateJudgeSessionResponse, type PayRunState } from "@fairsplit/contracts";
 import { appendLedger, withWorkspaceTx, workspaceScope } from "@fairsplit/db";
 import { sql } from "drizzle-orm";
 import { readJudgeCookie } from "../../credentials/issue/judge-cookie.js";
@@ -27,6 +27,7 @@ import {
 } from "../../judge/schemas.js";
 import {
   latestRun,
+  renewJudgeSession,
   requireOwnSession,
   resetJudgeSession,
   startJudgeSession,
@@ -149,6 +150,26 @@ export default defineRouteFolder({
       async (ctx) => {
         requireOwnSession(ctx.credential, ctx.params.sid);
         return resetJudgeSession(ctx.deps, ctx.credential as JudgeSessionCredential);
+      },
+    );
+
+    r.route(
+      {
+        method: "POST",
+        path: "/v1/judge/sessions/:sid/renew",
+        auth: "frame_or_session",
+        name: "renew",
+        summary: "Renew the console token: resume this session only, never start one",
+        description:
+          "With the judge cookie of this session. A live session answers 200 with a fresh console token for the same session, workspace and run (createJudgeSession's resume answer), with no new task, model or PayPal call. A session whose workspace has ended (a Reset, its 24 h expiry, the purge) answers 401 FRAME_TOKEN_EXPIRED: nothing is minted and no slot of the three-new-sessions-an-hour limit is used. Only createJudgeSession (the press) starts a session.",
+        response: CreateJudgeSessionResponse,
+        errors: ["FRAME_TOKEN_EXPIRED", "RATE_LIMITED"],
+      },
+      async (ctx) => {
+        // the answer carries a console token: never stored for an Idempotency-Key replay
+        refuseReplayOfSecret(ctx.header);
+        requireOwnSession(ctx.credential, ctx.params.sid);
+        return renewJudgeSession(ctx.deps, ctx.credential as JudgeSessionCredential);
       },
     );
 

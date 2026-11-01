@@ -1,6 +1,6 @@
 // The 80 mm print for a member's line (W-TR-09): exact pesos for cash at the run's rate, the ReceiptBar adding
 // up to the net, the hashes, and a QR that is a real, read-only member link for exactly that line.
-import type { ApiError } from "@fairsplit/contracts";
+import { type ApiError, LABEL_REVIEW_STATUS } from "@fairsplit/contracts";
 import { appendLedger, systemScope } from "@fairsplit/db";
 import { format, mulDivHalfUp } from "@fairsplit/domain";
 import { getLine, getRun } from "@fairsplit/seed";
@@ -37,6 +37,13 @@ afterAll(async () => t.close());
 const path = (no: string, lang = "en") => `/v1/print/${w.runSlug}/members/${no}?lang=${lang}`;
 
 describe("GET /v1/print/:runSlug/members/:memberNo", () => {
+  it("marks Cebuano and Filipino translations pending native review on the print", async () => {
+    for (const lang of ["ceb", "fil", "en"] as const) {
+      const r = await t.json<PrintSlip>(path("M-014", lang), { as: t.credentials.bearer(treasurer) });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.reviewChip).toBe(lang === "en" ? null : LABEL_REVIEW_STATUS);
+    }
+  });
   it("prints Merlyn's cash line: exact pesos at the run's rate, the rate line, the Nadawat box", async () => {
     const r = await t.json<PrintSlip>(path("M-053"), { as: t.credentials.bearer(treasurer) });
     expect(r.status, JSON.stringify(r.body)).toBe(200);

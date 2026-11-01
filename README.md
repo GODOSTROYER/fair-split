@@ -7,38 +7,46 @@ _Claude writes in pencil. People sign in ink. PayPal makes it carbon._
 <!-- Badges (planned): CI status and test count, added once CI runs on GitHub. -->
 
 > **Status (22 Oct 2026): early build.** This README is a skeleton. Sections marked _Planned_ describe what is
-> being built for the PayPal AI Hackathon and do not exist yet. Sandbox only; every co-op, member, slip and
-> document is synthetic.
+> being built for the PayPal AI Hackathon and do not exist yet. PayPal runs only on a simulated PayPal sandbox
+> ([ADR-0002](docs/adr/0002-simulated-paypal-sandbox-and-private-repo.md)); every co-op, member, slip and document
+> is synthetic.
 
 ## What it is
 
-Fair Split is co-op payroll on PayPal: **Invoicing v2 through Agent Toolkit 1.11.0** bills the brand, **Payouts v1**
-pays each member, and verified **Webhooks** drive every state. **claude-opus-5-5** reads handwritten weigh-slips,
-**claude-sonnet-5-5** matches deductions to the co-op's ratified rules, and **claude-haiku-5-5** screens for
-injection. A deterministic engine, not the model, computes every member's share and holds anything it cannot
-justify. The treasurer and a board member approve with two keys, PayPal Payouts pays each member, and every member
-can read, and hear, exactly why their number is their number.
+Fair Split is co-op payroll on PayPal: **Invoicing v2 through Agent Toolkit 1.11.0** bills the brand, and
+**Payouts v1** pays the 7 of 64 members who have PayPal, through a simulated PayPal sandbox; 57 are paid in cash on
+the same statement. Status checks move each payout; the simulator's signed **Webhooks** are verified and recorded.
+**claude-opus-5-5** is built to read handwritten weigh-slips, **claude-sonnet-5-5** to match deductions to the
+co-op's ratified rules, and **claude-haiku-5-5** to screen for injection; Judge Mode replays a labelled seed
+stand-in for the slip reading. A deterministic engine, not the model, computes every member's share and holds
+anything it cannot justify. The treasurer and a board member approve with two keys, and every member can read, and
+hear, exactly why their number is their number.
 
 The model reads paper; code computes; people approve; PayPal executes.
 
 ### PayPal APIs used
 
+Every call below runs against a simulated PayPal sandbox (contract-tested against PayPal's OpenAPI specs), not
+PayPal's own sandbox.
+
 | API                | How                                                                                         | Status  |
 | ------------------ | ------------------------------------------------------------------------------------------- | ------- |
 | Invoicing v2       | Through `@paypal/agent-toolkit` 1.11.0: create, send, auto-cancel rule, get, record payment | Planned |
 | Payouts v1         | Our own typed tool (the toolkit has none), following PayPal ai-toolkit PR #107's names      | Planned |
-| Webhooks v1        | Self-verified (CRC32 + RSA-SHA256), deduplicated by event ID                                | Planned |
-| Transaction Search | `@paypal/paypal-server-sdk` 2.5.0, nightly, labelled as lagging                             | Planned |
+| Webhooks v1        | Simulator-signed notices, self-verified (CRC32 + RSA-SHA256), deduplicated by event ID      | Planned |
+| Transaction Search | Not in this build: no nightly reconciliation                                                | Cut     |
 
 ### AI tools used
 
-- **claude-opus-5-5**: slip reads, zoom re-read, rate-card reader, audit agent, member statements.
+- **claude-opus-5-5**: slip reads, zoom re-read, rate-card reader. Judge Mode replays a labelled seed stand-in for
+  the slip reading; Claude's live reads were last run on 22 Oct on code-drawn test slips.
 - **claude-sonnet-5-5**: deduction classifier.
-- **claude-haiku-5-5**: injection screen, language check.
-- **Claude Code**: wrote the code in parallel workstreams; the user reviewed and merged.
+- **claude-haiku-5-5**: injection screen.
+- Member statements are hand-written templates (English, Cebuano, Filipino), not model output.
+- **Claude Code**: agents wrote, reviewed and merged the code under an automated review-and-verify protocol; the
+  user approved every outward step.
 - **OpenAI's image model through Codex CLI**: synthetic slips, rate card, logbook and eval images.
 - **Gemini 3.8 Flash TTS**: member audio and narration, labelled as a synthetic voice.
-- **APIMatic Context Plugin**: grounding for PayPal code (fixes logged in `docs/apimatic-context-plugin.md`, planned).
 - **PayPal AI-Toolkit plugin**: PayPal docs and tools inside Claude Code.
 
 ## Quickstart
@@ -53,11 +61,11 @@ corepack pnpm typecheck
 corepack pnpm test
 ```
 
-_Planned:_ `corepack pnpm verify` runs the whole demo in keyless replay (no PayPal or Claude credentials). A live
-local run needs your own **US-country** PayPal sandbox REST app: copy `.env.example` to `.env` and fill it in.
-Never commit `.env`.
+_Planned:_ `corepack pnpm verify` runs the whole demo in keyless replay against the PayPal simulator (no PayPal or
+Claude credentials). Copy `.env.example` to `.env` for local settings, and never commit `.env`. Designed so one
+variable points it at PayPal's sandbox; this has not been tested.
 
-## Where the PayPal and AI calls live
+## Where the PayPal and AI calls are made
 
 _Planned: filled in as each module lands. Every PayPal call goes through `packages/paypal-*`; every Claude call goes
 through `ClaudeGateway` in `packages/ai`._
@@ -66,10 +74,10 @@ through `ClaudeGateway` in `packages/ai`._
 | ----------------------------------------------------- | ---------------------------- | ----------- | ---------------------------------- |
 | `create_invoice`, `send_invoice`, …                   | Invoicing v2 (Agent Toolkit) | _(planned)_ | Bill the brand for the pay run     |
 | `create_payout_batch`, `cancel_unclaimed_payout_item` | Payouts v1                   | _(planned)_ | Pay members; park unclaimed items  |
-| Webhook receive and verify                            | Webhooks v1                  | _(planned)_ | Drive run and item states          |
+| Webhook receive and verify                            | Webhooks v1 (simulator)      | _(planned)_ | Verify and record signed notices   |
 | Slip read A/B, zoom                                   | Claude (claude-opus-5-5)     | _(planned)_ | Read handwritten weigh-slips       |
 | Deduction classifier                                  | Claude (claude-sonnet-5-5)   | _(planned)_ | Match deductions to ratified rules |
-| Injection screen, language check                      | Claude (claude-haiku-5-5)    | _(planned)_ | Quarantine instructions on paper   |
+| Injection screen                                      | Claude (claude-haiku-5-5)    | _(planned)_ | Quarantine instructions on paper   |
 
 ## Architecture
 
@@ -85,19 +93,22 @@ Surfaces: the Console (treasurer web, with the Judge stage), the Fair Split app 
 
 ## How to verify in 60 seconds
 
-_Planned (G2, 29 Oct):_ open Judge Mode (`/judge` on the hosted API; no login, no PayPal account needed), mark the
-invoice paid, resolve the holds, approve with two keys, and watch the payout fan-out land with verified webhooks.
-Then open the run's Proof page and check its hash chain. Until then, `corepack pnpm test` is what you can run.
+_Planned:_ open Judge Mode (`/judge` on the hosted API; no login, no PayPal account needed), mark the invoice paid
+on the simulated PayPal sandbox, resolve the holds, approve with two keys, and watch the payout fan-out land as a
+status check confirms each item (simulated). Then open the run's Proof page and check its hash chain. Until then,
+`corepack pnpm test` is what you can run.
 
 ## What's real and what's simulated
 
 _Planned._ Every row carries its provenance (`live`, `replay`, `simulated_rail`, `seeded`) and the UI labels it.
-PayPal calls run live against the sandbox; Claude output in Judge Mode replays a recorded real run, labelled with
-its date; "mark paid" uses PayPal's record-payment, labelled as a simulated rail.
+PayPal calls run against a simulated PayPal sandbox (contract-tested against PayPal's OpenAPI specs), not PayPal's
+own sandbox. Judge Mode replays a labelled seed stand-in for the slip reading; Claude's live reads were last run on
+22 Oct on code-drawn test slips. "Mark paid" uses the simulator's record-payment, labelled as a simulated rail.
 
 ## Known limitations
 
-- Sandbox only. All PayPal sandbox accounts are US-country and USD; production to the Philippines is not shown.
+- PayPal runs only on a simulated PayPal sandbox; it is untested against PayPal's own sandbox, and production to
+  the Philippines is not shown. Fees are simulator-reported; production costs are PayPal's published rates.
 - All co-op data, people, slips and documents are synthetic. Peso figures are display-only estimates.
 - Cebuano and Filipino text is machine-translated, pending native review.
 - Narration and member audio are synthetic voices (Gemini TTS), and are labelled as such.
@@ -107,8 +118,7 @@ its date; "mark paid" uses PayPal's record-payment, labelled as a simulated rail
 ## Built during the hackathon (1 Oct–12 Nov 2026)
 
 Fair Split is a new project: the first commit is 22 Oct 2026, inside the PayPal AI Hackathon window
-(1 Oct–12 Nov 2026). Work is in small daily commits from parallel workstreams; see the git history and
-`docs/gates/`.
+(1 Oct–12 Nov 2026). Work is in small daily commits from parallel workstreams; see the git history.
 
 ## Prior art
 

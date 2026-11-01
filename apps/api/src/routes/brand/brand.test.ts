@@ -1,4 +1,4 @@
-// The brand view and its CSV export (C-23): names and masked receivers on screen; full receivers, names and
+// The brand view and its CSV export (C-23): names and masked receivers; names and
 // plots only in the brand's own export; formula-looking text neutralised; read only by the brand (link or
 // persona) and the co-op's officers, in the run's own workspace.
 import type { ApiError } from "@fairsplit/contracts";
@@ -137,7 +137,7 @@ describe("GET /v1/brand/:runSlug", () => {
 });
 
 describe("GET /v1/brand/:runSlug/export.csv", () => {
-  it("exports every line with names, full receivers and hashes, UTF-8 with a BOM, as a download", async () => {
+  it("exports every line with names, masked receivers and hashes, UTF-8 with a BOM, as a download", async () => {
     const r = await t.request(`/v1/brand/${w.runSlug}/export.csv`, { as: t.credentials.bearer(link) });
     expect(r.status).toBe(200);
     expect(r.headers.get("content-type")).toBe("text/csv; charset=utf-8");
@@ -148,12 +148,16 @@ describe("GET /v1/brand/:runSlug/export.csv", () => {
     // (Response.text() drops the byte-order mark, as a UTF-8 decoder must)
     const csv = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes).slice(1);
     const rows = csv.trimEnd().split("\r\n");
-    expect(rows[0]).toMatch(/^member_no,name,language,rail,/);
+    expect(rows[0]).toMatch(/^member_no,name,language,rail,provenance,/);
     expect(rows).toHaveLength(getFigures().members + 1);
-    for (const it of getRun().items) expect(csv).toContain(`"${it.receiver}"`);
+    for (const it of getRun().items) expect(csv).not.toContain(it.receiver);
     const pacana = getMembers().find((m) => m.displayName.includes("ñ"));
     if (pacana) expect(csv).toContain(pacana.displayName);
     const m014 = must(rows.find((x) => x.startsWith('"M-014"')));
+    expect(m014).toContain('"Simulated PayPal sandbox","seeded"');
+    expect(m014).toContain(`"${must(getMembers().find((m) => m.memberNo === "M-014")).receiverMasked}"`);
+    const cash = must(rows.find((x) => x.startsWith('"M-031"')));
+    expect(cash).toContain('"cash","seeded"');
     expect(m014).toContain(
       `"${(must(getRun().items.find((i) => i.memberNo === "M-014")).amountCents / 100).toFixed(2)}"`,
     );

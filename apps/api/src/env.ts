@@ -3,7 +3,12 @@
 //   - PP_ENV (or the scaffold's PAYPAL_ENV) is anything but `sandbox`, or is missing in production;
 //   - PP_DEV_MOCKS is on while RENDER=true (or NODE_ENV=production);
 //   - PP_MODE=sandbox lacks PP_CLIENT_ID, PP_CLIENT_SECRET or PP_WEBHOOK_ID;
-//   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed;
+//   - production lacks FS_COOKIE_SECRET or FS_LINK_SIGNING_KEY, or a value is malformed (FS_OPERATOR_PASSWORD_SCRYPT
+//     must be a scrypt PHC string, ./scrypt-phc.ts), or one seed is set for both FS_LINK_SIGNING_KEY and
+//     FS_LEDGER_SIGNING_KEY; on Render with no database source, the problem names DATABASE_OWNER_URL;
+//   - RENDER=true lacks FS_LEDGER_SIGNING_KEY or FS_OPERATOR_PASSWORD_SCRYPT (render.yaml prompts for both, and
+//     Render accepts a blank prompt);
+//   - RENDER=true and nothing names the public origin (PUBLIC_ORIGIN, PUBLIC_BASE_URL or Render's RENDER_EXTERNAL_URL);
 //   - EXECUTOR=workflow lacks RENDER_API_KEY.
 //   - a PP_* e-mail setting (PP_BUSINESS_EMAIL, PP_PAYER_EMAIL, PP_UNCLAIMED_RECEIVER, each PP_RECEIVERS entry)
 //     is not a strict printable-ASCII address, or PP_CERT_ALLOW names something that is not a PayPal cert id;
@@ -12,6 +17,7 @@
 import { requireAsciiEmail } from "@fairsplit/domain";
 import { CERT_ID_PATTERN, checkCertUrl, PAYPAL_API_HOSTS } from "@fairsplit/paypal-core";
 import { z } from "zod";
+import { isScryptPhc } from "./scrypt-phc.js";
 
 export type PayPalMode = "simulator" | "sandbox";
 
@@ -50,6 +56,8 @@ const Raw = z.object({
   /** The public origin (links, pairing URLs, CORS-free same-origin checks), e.g. https://fs-api.onrender.com */
   PUBLIC_ORIGIN: nonEmpty,
   PUBLIC_BASE_URL: nonEmpty,
+  /** Set by Render on every web service (https://<name>.onrender.com): the origin when PUBLIC_ORIGIN is unset. */
+  RENDER_EXTERNAL_URL: nonEmpty,
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   /** Which proxy in front of fs-api reports the client's address (none | proxy | cloudflare | render). */
   FS_TRUSTED_EDGE: nonEmpty,
@@ -147,7 +155,7 @@ export interface ApiEnv {
     cookieSecret: string | undefined;
     /** Ed25519 seed, 64 hex: signs member and brand links. */
     linkSigningKey: string | undefined;
-    /** Ed25519 seed, 64 hex: signs ledger checkpoints (Proof slice); absent → ephemeral `seeded` key. */
+    /** Ed25519 seed, 64 hex: signs ledger checkpoints (Proof slice); absent (never on Render) → ephemeral `seeded` key. */
     ledgerSigningKey: string | undefined;
     operatorPasswordScrypt: string | undefined;
     cronSecret: string | undefined;
@@ -222,29 +230,62 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     if (v !== undefined && !HEX64.test(v))
       problems.push(`${name} must be a 32-byte Ed25519 seed in lowercase hex`);
   }
+  // one Ed25519 key must never sign both member and brand links and the ledger checkpoints Proof verifies
+  if (r.FS_LINK_SIGNING_KEY !== undefined && r.FS_LINK_SIGNING_KEY === r.FS_LEDGER_SIGNING_KEY) {
+    problems.push(
+      "FS_LINK_SIGNING_KEY and FS_LEDGER_SIGNING_KEY must be two different seeds (links and ledger checkpoints never share a key)",
+    );
+  }
+  // a password pasted at the Blueprint prompt instead of its hash would deploy green with /ops refusing everyone
+  if (r.FS_OPERATOR_PASSWORD_SCRYPT !== undefined && !isScryptPhc(r.FS_OPERATOR_PASSWORD_SCRYPT)) {
+    problems.push(
+      "FS_OPERATOR_PASSWORD_SCRYPT must be a scrypt hash in PHC form ($scrypt$ln=..,r=..,p=..$salt$hash) as tools/ops-hash-password.mjs prints it, never the password itself (value not shown)",
+    );
+  }
   if (r.JUDGE_CODE_SHA256 !== undefined && !HEX64.test(r.JUDGE_CODE_SHA256)) {
     problems.push("JUDGE_CODE_SHA256 must be a lowercase hex sha256");
   }
   if (production) {
     if (!r.FS_COOKIE_SECRET) problems.push("FS_COOKIE_SECRET is required in production");
     if (!r.FS_LINK_SIGNING_KEY) problems.push("FS_LINK_SIGNING_KEY is required in production");
-    if (!r.DATABASE_URL) problems.push("DATABASE_URL is required in production");
+    // Render never sets DATABASE_URL: index.ts builds it from DATABASE_OWNER_URL and FS_APP_DB_PASSWORD (ADR-0005)
+    if (!r.DATABASE_URL)
+      problems.push(
+        r.RENDER
+          ? "on Render, DATABASE_OWNER_URL and FS_APP_DB_PASSWORD are required (render.yaml sets both from fs-db; fs-api builds fs_app's DATABASE_URL from them)"
+          : "DATABASE_URL is required in production",
+      );
   } else {
     if (!r.FS_COOKIE_SECRET)
       warnings.push("FS_COOKIE_SECRET unset: using an ephemeral key (sessions end on restart)");
     if (!r.FS_LINK_SIGNING_KEY)
       warnings.push("FS_LINK_SIGNING_KEY unset: using an ephemeral key (links end on restart)");
   }
-  if (!r.FS_LEDGER_SIGNING_KEY)
+  // On Render these two are Blueprint prompts, and Render accepts a prompt left blank (FS_KILL is meant to be):
+  // without this a blank paste deploys green with /readyz 200, Proof reading Sample or /ops unusable.
+  if (r.RENDER) {
+    if (!r.FS_LEDGER_SIGNING_KEY)
+      problems.push(
+        "FS_LEDGER_SIGNING_KEY is required on Render (unset, Proof reads Sample and changes on every restart)",
+      );
+    if (!r.FS_OPERATOR_PASSWORD_SCRYPT)
+      problems.push("FS_OPERATOR_PASSWORD_SCRYPT is required on Render (unset, no one can sign in to /ops)");
+  } else if (!r.FS_LEDGER_SIGNING_KEY) {
     warnings.push(
       "FS_LEDGER_SIGNING_KEY unset: ledger checkpoints use an ephemeral seeded key (Proof reads Sample)",
     );
+  }
   if (r.EXECUTOR === "workflow" && !r.RENDER_API_KEY) problems.push("EXECUTOR=workflow needs RENDER_API_KEY");
   if (r.FS_ALLOW_OWNER_ROLE && production) {
     warnings.push("FS_ALLOW_OWNER_ROLE is on: only triggers guard history (record the S6 ADR)");
   }
 
-  const origin = r.PUBLIC_ORIGIN ?? r.PUBLIC_BASE_URL ?? `http://localhost:${r.PORT}`;
+  // Pairing QR codes, member and brand links and the cookies' Secure flag all follow this origin, so on Render it
+  // must be the service's public URL: PUBLIC_ORIGIN for a custom domain, else the URL Render gives the service.
+  const named = r.PUBLIC_ORIGIN ?? r.PUBLIC_BASE_URL ?? r.RENDER_EXTERNAL_URL;
+  if (named === undefined && r.RENDER)
+    problems.push("on Render, PUBLIC_ORIGIN or RENDER_EXTERNAL_URL must name the public origin");
+  const origin = named ?? `http://localhost:${r.PORT}`;
   if (!isHttpUrl(origin)) problems.push("PUBLIC_ORIGIN must be an http(s) origin");
 
   // Render is the platform's own word (it sets RENDER=true on every service): there Cloudflare's edge and

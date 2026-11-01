@@ -1,7 +1,7 @@
 // The real PayPal client code paths, unmodified, against the simulator in-process:
 // @paypal/agent-toolkit 1.11.0 (axios → node:https) and @paypal/paypal-server-sdk 2.5.0 (APIMatic/axios),
 // plus the global fetch (undici dispatcher). Imported here only; the package itself never depends on them.
-import { createServer } from "node:http";
+import { createServer, request as httpRequest, type RequestOptions } from "node:http";
 import type { AddressInfo } from "node:net";
 import { PayPalAPI, PayPalMCPToolkit } from "@paypal/agent-toolkit/mcp";
 import { Client, Environment, TransactionSearchController } from "@paypal/paypal-server-sdk";
@@ -241,6 +241,95 @@ describe("in-process interceptor", () => {
     const balances = await search.searchBalances({ currencyCode: "USD" });
     expect(balances.statusCode).toBe(200);
     expect(balances.result.balances?.[0]?.availableBalance?.value).toBe("99872.34"); // 100000.00 − (64.45 + 62.71) − 2 × 0.25
+  });
+
+  it("matches node:http(s) hostnames whatever their case or a trailing dot: none reaches the network", async () => {
+    // A local stand-in for the network: a request the interceptor missed resolves here (the `lookup` below) instead
+    // of reaching PayPal's real sandbox. A rerouted request drops `lookup` and goes to the simulator's loopback.
+    const reached: string[] = [];
+    const network = createServer((req, res) => {
+      reached.push(String(req.headers.host));
+      res.end("network");
+    });
+    await new Promise<void>((r) => network.listen(0, "127.0.0.1", () => r()));
+    const port = (network.address() as AddressInfo).port;
+    const lookup = (
+      _host: string,
+      opts: { all?: boolean },
+      cb: (err: Error | null, address: unknown, family?: number) => void,
+    ) => (opts?.all ? cb(null, [{ address: "127.0.0.1", family: 4 }]) : cb(null, "127.0.0.1", 4));
+    const basic = Buffer.from(`${app().client_id}:${app().client_secret}`).toString("base64");
+    const send = (request: typeof httpRequest, options: RequestOptions) =>
+      new Promise<{ status: number; simulated: string | null; body: string }>((resolve, reject) => {
+        const req = request(
+          {
+            ...options,
+            port,
+            path: "/v1/oauth2/token",
+            method: "POST",
+            headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded" },
+            lookup: lookup as RequestOptions["lookup"],
+          },
+          (res) => {
+            let body = "";
+            res.setEncoding("utf8");
+            res.on("data", (c: string) => {
+              body += c;
+            });
+            res.on("end", () =>
+              resolve({
+                status: res.statusCode ?? 0,
+                simulated: (res.headers["x-fairsplit-simulated"] as string | undefined) ?? null,
+                body,
+              }),
+            );
+          },
+        );
+        req.on("error", reject);
+        req.end("grant_type=client_credentials");
+      });
+    try {
+      for (const options of [
+        { hostname: "API-M.SANDBOX.PAYPAL.COM" },
+        { hostname: "api-m.sandbox.paypal.com." },
+        { hostname: "Api.Sandbox.PayPal.Com." },
+        { host: "API-M.SANDBOX.PAYPAL.COM." },
+      ] satisfies RequestOptions[]) {
+        const r = await send(httpRequest, options);
+        expect(r.simulated, JSON.stringify(options)).toBe("true");
+        expect(r.status, JSON.stringify(options)).toBe(200);
+        expect((JSON.parse(r.body) as { access_token: string }).access_token).toMatch(/^SIM\./);
+      }
+      expect(reached).toEqual([]);
+      // a different host is still left alone (the stand-in answers it)
+      const other = await send(httpRequest, { hostname: "api-m.sandbox.paypal.com.example" });
+      expect(other.body).toBe("network");
+      expect(reached).toHaveLength(1);
+    } finally {
+      await new Promise<void>((r) => network.close(() => r()));
+    }
+  });
+
+  it("the scoped Dispatcher matches a sandbox origin with a trailing dot too", async () => {
+    const fellThrough: string[] = [];
+    const fallback = {
+      dispatch: (o: { origin?: string | URL }, handler: { onError?(err: Error): void }) => {
+        fellThrough.push(String(o.origin));
+        handler.onError?.(new Error("the network was reached"));
+        return false;
+      },
+      close: async () => {},
+      destroy: async () => {},
+    };
+    const dispatcher = createSandboxDispatcher(sim, { fallback });
+    const res = await fetch("https://API-M.SANDBOX.PAYPAL.COM./v1/notifications/webhooks", {
+      headers: { authorization: `Bearer ${accessToken}` },
+      // @ts-expect-error -- undici extension of RequestInit
+      dispatcher,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-fairsplit-simulated")).toBe("true");
+    expect(fellThrough).toEqual([]);
   });
 
   it("also offers a scoped undici Dispatcher for fetch(url, { dispatcher })", async () => {

@@ -38,6 +38,14 @@ export const TEMPLATES_V1: TemplateSet = {
       "Your slips were read twice by AI (Claude). Readings it was unsure of were checked by a person, and the treasurer approved this pay.",
     "AI_NOTE.checking":
       "Your slips were read twice by AI (Claude). Readings it was unsure of were checked by a person.",
+    // T1: the demo AI_NOTE, for a run whose slips Claude did not read here (seeded, replayed or unknown).
+    // renderStatement picks it (aiNoteVariant); its words are frozen (validate.ts).
+    "AI_NOTE.seeded":
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer {{TREASURER}} approved this pay.",
+    "AI_NOTE.seeded_noname":
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and the treasurer approved this pay.",
+    "AI_NOTE.seeded_checking":
+      "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones.",
     "sms.paid":
       "{{COOP}}: {{HONORIFIC_NAME}}, your {{NET_USD}} is paid to your PayPal ({{NET_PHP}}). Slips {{SLIPS}}. Questions: Treasurer {{TREASURER}}.",
     "sms.sent":
@@ -83,6 +91,13 @@ export const TEMPLATES_V1: TemplateSet = {
       "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude). Ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan sa tesorero kini nga bayad.",
     "AI_NOTE.checking":
       "Ang inyong mga resibo gibasa sa makaduha sa AI (Claude). Ang mga basa nga dili sigurado gisusi sa tawo.",
+    // T1's demo AI_NOTE: machine-translated, pending native review (REVIEW_CHIP), like every ceb key.
+    "AI_NOTE.seeded":
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer {{TREASURER}} kini nga bayad.",
+    "AI_NOTE.seeded_noname":
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan sa tesorero kini nga bayad.",
+    "AI_NOTE.seeded_checking":
+      "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo.",
     "sms.paid":
       "{{COOP}}: {{HONORIFIC_NAME}}, bayad na ang {{NET_USD}} sa PayPal ({{NET_PHP}}). Resibo {{SLIPS}}. Pangutana: Treasurer {{TREASURER}}.",
     "sms.sent":
@@ -128,6 +143,13 @@ export const TEMPLATES_V1: TemplateSet = {
       "Binasa nang makalawa ng AI (Claude) ang inyong mga resibo. Ang mga basang hindi tiyak ay sinuri ng tao, at inaprubahan ng ingat-yaman ang bayad na ito.",
     "AI_NOTE.checking":
       "Binasa nang makalawa ng AI (Claude) ang inyong mga resibo. Ang mga basang hindi tiyak ay sinuri ng tao.",
+    // T1's demo AI_NOTE: machine-translated, pending native review (REVIEW_CHIP), like every fil key.
+    "AI_NOTE.seeded":
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer {{TREASURER}} ang bayad na ito.",
+    "AI_NOTE.seeded_noname":
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ng ingat-yaman ang bayad na ito.",
+    "AI_NOTE.seeded_checking":
+      "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak.",
     "sms.paid":
       "{{COOP}}: {{HONORIFIC_NAME}}, bayad na po ang {{NET_USD}} sa PayPal ({{NET_PHP}}). Resibo {{SLIPS}}. Tanong: Treasurer {{TREASURER}}.",
     "sms.sent":
@@ -169,6 +191,9 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<Record<string, readonly string[]>> 
   "AI_NOTE.default": ["TREASURER"],
   "AI_NOTE.noname": [],
   "AI_NOTE.checking": [],
+  "AI_NOTE.seeded": ["TREASURER"],
+  "AI_NOTE.seeded_noname": [],
+  "AI_NOTE.seeded_checking": [],
   "sms.paid": ["COOP", "HONORIFIC_NAME", "NET_USD", "NET_PHP", "SLIPS", "TREASURER"],
   "sms.sent": ["COOP", "HONORIFIC_NAME", "NET_USD", "NET_PHP", "SLIPS", "TREASURER"],
   "sms.cash": ["COOP", "HONORIFIC_NAME", "NET_PHP", "SLIPS", "TREASURER"],

@@ -5,6 +5,9 @@
 // Each test builds a throwaway repository in the OS temp dir with this repo's lefthook.yml and hook tools, stages
 // files and runs the hook with the pinned lefthook, as `git commit` does. Where a test must see the arguments a
 // tool gets, stand-ins for secretlint and Biome log each call instead of checking anything.
+// The Biome step used to get only the staged files matching OLD_BIOME_GLOB, while CI's `biome ci .` also checks
+// Markdown, YAML, CSS and the rest, so an unformatted docs/adr/*.md passed the hook and failed CI at a merge. It now
+// gets every staged file, and Biome itself skips what it does not check (--files-ignore-unknown=true).
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -29,12 +32,13 @@ const lefthookBin = resolve(repoRoot, "node_modules/lefthook/bin/index.js");
 
 /** cmd.exe rejects a command line longer than this; the runner keeps every tool call under it. */
 const CMD_EXE_LIMIT = 8191;
-/** The Biome glob of the hook before the runner (lefthook.yml at 7cbcada^). */
+/** The Biome glob of the hook before the runner (lefthook.yml at 7cbcada^); the runner kept it until 68989d1. */
 const OLD_BIOME_GLOB = "*.{ts,tsx,js,mjs,cjs,json}";
 /** A fake classic GitHub token, assembled at run time so that no file in this repository holds one. */
 const FAKE_TOKEN = ["gh", "p_", "FairSplitFakeToken".padEnd(36, "0")].join("");
 const HOOK_FILES = [
   "lefthook.yml",
+  "biome.json",
   "tools/run-staged.mjs",
   "tools/guard-env.mjs",
   ".secretlintrc.json",
@@ -60,6 +64,9 @@ afterAll(() => {
   for (const link of links) unlinkSync(link); // the link to this repo's node_modules, never what it points at
   rmSync(tmpBase, { recursive: true, force: true });
 });
+
+/** What the runner passes Biome before the staged files. */
+const BIOME_ARGS = ["check", "--files-ignore-unknown=true", "--no-errors-on-unmatched"];
 
 /** A stand-in tool: logs its arguments and an upper bound of its command line's length, then exits 0. */
 const probe = (log) => `const { appendFileSync, mkdirSync } = require("node:fs");
@@ -144,6 +151,8 @@ function runHook(dir, commands = []) {
   return { status: r.status, out: `${r.stdout}\n${r.stderr}` };
 }
 
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** The `key: value` lines of one pre-commit command in lefthook.yml, quotes removed. */
 function hookCommand(yml, name) {
   const lines = yml.split("\n");
@@ -161,10 +170,8 @@ describe("lefthook.yml", () => {
   it("runs secretlint and Biome through the runner, so lefthook's own command line holds no file list", () => {
     const yml = readText("lefthook.yml");
     expect(hookCommand(yml, "secrets")).toEqual({ run: "node tools/run-staged.mjs secretlint" });
-    expect(hookCommand(yml, "biome")).toEqual({
-      glob: OLD_BIOME_GLOB,
-      run: "node tools/run-staged.mjs biome",
-    });
+    // no glob: Biome gets every staged file and decides what it checks, as `biome ci .` does
+    expect(hookCommand(yml, "biome")).toEqual({ run: "node tools/run-staged.mjs biome" });
   });
 });
 
@@ -214,7 +221,7 @@ describe("a merge commit's worth of staged files", () => {
     expect(run.status, run.out).toBe(0);
     for (const [tool, prefix] of [
       ["secretlint", []],
-      ["biome", ["check", "--no-errors-on-unmatched"]],
+      ["biome", BIOME_ARGS],
     ]) {
       const calls = r.calls(tool);
       expect(calls.length, tool).toBeGreaterThan(1);
@@ -308,7 +315,7 @@ require("node:fs").appendFileSync(".calls/" + process.argv[2] + ".jsonl", JSON.s
         .sort();
     got.secretlint = files("secretlint", 0);
     got.secretlintOld = files("secretlint-old", 0);
-    got.biome = files("biome", 2);
+    got.biome = files("biome", BIOME_ARGS.length);
     got.biomeOld = files("biome-old", 0);
   }, 120_000);
 
@@ -317,16 +324,56 @@ require("node:fs").appendFileSync(".calls/" + process.argv[2] + ".jsonl", JSON.s
     expect(got.secretlint).toEqual([...CORPUS, "keep/modified.ts", "keep/renamed-to.ts"].sort());
   });
 
-  it("Biome gets exactly what the old lefthook glob passed, except upper-case extensions (known gap)", () => {
+  it("Biome gets every staged file secretlint gets, all the old glob passed among them; it skips the rest", () => {
+    expect(got.biome).toEqual(got.secretlint);
+    expect(got.biomeOld.filter((f) => !got.biome.includes(f))).toEqual([]);
     expect(got.biome).toEqual(
-      expect.arrayContaining(["app/[id].tsx", "app/(tabs)/index.tsx", "with space.ts", "ünï.ts", ".json"]),
+      expect.arrayContaining(["o.md", "p.yaml", "UPPER.TS", "Mixed.Json", "app/(tabs)/index.tsx", "noext"]),
     );
-    expect(got.biome.filter((f) => !got.biomeOld.includes(f))).toEqual([]);
-    // KNOWN GAP: lefthook's glob ignores letter case, the runner's /\.(ts|tsx|js|mjs|cjs|json)$/ does not, so a
-    // staged UPPER.TS is no longer checked at commit time (CI's `biome ci .` still checks it). The fix is the `i`
-    // flag in tools/run-staged.mjs; the change that adds it makes this list [].
-    expect(got.biomeOld.filter((f) => !got.biome.includes(f))).toEqual(["Mixed.Json", "UPPER.TS", "x.JS"]);
   });
+});
+
+describe("the Biome hook checks the files `biome ci .` checks", () => {
+  // Biome's own formatting of each file: what `biome ci .` accepts.
+  const FORMATTED = {
+    "docs/adr/0099-fixture.md": "# A fixture ADR\n\nOne paragraph.\n",
+    ".github/workflows/fixture.yaml": "name: fixture\non:\n  push:\n",
+    "config/fixture.yml": "key: value\n",
+    "src/UPPER.TS": "export const a = 1;\n",
+    "styles/fixture.css": "a {\n  color: red;\n}\n",
+  };
+  const UNFORMATTED = {
+    "docs/adr/0099-fixture.md": "# A fixture ADR\n\n\n\nOne paragraph.\n",
+    ".github/workflows/fixture.yaml": "name:    fixture\non:\n    push:\n",
+    "config/fixture.yml": "key:     value\n",
+    "src/UPPER.TS": "export const a=1\n",
+    "styles/fixture.css": "a{color:red}\n",
+  };
+
+  it("passes formatted files of every kind, and files Biome does not check (an image, no extension)", () => {
+    const r = makeRepo("real");
+    for (const [path, text] of Object.entries(FORMATTED)) r.write(path, text);
+    r.write("assets/pixel.png", "\x89PNG\r\n");
+    r.write("LICENSE-NOTICE", "no extension\n");
+    r.git("add", "-A");
+    const run = runHook(r.dir, ["biome"]);
+    expect(run.status, run.out).toBe(0);
+    // every formatted file was checked, not skipped; the image and the extensionless file were skipped
+    expect(run.out).toMatch(new RegExp(`Checked ${Object.keys(FORMATTED).length} files`));
+  }, 120_000);
+
+  it.each(Object.keys(UNFORMATTED))(
+    "fails an unformatted staged %s, as `biome ci .` would",
+    (path) => {
+      const r = makeRepo("real");
+      r.write(path, UNFORMATTED[path]);
+      r.git("add", "-A");
+      const run = runHook(r.dir, ["biome"]);
+      expect(run.status, run.out).not.toBe(0);
+      expect(run.out).toMatch(new RegExp(path.split("/").map(escapeRegExp).join("[\\\\/]")));
+    },
+    120_000,
+  );
 });
 
 describe("CONTRIBUTING.md", () => {
@@ -336,5 +383,6 @@ describe("CONTRIBUTING.md", () => {
     expect(contributing).toMatch(/8,191 characters/);
     expect(contributing).toContain("node tools/run-staged.mjs secretlint");
     expect(contributing).toContain("corepack pnpm exec lefthook run pre-commit");
+    expect(contributing).toContain("--files-ignore-unknown=true");
   });
 });

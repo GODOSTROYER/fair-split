@@ -118,7 +118,11 @@ function chainsToAnchor(
 
 export interface LeafCheckOptions {
   at: number;
-  subjects: readonly string[];
+  /**
+   * Expected subjects (SAN dNSName). Null skips the check, and only with trustAnchors: the simulator's leaf names no
+   * PayPal host, so the chain to its CA stands in for it (PP_MODE=simulator, verify.ts `simulator`).
+   */
+  subjects: readonly string[] | null;
   trustAnchors?: readonly X509Certificate[];
   minRsaBits?: number;
 }
@@ -144,7 +148,9 @@ export function checkLeafProperties(cert: LoadedCert, options: LeafCheckOptions)
   const bits = key.asymmetricKeyDetails?.modulusLength ?? 0;
   if (key.asymmetricKeyType !== "rsa" || bits < (options.minRsaBits ?? 2048)) return "CERT_KEY_UNSUPPORTED";
   if (leaf.ca) return "CERT_IS_CA";
-  if (!options.subjects.some((s) => leaf.checkHost(s) !== undefined)) return "CERT_SUBJECT_MISMATCH";
+  if (options.subjects === null) {
+    if (!options.trustAnchors || options.trustAnchors.length === 0) return "CERT_UNTRUSTED";
+  } else if (!options.subjects.some((s) => leaf.checkHost(s) !== undefined)) return "CERT_SUBJECT_MISMATCH";
   if (options.trustAnchors && !chainsToAnchor(leaf, cert.intermediates, options.trustAnchors, options.at)) {
     return "CERT_UNTRUSTED";
   }

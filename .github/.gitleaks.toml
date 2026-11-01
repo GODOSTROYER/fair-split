@@ -1,0 +1,33 @@
+# gitleaks configuration, read by .github/workflows/gitleaks.yml (GITLEAKS_CONFIG). It is written for
+# gitleaks 8.24.3, the version that workflow pins (GITLEAKS_VERSION). It lives under .github because
+# docs/ownership.md gives a root .gitleaks.toml to no workstream; run it locally with
+# `gitleaks git --config .github/.gitleaks.toml .`.
+#
+# It keeps every default rule and allowlists ONLY the PayPal simulator's fictional app credentials (ADR-0002,
+# ADR-0010): the values of PP_CLIENT_ID and PP_CLIENT_SECRET in render.yaml, and the client_id and client_secret
+# of the simulator's two apps (fs-judge, fs-dev) in packages/paypal-sim/data/accounts.json. Only the simulator
+# accepts them; they are not PayPal credentials (docs/security.md).
+#
+# Each entry needs the exact value AND one of those two files (condition = "AND"): the same string in any other
+# file, and every other value in those two files, is still reported. There is no global [allowlist]: in 8.24 it
+# has no condition, so a path there would hide a whole file. Every other finding is left for the user's triage.
+# packages/test-kit/test/ci-workflows.test.mjs checks all of this.
+
+[extend]
+useDefault = true
+
+# Extends the default rule of that id (its regex, entropy and keywords stay as they are) with one allowlist.
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "PayPal simulator's fictional app credentials, in render.yaml and the simulator's accounts.json only"
+condition = "AND"
+paths = [
+  '''^render\.yaml$''',
+  '''^packages/paypal-sim/data/accounts\.json$''',
+]
+regexes = [
+  '''^SIM-fs-(?:judge|dev)-client$''',
+  '''^sim-fs-(?:judge|dev)-not-a-paypal-secret$''',
+]

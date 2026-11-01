@@ -22,6 +22,7 @@ import { type DbOrTx, schema } from "@fairsplit/db";
 import { format } from "@fairsplit/domain";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { holdFacts } from "../runs/engine.js";
 import type { ProofFacts } from "./bundle.js";
 import { ProofProgress, progressOf } from "./stream.js";
 
@@ -124,12 +125,7 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
 
   // 4 · holds caught and what they kept for members
   const holds = await db
-    .select({
-      kind: schema.holds.kind,
-      state: schema.holds.state,
-      engineParams: schema.holds.engineParams,
-      resolution: schema.holds.resolution,
-    })
+    .select()
     .from(schema.holds)
     .where(and(eq(schema.holds.workspaceId, ws), eq(schema.holds.runId, run.id)));
   const byKind: Record<string, number> = {};
@@ -143,8 +139,7 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
     const kind = typeof resolution?.kind === "string" ? resolution.kind : resolution?.resolution;
     if (h.kind === "DUPLICATE_SLIP" && h.state === "RESOLVED" && kind === "COUNT_ONCE") {
       // what counting the slip twice would have paid its holder (the engine's `movedCents`)
-      const moved = Number(asRecord(h.engineParams)?.movedCents ?? 0);
-      if (Number.isSafeInteger(moved) && moved > 0) duplicateGain += moved;
+      duplicateGain += movedCentsOf(h);
     }
   }
   const credits = lines.reduce((s, l) => s + l.creditsCents, 0);
@@ -237,6 +232,16 @@ function timingOf(facts: Pick<ProofFacts, "ledger" | "run">) {
     return { invoiceToLastConfirmationMs: null, display: null };
   const ms = end - start;
   return { invoiceToLastConfirmationMs: ms, display: format.elapsedWords(ms) };
+}
+
+/**
+ * What counting a duplicate slip once gave back to the other members: the engine's `movedCents`, under
+ * `engine_params.params` where the runs engine stores a hold's facts (runs/engine.ts `StoredHoldFacts`), or at the
+ * top level of `engine_params` in a row written flat. Anything that is not a positive whole number of cents is 0.
+ */
+function movedCentsOf(h: typeof schema.holds.$inferSelect): number {
+  const moved = Number(holdFacts(h).params.movedCents ?? asRecord(h.engineParams)?.movedCents ?? 0);
+  return Number.isSafeInteger(moved) && moved > 0 ? moved : 0;
 }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
