@@ -1,7 +1,7 @@
 // fs-cron's whole job (approved S3.3 and S3.14): at :07 UTC every hour, POST fs-api's
 // /internal/cron/tick over Render's private network. fs-api checks CRON_SECRET in constant time,
 // accepts at most one tick per 30 minutes, and enqueues the hour's scheduled tasks through the
-// transactional outbox (the plan is apps/tasks/src/cron.ts). fs-cron's build is `true`, so this file
+// transactional outbox (the only plan is apps/api/src/routes/internal/cron.ts). fs-cron's build is `true`, so this file
 // has no dependencies and runs on bare Node.
 //
 //   node tools/cron-tick.mjs

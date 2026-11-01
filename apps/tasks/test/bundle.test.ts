@@ -68,7 +68,7 @@ describe("tsdown bundle of the fs-tasks entries", () => {
     expect(r.result).toMatchObject({ status: "failed", code: "NOT_WIRED" });
   });
 
-  it("dist/cron.js --plan runs as a plain node process", () => {
+  it("dist/cron.js retires the duplicate plan and points to fs-api as a plain node process", () => {
     const r = spawnSync(
       process.execPath,
       ["apps/tasks/dist/cron.js", "--plan", "--at=2026-10-24T02:07:00Z"],
@@ -78,8 +78,9 @@ describe("tsdown bundle of the fs-tasks entries", () => {
         encoding: "utf8",
       },
     );
-    expect(r.status).toBe(0);
-    expect(r.stdout).toContain("reconcile:nightly:2026-10-24");
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("apps/api/src/routes/internal/cron.ts");
+    expect(r.stdout).not.toContain("reconcile:nightly:2026-10-24");
   });
 });
 

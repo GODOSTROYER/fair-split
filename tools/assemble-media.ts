@@ -40,6 +40,8 @@ export const PUBLIC_FOLDERS: readonly string[] = ["audio", "photos", "slips", "d
 /**
  * What /media serves, as globs relative to media/ (`*` and `?` stay inside one path segment, `{a,b}` is a
  * choice; there is no `**`). A new kind of public file is a new line here, reviewed like any other change.
+ * Immutable caching requires an explicit dot-delimited hash: `name.<8-64 lowercase hex>.ext`.
+ * Dated names such as `slip-20261101.webp` stay revalidatable; a hyphen never marks a content hash.
  */
 export const MEDIA_ALLOWLIST: readonly string[] = [
   // IC-11's statement clips (AAC, synthetic Gemini voices, each labelled) and the manifest that lists them.

@@ -17,7 +17,6 @@
 //   WS-DATA + WS-OPS (packages/outbox, db):               reconcile, judgeReset
 //   WS-DATA    (packages/outbox):                         OutboxPort.markFailed, the system_flags source
 import { TASK_NAMES } from "./_shims/contracts.js";
-import type { CronSink } from "./cron.js";
 import { unwiredHandlers, withHandlers } from "./handlers.js";
 import type { OutboxPort, TaskRuntime } from "./invoke.js";
 import { envFlags } from "./kill.js";
@@ -40,9 +39,4 @@ export async function loadRuntime(logger: Logger): Promise<TaskRuntime> {
     // is the runtime authority (flipped from /ops, read fresh); FS_KILL is the deploy-wide override.
     readFlags: envFlags(),
   };
-}
-
-/** The cron planner's outbox port. Returns undefined until WS-DATA's `enqueue(tx, …)` is wired. */
-export async function loadCronSink(): Promise<CronSink | undefined> {
-  return undefined;
 }
