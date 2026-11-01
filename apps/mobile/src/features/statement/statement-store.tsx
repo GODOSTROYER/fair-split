@@ -86,6 +86,7 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   dtoRef.current = dto;
   const loading = useRef(false);
   const again = useRef(false);
+  const readAbort = useRef<AbortController | null>(null);
 
   // One phone may be paired to a different member later (or to the same member number in another co-op), and a link
   // view must never overwrite her own copy nor open another link's: each copy is kept under whom it belongs to.
@@ -123,12 +124,13 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       return;
     }
     loading.current = true;
+    const signal = readAbort.current?.signal;
     // "Try again" after a failed first read shows the read starting over, not the failure it is replacing.
     if (!dtoRef.current) setStatus("loading");
     try {
-      const r = linkToken ? await api.getStatementByLink(linkToken) : await api.getStatement();
+      const r = linkToken ? await api.getStatementByLink(linkToken) : await api.getStatement({ signal });
       // Paired as someone else (or another link opened) while this read was in flight: not this statement.
-      if (readForRef.current !== cacheKey) return;
+      if (signal?.aborted || readForRef.current !== cacheKey) return;
       if (r.ok) {
         // Demo previews patch labelled demo data only (`?line=`); live statements are never touched.
         const fresh = preview ? previewLine(r.value, preview) : r.value;
@@ -171,7 +173,7 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       setStatus("error");
     } finally {
       loading.current = false;
-      if (again.current) {
+      if (again.current && !readAbort.current?.signal.aborted) {
         again.current = false;
         void latestLoad.current();
       }
@@ -180,7 +182,10 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
   latestLoad.current = load;
 
   useEffect(() => {
+    const controller = new AbortController();
+    readAbort.current = controller;
     void load();
+    return () => controller.abort();
   }, [load]);
 
   // Copies an earlier build kept under a persona or a link's claimed line: nothing reads them now, so they go.

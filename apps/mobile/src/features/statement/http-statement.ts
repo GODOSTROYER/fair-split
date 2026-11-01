@@ -8,6 +8,7 @@ import type { ApiResult, RenderedStatementSentence, StatementDTO } from "../../_
 import type { Lang, StatementAudio, StatementTemplate } from "../../_shims/contracts";
 import type { ReceiptId } from "../../lib/figures";
 import { withServedAudio } from "../../lib/statement";
+import { discoverMemberLine } from "./discovery";
 
 function formatted(view: StatementView): NonNullable<StatementDTO["formatted"]> {
   return {
@@ -25,12 +26,13 @@ export async function readMemberStatement(
   readAudio: (lineId: string, lang: Lang) => Promise<ApiResult<StatementAudio>>,
   rail: () => string | null,
   origin: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<ApiResult<StatementDTO>> {
   try {
-    const line = await routes.memberStatementLine();
+    const line = await discoverMemberLine(() => routes.memberStatementLine(options), options.signal);
     const reads = await Promise.all(
       (["ceb", "fil", "en"] as const).map(async (lang) => {
-        const view = await routes.statement({ params: { lineId: line.lineId }, query: { lang } });
+        const view = await routes.statement({ params: { lineId: line.lineId }, query: { lang }, ...options });
         const audio = await readAudio(line.lineId, lang);
         return { lang, view, audio };
       }),

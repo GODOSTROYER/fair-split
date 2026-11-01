@@ -276,7 +276,7 @@ export interface FairSplitApi {
     }>
   >;
   claimPairing(req: PairClaimRequest): Promise<ApiResult<PairClaimResponse>>;
-  getStatement(): Promise<ApiResult<StatementDTO>>;
+  getStatement(options?: { signal?: AbortSignal }): Promise<ApiResult<StatementDTO>>;
   getStatementByLink(token: string): Promise<ApiResult<StatementDTO>>;
   getCosignRequest(runSlug: string): Promise<ApiResult<CosignRequestDTO>>;
   getApprovalPayload(runSlug: string, role: ApprovalRole): Promise<ApiResult<ApprovalPayloadDTO>>;
@@ -392,13 +392,14 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
         return { ok: false, code: "PAIRING_INVALID", status: r.status };
       return r;
     },
-    getStatement: () =>
+    getStatement: (options) =>
       readMemberStatement(
         statementRoutes(statementApi),
         (lineId, lang) =>
           call<StatementAudio>("GET", `/v1/media/audio/${encodeURIComponent(lineId)}?lang=${lang}`),
         () => statementApi.rail ?? responseRail,
         origin,
+        options,
       ),
     getStatementByLink: (token) =>
       call<StatementDTO>("GET", `/v1/statements/link/${encodeURIComponent(token)}`), // shim-defined
