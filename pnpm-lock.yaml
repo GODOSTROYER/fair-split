@@ -296,6 +296,12 @@ importers:
       "@biomejs/biome":
         specifier: "catalog:"
         version: 2.6.2
+      "@fairsplit/contracts":
+        specifier: workspace:*
+        version: link:packages/contracts
+      "@fairsplit/domain":
+        specifier: workspace:*
+        version: link:packages/domain
       "@secretlint/secretlint-rule-preset-recommend":
         specifier: "catalog:"
         version: 13.0.7
