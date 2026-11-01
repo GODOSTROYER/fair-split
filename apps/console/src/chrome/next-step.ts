@@ -89,7 +89,7 @@ export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextS
     case "EXTRACTING":
       return {
         id: "reading",
-        text: en("W-JG-01.pill.reading", { date: ctx.recordedOn }),
+        text: en("W-JG-01.pill.reading"),
         actor: "machine",
         screen: "W-TR-03",
         to: webRoutes.reading(ctx.season),

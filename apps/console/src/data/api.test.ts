@@ -4,7 +4,7 @@
 // from Last-Event-ID and reports the console's StreamStatus, failures are typed, and the pending routes (frame
 // tokens, Reset, the rail label) are served. No live API: msw fails anything unhandled.
 
-import { ApiClientError, ContractError, NetworkError } from "@fairsplit/api-client";
+import { ApiClientError, ContractError, judgeRoutes, NetworkError } from "@fairsplit/api-client";
 import type { RunEvent } from "@fairsplit/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startMockServer } from "../test/msw.js";
@@ -161,6 +161,7 @@ describe("adapter over HTTP (msw/node)", () => {
     for (const path of [
       `/v1/judge/sessions/${session.sessionId}/frames`,
       `/v1/judge/sessions/${session.sessionId}/reset`,
+      `/v1/judge/sessions/${session.sessionId}/renew`,
     ]) {
       const withBearer = await adapter.api
         .request({ method: "POST", path, body: { persona: "board:ernesto" }, name: "probe" })
@@ -172,6 +173,23 @@ describe("adapter over HTTP (msw/node)", () => {
       persona: "clerk:jessie",
     });
     await expect(adapter.pending.resetSession(session.sessionId)).resolves.toBeUndefined();
+  });
+
+  it("renewal resumes only the cookie's session and preserves the run", async () => {
+    const session = await startSession(adapter);
+    const routes = judgeRoutes(adapter.api);
+    await expect(
+      routes.renewJudgeSession({ params: { sid: session.sessionId }, token: null }),
+    ).resolves.toMatchObject({
+      sessionId: session.sessionId,
+      workspaceId: session.workspaceId,
+      runId: session.runId,
+      runSlug: session.runSlug,
+      consoleToken: session.consoleToken,
+    });
+    await expect(
+      routes.renewJudgeSession({ params: { sid: "019a0000-0000-7000-8000-00000000beef" }, token: null }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
   });
 
   it("Reset returns the world to the first press and ends the console's credential", async () => {

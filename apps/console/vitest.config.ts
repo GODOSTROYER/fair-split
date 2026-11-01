@@ -7,6 +7,7 @@ export default defineConfig({
   define: { __FS_DATA__: JSON.stringify("mock") },
   resolve: { dedupe: ["zod"] },
   test: {
+    fsModuleCachePath: "./node_modules/.vitest-cache",
     environment: "jsdom",
     setupFiles: ["./test/setup.ts", "./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.{ts,tsx}"],

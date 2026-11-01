@@ -8,7 +8,13 @@
 // whose credential it is and attributes that phone's steps to the right persona. Everything is mock data.
 
 import { HEADER, JUDGE_ROUTES } from "@fairsplit/api-client";
-import { MOCK_SESSION_ID, MockProblem, type MockStage, type MockWorld } from "@fairsplit/api-client/msw";
+import {
+  MOCK_CONSOLE_TOKEN,
+  MOCK_SESSION_ID,
+  MockProblem,
+  type MockStage,
+  type MockWorld,
+} from "@fairsplit/api-client/msw";
 import { ERROR_HTTP_STATUS, type Role } from "@fairsplit/contracts";
 import { HttpResponse, http, type RequestHandler } from "msw";
 import { FRAME_SCOPES, type FramePersona } from "../adapter.js";
@@ -93,6 +99,22 @@ export function createPendingHandlers(options: PendingHandlerOptions): RequestHa
   const { world } = options;
   const now = options.now ?? (() => Date.now());
   return [
+    http.post(`*${PENDING_PATHS.renew}`, ({ request, params }) => {
+      const refused = requireOwnSession(request, params.sid);
+      if (refused) return problem(world, refused);
+      return HttpResponse.json(
+        {
+          sessionId: MOCK_SESSION_ID,
+          workspaceId: world.workspaceId,
+          runId: world.runId,
+          runSlug: world.runSlug,
+          consoleToken: MOCK_CONSOLE_TOKEN,
+          expiresAt: new Date(now() + FRAME_TOKEN_TTL_MS).toISOString(),
+          queuePosition: null,
+        },
+        { status: 200, headers: { [HEADER.rail]: world.rail } },
+      );
+    }),
     http.post(`*${PENDING_PATHS.frames}`, async ({ request, params }) => {
       const refused = requireOwnSession(request, params.sid);
       if (refused) return problem(world, refused);

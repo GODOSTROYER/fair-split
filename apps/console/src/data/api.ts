@@ -46,6 +46,7 @@ export interface ApiAdapterOptions {
 
 /** S3.8 / S3.9 routes outside API_COMMANDS: api-client's typed judge routes (`JUDGE_ROUTES`), and /healthz. */
 export const PENDING_PATHS = {
+  renew: "/v1/judge/sessions/:sid/renew",
   frames: "/v1/judge/sessions/:sid/frames",
   reset: "/v1/judge/sessions/:sid/reset",
   health: "/healthz",

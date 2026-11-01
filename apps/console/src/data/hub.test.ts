@@ -149,12 +149,15 @@ describe("judge session", () => {
     const { runtime } = createTestRuntime(world, [log.handler]);
     const renewed: number[] = [];
     runtime.session.onRenewed(() => renewed.push(Date.now()));
-    await runtime.session.start();
-    const starts = () => log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions");
+    const session = await runtime.session.start();
+    const renewals = () =>
+      log.sent.filter(
+        (r) => r.method === "POST" && r.path === `/v1/judge/sessions/${session.sessionId}/renew`,
+      );
     await expect.poll(() => renewed.length).toBeGreaterThanOrEqual(1);
-    // The renewal is createJudgeSession sent with the judge cookie alone.
-    expect(starts().length).toBeGreaterThanOrEqual(2);
-    expect(starts()[1]?.authorization).toBeNull();
+    expect(log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions")).toHaveLength(1);
+    expect(renewals().length).toBeGreaterThanOrEqual(1);
+    expect(renewals()[0]?.authorization).toBeNull();
     runtime.session.reset().catch(() => undefined);
   });
 
@@ -179,13 +182,11 @@ describe("judge session", () => {
   });
 
   it("a renewal that lands in another workspace ends the session: nothing moves the stage to a new run", async () => {
-    // A Reset in another tab ended this session's workspace: fs-api answers the cookie's renewal with a fresh
-    // workspace and run under the same session ID.
+    // Defend against a malformed renewal answering another workspace even on the resume-only route.
     const world = createTestWorld();
     let starts = 0;
-    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+    const elsewhere = http.post("*/v1/judge/sessions/:sid/renew", async ({ request }) => {
       starts += 1;
-      if (starts === 1) return undefined;
       const answer = await getResponse([...world.mock.handlers], request.clone());
       if (!answer?.ok) return answer;
       const body = (await answer.json()) as Record<string, unknown>;
@@ -208,7 +209,7 @@ describe("judge session", () => {
       renewed += 1;
     });
     await runtime.session.renew();
-    expect(starts).toBe(2);
+    expect(starts).toBe(1);
     const state = runtime.session.getState();
     expect(state.status).toBe("ended");
     expect(state.session).toBeNull();
@@ -222,6 +223,38 @@ describe("judge session", () => {
     expect(notice?.text).toMatch(/ended/);
     runtime.session.dismissError();
     expect(runtime.session.getState().status).toBe("none");
+  });
+
+  it.each([
+    [401, "UNAUTHENTICATED"],
+    [410, "FRAME_TOKEN_EXPIRED"],
+    [403, "FORBIDDEN"],
+  ] as const)(
+    "a renewal refused with %s %s ends the session without creating another",
+    async (status, code) => {
+      const log = recordRequests();
+      const refused = http.post("*/v1/judge/sessions/:sid/renew", () =>
+        HttpResponse.json({ code, status, message: "Session ended." }, { status }),
+      );
+      const { runtime, adapter } = createTestRuntime(createTestWorld(), [log.handler, refused]);
+      const session = await runtime.session.start();
+      await runtime.session.renew();
+      expect(runtime.session.getState()).toEqual({ status: "ended", session: null, error: null });
+      expect(log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions")).toHaveLength(1);
+      await adapter.call("proof", { params: { runSlug: session.runSlug } });
+      expect(log.sent.at(-1)?.authorization).toBeNull();
+    },
+  );
+
+  it("a transient renewal failure keeps the same session for a later retry", async () => {
+    const failed = http.post("*/v1/judge/sessions/:sid/renew", () =>
+      HttpResponse.json({ code: "INTERNAL", status: 500, message: "Try again." }, { status: 500 }),
+    );
+    const { runtime } = createTestRuntime(createTestWorld(), [failed]);
+    const session = await runtime.session.start();
+    await runtime.session.renew();
+    expect(runtime.session.getState()).toMatchObject({ status: "active", session });
+    await runtime.session.reset();
   });
 
   it("a call answered 401 UNAUTHENTICATED on the console's token ends the session: a Reset elsewhere revoked it", async () => {

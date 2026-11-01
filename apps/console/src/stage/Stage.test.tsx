@@ -171,10 +171,10 @@ describe("Judge stage", () => {
 
   it("after a session ends on /judge (a renewal that lands elsewhere), a press starts a fresh session", async () => {
     const world = createTestWorld();
+    const log = recordRequests();
     let starts = 0;
-    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+    const elsewhere = http.post("*/v1/judge/sessions/:sid/renew", async ({ request }) => {
       starts += 1;
-      if (starts !== 2) return undefined;
       const answer = await getResponse([...world.mock.handlers], request.clone());
       if (!answer?.ok) return answer;
       const body = (await answer.json()) as Record<string, unknown>;
@@ -189,7 +189,7 @@ describe("Judge stage", () => {
         { status: answer.status, headers: answer.headers },
       );
     });
-    const view = await renderConsole({ path: "/judge", world, handlers: [elsewhere] });
+    const view = await renderConsole({ path: "/judge", world, handlers: [log.handler, elsewhere] });
     await press("W-JG-01.markPaid");
     const stage = screen.getByTestId("W-JG-01.stage");
     await waitFor(() => expect(stage.dataset.state).toBe("session"));
@@ -200,7 +200,7 @@ describe("Judge stage", () => {
     await act(async () => {
       await view.runtime.session.renew();
     });
-    expect(starts).toBe(2);
+    expect(starts).toBe(1);
     await waitFor(() => expect(stage.dataset.state).toBe("session-ended"));
     // The notice says the stage is back at the first press: the stage still reads it, and the press works.
     expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
@@ -212,7 +212,9 @@ describe("Judge stage", () => {
       expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true"),
     );
     await press("W-JG-01.markPaid");
-    await waitFor(() => expect(starts).toBe(3));
+    expect(starts).toBe(1);
+    await waitFor(() => expect(view.runtime.session.getState().status).toBe("active"));
+    expect(log.sent.filter((r) => r.method === "POST" && r.path === "/v1/judge/sessions")).toHaveLength(2);
     await waitFor(() => expect(stage.dataset.state).toBe("session"));
   });
 
@@ -236,13 +238,11 @@ describe("Judge stage", () => {
   });
 
   it("a renewal that lands in another workspace ends the session and takes the stage back to /judge", async () => {
-    // A Reset in another tab ended this session's workspace: fs-api answers the cookie's renewal with a fresh
-    // workspace and run under the same session ID.
+    // Even a malformed renewal answering another workspace cannot move the stage to a new run.
     const world = createTestWorld();
     let starts = 0;
-    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+    const elsewhere = http.post("*/v1/judge/sessions/:sid/renew", async ({ request }) => {
       starts += 1;
-      if (starts === 1) return undefined;
       const answer = await getResponse([...world.mock.handlers], request.clone());
       if (!answer?.ok) return answer;
       const body = (await answer.json()) as Record<string, unknown>;
@@ -268,7 +268,7 @@ describe("Judge stage", () => {
     await act(async () => {
       await view.runtime.session.renew();
     });
-    expect(starts).toBe(2);
+    expect(starts).toBe(1);
     // The notice says the stage is back at the first press, and it is: /judge, with the first view's next step.
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/judge"));
     expect(stage.dataset.state).toBe("session-ended");
@@ -589,9 +589,8 @@ describe("Judge stage", () => {
     // phone only once the console is live again, never to an inert control (a browser refuses it).
     const world = createTestWorld();
     let starts = 0;
-    const elsewhere = http.post("*/v1/judge/sessions", async ({ request }) => {
+    const elsewhere = http.post("*/v1/judge/sessions/:sid/renew", async ({ request }) => {
       starts += 1;
-      if (starts === 1) return undefined;
       const answer = await getResponse([...world.mock.handlers], request.clone());
       if (!answer?.ok) return answer;
       const body = (await answer.json()) as Record<string, unknown>;
@@ -645,7 +644,7 @@ describe("Judge stage", () => {
       restoreTimers();
       spy.mockRestore();
     }
-    expect(starts).toBe(2);
+    expect(starts).toBe(1);
     expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session-ended");
     expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
     expect(refused).toEqual([]);

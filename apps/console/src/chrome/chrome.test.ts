@@ -29,7 +29,7 @@ describe("run pill (S1.6)", () => {
     expect(first).toMatchObject({
       id: "mark-paid",
       actor: "person",
-      text: "Next: mark the invoice paid (sandbox)",
+      text: "Next: mark the invoice paid (simulated PayPal sandbox)",
     });
     const reading = runTo((w) => {
       w.markPaid();
@@ -228,7 +228,7 @@ describe("refusals and stage states", () => {
       },
     };
     expect(stageNoticeFor({ session: queued, view, autoplay: "off", inSession: true })?.text).toBe(
-      "PayPal’s sandbox is pacing us. You’re next, about 40 s.",
+      "The simulated PayPal sandbox is pacing us (PayPal’s documented limit, modelled). You’re next, about 40 s.",
     );
     const ai = { ...view, flags: { kill_ai_live: true } };
     expect(stageNoticeFor({ session: active, view: ai, autoplay: "off", inSession: true })?.state).toBe(

@@ -187,7 +187,9 @@ describe("W-TR-07 approve", () => {
 
       fireEvent.keyDown(face("W-TR-07.approve"), { key: "Enter" });
       const dialog = await screen.findByTestId("W-TR-07.approve.dialog");
-      expect(dialog.textContent).toMatch(/US\$368\.39 to 8 members by PayPal/);
+      expect(dialog.textContent).toMatch(
+        /Sends 8 payouts, US\$368\.39, through the simulated PayPal sandbox/,
+      );
       expect(dialog.textContent).toMatch(/Consolacion Bacus/);
       expect(tracedPhases("MM-5")).toContain("confirm-1");
       fireEvent.keyDown(face("W-TR-07.approve.dialog.confirm"), { key: "Enter" });

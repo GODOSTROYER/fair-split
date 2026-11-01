@@ -32,7 +32,7 @@ const NONE: SessionState = { status: "none", session: null, error: null };
 /**
  * The console token lives 2 hours while the judge cookie and its workspace live 24 (S3.8): the store renews the
  * token this long before it lapses, and at once when a call answers FRAME_TOKEN_EXPIRED. A renewal is
- * createJudgeSession sent with the cookie alone, which resumes the same session with a fresh token (S3.9).
+ * renewJudgeSession sent with the cookie alone, which resumes only the same session with a fresh token (S3.9).
  */
 export const TOKEN_RENEW_EARLY_MS = 5 * 60_000;
 
@@ -96,17 +96,16 @@ export class SessionStore {
   }
 
   /**
-   * Renews the console token: createJudgeSession with the judge cookie alone resumes the session with a fresh
-   * token. A failure leaves the session as it is (the next lapse or refusal tries again). An answer for another
-   * workspace or run means the cookie's workspace had ended (a Reset in another tab clears the claim, or it
-   * expired) and fs-api started a new one: that is not this session, so nothing adopts it, and the session ends.
+   * Renews the console token: renewJudgeSession with the judge cookie alone resumes the session with a fresh
+   * token. A transient failure leaves the session for a retry; an ended or forbidden cookie ends it. An answer
+   * for another workspace or run also ends it: nothing adopts a credential for a different session.
    */
   renew(): Promise<void> {
     if (this.renewing) return this.renewing;
     const session = this.state.session;
     if (!session || this.state.status !== "active") return Promise.resolve();
-    this.renewing = this.adapter.api
-      .call("createJudgeSession", { body: {}, token: null })
+    this.renewing = judgeRoutes(this.adapter.api)
+      .renewJudgeSession({ params: { sid: session.sessionId }, token: null })
       .then((resumed) => {
         if (this.state.session?.sessionId !== session.sessionId) return;
         if (!sameSession(session, resumed)) {
@@ -120,7 +119,10 @@ export class SessionStore {
         this.scheduleRenewal(next, 60_000);
         for (const listener of this.renewListeners) listener();
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        if (this.state.session?.sessionId !== session.sessionId) return;
+        if (alreadyEnded(error) || isApiClientError(error, "FORBIDDEN")) this.end();
+      })
       .finally(() => {
         this.renewing = null;
       });
