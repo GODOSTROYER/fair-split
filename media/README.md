@@ -149,8 +149,19 @@ corepack pnpm --filter @fairsplit/media imagegen trap-verdict spike-0462 ONLY WA
 corepack pnpm --filter @fairsplit/media imagegen replay-check <id...>
 corepack pnpm --filter @fairsplit/media imagegen labels | schema | migrate | list
 corepack pnpm --filter @fairsplit/media imagegen exec <prompt.md> --orientation landscape  # prompt file in, image out
-corepack pnpm --filter @fairsplit/media tts plan | quota | set-limit <model> <n> --source "<where read>" | spike | asr
+corepack pnpm --filter @fairsplit/media tts keys | plan | quota | set-limit <model> <n> --source "<where read>" | spike | asr
 ```
+
+**Gemini key pool (ADR-0014).** Gemini requests go out on the user's Gemini keys, round robin, each within its
+own free-tier limits (user decision, 1 Nov): `GEMINI_API_KEY` first, then each comma-separated value of
+`GEMINI_API_KEYS_FALLBACK`, from the gitignored repo-root `.env` only (`src/tts/keys.ts`). Each key is paced
+21 s apart per model (3 a minute, measured) and capped per model per Pacific day in `audio/.quota.json`, which
+counts per key id (first 8 hex of the key's sha256, never the key) and keeps the per-model totals. A 429 cools
+that key (for the minute, or until Pacific midnight on a daily limit) and the request moves to the next key; a
+refused key (401/403) is dropped for the run and named by id. `tts keys` checks every key with the free
+models.list call; `tts quota` shows each key id's used and remaining requests and the pool total. Free tier
+only: finals and drafts use `gemini-3.8-flash-tts` and the speech check `gemini-3.8-flash`, the highest-end
+models that are free of charge (pricing page, read 1 Nov).
 
 `tools/imagegen.ts` runs `codex exec --enable image_generation --skip-git-repo-check -s workspace-write
 -C media/raw/codex-work -c model_reasoning_effort=low --json -` with the prompt on stdin (on Windows through
@@ -248,8 +259,9 @@ until the user listens to voice Sulafat (OD-2) and records the daily limit.
    (`--accept-leak`); if it is stained too, 0462 is regenerated (`gen spike-0462 --force`: the old master
    stays on record as a trial, and reports and checks of it no longer count for the new one) and nothing
    leaks.
-3. **S10.** Read the free-tier daily limit for `gemini-3.8-flash-tts` and `gemini-3.8-flash-lite-tts` at
-   https://aistudio.google.com/rate-limit and run `tts set-limit <model> <n> --source "AI Studio, <date>"`; then
+3. **S10.** Read the free-tier daily limit for `gemini-3.8-flash-tts` (finals and drafts) and `gemini-3.8-flash`
+   (speech check) at https://aistudio.google.com/rate-limit and run
+   `tts set-limit <model> <n> --source "AI Studio, <date>"` (each key is capped there); then
    listen to `audio/M-014/{ceb,fil,en}` and choose the voice (OD-2).
 4. **C-24 composites (OD-3, plan "Synthetic assets").** A–L composed by code from checked Codex flats on Codex
    mats (geometry, shadow and light only), with fixtures from the placement transforms.

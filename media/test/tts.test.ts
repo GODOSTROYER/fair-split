@@ -14,6 +14,7 @@ import {
   TTS_MODEL,
   TtsError,
 } from "../src/tts/gemini.js";
+import { KeyPool } from "../src/tts/keys.js";
 import {
   type AudioEntry,
   AudioManifest,
@@ -150,13 +151,16 @@ describe("silence splitting (S4.6)", () => {
   });
 });
 
+/** A key id as the pool names keys (first 8 hex of the key's sha256); the ledger never sees a key. */
+const KEY_ID = "0a1b2c3d";
+
 describe("quota ledger and pacing", () => {
   it("counts per Pacific day, which turns over at Pacific midnight", () => {
     expect(pacificDay(new Date("2026-10-23T06:59:00Z"))).toBe("2026-10-22");
     expect(pacificDay(new Date("2026-10-23T07:00:00Z"))).toBe("2026-10-23");
   });
 
-  it("paces requests to one model, refuses past the cap, and records the limit a 429 states", async () => {
+  it("paces requests on one key to one model, refuses past the key's cap, and records the limit a 429 states", async () => {
     let now = Date.parse("2026-10-22T08:00:00Z");
     const waits: number[] = [];
     const ledger = new QuotaLedger(
@@ -167,11 +171,11 @@ describe("quota ledger and pacing", () => {
         now += ms;
       },
     );
-    expect(await ledger.reserve(TTS_MODEL)).toBe(0);
+    expect(await ledger.reserve(TTS_MODEL, KEY_ID)).toBe(0);
     now += 5_000;
-    expect(await ledger.reserve(TTS_MODEL)).toBe(DEFAULT_MIN_INTERVAL_MS - 5_000);
+    expect(await ledger.reserve(TTS_MODEL, KEY_ID)).toBe(DEFAULT_MIN_INTERVAL_MS - 5_000);
     expect(waits).toEqual([DEFAULT_MIN_INTERVAL_MS - 5_000]);
-    await ledger.settle(TTS_MODEL, {
+    await ledger.settle(TTS_MODEL, KEY_ID, {
       ok: false,
       rateLimited: true,
       message:
@@ -184,7 +188,7 @@ describe("quota ledger and pacing", () => {
     const { writeJson } = await import("../src/util/json.js");
     await writeJson(ledger.path, q);
     now += 60_000;
-    await expect(ledger.reserve(TTS_MODEL)).rejects.toBeInstanceOf(QuotaExceededError);
+    await expect(ledger.reserve(TTS_MODEL, KEY_ID)).rejects.toBeInstanceOf(QuotaExceededError);
     expect(parseRpm("nothing here")).toBeNull();
   });
 });
@@ -242,6 +246,8 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
   afterAll(() => server.close());
 
   const client = () => new GoogleGenAI({ apiKey: "test-key-not-a-secret" }) as unknown as InteractionsClient;
+  const pool = (ledger: QuotaLedger) =>
+    new KeyPool<InteractionsClient>(["test-key-not-a-secret"], { ledger, makeClient: () => client() });
 
   it("sends one request with the voice, the style as speech metadata, and returns the WAV", async () => {
     const r = await synthesize(client(), {
@@ -291,7 +297,7 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
           voice: "Sulafat",
           draft: false,
         },
-        { client: client(), ledger, mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
+        { pool: pool(ledger), mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
         empty,
       );
       expect(result.split).toEqual({ ok: true, fallback: false });
@@ -320,7 +326,7 @@ describe("Gemini TTS over the Interactions API (msw-mocked)", () => {
           voice: "Sulafat",
           draft: false,
         },
-        { client: client(), ledger, mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
+        { pool: pool(ledger), mediaRoot: media, cacheDir: join(media, ".cache", "tts") },
         empty,
       );
       expect(bodies.length).toBe(before);
