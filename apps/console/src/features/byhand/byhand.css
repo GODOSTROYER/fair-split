@@ -1,0 +1,328 @@
+/* W-TR-04 By hand: one field at a time. The slip's crop and the logbook strip are paper (the only shadows); the
+   field is a 48 px condensed entry whose hidden digit sits in a canary cell (a person must decide), and the
+   committed value prints in ink with the treasurer's stamp. Every value is a --fs-* token.
+
+   The two witnesses fit the window: the crop over the logbook's lines 5 to 9 take the height the stage leaves
+   between the title and its ribbon, so the stained digit, logbook line 7, the field and the slab are all in view
+   at 1470 × 956 and at 1280 × 800 without a scroll. */
+
+.fsc-hand {
+  /* Above the screen: the top bar (49; its old 110 with the pill row is kept as slack) and the screen's padding (28); the title block (62)
+     and its gap (20); below: the ribbon and the caption (107) and a breath (12). */
+  --fsc-hand-room: calc(100dvh - 339px);
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  max-width: 1240px;
+}
+
+.fsc-hand__head {
+  display: grid;
+  gap: 8px;
+}
+
+.fsc-hand__head h1 {
+  margin: 0;
+}
+
+.fsc-hand__prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 62ch;
+  margin: 0;
+  color: var(--fs-ink);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.fsc-hand__prompt .fs-glyph {
+  flex: none;
+  margin-top: 3px;
+  color: var(--fs-pencil);
+}
+
+.fsc-hand__muted {
+  color: var(--fs-ink-3);
+}
+
+.fsc-hand__body {
+  display: grid;
+  grid-template-columns: auto minmax(320px, 1fr);
+  align-items: start;
+  gap: 32px 48px;
+}
+
+/* The crop over the logbook strip, at the width whose stacked height fills the room: two captions and paddings
+   (80) plus the crop (1.776 : 1) and the strip (1.764 : 1), so height = 80 + 1.13 × width. */
+.fsc-hand__evidence {
+  display: grid;
+  gap: 16px;
+  width: clamp(300px, calc((var(--fsc-hand-room) - 80px) * 0.885), 560px);
+}
+
+.fsc-hand__figure {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.fsc-hand__crop {
+  padding: 10px;
+}
+
+.fsc-hand__crop-frame {
+  width: 100%;
+}
+
+.fsc-hand__crop-frame .fsc-slip {
+  width: 100%;
+  height: 100%;
+}
+
+.fsc-hand__logbook {
+  padding: 8px;
+  transform: rotate(-0.3deg);
+}
+
+/* ---------------------------------------------------------------- the logbook page */
+
+.fsc-logbook {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fsc-logbook__sheet {
+  fill: var(--fs-copy-white);
+}
+
+.fsc-logbook__print {
+  fill: color-mix(in srgb, var(--fs-paper-ink) 52%, var(--fs-copy-white));
+  font-family: var(--fs-font-ui);
+  font-weight: 600;
+  font-size: 8px;
+}
+
+.fsc-logbook__print--head {
+  font-size: 7px;
+}
+
+.fsc-logbook__rule {
+  stroke: color-mix(in srgb, var(--fs-paper-ink) 26%, var(--fs-copy-white));
+  stroke-width: 0.6;
+}
+
+.fsc-logbook__rule--head {
+  stroke-width: 1;
+}
+
+/* The second witness's line, marked the way the reading band marks a slip. */
+.fsc-logbook__band {
+  fill: color-mix(in srgb, var(--fs-pencil) 34%, transparent);
+  stroke: var(--fs-paper-ink);
+  stroke-width: 0.8;
+}
+
+/* ---------------------------------------------------------------- the entry */
+
+.fsc-hand__entry {
+  position: sticky;
+  top: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.fsc-hand__entry > .fsc-hand__prompt {
+  margin-bottom: 8px;
+}
+
+.fsc-hand__label {
+  color: var(--fs-ink-2);
+}
+
+.fsc-hand__field {
+  justify-self: start;
+}
+
+/* The one field: 48 px condensed numerals; the hidden digit's cell is canary, because a person must decide. */
+.fsc-hand__input {
+  width: 9ch;
+  min-height: 72px;
+  padding: 0 16px;
+  border: 1.5px solid var(--fs-canary-border);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-canary-wash);
+  color: var(--fs-ink);
+  caret-color: var(--fs-pod);
+  font-family: var(--fs-font-ui);
+  font-stretch: 75%;
+  font-weight: 760;
+  font-size: 3rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0.01em;
+}
+
+.fsc-hand__input::selection {
+  background: var(--fs-canary);
+  color: var(--fs-on-canary);
+}
+
+.fsc-hand__input:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: var(--fs-focus-offset);
+}
+
+.fsc-hand__input:disabled {
+  border-style: dashed;
+  border-color: var(--fs-rule);
+  background: var(--fs-plate);
+  color: var(--fs-ink-3);
+}
+
+.fsc-hand__field[data-state="match"] .fsc-hand__input {
+  border-color: var(--fs-ink);
+  background: var(--fs-plate);
+}
+
+.fsc-hand__field[data-state="mismatch"] .fsc-hand__input {
+  border-color: var(--fs-canary-border);
+  border-width: 2px;
+}
+
+.fsc-hand__live {
+  min-height: 2.5rem;
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-hand__sum {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* A mismatch is a person's question, not an error: canary text, a glyph-free sentence that says what to do. */
+.fsc-hand__mismatch {
+  color: var(--fs-canary-text);
+}
+
+.fsc-hand__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.fsc-hand__links .fs-link:disabled {
+  color: var(--fs-ink-3);
+  cursor: default;
+}
+
+.fsc-hand__links .fs-link[data-used] {
+  text-decoration-color: var(--fs-ink);
+}
+
+.fsc-hand__reason {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-hand__commit {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.fsc-hand__skip {
+  color: var(--fs-ink-2);
+}
+
+/* ---------------------------------------------------------------- committed: the treasurer's ink */
+
+.fsc-hand__committed {
+  display: grid;
+  gap: 10px;
+}
+
+.fsc-hand__ink {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-hand__ink-value {
+  font-family: var(--fs-font-ui);
+  font-stretch: 75%;
+  font-weight: 760;
+  font-size: 3rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fsc-hand__body[data-moment-phase="entered"] .fsc-hand__ink-value {
+  animation: fs-wipe var(--fs-dur-print) linear both;
+}
+
+.fsc-hand__body[data-motion="reduced"][data-moment-phase="entered"] .fsc-hand__ink-value {
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+}
+
+.fsc-hand__by {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-hand__net {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-hand__next {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 0;
+}
+
+.fsc-hand__next-mark {
+  width: 8px;
+  height: 8px;
+  background: var(--fs-canary);
+}
+
+.fsc-hand__skipped {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px dashed var(--fs-ink-3);
+  border-radius: var(--fs-radius-2);
+}
+
+/* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
+@media (max-width: 1279px) {
+  .fsc-hand {
+    --fsc-hand-room: calc(100dvh - 371px);
+  }
+}
+
+@media (max-width: 1099px) {
+  .fsc-hand__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-hand__evidence {
+    width: auto;
+    max-width: 560px;
+  }
+
+  .fsc-hand__entry {
+    position: static;
+    grid-row: 1;
+  }
+}

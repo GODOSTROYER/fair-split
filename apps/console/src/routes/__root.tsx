@@ -1,13 +1,24 @@
-import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { NotFound, RouteError } from "../chrome/Fallbacks.js";
+import { GlobalShortcuts } from "../chrome/GlobalShortcuts.js";
+import { useFaceFollows } from "../lib/face.js";
+import { useFocusGuard } from "../lib/focus.js";
+import type { RouterContext } from "../router.js";
 
-export const Route = createRootRoute({
-  component: () => <Outlet />,
-  notFoundComponent: () => (
-    <main className="grid min-h-dvh place-content-center gap-4 p-8">
-      <p className="fs-t-title-2">This page isn’t part of the console yet.</p>
-      <Link to="/prototype" className="fs-link">
-        Open the design prototype
-      </Link>
-    </main>
-  ),
+// The root: every surface (stage, Proof, /ops, /sign-in, WS-DS's /prototype) renders in the Outlet. The
+// global keys (? and D) and the shortcut sheet (W-TR-10) mount once, here, and so does the focus backstop: a link
+// that changes the route takes its screen away with the focus it held, and focus goes on to the new screen.
+export const Route = createRootRouteWithContext<RouterContext>()({
+  component: function Root() {
+    useFaceFollows();
+    useFocusGuard();
+    return (
+      <>
+        <Outlet />
+        <GlobalShortcuts />
+      </>
+    );
+  },
+  notFoundComponent: NotFound,
+  errorComponent: RouteError,
 });

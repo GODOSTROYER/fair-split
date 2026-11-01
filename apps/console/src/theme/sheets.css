@@ -1,0 +1,446 @@
+/* Sheets, menus and notices: What's real (W-JG-02), the shortcut sheet (W-TR-10), the run pill's menu, command
+   notices and Data mode's tables. Sheets are plate-2 with a 1 px top highlight over the scrim (design §2.4);
+   menus are plate-2 with a 1 px rule. Base UI's data-starting-style and data-ending-style drive the motion. */
+
+/* ---------------------------------------------------------------- sheets */
+
+.fsc-sheet__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fs-z-dialog);
+  background: var(--fs-scrim);
+  transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
+}
+
+.fsc-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: calc(var(--fs-z-dialog) + 1);
+  display: flex;
+  flex-direction: column;
+  width: min(var(--fs-console-drawer), 100vw);
+  overflow: hidden auto;
+  border-left: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  color: var(--fs-ink);
+  overscroll-behavior: contain;
+  transition:
+    transform var(--fs-dur-drawer-in) var(--fs-ease-drawer),
+    opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
+}
+
+.fsc-sheet--narrow {
+  width: min(440px, 100vw);
+}
+
+.fsc-sheet[data-starting-style],
+.fsc-sheet[data-ending-style] {
+  opacity: 0;
+  transform: translateX(calc(32px * var(--fs-motion, 1)));
+}
+
+.fsc-sheet[data-ending-style] {
+  transition-duration: var(--fs-dur-drawer-out);
+}
+
+.fsc-sheet__scrim[data-starting-style],
+.fsc-sheet__scrim[data-ending-style] {
+  opacity: 0;
+}
+
+.fsc-sheet__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 16px 16px 28px;
+  border-bottom: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
+}
+
+.fsc-sheet__close {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink-2);
+}
+
+.fsc-sheet__close:hover {
+  border-color: var(--fs-rule);
+  color: var(--fs-ink);
+}
+
+.fsc-sheet__lede {
+  max-width: 58ch;
+  margin: 0;
+  padding: 18px 28px 6px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-sheet__break {
+  display: grid;
+  gap: 10px;
+  margin: 28px 28px 32px;
+}
+
+.fsc-sheet__break .fsc-sheet__lede {
+  padding: 0;
+}
+
+.fsc-sheet__slot:empty {
+  display: none;
+}
+
+.fsc-sheet__attempts {
+  display: grid;
+  gap: 0;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A slice filled the slot with the live attempts: the stand-in list steps aside. */
+.fsc-sheet__slot:not(:empty) + .fsc-sheet__attempts {
+  display: none;
+}
+
+.fsc-sheet__attempts li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--fs-rule);
+  color: var(--fs-ink-2);
+}
+
+.fsc-sheet__attempts .fs-glyph {
+  margin-top: 2px;
+  color: var(--fs-steel-line);
+}
+
+/* "Try to break it" sits on a bolted plate: plate-2 face, steel-hatched edges and two bolt heads, because
+   every attempt in it meets a rule that will not move (design §2.5 "Bolted"). */
+.fsc-bolted {
+  position: relative;
+  margin: 0 8px 8px 0;
+  padding: 20px 22px 18px;
+  border: 1px solid var(--fs-steel-line);
+  background: var(--fs-plate);
+}
+
+.fsc-bolted::before,
+.fsc-bolted::after {
+  content: "";
+  position: absolute;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--fs-steel-line) 0 var(--fs-hatch-line),
+    var(--fs-steel-face) var(--fs-hatch-line) var(--fs-steel-gap)
+  );
+}
+
+/* Right and bottom edges, 5 px deep (a d2 depth with zero travel), built like the slab's: parallelograms
+   skewed 45° from the face's outer edge. */
+.fsc-bolted::before {
+  top: -1px;
+  left: calc(100% + 1px);
+  width: 5px;
+  height: calc(100% + 2px);
+  transform-origin: top left;
+  transform: skewY(45deg);
+}
+
+.fsc-bolted::after {
+  top: calc(100% + 1px);
+  left: -1px;
+  width: calc(100% + 2px);
+  height: 5px;
+  transform-origin: top left;
+  transform: skewX(45deg);
+}
+
+.fsc-bolted__bolt {
+  position: absolute;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fs-steel-line);
+  box-shadow: inset 0 0 0 1px var(--fs-steel-face);
+}
+
+.fsc-bolted__bolt--l {
+  left: 8px;
+}
+
+.fsc-bolted__bolt--r {
+  right: 8px;
+}
+
+/* ---------------------------------------------------------------- ledgers (term on the left, items beside) */
+
+.fsc-ledger {
+  display: grid;
+  margin: 12px 0 0;
+}
+
+.fsc-ledger__row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-ledger__row:last-child {
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-ledger__term {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--fs-ink);
+}
+
+.fsc-ledger__items {
+  margin: 0;
+}
+
+.fsc-ledger__items ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fs-ink-2);
+}
+
+/* What's real marks each kind with its material: real is ink, replayed and seeded are graphite, simulated
+   is an open ring (PayPal's own mark stays jade-free), synthetic is hatched, with its word beside it. */
+.fsc-ledger__row[data-section] .fsc-ledger__term::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-1px);
+  background: var(--fs-ink);
+}
+
+.fsc-ledger__row:is([data-section="replayed"], [data-section="seeded"]) .fsc-ledger__term::before {
+  background: var(--fs-pencil);
+}
+
+.fsc-ledger__row:is(
+    [data-section="simulated"],
+    [data-section="simulated-paypal"],
+    [data-section="real-paypal"]
+  )
+  .fsc-ledger__term::before {
+  border: 1.5px solid var(--fs-ink-2);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-ledger__row[data-section="synthetic"] .fsc-ledger__term::before {
+  background: repeating-linear-gradient(-45deg, var(--fs-ink-3) 0 1.5px, transparent 1.5px 3px);
+}
+
+.fsc-ledger__row:is(
+    [data-section="accounts"],
+    [data-section="merchant"],
+    [data-section="privacy"],
+    [data-section="not-built"]
+  )
+  .fsc-ledger__term::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--fs-ink-3);
+}
+
+/* The shortcut sheet's rows. */
+.fsc-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-shortcut .fsc-kbd {
+  order: 2;
+}
+
+.fsc-toggles {
+  display: grid;
+  gap: 2px;
+  padding: 12px 28px 4px;
+}
+
+/* ---------------------------------------------------------------- menus */
+
+.fsc-menu__positioner {
+  z-index: var(--fs-z-popover);
+  outline: none;
+}
+
+.fsc-menu {
+  display: grid;
+  min-width: 248px;
+  padding: 6px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  color: var(--fs-ink);
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--fs-dur-popover) var(--fs-ease-out),
+    transform var(--fs-dur-popover) var(--fs-ease-out);
+}
+
+.fsc-menu[data-starting-style],
+.fsc-menu[data-ending-style] {
+  opacity: 0;
+  transform: translateY(calc(-4px * var(--fs-motion, 1)));
+}
+
+.fsc-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink-2);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-decoration: none;
+  outline: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.fsc-menu__item[data-highlighted] {
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+}
+
+.fsc-menu__item:focus-visible {
+  box-shadow: inset 0 0 0 var(--fs-focus-width) var(--fs-pod);
+}
+
+.fsc-menu__item .fsc-kbd {
+  margin-left: auto;
+}
+
+.fsc-menu__rule {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--fs-rule);
+}
+
+/* ---------------------------------------------------------------- command notices */
+
+.fsc-command-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsc-command-notice > .fs-glyph {
+  margin-top: 1px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-command-notice__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fsc-command-notice__detail {
+  color: var(--fs-ink-2);
+}
+
+.fsc-command-notice__refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--fs-ink-3);
+}
+
+/* Red only when PayPal is the actor (design §2.2). */
+.fsc-command-notice[data-tone="paypal"] {
+  border-color: var(--fs-red);
+  background: var(--fs-red-wash);
+}
+
+.fsc-command-notice[data-tone="paypal"] > .fs-glyph,
+.fsc-command-notice[data-tone="paypal"] .fsc-command-notice__title {
+  color: var(--fs-red);
+}
+
+/* ---------------------------------------------------------------- Data mode */
+
+.fsc-mirrored__visual[hidden] {
+  display: none;
+}
+
+.fsc-datatable {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--fs-ink);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fsc-datatable__caption {
+  padding: 0 0 10px;
+  color: var(--fs-ink);
+  text-align: left;
+}
+
+.fsc-datatable :is(th, td) {
+  height: var(--fs-console-row);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--fs-rule);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.fsc-datatable thead th {
+  height: var(--fs-console-header);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+  font-weight: 560;
+}
+
+.fsc-datatable tbody th {
+  font-weight: 560;
+}
+
+.fsc-datatable [data-numeric] {
+  text-align: right;
+  font-stretch: 87.5%;
+}

@@ -10,22 +10,69 @@
 
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as StageRouteImport } from "./routes/_stage";
+import { Route as OpsRouteImport } from "./routes/ops";
 import { Route as PrototypeRouteImport } from "./routes/prototype";
+import { Route as SignInRouteImport } from "./routes/sign-in";
+import { Route as StageJudgeRouteImport } from "./routes/_stage/judge";
+import { Route as BTokenRouteImport } from "./routes/b/$token";
+import { Route as ProofRunSlugRouteImport } from "./routes/proof/$runSlug";
 import { Route as PrototypeIndexRouteImport } from "./routes/prototype/index";
 import { Route as PrototypePrimitivesRouteImport } from "./routes/prototype/primitives";
 import { Route as PrototypeSealSheetRouteImport } from "./routes/prototype/seal-sheet";
 import { Route as PrototypeTokensRouteImport } from "./routes/prototype/tokens";
+import { Route as STokenRouteImport } from "./routes/s/$token";
+import { Route as StageRunsRunSlugRouteRouteImport } from "./routes/_stage/runs/$runSlug/route";
+import { Route as StageSeasonSeasonCodeRouteRouteImport } from "./routes/_stage/season/$seasonCode/route";
 import { Route as PrototypeCompositionsCompositionRouteImport } from "./routes/prototype/compositions/$composition";
 import { Route as PrototypeMomentsMomentRouteImport } from "./routes/prototype/moments/$moment";
+import { Route as StageRunsRunSlugIndexRouteImport } from "./routes/_stage/runs/$runSlug/index";
+import { Route as StageRunsRunSlugApproveRouteImport } from "./routes/_stage/runs/$runSlug/approve";
+import { Route as StageRunsRunSlugFanoutRouteImport } from "./routes/_stage/runs/$runSlug/fanout";
+import { Route as StageRunsRunSlugSplitRouteImport } from "./routes/_stage/runs/$runSlug/split";
+import { Route as StageSeasonSeasonCodeIndexRouteImport } from "./routes/_stage/season/$seasonCode/index";
+import { Route as StageSeasonSeasonCodeRateCardRouteImport } from "./routes/_stage/season/$seasonCode/rate-card";
+import { Route as StageSeasonSeasonCodeReadingRouteImport } from "./routes/_stage/season/$seasonCode/reading";
+import { Route as StageSeasonSeasonCodeByHandSlipNoRouteImport } from "./routes/_stage/season/$seasonCode/by-hand/$slipNo";
+import { Route as RunsRunSlugMembersMemberNoPrintRouteImport } from "./routes/runs/$runSlug/members/$memberNo/print";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const StageRoute = StageRouteImport.update({
+  id: "/_stage",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OpsRoute = OpsRouteImport.update({
+  id: "/ops",
+  path: "/ops",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const PrototypeRoute = PrototypeRouteImport.update({
   id: "/prototype",
   path: "/prototype",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SignInRoute = SignInRouteImport.update({
+  id: "/sign-in",
+  path: "/sign-in",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const StageJudgeRoute = StageJudgeRouteImport.update({
+  id: "/judge",
+  path: "/judge",
+  getParentRoute: () => StageRoute,
+} as any);
+const BTokenRoute = BTokenRouteImport.update({
+  id: "/b/$token",
+  path: "/b/$token",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ProofRunSlugRoute = ProofRunSlugRouteImport.update({
+  id: "/proof/$runSlug",
+  path: "/proof/$runSlug",
   getParentRoute: () => rootRouteImport,
 } as any);
 const PrototypeIndexRoute = PrototypeIndexRouteImport.update({
@@ -48,6 +95,22 @@ const PrototypeTokensRoute = PrototypeTokensRouteImport.update({
   path: "/tokens",
   getParentRoute: () => PrototypeRoute,
 } as any);
+const STokenRoute = STokenRouteImport.update({
+  id: "/s/$token",
+  path: "/s/$token",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const StageRunsRunSlugRouteRoute = StageRunsRunSlugRouteRouteImport.update({
+  id: "/runs/$runSlug",
+  path: "/runs/$runSlug",
+  getParentRoute: () => StageRoute,
+} as any);
+const StageSeasonSeasonCodeRouteRoute =
+  StageSeasonSeasonCodeRouteRouteImport.update({
+    id: "/season/$seasonCode",
+    path: "/season/$seasonCode",
+    getParentRoute: () => StageRoute,
+  } as any);
 const PrototypeCompositionsCompositionRoute =
   PrototypeCompositionsCompositionRouteImport.update({
     id: "/compositions/$composition",
@@ -59,72 +122,229 @@ const PrototypeMomentsMomentRoute = PrototypeMomentsMomentRouteImport.update({
   path: "/moments/$moment",
   getParentRoute: () => PrototypeRoute,
 } as any);
+const StageRunsRunSlugIndexRoute = StageRunsRunSlugIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => StageRunsRunSlugRouteRoute,
+} as any);
+const StageRunsRunSlugApproveRoute = StageRunsRunSlugApproveRouteImport.update({
+  id: "/approve",
+  path: "/approve",
+  getParentRoute: () => StageRunsRunSlugRouteRoute,
+} as any);
+const StageRunsRunSlugFanoutRoute = StageRunsRunSlugFanoutRouteImport.update({
+  id: "/fanout",
+  path: "/fanout",
+  getParentRoute: () => StageRunsRunSlugRouteRoute,
+} as any);
+const StageRunsRunSlugSplitRoute = StageRunsRunSlugSplitRouteImport.update({
+  id: "/split",
+  path: "/split",
+  getParentRoute: () => StageRunsRunSlugRouteRoute,
+} as any);
+const StageSeasonSeasonCodeIndexRoute =
+  StageSeasonSeasonCodeIndexRouteImport.update({
+    id: "/",
+    path: "/",
+    getParentRoute: () => StageSeasonSeasonCodeRouteRoute,
+  } as any);
+const StageSeasonSeasonCodeRateCardRoute =
+  StageSeasonSeasonCodeRateCardRouteImport.update({
+    id: "/rate-card",
+    path: "/rate-card",
+    getParentRoute: () => StageSeasonSeasonCodeRouteRoute,
+  } as any);
+const StageSeasonSeasonCodeReadingRoute =
+  StageSeasonSeasonCodeReadingRouteImport.update({
+    id: "/reading",
+    path: "/reading",
+    getParentRoute: () => StageSeasonSeasonCodeRouteRoute,
+  } as any);
+const StageSeasonSeasonCodeByHandSlipNoRoute =
+  StageSeasonSeasonCodeByHandSlipNoRouteImport.update({
+    id: "/by-hand/$slipNo",
+    path: "/by-hand/$slipNo",
+    getParentRoute: () => StageSeasonSeasonCodeRouteRoute,
+  } as any);
+const RunsRunSlugMembersMemberNoPrintRoute =
+  RunsRunSlugMembersMemberNoPrintRouteImport.update({
+    id: "/runs/$runSlug/members/$memberNo/print",
+    path: "/runs/$runSlug/members/$memberNo/print",
+    getParentRoute: () => rootRouteImport,
+  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
+  "/ops": typeof OpsRoute;
   "/prototype": typeof PrototypeRouteWithChildren;
+  "/sign-in": typeof SignInRoute;
+  "/judge": typeof StageJudgeRoute;
+  "/b/$token": typeof BTokenRoute;
+  "/proof/$runSlug": typeof ProofRunSlugRoute;
   "/prototype/primitives": typeof PrototypePrimitivesRoute;
   "/prototype/seal-sheet": typeof PrototypeSealSheetRoute;
   "/prototype/tokens": typeof PrototypeTokensRoute;
+  "/s/$token": typeof STokenRoute;
   "/prototype/": typeof PrototypeIndexRoute;
+  "/runs/$runSlug": typeof StageRunsRunSlugRouteRouteWithChildren;
+  "/season/$seasonCode": typeof StageSeasonSeasonCodeRouteRouteWithChildren;
   "/prototype/compositions/$composition": typeof PrototypeCompositionsCompositionRoute;
   "/prototype/moments/$moment": typeof PrototypeMomentsMomentRoute;
+  "/runs/$runSlug/approve": typeof StageRunsRunSlugApproveRoute;
+  "/runs/$runSlug/fanout": typeof StageRunsRunSlugFanoutRoute;
+  "/runs/$runSlug/split": typeof StageRunsRunSlugSplitRoute;
+  "/season/$seasonCode/rate-card": typeof StageSeasonSeasonCodeRateCardRoute;
+  "/season/$seasonCode/reading": typeof StageSeasonSeasonCodeReadingRoute;
+  "/runs/$runSlug/": typeof StageRunsRunSlugIndexRoute;
+  "/season/$seasonCode/": typeof StageSeasonSeasonCodeIndexRoute;
+  "/season/$seasonCode/by-hand/$slipNo": typeof StageSeasonSeasonCodeByHandSlipNoRoute;
+  "/runs/$runSlug/members/$memberNo/print": typeof RunsRunSlugMembersMemberNoPrintRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
+  "/ops": typeof OpsRoute;
+  "/sign-in": typeof SignInRoute;
+  "/judge": typeof StageJudgeRoute;
+  "/b/$token": typeof BTokenRoute;
+  "/proof/$runSlug": typeof ProofRunSlugRoute;
   "/prototype/primitives": typeof PrototypePrimitivesRoute;
   "/prototype/seal-sheet": typeof PrototypeSealSheetRoute;
   "/prototype/tokens": typeof PrototypeTokensRoute;
+  "/s/$token": typeof STokenRoute;
   "/prototype": typeof PrototypeIndexRoute;
   "/prototype/compositions/$composition": typeof PrototypeCompositionsCompositionRoute;
   "/prototype/moments/$moment": typeof PrototypeMomentsMomentRoute;
+  "/runs/$runSlug/approve": typeof StageRunsRunSlugApproveRoute;
+  "/runs/$runSlug/fanout": typeof StageRunsRunSlugFanoutRoute;
+  "/runs/$runSlug/split": typeof StageRunsRunSlugSplitRoute;
+  "/season/$seasonCode/rate-card": typeof StageSeasonSeasonCodeRateCardRoute;
+  "/season/$seasonCode/reading": typeof StageSeasonSeasonCodeReadingRoute;
+  "/runs/$runSlug": typeof StageRunsRunSlugIndexRoute;
+  "/season/$seasonCode": typeof StageSeasonSeasonCodeIndexRoute;
+  "/season/$seasonCode/by-hand/$slipNo": typeof StageSeasonSeasonCodeByHandSlipNoRoute;
+  "/runs/$runSlug/members/$memberNo/print": typeof RunsRunSlugMembersMemberNoPrintRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
+  "/_stage": typeof StageRouteWithChildren;
+  "/ops": typeof OpsRoute;
   "/prototype": typeof PrototypeRouteWithChildren;
+  "/sign-in": typeof SignInRoute;
+  "/_stage/judge": typeof StageJudgeRoute;
+  "/b/$token": typeof BTokenRoute;
+  "/proof/$runSlug": typeof ProofRunSlugRoute;
   "/prototype/primitives": typeof PrototypePrimitivesRoute;
   "/prototype/seal-sheet": typeof PrototypeSealSheetRoute;
   "/prototype/tokens": typeof PrototypeTokensRoute;
+  "/s/$token": typeof STokenRoute;
   "/prototype/": typeof PrototypeIndexRoute;
+  "/_stage/runs/$runSlug": typeof StageRunsRunSlugRouteRouteWithChildren;
+  "/_stage/season/$seasonCode": typeof StageSeasonSeasonCodeRouteRouteWithChildren;
   "/prototype/compositions/$composition": typeof PrototypeCompositionsCompositionRoute;
   "/prototype/moments/$moment": typeof PrototypeMomentsMomentRoute;
+  "/_stage/runs/$runSlug/approve": typeof StageRunsRunSlugApproveRoute;
+  "/_stage/runs/$runSlug/fanout": typeof StageRunsRunSlugFanoutRoute;
+  "/_stage/runs/$runSlug/split": typeof StageRunsRunSlugSplitRoute;
+  "/_stage/season/$seasonCode/rate-card": typeof StageSeasonSeasonCodeRateCardRoute;
+  "/_stage/season/$seasonCode/reading": typeof StageSeasonSeasonCodeReadingRoute;
+  "/_stage/runs/$runSlug/": typeof StageRunsRunSlugIndexRoute;
+  "/_stage/season/$seasonCode/": typeof StageSeasonSeasonCodeIndexRoute;
+  "/_stage/season/$seasonCode/by-hand/$slipNo": typeof StageSeasonSeasonCodeByHandSlipNoRoute;
+  "/runs/$runSlug/members/$memberNo/print": typeof RunsRunSlugMembersMemberNoPrintRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
+    | "/ops"
     | "/prototype"
+    | "/sign-in"
+    | "/judge"
+    | "/b/$token"
+    | "/proof/$runSlug"
     | "/prototype/primitives"
     | "/prototype/seal-sheet"
     | "/prototype/tokens"
+    | "/s/$token"
     | "/prototype/"
+    | "/runs/$runSlug"
+    | "/season/$seasonCode"
     | "/prototype/compositions/$composition"
-    | "/prototype/moments/$moment";
+    | "/prototype/moments/$moment"
+    | "/runs/$runSlug/approve"
+    | "/runs/$runSlug/fanout"
+    | "/runs/$runSlug/split"
+    | "/season/$seasonCode/rate-card"
+    | "/season/$seasonCode/reading"
+    | "/runs/$runSlug/"
+    | "/season/$seasonCode/"
+    | "/season/$seasonCode/by-hand/$slipNo"
+    | "/runs/$runSlug/members/$memberNo/print";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
+    | "/ops"
+    | "/sign-in"
+    | "/judge"
+    | "/b/$token"
+    | "/proof/$runSlug"
     | "/prototype/primitives"
     | "/prototype/seal-sheet"
     | "/prototype/tokens"
+    | "/s/$token"
     | "/prototype"
     | "/prototype/compositions/$composition"
-    | "/prototype/moments/$moment";
+    | "/prototype/moments/$moment"
+    | "/runs/$runSlug/approve"
+    | "/runs/$runSlug/fanout"
+    | "/runs/$runSlug/split"
+    | "/season/$seasonCode/rate-card"
+    | "/season/$seasonCode/reading"
+    | "/runs/$runSlug"
+    | "/season/$seasonCode"
+    | "/season/$seasonCode/by-hand/$slipNo"
+    | "/runs/$runSlug/members/$memberNo/print";
   id:
     | "__root__"
     | "/"
+    | "/_stage"
+    | "/ops"
     | "/prototype"
+    | "/sign-in"
+    | "/_stage/judge"
+    | "/b/$token"
+    | "/proof/$runSlug"
     | "/prototype/primitives"
     | "/prototype/seal-sheet"
     | "/prototype/tokens"
+    | "/s/$token"
     | "/prototype/"
+    | "/_stage/runs/$runSlug"
+    | "/_stage/season/$seasonCode"
     | "/prototype/compositions/$composition"
-    | "/prototype/moments/$moment";
+    | "/prototype/moments/$moment"
+    | "/_stage/runs/$runSlug/approve"
+    | "/_stage/runs/$runSlug/fanout"
+    | "/_stage/runs/$runSlug/split"
+    | "/_stage/season/$seasonCode/rate-card"
+    | "/_stage/season/$seasonCode/reading"
+    | "/_stage/runs/$runSlug/"
+    | "/_stage/season/$seasonCode/"
+    | "/_stage/season/$seasonCode/by-hand/$slipNo"
+    | "/runs/$runSlug/members/$memberNo/print";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  StageRoute: typeof StageRouteWithChildren;
+  OpsRoute: typeof OpsRoute;
   PrototypeRoute: typeof PrototypeRouteWithChildren;
+  SignInRoute: typeof SignInRoute;
+  BTokenRoute: typeof BTokenRoute;
+  ProofRunSlugRoute: typeof ProofRunSlugRoute;
+  STokenRoute: typeof STokenRoute;
+  RunsRunSlugMembersMemberNoPrintRoute: typeof RunsRunSlugMembersMemberNoPrintRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -136,11 +356,53 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/_stage": {
+      id: "/_stage";
+      path: "";
+      fullPath: "/";
+      preLoaderRoute: typeof StageRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/ops": {
+      id: "/ops";
+      path: "/ops";
+      fullPath: "/ops";
+      preLoaderRoute: typeof OpsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/prototype": {
       id: "/prototype";
       path: "/prototype";
       fullPath: "/prototype";
       preLoaderRoute: typeof PrototypeRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/sign-in": {
+      id: "/sign-in";
+      path: "/sign-in";
+      fullPath: "/sign-in";
+      preLoaderRoute: typeof SignInRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_stage/judge": {
+      id: "/_stage/judge";
+      path: "/judge";
+      fullPath: "/judge";
+      preLoaderRoute: typeof StageJudgeRouteImport;
+      parentRoute: typeof StageRoute;
+    };
+    "/b/$token": {
+      id: "/b/$token";
+      path: "/b/$token";
+      fullPath: "/b/$token";
+      preLoaderRoute: typeof BTokenRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/proof/$runSlug": {
+      id: "/proof/$runSlug";
+      path: "/proof/$runSlug";
+      fullPath: "/proof/$runSlug";
+      preLoaderRoute: typeof ProofRunSlugRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/prototype/": {
@@ -171,6 +433,27 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof PrototypeTokensRouteImport;
       parentRoute: typeof PrototypeRoute;
     };
+    "/s/$token": {
+      id: "/s/$token";
+      path: "/s/$token";
+      fullPath: "/s/$token";
+      preLoaderRoute: typeof STokenRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_stage/runs/$runSlug": {
+      id: "/_stage/runs/$runSlug";
+      path: "/runs/$runSlug";
+      fullPath: "/runs/$runSlug";
+      preLoaderRoute: typeof StageRunsRunSlugRouteRouteImport;
+      parentRoute: typeof StageRoute;
+    };
+    "/_stage/season/$seasonCode": {
+      id: "/_stage/season/$seasonCode";
+      path: "/season/$seasonCode";
+      fullPath: "/season/$seasonCode";
+      preLoaderRoute: typeof StageSeasonSeasonCodeRouteRouteImport;
+      parentRoute: typeof StageRoute;
+    };
     "/prototype/compositions/$composition": {
       id: "/prototype/compositions/$composition";
       path: "/compositions/$composition";
@@ -185,8 +468,125 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof PrototypeMomentsMomentRouteImport;
       parentRoute: typeof PrototypeRoute;
     };
+    "/_stage/runs/$runSlug/": {
+      id: "/_stage/runs/$runSlug/";
+      path: "/";
+      fullPath: "/runs/$runSlug/";
+      preLoaderRoute: typeof StageRunsRunSlugIndexRouteImport;
+      parentRoute: typeof StageRunsRunSlugRouteRoute;
+    };
+    "/_stage/runs/$runSlug/approve": {
+      id: "/_stage/runs/$runSlug/approve";
+      path: "/approve";
+      fullPath: "/runs/$runSlug/approve";
+      preLoaderRoute: typeof StageRunsRunSlugApproveRouteImport;
+      parentRoute: typeof StageRunsRunSlugRouteRoute;
+    };
+    "/_stage/runs/$runSlug/fanout": {
+      id: "/_stage/runs/$runSlug/fanout";
+      path: "/fanout";
+      fullPath: "/runs/$runSlug/fanout";
+      preLoaderRoute: typeof StageRunsRunSlugFanoutRouteImport;
+      parentRoute: typeof StageRunsRunSlugRouteRoute;
+    };
+    "/_stage/runs/$runSlug/split": {
+      id: "/_stage/runs/$runSlug/split";
+      path: "/split";
+      fullPath: "/runs/$runSlug/split";
+      preLoaderRoute: typeof StageRunsRunSlugSplitRouteImport;
+      parentRoute: typeof StageRunsRunSlugRouteRoute;
+    };
+    "/_stage/season/$seasonCode/": {
+      id: "/_stage/season/$seasonCode/";
+      path: "/";
+      fullPath: "/season/$seasonCode/";
+      preLoaderRoute: typeof StageSeasonSeasonCodeIndexRouteImport;
+      parentRoute: typeof StageSeasonSeasonCodeRouteRoute;
+    };
+    "/_stage/season/$seasonCode/rate-card": {
+      id: "/_stage/season/$seasonCode/rate-card";
+      path: "/rate-card";
+      fullPath: "/season/$seasonCode/rate-card";
+      preLoaderRoute: typeof StageSeasonSeasonCodeRateCardRouteImport;
+      parentRoute: typeof StageSeasonSeasonCodeRouteRoute;
+    };
+    "/_stage/season/$seasonCode/reading": {
+      id: "/_stage/season/$seasonCode/reading";
+      path: "/reading";
+      fullPath: "/season/$seasonCode/reading";
+      preLoaderRoute: typeof StageSeasonSeasonCodeReadingRouteImport;
+      parentRoute: typeof StageSeasonSeasonCodeRouteRoute;
+    };
+    "/_stage/season/$seasonCode/by-hand/$slipNo": {
+      id: "/_stage/season/$seasonCode/by-hand/$slipNo";
+      path: "/by-hand/$slipNo";
+      fullPath: "/season/$seasonCode/by-hand/$slipNo";
+      preLoaderRoute: typeof StageSeasonSeasonCodeByHandSlipNoRouteImport;
+      parentRoute: typeof StageSeasonSeasonCodeRouteRoute;
+    };
+    "/runs/$runSlug/members/$memberNo/print": {
+      id: "/runs/$runSlug/members/$memberNo/print";
+      path: "/runs/$runSlug/members/$memberNo/print";
+      fullPath: "/runs/$runSlug/members/$memberNo/print";
+      preLoaderRoute: typeof RunsRunSlugMembersMemberNoPrintRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
+
+interface StageRunsRunSlugRouteRouteChildren {
+  StageRunsRunSlugApproveRoute: typeof StageRunsRunSlugApproveRoute;
+  StageRunsRunSlugFanoutRoute: typeof StageRunsRunSlugFanoutRoute;
+  StageRunsRunSlugSplitRoute: typeof StageRunsRunSlugSplitRoute;
+  StageRunsRunSlugIndexRoute: typeof StageRunsRunSlugIndexRoute;
+}
+
+const StageRunsRunSlugRouteRouteChildren: StageRunsRunSlugRouteRouteChildren = {
+  StageRunsRunSlugApproveRoute: StageRunsRunSlugApproveRoute,
+  StageRunsRunSlugFanoutRoute: StageRunsRunSlugFanoutRoute,
+  StageRunsRunSlugSplitRoute: StageRunsRunSlugSplitRoute,
+  StageRunsRunSlugIndexRoute: StageRunsRunSlugIndexRoute,
+};
+
+const StageRunsRunSlugRouteRouteWithChildren =
+  StageRunsRunSlugRouteRoute._addFileChildren(
+    StageRunsRunSlugRouteRouteChildren,
+  );
+
+interface StageSeasonSeasonCodeRouteRouteChildren {
+  StageSeasonSeasonCodeRateCardRoute: typeof StageSeasonSeasonCodeRateCardRoute;
+  StageSeasonSeasonCodeReadingRoute: typeof StageSeasonSeasonCodeReadingRoute;
+  StageSeasonSeasonCodeIndexRoute: typeof StageSeasonSeasonCodeIndexRoute;
+  StageSeasonSeasonCodeByHandSlipNoRoute: typeof StageSeasonSeasonCodeByHandSlipNoRoute;
+}
+
+const StageSeasonSeasonCodeRouteRouteChildren: StageSeasonSeasonCodeRouteRouteChildren =
+  {
+    StageSeasonSeasonCodeRateCardRoute: StageSeasonSeasonCodeRateCardRoute,
+    StageSeasonSeasonCodeReadingRoute: StageSeasonSeasonCodeReadingRoute,
+    StageSeasonSeasonCodeIndexRoute: StageSeasonSeasonCodeIndexRoute,
+    StageSeasonSeasonCodeByHandSlipNoRoute:
+      StageSeasonSeasonCodeByHandSlipNoRoute,
+  };
+
+const StageSeasonSeasonCodeRouteRouteWithChildren =
+  StageSeasonSeasonCodeRouteRoute._addFileChildren(
+    StageSeasonSeasonCodeRouteRouteChildren,
+  );
+
+interface StageRouteChildren {
+  StageJudgeRoute: typeof StageJudgeRoute;
+  StageRunsRunSlugRouteRoute: typeof StageRunsRunSlugRouteRouteWithChildren;
+  StageSeasonSeasonCodeRouteRoute: typeof StageSeasonSeasonCodeRouteRouteWithChildren;
+}
+
+const StageRouteChildren: StageRouteChildren = {
+  StageJudgeRoute: StageJudgeRoute,
+  StageRunsRunSlugRouteRoute: StageRunsRunSlugRouteRouteWithChildren,
+  StageSeasonSeasonCodeRouteRoute: StageSeasonSeasonCodeRouteRouteWithChildren,
+};
+
+const StageRouteWithChildren = StageRoute._addFileChildren(StageRouteChildren);
 
 interface PrototypeRouteChildren {
   PrototypePrimitivesRoute: typeof PrototypePrimitivesRoute;
@@ -212,7 +612,14 @@ const PrototypeRouteWithChildren = PrototypeRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  StageRoute: StageRouteWithChildren,
+  OpsRoute: OpsRoute,
   PrototypeRoute: PrototypeRouteWithChildren,
+  SignInRoute: SignInRoute,
+  BTokenRoute: BTokenRoute,
+  ProofRunSlugRoute: ProofRunSlugRoute,
+  STokenRoute: STokenRoute,
+  RunsRunSlugMembersMemberNoPrintRoute: RunsRunSlugMembersMemberNoPrintRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

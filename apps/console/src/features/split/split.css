@@ -1,0 +1,676 @@
+/* W-TR-05 Split review: the bench (dial, pool, decisions, filters) and the AG Grid, themed from the tokens. The
+   grid fills what the bench leaves, down to the ribbon: its pinned totals sit on the ribbon's edge and only the
+   grid's own lines scroll, never the screen around it. */
+
+.fsr-split {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  container-type: inline-size;
+}
+
+.fsr-split:has(> .fsr-banner) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.fsc-console__screen:has(> .fsr-split[data-state="ready"]),
+.fsc-console__screen:has(> .fsr-split[data-state="declined"]) {
+  padding-bottom: var(--fs-space-16);
+}
+
+.fsr-split__beds {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-split__beds-bench {
+  display: grid;
+  grid-template-columns: 168px 260px minmax(0, 1fr);
+  gap: var(--fs-space-32);
+  margin-bottom: var(--fs-space-16);
+}
+
+/* ------------------------------------------------------------------ the bench */
+
+.fsr-bench {
+  display: grid;
+  grid-template-columns: auto minmax(180px, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--fs-space-32) 40px;
+  padding-bottom: var(--fs-space-24);
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-bench__dial {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-4);
+}
+
+.fsr-bench__dial-note {
+  color: var(--fs-ink-2);
+}
+
+.fsr-bench__dial-note[data-status="OUTSIDE"] {
+  color: var(--fs-canary-text);
+}
+
+/* Waiting for slip 0462: the drawing is dimmed, its caption text keeps the token contrast (ink-3 ≥ 4.5:1). */
+.fsr-dial__visual[data-status="PENDING"] svg {
+  opacity: 0.72;
+}
+
+/* MM-3 reduced: the needle cuts to its new value under a 200 ms crossfade, its reading with it. */
+.fsr-dial__visual[data-cut] :is(.fs-dial__needle, .fs-dial__value) {
+  animation: fsr-dial-cut var(--fs-dur-crossfade) var(--fs-ease-out) both;
+}
+
+@keyframes fsr-dial-cut {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The pool: the screen's money at amount-l, in pencil (the engine's figure; nobody has signed), its two parts on
+   one line, then the balance check and the provenance of every figure on the screen. */
+.fsr-pools {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-4);
+  min-width: 0;
+  max-width: 400px;
+  margin: 0;
+  padding-top: var(--fs-space-4);
+}
+
+.fsr-pools__label {
+  color: var(--fs-ink-3);
+}
+
+.fsr-pools__total {
+  margin: 0;
+  color: var(--fs-pencil);
+  white-space: nowrap;
+}
+
+.fsr-pools__total[data-amount-state="ink"] {
+  color: var(--fs-ink);
+}
+
+.fsr-pools__parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-4) var(--fs-space-24);
+  margin: var(--fs-space-4) 0 0;
+}
+
+.fsr-pools__item {
+  display: grid;
+  gap: 2px;
+}
+
+.fsr-pools dt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  color: var(--fs-ink-3);
+}
+
+.fsr-pools dd {
+  margin: 0;
+}
+
+.fsr-pools dd[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-pools__note {
+  color: var(--fs-ink-3);
+}
+
+.fsr-bench__summary {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: var(--fs-space-12);
+  padding-top: var(--fs-space-8);
+}
+
+.fsr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-8);
+  min-inline-size: 0;
+  margin: var(--fs-space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.fsr-chip {
+  min-height: 32px;
+  padding: 0 var(--fs-space-12);
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: transparent;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+}
+
+.fsr-chip:hover {
+  color: var(--fs-ink);
+}
+
+.fsr-chip[aria-pressed="true"] {
+  border-color: var(--fs-ink-3);
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+/* ------------------------------------------------------------------ the grid */
+
+.fsr-grid {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Fills the screen down to the ribbon; below a laptop's height it keeps room for the pinned rows and a few lines
+   and lets the screen scroll instead. */
+.fsr-grid__frame {
+  height: 100%;
+  min-width: 0;
+  min-height: 360px;
+}
+
+.fsr-chip--columns {
+  justify-self: start;
+}
+
+.fsr-grid .ag-root-wrapper {
+  border-color: var(--fs-rule);
+}
+
+.fsr-grid .ag-row {
+  cursor: pointer;
+}
+
+.fsr-grid .ag-row.fsr-row--totals {
+  cursor: default;
+}
+
+.fsr-grid .ag-cell {
+  display: flex;
+  align-items: center;
+}
+
+/* Held and reserved rows: a 3 px canary rule on the left (a person decides). */
+.fsr-grid .fsr-row--held .ag-cell[col-id="member"] {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-grid .fsr-row--open .ag-cell {
+  background: var(--fs-plate-2);
+}
+
+.fsr-grid .fsr-row--totals .ag-cell {
+  border-top: 1px solid var(--fs-ink-3);
+  background: var(--fs-plate-2);
+}
+
+/* The decisions still open, pinned above the other lines: the run pill's order, set off by an ink-3 rule. */
+.fsr-grid .ag-floating-top {
+  border-bottom: 1px solid var(--fs-ink-3);
+}
+
+/* A renderer fills its cell so a wash covers it edge to edge. */
+.fsr-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.fsr-ag-num .fsr-cell {
+  justify-content: flex-end;
+}
+
+.fsr-cell > :not(.fsr-cell__wash) {
+  position: relative;
+}
+
+.fsr-cell__wash {
+  position: absolute;
+  inset: 0 calc(-1 * var(--ag-cell-horizontal-padding, 12px));
+  animation: fsr-wash calc(var(--fs-dur-flash) + var(--fs-dur-flash-fade)) var(--fs-ease-out) both;
+  pointer-events: none;
+}
+
+.fsr-cell__wash[data-cause="paypal"] {
+  --fsr-wash: var(--fs-jade-wash);
+}
+
+.fsr-cell__wash[data-cause="engine"] {
+  --fsr-wash: var(--fs-pencil-wash);
+}
+
+@keyframes fsr-wash {
+  0% {
+    background: transparent;
+  }
+  25% {
+    background: var(--fsr-wash);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Member: name, number and the statement language. */
+.fsr-member {
+  display: grid;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.fsr-member__name {
+  overflow: hidden;
+  color: var(--fs-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsr-member__meta {
+  display: inline-flex;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-3);
+}
+
+.fsr-member__lang {
+  color: var(--fs-ink-2);
+}
+
+/* Slips: the line's own sheets as 24 × 18 crops of their top corner (the red serial, Jessie's first entries),
+   fanned 5 px apart on the copies' own paper, then the count. Evidence, so paper: the only shadow in the grid. */
+.fsr-slips {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+}
+
+.fsr-slips__stack {
+  position: relative;
+  display: inline-block;
+  width: calc(24px + (var(--n, 1) - 1) * 5px);
+  height: 18px;
+}
+
+.fsr-slips__crop {
+  position: absolute;
+  top: 0;
+  left: calc(var(--i) * 5px);
+  display: block;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.45);
+}
+
+/* Kilos and the kilos-per-tree bar against the ratified limit (the tick sits at the limit). */
+.fsr-kg {
+  display: grid;
+  grid-template-columns: auto 52px;
+  align-items: center;
+  column-gap: var(--fs-space-12);
+  line-height: 1.1;
+}
+
+.fsr-kg__value[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-kg__value[data-amount-state="ink"] {
+  color: var(--fs-ink);
+}
+
+.fsr-kg__bar {
+  position: relative;
+  height: 4px;
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-kg__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fs-pencil-faint);
+}
+
+.fsr-kg__over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  max-width: 50%;
+  background: var(--fs-canary);
+}
+
+.fsr-kg__limit {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  width: 1px;
+  background: var(--fs-ink-2);
+}
+
+.fsr-kg__note {
+  grid-column: 1 / -1;
+  color: var(--fs-canary-text);
+}
+
+/* Confidence. */
+.fsr-conf {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-2);
+}
+
+.fsr-conf--unknown {
+  color: var(--fs-ink-3);
+}
+
+.fsr-conf__you {
+  height: 26px;
+}
+
+/* Money: the amount grammar, inline (S2.2.1). */
+.fsr-amount[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-amount[data-amount-state="ink"],
+.fsr-amount[data-amount-state="landed"],
+.fsr-amount[data-amount-state="attested"] {
+  color: var(--fs-ink);
+}
+
+.fsr-amount[data-amount-state="hollow"] {
+  color: var(--fs-ink-2);
+  text-decoration: underline dashed 1.5px;
+  text-underline-offset: 4px;
+}
+
+.fsr-amount--net {
+  font-weight: 640;
+}
+
+.fsr-amount--total {
+  color: var(--fs-ink);
+  font-weight: 600;
+}
+
+.fsr-kaltas {
+  display: inline-flex;
+  gap: var(--fs-space-4);
+}
+
+.fsr-kaltas[data-amount-state="pencil"] .fs-rule-chip {
+  color: var(--fs-pencil);
+}
+
+.fsr-credit--pending {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  color: var(--fs-canary-text);
+}
+
+/* Rail: PayPal by name, cash hatched with its word. */
+.fsr-rail {
+  color: var(--fs-ink-2);
+}
+
+.fsr-rail--cash {
+  display: inline-grid;
+  justify-items: start;
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.fsr-rail--cash > .fs-t-label {
+  padding: 1px 8px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  color: var(--fs-ink);
+  text-shadow:
+    0 0 2px var(--fs-plate),
+    0 0 2px var(--fs-plate);
+}
+
+.fsr-rail__moved {
+  color: var(--fs-ink-3);
+}
+
+/* Status: a glyph and a word, coloured only by what is true now. The words never clip mid-word: a long status
+   (a held line and its hold, or "Reserved, never redistributed.") wraps to a second line inside the 40 px row. */
+.fsr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  min-width: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-status__text {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.15;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.fsr-status__text > span {
+  line-height: inherit;
+}
+
+.fsr-grid .ag-cell[col-id="status"] {
+  white-space: normal;
+}
+
+.fsr-status__hold {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.fsr-status > .fs-glyph {
+  flex: none;
+  color: var(--fs-ink-2);
+}
+
+.fsr-status[data-tone="canary"] > .fs-glyph {
+  color: var(--fs-canary-text);
+}
+
+.fsr-status[data-tone="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-status[data-tone="pencil"] > .fs-glyph {
+  color: var(--fs-pencil);
+}
+
+.fsr-status[data-tone="red"],
+.fsr-status[data-tone="red"] > .fs-glyph {
+  color: var(--fs-red);
+}
+
+/* PayPal confirmed it: jade flush, the only jade in the grid. */
+.fsr-status[data-tone="jade"] {
+  padding: 2px 8px 2px 6px;
+  border: 1px solid var(--fs-jade-flush-border);
+  background: var(--fs-jade);
+  color: var(--fs-on-jade);
+}
+
+.fsr-status[data-tone="jade"] > .fs-glyph {
+  color: var(--fs-on-jade);
+}
+
+.fsr-status[data-tone="hatch"] {
+  padding: 2px 8px 2px 6px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsr-status__hold {
+  padding: 0 4px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink-2);
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.fsr-split__foot {
+  display: grid;
+  gap: var(--fs-space-4);
+}
+
+/* Under the pool: the balance check and the provenance of every figure on the screen. */
+.fsr-pools > .fsr-split__foot {
+  margin-top: var(--fs-space-8);
+}
+
+.fsr-split__totals {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsr-split__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  padding: 0 6px;
+  border: 1px solid var(--fs-ink-3);
+  border-radius: var(--fs-radius-2);
+  color: var(--fs-ink);
+}
+
+.fsr-split__check:not([data-balanced]) {
+  border-color: var(--fs-red);
+  color: var(--fs-red);
+}
+
+.fsr-split__provenance {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+/* Beside an open drawer, or in a narrow window, the screen is narrow: the decisions and filters run as one
+   wrapping row beneath the dial and the pool, and the dial draws smaller, so the grid keeps its height. */
+@container (max-width: 960px) {
+  .fsr-bench {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--fs-space-16) var(--fs-space-24);
+    padding-bottom: var(--fs-space-16);
+  }
+
+  .fsr-bench__dial .fs-dial svg {
+    width: 120px;
+    height: auto;
+  }
+
+  .fsr-bench__summary {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: var(--fs-space-8) var(--fs-space-16);
+    padding-top: 0;
+  }
+
+  .fsr-bench__summary .fsr-chips {
+    margin: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ the static table (before the grid is measured) */
+
+.fsr-grid__frame--static {
+  height: auto;
+  overflow-x: auto;
+  border: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.fsr-static {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.fsr-static th,
+.fsr-static td {
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--fs-rule);
+  font-weight: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fsr-static thead th {
+  height: 36px;
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+}
+
+.fsr-static [data-numeric] {
+  text-align: right;
+}
+
+.fsr-static tbody tr {
+  cursor: pointer;
+}
+
+.fsr-static tbody tr:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: calc(-1 * var(--fs-focus-width));
+}
+
+.fsr-static .fsr-row--held > th:first-child {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-static .fsr-row--open > * {
+  background: var(--fs-plate-2);
+}
+
+.fsr-static tfoot th,
+.fsr-static tfoot td {
+  border-top: 1px solid var(--fs-ink-3);
+  background: var(--fs-plate-2);
+}
+
+.fsr-static .fsr-cell {
+  height: 40px;
+}
+
+.fsr-static [data-numeric] .fsr-cell {
+  justify-content: flex-end;
+}
+
+.fsr-static__more {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: var(--fs-space-12);
+}

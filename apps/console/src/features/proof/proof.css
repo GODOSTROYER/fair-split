@@ -1,0 +1,1438 @@
+/* Proof (W-PF-01) and the brand view's column (W-BR-01): a light reading column on Adlaw (design §2.1, §6 P1).
+   One 680 px column (the Surface sets it), the hero centred, everything else left-aligned. Every colour is a
+   token, every timing a --fs-dur-* or --fs-ease-* variable. Paper (the slip) is the only thing with a shadow;
+   jade appears only where PayPal confirmed money; red only where a check failed or PayPal failed. */
+
+/* Proof's own face, "FS Sans Proof" (theme/surfaces.css): the column reads in it wherever it renders, and the
+   whole document does while a Proof surface is open (lib/face.ts). */
+.pf {
+  --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-hollow: "FS Numerals Hollow", "FS Sans Proof", system-ui, sans-serif;
+  display: block;
+  color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+  font-size: 0.9375rem;
+  line-height: 1.4375rem;
+}
+
+.pf-page {
+  display: grid;
+  gap: 0;
+}
+
+/* ------------------------------------------------------------------ amount grammar (S2.2.1), inline sizes */
+
+.pf [data-amount-state] {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.pf [data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.pf [data-amount-state="ink"],
+.pf [data-amount-state="landed"],
+.pf [data-amount-state="attested"] {
+  color: var(--fs-ink);
+}
+
+.pf [data-amount-state="hollow"] {
+  color: var(--fs-ink-2);
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: var(--fs-ink-3);
+  text-underline-offset: 4px;
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.pf-hero {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding-bottom: 8px;
+}
+
+.pf-hero__seal {
+  width: 100%;
+  max-width: 320px;
+}
+
+/* A laptop's first screen (956 px tall) keeps the money and the checks in view: the seal draws at 240 px. */
+@media (max-height: 1000px) {
+  .pf-hero__seal {
+    max-width: 240px;
+  }
+
+  .pf-hero__lot {
+    margin-top: 16px;
+  }
+}
+
+.pf-hero__seal .fsc-mirrored__visual svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pf-hero__seal .fsc-mirrored__table {
+  text-align: left;
+}
+
+/* Its line box is held at its settled height while the seed that names the lot is still on its way. */
+.pf-hero__lot {
+  min-block-size: 2.5rem;
+  margin-top: 24px;
+  color: var(--fs-ink);
+  font-family: var(--fs-font-mark);
+  font-weight: 800;
+  font-size: 2.5rem;
+  line-height: 2.5rem;
+  letter-spacing: 0.01em;
+}
+
+.pf-hero__title {
+  max-width: 34ch;
+  margin-top: 16px;
+  font-stretch: 100%;
+  font-weight: 620;
+  font-size: 1.375rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.008em;
+  text-wrap: balance;
+}
+
+/* The money is the hero: its own line inside the sentence, at hero size, in ink (PayPal recorded it). The words
+   around it step down to a reading size, so nothing on the page outweighs the amount. */
+.pf-hero__amount {
+  display: block;
+  margin: 4px 0;
+  color: var(--fs-ink);
+  font-stretch: 75%;
+  font-weight: 800;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.pf-hero__tagline {
+  margin-top: 10px;
+  color: var(--fs-ink-2);
+  font-size: 1.0625rem;
+  line-height: 1.5rem;
+}
+
+.pf-hero__rail {
+  max-width: 46ch;
+  margin-top: 6px;
+  color: var(--fs-ink-2);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  text-wrap: balance;
+}
+
+.pf-hero__rail .fs-glyph {
+  margin-right: 6px;
+  color: var(--fs-ink-3);
+  vertical-align: -3px;
+}
+
+/* ------------------------------------------------------------------ verify in your browser */
+
+.pf-verify {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  width: 100%;
+  margin-top: 24px;
+}
+
+/* The six checks in two columns of three, in order down each column, so all six sit under the slab. */
+.pf-checks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, auto);
+  column-gap: 32px;
+  width: 100%;
+  max-width: var(--fs-proof-column);
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--fs-rule);
+  list-style: none;
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  .pf-checks {
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+}
+
+.pf-checks__row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.pf-checks__no {
+  color: var(--fs-ink-3);
+  font-stretch: 75%;
+  font-weight: 640;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Machine print: what will be checked reads in pencil until this browser has checked it. */
+.pf-checks__what {
+  color: var(--fs-pencil);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.pf-checks__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fs-ink-3);
+  font-weight: 560;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+.pf-checks__row[data-state="checking"] .pf-checks__state {
+  color: var(--fs-pencil);
+}
+
+.pf-checks__row:is([data-state="matches"], [data-state="server"]) .pf-checks__what,
+.pf-checks__row:is([data-state="matches"], [data-state="server"]) .pf-checks__state {
+  color: var(--fs-ink);
+}
+
+.pf-checks__row[data-state="withheld"] .pf-checks__state {
+  color: var(--fs-ink-2);
+}
+
+.pf-checks__row[data-state="differs"] .pf-checks__what,
+.pf-checks__row[data-state="differs"] .pf-checks__state {
+  color: var(--fs-red);
+}
+
+/* The result prints: a 180 ms linear clip wipe, left to right, one check after another (machines print). */
+.pf-checks__row:is(
+    [data-state="matches"],
+    [data-state="server"],
+    [data-state="differs"],
+    [data-state="withheld"]
+  )
+  .pf-checks__state {
+  animation: pf-print var(--fs-dur-print) var(--fs-ease-linear) both;
+  animation-delay: calc(var(--pf-i, 0) * var(--fs-dur-press-60));
+}
+
+.pf-verify__status {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 560px;
+}
+
+.pf-verify__line {
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+.pf-verify__verdict {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+/* The verdict is an ink stamp: square, ink, never jade (jade means money). */
+.pf-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border: 1.5px solid var(--fs-ink);
+  color: var(--fs-ink);
+  /* The Proof face is 75-100% wide. */
+  font-stretch: 100%;
+  font-weight: 700;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.pf-verdict[data-verdict="failed"] {
+  border-color: var(--fs-red);
+  color: var(--fs-red);
+}
+
+.pf-verify__note,
+.pf-verify__trust,
+.pf-verify__anchors {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-verify__failure {
+  color: var(--fs-red);
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+.pf-verify .fsc-command-notice {
+  text-align: left;
+}
+
+/* ------------------------------------------------------------------ progress line and states */
+
+.pf-progress {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 28px auto 0;
+  color: var(--fs-ink);
+  font-weight: 560;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.pf-progress .fs-glyph {
+  color: var(--fs-ink-3);
+}
+
+.pf-progress[data-state="settled"] {
+  color: var(--fs-ink-2);
+}
+
+/* The run's live line sits in the hero under the sentence, before the tagline: what PayPal confirmed so far. */
+.pf-hero > .pf-progress {
+  margin: 12px auto 0;
+}
+
+.pf-progress__source {
+  color: var(--fs-ink-3);
+  font-weight: 450;
+  font-size: 0.75rem;
+}
+
+.pf-withheld {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 32px;
+  padding: 16px;
+  border: 1px solid var(--fs-red);
+  background: var(--fs-red-wash);
+  color: var(--fs-ink);
+}
+
+.pf-withheld > .fs-glyph {
+  color: var(--fs-red);
+}
+
+.pf-withheld__title {
+  color: var(--fs-red);
+  font-weight: 660;
+}
+
+.pf-withheld__where {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+.pf-state {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 64px 0 48px;
+  text-align: center;
+}
+
+.pf-state > .fs-glyph {
+  color: var(--fs-ink-3);
+}
+
+.pf-state__title {
+  max-width: 30ch;
+  font-weight: 660;
+  font-size: 1.375rem;
+  line-height: 1.875rem;
+  text-wrap: balance;
+}
+
+.pf-state__lede {
+  max-width: 48ch;
+  color: var(--fs-ink-2);
+}
+
+.pf-state .fsc-command-notice {
+  width: 100%;
+  text-align: left;
+}
+
+.pf-loading {
+  display: grid;
+  gap: 48px;
+}
+
+.pf-loading__hero {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+}
+
+.pf-loading__plates {
+  display: grid;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------------ sections */
+
+.pf-section__title {
+  margin-bottom: 20px;
+  padding-top: 20px;
+  border-top: 2px solid var(--fs-ink);
+  font-weight: 640;
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+}
+
+.pf-chain,
+.pf-figures,
+.pf-plots {
+  margin-top: 56px;
+}
+
+/* ------------------------------------------------------------------ the chain: six plates on one rule */
+
+.pf-chain__list {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-chain__list::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  bottom: 24px;
+  left: 15.5px;
+  width: 1px;
+  background: var(--fs-ink-3);
+}
+
+.pf-plate {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 16px;
+  padding-bottom: 20px;
+}
+
+.pf-plate__node {
+  position: relative;
+  z-index: 1;
+  grid-row: 1 / span 3;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--fs-ink);
+  background: var(--fs-ground);
+  color: var(--fs-ink);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An ink node once this browser has re-checked the plate: a person can see six marks, top to bottom. */
+.pf-plate:is([data-state="matches"], [data-state="server"]) .pf-plate__node {
+  background: var(--fs-ink);
+  color: var(--fs-ground);
+  transition:
+    background-color var(--fs-dur-reduced) var(--fs-ease-out),
+    color var(--fs-dur-reduced) var(--fs-ease-out);
+}
+
+.pf-plate[data-state="differs"] .pf-plate__node {
+  border-color: var(--fs-red);
+  color: var(--fs-red);
+}
+
+.pf-plate[data-waiting] .pf-plate__node {
+  border-style: dashed;
+}
+
+.pf-plate__head {
+  margin: 0;
+  font: inherit;
+}
+
+.pf-plate__toggle {
+  appearance: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-plate__title {
+  font-weight: 640;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.pf-plate__fact {
+  grid-column: 1;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-plate__chevron {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--fs-ink-3);
+}
+
+.pf-plate__toggle:hover .pf-plate__title {
+  text-decoration: underline;
+  text-decoration-color: var(--fs-ink-3);
+  text-underline-offset: 3px;
+}
+
+/* Before a check, a plate says nothing about it: the hero's list says what Verify will recompute. */
+.pf-plate__check[data-state="idle"] {
+  display: none;
+}
+
+.pf-plate__check {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--fs-ink-3);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.pf-plate__check:is([data-state="matches"], [data-state="server"]) {
+  color: var(--fs-ink);
+}
+
+.pf-plate__check[data-state="differs"] {
+  color: var(--fs-red);
+}
+
+.pf-plate__body {
+  grid-column: 2;
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.pf-plate__body[hidden] {
+  display: none;
+}
+
+.pf-plate__what {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-plate__reason {
+  color: var(--fs-red);
+  font-weight: 560;
+}
+
+.pf-plate__note,
+.pf-plate__lead {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-facts {
+  display: grid;
+  margin: 0;
+}
+
+.pf-facts__row {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.pf-facts__row:last-child {
+  border-bottom: 0;
+}
+
+.pf-facts__row dt {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+}
+
+.pf-facts__row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pf-hash {
+  overflow-wrap: anywhere;
+}
+
+.pf-hashes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  color: var(--fs-ink-2);
+  list-style: none;
+}
+
+.pf-conservation {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.pf-keys {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-keys__key {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 2px 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.pf-keys__key:last-child {
+  border-bottom: 0;
+}
+
+.pf-keys__role {
+  grid-row: 1 / span 3;
+  font-weight: 640;
+}
+
+.pf-keys__kind,
+.pf-keys__meta {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+/* ------------------------------------------------------------------ tables (lines, items) */
+
+.pf-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.pf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-table th,
+.pf-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fs-rule);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.pf-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--fs-plate-2);
+  color: var(--fs-ink-2);
+  font-weight: 560;
+  font-size: 0.75rem;
+}
+
+.pf-table tbody th {
+  font-weight: 560;
+}
+
+.pf-table [data-numeric] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.pf-table__receiver {
+  color: var(--fs-ink-2);
+}
+
+.pf-table .fs-chip {
+  min-height: 24px;
+}
+
+.pf-rail {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+.pf-rail[data-rail="cash"] {
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.pf-rail[data-rail="cash"] > span {
+  padding: 0 3px;
+  background: var(--fs-plate);
+}
+
+/* ------------------------------------------------------------------ plate 4: lines and MM-7 (tap a peso) */
+
+.pf-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.pf-lines__hint,
+.pf-lines__sum {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+/* The lines table grows with the page (no nested scroll), so a traced line unfolds in place. The scroller is a
+   size container, so MM-7's trace can be exactly as wide as the part of the table a reader sees. */
+.pf-lines .pf-table-wrap {
+  overflow-y: visible;
+  container-type: inline-size;
+}
+
+/* A phone (Lines.tsx folds at 560 px): the rail sits under the member and the status under the net, so three
+   columns fit and the peso to tap is on screen. */
+.pf-lines__table[data-fold] tr:not(.pf-lines__trace-row) > :is(th, td) {
+  padding: 10px 8px;
+  vertical-align: top;
+}
+
+.pf-lines__table[data-fold] tbody th {
+  white-space: normal;
+}
+
+.pf-line__who {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.pf-line__name {
+  font-weight: 560;
+}
+
+.pf-line__receiver {
+  font-weight: 450;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  overflow-wrap: break-word;
+}
+
+/* The PayPal word lines up with the member ID above it; the cash tag keeps its hatched box. */
+.pf-line__who .pf-rail[data-rail="paypal"] {
+  padding-inline: 0;
+}
+
+.pf-line__net {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.pf-peso {
+  appearance: none;
+  position: relative;
+  display: inline-grid;
+  place-items: center end;
+  min-width: 24px;
+  min-height: 24px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pf-peso:hover .fs-t-figure {
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-color: var(--fs-ink);
+}
+
+/* MM-7 "framed": the figure lifts into a 1 px ink frame. */
+.pf-peso__frame {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--fs-ink);
+  pointer-events: none;
+}
+
+.pf-lines__trace-row > td {
+  padding: 0;
+  background: var(--fs-plate-2);
+  white-space: normal;
+}
+
+/* MM-7's trace is pinned to the reader's window onto the table: as wide as the scroller shows and stuck to its
+   left edge, so the receipt's net and the slip stay on screen even while a wide table scrolls sideways. */
+.pf-trace {
+  position: sticky;
+  left: 0;
+  box-sizing: border-box;
+  width: 100cqi;
+  display: grid;
+  gap: 16px;
+  padding: 18px 16px 14px;
+}
+
+.pf-trace__receipt {
+  display: grid;
+  gap: 14px;
+}
+
+.pf-receipt {
+  display: grid;
+  max-width: 520px;
+  margin: 0;
+}
+
+.pf-receipt__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.pf-receipt__row dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-weight: 560;
+}
+
+.pf-receipt__why {
+  flex-basis: 100%;
+  color: var(--fs-ink-2);
+  font-weight: 450;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.pf-receipt__row dd {
+  margin: 0;
+  text-align: right;
+}
+
+.pf-receipt__row--net {
+  border-top: 2px solid var(--fs-ink);
+  border-bottom: 0;
+}
+
+.pf-receipt__row--net dd {
+  font-stretch: 75%;
+  font-weight: 760;
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.pf-trace__slips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-trace__lead {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+}
+
+.pf-slipchip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-2);
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.pf-slipchip:hover {
+  border-color: var(--fs-ink-3);
+}
+
+.pf-slipchip[data-active] {
+  border-color: var(--fs-ink);
+  box-shadow: inset 0 0 0 1px var(--fs-ink);
+}
+
+.pf-slipchip__no {
+  font-stretch: 87.5%;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-slipchip__kg {
+  color: var(--fs-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-trace__actions {
+  display: flex;
+}
+
+.pf-trace__actions .fs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.pf-crop {
+  display: grid;
+  gap: 12px;
+}
+
+.pf-crop__paper {
+  width: 100%;
+  max-width: 440px;
+}
+
+.pf-crop__focus {
+  display: block;
+}
+
+.pf-crop__viewport {
+  overflow: hidden;
+  aspect-ratio: 360 / 232;
+}
+
+.pf-crop__slip {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pf-crop__print {
+  fill: var(--fs-ink-3);
+  font-family: var(--fs-font-ui);
+  font-size: 7px;
+  font-weight: 560;
+}
+
+.pf-crop__print--head {
+  fill: var(--fs-ink-2);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.pf-crop__print--note {
+  font-style: normal;
+  font-weight: 450;
+}
+
+.pf-crop__serial {
+  fill: var(--fs-red);
+  font-family: var(--fs-font-ui);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.pf-crop__rule {
+  stroke: var(--fs-ink-3);
+  stroke-width: 0.75;
+}
+
+.pf-crop__box {
+  fill: none;
+  stroke: var(--fs-ink-3);
+  stroke-width: 0.75;
+}
+
+.pf-crop__box--payable {
+  stroke: var(--fs-paper-ink);
+  stroke-width: 1.25;
+}
+
+.pf-crop__withheld {
+  fill: var(--fs-ink-2);
+}
+
+.pf-crop__pen {
+  fill: var(--fs-paper-ink);
+  font-family: var(--fs-font-ui);
+  font-stretch: 87.5%;
+  font-weight: 640;
+  font-size: 14px;
+}
+
+.pf-crop__pen--faint {
+  fill-opacity: 0.62;
+}
+
+.pf-crop__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.pf-crop__zoom {
+  justify-content: center;
+  min-width: 40px;
+  padding: 0;
+  font-size: 1.125rem;
+}
+
+.pf-crop__note,
+.pf-crop__missing {
+  flex: 1 1 16rem;
+  color: var(--fs-ink-2);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* ------------------------------------------------------------------ where the money went */
+
+.pf-ledger {
+  margin: 0;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.pf-ledger__row {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  gap: 6px 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.pf-ledger__row > dt {
+  font-weight: 640;
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+}
+
+.pf-ledger__row > dd {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.pf-ledger__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  font-stretch: 87.5%;
+  font-weight: 640;
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-ledger__aside {
+  color: var(--fs-ink-2);
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+
+.pf-ledger__note {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-tierbar__bar {
+  display: flex;
+  overflow: hidden;
+  height: 14px;
+  margin: 4px 0 6px;
+  border: 1px solid var(--fs-ink-3);
+  background: var(--fs-plate);
+}
+
+.pf-tierbar__seg {
+  display: block;
+  height: 100%;
+}
+
+.pf-tierbar__seg[data-tier="paypal"] {
+  background: var(--fs-jade);
+  box-shadow: inset -1px 0 0 var(--fs-jade-flush-border);
+}
+
+.pf-tierbar__seg[data-tier="attested"] {
+  background: var(--fs-ink);
+}
+
+.pf-tierbar__seg[data-tier="due"] {
+  flex: 1 1 auto;
+  background: repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px);
+}
+
+.pf-tiers {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-tier {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto minmax(6.5rem, auto);
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.pf-tier__swatch {
+  width: 12px;
+  height: 12px;
+  align-self: center;
+  border: 1px solid var(--fs-ink-3);
+}
+
+.pf-tier[data-tier="paypal"] .pf-tier__swatch {
+  border-color: var(--fs-jade-flush-border);
+  background: var(--fs-jade);
+}
+
+.pf-tier[data-tier="attested"] .pf-tier__swatch {
+  border-color: var(--fs-ink);
+  background: var(--fs-ink);
+}
+
+.pf-tier:is([data-tier="due"], [data-tier="reserved"]) .pf-tier__swatch {
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+}
+
+.pf-tier__words {
+  display: grid;
+}
+
+.pf-tier__sub {
+  color: var(--fs-ink-2);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.pf-tier__count {
+  color: var(--fs-ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pf-tier__amount {
+  font-stretch: 87.5%;
+  font-weight: 640;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A figure an event moved re-prints its digits: a 150 ms slide and crossfade, never a count-up. */
+.pf-tier [data-moved] {
+  display: inline-block;
+  animation: pf-digit var(--fs-dur-digit-in) var(--fs-ease-out) both;
+}
+
+.pf-ledger__row--rails .fs-railbar {
+  margin: 4px 0 0;
+}
+
+.pf-figures__source {
+  margin-top: 12px;
+  color: var(--fs-ink-3);
+  font-size: 0.75rem;
+}
+
+.pf-figures__withheld {
+  color: var(--fs-ink-2);
+}
+
+.pf-fees {
+  margin-top: 24px;
+  border-top: 1px solid var(--fs-rule);
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.pf-fees__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.pf-fees__title {
+  font-weight: 640;
+}
+
+.pf-fees__lede {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+}
+
+.pf-fees__list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 0 16px 18px;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+/* ------------------------------------------------------------------ plot field */
+
+.pf-plots__field {
+  border: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.pf-plots__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pf-plots__dot {
+  fill: var(--fs-ink-3);
+  fill-opacity: 0.55;
+  stroke: var(--fs-ink-2);
+  stroke-width: 0.75;
+}
+
+.pf-plots__caption {
+  margin-top: 10px;
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.pf-footer {
+  display: grid;
+  gap: 8px;
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 1px solid var(--fs-rule);
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-footer__last {
+  color: var(--fs-ink);
+  font-weight: 560;
+}
+
+/* ------------------------------------------------------------------ keyframes and reduced motion */
+
+@keyframes pf-print {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes pf-digit {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pf-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion keeps every state and drops the travel: results and digits crossfade over 150 ms. The selectors
+   repeat the animated ones so they win by order, at the same or a higher specificity. */
+.pf-page[data-motion="reduced"]
+  .pf-checks__row:is(
+    [data-state="matches"],
+    [data-state="server"],
+    [data-state="differs"],
+    [data-state="withheld"]
+  )
+  .pf-checks__state,
+.pf-page[data-motion="reduced"] .pf-tier [data-moved] {
+  animation-name: pf-fade;
+  animation-duration: var(--fs-dur-reduced);
+  animation-delay: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-checks__row:is(
+      [data-state="matches"],
+      [data-state="server"],
+      [data-state="differs"],
+      [data-state="withheld"]
+    )
+    .pf-checks__state,
+  .pf-tier [data-moved] {
+    animation-name: pf-fade;
+    animation-duration: var(--fs-dur-reduced);
+    animation-delay: 0ms;
+  }
+
+  .pf-plate:is([data-state="matches"], [data-state="server"]) .pf-plate__node {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ narrow screens */
+
+@media (max-width: 560px) {
+  .pf-hero__lot {
+    min-block-size: 2rem;
+    font-size: 2rem;
+    line-height: 2rem;
+  }
+
+  .pf-hero__title {
+    font-size: 1.375rem;
+    line-height: 1.875rem;
+  }
+
+  /* The amount never breaks, so on a phone it scales with the viewport instead of widening the hero and the page
+     (WCAG 1.4.10): a twelve-character amount (US$88,888.88, 5.44 em) still fits a 320 px viewport's 288 px
+     column. It stays at hero size from 450 px and never goes below the app's 48 px hero (design §2.3). */
+  .pf-hero .pf-hero__amount {
+    font-size: clamp(3rem, 16vw, 4.5rem);
+    line-height: 1;
+  }
+
+  .pf-ledger__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pf-tier {
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+  }
+
+  .pf-tier__count {
+    grid-column: 2;
+  }
+
+  .pf-facts__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .pf-keys__key {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pf-keys__role {
+    grid-row: auto;
+  }
+}
+
+/* A phone: an open plate gives up its indent and spans the column under its node, so the lines and the trace get
+   the whole width; the rule runs on behind it. */
+@media (max-width: 480px) {
+  .pf-plate__body {
+    grid-column: 1 / -1;
+    padding: 12px;
+  }
+
+  .pf-trace {
+    padding: 16px 12px 12px;
+  }
+}

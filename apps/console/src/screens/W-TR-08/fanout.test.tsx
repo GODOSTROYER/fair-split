@@ -1,0 +1,218 @@
+// W-TR-08 Run against the mock world: MM-6, "Honest fan-out". Before the 201 nothing is drawn; PayPal's 201
+// draws the threads to 70% (sent); seven verified SUCCESS events land jade; Rhea's UNCLAIMED parks in canary
+// with a decision, never red; "Pay in cash at the bodega" retracts her thread into the cash band; a repeated
+// delivery logs one row and moves nothing. Full and reduced motion reach the same phases.
+
+import type { RunEvent } from "@fairsplit/contracts";
+import { webRoutes } from "@fairsplit/contracts";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { queryKeys } from "../../data/query.js";
+import { applyRunEvent, type RunView } from "../../data/run-view.js";
+import { clearMomentTrace, expectNoAxeViolations, renderConsole, tracedPhases } from "../../test/index.js";
+
+const RUN = "2026A-r37";
+const SLOW = 120_000;
+const WAIT = { timeout: 8_000 };
+
+const stateOf = () => screen.queryByTestId("W-TR-08")?.dataset.state;
+const toneOf = (memberNo: string) => screen.getByTestId(`W-TR-08.thread.${memberNo}`).dataset.tone;
+
+async function approved(motion: "full" | "reduced" = "full") {
+  const view = await renderConsole({ path: webRoutes.fanout(RUN), viewport: { width: 1920 }, motion });
+  await view.startSession();
+  act(() => {
+    view.world.markPaid();
+    view.world.resolveAll();
+    view.world.sign("treasurer");
+  });
+  await waitFor(
+    () => expect(screen.getByTestId("W-TR-08.status").textContent).toMatch(/Not posted yet/),
+    WAIT,
+  );
+  return view;
+}
+
+describe("W-TR-08 run: the honest fan-out", () => {
+  it(
+    "waits for the batch, then the 201 sends eight threads, seven land jade and Rhea parks in canary",
+    async () => {
+      clearMomentTrace();
+      const view = await approved();
+      expect(toneOf("M-014")).toBe("unsent");
+      expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
+        "8 to send by PayPal once both keys sign. 56 in cash at the bodega. On PayPal: 8.7% of value.",
+      );
+      act(() => {
+        view.world.cosign();
+      });
+      await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+      await waitFor(() => expect(tracedPhases("MM-6")).toContain("parked"), WAIT);
+      expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["sent", "landing", "parked"]));
+      for (const m of ["M-014", "M-007", "M-060", "M-018", "M-039", "M-022", "M-002"])
+        expect(toneOf(m)).toBe("landed");
+      expect(toneOf("M-031")).toBe("parked");
+      // Signature 6: one seal, 64 lines, eight PayPal threads and 56 dashed cash lines, each its own path.
+      const fan = screen.getByTestId("W-TR-08.fan");
+      expect(fan.querySelectorAll("path.fsr-fan__thread")).toHaveLength(8);
+      const cash = fan.querySelectorAll<SVGPathElement>("path.fsr-fan__cash-line");
+      expect(cash).toHaveLength(56);
+      expect(
+        [...cash].every((p) => p.getAttribute("pathLength") === "1" && p.getAttribute("stroke-dasharray")),
+      ).toBe(true);
+      // The words are HTML at their type sizes, never SVG text scaled with the picture.
+      expect(fan.querySelectorAll("text")).toHaveLength(0);
+      const celing = screen.getByTestId("W-TR-08.label.M-014");
+      expect(celing.textContent).toBe("Consolacion BacusUS$64.45");
+      expect(celing.querySelector(".fs-t-caption")?.textContent).toBe("Consolacion Bacus");
+      expect(celing.querySelector(".fs-t-figure")?.getAttribute("data-amount-state")).toBe("landed");
+      expect(screen.getByTestId("W-TR-08.chip.M-031").textContent).toBe("Parked");
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toBe(
+        "56 members, cash at the bodega on 30 OctUS$3,849.78",
+      );
+      const rhea = screen.getByTestId("W-TR-08.parked");
+      expect(rhea.textContent).toMatch(
+        /Rhea Jumawan's address has no PayPal account, so PayPal parked US\$26\.65/,
+      );
+      // The count says what the stage's Proof counter says: sent, confirmed, parked, and cash.
+      expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
+        "8 sent by PayPal, 7 confirmed, 1 parked. 56 in cash at the bodega. On PayPal: 8.7% of value.",
+      );
+      expect(screen.queryByTestId("W-TR-08.denied")).toBeNull();
+      const log = screen.getByTestId("W-TR-08.lane.PAYPAL");
+      expect(within(log).getAllByText(/^Paid /)).toHaveLength(7);
+      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(/^Median .+, slowest .+/);
+      await expectNoAxeViolations(screen.getByTestId("W-TR-08"));
+    },
+    SLOW,
+  );
+
+  it(
+    "Pay in cash at the bodega: her thread retracts into the band, 7 of 64 on PayPal, settled with no celebration",
+    async () => {
+      clearMomentTrace();
+      const view = await approved();
+      act(() => {
+        view.world.cosign();
+      });
+      await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+      const face = screen.getByTestId("W-TR-08.payCash.face");
+      face.focus();
+      fireEvent.keyDown(face, { key: "Enter" });
+      await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
+      expect(toneOf("M-031")).toBe("moved");
+      // The slab went with the parked card: focus is on the line that says where her cash is, never on <body>.
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-TR-08.rerouted")), WAIT);
+      // Her thread retracts and her own dashed cash line draws in from the same slot (live, so it animates).
+      const line = screen.getByTestId("W-TR-08.cash.M-031");
+      expect(line.dataset.moved).toBe("");
+      expect(line.closest(".fsr-fan__moved")?.hasAttribute("data-animate")).toBe(true);
+      expect(
+        screen
+          .getByTestId("W-TR-08.thread.M-031")
+          .querySelector(".fsr-fan__thread")
+          ?.hasAttribute("data-animate"),
+      ).toBe(true);
+      const fan = screen.getByTestId("W-TR-08.fan");
+      expect(fan.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(57);
+      expect(screen.getByTestId("W-TR-08.label.M-031").textContent).toMatch(/^Rhea Jumawan, moved to cash/);
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members, cash at the bodega/);
+      expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
+      expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
+        "8 sent by PayPal, 7 confirmed. 57 in cash at the bodega. On PayPal: 8.1% of value.",
+      );
+      expect(screen.getByTestId("W-TR-08.status").textContent).toBe(
+        "7 paid by PayPal. 57 in cash. US$21.14 kept for members.",
+      );
+      await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
+      expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));
+      expect(view.world.line("M-031")?.state).toBe("OFF_RAIL_DUE");
+    },
+    SLOW,
+  );
+
+  it(
+    "a repeated delivery logs one quiet row and changes nothing else",
+    async () => {
+      const view = await approved();
+      act(() => {
+        view.world.cosign();
+      });
+      await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+      // The live UNCLAIMED plays MM-6's "parked" act once the director gives it the stage: wait for that act to
+      // be traced before clearing, so the check below sees only what the repeated delivery does.
+      await waitFor(() => expect(tracedPhases("MM-6")).toContain("parked"), WAIT);
+      clearMomentTrace();
+      const tonesBefore = ["M-014", "M-031"].map(toneOf);
+      act(() => {
+        view.runtime.client.setQueryData<RunView>(queryKeys.run(RUN), (old) => {
+          const last = old?.events.at(-1);
+          if (!old || !last) return old;
+          const duplicate = {
+            ...last,
+            id: String(Number(old.lastEventId) + 1),
+            type: "webhook.received",
+            at: new Date().toISOString(),
+            actor: { kind: "paypal", id: "paypal:webhook", impersonatedBy: null },
+            provenance: "simulated_rail",
+            payload: {
+              webhookEventId: "wh-repeat-1",
+              paypalEventId: "WH-MOCK-REPEAT",
+              eventType: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+              verified: "self",
+              duplicate: true,
+            },
+          } as unknown as RunEvent;
+          return applyRunEvent(old, duplicate);
+        });
+      });
+      const row = await screen.findByTestId("W-TR-08.log.duplicate");
+      expect(row.textContent).toMatch(/Delivery repeated, already applied\./);
+      expect(["M-014", "M-031"].map(toneOf)).toEqual(tonesBefore);
+      expect(stateOf()).toBe("parked");
+      // No act starts: the only phase MM-6 may trace is the resting "parked" it already holds (under load the
+      // live UNCLAIMED's own act can still be landing on it when the trace is cleared).
+      expect(tracedPhases("MM-6").filter((phase) => phase !== "parked")).toEqual([]);
+    },
+    SLOW,
+  );
+
+  it(
+    "reduced motion reaches the same phases",
+    async () => {
+      clearMomentTrace();
+      const view = await approved("reduced");
+      act(() => {
+        view.world.cosign();
+      });
+      await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+      await waitFor(() => expect(tracedPhases("MM-6")).toContain("parked"), WAIT);
+      expect(screen.getByTestId("W-TR-08.fan").dataset.motion).toBe("reduced");
+      expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["sent", "landing", "parked"]));
+    },
+    SLOW,
+  );
+
+  it(
+    "the showcase run is done, its log labelled seeded; PayPal declining a batch is the only red",
+    async () => {
+      const view = await renderConsole({ path: webRoutes.fanout(RUN), viewport: { width: 1920 } });
+      await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
+      expect(screen.getByTestId("W-TR-08.log").textContent).toMatch(/Seeded showcase history/);
+      expect(toneOf("M-031")).toBe("moved");
+      // History is drawn in place: her cash line is there, still.
+      expect(
+        screen.getByTestId("W-TR-08.cash.M-031").closest(".fsr-fan__moved")?.hasAttribute("data-animate"),
+      ).toBe(false);
+      await expectNoAxeViolations(screen.getByTestId("W-TR-08"));
+      act(() => {
+        view.runtime.client.setQueryData<RunView>(queryKeys.run(RUN), (old) =>
+          old ? { ...old, state: "DENIED" } : old,
+        );
+      });
+      await waitFor(() => expect(stateOf()).toBe("denied"), WAIT);
+      expect(screen.getByTestId("W-TR-08.denied").dataset.tone).toBe("red");
+    },
+    SLOW,
+  );
+});
