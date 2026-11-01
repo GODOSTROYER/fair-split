@@ -66,6 +66,27 @@ describe("Proof and log copy stays faithful to its evidence", () => {
     }
   });
 
+  it.each(["CANCELLED", "DENIED", "HALTED"] as const)(
+    "inv.i8.%s describes the replay evidence from before the terminal transition",
+    (to) => {
+      const world = createTestWorld();
+      world.markPaid();
+      const event = world.events().find((event) => event.type === "run.state");
+      if (!event) throw new Error("run state required");
+      for (const from of ["INVOICED", "IN_REVIEW", "APPROVED", "POSTING", "SETTLING", "SETTLED"] as const) {
+        const row = describeEvent(
+          { ...event, provenance: "replay", payload: { ...event.payload, from, to } },
+          describeContext(snapshot),
+        );
+        expect(row?.detail).toBe(
+          ["POSTING", "SETTLING", "SETTLED"].includes(from)
+            ? "Run state, Reached on replayed payout statuses"
+            : "Run state, Labelled replay of the simulated invoice and payment step",
+        );
+      }
+    },
+  );
+
   it("inv.i8.cancelled and seeded returned payouts explicitly name the simulated balance", () => {
     const event: RunEvent = {
       id: "1",

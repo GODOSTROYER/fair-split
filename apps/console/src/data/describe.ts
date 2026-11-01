@@ -203,8 +203,12 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
         treasurer: ctx.personName("treasurer:analyn"),
         chair: ctx.personName("board:ernesto"),
       });
+      // Terminal states all rank 99, regardless of whether any payout had posted.
+      const evidenceState = PAY_RUN_RANK[event.payload.to] === 99 ? event.payload.from : event.payload.to;
+      const payoutPhase =
+        PAY_RUN_RANK[evidenceState] >= PAY_RUN_RANK.POSTING && PAY_RUN_RANK[evidenceState] < 99;
       const stateNote =
-        event.provenance === "replay" && PAY_RUN_RANK[event.payload.to] < PAY_RUN_RANK.POSTING
+        event.provenance === "replay" && !payoutPhase
           ? "Labelled replay of the simulated invoice and payment step"
           : note;
       return { ...base, words, detail: join("Run state", stateNote) };
