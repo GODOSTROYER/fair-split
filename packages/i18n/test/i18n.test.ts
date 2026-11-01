@@ -135,6 +135,7 @@ describe("catalogs", () => {
       "W-JG-01.state.queued",
       "W-TR-01.invoice.drafted",
       "W-TR-07.fees",
+      "W-TR-07.payouts",
     ] as const) {
       expect(CATALOGS.en[key], key).toMatch(/simulated/i);
     }

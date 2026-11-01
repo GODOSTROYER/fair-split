@@ -113,7 +113,7 @@ export interface HoldSlabProps<Body = string> {
 
 export type SlabProps<Body = string> = SlabBaseProps & (PressSlabProps | HoldSlabProps<Body>);
 
-export type PrintProvenance = "claude" | "engine";
+export type PrintProvenance = "claude" | "engine" | "seeded";
 export type PrintState = "pencil" | "hollow" | "ink";
 
 export interface PrintProps {
