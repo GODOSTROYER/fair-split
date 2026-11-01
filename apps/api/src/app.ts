@@ -90,7 +90,13 @@ export function createApp(o: CreateAppOptions): FairSplitApp {
 
   mountPayPalWebhooks(
     app,
-    o.webhookHandler ?? createWebhookHandler({ db: deps.db, rail: deps.paypal, logger: deps.logger }),
+    o.webhookHandler ??
+      createWebhookHandler({
+        db: deps.db,
+        rail: deps.paypal,
+        logger: deps.logger,
+        clock: deps.clock,
+      }),
   );
   mountSimulatorPages(app, deps.paypal.pages);
   mountSseRoutes(m);

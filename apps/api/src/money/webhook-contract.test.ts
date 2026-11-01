@@ -170,7 +170,7 @@ describe("processWebhook: only a GET changes state (apply contract rule 3)", () 
       .from(schema.payoutItems)
       .where(eq(schema.payoutItems.senderItemId, m014?.sender_item_id as string));
     expect(item).toMatchObject({ status: "PENDING", payoutItemId: null });
-    expect(row).toMatchObject({ status: "applied", workspaceId: h.world.workspaceId });
+    expect(row).toMatchObject({ status: "orphan", appliedAt: null, workspaceId: h.world.workspaceId });
     expect(await settleRows("WH-CONTRACT-ITEM-1")).toHaveLength(1);
     expect((await appliedLedger()).map((e) => e.eventId)).not.toContain("WH-CONTRACT-ITEM-1");
     expect(await runState()).toBe("POSTED");
@@ -179,7 +179,7 @@ describe("processWebhook: only a GET changes state (apply contract rule 3)", () 
   it("PAYOUTSBATCH.PROCESSING writes no batch status and moves no run; the scheduled settle GET decides", async () => {
     const calls = script.calls.length;
     const row = await deliver(batchEvent("WH-CONTRACT-BATCH-P", "PROCESSING"));
-    expect(row?.status).toBe("applied");
+    expect(row).toMatchObject({ status: "orphan", appliedAt: null, error: "SETTLE_GET_REQUIRED" });
     expect(script.calls.length).toBe(calls);
     expect((await batchRow()).status).toBe("PENDING");
     expect(await runState()).toBe("POSTED");
