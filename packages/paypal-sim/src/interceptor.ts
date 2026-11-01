@@ -124,6 +124,15 @@ async function readBody(body: unknown): Promise<Buffer | null> {
 }
 
 /**
+ * A hostname as DNS compares it: lower case, without the trailing dot of a fully qualified name. Every host check
+ * here uses it, so `API-M.SANDBOX.PAYPAL.COM` or `api-m.sandbox.paypal.com.` cannot slip past the simulator to the
+ * real network.
+ */
+function normalizeHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.+$/, "");
+}
+
+/**
  * An undici-compatible Dispatcher that answers requests for the sandbox hosts from the simulator and
  * forwards everything else to `fallback` (default: the global dispatcher at install time).
  */
@@ -131,7 +140,7 @@ export function createSandboxDispatcher(
   sim: Simulator,
   opts: { fallback?: DispatcherLike; hosts?: readonly string[] } = {},
 ): DispatcherLike {
-  const hosts = new Set(opts.hosts ?? SANDBOX_HOSTS);
+  const hosts = new Set((opts.hosts ?? SANDBOX_HOSTS).map(normalizeHostname));
   const handle = async (o: DispatchOptionsLike, handler: DispatchHandlerLike, origin: URL) => {
     let aborted = false;
     let reason: Error | null = null;
@@ -195,7 +204,7 @@ export function createSandboxDispatcher(
   return {
     dispatch(o, handler) {
       const origin = new URL(String(o.origin ?? "http://localhost"));
-      if (!hosts.has(origin.hostname)) {
+      if (!hosts.has(normalizeHostname(origin.hostname))) {
         if (!opts.fallback) {
           handler.onError?.(new Error(`no fallback dispatcher for ${origin.host}`));
           return false;
@@ -232,7 +241,7 @@ export async function installSandboxInterceptor(
 ): Promise<InstalledInterceptor> {
   if (active) throw new Error("a PayPal sandbox interceptor is already installed in this process");
   const hosts = [...(opts.hosts ?? SANDBOX_HOSTS)];
-  const hostSet = new Set(hosts);
+  const hostSet = new Set(hosts.map(normalizeHostname));
 
   const server = http.createServer(
     getRequestListener((req) => sim.apiFetch(req, IN_PROCESS_ENV), { overrideGlobalObjects: false }),
@@ -273,10 +282,10 @@ export async function installSandboxInterceptor(
         callback = b as ((res: IncomingMessage) => void) | undefined;
       }
       const merged: RequestOptions = url ? { ...urlToHttpOptions(url), ...options } : { ...options };
-      const hostname =
-        merged.hostname ?? (typeof merged.host === "string" ? merged.host.replace(/:\d+$/, "") : "");
-      if (!hostSet.has(hostname ?? ""))
-        return (original as (...x: unknown[]) => ClientRequest).apply(this, args);
+      const hostname = normalizeHostname(
+        merged.hostname ?? (typeof merged.host === "string" ? merged.host.replace(/:\d+$/, "") : ""),
+      );
+      if (!hostSet.has(hostname)) return (original as (...x: unknown[]) => ClientRequest).apply(this, args);
       const protocol = merged.protocol ?? defaultProtocol;
       const headers: Record<string, string | string[]> = {};
       const rawHeaders = merged.headers;
