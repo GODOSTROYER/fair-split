@@ -76,6 +76,7 @@ describe("error mapping to IC-01 codes", () => {
     expect(toApiProblem(failure(429, "RATE_LIMIT_REACHED")).toBody()).toMatchObject({
       code: "CIRCUIT_OPEN",
       status: 503,
+      message: "The simulated PayPal sandbox is pacing us. PayPal steps replay for a few minutes.",
       retryAfterMs: 360_000,
     });
   });

@@ -124,7 +124,7 @@ const QUOTA_REASONS = new Set<ReplayReason>([
 export const REPLAY_COPY: Readonly<Record<ReplayReason, string>> = {
   kill_switch: "PayPal calls are paused by the kill switch",
   simulator_not_running: "the PayPal simulator is not running",
-  circuit_open: "PayPal's sandbox is pacing us",
+  circuit_open: "the simulated PayPal sandbox is pacing us",
   lane_full: "too many live runs are waiting",
   balance_unknown: "the sandbox balance has not been read in the last day",
   balance_low: "the sandbox balance is low",
