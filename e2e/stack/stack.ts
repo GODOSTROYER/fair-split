@@ -27,6 +27,7 @@ import { startTestCluster, withDatabase } from "@fairsplit/db/testing";
 import type {} from "@fairsplit/db/testing/global-setup";
 import postgres from "postgres";
 import { assembleMedia } from "../../tools/assemble-media.js";
+import { E2E_HOURLY_CAP } from "../lib/quota-config.js";
 
 export const E2E_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const REPO_ROOT = path.resolve(E2E_ROOT, "..");
@@ -227,7 +228,7 @@ export async function startStack(o: StackOptions = {}): Promise<Stack> {
       ...(process.platform === "win32"
         ? { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP, TMP: process.env.TMP }
         : { HOME: process.env.HOME, TMPDIR: process.env.TMPDIR }),
-      NODE_ENV: "development",
+      NODE_ENV: "test",
       LOG_LEVEL: "warn",
       HOST: "127.0.0.1",
       PORT: String(port),
@@ -235,6 +236,9 @@ export async function startStack(o: StackOptions = {}): Promise<Stack> {
       DATABASE_URL: url,
       PP_ENV: "sandbox",
       PP_MODE: "simulator",
+      // The real hourly cap is global, so fresh spec cookies alone cannot isolate payout specs. This override is
+      // accepted only in test+simulator mode; daily, per-cookie, balance, lane and PayPal pacing guards still bind.
+      FS_TEST_JUDGE_HOURLY_MAX: String(E2E_HOURLY_CAP),
       EXECUTOR: "inline",
       FS_COOKIE_SECRET: randomBytes(32).toString("hex"),
       FS_LINK_SIGNING_KEY: randomBytes(32).toString("hex"),

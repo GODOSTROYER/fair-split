@@ -22,7 +22,11 @@ failure and on Ctrl-C; a process `exit` listener stops it if the runner ends any
 3. fs-api from `apps/api/src/index.ts` (tsx) on a free port, `PP_MODE=simulator`: PayPal is fs-api's in-process
    simulator (ADR-0010), so every PayPal-derived value reads "Simulated PayPal sandbox". Its environment is a
    whitelist with throwaway signing keys made for the run: no `ANTHROPIC_API_KEY`, so the reading is the seed's
-   labelled stand-in.
+   labelled stand-in. The private stack sets `NODE_ENV=test` and `FS_TEST_JUDGE_HOURLY_MAX=24`: the hourly quota is
+   global, so separate judge cookies alone cannot isolate live-payout specs. fs-api accepts this override only in
+   test + simulator mode outside Render; production's three-per-hour default stays intact. Daily, per-cookie,
+   balance, lane and PayPal request pacing guards still apply. Each HTTP helper starts without a judge cookie,
+   and each browser test has its own Playwright context.
 4. fs-api serves the console at `/`, the `/app` export and the curated folder at `/media` from that one origin
    (`STATIC_MEDIA_DIR` points to the assembled folder).
 
@@ -46,6 +50,10 @@ file names and reuses or restarts the cluster.
 - `specs/api/cold-judge-timing.spec.ts`: first press to the payouts POST within 60 s, measured (annotated).
 - `specs/api/paypal-pacing.spec.ts`: Mark paid with PayPal's window full answers 429 QUEUED with its wait
   (`retryAfterMs`, `Retry-After`). The harness honours it and the run funds.
+- `specs/api/judge-quota.spec.ts`: the private stack reports the raised hourly cap. Explicitly labelled synthetic
+  reservations fill that cap only after a run's invoice funds; its payout replays and Proof reports five matching
+  plates plus one labelled replay, with no PayPal-verified members. The fixture removes only its exact row IDs in
+  `finally`, and resets its judge session. It is skipped against an origin without the private stack database.
 - `specs/browser/judge.spec.ts`: /judge's first view (noindex, no /v1 call before the first press), the first press
   funding the run, Reset and a second press.
 - `specs/browser/proof.spec.ts`: /proof/<runSlug> for a settled run renders its six plates; Verify reads Sample,
@@ -95,6 +103,7 @@ QUEUED is still honoured, and the pacing spec is skipped.
 | Browser: Play it for me to the POST             | C5b (and C5c/K1a for key 2)                                                                                                                                                                                                            |
 | Browser: Try to break it, the I4 refusal shown  | C5b: no tamper controls in http mode                                                                                                                                                                                                   |
 | Browser: Proof's holds caught and US$21.14 kept | C5b: Proof reads the holds from the seed, not `/v1/proof/:runSlug/metrics`                                                                                                                                                             |
+| Browser: over-quota Proof labels payout replay  | WS-CONSOLE: render `verification.status=replay`, `payoutItems.state=replay`, the explicit recorded-status label and the five-of-six verdict. The API/domain regression remains active.                                                 |
 | Browser: every stage spec, with main's console  | M3: ws/console merged                                                                                                                                                                                                                  |
 | Phone: console stage hands the Chair its token  | WS-CONSOLE/M3: mint `board:ernesto` via `POST /v1/judge/sessions/:sid/frames`; keep it in memory; send IC-12 `fs.token` after the Chair iframe's same-origin `fs.ready`, resend after reload, and discard it/send `fs.reset` on Reset  |
 | Phone: judge-route line drift before key 2      | WS-API: `change_payout` mutates only inside `postPayoutBatch`, after both signatures, then restores the line on refusal. No existing judge route exposes pre-sign drift; the client guard uses an explicitly labelled response fixture |

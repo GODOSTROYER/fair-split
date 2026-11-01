@@ -3,6 +3,7 @@
 // every plate. Judge Mode signs with browser demo keys, so the page reads Sample, never Verified.
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, stackOrigin, test } from "../../lib/fixtures.js";
+import { withReplayedPayout } from "../../lib/judge-quota.js";
 import { settledRun } from "../../lib/judge-run.js";
 
 test.describe.configure({ mode: "serial" });
@@ -52,4 +53,27 @@ test("Verify in your browser: six of six match, read as Sample", async ({ page }
 test.fixme("Proof shows the holds caught and US$21.14 kept for members", async () => {
   // C5b: for a run on fs-api, Proof's "Holds caught" reads "This run's holds aren't in this browser's copy of the
   // season" instead of GET /v1/proof/:runSlug/metrics' holds (caught 3, kept for members US$21.14).
+});
+
+test("over-quota payout: five plates match and payout statuses read Replayed (labelled)", async ({
+  page,
+  origin,
+}) => {
+  test.fixme(
+    true,
+    "WS-CONSOLE: render verification.status replay, payoutItems.state replay and the labelled five-of-six verdict; the API/domain regression runs in specs/api/judge-quota.spec.ts",
+  );
+  await withReplayedPayout(origin, async (_api, s) => {
+    await page.goto(`/proof/${s.runSlug}`);
+    await page
+      .getByTestId("W-PF-01.verify")
+      .getByRole("button", { name: /Verify in your browser/ })
+      .click();
+    await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "replay");
+    await expect(page.getByTestId("W-PF-01.check.payoutItems")).toContainText("Replayed (labelled)");
+    const verdict = page.getByTestId("W-PF-01.verdict");
+    await expect(verdict).toHaveAttribute("data-state", "replay");
+    await expect(verdict).toContainText(/five of six match; one replayed, labelled/i);
+    await expect(verdict).not.toContainText(/mismatch|verified/i);
+  });
 });
