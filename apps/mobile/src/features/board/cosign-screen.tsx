@@ -187,6 +187,11 @@ export function CosignScreen() {
 
   return (
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
+      {dto.rail === "simulated" ? (
+        <Txt kind="caption" testID="M-BD-01.rail">
+          Simulated PayPal sandbox
+        </Txt>
+      ) : null}
       {showPush ? <SimulatedPush dto={dto} /> : null}
       <StatusBanner />
 

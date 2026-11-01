@@ -1,12 +1,19 @@
 /**
- * TEMPORARY SHIM: replace with @fairsplit/api-client after WS-API merges.
+ * Mobile view adapter over fs-api. The board/pairing routes use the served contracts (ADR-0012).
  *
  * IC-08 as the app needs it: typed DTOs, an HTTP client for the register §4 commands, and
  * `subscribe(scope, onEvent)` over SSE with Last-Event-ID replay. Routes the register does not list
- * (statement, co-sign summary, approval payload, device keys, push tokens) follow S3 where it names them and are
+ * (statement, device keys, push tokens) follow S3 where it names them and are
  * marked `shim-defined` otherwise, for WS-API to confirm.
  */
 import { createParser, type EventSourceMessage } from "eventsource-parser";
+import {
+  type BatchView,
+  cosignView,
+  digestLines,
+  type LineList,
+  type RunView,
+} from "../features/board/fs-api-view";
 import type {
   ApiErrorCode,
   AppRole,
@@ -141,13 +148,22 @@ export interface CosignHold {
 
 /**
  * One member line as a signature binds it (approved plan: `linesDigest` covers every member line, on and off rail):
- * contracts `ProofLine` narrowed to what the phone checks, so fs-api may send the Proof's own lines. `lineSha256`
- * is sha256(JCS(canonical)) and `canonical` is the content it covers (engine v1, the card hash, the net), so the phone
- * recomputes every line hash and the lines digest itself instead of taking either on trust. shim-defined.
+ * Canonical local fixtures are rehashed in full; fs-api's flat line hashes are cross-checked with
+ * /batch and bound by the independently recomputed lines root (ADR-0012).
  */
-export type CosignLine = Pick<ProofLine, "memberNo" | "rail" | "netCents" | "canonical" | "lineSha256">;
+export type CosignLine = Pick<ProofLine, "memberNo" | "rail" | "netCents" | "lineSha256"> &
+  (
+    | { canonical: ProofLine["canonical"]; source?: undefined }
+    | {
+        /** Option B: /lines exposes stored hashes, not full canonical line preimages (ADR-0012). */
+        source: "fs-api-lines";
+        canonical?: undefined;
+        batchLineSha256: string | null;
+      }
+  );
 
 export interface CosignRequestDTO {
+  rail?: "simulated" | "sandbox";
   runId: string;
   runSlug: string;
   seasonId: string;
@@ -174,10 +190,8 @@ export interface CosignRequestDTO {
 }
 
 /**
- * `GET /v1/runs/:runSlug/approval-payload?role=`: IC-08's `ApprovalPayloadResponse` ({payload, jcs}) plus what the
- * approved plan says the endpoint also returns, so the phone recomputes both digests from what it is asked to sign
- * (register §8, I4): the batch items with their `senderBatchId` (batchSha256) and every member line (linesDigest).
- * The extra fields are shim-defined until WS-API confirms them.
+ * IC-08's {payload, jcs}, augmented locally with fresh /batch and /lines responses so the phone
+ * recomputes both roots before signing. fs-api's frozen response carries no extra fields (ADR-0012).
  */
 export interface ApprovalPayloadDTO {
   payload: ApprovalPayload;
@@ -226,6 +240,16 @@ export type RunEventListener = (e: RunEvent) => void;
 
 export interface FairSplitApi {
   readonly mode: "live" | "demo";
+  getOpenCosignRun?(): Promise<ApiResult<{ runSlug: string }>>;
+  registerFrameKey?(body: { publicKeyHex: string; signatureHex: string }): Promise<
+    ApiResult<{
+      keyId: string;
+      approverId: string;
+      kind: "web_demo";
+      label: string;
+      publicKeyHex: string;
+    }>
+  >;
   claimPairing(req: PairClaimRequest): Promise<ApiResult<PairClaimResponse>>;
   getStatement(): Promise<ApiResult<StatementDTO>>;
   getStatementByLink(token: string): Promise<ApiResult<StatementDTO>>;
@@ -274,8 +298,8 @@ const STATUS_CODES: Readonly<Record<number, ApiErrorCode>> = {
 
 async function errorCode(res: Response): Promise<ApiErrorCode> {
   try {
-    const body = (await res.json()) as { error?: { code?: string } };
-    const code = body?.error?.code;
+    const body = (await res.json()) as { code?: string; error?: { code?: string } };
+    const code = body?.code ?? body?.error?.code;
     if (code) return code as ApiErrorCode;
   } catch {
     // Non-JSON error bodies fall through to the status mapping.
@@ -313,7 +337,25 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
   return {
     mode: "live",
     async claimPairing(req) {
-      const r = await call<PairClaimResponse>("POST", "/v1/pairing/claim", req);
+      const response = await call<{
+        token: string;
+        role: AppRole;
+        persona: string;
+        workspaceId: string;
+        expiresAt: string;
+      }>("POST", "/v1/pairing/claim", req.token ? { token: req.token } : { code6: req.code6 });
+      const r: ApiResult<PairClaimResponse> = response.ok
+        ? {
+            ok: true,
+            value: {
+              ...response.value,
+              bearer: response.value.token,
+              kind: "device",
+              persona: `${response.value.role}:${response.value.persona}`,
+              displayName: response.value.persona,
+            },
+          }
+        : response;
       if (r.ok || r.code !== "NETWORK" || r.status === undefined) return r;
       // Map bare statuses when the server sends no error code.
       if (r.status === 410) return { ok: false, code: "PAIRING_EXPIRED", status: 410 };
@@ -325,11 +367,55 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
     getStatement: () => call<StatementDTO>("GET", "/v1/members/me/statement"), // shim-defined
     getStatementByLink: (token) =>
       call<StatementDTO>("GET", `/v1/statements/link/${encodeURIComponent(token)}`), // shim-defined
-    getCosignRequest: (slug) => call<CosignRequestDTO>("GET", `/v1/runs/${encodeURIComponent(slug)}/cosign`), // shim-defined
-    getApprovalPayload: (slug, role) =>
-      call<ApprovalPayloadDTO>("GET", `/v1/runs/${encodeURIComponent(slug)}/approval-payload?role=${role}`),
-    postApproval: (slug, body) =>
-      call<{ accepted: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals`, body),
+    async getOpenCosignRun() {
+      const r = await call<{ runSlug: string | null }>("GET", "/v1/judge/session");
+      if (!r.ok) return r;
+      return r.value.runSlug
+        ? { ok: true, value: { runSlug: r.value.runSlug } }
+        : { ok: false, status: 404, code: "NOT_FOUND" };
+    },
+    registerFrameKey: (body) => call("POST", "/v1/judge/keys", body),
+    async getCosignRequest(slug) {
+      const path = `/v1/runs/${encodeURIComponent(slug)}`;
+      const [batch, lines, run, season] = await Promise.all([
+        call<BatchView>("GET", `${path}/batch`),
+        call<LineList>("GET", `${path}/lines`),
+        call<RunView>("GET", path),
+        call<{ season: { cosignBatchCents: number; cosignLineCents: number } }>(
+          "GET",
+          `/v1/seasons/${encodeURIComponent(slug.split("-r")[0] ?? "")}`,
+        ),
+      ]);
+      if (!batch.ok) return batch;
+      if (!lines.ok) return lines;
+      if (!run.ok) return run;
+      if (!season.ok) return season;
+      return { ok: true, value: cosignView(batch.value, lines.value, run.value, season.value.season) };
+    },
+    async getApprovalPayload(slug, role) {
+      const path = `/v1/runs/${encodeURIComponent(slug)}`;
+      const [approval, batch, lines] = await Promise.all([
+        call<Pick<ApprovalPayloadDTO, "payload" | "jcs">>("GET", `${path}/approval-payload?role=${role}`),
+        call<BatchView>("GET", `${path}/batch`),
+        call<LineList>("GET", `${path}/lines`),
+      ]);
+      if (!approval.ok) return approval;
+      if (!batch.ok) return batch;
+      if (!lines.ok) return lines;
+      return {
+        ok: true,
+        value: {
+          ...approval.value,
+          senderBatchId: batch.value.senderBatchId,
+          items: batch.value.items,
+          lines: digestLines(batch.value, lines.value),
+        },
+      };
+    },
+    async postApproval(slug, body) {
+      const r = await call<unknown>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals`, body);
+      return r.ok ? { ok: true, value: { accepted: true } } : r;
+    },
     declineApproval: (slug, body) =>
       call<{ ok: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals/decline`, body),
     registerDeviceKey: (body) => call<{ ok: true }>("POST", "/v1/device-keys", body), // shim-defined

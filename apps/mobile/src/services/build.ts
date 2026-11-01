@@ -12,7 +12,8 @@ export const BUILD = {
 
 /**
  * `EXPO_PUBLIC_API_ORIGIN`: an https origin, or `same-origin` when fs-api serves this web export at /app.
- * Unset means demo mode: the whole API runs in memory and every screen says "Demo data" (I8).
+ * Unset means demo mode. Judge frames stay on labelled demo data until an accepted IC-12 board token
+ * switches them to fs-api (ADR-0012); the Clerk remains a labelled demo.
  */
 export function apiOrigin(): string | null {
   const v = process.env.EXPO_PUBLIC_API_ORIGIN?.trim();

@@ -29,6 +29,7 @@ import type { HoldState } from "../../ui/hold";
 import { useMoment } from "../../ui/moment";
 import { TIMELINE } from "../../ui/motion";
 import { useCosign } from "./cosign-context";
+import { createFrameKeyAdapter, createFrameKeyRegistry } from "./frame-key";
 import type { BoardKey } from "./messages";
 import {
   commitSignature,
@@ -47,6 +48,7 @@ import { useT } from "./use-t";
  * idempotent; a key is never assumed registered under a pairing that did not register it).
  */
 const registered = createKeyRegistry();
+const frameKeys = createFrameKeyRegistry();
 
 const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
   offline: "M-BD-01.offline",
@@ -61,7 +63,7 @@ const FAILURE_COPY: Readonly<Record<CosignFailure, BoardKey>> = {
 
 export function useSign() {
   const c = useCosign();
-  const { api, session, online, currentSession } = useApp();
+  const { api, session, online, currentSession, demo } = useApp();
   const tr = useT();
   const [flow, dispatch] = useReducer(flowReducer, "idle");
   /** Remounts the slab so it springs back to rest after a failed signature. */
@@ -149,13 +151,33 @@ export function useSign() {
     dispatch({ type: "commit" });
     const dto = c.dto;
     // Signed only under a paired session's own pairing, never under a stand-in persona.
-    if (!dto || !persona || !pairing) return fail("error");
+    if (!dto || !session || !persona || !pairing) return fail("error");
     const amount = format.usd(dto.totalCents);
     // The pairing as it is at each step, read from the shell (not this render): paired again, nothing leaves.
     const pairedNow = () => {
       const s = currentSession();
       return s ? pairingId(s) : null;
     };
+    const sign = (message: Uint8Array) =>
+      keyVault.sign({
+        persona,
+        pairing,
+        message,
+        prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
+        detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
+        cancelLabel: tr("common.cancel"),
+      });
+    const frameKey = demo
+      ? null
+      : createFrameKeyAdapter({
+          api,
+          registry: frameKeys,
+          session,
+          currentSession,
+          vaultKind: keyVault.kind,
+          sign,
+          runSlug: c.runSlug,
+        });
     let r: CosignResult;
     try {
       r = await commitSignature({
@@ -168,17 +190,10 @@ export function useSign() {
             now: () => new Date(),
             online: () => online,
             recheck,
-            sign: (message) =>
-              keyVault.sign({
-                persona,
-                pairing,
-                message,
-                prompt: tr("M-BD-02.prompt", { season: dto.seasonCode }),
-                detail: tr("M-BD-02.promptDetail", { n: dto.itemCount, amount }),
-                cancelLabel: tr("common.cancel"),
-              }),
-            isRegistered: (id) => registered.has(pairing, id),
+            sign,
+            isRegistered: (id) => (frameKey ? frameKey.isRegistered(id) : registered.has(pairing, id)),
             register: async (k) => {
+              if (frameKey) return frameKey.register(k);
               const res = await api.registerDeviceKey({
                 keyId: k.keyId,
                 publicKey: k.publicKeyHex,
@@ -188,7 +203,7 @@ export function useSign() {
               if (res.ok) registered.add(pairing, k.keyId);
               return res;
             },
-            submit: (body) => api.postApproval(c.runSlug, body),
+            submit: (body) => (frameKey ? frameKey.submit(body) : api.postApproval(c.runSlug, body)),
           }),
       });
     } catch {
@@ -196,7 +211,8 @@ export function useSign() {
       return fail("error");
     }
     if (!r.ok) return fail(r.state);
-    setKey(r.key);
+    const signedKey = { ...r.key, keyId: frameKey?.serverKeyId(r.key.keyId) ?? r.key.keyId };
+    setKey(signedKey);
     dispatch({ type: "result", ok: true });
     mm5.start(r.submission.signature, "signed-2");
     c.markSigned();
@@ -205,8 +221,8 @@ export function useSign() {
       feedback.play("seal.complete");
     });
     mm5.timers.at(TIMELINE["MM-5"].inkedAfterMs, () => dispatch({ type: "inked" }));
-    announce(tr("M-BD-02.signed", { key: r.key.keyId }));
-  }, [api, c, currentSession, fail, mm5, online, persona, pairing, tr]);
+    announce(tr("M-BD-02.signed", { key: signedKey.keyId }));
+  }, [api, c, currentSession, demo, fail, mm5, online, persona, pairing, session, tr]);
 
   /** After a fix outside the app (a screen lock set) or a refused batch: back to a slab that can be held. */
   const retry = useCallback(() => {

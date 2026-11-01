@@ -20,6 +20,7 @@ import { createHttpApi, type FairSplitApi } from "../_shims/api-client";
 import type { FramePrefs, Lang } from "../_shims/contracts";
 import { LANGS } from "../_shims/contracts";
 import type { ThemeName } from "../_shims/tokens.native";
+import { boardApiMode } from "../features/board/api-mode";
 import { keyVault } from "../platform/key-vault";
 import { prefs, secrets } from "../platform/kv";
 import { bootQuery } from "../platform/query";
@@ -116,7 +117,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>("adlaw");
   const [onboarded, setOnboarded] = useState(false);
   const [listenFirst, setListenFirstState] = useState<boolean | null>(null);
-  const [session, setSessionState] = useState<PairedSession | null>(null);
+  const [session, setSessionReact] = useState<PairedSession | null>(null);
   const [pairingUnreadable, setPairingUnreadable] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [framePrefs, setFramePrefs] = useState<FramePrefs | null>(inFrame ? DEFAULT_FRAME_PREFS : null);
@@ -124,26 +125,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const bearerRef = useRef<string | null>(null);
   bearerRef.current = session?.bearer ?? null;
   const sessionRef = useRef<PairedSession | null>(null);
+  const sessionTransitions = useRef(0);
   sessionRef.current = session;
+  const setSessionState = useCallback((next: PairedSession | null) => {
+    sessionTransitions.current += 1;
+    sessionRef.current = next;
+    bearerRef.current = next?.bearer ?? null;
+    setSessionReact(next);
+  }, []);
   /** Judge resets seen by this frame (`fs.reset`); demo data starts a fresh workspace after each. */
   const resets = useRef(0);
 
-  const { api, demo } = useMemo(() => {
-    const origin = apiOrigin();
-    if (origin) {
-      return {
-        api: createHttpApi({ origin, getBearer: () => bearerRef.current, streamingFetch }),
-        demo: null,
-      };
-    }
-    const d = createDemoApi({ now: () => new Date(), randomBytes });
-    return { api: d as FairSplitApi, demo: d.demo };
-  }, []);
+  const origin = apiOrigin();
+  const localDemo = useMemo(() => createDemoApi({ now: () => new Date(), randomBytes }), []);
+  const http = useMemo(
+    () => (origin ? createHttpApi({ origin, getBearer: () => bearerRef.current, streamingFetch }) : null),
+    [origin],
+  );
+  const live = boardApiMode(origin, inFrame, session) === "live";
+  const api: FairSplitApi = live && http ? http : localDemo;
+  const demo = live ? null : localDemo.demo;
 
   // Restore preferences and the session.
   useEffect(() => {
     let alive = true;
     (async () => {
+      const startingSession = sessionTransitions.current;
       const [l, t, ob, lf, sSecretRead, sDemo] = await Promise.all([
         prefs.get(PREF.lang),
         prefs.get(PREF.theme),
@@ -159,14 +166,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       else if (t === "adlaw" || t === "tablea") setThemeState(t);
       setOnboarded(ob === "1" || inFrame);
       if (lf === "1" || lf === "0") setListenFirstState(lf === "1");
+      // An accepted token/reset/claim wins over storage that was still being read at boot.
+      if (sessionTransitions.current !== startingSession) {
+        setReady(true);
+        return;
+      }
       // Labelled demo links for review and the stage frames before fs-api exists:
       // ?demo=member|board|clerk&stage=checking|sent|paid|unclaimed|cash-due|cash-received
-      const demoRole = demo ? bootQuery("demo") : null;
-      if (demo && (demoRole === "member" || demoRole === "board" || demoRole === "clerk")) {
+      const demoRole = inFrame || !origin ? bootQuery("demo") : null;
+      if (demoRole === "member" || demoRole === "board" || demoRole === "clerk") {
         setSessionState(demoSession(demoRole, new Date()));
         setOnboarded(true);
         const stage = bootQuery("stage");
-        if (isDemoStage(stage)) demo.advance(stage);
+        if (isDemoStage(stage)) localDemo.demo.advance(stage);
         setReady(true);
         return;
       }
@@ -183,7 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       alive = false;
     };
-  }, [demo]);
+  }, [localDemo, origin]);
 
   // IC-12: judge stage frames receive their token and preferences by postMessage and skip the first run.
   useEffect(
@@ -194,7 +206,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             // Memory only: a frame token is never stored. On demo data each reset is a fresh workspace, so nothing
             // the last judge filed on this phone (the clerk's outbox) reappears; live workspaces come from fs-api.
             setSessionState(
-              demo ? { ...s, workspaceId: demoWorkspaceAfterReset(s.workspaceId, resets.current) } : s,
+              boardApiMode(origin, inFrame, s) === "demo"
+                ? { ...s, workspaceId: demoWorkspaceAfterReset(s.workspaceId, resets.current) }
+                : s,
             );
             setOnboarded(true);
           },
@@ -202,12 +216,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           onReset: () => {
             resets.current += 1;
             setSessionState(null);
-            demo?.advance("checking");
+            localDemo.demo.advance("checking");
           },
         },
         BUILD.version,
       ),
-    [demo],
+    [localDemo, origin],
   );
 
   const setLang = useCallback((l: Lang) => {

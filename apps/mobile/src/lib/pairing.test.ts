@@ -93,14 +93,11 @@ const server = setupServer(
       return HttpResponse.json({ error: { code: "PAIRING_INVALID" } }, { status: 404 });
     if (reply === "bare410") return new HttpResponse("gone", { status: 410 });
     return HttpResponse.json({
-      kind: "device",
-      bearer: "dbt_device_bearer_for_tests",
+      token: "dbt_device_bearer_for_tests",
       expiresAt: "2026-11-30T00:00:00Z",
       workspaceId: "ws_showcase",
-      persona: "board:ernesto",
+      persona: "ernesto",
       role: "board",
-      displayName: "Ernesto P. Cabahug",
-      lang: "ceb",
     });
   }),
 );
@@ -132,12 +129,12 @@ describe("claimPairing (msw)", () => {
         kind: "device",
       },
     });
-    expect(requests).toEqual([{ token: TOKEN, device: { platform: "android", appVersion: "0.1.0" } }]);
+    expect(requests).toEqual([{ token: TOKEN }]);
   });
 
   it("sends the 6-digit code when the camera is denied", async () => {
     await claimPairing(parsePairingInput("418207"), deps);
-    expect(requests[0]).toEqual({ code6: "418207", device: { platform: "android", appVersion: "0.1.0" } });
+    expect(requests[0]).toEqual({ code6: "418207" });
   });
 
   it.each([

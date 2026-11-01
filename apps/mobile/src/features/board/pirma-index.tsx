@@ -35,10 +35,41 @@ export function PirmaIndexScreen() {
   const [round, setRound] = useState(0);
   const ws = session?.workspaceId ?? null;
 
+  // A frame is already open while key 1 is still at the console. Wake it when that request opens.
+  useEffect(() => {
+    if (api.mode !== "live" || !ws) return;
+    return api.subscribe(`ws:${ws}`, (event) => {
+      if (event.type === "approval.signed" || event.type === "run.state") setRound((r) => r + 1);
+    });
+  }, [api, ws]);
+
   useEffect(() => {
     let alive = true;
     setTarget(null);
     void (async () => {
+      if (api.mode === "live" && api.getOpenCosignRun) {
+        const current = await api.getOpenCosignRun();
+        const result = current.ok
+          ? pickTarget([
+              {
+                runSlug: current.value.runSlug,
+                probe: probeRequest(await api.getCosignRequest(current.value.runSlug), Date.now()),
+              },
+            ])
+          : pickTarget([
+              {
+                runSlug: "",
+                probe:
+                  current.status === 404 || current.status === 410
+                    ? "missing"
+                    : current.code === "NETWORK" && !current.status
+                      ? "offline"
+                      : "error",
+              },
+            ]);
+        if (alive) setTarget(result);
+        return;
+      }
       const remembered = parseRememberedRun(await prefs.get(LAST_RUN_KEY), ws);
       const probes: { runSlug: string; probe: RunProbe }[] = [];
       for (const runSlug of runCandidates(remembered, seedRun)) {

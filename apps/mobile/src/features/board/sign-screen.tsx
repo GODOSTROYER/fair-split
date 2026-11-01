@@ -279,6 +279,11 @@ export function SignScreen() {
       footer={compact ? undefined : thumb}
       contentStyle={[styles.content, compact ? { paddingBottom: insets.bottom + space.s24 } : null]}
     >
+      {dto.rail === "simulated" ? (
+        <Txt kind="caption" testID="M-BD-02.rail">
+          Simulated PayPal sandbox
+        </Txt>
+      ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
         <MomentMarker id="MM-5" phase={mm5.phase} />
         {header}
