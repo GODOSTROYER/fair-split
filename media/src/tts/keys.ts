@@ -68,19 +68,71 @@ export function poolDisclosure(n: number): string {
   return `the user's ${n} Gemini key${n === 1 ? "" : "s"}, round robin, each within its own free-tier limits (user decision, 1 Nov; ADR-0014)`;
 }
 
+/** The pool's keys for scrubbing output, or none when `.env` has none (the shape patterns still apply). */
+export function keysForScrubbing(): string[] {
+  try {
+    return keysFromEnv();
+  } catch {
+    return [];
+  }
+}
+
 const GOOGLE_KEY_SHAPES = [/AIza[0-9A-Za-z_-]{35}/g, /AQ\.[A-Za-z0-9_-]{30,}/g];
 
 /**
- * Replaces each known key with `key:<id>`, anything shaped like a Google key with `[redacted key]`, and
- * any `key=` query value or `x-goog-api-key` header value with `[redacted]`.
+ * The ways a key can appear in text: as is, JSON-escaped, URL-encoded, and, for a key with whitespace or a
+ * control character inside it (a paste error), each piece of 8 or more characters between them.
+ */
+function secretForms(s: string): string[] {
+  const forms = new Set([s, JSON.stringify(s).slice(1, -1), encodeURIComponent(s)]);
+  for (const piece of s.split(/[\s\p{Cc}]+/u)) if (piece.length >= 8) forms.add(piece);
+  return [...forms];
+}
+
+/**
+ * Replaces each known key, of any length and in any of its forms, with `key:<id>`; anything shaped like a
+ * Google key with `[redacted key]`; and any `key=` query value or `x-goog-api-key` header value with
+ * `[redacted]`. Scrub before shortening a message: a cut key no longer matches.
  */
 export function scrubSecrets(text: string, secrets: readonly string[]): string {
+  // Longest first, so a key that holds another key is replaced whole, not around the shorter one.
+  const forms = secrets
+    .filter((s) => s.length > 0)
+    .flatMap((s) => {
+      const label = `key:${keyId(s)}`;
+      return secretForms(s).map((form) => ({ form, label }));
+    })
+    .sort((a, b) => b.form.length - a.form.length);
   let out = text;
-  for (const s of secrets) if (s.length >= 8) out = out.split(s).join(`key:${keyId(s)}`);
+  for (const { form, label } of forms) out = out.split(form).join(label);
   for (const p of GOOGLE_KEY_SHAPES) out = out.replace(p, "[redacted key]");
   out = out.replace(/([?&]key=)[^&\s"'<>]+/gi, "$1[redacted]");
   out = out.replace(/(x-goog-api-key["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi, "$1[redacted]");
   return out;
+}
+
+function plain(v: unknown): string {
+  try {
+    return String(v);
+  } catch {
+    return typeof v;
+  }
+}
+
+/** An error's name and message, then its causes', on one line. Raw: scrub it before it goes anywhere. */
+function errorText(e: unknown): string {
+  const parts: string[] = [];
+  let c: unknown = e;
+  for (let i = 0; i < 4 && c !== undefined && c !== null; i++) {
+    parts.push(c instanceof Error ? `${c.name}: ${plain(c.message)}` : plain(c));
+    c = c instanceof Error ? c.cause : undefined;
+  }
+  return parts.join("; cause: ");
+}
+
+/** An error for printing: name, message and causes, scrubbed of every key, and never the stack. */
+export function describeError(e: unknown, secrets: readonly string[]): string {
+  return scrubSecrets(errorText(e), secrets);
 }
 
 export interface GeminiErrorInfo {
@@ -429,7 +481,8 @@ export class KeyPool<C> {
 
   async #failed(model: string, slot: Slot, e: unknown): Promise<void> {
     const info = classifyGeminiError(e);
-    const message = this.scrub(info.message);
+    // Scrubbed whole, then shortened.
+    const message = this.scrub(info.message).slice(0, 1_000);
     const now = this.#now();
     if (info.kind === "rate") {
       await this.#ledger.settle(model, slot.id, { ok: false, rateLimited: true, message });
@@ -514,22 +567,31 @@ export async function checkKeys(
   return out;
 }
 
-async function checkOne(
+export interface ListedModel {
+  name: string;
+  displayName: string;
+}
+
+export type ModelList =
+  | { ok: true; status: number | null; models: ListedModel[] }
+  | { ok: false; status: number | null; detail: string };
+
+/**
+ * models.list for a single key, every page, with the key in the x-goog-api-key header (never in the URL). It
+ * sends no generation request, so it is free. A failure comes back as a scrubbed detail; it never throws,
+ * since Google's error for a refused key can name the key (CONSUMER_SUSPENDED does).
+ */
+export async function listModels(
   value: string,
   secrets: readonly string[],
-  fetchImpl: typeof fetch,
-): Promise<KeyCheck> {
-  const id = keyId(value);
-  const failed = (status: number | null, why: string): KeyCheck => ({
-    id,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ModelList> {
+  const failed = (status: number | null, why: string): ModelList => ({
     ok: false,
     status,
-    models: 0,
-    tts: false,
-    asr: false,
-    detail: scrubSecrets(why, secrets).slice(0, 200),
+    detail: scrubSecrets(why, [value, ...secrets]).slice(0, 200),
   });
-  const names: string[] = [];
+  const models: ListedModel[] = [];
   let status: number | null = null;
   try {
     let page: string | undefined;
@@ -541,7 +603,7 @@ async function checkOne(
       });
       status = res.status;
       const body = (await res.json().catch(() => ({}))) as {
-        models?: { name?: string }[];
+        models?: { name?: string; displayName?: string }[];
         nextPageToken?: string;
         error?: { status?: string; message?: string };
       };
@@ -550,13 +612,27 @@ async function checkOne(
           status,
           `HTTP ${res.status}${body.error?.status ? ` ${body.error.status}` : ""}: ${body.error?.message ?? ""}`,
         );
-      for (const m of body.models ?? []) if (m.name) names.push(m.name);
+      for (const m of body.models ?? [])
+        if (m.name) models.push({ name: m.name, displayName: m.displayName ?? "" });
       page = body.nextPageToken;
       if (!page) break;
     }
   } catch (e) {
-    return failed(status, `request failed: ${String((e as Error)?.message ?? e)}`);
+    return failed(status, `request failed: ${errorText(e)}`);
   }
+  return { ok: true, status, models };
+}
+
+async function checkOne(
+  value: string,
+  secrets: readonly string[],
+  fetchImpl: typeof fetch,
+): Promise<KeyCheck> {
+  const id = keyId(value);
+  const r = await listModels(value, secrets, fetchImpl);
+  if (!r.ok) return { id, ok: false, status: r.status, models: 0, tts: false, asr: false, detail: r.detail };
+  const { status } = r;
+  const names = r.models.map((m) => m.name);
   const tts = names.includes(`models/${TTS_MODEL}`);
   const asr = names.includes(`models/${ASR_MODEL}`);
   return {

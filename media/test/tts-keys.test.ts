@@ -1,12 +1,21 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { inspect } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ASR_MODEL } from "../src/tts/asr.js";
 import { main } from "../src/tts/cli.js";
-import { MODEL_CHOICE, TTS_DRAFT_MODEL, TTS_MODEL, TtsError } from "../src/tts/gemini.js";
+import {
+  type InteractionsClient,
+  MODEL_CHOICE,
+  synthesize,
+  TTS_DRAFT_MODEL,
+  TTS_MODEL,
+  TtsError,
+} from "../src/tts/gemini.js";
 import {
   checkKeys,
   classifyGeminiError,
@@ -28,7 +37,7 @@ import {
   QuotaLedger,
   SELF_IMPOSED_DAILY_CAP,
 } from "../src/tts/quota.js";
-import { MEDIA_ROOT } from "../src/util/env.js";
+import { MEDIA_ROOT, REPO_ROOT } from "../src/util/env.js";
 
 // Planted stand-ins for real keys: built at run time so no file holds anything shaped like a Google key.
 const planted = (n: number) =>
@@ -563,5 +572,202 @@ describe("no key value leaves memory", () => {
     const text = out.join("\n");
     for (const id of IDS.slice(0, 3)) expect(text).toContain(id);
     for (const k of KEYS) expect(text).not.toContain(k);
+  });
+});
+
+describe("no key value leaves memory: tts models, the entry point, truncation and odd keys", () => {
+  let out: string[] = [];
+  beforeEach(() => {
+    out = [];
+    const keep = (...a: unknown[]) =>
+      void out.push(a.map((x) => (typeof x === "string" ? x : inspect(x))).join(" "));
+    vi.spyOn(console, "log").mockImplementation(keep);
+    vi.spyOn(console, "error").mockImplementation(keep);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // Built at run time: a planted Google-shaped key (the AQ. form) that is not real.
+  const shapedKey = (word: string) => ["AQ", ".", word.repeat(8)].join("");
+  /** Every 16-character piece of a key: a truncated message must not keep part of one either. */
+  const expectNoKey = (text: string, keys: readonly string[]) => {
+    for (const k of keys)
+      for (let i = 0; i + 16 <= k.length; i++) expect(text).not.toContain(k.slice(i, i + 16));
+  };
+  /** A suspended key's answer: Google's CONSUMER_SUSPENDED message names the key. */
+  const suspended = (key: string | null) =>
+    new Response(
+      JSON.stringify({
+        error: {
+          code: 403,
+          status: "PERMISSION_DENIED",
+          message: `Permission denied: Consumer 'api_key:${key}' has been suspended.`,
+          details: [{ reason: "CONSUMER_SUSPENDED" }],
+        },
+      }),
+      { status: 403, headers: { "content-type": "application/json" } },
+    );
+
+  it("tts models lists with the key in the x-goog-api-key header; a refused key's echo never reaches the output", async () => {
+    const google = shapedKey("Pl4nted");
+    const seen: { url: string; key: string | null }[] = [];
+    const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+      const req = input instanceof Request ? input : null;
+      const key = new Headers(init?.headers ?? req?.headers).get("x-goog-api-key");
+      seen.push({ url: req ? req.url : String(input), key });
+      if (key === google) return suspended(key);
+      if (key === KEYS[1])
+        throw new TypeError(`fetch failed for x-goog-api-key ${key}`, {
+          cause: new Error(`getaddrinfo ENOTFOUND generativelanguage.googleapis.com ${key}`),
+        });
+      return new Response(
+        JSON.stringify({
+          models: [
+            { name: "models/gemini-3.8-flash-tts", displayName: "Gemini 3.8 Flash TTS" },
+            { name: "models/gemini-3.8-flash", displayName: "Gemini 3.8 Flash" },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+    // Stub the global too, so no path (the SDK's own fetch included) can reach the network.
+    vi.stubGlobal("fetch", fake);
+    const media = mkdtempSync(join(tmpdir(), "fs-tts-models-"));
+    expect(await main(["models"], media, { keys: [google, KEYS[0] as string], fetch: fake })).toBe(2);
+    expect(await main(["models"], media, { keys: [KEYS[1] as string, KEYS[0] as string], fetch: fake })).toBe(
+      2,
+    );
+    const failed = out.join("\n");
+    expect(failed).toContain(keyId(google));
+    expect(failed).toContain(IDS[1]);
+    expect(failed).toMatch(/403/);
+    expectNoKey(failed, [google, ...KEYS]);
+    out = [];
+    expect(await main(["models"], media, { keys: [KEYS[0] as string], fetch: fake })).toBe(0);
+    expect(out.join("\n")).toBe("models/gemini-3.8-flash-tts  Gemini 3.8 Flash TTS");
+    expect(seen.length).toBeGreaterThanOrEqual(3);
+    for (const s of seen) {
+      expect(s.url).toMatch(/^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models/);
+      for (const k of [google, ...KEYS]) expect(s.url).not.toContain(k);
+      expect(s.key).not.toBeNull();
+    }
+  });
+
+  it("main never rethrows: an unexpected failure prints one scrubbed line and returns 1", async () => {
+    // A media root whose path holds a key, and a file where audio/ belongs: the file-system error names the
+    // path, so it names the key.
+    const media = join(mkdtempSync(join(tmpdir(), "fs-tts-fatal-")), KEYS[0] as string);
+    mkdirSync(media);
+    writeFileSync(join(media, "audio"), "a file where the audio directory belongs");
+    expect(
+      await main(["set-limit", TTS_MODEL, "5", "--source", "AI Studio"], media, {
+        keys: [KEYS[0] as string],
+      }),
+    ).toBe(1);
+    const text = out.join("\n");
+    expect(text).toContain(`key:${IDS[0]}`);
+    expectNoKey(text, KEYS);
+  });
+
+  it("tts set-limit never writes a key into the ledger, even one pasted into --source", async () => {
+    const media = mkdtempSync(join(tmpdir(), "fs-tts-limit-"));
+    mkdirSync(join(media, "audio"));
+    const source = `AI Studio rate-limit page, 1 Nov, project of ${KEYS[2]}`;
+    expect(await main(["set-limit", TTS_MODEL, "50", "--source", source], media, { keys: KEYS })).toBe(0);
+    const ledger = readFileSync(join(media, "audio", ".quota.json"), "utf8");
+    expect(ledger).toContain(`key:${IDS[2]}`);
+    expectNoKey(`${ledger}\n${out.join("\n")}`, KEYS);
+  });
+
+  it("scrubs a key before any truncation: an SDK error with the key on the 400-character boundary", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fs-keypool-trunc-"));
+    const logs: string[] = [];
+    const client: InteractionsClient = {
+      interactions: {
+        create: async () => {
+          throw Object.assign(new Error(`${"y".repeat(371)}${KEYS[5]} internal`), { status: 500 });
+        },
+      },
+    };
+    const pool = new KeyPool<InteractionsClient>([KEYS[5] as string], {
+      ledger: new QuotaLedger(join(dir, ".quota.json")),
+      makeClient: () => client,
+      log: (l) => logs.push(l),
+    });
+    const err = await pool
+      .run(TTS_MODEL, (c) =>
+        synthesize(c, { model: TTS_MODEL, voice: "Sulafat", style: "calm", text: "hello" }),
+      )
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(GeminiCallError);
+    const texts = [
+      String(err),
+      (err as Error).stack ?? "",
+      inspect(err, { depth: 8 }),
+      ...logs,
+      readFileSync(join(dir, ".quota.json"), "utf8"),
+    ].join("\n");
+    expect(texts).toContain(`key:${IDS[5]}`);
+    expectNoKey(texts, KEYS);
+  });
+
+  it("scrubs short keys, a key inside a longer one, and escaped, encoded or split forms", () => {
+    const short = "zq12ab";
+    expect(scrubSecrets(`API key not valid: ${short}`, [short])).toBe(
+      `API key not valid: key:${keyId(short)}`,
+    );
+    const outer = `XX${KEYS[0]}YY`;
+    expect(scrubSecrets(`a ${outer} b ${KEYS[0]}`, [KEYS[0] as string, outer])).toBe(
+      `a key:${keyId(outer)} b key:${IDS[0]}`,
+    );
+    const split = `${KEYS[3]}\n${KEYS[4]}`; // a key with a line break pasted inside it
+    const spaced = `planted key/${"z".repeat(20)}`;
+    const text = [
+      JSON.stringify({ message: `bad ${split}` }),
+      `header ${split}`,
+      `wrapped ${KEYS[3]} ... ${KEYS[4]}`,
+      `?q=${encodeURIComponent(spaced)}`,
+      `x ${spaced}`,
+    ].join("\n");
+    const scrubbed = scrubSecrets(text, [split, spaced]);
+    expect(scrubbed).toContain(`key:${keyId(split)}`);
+    expectNoKey(scrubbed, [KEYS[3] as string, KEYS[4] as string]);
+    expect(scrubbed).not.toContain("z".repeat(16));
+  });
+
+  it("tools/tts.ts exits nonzero with a scrubbed line when Google echoes the key (fetch stubbed, no network)", () => {
+    const google = shapedKey("Ch1ldK3y");
+    const dir = mkdtempSync(join(tmpdir(), "fs-tts-entry-"));
+    const stub = join(dir, "stub-fetch.mjs");
+    // The stub holds no key: it echoes whichever key the request carries, as a suspended key's 403 does.
+    writeFileSync(
+      stub,
+      [
+        "globalThis.fetch = async (input, init) => {",
+        '  const key = new Headers(init?.headers ?? input?.headers).get("x-goog-api-key");',
+        '  const message = "Permission denied: Consumer \'api_key:" + key + "\' has been suspended.";',
+        "  const body = { error: { code: 403, status: 'PERMISSION_DENIED', message } };",
+        "  return new Response(JSON.stringify(body), { status: 403, headers: { 'content-type': 'application/json' } });",
+        "};",
+        "",
+      ].join("\n"),
+    );
+    const r = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "--import", pathToFileURL(stub).href, join(REPO_ROOT, "tools", "tts.ts"), "models"],
+      {
+        cwd: MEDIA_ROOT,
+        encoding: "utf8",
+        timeout: 60_000,
+        // Both Gemini variables are set, so the repo-root .env (which never overrides) adds no real key.
+        env: { ...process.env, GEMINI_API_KEY: google, GEMINI_API_KEYS_FALLBACK: KEYS[6] as string },
+      },
+    );
+    const text = `${r.stdout}\n${r.stderr}`;
+    expect(r.status).toBe(2);
+    expect(text).toContain(keyId(google));
+    expectNoKey(text, [google, ...KEYS]);
   });
 });

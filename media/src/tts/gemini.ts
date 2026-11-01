@@ -120,11 +120,9 @@ export async function synthesize(
     const status = err.status ?? err.statusCode ?? (typeof err.code === "number" ? err.code : null);
     const msg = String(err.message ?? e);
     const rateLimited = status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(msg);
-    throw new TtsError(
-      `TTS request failed (${status ?? "no status"}): ${msg.slice(0, 400)}`,
-      status ?? null,
-      rateLimited,
-    );
+    // The whole message: the key pool scrubs every key out of it first, and only then shortens it (a key
+    // cut at the edge would no longer match).
+    throw new TtsError(`TTS request failed (${status ?? "no status"}): ${msg}`, status ?? null, rateLimited);
   }
   const latencyMs = now() - t0;
   const audio = findAudio(res);

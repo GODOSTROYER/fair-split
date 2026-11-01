@@ -17,12 +17,17 @@ import {
 } from "./gemini.js";
 import {
   checkKeys,
+  describeError,
   formatKeyChecks,
   formatPoolStatus,
   KeyPool,
+  keyId,
+  keysForScrubbing,
   keysFromEnv,
+  listModels,
   PoolExhaustedError,
   poolDisclosure,
+  scrubSecrets,
 } from "./keys.js";
 import { loadAudioManifest, saveAudioManifest } from "./manifest.js";
 import { type StatementResult, synthesizeStatement } from "./pipeline.js";
@@ -36,7 +41,8 @@ robin, each within its own free-tier limits (user decision, 1 Nov; ADR-0014).
 
   tts keys                        check every key with the free models.list call (no generation request);
                                   prints each key's id (first 8 hex of its sha256) and status
-  tts models                      list the TTS models the first key can see (no TTS quota used)
+  tts models                      list the TTS models the first key can see, with the same free models.list
+                                  call (no TTS quota used)
   tts quota                       today's requests (Pacific day) per key id and model, and the pool total;
                                   caps and recorded daily limits
   tts set-limit <model> <n> --source "<where you read it>"
@@ -58,17 +64,31 @@ export const ASR_LIMITS =
 /** One `@google/genai` client per key covers both calls this tool makes. */
 type GeminiClient = InteractionsClient & GenerateContentClient;
 
-/** Test seams: planted keys instead of `.env`, and a fake fetch for `tts keys`. */
+/** Test seams: planted keys instead of `.env`, and a fake fetch for `tts keys` and `tts models`. */
 export interface CliDeps {
   keys?: readonly string[];
   fetch?: typeof fetch;
 }
 
+/**
+ * Runs one tts command and never rethrows: a failure is printed as one line scrubbed of every key, and the
+ * exit code is 1. A rethrown error would reach Node's handler, which prints the raw message and stack, and
+ * an SDK error can name a key.
+ */
 export async function main(
   argv: readonly string[],
   mediaRoot = MEDIA_ROOT,
   deps: CliDeps = {},
 ): Promise<number> {
+  try {
+    return await command(argv, mediaRoot, deps);
+  } catch (e) {
+    console.error(`tts: ${describeError(e, deps.keys ?? keysForScrubbing())}`);
+    return 1;
+  }
+}
+
+async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps): Promise<number> {
   const { positionals, values } = parseArgs({
     args: [...argv],
     allowPositionals: true,
@@ -102,12 +122,20 @@ export async function main(
       return results.every((r) => r.ok) ? 0 : 2;
     }
     case "models": {
-      const pager = await new GoogleGenAI({ apiKey: keys()[0] as string }).models.list();
-      const names: string[] = [];
-      for await (const m of pager) {
-        const name = m.name ?? "";
-        if (/tts|speech|audio/i.test(name)) names.push(`${name}  ${m.displayName ?? ""}`);
+      // The same free REST call as `tts keys`, key in the header, failures scrubbed (not the SDK's pager,
+      // whose errors carry Google's raw body).
+      const all = keys();
+      const first = all[0] as string;
+      const listed = await listModels(first, all, deps.fetch ?? fetch);
+      if (!listed.ok) {
+        console.error(
+          `models.list failed on key ${keyId(first)}: ${listed.detail}; check every key with tts keys`,
+        );
+        return 2;
       }
+      const names = listed.models
+        .filter((m) => /tts|speech|audio/i.test(m.name))
+        .map((m) => `${m.name}  ${m.displayName}`);
       console.log(names.sort().join("\n") || "no TTS models listed");
       return 0;
     }
@@ -132,8 +160,11 @@ export async function main(
         );
         return 1;
       }
-      await ledger.setDailyLimit(model, Number(n), values.source);
-      console.log(`${model}: daily limit ${n} recorded; the ledger caps each key there for this model`);
+      // The ledger never holds a key, even one pasted into --source by mistake.
+      const secrets = deps.keys ?? keysForScrubbing();
+      const name = scrubSecrets(model, secrets);
+      await ledger.setDailyLimit(name, Number(n), scrubSecrets(values.source, secrets));
+      console.log(`${name}: daily limit ${n} recorded; the ledger caps each key there for this model`);
       return 0;
     }
     case "plan": {
@@ -224,8 +255,10 @@ export async function main(
           });
           console.log(`[${j.lang}/${j.model}] CER ${score} in ${r.latencyMs} ms: ${r.text}`);
         } catch (e) {
-          // The pool has settled the request and scrubbed the message.
-          console.error(`[${j.lang}/${j.model}] ${(e as Error).message.slice(0, 300)}`);
+          // The pool has settled the request and scrubbed the message; scrub again before shortening it.
+          console.error(
+            `[${j.lang}/${j.model}] ${p.scrub(String((e as Error)?.message ?? e)).slice(0, 300)}`,
+          );
           if (e instanceof PoolExhaustedError) break;
         }
       }
@@ -283,7 +316,7 @@ export async function main(
           await saveAudioManifest(manifestPath, manifest);
         } catch (e) {
           // Errors from a Gemini call are scrubbed by the pool; scrub again in case one came from elsewhere.
-          const msg = p.scrub((e as Error).message);
+          const msg = p.scrub(String((e as Error)?.message ?? e));
           errors.push({ lang: j.lang, model: j.model, error: msg.slice(0, 500) });
           console.error(`[M-014/${j.lang}/${j.model}] ${msg}`);
           // Every key is exhausted: stop here; statements without a clip use the labelled device voice.
