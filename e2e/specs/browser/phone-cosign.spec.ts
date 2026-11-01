@@ -31,7 +31,7 @@ async function openChair(page: Page, api: Api, s: JudgeSession): Promise<FrameLo
   expect(credential.role).toBe("board");
   expect(credential.persona).toBe("ernesto");
   await page.goto("/");
-  await page.evaluate((c) => {
+  await page.evaluate(() => {
     // Replace only this test's document; the served console and /app assets stay untouched.
     document.body.replaceChildren();
     const chair = document.createElement("iframe");
@@ -48,28 +48,38 @@ async function openChair(page: Page, api: Api, s: JudgeSession): Promise<FrameLo
         event.data?.frameId !== "chair"
       )
         return;
-      chair.contentWindow?.postMessage(
-        {
-          v: 1,
-          t: "fs.token",
-          token: c.token,
-          exp: Date.parse(c.expiresAt),
-          // /frames returns role and persona separately; IC-12 carries the qualified reference.
-          persona: `${c.role}:${c.persona}`,
-          ws: c.workspaceId,
-        },
-        window.location.origin,
-      );
-      chair.contentWindow?.postMessage(
-        { v: 1, t: "fs.prefs", tier: "low", sound: false, reducedMotion: true, gloss: true },
-        window.location.origin,
-      );
+      chair.dataset.ready = "true";
     };
     window.addEventListener("message", ready);
     chair.src = "/app/?demo=board&motion=reduced";
     document.body.append(chair);
+  });
+  const phone = page.frameLocator('iframe[name="chair"]');
+  await expect(page.locator('iframe[name="chair"]')).toHaveAttribute("data-ready", "true");
+  // Exercise I1's actual transition: the preview has mounted its r37 request before fs.token arrives.
+  await expect(phone.getByTestId("M-BD-01")).toBeVisible();
+  await expect(phone.getByTestId("demo-label").first()).toBeVisible();
+  await page.evaluate((c) => {
+    const chair = document.querySelector<HTMLIFrameElement>('iframe[name="chair"]');
+    chair?.contentWindow?.postMessage(
+      {
+        v: 1,
+        t: "fs.token",
+        token: c.token,
+        exp: Date.parse(c.expiresAt),
+        // /frames returns role and persona separately; IC-12 carries the qualified reference.
+        persona: `${c.role}:${c.persona}`,
+        ws: c.workspaceId,
+      },
+      window.location.origin,
+    );
+    chair?.contentWindow?.postMessage(
+      { v: 1, t: "fs.prefs", tier: "low", sound: false, reducedMotion: true, gloss: true },
+      window.location.origin,
+    );
   }, credential);
-  return page.frameLocator('iframe[name="chair"]');
+  await expect(phone.getByTestId("demo-label")).toHaveCount(0);
+  return phone;
 }
 
 async function signInPhone(phone: FrameLocator, page: Page, slug: string, batchHash: string) {
