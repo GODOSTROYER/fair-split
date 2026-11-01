@@ -62,7 +62,7 @@ describe("boot child completion", () => {
   it("keeps the deadline and waits for close after an error from an already spawned child", async () => {
     vi.useFakeTimers();
     const { child, kill } = childFixture();
-    child.pid = 1234;
+    Object.defineProperty(child, "pid", { value: 1234 });
     const failed = vi.fn();
     const result = waitForChild(child, 120_000).catch(failed);
     child.emit("error", new Error("child operation failed"));
@@ -79,7 +79,7 @@ describe("boot child completion", () => {
   it("does not abandon a spawned child when killing it reports an error", async () => {
     vi.useFakeTimers();
     const { child, kill } = childFixture();
-    child.pid = 1234;
+    Object.defineProperty(child, "pid", { value: 1234 });
     kill.mockImplementation(() => {
       child.emit("error", new Error("kill failed"));
       return false;
