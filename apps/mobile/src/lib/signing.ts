@@ -1,7 +1,8 @@
 /**
  * Board co-sign (M-BD-01/02, MM-5 "Two keys"), the pure half. The phone never takes the server's word for what it
  * signs. With WS-CORE's own digest functions (`_shims/domain-core.ts`) it recomputes `batchSha256` from the items,
- * every member line's hash from the content it covers and `linesDigest` from those lines (register §8 as amended, I4),
+ * `linesDigest` from every member line (register §8 as amended, I4). Local canonical fixtures additionally
+ * rehash line preimages; fs-api's flat /lines hashes are cross-checked with /batch (option B, ADR-0012). It
  * checks that each payout is exactly one PayPal line's net (I3), draws the seal from its own hash, and refuses an
  * approval payload whose own items and lines do not give its digests, or that is not exactly the batch the Chair
  * opened. Only then does it ask for the fingerprint or device PIN. The key is Ed25519: `fs-ernesto-a1` (then `-a2`,
@@ -137,9 +138,9 @@ function isLine(v: unknown): v is CosignLine {
     isInt(l.netCents) &&
     typeof l.lineSha256 === "string" &&
     HEX64.test(l.lineSha256) &&
-    !!l.canonical &&
-    typeof l.canonical === "object" &&
-    !Array.isArray(l.canonical)
+    (l.source === "fs-api-lines"
+      ? l.canonical === undefined && l.batchLineSha256 === l.lineSha256
+      : !!l.canonical && typeof l.canonical === "object" && !Array.isArray(l.canonical))
   );
 }
 
@@ -158,6 +159,15 @@ export function checkLines(lines: unknown, rateCardSha256: string): LinesCheck {
   }
   const summary: LinesSummary = { count: 0, paypal: { count: 0, cents: 0 }, cash: { count: 0, cents: 0 } };
   for (const l of lines) {
+    // Option B (ADR-0012): the frozen /lines DTO gives hashes, not canonical preimages. Each must
+    // match /batch.memberLines before the independently recomputed root may bind the approval.
+    if (l.source === "fs-api-lines") {
+      const rail = l.rail === "PAYPAL" ? summary.paypal : summary.cash;
+      rail.count++;
+      rail.cents += l.netCents;
+      summary.count++;
+      continue;
+    }
     const c = l.canonical as unknown as Record<string, unknown>;
     let hash: string;
     try {
