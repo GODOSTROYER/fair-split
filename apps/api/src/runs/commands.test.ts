@@ -344,7 +344,12 @@ describe("season and slip reads (W-TR-01, W-TR-03, W-TR-04)", () => {
   });
 });
 
-describe("setFlag: the kill switch", () => {
+// These cases clone a migrated database (CREATE DATABASE can wait on a checkpoint under load), seed the
+// season, and in inv.i6.kill recompute four times and sign before exercising the switch. No dispatcher is
+// started by startRuns; every operation is already awaited. Match the harness's 120 s setup budget here,
+// rather than changing the 30 s default for ordinary command tests.
+const SLOW = { timeout: 120_000 };
+describe("setFlag: the kill switch", SLOW, () => {
   it("FORBIDDEN for anyone but the treasurer (or the judge)", async () => {
     for (const token of [h.tokens.clerk, h.tokens.chair, h.tokens.member]) {
       await expect(
@@ -372,6 +377,13 @@ describe("setFlag: the kill switch", () => {
           payload,
         },
       });
+      const before = await g.t.json<{ run: { state: string }; approvals: { voidedAt: string | null }[] }>(
+        `/v1/runs/${g.world.runSlug}`,
+        { as: g.t.credentials.bearer(g.tokens.treasurer) },
+      );
+      expect(before.body.run.state).toBe("AWAITING_BOARD");
+      expect(before.body.approvals).toHaveLength(1);
+      expect(before.body.approvals[0]?.voidedAt).toBeNull();
       const r = await g.t.client(g.tokens.treasurer).setFlag({ body: { flag: "kill_payouts", on: true } });
       expect(r.flag).toMatchObject({
         flag: "kill_payouts",
@@ -386,6 +398,7 @@ describe("setFlag: the kill switch", () => {
         lines: Record<string, number>;
       }>(`/v1/runs/${g.world.runSlug}`, { as: g.t.credentials.bearer(g.tokens.treasurer) });
       expect(run.body.run.state).toBe("HALTED");
+      expect(run.body.approvals).toHaveLength(1);
       expect(run.body.approvals.every((a) => a.voidedAt !== null)).toBe(true);
       const events = await g.t.deps.db
         .select()
