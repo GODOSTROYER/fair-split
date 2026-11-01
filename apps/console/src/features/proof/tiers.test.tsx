@@ -211,6 +211,7 @@ describe("Proof's actual public, member and brand bundles", () => {
       screen.getByTestId("W-PF-01.checks").querySelectorAll('[data-state="matches"], [data-state="server"]'),
     ).toHaveLength(replayed ? 5 : 6);
     if (replayed) {
+      expect(screen.getByTestId("W-PF-01.check.payoutItems").textContent).toBe(REPLAY_REASON);
       fireEvent.click(screen.getByTestId("W-PF-01.plate.payoutItems.toggle"));
       expect(screen.getByTestId("W-PF-01.plate.payoutItems.reason").textContent).toBe(REPLAY_REASON);
       expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain("Six of six match");

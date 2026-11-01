@@ -176,7 +176,7 @@ export function Chain(props: ChainProps) {
               </h3>
               <p className="pf-plate__check" data-state={slot.state} data-testid={`W-PF-01.check.${plate}`}>
                 {glyph && <Glyph name={glyph} size={16} />}
-                <span>{slotWords(slot.state)}</span>
+                <span>{slot.state === "replay" && slot.reason ? slot.reason : slotWords(slot.state)}</span>
               </p>
               <div className="pf-plate__body" id={bodyId} hidden={!isOpen}>
                 {isOpen && (
