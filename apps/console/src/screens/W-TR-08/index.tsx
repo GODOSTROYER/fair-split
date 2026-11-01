@@ -348,7 +348,15 @@ export function Screen({ runSlug }: RunScreenProps) {
                   </span>
                 </div>
               </div>
-              <p className="fs-t-caption fsr-muted">{FANOUT.wait}</p>
+              <p
+                className="fs-t-caption fsr-muted"
+                role={payCash.queuedMs !== null ? "status" : undefined}
+                data-testid={payCash.queuedMs !== null ? "W-TR-08.queued" : undefined}
+              >
+                {payCash.queuedMs !== null
+                  ? `You're next, about ${Math.ceil(payCash.queuedMs / 1000)} s`
+                  : FANOUT.wait}
+              </p>
               {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
             </section>
           )}

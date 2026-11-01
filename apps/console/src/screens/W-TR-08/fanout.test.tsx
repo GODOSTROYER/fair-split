@@ -6,6 +6,7 @@
 import type { RunEvent } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { queryKeys } from "../../data/query.js";
 import { applyRunEvent, type RunView } from "../../data/run-view.js";
@@ -215,4 +216,40 @@ describe("W-TR-08 run: the honest fan-out", () => {
     },
     SLOW,
   );
+});
+
+it("shows the paced cancellation delay and retries payCash once before moving Rhea to cash", async () => {
+  let attempts = 0;
+  const view = await renderConsole({
+    path: webRoutes.fanout(RUN),
+    motion: "reduced",
+    handlers: [
+      http.post("*/v1/lines/:lineId/pay-cash", () => {
+        attempts++;
+        return attempts === 1
+          ? HttpResponse.json(
+              { code: "QUEUED", status: 429, message: "Cancellation paced", retryAfterMs: 700 },
+              { status: 429 },
+            )
+          : undefined;
+      }),
+    ],
+  });
+  await view.startSession();
+  act(() => {
+    view.world.markPaid();
+    view.world.resolveAll();
+    view.world.sign("treasurer");
+    view.world.cosign();
+  });
+  await waitFor(() => expect(stateOf()).toBe("parked"), WAIT);
+  fireEvent.keyDown(screen.getByTestId("W-TR-08.payCash.face"), { key: "Enter" });
+  await waitFor(() =>
+    expect(screen.getByTestId("W-TR-08.queued").textContent).toBe("You're next, about 1 s"),
+  );
+  await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
+  expect(attempts).toBe(2);
+  expect(view.world.line("M-031")?.state).toBe("OFF_RAIL_DUE");
+  expect(screen.queryByTestId("W-TR-08.queued")).toBeNull();
+  expect(screen.queryByTestId("W-TR-08.error")).toBeNull();
 });
