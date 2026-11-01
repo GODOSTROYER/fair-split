@@ -319,7 +319,7 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       const lane = await api.get("/v1/judge/lane");
       expect(lane.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
       await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(
-        /Your next run[’']s PayPal steps will replay, labelled/,
+        /This run[’']s PayPal payouts will replay, labelled/,
         { timeout: 30_000 },
       );
       await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/statuses replayed/i);
