@@ -84,6 +84,7 @@ export const en = {
   "hold.state.CONFLICT": "Ernesto is viewing this hold",
   "hold.engine": "Engine",
   "hold.claude": "Claude",
+  "hold.seeded": "Seed stand-in, not a Claude recording",
   "hold.evidence": "Evidence",
   "hold.effect": "Money effect",
   "hold.suggested": "Suggested by Claude",
@@ -239,7 +240,7 @@ export const en = {
 
   // ---------------------------------------------------------------- W-TR-07 Approve
   "W-TR-07.title": "Approve",
-  "W-TR-07.payouts": "{count, plural, one {# payout} other {# payouts}} by PayPal",
+  "W-TR-07.payouts": "{count, plural, one {# payout} other {# payouts}} by the simulated PayPal sandbox",
   "W-TR-07.cash": "{count, plural, one {# member} other {# members}}, {amount}, cash at the bodega on {date}",
   "W-TR-07.fees":
     "PayPal fees: simulated sandbox fee {sandboxEach} × {count} = {sandboxTotal}, estimate. In production to the Philippines, 2% = {production}. Both covered by Lantern Bay’s {disbursement} disbursement line.",

@@ -251,11 +251,53 @@ describe("HoldCard", () => {
     const card = screen.getByTestId("h1");
     expect(card.dataset).toMatchObject({ state: "open", gate: "BLOCKS_APPROVAL" });
     expect(screen.getByTestId("h1.gate").textContent).toBe("Blocks approval. Changes kilos.");
-    expect(card.querySelector('[data-voice="claude"] [data-state="pencil"]')?.textContent).toContain(
+    expect(card.querySelector('[data-voice="seeded"] [data-state="pencil"]')?.textContent).toContain(
       "pink copy",
     );
     expect(card.querySelectorAll(".fs-slab")).toHaveLength(1);
     expect(screen.getByTestId("h1.two").textContent).toBe("These are two deliveries");
+  });
+
+  it("inv.i8.hold-voice: seed and replay sentences never carry a Claude voice credit", () => {
+    const { rerender } = render(
+      wrap(<HoldCard hold={hold} gate="BLOCKS_APPROVAL" actions={actions()} testId="h1" />),
+    );
+    const check = () => {
+      const card = screen.getByTestId("h1");
+      expect(card.textContent).toContain("Seed stand-in, not a Claude recording");
+      expect(card.querySelector('[data-voice="claude"]')).toBeNull();
+      expect(card.querySelector('[data-provenance="seeded"]')?.textContent).toContain("pink copy");
+    };
+    check();
+    rerender(
+      wrap(
+        <HoldCard
+          hold={hold}
+          gate="BLOCKS_APPROVAL"
+          actions={actions()}
+          readingProvenance="replay"
+          testId="h1"
+        />,
+      ),
+    );
+    check();
+  });
+
+  it("credits Claude only when the caller explicitly identifies a Claude reading", () => {
+    render(
+      wrap(
+        <HoldCard
+          hold={hold}
+          gate="BLOCKS_APPROVAL"
+          actions={actions()}
+          readingProvenance="claude"
+          testId="h1"
+        />,
+      ),
+    );
+    const voice = screen.getByTestId("h1").querySelector('[data-voice="claude"]');
+    expect(voice?.querySelector("dt")?.textContent).toBe("Claude");
+    expect(voice?.querySelector('[data-provenance="claude"]')?.textContent).toContain("pink copy");
   });
 
   it("Claude's line carries no digits", () => {

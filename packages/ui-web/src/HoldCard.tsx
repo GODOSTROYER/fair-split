@@ -14,6 +14,8 @@ import { Print } from "./Print.js";
 import { Slab } from "./Slab.js";
 
 export interface WebHoldCardProps extends HoldCardProps {
+  /** Seed or replay sentences must not be credited as a live Claude reading. */
+  readonly readingProvenance?: "claude" | "seeded" | "replay";
   /** The evidence, as Paper (photos, crops, twin compare). */
   readonly evidence?: ReactNode;
   readonly testId: string;
@@ -30,7 +32,16 @@ const KIND_GLYPH: Readonly<Record<HoldCardProps["hold"]["kind"], DomainGlyph>> =
   MASS_BALANCE: "hanging-scale",
 };
 
-export function HoldCard({ hold, gate, actions, resolution, evidence, testId, className }: WebHoldCardProps) {
+export function HoldCard({
+  hold,
+  gate,
+  actions,
+  resolution,
+  evidence,
+  readingProvenance = "seeded",
+  testId,
+  className,
+}: WebHoldCardProps) {
   const t = useT();
   const [slab, flat] = actions;
   const decided = isFinalHoldState(hold.state);
@@ -66,13 +77,18 @@ export function HoldCard({ hold, gate, actions, resolution, evidence, testId, cl
           <dd className="fs-t-body">{hold.engineLine}</dd>
         </div>
         {hold.claudeLine && (
-          <div className="fs-hold__voice" data-voice="claude">
+          <div className="fs-hold__voice" data-voice={readingProvenance}>
             <dt className="fs-t-caption">
               <Glyph name="pencil" size={14} />
-              {t("hold.claude")}
+              {t(readingProvenance === "claude" ? "hold.claude" : "hold.seeded")}
             </dt>
             <dd className="fs-t-body">
-              <Print value={hold.claudeLine} provenance="claude" state="pencil" typeRole="body" />
+              <Print
+                value={hold.claudeLine}
+                provenance={readingProvenance === "claude" ? "claude" : "seeded"}
+                state="pencil"
+                typeRole="body"
+              />
             </dd>
           </div>
         )}
