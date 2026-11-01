@@ -27,6 +27,7 @@ export interface TtsDeps {
   cacheDir: string;
   log?: (line: string) => void;
   now?: () => Date;
+  maxAttempts?: number;
 }
 
 export interface RequestMeasure {
@@ -59,7 +60,7 @@ interface CachedWav {
 }
 
 /** One TTS request, served from `.cache/tts/` when the exact request was made before (no quota spent). */
-async function requestOnce(deps: TtsDeps, req: TtsRequest): Promise<CachedWav> {
+export async function requestOnce(deps: TtsDeps, req: TtsRequest): Promise<CachedWav> {
   const key = sha256(JSON.stringify(buildTtsParams(req)));
   const wavPath = join(deps.cacheDir, `${key}.wav`);
   const metaPath = join(deps.cacheDir, `${key}.json`);
@@ -74,6 +75,7 @@ async function requestOnce(deps: TtsDeps, req: TtsRequest): Promise<CachedWav> {
   // The pool counts the request on its key, settles it, and moves it to the next key on a 429.
   const r = await deps.pool.run(req.model, (client) => synthesize(client, req), {
     latencyMs: (x) => x.latencyMs,
+    ...(deps.maxAttempts === undefined ? {} : { maxAttempts: deps.maxAttempts }),
   });
   await mkdir(deps.cacheDir, { recursive: true });
   await writeFile(wavPath, r.wav);

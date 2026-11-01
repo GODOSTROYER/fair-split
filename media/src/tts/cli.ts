@@ -6,6 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { MEDIA_ROOT, REPO_ROOT } from "../util/env.js";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
+import { STATEMENT_CER_LIMIT } from "./alignment.js";
 import { ASR_MODEL, cer, type GenerateContentClient, transcribe } from "./asr.js";
 import { hasFfmpeg } from "./ffmpeg.js";
 import {
@@ -20,6 +21,7 @@ import {
   describeError,
   formatKeyChecks,
   formatPoolStatus,
+  GeminiCallError,
   KeyPool,
   keyId,
   keysForScrubbing,
@@ -34,6 +36,13 @@ import { type StatementResult, synthesizeStatement } from "./pipeline.js";
 import { requestPlan } from "./plan.js";
 import { pacificDay, QuotaLedger, SELF_IMPOSED_DAILY_CAP } from "./quota.js";
 import { joinForRequest, LANGS, type Lang, m014SpikeStatement, STYLE_NOTE } from "./statement.js";
+import {
+  loadStatementPlans,
+  StatementSplitError,
+  StatementVerificationError,
+  selectRequests,
+  synthesizePlannedStatement,
+} from "./statements.js";
 
 const USAGE = `tools/tts.ts — Gemini TTS for member statements (AI-10). Every clip is a synthetic voice.
 Requests go out on the user's Gemini keys from .env (GEMINI_API_KEY, then GEMINI_API_KEYS_FALLBACK), round
@@ -51,6 +60,10 @@ robin, each within its own free-tier limits (user decision, 1 Nov; ADR-0014).
   tts plan [--keys <count>]        S10 request plan: requests needed, days they take at the pool's capacity,
                                   verdict (no API call); written into media/audio/spike-s10.json
   tts asr                         listening proxy: transcribe the spike requests with ${ASR_MODEL} and score them
+  tts statements [--dry-run] [--only M-014:ceb] [--draft]
+                                  exact exported API sentences, one pooled request per member/language;
+                                  verifies each clip and falls back to per-sentence requests;
+                                  drafts have a separate, unserved manifest
   tts spike [--voice Sulafat] [--langs ceb,fil,en] [--draft-langs ceb]
                                   S10: M-014's greeting and pay sentences, one request per language on
                                   ${TTS_MODEL}, plus drafts on ${TTS_DRAFT_MODEL}; writes
@@ -100,6 +113,9 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
       "draft-langs": { type: "string" },
       source: { type: "string" },
       keys: { type: "string" },
+      only: { type: "string" },
+      "dry-run": { type: "boolean" },
+      draft: { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -119,6 +135,159 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
     });
   const models = [...new Set([TTS_MODEL, TTS_DRAFT_MODEL, ASR_MODEL])];
   switch (cmd) {
+    case "statements": {
+      const plans = await loadStatementPlans(mediaRoot);
+      const selected = selectRequests(plans.requests, values.only);
+      console.log(`${selected.length} planned request(s), ${TTS_MODEL}, ${values.draft ? "draft" : "final"}`);
+      for (const r of selected) console.log(`${r.member_no}:${r.lang} ${r.sentences.length} sentences`);
+      if (values["dry-run"]) return 0;
+      if (!hasFfmpeg()) throw new Error("ffmpeg is required for statement splitting");
+      const p = pool();
+      const manifestPath = join(mediaRoot, "audio", "manifest.json");
+      let manifest = await loadAudioManifest(manifestPath);
+      const failures: { request: string; failed: string[]; detail: string }[] = [];
+      const plannedStatus = async (quotaRefused: boolean) => {
+        const evidence = await readJsonOr<{ clips: Record<string, unknown>[] }>(
+          join(mediaRoot, "audio", "statement-verification.json"),
+          { clips: [] },
+        );
+        return Promise.all(
+          plans.requests.map(async (request) => ({
+            request: `${request.member_no}:${request.lang}`,
+            sentences: await Promise.all(
+              request.sentences.map(async (sentence) => {
+                let verified = false;
+                for (const entry of manifest.entries) {
+                  if (
+                    entry.draft ||
+                    entry.member_no !== request.member_no ||
+                    entry.lang !== request.lang ||
+                    entry.slot !== sentence.slot ||
+                    entry.text !== sentence.text ||
+                    entry.text_sha256 !== sentence.textSha256
+                  )
+                    continue;
+                  const record =
+                    Array.isArray(evidence.clips) &&
+                    evidence.clips.find(
+                      (clip) =>
+                        clip.file === entry.file &&
+                        clip.textSha256 === sentence.textSha256 &&
+                        clip.asrModel === ASR_MODEL &&
+                        clip.threshold === STATEMENT_CER_LIMIT &&
+                        typeof clip.cer === "number" &&
+                        Number.isFinite(clip.cer) &&
+                        clip.cer >= 0 &&
+                        clip.cer <= STATEMENT_CER_LIMIT,
+                    );
+                  if (!record) continue;
+                  try {
+                    if (record.audioSha256 === sha256(await readFile(join(mediaRoot, entry.file))))
+                      verified = true;
+                  } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                  }
+                  if (verified) break;
+                }
+                return {
+                  textSha256: sentence.textSha256,
+                  status: verified ? "published" : quotaRefused ? "waiting_on_quota" : "not_verified",
+                };
+              }),
+            ),
+          })),
+        );
+      };
+      for (const request of selected) {
+        try {
+          manifest = await synthesizePlannedStatement(
+            request,
+            {
+              pool: p,
+              asrPool: p,
+              mediaRoot,
+              cacheDir: join(mediaRoot, ".cache", "tts"),
+              log: (line) => console.log(line),
+            },
+            manifest,
+            {
+              ...(values.voice === undefined ? {} : { voice: values.voice }),
+              draft: values.draft ?? false,
+              onProgress: async (next) => {
+                if (!values.draft) await saveAudioManifest(manifestPath, next);
+              },
+            },
+          );
+          if (!values.draft) await saveAudioManifest(manifestPath, manifest);
+        } catch (error) {
+          const detail = describeError(error, keys());
+          manifest = await loadAudioManifest(manifestPath);
+          if (error instanceof StatementVerificationError) {
+            failures.push({ request: `${request.member_no}:${request.lang}`, failed: error.failed, detail });
+            console.error(detail);
+            continue;
+          }
+          const status = await p.status([TTS_MODEL, ASR_MODEL]);
+          const quotaRefused =
+            error instanceof PoolExhaustedError ||
+            (error instanceof GeminiCallError && error.kind === "rate");
+          const report = {
+            outcome:
+              error instanceof StatementSplitError
+                ? "split_refused"
+                : quotaRefused
+                  ? "quota_refused"
+                  : "generation_failed",
+            quotaRefused,
+            ...(error instanceof StatementSplitError
+              ? {
+                  expectedSegments: error.expectedSegments,
+                  detectedInteriorPauses: error.detectedInteriorPauses,
+                }
+              : {}),
+            request: `${request.member_no}:${request.lang}`,
+            model: error instanceof PoolExhaustedError ? error.model : TTS_MODEL,
+            at: new Date().toISOString(),
+            detail,
+            dailyResetsAt: status.resetsAt,
+            keyResets: status.keys.map((key) => ({
+              keyId: key.id,
+              dropped: key.dropped,
+              models: Object.fromEntries(
+                status.models.map((model) => [
+                  model,
+                  { ...key.models[model], resetsAt: key.models[model]?.cooling?.until ?? status.resetsAt },
+                ]),
+              ),
+            })),
+            planned: await plannedStatus(quotaRefused),
+            failures,
+            cooling: status.keys.flatMap((k) =>
+              k.models[TTS_MODEL]?.cooling ? [{ keyId: k.id, ...k.models[TTS_MODEL]?.cooling }] : [],
+            ),
+            synthetic: true,
+            notice:
+              "Generation stopped. Missing clips use labelled device voice. Requests used the key pool within each key's free limits.",
+          };
+          await writeJson(join(mediaRoot, "audio", "statement-validation.json"), report);
+          console.error(`${detail}${quotaRefused ? `; daily cap reset ${status.resetsAt}` : ""}`);
+          return 2;
+        }
+      }
+      await writeJson(join(mediaRoot, "audio", "statement-validation.json"), {
+        outcome: failures.length ? "verification_refused" : "complete",
+        quotaRefused: false,
+        at: new Date().toISOString(),
+        selected: selected.map((r) => `${r.member_no}:${r.lang}`),
+        failures,
+        planned: await plannedStatus(false),
+        synthetic: true,
+        notice: failures.length
+          ? "Unverified clips use labelled device voice. Other planned requests continued. Native pronunciation review remains pending."
+          : "Published clips passed independent AAC ASR verification. Native pronunciation review remains pending.",
+      });
+      return failures.length ? 2 : 0;
+    }
     case "keys": {
       const results = await checkKeys(keys(), deps.fetch ?? fetch);
       console.log(formatKeyChecks(results));

@@ -1,0 +1,2402 @@
+{
+  "v": 1,
+  "synthetic": true,
+  "notice": "Seed stand-in, not a Claude recording. PayPal-derived facts: Simulated PayPal sandbox. Audio is synthetic (Gemini TTS).",
+  "requests": [
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "lineId": "016b10c3-dd0e-790b-9d1d-d1ad86009d1b",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
+          "mentions": [],
+          "textSha256": "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Nang Celing",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala mo og one hundred forty-eight kilos nga uga nga cacao, tanan Grade one.",
+          "mentions": [],
+          "textSha256": "49caa459e2bec2d6e58ad8776a96a3ea52ca33032e6ab4fd866ee878f4c00085",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "one hundred forty-eight kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "tanan Grade one",
+              "start": 63
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala mo og 148.0 kg nga uga nga cacao, tanan Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium gikan sa Lantern Bay Chocolate Co.: forty-three dollars and sixty-nine cents, walay kaltas.",
+          "mentions": [],
+          "textSha256": "97d6108ac9e86caad1a68a43874f75a2a960e333ca1efe86353ab028406989c8",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 17
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "forty-three dollars and sixty-nine cents",
+              "start": 44
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium gikan sa Lantern Bay Chocolate Co.: US$43.69, walay kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: twenty-one dollars and eighty-five cents.",
+          "mentions": [],
+          "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "twenty-one dollars and eighty-five cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$21.85."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Gikaltasan og one dollar and nine cents para sa CBU (R one, resolusyon sa Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "f203ddc41bee3066cf575b9bee38a3ff5da3a67a36005dbe18a188e8680c2f07",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "one dollar and nine cents",
+              "start": 14
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 48
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 53
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon sa Board",
+              "start": 60
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 53
+            }
+          ],
+          "displayText": "Gikaltasan og US$1.09 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, sa inyong PayPal. Sa peso, mga four thousand twenty-eight pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+          "mentions": [],
+          "textSha256": "951cf7877220320908429ecf06d73f2726e849762964b5a51e1407fcc1361826",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "sixty-four dollars and forty-five cents",
+              "start": 32
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "mga four thousand twenty-eight pesos, gibanabana",
+              "start": 100
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 165
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad karong season: US$64.45, sa inyong PayPal. Sa peso, mga ₱4,028 (gibanabana), sa dili pa ang 3% nga bayad sa PayPal sa pag-ilis."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Gikan kini sa inyong resibo zero four zero three, zero four one nine, zero four three six ug zero four six seven.",
+          "mentions": ["slip:0403", "slip:0419", "slip:0436", "slip:0467"],
+          "textSha256": "d5d4f4c29d3604e3848b81196698c4b1a437d14b78816ae894285a3e4303fd50",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero four zero three, zero four one nine, zero four three six ug zero four six seven",
+              "start": 28
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0403",
+              "spoken": "zero four zero three",
+              "start": 28
+            },
+            {
+              "ref": "slip:0419",
+              "spoken": "zero four one nine",
+              "start": 50
+            },
+            {
+              "ref": "slip:0436",
+              "spoken": "zero four three six",
+              "start": 70
+            },
+            {
+              "ref": "slip:0467",
+              "spoken": "zero four six seven",
+              "start": 93
+            }
+          ],
+          "displayText": "Gikan kini sa inyong resibo 0403, 0419, 0436 ug 0467."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 39
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+          "mentions": [],
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 173
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad."
+        }
+      ]
+    },
+    {
+      "member_no": "M-014",
+      "lang": "fil",
+      "lineId": "016b10c3-dd0e-790b-9d1d-d1ad86009d1b",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Magandang araw po, Gng. Bacus. Salamat po sa inyong pagsisikap.",
+          "mentions": [],
+          "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Gng. Bacus",
+              "start": 19
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Magandang araw po, Gng. Bacus. Salamat po sa inyong pagsisikap."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala po kayo ng one hundred forty-eight kilo na tuyong cacao, lahat ay Grade one.",
+          "mentions": [],
+          "textSha256": "aae0210a6e05d9b85298d2573ed1c3e06f4de1621064c9d205ab42ccc3498c98",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "one hundred forty-eight kilo",
+              "start": 19
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "lahat ay Grade one",
+              "start": 65
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala po kayo ng 148.0 kg na tuyong cacao, lahat ay Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium mula sa Lantern Bay Chocolate Co.: forty-three dollars and sixty-nine cents, walang kaltas.",
+          "mentions": [],
+          "textSha256": "f3f5f872cae0a10977ca23c2164c09a24961ef930fdd5e3cd8f602cf0f311a94",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 16
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "forty-three dollars and sixty-nine cents",
+              "start": 43
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium mula sa Lantern Bay Chocolate Co.: US$43.69, walang kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: twenty-one dollars and eighty-five cents.",
+          "mentions": [],
+          "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "twenty-one dollars and eighty-five cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$21.85."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Binawasan po ng one dollar and nine cents para sa CBU (R one, resolusyon ng Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "one dollar and nine cents",
+              "start": 16
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 50
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 55
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon ng Board",
+              "start": 62
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 55
+            }
+          ],
+          "displayText": "Binawasan po ng US$1.09 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad ngayong season: sixty-four dollars and forty-five cents, sa inyong PayPal. Sa piso, humigit-kumulang four thousand twenty-eight piso, tantiya, bago ang three porsiyento na singil ng PayPal sa pagpapalit.",
+          "mentions": [],
+          "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "sixty-four dollars and forty-five cents",
+              "start": 33
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "humigit-kumulang four thousand twenty-eight piso, tantiya",
+              "start": 101
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 169
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad ngayong season: US$64.45, sa inyong PayPal. Sa piso, humigit-kumulang ₱4,028 (tantiya), bago ang 3% na singil ng PayPal sa pagpapalit."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Galing po ito sa inyong mga resibo zero four zero three, zero four one nine, zero four three six at zero four six seven.",
+          "mentions": ["slip:0403", "slip:0419", "slip:0436", "slip:0467"],
+          "textSha256": "8afe10f2f29938d52d60ed4c2291df255dc469dc117b1dbdf3e4619de2b8df5a",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero four zero three, zero four one nine, zero four three six at zero four six seven",
+              "start": 35
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0403",
+              "spoken": "zero four zero three",
+              "start": 35
+            },
+            {
+              "ref": "slip:0419",
+              "spoken": "zero four one nine",
+              "start": 57
+            },
+            {
+              "ref": "slip:0436",
+              "spoken": "zero four three six",
+              "start": 77
+            },
+            {
+              "ref": "slip:0467",
+              "spoken": "zero four six seven",
+              "start": 100
+            }
+          ],
+          "displayText": "Galing po ito sa inyong mga resibo 0403, 0419, 0436 at 0467."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "May tanong po kayo? Lumapit po kay Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "1fb87d9f62b780c1c0941bd8a2143b765ab5ccb6239f937ca85541710808ce12",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 45
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "May tanong po kayo? Lumapit po kay Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer Analyn ang bayad na ito.",
+          "mentions": [],
+          "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 171
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer Analyn ang bayad na ito."
+        }
+      ]
+    },
+    {
+      "member_no": "M-014",
+      "lang": "en",
+      "lineId": "016b10c3-dd0e-790b-9d1d-d1ad86009d1b",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Good day, Mrs. Bacus. Thank you for your hard work.",
+          "mentions": [],
+          "textSha256": "3d724d31bbfccccc84ea9d1f5e9c0b179c02952dbcd7bf8d519582b215e0f643",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Mrs. Bacus",
+              "start": 10
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Good day, Mrs. Bacus. Thank you for your hard work."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "You delivered one hundred forty-eight kilos of dried cacao, all Grade one.",
+          "mentions": [],
+          "textSha256": "3f42cf9d89538ae032d27b1b4e7d9d29645fbfbc4421dd112bc853bd9373b8a3",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "one hundred forty-eight kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "all Grade one",
+              "start": 60
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "You delivered 148.0 kg of dried cacao, all Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium from Lantern Bay Chocolate Co.: forty-three dollars and sixty-nine cents, with no deductions.",
+          "mentions": [],
+          "textSha256": "35ae497bd6ea42418438760a65571b0b0f001e706c52627adb074fb74301d3cc",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 13
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "forty-three dollars and sixty-nine cents",
+              "start": 40
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium from Lantern Bay Chocolate Co.: US$43.69, with no deductions."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Quality bonus: twenty-one dollars and eighty-five cents.",
+          "mentions": [],
+          "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "twenty-one dollars and eighty-five cents",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Quality bonus: US$21.85."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Less one dollar and nine cents for CBU, your capital build-up (R one, the Board's resolution).",
+          "mentions": ["rule:R1"],
+          "textSha256": "5f6fe4f78a18240e35cca7cea58b3dd52211564e751e323c2c62009b7b06da65",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "one dollar and nine cents",
+              "start": 5
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU, your capital build-up",
+              "start": 35
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 63
+            },
+            {
+              "name": "BR",
+              "spoken": "the Board's resolution",
+              "start": 70
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 63
+            }
+          ],
+          "displayText": "Less US$1.09 for CBU, your capital build-up (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Your pay this season: sixty-four dollars and forty-five cents, to your PayPal. In pesos that is about four thousand twenty-eight pesos, estimate, before PayPal's three percent fee to change it.",
+          "mentions": [],
+          "textSha256": "c8fa80c918dddcef6f74eef64e32dc4fe06b7a7eb89e97120675e6c811f1497c",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "sixty-four dollars and forty-five cents",
+              "start": 22
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "about four thousand twenty-eight pesos, estimate",
+              "start": 96
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three percent",
+              "start": 162
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Your pay this season: US$64.45, to your PayPal. In pesos that is about ₱4,028 (estimate), before PayPal's 3% fee to change it."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "It comes from your slips zero four zero three, zero four one nine, zero four three six and zero four six seven.",
+          "mentions": ["slip:0403", "slip:0419", "slip:0436", "slip:0467"],
+          "textSha256": "d08aec86da77c59b7b189bf940f8d1e764789d12fbad42320d53c98fb29fa94d",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero four zero three, zero four one nine, zero four three six and zero four six seven",
+              "start": 25
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0403",
+              "spoken": "zero four zero three",
+              "start": 25
+            },
+            {
+              "ref": "slip:0419",
+              "spoken": "zero four one nine",
+              "start": 47
+            },
+            {
+              "ref": "slip:0436",
+              "spoken": "zero four three six",
+              "start": 67
+            },
+            {
+              "ref": "slip:0467",
+              "spoken": "zero four six seven",
+              "start": 91
+            }
+          ],
+          "displayText": "It comes from your slips 0403, 0419, 0436 and 0467."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Questions? See Treasurer Analyn at the bodega.",
+          "mentions": [],
+          "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 25
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Questions? See Treasurer Analyn at the bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay.",
+          "mentions": [],
+          "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 133
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay."
+        }
+      ]
+    },
+    {
+      "member_no": "M-007",
+      "lang": "ceb",
+      "lineId": "016b10c3-dd07-7bdd-b926-cc69c1494916",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Maayong adlaw, Nong Dioning. Salamat sa inyong paghago.",
+          "mentions": [],
+          "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Nong Dioning",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Maayong adlaw, Nong Dioning. Salamat sa inyong paghago."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala mo og one hundred forty-four kilos nga uga nga cacao, tanan Grade one.",
+          "mentions": [],
+          "textSha256": "7d09e78695c1c84002ccd8bb0564d0c5613b2a2fe887a5c975233c986aed44a4",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "one hundred forty-four kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "tanan Grade one",
+              "start": 62
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala mo og 144.0 kg nga uga nga cacao, tanan Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium gikan sa Lantern Bay Chocolate Co.: forty-two dollars and fifty-one cents, walay kaltas.",
+          "mentions": [],
+          "textSha256": "8dad46ecec62b512aa236918dc33aef9bf743883e569f9e71000efbe935bcd68",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 17
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "forty-two dollars and fifty-one cents",
+              "start": 44
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium gikan sa Lantern Bay Chocolate Co.: US$42.51, walay kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: twenty-one dollars and twenty-six cents.",
+          "mentions": [],
+          "textSha256": "d096a6a79cdef1413bf92bd50e266a50dc8dfdfb9210fc4a515222162cbce195",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "twenty-one dollars and twenty-six cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$21.26."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Gikaltasan og one dollar and six cents para sa CBU (R one, resolusyon sa Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "664a29bd032b417addcbbb3ffc72f8afc12a0ef577d459801b276f9b0fb7c10d",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "one dollar and six cents",
+              "start": 14
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 47
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 52
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon sa Board",
+              "start": 59
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 52
+            }
+          ],
+          "displayText": "Gikaltasan og US$1.06 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad karong season: sixty-two dollars and seventy-one cents, sa inyong PayPal. Sa peso, mga three thousand nine hundred nineteen pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+          "mentions": [],
+          "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "sixty-two dollars and seventy-one cents",
+              "start": 32
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "mga three thousand nine hundred nineteen pesos, gibanabana",
+              "start": 100
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 175
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad karong season: US$62.71, sa inyong PayPal. Sa peso, mga ₱3,919 (gibanabana), sa dili pa ang 3% nga bayad sa PayPal sa pag-ilis."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Gikan kini sa inyong resibo zero three zero three, zero four five seven, zero four nine seven ug zero five six two.",
+          "mentions": ["slip:0303", "slip:0457", "slip:0497", "slip:0562"],
+          "textSha256": "cf991d62ef3188a5922884c9ddfe3b9bdd45aa71618efc4bc66e3ee25aa8f5f8",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero three zero three, zero four five seven, zero four nine seven ug zero five six two",
+              "start": 28
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0303",
+              "spoken": "zero three zero three",
+              "start": 28
+            },
+            {
+              "ref": "slip:0457",
+              "spoken": "zero four five seven",
+              "start": 51
+            },
+            {
+              "ref": "slip:0497",
+              "spoken": "zero four nine seven",
+              "start": 73
+            },
+            {
+              "ref": "slip:0562",
+              "spoken": "zero five six two",
+              "start": 97
+            }
+          ],
+          "displayText": "Gikan kini sa inyong resibo 0303, 0457, 0497 ug 0562."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 39
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+          "mentions": [],
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 173
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad."
+        }
+      ]
+    },
+    {
+      "member_no": "M-060",
+      "lang": "fil",
+      "lineId": "016b10c3-dd3c-7518-8065-0a3accb370f0",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Magandang araw po, G. Sumampao. Salamat po sa inyong pagsisikap.",
+          "mentions": [],
+          "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "G. Sumampao",
+              "start": 19
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Magandang araw po, G. Sumampao. Salamat po sa inyong pagsisikap."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala po kayo ng one hundred twenty-eight point five kilo na tuyong cacao, lahat ay Grade one.",
+          "mentions": [],
+          "textSha256": "1a87c959fab6b4f2f15f220d65e147523772ed5b7f1240cea171e65bf9c66f26",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "one hundred twenty-eight point five kilo",
+              "start": 19
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "lahat ay Grade one",
+              "start": 77
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala po kayo ng 128.5 kg na tuyong cacao, lahat ay Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium mula sa Lantern Bay Chocolate Co.: thirty-seven dollars and ninety-four cents, walang kaltas.",
+          "mentions": [],
+          "textSha256": "99b13ab8c0f3e7c0ed20e4d5246ef5633144c7a03c1506b41f010db359e00fba",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 16
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "thirty-seven dollars and ninety-four cents",
+              "start": 43
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium mula sa Lantern Bay Chocolate Co.: US$37.94, walang kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: eighteen dollars and ninety-seven cents.",
+          "mentions": [],
+          "textSha256": "6735db397358045a0258dec8451f6eb1a5371499e00aa2c06e693eb8cc02016d",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "eighteen dollars and ninety-seven cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$18.97."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Binawasan po ng ninety-five cents para sa CBU (R one, resolusyon ng Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "079a8d5b93b577d44a1ac84202ba41a85a7fecd51fc7173b10389767d6e12cd6",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "ninety-five cents",
+              "start": 16
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 42
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 47
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon ng Board",
+              "start": 54
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 47
+            }
+          ],
+          "displayText": "Binawasan po ng US$0.95 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad ngayong season: fifty-five dollars and ninety-six cents, sa inyong PayPal. Sa piso, humigit-kumulang three thousand four hundred ninety-seven piso, tantiya, bago ang three porsiyento na singil ng PayPal sa pagpapalit.",
+          "mentions": [],
+          "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "fifty-five dollars and ninety-six cents",
+              "start": 33
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "humigit-kumulang three thousand four hundred ninety-seven piso, tantiya",
+              "start": 101
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 183
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad ngayong season: US$55.96, sa inyong PayPal. Sa piso, humigit-kumulang ₱3,497 (tantiya), bago ang 3% na singil ng PayPal sa pagpapalit."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Galing po ito sa inyong mga resibo zero three six nine, zero four six two at zero five two seven.",
+          "mentions": ["slip:0369", "slip:0462", "slip:0527"],
+          "textSha256": "84498f0db072bb0c6a9259e4af1976696edbf9989c122a11ec8ed7219aa574c4",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero three six nine, zero four six two at zero five two seven",
+              "start": 35
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0369",
+              "spoken": "zero three six nine",
+              "start": 35
+            },
+            {
+              "ref": "slip:0462",
+              "spoken": "zero four six two",
+              "start": 56
+            },
+            {
+              "ref": "slip:0527",
+              "spoken": "zero five two seven",
+              "start": 77
+            }
+          ],
+          "displayText": "Galing po ito sa inyong mga resibo 0369, 0462 at 0527."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "May tanong po kayo? Lumapit po kay Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "1fb87d9f62b780c1c0941bd8a2143b765ab5ccb6239f937ca85541710808ce12",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 45
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "May tanong po kayo? Lumapit po kay Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer Analyn ang bayad na ito.",
+          "mentions": [],
+          "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 171
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Sa demo na ito, ang mga basa sa resibo ay pamalit na may label para sa makalawang pagbasa ni Claude; sinuri ng tao ang mga basang hindi tiyak, at inaprubahan ni Treasurer Analyn ang bayad na ito."
+        }
+      ]
+    },
+    {
+      "member_no": "M-018",
+      "lang": "ceb",
+      "lineId": "016b10c3-dd12-796c-a8c6-116803d1adad",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Maayong adlaw, Nong Tidoy. Salamat sa inyong paghago.",
+          "mentions": [],
+          "textSha256": "6a8701862ebc396ad122d7610d6f4dce926f2ead6227e2b621ac1aeccd72d6df",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Nong Tidoy",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Maayong adlaw, Nong Tidoy. Salamat sa inyong paghago."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala mo og one hundred twenty point four kilos nga uga nga cacao, tanan Grade one.",
+          "mentions": [],
+          "textSha256": "8bcd03a5b50571071bb7819c2460d362d9e18d908665b1d8ef36d3057bd945a3",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "one hundred twenty point four kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "tanan Grade one",
+              "start": 69
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala mo og 120.4 kg nga uga nga cacao, tanan Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium gikan sa Lantern Bay Chocolate Co.: thirty-five dollars and fifty-five cents, walay kaltas.",
+          "mentions": [],
+          "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 17
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "thirty-five dollars and fifty-five cents",
+              "start": 44
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium gikan sa Lantern Bay Chocolate Co.: US$35.55, walay kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: seventeen dollars and seventy-seven cents.",
+          "mentions": [],
+          "textSha256": "a8d577afcb594d5999bee44e82d944f8fc791ef001ff0a5ba7764b061eaf990f",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "seventeen dollars and seventy-seven cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$17.77."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Gikaltasan og eighty-nine cents para sa CBU (R one, resolusyon sa Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "eighty-nine cents",
+              "start": 14
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 40
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 45
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon sa Board",
+              "start": 52
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 45
+            }
+          ],
+          "displayText": "Gikaltasan og US$0.89 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "CREDIT",
+          "variant": "written",
+          "text": "Ang two hundred pesos nga kaltas sa resibo zero four five eight wala sa rate card nga giaprobahan sa Board, mao nga gibalik kini kaninyo: three dollars and twenty cents.",
+          "mentions": ["slip:0458"],
+          "textSha256": "575a5b4532b1727a95039cc2d98e0c05dd77e72bc86e67533b178a523751560d",
+          "placeholders": [
+            {
+              "name": "WRITTEN_PHP",
+              "spoken": "two hundred pesos",
+              "start": 4
+            },
+            {
+              "name": "SLIP",
+              "spoken": "zero four five eight",
+              "start": 43
+            },
+            {
+              "name": "CREDIT_USD",
+              "spoken": "three dollars and twenty cents",
+              "start": 138
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0458",
+              "spoken": "zero four five eight",
+              "start": 43
+            }
+          ],
+          "displayText": "Ang ₱200 nga kaltas sa resibo 0458 wala sa rate card nga giaprobahan sa Board, mao nga gibalik kini kaninyo: US$3.20."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad karong season: fifty-five dollars and sixty-three cents, sa inyong PayPal. Sa peso, mga three thousand four hundred seventy-six pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+          "mentions": [],
+          "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "fifty-five dollars and sixty-three cents",
+              "start": 32
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "mga three thousand four hundred seventy-six pesos, gibanabana",
+              "start": 101
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 179
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad karong season: US$55.63, sa inyong PayPal. Sa peso, mga ₱3,476 (gibanabana), sa dili pa ang 3% nga bayad sa PayPal sa pag-ilis."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Gikan kini sa inyong resibo zero three eight nine, zero four five eight ug zero four six five.",
+          "mentions": ["slip:0389", "slip:0458", "slip:0465"],
+          "textSha256": "b8ef4820a5002860612157b08fa8bb0f369a9c1bd103f35ff64ab03fbcb23ecc",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero three eight nine, zero four five eight ug zero four six five",
+              "start": 28
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0389",
+              "spoken": "zero three eight nine",
+              "start": 28
+            },
+            {
+              "ref": "slip:0458",
+              "spoken": "zero four five eight",
+              "start": 51
+            },
+            {
+              "ref": "slip:0465",
+              "spoken": "zero four six five",
+              "start": 75
+            }
+          ],
+          "displayText": "Gikan kini sa inyong resibo 0389, 0458 ug 0465."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 39
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+          "mentions": [],
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 173
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad."
+        }
+      ]
+    },
+    {
+      "member_no": "M-039",
+      "lang": "en",
+      "lineId": "016b10c3-dd27-7b61-ad58-b32df92e356a",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Good day, Mr. Ripalda. Thank you for your hard work.",
+          "mentions": [],
+          "textSha256": "53ea7e4fb6e58ff5f091a5666d640c03c3098151ddb109af053274a0530a931a",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Mr. Ripalda",
+              "start": 10
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Good day, Mr. Ripalda. Thank you for your hard work."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "You delivered eighty-eight kilos of dried cacao, all Grade one.",
+          "mentions": [],
+          "textSha256": "0a4a8eb6db584552891859d81a5b7d936e76387e2e575a14a8993f4b00763b72",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "eighty-eight kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "all Grade one",
+              "start": 49
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "You delivered 88.0 kg of dried cacao, all Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium from Lantern Bay Chocolate Co.: twenty-five dollars and ninety-eight cents, with no deductions.",
+          "mentions": [],
+          "textSha256": "1ed8fdb508567ff400ae5bdac3077d95de98a7b6afdfe61c371ee536b1696b44",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 13
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "twenty-five dollars and ninety-eight cents",
+              "start": 40
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium from Lantern Bay Chocolate Co.: US$25.98, with no deductions."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Quality bonus: twelve dollars and ninety-nine cents.",
+          "mentions": [],
+          "textSha256": "a5ce5362f3ad092b3b28e17c186a573b12cdc34ff2cd75980cf466422529f970",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "twelve dollars and ninety-nine cents",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Quality bonus: US$12.99."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Less sixty-five cents for CBU, your capital build-up (R one, the Board's resolution).",
+          "mentions": ["rule:R1"],
+          "textSha256": "fc069027fbd4a0429a2ed3e12a348d690fe0035e99ea1133b27048f52a7e7d71",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "sixty-five cents",
+              "start": 5
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU, your capital build-up",
+              "start": 26
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 54
+            },
+            {
+              "name": "BR",
+              "spoken": "the Board's resolution",
+              "start": 61
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 54
+            }
+          ],
+          "displayText": "Less US$0.65 for CBU, your capital build-up (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Your pay this season: thirty-eight dollars and thirty-two cents, to your PayPal. In pesos that is about two thousand three hundred ninety-five pesos, estimate, before PayPal's three percent fee to change it.",
+          "mentions": [],
+          "textSha256": "cc823bfda9b4926d7605b30956d45898fbc6a00b3cbbb546184f5215bb3fd5f1",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "thirty-eight dollars and thirty-two cents",
+              "start": 22
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "about two thousand three hundred ninety-five pesos, estimate",
+              "start": 98
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three percent",
+              "start": 176
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Your pay this season: US$38.32, to your PayPal. In pesos that is about ₱2,395 (estimate), before PayPal's 3% fee to change it."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "It comes from your slips zero four one five, zero four four zero and zero four four one.",
+          "mentions": ["slip:0415", "slip:0440", "slip:0441"],
+          "textSha256": "d7c515180a4cb4d638e185299b0a41ff25248e401916bc0fcc7f8c1bc19cc590",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero four one five, zero four four zero and zero four four one",
+              "start": 25
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0415",
+              "spoken": "zero four one five",
+              "start": 25
+            },
+            {
+              "ref": "slip:0440",
+              "spoken": "zero four four zero",
+              "start": 45
+            },
+            {
+              "ref": "slip:0441",
+              "spoken": "zero four four one",
+              "start": 69
+            }
+          ],
+          "displayText": "It comes from your slips 0415, 0440 and 0441."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Questions? See Treasurer Analyn at the bodega.",
+          "mentions": [],
+          "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 25
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Questions? See Treasurer Analyn at the bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay.",
+          "mentions": [],
+          "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 133
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay."
+        }
+      ]
+    },
+    {
+      "member_no": "M-022",
+      "lang": "ceb",
+      "lineId": "016b10c3-dd16-71f8-966b-c1e24a7bdf47",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Maayong adlaw, Nong Pedring. Salamat sa inyong paghago.",
+          "mentions": [],
+          "textSha256": "6e64a8426d62ab06213aa61705d221bcd9f0372a38ef8c9706507584d7f2d9b8",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Nong Pedring",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Maayong adlaw, Nong Pedring. Salamat sa inyong paghago."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala mo og ninety-six point five kilos nga uga nga cacao, eighty kilos niini Grade one.",
+          "mentions": [],
+          "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "ninety-six point five kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "eighty kilos niini Grade one",
+              "start": 61
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala mo og 96.5 kg nga uga nga cacao, 80.0 kg niini Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium gikan sa Lantern Bay Chocolate Co.: twenty-eight dollars and forty-nine cents, walay kaltas.",
+          "mentions": [],
+          "textSha256": "f32bdf5ce7c62dad0c1b9d7938d7c0a0f7a1382429138d9e85e7fed9090d7acb",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 17
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "twenty-eight dollars and forty-nine cents",
+              "start": 44
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium gikan sa Lantern Bay Chocolate Co.: US$28.49, walay kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: eleven dollars and eighty-one cents.",
+          "mentions": [],
+          "textSha256": "617ddfea7dbfea495a211187e9f324d7933c35d30776ab0644639c491b931710",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "eleven dollars and eighty-one cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$11.81."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Gikaltasan og five dollars and ninety cents para sa inyong utang (R three, resolusyon sa Board).",
+          "mentions": ["rule:R3"],
+          "textSha256": "d3eabddda28bccd1a975995c8b8fba616149e4b59c17619ed7269d0396037067",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "five dollars and ninety cents",
+              "start": 14
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "inyong utang",
+              "start": 52
+            },
+            {
+              "name": "RULE",
+              "spoken": "R three",
+              "start": 66
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon sa Board",
+              "start": 75
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R3",
+              "spoken": "R three",
+              "start": 66
+            }
+          ],
+          "displayText": "Gikaltasan og US$5.90 para sa inyong utang (R3, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad karong season: thirty-four dollars and forty cents, sa inyong PayPal. Sa peso, mga two thousand one hundred fifty pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+          "mentions": [],
+          "textSha256": "65623f26432ccc681d739920444b0aca4de2b1325da85306dac06ab937ba5035",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "thirty-four dollars and forty cents",
+              "start": 32
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "mga two thousand one hundred fifty pesos, gibanabana",
+              "start": 96
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 165
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad karong season: US$34.40, sa inyong PayPal. Sa peso, mga ₱2,150 (gibanabana), sa dili pa ang 3% nga bayad sa PayPal sa pag-ilis."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Gikan kini sa inyong resibo zero four zero eight, zero four two seven ug zero five one one.",
+          "mentions": ["slip:0408", "slip:0427", "slip:0511"],
+          "textSha256": "97e6934a131f7cd0ff5dd903ea921c1eb89d2256f233770b2c0ae1ed531cb553",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero four zero eight, zero four two seven ug zero five one one",
+              "start": 28
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0408",
+              "spoken": "zero four zero eight",
+              "start": 28
+            },
+            {
+              "ref": "slip:0427",
+              "spoken": "zero four two seven",
+              "start": 50
+            },
+            {
+              "ref": "slip:0511",
+              "spoken": "zero five one one",
+              "start": 73
+            }
+          ],
+          "displayText": "Gikan kini sa inyong resibo 0408, 0427 ug 0511."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 39
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+          "mentions": [],
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 173
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad."
+        }
+      ]
+    },
+    {
+      "member_no": "M-002",
+      "lang": "ceb",
+      "lineId": "016b10c3-dd02-7799-bda8-c338b2784ad1",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Maayong adlaw, Nang Ciay. Salamat sa inyong paghago.",
+          "mentions": [],
+          "textSha256": "1e08b3d0a7cd3c092bb9436c4595fe85472de93b8edb6c7830e768d72926e40d",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Nang Ciay",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Maayong adlaw, Nang Ciay. Salamat sa inyong paghago."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala mo og seventy-four kilos nga uga nga cacao, sixty kilos niini Grade one.",
+          "mentions": [],
+          "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "seventy-four kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "sixty kilos niini Grade one",
+              "start": 52
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala mo og 74.0 kg nga uga nga cacao, 60.0 kg niini Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium gikan sa Lantern Bay Chocolate Co.: twenty-one dollars and eighty-five cents, walay kaltas.",
+          "mentions": [],
+          "textSha256": "fc67cd1273ade177def045b36de79c0945510d50bac78e1c38b388c09194c1c0",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 17
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "twenty-one dollars and eighty-five cents",
+              "start": 44
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium gikan sa Lantern Bay Chocolate Co.: US$21.85, walay kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: eight dollars and eighty-six cents.",
+          "mentions": [],
+          "textSha256": "d6cc125f3d0af2762fa576a38eb54f7bb4845928a67ca46b1b696313fadb48fa",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "eight dollars and eighty-six cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$8.86."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Gikaltasan og forty-four cents para sa CBU (R one, resolusyon sa Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "b6e3018261b374bf395c24be5f702d92cf2d84e18ccb76828e3da6fea4fa26ff",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "forty-four cents",
+              "start": 14
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 39
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 44
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon sa Board",
+              "start": 51
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 44
+            }
+          ],
+          "displayText": "Gikaltasan og US$0.44 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Ang inyong bayad karong season: thirty dollars and twenty-seven cents, sa inyong PayPal. Sa peso, mga one thousand eight hundred ninety-one pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+          "mentions": [],
+          "textSha256": "6eef8c42d484603659316aa41f523a1f2d1358f61e8f1a0eb010396c824e5119",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "thirty dollars and twenty-seven cents",
+              "start": 32
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "mga one thousand eight hundred ninety-one pesos, gibanabana",
+              "start": 98
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three porsiyento",
+              "start": 174
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad karong season: US$30.27, sa inyong PayPal. Sa peso, mga ₱1,891 (gibanabana), sa dili pa ang 3% nga bayad sa PayPal sa pag-ilis."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Gikan kini sa inyong resibo zero three seven five, zero four eight two ug zero five three three.",
+          "mentions": ["slip:0375", "slip:0482", "slip:0533"],
+          "textSha256": "2075aac58caeaa659506992b7111ae32fd930008d8cc5b1cbf48682f99744b89",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero three seven five, zero four eight two ug zero five three three",
+              "start": 28
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0375",
+              "spoken": "zero three seven five",
+              "start": 28
+            },
+            {
+              "ref": "slip:0482",
+              "spoken": "zero four eight two",
+              "start": 51
+            },
+            {
+              "ref": "slip:0533",
+              "spoken": "zero five three three",
+              "start": 74
+            }
+          ],
+          "displayText": "Gikan kini sa inyong resibo 0375, 0482 ug 0533."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 39
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+          "mentions": [],
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 173
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad."
+        }
+      ]
+    },
+    {
+      "member_no": "M-031",
+      "lang": "en",
+      "lineId": "016b10c3-dd1f-70e1-aa36-5697aef92a6e",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Good day, Mrs. Jumawan. Thank you for your hard work.",
+          "mentions": [],
+          "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Mrs. Jumawan",
+              "start": 10
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Good day, Mrs. Jumawan. Thank you for your hard work."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "You delivered sixty-one point two kilos of dried cacao, all Grade one.",
+          "mentions": [],
+          "textSha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "sixty-one point two kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "all Grade one",
+              "start": 56
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "You delivered 61.2 kg of dried cacao, all Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium from Lantern Bay Chocolate Co.: eighteen dollars and seven cents, with no deductions.",
+          "mentions": [],
+          "textSha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 13
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "eighteen dollars and seven cents",
+              "start": 40
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium from Lantern Bay Chocolate Co.: US$18.07, with no deductions."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Quality bonus: nine dollars and three cents.",
+          "mentions": [],
+          "textSha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "nine dollars and three cents",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Quality bonus: US$9.03."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Less forty-five cents for CBU, your capital build-up (R one, the Board's resolution).",
+          "mentions": ["rule:R1"],
+          "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "forty-five cents",
+              "start": 5
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU, your capital build-up",
+              "start": 26
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 54
+            },
+            {
+              "name": "BR",
+              "spoken": "the Board's resolution",
+              "start": 61
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 54
+            }
+          ],
+          "displayText": "Less US$0.45 for CBU, your capital build-up (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "paypal",
+          "text": "Your pay this season: twenty-six dollars and sixty-five cents, to your PayPal. In pesos that is about one thousand six hundred sixty-five pesos, estimate, before PayPal's three percent fee to change it.",
+          "mentions": [],
+          "textSha256": "95b870d17372538218a832f630d8ffdb241a68a9459af39a32ae47f5dc1b25b7",
+          "placeholders": [
+            {
+              "name": "NET_USD",
+              "spoken": "twenty-six dollars and sixty-five cents",
+              "start": 22
+            },
+            {
+              "name": "NET_PHP",
+              "spoken": "about one thousand six hundred sixty-five pesos, estimate",
+              "start": 96
+            },
+            {
+              "name": "FX_FEE",
+              "spoken": "three percent",
+              "start": 171
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Your pay this season: US$26.65, to your PayPal. In pesos that is about ₱1,665 (estimate), before PayPal's 3% fee to change it."
+        },
+        {
+          "slot": "PAY",
+          "variant": "cash_nodate",
+          "text": "Your pay this season: one thousand six hundred sixty-five pesos and sixty-three centavos, in cash at the bodega. That is twenty-six dollars and sixty-five cents at sixty-two pesos and fifty centavos to the dollar.",
+          "mentions": [],
+          "textSha256": "c7578b9696a8197636e493183cb54b3feb5104215e00c9f06d681d311ddd2ea7",
+          "placeholders": [
+            {
+              "name": "NET_PHP",
+              "spoken": "one thousand six hundred sixty-five pesos and sixty-three centavos",
+              "start": 22
+            },
+            {
+              "name": "NET_USD",
+              "spoken": "twenty-six dollars and sixty-five cents",
+              "start": 121
+            },
+            {
+              "name": "RATE",
+              "spoken": "sixty-two pesos and fifty centavos",
+              "start": 164
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Your pay this season: ₱1,665.63, in cash at the bodega. That is US$26.65 at ₱62.50 to the dollar."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "It comes from your slips zero three three five and zero three seven three.",
+          "mentions": ["slip:0335", "slip:0373"],
+          "textSha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero three three five and zero three seven three",
+              "start": 25
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0335",
+              "spoken": "zero three three five",
+              "start": 25
+            },
+            {
+              "ref": "slip:0373",
+              "spoken": "zero three seven three",
+              "start": 51
+            }
+          ],
+          "displayText": "It comes from your slips 0335 and 0373."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Questions? See Treasurer Analyn at the bodega.",
+          "mentions": [],
+          "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 25
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Questions? See Treasurer Analyn at the bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay.",
+          "mentions": [],
+          "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 133
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "In this demo, the slip readings are a labelled stand-in for Claude's double reading; a person checked the unsure ones, and Treasurer Analyn approved this pay."
+        }
+      ]
+    },
+    {
+      "member_no": "M-053",
+      "lang": "ceb",
+      "lineId": "016b10c3-dd35-7add-8510-1e9eb26ec7c2",
+      "sentences": [
+        {
+          "slot": "GREETING",
+          "variant": "default",
+          "text": "Maayong adlaw, Nang Merlyn. Salamat sa inyong paghago.",
+          "mentions": [],
+          "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+          "placeholders": [
+            {
+              "name": "HONORIFIC_NAME",
+              "spoken": "Nang Merlyn",
+              "start": 15
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Maayong adlaw, Nang Merlyn. Salamat sa inyong paghago."
+        },
+        {
+          "slot": "DELIVERY",
+          "variant": "default",
+          "text": "Nagdala mo og three hundred kilos nga uga nga cacao, two hundred eighty kilos niini Grade one.",
+          "mentions": [],
+          "textSha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
+          "placeholders": [
+            {
+              "name": "KG_TOTAL",
+              "spoken": "three hundred kilos",
+              "start": 14
+            },
+            {
+              "name": "GRADE_SUMMARY",
+              "spoken": "two hundred eighty kilos niini Grade one",
+              "start": 53
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Nagdala mo og 300.0 kg nga uga nga cacao, 280.0 kg niini Grade 1."
+        },
+        {
+          "slot": "PREMIUM",
+          "variant": "default",
+          "text": "Premium gikan sa Lantern Bay Chocolate Co.: eighty-eight dollars and fifty-seven cents, walay kaltas.",
+          "mentions": [],
+          "textSha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
+          "placeholders": [
+            {
+              "name": "PAYER",
+              "spoken": "Lantern Bay Chocolate Co.",
+              "start": 17
+            },
+            {
+              "name": "PREMIUM_USD",
+              "spoken": "eighty-eight dollars and fifty-seven cents",
+              "start": 44
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Premium gikan sa Lantern Bay Chocolate Co.: US$88.57, walay kaltas."
+        },
+        {
+          "slot": "BONUS",
+          "variant": "default",
+          "text": "Bonus sa kalidad: forty-one dollars and thirty-four cents.",
+          "mentions": [],
+          "textSha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
+          "placeholders": [
+            {
+              "name": "BONUS_USD",
+              "spoken": "forty-one dollars and thirty-four cents",
+              "start": 18
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Bonus sa kalidad: US$41.34."
+        },
+        {
+          "slot": "DEDUCTION",
+          "variant": "default",
+          "text": "Gikaltasan og two dollars and seven cents para sa CBU (R one, resolusyon sa Board).",
+          "mentions": ["rule:R1"],
+          "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+          "placeholders": [
+            {
+              "name": "DEDUCTION_USD",
+              "spoken": "two dollars and seven cents",
+              "start": 14
+            },
+            {
+              "name": "RULE_LABEL",
+              "spoken": "CBU",
+              "start": 50
+            },
+            {
+              "name": "RULE",
+              "spoken": "R one",
+              "start": 55
+            },
+            {
+              "name": "BR",
+              "spoken": "resolusyon sa Board",
+              "start": 62
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "rule:R1",
+              "spoken": "R one",
+              "start": 55
+            }
+          ],
+          "displayText": "Gikaltasan og US$2.07 para sa CBU (R1, BR 2026-04)."
+        },
+        {
+          "slot": "PAY",
+          "variant": "cash_nodate",
+          "text": "Ang inyong bayad karong season: seven thousand nine hundred ninety pesos, cash sa bodega. Gikan sa one hundred twenty-seven dollars and eighty-four cents sa sixty-two pesos ug fifty sentimos matag dolyar.",
+          "mentions": [],
+          "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
+          "placeholders": [
+            {
+              "name": "NET_PHP",
+              "spoken": "seven thousand nine hundred ninety pesos",
+              "start": 32
+            },
+            {
+              "name": "NET_USD",
+              "spoken": "one hundred twenty-seven dollars and eighty-four cents",
+              "start": 99
+            },
+            {
+              "name": "RATE",
+              "spoken": "sixty-two pesos ug fifty sentimos",
+              "start": 157
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Ang inyong bayad karong season: ₱7,990.00, cash sa bodega. Gikan sa US$127.84 sa ₱62.50 matag dolyar."
+        },
+        {
+          "slot": "SOURCES",
+          "variant": "default",
+          "text": "Gikan kini sa inyong resibo zero three seven four, zero three nine nine, zero four zero seven, zero four two eight, zero four five nine, zero four seven one, zero four eight seven ug zero four eight nine.",
+          "mentions": [
+            "slip:0374",
+            "slip:0399",
+            "slip:0407",
+            "slip:0428",
+            "slip:0459",
+            "slip:0471",
+            "slip:0487",
+            "slip:0489"
+          ],
+          "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+          "placeholders": [
+            {
+              "name": "SLIPS",
+              "spoken": "zero three seven four, zero three nine nine, zero four zero seven, zero four two eight, zero four five nine, zero four seven one, zero four eight seven ug zero four eight nine",
+              "start": 28
+            }
+          ],
+          "mentionSpans": [
+            {
+              "ref": "slip:0374",
+              "spoken": "zero three seven four",
+              "start": 28
+            },
+            {
+              "ref": "slip:0399",
+              "spoken": "zero three nine nine",
+              "start": 51
+            },
+            {
+              "ref": "slip:0407",
+              "spoken": "zero four zero seven",
+              "start": 73
+            },
+            {
+              "ref": "slip:0428",
+              "spoken": "zero four two eight",
+              "start": 95
+            },
+            {
+              "ref": "slip:0459",
+              "spoken": "zero four five nine",
+              "start": 116
+            },
+            {
+              "ref": "slip:0471",
+              "spoken": "zero four seven one",
+              "start": 137
+            },
+            {
+              "ref": "slip:0487",
+              "spoken": "zero four eight seven",
+              "start": 158
+            },
+            {
+              "ref": "slip:0489",
+              "spoken": "zero four eight nine",
+              "start": 183
+            }
+          ],
+          "displayText": "Gikan kini sa inyong resibo 0374, 0399, 0407, 0428, 0459, 0471, 0487 ug 0489."
+        },
+        {
+          "slot": "HELP",
+          "variant": "default",
+          "text": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega.",
+          "mentions": [],
+          "textSha256": "091f4998832dd02938f5a9e783eb74c57a401a2010d0ace35a245b0d40dd95f4",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 39
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Naa moy pangutana? Adto kang Treasurer Analyn sa bodega."
+        },
+        {
+          "slot": "AI_NOTE",
+          "variant": "seeded",
+          "text": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad.",
+          "mentions": [],
+          "textSha256": "e11f2fda79157b1680348523c7fe8a22d38405a994228bea24131fa66e284f75",
+          "placeholders": [
+            {
+              "name": "TREASURER",
+              "spoken": "Analyn",
+              "start": 173
+            }
+          ],
+          "mentionSpans": [],
+          "displayText": "Niini nga demo, ang mga basa sa resibo puli nga may label para sa makaduha nga pagbasa ni Claude; ang mga basa nga dili sigurado gisusi sa tawo, ug giaprobahan ni Treasurer Analyn kini nga bayad."
+        }
+      ]
+    }
+  ]
+}

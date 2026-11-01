@@ -24,6 +24,17 @@ function mediaFiles(ext: RegExp): string[] {
   return out.sort();
 }
 
+/** Final playback, explicit drafts and immutable retired takes each retain their synthetic labels. */
+function audioRegistries() {
+  const load = (file: string) =>
+    AudioManifest.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "audio", file), "utf8")));
+  return {
+    final: load("manifest.json"),
+    drafts: load("drafts/manifest.json"),
+    archive: load("archive/manifest.json"),
+  };
+}
+
 /**
  * I8: nothing simulated goes unlabelled. Every committed image, fixture and audio clip is synthetic and
  * says so in its manifest; every image prompt asks for the printed specimen line.
@@ -89,24 +100,37 @@ describe("inv.i8.labels: synthetic media is always labelled", () => {
     }
   });
 
-  it("inv.i8.media-audio-files: every audio file in media/ is a clip in media/audio/manifest.json", () => {
-    const audio = AudioManifest.parse(
-      JSON.parse(readFileSync(join(MEDIA_ROOT, "audio", "manifest.json"), "utf8")),
-    );
-    const listed = new Set(audio.entries.map((e) => e.file));
+  it("inv.i8.media-audio-files: every audio file has an exact labelled final, draft or archive registry entry", () => {
+    const registries = audioRegistries();
+    const listed = new Set<string>();
+    for (const [kind, registry] of Object.entries(registries)) {
+      expect(registry.notice).toMatch(/synthetic/i);
+      for (const entry of registry.entries) {
+        expect(listed.has(entry.file), `${entry.file} occurs in more than one registry entry`).toBe(false);
+        listed.add(entry.file);
+        expect(entry.draft, `${kind}: ${entry.file}`).toBe(kind === "drafts");
+        const prefix = kind === "drafts" ? "audio/drafts/" : "audio/";
+        expect(entry.file).toMatch(
+          new RegExp(`^${prefix}${entry.member_no}/${entry.lang}/[A-Za-z0-9_-]{1,64}\\.m4a$`),
+        );
+        // Archived takes keep their immutable historical paths, but can never share an active file.
+        expect(sha256(entry.text), `${kind}: ${entry.file} exact spoken text hash`).toBe(entry.text_sha256);
+        expect(readFileSync(join(MEDIA_ROOT, entry.file)).length, entry.file).toBeGreaterThan(0);
+      }
+    }
     const clips = mediaFiles(/.(m4a|aac|mp3|wav|ogg|opus|flac)$/i);
     expect(clips.length).toBeGreaterThan(0);
     for (const f of clips) expect(listed.has(f), `${f} has no labelled manifest entry`).toBe(true);
+    expect([...listed].sort()).toEqual(clips);
   });
 
   it("inv.i8.media-audio: every clip is a synthetic voice labelled in its own language", () => {
-    const audio = AudioManifest.parse(
-      JSON.parse(readFileSync(join(MEDIA_ROOT, "audio", "manifest.json"), "utf8")),
-    );
-    expect(audio.synthetic).toBe(true);
-    for (const c of audio.entries) {
-      expect(c.synthetic).toBe(true);
-      expect(c.label).toBe(VOICE_LABELS[c.lang]);
+    for (const audio of Object.values(audioRegistries())) {
+      expect(audio.synthetic).toBe(true);
+      for (const c of audio.entries) {
+        expect(c.synthetic).toBe(true);
+        expect(c.label).toBe(VOICE_LABELS[c.lang]);
+      }
     }
   });
 });

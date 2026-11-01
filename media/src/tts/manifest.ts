@@ -28,6 +28,10 @@ export const AudioEntry = z
     member_no: z.string().regex(/^M-\d{3}$/),
     lang: z.enum(LANGS),
     slot: z.string().min(1),
+    variant: z
+      .string()
+      .regex(/^[a-z_]+$/)
+      .optional(),
     file: z.string().regex(/\.m4a$/),
     duration_ms: z.number().int().positive(),
     text: z.string().min(1),
@@ -85,9 +89,10 @@ export async function loadAudioManifest(path: string): Promise<AudioManifest> {
   );
 }
 
-/** Replaces the entry for the same (member, lang, slot, draft) and keeps the list sorted. */
+/** IC-11 identity includes the exact words: multiple deductions and PAY forms keep their own clips. */
 export function upsertEntry(m: AudioManifest, e: AudioEntry): AudioManifest {
-  const key = (x: AudioEntry) => `${x.member_no}/${x.lang}/${x.slot}/${x.draft ? "draft" : "final"}`;
+  const key = (x: AudioEntry) =>
+    `${x.member_no}/${x.lang}/${x.slot}/${x.text_sha256}/${x.draft ? "draft" : "final"}`;
   const entries = [...m.entries.filter((x) => key(x) !== key(e)), AudioEntry.parse(e)].sort((a, b) =>
     key(a).localeCompare(key(b)),
   );
@@ -100,7 +105,12 @@ export function needsRegeneration(
   q: { member_no: string; lang: string; slot: string; draft: boolean; text_sha256: string },
 ): boolean {
   const hit = m.entries.find(
-    (x) => x.member_no === q.member_no && x.lang === q.lang && x.slot === q.slot && x.draft === q.draft,
+    (x) =>
+      x.member_no === q.member_no &&
+      x.lang === q.lang &&
+      x.slot === q.slot &&
+      x.draft === q.draft &&
+      x.text_sha256 === q.text_sha256,
   );
   return !hit || hit.text_sha256 !== q.text_sha256;
 }

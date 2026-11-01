@@ -218,7 +218,7 @@ export function pacificClock(d: Date): string {
   return `${pacificDay(d)} ${PACIFIC_CLOCK.format(d)} Pacific`;
 }
 
-/** A Gemini call that failed on a key for a reason another key would not fix. The message is scrubbed. */
+/** A Gemini call that cannot be retried, or exhausted its caller's attempt budget. The message is scrubbed. */
 export class GeminiCallError extends Error {
   constructor(
     message: string,
@@ -344,12 +344,16 @@ export class KeyPool<C> {
   /**
    * Runs one Gemini request on the next ready key: counts it on that key before it is sent, settles it
    * after, and moves it to another key on a 429 or a refused key. Other failures are thrown, scrubbed.
+   * `maxAttempts` limits physical calls for a validation run; settlement and cooling still happen before stopping.
    */
   async run<T>(
     model: string,
     fn: (client: C, keyId: string) => Promise<T>,
-    opts: { latencyMs?: (result: T) => number | undefined } = {},
+    opts: { latencyMs?: (result: T) => number | undefined; maxAttempts?: number } = {},
   ): Promise<T> {
+    if (opts.maxAttempts !== undefined && (!Number.isInteger(opts.maxAttempts) || opts.maxAttempts < 1))
+      throw new Error("maxAttempts must be a positive integer");
+    let attempts = 0;
     for (;;) {
       const slot = await this.#exclusive(async () => {
         await this.#ensureLegacy();
@@ -359,9 +363,20 @@ export class KeyPool<C> {
       });
       let result: T;
       try {
-        result = await fn(this.#client(slot), slot.id);
+        const client = this.#client(slot);
+        attempts += 1;
+        result = await fn(client, slot.id);
       } catch (e) {
         await this.#exclusive(() => this.#failed(model, slot, e));
+        if (opts.maxAttempts !== undefined && attempts >= opts.maxAttempts) {
+          const info = classifyGeminiError(e);
+          throw new GeminiCallError(
+            `Gemini attempt budget exhausted after ${attempts} call(s): ${this.scrub(info.message).slice(0, 1_000)}`,
+            info.status,
+            info.kind,
+            slot.id,
+          );
+        }
         continue;
       }
       const latencyMs = opts.latencyMs?.(result);
