@@ -315,6 +315,15 @@
   }
 }
 
+/* Long labels and the invoice action stay within their own plate beside the photos. */
+.fsc-fund__plate,
+.fsc-fund__action,
+.fsc-fund__total {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .fsc-fund__plate {
   position: relative;
   z-index: 1;
@@ -906,14 +915,6 @@
   }
 }
 
-/* Long labels and the invoice action stay within their own plate beside the photos. */
-.fsc-fund__plate,
-.fsc-fund__action,
-.fsc-fund__total {
-  min-width: 0;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
 .fsc-fund__action > *,
 .fsc-first__slab > .fs-slab {
   min-width: 0;
