@@ -7,7 +7,7 @@ import { MEDIA_ROOT, REPO_ROOT } from "../util/env.js";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
 import { STATEMENT_CER_LIMIT } from "./alignment.js";
-import { ASR_MODEL, cer, type GenerateContentClient, transcribe } from "./asr.js";
+import { ASR_MODEL, ASR_MODELS, cer, type GenerateContentClient, isAsrModel, transcribe } from "./asr.js";
 import { hasFfmpeg } from "./ffmpeg.js";
 import {
   buildTtsParams,
@@ -36,6 +36,7 @@ import { type StatementResult, synthesizeStatement } from "./pipeline.js";
 import { requestPlan } from "./plan.js";
 import { pacificDay, QuotaLedger, SELF_IMPOSED_DAILY_CAP } from "./quota.js";
 import { joinForRequest, LANGS, type Lang, m014SpikeStatement, STYLE_NOTE } from "./statement.js";
+import { AsrUnavailableError } from "./statement-asr.js";
 import {
   loadStatementPlans,
   StatementSplitError,
@@ -146,7 +147,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
       const manifestPath = join(mediaRoot, "audio", "manifest.json");
       let manifest = await loadAudioManifest(manifestPath);
       const failures: { request: string; failed: string[]; detail: string }[] = [];
-      const plannedStatus = async (quotaRefused: boolean) => {
+      const plannedStatus = async (quotaRefused: boolean, serviceUnavailable = false) => {
         const evidence = await readJsonOr<{ clips: Record<string, unknown>[] }>(
           join(mediaRoot, "audio", "statement-verification.json"),
           { clips: [] },
@@ -173,7 +174,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
                       (clip) =>
                         clip.file === entry.file &&
                         clip.textSha256 === sentence.textSha256 &&
-                        clip.asrModel === ASR_MODEL &&
+                        isAsrModel(clip.asrModel) &&
                         clip.threshold === STATEMENT_CER_LIMIT &&
                         typeof clip.cer === "number" &&
                         Number.isFinite(clip.cer) &&
@@ -191,7 +192,13 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
                 }
                 return {
                   textSha256: sentence.textSha256,
-                  status: verified ? "published" : quotaRefused ? "waiting_on_quota" : "not_verified",
+                  status: verified
+                    ? "published"
+                    : quotaRefused
+                      ? "waiting_on_quota"
+                      : serviceUnavailable
+                        ? "waiting_on_service"
+                        : "not_verified",
                 };
               }),
             ),
@@ -227,17 +234,20 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
             console.error(detail);
             continue;
           }
-          const status = await p.status([TTS_MODEL, ASR_MODEL]);
+          const status = await p.status([TTS_MODEL, ...ASR_MODELS]);
           const quotaRefused =
             error instanceof PoolExhaustedError ||
             (error instanceof GeminiCallError && error.kind === "rate");
+          const serviceUnavailable = error instanceof AsrUnavailableError;
           const report = {
             outcome:
               error instanceof StatementSplitError
                 ? "split_refused"
                 : quotaRefused
                   ? "quota_refused"
-                  : "generation_failed",
+                  : serviceUnavailable
+                    ? "service_unavailable"
+                    : "generation_failed",
             quotaRefused,
             ...(error instanceof StatementSplitError
               ? {
@@ -246,7 +256,8 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
                 }
               : {}),
             request: `${request.member_no}:${request.lang}`,
-            model: error instanceof PoolExhaustedError ? error.model : TTS_MODEL,
+            model:
+              error instanceof PoolExhaustedError ? error.model : serviceUnavailable ? ASR_MODEL : TTS_MODEL,
             at: new Date().toISOString(),
             detail,
             dailyResetsAt: status.resetsAt,
@@ -260,7 +271,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
                 ]),
               ),
             })),
-            planned: await plannedStatus(quotaRefused),
+            planned: await plannedStatus(quotaRefused, serviceUnavailable),
             failures,
             cooling: status.keys.flatMap((k) =>
               k.models[TTS_MODEL]?.cooling ? [{ keyId: k.id, ...k.models[TTS_MODEL]?.cooling }] : [],

@@ -27,7 +27,7 @@ it("transcribes final AAC independently through the pool and caches by audio, mo
       },
     }),
   });
-  const deps = { asrPool: pool, cacheDir: root };
+  const deps = { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL] };
   const a = await listen(deps, Buffer.from("aac-fixture"), "audio/mp4", "en", true);
   expect(a.words).toEqual([{ text: "Hello", start: 0.1, end: 0.5 }]);
   expect(calls[0]?.model).toBe(ASR_MODEL);
@@ -48,7 +48,7 @@ it("treats malformed timestamp JSON as an unusable alignment instead of aborting
   expect(
     (
       await listen(
-        { asrPool: pool, cacheDir: root },
+        { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL] },
         Buffer.from("invalid-fixture"),
         "audio/wav",
         "ceb",
@@ -79,8 +79,330 @@ it("counts a bounded transient 503 retry through the next pool key with SDK retr
     },
   );
   expect(
-    (await listen({ asrPool: pool, cacheDir: root }, Buffer.from("busy-fixture"), "audio/mp4", "en")).text,
+    (
+      await listen(
+        { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL] },
+        Buffer.from("busy-fixture"),
+        "audio/mp4",
+        "en",
+      )
+    ).text,
   ).toBe("Hello");
   expect(calls).toBe(2);
   expect((await ledger.today(ASR_MODEL)).requests).toBe(2);
+});
+
+it("inv.i8.asr-outage: backs off and stops the run before repeated 503s drain the daily pool", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-outage-"));
+  roots.push(root);
+  let time = Date.now();
+  let calls = 0;
+  const waits: number[] = [];
+  const sleep = async (ms: number) => {
+    waits.push(ms);
+    time += ms;
+  };
+  const ledger = new QuotaLedger(join(root, "quota.json"), () => new Date(time));
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, n) => `offline-${n}-${"standin".repeat(5)}`),
+    {
+      ledger,
+      now: () => new Date(time),
+      sleep,
+      makeClient: () => ({
+        models: {
+          generateContent: async () => {
+            calls++;
+            throw Object.assign(new Error("Service busy"), { status: 503 });
+          },
+        },
+      }),
+    },
+  );
+  const deps = { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL], asrSleep: sleep };
+  for (let n = 0; n < 4; n++)
+    await expect(listen(deps, Buffer.from(`outage-${n}`), "audio/mp4", "ceb")).rejects.toThrow();
+  expect(waits).toEqual([5_000, 15_000, 5_000, 15_000]);
+  expect(calls).toBe(6);
+  expect((await ledger.today(ASR_MODEL)).requests).toBe(6);
+});
+
+it("inv.i8.asr-recovery: successful recognition resets an outage streak across the plan", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-recovery-"));
+  roots.push(root);
+  let time = Date.now();
+  let calls = 0;
+  const sleep = async (ms: number) => {
+    time += ms;
+  };
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, n) => `offline-${n}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep,
+      makeClient: () => ({
+        models: {
+          generateContent: async () => {
+            calls++;
+            if (calls % 2) throw Object.assign(new Error("Service busy"), { status: 503 });
+            return { text: "Hello" };
+          },
+        },
+      }),
+    },
+  );
+  const deps = { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL], asrSleep: sleep };
+  for (let n = 0; n < 7; n++)
+    expect((await listen(deps, Buffer.from(`recovered-${n}`), "audio/mp4", "en")).text).toBe("Hello");
+  expect(calls).toBe(14);
+});
+
+it("inv.i8.asr-fallback: transient failure uses the next free audio model and caches its provenance", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-fallback-"));
+  roots.push(root);
+  const calls: string[] = [];
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger: new QuotaLedger(join(root, "quota.json")),
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          calls.push(String(p.model));
+          if (p.model === ASR_MODEL) throw new Error("UNAVAILABLE: model overloaded");
+          return { text: '{"words":[{"text":"Hello","start":0.1,"end":0.5}]}' };
+        },
+      },
+    }),
+  });
+  const deps = { asrPool: pool, cacheDir: root };
+  const result = await listen(deps, Buffer.from("fallback-fixture"), "audio/mp4", "en", true);
+  expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash"]);
+  expect(result).toMatchObject({
+    text: "Hello",
+    model: "gemini-3.6-flash",
+    words: [{ text: "Hello", start: 0.1, end: 0.5 }],
+  });
+  expect(await listen(deps, Buffer.from("fallback-fixture"), "audio/mp4", "en", true)).toEqual(result);
+  expect(calls).toHaveLength(2);
+});
+it("inv.i8.asr-fallback-refusal: a non-transient error never switches models", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-refusal-"));
+  roots.push(root);
+  const calls: string[] = [];
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger: new QuotaLedger(join(root, "quota.json")),
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          calls.push(String(p.model));
+          throw Object.assign(new Error("invalid request"), { status: 400 });
+        },
+      },
+    }),
+  });
+  await expect(
+    listen({ asrPool: pool, cacheDir: root }, Buffer.from("refusal"), "audio/mp4", "en"),
+  ).rejects.toThrow("invalid request");
+  expect(calls).toEqual([ASR_MODEL]);
+});
+
+it("inv.i8.asr-fallback-order: tries 2.5 only after both higher free models fail", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-third-"));
+  roots.push(root);
+  const calls: string[] = [];
+  const ledger = new QuotaLedger(join(root, "quota.json"));
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger,
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          const model = String(p.model);
+          calls.push(model);
+          if (model !== "gemini-2.5-flash") throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+          return { text: "Hello" };
+        },
+      },
+    }),
+  });
+  const result = await listen({ asrPool: pool, cacheDir: root }, Buffer.from("third"), "audio/mp4", "en");
+  expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash", "gemini-2.5-flash"]);
+  expect(result.model).toBe("gemini-2.5-flash");
+  for (const model of calls) expect((await ledger.today(model)).requests).toBe(1);
+});
+
+it("inv.i8.asr-retired-fallback: a listed model refused on one account does not prevent higher transient models recovering", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-retired-"));
+  roots.push(root);
+  let time = Date.now();
+  const calls: string[] = [];
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+    now: () => new Date(time),
+    sleep: async (ms) => {
+      time += ms;
+    },
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          const model = String(p.model);
+          calls.push(model);
+          if (model === "gemini-2.5-flash")
+            throw Object.assign(new Error("This model is no longer available to new users"), { status: 404 });
+          if (calls.length <= 3) throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+          return { text: "Hello" };
+        },
+      },
+    }),
+  });
+  const result = await listen(
+    {
+      asrPool: pool,
+      cacheDir: root,
+      asrSleep: async (ms) => {
+        time += ms;
+      },
+    },
+    Buffer.from("retired"),
+    "audio/mp4",
+    "en",
+  );
+  expect(result.model).toBe(ASR_MODEL);
+  expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash", "gemini-2.5-flash", ASR_MODEL]);
+});
+
+it("inv.i8.asr-account-availability: a 404 on one pooled key does not exclude a model for other keys", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-account-"));
+  roots.push(root);
+  let time = Date.now();
+  let lower = 0;
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, i) => `offline-${i}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep: async (ms) => {
+        time += ms;
+      },
+      makeClient: () => ({
+        models: {
+          generateContent: async (p: Record<string, unknown>) => {
+            if (p.model !== "gemini-2.5-flash")
+              throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+            if (++lower === 1)
+              throw Object.assign(new Error("This model is no longer available to new users"), {
+                status: 404,
+              });
+            expect(JSON.stringify(p)).toContain("Write numbers and currency amounts as spoken words");
+            return { text: '{"words":[{"text":"Hello","start":0.1,"end":0.5}]}' };
+          },
+        },
+      }),
+    },
+  );
+  const result = await listen(
+    {
+      asrPool: pool,
+      cacheDir: root,
+      asrSleep: async (ms) => {
+        time += ms;
+      },
+    },
+    Buffer.from("accounts"),
+    "audio/mp4",
+    "en",
+    true,
+  );
+  expect(result.model).toBe("gemini-2.5-flash");
+  expect(lower).toBe(2);
+});
+
+it("inv.i8.asr-partial-outage: six transient failures among eight top-model calls retain fallback progress", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-partial-"));
+  roots.push(root);
+  let time = Date.now();
+  let top = 0;
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, i) => `offline-${i}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep: async (ms) => {
+        time += ms;
+      },
+      makeClient: () => ({
+        models: {
+          generateContent: async (p: Record<string, unknown>) => {
+            if (p.model === ASR_MODEL && ![3, 6].includes(++top))
+              throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+            return { text: "Hello" };
+          },
+        },
+      }),
+    },
+  );
+  const deps = {
+    asrPool: pool,
+    cacheDir: root,
+    asrSleep: async (ms: number) => {
+      time += ms;
+    },
+  };
+  for (let i = 0; i < 14; i++)
+    expect((await listen(deps, Buffer.from(`partial-${i}`), "audio/mp4", "en")).text).toBe("Hello");
+  expect(top).toBe(8);
+});
+
+it("inv.i8.asr-all-models-report: preserves each model's exact service refusal when no fallback account works", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-all-"));
+  roots.push(root);
+  let time = Date.now();
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, i) => `offline-${i}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep: async (ms) => {
+        time += ms;
+      },
+      makeClient: () => ({
+        models: {
+          generateContent: async (p: Record<string, unknown>) => {
+            throw Object.assign(
+              new Error(
+                p.model === "gemini-2.5-flash"
+                  ? "This model is no longer available to new users"
+                  : "UNAVAILABLE",
+              ),
+              { status: p.model === "gemini-2.5-flash" ? 404 : 503 },
+            );
+          },
+        },
+      }),
+    },
+  );
+  const error = await listen(
+    {
+      asrPool: pool,
+      cacheDir: root,
+      asrSleep: async (ms) => {
+        time += ms;
+      },
+    },
+    Buffer.from("all-down"),
+    "audio/mp4",
+    "en",
+  ).catch((e) => e);
+  expect(error.name).toBe("AsrUnavailableError");
+  expect(error.message).toContain(`${ASR_MODEL}: HTTP 503`);
+  expect(error.message).toContain("gemini-3.6-flash: HTTP 503");
+  expect(error.message).toContain("gemini-2.5-flash: HTTP 404");
 });

@@ -2,14 +2,16 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { ASR_MODEL, type GenerateContentClient } from "../src/tts/asr.js";
+import { ASR_MODEL, ASR_MODELS, type GenerateContentClient } from "../src/tts/asr.js";
 import { main } from "../src/tts/cli.js";
 import { encodeAac, probeAudio } from "../src/tts/ffmpeg.js";
-import { TTS_MODEL } from "../src/tts/gemini.js";
+import { DEFAULT_VOICE, TTS_MODEL } from "../src/tts/gemini.js";
 import { KeyPool, PoolExhaustedError } from "../src/tts/keys.js";
 import { AUDIO_NOTICE, type AudioManifest } from "../src/tts/manifest.js";
+import { requestOnce } from "../src/tts/pipeline.js";
 import { APPROVED_STATEMENT_REQUESTS } from "../src/tts/plan.js";
 import { QuotaLedger } from "../src/tts/quota.js";
+import { STYLE_NOTE } from "../src/tts/statement.js";
 import { markRequest, selectRequests, synthesizePlannedStatement } from "../src/tts/statements.js";
 import { synthToneWav } from "../src/tts/wav.js";
 import { REPO_ROOT } from "../src/util/env.js";
@@ -102,6 +104,9 @@ function deps(wav: Buffer) {
   return {
     pool,
     asrPool: pool,
+    asrSleep: async (ms: number) => {
+      time += ms;
+    },
     mediaRoot: root,
     cacheDir: join(root, "cache"),
     calls,
@@ -136,6 +141,19 @@ it("inserts measured pause markers without changing the hashed words, and checks
   expect(() => markRequest({ ...request, sentences: [{ ...sentence, mentionSpans: [] }] })).toThrow(
     /mention/,
   );
+});
+
+it("inv.i8.cached-retake: verifies a cached sentence before spending on a full take or new TTS", async () => {
+  const d = deps(synthToneWav([{ ms: 4000, tone: true }]));
+  await requestOnce(d, { model: TTS_MODEL, voice: DEFAULT_VOICE, style: STYLE_NOTE, text: sentence.text });
+  d.timed.push(timestamped(sentence.text, []));
+  const out = await synthesizePlannedStatement(request, d, empty);
+  expect(out.entries).toHaveLength(1);
+  expect(d.calls).toHaveLength(1);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips[0]
+      .method,
+  ).toBe("per-sentence-asr");
 });
 
 it("uses one pooled request and synthetic WAV pause boundaries for clip-relative mention offsets", async () => {
@@ -276,7 +294,9 @@ it("publishes an independently verified per-sentence retake with measured mentio
 it("moves to sentence retakes after bounded ASR unavailability while preserving quota exceptions", async () => {
   const d = deps(synthToneWav([{ ms: 3000, tone: true }]));
   d.takes.push(synthToneWav([{ ms: 3000, tone: true }]), synthToneWav([{ ms: 4000, tone: true }]));
-  d.asrErrors.push(...Array.from({ length: 3 }, () => Object.assign(new Error("busy"), { status: 503 })));
+  d.asrErrors.push(
+    ...Array.from({ length: 3 * ASR_MODELS.length }, () => Object.assign(new Error("busy"), { status: 503 })),
+  );
   d.timed.push(
     JSON.stringify({
       words: sentence.text
@@ -422,6 +442,7 @@ it("preserves both PAY hashes and keeps draft entries out of the served manifest
   const other = { ...one.entries[0], text: "PayPal is due.", text_sha256: hash("PayPal is due.") };
   const { upsertEntry } = await import("../src/tts/manifest.js");
   expect(upsertEntry(one, other as NonNullable<(typeof one.entries)[0]>).entries).toHaveLength(2);
+  d.timed.push(timestamped(plain.text, []));
   const draft = await synthesizePlannedStatement(r, d, one, { draft: true });
   expect(draft).toEqual(one);
   expect(existsSync(join(d.mediaRoot, "audio", "drafts", "manifest.json"))).toBe(true);
@@ -443,4 +464,33 @@ it("selects the approved order, rejects unknown filters and supports an offline 
     keys: [],
   });
   expect(code).toBe(0);
+});
+
+it("inv.i8.cached-refusal-retake: only a refused cached sentence permits one separately cached TTS retake", async () => {
+  const d = deps(synthToneWav([{ ms: 4000, tone: true }]));
+  const req = { model: TTS_MODEL, voice: DEFAULT_VOICE, style: STYLE_NOTE, text: sentence.text };
+  const original = await requestOnce(d, req);
+  d.takes.push(synthToneWav([{ ms: 4500, tone: true }]));
+  d.timed.push(timestamped("Wrong sentence entirely.", []), timestamped(sentence.text, []));
+  const out = await synthesizePlannedStatement(request, d, empty);
+  expect(out.entries).toHaveLength(1);
+  expect(d.calls).toHaveLength(2);
+  expect(JSON.stringify(d.calls[1])).toContain("Read every word verbatim");
+  expect(out.entries[0]?.style).toContain("Read every word verbatim");
+  expect(readFileSync(original.path)).toEqual(original.wav);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips[0],
+  ).toMatchObject({ method: "per-sentence-asr", cer: 0, asrModel: ASR_MODEL });
+});
+
+it("inv.i8.cached-service-outage: unavailable verification never authorizes new TTS", async () => {
+  const d = deps(synthToneWav([{ ms: 4000, tone: true }]));
+  await requestOnce(d, { model: TTS_MODEL, voice: DEFAULT_VOICE, style: STYLE_NOTE, text: sentence.text });
+  d.asrErrors.push(
+    ...Array.from({ length: 3 * ASR_MODELS.length }, () =>
+      Object.assign(new Error("UNAVAILABLE"), { status: 503 }),
+    ),
+  );
+  await expect(synthesizePlannedStatement(request, d, empty)).rejects.toThrow(/unavailable/i);
+  expect(d.calls).toHaveLength(1);
 });

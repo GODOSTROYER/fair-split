@@ -5,7 +5,7 @@ import { z } from "zod";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
 import { adaptiveCuts, alignWords, STATEMENT_CER_LIMIT } from "./alignment.js";
-import { ASR_MODEL, cer } from "./asr.js";
+import { cer, isAsrModel } from "./asr.js";
 import { type Cut, detectSilences, encodeAac, planCuts, probeAudio } from "./ffmpeg.js";
 import { DEFAULT_VOICE, TTS_MODEL } from "./gemini.js";
 import { GeminiCallError } from "./keys.js";
@@ -17,10 +17,10 @@ import {
   upsertEntry,
   voiceLabel,
 } from "./manifest.js";
-import { requestOnce, type TtsDeps } from "./pipeline.js";
+import { isRequestCached, requestOnce, type TtsDeps } from "./pipeline.js";
 import { APPROVED_STATEMENT_REQUESTS } from "./plan.js";
 import { LANGS, STYLE_NOTE } from "./statement.js";
-import { type ListeningDeps, listen } from "./statement-asr.js";
+import { AsrUnavailableError, type ListeningDeps, listen } from "./statement-asr.js";
 import { parseWav } from "./wav.js";
 
 const SLOTS = [
@@ -183,7 +183,7 @@ export async function synthesizePlannedStatement(
           (v) =>
             v.file === e.file &&
             v.textSha256 === s.textSha256 &&
-            v.asrModel === ASR_MODEL &&
+            isAsrModel(v.asrModel) &&
             v.threshold === STATEMENT_CER_LIMIT &&
             typeof v.cer === "number" &&
             Number.isFinite(v.cer) &&
@@ -214,7 +214,14 @@ export async function synthesizePlannedStatement(
   const voice = opts.voice ?? DEFAULT_VOICE;
   const base = { model: TTS_MODEL, voice, style: STYLE_NOTE };
   type Take = Awaited<ReturnType<typeof requestOnce>>;
-  type Candidate = { entry: AudioEntry; staged: string; score: number; transcript: string; method: string };
+  type Candidate = {
+    entry: AudioEntry;
+    staged: string;
+    score: number;
+    transcript: string;
+    method: string;
+    asrModel: string;
+  };
   const prepare = async (
     take: Take,
     cuts: Cut[],
@@ -222,6 +229,7 @@ export async function synthesizePlannedStatement(
     segments: Segment[],
     sentences: PlannedStatement["sentences"],
     method: string,
+    style = STYLE_NOTE,
   ): Promise<Candidate[] | null> => {
     const results: Candidate[] = [];
     const audio: Buffer[] = [];
@@ -256,7 +264,7 @@ export async function synthesizePlannedStatement(
         text_sha256: sentence.textSha256,
         model: TTS_MODEL,
         voice,
-        style: STYLE_NOTE,
+        style,
         codec: { codec: "aac", bit_rate_kbps: 32, channels: 1 },
         created_at: (deps.now?.() ?? new Date()).toISOString(),
         synthetic: true,
@@ -270,7 +278,7 @@ export async function synthesizePlannedStatement(
           sentences: sentences.length,
         },
       });
-      results.push({ entry, staged, score: -1, transcript: "", method });
+      results.push({ entry, staged, score: -1, transcript: "", method, asrModel: "" });
       audio.push(await readFile(staged));
     }
     // Each request reserves a distinct next-ready key through the pool. Settle all calls before
@@ -289,6 +297,7 @@ export async function synthesizePlannedStatement(
         const heard = await listen(deps, bytes, "audio/mp4", request.lang, timed);
         candidate.score = cer(candidate.entry.text, heard.text);
         candidate.transcript = heard.text;
+        candidate.asrModel = heard.model;
         if (timed) {
           const aligned = alignWords(heard.words, sentence.text, candidate.entry.duration_ms / 1000, anchors);
           if (!aligned) candidate.score = Number.POSITIVE_INFINITY;
@@ -392,7 +401,7 @@ export async function synthesizePlannedStatement(
           file: c.entry.file,
           textSha256: c.entry.text_sha256,
           audioSha256: sha256(await readFile(c.staged)),
-          asrModel: ASR_MODEL,
+          asrModel: c.asrModel,
           cer: c.score,
           transcript: c.transcript,
           threshold: STATEMENT_CER_LIMIT,
@@ -407,9 +416,53 @@ export async function synthesizePlannedStatement(
       deps.log?.(`[published] ${c.entry.file}`);
     }
   };
-  const take = await requestOnce(deps, { ...base, text: marked.text });
-  const full = await tryTake(take, marked.segments, request.sentences);
-  if (full) await publish(full);
+  const cachedAttempts = new Set<string>();
+  const trySentence = async (sentence: PlannedStatement["sentences"][number], retake = false) => {
+    const speech = {
+      ...base,
+      text: sentence.text,
+      style: retake
+        ? `${base.style}. Read every word verbatim, including English number words; do not translate, substitute or omit any word.`
+        : base.style,
+    };
+    const single = await requestOnce(deps, speech, { retake });
+    const duration = parseWav(single.wav).durationMs / 1000;
+    let candidates: Candidate[] | null;
+    try {
+      candidates = await prepare(
+        single,
+        [{ start: 0, end: duration }],
+        [0],
+        [{ sentence: 0, refs: [], text: sentence.text }],
+        [sentence],
+        "per-sentence-asr",
+        speech.style,
+      );
+    } catch (error) {
+      if (
+        error instanceof GeminiCallError &&
+        error.kind === "other" &&
+        ([408, 500, 502, 503, 504].includes(error.status ?? 0) ||
+          /UNAVAILABLE|overloaded/i.test(error.message))
+      )
+        throw new AsrUnavailableError([error.message]);
+      throw error;
+    }
+    if (candidates) await publish(candidates);
+    return candidates;
+  };
+  // Recovery takes priority over generating or re-splitting the full statement.
+  for (const sentence of request.sentences) {
+    if (ready(sentence) || !isRequestCached(deps, { ...base, text: sentence.text })) continue;
+    cachedAttempts.add(sentence.textSha256);
+    await trySentence(sentence);
+  }
+  if (request.sentences.every(ready)) return draft ? manifest : target;
+  if (!cachedAttempts.size) {
+    const take = await requestOnce(deps, { ...base, text: marked.text });
+    const full = await tryTake(take, marked.segments, request.sentences);
+    if (full) await publish(full);
+  }
   if (!request.sentences.every(ready)) {
     deps.log?.(
       `[fallback] ${request.member_no}:${request.lang}: split not verified; one request per sentence`,
@@ -417,21 +470,9 @@ export async function synthesizePlannedStatement(
     const failed: string[] = [];
     for (const sentence of request.sentences) {
       if (ready(sentence)) continue;
-      // Plain speech avoids relying on the failed marker grammar. ASR timestamps locate its anchors.
-      const single = await requestOnce(deps, { ...base, text: sentence.text });
-      const duration = parseWav(single.wav).durationMs / 1000;
-      const candidates = await recoverable(() =>
-        prepare(
-          single,
-          [{ start: 0, end: duration }],
-          [0],
-          [{ sentence: 0, refs: [], text: sentence.text }],
-          [sentence],
-          "per-sentence-asr",
-        ),
-      );
-      if (candidates) await publish(candidates);
-      else failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
+      // New speech is allowed only after the original cached take failed this same strict check.
+      if (!(await trySentence(sentence, cachedAttempts.has(sentence.textSha256))))
+        failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
     }
     if (failed.length) throw new StatementVerificationError(failed);
   }
