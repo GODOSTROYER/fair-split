@@ -36,10 +36,26 @@ Rank only rises, duplicates and reordered events do not repeat item transitions,
 our own cancel. Later scheduled GETs may corroborate SUCCESS but cannot lower its rank. This decision does
 not authorize the legacy apply-contract comment's proposed downward correction.
 
-The default fs-api adapter persists delivery outside `apps/api/src/paypal/**`, avoiding HD1's concurrent
-hardening work. It retains transactional outbox execution and the commit-triggered LISTEN/SSE path.
+The canonical fs-api adapter (`apps/api/src/paypal/webhooks.ts`) persists delivery and receipt time.
+It retains transactional outbox execution and the commit-triggered LISTEN/SSE path.
 The Postgres simulator regression measures commit-to-`item.updated` SSE latency across repeated deliveries;
-MM-1 requires p95 below 100 ms. This is local simulator evidence, not a hosted or live PayPal measurement.
+four full signed deliveries warm the path before the 24 measured samples. MM-1 keeps p95 at or below
+100 ms. This is local simulator evidence, not a hosted or live PayPal measurement.
+
+## Round 2 safety checks
+
+A `payout.stranded` boot record blocks both stored delivery application and fresh GETs, including a
+second check under the workspace lock. Record the notice without changing any item, line or run.
+The immediate path also requires the locked item's current status and an explicit absence of a cancel
+request: RETURNED, FAILED, BLOCKED and cancellation in flight require a fresh GET. A fresh item GET
+must name the expected sender, batch and requested item ID before it can bind or apply anything.
+An item ID already bound to another item is refused at resolution and again under the workspace lock.
+
+No schema status is added: consumed notices that cannot apply use `orphan` with a fixed error reason
+and NULL `appliedAt`. Identity mismatches and missing item IDs defer to the settle GET through the
+outbox; stranded batches queue nothing. `applied` is reserved for actual application or verified
+held-status corroboration. These records preserve the distinction between receipt and application
+for Proof plate 6.
 
 ## Claims enabled when W1 is merged and its checks are green
 
