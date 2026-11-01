@@ -69,6 +69,34 @@ function readFirstLine(stdin) {
   });
 }
 
+/**
+ * A chunk of raw terminal input without its control sequences: CSI (ESC [ parameters, then one final byte: the
+ * arrow and function keys, and the bracketed-paste markers ESC[200~ and ESC[201~ a terminal wraps a paste in),
+ * SS3 (ESC O and one key), and ESC with the key after it (Alt+key, a lone Esc). What is left is what was typed or
+ * pasted; a sequence never takes the rest of the chunk with it.
+ */
+export function stripControlSequences(chunk) {
+  let out = "";
+  for (let i = 0; i < chunk.length; i++) {
+    if (chunk[i] !== "\u001b") {
+      out += chunk[i];
+      continue;
+    }
+    const next = chunk[i + 1];
+    if (next === "[") {
+      // parameter and intermediate bytes (0x20-0x3F), then the final byte, which the loop's i++ skips
+      let j = i + 2;
+      while (j < chunk.length && chunk.charCodeAt(j) >= 0x20 && chunk.charCodeAt(j) <= 0x3f) j++;
+      i = j;
+    } else if (next === "O") {
+      i += 2;
+    } else if (next !== undefined && next !== "\r" && next !== "\n") {
+      i += 1;
+    }
+  }
+  return out;
+}
+
 /** One line typed at the terminal in raw mode, so nothing is echoed. Backspace edits; Ctrl-C cancels. */
 export function readHidden(prompt, io) {
   const { stdin, stderr } = io;
@@ -84,8 +112,8 @@ export function readHidden(prompt, io) {
       fn();
     };
     const onData = (chunk) => {
-      if (chunk.startsWith("\u001b")) return; // an arrow or function key: not part of a password
-      for (const ch of chunk) {
+      // arrow and function keys, Alt+key and a paste's bracketed-paste markers are not part of a password
+      for (const ch of stripControlSequences(chunk)) {
         if (ch === "\r" || ch === "\n" || ch === "\u0004") return finish(() => resolve(value));
         if (ch === "\u0003") return finish(() => reject(new Exit(130, "cancelled; nothing printed")));
         if (ch === "\u007f" || ch === "\b") value = [...value].slice(0, -1).join("");

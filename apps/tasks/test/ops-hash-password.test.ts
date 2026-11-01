@@ -1,5 +1,5 @@
 // tools/ops-hash-password.mjs: the FS_OPERATOR_PASSWORD_SCRYPT value the person creating the Blueprint pastes.
-// fs-api's acceptance of its output is proved in apps/api/src/runbook.test.ts; this file covers the tool itself.
+// fs-api's acceptance of its output is proved in apps/api/src/runbook.pg.test.ts; this file covers the tool itself.
 import { spawnSync } from "node:child_process";
 import { scryptSync } from "node:crypto";
 import { EventEmitter } from "node:events";
@@ -138,6 +138,32 @@ describe("tools/ops-hash-password.mjs (FS_OPERATOR_PASSWORD_SCRYPT)", () => {
     expect(tty.err()).toMatch(/Operator password for \/ops \(not shown\): \nThe same password again: \n$/);
     expect(tty.err() + tty.out()).not.toContain(PASSWORD);
     expect(tty.rawModes).toEqual([true, false, true, false]);
+  });
+
+  it("at a terminal: a paste wrapped in bracketed-paste codes keeps the password and drops only the codes", async () => {
+    // a terminal with bracketed paste on sends ESC[200~ <text> ESC[201~ in one chunk; the old guard dropped all of it
+    const tty = fakeTerminal([`\u001b[200~${PASSWORD}\u001b[201~\r`, `\u001b[200~${PASSWORD}\u001b[201~\r`]);
+    expect(await tool().run([], tty.io)).toBe(0);
+    const m = PHC.exec(tty.out());
+    expect(m, tty.err()).not.toBeNull();
+    const salt = Buffer.from(m?.[1] ?? "", "base64");
+    const key = scryptSync(PASSWORD.normalize("NFC"), salt, 32, {
+      N: 2 ** 15,
+      r: 8,
+      p: 1,
+      maxmem: 64 * 1024 * 1024,
+    });
+    expect(key.toString("base64").replace(/=+$/, "")).toBe(m?.[2]);
+    expect(tty.err() + tty.out()).not.toContain(PASSWORD);
+  });
+
+  it("at a terminal: other control sequences inside a chunk are stripped, not typed and not the whole chunk", async () => {
+    // an arrow key (CSI), an F1 key (SS3) and an Alt+key inside one chunk: none of them is part of the password
+    const typed = `${PASSWORD.slice(0, 4)}\u001b[D\u001bOP\u001bq${PASSWORD.slice(4)}\r`;
+    const tty = fakeTerminal([typed, `${PASSWORD}\r`]);
+    expect(await tool().run([], tty.io)).toBe(0);
+    expect(tty.out()).toMatch(PHC);
+    expect(tty.err()).not.toMatch(/differ/);
   });
 
   it("at a terminal: two different entries, a short one, or Ctrl-C print nothing", async () => {
