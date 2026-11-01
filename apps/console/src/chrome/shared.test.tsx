@@ -293,13 +293,19 @@ describe("PrintBed", () => {
 });
 
 describe("ScreenRoot", () => {
-  it("a page's own landmark (Proof, the brand view, /ops) takes focus from script: a hand-off with no control yet lands there", () => {
-    render(
-      <ScreenRoot id="W-PF-01" state="loading" as="main">
-        <p>Loading the Proof.</p>
-      </ScreenRoot>,
-    );
-    expect(screen.getByTestId("W-PF-01").getAttribute("tabindex")).toBe("-1");
+  // A static tabindex="-1" would make a click in the page's text focus its <main>, which moves the sequential focus
+  // starting point to the top: the next Tab would jump to the page's first control and scroll back up. The focus
+  // backstop lends the landmark its tabindex only while a hand-off has focus there (lib/focus.ts).
+  it("a page's own landmark (Proof, the brand view, /ops, sign-in, print) draws no tabindex: a click in its text keeps the focus starting point", () => {
+    for (const id of ["W-PF-01", "W-BR-01", "W-OP-01", "W-AU-01", "W-TR-09"] as const) {
+      const view = render(
+        <ScreenRoot id={id} state={"loading" as never} as="main">
+          <p>Loading.</p>
+        </ScreenRoot>,
+      );
+      expect(screen.getByTestId(id).hasAttribute("tabindex"), id).toBe(false);
+      view.unmount();
+    }
   });
 
   it("a console screen inside the stage stays a plain section: the stage's #fsc-main is its landmark", () => {

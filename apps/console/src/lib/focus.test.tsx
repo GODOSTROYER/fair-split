@@ -785,16 +785,85 @@ describe("useFocusGuard, the root's backstop", () => {
           </main>
         )}
         {at === "proof" && (
-          <main tabIndex={-1} data-testid="proof">
+          // A page's own landmark draws no tabindex (ScreenRoot): the backstop lends it one while it lands there.
+          <main data-testid="proof">
             <p>Loading the Proof.</p>
           </main>
         )}
         <button type="button" data-testid="arrive" hidden onClick={() => setAt("proof")}>
           arrive
         </button>
+        <footer>
+          <button type="button" data-testid="footerLink">
+            Terms
+          </button>
+        </footer>
       </>
     );
   }
+
+  it("lends the landmark it lands on tabindex -1 only while focus is there, so a later click in its text never focuses it", async () => {
+    const view = render(<LaterPage />);
+    const chip = view.getByTestId("proofChip");
+    chip.focus();
+    act(() => {
+      chip.click();
+    });
+    await frames(1);
+    act(() => {
+      view.getByTestId("arrive").click();
+    });
+    await frames(1);
+    const proof = view.getByTestId("proof");
+    expect(document.activeElement).toBe(proof);
+    expect(proof.getAttribute("tabindex")).toBe("-1");
+    // Focus moves on (Tab, a click on a control): the landmark is plain again, as a skip link's target is.
+    await act(async () => {
+      view.getByTestId("footerLink").focus();
+    });
+    expect(proof.hasAttribute("tabindex")).toBe(false);
+  });
+
+  it("a landmark it lent tabindex to gives it back when focus leaves for nowhere (a click in the page's text)", async () => {
+    const view = render(<LaterPage />);
+    const chip = view.getByTestId("proofChip");
+    chip.focus();
+    act(() => {
+      chip.click();
+    });
+    await frames(1);
+    act(() => {
+      view.getByTestId("arrive").click();
+    });
+    await frames(1);
+    const proof = view.getByTestId("proof");
+    expect(document.activeElement).toBe(proof);
+    await act(async () => {
+      proof.blur();
+    });
+    expect(document.activeElement).toBe(document.body);
+    expect(proof.hasAttribute("tabindex")).toBe(false);
+  });
+
+  it("a landmark that already has its own tabindex (the stage's #fsc-main) keeps it after focus leaves", async () => {
+    const view = render(
+      <>
+        <Guard />
+        <main id="fsc-main" tabIndex={-1} data-testid="stage">
+          <p>Nothing to press</p>
+        </main>
+        <button type="button" data-testid="other">
+          Other
+        </button>
+      </>,
+    );
+    const stage = view.getByTestId("stage");
+    expect(returnFocus(null, { when: "always" })).toBe(stage);
+    act(() => {
+      view.getByTestId("other").focus();
+    });
+    expect(stage.getAttribute("tabindex")).toBe("-1");
+  });
 
   it("with nothing to land on yet (the next page draws a commit later), focus lands on it as soon as it is drawn", async () => {
     const view = render(<LaterPage />);
