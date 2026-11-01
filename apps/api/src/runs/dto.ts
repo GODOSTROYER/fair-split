@@ -122,11 +122,13 @@ export function fieldDto(row: FieldRow): SlipFieldDTO {
 }
 
 const keyLabel = (keyId: string): string =>
-  /-w\d+$/.test(keyId)
-    ? "Demo key (this browser)"
-    : /-s\d+$/.test(keyId)
-      ? "Sample key (seeded)"
-      : "Device key";
+  /-demo-[a-z0-9]{6}$/.test(keyId)
+    ? "Browser demo key"
+    : /-w\d+$/.test(keyId)
+      ? "Demo key (this browser)"
+      : /-s\d+$/.test(keyId)
+        ? "Sample key (seeded)"
+        : "Device key";
 
 export function approvalDto(row: ApprovalRow): ApprovalDTO {
   const keyId: KeyId = KeyIdSchema.safeParse(row.keyId).success ? (row.keyId as string) : "fs-unknown-s0";
