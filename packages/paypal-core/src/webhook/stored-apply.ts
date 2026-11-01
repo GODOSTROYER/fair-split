@@ -3,6 +3,7 @@
 // validates the persisted metadata and binds the body to the exact pre-written payout item.
 
 import { PAYPAL_API_HOSTS } from "../env.js";
+import { parseItemStatus } from "../item-status.js";
 import { checkCertUrl, checkSimulatorCertUrl } from "./cert-url.js";
 import { parseWebhookEnvelope } from "./event.js";
 import { MAX_TRANSMISSION_SKEW_MS, parseTransmissionTime, TRANSMISSION_ID_PATTERN } from "./transmission.js";
@@ -45,7 +46,8 @@ export type StoredWebhookApplyRule =
         | "INVALID_DELIVERY"
         | "STALE_DELIVERY"
         | "INVALID_STORED_EVENT"
-        | "RESOURCE_MISMATCH";
+        | "RESOURCE_MISMATCH"
+        | "HELD_ITEM_REQUIRES_GET";
     };
 
 type GetReason = Extract<StoredWebhookApplyRule, { action: "fresh_get_first" }>["reason"];
@@ -153,6 +155,18 @@ export function storedWebhookApplyRule(input: StoredWebhookApplyInput): StoredWe
     (target.payoutItemId !== null && resource.payout_item_id !== target.payoutItemId)
   ) {
     return getFirst("RESOURCE_MISMATCH");
+  }
+  // A stored success must not override a prior money decision or a cancellation in flight.
+  // Require explicit persisted state so an older/incomplete caller cannot bypass this gate.
+  const heldStatus = target.status === "SUBMITTED" ? "SUBMITTED" : parseItemStatus(target.status);
+  if (
+    heldStatus === null ||
+    heldStatus === "RETURNED" ||
+    heldStatus === "FAILED" ||
+    heldStatus === "BLOCKED" ||
+    target.cancelRequestedAt !== null
+  ) {
+    return getFirst("HELD_ITEM_REQUIRES_GET");
   }
   return { action: "apply_now", status: "SUCCESS", corroboration: "settle_get" };
 }

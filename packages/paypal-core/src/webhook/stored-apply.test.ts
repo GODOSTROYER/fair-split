@@ -31,7 +31,13 @@ const row = () => ({
   delivery: { ...delivery },
   raw: JSON.stringify(event),
   receivedAt: RECEIVED_AT,
-  item: { payoutBatchId: "BATCH-001", payoutItemId: "ITEM-001", senderItemId: "r37-M014" },
+  item: {
+    payoutBatchId: "BATCH-001",
+    payoutItemId: "ITEM-001",
+    senderItemId: "r37-M014",
+    status: "PENDING",
+    cancelRequestedAt: null,
+  },
 });
 
 describe("storedWebhookApplyRule", () => {
@@ -45,6 +51,12 @@ describe("storedWebhookApplyRule", () => {
     }
   });
 
+  it("an early verified SUCCESS applies to a persisted SUBMITTED item before a POST response names it", () => {
+    expect(
+      storedWebhookApplyRule({ ...row(), item: { ...row().item, status: "SUBMITTED", payoutItemId: null } }),
+    ).toEqual({ action: "apply_now", status: "SUCCESS", corroboration: "settle_get" });
+  });
+
   it("every other event and verification label requires a fresh GET", () => {
     for (const status of ITEM_STATUSES.filter((status) => status !== "SUCCESS")) {
       const raw = JSON.stringify({ ...event, resource: { ...event.resource, transaction_status: status } });
@@ -55,6 +67,39 @@ describe("storedWebhookApplyRule", () => {
     }
     for (const verified of ["dev_mock", "fetched", null, "", {}, true]) {
       expect(storedWebhookApplyRule({ ...row(), verified }).action).toBe("fresh_get_first");
+    }
+  });
+
+  it("inv.i5.decided-money: a stored SUCCESS requires a GET for RETURNED, FAILED or BLOCKED", () => {
+    for (const status of ["RETURNED", "FAILED", "BLOCKED"]) {
+      expect(storedWebhookApplyRule({ ...row(), item: { ...row().item, status } }).action).toBe(
+        "fresh_get_first",
+      );
+    }
+  });
+
+  it("inv.i5.decided-money: any cancel request prevents applying a stored SUCCESS without a GET", () => {
+    for (const cancelRequestedAt of [RECEIVED_AT, RECEIVED_AT.toISOString(), 0, false, {}, undefined]) {
+      expect(storedWebhookApplyRule({ ...row(), item: { ...row().item, cancelRequestedAt } }).action).toBe(
+        "fresh_get_first",
+      );
+    }
+    const { cancelRequestedAt: _cancelRequestedAt, ...missingCancel } = row().item;
+    expect(storedWebhookApplyRule({ ...row(), item: missingCancel }).action).toBe("fresh_get_first");
+  });
+
+  it("fails closed unless the held status is known and cancelRequestedAt is explicitly null", () => {
+    for (const status of [null, undefined, "", "NOT_A_STATUS", "pending", 10, {}, []]) {
+      expect(storedWebhookApplyRule({ ...row(), item: { ...row().item, status } }).action).toBe(
+        "fresh_get_first",
+      );
+    }
+    const { status: _status, ...missingStatus } = row().item;
+    expect(storedWebhookApplyRule({ ...row(), item: missingStatus }).action).toBe("fresh_get_first");
+    for (const status of ITEM_STATUSES.filter(
+      (status) => !["RETURNED", "FAILED", "BLOCKED"].includes(status),
+    )) {
+      expect(storedWebhookApplyRule({ ...row(), item: { ...row().item, status } }).action).toBe("apply_now");
     }
   });
 
@@ -166,7 +211,11 @@ describe("storedWebhookApplyRule", () => {
         fc.integer({ min: 300_001, max: 2_000_000 }),
         (start, skew) => {
           const transmissionTime = new Date(RECEIVED_AT.getTime() - skew).toISOString();
-          const rule = storedWebhookApplyRule({ ...row(), delivery: { ...delivery, transmissionTime } });
+          const rule = storedWebhookApplyRule({
+            ...row(),
+            delivery: { ...delivery, transmissionTime },
+            item: { ...row().item, status: start },
+          });
           let current: ItemStatus = start;
           if (rule.action === "apply_now") {
             const decision = decideItemStatus(current, rule.status, { cancelRequested: false });
@@ -211,7 +260,11 @@ describe("storedWebhookApplyRule", () => {
           const fold = (entries: readonly boolean[]) => {
             let current: ItemStatus = start;
             for (const accepted of entries) {
-              const rule = storedWebhookApplyRule({ ...row(), verified: accepted ? "self" : "fetched" });
+              const rule = storedWebhookApplyRule({
+                ...row(),
+                verified: accepted ? "self" : "fetched",
+                item: { ...row().item, status: current },
+              });
               if (rule.action !== "apply_now") continue;
               const before = itemStatusRank(current);
               const next = decideItemStatus(current, rule.status, { cancelRequested: false });
