@@ -16,7 +16,16 @@ export interface ListeningDeps {
   log?: (line: string) => void;
 }
 // Shared across every candidate in this run. Already in-flight calls still settle in the ledger.
-const outages = new WeakMap<ListeningDeps["asrPool"], Map<string, { failures: number; detail: string }>>();
+const outages = new WeakMap<
+  ListeningDeps["asrPool"],
+  Map<string, { failures: number; detail: string; recent: boolean[] }>
+>();
+/** Six failures in eight calls also catches a partial outage with occasional successful replies.
+ * Alternating healthy/recovered calls remain eligible. Lower models keep their own service history.
+ */
+function unavailable(state: { failures: number; recent: boolean[] } | undefined): boolean {
+  return !!state && (state.failures >= 6 || state.recent.filter(Boolean).length >= 6);
+}
 export class AsrUnavailableError extends Error {
   constructor(details: string[] = []) {
     super(
@@ -56,9 +65,9 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
   const sleep = deps.asrSleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   for (let attempt = 0; attempt < 3 && !response; attempt++) {
     for (const model of models) {
-      const state = outage.get(model) ?? { failures: 0, detail: "" };
+      const state = outage.get(model) ?? { failures: 0, detail: "", recent: [] };
       outage.set(model, state);
-      if (state.failures >= 6) continue;
+      if (unavailable(state)) continue;
       try {
         response = await deps.asrPool.run(model, (client) =>
           client.models.generateContent({
@@ -76,6 +85,7 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
           }),
         );
         state.failures = 0;
+        state.recent = [...state.recent, false].slice(-8);
         verifiedModel = model;
         break;
       } catch (error) {
@@ -86,6 +96,7 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
           /no longer available|not found|not supported/i.test(error.message)
         ) {
           state.failures++;
+          state.recent = [...state.recent, true].slice(-8);
           state.detail = `${model}: HTTP 404 ${error.message}`;
           lastError = error;
           deps.log?.(
@@ -103,13 +114,14 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
         )
           throw error;
         state.failures++;
+        state.recent = [...state.recent, true].slice(-8);
         state.detail = `${model}: HTTP ${error.status ?? "unknown"} ${error.message}`;
         lastError = error;
         deps.log?.(`[asr] ${state.detail}; trying next approved free audio model (SDK retries off)`);
       }
     }
     if (response) break;
-    if (models.every((model) => (outage.get(model)?.failures ?? 0) >= 6))
+    if (models.every((model) => unavailable(outage.get(model))))
       throw new AsrUnavailableError(models.map((model) => outage.get(model)?.detail ?? model));
     if (attempt === 2) throw lastError;
     await sleep(attempt === 0 ? 5_000 : 15_000);

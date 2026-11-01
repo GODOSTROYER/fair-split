@@ -322,3 +322,40 @@ it("inv.i8.asr-account-availability: a 404 on one pooled key does not exclude a 
   expect(result.model).toBe("gemini-2.5-flash");
   expect(lower).toBe(2);
 });
+
+it("inv.i8.asr-partial-outage: six transient failures among eight top-model calls retain fallback progress", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-partial-"));
+  roots.push(root);
+  let time = Date.now();
+  let top = 0;
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, i) => `offline-${i}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep: async (ms) => {
+        time += ms;
+      },
+      makeClient: () => ({
+        models: {
+          generateContent: async (p: Record<string, unknown>) => {
+            if (p.model === ASR_MODEL && ![3, 6].includes(++top))
+              throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+            return { text: "Hello" };
+          },
+        },
+      }),
+    },
+  );
+  const deps = {
+    asrPool: pool,
+    cacheDir: root,
+    asrSleep: async (ms: number) => {
+      time += ms;
+    },
+  };
+  for (let i = 0; i < 14; i++)
+    expect((await listen(deps, Buffer.from(`partial-${i}`), "audio/mp4", "en")).text).toBe("Hello");
+  expect(top).toBe(8);
+});
