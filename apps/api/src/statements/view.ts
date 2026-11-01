@@ -128,6 +128,11 @@ export async function statementView(db: DbOrTx, ctx: StatementContext): Promise<
       spoken: format.amountSpoken(f.netCents, lang as ContractLang),
     };
   }
+  const mobile = await loadMobileStatement(
+    db,
+    ctx,
+    rendered.spoken.map((sentence) => spokenTextSha256(sentence.text)),
+  );
   return {
     lineId: f.lineId,
     memberNo: f.memberNo,
@@ -144,11 +149,8 @@ export async function statementView(db: DbOrTx, ctx: StatementContext): Promise<
     spoken: rendered.spoken,
     sms: { ...rendered.sms, label: "Preview, not sent" },
     source: committed?.source ?? "template",
-    provenance: ctx.provenance,
-    mobile: await loadMobileStatement(
-      db,
-      ctx,
-      rendered.spoken.map((sentence) => spokenTextSha256(sentence.text)),
-    ),
+    // The item may have replayed since the earlier context lookup. Keep both projections on its evidence.
+    provenance: mobile.provenance,
+    mobile,
   };
 }

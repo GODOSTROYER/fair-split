@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BrandView } from "../proof/brand.js";
 import { loadShowcase, type ShowcaseWorld } from "../proof/testing/world.js";
 import { createTestApp, type TestApp } from "../test/index.js";
-import type { StatementView } from "./view.js";
+import { loadStatementContext } from "./facts.js";
+import { type StatementView, statementView } from "./view.js";
 
 describe("a simulator run whose payout replays", () => {
   let t: TestApp;
@@ -75,6 +76,23 @@ describe("a simulator run whose payout replays", () => {
     } finally {
       await t.deps.db.update(schema.payoutItems).set({ provenance: "replay" }).where(where);
     }
+  });
+
+  it("inv.i8.statement-read-race: a replay item arriving after context lookup labels the whole response", async () => {
+    const where = and(
+      eq(schema.payoutItems.workspaceId, w.workspaceId),
+      eq(schema.payoutItems.lineId, lineId),
+    );
+    await t.deps.db.update(schema.payoutItems).set({ provenance: "simulated_rail" }).where(where);
+    const context = await loadStatementContext(t.deps.db, w.workspaceId, lineId, "en");
+    await t.deps.db.update(schema.payoutItems).set({ provenance: "replay" }).where(where);
+    if (!context) throw new Error("missing statement context");
+    expect(context.provenance).toBe("simulated_rail");
+    // POST settled its replay while readableStatement's context was already in flight.
+    const view = await statementView(t.deps.db, context);
+    expect(view.mobile.item).toMatchObject({ status: "SUCCESS", provenance: "replay" });
+    expect(view.mobile.provenance).toBe("replay");
+    expect(view.provenance).toBe("replay");
   });
 
   it.each(["simulated_rail", "seeded"] as const)(
