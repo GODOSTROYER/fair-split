@@ -17,7 +17,7 @@ export default {
   },
   webServer: {
     command:
-      "corepack pnpm --filter @fairsplit/console exec vite build --outDir .codex-scratch/browser-dist && corepack pnpm --filter @fairsplit/console exec vite preview --outDir .codex-scratch/browser-dist --host 127.0.0.1 --port 4197 --strictPort",
+      "corepack pnpm --filter @fairsplit/console exec vite build --outDir ../../.codex-scratch/console-browser-dist && corepack pnpm --filter @fairsplit/console exec vite preview --outDir ../../.codex-scratch/console-browser-dist --host 127.0.0.1 --port 4197 --strictPort",
     cwd: "../..",
     url: "http://127.0.0.1:4197/judge",
     env: { VITE_PUBLIC_FS_DATA: "mock", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" },
