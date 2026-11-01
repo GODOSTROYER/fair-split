@@ -82,6 +82,7 @@ describe("static serving (one origin)", () => {
       "/app/icon.png",
       "/app/entry.js.map",
       "/app/s/missing-statement.js",
+      "/app/s/fsm_missing-statement.js",
     ]) {
       for (const headers of [html, { accept: "*/*" }, { accept: "application/javascript" }, {}]) {
         const r = await t.request(p, { headers });

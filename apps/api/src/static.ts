@@ -236,7 +236,7 @@ export function mountStatic(app: Hono<AppEnv>, dirs: StaticDirs): void {
     const statementPage =
       c.req.path.startsWith("/app/s/") &&
       MEMBER_LINK_TOKEN.test(memberLink) &&
-      /^fsm_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(memberLink);
+      /^fsm_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{86}$/.test(memberLink);
     if (!statementPage && path.posix.extname(c.req.path) !== "") return c.notFound();
     const index = path.join(dirs.app, "index.html");
     if (isFile(index)) return htmlFile(index, NO_CACHE)(c);
