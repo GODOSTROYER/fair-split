@@ -151,6 +151,11 @@ export {
   postbackWithDeadline,
 } from "./webhook/postback.js";
 export {
+  type StoredWebhookApplyInput,
+  type StoredWebhookApplyRule,
+  storedWebhookApplyRule,
+} from "./webhook/stored-apply.js";
+export {
   type CertFetchBudget,
   type CertWarning,
   createMemoryTransmissionStore,
