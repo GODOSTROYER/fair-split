@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { proofUrls, runVerifyProof } from "../../../tools/verify-proof.js";
+import { plateWords, proofSummary, proofUrls, runVerifyProof } from "../../../tools/verify-proof.js";
 
 describe("verify-proof public transport", () => {
+  it("inv.i8.replay is labelled with its exact reason and never counted as a match or failure", () => {
+    const replay = {
+      ok: true,
+      state: "replay" as const,
+      reason:
+        "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+    };
+    expect(plateWords(replay, true)).toBe(replay.reason);
+    expect(
+      proofSummary(true, [...Array.from({ length: 5 }, () => ({ ok: true, reason: null })), replay]),
+    ).toEqual({ accepted: true, text: "five of six match; one replayed, labelled" });
+    expect(proofSummary(false, [replay])).toEqual({ accepted: false, text: "Proof checks failed" });
+    expect(proofSummary(true, [{ ok: false, reason: "Broken" }, replay]).accepted).toBe(false);
+  });
   it("accepts a Proof page or JSON route on HTTPS and loopback HTTP", () => {
     for (const path of ["/proof/2026A-r37", "/v1/proof/2026A-r37", "/v1/proof/2026A-r37.json"]) {
       expect(proofUrls(`https://proof.example${path}`)).toEqual({

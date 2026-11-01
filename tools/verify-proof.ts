@@ -1,6 +1,6 @@
 // Public Proof verification. No cookie jar, bearer token, environment credential or redirect.
 // The six checks and signed-checkpoint gate are the domain verifier used by the Proof page.
-import { ChainVerification, ProofResponse, PublishedKeys } from "@fairsplit/contracts";
+import { ChainVerification, type PlateResult, ProofResponse, PublishedKeys } from "@fairsplit/contracts";
 import { verifyChain } from "@fairsplit/domain";
 import { isMain } from "../apps/tasks/src/main.js";
 
@@ -37,6 +37,45 @@ export function proofUrls(input: string): {
 export interface VerifyProofDeps {
   fetch?: typeof globalThis.fetch;
   print?: (line: string) => void;
+}
+
+/** Replay is consistent evidence of a replay, never a sixth independent match. */
+export function plateWords(plate: PlateResult, server: boolean): string {
+  if (plate.state === "replay") return plate.reason ?? "Replayed, labelled";
+  if (!plate.ok) return plate.reason ?? "Mismatch";
+  return server
+    ? "Matches (checked by the server: payout receivers are withheld on this Proof tier)"
+    : "Matches";
+}
+
+/** The payout evidence can be weaker than the response envelope's simulator provenance. */
+export function proofProvenanceLine(
+  provenance: string,
+  payoutItems: PlateResult,
+  items: readonly { readonly provenance?: string }[],
+): string {
+  const replayed =
+    provenance === "replay" ||
+    payoutItems.state === "replay" ||
+    items.some((item) => item.provenance === "replay");
+  return `Simulated PayPal sandbox; provenance: ${
+    replayed ? "replay (labelled replay of an earlier simulated run)" : provenance
+  }.`;
+}
+
+export function proofSummary(
+  validChain: boolean,
+  plates: readonly PlateResult[],
+): { accepted: boolean; text: string } {
+  const accepted = validChain && plates.every((plate) => plate.ok);
+  return {
+    accepted,
+    text: !accepted
+      ? "Proof checks failed"
+      : plates.some((plate) => plate.state === "replay")
+        ? "five of six match; one replayed, labelled"
+        : "Six of six match",
+  };
 }
 
 async function readJson(fetcher: typeof globalThis.fetch, url: string, name: string): Promise<unknown> {
@@ -103,7 +142,7 @@ export async function runVerifyProof(argv: readonly string[], deps: VerifyProofD
       }
     }
     const plates = { ...result.plates, payoutItems };
-    print(`Simulated PayPal sandbox; provenance: ${provenance}.`);
+    print(proofProvenanceLine(provenance, payoutItems, bundle.batch.items));
     const sample = result.sampleKeys.length > 0;
     if (sample)
       print(
@@ -119,20 +158,16 @@ export async function runVerifyProof(argv: readonly string[], deps: VerifyProofD
     } as const;
     for (const [name, label] of Object.entries(labels)) {
       const plate = plates[name as keyof typeof labels];
-      const match =
-        name === "payoutItems" && withheld
-          ? "Matches (checked by the server: payout receivers are withheld on the public Proof)"
-          : "Matches";
-      print(`${label}: ${plate.ok ? match : (plate.reason ?? "Mismatch")}`);
+      print(`${label}: ${plateWords(plate, name === "payoutItems" && withheld)}`);
     }
     if (!result.chain.ok)
       print(`Ledger chain: mismatch at sequence ${result.chain.brokenAtSeq ?? "unknown"}.`);
     if (!result.checkpoint.ok) print(`Signed checkpoint: ${result.checkpoint.reason ?? "Mismatch"}`);
-    const matches = result.chain.ok && result.checkpoint.ok && Object.values(plates).every((p) => p.ok);
+    const summary = proofSummary(result.chain.ok && result.checkpoint.ok, Object.values(plates));
     print(
-      `${matches ? "Six of six match" : "Proof checks failed"}${sample ? "; Sample, never Verified" : ""}. ${withheld ? 5 : 6} checked independently; ${serverChecks} checked by the server.`,
+      `${summary.text}${sample ? "; Sample, never Verified" : ""}. ${withheld ? 5 : 6} checked independently; ${serverChecks} checked by the server.`,
     );
-    return matches ? 0 : 1;
+    return summary.accepted ? 0 : 1;
   } catch (error) {
     print(error instanceof Error ? error.message : "Proof verification failed.");
     return 1;
