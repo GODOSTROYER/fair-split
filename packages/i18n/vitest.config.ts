@@ -4,4 +4,6 @@
 // 20 s is a modest budget that load cannot exhaust and a real hang still fails.
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({ test: { testTimeout: 20_000 } });
+export default defineConfig({
+  test: { fsModuleCachePath: "./node_modules/.vitest-cache", testTimeout: 20_000 },
+});
