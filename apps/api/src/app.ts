@@ -16,7 +16,7 @@ import { requestContext } from "./middleware/request.js";
 import { securityHeaders } from "./middleware/security.js";
 import { buildOpenApiDocument, DOCS_CSP, docsHtml, SchemaCatalog } from "./openapi.js";
 import { mountSimulatorPages } from "./paypal/pages.js";
-import { mountPayPalWebhooks } from "./paypal/webhooks.js";
+import { createWebhookHandler, mountPayPalWebhooks } from "./paypal/webhooks.js";
 import {
   type AnyFolderModule,
   mountRegistry,
@@ -25,7 +25,6 @@ import {
 } from "./routes/registry.js";
 import { mountSseRoutes } from "./sse/routes.js";
 import { mountStatic, type StaticDirs, staticDirs } from "./static.js";
-import { createStoredDeliveryWebhookHandler } from "./webhook-delivery.js";
 import type { PayPalWebhookHandler } from "./webhooks/paypal.js";
 
 export const API_VERSION = "0.1.0";
@@ -92,7 +91,7 @@ export function createApp(o: CreateAppOptions): FairSplitApp {
   mountPayPalWebhooks(
     app,
     o.webhookHandler ??
-      createStoredDeliveryWebhookHandler({
+      createWebhookHandler({
         db: deps.db,
         rail: deps.paypal,
         logger: deps.logger,

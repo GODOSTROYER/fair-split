@@ -38,7 +38,7 @@ import {
   storedWebhookApplyRule,
 } from "@fairsplit/paypal-core";
 import { getPayoutBatch, getPayoutItem } from "@fairsplit/paypal-payouts";
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, lte, ne, sql } from "drizzle-orm";
 import type { AppDeps } from "../lib/context.js";
 import { ACTORS, emit, proofLedger } from "../runs/events.js";
 import { lockRun } from "../runs/load.js";
@@ -275,6 +275,17 @@ type Resolved =
   | { kind: "invoice"; workspaceId: string; runId: string; invoiceNumber: string }
   | { kind: "orphan" };
 
+/** PayPal IDs are globally unique, including siblings not yet named on the incoming sender's row. */
+async function itemIdTaken(db: DbOrTx, payoutItemId: string | null, itemId: string): Promise<boolean> {
+  if (!payoutItemId) return false;
+  const [other] = await db
+    .select({ id: schema.payoutItems.id })
+    .from(schema.payoutItems)
+    .where(and(eq(schema.payoutItems.payoutItemId, payoutItemId), ne(schema.payoutItems.id, itemId)))
+    .limit(1);
+  return other !== undefined;
+}
+
 async function resolve(db: DbOrTx, r: ResourceRef): Promise<Resolved> {
   if (r.kind === "invoice") {
     const id = r.invoiceId;
@@ -314,7 +325,11 @@ async function resolve(db: DbOrTx, r: ResourceRef): Promise<Resolved> {
       : items.find((i) => r.payoutItemId && i.payoutItemId === r.payoutItemId);
     // All supplied identities must agree. An unknown PayPal item ID may bind to our pre-POST sender
     // ID, but must never redirect a delivery from an already-bound item to another sender.
-    if (!item || (r.payoutItemId && item.payoutItemId && r.payoutItemId !== item.payoutItemId))
+    if (
+      !item ||
+      (r.payoutItemId && item.payoutItemId && r.payoutItemId !== item.payoutItemId) ||
+      (r.payoutItemId && items.some((other) => other.id !== item.id && other.payoutItemId === r.payoutItemId))
+    )
       return { kind: "orphan" };
     return { kind: "item", workspaceId: b.workspaceId, item, runId: b.runId, paypalBatchId: batchId };
   }
@@ -351,14 +366,23 @@ export async function processWebhook(
     await deps.db.transaction(async (tx) => {
       await tx
         .update(schema.webhookEvents)
-        .set({ status: "orphan" })
-        .where(eq(schema.webhookEvents.id, row.id));
+        .set({ status: "orphan", appliedAt: null, error: "RESOURCE_MISMATCH" })
+        .where(
+          and(
+            eq(schema.webhookEvents.id, row.id),
+            ne(schema.webhookEvents.status, "applied"),
+            ne(schema.webhookEvents.status, "rejected"),
+          ),
+        );
       await ctx.complete(tx);
     });
     return;
   }
   const scope = systemScope(target.workspaceId, ACTORS.paypalWebhook);
   const eventTypeOk = typed.success ? (typed.data as WebhookEventType) : null;
+  const batchId =
+    target.kind === "item" ? target.item.batchId : target.kind === "batch" ? target.batchId : null;
+  let stranded = false;
 
   // PayPal's word first, when the rule says a GET must decide (S3.6.5). Without an item id to GET (PayPal names
   // items only in the settle GET), the event changes nothing and the batch GET decides.
@@ -376,11 +400,16 @@ export async function processWebhook(
         payoutBatchId: paypalBatchId,
         payoutItemId: item.payoutItemId,
         senderItemId: item.senderItemId,
+        status: item.status,
+        cancelRequestedAt: item.cancelRequestedAt,
       },
     });
   if (target.kind === "item") {
     const rule = storedRuleFor(target.item, target.paypalBatchId);
-    if (rule.action === "fresh_get_first") {
+    // Immediate application checks under the lock below; only an external GET needs a pre-check too.
+    if (rule.action === "fresh_get_first")
+      stranded = await isStrandedBatch(deps.db, target.workspaceId, target.item.batchId);
+    if (rule.action === "fresh_get_first" && !stranded) {
       const id = target.item.payoutItemId ?? (resource.kind === "payout_item" ? resource.payoutItemId : null);
       if (id) {
         const got = await getPayoutItem(
@@ -391,10 +420,16 @@ export async function processWebhook(
         );
         if (!got.ok)
           throw classifyPayPal(new Error(`${got.status} ${got.name}`), "the payout item status check");
-        fresh = {
-          status: itemStatusOf(got.body.transaction_status),
-          payoutItemId: got.body.payout_item_id ?? id,
-        };
+        // The stored body can suggest an unbound ID, but only a matching GET may bind it.
+        if (
+          got.body.payout_item?.sender_item_id !== target.item.senderItemId ||
+          got.body.payout_batch_id !== target.paypalBatchId ||
+          got.body.payout_item_id !== id
+        ) {
+          batchGetDecides = true;
+        } else {
+          fresh = { status: itemStatusOf(got.body.transaction_status), payoutItemId: id };
+        }
       } else {
         batchGetDecides = true;
       }
@@ -426,8 +461,9 @@ export async function processWebhook(
       .update(schema.webhookEvents)
       .set({
         workspaceId: target.workspaceId,
-        status: "applied",
-        appliedAt: deps.clock.now(),
+        status: "orphan",
+        appliedAt: null,
+        error: "NO_APPLY",
         resourceKey: resourceKeyOf(target),
       })
       .where(eq(schema.webhookEvents.id, row.id));
@@ -439,9 +475,25 @@ export async function processWebhook(
       { webhookEventId: row.id, paypalEventId: row.paypalEventId, eventType, verified, duplicate: false },
       { runId, provenance, actor: ACTORS.paypalWebhook },
     );
+    const markApplied = async () => {
+      await tx
+        .update(schema.webhookEvents)
+        .set({ status: "applied", appliedAt: deps.clock.now(), error: null })
+        .where(eq(schema.webhookEvents.id, row.id));
+    };
+    const defer = async (reason: string) => {
+      await tx.update(schema.webhookEvents).set({ error: reason }).where(eq(schema.webhookEvents.id, row.id));
+    };
+    // Boot records under this same workspace lock. A marker committed after resolution still wins.
+    if (batchId !== null && (stranded || (await isStrandedBatch(tx, target.workspaceId, batchId)))) {
+      await defer("STRANDED_BATCH");
+      await ctx.complete(tx);
+      return;
+    }
     const at = deps.clock.now();
     if (target.kind === "item" && eventTypeOk && batchGetDecides) {
       // Nothing to GET by id yet: change nothing; the settle GET (due within 10 s, or brought forward) decides.
+      await defer("SETTLE_GET_REQUIRED");
       await settleGetSoon(tx, deps, target.workspaceId, target.item.batchId, row.paypalEventId);
     } else if (target.kind === "item" && eventTypeOk) {
       // Either the GET's answer, or a signature-verified SUCCEEDED (apply contract rule 2).
@@ -459,8 +511,14 @@ export async function processWebhook(
             item.senderItemId !== target.item.senderItemId ||
             (fresh
               ? item.payoutItemId !== null && fresh.payoutItemId !== item.payoutItemId
-              : storedRuleFor(item, target.paypalBatchId).action !== "apply_now")
+              : storedRuleFor(item, target.paypalBatchId).action !== "apply_now") ||
+            (await itemIdTaken(
+              tx,
+              fresh?.payoutItemId ?? (resource.kind === "payout_item" ? resource.payoutItemId : null),
+              item.id,
+            ))
           ) {
+            await defer("LOCKED_ITEM_MISMATCH");
             await settleGetSoon(tx, deps, target.workspaceId, item.batchId, row.paypalEventId);
             await ctx.complete(tx);
             return;
@@ -484,6 +542,7 @@ export async function processWebhook(
               verified,
             }))
           ) {
+            await markApplied();
             await proofLedger(
               tx,
               scope,
@@ -509,6 +568,7 @@ export async function processWebhook(
         }
       }
     } else if (target.kind === "batch" && eventTypeOk) {
+      await defer("SETTLE_GET_REQUIRED");
       // A batch event never writes the batch's status or moves the run from its own payload (apply contract
       // rule 3): SUCCESS runs the settle GET at once, DENIED is confirmed by that GET, and PROCESSING waits for
       // the scheduled one (+25 s / +90 s after the POST; we never poll). The GET writes status and run state.
@@ -522,6 +582,7 @@ export async function processWebhook(
         .from(schema.invoices)
         .where(and(eq(schema.invoices.workspaceId, target.workspaceId), eq(schema.invoices.runId, runId)));
       if (inv) {
+        await markApplied();
         await proofLedger(
           tx,
           scope,

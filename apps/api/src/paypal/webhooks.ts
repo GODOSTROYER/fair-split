@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import type { Hono } from "hono";
 import type { Logger } from "pino";
 import { clientIp } from "../lib/client-ip.js";
+import type { Clock } from "../lib/clock.js";
 import type { AppEnv } from "../lib/context.js";
 import {
   createPayPalWebhookHandler,
@@ -26,6 +27,7 @@ export interface WebhookWiring {
   db: Db;
   rail: PayPalRail;
   logger: Logger;
+  clock: Clock;
 }
 
 /** `wh:<paypal event id>`, IC-01's processWebhook dedupe key. */
@@ -50,7 +52,8 @@ export function createWebhookHandler(w: WebhookWiring): PayPalWebhookHandler {
           verified: row.verified,
           raw: row.raw,
           status: row.status,
-          // The proposed `delivery` jsonb is not in the schema yet (SPLIT.md gaps): keep the reject reason.
+          delivery: row.delivery,
+          receivedAt: w.clock.now(),
           error: row.delivery?.rejectReason ?? null,
           provenance: w.rail.provenance,
         })
