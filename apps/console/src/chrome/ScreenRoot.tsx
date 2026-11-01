@@ -30,8 +30,8 @@ export function ScreenRoot<S extends ConsoleScreenId>({
       data-state={state}
       aria-labelledby={labelledBy}
       // A page's own landmark (Proof, the brand view, /ops) is where a focus hand-off lands when the page has no
-      // control yet (it is still loading), as #fsc-main is on the stage: from script only, never Tab.
-      tabIndex={Tag === "main" ? -1 : undefined}
+      // control yet (it is still loading). It draws no tabindex: lib/focus.ts lends it tabindex="-1" only while
+      // that hand-off holds focus there, so a click in the page's text never moves the focus starting point.
     >
       {children}
     </Tag>

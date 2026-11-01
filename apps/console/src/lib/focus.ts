@@ -373,6 +373,30 @@ function listOf(targets: FocusTarget | readonly FocusTarget[]): readonly FocusTa
   return Array.isArray(targets) ? (targets as readonly FocusTarget[]) : [targets as FocusTarget];
 }
 
+/**
+ * Focuses a landmark (a page's <main>, which ScreenRoot draws with no tabindex) from script, for as long as it holds
+ * focus: tabindex="-1" is lent as focus lands and taken back once focus has moved on, as for a skip link's target.
+ * A static tabindex would let a click in the page's text focus the landmark, which moves the sequential focus
+ * starting point to the top of the page (the next Tab jumps up). One with a tabindex of its own (the stage's
+ * #fsc-main) keeps it. A blur while the window loses focus leaves focus where it was, so the loan stands.
+ */
+function focusLandmark(el: HTMLElement): boolean {
+  if (el.hasAttribute("tabindex")) return focusAndReveal(el);
+  el.setAttribute("tabindex", "-1");
+  const giveBack = () => {
+    queueMicrotask(() => {
+      if (document.activeElement === el) el.addEventListener("blur", giveBack, { once: true });
+      else el.removeAttribute("tabindex");
+    });
+  };
+  if (!focusAndReveal(el)) {
+    el.removeAttribute("tabindex");
+    return false;
+  }
+  el.addEventListener("blur", giveBack, { once: true });
+  return true;
+}
+
 function land(
   targets: readonly FocusTarget[],
   leaving: Element | null,
@@ -385,7 +409,7 @@ function land(
   if (!fallback) return null;
   for (const next of SCREEN_FALLBACKS) {
     const el = next(leaving);
-    if (isLive(el, leaving) && focusAndReveal(el)) return el;
+    if (isLive(el, leaving) && (next === screenRoot ? focusLandmark(el) : focusAndReveal(el))) return el;
   }
   return null;
 }
