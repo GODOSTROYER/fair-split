@@ -1,75 +1,104 @@
-# AU2 statement audio handoff
+# AU3 statement audio handoff: incomplete, waiting on ASR quota
 
 All people, payroll facts and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
-The exported AI note identifies seeded readings as a stand-in for Claude; it does not claim a live reading.
-Cebuano and Filipino wording and pronunciation still need native review.
+Seeded AI notes describe a stand-in for Claude; nothing claims a live reading or an invoice drafted by Claude.
+Cebuano and Filipino wording and pronunciation remain pending native review.
 
-Regenerate the exact renderer export, using disposable embedded Postgres databases inside `.codex-scratch/`:
+## Published and verified
 
-```powershell
-corepack pnpm --filter @fairsplit/api exec tsx src/statements/export.cli.ts
-corepack pnpm --filter @fairsplit/media tts statements --dry-run
-```
+Only M-014 Cebuano BONUS is newly published: `audio/M-014/ceb/s04-BONUS-a9b70b336c44.m4a`.
+It is 32 kbps mono AAC, 6,490 ms, labelled `Sintetikong tingog (Gemini TTS)`, with CER 0 against its own
+independent AAC transcription. `audio/statement-verification.json` binds the exact AAC bytes and exported
+text hash to that transcript, ASR model, threshold and measured offsets. The API subset acceptance test
+checks its real seeded route response, curated assembly and served byte hash. The full nine-sentence
+release acceptance test remains RED; AU3 is not done.
 
-`statement-plans.json` has all eleven requests in approved order. Its `lineId` is the stable seed member UUID
-for K1d's demo DTO; an API database has its own member-line IDs. Each sentence includes its unchanged API
-`text`, `textSha256`, `slot`, `variant`, `mentions`, `displayText`, and exact spoken placeholder/mention spans
-(`start` is a UTF-16 character index). Only fs-api renders these words and numbers. The export verifies that
-showcase and judge-kind terminal seed snapshots give byte-identical output; it is not an export of the judge's
-initial checking state. A checking line has no planned clips.
+There are **9 exported sentence clips** for M-014 Cebuano, not 27: the old 27 boundaries separate
+28 marked speech segments, including internal fact/mention starts. All eleven approved requests contain
+101 sentence variants in total. One is newly verified/published; 100 remain waiting on the ASR pool.
+`audio/statement-validation.json` records every planned sentence and every key/model reset.
+Old S10 files remain historical evidence, not AU3 completion. The unverified matching historical Cebuano
+greeting has been retired from playback into `audio/archive/manifest.json`; missing hero clips use the
+labelled device voice. Historical drafts are labelled in `audio/drafts/manifest.json`, excluded from the
+served final manifest. Immutable superseded files retain labels in the archive registry.
 
-Rhea's single request includes `PAY.paypal` and `PAY.cash_nodate`, as ADR-0011 §8 specifies. There is no dated
-`PAY.cash`: the receipt day is unknown until recorded and that sentence uses labelled device voice.
+## What was tried, in order
 
-Generate the hero request once:
+1. Reused AU2's cached 93,760 ms WAV before making any new TTS request. Its original cache path is
+   `.cache/tts/0d5c51b32a052eeb4721023c802b2f5359353c0a1aa85f7144cf10aacd9fb83b.wav`.
+2. Tried strict silence detection, then relative RMS noise-floor detection with a 120 ms minimum gap and
+   duration-weighted global gap selection. Each proposed sentence AAC received an independent transcription.
+   The full take did not verify: text and/or anchor timing checks failed. BONUS alone passed all checks.
+3. Tried full-take timestamp transcription and alignment before changing TTS granularity. Gemini repeatedly
+   returned 503 UNAVAILABLE, with some 429 quota refusals. SDK retries were disabled; bounded transient
+   retries each went through the KeyPool and its ledger.
+4. Generated and cached nine plain sentence retakes through the pool. Repeated ASR 503s prevented keeping
+   those retakes. No failed clip was published. They can be verified after reset without another TTS call.
+5. Stopped on PoolExhaustedError. The ledger holds 104 ASR reservations (including interrupted requests,
+   conservatively still counted) and 10 TTS reservations for this Pacific day: AU2's original take plus
+   AU3's nine retakes. Ten keys hit the configured per-model daily cap; two cooled after daily 429s.
+   The cap remains ADR-0014's self-imposed 10 per key, an unmeasured guess, not a claim about Google's
+   actual free entitlement. No cap was raised and billing was not enabled.
+
+## Exact next eligibility
+
+The following are recorded eligibility times, not a guarantee that Google's busy model will recover.
+All dates are 1 November 2026. Eleven keys reset at **07:00:00.000 UTC / 12:30:00.000 IST**;
+`faf5bfce` stays cooled until **07:00:00.403 UTC / 12:30:00.403 IST**.
+
+| Key ID (not a key value) | ASR used | Next eligibility UTC |
+| ------------------------ | -------: | -------------------- |
+| 545f0873                 |       10 | 07:00:00.000         |
+| 8e1e9260                 |       10 | 07:00:00.000         |
+| 517676af                 |       10 | 07:00:00.000         |
+| fd587165                 |       10 | 07:00:00.000         |
+| 7db4615b                 |       10 | 07:00:00.000         |
+| faf5bfce                 |        2 | 07:00:00.403         |
+| 33c5ca33                 |        2 | 07:00:00.000         |
+| 9d872d9a                 |       10 | 07:00:00.000         |
+| 0a246b54                 |       10 | 07:00:00.000         |
+| 663ea821                 |       10 | 07:00:00.000         |
+| 2d984c38                 |       10 | 07:00:00.000         |
+| faa4c5a0                 |       10 | 07:00:00.000         |
+
+## Resume
+
+Keep the ignored cache and quota ledger in this worktree. No WAV is committed. Keys stay in the
+worktree's ignored `.env`; only KeyPool loads them, and reports contain IDs only. After eligibility:
 
 ```powershell
 corepack pnpm --filter @fairsplit/media tts statements --only M-014:ceb
 ```
 
-AU2's 1 Nov validation returned 93,760 ms of audio from one generation request, but the splitter refused it:
-17 detected interior pauses for 27 expected boundaries. This was **not a quota refusal**. No clips from this
-take were published. `audio/statement-validation.json` records the result and ignored cached WAV path; the
-cache is still in the AU2 worktree. AU3 must resolve the marker alignment or make a reviewed retake before
-the hero statement can play completely. Merely lowering the silence threshold until its count matches
-does not establish which words the boundaries mark. The reported daily reset is quota context, not a
-promise that waiting will fix this split.
-
-Each command below needs **one logical generation request** on `gemini-3.8-flash-tts`, through TK1's pool.
-There are **ten remaining requests** after a successful M-014 Cebuano generation. If that validation was
-refused, M-014 Cebuano remains too: eleven total. The command stops after the first physical failure,
-records a scrubbed report and reset times in `audio/statement-validation.json`, and does not fail over on
-that invocation. No automatic quota retries or per-sentence regeneration requests occur. An ambiguous split
-also stops; the raw WAV stays cached for local diagnosis, without publishing clips.
+Complete and verify that hero first. Then run the full plan; verified exact clips are skipped:
 
 ```powershell
-corepack pnpm --filter @fairsplit/media tts statements --only M-014:fil
-corepack pnpm --filter @fairsplit/media tts statements --only M-014:en
-corepack pnpm --filter @fairsplit/media tts statements --only M-007:ceb
-corepack pnpm --filter @fairsplit/media tts statements --only M-060:fil
-corepack pnpm --filter @fairsplit/media tts statements --only M-018:ceb
-corepack pnpm --filter @fairsplit/media tts statements --only M-039:en
-corepack pnpm --filter @fairsplit/media tts statements --only M-022:ceb
-corepack pnpm --filter @fairsplit/media tts statements --only M-002:ceb
-corepack pnpm --filter @fairsplit/media tts statements --only M-031:en
-corepack pnpm --filter @fairsplit/media tts statements --only M-053:ceb
+corepack pnpm --filter @fairsplit/media tts statements
 ```
 
-Existing exact clips are skipped; the exact marked request WAV is cached, so a local re-split uses no quota.
-Key values never enter commands or reports. The ledger holds key IDs only and enforces each key's free-tier
-limits. The daily reset timestamp is reported in UTC; do not infer a quota reset from an arbitrary retry delay.
+Order: M-014 ceb, fil, en; M-007 ceb; M-060 fil; M-018 ceb; M-039 en; M-022 ceb; M-002 ceb;
+Rhea M-031 en with PAY.paypal and PAY.cash_nodate; Merlyn M-053 ceb. No dated PAY.cash clip is planned.
+Do not export again unless API templates or the frozen seed change; hashes must continue to match
+`statement-plans.json`. The export command is `corepack pnpm --filter @fairsplit/api exec tsx src/statements/export.cli.ts`.
 
-Pause markers delimit sentences and the exact onsets of their named facts and mentions. `ffmpeg` silence
-detection and `planCuts` must identify every marked segment before any manifest is published. Each sentence
-keeps its internal pauses; offsets name detected speech onsets relative to its AAC clip, in mention order.
-Clips are mono 32 kbps AAC, named `audio/M-NNN/{lang}/s{NN}-{SLOT}-{hash12}.m4a`. An existing filename is
-immutable: a fresh take gets `-t2`, `-t3`, etc. The final manifest preserves multiple texts for a slot.
+## Verification policy and files
 
-`--draft` writes clips and a separate `audio/drafts/manifest.json`; those entries never enter the served
-`audio/manifest.json`. Both drafts and finals use the same model and share its quota. Do not replace the
-historical spike clips or claim them as AU2 recordings.
-
-Publish using the existing curated media assembly. fs-api only returns a clip whose exact sentence hash,
-member, language, slot, synthetic label, non-draft status and existing curated file match ADR-0011. A mismatch
-uses labelled device voice. K1d should load the exported words and variants with the served audio response;
-the test goldens contain dummy files and are not playable demo media.
+- TTS uses `gemini-3.8-flash-tts`; ASR uses `ASR_MODEL` (`gemini-3.8-flash`), through all twelve keys,
+  each within its own recorded limits. No SDK retries, key values, paid requests or external hosts.
+- A proposed cut is not proof. Every final AAC's own ASR must have normalised CER at most **0.12**.
+  The recogniser never receives the expected sentence. Explicit leading-zero slip IDs and embedded R1
+  spellings are normalised without inferring a missing zero. A bounded anchor spelling variation must
+  also meet 0.12 and have a unique contiguous alignment on every optimal token path.
+- Offsets come from recognised word timestamps on the final AAC. Ambiguous, missing, overlapping,
+  non-finite or out-of-bounds anchors are refused. No duration/character-share offset is published.
+- If the full take cannot be verified, each missing sentence gets its own request. Successful sentences
+  are persisted before another sentence's quota error. Quality refusals continue to later planned requests;
+  exhaustion stops cleanly and records every remaining sentence as waiting on quota.
+- Clips stage only inside the ignored cache. Published names are ADR-0011's
+  `audio/M-NNN/{lang}/sNN-SLOT-hash12[-tN].m4a`; existing paths are immutable.
+- Final, draft and archive registries label every physical audio file exactly once. Only the final
+  `audio/manifest.json` is used for playback. A historical exact-text entry without current evidence
+  cannot suppress verification or count as newly published.
+- Tests use synthetic PCM and stubbed clients offline. The real API release guard is
+  `apps/api/src/routes/media/au3-published.test.ts`; its subset check can pass while its full nine-sentence
+  completeness guard remains red. This distinction is intentional evidence of unfinished publication.

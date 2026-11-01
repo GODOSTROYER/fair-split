@@ -1,0 +1,61 @@
+{
+  "v": 1,
+  "synthetic": true,
+  "notice": "Every clip is a synthetic voice generated with Gemini TTS from synthetic statement text for fictional members. Cebuano and Filipino wording is machine-translated and pending native review.",
+  "entries": [
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "GREETING",
+      "file": "audio/drafts/M-014/ceb/s1.m4a",
+      "duration_ms": 4505,
+      "text": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
+      "text_sha256": "596b9e42811ddd3d6788f221ff7c7ad905a4936bb007cbea1875fdc09fc7618b",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:37.567Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": true,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdIcnZaYXFPZUNPQ1E2OTRQX19qNzJBWRIXSHJ2WmFxT2VDT0NRNjk0UF9fajcyQVk",
+        "latency_ms": 7309,
+        "sentences": 2
+      }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "PAY",
+      "file": "audio/drafts/M-014/ceb/s5.m4a",
+      "duration_ms": 11394,
+      "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos, pinaagi sa PayPal.",
+      "text_sha256": "9d3f83e593e5fee87c54170c758fa57e3fefe3c01233294ef304353b35492c7e",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-10-22T07:28:38.096Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": true,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdIcnZaYXFPZUNPQ1E2OTRQX19qNzJBWRIXSHJ2WmFxT2VDT0NRNjk0UF9fajcyQVk",
+        "latency_ms": 7309,
+        "sentences": 2
+      }
+    }
+  ]
+}

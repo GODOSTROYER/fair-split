@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "clips": [
+    {
+      "file": "audio/M-014/ceb/s04-BONUS-a9b70b336c44.m4a",
+      "textSha256": "a9b70b336c44451a1badc933754d6fd5334a5a9d8224a92e2e8dfc4c55a2c4a1",
+      "audioSha256": "35cfd4d4edf39d3c10616d7fd907806c2f5b3e51d96c7dfb8e71776a31190cd5",
+      "asrModel": "gemini-3.8-flash",
+      "cer": 0,
+      "transcript": "Bonus sa kalidad $21.85",
+      "threshold": 0.12,
+      "method": "relative-silence-duration",
+      "verifiedAt": "2026-11-01T04:02:47.834Z",
+      "synthetic": true
+    }
+  ]
+}
