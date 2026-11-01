@@ -517,6 +517,9 @@ importers:
       "@fairsplit/contracts":
         specifier: workspace:*
         version: link:../../packages/contracts
+      "@fairsplit/seal":
+        specifier: workspace:*
+        version: link:../../packages/seal
       "@noble/curves":
         specifier: "catalog:"
         version: 2.4.0
