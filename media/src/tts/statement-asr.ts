@@ -123,7 +123,11 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
     if (response) break;
     if (models.every((model) => unavailable(outage.get(model))))
       throw new AsrUnavailableError(models.map((model) => outage.get(model)?.detail ?? model));
-    if (attempt === 2) throw lastError;
+    if (attempt === 2) {
+      if (lastError instanceof GeminiCallError && lastError.status === 404)
+        throw new AsrUnavailableError(models.map((model) => outage.get(model)?.detail ?? model));
+      throw lastError;
+    }
     await sleep(attempt === 0 ? 5_000 : 15_000);
   }
   if (!response) throw new Error("ASR returned no response");

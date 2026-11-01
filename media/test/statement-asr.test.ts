@@ -359,3 +359,50 @@ it("inv.i8.asr-partial-outage: six transient failures among eight top-model call
     expect((await listen(deps, Buffer.from(`partial-${i}`), "audio/mp4", "en")).text).toBe("Hello");
   expect(top).toBe(8);
 });
+
+it("inv.i8.asr-all-models-report: preserves each model's exact service refusal when no fallback account works", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-all-"));
+  roots.push(root);
+  let time = Date.now();
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, i) => `offline-${i}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep: async (ms) => {
+        time += ms;
+      },
+      makeClient: () => ({
+        models: {
+          generateContent: async (p: Record<string, unknown>) => {
+            throw Object.assign(
+              new Error(
+                p.model === "gemini-2.5-flash"
+                  ? "This model is no longer available to new users"
+                  : "UNAVAILABLE",
+              ),
+              { status: p.model === "gemini-2.5-flash" ? 404 : 503 },
+            );
+          },
+        },
+      }),
+    },
+  );
+  const error = await listen(
+    {
+      asrPool: pool,
+      cacheDir: root,
+      asrSleep: async (ms) => {
+        time += ms;
+      },
+    },
+    Buffer.from("all-down"),
+    "audio/mp4",
+    "en",
+  ).catch((e) => e);
+  expect(error.name).toBe("AsrUnavailableError");
+  expect(error.message).toContain(`${ASR_MODEL}: HTTP 503`);
+  expect(error.message).toContain("gemini-3.6-flash: HTTP 503");
+  expect(error.message).toContain("gemini-2.5-flash: HTTP 404");
+});
