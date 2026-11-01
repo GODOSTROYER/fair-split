@@ -79,6 +79,18 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
         verifiedModel = model;
         break;
       } catch (error) {
+        // models.list can still advertise a model that generation refuses for this account.
+        if (
+          error instanceof GeminiCallError &&
+          error.status === 404 &&
+          /no longer available|not found|not supported/i.test(error.message)
+        ) {
+          state.failures = 6;
+          state.detail = `${model}: HTTP 404 ${error.message}`;
+          lastError = error;
+          deps.log?.(`[asr] ${state.detail}; disabled for this run`);
+          continue;
+        }
         if (
           !(error instanceof GeminiCallError) ||
           error.kind !== "other" ||

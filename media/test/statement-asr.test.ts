@@ -234,3 +234,44 @@ it("inv.i8.asr-fallback-order: tries 2.5 only after both higher free models fail
   expect(result.model).toBe("gemini-2.5-flash");
   for (const model of calls) expect((await ledger.today(model)).requests).toBe(1);
 });
+
+it("inv.i8.asr-retired-fallback: a listed but unavailable model is disabled while higher transient models recover", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-retired-"));
+  roots.push(root);
+  let time = Date.now();
+  const calls: string[] = [];
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+    now: () => new Date(time),
+    sleep: async (ms) => {
+      time += ms;
+    },
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          const model = String(p.model);
+          calls.push(model);
+          if (model === "gemini-2.5-flash")
+            throw Object.assign(new Error("This model is no longer available to new users"), { status: 404 });
+          if (calls.length <= 3) throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+          return { text: "Hello" };
+        },
+      },
+    }),
+  });
+  const result = await listen(
+    {
+      asrPool: pool,
+      cacheDir: root,
+      asrSleep: async (ms) => {
+        time += ms;
+      },
+    },
+    Buffer.from("retired"),
+    "audio/mp4",
+    "en",
+  );
+  expect(result.model).toBe(ASR_MODEL);
+  expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash", "gemini-2.5-flash", ASR_MODEL]);
+});
