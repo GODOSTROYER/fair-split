@@ -18,6 +18,7 @@ export const PLANTED: Readonly<Record<string, string>> = {
   "replay-of-dated-run": "Reading 12 photos. Replay of the 29 Oct run.",
   "replay-as-claude-reading": "Funded. Claude's reading of the slips replays next.",
   "claudes-draft": "Make Claude's draft overcharge Lantern Bay.",
+  "seeded-hold-claude-voice": "Seeded hold voice: Claude: The clerk noted a fine.",
   "insufficient-funds-test-value":
     "Send PayPal's insufficient-funds test value: a one-item batch it rejects at once.",
   "showcase-cash-receipts": "Seeded: the showcase run's cash receipts.",
@@ -219,6 +220,12 @@ export const PLANTED_TEMPLATES: readonly (readonly [rule: string, source: string
 
 /** Near misses: sentences close to each rule's phrase that the rule must let through. */
 export const CLEAN: Readonly<Record<string, readonly string[]>> = {
+  "seeded-hold-claude-voice": [
+    "Seeded hold voice: Seed stand-in, not a Claude recording.",
+    "Replayed hold card: Seed stand-in, not a Claude recording.",
+    "Claude's real reading of this slip, recorded 1 Nov 2026",
+    "A live hold voice: Claude: The clerk noted a fine.",
+  ],
   "sandbox-says-simulated": [
     "PayPal steps run on a simulated PayPal sandbox.",
     "Designed so one variable points it at PayPal's sandbox; this has not been tested.",

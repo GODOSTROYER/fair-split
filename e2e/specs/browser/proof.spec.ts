@@ -1,6 +1,7 @@
 // E-01 v1 (b), Proof in Chromium: a run settled on the stack (scripted through fs-api; specs/api asserts each step)
 // opens at /proof/<runSlug>, renders its six plates from the served bundle, and "Verify in your browser" matches
 // every plate. Judge Mode signs with browser demo keys, so the page reads Sample, never Verified.
+import { ChainVerification } from "@fairsplit/contracts";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, stackOrigin, test } from "../../lib/fixtures.js";
 import { withReplayedPayout } from "../../lib/judge-quota.js";
@@ -50,30 +51,63 @@ test("Verify in your browser: six of six match, read as Sample", async ({ page }
   }
 });
 
-test.fixme("Proof shows the holds caught and US$21.14 kept for members", async () => {
-  // C5b: for a run on fs-api, Proof's "Holds caught" reads "This run's holds aren't in this browser's copy of the
-  // season" instead of GET /v1/proof/:runSlug/metrics' holds (caught 3, kept for members US$21.14).
+test("Proof shows the holds caught and US$21.14 kept for members", async ({ page }) => {
+  const metrics = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/v1/proof/${runSlug}/metrics`,
+    { timeout: 15_000 },
+  );
+  await page.goto(`/proof/${runSlug}`);
+  expect((await metrics).status()).toBe(200);
+  const holds = page.getByTestId("W-PF-01.metric.holds");
+  await expect(holds).toContainText("3");
+  await expect(holds).toContainText("US$21.14");
 });
 
 test("over-quota payout: five plates match and payout statuses read Replayed (labelled)", async ({
   page,
   origin,
 }) => {
-  test.fixme(
-    true,
-    "WS-CONSOLE: render verification.status replay, payoutItems.state replay and the labelled five-of-six verdict; the API/domain regression runs in specs/api/judge-quota.spec.ts",
-  );
   await withReplayedPayout(origin, async (_api, s) => {
+    const response = await page.request.get(`/v1/proof/${s.runSlug}/verification`);
+    expect(response.status()).toBe(200);
+    const verification = ChainVerification.parse((await response.json()).verification);
+    expect(verification.plates.payoutItems.state).toBe("replay");
+    expect(verification.plates.payoutItems.reason).toBeTruthy();
     await page.goto(`/proof/${s.runSlug}`);
+    // Honesty cannot depend on pressing Verify: a public judge sees these surfaces immediately.
+    const hero = page.getByTestId("W-PF-01.progress");
+    await expect(hero).toContainText(/payout statuses replayed \(labelled\)/i);
+    await expect(hero).not.toContainText(/confirmed|verified/i);
+    const payouts = page.getByTestId("W-PF-01.plate.payoutItems");
+    await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).toContainText(/replayed \(labelled\)/i);
+    await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).not.toContainText(/confirmed|verified/i);
+    await page.getByTestId("W-PF-01.plate.payoutItems.toggle").click();
+    await expect(payouts).toContainText(/earlier simulated PayPal sandbox run/i);
+    await expect(page.getByTestId("W-PF-01.figures")).toContainText(
+      /Replayed payout statuses \(simulated PayPal sandbox\)/i,
+    );
+    await expect(payouts).not.toContainText(/confirmed by PayPal|signed item notices/i);
+    await expect(page.getByTestId("W-PF-01.footer")).toContainText(
+      "Replayed (labelled): earlier simulated PayPal sandbox run",
+    );
     await page
       .getByTestId("W-PF-01.verify")
       .getByRole("button", { name: /Verify in your browser/ })
       .click();
     await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "replay");
-    await expect(page.getByTestId("W-PF-01.check.payoutItems")).toContainText("Replayed (labelled)");
+    await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveText(
+      verification.plates.payoutItems.reason ?? "",
+    );
     const verdict = page.getByTestId("W-PF-01.verdict");
     await expect(verdict).toHaveAttribute("data-state", "replay");
-    await expect(verdict).toContainText(/five of six match; one replayed, labelled/i);
-    await expect(verdict).not.toContainText(/mismatch|verified/i);
+    // Check the verdict, not the surrounding exact replay reason and sample-key disclaimer.
+    const verdictWord = page.getByTestId("W-PF-01.verdict.word");
+    await expect(verdictWord).toHaveAttribute("data-verdict", "replay");
+    await expect(verdictWord).toHaveText("five of six match; one replayed, labelled");
+    await expect(verdictWord).not.toContainText(/mismatch|verified/i);
+    await expect(page.getByTestId("W-PF-01.verdict.failure")).toHaveCount(0);
+    for (const plate of PLATES.filter((plate) => plate !== "payoutItems")) {
+      await expect(page.getByTestId(`W-PF-01.check.${plate}`)).toHaveAttribute("data-state", "matches");
+    }
   });
 });

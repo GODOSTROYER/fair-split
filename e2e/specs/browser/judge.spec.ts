@@ -1,10 +1,14 @@
 // E-01 v1 (b), the Judge stage in Chromium against the stack: /judge's first view is built locally from the seed and
 // calls nothing until the first press (S3.9), it is never indexed, the first press starts a session on the simulated
-// rail and funds the run, and Reset brings the first view back for a second press. What needs the console's http
-// mode, which C5b is finishing, is test.fixme with the missing behaviour named.
+// rail and funds the run, and Reset brings the first view back for a second press. The live browser drives the
+// review, proves workspace key isolation, and completes Verify and the peso trace after both human signatures.
 import type { Page, Request, Response } from "@playwright/test";
+import { waitForRun } from "../../lib/api.js";
+import { startBrowserJudge, stopBrowserJudge } from "../../lib/browser-judge.js";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, test } from "../../lib/fixtures.js";
+import { withFullHourlyQuota, withLastHourlySlot } from "../../lib/judge-quota.js";
+import { bothKeys, collectRunEvents, officers, runState, workTheReview } from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
 
 const isV1 = (r: Request) => new URL(r.url()).pathname.startsWith("/v1/");
@@ -120,19 +124,337 @@ test("Reset brings the first view back within 10 s and a second press works", as
   expect(second.runSlug).not.toBe(first.runSlug);
 });
 
-test.fixme("slip 0462 is entered by hand in the browser once the reading is done", async () => {
-  // C5b: in http mode /season/2026-A/by-hand/0462 keeps "Slip 0462 hasn't been read in this run yet" with the
-  // field and its buttons disabled after the run reached IN_REVIEW; the page never GETs
-  // /v1/seasons/2026A/slips/0462 nor POSTs /v1/fields/:id/enter.
+test("slip 0462 is entered by hand in the browser once the reading is done", async ({ page, origin }) => {
+  const { api, s } = await startBrowserJudge(page, origin);
+  try {
+    await page.getByTestId("W-JG-01.runPill.next").click();
+    await expect(page.getByTestId("W-TR-04.input")).toBeEnabled();
+    await page.getByTestId("W-TR-04.useLogbook").click();
+    const entered = page.waitForResponse(
+      (r) =>
+        /^\/v1\/fields\/[^/]+\/enter$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+    );
+    await page.getByTestId("W-TR-04.commit.face").click();
+    expect((await entered).status()).toBe(200);
+    await expect(page.getByTestId("W-TR-04.committed")).toContainText("64.80");
+  } finally {
+    await stopBrowserJudge(page, api, s);
+  }
 });
 
-test.fixme("Play it for me drives the review, H1–H3 and both keys to the POST", async () => {
-  // C5b: in http mode autoplay presses, reaches /season/2026-A/by-hand/0462 about 20 s later and stops there (the
-  // field is disabled, above); it never resolves H1–H3, never signs, and nothing reaches POST. Key 2 also needs C5c's
-  // Chair panel (flag) or the live /app Chair frame (K1a). The browser half of the 60 s cold-judge budget waits on it.
+test("the console signs with a fresh registered key after Reset changes the workspace", async ({
+  page,
+  origin,
+}) => {
+  const ids: string[] = [];
+  for (let run = 0; run < 2; run++) {
+    const { api, s } = await startBrowserJudge(page, origin, "press", run === 0);
+    let reset = false;
+    try {
+      await workTheReview(api, s);
+      await expect(page.getByTestId("W-JG-01.runPill.next")).toHaveAttribute(
+        "href",
+        `/runs/${s.runSlug}/approve`,
+      );
+      await page.getByTestId("W-JG-01.runPill.next").click();
+      await expect(page.getByTestId("W-TR-07.approve.face")).toBeEnabled();
+      await page.getByTestId("W-TR-07.approve.alt").click();
+      const answer = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === `/v1/runs/${s.runSlug}/approvals` && r.request().method() === "POST",
+      );
+      await page.getByTestId("W-TR-07.approve.dialog.confirm.face").click();
+      const signed = await answer;
+      expect(signed.status()).toBe(201);
+      ids.push((signed.request().postDataJSON() as { keyId: string }).keyId);
+      // The labelled Proof chip must fit at the default 1280 px viewport without pushing Reset behind the phone.
+      await expect
+        .poll(() =>
+          page.getByRole("banner").evaluate((banner) => {
+            const controls = Array.from(banner.querySelectorAll("a, button"));
+            const right = Math.max(...controls.map((control) => control.getBoundingClientRect().right));
+            const reset = banner.querySelector('[data-testid="W-JG-01.reset"]');
+            if (!reset) return { fits: false, resetReceivesPointer: false };
+            const rect = reset.getBoundingClientRect();
+            const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+            return {
+              fits: right <= window.innerWidth,
+              resetReceivesPointer: hit !== null && reset.contains(hit),
+            };
+          }),
+        )
+        .toEqual({ fits: true, resetReceivesPointer: true });
+      await page.screenshot({ path: test.info().outputPath("reset-key1-layout.png") });
+      await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+      await expect(firstPress(page)).toBeEnabled();
+      reset = true;
+    } finally {
+      if (!reset) await stopBrowserJudge(page, api, s);
+    }
+  }
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).not.toBe(ids[1]);
+  await page.goto("about:blank");
 });
 
-test.fixme("Try to break it: change_payout armed before key 2 shows the I4 refusal and the voided approvals", async () => {
-  // C5b: the stage has no Try-to-break-it controls wired to POST /v1/judge/sessions/:sid/tamper in http mode
-  // (overcharge, offsetting, recipient, change_payout); specs/api/e01-judge-run.spec.ts asserts the refusal itself.
+test("Play it for me drives the review, waits for both human keys, then verifies and taps a peso", async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin, "autoplay");
+  const events = collectRunEvents(api, s);
+  try {
+    const approve = page.getByTestId("W-TR-07.approve.face");
+    await expect(approve).toBeEnabled({ timeout: 90_000 });
+    await expect(page.getByTestId("W-JG-01.autoplay")).toHaveAttribute("data-state", "paused");
+    await page.getByTestId("W-TR-07.approve.alt").click();
+    const key1 = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === `/v1/runs/${s.runSlug}/approvals` && r.request().method() === "POST",
+    );
+    await page.getByTestId("W-TR-07.approve.dialog.confirm.face").click();
+    expect((await key1).status()).toBe(201);
+    await page.getByTestId("W-TR-07.cosign.frame").click();
+    const phone = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
+    await expect(phone.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
+    await phone.getByTestId("M-BD-01.sign").click();
+    await phone.getByTestId("M-BD-02.slab.another-way").click();
+    const key2 = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === `/v1/runs/${s.runSlug}/approvals` && r.request().method() === "POST",
+    );
+    await phone.getByTestId("M-BD-02.slab.confirm.ok").click();
+    expect((await key2).status()).toBe(201);
+    const posted = await events.waitFor(runState("POSTED"), 60_000);
+    const elapsedMs = (posted?.arrivedAt ?? Number.POSITIVE_INFINITY) - s.pressedAt;
+    const timing = { type: "browser timing", description: `first press to POST answered: ${elapsedMs} ms` };
+    test.info().annotations.push(timing);
+    process.stdout.write(`[browser-timing] ${timing.description}\n`);
+    expect(posted?.provenance).toBe("simulated_rail");
+    expect(elapsedMs).toBeLessThanOrEqual(60_000);
+    await page.getByTestId("W-JG-01.autoplay").click();
+    await expect(page.getByTestId("W-PF-01.verdict")).toHaveAttribute("data-state", "sample", {
+      timeout: 120_000,
+    });
+    await expect(page.getByTestId("W-PF-01.trace.state")).toHaveAttribute("data-trace", "line");
+    await expect(page.getByTestId("W-PF-01.peso.M-014")).toHaveAttribute("aria-expanded", "true");
+  } finally {
+    await events.stop();
+    await stopBrowserJudge(page, api, s);
+  }
+});
+
+test("Try to break it: all four controls refuse attacks and the changed payout voids both approvals", async ({
+  page,
+  origin,
+}) => {
+  const { api, s } = await startBrowserJudge(page, origin);
+  try {
+    await workTheReview(api, s);
+    await page.getByTestId("W-JG-01.whatsRealOpen").click();
+    for (const kind of ["amount", "offsetting", "recipient"]) {
+      const answer = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === `/v1/judge/sessions/${s.sessionId}/tamper` &&
+          r.request().method() === "POST",
+      );
+      await page.getByTestId(`W-JG-01.tamper.${kind}`).click();
+      expect((await answer).status()).toBe(200);
+      await expect(page.getByTestId("W-JG-01.tamper.result")).toContainText("DENY");
+    }
+    await page.getByTestId("W-JG-01.tamper.change_payout").click();
+    const result = page.getByTestId("W-JG-01.tamper.result");
+    await expect(result).toContainText("Armed before key 2");
+    await expect(result).not.toContainText("Both approvals voided");
+    const keys = await officers(api, s);
+    expect((await bothKeys(api, s, keys)).map((a) => a.status)).toEqual([201, 201]);
+    const refused = await waitForRun(api, s, (run) => run.run.state === "IN_REVIEW", 30_000);
+    expect(refused?.run.state).toBe("IN_REVIEW");
+    const approvals = await api.get(`/v1/runs/${s.runSlug}/approvals`, s.asTreasurer);
+    expect(approvals.status).toBe(200);
+    expect(
+      (approvals.json as { approvals: { voidedAt: string | null }[] }).approvals.map(
+        (a) => a.voidedAt !== null,
+      ),
+    ).toEqual([true, true]);
+    await expect(result).toContainText("Both approvals voided");
+  } finally {
+    await stopBrowserJudge(page, api, s);
+  }
+});
+
+test("a quota-replayed run labels the stage, payout summary, chips and log before opening Proof", async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin);
+  try {
+    // Inspect a real seeded hold before the API helper resolves it. Merlyn's open plot hold is pinned.
+    await page.getByTestId("W-JG-01.rail.split").click();
+    await page.getByTestId("W-TR-05.row.M-053").click();
+    const hold = page.getByTestId("W-TR-06.card");
+    await expect(hold).toContainText("Seed stand-in, not a Claude recording");
+    await expect(hold.locator("dt").filter({ hasText: /^Claude$/ })).toHaveCount(0);
+    await expect(hold.locator('[data-provenance="seeded"]')).toContainText(
+      "Her deliveries suggest a second plot",
+    );
+    await page.getByTestId("W-TR-06.drawer.close").click();
+    // The API UUID key differs from the seed mark key; the displayed engine credit must still survive.
+    const liveHolds = (await api.get(`/v1/runs/${s.runSlug}/holds`, s.asTreasurer)).json as {
+      holds: { label: string; key: string; engineParams: { creditCents?: number } }[];
+    };
+    expect(liveHolds.holds.find((entry) => entry.label === "H3")).toMatchObject({
+      key: expect.stringMatching(/^NO_RULE:[0-9a-f-]+$/),
+      engineParams: { creditCents: 320 },
+    });
+    await page.getByTestId("W-TR-05.row.M-018").click();
+    await expect(hold).toContainText("US$3.20 correction credit");
+    await expect(page.getByTestId("W-TR-06.returnCredit.face")).toHaveAccessibleName(/US\$3\.20/);
+    await page.getByTestId("W-TR-06.drawer.close").click();
+    await workTheReview(api, s);
+    const keys = await officers(api, s);
+    await withFullHourlyQuota(async () => {
+      const lane = await api.get("/v1/judge/lane");
+      expect(lane.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
+      await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(
+        /This run[’']s PayPal payouts will replay, labelled/,
+        { timeout: 30_000 },
+      );
+      await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/statuses replayed/i);
+      expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
+      expect(
+        (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
+      ).toBe("NEEDS_FOLLOW_UP");
+      await page.getByTestId("W-JG-01.rail.run").click();
+      await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(
+        "Replayed (labelled): earlier simulated PayPal sandbox run",
+      );
+      const chip = page.getByTestId("W-JG-01.proofChip");
+      await expect(chip).toContainText(/replayed/i);
+      await expect(chip).not.toContainText(/confirmed|verified/i);
+      await expect(page.getByTestId("W-TR-08.status")).toContainText(/replayed \(labelled\)/i);
+      const summary = page.getByTestId("W-TR-08.share");
+      await expect(summary).toContainText(/payout statuses replayed \(labelled\)/i);
+      await expect(summary).toContainText(/earlier simulated PayPal sandbox run/i);
+      await expect(summary).not.toContainText(/confirmed|verified|sent by PayPal/i);
+      const statusCells = page.getByTestId("W-TR-08.table").getByRole("cell", { name: /Replayed/i });
+      await expect(statusCells).toHaveCount(8);
+      for (const status of await statusCells.all()) await expect(status).toContainText(/Replayed/i);
+      const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
+      await expect(parkedChip).toHaveCount(1);
+      await expect(parkedChip).toHaveText("Replayed");
+      const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
+      await expect(payoutLog).toContainText(/replay of an earlier simulated/i);
+      await expect(payoutLog).not.toContainText(/Confirmed by a status check|replay of the seed stand-in/i);
+      const replayRows = payoutLog.locator('[data-provenance="replay"]');
+      // Every replay event is labelled in its own row, including an unsuccessful recorded item.
+      await expect(replayRows.first()).toBeAttached();
+      for (const row of await replayRows.all()) {
+        await expect(row).toContainText(/replay/i);
+        await expect(row).not.toContainText(/confirmed|verified/i);
+      }
+      const lines = (await api.get(`/v1/runs/${s.runSlug}/lines`, s.asTreasurer)).json as {
+        lines: { id: string; state: string }[];
+      };
+      const rhea = lines.lines.find((line) => line.state === "UNCLAIMED");
+      expect(rhea).toBeDefined();
+      if (rhea) expect((await api.post(`/v1/lines/${rhea.id}/pay-cash`, {}, s.asTreasurer)).status).toBe(200);
+      expect((await waitForRun(api, s, (run) => run.run.state === "SETTLED", 60_000))?.run.state).toBe(
+        "SETTLED",
+      );
+      const rheaRow = page.getByTestId("W-TR-08.table").getByRole("row", { name: /Rhea Jumawan/ });
+      await expect(rheaRow).toContainText("Cash due");
+      await expect(rheaRow).not.toContainText("Replayed");
+      await expect(statusCells).toHaveCount(7);
+      await chip.click();
+      await expect(page.getByTestId("W-PF-01.progress")).toContainText(
+        /payout statuses replayed \(labelled\)/i,
+      );
+      await expect(page.getByTestId("W-PF-01.metric.timing")).toContainText("Replayed, no timing");
+      await expect(page.getByTestId("W-PF-01.metric.timing")).not.toContainText("Still running");
+    });
+  } finally {
+    await stopBrowserJudge(page, api, s);
+  }
+});
+
+test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after its own post fills quota", async ({
+  page,
+  origin,
+}) => {
+  test.skip(!process.env.E2E_DATABASE_URL, "quota filler is restricted to the private test stack database");
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin);
+  const events = collectRunEvents(api, s);
+  try {
+    await workTheReview(api, s);
+    const keys = await officers(api, s);
+    await withLastHourlySlot(api, async () => {
+      // Before posting, no item evidence exists: a quota peek must never invent replayed statuses.
+      await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/replayed/i);
+      expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
+      expect(
+        (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
+      ).toBe("NEEDS_FOLLOW_UP");
+      const item = await events.waitFor((event) => event.type === "item.updated", 10_000);
+      expect(item?.provenance).toBe("simulated_rail");
+      const browserQuota = page.waitForResponse(
+        async (response) => {
+          if (new URL(response.url()).pathname !== "/v1/judge/session" || response.status() !== 200)
+            return false;
+          const peek = (await response.json()) as { rail: { reason: string | null } };
+          return peek.rail.reason === "hourly_cap";
+        },
+        { timeout: 30_000 },
+      );
+      const session = await api.get("/v1/judge/session", s.asJudge);
+      expect(session.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
+      await browserQuota;
+      await page.getByTestId("W-JG-01.rail.run").click();
+      const chip = page.getByTestId("W-JG-01.proofChip");
+      await expect(chip).toContainText(/confirmed/i);
+      await expect(chip).toContainText("in the simulated sandbox");
+      await expect(chip).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-TR-08.status")).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-TR-08.share")).toContainText(/confirmed/i);
+      await expect(page.getByTestId("W-TR-08.share")).toContainText(/simulated PayPal sandbox/i);
+      await expect(page.getByTestId("W-TR-08.table")).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-JG-01.notice.state")).toHaveCount(0);
+      const lines = (await api.get(`/v1/runs/${s.runSlug}/lines`, s.asTreasurer)).json as {
+        lines: { id: string; state: string }[];
+      };
+      const rhea = lines.lines.find((line) => line.state === "UNCLAIMED");
+      expect(rhea).toBeDefined();
+      if (rhea) expect((await api.post(`/v1/lines/${rhea.id}/pay-cash`, {}, s.asTreasurer)).status).toBe(200);
+      expect((await waitForRun(api, s, (run) => run.run.state === "SETTLED", 60_000))?.run.state).toBe(
+        "SETTLED",
+      );
+      await expect(chip).toContainText(/confirmed/i);
+      await chip.click();
+      const hero = page.getByTestId("W-PF-01.progress");
+      await expect(hero).toContainText("confirmed in the simulated sandbox");
+      await expect(hero).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).toContainText(/confirmed/i);
+      await expect(page.getByTestId("W-PF-01.plate.payoutItems.fact")).not.toContainText(/replayed/i);
+      await expect(page.getByTestId("W-PF-01.footer")).not.toContainText(/Replayed \(labelled\)/i);
+      await page
+        .getByTestId("W-PF-01.verify")
+        .getByRole("button", { name: /Verify in your browser/ })
+        .click();
+      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("Six of six match", {
+        timeout: 30_000,
+      });
+      await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "matches");
+      expect(
+        events.events
+          .filter((event) => event.type === "item.updated")
+          .every((event) => event.provenance === "simulated_rail"),
+      ).toBe(true);
+    });
+  } finally {
+    await events.stop();
+    await stopBrowserJudge(page, api, s);
+  }
 });

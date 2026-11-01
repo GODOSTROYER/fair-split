@@ -34,7 +34,7 @@ test("inv.i8.over-quota: payout Proof labels recorded statuses as replay, never 
             ok: true,
             state: "replay",
             reason:
-              "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+              "Replayed (labelled): these statuses come from an earlier simulated run (including a seed snapshot), not fresh simulator notices",
           },
         },
       },

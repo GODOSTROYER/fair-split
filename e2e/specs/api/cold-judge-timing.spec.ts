@@ -39,7 +39,5 @@ test("first press to the payouts POST within 60 s", async ({ origin }) => {
   }
 });
 
-test.fixme("in the browser: first press to the payouts POST within 60 s with Play it for me", async () => {
-  // C5b: the console's http mode has no "Play it for me" that drives the review (Verify, the by-hand field, H1–H3)
-  // and both keys against fs-api; key 2 needs C5c's Chair panel or the live /app Chair frame (K1a).
-});
+// The browser twin now runs in specs/browser/judge.spec.ts: autoplay drives the review, two explicit human
+// actions sign the keys, and the actual POSTED event must arrive within the same 60-second budget.
