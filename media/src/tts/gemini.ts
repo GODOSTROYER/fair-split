@@ -1,8 +1,27 @@
 import { pcmToWav } from "./wav.js";
 
-/** AI-10 models: finals on Flash TTS, drafts on Flash-Lite TTS. */
-export const TTS_MODEL = "gemini-3.8-flash-tts";
-export const TTS_DRAFT_MODEL = "gemini-3.8-flash-lite-tts";
+/**
+ * "Always use the highest-end model" (user, 1 Nov), on the free tier only: the highest-end model whose
+ * Free Tier column reads "Free of charge" on https://ai.google.dev/gemini-api/docs/pricing, read
+ * 1 Nov 2026 (page last updated 30 Oct 2026). TTS: gemini-3.8-flash-tts is free and above Flash-Lite TTS
+ * (higher paid output price, same input), 3.1 Flash TTS Preview and 2.5 Flash Preview TTS;
+ * gemini-2.5-pro-preview-tts is "Not available" on the free tier. Speech check (asr.ts): gemini-3.8-flash
+ * ("our most intelligent Flash model"; inputs text, image, video, audio and PDF on its model page) is free;
+ * gemini-4-argon and gemini-3.1-pro-preview are "Not available"; gemini-2.5-pro is free but two
+ * generations older.
+ */
+export const MODEL_CHOICE = {
+  source: "https://ai.google.dev/gemini-api/docs/pricing",
+  read: "2026-11-01",
+  pageLastUpdated: "2026-10-30",
+  tts: "gemini-3.8-flash-tts",
+  asr: "gemini-3.8-flash",
+  notFree: ["gemini-2.5-pro-preview-tts", "gemini-4-argon", "gemini-3.1-pro-preview"],
+} as const;
+
+/** AI-10 models: finals and drafts on the same top free TTS model, so drafts share its per-key daily caps. */
+export const TTS_MODEL = MODEL_CHOICE.tts;
+export const TTS_DRAFT_MODEL: string = TTS_MODEL;
 /** Shortlist from S4.6; Sulafat ("warm") is the spike default until a person runs the listening test. */
 export const VOICE_SHORTLIST = ["Sulafat", "Achird", "Vindemiatrix", "Gacrux"] as const;
 export const DEFAULT_VOICE = "Sulafat";

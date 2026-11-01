@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { GoogleGenAI } from "@google/genai";
-import { MEDIA_ROOT, REPO_ROOT, requireEnv } from "../util/env.js";
+import { MEDIA_ROOT, REPO_ROOT } from "../util/env.js";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
 import { ASR_MODEL, cer, type GenerateContentClient, transcribe } from "./asr.js";
@@ -15,6 +15,15 @@ import {
   TTS_DRAFT_MODEL,
   TTS_MODEL,
 } from "./gemini.js";
+import {
+  checkKeys,
+  formatKeyChecks,
+  formatPoolStatus,
+  KeyPool,
+  keysFromEnv,
+  PoolExhaustedError,
+  poolDisclosure,
+} from "./keys.js";
 import { loadAudioManifest, saveAudioManifest } from "./manifest.js";
 import { type StatementResult, synthesizeStatement } from "./pipeline.js";
 import { requestPlan } from "./plan.js";
@@ -22,13 +31,19 @@ import { pacificDay, QuotaLedger, SELF_IMPOSED_DAILY_CAP } from "./quota.js";
 import { joinForRequest, LANGS, type Lang, m014SpikeStatement, STYLE_NOTE } from "./statement.js";
 
 const USAGE = `tools/tts.ts — Gemini TTS for member statements (AI-10). Every clip is a synthetic voice.
+Requests go out on the user's Gemini keys from .env (GEMINI_API_KEY, then GEMINI_API_KEYS_FALLBACK), round
+robin, each within its own free-tier limits (user decision, 1 Nov; ADR-0014).
 
-  tts models                      list the TTS models this key can see (no TTS quota used)
-  tts quota                       today's request counts (Pacific day), caps and recorded daily limits
+  tts keys                        check every key with the free models.list call (no generation request);
+                                  prints each key's id (first 8 hex of its sha256) and status
+  tts models                      list the TTS models the first key can see (no TTS quota used)
+  tts quota                       today's requests (Pacific day) per key id and model, and the pool total;
+                                  caps and recorded daily limits
   tts set-limit <model> <n> --source "<where you read it>"
-                                  record the free-tier daily limit you read at aistudio.google.com/rate-limit
-  tts plan                        S10 request plan: requests needed, days they take, verdict (no API call);
-                                  written into media/audio/spike-s10.json
+                                  record the free-tier daily limit you read at aistudio.google.com/rate-limit;
+                                  each key is capped there
+  tts plan                        S10 request plan: requests needed, days they take at the pool's capacity,
+                                  verdict (no API call); written into media/audio/spike-s10.json
   tts asr                         listening proxy: transcribe the spike requests with ${ASR_MODEL} and score them
   tts spike [--voice Sulafat] [--langs ceb,fil,en] [--draft-langs ceb]
                                   S10: M-014's greeting and pay sentences, one request per language on
@@ -40,11 +55,20 @@ const USAGE = `tools/tts.ts — Gemini TTS for member statements (AI-10). Every 
 export const ASR_LIMITS =
   "A proxy only: Gemini transcribing Gemini shows the words came out in order, nothing about Cebuano pronunciation or naturalness. The S10 verdict waits on a person's listening test (OD-2).";
 
-function client(): GoogleGenAI {
-  return new GoogleGenAI({ apiKey: requireEnv("GEMINI_API_KEY") });
+/** One `@google/genai` client per key covers both calls this tool makes. */
+type GeminiClient = InteractionsClient & GenerateContentClient;
+
+/** Test seams: planted keys instead of `.env`, and a fake fetch for `tts keys`. */
+export interface CliDeps {
+  keys?: readonly string[];
+  fetch?: typeof fetch;
 }
 
-export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Promise<number> {
+export async function main(
+  argv: readonly string[],
+  mediaRoot = MEDIA_ROOT,
+  deps: CliDeps = {},
+): Promise<number> {
   const { positionals, values } = parseArgs({
     args: [...argv],
     allowPositionals: true,
@@ -62,9 +86,23 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
     return cmd ? 0 : 1;
   }
   const ledger = new QuotaLedger(join(mediaRoot, "audio", ".quota.json"));
+  // Key values stay in this process's memory: read from .env, handed to the pool, never printed.
+  const keys = () => [...(deps.keys ?? keysFromEnv())];
+  const pool = () =>
+    new KeyPool<GeminiClient>(keys(), {
+      ledger,
+      makeClient: (apiKey) => new GoogleGenAI({ apiKey }) as unknown as GeminiClient,
+      log: (l) => console.log(l),
+    });
+  const models = [...new Set([TTS_MODEL, TTS_DRAFT_MODEL, ASR_MODEL])];
   switch (cmd) {
+    case "keys": {
+      const results = await checkKeys(keys(), deps.fetch ?? fetch);
+      console.log(formatKeyChecks(results));
+      return results.every((r) => r.ok) ? 0 : 2;
+    }
     case "models": {
-      const pager = await client().models.list();
+      const pager = await new GoogleGenAI({ apiKey: keys()[0] as string }).models.list();
       const names: string[] = [];
       for await (const m of pager) {
         const name = m.name ?? "";
@@ -74,12 +112,14 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       return 0;
     }
     case "quota": {
+      const p = pool();
       const q = await ledger.read();
       const day = pacificDay(new Date());
-      console.log(`Pacific day ${day}`);
-      console.log(JSON.stringify(q.days[day] ?? {}, null, 2));
+      const seen = Object.keys(q.days[day] ?? {});
+      console.log(formatPoolStatus(await p.status([...new Set([...models, ...seen])])));
+      console.log(`totals per model today: ${JSON.stringify(q.days[day] ?? {})}`);
       console.log(
-        `caps: ${JSON.stringify(q.caps)} (${q.capsSource}); default ${SELF_IMPOSED_DAILY_CAP} a day`,
+        `caps per key: ${JSON.stringify(q.caps)} (${q.capsSource}); default ${SELF_IMPOSED_DAILY_CAP} a day per key`,
       );
       console.log(`daily limits read in AI Studio: ${JSON.stringify(q.dailyLimits ?? {})}`);
       return 0;
@@ -93,7 +133,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         return 1;
       }
       await ledger.setDailyLimit(model, Number(n), values.source);
-      console.log(`${model}: daily limit ${n} recorded; the ledger caps the model there`);
+      console.log(`${model}: daily limit ${n} recorded; the ledger caps each key there for this model`);
       return 0;
     }
     case "plan": {
@@ -108,13 +148,14 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
                 "not read yet: a person reads it at https://aistudio.google.com/rate-limit (tts set-limit)",
             };
       };
-      const plans = {
-        [TTS_MODEL]: requestPlan(limitOf(TTS_MODEL), q.caps[TTS_MODEL] ?? SELF_IMPOSED_DAILY_CAP),
-        [TTS_DRAFT_MODEL]: requestPlan(
-          limitOf(TTS_DRAFT_MODEL),
-          q.caps[TTS_DRAFT_MODEL] ?? SELF_IMPOSED_DAILY_CAP,
-        ),
-      };
+      // Drafts and finals share one model, so one plan covers both, at the pool's capacity.
+      const poolKeys = keys().length;
+      const plans = Object.fromEntries(
+        [...new Set([TTS_MODEL, TTS_DRAFT_MODEL])].map((m) => [
+          m,
+          requestPlan(limitOf(m), q.caps[m] ?? SELF_IMPOSED_DAILY_CAP, { keys: poolKeys }),
+        ]),
+      );
       const reportPath = join(mediaRoot, "audio", "spike-s10.json");
       const report = await readJsonOr<Record<string, unknown>>(reportPath, {});
       const finalPlan = plans[TTS_MODEL];
@@ -131,11 +172,12 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
     case "asr": {
       // Listening proxy: transcribe each cached spike request with another Gemini model and score it.
       const voice = values.voice ?? DEFAULT_VOICE;
-      const ai = client() as unknown as GenerateContentClient;
+      const p = pool();
+      // Drafts now use the finals' model, so the Cebuano draft is the same request as the final.
       const jobs = [
         ...LANGS.map((lang) => ({ lang, model: TTS_MODEL })),
         { lang: "ceb" as Lang, model: TTS_DRAFT_MODEL },
-      ];
+      ].filter((j, i, all) => all.findIndex((x) => x.lang === j.lang && x.model === j.model) === i);
       type AsrResult = {
         lang: Lang;
         ttsModel: string;
@@ -166,10 +208,11 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
           console.error(`[${j.lang}/${j.model}] no cached request; run tts spike first`);
           continue;
         }
-        await ledger.reserve(ASR_MODEL);
+        const wav = await readFile(wavPath);
         try {
-          const r = await transcribe(ai, await readFile(wavPath), j.lang);
-          await ledger.settle(ASR_MODEL, { ok: true, latencyMs: r.latencyMs });
+          const r = await p.run(ASR_MODEL, (client) => transcribe(client, wav, j.lang), {
+            latencyMs: (x) => x.latencyMs,
+          });
           const score = cer(text, r.text);
           results.push({
             lang: j.lang,
@@ -181,8 +224,9 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
           });
           console.log(`[${j.lang}/${j.model}] CER ${score} in ${r.latencyMs} ms: ${r.text}`);
         } catch (e) {
-          await ledger.settle(ASR_MODEL, { ok: false, message: (e as Error).message });
+          // The pool has settled the request and scrubbed the message.
           console.error(`[${j.lang}/${j.model}] ${(e as Error).message.slice(0, 300)}`);
+          if (e instanceof PoolExhaustedError) break;
         }
       }
       await writeJson(reportPath, {
@@ -195,7 +239,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
           results,
         },
       });
-      return results.length === jobs.length ? 0 : 2;
+      return jobs.every((j) => results.some((r) => r.lang === j.lang && r.ttsModel === j.model)) ? 0 : 2;
     }
     case "spike": {
       if (!hasFfmpeg()) {
@@ -205,10 +249,9 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       const voice = values.voice ?? DEFAULT_VOICE;
       const langs = (values.langs ?? LANGS.join(",")).split(",").filter(Boolean) as Lang[];
       const draftLangs = (values["draft-langs"] ?? "ceb").split(",").filter(Boolean) as Lang[];
-      const ai = client() as unknown as InteractionsClient;
-      const deps = {
-        client: ai,
-        ledger,
+      const p = pool();
+      const ttsDeps = {
+        pool: p,
         mediaRoot,
         cacheDir: join(mediaRoot, ".cache", "tts"),
         log: (l: string) => console.log(l),
@@ -232,16 +275,19 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
               voice,
               draft: j.draft,
             },
-            deps,
+            ttsDeps,
             manifest,
           );
           manifest = next;
           results.push(result);
           await saveAudioManifest(manifestPath, manifest);
         } catch (e) {
-          const msg = (e as Error).message;
+          // Errors from a Gemini call are scrubbed by the pool; scrub again in case one came from elsewhere.
+          const msg = p.scrub((e as Error).message);
           errors.push({ lang: j.lang, model: j.model, error: msg.slice(0, 500) });
           console.error(`[M-014/${j.lang}/${j.model}] ${msg}`);
+          // Every key is exhausted: stop here; statements without a clip use the labelled device voice.
+          if (e instanceof PoolExhaustedError) break;
         }
       }
       const after = await ledger.read();
@@ -257,6 +303,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         ranAt: new Date().toISOString(),
         pacificDay: pacificDay(new Date()),
         voice,
+        keyPool: { keys: p.size, ids: p.ids(), dropped: p.dropped() },
         results,
         errors,
       };
@@ -266,7 +313,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
       const report = {
         ...(prev as Record<string, unknown>),
         spike: "S10 Voice",
-        project: "one Google project, one key (GEMINI_API_KEY), never rotated",
+        project: poolDisclosure(p.size),
         models: { final: TTS_MODEL, draft: TTS_DRAFT_MODEL },
         requestsSentTotal: sent,
         latencyMs: {
@@ -280,7 +327,7 @@ export async function main(argv: readonly string[], mediaRoot = MEDIA_ROOT): Pro
         runs: [...(prev.runs ?? []), run],
         notes: [
           "Free-tier daily TTS limits are not published (ai.google.dev rate-limits page, read 22 Oct 2026); read them at https://aistudio.google.com/rate-limit and record them with tts set-limit (it caps media/audio/.quota.json).",
-          "The SDK's automatic retries are off (maxRetries 0), so a 429 is counted once and surfaces instead of being retried; requests to one model are paced 21 s apart.",
+          "The SDK's automatic retries are off (maxRetries 0), so a 429 is counted once on its key; the key cools and the request moves to the next ready key. Requests on the same key to the same model are paced 21 s apart, and each key has its own daily cap (ADR-0014).",
           "Cebuano and Filipino wording is machine-translated, pending native review (OD-2); pronunciation needs a person's listening test.",
         ],
       };

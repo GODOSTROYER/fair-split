@@ -85,11 +85,13 @@ describe("TTS daily cap", () => {
       source: "AI Studio rate-limit page, 23 Oct",
     });
     expect(after.caps["gemini-3.8-flash-tts"]).toBe(2);
-    await ledger.reserve("gemini-3.8-flash-tts");
+    await ledger.reserve("gemini-3.8-flash-tts", "0a1b2c3d");
     t += 30_000;
-    await ledger.reserve("gemini-3.8-flash-tts");
+    await ledger.reserve("gemini-3.8-flash-tts", "0a1b2c3d");
     t += 30_000;
-    await expect(ledger.reserve("gemini-3.8-flash-tts")).rejects.toBeInstanceOf(QuotaExceededError);
+    await expect(ledger.reserve("gemini-3.8-flash-tts", "0a1b2c3d")).rejects.toBeInstanceOf(
+      QuotaExceededError,
+    );
   });
 });
 

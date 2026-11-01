@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { mediaRelative } from "../imagegen/manifest.js";
 import { sha256 } from "../util/hash.js";
 import { type Cut, detectSilences, encodeAac, planCuts, probeAudio } from "./ffmpeg.js";
-import { buildTtsParams, type InteractionsClient, synthesize, TtsError, type TtsRequest } from "./gemini.js";
+import { buildTtsParams, type InteractionsClient, synthesize, type TtsRequest } from "./gemini.js";
+import type { KeyPool } from "./keys.js";
 import { type AudioEntry, type AudioManifest, upsertEntry, voiceLabel } from "./manifest.js";
-import type { QuotaLedger } from "./quota.js";
 import { hasNoDigits } from "./spoken.js";
 import { joinForRequest, type Lang, type SpokenSentence, STYLE_NOTE } from "./statement.js";
 import { parseWav } from "./wav.js";
@@ -21,8 +21,8 @@ export interface StatementJob {
 }
 
 export interface TtsDeps {
-  client: InteractionsClient;
-  ledger: QuotaLedger;
+  /** The user's Gemini keys, round robin, each within its own free-tier limits (ADR-0014). */
+  pool: KeyPool<InteractionsClient>;
   mediaRoot: string;
   cacheDir: string;
   log?: (line: string) => void;
@@ -71,31 +71,23 @@ async function requestOnce(deps: TtsDeps, req: TtsRequest): Promise<CachedWav> {
     return { wav: await readFile(wavPath), ...meta, fromCache: true, path: wavPath };
   }
   if (!hasNoDigits(req.text)) throw new Error(`TTS text must not contain digits: ${req.text}`);
-  await deps.ledger.reserve(req.model);
-  try {
-    const r = await synthesize(deps.client, req);
-    await deps.ledger.settle(req.model, { ok: true, latencyMs: r.latencyMs });
-    await mkdir(deps.cacheDir, { recursive: true });
-    await writeFile(wavPath, r.wav);
-    await writeFile(
-      metaPath,
-      `${JSON.stringify({ latencyMs: r.latencyMs, interactionId: r.interactionId, model: req.model, voice: req.voice, at: (deps.now ?? (() => new Date()))().toISOString() }, null, 2)}\n`,
-    );
-    return {
-      wav: r.wav,
-      latencyMs: r.latencyMs,
-      interactionId: r.interactionId,
-      fromCache: false,
-      path: wavPath,
-    };
-  } catch (e) {
-    await deps.ledger.settle(req.model, {
-      ok: false,
-      rateLimited: e instanceof TtsError && e.rateLimited,
-      message: (e as Error).message,
-    });
-    throw e;
-  }
+  // The pool counts the request on its key, settles it, and moves it to the next key on a 429.
+  const r = await deps.pool.run(req.model, (client) => synthesize(client, req), {
+    latencyMs: (x) => x.latencyMs,
+  });
+  await mkdir(deps.cacheDir, { recursive: true });
+  await writeFile(wavPath, r.wav);
+  await writeFile(
+    metaPath,
+    `${JSON.stringify({ latencyMs: r.latencyMs, interactionId: r.interactionId, model: req.model, voice: req.voice, at: (deps.now ?? (() => new Date()))().toISOString() }, null, 2)}\n`,
+  );
+  return {
+    wav: r.wav,
+    latencyMs: r.latencyMs,
+    interactionId: r.interactionId,
+    fromCache: false,
+    path: wavPath,
+  };
 }
 
 function measure(job: StatementJob, text: string, sentences: number, r: CachedWav): RequestMeasure {
