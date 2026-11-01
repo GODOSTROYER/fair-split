@@ -271,7 +271,7 @@ export function Figures({
               }
               table={
                 <DataTable
-                  caption="PayPal and cash this season"
+                  caption="PayPal (simulated sandbox) and cash this season"
                   testId="W-PF-01.railbar.table"
                   columns={[
                     { key: "rail", label: "Rail" },
@@ -283,7 +283,7 @@ export function Figures({
                     {
                       key: "paypal",
                       cells: {
-                        rail: "PayPal",
+                        rail: "PayPal (simulated sandbox)",
                         members: rails.paypalMembers,
                         value: format.money(rails.paypalCents),
                         share,
@@ -309,7 +309,11 @@ export function Figures({
           <dt>{FIGURE_COPY.timing()}</dt>
           <dd>
             <span className="pf-ledger__value">
-              {figures.timingMs === null ? FIGURE_COPY.timingPending : format.elapsedWords(figures.timingMs)}
+              {replayed
+                ? "Replayed, no timing"
+                : figures.timingMs === null
+                  ? FIGURE_COPY.timingPending
+                  : format.elapsedWords(figures.timingMs)}
             </span>
             <span className="pf-ledger__note">
               {replayed

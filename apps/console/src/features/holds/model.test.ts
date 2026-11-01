@@ -7,6 +7,7 @@ import { applyRunEvents, type RunView, sessionView, showcaseView } from "../../d
 import { createTestWorld, seedSnapshot } from "../../test/world.js";
 import {
   cardState,
+  factsFor,
   findHold,
   nextAfter,
   noRuleFacts,
@@ -177,6 +178,18 @@ describe("what a decision prints, and what comes next", () => {
 });
 
 describe("API hold facts without display strings", () => {
+  it("matches a live H3 UUID key to this member's engine hold without hold DTO credit params", () => {
+    const view = viewOf(inReview());
+    const hold = findHold(view, "H3");
+    if (!hold) throw new Error("H3 required");
+    const liveHold = { ...hold, key: "NO_RULE:52f182bb-09fc-4ff8-bbd9-e13b80195ce7" };
+    const actual = noRuleFacts(snapshot, liveHold, factsFor(snapshot, view, liveHold));
+    expect(actual.written).toBe("₱200");
+    expect(actual.credit).toBe("US$3.20");
+    expect(actual.creditCents).toBe(320);
+    expect(voices(snapshot, view, liveHold).engineLine).toContain("US$3.20 correction credit");
+  });
+
   it("falls back to the slip mark and engine credit cents for the H3 amounts", () => {
     const view = viewOf(inReview());
     const hold = findHold(view, "H3");

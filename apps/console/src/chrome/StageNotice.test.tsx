@@ -140,7 +140,9 @@ it.each(["hourly_cap", "daily_cap", "session_cap", "public_share", "lane_full"] 
       replayReason,
       replayLabel: "Replay: quota reached",
     });
-    expect(notice?.text).toBe("Replay: quota reached");
+    expect(notice?.text).toBe(
+      "Your next run’s PayPal steps will replay, labelled (simulated PayPal sandbox). Replay: quota reached",
+    );
     expect(notice?.state).toBe("replay");
   },
 );
@@ -155,7 +157,7 @@ it.each(["autoplay", "paused"] as const)("keeps the quota replay label visible d
       replayReason: "hourly_cap",
       replayLabel: "Replay: this hour is full",
     })?.text,
-  ).toContain("Replay: this hour is full");
+  ).toContain("Your next run’s PayPal steps will replay, labelled");
 });
 
 it("inv.i8.refreshes the API rail label as soon as a payout replay arrives", async () => {
@@ -214,12 +216,35 @@ it("inv.i8.refreshes the API rail label as soon as a payout replay arrives", asy
   });
   await waitFor(
     () =>
-      expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain("Replay: quota was reached"),
+      expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain(
+        "Replayed (labelled): earlier simulated PayPal sandbox run",
+      ),
     { timeout: 2500 },
   );
   replay = false;
   await act(async () => {
     await rendered.runtime.client.refetchQueries({ queryKey: ["judge-session-status"] });
   });
-  expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain("Replay: quota was reached");
+  expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain(
+    "Replayed (labelled): earlier simulated PayPal sandbox run",
+  );
 });
+
+it.each(["POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"] as const)(
+  "inv.i8.hides quota notices on a posted live run in %s",
+  (state) => {
+    const view = { ...flags({}), state, items: {}, events: [] } as unknown as RunView;
+    for (const autoplay of ["off", "autoplay", "paused"] as const) {
+      const notice = stageNoticeFor({
+        session: active,
+        view,
+        autoplay,
+        inSession: true,
+        replayReason: "hourly_cap",
+        replayLabel: "Replay: this hour is full",
+      });
+      if (autoplay === "off") expect(notice).toBeNull();
+      expect(notice?.text ?? "").not.toMatch(/replay/i);
+    }
+  },
+);

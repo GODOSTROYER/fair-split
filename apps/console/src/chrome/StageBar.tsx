@@ -119,7 +119,7 @@ export function StageBar({
             <span className="fs-t-label">
               {replayed
                 ? `Proof: ${total} statuses replayed (labelled, simulated), ${confirmed} successful in the source run`
-                : t("W-JG-01.proofChip", { confirmed, total })}
+                : `${t("W-JG-01.proofChip", { confirmed, total })}${rail === "simulator" ? " in the simulated sandbox" : ""}`}
             </span>
           </AppLink>
         )}

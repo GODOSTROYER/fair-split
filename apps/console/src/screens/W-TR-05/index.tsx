@@ -12,7 +12,6 @@ import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
-import { useJudgeReplayReason } from "../../data/hooks.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
 import type { GridContext } from "../../features/split/cells.js";
 import {
@@ -57,8 +56,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const [filter, setFilter] = useState<SplitFilter>("all");
   const [allColumns, setAllColumns] = useState(false);
   const { snapshot, view } = data;
-  const replayReason = useJudgeReplayReason();
-  const replayed = payoutReplayed(view, data.live ? replayReason : null);
+  const replayed = payoutReplayed(view);
 
   // A line that did not change keeps its object, so the grid redraws only the lines an event moved.
   const previous = useRef(new Map<string, { readonly key: string; readonly row: SplitRow }>());

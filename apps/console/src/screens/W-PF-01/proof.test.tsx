@@ -286,7 +286,9 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     expect(screen.getByTestId("W-PF-01.tier.due.amount").dataset.amountState).toBe("hollow");
     expect(screen.getByTestId("W-PF-01.metric.kept").textContent).toContain("US$21.14");
     expect(screen.getByTestId("W-PF-01.metric.holds").textContent).toContain("3 caught");
-    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
+    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe(
+      "7 of 64 members, 8.1% of value (simulated PayPal sandbox)",
+    );
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
       "7 of 8 confirmed by PayPal (simulated sandbox), 1 returned to the co-op, cash due at the bodega.",
     );
@@ -564,7 +566,9 @@ describe("W-PF-01 states", () => {
       "7 of 8 PayPal payouts confirmed in the simulated sandbox. 1 moved to cash.",
     );
     expect(root.dataset.state).toBe("progress");
-    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
+    expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe(
+      "7 of 64 members, 8.1% of value (simulated PayPal sandbox)",
+    );
   });
 
   it("failed: a record edited after it was signed fails in this browser, names the plate and withholds the figures", async () => {
@@ -732,4 +736,22 @@ describe("W-PF-01 failed: a record that doesn't match", () => {
     expect(screen.getByTestId("W-PF-01.verdict.failure").textContent).toContain("Plate 6, Payout items");
     expect(screen.getByTestId("W-PF-01.checks.payoutItems").dataset.state).toBe("differs");
   });
+});
+
+it("inv.i8.an envelope replay label alone never relabels this run's payout evidence", async () => {
+  await renderConsole({
+    path: webRoutes.proof(RUN),
+    handlers: [
+      http.get("*/v1/proof/:runSlug", () =>
+        HttpResponse.json({
+          bundle: snapshot.proof,
+          provenance: "replay",
+          redacted: true,
+        }),
+      ),
+    ],
+  });
+  const progress = await screen.findByTestId("W-PF-01.progress");
+  expect(progress.textContent).toContain("confirmed in the simulated sandbox");
+  expect(progress.textContent).not.toContain("statuses replayed");
 });

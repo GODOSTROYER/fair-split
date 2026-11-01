@@ -90,7 +90,9 @@ function provenanceNote(provenance: Provenance, type: RunEventType): string | nu
         ? "Seed stand-in, not a Claude recording"
         : type === "item.updated" || type === "invoice.state"
           ? "Labelled replay of an earlier simulated run (including a seed snapshot)"
-          : "Labelled replay of an earlier demo event";
+          : type === "run.state"
+            ? "Reached on replayed payout statuses"
+            : "Labelled replay of an earlier demo event";
     case "simulated_rail":
       return "simulated PayPal sandbox";
     case "seeded":
@@ -217,7 +219,7 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
             : p.to === "UNCLAIMED"
               ? `${name}'s address has no PayPal account. Parked`
               : p.to === "RETURNED" && p.source === "cancel"
-                ? `${name}: returned to the co-op's PayPal balance`
+                ? `${name}: returned to the co-op's simulated PayPal balance`
                 : `${name}: ${status.toLowerCase()}`;
       const eventName =
         p.to === "SUCCESS"

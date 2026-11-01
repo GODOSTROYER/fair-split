@@ -14,7 +14,7 @@ import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { describeEvent, type LogRow } from "../../data/describe.js";
-import { useCommand, useDescribeContext, useJudgeReplayReason } from "../../data/hooks.js";
+import { useCommand, useDescribeContext } from "../../data/hooks.js";
 import {
   fanoutState,
   fanView,
@@ -47,8 +47,7 @@ const NOTE_AFTER_MS = 300;
 export function Screen({ runSlug }: RunScreenProps) {
   const data = useRunData(runSlug);
   const { snapshot, view } = data;
-  const replayReason = useJudgeReplayReason();
-  const replayed = payoutReplayed(view, data.live ? replayReason : null);
+  const replayed = payoutReplayed(view);
   const describe = useDescribeContext();
   const stage = useOptionalStage();
   const moment = useMoment("MM-6");
@@ -285,13 +284,14 @@ export function Screen({ runSlug }: RunScreenProps) {
                         member: `${t.name} (${t.memberNo})`,
                         rail: t.tone === "moved" ? FANOUT.railCash : "Simulated PayPal sandbox",
                         amount: format.money(t.cents),
-                        status: replayed
-                          ? "Replayed (labelled)"
-                          : view.lines[t.memberNo]
-                            ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
-                            : t.tone === "unsent"
-                              ? en("console.status.READY")
-                              : FANOUT.statusWaiting,
+                        status:
+                          replayed && t.tone !== "moved"
+                            ? "Replayed (labelled)"
+                            : view.lines[t.memberNo]
+                              ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
+                              : t.tone === "unsent"
+                                ? en("console.status.READY")
+                                : FANOUT.statusWaiting,
                       },
                     })),
                     {

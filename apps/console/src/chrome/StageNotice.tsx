@@ -4,6 +4,7 @@
 // colour: the stage pacing itself, a reset or a paused switch is information, not failure.
 
 import type { ReplayReason } from "@fairsplit/api-client";
+import { PAY_RUN_RANK } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import { Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { errorView } from "../data/errors.js";
@@ -58,10 +59,17 @@ export function stageNoticeFor({
   replayLabel = null,
 }: StageNoticeInput): StageNoticeView | null {
   const none: readonly string[] = [];
-  const replaySuffix =
-    inSession && (replayReason || payoutReplayed(view))
-      ? ` ${replayLabel ?? "Replayed (labelled): earlier simulated PayPal sandbox run"}`
-      : "";
+  const posted =
+    view !== undefined &&
+    ((PAY_RUN_RANK[view.state] >= PAY_RUN_RANK.POSTING && PAY_RUN_RANK[view.state] < 99) ||
+      Object.keys(view.items ?? {}).length > 0);
+  const replayed = payoutReplayed(view);
+  const forecast =
+    !posted && replayReason !== null
+      ? `Your next run’s PayPal steps will replay, labelled (simulated PayPal sandbox).${replayLabel ? ` ${replayLabel}` : ""}`
+      : null;
+  const replayText = replayed ? "Replayed (labelled): earlier simulated PayPal sandbox run" : forecast;
+  const replaySuffix = inSession && replayText ? ` ${replayText}` : "";
   if (session.status === "resetting") {
     return {
       state: "resetting",
@@ -132,17 +140,17 @@ export function stageNoticeFor({
     };
   }
   // PayPal's sandbox said slow down (the 6-minute circuit), or its balance is too low to post: S1.6's states.
-  if (inSession && replayReason === "circuit_open") {
+  if (inSession && !posted && replayReason === "circuit_open") {
     return { state: "circuit", glyph: "rail", text: STAGE_NOTICE.circuit, refs: none, retry: false };
   }
-  if (inSession && replayReason === "balance_low") {
+  if (inSession && !posted && replayReason === "balance_low") {
     return { state: "balance-low", glyph: "rail", text: STAGE_NOTICE.balanceLow, refs: none, retry: false };
   }
-  if (inSession && (replayReason !== null || payoutReplayed(view))) {
+  if (inSession && replayText) {
     return {
       state: "replay",
       glyph: "rail",
-      text: replayLabel ?? "Replayed (labelled): earlier simulated PayPal sandbox run",
+      text: replayText,
       refs: none,
       retry: false,
     };

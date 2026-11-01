@@ -104,8 +104,10 @@ export function plateFact(
 ): string {
   const { bundle, facts, progress } = p;
   switch (plate) {
-    case "paid":
-      return `${bundle.invoice.invoiceNumber}, ${invoiceWords(bundle.invoice.status).toLowerCase()}, ${format.money(bundle.invoice.amountCents)}`;
+    case "paid": {
+      const words = invoiceWords(bundle.invoice.status);
+      return `${bundle.invoice.invoiceNumber}, ${words.charAt(0).toLowerCase()}${words.slice(1)}, ${format.money(bundle.invoice.amountCents)}`;
+    }
     case "ratified":
       return `Card ${format.hashGroups(bundle.rateCard.sha256)}, ratified ${format.date(bundle.rateCard.ratifiedAt)}, first slip ${format.date(bundle.firstSlipDate)}`;
     case "read":

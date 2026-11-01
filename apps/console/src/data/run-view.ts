@@ -37,6 +37,8 @@ export interface RunLine {
 }
 
 export interface RunItem {
+  /** Kept independently of the bounded event log. */
+  readonly provenance?: Provenance;
   readonly senderItemId: string;
   readonly memberNo: string;
   readonly status: PayoutItemStatus;
@@ -235,6 +237,7 @@ export function showcaseView(snapshot: SeasonSnapshot): RunView {
       rank: PAYOUT_ITEM_RANK[item.status],
       payoutItemId: item.payoutItemId,
       source: "seed",
+      provenance: "seeded",
       eventId: item.eventId,
       at: null,
     };
@@ -337,6 +340,7 @@ function applyItem(view: RunView, e: RunEventOf<"item.updated">): RunView {
       rank,
       payoutItemId: p.payoutItemId ?? current?.payoutItemId ?? null,
       source: p.source,
+      provenance: e.provenance,
       eventId: e.id,
       at: e.at,
     },

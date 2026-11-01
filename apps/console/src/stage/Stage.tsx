@@ -252,7 +252,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const visit = layout.phone === "phone-visit";
   const replayRail = useJudgeReplayRail();
   const replayReason = replayRail?.reason ?? null;
-  const replayed = payoutReplayed(view, replayReason);
+  const replayed = payoutReplayed(view);
   const notice = stageNoticeFor({
     session,
     view,

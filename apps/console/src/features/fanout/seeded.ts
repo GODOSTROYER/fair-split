@@ -70,7 +70,7 @@ export function seededLog(snapshot: SeasonSnapshot, ctx: DescribeContext): LogRo
       row({
         id: `seed-item-${item.memberNo}`,
         lane: "PAYPAL",
-        words: `${name}: returned to the co-op's PayPal balance, then moved to cash`,
+        words: `${name}: returned to the co-op's simulated PayPal balance, then moved to cash`,
         detail: `PAYMENT.PAYOUTS-ITEM.CANCELED, ${ref}, our cancel, ${SEEDED}`,
         at: null,
         type: "item.updated",

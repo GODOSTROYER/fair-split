@@ -196,10 +196,11 @@ export const FIGURE_COPY = {
   holdsNote: (duplicate: string, credit: string) =>
     `A duplicate slip counted once (${duplicate}) and a fine no rule allows, returned (${credit}).`,
   holdsUnknown: "This run's hold metrics are unavailable.",
-  rails: () => t("W-PF-01.metric.paypal"),
+  rails: () => `${t("W-PF-01.metric.paypal")} (simulated sandbox)`,
   onPaypal: (count: number, total: number, share: string) =>
-    t("W-PF-01.metric.paypalValue", { count, total, share }),
-  railsPaypal: (members: number, share: string) => `${members} on PayPal this season, ${share} of value`,
+    `${t("W-PF-01.metric.paypalValue", { count, total, share })} (simulated PayPal sandbox)`,
+  railsPaypal: (members: number, share: string) =>
+    `${members} on PayPal (simulated sandbox) this season, ${share} of value`,
   railsCash: (members: number) => `${members} in cash at the bodega`,
   railsWord: "Cash",
   timing: () => t("W-PF-01.metric.time"),

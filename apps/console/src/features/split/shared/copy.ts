@@ -12,7 +12,7 @@ export const SPLIT = {
   loading: "Printing the lines",
   empty: "No lines yet. They appear once the slips are read.",
   emptyLink: "Open the reading room",
-  declined: "PayPal declined the batch: the balance is too low. Nothing was sent.",
+  declined: "The simulated PayPal sandbox declined the batch: the balance is too low. Nothing was sent.",
   allDecided: "Every hold is decided. The batch is ready for two keys.",
   decidedKey1: "Every hold is decided. Analyn signed; the batch waits for Ernesto.",
   decidedApproved:

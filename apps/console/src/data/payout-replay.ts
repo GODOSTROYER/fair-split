@@ -2,14 +2,14 @@ import type { ReplayReason } from "@fairsplit/api-client";
 import type { ProofBundle } from "@fairsplit/contracts";
 import type { RunView } from "./run-view.js";
 
-/** Payout provenance wins over the invoice/envelope rail, including on public Proof. */
+/** Only this run’s payout evidence establishes replay; the current quota never does. */
 export function payoutReplayed(
   view: RunView | undefined,
-  reason: ReplayReason | null = null,
+  _quotaReason: ReplayReason | null = null,
   bundle?: ProofBundle | null,
 ): boolean {
   return (
-    reason !== null ||
+    Boolean(Object.values(view?.items ?? {}).some((item) => item.provenance === "replay")) ||
     Boolean(view?.events?.some((event) => event.type === "item.updated" && event.provenance === "replay")) ||
     Boolean(bundle?.batch.items.some((item) => item.provenance === "replay")) ||
     Boolean(bundle?.ledger.some((entry) => entry.kind === "payout.item.replayed"))
