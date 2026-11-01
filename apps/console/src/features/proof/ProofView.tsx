@@ -97,8 +97,8 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
     const id = page.progressEvent;
     if (!id || id === lastAnnounced.current || page.progress.total === 0) return;
     lastAnnounced.current = id;
-    announce(`${page.progress.confirmed} of ${page.progress.total} confirmed by PayPal.`);
-  }, [page.progressEvent, page.progress, announce]);
+    announce(STATE_COPY.liveSettled(page.progress, rail));
+  }, [page.progressEvent, page.progress, announce, rail]);
 
   if (page.phase === "loading") return <ProofLoading />;
   if (page.phase === "error") {

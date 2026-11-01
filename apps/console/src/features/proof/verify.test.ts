@@ -18,6 +18,29 @@ function clone(bundle: ProofBundle): ProofBundle {
 }
 
 describe("Verify in your browser", () => {
+  it.each(["public", "member", "brand"])("inv.i8.labels replay honestly on the %s tier", (tier) => {
+    const base = verifyModule.verifyChainWith(
+      snapshot.proof,
+      verifyModule.browserProofCrypto,
+      snapshot.publishedKeys,
+      { demoMode: true },
+    );
+    const replay: PlateResult = {
+      ok: true,
+      state: "replay",
+      reason:
+        "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices",
+    };
+    const withheld = tier !== "brand";
+    const outcome = outcomeOf(
+      { ...base, plates: { ...base.plates, payoutItems: replay } },
+      { withheld, server: withheld ? replay : null, trust: "published", head: "x" },
+    );
+    expect(outcome.verdict).toBe("replay");
+    expect(outcome.failure).toBeNull();
+    expect(outcome.checks.payoutItems).toEqual({ state: "replay", reason: replay.reason });
+    expect(PLATES.filter((p) => ["matches", "server"].includes(outcome.checks[p].state))).toHaveLength(5);
+  });
   it("matches all six plates on the seeded bundle and reads Sample (seeded keys)", async () => {
     const outcome = await runVerification({ bundle: snapshot.proof, keys: seedKeys, load });
     expect(outcome.failure).toBeNull();

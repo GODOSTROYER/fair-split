@@ -214,10 +214,12 @@ export function Figures({ bundle, figures, rail, progressEvent, fees }: FiguresP
                   </span>
                 </span>
                 <span className="pf-ledger__note">
-                  {FIGURE_COPY.holdsNote(
-                    format.money(figures.holds.duplicateCents),
-                    format.money(figures.holds.creditCents),
-                  )}
+                  {figures.holds.duplicateCents !== null && figures.holds.creditCents !== null
+                    ? FIGURE_COPY.holdsNote(
+                        format.money(figures.holds.duplicateCents),
+                        format.money(figures.holds.creditCents),
+                      )
+                    : "From this run's public Proof metrics: duplicate slips counted once and unruled fines returned as credits."}
                 </span>
               </>
             ) : (

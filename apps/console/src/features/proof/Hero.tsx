@@ -116,7 +116,7 @@ export function ProofHero({
         <Glyph name="rail" size={16} />
         <span>{railName(rail)}. Synthetic co-op, people and slips.</span>
       </p>
-      <VerifyPanel verification={verification} />
+      <VerifyPanel verification={verification} rail={rail} />
     </section>
   );
 }
@@ -133,11 +133,13 @@ export function verifyStatus(v: VerifyState): string {
     case "done":
       return v.outcome.verdict === "failed"
         ? "mismatch"
-        : v.outcome.verdict === "partial"
-          ? "partial"
-          : v.outcome.verdict === "sample"
-            ? "sample"
-            : "matches";
+        : v.outcome.verdict === "replay"
+          ? "replay"
+          : v.outcome.verdict === "partial"
+            ? "partial"
+            : v.outcome.verdict === "sample"
+              ? "sample"
+              : "matches";
   }
 }
 
@@ -178,14 +180,24 @@ export function slotWords(state: SlotState): string {
       return c.withheld;
     case "differs":
       return c.differs;
+    case "replay":
+      return c.replay;
   }
 }
 
-export function VerifyPanel({ verification }: { readonly verification: Verification }) {
+export function VerifyPanel({
+  verification,
+  rail = "simulator",
+}: {
+  readonly verification: Verification;
+  readonly rail?: PaypalRail;
+}) {
   const { state, verify } = verification;
   const done = state.kind === "done" ? state : null;
   const outcome = done?.outcome ?? null;
-  const matched = outcome ? PLATES.filter((p) => outcome.checks[p].state !== "differs").length : 0;
+  const matched = outcome
+    ? PLATES.filter((p) => ["matches", "server"].includes(outcome.checks[p].state)).length
+    : 0;
   const status = verifyStatus(state);
   // The verdict prints under the six checks, below a laptop's fold (956 px): once it lands it is brought into
   // view, so "Sample" and why never sit off screen beside six "Matches" (I8).
@@ -233,6 +245,9 @@ export function VerifyPanel({ verification }: { readonly verification: Verificat
                     <span>{slotWords(slot.state)}</span>
                   </>
                 )}
+                {slot.state === "replay" && slot.reason && (
+                  <span className="pf-verify__note">{slot.reason}</span>
+                )}
               </span>
             </li>
           );
@@ -258,7 +273,16 @@ export function VerifyPanel({ verification }: { readonly verification: Verificat
           <>
             <p className="pf-verify__verdict">
               <span className="pf-verdict" data-verdict={outcome.verdict} data-testid="W-PF-01.verdict.word">
-                <Glyph name={outcome.verdict === "failed" ? "ms:close" : "ms:check"} size={16} />
+                <Glyph
+                  name={
+                    outcome.verdict === "failed"
+                      ? "ms:close"
+                      : outcome.verdict === "replay"
+                        ? "rail"
+                        : "ms:check"
+                  }
+                  size={16}
+                />
                 {verdictWord(outcome.verdict)}
               </span>
               <span className="pf-verify__line">
@@ -287,7 +311,7 @@ export function VerifyPanel({ verification }: { readonly verification: Verificat
             </p>
             {outcome.anchors.invoiceNumber && outcome.anchors.senderBatchId && (
               <p className="pf-verify__anchors" data-testid="W-PF-01.verdict.anchors">
-                {VERIFY_COPY.anchorsLead} invoice{" "}
+                {VERIFY_COPY.anchorsLead(rail)} invoice{" "}
                 <span className="fs-t-hash">{outcome.anchors.invoiceNumber}</span>
                 {outcome.anchors.invoiceReference && (
                   <>

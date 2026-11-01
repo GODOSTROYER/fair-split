@@ -185,7 +185,7 @@ export function Chain(props: ChainProps) {
                       <Glyph name="seal" size={16} />
                       <span>{t(PLATE_CHECK[plate])}.</span>
                     </p>
-                    {slot.state === "differs" && slot.reason && (
+                    {(slot.state === "differs" || slot.state === "replay") && slot.reason && (
                       <p className="pf-plate__reason" data-testid={`W-PF-01.plate.${plate}.reason`}>
                         {slot.reason}
                       </p>
@@ -402,7 +402,7 @@ function Items({ bundle, items, names, rail }: ChainProps) {
       <p className="pf-plate__note">
         {rail === "simulator"
           ? "These statuses are our record of the simulated sandbox's signed item notices."
-          : "These statuses are our record of PayPal's verified item notices, corroborated nightly by Transaction Search."}
+          : "These statuses are our record of PayPal's signed item notices on the configured rail (not simulated). No nightly reconciliation is served in this build."}
       </p>
       <ScrollRegion className="pf-table-wrap" label="Payout items, amount and status">
         <table className="pf-table" data-testid="W-PF-01.items">

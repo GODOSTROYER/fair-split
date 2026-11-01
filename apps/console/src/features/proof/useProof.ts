@@ -11,11 +11,17 @@ import {
   type Provenance,
   type SeasonSnapshot,
 } from "@fairsplit/contracts";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdapter, useJudgeSession, useRunStream, useRunView, useSnapshot } from "../../data/hooks.js";
 import type { RunView } from "../../data/run-view.js";
-import { deriveFigures, type FeeFigures, type ProofFigures, seededFees } from "./metrics.js";
+import {
+  deriveFigures,
+  type FeeFigures,
+  type ProofFigures,
+  ServedHoldMetrics,
+  seededFees,
+} from "./metrics.js";
 import {
   advanceProgress,
   countItems,
@@ -112,6 +118,20 @@ export function useProofPage(runSlug: string, read: BundleRead): ProofPage {
   useRunStream(live ? runSlug : null);
   const runView = useRunView(runSlug).data;
   const bundle = read.bundle;
+  const servedMetrics = useQuery({
+    queryKey: ["proof-metrics", runSlug, bundle?.checkpoint.entryHash],
+    enabled: adapter.source === "http" && bundle !== null,
+    queryFn: async () => {
+      const metrics = await adapter.api.request({
+        path: "/v1/proof/:runSlug/metrics",
+        params: { runSlug },
+        schema: ServedHoldMetrics,
+        name: "proofMetrics",
+      });
+      if (metrics.runSlug !== runSlug) throw new Error("Proof metrics belong to another run.");
+      return metrics.holds;
+    },
+  }).data;
   const notFound = isApiClientError(read.error, "NOT_FOUND");
 
   // The public aggregate stream, for viewers who are not inside this run's session.
@@ -158,7 +178,7 @@ export function useProofPage(runSlug: string, read: BundleRead): ProofPage {
     // kept are the season's.
     const own = snapshot?.run.runSlug === runSlug || live;
     const holds = live ? Object.values(runView?.holds ?? {}) : own && snapshot ? snapshot.holds : null;
-    const figures = deriveFigures({
+    const localFigures = deriveFigures({
       bundle,
       items,
       lineStates,
@@ -166,8 +186,22 @@ export function useProofPage(runSlug: string, read: BundleRead): ProofPage {
       holds,
       seeded: own && snapshot ? snapshot.figures : null,
     });
+    const figures =
+      adapter.source === "http"
+        ? {
+            ...localFigures,
+            holds: servedMetrics
+              ? {
+                  caught: servedMetrics.caught,
+                  keptCents: servedMetrics.keptForMembers.cents,
+                  duplicateCents: null,
+                  creditCents: null,
+                }
+              : null,
+          }
+        : localFigures;
     return { facts, items, lineStates, figures };
-  }, [bundle, live, runView, snapshot, runSlug]);
+  }, [bundle, live, runView, snapshot, runSlug, adapter.source, servedMetrics]);
 
   const itemCounts = useMemo(() => countItems((assembled?.items ?? []).map((i) => i.status)), [assembled]);
   const progress = live ? itemCounts : advanceProgress(itemCounts, stream?.counts ?? itemCounts);
