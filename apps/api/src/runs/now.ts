@@ -55,6 +55,11 @@ export async function enqueuePress(
 
 const LIVE_STATES = ["queued", "dispatched", "running"] as const;
 
+/** Retry slightly after the database's outbox schedule, leaving time for the dispatcher to claim it. */
+export function outboxRetryAfterMs(runAfter: Date): number {
+  return Math.max(1_000, runAfter.getTime() - Date.now() + 500);
+}
+
 /** The press a row belongs to: its dedupe key without the `:r{n}` attempt suffix (enqueuePress, deferTask). */
 export function pressKeyOf(dedupeKey: string): string {
   return dedupeKey.replace(/:r\d+$/, "");
@@ -159,7 +164,7 @@ export async function runNow(
   if (r.outcome === "skipped") await deps.outbox.idle();
   const out = reports.get(outboxId) ?? null;
   reports.delete(outboxId);
-  if (out) return out;
+  if (out?.ok) return out;
   // Nothing ran here: the row is either finished (answer from the database) or waiting for its retry.
   const [row] = await deps.db
     .select({
@@ -169,17 +174,17 @@ export async function runNow(
     })
     .from(schema.taskOutbox)
     .where(eq(schema.taskOutbox.id, outboxId));
-  if (row && row.state === "queued") {
+  if (row && (LIVE_STATES as readonly string[]).includes(row.state)) {
     return {
       ok: false,
-      code: "QUEUED",
-      message: "The PayPal step is queued and will be retried shortly.",
-      debugId: null,
+      code: out?.code ?? "QUEUED",
+      message: out?.message ?? "The PayPal step is queued and will be retried shortly.",
+      debugId: out?.debugId ?? null,
       // run_after is the outbox's own (database) schedule, not domain time
-      retryAfterMs: Math.max(1_000, row.runAfter.getTime() - Date.now()),
+      retryAfterMs: outboxRetryAfterMs(row.runAfter),
     };
   }
-  return null;
+  return out;
 }
 
 /** A failed report as the command's problem (codes the command lists). */
