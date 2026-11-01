@@ -170,6 +170,7 @@ function Statement({
     return { mode: plan.mode, steps: step ? [{ ...step, index: 0 }] : [] };
   }, [plan]);
   const voiceLabel = useVoiceLabel(plan, voice, lang);
+  const railLabel = statementRail(dto, lang, st.track);
   const review = useReviewForm(dto, st.recordReview);
 
   // S1.9: the amount block takes first accessibility focus, Paminawa second.
@@ -244,11 +245,11 @@ function Statement({
         ) : null}
 
         <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-01.card">
-          <View testID="M-MB-01.rail" dataSet={{ rail: statementRail(dto, lang).kind }}>
-            <Txt kind="label">{statementRail(dto, lang).chip}</Txt>
+          <View testID="M-MB-01.rail" dataSet={{ rail: railLabel.kind }}>
+            <Txt kind="label">{railLabel.chip}</Txt>
           </View>
           <Txt kind="caption" color="ink2" testID="M-MB-01.railCopy">
-            {statementRail(dto, lang).copy}
+            {railLabel.copy}
           </Txt>
           {/* 1. The co-op and the season, then the greeting by her registry honorific. */}
           <View style={styles.head}>

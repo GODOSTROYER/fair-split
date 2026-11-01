@@ -19,6 +19,7 @@ import type { ItemUpdatedPayload, RunEvent } from "../../_shims/contracts";
 import {
   type CapsuleState,
   capsuleFor,
+  confirmedPayment,
   EMPTY_TRACK,
   type ItemTrack,
   reduceItemEvent,
@@ -230,7 +231,7 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
       if (r.effect !== "applied") return; // a repeat or a stale event changes nothing, silently
       trackRef.current = r.track;
       setTrack(r.track);
-      if (r.track.status === "SUCCESS" && before !== "SUCCESS") {
+      if (confirmedPayment(r.track) && before !== "SUCCESS") {
         setPaid({ eventId: e.id, at: e.at, receivedAt: Date.now() });
       }
       // Read statement words and clips together after a forward update (IC-11).
