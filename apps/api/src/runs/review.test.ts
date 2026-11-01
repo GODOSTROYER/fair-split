@@ -2,9 +2,10 @@
 // slip 0462 typed by hand (MM-2: the dial opens at 2.05%), H1 counted once (MM-3: 2.05% → 1.62%), H2 and H3
 // resolved, and every line then equal to the seed's resolved checkpoint, computed by code (I1, I3).
 
-import type { HoldDTO } from "@fairsplit/contracts";
+import type { HoldDTO, LineCanonical } from "@fairsplit/contracts";
 import { ApiError, RunEvent } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
+import { jcsSha256 } from "@fairsplit/domain";
 import { getComputation, getSnapshot } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -191,12 +192,15 @@ describe("review: holds and by-hand fields (resolveHold, enterField)", () => {
         creditsCents: number;
         state: string;
         lineSha256: string;
+        canonical: LineCanonical;
       }[];
     }>(`/v1/runs/${h.world.runSlug}/lines`, auth(h.tokens.treasurer));
     const expected = getComputation("resolved").lines;
     expect(lines.body.lines).toHaveLength(expected.length);
     for (const e of expected) {
       const got = lines.body.lines.find((l) => l.memberNo === e.memberNo);
+      expect(got?.canonical).toMatchObject({ memberNo: e.memberNo, rail: e.rail, netCents: e.netCents });
+      expect(jcsSha256(got?.canonical), e.memberNo).toBe(got?.lineSha256);
       expect(got, e.memberNo).toMatchObject({
         netCents: e.netCents,
         premiumCents: e.premiumCents,

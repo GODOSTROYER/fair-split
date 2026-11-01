@@ -75,6 +75,7 @@ export {
   TAMPER_KINDS,
   type TamperKind,
 } from "./routes.js";
+export { RunLine, RunLineList } from "./run-lines.js";
 export {
   type SseHandlers,
   type SseOptions,
