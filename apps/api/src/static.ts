@@ -72,7 +72,10 @@ function isApiPath(p: string): boolean {
 
 function wantsHtml(c: Context): boolean {
   const accept = c.req.header("accept") ?? "";
-  return c.req.method === "GET" && (accept.includes("text/html") || accept === "" || accept.includes("*/*"));
+  return (
+    (c.req.method === "GET" || c.req.method === "HEAD") &&
+    (accept.includes("text/html") || accept === "" || accept.includes("*/*"))
+  );
 }
 
 function isFile(p: string): boolean {
@@ -88,8 +91,8 @@ function fileStats(p: string): Stats | null {
   }
 }
 
-/** A content hash in a file's name (`s1.4f1c9a2e.m4a`, `A-0123abcd.webp`): its bytes never change under it. */
-const CONTENT_HASHED = /[.-][0-9a-f]{8,64}\.[A-Za-z0-9]+$/;
+/** An explicit dot-delimited content hash (`s1.4f1c9a2e.m4a`): hyphenated dates are never hashes. */
+const CONTENT_HASHED = /\.[0-9a-f]{8,64}\.[A-Za-z0-9]+$/;
 
 /** serveStatic's own refusals (a dot segment, a doubled or back slash): such a path is never a file here either. */
 const UNSAFE_PATH = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
@@ -227,6 +230,14 @@ export function mountStatic(app: Hono<AppEnv>, dirs: StaticDirs): void {
   );
   app.get("/app/*", (c) => {
     if (!wantsHtml(c)) return c.notFound();
+    // Printed statement links are a page route even though their signed token contains a dot. Every other
+    // path with an extension is a missing asset, never the app's HTML.
+    const memberLink = c.req.path.slice("/app/s/".length);
+    const statementPage =
+      c.req.path.startsWith("/app/s/") &&
+      MEMBER_LINK_TOKEN.test(memberLink) &&
+      /^fsm_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(memberLink);
+    if (!statementPage && path.posix.extname(c.req.path) !== "") return c.notFound();
     const index = path.join(dirs.app, "index.html");
     if (isFile(index)) return htmlFile(index, NO_CACHE)(c);
     return c.html(
