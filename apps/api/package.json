@@ -21,7 +21,8 @@
     "openapi": "tsx src/openapi.cli.ts",
     "smoke": "tsx src/smoke/run.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "perf": "vitest run --maxWorkers=1 --config vitest.perf.config.ts src/money/webhook-delivery.pg.test.ts"
   },
   "dependencies": {
     "@fairsplit/ai": "workspace:*",
