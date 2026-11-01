@@ -1,16 +1,18 @@
 // Typed calls for the fs-api routes outside IC-01 that the Judge stage, the frame bridge (IC-12) and /ops use:
-// the judge slice's session, lane, Reset, "Try to break it", judge code and demo keys, and the auth folder's frame
-// tokens, operator sign-in, operator pairing, whoami and signed links.
+// the judge slice's session, lane, token renewal, Reset, "Try to break it", judge code and demo keys, and the auth
+// folder's frame tokens, operator sign-in, operator pairing, whoami and signed links.
 //
 //   import { createApiClient, judgeRoutes } from "@fairsplit/api-client";
 //   const judge = judgeRoutes(createApiClient());                 // same origin: the judge cookie rides along
 //   const status = await judge.judgeSession();                    // { rail: { mode, reason, label, quota }, lane, … }
 //   const { token } = await judge.frameToken({ params: { sid }, body: { persona: "board:ernesto" } });
+//   const renewed = await judge.renewJudgeSession({ params: { sid }, token: null }); // 401 once the session ended
 //
 // The schemas mirror the server's route definitions (apps/api/src/judge/schemas.ts, judge/keys.ts and the auth
 // folder). apps/api's `client-routes` test compares every one with the route the server mounts (method, path,
 // auth class, success statuses and both schemas as JSON Schema), so drift fails CI on either side.
 import {
+  CreateJudgeSessionResponse,
   CreatePairingResponse,
   DeviceKeyId,
   Ed25519PublicKeyHex,
@@ -245,6 +247,18 @@ export const JUDGE_ROUTES = {
     auth: "frame_or_session",
     request: null,
     response: ResetResponse,
+    success: [200],
+  },
+  /**
+   * The console token's renewal, with the judge cookie alone: resumes this session only (createJudgeSession's
+   * resume answer). An ended session (Reset, expiry, purge) is 401 FRAME_TOKEN_EXPIRED, never a new workspace.
+   */
+  renewJudgeSession: {
+    method: "POST",
+    path: "/v1/judge/sessions/:sid/renew",
+    auth: "frame_or_session",
+    request: null,
+    response: CreateJudgeSessionResponse,
     success: [200],
   },
   tamper: {

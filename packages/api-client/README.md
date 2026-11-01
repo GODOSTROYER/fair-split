@@ -59,6 +59,7 @@ const judge = judgeRoutes(createApiClient()); // the Judge stage: same origin, t
 const { rail, lane, tamper } = await judge.judgeSession(); // live or replay (and why), queue, armed tamper
 const phone = await judge.frameToken({ params: { sid }, body: { persona: "board:ernesto" } }); // IC-12, never a URL
 await judge.tamper({ params: { sid }, body: { kind: "change_payout" } }); // "Try to break it", labelled
+await judge.renewJudgeSession({ params: { sid }, token: null }); // a fresh console token; 401 once the session ended
 await judge.resetJudgeSession({ params: { sid } });
 ```
 
@@ -66,7 +67,7 @@ await judge.resetJudgeSession({ params: { sid } });
 | ----------------------------------------------------------------------- | ---------------------------- |
 | `judgeSession`, `judgeCode`, `registerDemoKey`                          | any acting credential        |
 | `judgeLane`, `whoami`                                                   | public (whoami: any)         |
-| `resetJudgeSession`, `tamper`, `frameToken`                             | the judge cookie of `:sid`   |
+| `renewJudgeSession`, `resetJudgeSession`, `tamper`, `frameToken`        | the judge cookie of `:sid`   |
 | `issueMemberLink`, `revokeMemberLink`                                   | treasurer (or the judge)     |
 | `opsLogin`, `opsLogout`; `opsPairing`, `issueBrandLink` (operator only) | `/ops` (the `fs_ops` cookie) |
 

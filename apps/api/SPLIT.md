@@ -27,6 +27,27 @@
 > path on a world without pre-seeded replay rows, `runs/test/world.ts` `replayRows: false`; a judge session's own
 > clone; a second delivery; a restart with the real dispatcher) and the judge-replay twin.
 
+> **What the phone needs (1 Nov, K1b). IC-08 stays frozen: every change here is additive.** No existing route,
+> request or response shape changed.
+> - _Run lookup._ A frame of a judge session (the Chair's `board:ernesto`, a member's) and a phone paired in it
+>   already read their own session's run from `GET /v1/judge/session` (`runSlug`, `runState`; the Chair's request is
+>   open when `runState` is `AWAITING_BOARD`): a frame token carries the session id it was minted under, and the read
+>   is scoped to the credential's own workspace. No new field was added (strict clients would refuse one). Tests
+>   (`routes/judge/phone.pg.test.ts`) pin it with two sessions: neither's frames ever see the other's run.
+> - _Renewal._ New route `POST /v1/judge/sessions/:sid/renew` (`renewJudgeSession` in api-client's `JUDGE_ROUTES`,
+>   with its msw answer): the judge cookie of that session; 200 with createJudgeSession's resume answer for a live
+>   session; 401 FRAME_TOKEN_EXPIRED once the workspace has ended (Reset, expiry, purge), minting nothing and taking
+>   no slot of the new-session limits. createJudgeSession is unchanged: a press still starts a fresh workspace after
+>   a Reset. The console's `SessionStore.renew()` must move to this route (it still renews through createJudgeSession).
+> - _Brand links._ `GET /b/:token` serves the console's index.html whatever the token holds (`static.ts`), the signed
+>   dotted `fsb_<payload>.<sig>` included; a missing file with an extension is still a 404.
+> - _Media caching._ `/media` is immutable only under a content-hashed name (`s1.4f1c9a2e.m4a`); the audio manifest
+>   and every other media file are `no-cache` with a weak ETag (size and mtime) and answer 304 to If-None-Match.
+>   This narrows S3.3's "`/media/*` immutable", because the manifest, a retaken clip and a regenerated photo keep
+>   their names. `/media/archived/*` tiles (routes/media) keep their own immutable policy.
+> - _Not built:_ a Chair app key (kind `app`, proof of possession). It is needed only if the native APK (N1) goes
+>   ahead.
+
 > **Judge rail obeyed (28 Oct, verifier round).** Every PayPal step of a judge workspace (Claude's invoice turn,
 > ensureInvoice, recordPayment, the batch POST, the parked item's cancel, the re-route) asks
 > `src/money/rail.ts` `railForStep` / `railForItem` before any PayPal call: `beginLiveStep` (a fresh `judgeRail`,

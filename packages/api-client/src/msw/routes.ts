@@ -19,7 +19,7 @@ import {
   validationProblem,
 } from "./handlers.js";
 import { mockHex } from "./ids.js";
-import { MOCK_SESSION_ID, type MockCaller, MockProblem } from "./world.js";
+import { MOCK_CONSOLE_TOKEN, MOCK_SESSION_ID, type MockCaller, MockProblem } from "./world.js";
 
 const HOUR = 60 * 60_000;
 const OPS_COOKIE = "fs_ops=mock-operator-session";
@@ -164,6 +164,22 @@ export function createRouteHandlers(o: MockHandlerOptions): HttpHandler[] {
           workspaceId: world.workspaceId,
           endedAt: iso(),
           revokedTokens,
+        },
+      };
+    },
+    renewJudgeSession: (call) => {
+      // the mock's one session never ends (its Reset starts the world over in place): renewal always resumes it
+      requireOwnSession(call);
+      return {
+        status: 200,
+        body: {
+          sessionId: MOCK_SESSION_ID,
+          workspaceId: world.workspaceId,
+          runId: world.runId,
+          runSlug: world.runSlug,
+          consoleToken: MOCK_CONSOLE_TOKEN,
+          expiresAt: iso(2 * HOUR),
+          queuePosition: null,
         },
       };
     },
