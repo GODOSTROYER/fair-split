@@ -16,9 +16,10 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
 import { ENGRAVE_STAGGER_MS, TIMELINE } from "../_shims/motion";
-import { type SealRing, seal, sealStroke } from "../_shims/seal";
+import type { SealRing } from "../_shims/seal";
 import { useFs } from "../theme/theme";
 import { ms, spring, tween } from "./motion";
+import { sealLayout } from "./seal-layout";
 import { useT } from "./text";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -83,8 +84,8 @@ export const SealView = memo(function SealView({
 }) {
   const { t, motion } = useFs();
   const tr = useT();
-  const rings = useMemo(() => seal(batchSha256, size), [batchSha256, size]);
-  const stroke = sealStroke(size);
+  const geometry = useMemo(() => sealLayout(batchSha256, size), [batchSha256, size]);
+  const { rings, stroke } = geometry;
   const animate = !engrave ? "none" : motion.reduced || motion.low ? "fade" : "engrave";
   const landed = useSharedValue(1);
   useEffect(() => {
@@ -110,13 +111,13 @@ export const SealView = memo(function SealView({
       accessibilityLabel={tr("seal.label", { keys })}
     >
       <Animated.View style={landStyle}>
-        <Svg width={size} height={size}>
+        <Svg width={geometry.size} height={geometry.size}>
           {rings.map((r) =>
             r.owner > keys ? (
               <Circle
                 key={`band-${r.bandRadius}`}
-                cx={size / 2}
-                cy={size / 2}
+                cx={geometry.size / 2}
+                cy={geometry.size / 2}
                 r={r.bandRadius}
                 fill="none"
                 stroke={t.color.rule}

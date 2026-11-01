@@ -34,21 +34,29 @@ export type RequestStatus = ScreenStateOf<"M-BD-01">;
 export interface OpenedBatch {
   batchSha256: string;
   linesDigest: string;
+  seasonId: string;
 }
 
 export function openedFrom(check: RequestCheck | null): OpenedBatch | null {
   return check?.ok
-    ? { batchSha256: check.recomputed.batchSha256, linesDigest: check.expected.linesDigest }
+    ? {
+        batchSha256: check.recomputed.batchSha256,
+        linesDigest: check.expected.linesDigest,
+        seasonId: check.expected.seasonId,
+      }
     : null;
 }
 
 /** An expected batch (a payload's target) is the batch the Chair opened. */
 export function matchesOpened(
-  expected: Pick<ExpectedBatch, "batchSha256" | "linesDigest">,
+  expected: Pick<ExpectedBatch, "batchSha256" | "linesDigest" | "seasonId">,
   opened: OpenedBatch | null,
 ): boolean {
   return (
-    !!opened && expected.batchSha256 === opened.batchSha256 && expected.linesDigest === opened.linesDigest
+    !!opened &&
+    expected.batchSha256 === opened.batchSha256 &&
+    expected.linesDigest === opened.linesDigest &&
+    expected.seasonId === opened.seasonId
   );
 }
 
@@ -107,6 +115,10 @@ export function requestStatus(s: CosignSnapshot): RequestStatus {
   if (requestExpired(dto, s.now)) return "expired";
   if (changeReason(s)) return "changed";
   if (!s.online) return "offline";
+  // fs-api's split reads are not a signable request until its approval payload binds both roots.
+  if (dto.lines.some((line) => line.source === "fs-api-lines") && s.payloadOk !== true) {
+    return s.loadError === "offline" ? "offline" : s.loadError === "error" ? "error" : "loading";
+  }
   return dto.state === "override" ? "override" : "request";
 }
 
@@ -210,6 +222,8 @@ export type PayloadPlan =
 export function payloadPlan(m: RequestMemory, now: Date): PayloadPlan {
   if (!m.check?.ok || !sameAsOpened(m.check, m.opened)) return { kind: "refuse" };
   const expected = m.check.expected;
+  // At release, read fs-api again even after prefetch: the nonce and both split reads must be current.
+  if (m.dto?.lines.some((line) => line.source === "fs-api-lines")) return { kind: "fetch", expected };
   if (
     m.payload &&
     m.payloadOk &&
@@ -264,8 +278,7 @@ export function whyKey(
   dto: Pick<CosignRequestDTO, "reason" | "totalCents" | "thresholdCents">,
 ): "M-BD-01.why.batch" | "M-BD-01.why.line" | "M-BD-01.why.override" {
   if (dto.reason === "override") return "M-BD-01.why.override";
-  if (dto.reason === "batch-over-threshold" || dto.totalCents > dto.thresholdCents)
-    return "M-BD-01.why.batch";
+  if (dto.reason === "batch-over-threshold") return "M-BD-01.why.batch";
   return "M-BD-01.why.line";
 }
 

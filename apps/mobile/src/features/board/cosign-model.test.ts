@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ApprovalPayloadDTO, CosignRequestDTO } from "../../_shims/api-client";
 import { type ApprovalPayload, SCREEN_STATES } from "../../_shims/contracts";
 import { jcs } from "../../_shims/domain";
-import { batchSha256, linesDigest } from "../../_shims/seed";
+import { batchSha256, linesDigest, seasonId } from "../../_shims/seed";
 import { checkApprovalPayload, checkCosignRequest } from "../../lib/signing";
 import { buildDemoApproval, buildDemoCosign } from "../../services/demo-fixtures";
 import { forgedCashLine, movedCent } from "../../test/cosign-batches";
@@ -43,7 +43,7 @@ function snap(over: Partial<CosignSnapshot> = {}, dto: Partial<CosignRequestDTO>
     dto: d,
     check: checkCosignRequest(d),
     payloadOk: true,
-    opened: { batchSha256, linesDigest },
+    opened: { batchSha256, linesDigest, seasonId },
     online: true,
     now: NOW.getTime(),
     sentBack: false,
@@ -78,13 +78,13 @@ describe("M-BD-01 status", () => {
   });
 
   it("inv.i4.changed-after-open: a new batch under the same request is never signable", () => {
-    const s = snap({ opened: { batchSha256: "a".repeat(64), linesDigest } });
+    const s = snap({ opened: { batchSha256: "a".repeat(64), linesDigest, seasonId } });
     expect(changeReason(s)).toBe("changed");
     expect(requestStatus(s)).toBe("changed");
   });
 
   it("inv.i4.lines-changed-after-open: the same payouts with other member lines are a changed batch too", () => {
-    const s = snap({ opened: { batchSha256, linesDigest: "b".repeat(64) } });
+    const s = snap({ opened: { batchSha256, linesDigest: "b".repeat(64), seasonId } });
     expect(changeReason(s)).toBe("changed");
     expect(requestStatus(s)).toBe("changed");
   });
@@ -214,7 +214,7 @@ describe("the gate in front of the key", () => {
   });
 
   const cases: [string, Partial<CosignSnapshot>, Partial<CosignRequestDTO>, string][] = [
-    ["the batch changed", { opened: { batchSha256: "a".repeat(64), linesDigest } }, {}, "mismatch"],
+    ["the batch changed", { opened: { batchSha256: "a".repeat(64), linesDigest, seasonId } }, {}, "mismatch"],
     ["the payload was another batch", { payloadOk: false }, {}, "mismatch"],
     ["the server's hash is not the items'", {}, { batchSha256: "0".repeat(64) }, "mismatch"],
     ["nothing was ever opened", { opened: null }, {}, "mismatch"],
@@ -238,7 +238,7 @@ describe("what the phone remembers between fetches", () => {
 
   it("opens the first good batch, and keeps it when the same batch is fetched again", () => {
     const first = rememberRequest(EMPTY_MEMORY, a, false);
-    expect(first.opened).toEqual({ batchSha256, linesDigest });
+    expect(first.opened).toEqual({ batchSha256, linesDigest, seasonId });
     const withPayload = { ...first, payload: payloadFor(a), payloadOk: true };
     const again = rememberRequest(withPayload, a, false);
     expect(again.opened).toEqual(first.opened);
@@ -302,7 +302,10 @@ describe("what the phone remembers between fetches", () => {
     expect(payloadPlan(fresh, NOW)).toMatchObject({ kind: "cached" });
     const soon = new Date(NOW.getTime() + 90_000).toISOString();
     const stale = { ...fresh, payload: payloadFor(a, { exp: soon }) };
-    expect(payloadPlan(stale, NOW)).toMatchObject({ kind: "fetch", expected: { batchSha256, linesDigest } });
+    expect(payloadPlan(stale, NOW)).toMatchObject({
+      kind: "fetch",
+      expected: { batchSha256, linesDigest, seasonId },
+    });
     // A payload in hand that is not the opened batch is never reused, whatever it claims.
     expect(payloadPlan({ ...fresh, payload: payloadFor(b) }, NOW)).toMatchObject({ kind: "fetch" });
   });

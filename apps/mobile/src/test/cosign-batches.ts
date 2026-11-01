@@ -7,6 +7,7 @@ import { batchDigest, jcsSha256, linesDigest } from "../_shims/domain";
 
 /** One line with `delta` cents more premium (so more net), re-hashed as the engine would hash it. */
 export function relined(line: CosignLine, delta: number): CosignLine {
+  if (!line.canonical) throw new Error("This fixture requires a canonical line preimage");
   const canonical = {
     ...line.canonical,
     premiumCents: line.canonical.premiumCents + delta,
@@ -54,9 +55,11 @@ export function movedCashCent(dto: CosignRequestDTO): CosignRequestDTO {
 /** A cash line whose net was changed under its old hash: the line is no longer what its hash covers. */
 export function forgedCashLine(lines: readonly CosignLine[]): CosignLine[] {
   const i = lines.findIndex((l) => l.rail === "CASH");
-  return lines.map((l, j) =>
-    j === i ? { ...l, netCents: l.netCents + 1, canonical: { ...l.canonical, netCents: l.netCents + 1 } } : l,
-  );
+  return lines.map((l, j) => {
+    if (j !== i) return l;
+    if (!l.canonical) throw new Error("This fixture requires a canonical line preimage");
+    return { ...l, netCents: l.netCents + 1, canonical: { ...l.canonical, netCents: l.netCents + 1 } };
+  });
 }
 
 /** An approval-payload answer whose items or lines were swapped after the payload was made. */

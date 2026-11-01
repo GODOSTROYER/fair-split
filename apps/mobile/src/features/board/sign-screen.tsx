@@ -54,8 +54,21 @@ const NOTE: Partial<Record<SignPhase | "stale", BoardKey>> = {
 };
 
 export function SignScreen() {
-  const { c, phase, flow, mm5, attempt, key, upcoming, presence, onHoldState, commit, retry, newKey } =
-    useSign();
+  const {
+    c,
+    phase,
+    flow,
+    mm5,
+    attempt,
+    key,
+    upcoming,
+    presence,
+    nativeUnsupported,
+    onHoldState,
+    commit,
+    retry,
+    newKey,
+  } = useSign();
   const { api, session } = useApp();
   const { t } = useFs();
   const tr = useT();
@@ -111,7 +124,7 @@ export function SignScreen() {
   );
 
   if (!dto || !ownHash) {
-    const reason = BLOCKED[phase];
+    const reason = nativeUnsupported ? "M-BD-02.nativeEnrollment" : BLOCKED[phase];
     return (
       <Screen testID="M-BD-02" state={SIGN_SCREEN_STATE[phase]}>
         {header}
@@ -126,7 +139,11 @@ export function SignScreen() {
     );
   }
 
-  const blocked = slabLive(phase) || phase === "biometric" ? undefined : BLOCKED[phase];
+  const blocked = nativeUnsupported
+    ? "M-BD-02.nativeEnrollment"
+    : slabLive(phase) || phase === "biometric"
+      ? undefined
+      : BLOCKED[phase];
   const note = flow === "stale" ? NOTE.stale : NOTE[phase];
   const captionKey: BoardKey =
     phase === "biometric"
@@ -279,6 +296,11 @@ export function SignScreen() {
       footer={compact ? undefined : thumb}
       contentStyle={[styles.content, compact ? { paddingBottom: insets.bottom + space.s24 } : null]}
     >
+      {dto.rail === "simulated" ? (
+        <Txt kind="caption" testID="M-BD-02.rail">
+          Simulated PayPal sandbox
+        </Txt>
+      ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
         <MomentMarker id="MM-5" phase={mm5.phase} />
         {header}

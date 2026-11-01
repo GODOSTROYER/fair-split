@@ -128,6 +128,7 @@ export type PairingOutcome =
 const STATE_FOR: Partial<Record<ApiErrorCode, "expired" | "used" | "invalid" | "offline">> = {
   PAIRING_EXPIRED: "expired",
   PAIRING_USED: "used",
+  PAIRING_TOKEN_INVALID: "used",
   PAIRING_INVALID: "invalid",
   NETWORK: "offline",
 };

@@ -334,6 +334,11 @@ export const messages = defineMessages({
     fil: "Maglagay ng screen lock (PIN o fingerprint) sa telepono para makapirma.",
     en: "Set a screen lock (PIN or fingerprint) on this phone to sign.",
   },
+  "M-BD-02.nativeEnrollment": {
+    ceb: "Wala pa marehistro ang pagpirma sa native nga telepono alang niini nga server. Gamita ang browser demo nga adunay label aron mopirma. Walay napirmahan.",
+    fil: "Hindi pa naka-enroll ang pagpirma ng native na telepono para sa server na ito. Gamitin ang browser demo na may label para lumagda. Walang napirmahan.",
+    en: "Native phone signing is not enrolled for this server. Use the labelled browser demo to co-sign. Nothing was signed.",
+  },
   "M-BD-02.invalidated": {
     ceb: "Nausab ang mga fingerprint niini nga telepono, busa wala na ang daan nga key. Paghimo og bag-o.",
     fil: "Nagbago ang mga fingerprint ng teleponong ito, kaya wala na ang lumang key. Gumawa ng bago.",

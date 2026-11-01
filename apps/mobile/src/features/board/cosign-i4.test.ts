@@ -160,23 +160,27 @@ function phoneSide(srv: ReturnType<typeof consoleSide>) {
           return fresh;
         },
         sign: (approval, expected, recheck) =>
-          cosign(approval, expected, {
-            now: () => NOW,
-            online: () => true,
-            recheck,
-            sign: async (message) => {
-              const r = await key(message);
-              await opts.underPrompt?.();
-              return r;
+          cosign(
+            approval,
+            { ...expected, approverId: "board:ernesto" },
+            {
+              now: () => NOW,
+              online: () => true,
+              recheck,
+              sign: async (message) => {
+                const r = await key(message);
+                await opts.underPrompt?.();
+                return r;
+              },
+              isRegistered: () => false,
+              register: async () => {
+                const r = await register();
+                await opts.whileRegistering?.();
+                return r;
+              },
+              submit,
             },
-            isRegistered: () => false,
-            register: async () => {
-              const r = await register();
-              await opts.whileRegistering?.();
-              return r;
-            },
-            submit,
-          }),
+          ),
       });
     },
   };
@@ -187,6 +191,16 @@ const hold = (state: "holding" | "armed" | "confirm"): FlowEvent => ({ type: "ho
 const run = (events: FlowEvent[]) => events.reduce<FlowPhase>(flowReducer, "idle");
 
 describe("I4 at the instant of signing", () => {
+  it("inv.i4.opened-season: changing the season with unchanged roots never replaces the opened season", async () => {
+    const srv = consoleSide();
+    const phone = phoneSide(srv);
+    await phone.load();
+    srv.change((dto) => ({ ...dto, seasonId: "another-season" }));
+    await phone.load();
+    expect(await phone.commit()).toMatchObject({ ok: false, state: "mismatch" });
+    expect(phone.key).not.toHaveBeenCalled();
+    expect(phone.register).not.toHaveBeenCalled();
+  });
   it("signs the batch he opened when nothing changes", async () => {
     const srv = consoleSide();
     const phone = phoneSide(srv);

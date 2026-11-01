@@ -19,6 +19,7 @@
     "@expo-google-fonts/atkinson-hyperlegible-next": "catalog:",
     "@expo-google-fonts/mona-sans": "catalog:",
     "@fairsplit/contracts": "workspace:*",
+    "@fairsplit/seal": "workspace:*",
     "@noble/curves": "catalog:",
     "@noble/hashes": "catalog:",
     "@react-native-community/netinfo": "catalog:",

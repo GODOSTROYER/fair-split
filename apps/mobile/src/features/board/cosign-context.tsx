@@ -177,7 +177,12 @@ export function CosignProvider({ runSlug, children }: { runSlug: string; childre
       setNow(Date.now());
       if (r.value.state === "signed") setChairSigned(true);
       const expected = prefetchFor(memoryRef.current);
-      if (expected) await fetchPayload(expected);
+      if (expected) {
+        const payload = await fetchPayload(expected);
+        if (!payload.ok && payload.reason !== "mismatch") {
+          setLoadError(payload.reason === "offline" ? "offline" : "error");
+        }
+      }
     },
     [api, runSlug, markSynced, update, memoryRef, fetchPayload, setLoading, setLoadError, setChairSigned],
   );

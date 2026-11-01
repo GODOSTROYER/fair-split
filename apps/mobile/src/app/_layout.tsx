@@ -4,7 +4,7 @@
  * (`/pair`, `/s/:token`). Role areas guard themselves (a member phone never sees the clerk's outbox).
  */
 import { useFonts } from "expo-font";
-import { Stack, ThemeProvider } from "expo-router";
+import { Stack, ThemeProvider, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
@@ -22,11 +22,24 @@ import { FsThemeProvider } from "../theme/theme";
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Root() {
-  const { ready, theme, frame } = useApp();
+  const { ready, theme, frame, session } = useApp();
+  const router = useRouter();
   // Seam (BOARD+ONBOARDING owns state/use-push.ts): registers this phone for push once it is paired.
   usePushRegistration();
   const [fontsLoaded, fontError] = useFonts(fontSources);
   const fontsReady = fontsLoaded || !!fontError || Object.keys(fontSources).length === 0;
+  useEffect(() => {
+    if (
+      ready &&
+      fontsReady &&
+      frame.inFrame &&
+      session?.kind === "frame" &&
+      session.bearer !== "demo-session"
+    ) {
+      // A preview may have opened showcase r37. Start at this persona's home so fs-api names its workspace run.
+      router.replace("/");
+    }
+  }, [ready, fontsReady, frame.inFrame, session?.kind, session?.bearer, router]);
   const tokens = themes[theme];
   const roles = m3(tokens);
   const navTheme = useMemo(

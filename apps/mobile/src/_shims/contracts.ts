@@ -587,7 +587,7 @@ export const MEMBER_STATUS_WORDS: Readonly<Record<MemberStatus, Readonly<Record<
 
 /**
  * Every code of the package's `ErrorCode` (what fs-api sends: `DIGEST_MISMATCH`, `KEY_NOT_REGISTERED`, …) plus the
- * app's own: `NETWORK` (no answer at all) and the three pairing outcomes the pairing screen names, which fs-api's
- * `PAIRING_TOKEN_INVALID` does not yet tell apart (shim-defined until WS-API says which it sends).
+ * app's own: `NETWORK` (no answer at all) and the three pairing fallbacks for bare HTTP statuses. The pairing
+ * screen maps fs-api's `PAIRING_TOKEN_INVALID` to its used-code recovery, asking the person for a fresh code.
  */
 export type ApiErrorCode = ErrorCode | "PAIRING_EXPIRED" | "PAIRING_USED" | "PAIRING_INVALID" | "NETWORK";
