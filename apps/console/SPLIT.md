@@ -163,6 +163,8 @@ A 501 (`error.notImplemented`, `isNotImplemented(e)`) means the API slice that o
   changes the route takes its screen away) is the root's `useFocusGuard`: the control's successor by key, the
   first control of the nearest container that stayed, else the screen's main control, before anything paints; with
   nothing drawn yet it waits for the next commit. Never disable a control that holds focus (`aria-disabled`).
+  A page's own `<main>` (`ScreenRoot as="main"`) draws no tabindex: `lib/focus.ts` lends it `tabindex="-1"` only
+  while a hand-off holds focus there, so a click in the page's text never moves the sequential focus starting point.
 - **Budgets** (S2.11): route JS ≤300 KB gz; Proof's initial JS ≤110 KB gz; AG Grid only in its own lazy chunk
   (`features/split/SplitAgGrid.tsx` with `theme/grid.ts`, loaded once the grid's container is measured; the static
   table prints the lines until then); Proof's verify code only through a dynamic import of `lib/verify.ts`. Measure
@@ -276,8 +278,10 @@ exist in the catalog: draw the co-sign QR from an API-provided matrix or request
   painted a frame in the fallback face. The console declares the face again with `font-display: block`
   (`theme/surfaces.css`, 3.7 KB inlined twice in the CSS) and starts it loading at boot on Proof's paths.
   Needed from WS-DS: `font-display: block` for the inline mark face in tokens, then the console's copy goes.
-- A focus return keeps its target in view for up to 1.5 s while the layout settles (the answer that moved focus
-  often moves the layout a frame later), stopped by the person's own pointer, wheel, touch or key. The in-view
+- A focus return keeps its target in view for as long as it holds focus: on every layout change around it (a
+  ResizeObserver on its ancestors and its scrollports' children, with no cut-off: Count it once's result line can
+  unfold above Next seconds later on a slow machine), and each frame for the first 1.5 s (a move by transform
+  alone), stopped by the person's own pointer, wheel, touch or key. The in-view
   check knows the console's sticky edges by name (the drawer's head, AG Grid 35's sticky header and pinned rows,
   `[data-sticky-edge]`); a new sticky edge needs that attribute.
 - fs-api's console fallback (`apps/api/src/static.ts`, `app.get("*")`) answers 404 to a real brand link: it refuses
