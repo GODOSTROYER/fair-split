@@ -1,9 +1,9 @@
-// The real CLI over loopback HTTP: full-tier fixtures prove six local checks; actual public
-// routes retain receiver privacy and therefore cannot pass independent batch recomputation.
+// The real CLI over loopback HTTP: five public checks plus the server's payout-items
+// attestation, or six independent checks when the fixture includes every receiver.
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import type { ProofResponse } from "@fairsplit/contracts";
+import type { ChainVerification, ProofResponse } from "@fairsplit/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { z } from "zod";
 import { loadShowcase, type ShowcaseWorld } from "../../proof/testing/world.js";
@@ -15,6 +15,14 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
   let t: TestApp;
   let world: ShowcaseWorld;
   let full: ProofBody;
+  let publicProof: ProofBody;
+  let attestation: {
+    runSlug: string;
+    provenance: ProofBody["provenance"];
+    attestedBy: "fs-api";
+    demoMode: true;
+    verification: ChainVerification;
+  };
 
   beforeAll(async () => {
     t = await createTestApp({ db: "postgres" });
@@ -25,17 +33,29 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
     });
     expect(response.status).toBe(200);
     full = response.body;
+    publicProof = (await t.json<ProofBody>(`/v1/proof/${world.runSlug}.json`)).body;
+    attestation = (await t.json<typeof attestation>(`/v1/proof/${world.runSlug}/verification`)).body;
   });
   afterAll(async () => t?.close());
 
   // Only this test host can serve a captured full-tier fixture without credentials. With no
   // fixture it forwards the actual uncredentialed fs-api public routes, including redaction.
-  async function cli(body?: ProofBody): Promise<{ code: number | null; output: string }> {
+  async function cli(
+    body?: ProofBody,
+    options: { verification?: unknown; input?: string } = {},
+  ): Promise<{ code: number | null; output: string; paths: string[] }> {
+    const paths: string[] = [];
     const server = createServer(async (request, response) => {
       expect(request.headers.authorization).toBeUndefined();
       expect(request.headers.cookie).toBeUndefined();
       const url = new URL(request.url ?? "/", "http://localhost");
-      if (body && url.pathname.startsWith("/v1/proof/")) {
+      paths.push(url.pathname);
+      if (options.verification !== undefined && url.pathname.endsWith("/verification")) {
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify(options.verification));
+        return;
+      }
+      if (body && url.pathname === `/v1/proof/${world.runSlug}.json`) {
         response.setHeader("content-type", "application/json");
         response.end(JSON.stringify(body));
         return;
@@ -55,7 +75,7 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
           [
             fileURLToPath(new URL("../../../../../node_modules/tsx/dist/cli.mjs", import.meta.url)),
             fileURLToPath(new URL("../../../../../tools/verify-proof.ts", import.meta.url)),
-            url,
+            options.input ?? url,
           ],
           { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
         );
@@ -67,7 +87,7 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
           output += chunk.toString();
         });
         child.on("error", reject);
-        child.on("close", (code) => resolve({ code, output }));
+        child.on("close", (code) => resolve({ code, output, paths }));
       });
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -82,6 +102,12 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
     expect(result.output.match(/: Matches/g)).toHaveLength(6);
     expect(result.output).toContain("Simulated PayPal sandbox; provenance: seeded");
     expect(result.output).toContain("Sample:");
+    expect(result.output).toContain("Six of six match");
+    expect(result.output).toContain("never Verified");
+    expect(result.output.trim().split("\n").at(-1)).toContain(
+      "6 checked independently; 0 checked by the server",
+    );
+    expect(result.paths.some((p) => p.endsWith("/verification"))).toBe(false);
   });
 
   it("inv.i3.conservation: a tampered line fails with the exact domain mismatch", async () => {
@@ -119,11 +145,77 @@ describe("verify-proof against fs-api's in-process simulator harness", () => {
     },
   );
 
-  it("cannot claim six local matches from the actual receiver-redacted public response", async () => {
+  it("inv.i8.public: five independent checks and one labelled server check pass", async () => {
     const result = await cli();
+    expect(result.code, result.output).toBe(0);
+    expect(result.output.match(/: Matches/g)).toHaveLength(6);
+    expect(result.output).toContain(
+      "Payout items and batchSha256: Matches (checked by the server: payout receivers are withheld on the public Proof)",
+    );
+    expect(result.output).toContain("Six of six match");
+    expect(result.output).toContain("Sample, never Verified");
+    expect(result.output.trim().split("\n").at(-1)).toContain(
+      "5 checked independently; 1 checked by the server",
+    );
+    expect(result.paths.filter((p) => p.endsWith("/verification"))).toHaveLength(1);
+  });
+
+  it("does not let a passing server attestation hide public bundle tampering", async () => {
+    const tampered = structuredClone(publicProof);
+    tampered.bundle.invoice.reference = "rc:0000000000000000";
+    const result = await cli(tampered);
     expect(result.code).toBe(1);
-    expect(result.output.match(/: Matches/g)).toHaveLength(5);
-    expect(result.output).toContain("Public receivers are withheld");
+    expect(result.output).toContain("The invoice reference does not carry the card hash.");
+    expect(result.output).toContain("5 checked independently; 1 checked by the server");
+    expect(result.output).not.toContain("Six of six match");
+  });
+
+  it("fails with the server's exact payout-items mismatch", async () => {
+    const failed = structuredClone(attestation);
+    failed.verification.plates.payoutItems = {
+      ok: false,
+      reason: "The posted batch differs from the one in the chain.",
+    };
+    const result = await cli(undefined, { verification: failed });
+    expect(result.code).toBe(1);
+    expect(result.output).toContain(
+      "Payout items and batchSha256: The posted batch differs from the one in the chain.",
+    );
+    expect(result.output).toContain("5 checked independently; 1 checked by the server");
+    expect(result.output).not.toContain("Six of six match");
+  });
+
+  it.each(["unreadable", "wrong-run", "wrong-attester"])(
+    "fails closed on a %s server attestation",
+    async (kind) => {
+      const verification =
+        kind === "unreadable"
+          ? null
+          : {
+              ...attestation,
+              ...(kind === "wrong-run" ? { runSlug: "2026A-r999" } : { attestedBy: "other" }),
+            };
+      const result = await cli(undefined, { verification });
+      expect(result.code).toBe(1);
+      expect(result.output).toContain("Server verification");
+      expect(result.output).not.toContain("Six of six match");
+    },
+  );
+
+  it.each(["file:///proof/2026A-r37", "ftp://localhost/proof/2026A-r37", "data:application/json,{}"])(
+    "refuses non-http(s) URL %s before making requests",
+    async (input) => {
+      const result = await cli(undefined, { input });
+      expect(result.code).toBe(1);
+      expect(result.output).toContain("Only HTTPS and loopback HTTP Proof URLs are allowed.");
+      expect(result.paths).toEqual([]);
+    },
+  );
+
+  it("detects withheld receivers even if the redacted metadata is false", async () => {
+    const result = await cli({ ...publicProof, redacted: false });
+    expect(result.code, result.output).toBe(0);
+    expect(result.output).toContain("5 checked independently; 1 checked by the server");
   });
 
   it("fails a broken signed ledger checkpoint", async () => {
