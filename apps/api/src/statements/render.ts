@@ -337,7 +337,11 @@ export function renderStatement(
   };
 }
 
-/** IC-11's `textSha256`: sha256 of a sentence's exact spoken words (UTF-8, lowercase hex), as the app checks clips. */
+/**
+ * IC-11's `textSha256`: sha256 of a sentence's exact spoken words (UTF-8, lowercase hex). The one hash (ADR-0011 §3):
+ * the manifest producer writes `text_sha256` with it (`spokenScript`) and the media route matches clips by it; the
+ * app never hashes words, it pairs fs-api's sentences with its own.
+ */
 export function spokenTextSha256(text: string): string {
   return sha256Hex(text);
 }
