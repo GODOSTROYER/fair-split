@@ -128,3 +128,98 @@ describe("the stage's notice strip (S1.6 states)", () => {
     );
   });
 });
+
+it.each(["hourly_cap", "daily_cap", "session_cap", "public_share", "lane_full"] as const)(
+  "labels quota replay %s with the API's words",
+  (replayReason) => {
+    const notice = stageNoticeFor({
+      session: active,
+      view: undefined,
+      autoplay: "off",
+      inSession: true,
+      replayReason,
+      replayLabel: "Replay: quota reached",
+    });
+    expect(notice?.text).toBe("Replay: quota reached");
+    expect(notice?.state).toBe("replay");
+  },
+);
+
+it.each(["autoplay", "paused"] as const)("keeps the quota replay label visible during %s", (autoplay) => {
+  expect(
+    stageNoticeFor({
+      session: active,
+      view: undefined,
+      autoplay,
+      inSession: true,
+      replayReason: "hourly_cap",
+      replayLabel: "Replay: this hour is full",
+    })?.text,
+  ).toContain("Replay: this hour is full");
+});
+
+it("inv.i8.refreshes the API rail label as soon as a payout replay arrives", async () => {
+  const world = createTestWorld();
+  let replay = false;
+  let reads = 0;
+  const handler = http.get("*/v1/judge/session", async ({ request }) => {
+    const response = await getResponse([...world.mock.handlers], request);
+    const body = (await response?.json()) as { rail: Record<string, unknown> };
+    reads++;
+    return HttpResponse.json({
+      ...body,
+      rail: {
+        ...body.rail,
+        mode: replay ? "replay" : "live",
+        reason: replay ? "hourly_cap" : null,
+        label: replay ? "Replay: quota was reached" : "Simulated PayPal sandbox",
+      },
+    });
+  });
+  const rendered = await renderConsole({ path: "/judge", world, handlers: [handler] });
+  await act(async () => {
+    await rendered.runtime.session.start();
+  });
+  await waitFor(() => expect(reads).toBeGreaterThan(0));
+  replay = true;
+  act(() => {
+    rendered.runtime.client.setQueryData<RunView>(["run", world.runSlug], (view) =>
+      view
+        ? {
+            ...view,
+            events: [
+              ...view.events,
+              {
+                id: "999",
+                ws: "test",
+                runId: world.runId,
+                at: "2026-11-01T00:00:00Z",
+                type: "item.updated",
+                provenance: "replay",
+                actor: { kind: "paypal", id: "simulator", impersonatedBy: null },
+                payload: {
+                  senderItemId: "r37-M-014",
+                  memberNo: "M-014",
+                  from: "PENDING",
+                  to: "SUCCESS",
+                  payoutItemId: "RPLY-test",
+                  eventId: null,
+                  source: "status_check",
+                },
+              } as RunView["events"][number],
+            ],
+          }
+        : view,
+    );
+  });
+  await waitFor(
+    () =>
+      expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain("Replay: quota was reached"),
+    { timeout: 2500 },
+  );
+  replay = false;
+  await act(async () => {
+    await rendered.runtime.client.refetchQueries({ queryKey: ["judge-session-status"] });
+  });
+  expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain("Replay: quota was reached");
+});

@@ -210,16 +210,16 @@ export const FIGURE_COPY = {
 
 export const FEES_COPY = {
   heading: "Fees",
-  summary: "What PayPal charged, and who pays it",
+  summary: "Simulated PayPal sandbox fees and who budgets for them",
   invoiceMarked: "Invoice: marked as paid in the Simulated PayPal sandbox, so the simulator charged no fee.",
-  invoicePaid: "Invoice: PayPal's fee is pending reconciliation.",
+  invoicePaid: "Invoice: the simulated PayPal sandbox fee is not reported in this record.",
   payouts: (rail: PaypalRail, fee: string, n: number) =>
     rail === "simulator"
       ? `Payouts: the simulated sandbox reported ${fee} for ${n} payments.`
       : `Payouts: PayPal reported ${fee} for ${n} payments.`,
-  payoutsPending: "Payouts: PayPal's fee is pending reconciliation.",
+  payoutsPending: "Payouts: the simulated PayPal sandbox fee is not reported in this record.",
   disbursement: (line: string, unused: string) =>
-    `From the ${line} co-op disbursement line. Unused: ${unused}, still in the co-op's PayPal balance.`,
+    `From the ${line} co-op disbursement line. Unused: ${unused}, modelled in the co-op's simulated PayPal balance.`,
   production:
     "In production a Philippine co-op pays PayPal PH's fees: receiving 4.40% + US$0.30, payouts 2% capped at ₱50 each, conversion 3.0%.",
 } as const;

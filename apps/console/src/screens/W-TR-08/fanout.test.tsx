@@ -42,7 +42,7 @@ describe("W-TR-08 run: the honest fan-out", () => {
       const view = await approved();
       expect(toneOf("M-014")).toBe("unsent");
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 to send by PayPal once both keys sign. 56 in cash at the bodega. On PayPal: 8.7% of value.",
+        "8 to send through the simulated PayPal sandbox once both keys sign. 56 in cash at the bodega. On simulated PayPal: 8.7% of value.",
       );
       act(() => {
         view.world.cosign();
@@ -73,11 +73,11 @@ describe("W-TR-08 run: the honest fan-out", () => {
       );
       const rhea = screen.getByTestId("W-TR-08.parked");
       expect(rhea.textContent).toMatch(
-        /Rhea Jumawan's address has no PayPal account, so PayPal parked US\$26\.65/,
+        /Rhea Jumawan's address has no PayPal account, so the simulated PayPal sandbox parked US\$26\.65/,
       );
       // The count says what the stage's Proof counter says: sent, confirmed, parked, and cash.
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 sent by PayPal, 7 confirmed, 1 parked. 56 in cash at the bodega. On PayPal: 8.7% of value.",
+        "8 sent through the simulated PayPal sandbox, 7 confirmed, 1 parked. 56 in cash at the bodega. On simulated PayPal: 8.7% of value.",
       );
       expect(screen.queryByTestId("W-TR-08.denied")).toBeNull();
       const log = screen.getByTestId("W-TR-08.lane.PAYPAL");
@@ -120,10 +120,10 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members, cash at the bodega/);
       expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
       expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 sent by PayPal, 7 confirmed. 57 in cash at the bodega. On PayPal: 8.1% of value.",
+        "8 sent through the simulated PayPal sandbox, 7 confirmed. 57 in cash at the bodega. On simulated PayPal: 8.1% of value.",
       );
       expect(screen.getByTestId("W-TR-08.status").textContent).toBe(
-        "7 paid by PayPal. 57 in cash. US$21.14 kept for members.",
+        "7 paid by the simulated PayPal sandbox. 57 in cash. US$21.14 kept for members.",
       );
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
       expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));

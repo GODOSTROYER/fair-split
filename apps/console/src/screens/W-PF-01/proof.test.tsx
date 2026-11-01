@@ -598,7 +598,7 @@ describe("W-PF-01 on a 375 px phone", () => {
     const cells = row.querySelectorAll(":scope > th, :scope > td");
     expect(cells).toHaveLength(3);
     // The rail sits under the member, the status under the net: nothing is left in a column off to the side.
-    expect(cells[0]?.textContent).toBe("M-014PayPal");
+    expect(cells[0]?.textContent).toBe("M-014Simulated PayPal sandbox");
     expect(cells[2]?.querySelector('[data-testid="W-PF-01.peso.M-014"]')).toBeTruthy();
     expect(cells[2]?.querySelector(".fs-chip")).toBeTruthy();
 

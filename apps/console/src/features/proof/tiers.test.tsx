@@ -14,6 +14,7 @@ import { jcs, utf8 } from "../../lib/jcs.js";
 import { toHex } from "../../lib/sha256.js";
 import * as browser from "../../lib/verify.js";
 import { createTestRuntime } from "../../test/world.js";
+import { plateFact } from "./Chain.js";
 import { deriveFigures } from "./metrics.js";
 import { countItems, ledgerFacts, mergeItems, WITHHELD_RECEIVER } from "./model.js";
 import { ProofView } from "./ProofView.js";
@@ -22,7 +23,7 @@ import { PLATES, runVerification } from "./verify.js";
 
 const snapshot = getSnapshot();
 const REPLAY_REASON =
-  "Replayed (labelled): these statuses come from a recorded run, not from verified simulator notices";
+  "Replayed (labelled): these statuses come from an earlier simulated run (including a seed snapshot), not fresh simulator notices";
 
 /** Rebuild real evidence and its signed checkpoint, without stubbing any verifier result. */
 function replayFixture(): { bundle: ProofBundle; keys: PublishedKeys } {
@@ -197,6 +198,13 @@ describe("Proof's actual public, member and brand bundles", () => {
         />
       </AppProviders>,
     );
+    fireEvent.click(screen.getByTestId("W-PF-01.plate.read.toggle"));
+    expect(screen.getByTestId("W-PF-01.plate.read").textContent).toContain("12 photos composed in code");
+    expect(screen.getByTestId("W-PF-01.plate.read").textContent).toContain(
+      "54 earlier photo-manifest entries (not imaged)",
+    );
+    expect(screen.getByTestId("W-PF-01.photo-hashes").children).toHaveLength(12);
+    expect(screen.getByTestId("W-PF-01.manifest-hashes").children).toHaveLength(54);
     for (const plate of PLATES) {
       const expected =
         plate === "payoutItems" ? (replayed ? "replay" : tier !== "brand" ? "server" : "matches") : "matches";
@@ -211,6 +219,16 @@ describe("Proof's actual public, member and brand bundles", () => {
       screen.getByTestId("W-PF-01.checks").querySelectorAll('[data-state="matches"], [data-state="server"]'),
     ).toHaveLength(replayed ? 5 : 6);
     if (replayed) {
+      expect(screen.getByTestId("W-PF-01.progress").textContent).toContain(
+        "payout statuses replayed (labelled)",
+      );
+      expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toContain(
+        "replayed (labelled)",
+      );
+      expect(screen.getByTestId("W-PF-01.footer").textContent).toContain("Replayed (labelled)");
+      expect(screen.getByTestId("W-PF-01.tier.paypal").textContent).toContain("Replayed payout statuses");
+      expect(screen.getByTestId("W-PF-01.tier.paypal").textContent).toContain("7 members");
+      expect(screen.getByTestId("W-PF-01.tier.due").textContent).not.toMatch(/still with PayPal|confirmed/i);
       expect(screen.getByTestId("W-PF-01.check.payoutItems").textContent).toBe(REPLAY_REASON);
       fireEvent.click(screen.getByTestId("W-PF-01.plate.payoutItems.toggle"));
       expect(screen.getByTestId("W-PF-01.plate.payoutItems.reason").textContent).toBe(REPLAY_REASON);
@@ -220,4 +238,18 @@ describe("Proof's actual public, member and brand bundles", () => {
     }
     runtime.client.clear();
   });
+});
+
+it("inv.i8.session reason labels plate 6 before replay items arrive", () => {
+  const bundle = snapshot.proof;
+  expect(
+    plateFact("payoutItems", {
+      bundle,
+      facts: ledgerFacts(bundle.ledger),
+      progress: countItems(bundle.batch.items.map((i) => i.status)),
+      items: mergeItems(bundle.batch.items),
+      lineStates: {},
+      replayed: true,
+    }),
+  ).toContain("replayed (labelled)");
 });

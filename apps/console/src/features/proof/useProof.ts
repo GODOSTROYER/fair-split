@@ -13,7 +13,14 @@ import {
 } from "@fairsplit/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAdapter, useJudgeSession, useRunStream, useRunView, useSnapshot } from "../../data/hooks.js";
+import {
+  useAdapter,
+  useJudgeReplayReason,
+  useJudgeSession,
+  useRunStream,
+  useRunView,
+  useSnapshot,
+} from "../../data/hooks.js";
 import type { RunView } from "../../data/run-view.js";
 import {
   deriveFigures,
@@ -115,6 +122,7 @@ export function useProofPage(runSlug: string, read: BundleRead): ProofPage {
   const snapshot = useSnapshot().data;
   const session = useJudgeSession().session;
   const live = session?.runSlug === runSlug;
+  const replayReason = useJudgeReplayReason();
   useRunStream(live ? runSlug : null);
   const runView = useRunView(runSlug).data;
   const bundle = read.bundle;
@@ -225,7 +233,7 @@ export function useProofPage(runSlug: string, read: BundleRead): ProofPage {
     retry: read.refetch,
     runSlug,
     bundle,
-    provenance: read.provenance,
+    provenance: live && replayReason !== null ? "replay" : read.provenance,
     withheld: bundle ? receiversWithheld(bundle) : false,
     items: assembled?.items ?? [],
     lineStates: assembled?.lineStates ?? {},

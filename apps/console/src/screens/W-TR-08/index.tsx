@@ -1,3 +1,4 @@
+import { payoutReplayed } from "../../data/payout-replay.js";
 // W-TR-08 Run (S1.7, design §6 C8): the split fan on top (MM-6, "Honest fan-out"), the three-lane run log and
 // the latency dots beneath. PayPal's 201 draws eight graphite threads to 70%: sent, not paid. Each verified
 // SUCCESS finishes its thread and floods its stub jade, one scale note each, landings at least 250 ms apart.
@@ -13,7 +14,7 @@ import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { describeEvent, type LogRow } from "../../data/describe.js";
-import { useCommand, useDescribeContext } from "../../data/hooks.js";
+import { useCommand, useDescribeContext, useJudgeReplayReason } from "../../data/hooks.js";
 import {
   fanoutState,
   fanView,
@@ -46,6 +47,8 @@ const NOTE_AFTER_MS = 300;
 export function Screen({ runSlug }: RunScreenProps) {
   const data = useRunData(runSlug);
   const { snapshot, view } = data;
+  const replayReason = useJudgeReplayReason();
+  const replayed = payoutReplayed(view, data.live ? replayReason : null);
   const describe = useDescribeContext();
   const stage = useOptionalStage();
   const moment = useMoment("MM-6");
@@ -198,6 +201,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const statusLine = (() => {
     if (state === "denied") return null;
     if (!isPosted) return FANOUT.notPosted;
+    if (replayed) return "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.";
     if (state === "done") return FANOUT.done(summary.paid, summary.cash, summary.kept);
     if (state === "parked" && parked) return FANOUT.parked(parked.name);
     if (posted)
@@ -261,6 +265,7 @@ export function Screen({ runSlug }: RunScreenProps) {
                   drawing={drawing}
                   mode={moment.mode}
                   cashDay={cashDay}
+                  replayed={replayed}
                 />
               }
               table={
@@ -278,13 +283,15 @@ export function Screen({ runSlug }: RunScreenProps) {
                       key: t.memberNo,
                       cells: {
                         member: `${t.name} (${t.memberNo})`,
-                        rail: t.tone === "moved" ? FANOUT.railCash : "PayPal",
+                        rail: t.tone === "moved" ? FANOUT.railCash : "Simulated PayPal sandbox",
                         amount: format.money(t.cents),
-                        status: view.lines[t.memberNo]
-                          ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
-                          : t.tone === "unsent"
-                            ? en("console.status.READY")
-                            : FANOUT.statusWaiting,
+                        status: replayed
+                          ? "Replayed (labelled)"
+                          : view.lines[t.memberNo]
+                            ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
+                            : t.tone === "unsent"
+                              ? en("console.status.READY")
+                              : FANOUT.statusWaiting,
                       },
                     })),
                     {
@@ -301,7 +308,9 @@ export function Screen({ runSlug }: RunScreenProps) {
               }
             />
             <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
-              {FANOUT.shareCounts(shareCounts(fan))}{" "}
+              {replayed
+                ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).confirmed} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
+                : FANOUT.shareCounts(shareCounts(fan))}{" "}
               <span className="fsr-muted">{FANOUT.shareValue(fan.paypal.share)}</span>
             </p>
           </div>
@@ -309,10 +318,14 @@ export function Screen({ runSlug }: RunScreenProps) {
           {parked && (
             <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
               <h3 id="W-TR-08-parked" className="fs-t-label">
-                <span className="fsr-parked__chip">{FANOUT.parkedChip}</span>
+                <span className="fsr-parked__chip">{replayed ? "Replayed" : FANOUT.parkedChip}</span>
                 {parked.name}
               </h3>
-              <p className="fs-t-body">{FANOUT.rheaWhy(parked.name, format.money(parked.cents))}</p>
+              <p className="fs-t-body">
+                {replayed
+                  ? `In the earlier simulated PayPal sandbox run, ${parked.name}’s ${format.money(parked.cents)} status was unclaimed. This is a labelled replay; choose how to model her payment here.`
+                  : FANOUT.rheaWhy(parked.name, format.money(parked.cents))}
+              </p>
               <div className="fsr-parked__actions">
                 <div ref={slabRef}>
                   <Slab
@@ -376,9 +389,15 @@ export function Screen({ runSlug }: RunScreenProps) {
           seeded={view.events.length === 0 && view.origin === "showcase"}
         />
         <aside className="fsr-fanout__side">
-          <LatencyDots latency={lat} />
+          {replayed ? (
+            <p className="fs-t-caption">Timing is replayed from an earlier simulated PayPal sandbox run.</p>
+          ) : (
+            <LatencyDots latency={lat} />
+          )}
           <p className="fsr-fanout__fees fs-t-caption" data-testid="W-TR-08.fees">
-            {FANOUT.feesSoFar}
+            {replayed
+              ? "Payout fees belong to the earlier simulated PayPal sandbox run; this is a labelled replay."
+              : FANOUT.feesSoFar}
           </p>
         </aside>
       </div>

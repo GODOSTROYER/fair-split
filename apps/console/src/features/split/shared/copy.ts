@@ -16,7 +16,7 @@ export const SPLIT = {
   allDecided: "Every hold is decided. The batch is ready for two keys.",
   decidedKey1: "Every hold is decided. Analyn signed; the batch waits for Ernesto.",
   decidedApproved:
-    "Every hold is decided and both keys signed. the simulated PayPal sandbox confirms each payment as it lands.",
+    "Every hold is decided and both keys signed. The simulated PayPal sandbox confirms each payment as it lands.",
   decidedSettled: "Every hold was decided and the run is settled.",
   approveLink: "Open Approve",
   nextHold: (label: string, title: string) => `Open ${label}: ${title}`,
@@ -198,19 +198,20 @@ export const FANOUT = {
   notPosted: "Not posted yet. The batch posts after both keys.",
   notPostedLink: "Open Approve",
   waiting: (time: string) =>
-    `Posted ${time}. the simulated PayPal sandbox confirms each payment as it lands.`,
-  waitingSeeded: "Posted. the simulated PayPal sandbox confirms each payment as it lands.",
+    `Posted ${time}. The simulated PayPal sandbox confirms each payment as it lands.`,
+  waitingSeeded: "Posted. The simulated PayPal sandbox confirms each payment as it lands.",
   elapsed: (clock: string) => `${clock} since posting`,
   parked: (name: string) => `${name} is parked. Decide how she gets paid.`,
-  denied: "PayPal declined the batch. No money moved.",
+  denied: "The simulated PayPal sandbox declined the batch. No money moved.",
   done: (paid: number, cash: number, kept: string) =>
-    `${paid} paid by PayPal. ${cash} in cash. ${kept} kept for members.`,
-  doneFees: "PayPal reports each actual fee with the item; none is shown until it arrives.",
+    `${paid} paid by the simulated PayPal sandbox. ${cash} in cash. ${kept} kept for members.`,
+  doneFees:
+    "The simulated PayPal sandbox reports each modelled fee with the item; none is shown until it arrives.",
   onPaypal: (pct: string, n: number, total: number) =>
-    `On PayPal: ${pct} of value (${n} of ${total} members)`,
+    `On simulated PayPal: ${pct} of value (${n} of ${total} members)`,
   /**
    * The fan's one-line count, in the same words as the stage's Proof counter: what PayPal was sent, what it
-   * confirmed, what waits on a person, and who is paid in cash. "8 sent by PayPal, 7 confirmed, 1 parked."
+   * confirmed, what waits on a person, and who is paid in cash. "8 sent through the simulated PayPal sandbox, 7 confirmed, 1 parked."
    */
   shareCounts: (c: {
     readonly onRail: number;
@@ -222,16 +223,16 @@ export const FANOUT = {
   }) => {
     const paypal =
       c.sent === 0
-        ? `${c.onRail} to send by PayPal once both keys sign`
+        ? `${c.onRail} to send through the simulated PayPal sandbox once both keys sign`
         : [
-            `${c.sent} sent by PayPal`,
+            `${c.sent} sent through the simulated PayPal sandbox`,
             `${c.confirmed} confirmed`,
             ...(c.parked > 0 ? [`${c.parked} parked`] : []),
             ...(c.failed > 0 ? [`${c.failed} failed`] : []),
           ].join(", ");
     return `${paypal}. ${c.cash} in cash at the bodega.`;
   },
-  shareValue: (pct: string) => `On PayPal: ${pct} of value.`,
+  shareValue: (pct: string) => `On simulated PayPal: ${pct} of value.`,
   cashBand: (n: number, date: string, amount: string) =>
     `${n} members, cash at the bodega on ${date}: ${amount}`,
   cashBandMembers: (n: number, date: string) => `${n} members, cash at the bodega on ${date}`,
@@ -239,11 +240,12 @@ export const FANOUT = {
   cashBandSecond: (date: string) => `the bodega on ${date}`,
   movedToCash: (name: string) => `${name}, moved to cash`,
   title: "Run",
-  feesSoFar: "PayPal reports each actual fee with its item; none has arrived in this run's notices.",
+  feesSoFar:
+    "The simulated PayPal sandbox reports each modelled fee with its item; none has arrived in this run's notices.",
   railCash: "Cash",
-  statusWaiting: "Sent, waiting for PayPal",
+  statusWaiting: "Sent, waiting for simulated PayPal",
   parkedChip: "Parked",
-  failedChip: "PayPal failed it",
+  failedChip: "Simulated PayPal failed it",
   log: "Run log",
   lane: { MACHINE: "Machine", PEOPLE: "People", PAYPAL: "PayPal" },
   laneEmpty: {
@@ -254,9 +256,9 @@ export const FANOUT = {
   seededLog: "Seeded showcase history. Start a run to watch each notice arrive.",
   latency: "From funding to each confirmed payment",
   latencySummary: (p50: string, max: string) => `Median ${p50}, slowest ${max}`,
-  latencyEmpty: "Confirmations appear here as PayPal sends them.",
+  latencyEmpty: "Confirmations appear here as the simulated PayPal sandbox sends them.",
   rheaWhy: (name: string, amount: string) =>
-    `${name}'s address has no PayPal account, so PayPal parked ${amount} as unclaimed. It returns to the co-op by itself after 30 days, or you can decide now.`,
+    `${name}'s address has no PayPal account, so the simulated PayPal sandbox parked ${amount} as unclaimed. It returns to the co-op by itself after 30 days, or you can decide now.`,
   payCash: "Pay in cash at the bodega",
   payCashUnavailable: "Moving a line to cash needs the live run. This is the seeded showcase.",
   srPayCash: (name: string, amount: string) =>
@@ -264,10 +266,10 @@ export const FANOUT = {
   resend: "Re-send after she confirms her email",
   resendNote: "Needs her confirmed email and your key on a new one-item batch",
   resendPending: "Re-sending needs a confirmed email address. Ask Rhea at the bodega first.",
-  wait: "Or wait: she can join PayPal and claim it within 30 days. Whether the sandbox allows this is unverified.",
+  wait: "Or wait: she can join PayPal and claim it within 30 days. This simulator models claiming; PayPal's own sandbox is untested.",
   // S1.7's wording: the cash is due on cash day, not paid yet.
   rerouted: (_name: string, date: string) =>
-    `Returned to the co-op's PayPal balance. Cash at the bodega on ${date}.`,
+    `Returned to the co-op's simulated PayPal balance. Cash at the bodega on ${date}.`,
   duplicate: "Delivery repeated, already applied.",
   figure: "Where the money goes",
   tableCaption: "Payout threads and cash lines",

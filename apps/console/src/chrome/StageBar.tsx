@@ -23,6 +23,7 @@ export interface StageBarProps {
   readonly pill?: ReactNode;
   readonly proofHref: string | null;
   readonly confirmed: number;
+  readonly replayed?: boolean;
   readonly total: number;
   readonly canReset: boolean;
   readonly resetting: boolean;
@@ -64,6 +65,7 @@ export function StageBar({
   pill,
   proofHref,
   confirmed,
+  replayed = false,
   total,
   canReset,
   resetting,
@@ -114,7 +116,11 @@ export function StageBar({
             data-complete={total > 0 && confirmed === total ? "" : undefined}
           >
             <Glyph name={confirmed > 0 ? "seal-fill" : "seal"} size={16} />
-            <span className="fs-t-label">{t("W-JG-01.proofChip", { confirmed, total })}</span>
+            <span className="fs-t-label">
+              {replayed
+                ? `Proof: ${total} statuses replayed (labelled, simulated), ${confirmed} successful in the source run`
+                : t("W-JG-01.proofChip", { confirmed, total })}
+            </span>
           </AppLink>
         )}
       </nav>

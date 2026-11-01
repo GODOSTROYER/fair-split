@@ -287,8 +287,16 @@ export function paidTiers(
   lines: readonly Pick<ProofLine, "memberNo" | "netCents" | "rail">[],
   items: readonly ProofItemView[],
   states: LineStates,
+  replayed = false,
 ): PaidTiers {
-  const paid = paidMembers(items);
+  // Presentation only: a replay bucket describes successful source statuses, never fresh payment evidence.
+  const paid = replayed
+    ? new Set(
+        items
+          .filter((item) => item.status === "SUCCESS" && item.memberNo !== null)
+          .map((item) => item.memberNo as string),
+      )
+    : paidMembers(items);
   const byMember = itemsByMember(items);
   const acc: Record<LineTier, { members: number; cents: number }> = {
     paypal: { members: 0, cents: 0 },

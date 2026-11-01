@@ -8,6 +8,7 @@ import { translate } from "@fairsplit/i18n";
 import { Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { errorView } from "../data/errors.js";
 import type { JudgeSessionApi } from "../data/hooks.js";
+import { payoutReplayed } from "../data/payout-replay.js";
 import type { RunView } from "../data/run-view.js";
 import type { AutoplayState } from "../stage/context.js";
 import { STAGE_NOTICE } from "./copy.js";
@@ -23,7 +24,8 @@ export type NoticeState =
   | "circuit"
   | "balance-low"
   | "ai-off"
-  | "paypal-off";
+  | "paypal-off"
+  | "replay";
 
 export interface StageNoticeView {
   readonly state: NoticeState;
@@ -43,6 +45,7 @@ export interface StageNoticeInput {
   readonly inSession: boolean;
   /** Why the API replays PayPal steps for this session (GET /v1/judge/session `rail.reason`), if it does. */
   readonly replayReason?: ReplayReason | null;
+  readonly replayLabel?: string | null;
 }
 
 /** The notice the stage shows, or null. Pure, so the stage's `data-state` follows it exactly. */
@@ -52,8 +55,13 @@ export function stageNoticeFor({
   autoplay,
   inSession,
   replayReason = null,
+  replayLabel = null,
 }: StageNoticeInput): StageNoticeView | null {
   const none: readonly string[] = [];
+  const replaySuffix =
+    inSession && (replayReason || payoutReplayed(view))
+      ? ` ${replayLabel ?? "Replayed (labelled): earlier simulated PayPal sandbox run"}`
+      : "";
   if (session.status === "resetting") {
     return {
       state: "resetting",
@@ -98,13 +106,19 @@ export function stageNoticeFor({
     return {
       state: "autoplay",
       glyph: "ms:play-arrow",
-      text: STAGE_NOTICE.autoplay,
+      text: `${STAGE_NOTICE.autoplay}${replaySuffix}`,
       refs: none,
       retry: false,
     };
   }
   if (autoplay === "paused") {
-    return { state: "paused", glyph: "ms:pause", text: STAGE_NOTICE.paused, refs: none, retry: false };
+    return {
+      state: "paused",
+      glyph: "ms:pause",
+      text: `${STAGE_NOTICE.paused}${replaySuffix}`,
+      refs: none,
+      retry: false,
+    };
   }
   const place = session.session?.queuePosition ?? null;
   if (inSession && place !== null && place > 0) {
@@ -123,6 +137,15 @@ export function stageNoticeFor({
   }
   if (inSession && replayReason === "balance_low") {
     return { state: "balance-low", glyph: "rail", text: STAGE_NOTICE.balanceLow, refs: none, retry: false };
+  }
+  if (inSession && (replayReason !== null || payoutReplayed(view))) {
+    return {
+      state: "replay",
+      glyph: "rail",
+      text: replayLabel ?? "Replayed (labelled): earlier simulated PayPal sandbox run",
+      refs: none,
+      retry: false,
+    };
   }
   if (inSession && view?.flags.kill_ai_live) {
     return { state: "ai-off", glyph: "pencil", text: STAGE_NOTICE.aiOff, refs: none, retry: false };

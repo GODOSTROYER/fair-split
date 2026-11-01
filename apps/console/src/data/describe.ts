@@ -83,14 +83,18 @@ function laneOf(event: RunEvent): LogLane {
   return "MACHINE";
 }
 
-function provenanceNote(provenance: Provenance, _ctx: DescribeContext): string | null {
+function provenanceNote(provenance: Provenance, type: RunEventType): string | null {
   switch (provenance) {
     case "replay":
-      return "labelled replay of the seed stand-in";
+      return type.startsWith("extract.")
+        ? "Seed stand-in, not a Claude recording"
+        : type === "item.updated" || type === "invoice.state"
+          ? "Labelled replay of an earlier simulated run (including a seed snapshot)"
+          : "Labelled replay of an earlier demo event";
     case "simulated_rail":
       return "simulated PayPal sandbox";
     case "seeded":
-      return "Seed stand-in, not a Claude recording";
+      return type.startsWith("extract.") ? "Seed stand-in, not a Claude recording" : "Seeded demo event";
     case "live":
       return null;
   }
@@ -189,7 +193,7 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
     provenance: event.provenance,
     duplicate: false,
   };
-  const note = provenanceNote(event.provenance, ctx);
+  const note = provenanceNote(event.provenance, event.type);
   switch (event.type) {
     case "run.state": {
       const words = pickLabel(RUN_STATE_LABELS[event.payload.to], "en", {
@@ -206,13 +210,15 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
       const amount = ctx.itemAmount(p.senderItemId);
       const status = pickLabel(PAYOUT_ITEM_STATUS_LABELS[p.to], "en");
       const words =
-        p.to === "SUCCESS"
-          ? join(`Paid ${name} ${amount ?? ""}`.trim())
-          : p.to === "UNCLAIMED"
-            ? `${name}'s address has no PayPal account. Parked`
-            : p.to === "RETURNED" && p.source === "cancel"
-              ? `${name}: returned to the co-op's PayPal balance`
-              : `${name}: ${status.toLowerCase()}`;
+        event.provenance === "replay"
+          ? `${name}: Replayed (labelled), simulated ${p.to.toLowerCase()}`
+          : p.to === "SUCCESS"
+            ? join(`Paid ${name} ${amount ?? ""}`.trim())
+            : p.to === "UNCLAIMED"
+              ? `${name}'s address has no PayPal account. Parked`
+              : p.to === "RETURNED" && p.source === "cancel"
+                ? `${name}: returned to the co-op's PayPal balance`
+                : `${name}: ${status.toLowerCase()}`;
       const eventName =
         p.to === "SUCCESS"
           ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
@@ -221,7 +227,17 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
             : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
       // The whole item ID: it is what a person matches against PayPal's own records.
       const item = p.payoutItemId ? `item ${p.payoutItemId}` : null;
-      return { ...base, lane: "PAYPAL", words, detail: join(eventName, item, itemSource(p.source), note) };
+      return {
+        ...base,
+        lane: "PAYPAL",
+        words,
+        detail: join(
+          eventName,
+          item,
+          event.provenance === "replay" ? "Replayed status" : itemSource(p.source),
+          note,
+        ),
+      };
     }
     case "hold.raised": {
       const p = event.payload;

@@ -318,3 +318,17 @@ describe("the plot field", () => {
     expect(plotField([], 640, 220)).toEqual([]);
   });
 });
+
+it("inv.i3.replay tiers conserve net while counting source successes without fresh notices", () => {
+  const items = mergeItems(
+    bundle.batch.items.map((item) => ({ ...item, eventId: null, provenance: "replay" as const })),
+  );
+  const tiers = paidTiers(bundle.lines, items, {}, true);
+  expect(tiers.paypal.members).toBe(7);
+  expect(tiers.paypal.cents + tiers.attested.cents + tiers.due.cents + tiers.reserved.cents).toBe(
+    tiers.netCents,
+  );
+  expect(tiers.paypal.members + tiers.attested.members + tiers.due.members + tiers.reserved.members).toBe(
+    bundle.lines.length,
+  );
+});
