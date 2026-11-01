@@ -9,7 +9,9 @@
 // a retired pool workspace), which clears `claimed_at` and leaves the expiry to run out (`workspaceInUse`).
 //
 // Purge (hourly `judgeReset`): `fs_purge_workspace()` deletes an expired judge workspace and everything in
-// it. It already refuses while money is in flight (a POSTING run, a non-terminal item). We also wait while
+// it. It refuses while money is in flight (a POSTING run, a non-terminal item whose batch is not stranded).
+// Stranded demo items keep their last reported status; migration 0018 permits their expired judge workspace's purge.
+// We also wait while
 // the workspace's PayPal calls are inside the limiter's window or circuit (7 minutes: the purge cascade
 // would delete the `paypal_calls` rows the limiter counts) and while a count still reads one of its batch rows
 // (quota.ts `batchesStillCounted`): C-21 counts a batch for 24 h and a lane lease after its write or after a POST
@@ -191,15 +193,41 @@ export async function purgeExpiredJudgeWorkspaces(
           sql`, `,
         )})`
       : sql``;
+  // Read eligibility before applying the pass limit: a full page of deferred workspaces must not starve
+  // newer removable ones. The purge rechecks money under its workspace lock; these reads only order the work.
   // The database clock decides expiry here, exactly as fs_purge_workspace() does.
   const candidates = (await db.execute(sql`
-    select w.id
+    select w.id,
+           (exists (select 1 from pay_runs r where r.workspace_id = w.id and r.state = 'POSTING')
+            or exists (select 1 from payout_items i where i.workspace_id = w.id
+                        and i.status in ('SUBMITTED', 'PENDING', 'ONHOLD', 'UNCLAIMED')
+                        and not exists (select 1 from ledger_entries l
+                                         where l.workspace_id = w.id and l.kind = 'payout.stranded'
+                                           and l.payload->>'batchId' = i.batch_id::text))
+            or exists (select 1 from paypal_calls pc where pc.workspace_id = w.id
+                        and pc.at > now() - make_interval(secs => ${quietSec}))) as blocked,
+           now() as now
       from workspaces w
      where w.kind = 'judge' and w.expires_at is not null and w.expires_at <= now() ${narrow}
-     order by w.expires_at
-     limit ${limit}`)) as unknown as { id: string }[];
+     order by w.expires_at, w.id`)) as unknown as {
+    id: string;
+    blocked: boolean;
+    now: Date | string;
+  }[];
+  const ordered: { id: string; deferred: boolean }[] = [];
+  for (const candidate of candidates) {
+    ordered.push({
+      id: candidate.id,
+      deferred: candidate.blocked || (await batchesStillCounted(db, candidate.id, new Date(candidate.now))),
+    });
+  }
+  ordered.sort((a, b) => Number(a.deferred) - Number(b.deferred));
   const out: PurgeOutcome = { purged: [], deferred: [] };
-  for (const { id } of candidates) {
+  for (const { id, deferred } of ordered.slice(0, limit)) {
+    if (deferred) {
+      out.deferred.push(id);
+      continue;
+    }
     const [busy] = (await db.execute(sql`
       select exists (select 1 from paypal_calls pc
                       where pc.workspace_id = ${id}

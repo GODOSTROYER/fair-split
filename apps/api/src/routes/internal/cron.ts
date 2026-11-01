@@ -7,7 +7,7 @@
 // The judgeReset pass is the judge folder's handler (src/judge/reset-task.ts): it cancels judge items parked
 // UNCLAIMED for over 15 minutes, purges expired judge workspaces, retires and refills the pool, resumes stalled
 // POSTs and drops expired webhook transmission ids. reconcile and warmCaches are handled elsewhere (labelled no-ops
-// in this build). This is apps/tasks/src/cron.ts's tested plan, lifted here with the real IC-01 `TASKS` keys
+// in this build). This is the only hourly plan, using the real IC-01 `TASKS` keys
 // (apps cannot import apps).
 //
 // Only a job this process has a handler for is enqueued. A row without one would be claimed, fail `no handler

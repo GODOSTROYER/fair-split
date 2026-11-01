@@ -27,6 +27,7 @@ beforeAll(async () => {
   writeFileSync(path.join(media, "audio", "manifest.json"), '{"v":1,"clips":[]}');
   mkdirSync(path.join(media, "photos"), { recursive: true });
   writeFileSync(path.join(media, "photos", "A.webp"), Buffer.alloc(64, 1));
+  writeFileSync(path.join(media, "photos", "slip-20261101.webp"), Buffer.alloc(64, 2));
   t = await createTestApp({ static: { console, app, media } });
 });
 
@@ -73,6 +74,36 @@ describe("static serving (one origin)", () => {
     const js = await t.request("/app/_expo/static/js/entry-1.js");
     expect(js.status).toBe(200);
     expect(js.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  });
+
+  it("never falls back to app HTML for a missing asset, whatever the client accepts", async () => {
+    for (const p of [
+      "/app/_expo/static/js/missing.js",
+      "/app/icon.png",
+      "/app/entry.js.map",
+      "/app/s/missing-statement.js",
+      "/app/s/fsm_missing-statement.js",
+    ]) {
+      for (const headers of [html, { accept: "*/*" }, { accept: "application/javascript" }, {}]) {
+        const r = await t.request(p, { headers });
+        expect(r.status, p).toBe(404);
+      }
+    }
+  });
+
+  it("a date in a media filename is revalidated, not treated as a content hash", async () => {
+    const r = await t.request("/media/photos/slip-20261101.webp");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("cache-control")).toBe("no-cache");
+    expect(r.headers.get("etag")).toMatch(/^W\//);
+  });
+
+  it("HEAD opens a dotted brand link with the same page headers as GET", async () => {
+    const r = await t.request("/b/fsb_x.y", { method: "HEAD", headers: html });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toContain("text/html");
+    expect(r.headers.get("cache-control")).toBe("no-cache");
+    expect(await r.text()).toBe("");
   });
 
   it("serves a content-hashed /media file immutable, with byte ranges for audio seeking", async () => {
@@ -161,6 +192,9 @@ describe("static serving (one origin)", () => {
     expect(r.headers.get("cache-control")).toBe("no-store");
     expect(r.headers.get("referrer-policy")).toBe("no-referrer");
     expect(r.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    const page = await t.request(`/app/s/${token}`, { headers: html });
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("<title>app</title>");
     expect((await t.request("/s/%3Cscript%3E", { headers: html, redirect: "manual" })).status).toBe(404);
   });
 

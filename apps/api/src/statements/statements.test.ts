@@ -229,6 +229,14 @@ describe("statementPlan and renderStatement", () => {
 });
 
 describe("the AI_NOTE: Claude's reading only when Claude read the slips (T1)", () => {
+  it("inv.i8.labels: absent or null reading provenance plans the seeded AI_NOTE", () => {
+    for (const over of [{}, { readingProvenance: null }]) {
+      const plan = statementPlan(seedFacts("M-014", "en", over));
+      expect(plan.sentences.map((sentence) => `${sentence.slot}.${sentence.variant}`)).toContain(
+        "AI_NOTE.seeded",
+      );
+    }
+  });
   const LANGS = ["en", "ceb", "fil"] as const;
   /** Each AI_NOTE form, by the line facts that pick it. */
   const FORMS = {

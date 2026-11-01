@@ -395,12 +395,16 @@ async function cancel(
   } catch (e) {
     if (e instanceof PayoutsApiError) {
       if (e.status === 429) {
-        throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
-          transient: true,
-          retryAfterMs: 6 * 60_000,
-          debugId: e.debugId,
-          status: 429,
-        });
+        throw new PayPalStepError(
+          "CIRCUIT_OPEN",
+          "The simulated PayPal sandbox is pacing us; the cancel waits.",
+          {
+            transient: true,
+            retryAfterMs: 6 * 60_000,
+            debugId: e.debugId,
+            status: 429,
+          },
+        );
       }
       throw new PayPalStepError("PAYPAL_REJECTED", `PayPal refused the cancel (${e.paypalName}).`, {
         transient: false,
@@ -457,10 +461,14 @@ async function cancel(
       // PayPal's pacing (the limiter window, the 429 circuit): nothing was sent, the intent stays recorded
       // and the outbox retries the cancel later.
       if (outcome.code === "QUEUED" || outcome.code === "CIRCUIT_OPEN") {
-        throw new PayPalStepError("CIRCUIT_OPEN", "PayPal's sandbox is pacing us; the cancel waits.", {
-          transient: true,
-          retryAfterMs: outcome.code === "CIRCUIT_OPEN" ? 6 * 60_000 : 30_000,
-        });
+        throw new PayPalStepError(
+          "CIRCUIT_OPEN",
+          "The simulated PayPal sandbox is pacing us; the cancel waits.",
+          {
+            transient: true,
+            retryAfterMs: outcome.code === "CIRCUIT_OPEN" ? 6 * 60_000 : 30_000,
+          },
+        );
       }
       throw new PayPalStepError(
         outcome.code === "KILL_SWITCH_ON" ? "KILL_SWITCH_ON" : "INVALID_TRANSITION",

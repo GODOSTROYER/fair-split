@@ -131,21 +131,80 @@ describe("GET /v1/statements/:lineId", () => {
   });
 
   it("T1: a line whose slips Claude read live keeps the product AI_NOTE (M-031)", async () => {
-    await t.deps.db
-      .update(schema.slipRows)
-      .set({ provenance: "live" })
-      .where(
-        and(eq(schema.slipRows.workspaceId, w.workspaceId), eq(schema.slipRows.memberId, memberId("M-031"))),
-      );
-    const token = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
-    const r = await t.json<StatementView>(`/v1/statements/${line("M-031")}?lang=en`, {
-      as: t.credentials.bearer(token),
-    });
-    expect(r.status, JSON.stringify(r.body)).toBe(200);
-    expect(r.body.plan.readingProvenance).toBe("live");
-    const note = must(r.body.display.find((s) => s.slot === "AI_NOTE"));
-    expect(note.variant).toBe("default");
-    expect(note.text).toBe(must(TEMPLATES_V1.en["AI_NOTE.default"]).replace("{{TREASURER}}", "Analyn"));
+    const ownRows = and(
+      eq(schema.slipRows.workspaceId, w.workspaceId),
+      eq(schema.slipRows.memberId, memberId("M-031")),
+    );
+    await t.deps.db.update(schema.slipRows).set({ provenance: "live" }).where(ownRows);
+    try {
+      const token = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-031")}?lang=en`, {
+        as: t.credentials.bearer(token),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBe("live");
+      const note = must(r.body.display.find((s) => s.slot === "AI_NOTE"));
+      expect(note.variant).toBe("default");
+      expect(note.text).toBe(must(TEMPLATES_V1.en["AI_NOTE.default"]).replace("{{TREASURER}}", "Analyn"));
+    } finally {
+      await t.deps.db.update(schema.slipRows).set({ provenance: "seeded" }).where(ownRows);
+    }
+  });
+
+  it("inv.i8.labels: rejected readings cannot change the member's reading provenance", async () => {
+    const ownRows = and(
+      eq(schema.slipRows.workspaceId, w.workspaceId),
+      eq(schema.slipRows.memberId, memberId("M-014")),
+    );
+    const rows = await t.deps.db.select().from(schema.slipRows).where(ownRows);
+    expect(rows.length).toBeGreaterThan(1);
+    try {
+      await t.deps.db.update(schema.slipRows).set({ provenance: "live" }).where(ownRows);
+      await t.deps.db
+        .update(schema.slipRows)
+        .set({ state: "REJECTED", provenance: "seeded" })
+        .where(eq(schema.slipRows.id, must(rows[0]).id));
+      const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-014") });
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-014")}?lang=en`, {
+        as: t.credentials.bearer(link),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBe("live");
+      expect(r.body.display.find((s) => s.slot === "AI_NOTE")?.variant).toBe("default");
+    } finally {
+      for (const row of rows) {
+        await t.deps.db
+          .update(schema.slipRows)
+          .set({ state: row.state, provenance: row.provenance })
+          .where(eq(schema.slipRows.id, row.id));
+      }
+    }
+  });
+
+  it("inv.i8.labels: no own non-rejected reading means null provenance and the demo note", async () => {
+    const ownRows = and(
+      eq(schema.slipRows.workspaceId, w.workspaceId),
+      eq(schema.slipRows.memberId, memberId("M-031")),
+    );
+    const rows = await t.deps.db.select().from(schema.slipRows).where(ownRows);
+    expect(rows.length).toBeGreaterThan(0);
+    try {
+      await t.deps.db.update(schema.slipRows).set({ state: "REJECTED" }).where(ownRows);
+      const link = t.credentials.memberLink({ workspaceId: w.workspaceId, lineId: line("M-031") });
+      const r = await t.json<StatementView>(`/v1/statements/${line("M-031")}?lang=en`, {
+        as: t.credentials.bearer(link),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.plan.readingProvenance).toBeNull();
+      expect(r.body.display.find((s) => s.slot === "AI_NOTE")?.variant).toBe("seeded");
+    } finally {
+      for (const row of rows) {
+        await t.deps.db
+          .update(schema.slipRows)
+          .set({ state: row.state })
+          .where(eq(schema.slipRows.id, row.id));
+      }
+    }
   });
 
   it("inv.i1.no-model-numbers: a stored sentence with a digit is never shown; the v1 words are", async () => {

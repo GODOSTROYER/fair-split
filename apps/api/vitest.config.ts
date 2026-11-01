@@ -6,6 +6,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    fsModuleCachePath: "./node_modules/.vitest-cache",
     include: ["src/**/*.test.ts"],
     environment: "node",
     globalSetup: ["./src/test/global-setup.ts"],

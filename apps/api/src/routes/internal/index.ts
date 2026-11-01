@@ -31,11 +31,11 @@ export default defineRouteFolder({
       const log = c.get("log");
       const secret = configuredCronSecret(deps.env.secrets.cronSecret);
       if (!secret) {
-        log.warn("cron tick refused: CRON_SECRET is unset or too short, so the route answers 404");
+        log.debug("cron tick refused: CRON_SECRET is unset or too short, so the route answers 404");
         throw problem.notFound(`No route for ${c.req.method} ${c.req.path}`);
       }
       if (!cronSecretMatches(secret, c.req.header("authorization"))) {
-        log.warn("cron tick refused: missing or wrong secret");
+        log.debug("cron tick refused: missing or wrong secret");
         throw problem.unauthenticated("Unauthenticated.");
       }
       c.header("Cache-Control", "no-store");

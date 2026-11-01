@@ -71,7 +71,7 @@ export function toApiProblem(err: unknown): ApiProblem {
     if (err.status === 429) {
       return new ApiProblem(
         "CIRCUIT_OPEN",
-        "PayPal's sandbox is pacing us. PayPal steps replay for a few minutes.",
+        "The simulated PayPal sandbox is pacing us. PayPal steps replay for a few minutes.",
         {
           retryAfterMs: CIRCUIT_MS,
           ...debug,

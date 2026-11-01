@@ -15,7 +15,13 @@
 // day's next generation is printed instead: one live printed link per line and day, and at most
 // PRINT_LINK_GENERATIONS a day in all.
 import { createHmac } from "node:crypto";
-import { MEMBER_LINE_LABELS, MemberLineState, MoneyDTO, Provenance } from "@fairsplit/contracts";
+import {
+  LABEL_REVIEW_STATUS,
+  MEMBER_LINE_LABELS,
+  MemberLineState,
+  MoneyDTO,
+  Provenance,
+} from "@fairsplit/contracts";
 import { type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
 import { format, jcs } from "@fairsplit/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -48,6 +54,8 @@ export const PrintSlip = z.strictObject({
   season: z.strictObject({ code: z.string(), label: z.string() }),
   run: z.strictObject({ runSlug: z.string(), provenance: Provenance }),
   member: z.strictObject({ memberNo: z.string(), name: z.string(), addressedAs: z.string(), lang: Lang }),
+  /** Cebuano and Filipino translations remain marked until native review (OD-2). */
+  reviewChip: z.string().nullable(),
   line: z.strictObject({
     state: MemberLineState,
     statusWords: z.string(),
@@ -314,6 +322,7 @@ export async function printSlip(
       addressedAs: f.honorific,
       lang,
     },
+    reviewChip: lang === "en" ? null : LABEL_REVIEW_STATUS,
     line: { state: f.state, statusWords: MEMBER_LINE_LABELS[f.state][lang], pay },
     amount,
     receipt,

@@ -1,8 +1,9 @@
-// POST /internal/cron/tick without a database: the hourly plan (lifted from apps/tasks/src/cron.ts, keyed with the
+// POST /internal/cron/tick without a database: the single hourly plan (keyed with the
 // real IC-01 TASKS), the constant-time CRON_SECRET check, and the refusals that must happen before any work. The
 // no-database harness turns any database access into a 500, so a 401 or 404 here also proves nothing was read.
 import { TASKS, TaskArgs, type TaskName } from "@fairsplit/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createLogger } from "../../middleware/logger.js";
 import { createTestApp, type TestApp } from "../../test/index.js";
 import {
   CRON_TICK_PATH,
@@ -149,6 +150,29 @@ describe(`POST ${CRON_TICK_PATH} before any work`, () => {
       headers: { authorization: `Bearer ${SECRET}` },
     });
     expect(r.status).toBe(500);
+  });
+
+  it("logs unauthenticated refusals at debug so arbitrary requests cannot flood warnings", async () => {
+    for (const app of [open, closed]) {
+      const lines: { level: string; msg: string }[] = [];
+      const previous = app.deps.logger;
+      app.deps.logger = createLogger({
+        level: "debug",
+        destination: {
+          write(line: string) {
+            lines.push(JSON.parse(line));
+          },
+        },
+      });
+      try {
+        await app.json(CRON_TICK_PATH, { method: "POST", body: {} });
+        const refusals = lines.filter((line) => line.msg.startsWith("cron tick refused:"));
+        expect(refusals).toHaveLength(1);
+        expect(refusals[0]?.level).toBe("debug");
+      } finally {
+        app.deps.logger = previous;
+      }
+    }
   });
 
   it("is not in the public OpenAPI document", () => {
