@@ -337,7 +337,7 @@ export interface Allowance {
    * The work package whose merge removes the need. Once it lands the sentence no longer fires, the allowance
    * goes stale and the lint fails until the entry is deleted. Absent: a lasting exception, still stale-checked.
    */
-  readonly pending?: "C5a" | "K1d";
+  readonly pending?: "C5a";
 }
 
 /**
@@ -493,29 +493,9 @@ const PENDING_C5A: Readonly<
 /** The file whose arrival means ws/console has merged: from then on every console allowance must match. */
 export const CONSOLE_MERGED_SENTINEL = "apps/console/src/chrome/copy.ts";
 
-/**
- * The app's demo statement (apps/mobile/src/_shims/seed.ts statementTemplates) still carries the product AI_NOTE in
- * ceb, fil and en with no seeded variant beside it. K1d (schedule §3) loads AU2's renderStatement plan, TEMPLATES_V1
- * with T1's seeded variant, instead; then these go stale and must be deleted here.
- */
-const PENDING_K1D: readonly Allowance[] = (
-  [
-    ["ceb", "gibasa sa makaduha sa AI (Claude)"],
-    ["fil", "Dalawang beses binasa ng AI (Claude)"],
-    ["en", "Your slips were read twice by AI (Claude)"],
-  ] as const
-).map(([lang, phrase]) => ({
-  rule: "read-twice-by-ai-seeded",
-  file: "apps/mobile/src/_shims/seed.ts",
-  phrase,
-  why: `K1d replaces the shim's ${lang} statement templates with T1's seeded AI_NOTE (schedule §3 K1d, §6)`,
-  pending: "K1d" as const,
-}));
-
-/** Every allowance: the lasting exceptions, then the entries pending K1d and C5a. */
+/** Every allowance: the lasting exceptions, then the entries pending C5a. */
 export const ALLOWANCES: readonly Allowance[] = [
   ...EXCEPTIONS,
-  ...PENDING_K1D,
   ...Object.entries(PENDING_C5A).flatMap(([file, entries]) =>
     entries.map(([rule, phrase, inLiteral]) => ({
       rule,

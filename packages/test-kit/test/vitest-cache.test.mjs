@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 import { resolveConfig } from "vitest/node";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-// These two configs belong to active builders and are explicitly excluded from HD2's editable paths.
-const deferred = new Set(["apps/console", "apps/mobile"]);
+// The console's config belongs to its active builder and remains deferred until that work lands.
+const deferred = new Set(["apps/console"]);
 const packages = [
   ...["apps", "packages"].flatMap((folder) =>
     readdirSync(join(repo, folder), { withFileTypes: true })
