@@ -12,6 +12,8 @@ import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
+import { useJudgeReplayReason } from "../../data/hooks.js";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import type { GridContext } from "../../features/split/cells.js";
 import {
   basisEventId,
@@ -55,11 +57,13 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const [filter, setFilter] = useState<SplitFilter>("all");
   const [allColumns, setAllColumns] = useState(false);
   const { snapshot, view } = data;
+  const replayReason = useJudgeReplayReason();
+  const replayed = payoutReplayed(view, data.live ? replayReason : null);
 
   // A line that did not change keeps its object, so the grid redraws only the lines an event moved.
   const previous = useRef(new Map<string, { readonly key: string; readonly row: SplitRow }>());
   const rows = useMemo(() => {
-    const next = snapshot && view ? splitRows(snapshot, view) : [];
+    const next = snapshot && view ? splitRows(snapshot, view, replayed) : [];
     const kept = new Map<string, { readonly key: string; readonly row: SplitRow }>();
     const out = next.map((row) => {
       const key = JSON.stringify(row);
@@ -70,7 +74,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
     });
     previous.current = kept;
     return out;
-  }, [snapshot, view]);
+  }, [snapshot, view, replayed]);
   // Every line: the open decisions pinned on top, the rest beneath. A filter shows its lines in member order.
   const decisions = useMemo(() => (filter === "all" ? decisionRows(rows) : []), [rows, filter]);
   const shown = useMemo(() => {
@@ -249,7 +253,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         counts={filterCounts(rows)}
         filter={filter}
         onFilter={setFilter}
-        decidedWords={decidedWords(view.state)}
+        decidedWords={decidedWords(view.state, replayed)}
         proof={
           <div className="fsr-split__foot">
             <p className="fsr-split__totals fs-t-caption" data-testid="W-TR-05.totals">
@@ -291,7 +295,12 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
 }
 
 /** What the bench says once every hold is decided, by how far the run has gone since. */
-function decidedWords(state: string): string {
+export function decidedWords(state: string, replayed = false): string {
+  if (
+    replayed &&
+    ["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"].includes(state)
+  )
+    return "Every hold is decided and both keys signed. Payout statuses are replayed (labelled) from an earlier simulated PayPal sandbox run.";
   if (state === "SETTLED" || state === "CLOSED") return SPLIT.decidedSettled;
   if (state === "TREASURER_APPROVED" || state === "AWAITING_BOARD") return SPLIT.decidedKey1;
   if (["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP"].includes(state))

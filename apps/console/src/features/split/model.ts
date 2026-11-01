@@ -20,6 +20,7 @@ import type {
   SnapshotMember,
   SnapshotSlip,
 } from "@fairsplit/contracts";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import {
   type AmountState,
   atLeast,
@@ -120,6 +121,7 @@ export interface SplitRow {
   readonly movedToCash: boolean;
   readonly receiverKind: ReceiverKind;
   readonly state: MemberLineState;
+  readonly replayed?: boolean;
   readonly status: RowStatus;
   /** S2.2.1's grammar for the net. */
   readonly amountState: AmountState;
@@ -240,7 +242,11 @@ export function hasLines(view: RunView): boolean {
 }
 
 /** Every member line on the computation the run's decisions match, ordered by member number. */
-export function splitRows(snapshot: SeasonSnapshot, view: RunView): SplitRow[] {
+export function splitRows(
+  snapshot: SeasonSnapshot,
+  view: RunView,
+  replayed = payoutReplayed(view),
+): SplitRow[] {
   if (!hasLines(view)) return [];
   const basis = splitBasis(view);
   const output = engineOutput(snapshot, basis);
@@ -310,7 +316,8 @@ export function splitRows(snapshot: SeasonSnapshot, view: RunView): SplitRow[] {
       // Jade is money PayPal confirmed: a PAID line takes its cause and evidence from the verified item, whatever
       // bookkeeping event moved the line after it.
       const item = Object.values(view.items).find((i) => i.memberNo === line.memberNo);
-      const landed = state === "PAID" && item?.status === "SUCCESS";
+      const rowReplayed = replayed && line.rail === "PAYPAL" && item !== undefined;
+      const landed = !rowReplayed && state === "PAID" && item?.status === "SUCCESS";
       return {
         memberNo: line.memberNo,
         name: member?.consoleName ?? line.memberNo,
@@ -320,8 +327,9 @@ export function splitRows(snapshot: SeasonSnapshot, view: RunView): SplitRow[] {
         movedToCash: line.rail === "PAYPAL" && CASH_STATES.includes(state),
         receiverKind: member?.receiverKind ?? "NONE",
         state,
+        replayed: rowReplayed,
         status,
-        amountState: lineAmountState(view, line.memberNo),
+        amountState: rowReplayed ? "ink" : lineAmountState(view, line.memberNo),
         partsState: approved ? "ink" : "pencil",
         verifiedG: line.verifiedG,
         grade1G: line.grade1G,
