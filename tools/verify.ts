@@ -19,7 +19,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, posix, resolve, win32 } from "node:path";
 import { isMain } from "../apps/tasks/src/main.js";
 import { REPO_ROOT } from "./lib/blueprint.js";
 
@@ -107,11 +107,32 @@ export type StepRunner = (
   env: NodeJS.ProcessEnv,
 ) => { exitCode: number | null; output: string };
 
-/** Node ships corepack as a script next to the binary; running it with node avoids a shell on Windows. */
-export function resolveCommand(command: string, args: readonly string[]): [string, string[]] {
+/** Where to look for Node's own corepack; tests pass another platform's layout. */
+export interface NodeHost {
+  readonly platform: NodeJS.Platform;
+  readonly execPath: string;
+  readonly exists: (path: string) => boolean;
+}
+
+const THIS_NODE: NodeHost = { platform: process.platform, execPath: process.execPath, exists: existsSync };
+
+/**
+ * Node ships corepack as a script; running it with node needs no shell (Windows would need one for corepack.cmd).
+ * Windows installs keep it beside node.exe; the Linux and macOS tarballs keep it under `<prefix>/lib/node_modules`,
+ * with node in `<prefix>/bin`. A Node with no bundled corepack gets the bare command, found on PATH.
+ */
+export function resolveCommand(
+  command: string,
+  args: readonly string[],
+  host: NodeHost = THIS_NODE,
+): [string, string[]] {
   if (command === "corepack") {
-    const js = join(dirname(process.execPath), "node_modules", "corepack", "dist", "corepack.js");
-    if (existsSync(js)) return [process.execPath, [js, ...args]];
+    const p = host.platform === "win32" ? win32 : posix;
+    const bin = p.dirname(host.execPath);
+    const modules =
+      host.platform === "win32" ? p.join(bin, "node_modules") : p.join(bin, "..", "lib", "node_modules");
+    const js = p.join(modules, "corepack", "dist", "corepack.js");
+    if (host.exists(js)) return [host.execPath, [js, ...args]];
   }
   return [command, [...args]];
 }
