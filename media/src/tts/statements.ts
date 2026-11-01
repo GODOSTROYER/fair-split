@@ -17,7 +17,7 @@ import {
   upsertEntry,
   voiceLabel,
 } from "./manifest.js";
-import { requestOnce, type TtsDeps } from "./pipeline.js";
+import { isRequestCached, requestOnce, type TtsDeps } from "./pipeline.js";
 import { APPROVED_STATEMENT_REQUESTS } from "./plan.js";
 import { LANGS, STYLE_NOTE } from "./statement.js";
 import { type ListeningDeps, listen } from "./statement-asr.js";
@@ -407,6 +407,30 @@ export async function synthesizePlannedStatement(
       deps.log?.(`[published] ${c.entry.file}`);
     }
   };
+  const cachedAttempts = new Set<string>();
+  const trySentence = async (sentence: PlannedStatement["sentences"][number]) => {
+    const single = await requestOnce(deps, { ...base, text: sentence.text });
+    const duration = parseWav(single.wav).durationMs / 1000;
+    const candidates = await recoverable(() =>
+      prepare(
+        single,
+        [{ start: 0, end: duration }],
+        [0],
+        [{ sentence: 0, refs: [], text: sentence.text }],
+        [sentence],
+        "per-sentence-asr",
+      ),
+    );
+    if (candidates) await publish(candidates);
+    return candidates;
+  };
+  // Recovery takes priority over generating or re-splitting the full statement.
+  for (const sentence of request.sentences) {
+    if (ready(sentence) || !isRequestCached(deps, { ...base, text: sentence.text })) continue;
+    cachedAttempts.add(sentence.textSha256);
+    await trySentence(sentence);
+  }
+  if (request.sentences.every(ready)) return draft ? manifest : target;
   const take = await requestOnce(deps, { ...base, text: marked.text });
   const full = await tryTake(take, marked.segments, request.sentences);
   if (full) await publish(full);
@@ -417,21 +441,12 @@ export async function synthesizePlannedStatement(
     const failed: string[] = [];
     for (const sentence of request.sentences) {
       if (ready(sentence)) continue;
+      if (cachedAttempts.has(sentence.textSha256)) {
+        failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
+        continue;
+      }
       // Plain speech avoids relying on the failed marker grammar. ASR timestamps locate its anchors.
-      const single = await requestOnce(deps, { ...base, text: sentence.text });
-      const duration = parseWav(single.wav).durationMs / 1000;
-      const candidates = await recoverable(() =>
-        prepare(
-          single,
-          [{ start: 0, end: duration }],
-          [0],
-          [{ sentence: 0, refs: [], text: sentence.text }],
-          [sentence],
-          "per-sentence-asr",
-        ),
-      );
-      if (candidates) await publish(candidates);
-      else failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
+      if (!(await trySentence(sentence))) failed.push(`${sentence.slot}:${sentence.textSha256.slice(0, 12)}`);
     }
     if (failed.length) throw new StatementVerificationError(failed);
   }

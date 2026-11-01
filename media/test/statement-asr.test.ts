@@ -84,3 +84,71 @@ it("counts a bounded transient 503 retry through the next pool key with SDK retr
   expect(calls).toBe(2);
   expect((await ledger.today(ASR_MODEL)).requests).toBe(2);
 });
+
+it("inv.i8.asr-outage: backs off and stops the run before repeated 503s drain the daily pool", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-outage-"));
+  roots.push(root);
+  let time = Date.now();
+  let calls = 0;
+  const waits: number[] = [];
+  const sleep = async (ms: number) => {
+    waits.push(ms);
+    time += ms;
+  };
+  const ledger = new QuotaLedger(join(root, "quota.json"), () => new Date(time));
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, n) => `offline-${n}-${"standin".repeat(5)}`),
+    {
+      ledger,
+      now: () => new Date(time),
+      sleep,
+      makeClient: () => ({
+        models: {
+          generateContent: async () => {
+            calls++;
+            throw Object.assign(new Error("Service busy"), { status: 503 });
+          },
+        },
+      }),
+    },
+  );
+  const deps = { asrPool: pool, cacheDir: root, asrSleep: sleep };
+  for (let n = 0; n < 4; n++)
+    await expect(listen(deps, Buffer.from(`outage-${n}`), "audio/mp4", "ceb")).rejects.toThrow();
+  expect(waits).toEqual([5_000, 15_000, 5_000, 15_000]);
+  expect(calls).toBe(6);
+  expect((await ledger.today(ASR_MODEL)).requests).toBe(6);
+});
+
+it("inv.i8.asr-recovery: successful recognition resets an outage streak across the plan", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-recovery-"));
+  roots.push(root);
+  let time = Date.now();
+  let calls = 0;
+  const sleep = async (ms: number) => {
+    time += ms;
+  };
+  const pool = new KeyPool(
+    Array.from({ length: 12 }, (_, n) => `offline-${n}-${"standin".repeat(5)}`),
+    {
+      ledger: new QuotaLedger(join(root, "quota.json"), () => new Date(time)),
+      now: () => new Date(time),
+      sleep,
+      makeClient: () => ({
+        models: {
+          generateContent: async () => {
+            calls++;
+            if (calls % 2) throw Object.assign(new Error("Service busy"), { status: 503 });
+            return { text: "Hello" };
+          },
+        },
+      }),
+    },
+  );
+  const deps = { asrPool: pool, cacheDir: root, asrSleep: sleep };
+  for (let n = 0; n < 7; n++)
+    expect((await listen(deps, Buffer.from(`recovered-${n}`), "audio/mp4", "en")).text).toBe("Hello");
+  expect(calls).toBe(14);
+});

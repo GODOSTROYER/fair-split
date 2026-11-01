@@ -6,6 +6,7 @@ import { main } from "../src/tts/cli.js";
 import { TTS_MODEL } from "../src/tts/gemini.js";
 import { KeyPool, PoolExhaustedError } from "../src/tts/keys.js";
 import { AUDIO_NOTICE, type AudioEntry, type AudioManifest } from "../src/tts/manifest.js";
+import { AsrUnavailableError } from "../src/tts/statement-asr.js";
 import {
   loadStatementPlans,
   type PlannedStatement,
@@ -92,6 +93,23 @@ it("continues later requests after a verification refusal and reports the partia
     quotaRefused: false,
     failures: [{ request: "M-014:ceb", failed: ["GREETING:failed"] }],
   });
+});
+
+it("inv.i8.asr-service-report: stops an outage without calling it spent quota", async () => {
+  const f = fixture();
+  vi.mocked(synthesizePlannedStatement).mockRejectedValue(new AsrUnavailableError());
+  expect(await main(["statements"], f.root, { keys: [`offline-${"standin".repeat(5)}`] })).toBe(2);
+  expect(synthesizePlannedStatement).toHaveBeenCalledTimes(1);
+  expect(f.report()).toMatchObject({
+    outcome: "service_unavailable",
+    quotaRefused: false,
+    model: ASR_MODEL,
+    planned: [
+      { sentences: [{ status: "waiting_on_service" }] },
+      { sentences: [{ status: "waiting_on_service" }] },
+    ],
+  });
+  expect(f.report().keyResets).toHaveLength(1);
 });
 
 it("stops on pool exhaustion, includes every key/model reset and rejects unverified legacy progress", async () => {

@@ -60,6 +60,11 @@ interface CachedWav {
 }
 
 /** One TTS request, served from `.cache/tts/` when the exact request was made before (no quota spent). */
+export function isRequestCached(deps: Pick<TtsDeps, "cacheDir">, req: TtsRequest): boolean {
+  const key = sha256(JSON.stringify(buildTtsParams(req)));
+  return existsSync(join(deps.cacheDir, `${key}.wav`)) && existsSync(join(deps.cacheDir, `${key}.json`));
+}
+
 export async function requestOnce(deps: TtsDeps, req: TtsRequest): Promise<CachedWav> {
   const key = sha256(JSON.stringify(buildTtsParams(req)));
   const wavPath = join(deps.cacheDir, `${key}.wav`);

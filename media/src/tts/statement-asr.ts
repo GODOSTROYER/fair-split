@@ -11,6 +11,18 @@ const Words = z.array(
 export interface ListeningDeps {
   asrPool: KeyPool<GenerateContentClient>;
   cacheDir: string;
+  asrSleep?: (ms: number) => Promise<void>;
+  log?: (line: string) => void;
+}
+// Shared across every candidate in this run. Already in-flight calls still settle in the ledger.
+const outages = new WeakMap<ListeningDeps["asrPool"], { failures: number }>();
+export class AsrUnavailableError extends Error {
+  constructor() {
+    super(
+      "ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained.",
+    );
+    this.name = "AsrUnavailableError";
+  }
 }
 /** Never send the reference text to the recogniser: an independent check of the actual bytes. */
 export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, lang: string, timed = false) {
@@ -44,17 +56,26 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
       }),
     );
   let response: { text?: string | undefined } | undefined;
+  let outage = outages.get(deps.asrPool);
+  if (!outage) {
+    outage = { failures: 0 };
+    outages.set(deps.asrPool, outage);
+  }
+  const sleep = deps.asrSleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   for (let attempt = 0; attempt < 3; attempt++) {
+    if (outage.failures >= 6) throw new AsrUnavailableError();
     try {
       response = await recognise();
+      outage.failures = 0;
       break;
     } catch (error) {
-      if (
-        !(error instanceof GeminiCallError) ||
-        ![408, 500, 502, 503, 504].includes(error.status ?? 0) ||
-        attempt === 2
-      )
+      if (!(error instanceof GeminiCallError) || ![408, 500, 502, 503, 504].includes(error.status ?? 0))
         throw error;
+      outage.failures++;
+      if (outage.failures >= 6) throw new AsrUnavailableError();
+      if (attempt === 2) throw error;
+      deps.log?.(`[asr] HTTP ${error.status}; retry after ${attempt === 0 ? 5 : 15}s (SDK retries off)`);
+      await sleep(attempt === 0 ? 5_000 : 15_000);
     }
   }
   if (!response) throw new Error("ASR returned no response");

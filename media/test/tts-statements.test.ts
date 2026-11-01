@@ -5,11 +5,13 @@ import { afterEach, expect, it } from "vitest";
 import { ASR_MODEL, type GenerateContentClient } from "../src/tts/asr.js";
 import { main } from "../src/tts/cli.js";
 import { encodeAac, probeAudio } from "../src/tts/ffmpeg.js";
-import { TTS_MODEL } from "../src/tts/gemini.js";
+import { DEFAULT_VOICE, TTS_MODEL } from "../src/tts/gemini.js";
 import { KeyPool, PoolExhaustedError } from "../src/tts/keys.js";
 import { AUDIO_NOTICE, type AudioManifest } from "../src/tts/manifest.js";
+import { requestOnce } from "../src/tts/pipeline.js";
 import { APPROVED_STATEMENT_REQUESTS } from "../src/tts/plan.js";
 import { QuotaLedger } from "../src/tts/quota.js";
+import { STYLE_NOTE } from "../src/tts/statement.js";
 import { markRequest, selectRequests, synthesizePlannedStatement } from "../src/tts/statements.js";
 import { synthToneWav } from "../src/tts/wav.js";
 import { REPO_ROOT } from "../src/util/env.js";
@@ -102,6 +104,9 @@ function deps(wav: Buffer) {
   return {
     pool,
     asrPool: pool,
+    asrSleep: async (ms: number) => {
+      time += ms;
+    },
     mediaRoot: root,
     cacheDir: join(root, "cache"),
     calls,
@@ -136,6 +141,19 @@ it("inserts measured pause markers without changing the hashed words, and checks
   expect(() => markRequest({ ...request, sentences: [{ ...sentence, mentionSpans: [] }] })).toThrow(
     /mention/,
   );
+});
+
+it("inv.i8.cached-retake: verifies a cached sentence before spending on a full take or new TTS", async () => {
+  const d = deps(synthToneWav([{ ms: 4000, tone: true }]));
+  await requestOnce(d, { model: TTS_MODEL, voice: DEFAULT_VOICE, style: STYLE_NOTE, text: sentence.text });
+  d.timed.push(timestamped(sentence.text, []));
+  const out = await synthesizePlannedStatement(request, d, empty);
+  expect(out.entries).toHaveLength(1);
+  expect(d.calls).toHaveLength(1);
+  expect(
+    JSON.parse(readFileSync(join(d.mediaRoot, "audio", "statement-verification.json"), "utf8")).clips[0]
+      .method,
+  ).toBe("per-sentence-asr");
 });
 
 it("uses one pooled request and synthetic WAV pause boundaries for clip-relative mention offsets", async () => {
