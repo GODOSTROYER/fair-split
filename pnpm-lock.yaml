@@ -565,6 +565,9 @@ importers:
       "@expo-google-fonts/mona-sans":
         specifier: "catalog:"
         version: 0.4.1
+      "@fairsplit/api-client":
+        specifier: workspace:*
+        version: link:../../packages/api-client
       "@fairsplit/contracts":
         specifier: workspace:*
         version: link:../../packages/contracts
