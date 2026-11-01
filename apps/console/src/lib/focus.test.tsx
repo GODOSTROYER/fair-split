@@ -828,4 +828,34 @@ describe("useFocusGuard, the root's backstop", () => {
     await frames(1);
     expect(document.activeElement).toBe(document.body);
   });
+
+  it("where it put focus is no one's opener: a moment that raises the phone meanwhile remembers nothing, so lowering lands on the step's control", async () => {
+    const view = render(<Screens />);
+    const link = view.getByTestId("fanout");
+    link.focus();
+    act(() => {
+      link.click();
+    });
+    await frames(1);
+    const payCash = view.getByTestId("payCash");
+    expect(document.activeElement).toBe(payCash);
+    // The backstop placed it there: nobody chose it, so it is not an opener to go back to.
+    expect(rememberFocus()).toBeNull();
+    // The person acts on it (a key while it holds focus): theirs from then on.
+    payCash.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(rememberFocus()).toEqual({ el: payCash, key: focusKey(payCash) });
+  });
+
+  it("a focus moved on after it placed one is an opener again", async () => {
+    const view = render(<Screens />);
+    const link = view.getByTestId("fanout");
+    link.focus();
+    act(() => {
+      link.click();
+    });
+    await frames(1);
+    const whatsReal = view.getByTestId("whatsReal");
+    whatsReal.focus();
+    expect(rememberFocus()).toEqual({ el: whatsReal, key: focusKey(whatsReal) });
+  });
 });
