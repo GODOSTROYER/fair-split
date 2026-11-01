@@ -48,6 +48,21 @@ export function plateWords(plate: PlateResult, server: boolean): string {
     : "Matches";
 }
 
+/** The payout evidence can be weaker than the response envelope's simulator provenance. */
+export function proofProvenanceLine(
+  provenance: string,
+  payoutItems: PlateResult,
+  items: readonly { readonly provenance?: string }[],
+): string {
+  const replayed =
+    provenance === "replay" ||
+    payoutItems.state === "replay" ||
+    items.some((item) => item.provenance === "replay");
+  return `Simulated PayPal sandbox; provenance: ${
+    replayed ? "replay (labelled replay of an earlier simulated run)" : provenance
+  }.`;
+}
+
 export function proofSummary(
   validChain: boolean,
   plates: readonly PlateResult[],
@@ -127,7 +142,7 @@ export async function runVerifyProof(argv: readonly string[], deps: VerifyProofD
       }
     }
     const plates = { ...result.plates, payoutItems };
-    print(`Simulated PayPal sandbox; provenance: ${provenance}.`);
+    print(proofProvenanceLine(provenance, payoutItems, bundle.batch.items));
     const sample = result.sampleKeys.length > 0;
     if (sample)
       print(
