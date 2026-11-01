@@ -19,6 +19,7 @@
     "msw": "catalog:"
   },
   "devDependencies": {
+    "@fairsplit/seed": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "@types/node": "catalog:"
