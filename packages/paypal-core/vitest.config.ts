@@ -8,6 +8,7 @@ const webhooksRoot = fileURLToPath(new URL("../../apps/api/src/webhooks", import
 
 export default defineConfig({
   test: {
+    fsModuleCachePath: "./node_modules/.vitest-cache",
     projects: [
       {
         test: {
