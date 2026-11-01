@@ -1,0 +1,18 @@
+{
+  "outcome": "split_refused",
+  "quotaRefused": false,
+  "generationRequests": 1,
+  "expectedSegments": 28,
+  "detectedInteriorPauses": 17,
+  "audioDurationMs": 93760,
+  "cachedWav": ".cache/tts/0d5c51b32a052eeb4721023c802b2f5359353c0a1aa85f7144cf10aacd9fb83b.wav",
+  "localDiagnosis": "At the 0.6-second minimum, 17 interior pauses were detected for 27 expected boundaries. Shorter thresholds also include ordinary speech pauses, so a coincidental count is not sufficient evidence of marker alignment. No clips were published, no threshold was relaxed, and no further generation requests were made. The WAV remains in this worktree's ignored cache for AU3.",
+  "request": "M-014:ceb",
+  "model": "gemini-3.8-flash-tts",
+  "at": "2026-11-01T03:03:21.722Z",
+  "detail": "Error: statement split refused: expected 27 pause(s) between 28 sentence(s), found 17; no clips published, no sentence retries",
+  "dailyResetsAt": "2026-11-01T07:00:00.000Z",
+  "cooling": [],
+  "synthetic": true,
+  "notice": "Generation stopped. Missing clips use labelled device voice. No automatic retry."
+}
