@@ -25,6 +25,22 @@ describe("listening proxy (ASR round trip)", () => {
     expect(cer("", "x")).toBe(1);
   });
 
+  it("preserves explicit leading zeros in slip identifiers digit by digit", () => {
+    expect(spellNumerals("0403 0410 0000")).toBe(
+      "zero four zero three zero four one zero zero zero zero zero",
+    );
+    expect(normaliseForCer("Slips 0403 and 0410.")).toBe("slips zero four zero three and zero four one zero");
+    expect(cer("See slip zero four zero three and zero four one zero.", "See slip 0403 and 0410.")).toBe(0);
+    expect(cer("zero four zero three", "403")).toBeGreaterThan(0.12);
+  });
+
+  it("separates embedded rule numerals from their letters without inventing zeros", () => {
+    expect(spellNumerals("R1 R2")).toBe("R one R two");
+    expect(normaliseForCer("Under R1 and R2.")).toBe("under r one and r two");
+    expect(cer("Rule R one names slip zero four zero three.", "Rule R1 names slip 0403.")).toBe(0);
+    expect(normaliseForCer("403")).toBe("four hundred and three");
+  });
+
   it("sends the WAV inline with a verbatim-transcription prompt", async () => {
     const calls: Record<string, unknown>[] = [];
     let t = 0;

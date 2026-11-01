@@ -58,7 +58,16 @@ export function spellNumerals(s: string): string {
       spokenUsd(Number(d.replace(/,/g, "")) * 100 + Number(c ?? 0)),
     )
     .replace(/₱\s?(\d{1,3}(?:,\d{3})*|\d+)/g, (_m, d: string) => spokenPhp(Number(d.replace(/,/g, ""))))
-    .replace(/\d{1,3}(?:,\d{3})+|\d+/g, (d) => numberWords(Number(d.replace(/,/g, ""))));
+    .replace(/\d{1,3}(?:,\d{3})+|\d+/g, (d: string, offset: number, source: string) => {
+      // Explicit leading zeros identify a digit sequence. Missing zeros are never inferred.
+      const spoken = /^0\d+$/.test(d)
+        ? [...d].map((digit) => numberWords(Number(digit))).join(" ")
+        : numberWords(Number(d.replace(/,/g, "")));
+      // Rule identifiers such as R1 contain a separate spoken letter and number.
+      const before = /\p{L}/u.test(source[offset - 1] ?? "") ? " " : "";
+      const after = /\p{L}/u.test(source[offset + d.length] ?? "") ? " " : "";
+      return `${before}${spoken}${after}`;
+    });
 }
 
 /** Lower case, numerals spelled out, no punctuation or tags, single spaces. */
