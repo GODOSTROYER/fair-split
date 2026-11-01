@@ -1,11 +1,12 @@
-// K1a: the real /app export signs through fs-api in E1's keyless simulator stack. The console in this
-// tree has no Judge stage yet: a test-owned parent performs IC-12, without mocking the phone or API.
+// K1a/C5: the real /app export signs through fs-api in E1's keyless simulator stack. The adversarial phone checks and
+// the Member statement use a test-owned IC-12 parent; the console Judge stage test proves the stage's own handoff.
 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StatementAudio } from "@fairsplit/contracts";
 import type { FrameLocator, Page } from "@playwright/test";
 import { Api, type JudgeSession, registerSigner, sign, waitForRun } from "../../lib/api.js";
+import { startBrowserJudge, stopBrowserJudge } from "../../lib/browser-judge.js";
 import { expect, test } from "../../lib/fixtures.js";
 import {
   expectHonoured,
@@ -340,13 +341,38 @@ test("inv.i4.phone: checks every line, refuses inconsistent roots, signs key 2 a
   }
 });
 
-test("the console Judge stage itself hands the Chair frame its IC-12 token", async () => {
-  test.fixme(
-    true,
-    "WS-CONSOLE/M3: this console has no /judge stage or IC-12 token handoff; the runnable test uses an explicit test-owned parent.",
-  );
-  // WS-CONSOLE/M3: this tree's console has only prototype routes, no /judge stage or frame-token handoff.
-  // The runnable test above proves /app against real routes with an explicit test-owned IC-12 parent.
+test("the console Judge stage itself hands the Chair frame its IC-12 token", async ({ page, origin }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin);
+  let reset = false;
+  try {
+    await workTheReview(api, s);
+    const treasurer = await registerSigner(api, s, "treasurer", s.asTreasurer);
+    expect((await sign(api, s, treasurer)).status).toBe(201);
+    const chairFrame = page.getByTestId("W-JG-01.frame.chair");
+    await expect(chairFrame).toHaveAttribute("src", /^\/app\//);
+    expect(await chairFrame.getAttribute("src")).not.toMatch(/token|fsb_|fsj_/i);
+    const phone = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
+    await expect(phone.getByTestId("demo-label")).toHaveCount(0);
+    await chairFrame.evaluate((frame: HTMLIFrameElement) => {
+      frame.contentWindow?.location.reload();
+    });
+    await expect(phone.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
+    await expect(phone.getByTestId("demo-label")).toHaveCount(0);
+    const batch = await api.get(`/v1/runs/${s.runSlug}/batch`, s.asTreasurer);
+    const hash = (batch.json as { batchSha256: string }).batchSha256;
+    const scrim = page.getByTestId("W-JG-01.phoneScrim");
+    if (await scrim.isVisible()) await scrim.click();
+    await page.getByTestId("W-JG-01.tab.chair").click();
+    await signInPhone(phone, page, s.runSlug, hash);
+    await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+    await expect(page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ })).toBeEnabled();
+    reset = true;
+    await expect(phone.getByTestId("demo-label").first()).toBeAttached();
+  } finally {
+    if (reset) await page.goto("about:blank");
+    else await stopBrowserJudge(page, api, s);
+  }
 });
 
 test("the existing judge tamper exposes a changed line BEFORE key 2 so the phone signs nothing", async () => {

@@ -1,10 +1,13 @@
 // E-01 v1 (b), the Judge stage in Chromium against the stack: /judge's first view is built locally from the seed and
 // calls nothing until the first press (S3.9), it is never indexed, the first press starts a session on the simulated
-// rail and funds the run, and Reset brings the first view back for a second press. What needs the console's http
-// mode, which C5b is finishing, is test.fixme with the missing behaviour named.
+// rail and funds the run, and Reset brings the first view back for a second press. The live browser drives the
+// review, proves workspace key isolation, and completes Verify and the peso trace after both human signatures.
 import type { Page, Request, Response } from "@playwright/test";
+import { waitForRun } from "../../lib/api.js";
+import { startBrowserJudge, stopBrowserJudge } from "../../lib/browser-judge.js";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, test } from "../../lib/fixtures.js";
+import { bothKeys, collectRunEvents, officers, runState, workTheReview } from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
 
 const isV1 = (r: Request) => new URL(r.url()).pathname.startsWith("/v1/");
@@ -120,19 +123,144 @@ test("Reset brings the first view back within 10 s and a second press works", as
   expect(second.runSlug).not.toBe(first.runSlug);
 });
 
-test.fixme("slip 0462 is entered by hand in the browser once the reading is done", async () => {
-  // C5b: in http mode /season/2026-A/by-hand/0462 keeps "Slip 0462 hasn't been read in this run yet" with the
-  // field and its buttons disabled after the run reached IN_REVIEW; the page never GETs
-  // /v1/seasons/2026A/slips/0462 nor POSTs /v1/fields/:id/enter.
+test("slip 0462 is entered by hand in the browser once the reading is done", async ({ page, origin }) => {
+  const { api, s } = await startBrowserJudge(page, origin);
+  try {
+    await page.getByTestId("W-JG-01.runPill.next").click();
+    await expect(page.getByTestId("W-TR-04.input")).toBeEnabled();
+    await page.getByTestId("W-TR-04.useLogbook").click();
+    const entered = page.waitForResponse(
+      (r) =>
+        /^\/v1\/fields\/[^/]+\/enter$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+    );
+    await page.getByTestId("W-TR-04.commit.face").click();
+    expect((await entered).status()).toBe(200);
+    await expect(page.getByTestId("W-TR-04.committed")).toContainText("64.80");
+  } finally {
+    await stopBrowserJudge(page, api, s);
+  }
 });
 
-test.fixme("Play it for me drives the review, H1–H3 and both keys to the POST", async () => {
-  // C5b: in http mode autoplay presses, reaches /season/2026-A/by-hand/0462 about 20 s later and stops there (the
-  // field is disabled, above); it never resolves H1–H3, never signs, and nothing reaches POST. Key 2 also needs C5c's
-  // Chair panel (flag) or the live /app Chair frame (K1a). The browser half of the 60 s cold-judge budget waits on it.
+test("the console signs with a fresh registered key after Reset changes the workspace", async ({
+  page,
+  origin,
+}) => {
+  const ids: string[] = [];
+  for (let run = 0; run < 2; run++) {
+    const { api, s } = await startBrowserJudge(page, origin, "press", run === 0);
+    let reset = false;
+    try {
+      await workTheReview(api, s);
+      await expect(page.getByTestId("W-JG-01.runPill.next")).toHaveAttribute(
+        "href",
+        `/runs/${s.runSlug}/approve`,
+      );
+      await page.getByTestId("W-JG-01.runPill.next").click();
+      await expect(page.getByTestId("W-TR-07.approve.face")).toBeEnabled();
+      await page.getByTestId("W-TR-07.approve.alt").click();
+      const answer = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === `/v1/runs/${s.runSlug}/approvals` && r.request().method() === "POST",
+      );
+      await page.getByTestId("W-TR-07.approve.dialog.confirm.face").click();
+      const signed = await answer;
+      expect(signed.status()).toBe(201);
+      ids.push((signed.request().postDataJSON() as { keyId: string }).keyId);
+      await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+      await expect(firstPress(page)).toBeEnabled();
+      reset = true;
+    } finally {
+      if (!reset) await stopBrowserJudge(page, api, s);
+    }
+  }
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).not.toBe(ids[1]);
+  await page.goto("about:blank");
 });
 
-test.fixme("Try to break it: change_payout armed before key 2 shows the I4 refusal and the voided approvals", async () => {
-  // C5b: the stage has no Try-to-break-it controls wired to POST /v1/judge/sessions/:sid/tamper in http mode
-  // (overcharge, offsetting, recipient, change_payout); specs/api/e01-judge-run.spec.ts asserts the refusal itself.
+test("Play it for me drives the review, waits for both human keys, then verifies and taps a peso", async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const { api, s } = await startBrowserJudge(page, origin, "autoplay");
+  const events = collectRunEvents(api, s);
+  try {
+    const approve = page.getByTestId("W-TR-07.approve.face");
+    await expect(approve).toBeEnabled({ timeout: 90_000 });
+    await expect(page.getByTestId("W-JG-01.autoplay")).toHaveAttribute("data-state", "paused");
+    await page.getByTestId("W-TR-07.approve.alt").click();
+    const key1 = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === `/v1/runs/${s.runSlug}/approvals` && r.request().method() === "POST",
+    );
+    await page.getByTestId("W-TR-07.approve.dialog.confirm.face").click();
+    expect((await key1).status()).toBe(201);
+    await page.getByTestId("W-TR-07.cosign.frame").click();
+    const phone = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
+    await expect(phone.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
+    await phone.getByTestId("M-BD-01.sign").click();
+    await phone.getByTestId("M-BD-02.slab.another-way").click();
+    const key2 = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === `/v1/runs/${s.runSlug}/approvals` && r.request().method() === "POST",
+    );
+    await phone.getByTestId("M-BD-02.slab.confirm.ok").click();
+    expect((await key2).status()).toBe(201);
+    const posted = await events.waitFor(runState("POSTED"), 60_000);
+    const elapsedMs = (posted?.arrivedAt ?? Number.POSITIVE_INFINITY) - s.pressedAt;
+    const timing = { type: "browser timing", description: `first press to POST answered: ${elapsedMs} ms` };
+    test.info().annotations.push(timing);
+    process.stdout.write(`[browser-timing] ${timing.description}\n`);
+    expect(posted?.provenance).toBe("simulated_rail");
+    expect(elapsedMs).toBeLessThanOrEqual(60_000);
+    await page.getByTestId("W-JG-01.autoplay").click();
+    await expect(page.getByTestId("W-PF-01.verdict")).toHaveAttribute("data-state", "sample", {
+      timeout: 120_000,
+    });
+    await expect(page.getByTestId("W-PF-01.trace.state")).toHaveAttribute("data-trace", "line");
+    await expect(page.getByTestId("W-PF-01.peso.M-014")).toHaveAttribute("aria-expanded", "true");
+  } finally {
+    await events.stop();
+    await stopBrowserJudge(page, api, s);
+  }
+});
+
+test("Try to break it: all four controls refuse attacks and the changed payout voids both approvals", async ({
+  page,
+  origin,
+}) => {
+  const { api, s } = await startBrowserJudge(page, origin);
+  try {
+    await workTheReview(api, s);
+    await page.getByTestId("W-JG-01.whatsRealOpen").click();
+    for (const kind of ["amount", "offsetting", "recipient"]) {
+      const answer = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === `/v1/judge/sessions/${s.sessionId}/tamper` &&
+          r.request().method() === "POST",
+      );
+      await page.getByTestId(`W-JG-01.tamper.${kind}`).click();
+      expect((await answer).status()).toBe(200);
+      await expect(page.getByTestId("W-JG-01.tamper.result")).toContainText("DENY");
+    }
+    await page.getByTestId("W-JG-01.tamper.change_payout").click();
+    const result = page.getByTestId("W-JG-01.tamper.result");
+    await expect(result).toContainText("Armed before key 2");
+    await expect(result).not.toContainText("Both approvals voided");
+    const keys = await officers(api, s);
+    expect((await bothKeys(api, s, keys)).map((a) => a.status)).toEqual([201, 201]);
+    const refused = await waitForRun(api, s, (run) => run.run.state === "IN_REVIEW", 30_000);
+    expect(refused?.run.state).toBe("IN_REVIEW");
+    const approvals = await api.get(`/v1/runs/${s.runSlug}/approvals`, s.asTreasurer);
+    expect(approvals.status).toBe(200);
+    expect(
+      (approvals.json as { approvals: { voidedAt: string | null }[] }).approvals.map(
+        (a) => a.voidedAt !== null,
+      ),
+    ).toEqual([true, true]);
+    await expect(result).toContainText("Both approvals voided");
+  } finally {
+    await stopBrowserJudge(page, api, s);
+  }
 });
