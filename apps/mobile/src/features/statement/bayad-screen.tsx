@@ -215,9 +215,12 @@ function Statement({
   const rows = historyRows(dto, st.track);
   const trace = traceState(mm7.phase);
 
-  const amountLabel = view.showAmount
-    ? [view.hero.spoken, view.word, detail].filter(Boolean).join(". ")
-    : [tr("M-MB-01.kilosLabel"), format.kg(dto.kilos.netGrams), view.word, detail].filter(Boolean).join(". ");
+  const amountLabel =
+    view.showAmount && view.hero
+      ? [view.hero.spoken, view.word, detail].filter(Boolean).join(". ")
+      : [tr("M-MB-01.kilosLabel"), format.kg(dto.kilos.netGrams), view.word, detail]
+          .filter(Boolean)
+          .join(". ");
 
   return (
     <View style={styles.fill}>
@@ -283,7 +286,7 @@ function Statement({
               accessibilityElementsHidden
               style={styles.amountBlock}
             >
-              {view.showAmount ? (
+              {view.showAmount && view.hero ? (
                 <View style={styles.amount}>
                   <AmountDisplay
                     testID="M-MB-01.amount"

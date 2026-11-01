@@ -180,8 +180,9 @@ export function statementValues(
   const a = dto.amounts;
   const serials = dto.slips.map((x) => x.serial);
   const g1 = dto.kilos.grade1Grams;
-  const deduction = s?.slot === "DEDUCTION" ? a.deductions.find((d) => d.ruleId === s.ref) : a.deductions[0];
-  const credit = s?.slot === "CREDIT" ? a.credits.find((c) => c.slip === s.ref) : a.credits[0];
+  const deduction =
+    s?.slot === "DEDUCTION" ? a?.deductions.find((d) => d.ruleId === s.ref) : a?.deductions[0];
+  const credit = s?.slot === "CREDIT" ? a?.credits.find((c) => c.slip === s.ref) : a?.credits[0];
   const rate = dto.fx.phpPerUsd;
   const values: Record<string, PlaceholderValue> = {
     HONORIFIC_NAME: { display: dto.member.nameByLang[lang] },
@@ -190,14 +191,7 @@ export function statementValues(
       display: g1 === dto.kilos.netGrams ? GRADE_ALL[lang] : GRADE_PART[lang](format.kg(g1)),
     },
     PAYER: { display: dto.payer.short },
-    PREMIUM_USD: usd(a.premiumCents),
-    BONUS_USD: usd(a.bonusCents),
     BR: { display: dto.rateCard.id },
-    NET_USD: usd(a.netCents),
-    NET_PHP:
-      rail === "cash"
-        ? { display: format.cashPesos(a.netCents, rate), spoken: format.cashSpoken(a.netCents, rate) }
-        : { display: format.peso(a.netCents, rate), spoken: format.pesoSpoken(a.netCents, rate) },
     FX_FEE: { display: format.percentBp(FEE_TABLE.paypalConversionBp) },
     RATE: { display: `₱${rate}` },
     SLIPS: {
@@ -207,6 +201,15 @@ export function statementValues(
     },
     TREASURER: { display: dto.treasurer.first },
   };
+  if (a) {
+    values.PREMIUM_USD = usd(a.premiumCents);
+    values.BONUS_USD = usd(a.bonusCents);
+    values.NET_USD = usd(a.netCents);
+    values.NET_PHP =
+      rail === "cash"
+        ? { display: format.cashPesos(a.netCents, rate), spoken: format.cashSpoken(a.netCents, rate) }
+        : { display: format.peso(a.netCents, rate), spoken: format.pesoSpoken(a.netCents, rate) };
+  }
   // the day the clerk recorded the cash received (fs-api's PAY.cash says that day), else the run's cash day
   const cashDate = cashReceivedAt(dto) ?? dto.cashDay;
   if (cashDate) values.CASH_DATE = { display: format.date(cashDate, lang) };
@@ -262,8 +265,8 @@ export function applicableTemplates(
   return all.filter((s) => {
     if (s.slot === "PAY") return s === pay;
     if (s.slot === "AI_NOTE") return s === note;
-    if (s.slot === "DEDUCTION") return dto.amounts.deductions.some((d) => d.ruleId === s.ref);
-    if (s.slot === "CREDIT") return dto.amounts.credits.some((c) => c.slip === s.ref);
+    if (s.slot === "DEDUCTION") return dto.amounts?.deductions.some((d) => d.ruleId === s.ref) ?? false;
+    if (s.slot === "CREDIT") return dto.amounts?.credits.some((c) => c.slip === s.ref) ?? false;
     return true;
   });
 }

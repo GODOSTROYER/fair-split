@@ -6,6 +6,7 @@
  * (statement, device keys, push tokens) follow S3 where it names them and are
  * marked `shim-defined` otherwise, for WS-API to confirm.
  */
+import { createApiClient, statementRoutes } from "@fairsplit/api-client";
 import { createParser, type EventSourceMessage } from "eventsource-parser";
 import {
   type BatchView,
@@ -103,10 +104,10 @@ export interface StatementDTO {
   served?: true;
   spokenHashes?: readonly string[];
   formatted?: {
-    hero: Record<"paypal" | "cash", import("../lib/figures").HeroFigures>;
+    hero: Record<"paypal" | "cash", import("../lib/figures").HeroFigures> | null;
     receiptRows: import("../lib/figures").ReceiptRow[];
     share: import("../lib/figures").ShareFigures;
-    conservation: import("../lib/figures").Conservation;
+    conservation: import("../lib/figures").Conservation | null;
   };
   formattedByLang?: Readonly<Partial<Record<Lang, NonNullable<StatementDTO["formatted"]>>>>;
   paypalRail?: string | null;
@@ -136,7 +137,7 @@ export interface StatementDTO {
     deductions: readonly { ruleId: string; label: string; cents: number }[];
     credits: readonly StatementCredit[];
     netCents: number;
-  };
+  } | null;
   fx: { phpPerUsd: string };
   slips: readonly StatementSlip[];
   history: readonly StatementHistoryEntry[];
@@ -336,6 +337,7 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
   const origin = opts.origin.replace(/\/+$/, "");
   // Resolved per call, so polyfills and test interceptors installed later are honoured.
   const doFetch: typeof fetch = (input, init) => (opts.fetch ?? globalThis.fetch)(input, init);
+  const statementApi = createApiClient({ baseUrl: origin, token: opts.getBearer, fetch: doFetch });
 
   function headers(extra?: Record<string, string>): Record<string, string> {
     const h: Record<string, string> = { Accept: "application/json", ...extra };
@@ -392,8 +394,10 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
     },
     getStatement: () =>
       readMemberStatement(
-        <T>(path: string) => call<T>("GET", path),
-        () => responseRail,
+        statementRoutes(statementApi),
+        (lineId, lang) =>
+          call<StatementAudio>("GET", `/v1/media/audio/${encodeURIComponent(lineId)}?lang=${lang}`),
+        () => statementApi.rail ?? responseRail,
         origin,
       ),
     getStatementByLink: (token) =>

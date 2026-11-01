@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { StatementDTO } from "../../_shims/api-client";
 import { type AmountState, LANGS, MEMBER_STATUS_WORDS } from "../../_shims/contracts";
 import { MOMENTS } from "../../_shims/moments";
+import { heroFigures, lineConservation, receiptRows, traceFor } from "../../lib/figures";
 import {
   CAPSULE_WORD,
   type CapsuleState,
@@ -34,6 +35,39 @@ const view = (dto: StatementDTO, lang: "ceb" | "fil" | "en" = "ceb", track = tra
   lineView(dto, capsuleOf(dto, track), track, lang);
 
 describe("the statement for each demo stage (S1.9 states)", () => {
+  it.each(["HELD", "COMPUTED", "READY", "EXCLUDED"] as const)(
+    "shows the server's %s state without manufacturing a figure from withheld amounts",
+    (lineState) => {
+      const dto = {
+        ...at("checking"),
+        served: true,
+        lineState,
+        amounts: null,
+        formatted: {
+          hero: null,
+          receiptRows: [],
+          conservation: null,
+          share: { kg: "148.0 kg", coopKg: "9,780.6 kg", grade1Kg: "148.0 kg", allGrade1: true },
+        },
+      } as unknown as StatementDTO;
+      const v = view(dto, "en");
+      expect(v.capsule).toBe(
+        lineState === "HELD" ? "held-line" : lineState === "EXCLUDED" ? "excluded" : "checking",
+      );
+      expect(v.showAmount).toBe(false);
+      expect(v.hero).toBeNull();
+      expect(v.fillsOnPress).toBe(false);
+      expect(v.under).toBeNull();
+      expect(heroFigures(dto, "en", "paypal")).toBeNull();
+      expect(receiptRows(dto)).toEqual([]);
+      expect(lineConservation(dto)).toBeNull();
+      expect(traceFor(dto, "net", "en")).toBeNull();
+      const stale: ItemTrack = { status: "SUCCESS", updatedAt: NOW, seen: ["old-item"] };
+      const refreshed = view(dto, "en", stale);
+      expect(refreshed.capsule).toBe(v.capsule);
+      expect(refreshed.showAmount).toBe(false);
+    },
+  );
   it("checking: no amount yet, the kilos and the expected date stand in", () => {
     const v = view(at("checking"));
     expect(v.capsule).toBe("checking");
@@ -48,7 +82,7 @@ describe("the statement for each demo stage (S1.9 states)", () => {
     const v = view(at("sent"));
     expect(v.capsule).toBe("sent");
     expect(v.amountState).toBe("hollow");
-    expect(v.hero.amount).toBe("US$64.45");
+    expect(v.hero?.amount).toBe("US$64.45");
     expect(v.under).toEqual({ text: "mga ₱4,028 (gibanabana)" });
     expect(v.sentAt).toBe("2026-10-30T09:00:00+08:00");
     expect(v.word).toBe("Gipadala na, naghulat sa PayPal");
@@ -75,7 +109,7 @@ describe("the statement for each demo stage (S1.9 states)", () => {
   it("cash due: exact pesos at the run's rate, hatched, with where and when", () => {
     const v = view(at("cash-due"), "ceb");
     expect(v.payKind).toBe("cash");
-    expect(v.hero.amount).toBe("₱4,028.13");
+    expect(v.hero?.amount).toBe("₱4,028.13");
     expect(v.amountState).toBe("hollow");
     expect(v.tone).toBe("cash");
     expect(v.word).toBe("Andam sa bodega, 30 Okt");
@@ -217,10 +251,10 @@ describe("MM-1 keeps the words PayPal pressed until the label crossfades (design
 
 describe("inv.i3.member-view: a line that does not add up is never presented as settled", () => {
   const CAPSULES = Object.keys(CAPSULE_WORD) as CapsuleState[];
-  const broken = (dto: StatementDTO, drift: number): StatementDTO => ({
-    ...dto,
-    amounts: { ...dto.amounts, netCents: dto.amounts.netCents + drift },
-  });
+  const broken = (dto: StatementDTO, drift: number): StatementDTO => {
+    if (!dto.amounts) throw new Error("Missing fixture amounts");
+    return { ...dto, amounts: { ...dto.amounts, netCents: dto.amounts.netCents + drift } };
+  };
 
   it("a paid line whose receipt is a cent off stays hollow, is not filled by MM-1, and says who checks it", () => {
     const dto = broken(at("paid"), 1);
@@ -348,10 +382,9 @@ describe("every amount on the receipt and the board's Bayad keeps the amount gra
   });
 
   it("a receipt that does not add up never shows a settled net (I3), and its parts stay the approved figures", () => {
-    const v = view({
-      ...at("paid"),
-      amounts: { ...at("paid").amounts, netCents: at("paid").amounts.netCents + 1 },
-    });
+    const paid = at("paid");
+    if (!paid.amounts) throw new Error("Missing paid fixture amounts");
+    const v = view({ ...paid, amounts: { ...paid.amounts, netCents: paid.amounts.netCents + 1 } });
     expect(receiptStates(v)).toEqual({ parts: "ink", net: "hollow" });
   });
 

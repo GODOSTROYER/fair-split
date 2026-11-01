@@ -1,58 +1,105 @@
 import { describe, expect, it } from "vitest";
 import { createHttpApi } from "../../_shims/api-client";
+import { heroFigures, lineConservation, receiptRows, shareFigures } from "../../lib/figures";
 import { EMPTY_TRACK, reduceItemEvent } from "../../lib/item-status";
 import { statementSentences } from "../../lib/statement";
 import { buildDemoStatement } from "../../services/demo-fixtures";
 import { memberEvent } from "./live";
 
 describe("live Member statement read", () => {
-  it("looks up only the member line, reads all language views and audio together, and uses server figures", async () => {
-    const mobile = buildDemoStatement({ stage: "sent", now: "2026-11-01T00:00:00Z" });
-    const calls: string[] = [];
-    const api = createHttpApi({
-      origin: "http://localhost",
-      getBearer: () => "test-frame-token",
-      fetch: (async (input, init) => {
-        const path = new URL(String(input));
-        calls.push(path.pathname);
-        expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-frame-token");
-        if (path.pathname === "/v1/members/me/statement-line")
-          return Response.json({ lineId: mobile.lineId });
-        const lang = path.searchParams.get("lang") ?? "ceb";
-        if (path.pathname.includes("/media/audio/"))
-          return Response.json({
-            lineId: mobile.lineId,
-            memberNo: "M-014",
-            lang,
-            source: "device",
-            label: "Device voice",
-            deviceLabel: "Device voice",
-            sentences: [],
-          });
-        return Response.json(
-          {
-            lineId: mobile.lineId,
-            lang,
-            mobile,
-            provenance: "seeded",
-            plan: { sentences: [{ slot: "BONUS", variant: "default", mentions: [] }] },
-            display: [{ slot: "BONUS", variant: "default", text: "Server amount US$21.85", mentions: [] }],
-            spoken: [{ slot: "BONUS", variant: "default", text: "Server spoken bonus", mentions: [] }],
-          },
-          { headers: { "X-FS-Rail": "simulator" } },
-        );
-      }) as typeof fetch,
-    });
-    const result = await api.getStatement();
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.paypalRail).toBe("simulator");
-    expect(result.value.amounts).toEqual(mobile.amounts);
-    expect(statementSentences(result.value, "ceb").sentences[0]?.spoken).toBe("Server spoken bonus");
-    expect(calls.filter((p) => p === `/v1/statements/${mobile.lineId}`)).toHaveLength(3);
-    expect(calls.filter((p) => p === `/v1/media/audio/${mobile.lineId}`)).toHaveLength(3);
-    expect(calls).not.toContain("/v1/runs/2026A-r37/lines");
-  });
+  it.each(["PAYPAL_PENDING", "HELD", "COMPUTED", "READY", "EXCLUDED"] as const)(
+    "reads the typed %s projection and audio together, preserving server figure visibility",
+    async (lineState) => {
+      const visible = lineState === "PAYPAL_PENDING";
+      const slot = visible ? "BONUS" : "PAY";
+      const variant = visible ? "default" : lineState === "EXCLUDED" ? "excluded" : "checking";
+      const spoken = visible ? "Server spoken bonus" : "Server withheld amount";
+      const base = buildDemoStatement({ stage: "sent", now: "2026-11-01T00:00:00Z" });
+      const lineId = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";
+      const mobile = {
+        ...base,
+        lineState,
+        amounts: visible ? base.amounts : null,
+        lineId,
+        runId: lineId,
+        season: { ...base.season, id: lineId },
+        rateCard: { ...base.rateCard, id: lineId },
+        item: null,
+        spokenHashes: [],
+        formatted: {
+          hero: visible
+            ? { paypal: heroFigures(base, "ceb", "paypal"), cash: heroFigures(base, "ceb", "cash") }
+            : null,
+          receiptRows: visible ? receiptRows(base) : [],
+          share: shareFigures(base),
+          conservation: visible ? lineConservation(base) : null,
+        },
+      };
+      const calls: string[] = [];
+      const api = createHttpApi({
+        origin: "http://localhost",
+        getBearer: () => "test-frame-token",
+        fetch: (async (input, init) => {
+          const path = new URL(String(input));
+          calls.push(path.pathname);
+          expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-frame-token");
+          if (path.pathname === "/v1/members/me/statement-line")
+            return Response.json({ lineId: mobile.lineId });
+          const lang = path.searchParams.get("lang") ?? "ceb";
+          if (path.pathname.includes("/media/audio/"))
+            return Response.json({
+              lineId: mobile.lineId,
+              memberNo: "M-014",
+              lang,
+              source: "device",
+              label: "Device voice",
+              deviceLabel: "Device voice",
+              sentences: [],
+            });
+          return Response.json(
+            {
+              lineId: mobile.lineId,
+              lang,
+              memberNo: mobile.member.memberNo,
+              registryLang: "ceb",
+              langs: ["ceb", "fil", "en"],
+              state: lineState,
+              pay: visible ? "paypal" : lineState === "EXCLUDED" ? "excluded" : "checking",
+              statusWords: "Sent",
+              reviewChip: null,
+              amount: null,
+              mobile,
+              provenance: "seeded",
+              source: "template",
+              sms: { text: "Preview", gsm7Length: 7, fits: true, label: "Preview, not sent" },
+              plan: {
+                lineId,
+                lang,
+                templateV: "test",
+                sentences: [{ slot, variant, facts: {}, mentions: [] }],
+                sms: { variant: "sent", facts: {} },
+              },
+              display: [
+                { slot, variant, text: visible ? "Server amount US$21.85" : "Still checking", mentions: [] },
+              ],
+              spoken: [{ slot, variant, text: spoken, mentions: [] }],
+            },
+            { headers: { "X-FS-Rail": "simulated" } },
+          );
+        }) as typeof fetch,
+      });
+      const result = await api.getStatement();
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.paypalRail).toBe("simulated");
+      expect(result.value.amounts).toEqual(mobile.amounts);
+      expect(result.value.formatted?.hero).toEqual(mobile.formatted.hero);
+      expect(statementSentences(result.value, "ceb").sentences[0]?.spoken).toBe(spoken);
+      expect(calls.filter((p) => p === `/v1/statements/${mobile.lineId}`)).toHaveLength(3);
+      expect(calls.filter((p) => p === `/v1/media/audio/${mobile.lineId}`)).toHaveLength(3);
+      expect(calls).not.toContain("/v1/runs/2026A-r37/lines");
+    },
+  );
   it("does not expose demo data when member lookup is refused", async () => {
     const api = createHttpApi({
       origin: "http://localhost",
@@ -60,6 +107,18 @@ describe("live Member statement read", () => {
       fetch: (async () => Response.json({ code: "FORBIDDEN" }, { status: 403 })) as typeof fetch,
     });
     expect(await api.getStatement()).toMatchObject({ ok: false, status: 403 });
+  });
+  it("rejects a statement response that drifts from the typed server projection", async () => {
+    const lineId = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";
+    const api = createHttpApi({
+      origin: "http://localhost",
+      getBearer: () => null,
+      fetch: (async (input) =>
+        String(input).endsWith("/statement-line")
+          ? Response.json({ lineId })
+          : Response.json({ lineId, mobile: { amounts: "unvalidated money" } })) as typeof fetch,
+    });
+    expect(await api.getStatement()).toMatchObject({ ok: false, code: "NETWORK" });
   });
   it("keeps every server-rendered credit even when a credit has no slip reference", () => {
     const base = buildDemoStatement({ stage: "sent", now: "2026-11-01T00:00:00Z" });

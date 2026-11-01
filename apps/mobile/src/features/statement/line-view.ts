@@ -55,7 +55,7 @@ export interface LineView {
   fillsOnPress: boolean;
   amountState: AmountState;
   payKind: PayKind;
-  hero: HeroFigures;
+  hero: HeroFigures | null;
   /** Under the amount: the PayPal peso estimate, or where and when the cash is and what it comes from. */
   under: { text: string } | Copy | null;
   /** The one sentence that says what is happening and who acts next. */
@@ -77,6 +77,12 @@ export function paidAtOf(dto: StatementDTO, track: ItemTrack): string | null {
 }
 
 export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTrack, lang: Lang): LineView {
+  // A fresh withholding decision outranks an item event retained from the earlier read.
+  if (!dto.amounts) {
+    if (dto.lineState === "HELD") capsule = "held-line";
+    else if (dto.lineState === "EXCLUDED") capsule = "excluded";
+    else if (dto.lineState === "READY" || dto.lineState === "COMPUTED") capsule = "checking";
+  }
   const status = CAPSULE_WORD[capsule];
   const word = MEMBER_STATUS_WORDS[status][lang];
   const payKind = payKindOf(dto, capsule);
@@ -92,12 +98,12 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
     "cash-received": day(receivedAt ?? dto.cashDay),
   };
   const date = dated[capsule] ?? null;
-  const showAmount = capsule !== "checking" && capsule !== "held-line";
-  const conserved = lineConservation(dto).ok;
+  const showAmount = !!hero && capsule !== "checking" && capsule !== "held-line";
+  const conserved = lineConservation(dto)?.ok ?? false;
   const inFlight = capsule === "sent" || capsule === "paid";
 
   let under: LineView["under"] = null;
-  if (showAmount) {
+  if (showAmount && hero) {
     if (payKind === "cash") {
       const args = { usd: hero.usd, rate: hero.rate, date: date ?? "" };
       under = !date
