@@ -1,10 +1,15 @@
 // Public Proof verification. No cookie jar, bearer token, environment credential or redirect.
 // The six checks and signed-checkpoint gate are the domain verifier used by the Proof page.
-import { ProofResponse, PublishedKeys } from "@fairsplit/contracts";
+import { ChainVerification, ProofResponse, PublishedKeys } from "@fairsplit/contracts";
 import { verifyChain } from "@fairsplit/domain";
 import { isMain } from "../apps/tasks/src/main.js";
 
-export function proofUrls(input: string): { bundle: string; keys: string; runSlug: string } {
+export function proofUrls(input: string): {
+  bundle: string;
+  keys: string;
+  verification: string;
+  runSlug: string;
+} {
   let url: URL;
   try {
     url = new URL(input);
@@ -24,6 +29,7 @@ export function proofUrls(input: string): { bundle: string; keys: string; runSlu
   return {
     bundle: `${url.origin}/v1/proof/${runSlug}.json`,
     keys: `${url.origin}/.well-known/fairsplit-keys.json?run=${runSlug}`,
+    verification: `${url.origin}/v1/proof/${runSlug}/verification`,
     runSlug,
   };
 }
@@ -62,13 +68,47 @@ export async function runVerifyProof(argv: readonly string[], deps: VerifyProofD
     const raw = await readJson(fetcher, urls.bundle, "Proof");
     const parsed = ProofResponse.safeParse(raw);
     if (!parsed.success) throw new Error("Proof response does not match the ProofResponse contract.");
-    const { bundle, provenance, redacted } = parsed.data;
+    const { bundle, provenance } = parsed.data;
     if (bundle.runSlug !== urls.runSlug) throw new Error("The returned Proof belongs to another run.");
     const keys = PublishedKeys.safeParse(await readJson(fetcher, urls.keys, "Published keys"));
     if (!keys.success) throw new Error("Published keys response does not match the PublishedKeys contract.");
     const result = verifyChain(bundle, keys.data, { demoMode: true });
+    // Match the browser: inspect receivers themselves, including partially redacted member tiers.
+    // Only plate 6 may use the server's full-record check; every other check stays independent.
+    const withheld = bundle.batch.items.some((item) => item.receiver === "withheld");
+    let payoutItems = result.plates.payoutItems;
+    let serverChecks = 0;
+    if (withheld) {
+      try {
+        const raw = await readJson(fetcher, urls.verification, "Server verification");
+        if (
+          !raw ||
+          typeof raw !== "object" ||
+          !("attestedBy" in raw) ||
+          raw.attestedBy !== "fs-api" ||
+          !("runSlug" in raw) ||
+          raw.runSlug !== urls.runSlug
+        ) {
+          throw new Error("Server verification is not an fs-api attestation for this run.");
+        }
+        const server = ChainVerification.safeParse("verification" in raw ? raw.verification : undefined);
+        if (!server.success) throw new Error("Server verification response does not match the contract.");
+        payoutItems = server.data.plates.payoutItems;
+        serverChecks = 1;
+      } catch (error) {
+        payoutItems = {
+          ok: false,
+          reason: error instanceof Error ? error.message : "Server verification failed.",
+        };
+      }
+    }
+    const plates = { ...result.plates, payoutItems };
     print(`Simulated PayPal sandbox; provenance: ${provenance}.`);
-    if (result.sampleKeys.length > 0) print("Sample: seeded or demo signing keys; never live verification.");
+    const sample = result.sampleKeys.length > 0;
+    if (sample)
+      print(
+        `Sample: Signed with sample keys (${result.sampleKeys.join(", ")}), so it reads Sample, never Verified.`,
+      );
     const labels = {
       paid: "Invoice reference and payment",
       ratified: "Rate card hash and ratification",
@@ -78,18 +118,20 @@ export async function runVerifyProof(argv: readonly string[], deps: VerifyProofD
       payoutItems: "Payout items and batchSha256",
     } as const;
     for (const [name, label] of Object.entries(labels)) {
-      const plate = result.plates[name as keyof typeof labels];
-      print(`${label}: ${plate.ok ? "Matches" : (plate.reason ?? "Mismatch")}`);
+      const plate = plates[name as keyof typeof labels];
+      const match =
+        name === "payoutItems" && withheld
+          ? "Matches (checked by the server: payout receivers are withheld on the public Proof)"
+          : "Matches";
+      print(`${label}: ${plate.ok ? match : (plate.reason ?? "Mismatch")}`);
     }
     if (!result.chain.ok)
       print(`Ledger chain: mismatch at sequence ${result.chain.brokenAtSeq ?? "unknown"}.`);
     if (!result.checkpoint.ok) print(`Signed checkpoint: ${result.checkpoint.reason ?? "Mismatch"}`);
-    if (redacted)
-      print(
-        "Public receivers are withheld; batchSha256 cannot be independently recomputed from this response.",
-      );
-    const matches =
-      result.chain.ok && result.checkpoint.ok && Object.values(result.plates).every((p) => p.ok);
+    const matches = result.chain.ok && result.checkpoint.ok && Object.values(plates).every((p) => p.ok);
+    print(
+      `${matches ? "Six of six match" : "Proof checks failed"}${sample ? "; Sample, never Verified" : ""}. ${withheld ? 5 : 6} checked independently; ${serverChecks} checked by the server.`,
+    );
     return matches ? 0 : 1;
   } catch (error) {
     print(error instanceof Error ? error.message : "Proof verification failed.");

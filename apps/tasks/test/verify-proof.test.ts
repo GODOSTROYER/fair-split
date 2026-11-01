@@ -7,6 +7,7 @@ describe("verify-proof public transport", () => {
       expect(proofUrls(`https://proof.example${path}`)).toEqual({
         bundle: "https://proof.example/v1/proof/2026A-r37.json",
         keys: "https://proof.example/.well-known/fairsplit-keys.json?run=2026A-r37",
+        verification: "https://proof.example/v1/proof/2026A-r37/verification",
         runSlug: "2026A-r37",
       });
     }
