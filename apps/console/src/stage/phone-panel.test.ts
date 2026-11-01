@@ -76,3 +76,15 @@ it.each([1024, 1470, 1679])("inv.i8.phone panel contains its figure at %s px", (
   expect(cascaded(rules, panel, "overflow-x", { width, motion: "full" })).toBe("hidden");
   expect(cascaded(rules, panel, "min-width", { width, motion: "full" })).toBe("max-content");
 });
+
+it("inv.i8.phone tab never clips its replay and simulated labels", () => {
+  const lane = document.createElement("button");
+  lane.className = "fsc-ribbon__phone";
+  const words = document.createElement("span");
+  words.className = "fsc-ribbon__words";
+  lane.append(words);
+  document.body.append(lane);
+  const medium = { width: 1470, motion: "full" as const };
+  expect(cascaded(rules, words, "white-space", medium)).toBe("normal");
+  expect(cascaded(rules, words, "overflow", medium)).toBe("visible");
+});

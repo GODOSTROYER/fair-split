@@ -1100,12 +1100,12 @@
   line-clamp: 2;
 }
 
-/* The phone lane's words stay on one line: its name and status are short. */
+/* Replay and simulated rail labels stay visible even when the phone lane is narrow. */
 .fsc-ribbon__phone .fsc-ribbon__words {
   display: block;
   max-width: 100%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
 }
 
 .fsc-ribbon__lane[data-lane="machine"] .fsc-ribbon__words {
