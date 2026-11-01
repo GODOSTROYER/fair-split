@@ -27,7 +27,7 @@ it("transcribes final AAC independently through the pool and caches by audio, mo
       },
     }),
   });
-  const deps = { asrPool: pool, cacheDir: root };
+  const deps = { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL] };
   const a = await listen(deps, Buffer.from("aac-fixture"), "audio/mp4", "en", true);
   expect(a.words).toEqual([{ text: "Hello", start: 0.1, end: 0.5 }]);
   expect(calls[0]?.model).toBe(ASR_MODEL);
@@ -48,7 +48,7 @@ it("treats malformed timestamp JSON as an unusable alignment instead of aborting
   expect(
     (
       await listen(
-        { asrPool: pool, cacheDir: root },
+        { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL] },
         Buffer.from("invalid-fixture"),
         "audio/wav",
         "ceb",
@@ -79,7 +79,14 @@ it("counts a bounded transient 503 retry through the next pool key with SDK retr
     },
   );
   expect(
-    (await listen({ asrPool: pool, cacheDir: root }, Buffer.from("busy-fixture"), "audio/mp4", "en")).text,
+    (
+      await listen(
+        { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL] },
+        Buffer.from("busy-fixture"),
+        "audio/mp4",
+        "en",
+      )
+    ).text,
   ).toBe("Hello");
   expect(calls).toBe(2);
   expect((await ledger.today(ASR_MODEL)).requests).toBe(2);
@@ -113,7 +120,7 @@ it("inv.i8.asr-outage: backs off and stops the run before repeated 503s drain th
       }),
     },
   );
-  const deps = { asrPool: pool, cacheDir: root, asrSleep: sleep };
+  const deps = { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL], asrSleep: sleep };
   for (let n = 0; n < 4; n++)
     await expect(listen(deps, Buffer.from(`outage-${n}`), "audio/mp4", "ceb")).rejects.toThrow();
   expect(waits).toEqual([5_000, 15_000, 5_000, 15_000]);
@@ -147,8 +154,83 @@ it("inv.i8.asr-recovery: successful recognition resets an outage streak across t
       }),
     },
   );
-  const deps = { asrPool: pool, cacheDir: root, asrSleep: sleep };
+  const deps = { asrPool: pool, cacheDir: root, asrModels: [ASR_MODEL], asrSleep: sleep };
   for (let n = 0; n < 7; n++)
     expect((await listen(deps, Buffer.from(`recovered-${n}`), "audio/mp4", "en")).text).toBe("Hello");
   expect(calls).toBe(14);
+});
+
+it("inv.i8.asr-fallback: transient failure uses the next free audio model and caches its provenance", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-fallback-"));
+  roots.push(root);
+  const calls: string[] = [];
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger: new QuotaLedger(join(root, "quota.json")),
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          calls.push(String(p.model));
+          if (p.model === ASR_MODEL) throw new Error("UNAVAILABLE: model overloaded");
+          return { text: '{"words":[{"text":"Hello","start":0.1,"end":0.5}]}' };
+        },
+      },
+    }),
+  });
+  const deps = { asrPool: pool, cacheDir: root };
+  const result = await listen(deps, Buffer.from("fallback-fixture"), "audio/mp4", "en", true);
+  expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash"]);
+  expect(result).toMatchObject({
+    text: "Hello",
+    model: "gemini-3.6-flash",
+    words: [{ text: "Hello", start: 0.1, end: 0.5 }],
+  });
+  expect(await listen(deps, Buffer.from("fallback-fixture"), "audio/mp4", "en", true)).toEqual(result);
+  expect(calls).toHaveLength(2);
+});
+it("inv.i8.asr-fallback-refusal: a non-transient error never switches models", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-refusal-"));
+  roots.push(root);
+  const calls: string[] = [];
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger: new QuotaLedger(join(root, "quota.json")),
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          calls.push(String(p.model));
+          throw Object.assign(new Error("invalid request"), { status: 400 });
+        },
+      },
+    }),
+  });
+  await expect(
+    listen({ asrPool: pool, cacheDir: root }, Buffer.from("refusal"), "audio/mp4", "en"),
+  ).rejects.toThrow("invalid request");
+  expect(calls).toEqual([ASR_MODEL]);
+});
+
+it("inv.i8.asr-fallback-order: tries 2.5 only after both higher free models fail", async () => {
+  mkdirSync(join(REPO_ROOT, ".codex-scratch"), { recursive: true });
+  const root = mkdtempSync(join(REPO_ROOT, ".codex-scratch", "asr-third-"));
+  roots.push(root);
+  const calls: string[] = [];
+  const ledger = new QuotaLedger(join(root, "quota.json"));
+  const pool = new KeyPool([`offline-${"standin".repeat(5)}`], {
+    ledger,
+    makeClient: () => ({
+      models: {
+        generateContent: async (p: Record<string, unknown>) => {
+          const model = String(p.model);
+          calls.push(model);
+          if (model !== "gemini-2.5-flash") throw Object.assign(new Error("UNAVAILABLE"), { status: 503 });
+          return { text: "Hello" };
+        },
+      },
+    }),
+  });
+  const result = await listen({ asrPool: pool, cacheDir: root }, Buffer.from("third"), "audio/mp4", "en");
+  expect(calls).toEqual([ASR_MODEL, "gemini-3.6-flash", "gemini-2.5-flash"]);
+  expect(result.model).toBe("gemini-2.5-flash");
+  for (const model of calls) expect((await ledger.today(model)).requests).toBe(1);
 });

@@ -7,7 +7,7 @@ import { MEDIA_ROOT, REPO_ROOT } from "../util/env.js";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
 import { STATEMENT_CER_LIMIT } from "./alignment.js";
-import { ASR_MODEL, cer, type GenerateContentClient, transcribe } from "./asr.js";
+import { ASR_MODEL, ASR_MODELS, cer, type GenerateContentClient, isAsrModel, transcribe } from "./asr.js";
 import { hasFfmpeg } from "./ffmpeg.js";
 import {
   buildTtsParams,
@@ -174,7 +174,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
                       (clip) =>
                         clip.file === entry.file &&
                         clip.textSha256 === sentence.textSha256 &&
-                        clip.asrModel === ASR_MODEL &&
+                        isAsrModel(clip.asrModel) &&
                         clip.threshold === STATEMENT_CER_LIMIT &&
                         typeof clip.cer === "number" &&
                         Number.isFinite(clip.cer) &&
@@ -234,7 +234,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
             console.error(detail);
             continue;
           }
-          const status = await p.status([TTS_MODEL, ASR_MODEL]);
+          const status = await p.status([TTS_MODEL, ...ASR_MODELS]);
           const quotaRefused =
             error instanceof PoolExhaustedError ||
             (error instanceof GeminiCallError && error.kind === "rate");

@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { sha256 } from "../util/hash.js";
-import { ASR_MODEL, asrPrompt, type GenerateContentClient } from "./asr.js";
+import { ASR_MODELS, asrPrompt, type GenerateContentClient } from "./asr.js";
 import { GeminiCallError, type KeyPool } from "./keys.js";
 
 const Words = z.array(
@@ -11,15 +11,17 @@ const Words = z.array(
 export interface ListeningDeps {
   asrPool: KeyPool<GenerateContentClient>;
   cacheDir: string;
+  asrModels?: readonly string[];
   asrSleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
 }
 // Shared across every candidate in this run. Already in-flight calls still settle in the ledger.
-const outages = new WeakMap<ListeningDeps["asrPool"], { failures: number }>();
+const outages = new WeakMap<ListeningDeps["asrPool"], Map<string, { failures: number; detail: string }>>();
 export class AsrUnavailableError extends Error {
-  constructor() {
+  constructor(details: string[] = []) {
     super(
-      "ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained.",
+      "ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained." +
+        (details.length ? ` ${details.join("; ")}` : ""),
     );
     this.name = "AsrUnavailableError";
   }
@@ -29,54 +31,74 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
   const prompt = timed
     ? `Transcribe this ${lang} audio verbatim in its original language. Return JSON only: {"words":[{"text":"word","start":0.0,"end":0.3}]}. One spoken word per item, with its start and end in seconds from the audio beginning. Include every word, no translation or commentary. Do not infer unspoken words.`
     : asrPrompt(lang);
-  const cache = join(
-    deps.cacheDir,
-    `asr-${sha256(JSON.stringify([ASR_MODEL, prompt, mime, sha256(audio)]))}.json`,
-  );
+  const models = deps.asrModels ?? ASR_MODELS;
+  if (!models.length || models.some((model) => !ASR_MODELS.includes(model)))
+    throw new Error("ASR requires an approved free audio model");
+  const cacheFor = (model: string) =>
+    join(deps.cacheDir, `asr-${sha256(JSON.stringify([model, prompt, mime, sha256(audio)]))}.json`);
   const Schema = z.object({ text: z.string(), words: Words });
-  try {
-    return Schema.parse(JSON.parse(await readFile(cache, "utf8")));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  // Cached evidence keeps the actual recogniser even while a higher model is unavailable.
+  for (const model of models) {
+    try {
+      return { ...Schema.parse(JSON.parse(await readFile(cacheFor(model), "utf8"))), model };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
-  const recognise = () =>
-    deps.asrPool.run(ASR_MODEL, (client) =>
-      client.models.generateContent({
-        model: ASR_MODEL,
-        contents: [
-          {
-            role: "user",
-            parts: [{ inlineData: { mimeType: mime, data: audio.toString("base64") } }, { text: prompt }],
-          },
-        ],
-        config: {
-          httpOptions: { timeout: 120_000, retryOptions: { attempts: 1 } },
-          ...(timed ? { responseMimeType: "application/json" } : {}),
-        },
-      }),
-    );
-  let response: { text?: string | undefined } | undefined;
   let outage = outages.get(deps.asrPool);
   if (!outage) {
-    outage = { failures: 0 };
+    outage = new Map();
     outages.set(deps.asrPool, outage);
   }
+  let response: { text?: string | undefined } | undefined;
+  let verifiedModel = "";
+  let lastError: unknown;
   const sleep = deps.asrSleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (outage.failures >= 6) throw new AsrUnavailableError();
-    try {
-      response = await recognise();
-      outage.failures = 0;
-      break;
-    } catch (error) {
-      if (!(error instanceof GeminiCallError) || ![408, 500, 502, 503, 504].includes(error.status ?? 0))
-        throw error;
-      outage.failures++;
-      if (outage.failures >= 6) throw new AsrUnavailableError();
-      if (attempt === 2) throw error;
-      deps.log?.(`[asr] HTTP ${error.status}; retry after ${attempt === 0 ? 5 : 15}s (SDK retries off)`);
-      await sleep(attempt === 0 ? 5_000 : 15_000);
+  for (let attempt = 0; attempt < 3 && !response; attempt++) {
+    for (const model of models) {
+      const state = outage.get(model) ?? { failures: 0, detail: "" };
+      outage.set(model, state);
+      if (state.failures >= 6) continue;
+      try {
+        response = await deps.asrPool.run(model, (client) =>
+          client.models.generateContent({
+            model,
+            contents: [
+              {
+                role: "user",
+                parts: [{ inlineData: { mimeType: mime, data: audio.toString("base64") } }, { text: prompt }],
+              },
+            ],
+            config: {
+              httpOptions: { timeout: 120_000, retryOptions: { attempts: 1 } },
+              ...(timed ? { responseMimeType: "application/json" } : {}),
+            },
+          }),
+        );
+        state.failures = 0;
+        verifiedModel = model;
+        break;
+      } catch (error) {
+        if (
+          !(error instanceof GeminiCallError) ||
+          error.kind !== "other" ||
+          !(
+            [408, 500, 502, 503, 504].includes(error.status ?? 0) ||
+            /UNAVAILABLE|overloaded/i.test(error.message)
+          )
+        )
+          throw error;
+        state.failures++;
+        state.detail = `${model}: HTTP ${error.status ?? "unknown"} ${error.message}`;
+        lastError = error;
+        deps.log?.(`[asr] ${state.detail}; trying next approved free audio model (SDK retries off)`);
+      }
     }
+    if (response) break;
+    if (models.every((model) => (outage.get(model)?.failures ?? 0) >= 6))
+      throw new AsrUnavailableError(models.map((model) => outage.get(model)?.detail ?? model));
+    if (attempt === 2) throw lastError;
+    await sleep(attempt === 0 ? 5_000 : 15_000);
   }
   if (!response) throw new Error("ASR returned no response");
   const text = (response.text ?? "").trim();
@@ -85,11 +107,11 @@ export async function listen(deps: ListeningDeps, audio: Buffer, mime: string, l
     try {
       words = Words.parse(JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")).words);
     } catch {
-      return { text: "", words: [] };
+      return { text: "", words: [], model: verifiedModel };
     } // A malformed answer never supplies a guessed boundary.
   }
-  const result = { text: timed ? words.map((w) => w.text).join(" ") : text, words };
+  const result = { model: verifiedModel, text: timed ? words.map((w) => w.text).join(" ") : text, words };
   await mkdir(deps.cacheDir, { recursive: true });
-  await writeFile(cache, `${JSON.stringify(result)}\n`);
+  await writeFile(cacheFor(verifiedModel), `${JSON.stringify(result)}\n`);
   return result;
 }

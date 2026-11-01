@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { ASR_MODEL, type GenerateContentClient } from "../src/tts/asr.js";
+import { ASR_MODEL, ASR_MODELS, type GenerateContentClient } from "../src/tts/asr.js";
 import { main } from "../src/tts/cli.js";
 import { encodeAac, probeAudio } from "../src/tts/ffmpeg.js";
 import { DEFAULT_VOICE, TTS_MODEL } from "../src/tts/gemini.js";
@@ -294,7 +294,9 @@ it("publishes an independently verified per-sentence retake with measured mentio
 it("moves to sentence retakes after bounded ASR unavailability while preserving quota exceptions", async () => {
   const d = deps(synthToneWav([{ ms: 3000, tone: true }]));
   d.takes.push(synthToneWav([{ ms: 3000, tone: true }]), synthToneWav([{ ms: 4000, tone: true }]));
-  d.asrErrors.push(...Array.from({ length: 3 }, () => Object.assign(new Error("busy"), { status: 503 })));
+  d.asrErrors.push(
+    ...Array.from({ length: 3 * ASR_MODELS.length }, () => Object.assign(new Error("busy"), { status: 503 })),
+  );
   d.timed.push(
     JSON.stringify({
       words: sentence.text

@@ -12,6 +12,14 @@ import { numberWords, spokenPhp, spokenUsd } from "./spoken.js";
  * and its source are recorded in gemini.ts, MODEL_CHOICE). Requests go through the key pool like TTS.
  */
 export const ASR_MODEL = MODEL_CHOICE.asr;
+/** Live models.list and free Standard pricing checked 2026-11-01. 3.6 and 2.5 accept audio input.
+ * https://ai.google.dev/gemini-api/docs/pricing
+ * https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash
+ * 3.5 Flash is listed but has no current free pricing row; never infer free access from listing alone.
+ */
+export const ASR_MODELS: readonly string[] = [ASR_MODEL, "gemini-3.6-flash", "gemini-2.5-flash"];
+export const isAsrModel = (model: unknown): model is string =>
+  typeof model === "string" && ASR_MODELS.includes(model);
 
 export interface GenerateContentClient {
   models: {

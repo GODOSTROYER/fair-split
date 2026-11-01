@@ -5,7 +5,7 @@ import { z } from "zod";
 import { sha256 } from "../util/hash.js";
 import { readJsonOr, writeJson } from "../util/json.js";
 import { adaptiveCuts, alignWords, STATEMENT_CER_LIMIT } from "./alignment.js";
-import { ASR_MODEL, cer } from "./asr.js";
+import { cer, isAsrModel } from "./asr.js";
 import { type Cut, detectSilences, encodeAac, planCuts, probeAudio } from "./ffmpeg.js";
 import { DEFAULT_VOICE, TTS_MODEL } from "./gemini.js";
 import { GeminiCallError } from "./keys.js";
@@ -183,7 +183,7 @@ export async function synthesizePlannedStatement(
           (v) =>
             v.file === e.file &&
             v.textSha256 === s.textSha256 &&
-            v.asrModel === ASR_MODEL &&
+            isAsrModel(v.asrModel) &&
             v.threshold === STATEMENT_CER_LIMIT &&
             typeof v.cer === "number" &&
             Number.isFinite(v.cer) &&
@@ -214,7 +214,14 @@ export async function synthesizePlannedStatement(
   const voice = opts.voice ?? DEFAULT_VOICE;
   const base = { model: TTS_MODEL, voice, style: STYLE_NOTE };
   type Take = Awaited<ReturnType<typeof requestOnce>>;
-  type Candidate = { entry: AudioEntry; staged: string; score: number; transcript: string; method: string };
+  type Candidate = {
+    entry: AudioEntry;
+    staged: string;
+    score: number;
+    transcript: string;
+    method: string;
+    asrModel: string;
+  };
   const prepare = async (
     take: Take,
     cuts: Cut[],
@@ -270,7 +277,7 @@ export async function synthesizePlannedStatement(
           sentences: sentences.length,
         },
       });
-      results.push({ entry, staged, score: -1, transcript: "", method });
+      results.push({ entry, staged, score: -1, transcript: "", method, asrModel: "" });
       audio.push(await readFile(staged));
     }
     // Each request reserves a distinct next-ready key through the pool. Settle all calls before
@@ -289,6 +296,7 @@ export async function synthesizePlannedStatement(
         const heard = await listen(deps, bytes, "audio/mp4", request.lang, timed);
         candidate.score = cer(candidate.entry.text, heard.text);
         candidate.transcript = heard.text;
+        candidate.asrModel = heard.model;
         if (timed) {
           const aligned = alignWords(heard.words, sentence.text, candidate.entry.duration_ms / 1000, anchors);
           if (!aligned) candidate.score = Number.POSITIVE_INFINITY;
@@ -392,7 +400,7 @@ export async function synthesizePlannedStatement(
           file: c.entry.file,
           textSha256: c.entry.text_sha256,
           audioSha256: sha256(await readFile(c.staged)),
-          asrModel: ASR_MODEL,
+          asrModel: c.asrModel,
           cer: c.score,
           transcript: c.transcript,
           threshold: STATEMENT_CER_LIMIT,
