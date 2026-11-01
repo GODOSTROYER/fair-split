@@ -2,4 +2,6 @@
 // they crossed Vitest's 5 s default and the suite went flaky. Every test here gets 30 s.
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({ test: { testTimeout: 30_000 } });
+export default defineConfig({
+  test: { fsModuleCachePath: "./node_modules/.vitest-cache", testTimeout: 30_000 },
+});
