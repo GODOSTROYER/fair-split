@@ -10,6 +10,7 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { usePaypalRail } from "../../data/hooks.js";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import { BRAND_COPY, BrandHeader, type BrandState, FUNDED } from "../../features/brand/BrandHeader.js";
 import { useBrandBundle } from "../../features/brand/useBrandProof.js";
 import { provenanceWords } from "../../features/proof/copy.js";
@@ -88,6 +89,7 @@ export function Screen({ token }: BrandEntryProps) {
               returnedCashPaid={returnedCashPaid(page.items, page.lineStates)}
               posted={posted && page.phase === "ready"}
               rail={rail}
+              payoutReplayed={payoutReplayed(page.runView, page.bundle)}
               provenance={page.provenance ? provenanceWords(page.provenance) : null}
             />
             <ProofView page={page} verification={verification} rail={rail} names={names} level="h2" />

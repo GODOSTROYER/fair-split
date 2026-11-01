@@ -11,7 +11,7 @@ import type { FramePersona } from "../data/adapter.js";
 import { atLeast, type RunView } from "../data/run-view.js";
 import { batchHashOf, sealKeys } from "../features/approve/model.js";
 import { format } from "../lib/format.js";
-import { HERO_MEMBER } from "./personas.js";
+import { HERO_MEMBER, personaStatus } from "./personas.js";
 
 const CAPSULE: Partial<Record<MemberLineState, CapsuleState>> = {
   SUBMITTED: "sent",
@@ -80,7 +80,11 @@ function MemberPoster({
           lang="ceb"
         />
       )}
-      <StatusCapsule state={capsule} text={MEMBER_LINE_LABELS[state].ceb} lang="ceb" />
+      <StatusCapsule
+        state={capsule}
+        text={personaStatus("member", view) ?? MEMBER_LINE_LABELS[state].ceb}
+        lang="ceb"
+      />
       <p className="fsc-poster__chip fs-t-caption" lang="en">
         <Glyph name="ms:translate" size={14} />
         <span>{translate("en", "W-JG-01.machineTranslated")}</span>

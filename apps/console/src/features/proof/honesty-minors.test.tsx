@@ -42,17 +42,28 @@ describe("Proof and log copy stays faithful to its evidence", () => {
     );
     expect(screen.getByTestId("W-PF-01.metric.timing").textContent).toContain("Replayed, no timing");
     expect(screen.getByTestId("W-PF-01.metric.timing").textContent).not.toContain("Still running");
+    expect(screen.getByTestId("W-PF-01.metric.timing").textContent).toContain(
+      "No timing: payout statuses are replayed from an earlier simulated PayPal sandbox run.",
+    );
     expect(screen.getByTestId("W-PF-01.metric.rails").textContent).toMatch(/On PayPal \(simulated sandbox\)/);
     expect(screen.getByTestId("W-PF-01.railbar.table").textContent).toContain("PayPal (simulated sandbox)");
   });
 
-  it("inv.i8.run states describe the current run reaching replayed payout states", () => {
+  it("inv.i8.early run states describe the replayed invoice and payment step", () => {
     const world = createTestWorld();
     world.markPaid();
     const event = world.events().find((event) => event.type === "run.state");
     if (!event) throw new Error("run state required");
     const row = describeEvent({ ...event, provenance: "replay" }, describeContext(snapshot));
-    expect(row?.detail).toBe("Run state, Reached on replayed payout statuses");
+    expect(row?.detail).toBe("Run state, Labelled replay of the simulated invoice and payment step");
+    for (const to of ["POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"] as const) {
+      expect(
+        describeEvent(
+          { ...event, provenance: "replay", payload: { ...event.payload, to } },
+          describeContext(snapshot),
+        )?.detail,
+      ).toBe("Run state, Reached on replayed payout statuses");
+    }
   });
 
   it("inv.i8.cancelled and seeded returned payouts explicitly name the simulated balance", () => {

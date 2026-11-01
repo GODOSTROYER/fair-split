@@ -5,6 +5,7 @@
 import type { InvoiceStatus, ProofBundle, SeasonSnapshot } from "@fairsplit/contracts";
 import { Glyph } from "@fairsplit/ui-web";
 import { useState } from "react";
+import { payoutReplaySummary } from "../../data/payout-replay.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { invoiceWords, railShort, STATE_COPY } from "../proof/copy.js";
 import { isSettled, type ProgressCounts } from "../proof/model.js";
@@ -55,6 +56,7 @@ export interface BrandHeaderProps {
   readonly posted: boolean;
   readonly rail: PaypalRail;
   readonly provenance: string | null;
+  readonly payoutReplayed?: boolean;
 }
 
 export function BrandHeader({
@@ -68,6 +70,7 @@ export function BrandHeader({
   posted,
   rail,
   provenance,
+  payoutReplayed = false,
 }: BrandHeaderProps) {
   const [saved, setSaved] = useState<string | null>(null);
   const payer = snapshot?.payer;
@@ -120,9 +123,11 @@ export function BrandHeader({
           <dd>
             {!posted || progress.total === 0
               ? BRAND_COPY.notYet
-              : isSettled(progress)
-                ? BRAND_COPY.settled(progress, returnedCashPaid)
-                : BRAND_COPY.progress(progress.confirmed, progress.total)}
+              : payoutReplayed
+                ? payoutReplaySummary(progress.confirmed, progress.total)
+                : isSettled(progress)
+                  ? BRAND_COPY.settled(progress, returnedCashPaid)
+                  : BRAND_COPY.progress(progress.confirmed, progress.total)}
             <span className="br-strip__rail">{railShort(rail)}</span>
           </dd>
         </div>

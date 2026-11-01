@@ -4,6 +4,7 @@
 // integer cents and grams (never floats), and every text cell is guarded against spreadsheet formula injection.
 
 import type { ProofBundle, SeasonSnapshot } from "@fairsplit/contracts";
+import { payoutReplayed } from "../../data/payout-replay.js";
 
 export const EXPORT_KIND = "fairsplit.proof.brand-export";
 
@@ -116,7 +117,7 @@ export function proofCsv(
       item?.receiver ?? null,
       plots,
       meta.rail,
-      meta.provenance,
+      payoutReplayed(undefined, bundle) ? "replay" : meta.provenance,
     ];
     rows.push(cells.map(csvCell).join(","));
   }
@@ -142,7 +143,7 @@ export function proofJson(
     runSlug: bundle.runSlug,
     generatedAt: meta.generatedAt,
     paypalRail: meta.rail,
-    provenance: meta.provenance,
+    provenance: payoutReplayed(undefined, bundle) ? "replay" : meta.provenance,
     note: "Names, complete receivers and plot details are shared with the brand under the data-sharing agreement. Re-check the bundle with verify-core against /.well-known/fairsplit-keys.json.",
     members: bundle.lines.map((line) => {
       const member = members.get(line.memberNo);

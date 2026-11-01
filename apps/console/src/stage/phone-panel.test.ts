@@ -70,3 +70,9 @@ describe("the phone's panel on the tab layout (stage.css)", () => {
     }
   });
 });
+
+it.each([1024, 1470, 1679])("inv.i8.phone panel contains its figure at %s px", (width) => {
+  const panel = panelIn("user");
+  expect(cascaded(rules, panel, "overflow-x", { width, motion: "full" })).toBe("hidden");
+  expect(cascaded(rules, panel, "min-width", { width, motion: "full" })).toBe("max-content");
+});

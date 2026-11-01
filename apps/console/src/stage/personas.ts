@@ -37,7 +37,20 @@ export function personaInfo(persona: FramePersona, snapshot: SeasonSnapshot | un
 export function personaStatus(persona: FramePersona, view: RunView | undefined): string | null {
   if (persona === "member") {
     const state = view?.lines[HERO_MEMBER]?.state ?? "COMPUTED";
-    return MEMBER_LINE_LABELS[state].ceb;
+    const replayed =
+      Object.values(view?.items ?? {}).some(
+        (item) => item.memberNo === HERO_MEMBER && item.provenance === "replay",
+      ) ||
+      view?.events.some(
+        (event) =>
+          event.type === "item.updated" &&
+          event.payload.memberNo === HERO_MEMBER &&
+          event.provenance === "replay",
+      );
+    if (replayed) return "Replayed (labelled), Simulated PayPal sandbox";
+    return state === "PAID"
+      ? `${MEMBER_LINE_LABELS[state].ceb} (Simulated PayPal sandbox)`
+      : MEMBER_LINE_LABELS[state].ceb;
   }
   if (
     persona === "chair" &&

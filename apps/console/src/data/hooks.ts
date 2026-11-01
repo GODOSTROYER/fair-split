@@ -2,7 +2,7 @@
 // stream per run and is reduced into the run's query data; commands are mutations whose results the events
 // then confirm. Nothing here formats money: that is lib/format.
 
-import { judgeRoutes, type ReplayReason } from "@fairsplit/api-client";
+import { judgeRoutes } from "@fairsplit/api-client";
 import { PAY_RUN_RANK, type RunEvent, type SeasonSnapshot } from "@fairsplit/contracts";
 import { type UseMutationOptions, type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -13,7 +13,6 @@ import type { CommandError } from "./errors.js";
 import { isApiClientError } from "./errors.js";
 import type { EventMeta } from "./hub.js";
 import { pacedCall } from "./pacing.js";
-import { payoutReplayed } from "./payout-replay.js";
 import { useDataRuntime } from "./provider.js";
 import { firstViewQuery, queryKeys, runViewQuery, snapshotQuery } from "./query.js";
 import type { RunView } from "./run-view.js";
@@ -145,15 +144,9 @@ export function useJudgeSession(): JudgeSessionApi {
  * read while a session is active and every 15 s after, so the stage can name the circuit and a low balance.
  */
 export function useJudgeReplayRail() {
-  const { adapter, session, client } = useDataRuntime();
+  const { adapter, session } = useDataRuntime();
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const sessionId = state.status === "active" ? (state.session?.sessionId ?? null) : null;
-  const runKey = sessionId ? `${sessionId}:${state.session?.workspaceId}` : null;
-  const run = useQuery<RunView>({
-    queryKey: queryKeys.run(state.session?.runSlug ?? "first-view"),
-    enabled: false,
-  }).data;
-  const replayed = payoutReplayed(run);
   const query = useQuery({
     queryKey: ["judge-session-status", sessionId, state.session?.workspaceId] as const,
     queryFn: () => judgeRoutes(adapter.api).judgeSession(),
@@ -162,30 +155,8 @@ export function useJudgeReplayRail() {
     staleTime: 10_000,
     retry: false,
   });
-  const retainedKey = ["payout-replay-rail", runKey] as const;
-  const retained = useQuery<NonNullable<typeof query.data>["rail"]>({
-    queryKey: retainedKey,
-    enabled: false,
-    gcTime: 30 * 60_000,
-  }).data;
-  const rail = query.data?.rail;
-  useEffect(() => {
-    if (runKey && rail?.mode === "replay") client.setQueryData(["payout-replay-rail", runKey], rail);
-  }, [client, runKey, rail]);
-  const refreshedReplay = useRef<string | null>(null);
-  const { refetch } = query;
-  useEffect(() => {
-    if (!runKey || !replayed || refreshedReplay.current === runKey) return;
-    refreshedReplay.current = runKey;
-    void refetch();
-  }, [runKey, replayed, refetch]);
-  if (sessionId === null) return null;
-  // Quotas can reopen while this run still contains replayed payouts. Keep the API's original label for it.
-  return replayed && retained ? retained : (rail ?? null);
-}
-
-export function useJudgeReplayReason(): ReplayReason | null {
-  return useJudgeReplayRail()?.reason ?? null;
+  if (sessionId === null || !query.data?.rail) return null;
+  return { ...query.data.rail, runState: query.data.runState };
 }
 
 /** The status of a stream nobody asked for. One constant: useSyncExternalStore needs a stable snapshot. */

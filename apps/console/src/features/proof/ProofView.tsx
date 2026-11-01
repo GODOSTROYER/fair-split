@@ -79,7 +79,7 @@ function marksOf(snapshot: SeasonSnapshot | undefined) {
 }
 
 export function ProofView({ page, verification, rail, names = null, level = "h1" }: ProofViewProps) {
-  const replayed = payoutReplayed(page.runView, null, page.bundle);
+  const replayed = payoutReplayed(page.runView, page.bundle);
   const Heading = level;
   const announce = useAnnounce();
   const { bundle, facts, figures, snapshot } = page;

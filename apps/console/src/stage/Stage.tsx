@@ -259,7 +259,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     autoplay,
     inSession,
     replayReason,
-    replayLabel: replayRail?.label,
+    sessionRunState: replayRail?.runState,
   });
   const stageState: StageState = visit ? "phone-visit" : (notice?.state ?? (inSession ? "session" : "ready"));
 

@@ -117,7 +117,7 @@ export function plateFact(
     case "twoKeys":
       return `${bundle.approvals.map((a) => a.keyId).join(" and ")}, batch ${format.hashGroups(bundle.batch.batchSha256)}`;
     case "payoutItems": {
-      if (p.replayed || payoutReplayed(undefined, null, bundle))
+      if (p.replayed || payoutReplayed(undefined, bundle))
         return payoutReplaySummary(progress.confirmed, progress.total);
       if (!isSettled(progress)) return STATE_COPY.progress(progress.confirmed, progress.total);
       const parts = [STATE_COPY.settled(progress.confirmed, progress.total).replace(/\.$/, "")];
@@ -369,7 +369,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             ]}
           />
           <Lines
-            replayed={p.replayed || payoutReplayed(undefined, null, bundle)}
+            replayed={p.replayed || payoutReplayed(undefined, bundle)}
             bundle={bundle}
             items={p.items}
             lineStates={p.lineStates}
@@ -423,13 +423,7 @@ export function noticeOf(item: ProofItemView): string {
   return NOTICE_WORDS[item.source];
 }
 
-function Items({
-  bundle,
-  items,
-  names,
-  rail,
-  replayed = payoutReplayed(undefined, null, bundle),
-}: ChainProps) {
+function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined, bundle) }: ChainProps) {
   return (
     <>
       <Facts

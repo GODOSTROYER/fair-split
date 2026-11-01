@@ -317,7 +317,7 @@ export function Figures({
             </span>
             <span className="pf-ledger__note">
               {replayed
-                ? "Payout timing is replayed from an earlier simulated PayPal sandbox run."
+                ? "No timing: payout statuses are replayed from an earlier simulated PayPal sandbox run."
                 : FIGURE_COPY.timingNote}
             </span>
           </dd>

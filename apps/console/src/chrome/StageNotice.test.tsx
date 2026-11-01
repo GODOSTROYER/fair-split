@@ -130,7 +130,7 @@ describe("the stage's notice strip (S1.6 states)", () => {
 });
 
 it.each(["hourly_cap", "daily_cap", "session_cap", "public_share", "lane_full"] as const)(
-  "labels quota replay %s with the API's words",
+  "labels quota replay %s with console-owned copy",
   (replayReason) => {
     const notice = stageNoticeFor({
       session: active,
@@ -138,10 +138,9 @@ it.each(["hourly_cap", "daily_cap", "session_cap", "public_share", "lane_full"] 
       autoplay: "off",
       inSession: true,
       replayReason,
-      replayLabel: "Replay: quota reached",
     });
-    expect(notice?.text).toBe(
-      "This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox). Replay: quota reached",
+    expect(notice?.text).toContain(
+      "This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox).",
     );
     expect(notice?.state).toBe("replay");
   },
@@ -155,35 +154,16 @@ it.each(["autoplay", "paused"] as const)("keeps the quota replay label visible d
       autoplay,
       inSession: true,
       replayReason: "hourly_cap",
-      replayLabel: "Replay: this hour is full",
     })?.text,
   ).toContain("This run’s PayPal payouts will replay, labelled");
 });
 
-it("inv.i8.refreshes the API rail label as soon as a payout replay arrives", async () => {
+it("inv.i8.a replay item event shows the labelled replay notice", async () => {
   const world = createTestWorld();
-  let replay = false;
-  let reads = 0;
-  const handler = http.get("*/v1/judge/session", async ({ request }) => {
-    const response = await getResponse([...world.mock.handlers], request);
-    const body = (await response?.json()) as { rail: Record<string, unknown> };
-    reads++;
-    return HttpResponse.json({
-      ...body,
-      rail: {
-        ...body.rail,
-        mode: replay ? "replay" : "live",
-        reason: replay ? "hourly_cap" : null,
-        label: replay ? "Replay: quota was reached" : "Simulated PayPal sandbox",
-      },
-    });
-  });
-  const rendered = await renderConsole({ path: "/judge", world, handlers: [handler] });
+  const rendered = await renderConsole({ path: "/judge", world });
   await act(async () => {
     await rendered.runtime.session.start();
   });
-  await waitFor(() => expect(reads).toBeGreaterThan(0));
-  replay = true;
   act(() => {
     rendered.runtime.client.setQueryData<RunView>(["run", world.runSlug], (view) =>
       view
@@ -221,30 +201,45 @@ it("inv.i8.refreshes the API rail label as soon as a payout replay arrives", asy
       ),
     { timeout: 2500 },
   );
-  replay = false;
-  await act(async () => {
-    await rendered.runtime.client.refetchQueries({ queryKey: ["judge-session-status"] });
-  });
-  expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain(
-    "Replayed (labelled): earlier simulated PayPal sandbox run",
-  );
 });
 
 it.each(["POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"] as const)(
   "inv.i8.hides quota notices on a posted live run in %s",
   (state) => {
     const view = { ...flags({}), state, items: {}, events: [] } as unknown as RunView;
-    for (const autoplay of ["off", "autoplay", "paused"] as const) {
-      const notice = stageNoticeFor({
-        session: active,
-        view,
-        autoplay,
-        inSession: true,
-        replayReason: "hourly_cap",
-        replayLabel: "Replay: this hour is full",
-      });
-      if (autoplay === "off") expect(notice).toBeNull();
-      expect(notice?.text ?? "").not.toMatch(/replay/i);
+    for (const replayReason of [
+      "hourly_cap",
+      "daily_cap",
+      "session_cap",
+      "public_share",
+      "lane_full",
+      "circuit_open",
+      "balance_low",
+    ] as const) {
+      for (const autoplay of ["off", "autoplay", "paused"] as const) {
+        const notice = stageNoticeFor({
+          session: active,
+          view,
+          autoplay,
+          inSession: true,
+          replayReason,
+        });
+        if (autoplay === "off") expect(notice).toBeNull();
+        expect(notice?.text ?? "").not.toMatch(/replay/i);
+      }
     }
   },
 );
+
+it("inv.i8.a posted session read suppresses a forecast while the view catches up", () => {
+  expect(
+    stageNoticeFor({
+      session: active,
+      sessionRunState: "SETTLED",
+      view: undefined,
+      autoplay: "off",
+      inSession: true,
+      replayReason: "hourly_cap",
+    }),
+  ).toBeNull();
+});
