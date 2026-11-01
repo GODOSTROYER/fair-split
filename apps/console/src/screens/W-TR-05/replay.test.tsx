@@ -39,5 +39,8 @@ describe("split review after a payout replay", () => {
   it("keeps cash statuses distinct from replayed PayPal statuses", () => {
     const row = splitRows(snapshot, showcaseView(snapshot), true).find((r) => r.rail === "CASH");
     expect(row?.replayed).not.toBe(true);
+    const rerouted = splitRows(snapshot, showcaseView(snapshot), true).find((r) => r.movedToCash);
+    expect(rerouted?.memberNo).toBe("M-031");
+    expect(rerouted?.replayed).not.toBe(true);
   });
 });

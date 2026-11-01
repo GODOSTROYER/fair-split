@@ -316,7 +316,8 @@ export function splitRows(
       // Jade is money PayPal confirmed: a PAID line takes its cause and evidence from the verified item, whatever
       // bookkeeping event moved the line after it.
       const item = Object.values(view.items).find((i) => i.memberNo === line.memberNo);
-      const rowReplayed = replayed && line.rail === "PAYPAL" && item !== undefined;
+      const rowReplayed =
+        replayed && line.rail === "PAYPAL" && !CASH_STATES.includes(state) && item !== undefined;
       const landed = !rowReplayed && state === "PAID" && item?.status === "SUCCESS";
       return {
         memberNo: line.memberNo,
