@@ -57,6 +57,9 @@ catalogs:
     "@tailwindcss/vite":
       specifier: 4.3.3
       version: 4.3.3
+    "@tanstack/react-query":
+      specifier: 5.104.5
+      version: 5.104.5
     "@tanstack/react-router":
       specifier: 1.170.45
       version: 1.170.45
@@ -81,12 +84,21 @@ catalogs:
     "@vitejs/plugin-react":
       specifier: 6.1.2
       version: 6.1.2
+    ag-grid-community:
+      specifier: 36.2.0
+      version: 36.2.0
+    ag-grid-react:
+      specifier: 36.2.0
+      version: 36.2.0
     ajv:
       specifier: 8.20.0
       version: 8.20.0
     ajv-formats:
       specifier: 3.0.1
       version: 3.0.1
+    axe-core:
+      specifier: 4.13.0
+      version: 4.13.0
     canonicalize:
       specifier: 5.1.0
       version: 5.1.0
@@ -438,6 +450,15 @@ importers:
       "@base-ui/react":
         specifier: "catalog:"
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      "@fairsplit/api-client":
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      "@fairsplit/contracts":
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      "@fairsplit/domain":
+        specifier: workspace:*
+        version: link:../../packages/domain
       "@fairsplit/i18n":
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -447,15 +468,33 @@ importers:
       "@fairsplit/seal":
         specifier: workspace:*
         version: link:../../packages/seal
+      "@fairsplit/seed":
+        specifier: workspace:*
+        version: link:../../packages/seed
       "@fairsplit/tokens":
         specifier: workspace:*
         version: link:../../packages/tokens
       "@fairsplit/ui-web":
         specifier: workspace:*
         version: link:../../packages/ui-web
+      "@noble/curves":
+        specifier: "catalog:"
+        version: 2.4.0
+      "@tanstack/react-query":
+        specifier: "catalog:"
+        version: 5.104.5(@types/react@19.3.0)(react@19.3.0)
       "@tanstack/react-router":
         specifier: "catalog:"
         version: 1.170.45(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      ag-grid-community:
+        specifier: "catalog:"
+        version: 36.2.0
+      ag-grid-react:
+        specifier: "catalog:"
+        version: 36.2.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      eventsource-parser:
+        specifier: "catalog:"
+        version: 4.1.2
       motion:
         specifier: "catalog:"
         version: 14.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -465,6 +504,9 @@ importers:
       react-dom:
         specifier: "catalog:"
         version: 19.3.0(react@19.3.0)
+      zod:
+        specifier: "catalog:"
+        version: 4.6.7
     devDependencies:
       "@tailwindcss/vite":
         specifier: "catalog:"
@@ -490,9 +532,18 @@ importers:
       "@vitejs/plugin-react":
         specifier: "catalog:"
         version: 6.1.2(babel-plugin-react-compiler@1.0.0)(vite@8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      axe-core:
+        specifier: "catalog:"
+        version: 4.13.0
+      fast-check:
+        specifier: "catalog:"
+        version: 4.10.2
       jsdom:
         specifier: "catalog:"
         version: 30.1.2(@noble/hashes@2.4.0)
+      msw:
+        specifier: "catalog:"
+        version: 3.0.3(@types/node@24.10.1)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.5(@types/node@24.10.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       tailwindcss:
         specifier: "catalog:"
         version: 4.3.3
@@ -4860,6 +4911,24 @@ packages:
       }
     engines: { node: ">=20.19" }
 
+  "@tanstack/query-core@5.104.5":
+    resolution:
+      {
+        integrity: sha512-Q94gI8Opd+CbdVNOdj8ZCyV8WqLYitrDq1t96Xc8WZT6lY0r5iRnJLXYDxMex7EEf2v+mXvn4FcjaBKSxXZQ9A==,
+      }
+
+  "@tanstack/react-query@5.104.5":
+    resolution:
+      {
+        integrity: sha512-RORgFe052U+93weaNuqg7qHq7vNVNzXN/VrXqD4bbAuQCWUqOl2lV5Ui9flWk5CVvMyL/Bh27QWhzwH0aaOx9g==,
+      }
+    peerDependencies:
+      "@types/react": ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+
   "@tanstack/react-router@1.170.45":
     resolution:
       {
@@ -5405,6 +5474,33 @@ packages:
     engines: { node: ">=0.4.0" }
     hasBin: true
 
+  ag-charts-types@14.2.0:
+    resolution:
+      {
+        integrity: sha512-4pDV6/4zbzPN7t607Gr1o6DO9RhmPafQGr+hIpTJBaerbaMoC+WOO3v/wkxFbvCNrHKOexEKSfNTH7PaAR4UzA==,
+      }
+
+  ag-grid-community@36.2.0:
+    resolution:
+      {
+        integrity: sha512-tK0Toj7t0fV/OMLPnDc0xlYKAqDbnCT3iJodYSn2TJ541caU8jPdYwWhMdW+AP2+pUNwFiJVgc04eJNfvBPsWw==,
+      }
+
+  ag-grid-react@36.2.0:
+    resolution:
+      {
+        integrity: sha512-7dsaR4Ga8/bJAOov7XJqxsDc1JAjUU5Bmh9+s4U9+/TKIdSsaVo53SuZb2yEFSB1elv3eh6aZP8a1fqGZehXwA==,
+      }
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  ag-stack@36.2.0:
+    resolution:
+      {
+        integrity: sha512-f3XT2htFs9dUPcHni2z9ak69QNta5ODEpooHuuNvbjN98JkokpEqRQ9YLQHQJFdCcgi9Ybs/j3zkkvmNRamIPg==,
+      }
+
   agent-base@6.0.2:
     resolution:
       {
@@ -5628,6 +5724,13 @@ packages:
       {
         integrity: sha512-aDczADvlvTGajTDjcjpJMqRkOF6Qdz3YbPZm/PyW6tKPkx2hlYBzxMhEywM/tU72HrVZjgl5VCdRuMlA7pZ8Gw==,
       }
+
+  axe-core@4.13.0:
+    resolution:
+      {
+        integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==,
+      }
+    engines: { node: ">=4" }
 
   axios@1.20.0:
     resolution:
@@ -9753,6 +9856,12 @@ packages:
       }
     engines: { node: ">= 6" }
 
+  prop-types@15.8.1:
+    resolution:
+      {
+        integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==,
+      }
+
   protobufjs@7.6.6:
     resolution:
       {
@@ -9861,6 +9970,12 @@ packages:
     engines: { node: ">=10" }
     peerDependencies:
       react: ">=17.0.0"
+
+  react-is@16.13.1:
+    resolution:
+      {
+        integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==,
+      }
 
   react-is@17.0.2:
     resolution:
@@ -14023,6 +14138,15 @@ snapshots:
 
   "@tanstack/history@1.162.5": {}
 
+  "@tanstack/query-core@5.104.5": {}
+
+  "@tanstack/react-query@5.104.5(@types/react@19.3.0)(react@19.3.0)":
+    dependencies:
+      "@tanstack/query-core": 5.104.5
+      react: 19.3.0
+    optionalDependencies:
+      "@types/react": 19.3.0
+
   "@tanstack/react-router@1.170.45(react-dom@19.3.0(react@19.3.0))(react@19.3.0)":
     dependencies:
       "@tanstack/history": 1.162.5
@@ -14332,6 +14456,22 @@ snapshots:
 
   acorn@8.19.0: {}
 
+  ag-charts-types@14.2.0: {}
+
+  ag-grid-community@36.2.0:
+    dependencies:
+      ag-charts-types: 14.2.0
+      ag-stack: 36.2.0
+
+  ag-grid-react@36.2.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+    dependencies:
+      ag-grid-community: 36.2.0
+      prop-types: 15.8.1
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+
+  ag-stack@36.2.0: {}
+
   agent-base@6.0.2(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
@@ -14428,6 +14568,8 @@ snapshots:
   atomically@1.7.0: {}
 
   await-lock@2.2.2: {}
+
+  axe-core@4.13.0: {}
 
   axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:
@@ -17080,6 +17222,12 @@ snapshots:
       kleur: 3.0.3
       sisteransi: 1.0.5
 
+  prop-types@15.8.1:
+    dependencies:
+      loose-envify: 1.4.0
+      object-assign: 4.1.1
+      react-is: 16.13.1
+
   protobufjs@7.6.6:
     dependencies:
       "@protobufjs/aspromise": 1.1.2
@@ -17152,6 +17300,8 @@ snapshots:
   react-freeze@1.0.4(react@19.3.0):
     dependencies:
       react: 19.3.0
+
+  react-is@16.13.1: {}
 
   react-is@17.0.2: {}
 
