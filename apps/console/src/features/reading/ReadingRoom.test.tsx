@@ -56,7 +56,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(within(screen.getByTestId("W-TR-03.film")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("waiting");
     expect(screen.getByTestId("W-TR-03.footer").textContent).toMatch(
-      /^Read by Claude \(claude-opus-5-5\), replay of a recorded run from \d+ \w{3}\. Amounts are computed by the engine, never by the model\.$/,
+      /^Seed stand-in, not a Claude recording\. Amounts are computed by the engine, never by the model\.$/,
     );
     await expectNoAxeViolations(r.container);
     r.unmount();
@@ -200,7 +200,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     act(() => r.stream.inject(rowEvents([...rest, zoomAgreedRow(snapshot)])));
     await waitFor(() => expect(screen.getByTestId("W-TR-03").dataset.state).toBe("confirm-one"));
     expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(
-      /Slip 0462: Claude's zoom read agrees with one of the two readings\./,
+      /Slip 0462: the stand-in's zoom value agrees with one of its two readings\./,
     );
     expect(screen.getByTestId("W-TR-03.beds.zoom.0462").dataset.amountState).toBe("you");
     const slab = screen.getByTestId("W-TR-03.confirm.confirm");
@@ -254,7 +254,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(replay.dataset.state).toBe("idle");
     expect(replay.textContent).toMatch(/Mock data: the mock API sends no rows/);
     // A stand-in built from the seed, never "the recording": no model read it, so it shows no scores.
-    expect(replay.textContent).toMatch(/stand-in for the \d+ \w{3} recording, built from the seed/);
+    expect(replay.textContent).toMatch(/seed stand-in, not a Claude recording/);
     // The button names what plays (I8): the seed's stand-in, never "the recorded reading".
     const toggle = () => screen.getByTestId("W-TR-03.replay.toggle").textContent ?? "";
     expect(toggle()).toBe("Play the seed's stand-in");

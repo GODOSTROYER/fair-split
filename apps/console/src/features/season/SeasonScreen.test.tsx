@@ -64,7 +64,9 @@ describe("W-TR-01 season", { timeout: 60_000 }, () => {
     await waitFor(() => expect(screen.getByTestId("W-TR-01").dataset.state).toBe("funded"));
     await waitFor(() => expect(momentPhase(view.container, "MM-S")).toBe("funded"), { timeout: 8000 });
     expect(tracedPhases("MM-S")).toEqual(["arc", "funded"]);
-    expect(screen.getByTestId("W-TR-01.state").textContent).toBe("Marked as paid in sandbox.");
+    expect(screen.getByTestId("W-TR-01.state").textContent).toBe(
+      "Marked as paid in the simulated PayPal sandbox.",
+    );
     expect(screen.getByTestId("W-TR-01.pool.premium").dataset.amountState).toBe("landed");
     expect(screen.getByTestId("W-TR-01.funded")).toBeTruthy();
     expect(screen.getByTestId("W-TR-01.strip.FUNDED").dataset.state).toBe("lit");

@@ -66,7 +66,7 @@ describe("health rows", () => {
     expect(rows[0]).toMatchObject({ check: "Liveness (/healthz)", status: "Up", tone: "ok" });
     expect(rows[0]?.detail).toContain("up 2 h 3 min");
     expect(rows[0]?.detail).toContain("Simulated PayPal sandbox");
-    expect(rows[1]).toMatchObject({ status: "Not served yet", tone: "attention" });
+    expect(rows[1]).toMatchObject({ status: "Not served in this build", tone: "attention" });
     expect(rows[1]?.detail).toContain("can't call it ready");
     expect(opsDegraded(live, { kind: "not-served", at: 1 })).toBe(true);
     expect(opsVerdict(live, { kind: "not-served", at: 1 })).toEqual({

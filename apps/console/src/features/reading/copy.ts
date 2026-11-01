@@ -3,7 +3,7 @@
 
 export const READING_COPY = {
   title: "Reading room",
-  filmstrip: "Photos in the recorded run",
+  filmstrip: "Photos in the seed stand-in",
   progress: (read: number, total: number) => `${read} of ${total} slips read`,
   photoLink: (id: string, read: boolean, pending: boolean) =>
     `Photo ${id}${read ? ", read" : ", not read yet"}${pending ? ", needs a person" : ""}`,
@@ -34,12 +34,12 @@ export const READING_COPY = {
   whiteCopy: "white original",
   byHand: (serial: string) => `Enter slip ${serial} by hand`,
   entered: (name: string) => `Entered by ${name}`,
-  readTwice: "Read twice by Claude",
-  footer: (model: string, date: string) =>
-    `Read by Claude (${model}), replay of a recorded run from ${date}. Amounts are computed by the engine, never by the model.`,
+  readTwice: "Seed stand-in, not a Claude recording",
+  footer: (_model: string, _date: string) =>
+    "Seed stand-in, not a Claude recording. Amounts are computed by the engine, never by the model.",
   earlierFooter: (date: string) => `Read on ${date}, earlier this season. Seeded sample.`,
   stateOffline: "You're offline. Rows already read stay; new ones arrive when the connection returns.",
-  stateLivePaused: "Live reading is paused for today (budget cap). The recorded run still plays.",
+  stateLivePaused: "Live reading is paused for today (budget cap). The labelled seed stand-in still plays.",
   illegible: "Too blurred to read",
   // confirm-one (S1.7): one tap confirms the zoom's read.
   field: {
@@ -59,10 +59,10 @@ export const READING_COPY = {
   } as Readonly<Record<string, string>>,
   confirmTitle: (serial: string, field: string) => `Slip ${serial}, ${field}`,
   confirmReads: (display: string, value: string) =>
-    `The two readings were ${display}; Claude's zoom read ${value}, which agrees with one of them.`,
+    `The two readings were ${display}; the stand-in's zoom value is ${value}, which agrees with one of them.`,
   confirm: (value: string) => `Confirm ${value}`,
   confirmSr: (value: string, serial: string) =>
-    `Confirm ${value} on slip ${serial}, as Claude's zoom read it`,
+    `Confirm ${value} on slip ${serial}, as shown by the seed stand-in`,
   confirmByHand: "Type it by hand instead",
   confirmNoSession: "Confirming waits for your run: press the first slab on the stage.",
   confirmNoHold: "This run hasn't raised a hold for this slip yet, so there's nothing to confirm.",
@@ -82,8 +82,8 @@ export const READING_COPY = {
   replayAgain: "Play the stand-in again",
   replayStop: "Stop the stand-in",
   // The mock's stand-in is built from the seed's own text: not the recording, and it shows no scores.
-  replayNote: (date: string) =>
-    `Mock data: the mock API sends no rows, so this page plays a stand-in for the ${date} recording, built from the seed. It shows no agreement scores: none were read.`,
+  replayNote: (_date: string) =>
+    "Mock data: the mock API sends no rows, so this page plays the seed stand-in, not a Claude recording. It shows no agreement scores: none were read.",
   replayRunning: (done: number, total: number, _date: string) =>
     `Playing the seed's stand-in here: ${done} of ${total} rows. Mock data.`,
   replayDone: (total: number, _date: string) => `Played all ${total} rows of the seed's stand-in. Mock data.`,

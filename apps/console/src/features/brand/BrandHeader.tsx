@@ -22,11 +22,11 @@ export const BRAND_COPY = {
   payouts: "Payouts",
   unpaid: "Sent to Lantern Bay. Waiting for payment.",
   unpaidHow:
-    "Pay it from the invoice PayPal sent to Lantern Bay's account. The pay run starts once PayPal confirms payment.",
+    "The simulated PayPal sandbox models Lantern Bay's invoice and payment. No PayPal dashboard or real payment is required.",
   progress: (confirmed: number, total: number) =>
-    `${confirmed} of ${total} confirmed by PayPal, updating as notices arrive.`,
+    `${confirmed} of ${total} confirmed by the simulated PayPal sandbox, updating as notices arrive.`,
   settled: (p: ProgressCounts, cashPaid: number) =>
-    `${p.confirmed} of ${p.total} confirmed by PayPal.${p.returned > 0 ? ` ${STATE_COPY.returned(p.returned, cashPaid)}.` : ""}`,
+    `${p.confirmed} of ${p.total} confirmed by the simulated PayPal sandbox.${p.returned > 0 ? ` ${STATE_COPY.returned(p.returned, cashPaid)}.` : ""}`,
   notYet: "The payout batch isn't posted yet.",
   export: "Export proof (CSV and JSON with hashes)",
   csv: "Download CSV",

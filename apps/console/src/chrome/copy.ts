@@ -19,7 +19,7 @@ export function story(members: number): string {
 export function railNotice(rail: PaypalRail): { readonly lead: string; readonly rest: string } {
   return rail === "simulator"
     ? { lead: "Simulated PayPal sandbox.", rest: "Anything replayed says so." }
-    : { lead: "PayPal sandbox calls.", rest: "Anything replayed says so." };
+    : { lead: "PayPal sandbox (untested in this build).", rest: "Anything replayed says so." };
 }
 
 export function railLine(rail: PaypalRail): string {
@@ -27,8 +27,8 @@ export function railLine(rail: PaypalRail): string {
   return `${lead} ${rest}`;
 }
 
-export function stageCaption(recordedOn: string): string {
-  return `Synthetic co-op, people and slips. Slip reading replays a recorded Claude run (${recordedOn}).`;
+export function stageCaption(_recordedOn: string): string {
+  return "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording. Real hero-slip readings are a separate exhibit in the reading room.";
 }
 
 export const MOCK_DATA = {
@@ -77,7 +77,8 @@ export const STAGE = {
 
 /** The stage's own states (S1.6), shown as one strip under the top bar. Figures come from the run. */
 export const STAGE_NOTICE = {
-  queued: (seconds: number) => `PayPal's sandbox is pacing us. You're next, about ${seconds} s.`,
+  queued: (seconds: number) =>
+    `The simulated PayPal sandbox is pacing us (PayPal's documented limit, modelled). You're next, about ${seconds} s.`,
   resetting: STAGE.resetting,
   startFailed: "We couldn't start a run.",
   startRetry: "Try again",
@@ -85,10 +86,10 @@ export const STAGE_NOTICE = {
   resetRetry: "Try Reset again",
   ended: "This session ended in another tab, or it expired. The stage is back at the first press.",
   requestId: (id: string) => `Request ${id}`,
-  aiOff: "Live slip reading is off. The recorded run still plays.",
+  aiOff: "Live slip reading is off. The labelled seed stand-in still plays.",
   // S1.6's words for the API's replay reasons `circuit_open` and `balance_low`.
-  circuit: "PayPal asked us to slow down. For 6 minutes, PayPal steps replay the last real run, labelled.",
-  balanceLow: "The sandbox balance is low. Payouts pause until it's topped up; everything else works.",
+  circuit: "The simulated PayPal rate limit paused calls. For 6 minutes, PayPal steps use a labelled replay.",
+  balanceLow: "The simulated balance is low. Payouts pause until it's topped up; everything else works.",
   paypalOff: "PayPal calls are off. PayPal steps replay the last run, labelled.",
   payoutsOff: "Payouts are paused by the co-op. Everything else works.",
   autoplay: "Autoplay is driving. Any key or click hands it back to you.",
@@ -162,17 +163,17 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
         id: "simulated-paypal",
         title: "PayPal, simulated",
         items: [
-          "PayPal itself runs as a simulated sandbox, contract-tested against PayPal's published OpenAPI specs. The calls are the real Agent Toolkit 1.11.0 and Server SDK code; one setting points them at PayPal's sandbox instead.",
+          "PayPal runs only on our simulated PayPal sandbox, contract-tested against PayPal's published OpenAPI specs. The calls use Agent Toolkit 1.11.0 and Server SDK code; this integration is untested against PayPal's own sandbox.",
           "Simulated: the invoice, record-payment, the payout batch, item notices signed the way PayPal signs them, Rhea's unclaimed item and its cancel, and one repeated delivery.",
           "Every PayPal figure and status on screen is labelled with this rail.",
         ],
       }
     : {
         id: "real-paypal",
-        title: "PayPal sandbox",
+        title: "PayPal sandbox (untested in this build)",
         items: [
           "The invoice, created through PayPal's Agent Toolkit 1.11.0, its send and its auto-cancel rule.",
-          "Record-payment and its INVOICING.INVOICE.PAID notice. Recording a payment is a simulated payment rail, and says so.",
+          "The simulated PayPal sandbox models record-payment and its INVOICING.INVOICE.PAID notice.",
           "The typed Payouts POST and the item notices, Rhea's UNCLAIMED, our cancel and RETURNED, one resent duplicate, and PayPal's reported fees.",
         ],
       };
@@ -191,8 +192,8 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
       id: "replayed",
       title: "Replayed",
       items: [
-        `Claude's reading of ${f.replaySlips} slips in ${f.replayPhotos} photos, recorded on ${f.recordedOn}, sped up and labelled. "Read a slip live" reads one sample slip for real.`,
-        "The audit agent's invoice draft, from the same recording, checked again by the policy lattice.",
+        `${f.replaySlips} slips in ${f.replayPhotos} photos use the labelled seed stand-in, not a Claude recording. The reading room separately exhibits the real hero-slip readings when a committed recording exists.`,
+        "The invoice line labels are a placeholder written with the seed. The audit agent is paused; the live policy lattice checks every amount against the engine's quote.",
       ],
     },
     {
@@ -206,19 +207,19 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
       id: "seeded",
       title: "Seeded",
       items: [
-        `The invoice-send approval, the ${f.earlierPhotos} earlier photos with their read dates, and the showcase run's cash receipts.`,
+        `The invoice-send approval and the ${f.earlierPhotos} earlier photo-manifest entries with their seeded read dates. Earlier photos are not imaged.`,
       ],
     },
     {
       id: "synthetic",
       title: "Synthetic",
       items: [
-        `The ${f.members} members, the co-op, the brand, the slips (OpenAI's image model through Codex CLI) and the voice (Gemini TTS). No real farmer is paid.`,
+        `The ${f.members} members, the co-op and the brand are fictional. The 10 hero slips are Codex-made (OpenAI's image model via Codex CLI). The photos A–L are composed in code from hero flats and code-drawn slips. All images are synthetic. Voice clips, where served, use Gemini TTS; device voice is labelled separately. No real farmer is paid.`,
       ],
     },
     {
       id: "accounts",
-      title: simulated ? "Accounts the simulator models" : "Sandbox accounts",
+      title: simulated ? "Accounts the simulator models" : "Untested sandbox accounts",
       items: [
         `One business account is the co-op: it sends the invoice and the payouts. ${f.paypalMembers - 1} personal accounts are the members who end up paid by PayPal, one each, and one is Lantern Bay.`,
         "Rhea's address has no PayPal account, on purpose: that is what produces UNCLAIMED.",
@@ -228,7 +229,7 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
       id: "merchant",
       title: "Who holds the money",
       items: [
-        "The co-op is the merchant of record and the payout sender, using its own PayPal account. Fair Split is software and never holds, pools or converts funds.",
+        "In the product design, the co-op is the merchant of record and payout sender using its own account; this build models that account in the simulated PayPal sandbox. Fair Split is software and never holds, pools or converts funds.",
       ],
     },
     {
@@ -250,8 +251,8 @@ export const TRY_TO_BREAK = {
   title: "Try to break it",
   lede: "Each attempt is labelled, refused by code, and moves no money.",
   attempts: [
-    "Make Claude's draft overcharge Lantern Bay: the policy lattice refuses it before any PayPal call.",
-    "Change one payout after both keys: the Payouts tool re-hashes the batch, refuses the one-cent change and voids both approvals.",
-    "Send PayPal's insufficient-funds test value: a one-item batch PayPal rejects at once.",
+    "Make the invoice draft overcharge Lantern Bay: the policy lattice refuses it before any PayPal call.",
+    "Offset two invoice amounts or change the recipient: policy refuses the altered draft.",
+    "Arm a payout change before key 2: the Payouts tool re-hashes the batch, refuses the change and voids both approvals.",
   ],
 } as const;

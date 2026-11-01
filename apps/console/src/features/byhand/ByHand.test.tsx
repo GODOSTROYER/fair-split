@@ -60,7 +60,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     const root = await screen.findByTestId("W-TR-04");
     expect(root.dataset.state).toBe("empty");
     expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe(
-      "Slip 0462, Arnel Sumampao. A water stain covers one digit of the gross weight. Claude read 6?.80 (0.40).",
+      "Slip 0462, Arnel Sumampao. A water stain covers one digit of the gross weight. Seed stand-in, not a Claude recording: 6?.80 (placeholder score 0.40).",
     );
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").value).toBe("6▢.80");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").disabled).toBe(true);

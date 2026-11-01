@@ -4,11 +4,11 @@
 export const BY_HAND_COPY = {
   title: (serial: string) => `Slip ${serial}, by hand`,
   prompt: (serial: string, name: string, reading: string, score: string | null) =>
-    `Slip ${serial}, ${name}. A water stain covers one digit of the gross weight. Claude read ${reading}${score ? ` (${score})` : ""}.`,
+    `Slip ${serial}, ${name}. A water stain covers one digit of the gross weight. Seed stand-in, not a Claude recording: ${reading}${score ? ` (placeholder score ${score})` : ""}.`,
   promptPlain: (serial: string, name: string, reading: string) =>
-    `Slip ${serial}, ${name}. Claude wasn't sure of the gross weight and read ${reading}.`,
+    `Slip ${serial}, ${name}. Seed stand-in, not a Claude recording: the gross weight is unclear (${reading}).`,
   noNeed: (serial: string) =>
-    `Slip ${serial} needs nothing by hand: Claude's two reads agreed on every field.`,
+    `Slip ${serial} needs nothing by hand: the seed stand-in has no doubtful field.`,
   openReading: "Open it in the reading room",
   crop: "The slip, three times its size in the photo",
   cropAlt: (serial: string) => `Slip ${serial}: gross, tare and net, under a water stain`,

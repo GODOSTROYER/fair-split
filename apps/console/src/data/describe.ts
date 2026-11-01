@@ -83,14 +83,14 @@ function laneOf(event: RunEvent): LogLane {
   return "MACHINE";
 }
 
-function provenanceNote(provenance: Provenance, ctx: DescribeContext): string | null {
+function provenanceNote(provenance: Provenance, _ctx: DescribeContext): string | null {
   switch (provenance) {
     case "replay":
-      return `replay of the ${format.dateShort(ctx.recordedOn)} run`;
+      return "labelled replay of the seed stand-in";
     case "simulated_rail":
       return "simulated PayPal sandbox";
     case "seeded":
-      return "seeded sample";
+      return "Seed stand-in, not a Claude recording";
     case "live":
       return null;
   }
@@ -100,9 +100,9 @@ function verification(event: RunEventOf<"webhook.received">): string {
   if (event.provenance === "simulated_rail") return "simulated webhook, signature checked";
   switch (event.payload.verified) {
     case "self":
-      return "webhook, signature verified";
+      return "webhook, signature checked";
     case "postback":
-      return "webhook, confirmed by PayPal's postback";
+      return "webhook, postback checked";
     case "dev_mock":
       return "webhook, development mock, not verified";
     case "fetched":
@@ -130,7 +130,7 @@ export const FLAG_WORDS: Readonly<Record<SystemFlagName, { readonly on: string; 
   kill_payouts: { on: "Payouts paused by the co-op", off: "Payouts resumed" },
   kill_paypal_live: { on: "PayPal calls paused; PayPal steps replay, labelled", off: "PayPal calls resumed" },
   kill_ai_live: {
-    on: "Live slip reading paused; the recorded run still plays",
+    on: "Live slip reading paused; the labelled seed stand-in still plays",
     off: "Live slip reading resumed",
   },
 };
@@ -271,7 +271,10 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
       return {
         ...base,
         words: `Read slip ${p.serial}${p.memberNo ? ` for ${p.memberNo}` : ""}`,
-        detail: join("Read by Claude (claude-opus-5-5)", note),
+        detail:
+          event.provenance === "seeded" || event.provenance === "replay"
+            ? "Seed stand-in, not a Claude recording"
+            : join("In a live run: read by Claude (claude-opus-5-5)", note),
       };
     }
     case "extract.quarantined":

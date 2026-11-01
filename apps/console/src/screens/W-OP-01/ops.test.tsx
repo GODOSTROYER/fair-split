@@ -121,7 +121,7 @@ describe("W-OP-01 /ops for a judge (read-only)", () => {
     expect(screen.getByTestId("W-OP-01.verdict").textContent).toBe(
       "Degraded: readiness isn't reported by this API yet, so nothing here can be called ready.",
     );
-    expect(screen.getByTestId("W-OP-01.health.ready").textContent).toContain("Not served yet");
+    expect(screen.getByTestId("W-OP-01.health.ready").textContent).toContain("Not served in this build");
     const live = screen.getByTestId("W-OP-01.health.live");
     expect(live.textContent).toContain("Up");
     expect(live.textContent).toContain("mock API");
@@ -148,7 +148,7 @@ describe("W-OP-01 /ops for a judge (read-only)", () => {
     await openOps();
     for (const [section, route] of SECTIONS) {
       const notServed = await screen.findByTestId(`W-OP-01.${section}.not-served`);
-      expect(notServed.textContent).toBe(`Not served yet (GET ${route}).`);
+      expect(notServed.textContent).toBe(`Not served in this build (GET ${route}).`);
     }
     const headings = screen.getAllByRole("heading").map((h) => h.textContent);
     for (const title of [
@@ -182,7 +182,7 @@ describe("W-OP-01 /ops for a judge (read-only)", () => {
     expect(screen.queryByTestId("W-OP-01.key.register")).toBeNull();
     expect(panel.querySelector("[data-testid$='.face']")).toBeNull();
     expect(screen.getByTestId("W-OP-01.key.status").textContent).toBe(
-      "Not served yet (GET /.well-known/fairsplit-keys.json).",
+      "Not served in this build (GET /.well-known/fairsplit-keys.json).",
     );
     expect(screen.getByTestId("W-OP-01.key.who").textContent).toBe(
       "Read-only here. The operator registers this key once, from the treasurer's browser, signed in at /ops/login.",

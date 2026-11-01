@@ -150,7 +150,7 @@ describe("the last reconciliation", () => {
   it("reads the run, what matched, and Transaction Search's lag", () => {
     const rows = reconciliationRows(SAMPLE_RECONCILIATION);
     expect(rows.map((r) => [r.key, r.value])).toEqual([
-      ["kind", "Nightly Transaction Search"],
+      ["kind", "No nightly reconciliation in this build"],
       ["matched", "8 matched, 0 unmatched"],
       ["lag", "Lagging"],
     ]);

@@ -28,6 +28,7 @@ import { Bench, type BenchZoom, FIT, zoomOnSlip } from "./Bench.js";
 import { READING_COPY } from "./copy.js";
 import { Filmstrip } from "./Filmstrip.js";
 import { type Connector, type Flight, FlightLayer } from "./FlightLayer.js";
+import { HeroExhibits } from "./HeroExhibits.js";
 import { maxFlights, ROW_AT, ROW_MS } from "./mm2.js";
 import {
   benchPhoto,
@@ -359,7 +360,7 @@ export function ReadingRoom({
             onActive={setActiveRow}
             onOpenCrop={(serial) => {
               const s = slips.find((x) => x.slip.serial === serial);
-              if (s) setZoom(zoomOnSlip(s.position));
+              if (s) setZoom(zoomOnSlip(s.position, photo.photoId, serial));
             }}
             onByHand={(serial) => router.history.push(webRoutes.byHand(season, serial))}
             tableRef={tableRef}
@@ -415,6 +416,7 @@ export function ReadingRoom({
           </div>
         )}
       </footer>
+      <HeroExhibits snapshot={snapshot} />
     </ScreenRoot>
   );
 }

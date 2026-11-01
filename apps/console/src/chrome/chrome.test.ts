@@ -172,7 +172,7 @@ describe("honest labels (I8: nothing simulated is unlabelled)", () => {
       "Simulated PayPal sandbox, webhook, signature checked",
     );
     expect(provenanceFooter({ kind: "paypal", source: "webhook", rail: "sandbox" })).toBe(
-      "PayPal, webhook, signature verified",
+      "PayPal webhook, signature checked (untested rail in this build)",
     );
     expect(
       provenanceFooter({
@@ -183,7 +183,7 @@ describe("honest labels (I8: nothing simulated is unlabelled)", () => {
       }),
     ).toBe("Simulated PayPal sandbox, status check");
     expect(provenanceFooter({ kind: "claude", replayOf: "2026-10-29" })).toBe(
-      "Read by Claude (claude-opus-5-5), replay of the 29 Oct run",
+      "Seed stand-in, not a Claude recording",
     );
     expect(provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })).toBe(
       `Computed by engine v1, rate card ${snapshot.figures.display.rc}`,

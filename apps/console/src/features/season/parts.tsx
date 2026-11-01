@@ -161,7 +161,7 @@ export function ContactSheet({
               data-testid={`${testId}.${photo.photoId}`}
             >
               <span className="fsc-contact__paper" aria-hidden>
-                <PhotoMat slips={slips} detail="thumb" />
+                <PhotoMat photoId={photo.photoId} slips={slips} detail="thumb" />
               </span>
               <span className="fsc-contact__caption fs-t-caption" aria-hidden>
                 <span className="fsc-contact__id">{photo.photoId}</span>

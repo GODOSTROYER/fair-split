@@ -123,6 +123,8 @@ describe("the stage's notice strip (S1.6 states)", () => {
       await view.runtime.session.start();
     });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("circuit"));
-    expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/PayPal asked us to slow down/);
+    expect(screen.getByTestId("W-JG-01.notice.state").textContent).toBe(
+      "The simulated PayPal rate limit paused calls. For 6 minutes, PayPal steps use a labelled replay.",
+    );
   });
 });

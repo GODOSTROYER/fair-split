@@ -15,7 +15,8 @@ export const SPLIT = {
   declined: "PayPal declined the batch: the balance is too low. Nothing was sent.",
   allDecided: "Every hold is decided. The batch is ready for two keys.",
   decidedKey1: "Every hold is decided. Analyn signed; the batch waits for Ernesto.",
-  decidedApproved: "Every hold is decided and both keys signed. PayPal confirms each payment as it lands.",
+  decidedApproved:
+    "Every hold is decided and both keys signed. the simulated PayPal sandbox confirms each payment as it lands.",
   decidedSettled: "Every hold was decided and the run is settled.",
   approveLink: "Open Approve",
   nextHold: (label: string, title: string) => `Open ${label}: ${title}`,
@@ -148,7 +149,8 @@ export const APPROVE = {
   approved: en("W-TR-07.approved"),
   postedLink: "Watch the payments land",
   posting: (batch: string) => en("W-TR-07.posting", { batch }),
-  posted: "PayPal accepted the batch. Each payment turns jade only when PayPal confirms it.",
+  posted:
+    "The simulated PayPal sandbox accepted the batch. Each payment turns jade only when the simulated PayPal sandbox confirms it.",
   declined: (who: string) => `${who} sent the batch back`,
   declinedNext: "Fix what he asked, then approve again.",
   expired: "The co-sign request expired. Send again.",
@@ -195,8 +197,9 @@ export const FANOUT = {
   loading: "Drawing the fan",
   notPosted: "Not posted yet. The batch posts after both keys.",
   notPostedLink: "Open Approve",
-  waiting: (time: string) => `Posted ${time}. PayPal confirms each payment as it lands.`,
-  waitingSeeded: "Posted. PayPal confirms each payment as it lands.",
+  waiting: (time: string) =>
+    `Posted ${time}. the simulated PayPal sandbox confirms each payment as it lands.`,
+  waitingSeeded: "Posted. the simulated PayPal sandbox confirms each payment as it lands.",
   elapsed: (clock: string) => `${clock} since posting`,
   parked: (name: string) => `${name} is parked. Decide how she gets paid.`,
   denied: "PayPal declined the batch. No money moved.",
@@ -346,7 +349,8 @@ export const LINE = {
   printButton: "Print",
   printBack: "Back to the line",
   printPaypal: "Paid by PayPal. This copy is for the member's records.",
-  printPaypalWaiting: "Sent by PayPal. Paid once PayPal confirms it.",
+  printPaypalWaiting:
+    "Sent through the simulated PayPal sandbox. Paid once the simulated PayPal sandbox confirms it.",
   printHeld: "Still checking. This line prints its amount once every hold on it is decided.",
   printQrPending: "The member's own link prints here once statement links are issued.",
   nadawatHow: "Signature or thumbmark",

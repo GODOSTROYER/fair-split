@@ -4,11 +4,13 @@
 export const RATECARD_COPY = {
   title: "Rate card",
   lede: (resolution: string, date: string) =>
-    `${resolution}, ratified ${date}, before the first slip. Claude read these rules from its pages; the Secretary and the Chair signed them; the hash bolted them.`,
+    `${resolution}, ratified ${date}, before the first slip. These rules are a labelled seed stand-in, not a Claude recording; the Secretary and the Chair signed them; the hash bolted them.`,
   schedule: "Schedule A",
   scheduleLede: "Printed from the ratified card. Point at a rule to see the clause it was read from.",
-  readFooter: (model: string, page: number) => `Read by Claude (${model}). Quote found on page ${page}.`,
-  readFooterIdle: (model: string) => `Read by Claude (${model}). Every rule quotes the page it came from.`,
+  readFooter: (_model: string, page: number) =>
+    `Seed stand-in, not a Claude recording. Seeded quote on page ${page}.`,
+  readFooterIdle: (_model: string) =>
+    "Seed stand-in, not a Claude recording. Each seeded rule cites its source page.",
   addTitle: "Add a deduction",
   addOpen: "Add a deduction",
   labelField: "What it's for",

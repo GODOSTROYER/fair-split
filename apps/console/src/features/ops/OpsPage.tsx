@@ -79,7 +79,7 @@ export const OPS_COPY = {
   latency: "Webhook latency",
   latencyNote: "From our own step to PayPal's notice, at the median and the 95th percentile.",
   reconciliation: "Last reconciliation",
-  reconciliationNote: "Our record against PayPal's own, matched by transaction ID.",
+  reconciliationNote: "Simulator status checks and signed notices; no nightly reconciliation in this build.",
   balance: "Balance",
   balanceNote: "Estimated against observed. PayPal has no balance API, so the estimate is labelled as one.",
   notices: "PayPal's notices",
@@ -90,7 +90,7 @@ export const OPS_COPY = {
   outboxEmpty: "Nothing in the outbox.",
   claude: "Claude",
   spend: "Spend today",
-  spendNote: "Each lane against its daily cap (UTC). A capped lane plays its labelled recording.",
+  spendNote: "Each lane against its daily cap (UTC). A capped lane uses a labelled seed stand-in.",
   eval: "Eval",
   evalNote: "The reading eval's last report, against the bars it has to meet.",
   quotas: "Quotas",
@@ -103,7 +103,7 @@ export const OPS_COPY = {
     "Analyn signs with fs-analyn-w1, an Ed25519 key made in her browser that can't be copied out. Below is the key as Fair Split publishes it.",
   keyWho:
     "Read-only here. The operator registers this key once, from the treasurer's browser, signed in at /ops/login.",
-  notServed: (route: string) => `Not served yet (GET ${route}).`,
+  notServed: (route: string) => `Not served in this build (GET ${route}).`,
   refused: "Only the operator reads this. It needs the operator's sign-in.",
   down: (status: number | null) =>
     `Didn't load. ${status ? `The API answered ${status}.` : "The API didn't answer."}`,
@@ -304,7 +304,8 @@ export function OpsPage({ rail, treasurerKey, operator, verdict }: OpsPageProps)
     [sessionRun, events, rail, snapshot],
   );
   const rows = healthRows(health.live, health.ready);
-  const railWords = rail === "simulator" ? "Simulated PayPal sandbox" : "PayPal sandbox";
+  const railWords =
+    rail === "simulator" ? "Simulated PayPal sandbox" : "PayPal sandbox (untested in this build)";
 
   return (
     <div className="op">
