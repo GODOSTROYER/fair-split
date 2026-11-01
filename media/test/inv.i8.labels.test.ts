@@ -31,7 +31,7 @@ function mediaFiles(ext: RegExp): string[] {
 describe("inv.i8.labels: synthetic media is always labelled", () => {
   const manifest = Manifest.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "manifest.json"), "utf8")));
 
-  it("inv.i8.media-manifest: every image asset is synthetic, labelled and made by the one generator", () => {
+  it("inv.i8.media-manifest: every image-model asset is synthetic, labelled and made by the one generator", () => {
     expect(manifest.synthetic).toBe(true);
     expect(manifest.notice).toMatch(/synthetic/i);
     expect(Object.keys(manifest.assets).length).toBeGreaterThan(0);
@@ -59,15 +59,27 @@ describe("inv.i8.labels: synthetic media is always labelled", () => {
       const fx = Fixture.parse(JSON.parse(readFileSync(join(MEDIA_ROOT, "fixtures", f), "utf8")));
       expect(fx.synthetic).toBe(true);
       const e = manifest.assets[fx.id];
-      expect(e?.master?.sha256).toBe(fx.image.sha256);
+      const composition = manifest.compositions[fx.id];
+      expect(e?.master?.sha256 ?? composition?.image.sha256).toBe(fx.image.sha256);
     }
   });
 
-  it("inv.i8.media-files: every image file in media/ is a manifest master or display, byte for byte", () => {
+  it("inv.i8.media-files: every image file in media/ is hashed in an asset or composition, byte for byte", () => {
     const listed = new Map<string, string>();
     for (const e of Object.values(manifest.assets)) {
       if (e.master) listed.set(e.master.file, e.master.sha256);
       if (e.display) listed.set(e.display.file, e.display.sha256);
+    }
+    for (const e of Object.values(manifest.compositions)) {
+      expect(e.synthetic).toBe(true);
+      expect(e.label).toBe("Code-composed · synthetic");
+      listed.set(e.image.file, e.image.sha256);
+      listed.set(e.caption.file, e.caption.sha256);
+      for (const p of e.placements) {
+        expect(p.synthetic).toBe(true);
+        expect(p.label).toBe(p.kind === "hero-flat" ? "Codex-made · synthetic" : "code-drawn · synthetic");
+        listed.set(p.sourceFile, p.sourceSha256);
+      }
     }
     const images = mediaFiles(/.(png|jpe?g|webp|gif|avif|tiff?)$/i);
     expect(images.length).toBeGreaterThan(0);
