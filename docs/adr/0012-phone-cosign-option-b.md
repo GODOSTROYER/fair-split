@@ -1,6 +1,6 @@
 # ADR-0012: The Chair checks fs-api's existing batch and line reads
 
-- Status: implementation of the user's binding D2, option B
+- Status: Accepted (implements the user's binding decision D2, option B)
 - Date: 1 Nov 2026 (IST)
 - Work package: K1a
 
