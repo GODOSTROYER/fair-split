@@ -9,6 +9,8 @@
       "!prompts",
       "!manifest.json",
       "!fixtures/*.json",
+      "!fixtures/code/*.json",
+      "!fixtures/composed/*.json",
       "!template/*.json",
       "!docs/*.json",
       "!audio/*.json",
