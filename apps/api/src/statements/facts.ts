@@ -144,20 +144,20 @@ export async function loadStatementContext(
       );
     slipSerials = [...new Set(slips.map((x) => x.serial))].sort();
   }
-  // The readings behind this line: the member's own non-rejected slip rows in the run's season (the run's, when
-  // the member has none yet). Judge and showcase rows are seeded or replayed, so they take the demo AI_NOTE.
+  // Only this member's non-rejected readings support their AI_NOTE. No own reading means no provenance claim,
+  // even when somebody else's slips were read live. Judge and showcase readings take the demo AI_NOTE.
   const readings = await db
-    .selectDistinct({ memberId: schema.slipRows.memberId, provenance: schema.slipRows.provenance })
+    .selectDistinct({ provenance: schema.slipRows.provenance })
     .from(schema.slipRows)
     .where(
       and(
         eq(schema.slipRows.workspaceId, workspaceId),
         eq(schema.slipRows.seasonId, run.seasonId),
+        eq(schema.slipRows.memberId, row.memberId),
         ne(schema.slipRows.state, "REJECTED"),
       ),
     );
-  const own = readings.filter((x) => x.memberId === row.memberId);
-  const readingProvenance = readingProvenanceOf((own.length > 0 ? own : readings).map((x) => x.provenance));
+  const readingProvenance = readingProvenanceOf(readings.map((x) => x.provenance));
   const statementLang = lang ?? (row.memberLang as Lang);
   const facts: StatementLineFacts = {
     lineId: row.id,
