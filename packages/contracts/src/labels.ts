@@ -231,9 +231,9 @@ export const INVOICE_STATUS_LABELS: Readonly<Record<InvoiceStatus, Words>> = {
   PARTIALLY_PAID: { en: "Partly paid", ceb: "Bahin pa ang nabayran", fil: "Bahagya pa lang ang bayad" },
   PAID: { en: "Paid by Lantern Bay", ceb: "Gibayran sa Lantern Bay", fil: "Binayaran ng Lantern Bay" },
   MARKED_AS_PAID: {
-    en: "Marked as paid in sandbox",
-    ceb: "Gimarkahan nga bayad sa sandbox",
-    fil: "Minarkahang bayad sa sandbox",
+    en: "Marked as paid in the simulated PayPal sandbox",
+    ceb: "Gimarkahan nga bayad sa simulated PayPal sandbox",
+    fil: "Minarkahang bayad sa simulated PayPal sandbox",
   },
   CANCELLED: { en: "Cancelled", ceb: "Gikansela", fil: "Kinansela" },
   REFUNDED: { en: "Refunded", ceb: "Gi-refund", fil: "Ni-refund" },
