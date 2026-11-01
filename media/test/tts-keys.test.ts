@@ -646,7 +646,9 @@ describe("no key value leaves memory: tts models, the entry point, truncation an
     expectNoKey(failed, [google, ...KEYS]);
     out = [];
     expect(await main(["models"], media, { keys: [KEYS[0] as string], fetch: fake })).toBe(0);
-    expect(out.join("\n")).toBe("models/gemini-3.8-flash-tts  Gemini 3.8 Flash TTS");
+    expect(out.join("\n")).toBe(
+      "tts: SDK debug logging is off because it prints keys\nmodels/gemini-3.8-flash-tts  Gemini 3.8 Flash TTS",
+    );
     expect(seen.length).toBeGreaterThanOrEqual(3);
     for (const s of seen) {
       expect(s.url).toMatch(/^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models/);

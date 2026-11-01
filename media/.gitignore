@@ -4,3 +4,4 @@ audio/.quota.json
 .codex-ledger.json
 raw/
 *.lock
+audio/*.tmp

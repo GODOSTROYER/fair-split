@@ -48,7 +48,7 @@ robin, each within its own free-tier limits (user decision, 1 Nov; ADR-0014).
   tts set-limit <model> <n> --source "<where you read it>"
                                   record the free-tier daily limit you read at aistudio.google.com/rate-limit;
                                   each key is capped there
-  tts plan                        S10 request plan: requests needed, days they take at the pool's capacity,
+  tts plan [--keys <count>]        S10 request plan: requests needed, days they take at the pool's capacity,
                                   verdict (no API call); written into media/audio/spike-s10.json
   tts asr                         listening proxy: transcribe the spike requests with ${ASR_MODEL} and score them
   tts spike [--voice Sulafat] [--langs ceb,fil,en] [--draft-langs ceb]
@@ -80,6 +80,8 @@ export async function main(
   mediaRoot = MEDIA_ROOT,
   deps: CliDeps = {},
 ): Promise<number> {
+  delete process.env.GOOGLE_GENAI_DEBUG;
+  console.error("tts: SDK debug logging is off because it prints keys");
   try {
     return await command(argv, mediaRoot, deps);
   } catch (e) {
@@ -97,6 +99,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
       langs: { type: "string" },
       "draft-langs": { type: "string" },
       source: { type: "string" },
+      keys: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -180,7 +183,11 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
             };
       };
       // Drafts and finals share one model, so one plan covers both, at the pool's capacity.
-      const poolKeys = keys().length;
+      // An offline plan needs a capacity, not a credential. Default to one assumed key when unset.
+      const configuredKeys = values.keys === undefined ? (deps.keys ?? keysForScrubbing()).length : 0;
+      const poolKeys = values.keys === undefined ? Math.max(1, configuredKeys) : Number(values.keys);
+      if (values.keys === undefined && configuredKeys === 0)
+        console.log("No Gemini keys configured: assuming 1 key; use --keys <count> to plan capacity.");
       const plans = Object.fromEntries(
         [...new Set([TTS_MODEL, TTS_DRAFT_MODEL])].map((m) => [
           m,
@@ -371,7 +378,7 @@ async function command(argv: readonly string[], mediaRoot: string, deps: CliDeps
       return errors.length ? 2 : 0;
     }
     default:
-      console.error(`unknown command "${cmd}"\n\n${USAGE}`);
+      console.error(`unknown command\n\n${USAGE}`);
       return 1;
   }
 }

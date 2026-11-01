@@ -118,7 +118,7 @@ export async function synthesize(
   } catch (e) {
     const err = e as { status?: number; statusCode?: number; code?: number; message?: string };
     const status = err.status ?? err.statusCode ?? (typeof err.code === "number" ? err.code : null);
-    const msg = String(err.message ?? e);
+    const msg = e instanceof SyntaxError ? "unparseable response body" : String(err.message ?? e);
     const rateLimited = status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(msg);
     // The whole message: the key pool scrubs every key out of it first, and only then shortens it (a key
     // cut at the edge would no longer match).

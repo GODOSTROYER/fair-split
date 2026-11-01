@@ -54,6 +54,8 @@ export function parseKeyList(primary: string | undefined, fallback: string | und
 /** The pool's keys from the repo-root `.env` (or the given variables). The error names variables only. */
 export function keysFromEnv(env?: Readonly<Record<string, string | undefined>>): string[] {
   if (!env) loadEnv();
+  // loadEnv can reintroduce the flag from .env after main cleared the shell's value.
+  delete process.env.GOOGLE_GENAI_DEBUG;
   const e = env ?? process.env;
   const keys = parseKeyList(e.GEMINI_API_KEY, e.GEMINI_API_KEYS_FALLBACK);
   if (!keys.length)
@@ -77,7 +79,11 @@ export function keysForScrubbing(): string[] {
   }
 }
 
-const GOOGLE_KEY_SHAPES = [/AIza[0-9A-Za-z_-]{35}/g, /AQ\.[A-Za-z0-9_-]{30,}/g];
+const GOOGLE_KEY_SHAPES = [/AIza[0-9A-Za-z_-]{3,}/g, /AQ\.[A-Za-z0-9_-]{3,}/g];
+
+function validKey(value: string): boolean {
+  return /^[\x21-\x7e]+$/.test(value);
+}
 
 /**
  * The ways a key can appear in text: as is, JSON-escaped, URL-encoded, and, for a key with whitespace or a
@@ -103,7 +109,8 @@ export function scrubSecrets(text: string, secrets: readonly string[]): string {
       return secretForms(s).map((form) => ({ form, label }));
     })
     .sort((a, b) => b.form.length - a.form.length);
-  let out = text;
+  // V8 quotes a slice of a malformed JSON body; it can be too short to match a known key.
+  let out = text.replace(/Unexpected token[^\r\n]*?is not valid JSON/g, "unparseable response body");
   for (const { form, label } of forms) out = out.split(form).join(label);
   for (const p of GOOGLE_KEY_SHAPES) out = out.replace(p, "[redacted key]");
   out = out.replace(/([?&]key=)[^&\s"'<>]+/gi, "$1[redacted]");
@@ -124,7 +131,13 @@ function errorText(e: unknown): string {
   const parts: string[] = [];
   let c: unknown = e;
   for (let i = 0; i < 4 && c !== undefined && c !== null; i++) {
-    parts.push(c instanceof Error ? `${c.name}: ${plain(c.message)}` : plain(c));
+    parts.push(
+      c instanceof SyntaxError
+        ? "SyntaxError: unparseable response body"
+        : c instanceof Error
+          ? `${c.name}: ${plain(c.message)}`
+          : plain(c),
+    );
     c = c instanceof Error ? c.cause : undefined;
   }
   return parts.join("; cause: ");
@@ -152,7 +165,7 @@ function whole(v: unknown): number | null {
 
 export function classifyGeminiError(e: unknown): GeminiErrorInfo {
   const err = (typeof e === "object" && e !== null ? e : {}) as Record<string, unknown>;
-  const message = String(err.message ?? e);
+  const message = e instanceof SyntaxError ? "unparseable response body" : String(err.message ?? e);
   const inBody = /"code"\s*:\s*(\d{3})/.exec(message)?.[1];
   const status =
     whole(err.status) ?? whole(err.statusCode) ?? whole(err.code) ?? (inBody ? Number(inBody) : null);
@@ -173,7 +186,8 @@ export function classifyGeminiError(e: unknown): GeminiErrorInfo {
   if (
     status === 401 ||
     status === 403 ||
-    /PERMISSION_DENIED|UNAUTHENTICATED|API_KEY_INVALID|API key not valid|API key expired/i.test(message)
+    /PERMISSION_DENIED|UNAUTHENTICATED|API_KEY_INVALID|API key not valid|API key expired/i.test(message) ||
+    /ByteString|invalid[^\r\n]*header|header[^\r\n]*invalid/i.test(message)
   )
     return { status, kind: "auth", scope: null, retryDelayMs, message };
   return { status, kind: "other", scope: null, retryDelayMs, message };
@@ -273,6 +287,7 @@ export class KeyPool<C> {
   readonly #log: (line: string) => void;
   #cursor = 0;
   #legacyDone = false;
+  #pending: Promise<unknown> = Promise.resolve();
 
   constructor(values: readonly string[], opts: KeyPoolOptions<C>) {
     const unique = [...new Set(values.map((v) => v.trim()).filter(Boolean))];
@@ -285,6 +300,12 @@ export class KeyPool<C> {
     this.#sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.#maxWaitMs = opts.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
     this.#log = opts.log ?? (() => undefined);
+    for (const slot of this.#slots) {
+      if (validKey(slot.value)) continue;
+      const reason = "malformed key: expected printable ASCII without whitespace";
+      this.#dropped.set(slot.id, reason);
+      this.#log(`[pool] key ${slot.id} dropped for this run (${reason})`);
+    }
   }
 
   get size(): number {
@@ -329,22 +350,27 @@ export class KeyPool<C> {
     fn: (client: C, keyId: string) => Promise<T>,
     opts: { latencyMs?: (result: T) => number | undefined } = {},
   ): Promise<T> {
-    await this.#ensureLegacy();
     for (;;) {
-      const slot = await this.#acquire(model);
-      await this.#ledger.reserve(model, slot.id);
+      const slot = await this.#exclusive(async () => {
+        await this.#ensureLegacy();
+        const acquired = await this.#acquire(model);
+        await this.#ledger.reserve(model, acquired.id);
+        return acquired;
+      });
       let result: T;
       try {
         result = await fn(this.#client(slot), slot.id);
       } catch (e) {
-        await this.#failed(model, slot, e);
+        await this.#exclusive(() => this.#failed(model, slot, e));
         continue;
       }
-      this.#streak.delete(`${slot.id} ${model}`);
       const latencyMs = opts.latencyMs?.(result);
-      await this.#ledger.settle(model, slot.id, {
-        ok: true,
-        ...(latencyMs === undefined ? {} : { latencyMs }),
+      await this.#exclusive(async () => {
+        this.#streak.delete(`${slot.id} ${model}`);
+        await this.#ledger.settle(model, slot.id, {
+          ok: true,
+          ...(latencyMs === undefined ? {} : { latencyMs }),
+        });
       });
       return result;
     }
@@ -352,8 +378,10 @@ export class KeyPool<C> {
 
   /** Each key id's used and remaining requests per model today, and the pool total. */
   async status(models: readonly string[]): Promise<PoolStatus> {
-    await this.#ensureLegacy();
-    const q = await this.#ledger.read();
+    const q = await this.#exclusive(async () => {
+      await this.#ensureLegacy();
+      return this.#ledger.read();
+    });
     const now = this.#now();
     const day = pacificDay(now);
     const unique = [...new Set(models)];
@@ -385,6 +413,14 @@ export class KeyPool<C> {
       total,
       legacyKey: q.legacyKey ?? null,
     };
+  }
+
+  /** Keep selection + reservation and all ledger mutations atomic within this pool. Requests run outside. */
+  #exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.#pending.then(fn);
+    // A refused acquisition must not poison the queue for subsequent callers.
+    this.#pending = next.catch(() => undefined);
+    return next;
   }
 
   #client(slot: Slot): C {
@@ -593,6 +629,8 @@ export async function listModels(
   });
   const models: ListedModel[] = [];
   let status: number | null = null;
+  if (!validKey(value))
+    return failed(null, `malformed key ${keyId(value)}: expected printable ASCII without whitespace`);
   try {
     let page: string | undefined;
     for (let i = 0; i < 5; i++) {
@@ -602,11 +640,12 @@ export async function listModels(
         signal: AbortSignal.timeout(20_000),
       });
       status = res.status;
-      const body = (await res.json().catch(() => ({}))) as {
+      const body = (await res.json().catch(() => null)) as {
         models?: { name?: string; displayName?: string }[];
         nextPageToken?: string;
         error?: { status?: string; message?: string };
-      };
+      } | null;
+      if (body === null) return failed(status, "unparseable models.list body");
       if (!res.ok)
         return failed(
           status,
