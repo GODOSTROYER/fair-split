@@ -42,6 +42,10 @@ const scanned = () => [...scope().values()].flat();
 const findings = (): Finding[] => lintFiles(root, scanned());
 
 describe("E-19 public copy", () => {
+  it("C5a leaves no temporary console honesty allowances", () => {
+    expect(ALLOWANCES.filter((allowance) => allowance.pending === "C5a")).toEqual([]);
+  });
+
   it(
     "reads every area the schedule names that exists today",
     () => {
@@ -160,6 +164,18 @@ describe("E-19 rules fire on planted copy", () => {
 
   it("the schedule's replacement wording (§6) passes every rule", () => {
     for (const text of HONEST) expect(firing(text), text).toEqual([]);
+  });
+
+  it("allows only the committed R1 exhibit caption, not a seeded run credited to Claude", () => {
+    const caption = "Claude's real reading of this slip, recorded 1 Nov 2026";
+    expect(firing(caption)).toEqual([]);
+    expect(literalFiring(caption)).toEqual([]);
+    expect(firing(`${caption}; the seeded run replays a recorded Claude run.`)).toContain(
+      "recorded-claude-run",
+    );
+    expect(firing("Claude's real reading of this slip, recorded 29 Oct 2026")).toContain(
+      "recorded-claude-run",
+    );
   });
 
   it("the product AI_NOTE passes only beside its seeded variant (T1)", () => {
@@ -307,9 +323,14 @@ describe("E-19 scanner", () => {
 
   it("keeps each rate-card footer allowance tied to its own literal and stale-checks them separately", () => {
     const file = "apps/console/src/features/ratecard/copy.ts";
-    const allowances = ALLOWANCES.filter(
-      (a) => a.file === file && ["Quote found on page", "Every rule quotes the page"].includes(a.phrase),
-    );
+    // Planted fixtures keep testing the scanner after C5a removed the actual temporary exceptions.
+    const allowances = ["Quote found on page", "Every rule quotes the page"].map((phrase) => ({
+      rule: "replay-as-claude-reading",
+      file,
+      phrase,
+      inLiteral: true as const,
+      why: "Planted literal-scoping fixture",
+    }));
     // biome-ignore lint/suspicious/noTemplateCurlyInString: source fixture with template placeholders
     const page = "export const page = `Read by Claude (${model}). Quote found on page ${page}.`;";
     // biome-ignore lint/suspicious/noTemplateCurlyInString: source fixture with a template placeholder

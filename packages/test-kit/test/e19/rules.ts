@@ -106,7 +106,7 @@ export const RULES: readonly CopyRule[] = [
   {
     id: "recorded-claude-run",
     reason:
-      "No recorded Claude run exists (§6): seeded and replayed runs replay a labelled seed stand-in, never a Claude recording",
+      "Seeded and replayed runs use a labelled seed stand-in; only C5d's committed R1 hero-slip exhibit may name its real 1 Nov reading",
     pattern: either(
       re(String.raw`\brecorded\s+(?:${DATE}\s+)?(?:real\s+|live\s+)?(?:Claude\s+)?(?:run|reading|read)s?\b`),
       /\bClaude(?:['’]s)?\s+(?:\w+\s+){0,3}?(?:reading|run|reads?)\b[^.;]*?\brecorded\b/i,
@@ -119,7 +119,11 @@ export const RULES: readonly CopyRule[] = [
       re(String.raw`\breplay\w*\b[^.;]*?\brecorded\s+(?:on\s+)?${DATE}`),
       re(String.raw`\brecorded\s+(?:on\s+)?${DATE}\s*\(placeholder\)`),
     ),
-    unless: /\bno\s+Claude\s+recording\b|\bnot\s+a\s+Claude\s+recording\b/i,
+    unless: either(
+      /\bno\s+Claude\s+recording\b|\bnot\s+a\s+Claude\s+recording\b/i,
+      // R1.json's live hero readings, shown by C5d separately from the seeded run. No run/date wildcard.
+      /^Claude['’]s real reading of this slip, recorded 1 Nov 2026[.!]?$/i,
+    ),
     liftedBy: "R1 (a recorded read of the hero slips) with C5d's exhibit",
   },
   {
@@ -377,133 +381,8 @@ export const EXCEPTIONS: readonly Allowance[] = [
   },
 ];
 
-/**
- * Console copy waiting on C5a (console honesty copy, ws/console; schedule §3 C5a and §6), one named entry per
- * file, re-checked at ws/console tip f0370c921ba24ec3713b65f171f3b7c27be1f69d. Q2 does not edit apps/console.
- * While ws/console is unmerged these files are absent and the entries are dormant; once it merges
- * each must match, and each one C5a rewords goes stale and must be deleted here.
- */
-const PENDING_C5A: Readonly<
-  Record<string, readonly (readonly [rule: string, phrase: string, inLiteral?: true])[]>
-> = {
-  "apps/console/src/chrome/copy.ts": [
-    ["sandbox-says-simulated", "PayPal sandbox calls"],
-    ["recorded-claude-run", "replays a recorded Claude run"],
-    ["sandbox-says-simulated", "sandbox is pacing us"],
-    ["recorded-claude-run", "The recorded run still plays"],
-    ["sandbox-says-simulated", "The sandbox balance is low"],
-    ["sandbox-says-simulated", "points them at PayPal's sandbox instead"],
-    ["sandbox-says-simulated", "PayPal sandbox"],
-    ["recorded-claude-run", "Claude's reading of {} slips"],
-    ["showcase-cash-receipts", "showcase run's cash receipts"],
-    ["sandbox-says-simulated", "Sandbox accounts"],
-    ["claudes-draft", "Make Claude's draft overcharge"],
-    ["insufficient-funds-test-value", "insufficient-funds test value"],
-    ["claudes-draft", "The audit agent's invoice draft"],
-    ["recorded-claude-run", "from the same recording"],
-  ],
-  "apps/console/src/data/describe.ts": [
-    ["replay-as-claude-reading", "Read by Claude (claude-opus-5-5)"],
-    ["paypal-confirms-says-simulated", "confirmed by PayPal's postback"],
-    ["recorded-claude-run", "the recorded run still plays"],
-    ["replay-of-dated-run", "replay of the {} run"],
-    ["webhook-verified-says-simulated", "webhook, signature verified"],
-  ],
-  "apps/console/src/data/errors.ts": [
-    ["sandbox-says-simulated", "Only the sandbox is allowed here"],
-    ["sandbox-says-simulated", "sandbox is pacing us"],
-    ["recorded-claude-run", "The recorded run still plays"],
-    ["debug-ids", "PayPal debug ID"],
-  ],
-  "apps/console/src/features/brand/BrandHeader.tsx": [
-    ["paypal-confirms-says-simulated", "once PayPal confirms payment"],
-    ["paypal-confirms-says-simulated", "confirmed by PayPal"],
-  ],
-  "apps/console/src/features/byhand/copy.ts": [
-    ["replay-as-claude-reading", "Claude read {}"],
-    ["replay-as-claude-reading", "Claude wasn't sure of the gross weight"],
-    ["replay-as-claude-reading", "Claude's two reads agreed on every field"],
-  ],
-  "apps/console/src/features/ops/OpsPage.tsx": [["sandbox-says-simulated", "PayPal sandbox"]],
-  "apps/console/src/features/ops/opsModel.ts": [
-    ["sandbox-says-simulated", "PayPal sandbox"],
-    ["recorded-claude-run", "the recorded run still plays"],
-    ["webhook-verified-says-simulated", "Webhook, signature verified"],
-  ],
-  "apps/console/src/features/ops/sections.ts": [
-    ["debug-ids", "debug ID"],
-    ["nightly-reconciliation", "Nightly Transaction Search"],
-  ],
-  "apps/console/src/features/proof/Chain.tsx": [
-    ["nightly-reconciliation", "corroborated nightly by Transaction Search"],
-  ],
-  "apps/console/src/features/proof/ProofView.tsx": [
-    ["paypal-confirms-says-simulated", "confirmed by PayPal"],
-  ],
-  "apps/console/src/features/proof/copy.ts": [
-    ["sandbox-says-simulated", "in PayPal's sandbox"],
-    ["sandbox-says-simulated", "PayPal sandbox"],
-    ["paypal-confirms-says-simulated", "confirmed by PayPal"],
-    ["sandbox-says-simulated", "marked as paid in sandbox"],
-  ],
-  "apps/console/src/features/ratecard/copy.ts": [
-    ["replay-as-claude-reading", "Claude read these rules from its pages"],
-    ["replay-as-claude-reading", "Quote found on page", true],
-    ["replay-as-claude-reading", "Every rule quotes the page", true],
-  ],
-  "apps/console/src/features/reading/copy.ts": [
-    ["replay-as-claude-reading", "Read by Claude ({}), replay of a recorded run from {}"],
-    ["recorded-claude-run", "recorded run"],
-    ["recorded-claude-run", "stand-in for the {} recording"],
-    ["read-twice-by-ai-seeded", "Read twice by Claude"],
-    ["replay-as-claude-reading", "Claude's zoom read {}, which agrees"],
-    ["replay-as-claude-reading", "as Claude's zoom read it"],
-  ],
-  "apps/console/src/features/reading/model.ts": [
-    ["replay-as-claude-reading", "Claude's reading replays once"],
-    ["replay-as-claude-reading", "Claude is reading photo"],
-    ["replay-as-claude-reading", "Claude's zoom read agrees with one of the two readings"],
-    ["replay-as-claude-reading", "confirm what Claude wasn't sure of"],
-  ],
-  "apps/console/src/features/season/copy.ts": [
-    ["recorded-claude-run", "in the recorded {} run"],
-    ["claudes-draft", "Claude's draft"],
-    ["claudes-draft", "Claude drafted the invoice"],
-    ["paypal-confirms-says-simulated", "Nothing starts until PayPal confirms"],
-    ["sandbox-says-simulated", "Marked as paid in sandbox"],
-    ["sandbox-says-simulated", "in PayPal's sandbox"],
-    ["claudes-draft", "Claude is drafting again"],
-    ["replay-as-claude-reading", "Claude's reading of the slips replays next"],
-    ["replay-as-claude-reading", "Claude's reading of them replays now"],
-    ["replay-as-claude-reading", "Claude reads them once the money is in"],
-  ],
-  "apps/console/src/features/split/shared/copy.ts": [["paypal-confirms-says-simulated", "PayPal confirms"]],
-  "apps/console/src/lib/provenance.ts": [
-    ["replay-as-claude-reading", "Read by Claude ({})"],
-    ["replay-of-dated-run", "replay of the {} run"],
-    ["webhook-verified-says-simulated", "PayPal, webhook, signature verified"],
-  ],
-  "apps/console/src/stage/Stage.tsx": [
-    ["claudes-draft", "Claude drafted"],
-    ["replay-of-dated-run", "invoiceEqualsQuote, replay of the {} run"],
-    ["sandbox-says-simulated", "Invoicing v2, PayPal sandbox"],
-  ],
-};
-
 /** The file whose arrival means ws/console has merged: from then on every console allowance must match. */
 export const CONSOLE_MERGED_SENTINEL = "apps/console/src/chrome/copy.ts";
 
-/** Every allowance: the lasting exceptions, then the entries pending C5a. */
-export const ALLOWANCES: readonly Allowance[] = [
-  ...EXCEPTIONS,
-  ...Object.entries(PENDING_C5A).flatMap(([file, entries]) =>
-    entries.map(([rule, phrase, inLiteral]) => ({
-      rule,
-      file,
-      phrase,
-      inLiteral,
-      why: "C5a rewords the console's honesty copy (schedule §3 C5a, §6)",
-      pending: "C5a" as const,
-    })),
-  ),
-];
+/** Lasting exceptions only: C5a reworded every temporary console claim. */
+export const ALLOWANCES: readonly Allowance[] = EXCEPTIONS;
