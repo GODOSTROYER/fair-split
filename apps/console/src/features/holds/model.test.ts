@@ -9,6 +9,7 @@ import {
   cardState,
   findHold,
   nextAfter,
+  noRuleFacts,
   position,
   resultLine,
   slipCopies,
@@ -172,5 +173,24 @@ describe("what a decision prints, and what comes next", () => {
     expect(resultLine(snapshot, view, h1, h1.resolution)).toMatch(/override: Ernesto co-signs/);
     const show = showcaseView(snapshot);
     for (const label of ["H1", "H2", "H3"]) expect(findHold(show, label)?.state).toBe("RESOLVED");
+  });
+});
+
+describe("API hold facts without display strings", () => {
+  it("falls back to the slip mark and engine credit cents for the H3 amounts", () => {
+    const view = viewOf(inReview());
+    const hold = findHold(view, "H3");
+    const facts = snapshot.checkpoints.read.holds.find((h) => h.kind === "NO_RULE");
+    if (!hold || !facts) throw new Error("H3 required");
+    const {
+      writtenDisplay: _written,
+      writtenCentavos: _centavos,
+      creditDisplay: _credit,
+      ...params
+    } = facts.params;
+    const actual = noRuleFacts(snapshot, hold, { ...facts, params });
+    expect(actual.written).toBe("₱200");
+    expect(actual.credit).toBe("US$3.20");
+    expect(actual.creditCents).toBe(320);
   });
 });

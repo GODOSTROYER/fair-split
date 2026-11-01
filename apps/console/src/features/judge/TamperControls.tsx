@@ -10,7 +10,7 @@ const ATTEMPTS: readonly { kind: TamperKind; label: string }[] = [
   { kind: "amount", label: "Overcharge the invoice draft" },
   { kind: "offsetting", label: "Offset shipping with a discount" },
   { kind: "recipient", label: "Add an invoice recipient" },
-  { kind: "change_payout", label: "Change one payout after the signatures" },
+  { kind: "change_payout", label: "Arm a payout change before key 2" },
 ];
 export function TamperControls() {
   const adapter = useAdapter();

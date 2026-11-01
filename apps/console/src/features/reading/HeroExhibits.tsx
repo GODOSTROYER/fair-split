@@ -12,7 +12,8 @@ export function HeroExhibits({ snapshot }: { readonly snapshot: SeasonSnapshot }
       </h2>
       <p className="fs-t-caption">
         All images are synthetic, Codex-made hero flats. Provisional: agent-checked labels, not reviewed by a
-        person. These readings are a separate exhibit; the pay run uses the labelled seed stand-in for H1–H3.
+        person. These readings are a separate exhibit. The hold cards and the pay run use the seed stand-in,
+        not these readings.
       </p>
       <div className="fsc-heroes__grid">
         {exhibits.map((tile) => (

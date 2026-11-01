@@ -100,7 +100,7 @@ export const FIRST_VIEW_COPY = {
   synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>
     funded
-      ? `${count} photos, four slips each, in Jessie's blue block capitals. The labelled seed stand-in plays now; each photo ticks once its slips are read.`
-      : `${count} photos, four slips each, in Jessie's blue block capitals. The labelled seed stand-in plays once the money is in.`,
+      ? `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. The labelled seed stand-in plays now; each photo ticks once its slips are read.`
+      : `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. The labelled seed stand-in plays once the money is in.`,
   stamp: (name: string) => `Pressed by ${name}`,
 } as const;

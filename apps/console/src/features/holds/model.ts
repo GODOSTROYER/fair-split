@@ -221,10 +221,14 @@ export function noRuleFacts(
     amount: m.writtenCentavos === null ? null : format.money(m.writtenCentavos, "PHP"),
   }));
   const hauling = slip?.marks.find((m) => m.ruleId === "R2");
+  const mark =
+    slip?.marks.find((m) => hold.key === `NO_RULE:${m.markId}`) ??
+    slip?.marks.find((m) => m.ruleId === "NO_MATCH");
+  const writtenCentavos = typeof p.writtenCentavos === "number" ? p.writtenCentavos : mark?.writtenCentavos;
   return {
-    text: str(p.text),
-    written: str(p.writtenDisplay),
-    credit: str(p.creditDisplay),
+    text: str(p.text, mark?.text ?? ""),
+    written: str(p.writtenDisplay, writtenCentavos == null ? "" : format.pesoWhole(writtenCentavos)),
+    credit: str(p.creditDisplay, typeof p.creditCents === "number" ? format.money(p.creditCents) : ""),
     creditCents: num(p.creditCents),
     serial,
     marks,

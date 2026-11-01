@@ -16,6 +16,10 @@ describe("recorded hero-slip exhibits", () => {
         ?.standIn,
     ).toBe("6?.50");
     render(<HeroExhibits snapshot={seedSnapshot()} />);
+    expect(screen.getByTestId("W-TR-03.heroes").textContent).toContain(
+      "The hold cards and the pay run use the seed stand-in, not these readings.",
+    );
+    expect(tiles.every((tile) => !tile.title.startsWith("Spike:"))).toBe(true);
     for (const tile of tiles) {
       const exhibit = screen.getByTestId(`W-TR-03.hero.${tile.id}`);
       expect(within(exhibit).getByRole("img").getAttribute("src")).toBe(`/media/${tile.image}`);

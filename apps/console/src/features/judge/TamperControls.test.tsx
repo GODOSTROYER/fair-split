@@ -29,6 +29,10 @@ it("offers all four simulator tampers in What's real and shows the policy refusa
   const amount = await screen.findByTestId("W-JG-01.tamper.amount");
   for (const kind of ["offsetting", "recipient", "change_payout"])
     expect(screen.getByTestId(`W-JG-01.tamper.${kind}`)).toBeTruthy();
+  expect(screen.getByTestId("W-JG-01.tamper.change_payout").textContent).toBe(
+    "Arm a payout change before key 2",
+  );
+  expect(screen.getByTestId("W-JG-01.whatsReal").textContent).not.toContain("with its date");
   await act(async () => fireEvent.click(amount));
   await new Promise((resolve) => setTimeout(resolve, 100));
   expect(screen.queryByTestId("W-JG-01.tamper.error")?.textContent).toBeUndefined();

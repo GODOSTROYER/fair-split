@@ -97,3 +97,12 @@ describe("web routes (register §4)", () => {
     expect(within(stage).getByTestId("W-JG-01.rail")).toBeTruthy();
   });
 });
+
+it("offers a stage return only on the judge session's Proof route", async () => {
+  const view = await renderConsole({ path: webRoutes.proof(RUN) });
+  await screen.findByTestId("W-PF-01");
+  expect(screen.queryByRole("link", { name: "Back to the stage" })).toBeNull();
+  await view.startSession();
+  const back = await screen.findByRole("link", { name: "Back to the stage" });
+  expect(back.getAttribute("href")).toBe(webRoutes.judge());
+});

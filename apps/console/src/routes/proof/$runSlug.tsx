@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { webRoutes } from "@fairsplit/contracts";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useDocumentTitle } from "../../chrome/Fallbacks.js";
 import { Surface } from "../../chrome/Surface.js";
+import { useJudgeSession } from "../../data/hooks.js";
 import { snapshotQuery } from "../../data/query.js";
 import { ProofAutoplay } from "../../features/judge/ProofAutoplay.js";
 import { requireRunSlug } from "../../lib/route-params.js";
@@ -16,9 +18,17 @@ export const Route = createFileRoute("/proof/$runSlug")({
   },
   component: function ProofRoute() {
     const { runSlug } = Route.useParams();
+    const { session } = useJudgeSession();
     useDocumentTitle(`Proof ${runSlug}`);
     return (
       <Surface theme="adlaw" face="proof" className="fsc-surface fsc-surface--proof">
+        {session?.runSlug === runSlug && (
+          <nav aria-label="Judge stage" className="pf-page">
+            <Link to={webRoutes.judge()} className="fs-link fs-t-label">
+              Back to the stage
+            </Link>
+          </nav>
+        )}
         <Screen runSlug={runSlug} />
         <ProofAutoplay runSlug={runSlug} />
       </Surface>

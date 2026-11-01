@@ -99,7 +99,7 @@ export function heroExhibits(
     return [
       {
         id: entry.id,
-        title: asset.title,
+        title: asset.title.replace(/^(?:Spike|Hero flat): slip /, "Slip ").replace(", Codex edit", ""),
         image: asset.display.file,
         reading: Object.entries(row.fields).map(([field, value]) => ({
           field,

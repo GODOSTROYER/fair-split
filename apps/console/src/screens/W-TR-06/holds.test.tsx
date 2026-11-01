@@ -382,3 +382,16 @@ describe("W-TR-06 hold drawer", () => {
     SLOW,
   );
 });
+
+it.each(["H1", "H2", "H3"])(
+  "inv.i8.hold-voice: %s attributes its sentence to the seed stand-in",
+  async (hold) => {
+    await inReview(webRoutes.holdDrawer(RUN, hold), "reduced");
+    await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
+    const card = screen.getByTestId("W-TR-06.card");
+    expect(card.textContent).toContain("Seed stand-in, not a Claude recording");
+    expect(card.textContent).not.toMatch(/Claude:/);
+    expect(card.querySelector('[data-provenance="claude"]')).toBeNull();
+  },
+  SLOW,
+);
