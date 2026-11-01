@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { LANGS } from "../../_shims/contracts";
-import { catalogProblems } from "../../_shims/i18n";
+import { catalogProblems, pendingReview } from "../../_shims/i18n";
 import { messages, t } from "./messages";
 
 describe("onboarding copy", () => {
+  it("gives a used pairing code a new-code recovery in every language, retaining translation marks", () => {
+    expect(t("en", "M-ON-01.pair.used")).toBe(
+      "This pairing code was already used. Ask the treasurer for a new one.",
+    );
+    expect(t("ceb", "M-ON-01.pair.used")).toContain("Pangayo og bag-o");
+    expect(t("fil", "M-ON-01.pair.used")).toContain("Humingi ng bago");
+    expect(pendingReview("ceb")).toBe(true);
+    expect(pendingReview("fil")).toBe(true);
+  });
   it("is complete in Cebuano, Filipino and English, with the same placeholders in each", () => {
     expect(catalogProblems(messages)).toEqual([]);
   });

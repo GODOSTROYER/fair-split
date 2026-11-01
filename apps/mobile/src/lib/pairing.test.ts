@@ -81,7 +81,7 @@ describe("parsePairingInput", () => {
 
 const ORIGIN = "https://fs-api.test";
 const requests: PairClaimRequest[] = [];
-let reply: "ok" | "expired" | "used" | "unknown" | "bare410" = "ok";
+let reply: "ok" | "expired" | "used" | "token-invalid" | "unknown" | "bare410" = "ok";
 
 const server = setupServer(
   http.post(`${ORIGIN}/v1/pairing/claim`, async ({ request }) => {
@@ -89,6 +89,8 @@ const server = setupServer(
     if (reply === "expired")
       return HttpResponse.json({ error: { code: "PAIRING_EXPIRED" } }, { status: 410 });
     if (reply === "used") return HttpResponse.json({ error: { code: "PAIRING_USED" } }, { status: 409 });
+    if (reply === "token-invalid")
+      return HttpResponse.json({ code: "PAIRING_TOKEN_INVALID" }, { status: 410 });
     if (reply === "unknown")
       return HttpResponse.json({ error: { code: "PAIRING_INVALID" } }, { status: 404 });
     if (reply === "bare410") return new HttpResponse("gone", { status: 410 });
@@ -141,6 +143,7 @@ describe("claimPairing (msw)", () => {
     ["expired", "expired"],
     ["bare410", "expired"],
     ["used", "used"],
+    ["token-invalid", "used"],
     ["unknown", "invalid"],
   ] as const)("maps a %s reply to the %s state", async (kind, state) => {
     reply = kind;

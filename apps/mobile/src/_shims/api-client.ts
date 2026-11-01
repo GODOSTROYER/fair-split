@@ -259,7 +259,7 @@ export interface FairSplitApi {
   declineApproval(
     runSlug: string,
     body: { role: ApprovalRole; reason: string },
-  ): Promise<ApiResult<{ ok: true }>>;
+  ): Promise<ApiResult<{ runState: "IN_REVIEW" }>>;
   registerDeviceKey(body: DeviceKeyRegistration): Promise<ApiResult<{ ok: true }>>;
   /**
    * A member's re-check request. `idempotencyKey` (a UUIDv7 per composed request, reused by every retry) goes out as
@@ -417,7 +417,7 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
       return r.ok ? { ok: true, value: { accepted: true } } : r;
     },
     declineApproval: (slug, body) =>
-      call<{ ok: true }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals/decline`, body),
+      call<{ runState: "IN_REVIEW" }>("POST", `/v1/runs/${encodeURIComponent(slug)}/approvals/decline`, body),
     registerDeviceKey: (body) => call<{ ok: true }>("POST", "/v1/device-keys", body), // shim-defined
     postReviewRequest: (body, o) =>
       call<{ id: string }>(
