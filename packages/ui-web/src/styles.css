@@ -1,8 +1,10 @@
 /* @fairsplit/ui-web materials (design §2.5, S2 §2.5, ADR-0016). Every colour, size and timing comes from the
-   --fs-* tokens in @fairsplit/tokens/theme.web.css; Tailwind stays layout only. Radii come from the scale (cell,
-   control, card, panel, pill); chips and cards lift on e1, panels on e2, drawers and dialogs on e3, and paper keeps
-   the strongest shadow. Slab depth is a bottom lip whose depth equals consequence. The one glow is the jade halo,
-   one beat after the simulated PayPal confirms. No glass, no gradient text, no noise. */
+   --fs-* tokens in @fairsplit/tokens/theme.web.css; Tailwind stays layout only. Radii come from the one scale
+   (cell 6, control 12, card 16, panel 24, pill); chips and cards lift on e1, panels on e2, drawers and dialogs on
+   e3, and paper keeps the strongest shadow. UI gate round 2: one flat primary button (the slab: indigo, radius 12,
+   48 px, no lip, no glow) and one outline secondary (.fs-flat); no bolts or corner dots; money is never drawn in
+   outline. The one glow is the jade halo, one beat after the simulated PayPal confirms. No glass, no gradient
+   text, no noise. */
 
 @layer components {
   /* ------------------------------------------------------------------ shared controls */
@@ -25,27 +27,39 @@
     text-decoration-color: currentColor;
   }
 
+  /* The one secondary button: a white face in a 1 px rule ring, ink words, radius 12, flat. 40 px inline; 48 px
+     (data-size="l") beside a primary, so an action row reads as one height. */
   .fs-flat {
     appearance: none;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     min-height: 40px;
     padding: 0 16px;
-    border: 1px solid var(--fs-steel-line);
+    border: 1px solid var(--fs-rule-strong);
     border-radius: var(--fs-radius-control);
     background: var(--fs-plate);
-    box-shadow: var(--fs-shadow-e1);
+    box-shadow: none;
     color: var(--fs-ink);
     font-family: var(--fs-font-ui);
-    font-weight: 600;
-    font-size: 0.8125rem;
-    line-height: 1rem;
+    font-stretch: 100%;
+    font-weight: 560;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    white-space: nowrap;
     cursor: pointer;
   }
 
+  .fs-flat[data-size="l"] {
+    min-height: 48px;
+    padding: 0 20px;
+    font-size: 1rem;
+  }
+
   .fs-flat:hover {
-    border-color: var(--fs-ink-2);
+    border-color: var(--fs-steel-line);
+    background: var(--fs-plate-2);
   }
 
   :where(.fs-link, .fs-flat, .fs-receipt__seg, .fs-slab__face, .fs-stamp):focus-visible {
@@ -92,41 +106,39 @@
     width: 100%;
   }
 
-  /* The person's decision slab: ballpoint indigo with a white label, in both themes (ADR-0016). */
+  /* The one primary: a person's decision, ballpoint indigo with a white label, in both themes (ADR-0016). */
   .fs-slab[data-tone="chalk"] {
     --face: var(--fs-slab-chalk-face);
     --edge-r: var(--fs-slab-chalk-right);
     --edge-b: var(--fs-slab-chalk-bottom);
     --label: var(--fs-slab-chalk-label);
-    --glow: color-mix(in srgb, var(--fs-slab-chalk-face) 60%, transparent);
   }
 
-  /* The only control that moves the co-op's money: raised jade. */
+  /* The control that moves the co-op's money wears the same primary face (round 2): green is only money the
+     simulated PayPal confirmed, never a button. */
   .fs-slab[data-tone="jade"] {
     --face: var(--fs-slab-jade-face);
     --edge-r: var(--fs-slab-jade-right);
     --edge-b: var(--fs-slab-jade-bottom);
     --label: var(--fs-slab-jade-label);
-    --glow: color-mix(in srgb, var(--fs-slab-jade-right) 55%, transparent);
   }
 
-  /* Bolted: a plate face on a solid steel lip with its two bolt heads. Never hatched: hatch means cash or
-     unavailable, and a bolted rule is neither (it refuses, ADR-0016). */
+  /* Bolted: a quiet plate face in a rule ring that refuses. No bolt heads, no corner dots, never hatched: hatch
+     means cash or unavailable, and a bolted rule is neither (it refuses, ADR-0016). */
   .fs-slab[data-bolted] {
     --face: var(--fs-plate-2);
-    --label: var(--fs-ink);
-    --edge-r: var(--fs-steel-face);
-    --edge-b: var(--fs-steel-line);
-    --glow: transparent;
+    --label: var(--fs-ink-2);
+    --edge-r: var(--fs-plate-2);
+    --edge-b: var(--fs-rule-strong);
   }
 
-  /* The face sits on its lip: a radius-14 card whose bottom lip is d px deep (d1 3, d2 5, d3 8). Pressing moves
-     the face down by its lip; the lip stays where it is, so a flush face has covered it. */
+  /* Flat (round 2): the face is the button; there is no lip and no glow. A press nudges the face down a pixel or
+     two (the travel is scaled in Slab.tsx) and darkens it to the lip shade. */
   .fs-slab__body {
     position: relative;
     display: inline-block;
-    margin: 0 0 var(--d) 0;
-    border-radius: var(--fs-radius-card);
+    margin: 0;
+    border-radius: var(--fs-radius-control);
   }
 
   .fs-slab[data-full] .fs-slab__body {
@@ -138,21 +150,10 @@
     pointer-events: none;
   }
 
-  /* The skewed right edge of the v1 slab is gone; the element stays so the edges fade as one in reduced motion. */
-  .fs-slab__edge--r {
-    display: none;
-  }
-
+  /* The v1 edges are gone; the elements stay so the slab's motion values keep their targets. */
+  .fs-slab__edge--r,
   .fs-slab__edge--b {
-    top: var(--d);
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border-radius: var(--fs-radius-card);
-    background: var(--edge-r);
-    box-shadow:
-      0 0 0 1px var(--edge-b),
-      0 18px 30px -12px var(--glow);
+    display: none;
   }
 
   .fs-slab__face {
@@ -162,19 +163,20 @@
     justify-content: center;
     width: var(--slab-w, auto);
     min-height: 48px;
-    padding: 0 24px;
+    padding: 0 20px;
     overflow: hidden;
     border: 0;
-    border-radius: var(--fs-radius-card);
+    border-radius: var(--fs-radius-control);
     background: var(--face);
-    box-shadow: inset 0 1px 0 var(--fs-highlight);
+    box-shadow: none;
     color: var(--label);
     font-family: var(--fs-font-ui);
-    font-stretch: 112.5%;
-    font-weight: 700;
-    font-size: 1.0625rem;
+    font-stretch: 100%;
+    font-weight: 600;
+    font-size: 1rem;
     line-height: 1.25rem;
     font-variant-numeric: lining-nums proportional-nums;
+    transition: background-color var(--fs-dur-press) var(--fs-ease-out);
     cursor: pointer;
     /* A long press must stay a hold (S2 §2.7): no panning, text selection, callout or tap flash. */
     touch-action: none;
@@ -188,16 +190,22 @@
     width: 100%;
   }
 
+  /* One height for every primary: "l" is only wider (Approve, Paminawa, Pirmahi). */
   .fs-slab[data-size="l"] .fs-slab__face {
-    min-height: 64px;
-    padding: 0 32px;
+    min-height: 48px;
+    padding: 0 28px;
+  }
+
+  .fs-slab:is([data-state="rest"], [data-state="pressed"]):not([data-bolted]) .fs-slab__face:hover,
+  .fs-slab[data-state="pressed"] .fs-slab__face {
+    background: var(--edge-r);
   }
 
   .fs-slab__label {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     white-space: nowrap;
   }
 
@@ -209,8 +217,8 @@
      it at caption size, anything trailing (a keycap) at the far edge. */
   .fs-slab__face:has(> .fs-slab__label[data-detail]) {
     justify-content: flex-start;
-    min-height: 60px;
-    padding-block: 9px;
+    min-height: 56px;
+    padding-block: 8px;
   }
 
   .fs-slab__label[data-detail] {
@@ -228,9 +236,8 @@
   .fs-slab__detail {
     font-stretch: 100%;
     font-weight: 500;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     line-height: 1rem;
-    opacity: 0.85;
   }
 
   .fs-slab__trailing {
@@ -265,7 +272,12 @@
     cursor: progress;
   }
 
-  /* Unavailable: sunk flush, a hatched face, the label kept on a plate. */
+  .fs-slab[data-bolted] .fs-slab__face {
+    box-shadow: inset 0 0 0 1px var(--edge-b);
+    cursor: not-allowed;
+  }
+
+  /* Unavailable: a hatched face, the label kept on a plate. */
   .fs-slab[data-state="unavailable"] .fs-slab__face {
     background:
       repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
@@ -274,20 +286,10 @@
     cursor: not-allowed;
   }
 
-  .fs-slab[data-state="unavailable"] .fs-slab__edge--b {
-    background: var(--fs-rule);
-    box-shadow: none;
-  }
-
   .fs-slab[data-state="unavailable"] .fs-slab__label {
     padding: 2px 8px;
     border-radius: var(--fs-radius-cell);
     background: var(--fs-plate);
-  }
-
-  /* Committed: the face rests flush on its lip, and the glow goes with the press. */
-  .fs-slab[data-state="committed"] .fs-slab__edge--b {
-    box-shadow: 0 0 0 1px var(--edge-b);
   }
 
   /* A committed money slab is signed, not paid: flush jade belongs only to what the simulated PayPal confirmed, so
@@ -313,26 +315,9 @@
     opacity: 0;
   }
 
-  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__edge--b {
-    background: var(--fs-rule);
-    box-shadow: none;
-  }
-
+  /* No bolt heads (round 2): the plate face and its ring say "bolted"; the elements stay for the shake. */
   .fs-slab__bolt {
-    position: absolute;
-    top: 6px;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: var(--fs-steel-line);
-  }
-
-  .fs-slab__bolt--l {
-    left: 6px;
-  }
-
-  .fs-slab__bolt--r {
-    right: 6px;
+    display: none;
   }
 
   .fs-slab[data-state="refusing"] .fs-slab__body {
@@ -343,7 +328,7 @@
     animation: none;
   }
 
-  .fs-slab[data-motion="reduced"][data-state="refusing"] :where(.fs-slab__edge, .fs-slab__bolt) {
+  .fs-slab[data-motion="reduced"][data-state="refusing"] .fs-slab__face {
     animation: fs-brighten var(--fs-dur-brighten) var(--fs-ease-out);
   }
 
@@ -407,10 +392,9 @@
     color: var(--fs-ink);
   }
 
+  /* Approved, not yet in the member's hands: solid ink (round 2: no outline face); its pill says where it is. */
   .fs-print[data-state="hollow"] .fs-print__value {
-    color: transparent;
-    -webkit-text-stroke: var(--fs-hollow-stroke) var(--fs-ink);
-    font-family: var(--fs-font-hollow);
+    color: var(--fs-ink);
   }
 
   .fs-print[data-reveal="wipe"] .fs-print__value {
@@ -702,24 +686,27 @@
     color: var(--fs-red);
   }
 
-  /* Every simulated thing: a dashed steel outline (not real, or not yet), a flask in ink-3, words in ink-2. */
+  /* The honesty tag, one design (unslop spec §2.2): 20 px tall, a 1 px dashed steel outline (not real, or not
+     yet), a 10 px dashed circle, and the words at 12/16 in ink-3. Never bold, never wrapped, never inside a
+     sentence; one per container that holds PayPal-derived values. */
   .fs-honesty {
     display: inline-flex;
+    flex: none;
     align-items: center;
     gap: 6px;
-    min-height: 26px;
-    padding: 0 10px 0 8px;
+    height: 20px;
+    padding: 0 8px 0 6px;
     border: 1px dashed var(--fs-steel-line);
     border-radius: var(--fs-radius-pill);
     background: transparent;
-    color: var(--fs-ink-2);
-    font-weight: 600;
+    color: var(--fs-ink-3);
     white-space: nowrap;
+    vertical-align: middle;
   }
 
-  .fs-honesty__flask {
+  .fs-honesty__glyph {
     flex: none;
-    color: var(--fs-ink-3);
+    color: var(--fs-steel-line);
   }
 
   .fs-stamp {
@@ -965,34 +952,17 @@
     white-space: nowrap;
   }
 
+  /* One hero numeral (round 2): every amount is solid ink in the same face, whatever its state; the state is
+     said by its pill (dashed in flight, flush jade once confirmed), never by an outline or a grey. The first
+     layer only holds the box; the second paints. */
   .fs-amount__hollow {
-    color: transparent;
-    -webkit-text-stroke: var(--fs-hollow-stroke) var(--fs-ink);
-    font-family: var(--fs-font-hollow);
+    visibility: hidden;
   }
 
   .fs-amount__solid {
     position: absolute;
     inset: 0;
-  }
-
-  /* While the outline shows (hollow, filling), the solid layer takes the hollow cut's tabular advances, so the
-     fill lands exactly on its outline. Once solid, the outline paints nothing (its box keeps the layout still) and
-     the amount reads in proportional figures alone, never printed twice (ADR-0016). */
-  .fs-amount:is([data-state="hollow"], [data-state="filling"]) .fs-amount__solid {
-    font-variant-numeric: lining-nums tabular-nums;
-  }
-
-  .fs-amount[data-state="solid"] .fs-amount__hollow {
-    -webkit-text-stroke-color: transparent;
-  }
-
-  .fs-amount[data-state="pencil"] .fs-amount__hollow {
-    visibility: hidden;
-  }
-
-  .fs-amount[data-state="pencil"] .fs-amount__solid {
-    color: var(--fs-pencil);
+    color: var(--fs-ink);
   }
 
   .fs-amount__estimate {
@@ -1126,7 +1096,7 @@
 
   .fs-dial__over {
     fill: none;
-    stroke: var(--fs-canary);
+    stroke: var(--fs-canary-border);
     stroke-width: 6;
     stroke-linecap: round;
   }

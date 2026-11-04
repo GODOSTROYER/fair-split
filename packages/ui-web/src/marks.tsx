@@ -108,26 +108,32 @@ export interface HonestyChipProps {
 }
 
 /**
- * Every simulated or seeded thing carries this chip (I8): a dashed steel outline means "not real, or not yet"
- * (decision.md §4), a flask in ink-3, the words in ink-2, pill radius.
+ * The honesty tag (I8; unslop spec §2.2): every simulated or seeded thing carries this one design. A 20 px pill
+ * in a dashed steel outline ("not real, or not yet", decision.md §4), a 10 px dashed circle, the words at 12/16
+ * in ink-3. Its words are the label, word for word ("Simulated PayPal sandbox"); it never sits inside a sentence,
+ * and one tag covers the smallest container that holds PayPal-derived values.
  */
 export function HonestyChip({ children, testId, className }: HonestyChipProps) {
   return (
-    <span className={["fs-honesty fs-t-caption", className].filter(Boolean).join(" ")} data-testid={testId}>
-      <svg className="fs-honesty__flask" width={14} height={14} viewBox="0 0 24 24" aria-hidden>
-        <path
-          d="M9 3h6M10 3v6.2L4.6 18.4A1.7 1.7 0 0 0 6.1 21h11.8a1.7 1.7 0 0 0 1.5-2.6L14 9.2V3M7.2 15h9.6"
+    <span className={["fs-honesty fs-t-micro", className].filter(Boolean).join(" ")} data-testid={testId}>
+      <svg className="fs-honesty__glyph" width={10} height={10} viewBox="0 0 10 10" aria-hidden>
+        <circle
+          cx={5}
+          cy={5}
+          r={4}
           fill="none"
           stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          strokeWidth={1.25}
+          strokeDasharray="2 1.6"
         />
       </svg>
       <span>{children}</span>
     </span>
   );
 }
+
+/** The honesty tag under its design name; the same component as `HonestyChip`. */
+export const HonestyTag = HonestyChip;
 
 export interface RuleChipProps {
   readonly name: string;

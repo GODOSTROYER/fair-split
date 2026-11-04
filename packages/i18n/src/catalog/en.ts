@@ -151,7 +151,7 @@ export const en = {
   "W-JG-01.pill.byHand": "Next: enter slip {slip} by hand",
   "W-JG-01.pill.holds": "Next: {count, plural, one {# hold needs} other {# holds need}} you",
   "W-JG-01.pill.approve": "Next: approve {count, plural, one {# payout} other {# payouts}}",
-  "W-JG-01.pill.cosign": "Next: Ernesto co-signs. Use the Chair frame or your phone.",
+  "W-JG-01.pill.cosign": "Next: Ernesto co-signs",
   "W-JG-01.pill.confirming": "The simulated PayPal sandbox is confirming payments",
   "W-JG-01.pill.rhea": "Next: decide on Rhea’s payment",
   "W-JG-01.pill.done": "Done. Open Proof.",

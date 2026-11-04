@@ -201,6 +201,7 @@ const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
   "title-2": "Slip 0457 counted twice",
   body: "Counting both moves US$17.94 from 63 members to Nong Dioning and puts shrink at 2.05%.",
   figure: "148.0 kg   43.69   21.85   −1.09   64.45",
+  micro: "19:04:27 PHT · M-014 · was 2.05%",
   lede: "Code computes every amount. People settle three holds, two officers sign, PayPal pays.",
   label: "Count it once",
   caption: "Read by Claude (claude-opus-5-5), replay of a recorded run from 29 Oct.",

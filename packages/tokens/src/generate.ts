@@ -201,12 +201,16 @@ export function renderThemeCss(): string {
       "  font-variant-numeric: lining-nums proportional-nums;",
       "}",
       "",
-      "/* The US$ prefix of a hero amount: half size, raised (the accessible name keeps the whole string). */",
+      "/* The US$ prefix of a money hero: small, raised to the figures' cap line, in ink-3, never bold and never",
+      "   outlined (one standard prefix for every amount; the accessible name keeps the whole string). */",
       ".fs-cur {",
       "  position: relative;",
-      "  top: -0.74em;",
-      "  margin-right: 0.04em;",
-      "  font-size: 0.5em;",
+      "  top: -0.98em;",
+      "  margin-right: 0.08em;",
+      "  color: var(--fs-ink-3);",
+      "  font-size: 0.42em;",
+      "  font-weight: 520;",
+      "  letter-spacing: 0.02em;",
       "}",
       "",
       "/* Mona's straight-bar zero (ss08), kept for the G1 comparison with the default slashed zero. */",
@@ -243,7 +247,7 @@ function fontFace(family: string, file: string, descriptors: string[]): string {
   ].join("\n");
 }
 
-/** Console and stage: the full variable FS Sans, the peso face, hollow numerals, stencil, Atkinson (lazy). */
+/** Console and stage: the full variable FS Sans, the peso face, the stencil mark, Atkinson (lazy). */
 export function renderFontsCss(): string {
   const ui = ["font-weight: 200 900;", "font-stretch: 75% 125%;"];
   return `${CSS_HEADER}
@@ -251,7 +255,6 @@ ${[
   fontFace("FS Sans", "FSSans-VF.woff2", ui),
   "/* Mona Sans has no peso sign: Noto's joins the family with identical descriptors (assets/fonts/README.md). */",
   fontFace("FS Sans", "FSSansPeso.woff2", [...ui, "unicode-range: U+20B1;"]),
-  fontFace("FS Numerals Hollow", "FSNumeralsHollow.woff2", ["font-weight: 800;", "font-stretch: 75%;"]),
   fontFace("FS Stencil", "FSStencil.woff2", ["font-weight: 800;"]),
   "/* Downloaded only when statement prose renders. */",
   fontFace("Atkinson Hyperlegible Next", "AtkinsonNext-VF.woff2", ["font-weight: 400 700;"]),
@@ -265,7 +268,6 @@ export function renderProofFontsCss(): string {
 ${[
   fontFace("FS Sans", "FSSans-Proof.woff2", ui),
   fontFace("FS Sans", "FSSansPeso.woff2", [...ui, "unicode-range: U+20B1;"]),
-  fontFace("FS Numerals Hollow", "FSNumeralsHollow.woff2", ["font-weight: 800;", "font-stretch: 75%;"]),
   fontFace("FS Stencil", "FSStencil.woff2", ["font-weight: 800;"]),
 ].join("\n\n")}\n`;
 }

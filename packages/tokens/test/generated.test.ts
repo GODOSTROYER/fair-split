@@ -35,7 +35,8 @@ describe("generated files", () => {
     expect(css.split("--fs-drop-paper:").length - 1).toBe(2);
     for (const name of ["ballpoint", "serial", "form", "stain"])
       expect(css).toContain(`--fs-evidence-${name}: #`);
-    expect(css).toContain("--fs-radius-card: 14px;");
+    expect(css).toContain("--fs-radius-card: 16px;");
+    expect(css).toContain("--fs-radius-control: 12px;");
     expect(css).toContain("--fs-radius-pill: 999px;");
     expect(css).toContain(".fs-amount {\n  font-variant-numeric: lining-nums proportional-nums;");
     expect(css).toContain(".fs-cur {");
@@ -61,7 +62,7 @@ describe("generated files", () => {
     }
     expect(native.defaultTheme.name).toBe("adlaw");
     expect(native.type.amountHero).toMatchObject({
-      fontFamily: "FSSans-CondXBold",
+      fontFamily: "FSSans-SemiCondMedium",
       fontSize: 48,
       lineHeight: 52,
     });

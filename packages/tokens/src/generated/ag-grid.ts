@@ -12,7 +12,7 @@ export const fsGridParams = {
   headerHeight: 36,
   spacing: 4,
   cellHorizontalPadding: 12,
-  wrapperBorderRadius: 14,
+  wrapperBorderRadius: 16,
   borderRadius: 6,
   backgroundColor: "var(--fs-plate)",
   foregroundColor: "var(--fs-ink)",

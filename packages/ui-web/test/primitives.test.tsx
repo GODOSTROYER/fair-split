@@ -11,6 +11,7 @@ import {
   HoldCard,
   type HoldView,
   HonestyChip,
+  HonestyTag,
   isFinalHoldState,
   MassBalanceDial,
   MomentRoot,
@@ -390,7 +391,8 @@ describe("HoldCard", () => {
     fireEvent.pointerUp(face(), { button: 0, pointerId: 1 });
     expect(screen.getByTestId("h1.once").dataset).toMatchObject({ state: "committed", busy: "" });
     // The press lands flush on its lip (d2: 5 px straight down) a frame later.
-    await waitFor(() => expect(face().style.transform).toBe("translate(0px, 5px)"));
+    // The flat face shows a quarter of d2's 5 px travel (UI gate round 2).
+    await waitFor(() => expect(face().style.transform).toBe("translate(0px, 1.25px)"));
     // The screen shows the POST in flight, then the hold is still open: the 409 refused it.
     rerender(card("resolving"));
     await act(async () => refuse(new Error("409")));
@@ -511,12 +513,15 @@ describe("status words and money", () => {
     expect(screen.getByTestId("chip").textContent).toBe("Sending");
   });
 
-  it("the honesty chip keeps its words and a flask glyph hidden from assistive technology", () => {
+  it("the honesty tag keeps its words and a dashed circle hidden from assistive technology", () => {
     render(wrap(<HonestyChip testId="hc">Simulated PayPal sandbox</HonestyChip>));
     const chip = screen.getByTestId("hc");
     expect(chip.textContent).toBe("Simulated PayPal sandbox");
     expect(chip.classList.contains("fs-honesty")).toBe(true);
+    expect(chip.classList.contains("fs-t-micro")).toBe(true);
     expect(chip.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    expect(chip.querySelector("svg circle")?.getAttribute("stroke-dasharray")).toBe("2 1.6");
+    expect(HonestyTag).toBe(HonestyChip);
   });
 
   it("the paid capsule is flush jade; the sent capsule keeps its 5 px inset", () => {

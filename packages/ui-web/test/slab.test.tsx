@@ -178,7 +178,8 @@ describe("Slab", () => {
         />,
       ),
     );
-    expect(face("record").style.transform).toBe("translate(0px, 8px)");
+    // Flat face: d3's 8 px travel shows as 2 px (UI gate round 2).
+    expect(face("record").style.transform).toBe("translate(0px, 2px)");
     expect(root("record").querySelector<HTMLElement>(".fs-slab__edge")?.style.opacity).toBe("0");
   });
 
@@ -682,7 +683,7 @@ describe("Slab", () => {
         expect(face("approve").getAttribute("aria-busy")).toBe("true");
         // While the answer is out, the face waits flush as a record, with no hold fill.
         await act(async () => vi.advanceTimersByTime(100));
-        expect([face("approve").style.transform, fill()]).toEqual(["translate(0px, 8px)", undefined]);
+        expect([face("approve").style.transform, fill()]).toEqual(["translate(0px, 2px)", undefined]);
         // MM-5 mismatch: the 409 says the batch changed. Nothing was signed, so the slab offers itself again.
         await act(async () => first.reject(new Error("409 BATCH_CHANGED")));
         await act(async () => vi.advanceTimersByTime(100));

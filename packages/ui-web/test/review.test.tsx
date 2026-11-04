@@ -45,14 +45,39 @@ const declared = (selector: string) =>
   rules.filter((r) => r.selector.replace(/\s+/g, " ") === selector).map((r) => r.decls);
 
 describe("the stylesheet after the review", () => {
-  it("prints a solid amount once: the hollow outline paints nothing once the solid layer shows", () => {
-    const solid = declared('.fs-amount[data-state="solid"] .fs-amount__hollow');
-    expect(solid.map((d) => d["-webkit-text-stroke-color"])).toContain("transparent");
-    // While the outline shows, the fill takes its tabular advances so it lands on the outline.
-    const filling = declared(
-      '.fs-amount:is([data-state="hollow"], [data-state="filling"]) .fs-amount__solid',
-    );
-    expect(filling.map((d) => d["font-variant-numeric"])).toContain("lining-nums tabular-nums");
+  it("prints every amount once, solid ink, never in outline (UI gate round 2: one hero numeral)", () => {
+    expect(declared(".fs-amount__hollow").map((d) => d.visibility)).toContain("hidden");
+    expect(declared(".fs-amount__solid").map((d) => d.color)).toContain("var(--fs-ink)");
+    for (const r of rules) {
+      expect(r.decls["-webkit-text-stroke"], r.selector).toBeUndefined();
+      expect(r.decls["font-family"] ?? "", r.selector).not.toContain("hollow");
+    }
+  });
+
+  it("one flat primary and one outline secondary: radius 12, 48 px, no lip, no glow, no bolts (round 2)", () => {
+    const face = declared(".fs-slab__face")[0];
+    expect(face?.["border-radius"]).toBe("var(--fs-radius-control)");
+    expect(face?.["min-height"]).toBe("48px");
+    expect(face?.["box-shadow"]).toBe("none");
+    expect(declared('.fs-slab[data-size="l"] .fs-slab__face')[0]?.["min-height"]).toBe("48px");
+    expect(declared(".fs-slab__edge--b").map((d) => d.display)).toContain("none");
+    expect(declared(".fs-slab__bolt").map((d) => d.display)).toContain("none");
+    const flat = declared(".fs-flat")[0];
+    expect(flat?.["border-radius"]).toBe("var(--fs-radius-control)");
+    expect(flat?.["box-shadow"]).toBe("none");
+    expect(declared('.fs-flat[data-size="l"]')[0]?.["min-height"]).toBe("48px");
+    // No coloured blur anywhere in the stylesheet: no shadow names a slab colour.
+    for (const r of rules)
+      expect(r.decls["box-shadow"] ?? "", r.selector).not.toMatch(/--glow|slab-(jade|chalk)/);
+  });
+
+  it("draws the honesty tag as one design: 20 px, dashed steel, ink-3 words, never bold", () => {
+    const tag = declared(".fs-honesty")[0];
+    expect(tag?.height).toBe("20px");
+    expect(tag?.border).toBe("1px dashed var(--fs-steel-line)");
+    expect(tag?.color).toBe("var(--fs-ink-3)");
+    expect(tag?.["font-weight"]).toBeUndefined();
+    expect(tag?.["white-space"]).toBe("nowrap");
   });
 
   it("keeps the pod focus ring on a committed jade slab and on the selected receipt segment (WCAG 2.4.7)", () => {

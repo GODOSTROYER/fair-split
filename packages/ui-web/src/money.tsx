@@ -1,8 +1,9 @@
-// Money on screen (design §2.3, §2.5; ADR-0016). Amounts are FS Sans condensed with proportional lining figures
-// (a plain zero, a plain one), the "US$" prefix at half size and raised on the large roles; the accessible text
-// keeps the whole string. Approved but not yet in the member's hands, they are hollow outlines; they fill only when
-// PayPal (or the bodega) says so. A peso figure is always an estimate. The status capsule is a pill: dashed jade
-// in flight, flush jade with an ink check (and one beat of halo) once the simulated PayPal confirms (MM-1).
+// Money on screen (design §2.3, §2.5; ADR-0016; UI gate round 2). Every money hero is the one hero numeral: FS
+// Sans semi-condensed at 500, solid ink, proportional lining figures (a plain zero, a plain one), the "US$" prefix
+// small and raised; the accessible text keeps the whole string. Approved but not yet in the member's hands, an
+// amount keeps its state ("hollow") for meaning, but is never drawn in outline: its pill says where the money is.
+// A peso figure is always an estimate. The status capsule is a pill: dashed jade in flight, flush jade with an ink
+// check (and one beat of halo) once the simulated PayPal confirms (MM-1).
 
 import type { ReactNode } from "react";
 
@@ -63,6 +64,8 @@ export function AmountDisplay({
   className,
 }: AmountDisplayProps) {
   const solidOpacity = solid ?? (hollow ? 0 : 1);
+  // The state stays for meaning (and for tests and the moments): hollow, filling, solid or pencil. The figure is
+  // drawn the same in each, solid ink in the one hero numeral (UI gate round 2); money lands, it never fills.
   const state = pencil ? "pencil" : solidOpacity >= 1 ? "solid" : solidOpacity <= 0 ? "hollow" : "filling";
   return (
     <div
@@ -75,7 +78,7 @@ export function AmountDisplay({
         <span className="fs-amount__hollow">
           <CurrencyFigure display={amount.display} />
         </span>
-        <span className="fs-amount__solid" style={{ opacity: solidOpacity }}>
+        <span className="fs-amount__solid">
           <CurrencyFigure display={amount.display} />
         </span>
       </p>

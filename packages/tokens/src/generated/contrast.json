@@ -1,5 +1,5 @@
 {
-  "pairs": 118,
+  "pairs": 130,
   "failing": 0,
   "results": [
     {
@@ -290,6 +290,72 @@
     },
     {
       "theme": "tablea",
+      "group": "statement",
+      "fg": "statement-ink",
+      "bg": "ground",
+      "fgHex": "#F4F6FA",
+      "bgHex": "#090D18",
+      "ratio": 17.93,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
+      "group": "statement",
+      "fg": "statement-ink",
+      "bg": "plate",
+      "fgHex": "#F4F6FA",
+      "bgHex": "#10172A",
+      "ratio": 16.47,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
+      "group": "statement",
+      "fg": "statement-ink",
+      "bg": "plate-2",
+      "fgHex": "#F4F6FA",
+      "bgHex": "#172036",
+      "ratio": 14.97,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
+      "group": "statement",
+      "fg": "statement-ink-2",
+      "bg": "ground",
+      "fgHex": "#C3C9D6",
+      "bgHex": "#090D18",
+      "ratio": 11.68,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
+      "group": "statement",
+      "fg": "statement-ink-2",
+      "bg": "plate",
+      "fgHex": "#C3C9D6",
+      "bgHex": "#10172A",
+      "ratio": 10.73,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
+      "group": "statement",
+      "fg": "statement-ink-2",
+      "bg": "plate-2",
+      "fgHex": "#C3C9D6",
+      "bgHex": "#172036",
+      "ratio": 9.75,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "tablea",
       "group": "face",
       "fg": "on-jade",
       "bg": "jade",
@@ -337,9 +403,9 @@
       "group": "face",
       "fg": "slab-jade-label",
       "bg": "slab-jade-face",
-      "fgHex": "#04170F",
-      "bgHex": "#3DE6AE",
-      "ratio": 11.57,
+      "fgHex": "#FFFFFF",
+      "bgHex": "#5B43EA",
+      "ratio": 6.11,
       "min": 4.5,
       "pass": true
     },
@@ -499,13 +565,13 @@
     },
     {
       "theme": "tablea",
-      "group": "non-text",
+      "group": "amber",
       "fg": "canary-border",
       "bg": "plate",
       "fgHex": "#FFA41B",
       "bgHex": "#10172A",
       "ratio": 8.97,
-      "min": 3,
+      "min": 1.8,
       "pass": true
     },
     {
@@ -631,13 +697,13 @@
     },
     {
       "theme": "tablea",
-      "group": "non-text",
+      "group": "amber",
       "fg": "canary-border",
       "bg": "canary-wash",
       "fgHex": "#FFA41B",
       "bgHex": "#312B28",
       "ratio": 7.02,
-      "min": 3,
+      "min": 1.8,
       "pass": true
     },
     {
@@ -854,9 +920,9 @@
       "group": "console-text",
       "fg": "canary-text",
       "bg": "ground",
-      "fgHex": "#8A5300",
+      "fgHex": "#0B1220",
       "bgHex": "#F3F5F8",
-      "ratio": 5.79,
+      "ratio": 17.14,
       "min": 4.5,
       "pass": true
     },
@@ -865,9 +931,9 @@
       "group": "console-text",
       "fg": "canary-text",
       "bg": "plate",
-      "fgHex": "#8A5300",
+      "fgHex": "#0B1220",
       "bgHex": "#FFFFFF",
-      "ratio": 6.32,
+      "ratio": 18.72,
       "min": 4.5,
       "pass": true
     },
@@ -876,9 +942,9 @@
       "group": "console-text",
       "fg": "canary-text",
       "bg": "plate-2",
-      "fgHex": "#8A5300",
+      "fgHex": "#0B1220",
       "bgHex": "#F7F8FA",
-      "ratio": 5.95,
+      "ratio": 17.61,
       "min": 4.5,
       "pass": true
     },
@@ -939,6 +1005,72 @@
     },
     {
       "theme": "adlaw",
+      "group": "statement",
+      "fg": "statement-ink",
+      "bg": "ground",
+      "fgHex": "#0B1220",
+      "bgHex": "#F3F5F8",
+      "ratio": 17.14,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
+      "group": "statement",
+      "fg": "statement-ink",
+      "bg": "plate",
+      "fgHex": "#0B1220",
+      "bgHex": "#FFFFFF",
+      "ratio": 18.72,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
+      "group": "statement",
+      "fg": "statement-ink",
+      "bg": "plate-2",
+      "fgHex": "#0B1220",
+      "bgHex": "#F7F8FA",
+      "ratio": 17.61,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
+      "group": "statement",
+      "fg": "statement-ink-2",
+      "bg": "ground",
+      "fgHex": "#3A4456",
+      "bgHex": "#F3F5F8",
+      "ratio": 8.97,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
+      "group": "statement",
+      "fg": "statement-ink-2",
+      "bg": "plate",
+      "fgHex": "#3A4456",
+      "bgHex": "#FFFFFF",
+      "ratio": 9.8,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
+      "group": "statement",
+      "fg": "statement-ink-2",
+      "bg": "plate-2",
+      "fgHex": "#3A4456",
+      "bgHex": "#F7F8FA",
+      "ratio": 9.22,
+      "min": 7,
+      "pass": true
+    },
+    {
+      "theme": "adlaw",
       "group": "face",
       "fg": "on-jade",
       "bg": "jade",
@@ -986,9 +1118,9 @@
       "group": "face",
       "fg": "slab-jade-label",
       "bg": "slab-jade-face",
-      "fgHex": "#0B1220",
-      "bgHex": "#14CC90",
-      "ratio": 8.97,
+      "fgHex": "#FFFFFF",
+      "bgHex": "#4A2FD6",
+      "ratio": 7.86,
       "min": 4.5,
       "pass": true
     },
@@ -1020,8 +1152,8 @@
       "fg": "ink",
       "bg": "canary-wash",
       "fgHex": "#0B1220",
-      "bgHex": "#FFF2DF",
-      "ratio": 16.95,
+      "bgHex": "#FFFFFF",
+      "ratio": 18.72,
       "min": 4.5,
       "pass": true
     },
@@ -1064,8 +1196,8 @@
       "fg": "ink-2",
       "bg": "canary-wash",
       "fgHex": "#3A4456",
-      "bgHex": "#FFF2DF",
-      "ratio": 8.88,
+      "bgHex": "#FFFFFF",
+      "ratio": 9.8,
       "min": 4.5,
       "pass": true
     },
@@ -1148,13 +1280,13 @@
     },
     {
       "theme": "adlaw",
-      "group": "non-text",
+      "group": "amber",
       "fg": "canary-border",
       "bg": "plate",
-      "fgHex": "#B56A00",
+      "fgHex": "#FFA41B",
       "bgHex": "#FFFFFF",
-      "ratio": 4.17,
-      "min": 3,
+      "ratio": 1.98,
+      "min": 1.8,
       "pass": true
     },
     {
@@ -1239,9 +1371,9 @@
       "group": "wash",
       "fg": "canary-text",
       "bg": "canary-wash",
-      "fgHex": "#8A5300",
-      "bgHex": "#FFF2DF",
-      "ratio": 5.73,
+      "fgHex": "#0B1220",
+      "bgHex": "#FFFFFF",
+      "ratio": 18.72,
       "min": 4.5,
       "pass": true
     },
@@ -1280,13 +1412,13 @@
     },
     {
       "theme": "adlaw",
-      "group": "non-text",
+      "group": "amber",
       "fg": "canary-border",
       "bg": "canary-wash",
-      "fgHex": "#B56A00",
-      "bgHex": "#FFF2DF",
-      "ratio": 3.78,
-      "min": 3,
+      "fgHex": "#FFA41B",
+      "bgHex": "#FFFFFF",
+      "ratio": 1.98,
+      "min": 1.8,
       "pass": true
     },
     {

@@ -5,6 +5,7 @@ import {
   COLOUR_NAMES,
   COLOUR_ROLES,
   COLOURS,
+  FONT_STACKS,
   HOLLOW,
   LAYOUT,
   M3_ROLES,
@@ -57,7 +58,8 @@ describe("colour source", () => {
     expect(RESOLVED.tablea["pod-wash"].hex).toBe("#242748");
     expect(RESOLVED.adlaw["jade-wash"].hex).toBe(mixHex("#14CC90", "#FFFFFF", 0.14));
     expect(RESOLVED.adlaw["jade-wash"].hex).toBe("#DEF8EF");
-    expect(RESOLVED.adlaw["canary-wash"].hex).toBe("#FFF2DF");
+    // Round 2: a held row has no cream wash on Hayag; the amber rule carries the hold.
+    expect(RESOLVED.adlaw["canary-wash"].hex).toBe("#FFFFFF");
     expect(RESOLVED.adlaw["pencil-wash"].hex).toBe("#EDEFF1");
     expect(RESOLVED.adlaw["pod-wash"].hex).toBe("#F1EEFC");
     for (const theme of THEMES) {
@@ -69,12 +71,36 @@ describe("colour source", () => {
 
   it("keeps v2's contrast fixes (decision.md §3)", () => {
     expect(RESOLVED.adlaw["steel-line"].hex).toBe("#7E8898");
-    expect(RESOLVED.adlaw["canary-border"].hex).toBe("#B56A00");
+    // Round 2: one amber for holds (the dot, the arc, the 3 px rule), no darker brownish edge.
+    expect(RESOLVED.adlaw["canary-border"].hex).toBe("#FFA41B");
     expect(RESOLVED.adlaw.pod.hex).toBe("#4A2FD6");
     expect(RESOLVED.adlaw.canary.hex).toBe("#FFA41B");
     expect(RESOLVED.adlaw["ink-3"].hex).toBe("#5A6476");
     expect(RESOLVED.tablea["ink-3"].hex).toBe("#8E98AE");
     expect(RESOLVED.adlaw["rule-strong"].hex).toBe("#CBD2DC");
+  });
+
+  it("has no brown: amber is one bright token, never text, and hold copy is ink (UI gate round 2)", () => {
+    for (const theme of THEMES) {
+      for (const name of COLOUR_NAMES) {
+        const [l, c, h] = RESOLVED[theme][name].oklch;
+        // A warm hue (orange to olive) that is dark and saturated reads brown on screen.
+        const brown = c > 0.04 && h > 40 && h < 100 && l < 0.7;
+        expect(brown, `${theme} ${name} (L ${l.toFixed(2)}, C ${c.toFixed(3)}, h ${h.toFixed(1)})`).toBe(
+          false,
+        );
+      }
+    }
+    expect(RESOLVED.adlaw["canary-text"].hex).toBe(RESOLVED.adlaw.ink.hex);
+    expect(RESOLVED.adlaw["canary-border"].hex).toBe(RESOLVED.adlaw.canary.hex);
+  });
+
+  it("no green button: the money slab wears the indigo primary face in both themes (UI gate round 2)", () => {
+    for (const theme of THEMES) {
+      expect(RESOLVED[theme]["slab-jade-face"].hex).toBe(RESOLVED[theme]["slab-chalk-face"].hex);
+      expect(RESOLVED[theme]["slab-jade-label"].hex).toBe(RESOLVED[theme]["slab-chalk-label"].hex);
+      expect(RESOLVED[theme]["slab-jade-face"].hex).not.toBe(RESOLVED[theme].jade.hex);
+    }
   });
 
   it("has no brown: every surface, rule and material is cool (hue 230 to 290) or neutral", () => {
@@ -101,8 +127,17 @@ describe("colour source", () => {
     }
   });
 
-  it("keeps saturated indigo for a person's hand only: pod and the chalk slab", () => {
-    const hand = new Set<string>(["pod", "slab-chalk-face", "slab-chalk-right", "slab-chalk-bottom"]);
+  it("keeps saturated indigo for a person's hand only: pod and the one primary face (both slabs)", () => {
+    // Round 2: the money slab is the same flat indigo primary as every decision (a person's hand presses it).
+    const hand = new Set<string>([
+      "pod",
+      "slab-chalk-face",
+      "slab-chalk-right",
+      "slab-chalk-bottom",
+      "slab-jade-face",
+      "slab-jade-right",
+      "slab-jade-bottom",
+    ]);
     for (const theme of THEMES) {
       for (const name of COLOUR_NAMES) {
         const [, c, h] = RESOLVED[theme][name].oklch;
@@ -124,6 +159,10 @@ describe("colour source", () => {
       "adlaw slab-chalk-right", // #3722B0, 0.087 from #003087
       "adlaw slab-chalk-bottom", // #29188A, 0.054 from #003087
       "tablea slab-chalk-bottom", // #2E1E94, 0.055 from #003087
+      // Round 2: the money slab shares the indigo primary's shades.
+      "adlaw slab-jade-right",
+      "adlaw slab-jade-bottom",
+      "tablea slab-jade-bottom",
     ]);
     const near: string[] = [];
     for (const theme of THEMES) {
@@ -163,22 +202,44 @@ describe("type, space and layout", () => {
       expect(TYPE_ROLES[role].numerals, role).toBe("proportional");
     }
     expect(TYPE_ROLES.figure.numerals).toBe("tabular");
+    expect(TYPE_ROLES.micro.numerals).toBe("tabular");
     expect(TYPE_ROLES.hash.numerals).toBe("hash");
   });
 
+  it("one numeral voice: every money hero, figure, micro label and hash is FS Sans 87.5 at 500 (round 2)", () => {
+    for (const role of ["amount-hero", "amount-l", "figure", "micro", "hash"] as const) {
+      expect(TYPE_ROLES[role], role).toMatchObject({ family: "ui", stretch: 87.5, weight: 500 });
+      expect(TYPE_ROLES[role].native, role).toBe("FSSans-SemiCondMedium");
+    }
+  });
+
+  it("three type voices at most: FS Sans, Atkinson for statements, the stencil for one mark; no outline face", () => {
+    const families = new Set(Object.values(TYPE_ROLES).map((r) => r.family));
+    expect([...families].sort()).toEqual(["mark", "statement", "ui"]);
+    expect(FONT_STACKS.hollow).toBe(FONT_STACKS.ui);
+  });
+
+  it("money is never bold, and only headers, buttons, statement status, stamps and the mark reach 600", () => {
+    for (const [name, role] of Object.entries(TYPE_ROLES)) {
+      if (name.startsWith("amount")) expect(role.weight, name).toBeLessThanOrEqual(500);
+      const heavy = ["display", "slab", "stamp", "mark", "statement-status"].includes(name);
+      if (!heavy) expect(role.weight, name).toBeLessThan(600);
+    }
+  });
+
   it("adds the v2 roles: display, lede and statement-status (decision.md §7)", () => {
-    expect(TYPE_ROLES.display).toMatchObject({ stretch: 112.5, weight: 690, size: 40, line: 43 });
-    expect(TYPE_ROLES.lede).toMatchObject({ stretch: 100, weight: 450, size: 16, line: 23 });
+    expect(TYPE_ROLES.display).toMatchObject({ stretch: 112.5, weight: 600, size: 40, line: 44 });
+    expect(TYPE_ROLES.lede).toMatchObject({ stretch: 100, weight: 430, size: 16, line: 24 });
     expect(TYPE_ROLES["statement-status"]).toMatchObject({
       family: "statement",
       weight: 700,
       size: 18,
       line: 22,
     });
-    expect(TYPE_ROLES["title-1"]).toMatchObject({ stretch: 112.5, weight: 680, size: 26, line: 30 });
-    expect(TYPE_ROLES["title-2"]).toMatchObject({ stretch: 112.5, weight: 680, size: 21, line: 26 });
-    expect(TYPE_ROLES.figure.weight).toBe(520);
-    expect(TYPE_ROLES.label.weight).toBe(600);
+    expect(TYPE_ROLES["title-1"]).toMatchObject({ stretch: 100, weight: 560, size: 26, line: 32 });
+    expect(TYPE_ROLES["title-2"]).toMatchObject({ stretch: 100, weight: 560, size: 20, line: 24 });
+    expect(TYPE_ROLES.figure.weight).toBe(500);
+    expect(TYPE_ROLES.label.weight).toBe(520);
     expect(TYPE_ROLES.caption).toMatchObject({ weight: 500, size: 12 });
   });
 
@@ -200,9 +261,9 @@ describe("type, space and layout", () => {
     for (const [, role] of others) expect(role.family).not.toBe("mark");
   });
 
-  it("uses the 4-based space scale and v2's radii (0, 2, cell 6, control 10, card 14, panel 22, pill)", () => {
+  it("uses the 4-based space scale and one radius scale (0, 2, cell 6, control 12, card 16, panel 24, pill)", () => {
     expect([...SPACE]).toEqual([2, 4, 8, 12, 16, 24, 32, 48, 64, 96]);
-    expect(RADII).toEqual({ 0: 0, 2: 2, cell: 6, control: 10, card: 14, panel: 22, pill: 999 });
+    expect(RADII).toEqual({ 0: 0, 2: 2, cell: 6, control: 12, card: 16, panel: 24, pill: 999 });
   });
 
   it("has e1 to e3, paper and the halo in both themes, one wash each, and no noise (decision.md §8)", () => {
