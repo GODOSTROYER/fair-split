@@ -186,7 +186,7 @@ export const STATE_COPY = {
   /** The same line as the money card shows it: counts only, the card's tag names the rail. */
   liveShort: (p: ProgressFacts, settled: boolean) =>
     [
-      `${settled ? "" : "Waiting · "}${p.confirmed} of ${p.total} PayPal confirmed`,
+      `${settled ? "" : "Waiting · "}${p.confirmed} of ${p.total} PayPal payouts confirmed`,
       p.returned > 0 ? `${p.returned} moved to cash` : null,
       p.parked > 0 ? `${p.parked} parked` : null,
     ]

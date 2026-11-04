@@ -76,7 +76,7 @@ export function ProofHero({
     ? ""
     : rail === "simulator"
       ? " in a simulated PayPal sandbox"
-      : " in PayPal’s own sandbox";
+      : " in PayPal’s own sandbox, a path not yet tested in this build";
   return (
     <section className="pf-hero" aria-labelledby="W-PF-01-title" data-testid="W-PF-01.hero">
       <header className="pf-head">

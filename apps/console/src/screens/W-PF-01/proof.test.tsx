@@ -311,7 +311,7 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     // The money card: counts in view, the whole sentence for a screen reader.
     const progress = screen.getByTestId("W-PF-01.progress");
     expect(progress.querySelector("[aria-hidden]")?.textContent).toBe(
-      "7 of 8 PayPal confirmed · 1 moved to cash",
+      "7 of 8 PayPal payouts confirmed · 1 moved to cash",
     );
     expect(progress.textContent).toContain("7 of 8 PayPal payouts confirmed in the simulated sandbox.");
     // The fine print: one legal line in view, the rest behind Details as a key and value list.
