@@ -47,7 +47,7 @@ import { StageDirector } from "./director.js";
 import { phoneSizeFor, useStageLayout, useViewportHeight } from "./layout.js";
 import { PhoneDock, phoneLaneWords, type RaisedBy } from "./PhoneDock.js";
 import { PhoneVisit } from "./PhoneVisit.js";
-import { HERO_MEMBER } from "./personas.js";
+import { heroPaymentLanded } from "./personas.js";
 import { useStageBridge } from "./useStageBridge.js";
 
 const SEASON_FALLBACK = "2026-A";
@@ -206,10 +206,11 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     lastStep.current = next.id;
   }, [next, raisePhone]);
 
-  // When M-014's payment lands, the phone rises for MM-1 (S1.6). History never raises it.
+  // When M-014's payment lands in this run, the phone rises for MM-1 (S1.6). History never raises it, and neither
+  // does a replayed SUCCESS: it is the earlier run's, never this one's landing.
   useRunEvents(inSession ? runSlug : null, (event, meta) => {
-    if (meta.replay || event.type !== "item.updated") return;
-    if (event.payload.memberNo === HERO_MEMBER && event.payload.to === "SUCCESS") raisePhone("member");
+    if (meta.replay) return;
+    if (heroPaymentLanded(event)) raisePhone("member");
   });
 
   const prefs = useMemo<FramePrefs>(

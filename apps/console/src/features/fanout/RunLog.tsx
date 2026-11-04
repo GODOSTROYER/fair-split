@@ -20,12 +20,19 @@ export interface RunLogProps {
 
 export function RunLog({ rows, isLive, seeded }: RunLogProps) {
   const lanes = byLane(rows);
+  // A replayed payout's long note is the log's, said once here; each replayed row names only what it replayed.
+  const replayNote = rows.find((row) => row.replayNote)?.replayNote ?? null;
   return (
     <section className="fsr-log" data-testid="W-TR-08.log">
       <h2 id="W-TR-08-log" className="fs-t-title-2">
         {FANOUT.log}
       </h2>
       {seeded && <p className="fsr-log__note fs-t-caption">{FANOUT.seededLog}</p>}
+      {replayNote && (
+        <p className="fsr-log__note fs-t-caption" data-testid="W-TR-08.log.replayNote">
+          {replayNote}
+        </p>
+      )}
       <div className="fsr-log__lanes">
         {LANES.map((lane) => (
           <section key={lane} className="fsr-log__lane" data-lane={lane} data-testid={`W-TR-08.lane.${lane}`}>

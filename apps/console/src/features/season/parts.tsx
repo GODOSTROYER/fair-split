@@ -71,10 +71,13 @@ const STRIP_KEYS = {
 export function RunStrip({
   stages,
   ratifiedOn,
+  replayed = false,
   testId,
 }: {
   readonly stages: readonly StripStage[];
   readonly ratifiedOn: string;
+  /** The run's payout statuses are a labelled replay: its last stage reads "Replayed", never "Paid". */
+  readonly replayed?: boolean;
   readonly testId: string;
 }) {
   const t = useT();
@@ -86,7 +89,11 @@ export function RunStrip({
         const state = stage.lit ? "lit" : stage.id === current ? "current" : "unlit";
         // The word alone in the stencil; the ratification date prints beneath it, by the bolt.
         const word =
-          stage.id === "RATIFIED" ? t(STRIP_KEYS.RATIFIED, { date: "" }).trim() : t(STRIP_KEYS[stage.id]);
+          stage.id === "RATIFIED"
+            ? t(STRIP_KEYS.RATIFIED, { date: "" }).trim()
+            : stage.id === "PAID" && replayed
+              ? SEASON_COPY.stripReplayed
+              : t(STRIP_KEYS[stage.id]);
         const landed = stage.lit && stage.id === "FUNDED";
         return (
           <li

@@ -1,4 +1,4 @@
-import { payoutReplayed } from "../../data/payout-replay.js";
+import { payoutReplayed, payoutStatus } from "../../data/payout-replay.js";
 // W-TR-08 Run (S1.7, design §6 C8): the split fan on top (MM-6, "Honest fan-out"), the three-lane run log and
 // the latency dots beneath. PayPal's 201 draws eight graphite threads to 70%: sent, not paid. Each verified
 // SUCCESS finishes its thread and floods its stub jade, one scale note each, landings at least 250 ms apart.
@@ -96,6 +96,7 @@ export function Screen({ runSlug }: RunScreenProps) {
 
   const live = useLiveEvents(data.live ? runSlug : null, (event) => {
     if (event.type === "item.updated") {
+      if (payoutStatus({ itemStatus: event.payload.to, provenance: event.provenance }).replayed) return;
       const p = event.payload;
       const evidence = { eventId: event.id, kind: "sse" as const };
       if (p.to === "PENDING" && p.source === "post_response") {
@@ -276,7 +277,6 @@ export function Screen({ runSlug }: RunScreenProps) {
                   drawing={drawing}
                   mode={moment.mode}
                   cashDay={cashDay}
-                  replayed={replayed}
                 />
               }
               table={
@@ -296,14 +296,7 @@ export function Screen({ runSlug }: RunScreenProps) {
                         member: `${t.name} (${t.memberNo})`,
                         rail: t.tone === "moved" ? FANOUT.railCash : "Simulated PayPal sandbox",
                         amount: format.money(t.cents),
-                        status:
-                          replayed && t.tone !== "moved"
-                            ? "Replayed (labelled)"
-                            : view.lines[t.memberNo]
-                              ? en(`console.status.${view.lines[t.memberNo]?.state ?? "READY"}`)
-                              : t.tone === "unsent"
-                                ? en("console.status.READY")
-                                : FANOUT.statusWaiting,
+                        status: t.statusWord,
                       },
                     })),
                     {
@@ -321,7 +314,7 @@ export function Screen({ runSlug }: RunScreenProps) {
             />
             <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
               {replayed
-                ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).confirmed} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
+                ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).replayedSuccessful} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
                 : FANOUT.shareCounts(shareCounts(fan))}{" "}
               <span className="fsr-muted">{FANOUT.shareValue(fan.paypal.share)}</span>
             </p>

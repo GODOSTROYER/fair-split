@@ -129,22 +129,50 @@ describe("the stage's notice strip (S1.6 states)", () => {
   });
 });
 
-it.each(["hourly_cap", "daily_cap", "session_cap", "public_share", "lane_full"] as const)(
-  "labels quota replay %s with console-owned copy",
-  (replayReason) => {
-    const notice = stageNoticeFor({
+it.each([
+  ["kill_switch", "Simulated PayPal calls are switched off for this session."],
+  ["simulator_not_running", "The simulated PayPal sandbox is unavailable."],
+  ["balance_unknown", "The simulated PayPal balance is not available."],
+  ["hourly_cap", "This hour's simulated payout allowance is used."],
+  ["daily_cap", "Today's simulated payout allowance is used."],
+  ["session_cap", "This session's simulated payout allowance is used."],
+  ["public_share", "The public simulated payout allowance is used."],
+  ["lane_full", "The simulated payout lane is occupied."],
+  ["circuit_open", "The simulated PayPal rate limit paused calls."],
+  ["balance_low", "The simulated PayPal balance is too low."],
+] as const)("inv.i8.labels replay %s with the complete reason", (replayReason, reason) => {
+  const forecast = `This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox). ${reason}`;
+  // Autoplay keeps the complete reason even for reasons with a dedicated manual notice.
+  const notice = stageNoticeFor({
+    session: active,
+    view: undefined,
+    autoplay: "autoplay",
+    inSession: true,
+    replayReason,
+  });
+  expect(notice?.text).toBe(`Autoplay is driving. Any key or click hands it back to you. ${forecast}`);
+  expect(notice?.text).not.toMatch(/live payouts/i);
+});
+
+it("inv.i8.manual balance and switched-off notices state what happens to this run", () => {
+  expect(
+    stageNoticeFor({
       session: active,
       view: undefined,
       autoplay: "off",
       inSession: true,
-      replayReason,
-    });
-    expect(notice?.text).toContain(
-      "This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox).",
-    );
-    expect(notice?.state).toBe("replay");
-  },
-);
+      replayReason: "balance_low",
+    })?.text,
+  ).toBe("The simulated PayPal balance is low. This run's payouts replay, labelled, until it's topped up.");
+  expect(
+    stageNoticeFor({
+      session: active,
+      view: { ...flags({ kill_paypal_live: true }), state: "SETTLED", items: {} } as RunView,
+      autoplay: "off",
+      inSession: true,
+    })?.text,
+  ).toBe("Simulated PayPal calls are off. This run's payout steps wait; nothing is replayed for them.");
+});
 
 it.each(["autoplay", "paused"] as const)("keeps the quota replay label visible during %s", (autoplay) => {
   expect(

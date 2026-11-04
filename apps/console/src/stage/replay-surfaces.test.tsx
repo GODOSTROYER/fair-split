@@ -1,7 +1,6 @@
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { webRoutes } from "@fairsplit/contracts";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { getResponse, HttpResponse, http } from "msw";
 import { expect, it } from "vitest";
 import { nextStep } from "../chrome/next-step.js";
 import { applyRunEvent, emptyRunView, type RunView } from "../data/run-view.js";
@@ -9,6 +8,7 @@ import { BrandHeader } from "../features/brand/BrandHeader.js";
 import { FIGURE_COPY } from "../features/proof/copy.js";
 import { countItems } from "../features/proof/model.js";
 import { APPROVE } from "../features/split/shared/copy.js";
+import { hourlyCapSession } from "../test/quota.js";
 import { renderConsole } from "../test/render.js";
 import { createTestWorld } from "../test/world.js";
 import { FramePoster } from "./FramePoster.js";
@@ -63,6 +63,9 @@ it.each(["replay", "simulated_rail"] as const)(
     if (provenance === "replay") {
       expect(poster.textContent).toMatch(/replay/i);
       expect(personaStatus("member", view)).toMatch(/replay/i);
+      expect(poster.querySelector('[data-state="paid"]')).toBeNull();
+      expect(poster.querySelector('.fs-amount[data-state="hollow"]')).not.toBeNull();
+      expect(poster.querySelector(".fs-capsule")?.getAttribute("lang")).toBe("en");
     } else {
       expect(poster.textContent).not.toMatch(/replay/i);
       expect(personaStatus("member", view)).not.toMatch(/replay/i);
@@ -117,18 +120,14 @@ it("inv.i8.remaining retry and due copy names the simulated rail", () => {
 it("inv.i8.posted live Stage and Proof keep confirmations when the session quota is hourly_cap", async () => {
   const world = createTestWorld();
   let quotaReads = 0;
-  const quota = http.get("*/v1/judge/session", async ({ request }) => {
-    const response = await getResponse([...world.mock.handlers], request);
-    const body = (await response?.json()) as Record<string, unknown>;
-    quotaReads++;
-    return HttpResponse.json({
-      ...body,
-      runState: "NEEDS_FOLLOW_UP",
-      rail: { mode: "replay", reason: "hourly_cap", label: "Replay: this hour is full" },
-    });
-  });
+  const quota = hourlyCapSession(world, { runState: "INVOICED", onRead: () => quotaReads++ });
   const rendered = await renderConsole({ path: webRoutes.fanout(RUN), world, handlers: [quota] });
   await rendered.startSession();
+  await waitFor(() =>
+    expect(screen.getByTestId("W-JG-01.notice.state").textContent).toContain(
+      "This run’s PayPal payouts will replay",
+    ),
+  );
   act(() => {
     world.markPaid();
     world.resolveAll();
@@ -142,6 +141,7 @@ it("inv.i8.posted live Stage and Proof keep confirmations when the session quota
   );
   await waitFor(() => expect(quotaReads).toBeGreaterThan(0));
   expect(screen.getByTestId("W-TR-08.share").textContent).not.toMatch(/replay/i);
+  expect(screen.getByTestId("W-TR-08.table").textContent).not.toMatch(/replay/i);
   expect(screen.queryByTestId("W-JG-01.notice.state")).toBeNull();
   await rendered.navigate(webRoutes.proof(RUN));
   await waitFor(() =>
@@ -152,3 +152,18 @@ it("inv.i8.posted live Stage and Proof keep confirmations when the session quota
   expect(screen.getByTestId("W-PF-01.progress").textContent).not.toMatch(/replay/i);
   expect(screen.getByTestId("W-PF-01.footer").textContent).not.toMatch(/replay/i);
 }, 30000);
+
+it("inv.i8.Stage receives posted session state while history is still pre-POST", async () => {
+  const world = createTestWorld();
+  const quota = hourlyCapSession(world, { runState: "SETTLED" });
+  const rendered = await renderConsole({ path: "/judge", world, handlers: [quota] });
+  await rendered.startSession();
+  await waitFor(() =>
+    expect(
+      rendered.runtime.client
+        .getQueriesData({ queryKey: ["judge-session-status"] })
+        .find(([, data]) => data !== undefined)?.[1],
+    ).toBeDefined(),
+  );
+  expect(screen.queryByTestId("W-JG-01.notice.state")).toBeNull();
+});

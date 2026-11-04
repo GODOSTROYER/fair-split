@@ -36,6 +36,15 @@ const SLOW = 120_000;
 const WAIT = { timeout: 8_000 };
 const stateOf = () => screen.queryByTestId("W-TR-09")?.dataset.state;
 
+it("inv.i8.keeps print in the current runtime instead of opening an unauthenticated tab", async () => {
+  await renderConsole({ path: webRoutes.memberLine(RUN, "M-014") });
+  const print = await screen.findByTestId("W-TR-09.print");
+  expect(print.getAttribute("target")).not.toBe("_blank");
+  fireEvent.click(print);
+  const paper = await screen.findByTestId("W-TR-09.paper");
+  expect(paper.textContent).toContain("Paid through the simulated PayPal sandbox");
+});
+
 describe("W-TR-09 member line", () => {
   it.each(["Escape", "Close", "the scrim"] as const)(
     "closing by %s hands focus to M-014's cell in the commit that removes the drawer, never <body>",
@@ -94,7 +103,11 @@ describe("W-TR-09 member line", () => {
       );
       expect(screen.getByTestId("W-TR-09.sms.count").textContent).toMatch(/characters, GSM-7/);
       fireEvent.click(screen.getByTestId("W-TR-09.sms.en"));
-      expect(screen.getByTestId("W-TR-09.sms.text").textContent).toMatch(/Mrs\. Bacus, Paid: US\$64\.45/);
+      // The bare word; the frame names the rail once; one message (S1.11: 160 characters at most).
+      expect(screen.getByTestId("W-TR-09.sms.text").textContent).toMatch(
+        /Mrs\. Bacus, Paid: US\$64\.45 .* through the simulated PayPal sandbox\./,
+      );
+      expect(screen.getByTestId("W-TR-09.sms.count").textContent).not.toMatch(/messages/);
       expect(screen.getByTestId("W-TR-09.print").getAttribute("href")).toBe(
         webRoutes.memberPrint(RUN, "M-014"),
       );
@@ -196,7 +209,7 @@ describe("W-TR-09 80 mm statement", () => {
       await renderConsole({ path: webRoutes.memberPrint(RUN, "M-014"), viewport: { width: 1280 } });
       await waitFor(() => expect(stateOf()).toBe("paid"), WAIT);
       expect(screen.getByTestId("W-TR-09.print.amount").textContent).toMatch(
-        /US\$64\.45about ₱4,028 \(estimate\)Paid by PayPal/,
+        /US\$64\.45about ₱4,028 \(estimate\)Paid through the simulated PayPal sandbox/,
       );
       expect(screen.getByTestId("W-TR-09.paper").textContent).not.toMatch(/Nadawat/);
     },

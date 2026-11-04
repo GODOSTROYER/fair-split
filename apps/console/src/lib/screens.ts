@@ -87,7 +87,7 @@ export const SCREEN_STATES = {
     "killed",
   ],
   "W-TR-08": ["waiting", "parked", "denied", "done"],
-  "W-TR-09": ["held", "ready", "paid", "cash-due", "cash-received", "parked", "request-open"],
+  "W-TR-09": ["held", "ready", "paid", "replay", "cash-due", "cash-received", "parked", "request-open"],
   "W-TR-10": ["closed", "open"],
   "W-PF-01": ["none", "progress", "verified", "failed"],
   "W-BR-01": ["unpaid", "progress", "mismatch"],

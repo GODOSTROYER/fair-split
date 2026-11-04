@@ -1,3 +1,4 @@
+import { payoutStatus } from "../../data/payout-replay.js";
 // The showcase run (r37) has no event stream: it is the seed's end state. Its log is rebuilt from the snapshot
 // and every row is labelled seeded, so nothing on screen claims a notice arrived that did not (I8).
 
@@ -61,7 +62,7 @@ export function seededLog(snapshot: SeasonSnapshot, ctx: DescribeContext): LogRo
       row({
         id: `seed-item-${item.memberNo}`,
         lane: "PAYPAL",
-        words: `Paid ${name} ${format.money(item.amountCents)}`,
+        words: `${payoutStatus({ itemStatus: item.status }).statusWord}: ${name} ${format.money(item.amountCents)}`,
         detail: `PAYMENT.PAYOUTS-ITEM.SUCCEEDED, ${ref}, ${SEEDED}`,
         at: null,
         type: "item.updated",

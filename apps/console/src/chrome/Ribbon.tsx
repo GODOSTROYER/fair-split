@@ -13,6 +13,7 @@ import { Glyph, useT } from "@fairsplit/ui-web";
 import { useMemo, useState } from "react";
 import { describeEvent, type LogRow, latestByLane, rowTime } from "../data/describe.js";
 import { useDescribeContext, usePaypalRail, useRunEvents } from "../data/hooks.js";
+import { payoutStatus } from "../data/payout-replay.js";
 import type { RunView } from "../data/run-view.js";
 import { env } from "../lib/env.js";
 import { PHONE_LANE, STAGE } from "./copy.js";
@@ -51,7 +52,10 @@ const LIVE_MEMORY = 64;
 function landed(row: LogRow | null, events: readonly RunEvent[]): boolean {
   if (row?.lane !== "PAYPAL" || row.type !== "item.updated") return false;
   const event = events.find((e) => e.id === row.id);
-  return event?.type === "item.updated" && event.provenance !== "replay" && event.payload.to === "SUCCESS";
+  return (
+    event?.type === "item.updated" &&
+    payoutStatus({ itemStatus: event.payload.to, provenance: event.provenance }).amountState === "landed"
+  );
 }
 
 export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
@@ -117,7 +121,11 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
                 data-print={live.includes(row.id) ? "" : undefined}
               >
                 <p className="fsc-ribbon__words fs-t-label">{row.words}</p>
-                {row.detail ? <p className="fsc-ribbon__detail fs-t-caption">{row.detail}</p> : null}
+                {row.detail || row.replayNote ? (
+                  <p className="fsc-ribbon__detail fs-t-caption">
+                    {[row.detail, row.replayNote].filter(Boolean).join(", ")}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <p className="fsc-ribbon__empty fs-t-caption">{STAGE.ribbonEmpty}</p>

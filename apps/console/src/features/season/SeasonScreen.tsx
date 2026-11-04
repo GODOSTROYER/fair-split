@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { usePaypalRail, useStageRun } from "../../data/hooks.js";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import { env } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { useNextStep } from "../../stage/context.js";
@@ -110,6 +111,7 @@ function Season() {
       <RunStrip
         stages={stripStages(view, snapshot)}
         ratifiedOn={snapshot.rateCard.canonical.ratifiedOn}
+        replayed={payoutReplayed(view)}
         testId="W-TR-01.strip"
       />
 

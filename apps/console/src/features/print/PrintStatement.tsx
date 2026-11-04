@@ -4,7 +4,9 @@
 // shadow on the daylight ground; `@page { size: 80mm auto }` prints it edge to edge.
 
 import type { SeasonSnapshot, SnapshotMember } from "@fairsplit/contracts";
+import { translate } from "@fairsplit/i18n";
 import { Seal } from "@fairsplit/ui-web";
+import { payoutStatus } from "../../data/payout-replay.js";
 import type { RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
 import { batchHashOf, senderBatchIdFor } from "../approve/model.js";
@@ -23,6 +25,16 @@ export interface PrintStatementProps {
 export function PrintStatement({ snapshot, view, member, row, state }: PrintStatementProps) {
   const fx = snapshot.fx.centavosPerCent;
   const cash = isCashLine(row);
+  // The member's paper speaks her words ("Not received through PayPal"), never the console's ("Parked"). A locked
+  // PayPal line reads as she would see it, sent and waiting for the simulated PayPal sandbox, labelled as such.
+  const payout = payoutStatus({
+    state: row.state === "LOCKED" ? "SUBMITTED" : row.state,
+    view,
+    memberNo: row.memberNo,
+    paypal: !cash,
+    replayed: row.replayed,
+    statusWord: translate("en", `status.${row.state}`),
+  });
   const held = state === "held";
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER")?.shortName ?? "";
   const batch = batchHashOf(view, null) ?? (view.origin === "showcase" ? snapshot.run.batchSha256 : null);
@@ -66,7 +78,11 @@ export function PrintStatement({ snapshot, view, member, row, state }: PrintStat
             <p className="fsr-paper80__big">{format.money(row.netCents)}</p>
             <p className="fsr-paper80__small">{format.pesoEstimate(row.netCents, fx, "en")}</p>
             <p className="fsr-paper80__small">
-              {row.state === "PAID" ? LINE.printPaypal : LINE.printPaypalWaiting}
+              {payout.replayed
+                ? `${payout.statusWord}. ${payout.detail}`
+                : row.state === "PAID"
+                  ? LINE.printPaypal
+                  : payout.statusWord}
             </p>
           </>
         )}

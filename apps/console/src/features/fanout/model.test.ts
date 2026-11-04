@@ -115,7 +115,7 @@ describe("the fan's geometry: width is money", () => {
 });
 
 describe("each thread follows the item's actual status", () => {
-  it("graphite to 70% when sent, jade only on SUCCESS, a canary cap when parked, red for a PayPal failure", () => {
+  it("graphite to 70% when sent, jade only on SUCCESS, a canary cap when parked, red for a PayPal failure, our return neutral", () => {
     expect(threadTone(null, undefined, undefined)).toBe("unsent");
     expect(threadTone("PENDING", undefined, undefined)).toBe("sent");
     expect(threadTone("SUCCESS", undefined, undefined)).toBe("landed");
@@ -125,7 +125,8 @@ describe("each thread follows the item's actual status", () => {
     const ours = { source: "cancel" } as Parameters<typeof threadTone>[1];
     expect(threadTone("RETURNED", ours, "OFF_RAIL_DUE")).toBe("moved");
     const theirs = { source: "webhook" } as Parameters<typeof threadTone>[1];
-    expect(threadTone("RETURNED", theirs, "RETURNED")).toBe("moved");
+    // RETURNED is our own cancel (register §7): a neutral return until the cash decision moves the line.
+    expect(threadTone("RETURNED", theirs, "RETURNED")).toBe("returned");
     expect(threadTone("RETURNED", theirs, "NEEDS_ACTION")).toBe("failed");
   });
 

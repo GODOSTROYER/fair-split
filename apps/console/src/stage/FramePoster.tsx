@@ -8,6 +8,7 @@ import { translate } from "@fairsplit/i18n";
 import { AmountDisplay, type CapsuleState, Glyph, Seal, StatusCapsule } from "@fairsplit/ui-web";
 import { POSTER, STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
+import { payoutStatus } from "../data/payout-replay.js";
 import { atLeast, type RunView } from "../data/run-view.js";
 import { batchHashOf, sealKeys } from "../features/approve/model.js";
 import { format } from "../lib/format.js";
@@ -59,7 +60,8 @@ function MemberPoster({
 }) {
   const member = snapshot?.members.find((m) => m.memberNo === HERO_MEMBER);
   const state = view?.lines[HERO_MEMBER]?.state ?? "COMPUTED";
-  const capsule: CapsuleState = CAPSULE[state] ?? "checking";
+  const payout = payoutStatus({ state, view, memberNo: HERO_MEMBER });
+  const capsule: CapsuleState = payout.replayed ? "sent" : (CAPSULE[state] ?? "checking");
   const line = snapshot?.checkpoints.resolved.lines.find((l) => l.memberNo === HERO_MEMBER);
   const showAmount = capsule === "sent" || capsule === "paid" || capsule === "unclaimed";
   return (
@@ -83,7 +85,7 @@ function MemberPoster({
       <StatusCapsule
         state={capsule}
         text={personaStatus("member", view) ?? MEMBER_LINE_LABELS[state].ceb}
-        lang="ceb"
+        lang={payout.replayed ? "en" : "ceb"}
       />
       <p className="fsc-poster__chip fs-t-caption" lang="en">
         <Glyph name="ms:translate" size={14} />

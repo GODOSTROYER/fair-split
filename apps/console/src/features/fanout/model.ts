@@ -2,11 +2,13 @@
 // and 56 dashed cash lines) and the run's honest state, as pure functions of the IC-03 snapshot and the live
 // RunView. Width is money: one linear scale, k = 276 / Σ net px per cent, so every line leaves the bar as wide as
 // its payment. A thread's look follows the item's actual PayPal status, never a test value: graphite to 70% when
-// sent, jade only on a verified SUCCESS, a canary cap for UNCLAIMED (a decision, never red), red only for a
-// PayPal failure, retracted once moved to cash, when its own dashed cash line leaves from the same slot.
+// sent, jade only on a verified SUCCESS of this run (a replayed one stays graphite), a canary cap for UNCLAIMED (a
+// decision, never red), red only for a PayPal failure, neutral for our own return, retracted once moved to cash,
+// when its own dashed cash line leaves from the same slot.
 
 import type { MemberLineState, PayoutItemStatus, SeasonSnapshot } from "@fairsplit/contracts";
 import type { LogRow } from "../../data/describe.js";
+import { currentPayoutItem, payoutStatus } from "../../data/payout-replay.js";
 import { atLeast, type RunItem, type RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
 import { engineOutput, splitBasis } from "../split/model.js";
@@ -45,7 +47,7 @@ export const CASH_DASHARRAY = `${FAN.dash.on} ${FAN.dash.off}`;
 const DASH_PERIOD = FAN.dash.on + FAN.dash.off;
 const GOLDEN = 0.618_033_988_75;
 
-export type ThreadTone = "unsent" | "sent" | "landed" | "parked" | "failed" | "moved";
+export type ThreadTone = "unsent" | "sent" | "landed" | "parked" | "returned" | "failed" | "moved";
 
 export interface FanThread {
   readonly senderItemId: string;
@@ -53,6 +55,8 @@ export interface FanThread {
   readonly name: string;
   readonly cents: number;
   readonly status: PayoutItemStatus | null;
+  readonly replayed: boolean;
+  readonly statusWord: string;
   readonly tone: ThreadTone;
   /** How much of the path is drawn: 0, the 70% "sent" mark, or 1 once PayPal confirmed it. */
   readonly progress: number;
@@ -112,16 +116,11 @@ export interface FanView {
   readonly sealHash: string;
 }
 
-const MOVED_LINE_STATES: readonly MemberLineState[] = [
-  "RETURNED",
-  "OFF_RAIL_DUE",
-  "OFF_RAIL_PAID",
-  "REROUTED",
-];
+const MOVED_LINE_STATES: readonly MemberLineState[] = ["OFF_RAIL_DUE", "OFF_RAIL_PAID", "REROUTED"];
 
 export function threadTone(
   status: PayoutItemStatus | null,
-  item: RunItem | undefined,
+  _item: RunItem | undefined,
   lineState: MemberLineState | undefined,
 ): ThreadTone {
   if (status === null) return "unsent";
@@ -135,12 +134,10 @@ export function threadTone(
     case "ONHOLD":
       return "parked";
     case "RETURNED":
-      // RETURNED is ours only after our own cancel (register §7): the line moved to cash. Any other is a failure.
-      return item?.source === "cancel" ||
-        item?.source === "seed" ||
-        (lineState && MOVED_LINE_STATES.includes(lineState))
-        ? "moved"
-        : "failed";
+      // RETURNED is our own cancel (register §7): a neutral return, never a PayPal failure, until the separate cash
+      // decision retracts the thread. Only a line that itself needs action draws red.
+      if (lineState && MOVED_LINE_STATES.includes(lineState)) return "moved";
+      return lineState === "NEEDS_ACTION" ? "failed" : "returned";
     case "FAILED":
     case "BLOCKED":
     case "REFUNDED":
@@ -215,7 +212,7 @@ function curve(x0: number, y0: number, x1: number, y1: number): string {
 function batchItems(snapshot: SeasonSnapshot, view: RunView) {
   const seeded = snapshot.run.items;
   return seeded.map((s) => {
-    const live = Object.values(view.items).find((i) => i.memberNo === s.memberNo);
+    const live = currentPayoutItem(view, s.memberNo);
     return {
       memberNo: s.memberNo,
       senderItemId: live?.senderItemId ?? s.senderItemId,
@@ -246,15 +243,31 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
     const y1 = stubY + FAN.stub.h / 2;
     const lineState = view.lines[item.memberNo]?.state;
     const status = item.live?.status ?? null;
-    const tone = threadTone(status, item.live, lineState);
+    const presentation = payoutStatus({
+      ...(status ? { itemStatus: status } : { state: lineState ?? "READY" }),
+      view,
+      memberNo: item.memberNo,
+      senderItemId: item.senderItemId,
+    });
+    // Landed is the helper's word alone: a replayed SUCCESS is the earlier run's, so it never lands here, and
+    // never feeds the resting phase, the latency dots or the paid count.
+    const itemTone = threadTone(status, item.live, lineState);
+    const tone = itemTone === "landed" && presentation.amountState !== "landed" ? "sent" : itemTone;
+    // A current cash decision retracts the old thread, regardless of the source payout's provenance.
+    const replayed = presentation.replayed && tone !== "moved";
     return {
       senderItemId: item.senderItemId,
       memberNo: item.memberNo,
       name: names.get(item.memberNo) ?? item.memberNo,
       cents: item.cents,
       status,
+      replayed,
+      statusWord:
+        tone === "moved"
+          ? payoutStatus({ state: lineState ?? "OFF_RAIL_DUE", paypal: false }).statusWord
+          : presentation.statusWord,
       tone,
-      progress: progressOf(tone),
+      progress: replayed ? FAN.sentAt : progressOf(tone),
       width,
       d: curve(FAN.bar.x1, y0, FAN.endX, y1),
       capAt: pointAtLength(FAN.bar.x1, y0, FAN.endX, y1, FAN.sentAt),
@@ -264,8 +277,15 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
       eventId: item.live?.eventId ?? null,
       at: item.live?.at ?? null,
       source: item.live?.source ?? null,
-      amountState:
-        tone === "landed" ? "landed" : tone === "unsent" ? (approved ? "ink" : "pencil") : "hollow",
+      amountState: replayed
+        ? "hollow"
+        : tone === "landed"
+          ? "landed"
+          : tone === "unsent"
+            ? approved
+              ? "ink"
+              : "pencil"
+            : "hollow",
     };
   });
 
@@ -447,6 +467,8 @@ export function shareCounts(fan: Pick<FanView, "threads" | "cash">): {
   readonly onRail: number;
   readonly sent: number;
   readonly confirmed: number;
+  /** Replayed statuses that were successful in their earlier source run: never confirmed in this one. */
+  readonly replayedSuccessful: number;
   readonly parked: number;
   readonly failed: number;
   readonly cash: number;
@@ -456,6 +478,7 @@ export function shareCounts(fan: Pick<FanView, "threads" | "cash">): {
     onRail: tones.length,
     sent: tones.filter((t) => t !== "unsent").length,
     confirmed: tones.filter((t) => t === "landed").length,
+    replayedSuccessful: fan.threads.filter((t) => t.replayed && t.status === "SUCCESS").length,
     parked: tones.filter((t) => t === "parked").length,
     failed: tones.filter((t) => t === "failed").length,
     cash: fan.cash.members,

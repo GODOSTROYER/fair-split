@@ -1,9 +1,10 @@
 // The phone's three tabs (S1.6): Nang Celing on her statement (M-MB-01, Cebuano, Adlaw), Ernesto on the
 // co-sign request (M-BD-01) and Jessie on the scanner (M-CL-01). Names come from the snapshot.
 
-import { MEMBER_LINE_LABELS, type ScreenId, type SeasonSnapshot } from "@fairsplit/contracts";
+import { MEMBER_LINE_LABELS, type RunEvent, type ScreenId, type SeasonSnapshot } from "@fairsplit/contracts";
 import type { MessageKey } from "@fairsplit/i18n";
 import type { FramePersona } from "../data/adapter.js";
+import { payoutStatus, SIMULATED_PAYOUT_LABEL } from "../data/payout-replay.js";
 import { atLeast, type RunView } from "../data/run-view.js";
 
 /** The hero member the Member tab follows (register §2). */
@@ -33,24 +34,32 @@ export function personaInfo(persona: FramePersona, snapshot: SeasonSnapshot | un
   }
 }
 
-/** The 64 px tab's words: "Nang Celing: Gisusi pa" (member status words are Cebuano, register §7). */
+/**
+ * MM-1's cue (S1.6): M-014's payment landed in this run. The helper decides "landed", so a replayed SUCCESS (the
+ * earlier run's) never raises the phone.
+ */
+export function heroPaymentLanded(event: RunEvent): boolean {
+  return (
+    event.type === "item.updated" &&
+    event.payload.memberNo === HERO_MEMBER &&
+    payoutStatus({ itemStatus: event.payload.to, provenance: event.provenance }).amountState === "landed"
+  );
+}
+
+/**
+ * The 64 px tab's words: "Nang Celing: Gisusi pa" (member status words are Cebuano, register §7). The tab has no
+ * room for a detail line, so a replayed status keeps the rail label beside the item it replayed, like a live one.
+ */
 export function personaStatus(persona: FramePersona, view: RunView | undefined): string | null {
   if (persona === "member") {
     const state = view?.lines[HERO_MEMBER]?.state ?? "COMPUTED";
-    const replayed =
-      Object.values(view?.items ?? {}).some(
-        (item) => item.memberNo === HERO_MEMBER && item.provenance === "replay",
-      ) ||
-      view?.events.some(
-        (event) =>
-          event.type === "item.updated" &&
-          event.payload.memberNo === HERO_MEMBER &&
-          event.provenance === "replay",
-      );
-    if (replayed) return "Replayed (labelled), Simulated PayPal sandbox";
-    return state === "PAID"
-      ? `${MEMBER_LINE_LABELS[state].ceb} (Simulated PayPal sandbox)`
-      : MEMBER_LINE_LABELS[state].ceb;
+    const status = payoutStatus({
+      state,
+      view,
+      memberNo: HERO_MEMBER,
+      statusWord: MEMBER_LINE_LABELS[state].ceb,
+    });
+    return status.replayed ? `${status.statusWord} (${SIMULATED_PAYOUT_LABEL})` : status.statusWord;
   }
   if (
     persona === "chair" &&

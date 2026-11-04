@@ -61,7 +61,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   // A line that did not change keeps its object, so the grid redraws only the lines an event moved.
   const previous = useRef(new Map<string, { readonly key: string; readonly row: SplitRow }>());
   const rows = useMemo(() => {
-    const next = snapshot && view ? splitRows(snapshot, view, replayed) : [];
+    const next = snapshot && view ? splitRows(snapshot, view) : [];
     const kept = new Map<string, { readonly key: string; readonly row: SplitRow }>();
     const out = next.map((row) => {
       const key = JSON.stringify(row);

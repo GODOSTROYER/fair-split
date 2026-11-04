@@ -137,6 +137,6 @@ describe("a cell in the wave", () => {
     expect(container.querySelector<HTMLElement>(".fsr-cell__wash")?.dataset.cause).toBe("paypal");
     const status = container.querySelector<HTMLElement>("[data-testid='W-TR-05.status.M-014']");
     expect(status?.dataset.tone).toBe("jade");
-    expect(status?.textContent).toBe("Paid");
+    expect(status?.textContent).toBe("Paid (Simulated PayPal sandbox)");
   });
 });

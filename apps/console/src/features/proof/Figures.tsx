@@ -1,3 +1,4 @@
+import { payoutStatus } from "../../data/payout-replay.js";
 // What the run adds up to (S1.8 metrics, in order), then the fees. A ruled ledger, not a wall of stat tiles:
 // labels on the left, figures on the decimal at the right, each amount in its grammar (S2.2.1). The paid tiers
 // partition every line (I3): PayPal-confirmed money is jade flush, cash attested is ink, what is still due is
@@ -94,7 +95,7 @@ export function Figures({
               testId="W-PF-01.tierbar"
               className="pf-tierbar"
               visual={
-                <span className="pf-tierbar__bar">
+                <span className="pf-tierbar__bar" data-replayed={replayed ? "" : undefined}>
                   <span
                     className="pf-tierbar__seg"
                     data-tier="paypal"
@@ -152,7 +153,7 @@ export function Figures({
                 />
               }
             />
-            <ul className="pf-tiers">
+            <ul className="pf-tiers" data-replayed={replayed ? "" : undefined}>
               <li className="pf-tier" data-tier="paypal" data-testid="W-PF-01.tier.paypal">
                 <span className="pf-tier__swatch" aria-hidden />
                 <span className="pf-tier__words">
@@ -171,7 +172,7 @@ export function Figures({
                   className="pf-tier__amount"
                   key={`a-${moved ?? "h"}`}
                   data-moved={moved ? "" : undefined}
-                  data-amount-state="landed"
+                  data-amount-state={payoutStatus({ state: "PAID", replayed }).amountState}
                   data-testid="W-PF-01.tier.paypal.amount"
                 >
                   {format.money(tiers.paypal.cents)}

@@ -1,3 +1,4 @@
+import { payoutStatus } from "../../data/payout-replay.js";
 // Plate 4's lines (S1.8): every member's line by ID (C-23), with kilos, rail, net and status, and MM-7 "Tap a
 // peso" on Proof (cut-order item 6, built reduced-first): a press on a net amount frames it and unfolds why it is
 // that amount, in shares of the co-op's kilos (Proof never shows a per-kg rate, S1.10); a press on one of its
@@ -13,7 +14,7 @@
 
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
 import { spring } from "@fairsplit/motion/web";
-import { Glyph, StatusChip } from "@fairsplit/ui-web";
+import { Chip, Glyph, StatusChip } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
@@ -29,7 +30,7 @@ import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useViewportWidth } from "../../stage/layout.js";
 import { LINES_COPY } from "./copy.js";
-import { amountStateOf, itemsByMember, type LineStates, lineStateOf, type ProofItemView } from "./model.js";
+import { itemsByMember, type LineStates, lineStateOf, type ProofItemView } from "./model.js";
 import { SlipCrop, slipAlt } from "./SlipCrop.js";
 
 export interface MemberLabel {
@@ -39,7 +40,6 @@ export interface MemberLabel {
 
 export interface LinesProps {
   readonly bundle: ProofBundle;
-  readonly replayed?: boolean;
   readonly items: readonly ProofItemView[];
   readonly lineStates: LineStates;
   readonly slips: ReadonlyMap<string, SnapshotSlip>;
@@ -63,17 +63,7 @@ export const LINES_FOLD_PX = 560;
 
 type Trace = { readonly memberNo: string; readonly serial: string | null } | null;
 
-export function Lines({
-  bundle,
-  items,
-  lineStates,
-  slips,
-  ruleNames,
-  markNames,
-  card,
-  names,
-  replayed = false,
-}: LinesProps) {
+export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, card, names }: LinesProps) {
   const mm7 = useMoment("MM-7");
   const [trace, setTrace] = useState<Trace>(null);
   const presses = useRef(0);
@@ -249,7 +239,15 @@ export function Lines({
                 <LineRows
                   key={line.memberNo}
                   line={line}
-                  replayed={replayed && line.rail === "PAYPAL"}
+                  replayed={
+                    payoutStatus({
+                      state,
+                      bundle,
+                      provenance: itemBy.get(line.memberNo)?.provenance,
+                      memberNo: line.memberNo,
+                      paypal: line.rail === "PAYPAL" && state !== "OFF_RAIL_DUE" && state !== "OFF_RAIL_PAID",
+                    }).replayed
+                  }
                   state={state}
                   label={names?.get(line.memberNo)}
                   names={names !== null}
@@ -273,6 +271,15 @@ export function Lines({
                         <Receipt
                           line={line}
                           state={state}
+                          replayed={
+                            payoutStatus({
+                              state,
+                              bundle,
+                              provenance: itemBy.get(line.memberNo)?.provenance,
+                              memberNo: line.memberNo,
+                              paypal: line.rail === "PAYPAL",
+                            }).replayed
+                          }
                           totals={totals}
                           ruleNames={ruleNames}
                           markNames={markNames}
@@ -362,6 +369,7 @@ export function shortRuleName(label: string): string {
 }
 
 interface ReceiptProps {
+  readonly replayed: boolean;
   readonly line: ProofLine;
   readonly state: MemberLineState;
   readonly totals: { readonly verified: number; readonly grade1: number };
@@ -371,7 +379,7 @@ interface ReceiptProps {
 }
 
 /** Why the amount is the amount, read top to bottom: premium, bonus, ruled deductions, credits, net. */
-function Receipt({ line, state, totals, ruleNames, markNames, card }: ReceiptProps) {
+function Receipt({ line, state, replayed, totals, ruleNames, markNames, card }: ReceiptProps) {
   const k = line.canonical;
   return (
     <dl className="pf-receipt" data-testid="W-PF-01.trace.receipt">
@@ -426,8 +434,8 @@ function Receipt({ line, state, totals, ruleNames, markNames, card }: ReceiptPro
         </div>
       ))}
       <div className="pf-receipt__row pf-receipt__row--net">
-        <dt>Net</dt>
-        <dd className="fs-t-figure" data-amount-state={amountStateOf(state)}>
+        <dt>Net {replayed && <span>{payoutStatus({ state, replayed }).statusWord}</span>}</dt>
+        <dd className="fs-t-figure" data-amount-state={payoutStatus({ state, replayed }).amountState}>
           {format.money(k.netCents)}
         </dd>
       </div>
@@ -540,15 +548,25 @@ function LineRows({
   frame,
   children,
 }: LineRowsProps) {
-  const amountState = amountStateOf(state);
+  const presentation = payoutStatus({
+    state,
+    replayed,
+    paypal: line.rail === "PAYPAL" && state !== "OFF_RAIL_DUE" && state !== "OFF_RAIL_PAID",
+  });
+  const amountState = presentation.amountState;
   const cash = line.rail === "CASH" || state === "OFF_RAIL_DUE" || state === "OFF_RAIL_PAID";
   const rail = (
     <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
       <span>{cash ? "Cash" : "Simulated PayPal sandbox"}</span>
     </span>
   );
-  const status = replayed ? (
-    <span className="fs-chip">Replayed (labelled, simulated)</span>
+  const status = presentation.simulatedLabel ? (
+    <Chip
+      tone={presentation.tone}
+      glyph={presentation.replayed ? "rail" : presentation.amountState === "landed" ? "ms:check" : "rail"}
+    >
+      {presentation.statusWord}
+    </Chip>
   ) : (
     <StatusChip state={state} surface="console" />
   );
@@ -570,7 +588,11 @@ function LineRows({
   );
   return (
     <>
-      <tr data-state={state} data-open={open ? "" : undefined} data-testid={`W-PF-01.line.${line.memberNo}`}>
+      <tr
+        data-state={presentation.replayed ? "replay" : state}
+        data-open={open ? "" : undefined}
+        data-testid={`W-PF-01.line.${line.memberNo}`}
+      >
         {fold ? (
           <th scope="row">
             <div className="pf-line__who">

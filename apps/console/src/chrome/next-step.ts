@@ -7,6 +7,7 @@
 import { webRoutes } from "@fairsplit/contracts";
 import { type MessageKey, translate } from "@fairsplit/i18n";
 import type { FramePersona } from "../data/adapter.js";
+import { payoutStatus } from "../data/payout-replay.js";
 import { byHandHolds, holdCards, openHolds, type RunHold, type RunView } from "../data/run-view.js";
 import type { ConsoleScreenId } from "../lib/screens.js";
 
@@ -150,7 +151,9 @@ export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextS
     case "SETTLING":
       return {
         id: "confirming",
-        text: en("W-JG-01.pill.confirming"),
+        text: payoutStatus({ itemStatus: "PENDING", view }).replayed
+          ? "Replaying payout statuses from an earlier simulated PayPal sandbox run"
+          : en("W-JG-01.pill.confirming"),
         actor: "paypal",
         screen: "W-TR-08",
         to: webRoutes.fanout(runSlug),
