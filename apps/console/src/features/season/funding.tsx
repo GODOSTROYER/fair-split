@@ -19,7 +19,7 @@ import {
 } from "react";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { Stamp } from "../../chrome/Stamp.js";
-import { useRunEvents } from "../../data/hooks.js";
+import { useJudgeSession, useRunEvents } from "../../data/hooks.js";
 import type { RunView } from "../../data/run-view.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
@@ -30,6 +30,15 @@ import { invoiceLines, isFunded, isPaid, poolOf } from "./model.js";
 import "./season.css";
 
 export type FundingMoment = MomentController<"MM-S">;
+
+export function invoiceTitle(
+  snapshot: SeasonSnapshot,
+  view: RunView | undefined,
+  inSession: boolean,
+): string {
+  if (inSession) return view?.invoice.number ? SEASON_COPY.invoice(view.invoice.number) : "Draft invoice";
+  return `${SEASON_COPY.invoice(snapshot.run.invoice.invoiceNumber)} (seeded sample)`;
+}
 
 /**
  * Plays MM-S on the live `invoice.state` that shows the invoice paid with 0.00 due, and settles straight to
@@ -267,6 +276,7 @@ export function FundingBlock({
   desk,
 }: FundingBlockProps) {
   const t = useT();
+  const session = useJudgeSession();
   const container = useRef<HTMLElement>(null);
   const attachMomentRoot = moment.rootProps.ref;
   const containerRef = useCallback(
@@ -288,7 +298,6 @@ export function FundingBlock({
   const lines = invoiceLines(snapshot);
   const pool = poolOf(snapshot);
   const invoice = snapshot.run.invoice;
-  const number = view?.invoice.number ?? invoice.invoiceNumber;
   const status = view?.invoice.status ?? null;
   // State lands with the event (S1.6: only the motion waits); MM-S draws the arc and fills the outline after it.
   const landed = funded;
@@ -320,7 +329,7 @@ export function FundingBlock({
         <header className="fsc-fund__head">
           <h2 id={`${screen}-invoice-title`} className="fsc-fund__title fs-t-label">
             <Glyph name="triplicate-slip" size={18} />
-            {SEASON_COPY.invoice(number)}
+            {invoiceTitle(snapshot, view, session.session !== null)}
           </h2>
           <span
             className="fsc-fund__status fs-t-caption"
@@ -350,7 +359,7 @@ export function FundingBlock({
         <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
           <p className="fsc-fund__draft-head fs-t-label">
             <Glyph name="pencil" size={16} />
-            {SEASON_COPY.draftBy}
+            {SEASON_COPY.invoiceLines}
           </p>
           <dl className="fsc-fund__lines">
             {lines.map((line) => (
@@ -362,7 +371,7 @@ export function FundingBlock({
               </div>
             ))}
           </dl>
-          <p className="fsc-fund__note fs-t-caption">{SEASON_COPY.draftNote(recorded)}</p>
+          <p className="fsc-fund__note fs-t-caption">{SEASON_COPY.invoiceLinesNote(recorded)}</p>
         </div>
         {compact ? (
           <p className="fsc-fund__memo fs-t-caption">
@@ -425,7 +434,7 @@ export function FundingBlock({
               {
                 key: "invoice",
                 cells: {
-                  item: SEASON_COPY.invoice(number),
+                  item: invoiceTitle(snapshot, view, session.session !== null),
                   amount: format.money(invoice.amountCents),
                   status: statusWord,
                 },

@@ -6,6 +6,7 @@
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  useJudgeSession,
   usePaypalRail,
   useRunEvents,
   useRunStream,
@@ -14,9 +15,33 @@ import {
   useStageRun,
 } from "../../../data/hooks.js";
 import type { RunView } from "../../../data/run-view.js";
+import type { SessionState } from "../../../data/session.js";
 import type { PaypalRail } from "../../../lib/env.js";
+import { davaoIsoDate } from "../../proof/davao.js";
+
+export type RunAccess = "pending" | "allowed" | "missing";
+
+export function runAccess(
+  runSlug: string,
+  session: SessionState,
+  snapshot: SeasonSnapshot | undefined,
+): RunAccess {
+  if (session.status === "resuming" || session.status === "starting" || !snapshot) return "pending";
+  if (session.session) return session.session.runSlug === runSlug ? "allowed" : "missing";
+  return runSlug === snapshot.run.runSlug ? "allowed" : "missing";
+}
+
+/** Preserve the seed's collection interval, anchored to this run's first recorded event in Davao. */
+export function cashDayForRun(snapshot: SeasonSnapshot, view: RunView): string {
+  const first = view.events[0];
+  if (!first) return snapshot.run.cashDay;
+  const start = davaoIsoDate(first.at);
+  const offset = Math.max(0, Date.parse(snapshot.run.cashDay) - Date.parse(snapshot.run.recordedOn));
+  return new Date(Date.parse(start) + offset).toISOString().slice(0, 10);
+}
 
 export interface RunData {
+  readonly access: RunAccess;
   readonly snapshot: SeasonSnapshot | undefined;
   readonly view: RunView | undefined;
   readonly loading: boolean;
@@ -32,6 +57,8 @@ export function useRunData(runSlug: string): RunData {
   const snapshot = useSnapshot();
   const run = useRunView(runSlug);
   const stage = useStageRun();
+  const session = useJudgeSession();
+  const access = runAccess(runSlug, session, snapshot.data);
   const live = stage.inSession && stage.runSlug === runSlug;
   useRunStream(live ? runSlug : null);
   const rail = usePaypalRail() ?? "simulator";
@@ -42,9 +69,10 @@ export function useRunData(runSlug: string): RunData {
     void refetchRun();
   }, [refetchSnapshot, refetchRun]);
   return {
+    access,
     snapshot: snapshot.data,
-    view: run.data,
-    loading: snapshot.isPending || run.isPending,
+    view: access === "allowed" ? run.data : undefined,
+    loading: access === "pending" || snapshot.isPending || run.isPending,
     error: snapshot.error ?? run.error ?? null,
     live,
     rail,

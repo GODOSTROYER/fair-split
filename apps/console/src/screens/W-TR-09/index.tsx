@@ -8,6 +8,7 @@ import { useRouter } from "@tanstack/react-router";
 import { type ReactNode, useCallback } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { StageDrawer } from "../../chrome/StageDrawer.js";
@@ -29,6 +30,8 @@ export function Screen({ runSlug, memberNo }: MemberLineProps) {
   const member = snapshot?.members.find((m) => m.memberNo === memberNo);
   const row = snapshot && view ? findRow(snapshot, view, memberNo) : undefined;
   const label = member ? `${member.displayName}'s line` : `Line ${memberNo}`;
+
+  if (data.access !== "allowed") return <RunRouteGate data={data} />;
 
   let body: ReactNode;
   if (data.error && !view) {
@@ -100,6 +103,8 @@ export function PrintScreen({ runSlug, memberNo }: PrintScreenProps) {
   const { snapshot, view } = data;
   const member = snapshot?.members.find((m) => m.memberNo === memberNo);
   const row = snapshot && view ? findRow(snapshot, view, memberNo) : undefined;
+
+  if (data.access !== "allowed") return <RunRouteGate data={data} />;
 
   const tools = (
     <nav className="fsr-print__tools" aria-label={LINE.printTitle}>

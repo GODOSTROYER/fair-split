@@ -220,7 +220,10 @@ export const FANOUT = {
     readonly parked: number;
     readonly failed: number;
     readonly cash: number;
+    readonly posting?: boolean;
   }) => {
+    if (c.posting)
+      return `Sent to the simulated PayPal sandbox. Confirmations land one by one. ${c.cash} in cash at the bodega.`;
     const paypal =
       c.sent === 0
         ? `${c.onRail} to send through the simulated PayPal sandbox once both keys sign`

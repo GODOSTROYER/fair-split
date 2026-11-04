@@ -113,6 +113,7 @@ export function useDescribeContext(): DescribeContext | null {
 }
 
 export interface JudgeSessionApi extends SessionState {
+  setPressing(pressing: boolean): void;
   start(): Promise<JudgeSession>;
   /** Waits until the session's run is invoiced, or past it (the first press records the payment only then). */
   whenInvoiced(session: JudgeSession): Promise<InvoiceReadiness>;
@@ -126,6 +127,7 @@ export function useJudgeSession(): JudgeSessionApi {
   return useMemo(
     () => ({
       ...state,
+      setPressing: session.setPressing,
       start: () => session.start(),
       whenInvoiced: (started: JudgeSession) => session.whenInvoiced(started),
       reset: async () => {
