@@ -57,8 +57,17 @@ describe("Proof's distribution bar", () => {
   it("renders the bar, its legend and the holds as a note inside the members' share, never as a segment", () => {
     render(<Distribution bundle={bundle} figures={figures} amount="US$4,333.50" />);
     const bar = screen.getByTestId("proof-distribution");
-    expect(bar.textContent).toContain("Lantern Bay's US$4,333.50, and where every dollar went");
-    expect(screen.getByTestId("proof-distribution.paypal").textContent).toContain("simulated sandbox");
+    expect(bar.getAttribute("aria-label")).toBe("Where US$4,333.50 went");
+    // A legend row reads swatch · name · count · amount; the card's tag names the simulated sandbox.
+    expect(screen.getByTestId("proof-distribution.paypal").textContent).toBe("PayPal, confirmed7US$341.74");
+    // The axis runs to the next US$500 past the invoice, a tick every US$1,000.
+    expect([...bar.querySelectorAll(".pf-dist__tick")].map((t) => t.textContent)).toEqual([
+      "0",
+      "1k",
+      "2k",
+      "3k",
+      "4k",
+    ]);
     expect(screen.getByTestId("proof-distribution.disbursement").textContent).toContain("US$60.00");
     expect(screen.queryByTestId("proof-distribution.kept")).toBeNull();
     expect(screen.getByTestId("proof-distribution.holds").textContent).toContain("US$21.14");

@@ -1,10 +1,11 @@
 import { PAYOUT_REPLAY_NOTE, payoutReplayed, payoutReplaySummary } from "../../data/payout-replay.js";
-// The Proof column (S1.8 P1, design §6), shared by W-PF-01 and the brand view W-BR-01: the hero and its Verify,
-// the six-plate chain, where the money went, the plot field and the footers. One 680 px reading column on Adlaw;
-// every state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
+// The Proof column (S1.8 P1, design §6), shared by W-PF-01 and the brand view W-BR-01: the hero (the verdict by
+// the seal, where every dollar went beside it, the six checks under both), the six-plate chain, where the money
+// went, the plot field and the fine print. One reading column on Adlaw (680 px, 1040 px from 1120 px wide); every
+// state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, type StampView } from "@fairsplit/ui-web";
+import { Glyph, HonestyTag, type StampView } from "@fairsplit/ui-web";
 import { useEffect, useMemo, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
@@ -13,7 +14,16 @@ import { useAnnounce } from "../../lib/announce.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { Chain } from "./Chain.js";
-import { FAILURE_PLACE, FOOTER_COPY, PLATE_TITLE, provenanceWords, railName, STATE_COPY, t } from "./copy.js";
+import {
+  FAILURE_PLACE,
+  FOOTER_COPY,
+  PLATE_TITLE,
+  provenanceWords,
+  railName,
+  railShort,
+  STATE_COPY,
+  t,
+} from "./copy.js";
 import { Distribution } from "./Distribution.js";
 import { Figures } from "./Figures.js";
 import { ProofHero } from "./Hero.js";
@@ -100,6 +110,7 @@ function marksOf(snapshot: SeasonSnapshot | undefined) {
 export function ProofView({ page, verification, rail, names = null, level = "h1" }: ProofViewProps) {
   const replayed = payoutReplayed(page.runView, page.bundle);
   const Heading = level;
+  const SubHeading = level === "h1" ? "h2" : "h3";
   const announce = useAnnounce();
   const { bundle, facts, figures, snapshot } = page;
   const slips = useMemo(() => slipsOf(snapshot), [snapshot]);
@@ -180,24 +191,34 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         verification={verification}
         level={level}
         signers={signersOf(snapshot, bundle)}
-        status={
-          <>
+        money={
+          <section className="pf-card pf-money" aria-labelledby="W-PF-01-money" data-testid="W-PF-01.money">
+            <header className="pf-card__head">
+              <SubHeading id="W-PF-01-money" className="pf-card__title">
+                {MONEY_TITLE}
+              </SubHeading>
+              <HonestyTag>{railShort(rail)}</HonestyTag>
+            </header>
+            {/* The run's line: counts on screen (the tag names the rail), the whole sentence for a screen reader.
+                A replay says so in full, in view: its statuses are not money anyone confirmed. */}
             <p
               className="pf-progress"
               data-state={settled ? "settled" : "progress"}
+              data-replayed={replayed ? "" : undefined}
               data-testid="W-PF-01.progress"
             >
-              <Glyph name={settled ? "seal-fill" : "rail"} size={16} />
-              <span>
-                {replayed
-                  ? payoutReplaySummary(page.progress.confirmed, page.progress.total)
-                  : settled
-                    ? STATE_COPY.liveSettled(page.progress, rail)
-                    : STATE_COPY.liveProgress(page.progress, rail)}
-              </span>
-              <span className="pf-progress__source">
-                {page.live ? STATE_COPY.sourceSession : STATE_COPY.sourcePublic}
-              </span>
+              {replayed ? (
+                payoutReplaySummary(page.progress.confirmed, page.progress.total)
+              ) : (
+                <>
+                  <span aria-hidden>{STATE_COPY.liveShort(page.progress, settled)}</span>
+                  <span className="fs-sr">
+                    {settled
+                      ? STATE_COPY.liveSettled(page.progress, rail)
+                      : STATE_COPY.liveProgress(page.progress, rail)}
+                  </span>
+                </>
+              )}
             </p>
             {/* Where every dollar went: replayed statuses are not money anyone confirmed, so a replay shows no bar. */}
             {!replayed && state !== "failed" && (
@@ -207,7 +228,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
                 amount={format.money(bundle.invoice.amountCents)}
               />
             )}
-          </>
+          </section>
         }
       />
       <Chain
@@ -246,19 +267,23 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
       <ProofFooter
         rail={rail}
         provenance={replayed ? PAYOUT_REPLAY_NOTE : page.provenance ? provenanceWords(page.provenance) : null}
+        notices={page.live ? STATE_COPY.sourceSession : STATE_COPY.sourcePublic}
       />
     </>
   );
 }
+
+/** The card beside the verdict. The page's own section below keeps "Where the money went". */
+const MONEY_TITLE = "Where every dollar went";
 
 function ProofLoading() {
   return (
     <div className="pf-loading" data-testid="W-PF-01.loading" aria-busy="true">
       <span className="fs-sr">Loading the Proof.</span>
       <div className="pf-loading__hero">
-        <PrintBed shape="seal" width={320} height={320} />
-        <PrintBed shape="line" width="60%" height={40} />
-        <PrintBed shape="line" width="90%" height={68} />
+        <PrintBed shape="line" width="40%" height={40} />
+        <PrintBed shape="line" width="70%" height={48} />
+        <PrintBed shape="seal" width={200} height={200} />
         <PrintBed shape="slab" width={232} height={48} />
       </div>
       <div className="pf-loading__plates">
@@ -268,22 +293,58 @@ function ProofLoading() {
   );
 }
 
+/**
+ * The fine print: one line in view (a prototype, no real farmer paid), the rest as a left-aligned key and value
+ * list behind Details.
+ */
 function ProofFooter({
   rail,
   provenance,
+  notices,
 }: {
   readonly rail: PaypalRail;
   readonly provenance: string | null;
+  readonly notices: string;
 }) {
+  const rows = FOOTER_COPY.rows;
   return (
     <footer className="pf-footer" data-testid="W-PF-01.footer">
-      <p>{FOOTER_COPY.privacy}</p>
-      <p>{FOOTER_COPY.recon()}</p>
-      <p>{FOOTER_COPY.merchant}</p>
-      <p>
-        {railName(rail)}.{provenance ? ` This record: ${provenance}.` : ""}
-      </p>
-      <p className="pf-footer__last">{FOOTER_COPY.sandbox(rail)}</p>
+      <details className="pf-footer__details">
+        <summary className="pf-footer__summary">
+          <Glyph name="ms:expand-more" size={16} className="pf-summary__chevron" />
+          <span className="fs-t-label">{FOOTER_COPY.details}</span>
+          <span className="pf-footer__line fs-t-micro">{FOOTER_COPY.prototype}</span>
+        </summary>
+        <dl className="pf-kv pf-footer__list">
+          <div>
+            <dt>{rows.paypal}</dt>
+            <dd>{railName(rail)}</dd>
+          </div>
+          {provenance && (
+            <div>
+              <dt>{rows.record}</dt>
+              <dd>{provenance}</dd>
+            </div>
+          )}
+          <div>
+            <dt>{rows.notices}</dt>
+            <dd>{notices}</dd>
+          </div>
+          <div>
+            <dt>{rows.recon}</dt>
+            <dd>{FOOTER_COPY.recon()}</dd>
+          </div>
+          <div>
+            <dt>{rows.money}</dt>
+            <dd>{FOOTER_COPY.merchant}</dd>
+          </div>
+          <div>
+            <dt>{rows.privacy}</dt>
+            <dd>{FOOTER_COPY.privacy}</dd>
+          </div>
+        </dl>
+        <p className="pf-footer__last">{FOOTER_COPY.sandbox(rail)}</p>
+      </details>
     </footer>
   );
 }

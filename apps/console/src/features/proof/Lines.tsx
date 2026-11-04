@@ -13,8 +13,9 @@ import { payoutStatus } from "../../data/payout-replay.js";
 // if a table ever scrolls sideways.
 
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
+import { translate } from "@fairsplit/i18n";
 import { spring } from "@fairsplit/motion/web";
-import { Chip, Glyph, StatusChip } from "@fairsplit/ui-web";
+import { Chip, Glyph, HonestyTag, StatusChip } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
@@ -205,7 +206,10 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
         }
       }}
     >
-      <p className="pf-lines__hint">{LINES_COPY.hint}</p>
+      <p className="pf-lines__bar">
+        <span className="pf-lines__hint fs-t-micro">{LINES_COPY.hint}</span>
+        <HonestyTag>Simulated PayPal sandbox</HonestyTag>
+      </p>
       <div className="pf-table-wrap" data-testid="W-PF-01.lines.scroller">
         <table
           className="pf-table pf-lines__table"
@@ -518,6 +522,12 @@ function breakAfterAt(receiver: string): ReactNode {
   );
 }
 
+/** A cash line's status in words: the console's own (one catalog), with no pill (unslop spec §3.12). */
+const CASH_WORDS = {
+  OFF_RAIL_DUE: translate("en", "console.status.OFF_RAIL_DUE"),
+  OFF_RAIL_PAID: translate("en", "console.status.OFF_RAIL_PAID"),
+} as const;
+
 interface LineRowsProps {
   readonly replayed?: boolean;
   readonly line: ProofLine;
@@ -555,12 +565,21 @@ function LineRows({
   });
   const amountState = presentation.amountState;
   const cash = line.rail === "CASH" || state === "OFF_RAIL_DUE" || state === "OFF_RAIL_PAID";
+  // The rail in one word: the table's tag names PayPal as the simulated sandbox once, for every row. Cash is a
+  // hatch swatch and the word, never a pill.
   const rail = (
     <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
-      <span>{cash ? "Cash" : "Simulated PayPal sandbox"}</span>
+      {cash && <span className="pf-rail__swatch" aria-hidden />}
+      <span>{cash ? "Cash" : "PayPal"}</span>
     </span>
   );
-  const status = presentation.simulatedLabel ? (
+  const cashWords = state === "OFF_RAIL_PAID" || state === "OFF_RAIL_DUE" ? CASH_WORDS[state] : null;
+  const status = cashWords ? (
+    <span className="pf-cash-status" data-state={state}>
+      {state === "OFF_RAIL_PAID" && <Glyph name="ms:check" size={16} />}
+      <span className="fs-t-label">{cashWords}</span>
+    </span>
+  ) : presentation.simulatedLabel ? (
     <Chip
       tone={presentation.tone}
       glyph={presentation.replayed ? "rail" : presentation.amountState === "landed" ? "ms:check" : "rail"}

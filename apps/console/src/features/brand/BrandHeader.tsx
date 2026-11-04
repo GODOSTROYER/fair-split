@@ -3,7 +3,7 @@
 // under the data-sharing agreement; complete receivers and plot details only in the export (C-23).
 
 import type { InvoiceStatus, ProofBundle, SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph } from "@fairsplit/ui-web";
+import { Glyph, HonestyTag } from "@fairsplit/ui-web";
 import { useState } from "react";
 import { payoutReplaySummary } from "../../data/payout-replay.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -16,24 +16,34 @@ export type BrandState = "loading" | "error" | "unpaid" | "progress" | "mismatch
 
 export const FUNDED: readonly InvoiceStatus[] = ["PAID", "MARKED_AS_PAID"];
 
+/** The brand reads the rail in the count's own words (inv.i8), so the payouts fact needs no tag beside it. */
+function confirmedBy(rail: PaypalRail): string {
+  return rail === "simulator"
+    ? "confirmed by the simulated PayPal sandbox"
+    : "confirmed on PayPal's sandbox (not simulated)";
+}
+
 export const BRAND_COPY = {
   title: (payer: string) => `Proof for ${payer}`,
-  for: (name: string, title: string) => `Shared with ${name}, ${title}, under the data-sharing agreement.`,
+  for: (name: string, title: string) => `Shared with ${name} · ${title} · data-sharing agreement`,
   invoice: "Invoice",
   payouts: "Payouts",
   unpaid: "Sent to Lantern Bay. Waiting for payment.",
-  unpaidHow:
-    "The simulated PayPal sandbox models Lantern Bay's invoice and payment. No PayPal dashboard or real payment is required.",
-  progress: (confirmed: number, total: number) =>
-    `${confirmed} of ${total} confirmed by the simulated PayPal sandbox, updating as notices arrive.`,
-  settled: (p: ProgressCounts, cashPaid: number) =>
-    `${p.confirmed} of ${p.total} confirmed by the simulated PayPal sandbox.${p.returned > 0 ? ` ${STATE_COPY.returned(p.returned, cashPaid)}.` : ""}`,
+  progress: (confirmed: number, total: number, rail: PaypalRail) =>
+    `${confirmed} of ${total} ${confirmedBy(rail)} · updating`,
+  settled: (p: ProgressCounts, cashPaid: number, rail: PaypalRail) =>
+    [
+      `${p.confirmed} of ${p.total} ${confirmedBy(rail)}`,
+      p.returned > 0 ? STATE_COPY.returned(p.returned, cashPaid) : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
   notYet: "The payout batch isn't posted yet.",
-  export: "Export proof (CSV and JSON with hashes)",
+  export: "Export",
+  exportWhat: "CSV · JSON · with hashes",
   csv: "Download CSV",
   json: "Download JSON",
-  exportNote:
-    "Names and masked receivers show here. Complete receivers and plot details are only in the export, built in this browser.",
+  exportNote: "Full receivers and plots: in the export only, built in this browser",
   exported: (name: string) => `Saved ${name}.`,
   noDownload: "This browser can't save files from here. Use the JSON link of the public Proof instead.",
   withheld: "Proof withheld: the record doesn't match its signatures. Exports wait until it does.",
@@ -97,7 +107,9 @@ export function BrandHeader({
         <h1 className="br-strip__title" id="W-BR-01-title">
           {BRAND_COPY.title(payer?.name ?? "the brand")}
         </h1>
-        {payer && <p className="br-strip__for">{BRAND_COPY.for(payer.contactName, payer.contactTitle)}</p>}
+        {payer && (
+          <p className="br-strip__for fs-t-micro">{BRAND_COPY.for(payer.contactName, payer.contactTitle)}</p>
+        )}
       </div>
       <dl className="br-strip__facts">
         <div
@@ -111,7 +123,7 @@ export function BrandHeader({
             <span className="br-strip__status">
               {state === "unpaid" || !invoiceStatus ? BRAND_COPY.unpaid : invoiceWords(invoiceStatus)}
             </span>
-            {state === "unpaid" && <span className="br-strip__how">{BRAND_COPY.unpaidHow}</span>}
+            {state === "unpaid" && <HonestyTag>{railShort(rail)}</HonestyTag>}
           </dd>
         </div>
         <div
@@ -126,14 +138,15 @@ export function BrandHeader({
               : payoutReplayed
                 ? payoutReplaySummary(progress.confirmed, progress.total)
                 : isSettled(progress)
-                  ? BRAND_COPY.settled(progress, returnedCashPaid)
-                  : BRAND_COPY.progress(progress.confirmed, progress.total)}
-            <span className="br-strip__rail">{railShort(rail)}</span>
+                  ? BRAND_COPY.settled(progress, returnedCashPaid, rail)
+                  : BRAND_COPY.progress(progress.confirmed, progress.total, rail)}
           </dd>
         </div>
       </dl>
       <div className="br-strip__export" data-testid="W-BR-01.export">
-        <p className="br-strip__label">{BRAND_COPY.export}</p>
+        <p className="br-strip__label">
+          {BRAND_COPY.export} <span className="br-strip__what fs-t-micro">{BRAND_COPY.exportWhat}</span>
+        </p>
         {withheld ? (
           <p className="br-strip__withheld" data-testid="W-BR-01.export.withheld">
             <Glyph name="ms:lock" size={16} />
@@ -163,7 +176,7 @@ export function BrandHeader({
             </button>
           </div>
         )}
-        <p className="br-strip__note">{BRAND_COPY.exportNote}</p>
+        <p className="br-strip__note fs-t-micro">{BRAND_COPY.exportNote}</p>
         <p className="br-strip__saved" role="status" data-testid="W-BR-01.export.saved">
           {saved ?? ""}
         </p>

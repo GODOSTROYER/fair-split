@@ -10,7 +10,7 @@ import type {
   Provenance,
   SnapshotSlip,
 } from "@fairsplit/contracts";
-import { Chip, type ChipTone, Glyph, type GlyphName } from "@fairsplit/ui-web";
+import { Chip, type ChipTone, Glyph, type GlyphName, HonestyTag } from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -22,6 +22,7 @@ import {
   PLATE_TITLE,
   provenanceWords,
   railName,
+  railShort,
   STATE_COPY,
   t,
   VERIFY_COPY,
@@ -95,7 +96,7 @@ function photoGroups(bundle: ProofBundle) {
   };
 }
 
-/** One sentence per plate, every figure computed from the bundle. */
+/** One line of data per plate, joined by " · ", every figure computed from the bundle. */
 export function plateFact(
   plate: PlateName,
   p: Pick<ChainProps, "bundle" | "facts" | "progress" | "items" | "lineStates" | "replayed">,
@@ -104,29 +105,35 @@ export function plateFact(
   switch (plate) {
     case "paid": {
       const words = invoiceWords(bundle.invoice.status);
-      return `${bundle.invoice.invoiceNumber}, ${words.charAt(0).toLowerCase()}${words.slice(1)}, ${format.money(bundle.invoice.amountCents)}`;
+      return `${bundle.invoice.invoiceNumber} · ${words.charAt(0).toLowerCase()}${words.slice(1)} · ${format.money(bundle.invoice.amountCents)}`;
     }
     case "ratified":
-      return `Card ${format.hashGroups(bundle.rateCard.sha256)}, ratified ${format.date(bundle.rateCard.ratifiedAt)}, first slip ${format.date(bundle.firstSlipDate)}`;
-    case "read":
-      return `${facts.slipsAccepted} slips: ${photoGroups(bundle).images.length} photos composed in code from AI-generated, synthetic hero flats and code-drawn slips, plus ${photoGroups(bundle).manifest.length} earlier photo-manifest entries (not imaged)`;
+      return `card ${format.hashGroups(bundle.rateCard.sha256)} · ratified ${format.date(bundle.rateCard.ratifiedAt)} · first slip ${format.date(bundle.firstSlipDate)}`;
+    case "read": {
+      const photos = photoGroups(bundle);
+      return `${facts.slipsAccepted} slips · ${photos.images.length} photos + ${photos.manifest.length} earlier`;
+    }
     case "computed":
-      return `${bundle.lines.length} line hashes, ${format.money(sumCents(bundle.lines.map((l) => l.netCents)))} net`;
+      return `${bundle.lines.length} line hashes · ${format.money(sumCents(bundle.lines.map((l) => l.netCents)))} net`;
     case "twoKeys":
-      return `${bundle.approvals.map((a) => a.keyId).join(" and ")}, batch ${format.hashGroups(bundle.batch.batchSha256)}`;
+      return `${bundle.approvals.map((a) => a.keyId).join(" · ")} · batch ${format.hashGroups(bundle.batch.batchSha256)}`;
     case "payoutItems": {
       if (p.replayed || payoutReplayed(undefined, bundle))
         return payoutReplaySummary(progress.confirmed, progress.total);
       if (!isSettled(progress)) return STATE_COPY.progress(progress.confirmed, progress.total);
-      const parts = [STATE_COPY.settled(progress.confirmed, progress.total).replace(/\.$/, "")];
+      const parts = [STATE_COPY.settled(progress.confirmed, progress.total)];
       if (progress.returned > 0)
         parts.push(STATE_COPY.returned(progress.returned, returnedCashPaid(p.items, p.lineStates)));
       if (progress.failed > 0) parts.push(`${progress.failed} not completed by PayPal`);
       if (progress.reversed > 0) parts.push(`${progress.reversed} reversed`);
-      return `${parts.join(", ")}.`;
+      return parts.join(" · ");
     }
   }
 }
+
+/** The plate whose fact is PayPal's counts (plate 1's status already names the simulated sandbox): it carries the
+ * honesty tag beside its title. */
+const PAYPAL_PLATES: ReadonlySet<PlateName> = new Set(["payoutItems"]);
 
 export function Chain(props: ChainProps) {
   const [open, setOpen] = useState<ReadonlySet<PlateName>>(new Set());
@@ -184,7 +191,10 @@ export function Chain(props: ChainProps) {
                   onClick={() => toggle(plate)}
                   data-testid={`W-PF-01.plate.${plate}.toggle`}
                 >
-                  <span className="pf-plate__title">{t(PLATE_TITLE[plate])}</span>
+                  <span className="pf-plate__title">
+                    {t(PLATE_TITLE[plate])}
+                    {PAYPAL_PLATES.has(plate) && <HonestyTag>{railShort(props.rail)}</HonestyTag>}
+                  </span>
                   <span className="pf-plate__fact" data-testid={`W-PF-01.plate.${plate}.fact`}>
                     {plateFact(plate, props)}
                   </span>
@@ -324,14 +334,20 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             [
               [
                 "images",
-                "Photo hashes: composed in code from AI-generated, synthetic hero flats and code-drawn slips",
+                `${photoGroups(bundle).images.length} photos composed in code from AI-generated, synthetic hero flats and code-drawn slips`,
                 "W-PF-01.photo-hashes",
               ],
-              ["manifest", "Earlier photo-manifest hashes (not imaged)", "W-PF-01.manifest-hashes"],
+              [
+                "manifest",
+                `${photoGroups(bundle).manifest.length} earlier photo-manifest entries (not imaged)`,
+                "W-PF-01.manifest-hashes",
+              ],
             ] as const
           ).map(([kind, label, testId]) => (
             <div key={kind}>
-              <p className="pf-plate__lead">{label} (SHA-256, first eight characters)</p>
+              <p className="pf-plate__lead">
+                {label} <span className="fs-t-micro">· SHA-256, first 8</span>
+              </p>
               <ol className="pf-hashes" data-testid={testId}>
                 {photoGroups(bundle)[kind].map((d) => (
                   <li key={d.documentId} className="fs-t-hash">
@@ -439,8 +455,8 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
         {replayed
           ? "These statuses are a labelled replay of an earlier simulated PayPal sandbox run, including a seed snapshot. No simulator confirmation is claimed for this run."
           : rail === "simulator"
-            ? "These statuses are our record of the simulated sandbox's signed item notices."
-            : "These statuses are our record of PayPal's signed item notices on the configured rail (not simulated). No nightly reconciliation is served in this build."}
+            ? "Our record of the simulated sandbox's signed item notices."
+            : "Our record of PayPal's signed item notices on the configured rail (not simulated). No nightly reconciliation in this build."}
       </p>
       <ScrollRegion className="pf-table-wrap" label="Payout items, amount and status">
         <table className="pf-table" data-testid="W-PF-01.items">

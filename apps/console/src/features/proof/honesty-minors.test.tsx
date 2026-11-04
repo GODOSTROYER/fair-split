@@ -45,7 +45,10 @@ describe("Proof and log copy stays faithful to its evidence", () => {
     expect(screen.getByTestId("W-PF-01.metric.timing").textContent).toContain(
       "No timing: payout statuses are replayed from an earlier simulated PayPal sandbox run.",
     );
-    expect(screen.getByTestId("W-PF-01.metric.rails").textContent).toMatch(/On PayPal \(simulated sandbox\)/);
+    expect(screen.getByTestId("W-PF-01.metric.rails").textContent).toMatch(/^On PayPal/);
+    expect(screen.getByTestId("W-PF-01.metric.rails").querySelector(".fs-honesty")?.textContent).toBe(
+      "Simulated PayPal sandbox",
+    );
     expect(screen.getByTestId("W-PF-01.railbar.table").textContent).toContain("PayPal (simulated sandbox)");
   });
 

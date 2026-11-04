@@ -6,6 +6,7 @@
 // (S1.12); in Data mode the table replaces it.
 
 import type { ProofBundle } from "@fairsplit/contracts";
+import { Glyph } from "@fairsplit/ui-web";
 import { useId, useMemo } from "react";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
@@ -109,7 +110,10 @@ export function PlotField({
           />
         }
       />
-      <p className="pf-plots__caption">{PLOT_COPY.caption()}</p>
+      <p className="pf-plots__caption fs-t-micro" title={PLOT_COPY.captionTitle()}>
+        <Glyph name="ms:lock" size={14} />
+        <span>{PLOT_COPY.caption}</span>
+      </p>
     </section>
   );
 }
