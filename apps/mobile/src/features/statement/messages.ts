@@ -53,6 +53,16 @@ export const messages = defineMessages({
     fil: "Kinumpirma po ng simulated PayPal sandbox ang bayad noong {date}, {time}.",
     en: "Confirmed by the simulated PayPal sandbox on {date} at {time}.",
   },
+  "M-MB-01.replayStatus": {
+    ceb: "Gi-replay: {status}",
+    fil: "Ni-replay: {status}",
+    en: "Replayed: {status}",
+  },
+  "M-MB-01.replayed": {
+    ceb: "Gi-replay nga kahimtang gikan sa miaging simulated PayPal sandbox run. Dili kini kumpirmasyon sa bayad niini nga run.",
+    fil: "Ni-replay na status mula sa naunang simulated PayPal sandbox run. Hindi ito kumpirmasyon ng bayad sa run na ito.",
+    en: "Replayed status from an earlier simulated PayPal sandbox run. This is not payment confirmation for this run.",
+  },
   "M-MB-01.cashDue": {
     ceb: "Cash sa bodega, {date}. Gikan sa {usd} sa {rate} matag dolyar.",
     fil: "Cash sa bodega, {date}. Mula sa {usd} sa {rate} bawat dolyar.",

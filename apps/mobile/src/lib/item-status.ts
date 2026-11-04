@@ -24,6 +24,8 @@ export type CapsuleState =
 export interface ItemTrack {
   status: ItemStatus | null;
   updatedAt: string | null;
+  /** Evidence from the last applied item event; a session's rail cannot override it. */
+  provenance?: RunEvent["provenance"];
   /** Recently applied event ids, newest last (bounded). */
   seen: readonly string[];
 }
@@ -44,7 +46,12 @@ export function reduceItemEvent(
   const seen = [...track.seen, ev.id].slice(-SEEN_LIMIT);
   const next = fsm.item.apply(track.status, ev.payload.status, opts);
   if (next === null) return { track: { ...track, seen }, effect: "stale" };
-  return { track: { status: next, updatedAt: ev.at, seen }, effect: "applied" };
+  return { track: { status: next, updatedAt: ev.at, provenance: ev.provenance, seen }, effect: "applied" };
+}
+
+/** Replayed statuses are readable evidence, never a fresh payment confirmation or MM-1 trigger. */
+export function confirmedPayment(track: ItemTrack): boolean {
+  return track.status === "SUCCESS" && track.provenance !== "replay";
 }
 
 export function capsuleFor(line: {

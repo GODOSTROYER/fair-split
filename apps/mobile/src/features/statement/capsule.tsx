@@ -231,7 +231,7 @@ function useCapsuleClock(view: LineView): string | null {
 export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1; testID: string }) {
   const { t, motion } = useFs();
   const sentMs = msOf(view.sentAt);
-  const inFlight = view.capsule === "sent" || view.capsule === "paid";
+  const inFlight = view.sentWord !== null;
   const clock = useCapsuleClock(view);
   const text = capsuleText(view, { phase: mm1.phase, swapped: mm1.swapped }, clock);
   const carrying = text.before !== null;

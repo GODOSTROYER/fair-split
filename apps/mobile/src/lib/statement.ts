@@ -632,7 +632,7 @@ export function mergeTrack(track: ItemTrack, item: StatementDTO["item"]): ItemTr
   const status = item?.status ?? null;
   if (status === null) return { ...EMPTY_TRACK, seen: track.seen };
   if (track.status === null || ITEM_STATUS_RANK[status] >= ITEM_STATUS_RANK[track.status]) {
-    return { status, updatedAt: item?.updatedAt ?? track.updatedAt, seen: track.seen };
+    return { ...track, status, updatedAt: item?.updatedAt ?? track.updatedAt };
   }
   return track;
 }

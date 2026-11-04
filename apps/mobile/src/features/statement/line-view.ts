@@ -28,7 +28,8 @@ import {
   type StatusTone,
 } from "../../lib/item-status";
 import { amountStateFor, lineApproved } from "../../lib/statement";
-import type { StatementKey } from "./messages";
+import { statementRail } from "./live";
+import { type StatementKey, t } from "./messages";
 
 /** A message key with its arguments; the screen translates it in the member's language. */
 export interface Copy {
@@ -86,6 +87,7 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
   const status = CAPSULE_WORD[capsule];
   const word = MEMBER_STATUS_WORDS[status][lang];
   const payKind = payKindOf(dto, capsule);
+  const replayed = payKind === "paypal" && statementRail(dto, lang, track).kind === "replay";
   const hero = heroFigures(dto, lang, payKind);
   const name = dto.treasurer.first;
   const paidAt = paidAtOf(dto, track);
@@ -117,6 +119,7 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
   const detail = ((): Copy | null => {
     // A receipt that does not add up outranks every other sentence: she is told it is being checked, and by whom.
     if (showAmount && !conserved) return { key: "M-MB-01.unbalanced", args: { name } };
+    if (replayed) return { key: "M-MB-01.replayed" };
     switch (capsule) {
       case "checking":
         return { key: "M-MB-01.checking" };
@@ -155,13 +158,17 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
   return {
     capsule,
     status,
-    tone: STATUS_TONE[status],
-    word: date ? `${word}, ${date}` : word,
-    sentWord: inFlight ? MEMBER_STATUS_WORDS[CAPSULE_WORD.sent][lang] : null,
+    tone: replayed ? "neutral" : STATUS_TONE[status],
+    word: replayed
+      ? t(lang, "M-MB-01.replayStatus", { status: date ? `${word}, ${date}` : word })
+      : date
+        ? `${word}, ${date}`
+        : word,
+    sentWord: inFlight && !replayed ? MEMBER_STATUS_WORDS[CAPSULE_WORD.sent][lang] : null,
     showAmount,
     conserved,
-    fillsOnPress: inFlight && conserved,
-    amountState: conserved ? state : unsettled(state),
+    fillsOnPress: inFlight && conserved && !replayed,
+    amountState: conserved && !replayed ? state : unsettled(state),
     payKind,
     hero,
     under,
@@ -294,6 +301,7 @@ const HISTORY_ORDER: Readonly<Record<StatementHistoryEntry["kind"], number>> = {
  * server's history caught up is shown too, at the event's time.
  */
 export function historyRows(dto: StatementDTO, track: ItemTrack): HistoryRow[] {
+  const replayed = statementRail(dto, "en", track).kind === "replay";
   const entries: StatementHistoryEntry[] = [...dto.history];
   if (track.status === "SUCCESS" && track.updatedAt && !entries.some((h) => h.kind === "paid")) {
     entries.push({ kind: "paid", at: track.updatedAt });
@@ -312,11 +320,17 @@ export function historyRows(dto: StatementDTO, track: ItemTrack): HistoryRow[] {
       at: h.at,
       by: h.by ?? [],
       copy:
-        h.kind === "approved"
-          ? { key: HISTORY_KEY.approved, args: { a: h.by?.[0] ?? "", b: h.by?.[1] ?? "" } }
-          : { key: HISTORY_KEY[h.kind] },
+        replayed && (h.kind === "paid" || h.kind === "sent")
+          ? { key: "M-MB-01.replayed" }
+          : h.kind === "approved"
+            ? { key: HISTORY_KEY.approved, args: { a: h.by?.[0] ?? "", b: h.by?.[1] ?? "" } }
+            : { key: HISTORY_KEY[h.kind] },
       mark:
-        h.kind === "approved" || (h.kind === "received" && h.by?.length) ? "stamps" : HISTORY_MARK[h.kind],
+        replayed && h.kind === "paid"
+          ? "pencil"
+          : h.kind === "approved" || (h.kind === "received" && h.by?.length)
+            ? "stamps"
+            : HISTORY_MARK[h.kind],
     }));
 }
 

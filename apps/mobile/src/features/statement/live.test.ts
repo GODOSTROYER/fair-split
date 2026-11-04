@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { StatementDTO } from "../../_shims/api-client";
 import type { RunEvent } from "../../_shims/contracts";
-import { EMPTY_TRACK, reduceItemEvent } from "../../lib/item-status";
-import { audioPlan, statementSentences } from "../../lib/statement";
+import { capsuleFor, confirmedPayment, EMPTY_TRACK, reduceItemEvent } from "../../lib/item-status";
+import { audioPlan, mergeTrack, statementSentences } from "../../lib/statement";
 import { buildDemoStatement } from "../../services/demo-fixtures";
 import { figureRuns, isFigure } from "../../ui/figures";
-import { memberEvent, railLabel } from "./live";
+import { historyRows, lineView } from "./line-view";
+import { memberEvent, railLabel, statementRail } from "./live";
+import { t } from "./messages";
 
 const dto = buildDemoStatement({ stage: "sent", now: "2026-11-01T12:00:00.000Z" });
 const event = (source: string, provenance = "simulated_rail", to = "SUCCEEDED") =>
@@ -28,6 +30,47 @@ const event = (source: string, provenance = "simulated_rail", to = "SUCCEEDED") 
   }) as RunEvent;
 
 describe("inv.i8.member: served rail and forward-only item events", () => {
+  it.each(["en", "ceb", "fil"] as const)(
+    "%s labels post-time replay on the live stream and cold read without a payment celebration",
+    (lang) => {
+      const simulated = { ...dto, provenance: "simulated_rail" as const, paypalRail: "simulator" };
+      const replay = memberEvent(event("status_check", "replay"));
+      if (!replay || !dto.item) throw new Error("Missing replay fixture");
+      const applied = reduceItemEvent(EMPTY_TRACK, replay, dto.item.senderItemId);
+      expect(applied.effect).toBe("applied");
+      expect(confirmedPayment(applied.track)).toBe(false);
+      const refreshed = mergeTrack(applied.track, { ...dto.item, status: "SUCCESS" });
+      const cold: StatementDTO = {
+        ...simulated,
+        provenance: "replay",
+        lineState: "PAID",
+        item: { ...dto.item, status: "SUCCESS" },
+      };
+      for (const [read, track] of [
+        [simulated, refreshed],
+        [cold, mergeTrack(EMPTY_TRACK, cold.item)],
+      ] as const) {
+        const rail = statementRail(read, lang, track);
+        expect(rail.kind).toBe("replay");
+        expect(rail.chip).toMatch(/replay/i);
+        expect(rail.copy).toMatch(/replay/i);
+        expect(rail.review).toBe(lang !== "en");
+        const capsule = capsuleFor({ lineState: read.lineState, rail: read.rail, itemStatus: track.status });
+        const view = lineView(read, capsule, track, lang);
+        expect(view.word).toMatch(/replay/i);
+        expect(view.fillsOnPress).toBe(false);
+        expect(view.amountState).toBe("hollow");
+        expect(view.tone).toBe("neutral");
+        expect(view.sentWord).toBeNull();
+        if (!view.detail) throw new Error("Replay explanation is missing");
+        expect(t(lang, view.detail.key, view.detail.args)).toMatch(/replay/i);
+        const paid = historyRows(read, track).find((row) => row.kind === "paid");
+        expect(paid?.mark).toBe("pencil");
+        if (!paid) throw new Error("Replay history is missing");
+        expect(t(lang, paid.copy.key, paid.copy.args)).toMatch(/replay/i);
+      }
+    },
+  );
   it.each(["ceb", "fil", "en"] as const)("%s labels simulation and unknown honestly", (lang) => {
     expect(railLabel("simulator", "live", lang).chip).toBe("Simulated PayPal sandbox");
     expect(railLabel(null, "simulated_rail", lang).chip).toBe("Simulated PayPal sandbox");
@@ -43,8 +86,17 @@ describe("inv.i8.member: served rail and forward-only item events", () => {
     expect(served?.payload).toMatchObject({ status: "SUCCESS", source: "webhook" });
     const first = reduceItemEvent(EMPTY_TRACK, served, senderItemId);
     expect(first.track.status).toBe("SUCCESS");
+    expect(confirmedPayment(first.track)).toBe(true);
+    expect(statementRail(dto, "en", first.track).kind).toBe("simulated");
     expect(reduceItemEvent(first.track, served, senderItemId).effect).toBe("duplicate");
     expect(reduceItemEvent(first.track, { ...backward, id: "older" }, senderItemId).effect).toBe("stale");
+    const staleReplay = reduceItemEvent(
+      first.track,
+      { ...backward, id: "old-replay", provenance: "replay" },
+      senderItemId,
+    );
+    expect(staleReplay.effect).toBe("stale");
+    expect(statementRail(dto, "en", staleReplay.track).kind).toBe("simulated");
   });
   it("never treats an unverified POST response or unknown rail as paid; permits labelled replay", () => {
     expect(memberEvent(event("post_response"))).toBeNull();

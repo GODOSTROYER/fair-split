@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHttpApi } from "../../_shims/api-client";
 import { heroFigures, lineConservation, receiptRows, shareFigures } from "../../lib/figures";
 import { EMPTY_TRACK, reduceItemEvent } from "../../lib/item-status";
@@ -7,6 +7,7 @@ import { buildDemoStatement } from "../../services/demo-fixtures";
 import { memberEvent } from "./live";
 
 describe("live Member statement read", () => {
+  afterEach(() => vi.useRealTimers());
   it.each(["PAYPAL_PENDING", "HELD", "COMPUTED", "READY", "EXCLUDED"] as const)(
     "reads the typed %s projection and audio together, preserving server figure visibility",
     async (lineState) => {
@@ -36,6 +37,9 @@ describe("live Member statement read", () => {
         },
       };
       const calls: string[] = [];
+      // Judge frames mount before computation has created their member line.
+      if (lineState === "READY") vi.useFakeTimers();
+      let discoveryReads = 0;
       const api = createHttpApi({
         origin: "http://localhost",
         getBearer: () => "test-frame-token",
@@ -43,8 +47,14 @@ describe("live Member statement read", () => {
           const path = new URL(String(input));
           calls.push(path.pathname);
           expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-frame-token");
-          if (path.pathname === "/v1/members/me/statement-line")
+          if (path.pathname === "/v1/members/me/statement-line") {
+            if (lineState === "READY" && discoveryReads++ < 2)
+              return Response.json(
+                { code: "NOT_FOUND", status: 404, message: "No statement line for this member." },
+                { status: 404 },
+              );
             return Response.json({ lineId: mobile.lineId });
+          }
           const lang = path.searchParams.get("lang") ?? "ceb";
           if (path.pathname.includes("/media/audio/"))
             return Response.json({
@@ -88,7 +98,9 @@ describe("live Member statement read", () => {
           );
         }) as typeof fetch,
       });
-      const result = await api.getStatement();
+      const reading = api.getStatement();
+      if (lineState === "READY") await vi.advanceTimersByTimeAsync(3_000);
+      const result = await reading;
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.paypalRail).toBe("simulated");
@@ -98,6 +110,7 @@ describe("live Member statement read", () => {
       expect(calls.filter((p) => p === `/v1/statements/${mobile.lineId}`)).toHaveLength(3);
       expect(calls.filter((p) => p === `/v1/media/audio/${mobile.lineId}`)).toHaveLength(3);
       expect(calls).not.toContain("/v1/runs/2026A-r37/lines");
+      if (lineState === "READY") expect(discoveryReads).toBe(3);
     },
   );
   it("does not expose demo data when member lookup is refused", async () => {
@@ -107,6 +120,46 @@ describe("live Member statement read", () => {
       fetch: (async () => Response.json({ code: "FORBIDDEN" }, { status: 403 })) as typeof fetch,
     });
     expect(await api.getStatement()).toMatchObject({ ok: false, status: 403 });
+  });
+  it("does not retry a missing statement body after discovery succeeds", async () => {
+    vi.useFakeTimers();
+    const lineId = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";
+    const paths: string[] = [];
+    const api = createHttpApi({
+      origin: "http://localhost",
+      getBearer: () => null,
+      fetch: (async (input) => {
+        const path = new URL(String(input)).pathname;
+        paths.push(path);
+        return path.endsWith("/statement-line")
+          ? Response.json({ lineId })
+          : Response.json({ code: "NOT_FOUND", status: 404, message: "No such statement." }, { status: 404 });
+      }) as typeof fetch,
+    });
+    expect(await api.getStatement()).toMatchObject({ ok: false, status: 404 });
+    expect(paths.filter((path) => path.endsWith("/statement-line"))).toHaveLength(1);
+    expect(paths.filter((path) => path === `/v1/statements/${lineId}`)).toHaveLength(3);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("passes the screen's cancellation through discovery without leaving a retry timer", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const request = vi.fn(async (_input, init) => {
+      expect(init?.signal).toBe(controller.signal);
+      return Response.json(
+        { code: "NOT_FOUND", status: 404, message: "No member line yet." },
+        { status: 404 },
+      );
+    });
+    const api = createHttpApi({ origin: "http://localhost", getBearer: () => null, fetch: request });
+    const reading = api.getStatement({ signal: controller.signal });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+    controller.abort();
+    expect(await reading).toMatchObject({ ok: false });
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(request).toHaveBeenCalledTimes(1);
   });
   it("rejects a statement response that drifts from the typed server projection", async () => {
     const lineId = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";
