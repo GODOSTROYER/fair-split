@@ -6,8 +6,10 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { cascaded, readRules, transitionDelay } from "../test/css.js";
+import { phoneSizeFor, stageLayoutFor } from "./layout.js";
 
 const rules = readRules("src/theme/stage.css");
+const phoneRules = readRules("../../packages/ui-web/src/styles.css");
 
 /** The markup PhoneDock and Stage give the panel on the tab layout. */
 function panelIn(raised: "user" | "moment" | null): HTMLElement {
@@ -31,6 +33,32 @@ function panelIn(raised: "user" | "moment" | null): HTMLElement {
 afterEach(() => {
   document.body.replaceChildren();
 });
+
+it.each([
+  { width: 1280, height: 800, raised: "user" as const },
+  { width: 1280, height: 800, raised: "moment" as const },
+  { width: 1470, height: 956, raised: "user" as const },
+  { width: 1470, height: 956, raised: "moment" as const },
+])(
+  "the $raised panel fits the phone and bezel inside its borders at $width × $height",
+  ({ width, height, raised }) => {
+    const panel = panelIn(raised);
+    const stage = panel.closest(".fsc-stage");
+    if (!stage) throw new Error("the stage is missing");
+    const bezel = document.createElement("div");
+    bezel.className = "fs-phone__bezel";
+    panel.append(bezel);
+    const medium = { width, height, motion: "full" as const };
+    const panelWidth = Number.parseFloat(cascaded(rules, stage, "--fsc-phone-panel", medium) ?? "");
+    const border = Number.parseFloat(cascaded(rules, panel, "border", medium) ?? "0");
+    const padding = (cascaded(rules, panel, "padding", medium) ?? "0").split(" ");
+    const horizontalPadding = Number.parseFloat(padding[1] ?? padding[0] ?? "0");
+    const bezelPadding = Number.parseFloat(cascaded(phoneRules, bezel, "padding", medium) ?? "0");
+    const phoneWidth = phoneSizeFor(stageLayoutFor(width), height).width + 2 * bezelPadding;
+    // border-box width includes both border rules; their two pixels are unavailable to the phone.
+    expect(phoneWidth + 2 * horizontalPadding).toBeLessThanOrEqual(panelWidth - 2 * border);
+  },
+);
 
 describe("the phone's panel on the tab layout (stage.css)", () => {
   const cases = [1024, 1100, 1279, 1470].flatMap((width) =>

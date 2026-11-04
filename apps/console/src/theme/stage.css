@@ -782,7 +782,8 @@
   bottom: 0;
   z-index: 1;
   width: var(--fsc-phone-panel);
-  padding: 14px 10px 12px;
+  /* A 360 px screen and its 20 px bezel fit inside the fixed panel's border box. */
+  padding: 14px 8px 12px;
   border: 1px solid var(--fs-rule);
   border-bottom: 0;
   background: var(--fs-plate);
