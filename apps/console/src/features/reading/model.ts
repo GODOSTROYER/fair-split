@@ -17,6 +17,7 @@ import {
   type CopyKind,
   copyKind,
   type PhotoSlip,
+  POSITIONS,
   photoSlips,
   type SlipPosition,
   stainedReading,
@@ -106,6 +107,26 @@ export function slipsOf(snapshot: SeasonSnapshot, photo: SnapshotPhoto): PhotoSl
 /** The photo whose document an `extract.row` names (the document is the photograph). */
 export function photoOfDoc(snapshot: SeasonSnapshot, docId: string): SnapshotPhoto | undefined {
   return snapshot.photos.find((p) => p.documentId === docId);
+}
+
+/**
+ * Judge clones mint new document IDs while retaining the replay manifest's serials and row positions.
+ * The authenticated extract.row identifies its sheet by those two fields together: 0457 is B/BL on white
+ * and D/TL on pink. A known document is authoritative; conflicts, unknown slips and ambiguous manifests
+ * never borrow another photo's paper. This resolves presentation only, never a row's money or identity in storage.
+ */
+export function photoForRow(
+  snapshot: SeasonSnapshot,
+  row: Pick<RunEventOf<"extract.row">["payload"], "docId" | "serial" | "row">,
+): SnapshotPhoto | undefined {
+  const position = POSITIONS[row.row];
+  if (!position) return undefined;
+  const matches = (photo: SnapshotPhoto) =>
+    photo.slips.some((slip) => slip.position === position && slip.serial === row.serial);
+  const exact = photoOfDoc(snapshot, row.docId);
+  if (exact) return matches(exact) ? exact : undefined;
+  const candidates = replayPhotos(snapshot).filter(matches);
+  return candidates.length === 1 ? candidates[0] : undefined;
 }
 
 /** Serials that appear in two replay photos, mapped to the other photo. */
@@ -220,19 +241,22 @@ export interface RowsInput {
 export function rowsForPhoto({ view, snapshot, photo }: RowsInput): (ReadingRow | null)[] {
   const slips = slipsOf(snapshot, photo);
   const pairs = twins(snapshot);
+  const events = (view?.rows ?? []).filter(
+    (row) => photoForRow(snapshot, row)?.documentId === photo.documentId,
+  );
+  const documents = new Set([photo.documentId, ...events.map((row) => row.docId)]);
   const quarantine = new Set(
     snapshot.quarantineNotices.filter((q) => q.photoId === photo.photoId).map((q) => q.serial),
   );
   for (const q of view?.quarantined ?? []) {
-    if (q.docId !== photo.documentId || q.row === null) continue;
+    if (!documents.has(q.docId) || q.row === null) continue;
     const slip = slips[q.row];
     if (slip) quarantine.add(slip.slip.serial);
   }
-  const events = (view?.rows ?? []).filter((r) => r.docId === photo.documentId);
   const earlier = photo.set === "EARLIER";
   const computed = view ? atLeast(view, "COMPUTED") : false;
   return slips.map(({ position, slip }, index) => {
-    const event = events.find((r) => r.serial === slip.serial) ?? events.find((r) => r.row === index);
+    const event = events.find((r) => r.serial === slip.serial && r.row === index);
     const twinPhoto = pairs.get(slip.serial)?.get(photo.photoId) ?? null;
     const entered = view ? entryFor(view, slip.serial) : null;
     if (event) {
@@ -355,7 +379,7 @@ export function hasStarted(view: RunView | undefined, inSession: boolean): boole
 export function latestRowPhoto(view: RunView | undefined, snapshot: SeasonSnapshot): string | null {
   const last = view?.rows[view.rows.length - 1];
   if (!last) return null;
-  return photoOfDoc(snapshot, last.docId)?.photoId ?? null;
+  return photoForRow(snapshot, last)?.photoId ?? null;
 }
 
 /** The photo on the bench: the URL's, else the one being read, else the first one needing a person, else A. */

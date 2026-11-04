@@ -38,7 +38,7 @@ import {
   hasStarted,
   isReading,
   latestRowPhoto,
-  photoOfDoc,
+  photoForRow,
   quarantineNotice,
   readCount,
   readingState,
@@ -95,6 +95,18 @@ export function ReadingRoom({
   const [zoom, setZoom] = useState<BenchZoom>(FIT);
   const [activeRow, setActiveRow] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
+  const attachMomentRoot = moment.rootProps.ref;
+  const bodyRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      body.current = node;
+      const detach = attachMomentRoot(node);
+      return () => {
+        detach?.();
+        if (body.current === node) body.current = null;
+      };
+    },
+    [attachMomentRoot],
+  );
   const tableRef = useRef<HTMLTableElement>(null);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
@@ -172,7 +184,7 @@ export function ReadingRoom({
   const onRow = useCallback(
     (event: RunEvent) => {
       if (event.type !== "extract.row") return;
-      const rowPhoto = photoOfDoc(snapshot, event.payload.docId);
+      const rowPhoto = photoForRow(snapshot, event.payload);
       if (!rowPhoto) return;
       const serial = event.payload.serial;
       const delay = stage?.director.space("row") ?? 0;
@@ -309,8 +321,8 @@ export function ReadingRoom({
 
       <div
         className="fsc-read__body"
-        ref={body}
         {...moment.rootProps}
+        ref={bodyRef}
         data-motion={mode}
         data-testid="W-TR-03.room"
       >

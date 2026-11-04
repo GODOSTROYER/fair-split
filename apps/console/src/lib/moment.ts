@@ -1,7 +1,8 @@
 // useMoment(id): the one phase machine every console moment runs on (S2.8). It plays the acts of
 // @fairsplit/motion's TIMELINES in the viewer's motion mode, so phases, times and feedback come from one
 // file (IC-10, frozen 27 Oct), never from screen code. It writes data-moment and data-moment-phase through
-// `rootProps`, appends {m, phase, t} to window.__fsMoments in test builds or with ?fsTrace=1, and refuses
+// `rootProps`, synchronously preserving each real phase on its registered roots even when React batches renders,
+// appends {m, phase, t} to window.__fsMoments in test builds or with ?fsTrace=1, and refuses
 // to start without evidence: motion is evidence, so every act needs the event that caused it (an SSE
 // RunEvent ID, an HTTP response, a signature, or the person's own press). The same evidence twice plays once.
 
@@ -61,7 +62,12 @@ export interface MomentController<M extends MomentId> {
   enter(phase: MomentPhase<M>): void;
   /** Back to the first phase and the initial values. */
   reset(): void;
-  readonly rootProps: { readonly "data-moment": M; readonly "data-moment-phase": MomentPhase<M> };
+  readonly rootProps: {
+    readonly "data-moment": M;
+    readonly "data-moment-phase": MomentPhase<M>;
+    /** Register the actual root; compose this callback with any screen-owned ref. */
+    readonly ref: (root: HTMLElement | null) => undefined | (() => void);
+  };
 }
 
 declare global {
@@ -108,6 +114,8 @@ export function useMoment<M extends MomentId>(id: M, options: MomentOptions = {}
   const first = MOMENTS[id][0] as MomentPhase<M>;
   const [phase, setPhaseState] = useState<MomentPhase<M>>(first);
   const [playing, setPlaying] = useState(false);
+  const roots = useRef(new Set<HTMLElement>());
+  const currentPhase = useRef<MomentPhase<M>>(first);
   const values = useRef(new Map<string, MotionValue<number>>());
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const animations = useRef(new Set<AnimationPlaybackControls>());
@@ -118,11 +126,27 @@ export function useMoment<M extends MomentId>(id: M, options: MomentOptions = {}
   const setPhase = useCallback(
     (next: MomentPhase<M>) => {
       if (!mounted.current) return;
+      currentPhase.current = next;
+      // Phase selectors describe the actual timeline callback, not React's eventual rendering cadence.
+      // A MutationObserver can retain these real attribute changes even when two renders become one.
+      for (const root of roots.current) {
+        if (root.getAttribute("data-moment-phase") !== next) root.setAttribute("data-moment-phase", next);
+      }
       setPhaseState(next);
       traceMoment(id, next);
     },
     [id],
   );
+
+  const attachRoot = useCallback((root: HTMLElement | null) => {
+    if (!root) return undefined;
+    roots.current.add(root);
+    if (root.getAttribute("data-moment-phase") !== currentPhase.current)
+      root.setAttribute("data-moment-phase", currentPhase.current);
+    return () => {
+      roots.current.delete(root);
+    };
+  }, []);
 
   const value = useCallback(
     (target: string): MotionValue<number> => {
@@ -245,8 +269,8 @@ export function useMoment<M extends MomentId>(id: M, options: MomentOptions = {}
       play,
       enter,
       reset,
-      rootProps: { "data-moment": id, "data-moment-phase": phase },
+      rootProps: { "data-moment": id, "data-moment-phase": phase, ref: attachRoot },
     }),
-    [enter, id, mode, phase, play, playing, reset, value],
+    [attachRoot, enter, id, mode, phase, play, playing, reset, value],
   );
 }

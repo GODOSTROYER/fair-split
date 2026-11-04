@@ -64,6 +64,18 @@ export function Screen({ runSlug }: RunScreenProps) {
   const slabRef = useRef<HTMLDivElement>(null);
   // "Pay in cash" goes away once the line moves: focus goes to the line that says where the cash is now.
   const [fanRoot, setFanRoot] = useState<HTMLElement | null>(null);
+  const attachMomentRoot = moment.rootProps.ref;
+  const fanRef = useCallback(
+    (node: HTMLElement | null) => {
+      setFanRoot(node);
+      const detach = attachMomentRoot(node);
+      return () => {
+        detach?.();
+        setFanRoot((current) => (current === node ? null : current));
+      };
+    },
+    [attachMomentRoot],
+  );
   useFocusAfterRemoval(
     fanRoot,
     () => fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.rerouted"]') ?? null,
@@ -224,7 +236,7 @@ export function Screen({ runSlug }: RunScreenProps) {
       )}
       <section
         {...moment.rootProps}
-        ref={setFanRoot}
+        ref={fanRef}
         className="fsr-fanout"
         data-motion={moment.mode}
         aria-labelledby="W-TR-08-figure"
