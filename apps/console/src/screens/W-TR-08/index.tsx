@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
+import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { describeEvent, type LogRow } from "../../data/describe.js";
@@ -30,7 +31,7 @@ import { LatencyDots, RunLog } from "../../features/fanout/RunLog.js";
 import { SplitFan } from "../../features/fanout/SplitFan.js";
 import { seededLog } from "../../features/fanout/seeded.js";
 import { en, FANOUT } from "../../features/split/shared/copy.js";
-import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
+import { cashDayForRun, useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
@@ -169,6 +170,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     </header>
   );
 
+  if (data.access !== "allowed") return <RunRouteGate data={data} />;
   if (data.error && !view) {
     return (
       <ScreenRoot
@@ -202,7 +204,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     );
   }
 
-  const cashDay = format.dateShort(snapshot.run.cashDay);
+  const cashDay = format.dateShort(cashDayForRun(snapshot, view));
   const isPosted = isPostedRun(view);
   const summary = summaryFacts(snapshot, fan);
   const parkedLineId = parked ? (view.lines[parked.memberNo]?.lineId ?? null) : null;
@@ -315,7 +317,10 @@ export function Screen({ runSlug }: RunScreenProps) {
             <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
               {replayed
                 ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).replayedSuccessful} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
-                : FANOUT.shareCounts(shareCounts(fan))}{" "}
+                : FANOUT.shareCounts({
+                    ...shareCounts(fan),
+                    posting: view.state === "POSTING" || view.state === "POSTED",
+                  })}{" "}
               <span className="fsr-muted">{FANOUT.shareValue(fan.paypal.share)}</span>
             </p>
           </div>

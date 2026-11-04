@@ -420,6 +420,7 @@
 }
 
 .fsr-log__lane {
+  container-type: inline-size;
   display: grid;
   align-content: start;
   gap: var(--fs-space-8);
@@ -464,10 +465,32 @@
 }
 
 .fsr-log__words {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: var(--fs-space-4);
   color: var(--fs-ink);
+}
+
+.fsr-log__words > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fsr-log__amount {
+  white-space: nowrap;
+}
+.fsr-log__event {
+  grid-column: 1;
+  color: var(--fs-ink-3);
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 319px) {
+  .fsr-log__time {
+    grid-column: 1;
+    grid-row: auto;
+  }
 }
 
 .fsr-log__detail {

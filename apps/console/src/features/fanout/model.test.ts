@@ -44,6 +44,22 @@ function ends(d: string): { from: [number, number]; to: [number, number] } {
 }
 
 describe("the fan's geometry: width is money", () => {
+  it("inv.i4 grows the fan seal from the run's signed batch, never the seed", () => {
+    const view = viewOf(posted());
+    const hash = `3f1c1ce6${"ab".repeat(24)}c8fa1722`;
+    const treasurer = view.approvals.treasurer;
+    const chair = view.approvals.chair;
+    if (!treasurer || !chair) throw new Error("fixture needs both signatures");
+    const own = {
+      ...view,
+      approvals: {
+        ...view.approvals,
+        treasurer: { ...treasurer, batchSha256: hash },
+        chair: { ...chair, batchSha256: hash },
+      },
+    };
+    expect(fanView(snapshot, own).sealHash).toBe(hash);
+  });
   it("k = 276 / Σ net, threads largest first, spread one row apart so every label has room", () => {
     const fan = fanView(snapshot, showcaseView(snapshot));
     expect(fan.netCents).toBe(snapshot.figures.netCents);
