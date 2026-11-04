@@ -56,6 +56,7 @@ describe("E-19 public copy", () => {
         if (!area.optional) expect(files.length, area.name).toBeGreaterThan(0);
       }
       expect(areas.get("README")).toEqual(["README.md"]);
+      expect(areas.get("Devpost text")).toEqual(["docs/devpost.md"]);
       expect(areas.get("i18n catalogs")).toEqual(
         expect.arrayContaining([
           "packages/i18n/src/catalog/en.ts",

@@ -39,7 +39,8 @@ export interface Area {
 /** What E-19 reads (schedule §3 Q2, "Scope"). Tests and generated files are never copy. */
 export const AREAS: readonly Area[] = [
   { name: "README", files: ["README.md"] },
-  { name: "Devpost text", files: ["docs/devpost.md"], optional: true },
+  // Generated from IC-03 by tools/devpost-text.ts (S2); required now that it ships.
+  { name: "Devpost text", files: ["docs/devpost.md"] },
   { name: "film script", files: ["video/script.ts"], optional: true },
   { name: "judge rail notices", files: ["apps/api/src/judge/quota.ts"] },
   // REVIEW.md is rendered from these catalogs, so it is not read twice.

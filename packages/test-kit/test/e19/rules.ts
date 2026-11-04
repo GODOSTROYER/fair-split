@@ -383,6 +383,18 @@ export const EXCEPTIONS: readonly Allowance[] = [
   },
   {
     rule: FIGURES_RULE.id,
+    file: "README.md",
+    phrase: "capped at ₱50",
+    why: "PayPal Philippines' published payout fee cap, in the README's production-cost limits, not a season figure",
+  },
+  {
+    rule: FIGURES_RULE.id,
+    file: "docs/devpost.md",
+    phrase: "capped at ₱50",
+    why: "PayPal Philippines' published payout fee cap, in the Devpost limits (tools/devpost-text.ts), not a season figure",
+  },
+  {
+    rule: FIGURES_RULE.id,
     file: "apps/console/src/features/ratecard/copy.ts",
     phrase: "₱150",
     why: "MM-4's sample deduction, typed into the bolted rate card so the server refuses it; never computed or paid",
