@@ -3,12 +3,19 @@
 // rail and funds the run, and Reset brings the first view back for a second press. The live browser drives the
 // review, proves workspace key isolation, and completes Verify and the peso trace after both human signatures.
 import type { Page, Request, Response } from "@playwright/test";
-import { waitForRun } from "../../lib/api.js";
+import { type Api, type JudgeSession, sign, waitForRun } from "../../lib/api.js";
 import { startBrowserJudge, stopBrowserJudge } from "../../lib/browser-judge.js";
 import { consoleHas, missingRoute } from "../../lib/console.js";
 import { expect, test } from "../../lib/fixtures.js";
 import { withFullHourlyQuota, withLastHourlySlot } from "../../lib/judge-quota.js";
-import { bothKeys, collectRunEvents, officers, runState, workTheReview } from "../../lib/judge-run.js";
+import {
+  bothKeys,
+  collectRunEvents,
+  type Officers,
+  officers,
+  runState,
+  workTheReview,
+} from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
 
 const isV1 = (r: Request) => new URL(r.url()).pathname.startsWith("/v1/");
@@ -37,6 +44,70 @@ async function sessionOf(page: Page): Promise<SessionView> {
   const r = await page.request.get("/v1/judge/session");
   expect(r.status()).toBe(200);
   return (await r.json()) as SessionView;
+}
+
+/** Populate the actual Chair screen before signing, so later checks cannot pass on an empty request. */
+async function keysWithChairWatching(page: Page, api: Api, s: JudgeSession, keys: Officers): Promise<void> {
+  expect((await sign(api, s, keys.treasurer)).status).toBe(201);
+  await page.getByTestId("W-JG-01.tab.chair").click();
+  const chair = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
+  await expect(chair.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
+  await expect(chair.getByTestId("demo-label")).toHaveCount(0);
+  await expect(chair.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+  await expect(chair.getByTestId("M-BD-01.item.M-014")).toBeVisible();
+  await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "pencil");
+  expect((await sign(api, s, keys.chair)).status).toBe(201);
+  await expect(chair.getByTestId("M-BD-01")).toHaveAttribute("data-state", "signed");
+  await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "ink");
+  await page.getByTestId("W-JG-01.tab.member").click();
+}
+
+/** Render Member/Chair on the live run and Clerk's explicitly labelled local preview. */
+async function phoneScreenSweep(page: Page, replayed: boolean): Promise<void> {
+  await page.getByTestId("W-JG-01.tab.member").click();
+  const member = page.frameLocator('[data-testid="W-JG-01.frame.member"]');
+  await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-state", "paid");
+  await expect(member.getByTestId("demo-label")).toHaveCount(0);
+  if (replayed) {
+    await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/replay/i);
+    await expect(
+      member
+        .getByTestId("M-MB-01")
+        .locator('[data-tone="landed"], [data-tone="jade"], [data-amount-state="landed"]'),
+    ).toHaveCount(0);
+  } else {
+    await expect(member.getByTestId("M-MB-01")).not.toContainText(/replay/i);
+    await expect(member.getByTestId("M-MB-01.capsule")).not.toHaveAttribute("data-tone", "neutral");
+  }
+  await page.getByTestId("W-JG-01.tab.chair").click();
+  const chair = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
+  await expect(chair.getByTestId("M-BD-01")).toHaveAttribute("data-state", "signed");
+  await expect(chair.getByTestId("M-BD-01.signed")).toBeVisible();
+  // /batch is the current payable candidate set: after POST it is empty, while the signature remains signed.
+  await expect(chair.getByTestId("M-BD-01.items").locator('[data-testid^="M-BD-01.item."]')).toHaveCount(0);
+  await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "ink");
+  await expect(chair.getByTestId("M-BD-01.total")).toHaveAttribute("data-amount-state", "ink");
+  await expect(chair.getByTestId("M-BD-01.total")).toContainText("US$0.00");
+  await expect(chair.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+  await expect(chair.getByTestId("M-BD-01")).not.toContainText(/replay|\bPaid\b|Bayad na/i);
+  await expect(
+    chair
+      .getByTestId("M-BD-01")
+      .locator('[data-tone="landed"], [data-tone="jade"], [data-amount-state="landed"]'),
+  ).toHaveCount(0);
+  await page.getByTestId("W-JG-01.tab.clerk").click();
+  const clerk = page.frameLocator('[data-testid="W-JG-01.frame.clerk"]');
+  await expect(clerk.getByTestId("M-CL-01")).toHaveAttribute("data-state", "ready");
+  await expect(clerk.getByTestId("M-CL-01.scan")).toBeVisible();
+  await expect(clerk.getByTestId("demo-label")).toBeVisible();
+  await expect(clerk.getByTestId("demo-label")).toContainText(/demo/i);
+  await expect(clerk.getByTestId("M-CL-01")).not.toContainText(/replay|\bPaid\b|Bayad na/i);
+  await expect(
+    clerk
+      .getByTestId("M-CL-01")
+      .locator('[data-tone="landed"], [data-tone="jade"], [data-amount-state="landed"]'),
+  ).toHaveCount(0);
+  await page.getByTestId("W-JG-01.tab.member").click();
 }
 
 test("fs-api serves /judge as the console's page with X-Robots-Tag noindex", async ({ request }) => {
@@ -325,12 +396,25 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/statuses replayed/i);
       await page.getByTestId("W-JG-01.tab.member").click();
       const member = page.frameLocator('[data-testid="W-JG-01.frame.member"]');
-      // Keep the phone subscribed before POST: the event must override this run's original simulator DTO.
+      // Keep the phone subscribed before POST. The submitted line refetch and later item event both carry replay evidence.
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
-      expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
+      await page.evaluate(() => {
+        const frame = document.querySelector<HTMLIFrameElement>('[data-testid="W-JG-01.frame.member"]');
+        const seen = { paidFeedback: false, paidPress: false };
+        Object.assign(window, { replayMemberMoments: seen });
+        window.addEventListener("message", (event: MessageEvent) => {
+          if (event.source !== frame?.contentWindow || !event.data || typeof event.data !== "object") return;
+          const message = event.data as { t?: string; moment?: string; phase?: string; event?: string };
+          if (message.t === "fs.moment" && message.moment === "MM-1" && message.phase === "press")
+            seen.paidPress = true;
+          if (message.t === "fs.feedback" && message.event === "item.paid.member") seen.paidFeedback = true;
+        });
+      });
+      await keysWithChairWatching(page, api, s, keys);
       expect(
         (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
       ).toBe("NEEDS_FOLLOW_UP");
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-state", "paid");
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "replay");
       await expect(member.getByTestId("M-MB-01.rail")).toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.railCopy")).toContainText(/replay/i);
@@ -342,6 +426,41 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(
         /This payment uses|Kini nga bayad pinaagi|Ang bayad na ito ay sa/,
       );
+      await phoneScreenSweep(page, true);
+      expect(
+        await page.evaluate(
+          () => (window as unknown as { replayMemberMoments: unknown }).replayMemberMoments,
+        ),
+      ).toEqual({ paidFeedback: false, paidPress: false });
+      // A judge can open the member's line directly from the split, including its SMS and thermal copy.
+      await page.getByTestId("W-JG-01.rail.split").click();
+      await page.getByTestId("W-TR-05.row.M-014").click();
+      await expect(page.getByTestId("W-TR-09.status")).toHaveText(/Replayed \(labelled\)/i);
+      await expect(page.getByTestId("W-TR-09.status")).toHaveAttribute("data-tone", "neutral");
+      await expect(page.getByTestId("W-TR-09.amount")).toHaveAttribute("data-amount-state", "hollow");
+      // Each history row names the status it replayed; the drawer says once where it came from.
+      await expect(page.getByTestId("W-TR-09.history")).toContainText(/Replayed \(labelled\): /);
+      await expect(page.getByTestId("W-TR-09.history")).not.toContainText(/\bPaid\b/);
+      await expect(page.getByTestId("W-TR-09.line")).toContainText(/earlier simulated PayPal sandbox run/i);
+      expect(
+        ((await page.getByTestId("W-TR-09.line").textContent()) ?? "").split(
+          "From an earlier simulated PayPal sandbox run.",
+        ).length,
+      ).toBe(2);
+      await page.getByTestId("W-TR-09.sms.en").click();
+      await expect(page.getByTestId("W-TR-09.sms.text")).toContainText(/replay/i);
+      await expect(page.getByTestId("W-TR-09.sms.text")).toContainText(/simulated PayPal sandbox/i);
+      await expect(page.getByTestId("W-TR-09.sms.text")).not.toContainText(/\bPaid:|Bayad na/i);
+      await page.getByTestId("W-TR-09.print").click();
+      await expect(page).toHaveURL(new RegExp(`/runs/${s.runSlug}/members/M-014/print$`));
+      await expect(page.getByTestId("W-TR-09.paper")).toContainText(/Replayed \(labelled\)/i);
+      await expect(page.getByTestId("W-TR-09.paper")).toContainText(/earlier simulated PayPal sandbox run/i);
+      await expect(page.getByTestId("W-TR-09.print.amount")).toHaveAttribute("data-amount-state", "hollow");
+      await expect(page.getByTestId("W-TR-09.paper")).not.toContainText(/Paid by PayPal|Bayad na/i);
+      await page.getByRole("link", { name: "Back to the line" }).click();
+      await expect(page.getByTestId("W-TR-09.status")).toContainText(/Replayed \(labelled\)/i);
+      await page.keyboard.press("Escape");
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "replay");
       // Cold read uses payout evidence without SSE history restoring the replay label after navigation.
       await page.route("**/v1/lines/*/events*", (route) => route.abort());
       const coldRead = page.waitForResponse(
@@ -380,13 +499,22 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         .getByRole("row")
         .filter({ hasText: /M-\d{3}/ });
       await expect(payoutRows).toHaveCount(8);
+      // Each row says which status replayed: Rhea's parked line never reads like a success.
       for (const row of await payoutRows.all())
-        await expect(row.getByRole("cell").last()).toHaveText("Replayed (labelled)");
+        await expect(row.getByRole("cell").last()).toHaveText(
+          (await row.textContent())?.includes("Rhea Jumawan")
+            ? "Replayed (labelled): parked"
+            : "Replayed (labelled): successful in the earlier run",
+        );
       const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
       await expect(parkedChip).toHaveCount(1);
-      await expect(parkedChip).toHaveText("Replayed");
+      await expect(parkedChip).toHaveText("Replayed (labelled, simulated)");
       const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
-      await expect(payoutLog).toContainText(/replay of an earlier simulated/i);
+      // The log says the replay note once, above its lanes; each replayed row names what it replayed.
+      await expect(page.getByTestId("W-TR-08.log.replayNote")).toContainText(
+        /replay of an earlier simulated/i,
+      );
+      await expect(payoutLog).toContainText(/Replayed \(labelled\): Rhea Jumawan parked/);
       await expect(payoutLog).not.toContainText(/Confirmed by a status check|replay of the seed stand-in/i);
       const replayRows = payoutLog.locator('[data-provenance="replay"]');
       // Every replay event is labelled in its own row, including an unsuccessful recorded item.
@@ -411,9 +539,46 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       for (const row of await payoutRows.all()) {
         const status = row.getByRole("cell").last();
         await expect(status).toHaveText(
-          (await row.textContent())?.includes("Rhea Jumawan") ? "Cash due" : "Replayed (labelled)",
+          (await row.textContent())?.includes("Rhea Jumawan")
+            ? "Cash due"
+            : "Replayed (labelled): successful in the earlier run",
         );
       }
+      await page.getByTestId("W-JG-01.rail.split").click();
+      const rheaLine = page.getByTestId("W-TR-05.row.M-031");
+      const grid = page.getByTestId("W-TR-05.grid");
+      const showAll = page.getByTestId("W-TR-05.showAll");
+      const viewport = grid.locator(".ag-grid-viewport");
+      await expect(grid).toBeVisible();
+      await expect(showAll.or(viewport).first()).toBeVisible();
+      if (await showAll.isVisible()) {
+        // The static fallback initially shows 20 rows; use its own disclosure to reach Rhea.
+        await showAll.click();
+      } else {
+        await expect(viewport).toBeVisible();
+        await viewport.hover();
+        // The measured grid virtualizes its rows; scroll its viewport before opening Rhea.
+        for (let step = 0; step < 4 && (await rheaLine.count()) === 0; step++) {
+          await page.mouse.wheel(0, 400);
+          await page.evaluate(
+            () =>
+              new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+              ),
+          );
+        }
+      }
+      await expect(rheaLine).toBeAttached();
+      await rheaLine.click();
+      await expect(page.getByTestId("W-TR-09.status")).toHaveText("Cash due");
+      await expect(page.getByTestId("W-TR-09.status")).not.toContainText(/replay/i);
+      await expect(page.getByTestId("W-TR-09.history")).toContainText(/Replayed \(labelled\)/i);
+      await expect(page.getByTestId("W-TR-09.history")).toContainText(
+        /earlier simulated PayPal sandbox run/i,
+      );
+      await expect(page.getByTestId("W-TR-09.history").getByText(/^Returned\b/i)).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await page.getByTestId("W-JG-01.rail.run").click();
       // The film's tab layout must fit its phone figure without a horizontal scrollbar.
       await page.setViewportSize({ width: 1470, height: 956 });
       await page.getByTestId("W-JG-01.phoneTab").click();
@@ -458,16 +623,21 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       await page.getByTestId("W-JG-01.tab.member").click();
       const member = page.frameLocator('[data-testid="W-JG-01.frame.member"]');
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
-      expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
+      await keysWithChairWatching(page, api, s, keys);
       expect(
         (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
       ).toBe("NEEDS_FOLLOW_UP");
       const item = await events.waitFor((event) => event.type === "item.updated", 10_000);
       expect(item?.provenance).toBe("simulated_rail");
+      // Wait for the POST outcome before checking its rail: the pre-POST frame is simulated too.
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-state", "paid");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toHaveAttribute("data-tone", "neutral");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
       await expect(member.getByTestId("M-MB-01.railCopy")).toContainText(/simulated PayPal sandbox/);
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
-      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/Bayad na|Paid|Bayad/);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/^(Bayad na|Paid|Bayad)\b/);
+      await phoneScreenSweep(page, false);
       const browserQuota = page.waitForResponse(
         async (response) => {
           if (new URL(response.url()).pathname !== "/v1/judge/session" || response.status() !== 200)
@@ -494,9 +664,12 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
         provenance: "simulated_rail",
         mobile: { provenance: "simulated_rail", item: { status: "SUCCESS", provenance: "simulated_rail" } },
       });
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-state", "paid");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toHaveAttribute("data-tone", "neutral");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
-      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/Bayad na|Paid|Bayad/);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/^(Bayad na|Paid|Bayad)\b/);
       await page.getByTestId("W-JG-01.rail.run").click();
       const chip = page.getByTestId("W-JG-01.proofChip");
       await expect(chip).toContainText(/confirmed/i);

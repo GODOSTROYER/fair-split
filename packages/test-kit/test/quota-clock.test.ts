@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { quotaHourDelay } from "./quota-clock.js";
+
+// Exercise the e2e fixture's actual clock guard in test-kit's CI-discovered suite without widening rootDir.
+const guardUrl = new URL("../../../e2e/lib/quota-clock.ts", import.meta.url);
+const { quotaHourDelay }: { quotaHourDelay(now: number): number } = await import(guardUrl.href);
 
 describe("quota fixture clock-hour guard", () => {
   it("leaves a full three-minute window for a payout before quota rows expire", () => {
