@@ -579,10 +579,11 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(page.getByTestId("W-TR-09.history").getByText(/^Returned\b/i)).toHaveCount(0);
       await page.keyboard.press("Escape");
       await page.getByTestId("W-JG-01.rail.run").click();
-      // The film's tab layout must fit its phone figure without a horizontal scrollbar.
+      // The film's 1,470 layout must fit its phone figure without a horizontal scrollbar. The phone rests folded to
+      // its rail there (UI gate round 3); the Member avatar opens the Member's frame.
       await page.setViewportSize({ width: 1470, height: 956 });
-      await page.getByTestId("W-JG-01.phoneTab").click();
       await page.getByTestId("W-JG-01.tab.member").click();
+      await expect(page.getByTestId("W-JG-01.phoneTab")).toHaveAttribute("aria-expanded", "true");
       await expect(page.locator("#fsc-phone-panel")).toBeVisible();
       const dimensions = await page.locator("#fsc-phone-panel").evaluate((panel) => {
         const figure = panel.querySelector("figure");
@@ -671,9 +672,9 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/^(Bayad na|Paid|Bayad)\b/);
       await page.getByTestId("W-JG-01.rail.run").click();
+      // The top bar's Proof counter counts Proof's six checks (UI gate round 3), not payouts.
       const chip = page.getByTestId("W-JG-01.proofChip");
-      await expect(chip).toContainText(/confirmed/i);
-      await expect(chip).toContainText("in the simulated sandbox");
+      await expect(chip).toContainText(/of 6 checks match/);
       await expect(chip).not.toContainText(/replayed/i);
       await expect(page.getByTestId("W-TR-08.status")).not.toContainText(/replayed/i);
       await expect(page.getByTestId("W-TR-08.share")).toContainText(/confirmed/i);
