@@ -1,146 +1,236 @@
 [
   {
-    "beat": "title",
-    "start": 9,
-    "end": 15.6,
-    "text": "At this cacao co-op, a season's pay starts as handwritten weigh-slips. Every"
+    "beat": "problem",
+    "start": 0,
+    "end": 4.375,
+    "text": "Sixty-four cacao farmers are paid from handwritten weigh-slips. A duplicate"
   },
   {
-    "beat": "title",
-    "start": 15.6,
-    "end": 20,
-    "text": "mark needs a reason; every amount needs proof."
+    "beat": "problem",
+    "start": 4.375,
+    "end": 10.5,
+    "text": "copy, or a fine no rule allows, goes unseen. Members can't check their pay,"
   },
   {
-    "beat": "funding",
-    "start": 20,
-    "end": 27.2,
-    "text": "Lantern Bay funds one invoice through PayPal's Agent Toolkit, on a simulated"
+    "beat": "problem",
+    "start": 10.5,
+    "end": 14,
+    "text": "and the buyer can't prove its premium arrived."
   },
   {
-    "beat": "funding",
-    "start": 27.2,
-    "end": 32,
-    "text": "PayPal sandbox. Nothing starts until it reads paid."
+    "beat": "solution",
+    "start": 14,
+    "end": 19.333333,
+    "text": "Fair Split: Claude reads the paper. Code computes every amount and holds"
   },
   {
-    "beat": "reading",
-    "start": 32,
-    "end": 40.210526,
-    "text": "Claude is built to read every slip twice; this replay is a labelled"
+    "beat": "solution",
+    "start": 19.333333,
+    "end": 24.666667,
+    "text": "what it can't justify. Two officers sign. PayPal pays, on a simulated"
   },
   {
-    "beat": "reading",
-    "start": 40.210526,
+    "beat": "solution",
+    "start": 24.666667,
+    "end": 30,
+    "text": "sandbox; cash members get the same statement. The brand re-checks it all."
+  },
+  {
+    "beat": "architecture",
+    "start": 30,
+    "end": 35.870968,
+    "text": "Slips go to Claude, then a deterministic engine. Two keys sign the batch"
+  },
+  {
+    "beat": "architecture",
+    "start": 35.870968,
+    "end": 40.83871,
+    "text": "hash. A transactional outbox makes each PayPal call idempotent, against an"
+  },
+  {
+    "beat": "architecture",
+    "start": 40.83871,
     "end": 44,
-    "text": "stand-in. Analyn checks the stained digit."
+    "text": "in-process simulator whose signed webhooks we verify."
   },
   {
-    "beat": "duplicate",
+    "beat": "highlights",
     "start": 44,
-    "end": 51.8,
-    "text": "The original and its pink copy: one slip. Count it once, remove the"
+    "end": 49.777778,
+    "text": "What's special: a split matrix that rebalances, a mass-balance dial, a rate"
   },
   {
-    "beat": "duplicate",
-    "start": 51.8,
-    "end": 56,
-    "text": "duplicate claim, and watch the grid rebalance."
+    "beat": "highlights",
+    "start": 49.777778,
+    "end": 55.074074,
+    "text": "card that refuses edits, two keys, browser-side proof, audio statements, and"
   },
   {
-    "beat": "rules",
-    "start": 56,
-    "end": 65.578947,
-    "text": "Holds resolved in ink. Analyn tries adding a deduction. The rate card was"
+    "beat": "highlights",
+    "start": 55.074074,
+    "end": 57,
+    "text": "Try to break it."
   },
   {
-    "beat": "rules",
-    "start": 65.578947,
-    "end": 70,
-    "text": "hashed before the first slip. Refused."
+    "beat": "paper",
+    "start": 57,
+    "end": 62.647059,
+    "text": "Each delivery gets a handwritten slip and a pink carbon copy. Photograph"
   },
   {
-    "beat": "signing",
-    "start": 70,
-    "end": 79.333333,
-    "text": "Above the threshold, a second key. Analyn holds to sign; the Chair signs on"
+    "beat": "paper",
+    "start": 62.647059,
+    "end": 65,
+    "text": "both, and it counts twice."
   },
   {
-    "beat": "signing",
-    "start": 79.333333,
-    "end": 84,
-    "text": "his phone. Both sign one batch hash."
+    "beat": "funding",
+    "start": 65,
+    "end": 70.5,
+    "text": "Lantern Bay funds the season with one invoice, through PayPal's Agent"
   },
   {
-    "beat": "payouts",
-    "start": 84,
-    "end": 93,
-    "text": "The simulated PayPal accepts the batch: sent, not yet paid. Status checks"
+    "beat": "funding",
+    "start": 70.5,
+    "end": 73,
+    "text": "Toolkit on a simulated sandbox."
   },
   {
-    "beat": "payouts",
-    "start": 93,
-    "end": 101.25,
-    "text": "confirm each item. An unclaimed member moves to cash. Repeats change"
+    "beat": "reading",
+    "start": 73,
+    "end": 79.363636,
+    "text": "Here is Claude's real reading of one slip. The run itself replays a labelled"
   },
   {
-    "beat": "payouts",
-    "start": 101.25,
+    "beat": "reading",
+    "start": 79.363636,
+    "end": 83,
+    "text": "stand-in; Analyn enters a stained digit by hand."
+  },
+  {
+    "beat": "count-once",
+    "start": 83,
+    "end": 88.4,
+    "text": "Count it once: the duplicate claim returns to sixty-three members, the grid"
+  },
+  {
+    "beat": "count-once",
+    "start": 88.4,
+    "end": 92,
+    "text": "rebalances, and the dial drops inside the limit."
+  },
+  {
+    "beat": "holds",
+    "start": 92,
+    "end": 97.454545,
+    "text": "Two more holds, decided in ink. Then Analyn tries adding a deduction."
+  },
+  {
+    "beat": "holds",
+    "start": 97.454545,
     "end": 102,
-    "text": "nothing."
+    "text": "Refused: the rate card was hashed before the first slip."
   },
   {
-    "beat": "proof",
+    "beat": "signing",
     "start": 102,
-    "end": 113.368421,
-    "text": "Lantern Bay re-checks the rate card, signatures, and every line in its"
+    "end": 107.4,
+    "text": "Above three hundred dollars, two keys: Analyn holds to sign; the Chair"
+  },
+  {
+    "beat": "signing",
+    "start": 107.4,
+    "end": 111,
+    "text": "co-signs the same batch hash on his phone."
+  },
+  {
+    "beat": "payouts",
+    "start": 111,
+    "end": 117,
+    "text": "The simulated PayPal accepts the batch: sent, not yet paid. Seven items"
+  },
+  {
+    "beat": "payouts",
+    "start": 117,
+    "end": 121,
+    "text": "confirm; a member without PayPal moves to cash."
   },
   {
     "beat": "proof",
-    "start": 113.368421,
-    "end": 120,
-    "text": "browser. PayPal and cash share one statement."
+    "start": 121,
+    "end": 126.333333,
+    "text": "Lantern Bay opens Proof and re-checks the rate card, both signatures and"
+  },
+  {
+    "beat": "proof",
+    "start": 126.333333,
+    "end": 129,
+    "text": "every line, in its own browser."
+  },
+  {
+    "beat": "member",
+    "start": 129,
+    "end": 134,
+    "text": "A member taps a peso; it traces to her slips."
   },
   {
     "beat": "listening",
-    "start": 120,
-    "end": 128.571429,
+    "start": 134,
+    "end": 140.428571,
     "text": "Premium gikan sa Lantern Bay Chocolate Co.: forty-three dollars and"
   },
   {
     "beat": "listening",
-    "start": 128.571429,
-    "end": 132,
+    "start": 140.428571,
+    "end": 143,
     "text": "sixty-nine cents, walay kaltas."
   },
   {
-    "beat": "architecture",
-    "start": 132,
-    "end": 140.8,
-    "text": "Our typed Payouts tool, simulator-signed webhooks, and code computing every"
+    "beat": "impressive",
+    "start": 143,
+    "end": 147.95,
+    "text": "Underneath: more than five thousand automated tests, idempotent PayPal"
   },
   {
-    "beat": "architecture",
-    "start": 140.8,
-    "end": 150.48,
-    "text": "amount. Similar projects protect a payer or contract. Fair Split protects"
+    "beat": "impressive",
+    "start": 147.95,
+    "end": 153.45,
+    "text": "calls, verified simulator webhooks, three kill switches, and replays always"
   },
   {
-    "beat": "architecture",
-    "start": 150.48,
+    "beat": "impressive",
+    "start": 153.45,
     "end": 154,
-    "text": "the people being paid."
+    "text": "labelled."
   },
   {
     "beat": "limits",
     "start": 154,
-    "end": 162,
-    "text": "A prototype on a simulated PayPal sandbox, with synthetic people. No money"
+    "end": 159.37931,
+    "text": "The limits: PayPal runs on a simulated sandbox. People and data are"
   },
   {
     "beat": "limits",
-    "start": 162,
-    "end": 170,
-    "text": "moves. Code computes. People approve. Every peso, traced to the pencil mark."
+    "start": 159.37931,
+    "end": 164.758621,
+    "text": "synthetic; no real farmer was paid. Judge runs replay a labelled reading"
+  },
+  {
+    "beat": "limits",
+    "start": 164.758621,
+    "end": 167,
+    "text": "stand-in. Voices are Gemini TTS."
+  },
+  {
+    "beat": "end",
+    "start": 167,
+    "end": 172.647059,
+    "text": "Members check their own pay; the brand traces its premium. Every peso,"
+  },
+  {
+    "beat": "end",
+    "start": 172.647059,
+    "end": 175,
+    "text": "traced to the pencil mark."
   }
 ]
