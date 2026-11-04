@@ -43,7 +43,7 @@ import {
   mulDivHalfUp,
   seasonLabelOf,
 } from "@fairsplit/domain";
-import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import type { Logger } from "pino";
 import { readWorkspaceLedger, signProofCheckpoint } from "../ledger/chain.js";
 import type { LedgerSigningKey } from "../ledger/keys.js";
@@ -132,7 +132,7 @@ function toProofRun(row: RunRow): ProofRun {
 
 /** Public lookup: run slugs are globally unique (one sequence), so the public Proof needs no workspace. */
 export async function findRunBySlug(db: DbOrTx, runSlug: string, now: Date): Promise<ProofRun | null> {
-  // An expired workspace (a judge session after Reset, before the hourly purge) is gone for everyone.
+  // Reset ends a judge claim immediately; expiry remains unchanged until the hourly purge.
   const [row] = await db
     .select(runColumns)
     .from(schema.payRuns)
@@ -141,6 +141,7 @@ export async function findRunBySlug(db: DbOrTx, runSlug: string, now: Date): Pro
       and(
         eq(schema.payRuns.runSlug, runSlug),
         or(isNull(schema.workspaces.expiresAt), gt(schema.workspaces.expiresAt, now)),
+        or(ne(schema.workspaces.kind, "judge"), isNotNull(schema.workspaces.claimedAt)),
       ),
     )
     .limit(1);
