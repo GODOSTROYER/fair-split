@@ -132,7 +132,8 @@ function toProofRun(row: RunRow): ProofRun {
 
 /** Public lookup: run slugs are globally unique (one sequence), so the public Proof needs no workspace. */
 export async function findRunBySlug(db: DbOrTx, runSlug: string, now: Date): Promise<ProofRun | null> {
-  // Reset ends a judge claim immediately; expiry remains unchanged until the hourly purge.
+  // Permanent seeded worlds have no expiring claim (judge/pool.ts workspaceInUse). A Reset ends an
+  // expiring judge claim immediately; its expiry remains unchanged until the hourly purge.
   const [row] = await db
     .select(runColumns)
     .from(schema.payRuns)
@@ -141,7 +142,11 @@ export async function findRunBySlug(db: DbOrTx, runSlug: string, now: Date): Pro
       and(
         eq(schema.payRuns.runSlug, runSlug),
         or(isNull(schema.workspaces.expiresAt), gt(schema.workspaces.expiresAt, now)),
-        or(ne(schema.workspaces.kind, "judge"), isNotNull(schema.workspaces.claimedAt)),
+        or(
+          isNull(schema.workspaces.expiresAt),
+          ne(schema.workspaces.kind, "judge"),
+          isNotNull(schema.workspaces.claimedAt),
+        ),
       ),
     )
     .limit(1);
