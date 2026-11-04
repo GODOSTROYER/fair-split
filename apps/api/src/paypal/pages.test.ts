@@ -1,23 +1,29 @@
-import { createSimulator, type Simulator } from "@fairsplit/paypal-sim";
 import { Hono } from "hono";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AppEnv } from "../lib/context.js";
+import type { SimulatorPages } from "./mode.js";
 import { mountSimulatorPages } from "./pages.js";
+import { startTestSimulator, type TestSimulator } from "./test/sim.js";
 
 const origin = "http://localhost:8787";
-let sim: Simulator;
+let s: TestSimulator;
+let pages: SimulatorPages;
 let app: Hono<AppEnv>;
 let forwarded = 0;
 
 beforeAll(async () => {
-  sim = await createSimulator({ publicBaseUrl: origin, basePath: "/paypal-sim", speed: 0, logger: () => {} });
+  s = await startTestSimulator({ duplicate: false });
+  const mountedPages = s.sim.rail.pages;
+  if (!mountedPages) throw new Error("missing simulator pages");
+  pages = mountedPages;
+  s.sim.deliverTo(() => new Response(null, { status: 200 }));
   app = new Hono<AppEnv>();
   mountSimulatorPages(app, {
     basePath: "/paypal-sim",
-    baseUrl: sim.pagesBaseUrl,
+    baseUrl: pages.baseUrl,
     fetch: (request) => {
       forwarded++;
-      return sim.publicFetch(request);
+      return pages.fetch(request);
     },
   });
 });
@@ -25,7 +31,7 @@ beforeEach(() => {
   forwarded = 0;
 });
 afterAll(async () => {
-  await sim?.close();
+  await s?.sim.stop();
 });
 
 function streamed(headers: Record<string, string> = {}) {
@@ -69,8 +75,9 @@ describe("HD6-1a bounded public simulator mount", () => {
   });
 
   it("keeps GET and HEAD certificate responses unchanged", async () => {
-    const certUrl = sim.certUrl;
-    const direct = await sim.publicFetch(new Request(certUrl));
+    const certUrl = pages.certUrl;
+    if (!certUrl) throw new Error("missing certificate URL");
+    const direct = await pages.fetch(new Request(certUrl));
     const mounted = await app.fetch(new Request(certUrl));
     expect(mounted.status).toBe(200);
     expect(mounted.headers.get("content-type")).toBe(direct.headers.get("content-type"));
@@ -79,9 +86,9 @@ describe("HD6-1a bounded public simulator mount", () => {
   });
 
   it("an empty-form POST still pays a real invoice and its GET is unchanged", async () => {
-    const client = sim.registry.apps[0];
-    if (!client) throw new Error("missing simulator app");
-    const auth = await sim.apiFetch(
+    const client = { client_id: s.env.PP_CLIENT_ID, client_secret: s.env.PP_CLIENT_SECRET };
+    if (!client.client_id || !client.client_secret) throw new Error("missing simulator app");
+    const auth = await s.sim.rail.fetch(
       new Request("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
         method: "POST",
         headers: {
@@ -93,7 +100,7 @@ describe("HD6-1a bounded public simulator mount", () => {
     );
     const token = ((await auth.json()) as { access_token: string }).access_token;
     const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
-    const created = await sim.apiFetch(
+    const created = await s.sim.rail.fetch(
       new Request("https://api-m.sandbox.paypal.com/v2/invoicing/invoices", {
         method: "POST",
         headers,
@@ -109,11 +116,12 @@ describe("HD6-1a bounded public simulator mount", () => {
     const invoiceUrl = ((await created.json()) as { href: string }).href;
     const id = invoiceUrl.split("/").at(-1);
     expect(
-      (await sim.apiFetch(new Request(`${invoiceUrl}/send`, { method: "POST", headers, body: "{}" }))).status,
+      (await s.sim.rail.fetch(new Request(`${invoiceUrl}/send`, { method: "POST", headers, body: "{}" })))
+        .status,
     ).toBe(200);
     const url = `${origin}/paypal-sim/sim/invoice/${id}`;
     expect(await (await app.fetch(new Request(url))).text()).toBe(
-      await (await sim.publicFetch(new Request(url))).text(),
+      await (await pages.fetch(new Request(url))).text(),
     );
     const paid = await app.fetch(
       new Request(`${url}/pay`, { method: "POST", headers: { accept: "application/json" }, body: "" }),
