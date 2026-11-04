@@ -27,5 +27,10 @@ export default defineConfig({
   projects: [
     { name: "api", testDir: "./specs/api" },
     { name: "chromium", testDir: "./specs/browser", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "reduced-motion",
+      testDir: "./specs/browser",
+      use: { ...devices["Desktop Chrome"], reducedMotion: "reduce" },
+    },
   ],
 });
