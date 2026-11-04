@@ -2,6 +2,15 @@
    themed from the --fs-* tokens so nothing ships with a browser default. Every value here is a token. */
 
 @layer base {
+  .fs-t-title-1 {
+    text-wrap: balance;
+  }
+  .fsc-nowrap {
+    white-space: nowrap;
+  }
+  .fs-slab__face {
+    scroll-margin-top: 24px;
+  }
   :root {
     caret-color: var(--fs-ink);
     accent-color: var(--fs-ink);

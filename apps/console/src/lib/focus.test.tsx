@@ -10,8 +10,9 @@
 // live (the phone raised over the scrim), and keeps trying each frame while a browser refuses it.
 
 import { act, render } from "@testing-library/react";
-import { useRef, useState } from "react";
+import { StrictMode, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type StageApi, StageContext, usePrefocus } from "../stage/context.js";
 import { focusAcrossRemoval } from "../test/focus.js";
 import { fakeResizeObserver } from "../test/layout.js";
 import {
@@ -59,6 +60,41 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   document.body.replaceChildren();
+});
+
+it("a screen's mount pre-focus leaves its scroller at the top", () => {
+  const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    const main = this.closest("main");
+    if (main) main.scrollTop = 400;
+  });
+  function Prefocused() {
+    const ref = useRef<HTMLButtonElement>(null);
+    usePrefocus(ref, "W-TR-07");
+    return (
+      <main style={{ overflow: "auto", height: 100 }}>
+        <button
+          type="button"
+          ref={(element) => {
+            ref.current = element;
+            if (element) box(element, { top: 2000 });
+          }}
+        >
+          Sign
+        </button>
+      </main>
+    );
+  }
+  const result = render(
+    <StrictMode>
+      <StageContext.Provider value={{ next: { id: "approve", screen: "W-TR-07" } } as StageApi}>
+        <Prefocused />
+      </StageContext.Provider>
+    </StrictMode>,
+  );
+  expect(result.container.querySelector("main")?.scrollTop).toBe(0);
+  expect(scroll).not.toHaveBeenCalled();
 });
 
 /** A stage: a screen with two controls, a drawer beside it, the ribbon's lane. */

@@ -8,7 +8,7 @@ import { payoutReplayed } from "../data/payout-replay.js";
 
 import { type LogLane, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { useMotionMode } from "@fairsplit/ui-web";
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ConnectionBanner } from "../chrome/ConnectionBanner.js";
 import { ConsoleRail } from "../chrome/ConsoleRail.js";
@@ -99,8 +99,8 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
   return {
     MACHINE: row(
       "MACHINE",
-      "Placeholder draft (seed-written), checked by the live policy lattice",
-      "Line labels: a placeholder written with the seed (no Claude recording in this build)",
+      "Invoice lines (seeded sample); code quotes and policy checks every amount",
+      "Written with the seed; Claude did not draft these lines in this build",
       run.recordedOn,
     ),
     PEOPLE: row(
@@ -124,6 +124,11 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const layout = useStageLayout();
   const viewportHeight = useViewportHeight();
   const navigate = useNavigate();
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const screenRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (screenRef.current) screenRef.current.scrollTop = 0;
+  }, [pathname]);
   const motion = useMotionMode();
   const sound = useSound();
   const session = useJudgeSession();
@@ -144,8 +149,17 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   // The hold open in the drawer: the pill names its decision instead of pointing elsewhere.
   const openHold = useSearchParam("hold") ?? null;
   const next = useMemo(
-    () => nextStep(view, { inSession, season, recordedOn, byHandSlip, payouts, openHold }),
-    [view, inSession, season, recordedOn, byHandSlip, payouts, openHold],
+    () =>
+      nextStep(view, {
+        inSession,
+        pressing: session.pressing,
+        season,
+        recordedOn,
+        byHandSlip,
+        payouts,
+        openHold,
+      }),
+    [view, inSession, session.pressing, season, recordedOn, byHandSlip, payouts, openHold],
   );
 
   // The viewer's own raise (1024-1679 px) lays a scrim over the console: the console goes inert under it, focus
@@ -171,7 +185,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const raisePhone = useCallback(
     (p: FramePersona) => {
       setPersona(p);
-      if (roomBeside.current) setRaisedBy("moment");
+      if (roomBeside.current) setRaisedBy((current) => (current === "user" ? "user" : "moment"));
       else {
         askedFrame.current = p !== shown.current;
         raiseByViewer();
@@ -202,9 +216,12 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
   const lastStep = useRef(next.id);
   useEffect(() => {
-    if (next.id !== lastStep.current && next.persona) raisePhone(next.persona);
+    if (next.id !== lastStep.current) {
+      if (next.persona) raisePhone(next.persona);
+      else if (raisedByRef.current === "moment") lowerPhone();
+    }
     lastStep.current = next.id;
-  }, [next, raisePhone]);
+  }, [next, raisePhone, lowerPhone]);
 
   // When M-014's payment lands in this run, the phone rises for MM-1 (S1.6). History never raises it, and neither
   // does a replayed SUCCESS: it is the earlier run's, never this one's landing.
@@ -222,7 +239,11 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     }),
     [motion, sound.on],
   );
-  const bridge = useStageBridge(prefs, { onFocus: (p) => raisePhone(p) });
+  const bridge = useStageBridge(prefs, {
+    onFocus: (p) => {
+      if (p === next.persona) raisePhone(p);
+    },
+  });
   const ready = useMemo(
     () => ({
       member: bridge.status.member === "app",
@@ -312,6 +333,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const onReset = async () => {
     setAutoplay("off");
     lowerPhone();
+    setPersona("member");
     try {
       await session.reset();
     } catch {
@@ -331,8 +353,13 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     if (!entered) return;
     setAutoplay("off");
     lowerPhone();
+    setPersona("member");
     void navigate({ to: "/judge" });
   }, [ended, lowerPhone, navigate]);
+
+  useEffect(() => {
+    if (session.status === "none" || session.status === "ended") setPersona("member");
+  }, [session.status]);
 
   const phoneSize = phoneSizeFor(layout, viewportHeight);
 
@@ -402,7 +429,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                 <div className="fsc-console__main">
                   <ConnectionBanner status={stream} />
                   <div className="fsc-console__body">
-                    <main id="fsc-main" className="fsc-console__screen" tabIndex={-1}>
+                    <main id="fsc-main" className="fsc-console__screen" tabIndex={-1} ref={screenRef}>
                       {children}
                     </main>
                     <ChromeSlot name="console.drawer" className="fsc-console__drawer" />

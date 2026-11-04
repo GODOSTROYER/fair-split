@@ -2,7 +2,7 @@
 // the director (one focal moment at a time), the run pill's next step (to pre-focus its control) and the
 // autoplay state "Play it for me" drives (S1.6 `autoplay` and `paused`).
 
-import { createContext, type RefObject, useContext, useEffect } from "react";
+import { createContext, type RefObject, useContext, useEffect, useRef } from "react";
 import type { NextStep } from "../chrome/next-step.js";
 import type { FramePersona } from "../data/adapter.js";
 import { focusAndReveal, registerScreenControl } from "../lib/focus.js";
@@ -69,11 +69,19 @@ export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleS
   const next = useNextStep();
   const isStep = next?.screen === screen;
   const stepId = next?.id;
+  const first = useRef(true);
+  const focused = useRef<{ target: HTMLElement; stepId: typeof stepId } | null>(null);
   useEffect(() => {
     if (!isStep || !when) return;
     const target = controlOf(ref.current);
     if (!target) return;
-    focusAndReveal(target);
+    const mounting = first.current;
+    first.current = false;
+    if (focused.current?.target !== target || focused.current?.stepId !== stepId) {
+      if (mounting) target.focus({ preventScroll: true });
+      else focusAndReveal(target);
+      focused.current = { target, stepId };
+    }
     // While it is the step, it is the screen's main control: a focus return with nothing better lands on it. Read
     // when focus returns, so a control drawn again meanwhile (the press remounted at rest) is the one it finds.
     return registerScreenControl(() => controlOf(ref.current));

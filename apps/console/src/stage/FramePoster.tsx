@@ -5,6 +5,7 @@
 
 import { MEMBER_LINE_LABELS, type MemberLineState, type SeasonSnapshot } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
+import { sealHash } from "@fairsplit/seal";
 import { AmountDisplay, type CapsuleState, Glyph, Seal, StatusCapsule } from "@fairsplit/ui-web";
 import { POSTER, STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
@@ -115,10 +116,8 @@ function ChairPoster({
     return (
       <div className="fsc-poster__statement">
         <p className="fsc-poster__coop fs-t-caption">{chair ? POSTER.chairRole(chair.name) : ""}</p>
-        <p className="fsc-poster__greet fs-t-statement-lead">{POSTER.chairIdle}</p>
-        <p className="fsc-poster__chip fs-t-label">
-          <Glyph name="seal" size={16} />
-          <span>{POSTER.sign}</span>
+        <p className="fsc-poster__greet fs-t-statement-lead">
+          Nothing to sign yet. Ernesto signs after Analyn.
         </p>
       </div>
     );
@@ -142,7 +141,7 @@ function ChairPoster({
       {hash && (
         <figure className="fsc-poster__seal">
           <Seal batchSha256={hash} size={112} keys={keys} />
-          <figcaption className="fs-t-hash">{format.hashGroups(hash, 4)}</figcaption>
+          <figcaption className="fs-t-hash">{sealHash(hash)}</figcaption>
         </figure>
       )}
       <div className="fsc-poster__slab" data-signed={signed ? "" : undefined}>
