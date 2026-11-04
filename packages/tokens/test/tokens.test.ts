@@ -8,10 +8,14 @@ import {
   HOLLOW,
   LAYOUT,
   M3_ROLES,
+  MATERIALS,
   RADII,
+  SHADOWS,
   SPACE,
+  THEME_INFO,
   THEMES,
   TYPE_ROLES,
+  WASH,
 } from "../src/tokens.js";
 
 const oklab = (hex: string) => {
@@ -40,53 +44,82 @@ describe("colour source", () => {
     }
   });
 
-  it("the design's own OKLCH for Tablea's ground is #201712", () => {
-    expect(oklchToHex([0.214, 0.017, 50])).toBe("#201712");
+  it("Gabii's own OKLCH for its ground is #090D18 (night navy)", () => {
+    expect(oklchToHex([0.161, 0.0243, 268.23])).toBe("#090D18");
   });
 
-  it("resolves S2's mixes over plate in sRGB, opaque", () => {
-    expect(RESOLVED.tablea["canary-wash"].hex).toBe(mixHex("#F2DA4E", "#2A1F18", 0.12));
-    expect(RESOLVED.tablea["jade-wash"].hex).toBe(mixHex("#2FD3A0", "#2A1F18", 0.18));
-    expect(RESOLVED.adlaw["jade-wash"].hex).toBe(mixHex("#2FD3A0", "#FFFFFF", 0.16));
-    expect(RESOLVED.adlaw["pencil-wash"].hex).toBe(mixHex("#4C5761", "#FFFFFF", 0.1));
+  it("resolves the v2 mixes over plate in sRGB, opaque, to decision.md's hex", () => {
+    expect(RESOLVED.tablea["canary-wash"].hex).toBe(mixHex("#FFA41B", "#10172A", 0.14));
+    expect(RESOLVED.tablea["canary-wash"].hex).toBe("#312B28");
+    expect(RESOLVED.tablea["jade-wash"].hex).toBe("#16343C");
+    expect(RESOLVED.tablea["red-wash"].hex).toBe("#2D2333");
+    expect(RESOLVED.tablea["pencil-wash"].hex).toBe("#222A3D");
+    expect(RESOLVED.tablea["pod-wash"].hex).toBe("#242748");
+    expect(RESOLVED.adlaw["jade-wash"].hex).toBe(mixHex("#14CC90", "#FFFFFF", 0.14));
+    expect(RESOLVED.adlaw["jade-wash"].hex).toBe("#DEF8EF");
+    expect(RESOLVED.adlaw["canary-wash"].hex).toBe("#FFF2DF");
+    expect(RESOLVED.adlaw["pencil-wash"].hex).toBe("#EDEFF1");
+    expect(RESOLVED.adlaw["pod-wash"].hex).toBe("#F1EEFC");
     for (const theme of THEMES) {
-      for (const name of ["jade-wash", "pencil-wash", "canary-wash", "red-wash"] as const) {
+      for (const name of ["jade-wash", "pencil-wash", "canary-wash", "red-wash", "pod-wash"] as const) {
         expect(RESOLVED[theme][name].alpha).toBe(1);
       }
     }
   });
 
-  it("keeps S2's contrast corrections", () => {
-    expect(RESOLVED.tablea["ink-3"].hex).toBe("#9C9085");
-    expect(RESOLVED.adlaw["ink-3"].hex).toBe("#6F665E");
-    expect(RESOLVED.tablea.hatch.hex).toBe("#624E41");
-    expect(RESOLVED.adlaw.hatch.hex).toBe("#B7B0A7");
-    expect(RESOLVED.tablea["pencil-faint"].hex).toBe("#909498");
-    expect(RESOLVED.adlaw["pencil-faint"].hex).toBe("#5E6871");
-    expect(RESOLVED.adlaw["canary-border"].hex).toBe("#7F6200");
+  it("keeps v2's contrast fixes (decision.md §3)", () => {
+    expect(RESOLVED.adlaw["steel-line"].hex).toBe("#7E8898");
+    expect(RESOLVED.adlaw["canary-border"].hex).toBe("#B56A00");
+    expect(RESOLVED.adlaw.pod.hex).toBe("#4A2FD6");
+    expect(RESOLVED.adlaw.canary.hex).toBe("#FFA41B");
+    expect(RESOLVED.adlaw["ink-3"].hex).toBe("#5A6476");
+    expect(RESOLVED.tablea["ink-3"].hex).toBe("#8E98AE");
+    expect(RESOLVED.adlaw["rule-strong"].hex).toBe("#CBD2DC");
   });
 
-  it("Tablea's ground is visibly brown, never neutral black", () => {
-    const [l, c, h] = hexToOklch(RESOLVED.tablea.ground.hex);
-    expect(l).toBeGreaterThan(0.2);
-    expect(c).toBeGreaterThan(0.015);
-    expect(h).toBeGreaterThan(40);
-    expect(h).toBeLessThan(60);
-  });
-
-  it("uses no purple or indigo anywhere", () => {
+  it("has no brown: every surface, rule and material is cool (hue 230 to 290) or neutral", () => {
+    const surfaces = [
+      "ground",
+      "plate",
+      "plate-2",
+      "rule",
+      "rule-strong",
+      "hatch",
+      "steel-face",
+      "steel-line",
+      "bezel",
+      "ink",
+      "ink-2",
+      "ink-3",
+    ] as const;
     for (const theme of THEMES) {
-      for (const name of COLOUR_NAMES) {
+      for (const name of surfaces) {
         const [, c, h] = RESOLVED[theme][name].oklch;
-        const purple = c > 0.03 && h > 260 && h < 340;
-        expect(purple, `${theme} ${name}`).toBe(false);
+        const cool = c < 0.005 || (h > 230 && h < 290);
+        expect(cool, `${theme} ${name} (chroma ${c.toFixed(3)}, hue ${h.toFixed(1)})`).toBe(true);
       }
     }
   });
 
-  it("stays clear of PayPal's blues (#003087, #0070E0, #009CDE)", () => {
+  it("keeps saturated indigo for a person's hand only: pod and the chalk slab", () => {
+    const hand = new Set<string>(["pod", "slab-chalk-face", "slab-chalk-right", "slab-chalk-bottom"]);
     for (const theme of THEMES) {
       for (const name of COLOUR_NAMES) {
+        const [, c, h] = RESOLVED[theme][name].oklch;
+        const indigo = c > 0.1 && h > 260 && h < 340;
+        if (indigo) expect(hand.has(name), `${theme} ${name}`).toBe(true);
+      }
+      for (const name of hand) {
+        const [, c, h] = RESOLVED[theme][name as (typeof COLOUR_NAMES)[number]].oklch;
+        expect(c > 0.1 && h > 260 && h < 340, `${theme} ${name}`).toBe(true);
+      }
+    }
+  });
+
+  it("keeps every face a viewer could press clear of PayPal's blues (#003087, #0070E0, #009CDE)", () => {
+    const faces = ["jade", "canary", "pod", "slab-chalk-face", "slab-jade-face", "red-face"] as const;
+    for (const theme of THEMES) {
+      for (const name of faces) {
         for (const brand of ["#003087", "#0070E0", "#009CDE"]) {
           const d = distance(RESOLVED[theme][name].hex, brand);
           expect(d, `${theme} ${name} vs ${brand}`).toBeGreaterThan(0.1);
@@ -95,20 +128,19 @@ describe("colour source", () => {
     }
   });
 
-  it("keeps canary at hue 99, away from PayPal's button yellow at 84 (design §2.2)", () => {
+  it("keeps marigold 15° of hue from PayPal's button yellow at 84 (decision.md §3)", () => {
     const paypalYellowHue = hexToOklch("#FFC439")[2];
     expect(paypalYellowHue).toBeCloseTo(84, -1);
     for (const theme of THEMES) {
       for (const name of COLOUR_NAMES) {
         const [l, c, h] = RESOLVED[theme][name].oklch;
-        // Only bright, saturated faces could read as PayPal's button; dark canary text cannot.
+        // Only bright, saturated faces could read as PayPal's button; dark marigold text cannot.
         if (c < 0.1 || l < 0.7) continue;
         expect(Math.abs(h - paypalYellowHue), `${theme} ${name}`).toBeGreaterThan(12);
       }
     }
-    expect(RESOLVED.tablea.canary.oklch[2]).toBeCloseTo(99.4, 0);
+    expect(RESOLVED.tablea.canary.oklch[2]).toBeCloseTo(68.9, 0);
   });
-
   it("jade and canary have no Material 3 role, and primary is ink", () => {
     const roles = Object.values(M3_ROLES) as string[];
     expect(roles).not.toContain("jade");
@@ -118,10 +150,28 @@ describe("colour source", () => {
 });
 
 describe("type, space and layout", () => {
-  it("money, kilos and hashes use tabular figures", () => {
-    for (const role of ["amount-hero", "amount-l", "figure", "hash"] as const) {
-      expect(TYPE_ROLES[role].figures).toBe(true);
+  it("amounts read as money in proportional figures; aligned columns are tabular; hashes keep the slashed zero", () => {
+    for (const role of ["amount-hero", "amount-l", "slab"] as const) {
+      expect(TYPE_ROLES[role].numerals, role).toBe("proportional");
     }
+    expect(TYPE_ROLES.figure.numerals).toBe("tabular");
+    expect(TYPE_ROLES.hash.numerals).toBe("hash");
+  });
+
+  it("adds the v2 roles: display, lede and statement-status (decision.md §7)", () => {
+    expect(TYPE_ROLES.display).toMatchObject({ stretch: 112.5, weight: 690, size: 40, line: 43 });
+    expect(TYPE_ROLES.lede).toMatchObject({ stretch: 100, weight: 450, size: 16, line: 23 });
+    expect(TYPE_ROLES["statement-status"]).toMatchObject({
+      family: "statement",
+      weight: 700,
+      size: 18,
+      line: 22,
+    });
+    expect(TYPE_ROLES["title-1"]).toMatchObject({ stretch: 112.5, weight: 680, size: 26, line: 30 });
+    expect(TYPE_ROLES["title-2"]).toMatchObject({ stretch: 112.5, weight: 680, size: 21, line: 26 });
+    expect(TYPE_ROLES.figure.weight).toBe(520);
+    expect(TYPE_ROLES.label.weight).toBe(600);
+    expect(TYPE_ROLES.caption).toMatchObject({ weight: 500, size: 12 });
   });
 
   it("statement prose never drops below 18 px, and the hero amount caps app font scaling at 1.5×", () => {
@@ -142,9 +192,24 @@ describe("type, space and layout", () => {
     for (const [, role] of others) expect(role.family).not.toBe("mark");
   });
 
-  it("uses the 4-based space scale and only radii 0 and 2", () => {
+  it("uses the 4-based space scale and v2's radii (0, 2, cell 6, control 10, card 14, panel 22, pill)", () => {
     expect([...SPACE]).toEqual([2, 4, 8, 12, 16, 24, 32, 48, 64, 96]);
-    expect(Object.values(RADII)).toEqual([0, 2]);
+    expect(RADII).toEqual({ 0: 0, 2: 2, cell: 6, control: 10, card: 14, panel: 22, pill: 999 });
+  });
+
+  it("has e1 to e3, paper and the halo in both themes, one wash each, and no noise (decision.md §8)", () => {
+    for (const theme of THEMES) {
+      expect(Object.keys(SHADOWS[theme]).sort()).toEqual(["e1", "e2", "e3", "halo", "paper"]);
+      expect(WASH[theme]).toMatch(/^radial-gradient\(/);
+    }
+    expect(SHADOWS.adlaw.halo).toBe("0 0 0 6px rgb(20 204 144 / 0.16)");
+    expect(MATERIALS.noise.opacity).toBe(0);
+    expect(MATERIALS.stamp.size).toBe(20);
+  });
+
+  it("names both slots for v2: Hayag (day) is adlaw, Gabii (night) is tablea", () => {
+    expect(THEME_INFO.adlaw).toMatchObject({ scheme: "light", display: "Hayag (day)" });
+    expect(THEME_INFO.tablea).toMatchObject({ scheme: "dark", display: "Gabii (night)" });
   });
 
   it("meets the app's touch-target floors", () => {

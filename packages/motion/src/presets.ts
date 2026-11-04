@@ -128,6 +128,7 @@ export const TWEENS = {
   drawerIn: { ms: 420, ease: "drawer", use: "Drawer entering" },
   drawerOut: { ms: 320, ease: "drawer", use: "Drawer leaving (exits run faster than entrances)" },
   flood: { ms: 140, ease: "out", use: "Jade flooding a capsule or stub from its corner" },
+  halo: { ms: 520, ease: "out", use: "Jade halo, one beat after the simulated PayPal confirms" },
   fill: { ms: 120, ease: "linear", use: "A hollow amount filling in" },
   crossfade: { ms: 200, ease: "out", use: "Label crossfade" },
   ring: { ms: 240, ease: "out", use: "Confidence ring drawing" },

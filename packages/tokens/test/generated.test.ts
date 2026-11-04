@@ -21,9 +21,24 @@ describe("generated files", () => {
 
   it("theme.web.css declares every --fs- colour under both [data-theme] selectors, with OKLCH upgrades", () => {
     const css = files["theme.web.css"] ?? "";
-    expect(css).toContain(':root,\n[data-theme="tablea"] {');
-    expect(css).toContain('[data-theme="adlaw"] {');
+    // Hayag (adlaw) is the default everywhere since ADR-0016; Gabii (tablea) is an opt-in slot after it.
+    expect(css).toContain(':root,\n[data-theme="adlaw"] {');
+    expect(css).toContain('\n[data-theme="tablea"] {');
+    expect(css.indexOf(':root,\n[data-theme="adlaw"] {')).toBeLessThan(
+      css.indexOf('\n[data-theme="tablea"] {'),
+    );
     expect(css).toContain("@supports (color: oklch(0 0 0))");
+    for (const name of ["paper", "e1", "e2", "e3", "halo"]) {
+      expect(css.split(`--fs-shadow-${name}:`).length - 1, name).toBe(2);
+    }
+    expect(css.split("--fs-wash:").length - 1).toBe(2);
+    expect(css).toContain("--fs-radius-card: 14px;");
+    expect(css).toContain("--fs-radius-pill: 999px;");
+    expect(css).toContain(".fs-amount {\n  font-variant-numeric: lining-nums proportional-nums;");
+    expect(css).toContain(".fs-cur {");
+    expect(css).toMatch(/\.fs-t-amount-hero \{[^}]*proportional-nums/);
+    expect(css).toMatch(/\.fs-t-hash \{[^}]*"tnum" 1/);
+    expect(css).toMatch(/\.fs-t-figure \{[^}]*tabular-nums/);
     for (const name of COLOUR_NAMES) {
       const count = css.split(`--fs-${name}:`).length - 1;
       expect(count, name).toBe(4);
