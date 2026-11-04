@@ -301,6 +301,8 @@ describe("Proof of the seeded showcase (seeded keys: Sample)", () => {
       await must(t.pg).owner.db.execute(
         sql`update payout_items set receiver = 'attacker@evil.example' where workspace_id = ${w.workspaceId} and sender_item_id = 'r37-M-014'`,
       );
+      // The deliberate out-of-band SQL edit has no ledger append; exercise a rebuild after the 2 s cache TTL.
+      t.clock.advance(2_001);
       try {
         const link = t.credentials.brandLink({ workspaceId: w.workspaceId });
         const r = await t.json<unknown>(`/v1/proof/${w.runSlug}`, { as: t.credentials.bearer(link) });
@@ -326,6 +328,7 @@ describe("Proof of the seeded showcase (seeded keys: Sample)", () => {
         .owner.db.update(schema.memberLines)
         .set({ bonusCents: sql`bonus_cents + 1`, netCents: sql`net_cents + 1` })
         .where(and(eq(schema.memberLines.workspaceId, w.workspaceId), eq(schema.memberLines.id, lineId)));
+      t.clock.advance(2_001);
       try {
         const link = t.credentials.brandLink({ workspaceId: w.workspaceId });
         const r = await t.json<unknown>(`/v1/proof/${w.runSlug}`, { as: t.credentials.bearer(link) });

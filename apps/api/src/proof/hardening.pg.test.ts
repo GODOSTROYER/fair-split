@@ -68,6 +68,9 @@ it("HD6-3: ten public reads and verification share one build until a ledger appe
     );
     expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
     expect(build).toHaveBeenCalledTimes(2);
+    t.clock.advance(2_001);
+    expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
+    expect(build).toHaveBeenCalledTimes(3);
   } finally {
     build.mockRestore();
   }
