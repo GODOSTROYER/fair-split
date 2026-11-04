@@ -179,7 +179,10 @@ export function MemberLine({ snapshot, view, member, row, state, live, printHref
             {history.map((h) => (
               <li key={h.id}>
                 <span className="fsr-line__h-words fs-t-body">{h.words}</span>
-                {h.detail && <span className="fsr-line__h-detail fs-t-caption fsr-muted">{h.detail}</span>}
+                {/* The replay's long detail is said once in the drawer: under the status when it shows there. */}
+                {h.detail && h.detail !== payout.detail && (
+                  <span className="fsr-line__h-detail fs-t-caption fsr-muted">{h.detail}</span>
+                )}
                 <time className="fsr-line__h-time fs-t-caption fsr-muted" dateTime={h.at ?? undefined}>
                   {rowTime(h.at)}
                 </time>

@@ -120,18 +120,87 @@ describe("the SMS preview (never sent)", () => {
     expect(smsSegments(307)).toBe(3);
   });
 
-  it("Nang Celing's labelled simulated SMS names her slips and reports its two-message cost", () => {
+  it("Nang Celing's labelled simulated SMS names her slips and fits one message", () => {
     const view = showcaseView(snapshot);
     const member = snapshot.members.find((m) => m.memberNo === "M-014");
     if (!member) throw new Error("no M-014");
     const row = rowOf(view, "M-014");
     const text = smsText(snapshot, member, row, "paid", "ceb");
-    expect(text).toMatch(/Nang Celing, Bayad na \(Simulated PayPal sandbox\): US\$64\.45/);
+    // The bare status word: the frame names the rail itself, once.
+    expect(text).toMatch(/Nang Celing, Bayad na: US\$64\.45/);
     expect(text).toMatch(/P4,028/);
     expect(text).not.toMatch(/₱/);
     const septets = gsm7Length(text);
     expect(septets).not.toBeNull();
-    expect(smsSegments(septets ?? 999)).toBe(2);
-    expect(text).toContain("simulated PayPal sandbox");
+    expect(septets).toBeLessThanOrEqual(160);
+    expect(smsSegments(septets ?? 999)).toBe(1);
+    expect(text.match(/simulated PayPal sandbox/gi)).toHaveLength(1);
+  });
+
+  const LANGS = ["ceb", "fil", "en"] as const;
+  /** English sentence words a replayed ceb or fil SMS must not carry (product terms such as "simulated PayPal sandbox" stay). */
+  const ENGLISH = /\b(?:Replayed|labelled|earlier|this run|payment|not)\b/;
+
+  it.each(LANGS)(
+    "inv.i8.every %s SMS fits 160 GSM-7 septets, live and replayed, naming the rail once",
+    (lang) => {
+      const live = showcaseView(snapshot);
+      const replayed: RunView = {
+        ...live,
+        items: Object.fromEntries(
+          Object.entries(live.items).map(([id, item]) => [id, { ...item, provenance: "replay" as const }]),
+        ),
+      };
+      for (const view of [live, replayed]) {
+        for (const member of snapshot.members) {
+          const row = rowOf(view, member.memberNo);
+          const text = smsText(snapshot, member, row, lineScreenState(view, row), lang);
+          const septets = gsm7Length(text);
+          expect(septets, `${member.memberNo} ${text}`).not.toBeNull();
+          expect(septets, `${member.memberNo} ${text}`).toBeLessThanOrEqual(160);
+          expect((text.match(/simulated PayPal sandbox/gi) ?? []).length, text).toBeLessThanOrEqual(1);
+          if (row.replayed) {
+            expect(text).toMatch(/replay/i);
+            expect(text).toMatch(/simulated PayPal sandbox/i);
+            expect(text).not.toMatch(/\bPaid\b|Bayad na|bayad na/);
+            if (lang !== "en") expect(text, text).not.toMatch(ENGLISH);
+          }
+        }
+        expect(snapshot.members.some((m) => rowOf(view, m.memberNo).replayed)).toBe(view === replayed);
+      }
+    },
+  );
+
+  it("a cash member between both keys and the batch post reads ready at the bodega, not still checking", () => {
+    const base = showcaseView(snapshot);
+    const merlyn = base.lines["M-053"];
+    const member = snapshot.members.find((m) => m.memberNo === "M-053");
+    if (!merlyn || !member) throw new Error("M-053 required");
+    const approved: RunView = {
+      ...base,
+      state: "APPROVED",
+      items: {},
+      lines: { ...base.lines, "M-053": { ...merlyn, state: "LOCKED" } },
+    };
+    const row = rowOf(approved, "M-053");
+    expect(lineScreenState(approved, row)).toBe("cash-due");
+    expect(smsText(snapshot, member, row, "cash-due", "ceb")).toContain("Andam sa bodega");
+    expect(smsText(snapshot, member, row, "cash-due", "ceb")).not.toContain("Gisusi pa");
+    expect(smsText(snapshot, member, row, "cash-due", "en")).toContain("Ready at the bodega");
+  });
+});
+
+describe("a replayed line's screen state", () => {
+  it("inv.i8.reads replay, never paid, like the split grid", () => {
+    const base = showcaseView(snapshot);
+    const view: RunView = {
+      ...base,
+      items: Object.fromEntries(
+        Object.entries(base.items).map(([id, item]) => [id, { ...item, provenance: "replay" as const }]),
+      ),
+    };
+    expect(lineScreenState(view, rowOf(view, "M-014"))).toBe("replay");
+    expect(lineScreenState(base, rowOf(base, "M-014"))).toBe("paid");
+    expect(lineScreenState(view, rowOf(view, "M-053"))).toBe("cash-due");
   });
 });

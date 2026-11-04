@@ -1,4 +1,4 @@
-import { payoutStatus } from "./payout-replay.js";
+import { payoutStatus, REPLAY_ITEM_WORDS, REPLAY_STATUS_WORD } from "./payout-replay.js";
 // One run-log row per event (design §5, S1.7 W-TR-08): plain words first, then the event name, IDs, source and
 // signature result in caption type, in one of three lanes (Machine, People, PayPal). The ribbon shows the
 // newest row of each lane; W-TR-08's full log uses the same rows. Never a raw state name: every status word
@@ -32,6 +32,11 @@ export interface LogRow {
   readonly provenance: Provenance;
   /** A repeated PayPal delivery: logged, changes nothing, plays nothing. */
   readonly duplicate: boolean;
+  /**
+   * A replayed payout row's long note (where its statuses came from). A surface says it once: the run log in its
+   * header, the Ribbon under its one row. Never repeated on every row.
+   */
+  readonly replayNote?: string;
 }
 
 export interface DescribeContext {
@@ -220,16 +225,17 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
       const name = ctx.memberName(p.memberNo);
       const amount = ctx.itemAmount(p.senderItemId);
       const presentation = payoutStatus({ itemStatus: p.to, provenance: event.provenance });
-      const status = presentation.statusWord;
+      // A replay says which status replayed ("Replayed (labelled): Rhea parked"), never "Paid"; a live row says
+      // the item's own word with the rail in its own casing.
       const words = presentation.replayed
-        ? `${name}: ${presentation.statusWord}`
+        ? `${REPLAY_STATUS_WORD}: ${name} ${REPLAY_ITEM_WORDS[p.to]}`
         : p.to === "SUCCESS"
           ? join(`Paid ${name} ${amount ?? ""} (${presentation.simulatedLabel})`.trim())
           : p.to === "UNCLAIMED"
             ? `${name}'s address has no PayPal account. Parked`
             : p.to === "RETURNED" && p.source === "cancel"
               ? `${name}: returned to the co-op's simulated PayPal balance`
-              : `${name}: ${status.toLowerCase()}`;
+              : `${name}: ${presentation.statusWord}`;
       const eventName = presentation.replayed
         ? null
         : p.to === "SUCCESS"
@@ -243,7 +249,10 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
         ...base,
         lane: "PAYPAL",
         words,
-        detail: join(eventName, item, presentation.replayed ? "Replayed status" : itemSource(p.source), note),
+        detail: presentation.replayed
+          ? join(item, "Replayed status")
+          : join(eventName, item, itemSource(p.source), note),
+        ...(presentation.replayed && note ? { replayNote: note } : {}),
       };
     }
     case "hold.raised": {

@@ -103,9 +103,11 @@ describe("W-TR-09 member line", () => {
       );
       expect(screen.getByTestId("W-TR-09.sms.count").textContent).toMatch(/characters, GSM-7/);
       fireEvent.click(screen.getByTestId("W-TR-09.sms.en"));
+      // The bare word; the frame names the rail once; one message (S1.11: 160 characters at most).
       expect(screen.getByTestId("W-TR-09.sms.text").textContent).toMatch(
-        /Mrs\. Bacus, Paid \(Simulated PayPal sandbox\): US\$64\.45/,
+        /Mrs\. Bacus, Paid: US\$64\.45 .* through the simulated PayPal sandbox\./,
       );
+      expect(screen.getByTestId("W-TR-09.sms.count").textContent).not.toMatch(/messages/);
       expect(screen.getByTestId("W-TR-09.print").getAttribute("href")).toBe(
         webRoutes.memberPrint(RUN, "M-014"),
       );

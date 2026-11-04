@@ -454,13 +454,10 @@ export function RailCell({ data, context }: Props) {
 
 // ------------------------------------------------------------------------------------------------ status
 
+type GridTone = "jade" | "canary" | "hatch" | "ink" | "pencil" | "red";
+
 const STATUS_LOOK: Readonly<
-  Partial<
-    Record<
-      SplitRow["state"],
-      { readonly tone: "jade" | "canary" | "hatch" | "ink" | "pencil" | "red"; readonly glyph: GlyphName }
-    >
-  >
+  Partial<Record<SplitRow["state"], { readonly tone: GridTone; readonly glyph: GlyphName }>>
 > = {
   COMPUTED: { tone: "ink", glyph: "ms:check" },
   READY: { tone: "ink", glyph: "ms:check" },
@@ -480,14 +477,33 @@ const STATUS_LOOK: Readonly<
   REVERSED: { tone: "red", glyph: "ms:restart-alt" },
 };
 
-export function statusWords(row: SplitRow): string {
-  if (row.status.kind === "held") return SPLIT.held;
-  if (row.status.kind === "reserved") return SPLIT.reserved;
+/** The shared helper's presentation of a line's status (words, tone, replay): the grid never decides it alone. */
+function linePayout(row: SplitRow) {
   return payoutStatus({
     state: row.state,
     replayed: row.replayed,
     paypal: row.rail === "PAYPAL" && !row.movedToCash,
-  }).statusWord;
+  });
+}
+
+export function statusWords(row: SplitRow): string {
+  if (row.status.kind === "held") return SPLIT.held;
+  if (row.status.kind === "reserved") return SPLIT.reserved;
+  return linePayout(row).statusWord;
+}
+
+/**
+ * A line's look: the grid's own glyph and pre-payout tones (a ready line is ink here, not a warning), and for a
+ * PayPal-derived status the helper's tone (the grid draws its neutral as ink). Jade is the helper's alone.
+ */
+function statusLook(row: SplitRow): { readonly tone: GridTone; readonly glyph: GlyphName } {
+  const grid = STATUS_LOOK[row.state] ?? { tone: "ink" as const, glyph: "ms:check" as GlyphName };
+  const payout = linePayout(row);
+  if (!payout.simulatedLabel) return grid;
+  return {
+    tone: payout.tone === "neutral" ? "ink" : payout.tone,
+    glyph: payout.replayed ? "rail" : grid.glyph,
+  };
 }
 
 export function StatusCell({ data, context }: Props) {
@@ -511,9 +527,7 @@ export function StatusCell({ data, context }: Props) {
       ? { tone: "canary" as const, glyph: "hanging-scale-fill" as GlyphName }
       : data.status.kind === "reserved"
         ? { tone: "canary" as const, glyph: "logbook-fill" as GlyphName }
-        : data.replayed
-          ? { tone: "ink" as const, glyph: "rail" as GlyphName }
-          : (STATUS_LOOK[data.state] ?? { tone: "ink" as const, glyph: "ms:check" as GlyphName });
+        : statusLook(data);
   return (
     <Cell className="fsr-cell--status" wash={statusWash(data, context)}>
       <span

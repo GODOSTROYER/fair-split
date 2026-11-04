@@ -314,7 +314,7 @@ export function Screen({ runSlug }: RunScreenProps) {
             />
             <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
               {replayed
-                ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).confirmed} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
+                ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).replayedSuccessful} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
                 : FANOUT.shareCounts(shareCounts(fan))}{" "}
               <span className="fsr-muted">{FANOUT.shareValue(fan.paypal.share)}</span>
             </p>

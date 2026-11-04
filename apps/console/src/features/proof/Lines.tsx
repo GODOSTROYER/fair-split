@@ -14,7 +14,7 @@ import { payoutStatus } from "../../data/payout-replay.js";
 
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
 import { spring } from "@fairsplit/motion/web";
-import { Glyph, StatusChip } from "@fairsplit/ui-web";
+import { Chip, Glyph, StatusChip } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
@@ -561,9 +561,12 @@ function LineRows({
     </span>
   );
   const status = presentation.simulatedLabel ? (
-    <span className="fs-chip" data-tone={presentation.tone}>
+    <Chip
+      tone={presentation.tone}
+      glyph={presentation.replayed ? "rail" : presentation.amountState === "landed" ? "ms:check" : "rail"}
+    >
       {presentation.statusWord}
-    </span>
+    </Chip>
   ) : (
     <StatusChip state={state} surface="console" />
   );

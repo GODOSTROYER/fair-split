@@ -29,7 +29,9 @@ describe("split review after a payout replay", () => {
         <StatusCell {...props} />
       </UiProvider>,
     );
-    expect(container.textContent).toBe("Replayed (labelled), Simulated PayPal sandbox");
+    // Which status replayed, never "Paid"; the split's decided line says once where it came from.
+    expect(container.textContent).toBe("Replayed (labelled): successful in the earlier run");
+    expect(container.querySelector('[data-state="replay"]')).not.toBeNull();
     expect(container.querySelector('[data-tone="jade"]')).toBeNull();
     expect(container.querySelector(".fsr-cell__wash")).toBeNull();
     expect(row.amountState).not.toBe("landed");

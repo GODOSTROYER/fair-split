@@ -4,6 +4,7 @@
 // shadow on the daylight ground; `@page { size: 80mm auto }` prints it edge to edge.
 
 import type { SeasonSnapshot, SnapshotMember } from "@fairsplit/contracts";
+import { translate } from "@fairsplit/i18n";
 import { Seal } from "@fairsplit/ui-web";
 import { payoutStatus } from "../../data/payout-replay.js";
 import type { RunView } from "../../data/run-view.js";
@@ -24,12 +25,15 @@ export interface PrintStatementProps {
 export function PrintStatement({ snapshot, view, member, row, state }: PrintStatementProps) {
   const fx = snapshot.fx.centavosPerCent;
   const cash = isCashLine(row);
+  // The member's paper speaks her words ("Not received through PayPal"), never the console's ("Parked"). A locked
+  // PayPal line reads as she would see it, sent and waiting for the simulated PayPal sandbox, labelled as such.
   const payout = payoutStatus({
-    state: row.state,
+    state: row.state === "LOCKED" ? "SUBMITTED" : row.state,
     view,
     memberNo: row.memberNo,
     paypal: !cash,
     replayed: row.replayed,
+    statusWord: translate("en", `status.${row.state}`),
   });
   const held = state === "held";
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER")?.shortName ?? "";

@@ -239,6 +239,44 @@ describe("PayPal's notices", () => {
       check: "Webhook, signature checked (simulator)",
       paypalEventId: "WH-1",
     });
+    expect(rows[1]?.status).toBe("Paid");
+  });
+
+  it("inv.i8.a replayed item reads as the replay it is, never Paid, from events and from the chain", () => {
+    const replayed = {
+      id: "12",
+      ws: "ws",
+      runId: "r",
+      at: "2026-10-30T02:20:00.000Z",
+      actor: { kind: "paypal", id: "simulator", display: "PayPal" },
+      provenance: "replay",
+      type: "item.updated",
+      payload: {
+        itemId: "i",
+        senderItemId: "r37-M-014",
+        memberNo: "M-014",
+        payoutItemId: "RPLY-1",
+        from: "PENDING",
+        to: "SUCCESS",
+        rank: 60,
+        source: "status_check",
+        eventId: null,
+      },
+    } as unknown as RunEvent;
+    expect(noticesFromEvents([replayed], "simulator")[0]?.status).toBe(
+      "Replayed (labelled): successful in the earlier run",
+    );
+    const applied = snapshot.proof.ledger.filter((e) => e.kind === "webhook.applied");
+    const ledger = applied.map((e) => ({
+      ...e,
+      payload: { ...(e.payload as Record<string, unknown>), provenance: "replay" },
+    })) as typeof applied;
+    const rows = noticesFromLedger(ledger, "simulator").filter((r) => r.notice.includes("PAYOUTS-ITEM"));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.status).toMatch(/^Replayed \(labelled\): /);
+      expect(row.status).not.toMatch(/\bPaid\b/);
+    }
   });
 });
 

@@ -1,7 +1,6 @@
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { webRoutes } from "@fairsplit/contracts";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { getResponse, HttpResponse, http } from "msw";
 import { expect, it } from "vitest";
 import { nextStep } from "../chrome/next-step.js";
 import { applyRunEvent, emptyRunView, type RunView } from "../data/run-view.js";
@@ -9,6 +8,7 @@ import { BrandHeader } from "../features/brand/BrandHeader.js";
 import { FIGURE_COPY } from "../features/proof/copy.js";
 import { countItems } from "../features/proof/model.js";
 import { APPROVE } from "../features/split/shared/copy.js";
+import { hourlyCapSession } from "../test/quota.js";
 import { renderConsole } from "../test/render.js";
 import { createTestWorld } from "../test/world.js";
 import { FramePoster } from "./FramePoster.js";
@@ -120,21 +120,7 @@ it("inv.i8.remaining retry and due copy names the simulated rail", () => {
 it("inv.i8.posted live Stage and Proof keep confirmations when the session quota is hourly_cap", async () => {
   const world = createTestWorld();
   let quotaReads = 0;
-  const quota = http.get("*/v1/judge/session", async ({ request }) => {
-    const response = await getResponse([...world.mock.handlers], request);
-    const body = (await response?.json()) as Record<string, unknown>;
-    quotaReads++;
-    return HttpResponse.json({
-      ...body,
-      runState: "INVOICED",
-      rail: {
-        ...(body.rail as object),
-        mode: "replay",
-        reason: "hourly_cap",
-        label: "Replay: this hour is full",
-      },
-    });
-  });
+  const quota = hourlyCapSession(world, { runState: "INVOICED", onRead: () => quotaReads++ });
   const rendered = await renderConsole({ path: webRoutes.fanout(RUN), world, handlers: [quota] });
   await rendered.startSession();
   await waitFor(() =>
@@ -169,15 +155,7 @@ it("inv.i8.posted live Stage and Proof keep confirmations when the session quota
 
 it("inv.i8.Stage receives posted session state while history is still pre-POST", async () => {
   const world = createTestWorld();
-  const quota = http.get("*/v1/judge/session", async ({ request }) => {
-    const response = await getResponse([...world.mock.handlers], request);
-    const body = (await response?.json()) as Record<string, unknown>;
-    return HttpResponse.json({
-      ...body,
-      runState: "SETTLED",
-      rail: { ...(body.rail as object), mode: "replay", reason: "hourly_cap" },
-    });
-  });
+  const quota = hourlyCapSession(world, { runState: "SETTLED" });
   const rendered = await renderConsole({ path: "/judge", world, handlers: [quota] });
   await rendered.startSession();
   await waitFor(() =>

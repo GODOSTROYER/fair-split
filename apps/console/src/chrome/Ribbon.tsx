@@ -121,7 +121,11 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
                 data-print={live.includes(row.id) ? "" : undefined}
               >
                 <p className="fsc-ribbon__words fs-t-label">{row.words}</p>
-                {row.detail ? <p className="fsc-ribbon__detail fs-t-caption">{row.detail}</p> : null}
+                {row.detail || row.replayNote ? (
+                  <p className="fsc-ribbon__detail fs-t-caption">
+                    {[row.detail, row.replayNote].filter(Boolean).join(", ")}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <p className="fsc-ribbon__empty fs-t-caption">{STAGE.ribbonEmpty}</p>

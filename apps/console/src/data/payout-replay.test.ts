@@ -1,13 +1,20 @@
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { PAYOUT_ITEM_STATUSES, type RunEvent } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
-import { fanView, shareCounts } from "../features/fanout/model.js";
+import {
+  fanView,
+  latency,
+  restingPhase,
+  shareCounts,
+  summaryFacts,
+  threadTone,
+} from "../features/fanout/model.js";
 import { isCashLine, lineHistory, lineScreenState, smsText } from "../features/print/model.js";
 import { amountStateOf, liveItems } from "../features/proof/model.js";
 import { splitRows } from "../features/split/model.js";
 import { FANOUT, SPLIT } from "../features/split/shared/copy.js";
 import { describeContext, describeEvent } from "./describe.js";
-import { payoutReplayed, payoutReplaySummary, payoutStatus } from "./payout-replay.js";
+import { payoutReplayed, payoutReplaySummary, payoutStatus, REPLAY_STATUS_DETAIL } from "./payout-replay.js";
 import { applyRunEvent, emptyRunView, showcaseView } from "./run-view.js";
 
 const snapshot = getSnapshot();
@@ -45,8 +52,10 @@ describe("payout replay provenance", () => {
   it("labels replayed payout log rows without a fresh confirmation or reading claim", () => {
     const row = describeEvent(replay, describeContext(snapshot));
     expect(row?.words).toContain("Replayed (labelled)");
-    expect(row?.detail).toContain("earlier simulated run");
-    expect(row?.detail).not.toMatch(/Confirmed|seed stand-in|Claude|SUCCEEDED/);
+    // The long note is the log's, said once per surface (RunLog's header, the Ribbon's one row), not per row.
+    expect(row?.replayNote).toContain("earlier simulated run");
+    expect(row?.detail).not.toContain("earlier simulated run");
+    expect(`${row?.detail} ${row?.replayNote}`).not.toMatch(/Confirmed|seed stand-in|Claude|SUCCEEDED/);
   });
 });
 
@@ -106,7 +115,9 @@ it("inv.i8.mixed items keep each line's evidence and conserve the successful sou
     ),
   };
   const fan = fanView(snapshot, view);
-  expect(shareCounts(fan).confirmed).toBe(7);
+  expect(shareCounts(fan).confirmed).toBe(6);
+  expect(shareCounts(fan).replayedSuccessful).toBe(1);
+  expect(shareCounts(fan).confirmed + shareCounts(fan).replayedSuccessful).toBe(7);
   const source = fan.threads.find((item) => item.memberNo === "M-014");
   expect(source?.amountState).toBe("hollow");
   expect(source?.progress).toBeLessThan(1);
@@ -257,7 +268,8 @@ it.each(["replay", "simulated_rail"] as const)(
     const member = snapshot.members.find((line) => line.memberNo === "M-014");
     if (!row || !member) throw new Error("M-014 fixture required");
     expect(isCashLine(row)).toBe(false);
-    expect(lineScreenState(view, row)).toBe("parked");
+    // A replayed line's screen reads replay (like the grid); a live return is parked. Neither is cash yet.
+    expect(lineScreenState(view, row)).toBe(provenance === "replay" ? "replay" : "parked");
     expect(row.replayed).toBe(provenance === "replay");
     expect(row.amountState).toBe("hollow");
     const words = [
@@ -267,11 +279,152 @@ it.each(["replay", "simulated_rail"] as const)(
       fanView(snapshot, view).threads.find((line) => line.memberNo === "M-014")?.statusWord,
     ];
     for (const word of words) {
-      expect(word).toMatch(/simulated PayPal sandbox/i);
       if (provenance === "replay") expect(word).toMatch(/Replayed \(labelled\)/);
-      else expect(word).not.toMatch(/replay/i);
+      else {
+        expect(word).toMatch(/simulated PayPal sandbox/i);
+        expect(word).not.toMatch(/replay/i);
+      }
+    }
+    if (provenance === "replay") {
+      // Each row says what replayed; the surface says once where it came from.
+      for (const word of [words[0], words[1], words[3]]) expect(word).toBe("Replayed (labelled): returned");
+      expect(words[2]).toMatch(/simulated PayPal sandbox/i);
+      expect(payoutStatus({ state: "RETURNED", provenance }).detail).toMatch(/simulated PayPal sandbox/);
+      expect(lineHistory(snapshot, view, "M-014")[0]?.detail).toBe(REPLAY_STATUS_DETAIL);
     }
     const cash = { ...row, state: "OFF_RAIL_DUE" as const, movedToCash: true, replayed: false };
     expect(smsText(snapshot, member, cash, "cash-due", "en")).not.toMatch(/replay/i);
   },
 );
+
+it.each(PAYOUT_ITEM_STATUSES)(
+  "inv.i8.a replayed %s says which status replayed and never Paid",
+  (itemStatus) => {
+    const word = payoutStatus({ itemStatus, provenance: "replay" }).statusWord;
+    expect(word).toMatch(/^Replayed \(labelled\): \S/);
+    expect(word).not.toMatch(/\bPaid\b|Bayad na/i);
+    const others = PAYOUT_ITEM_STATUSES.filter((s) => s !== itemStatus).map(
+      (s) => payoutStatus({ itemStatus: s, provenance: "replay" }).statusWord,
+    );
+    expect(others).not.toContain(word);
+  },
+);
+
+it("inv.i8.replay words for a success, a parked line and a return", () => {
+  expect(payoutStatus({ itemStatus: "SUCCESS", provenance: "replay" }).statusWord).toBe(
+    "Replayed (labelled): successful in the earlier run",
+  );
+  expect(payoutStatus({ state: "PAID", replayed: true }).statusWord).toBe(
+    "Replayed (labelled): successful in the earlier run",
+  );
+  expect(payoutStatus({ state: "UNCLAIMED", replayed: true }).statusWord).toBe("Replayed (labelled): parked");
+  expect(payoutStatus({ itemStatus: "RETURNED", provenance: "replay" }).statusWord).toBe(
+    "Replayed (labelled): returned",
+  );
+});
+
+/** Every item replayed, Rhea's line parked (UNCLAIMED) rather than moved to cash. */
+function replayedWithRheaParked() {
+  const base = showcaseView(snapshot);
+  const rhea = base.lines["M-031"];
+  if (!rhea) throw new Error("M-031 line required");
+  return {
+    ...base,
+    origin: "session" as const,
+    lines: { ...base.lines, "M-031": { ...rhea, state: "UNCLAIMED" as const } },
+    items: Object.fromEntries(
+      Object.entries(base.items).map(([id, item]) => [
+        id,
+        {
+          ...item,
+          provenance: "replay" as const,
+          ...(item.memberNo === "M-031" ? { status: "UNCLAIMED" as const, source: "webhook" as const } : {}),
+        },
+      ]),
+    ),
+  };
+}
+
+it("inv.i8.the run log, line history and fan tell Rhea's replayed parked line from a replayed success", () => {
+  const view = replayedWithRheaParked();
+  const ctx = describeContext(snapshot);
+  const success = describeEvent(replay, ctx);
+  const parked = describeEvent(
+    {
+      ...replay,
+      id: "2",
+      payload: { ...replay.payload, senderItemId: "r37-M-031", memberNo: "M-031", to: "UNCLAIMED" },
+    } as RunEvent,
+    ctx,
+  );
+  expect(success?.words).toContain("successful in the earlier run");
+  expect(parked?.words).toContain("parked");
+  expect(parked?.words).not.toContain("successful");
+  for (const row of [success, parked]) expect(row?.words).not.toMatch(/\bPaid\b/);
+
+  const fan = fanView(snapshot, view);
+  const word = (no: string) => fan.threads.find((t) => t.memberNo === no)?.statusWord;
+  expect(word("M-014")).toBe("Replayed (labelled): successful in the earlier run");
+  expect(word("M-031")).toBe("Replayed (labelled): parked");
+
+  const history = lineHistory(
+    snapshot,
+    {
+      ...view,
+      events: [
+        { ...replay, id: "1", payload: { ...replay.payload, from: "SUBMITTED", to: "PENDING" } } as RunEvent,
+        { ...replay, id: "2" },
+      ],
+    },
+    "M-014",
+  );
+  expect(history.map((h) => h.words)).toEqual([
+    "Replayed (labelled): pending",
+    "Replayed (labelled): successful in the earlier run",
+  ]);
+  // The long detail is said once in the list, not on every row.
+  expect(history.filter((h) => h.detail === REPLAY_STATUS_DETAIL)).toHaveLength(1);
+});
+
+it("inv.i8.replayed threads never count as landed: phase, latency, summary and share", () => {
+  const view = replayedWithRheaParked();
+  const funded = {
+    ...view,
+    events: [
+      {
+        id: "f",
+        ws: "test",
+        runId: snapshot.run.id,
+        at: "2026-11-01T00:00:00Z",
+        type: "run.state",
+        provenance: "replay",
+        actor: { kind: "system", id: "engine", impersonatedBy: null },
+        payload: { from: "INVOICED", to: "FUNDED" },
+      } as RunEvent,
+    ],
+    items: Object.fromEntries(
+      Object.entries(view.items).map(([id, item]) => [id, { ...item, at: "2026-11-01T00:01:00Z" }]),
+    ),
+    state: "SETTLING" as const,
+  };
+  const fan = fanView(snapshot, funded);
+  expect(fan.threads.some((t) => t.tone === "landed")).toBe(false);
+  expect(fan.threads.find((t) => t.memberNo === "M-014")?.amountState).toBe("hollow");
+  expect(restingPhase(funded, fan)).not.toBe("landing");
+  expect(latency(funded, fan).dots).toEqual([]);
+  expect(summaryFacts(snapshot, fan).paid).toBe(0);
+  expect(shareCounts(fan)).toMatchObject({ confirmed: 0, replayedSuccessful: 7 });
+});
+
+it("inv.i8.our own RETURNED is a neutral return, never a failure, until the cash decision moves it", () => {
+  expect(threadTone("RETURNED", undefined, "RETURNED")).toBe("returned");
+  expect(threadTone("RETURNED", undefined, undefined)).toBe("returned");
+  expect(threadTone("RETURNED", undefined, "OFF_RAIL_DUE")).toBe("moved");
+  const base = showcaseView(snapshot);
+  const rhea = base.lines["M-031"];
+  if (!rhea) throw new Error("M-031 line required");
+  const view = { ...base, lines: { ...base.lines, "M-031": { ...rhea, state: "RETURNED" as const } } };
+  const fan = fanView(snapshot, view);
+  expect(fan.threads.find((t) => t.memberNo === "M-031")?.tone).toBe("returned");
+  expect(shareCounts(fan).failed).toBe(0);
+});

@@ -22,6 +22,8 @@ export const SEASON_COPY = {
   stripNext: "next",
   stripNextWord: "Next",
   stripLater: "not yet",
+  /** The last stage on a run that settled on replayed payout statuses: never "Paid". */
+  stripReplayed: "Replayed",
   pool: "The pool",
   poolShare: (members: number) => `What ${members} members share`,
   premium: "Premium",

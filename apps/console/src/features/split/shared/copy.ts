@@ -288,6 +288,11 @@ interface SmsParts {
 }
 
 const smsRail = (p: SmsParts, cash: string, paypal: string) => (p.rail === "cash" ? cash : paypal);
+const RAIL_WORDS = {
+  ceb: (p: SmsParts) => smsRail(p, ", cash sa bodega", " sa simulated PayPal sandbox"),
+  fil: (p: SmsParts) => smsRail(p, ", cash sa bodega", " sa simulated PayPal sandbox"),
+  en: (p: SmsParts) => smsRail(p, ", in cash at the bodega", " through the simulated PayPal sandbox"),
+} as const;
 
 export const LINE = {
   loading: "Printing the line",
@@ -318,11 +323,45 @@ export const LINE = {
   langName: { ceb: "Cebuano", fil: "Filipino", en: "English" },
   sms: {
     ceb: (p: SmsParts) =>
-      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", cash sa bodega", " sa simulated PayPal sandbox")}. Resibo ${p.slips}. Pangutana: Treasurer ${p.treasurer}.`,
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.ceb(p)}. Resibo ${p.slips}. Pangutana: Treasurer ${p.treasurer}.`,
     fil: (p: SmsParts) =>
-      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", cash sa bodega", " sa simulated PayPal sandbox")}. Resibo ${p.slips}. Tanong: Treasurer ${p.treasurer}.`,
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.fil(p)}. Resibo ${p.slips}. Tanong: Treasurer ${p.treasurer}.`,
     en: (p: SmsParts) =>
-      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", in cash at the bodega", " through the simulated PayPal sandbox")}. Slips ${p.slips}. Questions: Treasurer ${p.treasurer}.`,
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.en(p)}. Slips ${p.slips}. Questions: Treasurer ${p.treasurer}.`,
+  },
+  /** The same message without the questions line, then without the slips, when the full one passes 160. */
+  smsNoHelp: {
+    ceb: (p: SmsParts) =>
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.ceb(p)}. Resibo ${p.slips}.`,
+    fil: (p: SmsParts) =>
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.fil(p)}. Resibo ${p.slips}.`,
+    en: (p: SmsParts) =>
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.en(p)}. Slips ${p.slips}.`,
+  },
+  smsShort: {
+    ceb: (p: SmsParts) => `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.ceb(p)}.`,
+    fil: (p: SmsParts) => `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.fil(p)}.`,
+    en: (p: SmsParts) => `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${RAIL_WORDS.en(p)}.`,
+  },
+  /**
+   * A replayed status (fs-api's short frame, in the member's language; ceb and fil machine-translated, chipped):
+   * never "Paid", and never this run's payment.
+   */
+  smsReplay: {
+    ceb: (p: SmsParts) =>
+      `${p.coop}: ${p.name}, ${p.amount}. Gi-replay (gilabelan): miaging simulated PayPal sandbox run; dili bayad niini nga run.`,
+    fil: (p: SmsParts) =>
+      `${p.coop}: ${p.name}, ${p.amount}. Ni-replay (may label): naunang simulated PayPal sandbox run; hindi bayad sa run na ito.`,
+    en: (p: SmsParts) =>
+      `${p.coop}: ${p.name}, ${p.amount}. Replayed (labelled): earlier simulated PayPal sandbox run; not this run's payment.`,
+  },
+  smsReplayShort: {
+    ceb: (p: SmsParts) =>
+      `${p.amount}. Gi-replay (gilabelan): miaging simulated PayPal sandbox run; dili bayad niini nga run.`,
+    fil: (p: SmsParts) =>
+      `${p.amount}. Ni-replay (may label): naunang simulated PayPal sandbox run; hindi bayad sa run na ito.`,
+    en: (p: SmsParts) =>
+      `${p.amount}. Replayed (labelled): earlier simulated PayPal sandbox run; not this run's payment.`,
   },
   pair: "Pair a phone",
   pairOffline: "Pairing a phone needs the live run. This is the seeded showcase.",

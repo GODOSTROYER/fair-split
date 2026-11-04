@@ -13,7 +13,7 @@ import type {
 } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import type { MoneyView, StatementLineView } from "@fairsplit/ui-web";
-import { payoutStatus } from "../../data/payout-replay.js";
+import { payoutStatus, REPLAY_STATUS_DETAIL } from "../../data/payout-replay.js";
 import { atLeast, type RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
 import { type SplitRow, splitRows } from "../split/model.js";
@@ -23,6 +23,7 @@ export type LineScreenState =
   | "held"
   | "ready"
   | "paid"
+  | "replay"
   | "cash-due"
   | "cash-received"
   | "parked"
@@ -35,9 +36,13 @@ export function isCashLine(row: SplitRow): boolean {
   return row.rail === "CASH" || row.movedToCash;
 }
 
-/** S1.7's W-TR-09 states for a line. A cash line is due at the bodega once the batch is approved. */
+/**
+ * S1.7's W-TR-09 states for a line. A cash line is due at the bodega once the batch is approved. A line whose
+ * PayPal status is a labelled replay reads "replay" (like the split grid), never "paid".
+ */
 export function lineScreenState(view: RunView, row: SplitRow): LineScreenState {
   if (row.status.kind !== "line") return "held";
+  if (row.replayed) return "replay";
   const s = row.state;
   if (s === "PAID") return "paid";
   if (s === "OFF_RAIL_PAID") return "cash-received";
@@ -165,9 +170,13 @@ export function lineHistory(snapshot: SeasonSnapshot, view: RunView, memberNo: s
       .filter((h) => h.memberNo === memberNo)
       .map((h) => h.holdId),
   );
+  let explained = false;
   for (const e of view.events) {
-    const row = historyRow(e, memberNo, holdsOfMember, name);
-    if (row) rows.push(row);
+    const row = historyRow(e, memberNo, holdsOfMember, name, explained);
+    if (!row) continue;
+    // A replay's long detail is said once in the list: each later replayed row names only what it replayed.
+    if (row.detail === REPLAY_STATUS_DETAIL) explained = true;
+    rows.push(row);
   }
   return rows;
 }
@@ -177,28 +186,31 @@ function historyRow(
   memberNo: string,
   holds: ReadonlySet<string>,
   name: (who: string) => string,
+  explained: boolean,
 ): HistoryRow | null {
   switch (e.type) {
     case "line.state":
       if (e.payload.memberNo !== memberNo) return null;
       {
         const status = payoutStatus({ state: e.payload.to, provenance: e.provenance });
-        return { id: e.id, words: status.statusWord, detail: status.detail, at: e.at };
+        return { id: e.id, words: status.statusWord, detail: explained ? null : status.detail, at: e.at };
       }
-    case "item.updated":
+    case "item.updated": {
       if (e.payload.memberNo !== memberNo) return null;
+      const status = payoutStatus({ itemStatus: e.payload.to, provenance: e.provenance });
+      const source =
+        e.payload.source === "webhook"
+          ? LINE.paypalNotice
+          : e.payload.source === "cancel"
+            ? LINE.ourCancel
+            : null;
       return {
         id: e.id,
-        words: payoutStatus({ itemStatus: e.payload.to, provenance: e.provenance }).statusWord,
-        detail:
-          payoutStatus({ itemStatus: e.payload.to, provenance: e.provenance }).detail ??
-          (e.payload.source === "webhook"
-            ? LINE.paypalNotice
-            : e.payload.source === "cancel"
-              ? LINE.ourCancel
-              : null),
+        words: status.statusWord,
+        detail: status.detail && !explained ? status.detail : source,
         at: e.at,
       };
+    }
     case "hold.raised":
       if (e.payload.memberNo !== memberNo) return null;
       return { id: e.id, words: LINE.holdRaised(e.payload.label), detail: null, at: e.at };
@@ -245,15 +257,27 @@ const SMS_STATUS: Readonly<Record<LineScreenState, MemberLineState>> = {
   held: "HELD",
   ready: "READY",
   paid: "PAID",
+  replay: "PAID",
   "cash-due": "OFF_RAIL_DUE",
   "cash-received": "OFF_RAIL_PAID",
   parked: "UNCLAIMED",
   "request-open": "HELD",
 };
 
+/** S1.11: an SMS is 160 GSM-7 septets at most. */
+export const SMS_MAX_SEPTETS = 160;
+
+/** The status an SMS says: the screen's cash states win (cash is due at the bodega once both keys signed). */
+function smsState(row: SplitRow, state: LineScreenState): MemberLineState {
+  if (state === "cash-due" || state === "cash-received") return SMS_STATUS[state];
+  return row.status.kind === "line" ? row.state : SMS_STATUS[state];
+}
+
 /**
- * The SMS a member would get (S1.11: GSM-7, the peso written "P" because ₱ is not in GSM-7). Words come from the
- * catalog's status labels in the member's language; the frame around them is the preview's own.
+ * The SMS a member would get (S1.11: GSM-7, the peso written "P" because ₱ is not in GSM-7, 160 septets at most).
+ * Words come from the catalog's status labels in the member's language; the frame around them is the preview's
+ * own and names the rail once. A replayed status takes the short replay frame in the member's language (like
+ * fs-api's), never "Paid". When the full frame runs past 160 septets, the shorter frames follow.
  */
 export function smsText(
   snapshot: SeasonSnapshot,
@@ -264,28 +288,37 @@ export function smsText(
 ): string {
   const fx = snapshot.fx.centavosPerCent;
   const cash = isCashLine(row);
-  const statusState = row.status.kind === "line" ? row.state : SMS_STATUS[state];
+  const statusState = smsState(row, state);
   const presentation = payoutStatus({
     state: statusState,
     replayed: row.replayed,
     paypal: !cash,
     statusWord: translate(lang, `status.${statusState}`),
   });
-  const status = presentation.statusWord;
-  const amount = cash
-    ? format.money(cashCentavos(row.netCents, fx), "PHP")
-    : `${format.money(row.netCents)} (${format.pesoEstimate(row.netCents, fx, lang)})`;
-  const slips = row.slips.map((s) => s.serial).join(",");
-  const treasurer = snapshot.officers.find((o) => o.role === "TREASURER")?.shortName ?? "";
-  const name = member.addressAs[lang];
-  const text = LINE.sms[lang]({
+  const usd = format.money(row.netCents);
+  const parts = {
     coop: snapshot.coop.shortName,
-    name,
-    status,
-    amount,
-    rail: cash ? "cash" : "paypal",
-    slips,
-    treasurer,
-  });
-  return `${text}${presentation.detail ? ` ${presentation.detail}` : ""}`.replaceAll("₱", "P");
+    name: member.addressAs[lang],
+    // The bare word: the frame names the rail itself, once.
+    status: presentation.word,
+    amount: cash
+      ? format.money(cashCentavos(row.netCents, fx), "PHP")
+      : `${usd} (${format.pesoEstimate(row.netCents, fx, lang)})`,
+    rail: cash ? ("cash" as const) : ("paypal" as const),
+    slips: row.slips.map((s) => s.serial).join(","),
+    treasurer: snapshot.officers.find((o) => o.role === "TREASURER")?.shortName ?? "",
+  };
+  const frames = presentation.replayed
+    ? [LINE.smsReplay[lang]({ ...parts, amount: usd }), LINE.smsReplayShort[lang]({ ...parts, amount: usd })]
+    : [
+        LINE.sms[lang](parts),
+        LINE.smsNoHelp[lang](parts),
+        LINE.smsShort[lang](parts),
+        LINE.smsShort[lang]({ ...parts, amount: cash ? parts.amount : usd }),
+      ];
+  const texts = frames.map((text) => text.replaceAll("₱", "P"));
+  return (
+    texts.find((text) => (gsm7Length(text) ?? Number.POSITIVE_INFINITY) <= SMS_MAX_SEPTETS) ??
+    (texts.at(-1) as string)
+  );
 }

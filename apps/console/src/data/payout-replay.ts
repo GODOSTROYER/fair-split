@@ -1,4 +1,11 @@
-import type { Lang, MemberLineState, PayoutItemStatus, ProofBundle } from "@fairsplit/contracts";
+import {
+  type Lang,
+  type MemberLineState,
+  PAYOUT_ITEM_STATUS_LABELS,
+  type PayoutItemStatus,
+  type ProofBundle,
+  pickLabel,
+} from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import type { RunView } from "./run-view.js";
 
@@ -18,8 +25,29 @@ export const payoutReplaySummary = (successful: number, total: number): string =
 
 export const SIMULATED_PAYOUT_LABEL = "Simulated PayPal sandbox";
 export const REPLAY_STATUS_WORD = "Replayed (labelled)";
+/** The long explanation: shown once per surface (a drawer, a list, a log), never on every row. */
 export const REPLAY_STATUS_DETAIL =
   "From an earlier simulated PayPal sandbox run. This is not payment confirmation for this run.";
+
+/**
+ * What the earlier run's item did, so a replayed success and a replayed parked line never read alike. Never
+ * "Paid": a replayed success is the earlier run's, said so.
+ */
+export const REPLAY_ITEM_WORDS: Readonly<Record<PayoutItemStatus, string>> = {
+  SUBMITTED: "sent",
+  PENDING: "pending",
+  SUCCESS: "successful in the earlier run",
+  UNCLAIMED: "parked",
+  ONHOLD: "held",
+  RETURNED: "returned",
+  FAILED: "failed",
+  BLOCKED: "blocked",
+  REFUNDED: "refunded",
+  REVERSED: "reversed",
+};
+/** "Replayed (labelled): parked": the replay label and the item word it replayed. */
+export const replayStatusWord = (itemStatus: PayoutItemStatus): string =>
+  `${REPLAY_STATUS_WORD}: ${REPLAY_ITEM_WORDS[itemStatus]}`;
 
 const payoutAttempt = (id: string) => Number(/^r\d+x(\d+)-/.exec(id)?.[1] ?? 0);
 
@@ -83,6 +111,17 @@ const ITEM_LINE: Record<PayoutItemStatus, MemberLineState> = {
   REFUNDED: "REVERSED",
   REVERSED: "REVERSED",
 };
+/** The item status a PayPal line state stands for, for its replay word. */
+const LINE_ITEM: Readonly<Partial<Record<MemberLineState, PayoutItemStatus>>> = {
+  SUBMITTED: "SUBMITTED",
+  PAYPAL_PENDING: "PENDING",
+  PAID: "SUCCESS",
+  UNCLAIMED: "UNCLAIMED",
+  RETURNED: "RETURNED",
+  PAYPAL_HELD: "ONHOLD",
+  NEEDS_ACTION: "FAILED",
+  REVERSED: "REVERSED",
+};
 const PAYPAL_STATES: readonly MemberLineState[] = [
   "SUBMITTED",
   "PAYPAL_PENDING",
@@ -114,7 +153,12 @@ const TONE: Record<MemberLineState, Tone> = {
   REVERSED: "red",
 };
 
-/** The console's sole payout presentation policy. Domain states stay intact; their display needs evidence. */
+/**
+ * The console's sole payout presentation policy. Domain states stay intact; their display needs evidence. An item
+ * status reads in item words ("Waiting for PayPal", "Blocked by PayPal"); a line state in the console's line words
+ * unless the caller passes the surface's own `statusWord` (a member's words on her paper or SMS). `word` is the
+ * bare status, for a frame that names the rail itself (the SMS); `statusWord` carries the rail or the replay label.
+ */
 export function payoutStatus(input: {
   readonly state?: MemberLineState;
   readonly itemStatus?: PayoutItemStatus;
@@ -137,7 +181,14 @@ export function payoutStatus(input: {
       (input.memberNo
         ? memberPayoutReplayed(input.view, input.memberNo, input.bundle, input.senderItemId)
         : payoutReplayed(input.view, input.bundle)));
-  const baseWord = input.statusWord ?? translate(input.lang ?? "en", `console.status.${state}`);
+  const lang = input.lang ?? "en";
+  const baseWord =
+    input.statusWord ??
+    (input.itemStatus
+      ? pickLabel(PAYOUT_ITEM_STATUS_LABELS[input.itemStatus], lang)
+      : translate(lang, `console.status.${state}`));
+  const replayItem = input.itemStatus ?? LINE_ITEM[state];
+  const replayWord = replayItem ? replayStatusWord(replayItem) : REPLAY_STATUS_WORD;
   const amountState: AmountState = replayed
     ? "hollow"
     : state === "PAID"
@@ -162,11 +213,8 @@ export function payoutStatus(input: {
   return {
     state,
     replayed,
-    statusWord: replayed
-      ? `${REPLAY_STATUS_WORD}, ${SIMULATED_PAYOUT_LABEL}`
-      : paypal
-        ? `${baseWord} (${SIMULATED_PAYOUT_LABEL})`
-        : baseWord,
+    word: replayed ? replayWord : baseWord,
+    statusWord: replayed ? replayWord : paypal ? `${baseWord} (${SIMULATED_PAYOUT_LABEL})` : baseWord,
     tone: replayed ? ("neutral" as const) : TONE[state],
     amountState,
     simulatedLabel: paypal ? SIMULATED_PAYOUT_LABEL : null,

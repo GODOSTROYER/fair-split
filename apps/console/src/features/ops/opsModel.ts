@@ -6,7 +6,6 @@ import { ApiClientError, ContractError, NetworkError } from "@fairsplit/api-clie
 import {
   type LedgerEntry,
   LedgerPayloads,
-  PAYOUT_ITEM_STATUS_LABELS,
   PROVENANCE_LABELS,
   type Provenance,
   pickLabel,
@@ -15,6 +14,7 @@ import {
   type WebhookVerified,
 } from "@fairsplit/contracts";
 import { z } from "zod";
+import { payoutStatus } from "../../data/payout-replay.js";
 import type { DataSource, PaypalRail } from "../../lib/env.js";
 import { jcs } from "../../lib/jcs.js";
 
@@ -486,7 +486,8 @@ export function noticesFromEvents(events: readonly RunEvent[], rail: PaypalRail)
         at: e.at,
         notice: "Payout item",
         object: p.senderItemId,
-        status: pickLabel(PAYOUT_ITEM_STATUS_LABELS[p.to], "en"),
+        // The item's own word ("Paid"), or the replay it is ("Replayed (labelled): …"): the shared helper decides.
+        status: payoutStatus({ itemStatus: p.to, provenance: e.provenance }).word,
         check: SOURCE_WORDS[p.source](rail),
         provenance: provenanceOf(e.provenance),
         duplicate: false,
@@ -539,7 +540,7 @@ export function noticesFromLedger(ledger: readonly LedgerEntry[], rail: PaypalRa
           : p.senderBatchId;
     const status =
       p.resource === "payout_item"
-        ? pickLabel(PAYOUT_ITEM_STATUS_LABELS[p.status], "en")
+        ? payoutStatus({ itemStatus: p.status, provenance: p.provenance }).word
         : p.resource === "invoice"
           ? p.status
           : p.batchStatus;
