@@ -110,10 +110,12 @@
     --glow: color-mix(in srgb, var(--fs-slab-jade-right) 55%, transparent);
   }
 
+  /* Bolted: a plate face on a solid steel lip with its two bolt heads. Never hatched: hatch means cash or
+     unavailable, and a bolted rule is neither (it refuses, ADR-0016). */
   .fs-slab[data-bolted] {
     --face: var(--fs-plate-2);
     --label: var(--fs-ink);
-    --edge-r: repeating-linear-gradient(-45deg, var(--fs-steel-line) 0 1.5px, var(--fs-steel-face) 1.5px 4px);
+    --edge-r: var(--fs-steel-face);
     --edge-b: var(--fs-steel-line);
     --glow: transparent;
   }
