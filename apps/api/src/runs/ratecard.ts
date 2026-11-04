@@ -21,12 +21,13 @@ import { asDbError, schema, type WorkspaceScope, withWorkspaceTx } from "@fairsp
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { ActingCredential } from "../credentials/verify/index.js";
+import { commitText } from "../ledger/commitments.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { allow, CAN, personaId } from "./access.js";
 import { provenanceOf } from "./codes.js";
-import { factLedger, noteSha256, proofLedger } from "./events.js";
+import { factLedger, proofLedger } from "./events.js";
 import { type CardRow, canonicalOf, cardById, ratifiedCard, seasonById } from "./load.js";
 
 /** The card's ratification date as the season reads it (Asia/Manila is UTC+8, no DST). */
@@ -70,8 +71,16 @@ export const addDeductionHandler: CommandHandler<"addDeduction"> = async (ctx) =
           {
             rateCardId: card.id,
             rateCardSha256: refused.subject,
-            labelSha256: noteSha256(input.label),
-            amountSha256: noteSha256(input.amountText),
+            labelSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "rate_card.edit_refused", workspaceId: scope.workspaceId, subjectId: card.id },
+              input.label,
+            ).sha256,
+            amountSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "rate_card.edit_refused", workspaceId: scope.workspaceId, subjectId: card.id },
+              input.amountText,
+            ).sha256,
           },
           { at },
         ),

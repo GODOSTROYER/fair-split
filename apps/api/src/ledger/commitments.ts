@@ -22,7 +22,12 @@ import type { CredentialKeys } from "../credentials/verify/index.js";
 export const TEXT_SALT_PURPOSE = "ledger:text-salt";
 
 /** What a commitment binds: the text of one review request's note, or one key's revocation reason. */
-export type CommitmentPurpose = "review.note" | "key.revoked.reason";
+export type CommitmentPurpose =
+  | "review.note"
+  | "key.revoked.reason"
+  | "hold.reason"
+  | "approval.decline.reason"
+  | "rate_card.edit_refused";
 
 export interface CommitmentSubject {
   purpose: CommitmentPurpose;

@@ -18,7 +18,7 @@
 //                         the lines LOCKED and the `postPayoutBatch` task (I7).
 //   declineApproval  POST the Chair (or the treasurer withdrawing) sends the run back: live approvals voided,
 //                         the reason kept as a note hash, run → IN_REVIEW.
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   type ApprovalPayload,
   ApprovalPayload as ApprovalPayloadSchema,
@@ -49,6 +49,7 @@ import {
 import { enqueue } from "@fairsplit/outbox";
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { ActingCredential } from "../credentials/verify/index.js";
+import { commitText } from "../ledger/commitments.js";
 import { type CommandHandler, reply } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
@@ -56,7 +57,7 @@ import { receiverDirectory } from "../money/receivers.js";
 import { personaId } from "../runs/access.js";
 import { dbApprovalRoleOf } from "../runs/codes.js";
 import { approvalDto } from "../runs/dto.js";
-import { emit, factLedger, noteSha256, proofLedger } from "../runs/events.js";
+import { emit, factLedger, proofLedger } from "../runs/events.js";
 import { assertNotKilled, unlockLines, voidLiveApprovals } from "../runs/flags.js";
 import { casGuard, invalidTransition, lockRun, runBySlug } from "../runs/load.js";
 import { cause, moveLine, moveRun, type RunRow } from "../runs/machine.js";
@@ -526,7 +527,9 @@ export const declineApprovalHandler: CommandHandler<"declineApproval"> = async (
           );
         }
         await voidLiveApprovals(tx, scope, run.id, at, `declined:${role}`);
+        const approvalId = randomUUID();
         await tx.insert(schema.approvals).values({
+          id: approvalId,
           workspaceId: scope.workspaceId,
           runId: run.id,
           role: dbApprovalRoleOf(role),
@@ -540,7 +543,15 @@ export const declineApprovalHandler: CommandHandler<"declineApproval"> = async (
           tx,
           scope,
           "approval.declined",
-          { runId: run.id, role, reasonSha256: noteSha256(reason) },
+          {
+            runId: run.id,
+            role,
+            reasonSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "approval.decline.reason", workspaceId: scope.workspaceId, subjectId: approvalId },
+              reason,
+            ).sha256,
+          },
           { runId: run.id, at },
         );
         await emit(

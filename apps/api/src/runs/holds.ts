@@ -10,12 +10,13 @@ import type { HoldResolutionKind, HoldState, ResolveHoldRequest } from "@fairspl
 import { schema, withWorkspaceTx } from "@fairsplit/db";
 import { ALLOWED_RESOLUTIONS, isOverride, isResolutionAllowed } from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
+import { commitText } from "../ledger/commitments.js";
 import type { CommandHandler } from "../lib/command.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { allow, CAN, initialsOf, personaId } from "./access.js";
 import { holdDto } from "./dto.js";
 import { recomputeRun } from "./engine.js";
-import { factLedger, noteSha256 } from "./events.js";
+import { factLedger } from "./events.js";
 import { casGuard, lockRun } from "./load.js";
 import { type HoldRow, moveHold, touchRun } from "./machine.js";
 import { openForEdit } from "./review.js";
@@ -94,7 +95,16 @@ export const resolveHoldHandler: CommandHandler<"resolveHold"> = async (ctx) => 
           tx,
           scope,
           "hold.asked_chair",
-          { runId: run.id, holdId: hold.id, kind: hold.kind, reasonSha256: noteSha256(input.reason) },
+          {
+            runId: run.id,
+            holdId: hold.id,
+            kind: hold.kind,
+            reasonSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "hold.reason", workspaceId: scope.workspaceId, subjectId: hold.id },
+              input.reason,
+            ).sha256,
+          },
           { runId: run.id, at },
         );
         const touched = await touchRun(tx, scope, { id: run.id, state: "IN_REVIEW" });
@@ -119,7 +129,15 @@ export const resolveHoldHandler: CommandHandler<"resolveHold"> = async (ctx) => 
           holdId: hold.id,
           kind: hold.kind,
           resolution: input.resolution,
-          ...("reason" in input ? { reasonSha256: noteSha256(input.reason) } : {}),
+          ...("reason" in input
+            ? {
+                reasonSha256: commitText(
+                  deps.credentials.keys,
+                  { purpose: "hold.reason", workspaceId: scope.workspaceId, subjectId: hold.id },
+                  input.reason,
+                ).sha256,
+              }
+            : {}),
         },
         { runId: run.id, at },
       );

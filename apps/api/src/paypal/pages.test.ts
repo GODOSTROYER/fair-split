@@ -1,17 +1,28 @@
 import { createSimulator, type Simulator } from "@fairsplit/paypal-sim";
 import { Hono } from "hono";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AppEnv } from "../lib/context.js";
 import { mountSimulatorPages } from "./pages.js";
 
 const origin = "http://localhost:8787";
 let sim: Simulator;
 let app: Hono<AppEnv>;
+let forwarded = 0;
 
 beforeAll(async () => {
   sim = await createSimulator({ publicBaseUrl: origin, basePath: "/paypal-sim", speed: 0, logger: () => {} });
   app = new Hono<AppEnv>();
-  mountSimulatorPages(app, { basePath: "/paypal-sim", baseUrl: sim.pagesBaseUrl, fetch: sim.publicFetch });
+  mountSimulatorPages(app, {
+    basePath: "/paypal-sim",
+    baseUrl: sim.pagesBaseUrl,
+    fetch: (request) => {
+      forwarded++;
+      return sim.publicFetch(request);
+    },
+  });
+});
+beforeEach(() => {
+  forwarded = 0;
 });
 afterAll(async () => {
   await sim?.close();
@@ -44,6 +55,7 @@ describe("HD6-1a bounded public simulator mount", () => {
     async (headers) => {
       const source = streamed(headers);
       expect((await app.fetch(source.request)).status).toBe(413);
+      expect(forwarded).toBe(0);
       expect(source.pulls()).toBeLessThanOrEqual(7);
       expect(source.cancelled()).toBe(true);
     },
@@ -52,6 +64,7 @@ describe("HD6-1a bounded public simulator mount", () => {
   it("refuses an oversized declared length before reading a byte", async () => {
     const source = streamed({ "content-length": "2000000" });
     expect((await app.fetch(source.request)).status).toBe(413);
+    expect(forwarded).toBe(0);
     expect(source.pulls()).toBeLessThanOrEqual(1); // the stream's initial queued chunk only
   });
 
