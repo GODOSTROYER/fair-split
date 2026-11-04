@@ -443,8 +443,22 @@ await t.close();
 
 ## HD6
 
+- HD6-1a: Public simulator writes are capped at 4096 bytes before forwarding, including chunked and dishonest-length bodies; GET/HEAD remain pass-through.
+- HD6-1b: Standalone simulator pay forms independently cap reads at 4096 bytes.
 - HD6-2: Request windows have a 20,000-key LRU bound, per-rule expiry, paced sweeping and atomic takeAll/peek/refund; refused cookieless starts mint no throttle key.
-- HD6-6: IPv6 throttle identities use canonical /64 networks (mapped addresses use IPv4); at most two live initial lane reservations per network. The existing guarded local simulator hourly override also lifts this network cap for e2e.
-- HD6-5b: Session admission caps claimed unexpired judge workspaces at 200 before any claim/clone, global starts at 60/min and networks at 60/day; smaller test caps are rejected outside local test simulator mode.
-- HD6-3: Session credentials share optional-write budgets; judge-ledger optional appends stop at 5000 while money/system/webhooks continue. Oversized Proof heads refuse before row reads. Public bodies, metrics and verification share a 2s head-and-tier cache (four completed results, 16MiB serialized, at most 32 in-flight builds).
-- HD6-O3: Six-digit pairing atomically takes network and global budgets so a global refusal spends no personal slot.
+- HD6-3: Session credentials share optional-write budgets. Judge optional appends stop at 5000 while money/system/webhooks continue; oversized Proof heads refuse before row reads. Public JSON, verification and metrics share a 2s head-and-tier cache (four completed results, 16MiB serialized, at most 32 in-flight builds), with metrics built in the same snapshot.
+- HD6-4: SSE caps each network at 40 streams, anonymous networks at three and public streams at 100 of the 300 slots; streams end after 30min and resume with Last-Event-ID. Session stream opens are limited to 30/min.
+- HD6-5: Cron drains removable expired workspaces in pages under a monotonic 2min budget, checking batch windows lazily. Admission caps claimed unexpired judge workspaces at 200 before claim/clone, successful starts at 60/min and networks at 60/day; a nonrefundable 120/min attempt cap bounds failed work. Smaller admission test caps are refused outside local test simulator mode.
+- HD6-6: IPv6 throttle identities use canonical /64 networks (mapped addresses use IPv4). At most two workspaces per network hold live lane entries, including later steps; the guarded local simulator hourly override also lifts this cap for e2e.
+- HD6-7: Cash shares remain READY through APPROVED until the primary batch write leaves it. Both signing routes bind stored line digests to the latest computed root; send-back refuses cash-due/paid lines.
+- HD6-8: Lane waits retain their requested delay and ask within half the reservation; even a 50-deep queue stays below MAX_ATTEMPT_ROWS. Approval expiry remains checked at execution time.
+- HD6-9: Ten flag requests/min are shared by session across frame tokens, checked before the transaction; the optional-ledger guard also applies.
+- HD6-10: Judge codes use atomic session/network/global budgets; global 300/min assumes the runbook's 96-bit randomBytes(12) code. A correct code never bypasses limits, and a refused attempt consumes no personal slots.
+- HD6-11a: Migration 0020 adds the partial link.revoked payload jti index, mirrored in the schema and new snapshot.
+- HD6-11b: Revocation lookups and live-link subqueries are workspace-scoped. Signed-link GET/HEAD reads share 60/link/min and 300/network/min budgets before DB resolution.
+- HD6-12: Only unsuperseded payout items govern settlement after a re-route.
+- HD6-13: Failed starts return exact timestamp-bound browser/network/global/day reservations; pending requests still enforce caps, newer successes keep their slots, and the coarse attempt budget remains spent. The first successful cookieless start is recorded only after commit.
+- HD6-14: Hold, decline and refused-edit free text uses purpose/workspace/subject salted commitments. noteSha256 remains only for static gate reasons; no public opening or new route was added.
+- HD6-O1: Reset clears public visibility immediately through the same claimed-workspace rule as credentials.
+- HD6-O2: /readyz shares one in-flight probe, caches completed 200/503 reports for 3s and exposes fixed timeout/unreachable codes.
+- HD6-O3: Six-digit pairing atomically takes network and global budgets so global refusals consume no network slot.
