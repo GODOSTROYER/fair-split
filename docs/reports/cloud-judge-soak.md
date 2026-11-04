@@ -212,8 +212,11 @@ target. Spread p95 stayed ≤ 13 ms: the single LISTEN connection's fan-out did 
 
 ## Sustained run (≥ 2 h)
 
-Pending: `long`: 10 judges looping, 125 minutes, production quota emulated (3 live per clock hour), 30 s samples;
-`long-minutes.csv`, `long-metrics.csv`.
+- **Attempt 1, interrupted by a container restart** (`long-interrupted-*.csv`). It started 23:35:51 UTC and all
+  processes were killed at about 23:43, after 7 minutes, before any judge finished. Its samples (RSS 337 → 263 MB,
+  fds 56–64, 13 DB connections, 0 stuck outbox rows) are kept as they are.
+- **Attempt 2** (`long-*.csv`), running since 23:46:11 UTC: 10 judges looping for 125 minutes, production quota
+  emulated (3 live per clock hour), 30 s samples, CSV rows appended as they come. Results pending.
 
 ## How a hosted Render instance differs
 
