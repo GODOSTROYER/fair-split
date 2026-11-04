@@ -100,6 +100,30 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
+  it.each(["full", "reduced"] as const)(
+    "a cloned document's live row reaches landed in %s motion",
+    async (motion) => {
+      const r = await readingRun(motion);
+      clearMomentTrace();
+      act(() =>
+        r.stream.inject((stamp) =>
+          rowsFor(["D"])(stamp).map((event) =>
+            event.type === "extract.row"
+              ? { ...event, payload: { ...event.payload, docId: "019f4b41-5280-7944-961e-000000000001" } }
+              : event,
+          ),
+        ),
+      );
+      await waitFor(() => expect(screen.getByTestId("W-TR-03.bench").dataset.photo).toBe("D"));
+      await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 10_000 });
+      expect(tracedPhases("MM-2")).toContain("band");
+      expect(screen.getByTestId("W-TR-03.beds.row.0457").dataset.state).toBe("printed");
+      expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/pink/);
+      if (motion === "reduced") expect(r.container.querySelector(".fsc-flight")).toBeNull();
+      r.unmount();
+    },
+  );
+
   it("follows the reading to the photo being read; names the pink copy of 0457", async () => {
     const r = await readingRun();
     act(() => r.stream.inject(rowsFor(["B"])));

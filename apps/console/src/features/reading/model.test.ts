@@ -16,6 +16,7 @@ import {
   earlierPhotos,
   hasStarted,
   photoById,
+  photoForRow,
   photoIsBlurred,
   photoIsRead,
   readingState,
@@ -72,6 +73,42 @@ describe("the recorded run (replay fixture)", () => {
 });
 
 describe("rows on the bench", () => {
+  it("maps cloned row identities by serial and position, keeping the white and pink copies apart", () => {
+    const cloned = rows.map((row) => ({
+      ...row,
+      payload: { ...row.payload, docId: `clone-${row.photoId}` },
+    }));
+    for (const row of cloned) expect(photoForRow(snapshot, row.payload)?.photoId).toBe(row.photoId);
+    const view = applyRunEvents(
+      reading,
+      cloned.map((row) => extractRowEvent(row, stamp())),
+    );
+    for (const photo of replayPhotos(snapshot)) {
+      const printed = rowsForPhoto({ snapshot, view, photo });
+      expect(printed.every((row) => row?.source === "event")).toBe(true);
+      expect(printed.find((row) => row?.serial === "0457")?.copy).toBe(
+        photo.photoId === "B" ? "white" : photo.photoId === "D" ? "pink" : undefined,
+      );
+    }
+    expect(benchPhoto(snapshot, view, undefined)?.photoId).toBe("L");
+  });
+
+  it("refuses conflicting known documents, unknown slips, wrong positions and ambiguous clone matches", () => {
+    const first = rows[0];
+    if (!first) throw new Error("no first replay row");
+    const row = first.payload;
+    expect(photoForRow(snapshot, { ...row, docId: "clone-A", serial: "missing" })).toBeUndefined();
+    expect(photoForRow(snapshot, { ...row, docId: "clone-A", row: 9 })).toBeUndefined();
+    expect(photoForRow(snapshot, { ...row, docId: "clone-A", row: 1 })).toBeUndefined();
+    const other = photoById(snapshot, "B");
+    if (!other) throw new Error("no photo B");
+    expect(photoForRow(snapshot, { ...row, docId: other.documentId })).toBeUndefined();
+    const firstPhoto = photoById(snapshot, "A");
+    if (!firstPhoto) throw new Error("no photo A");
+    const ambiguous = { ...snapshot, photos: [...snapshot.photos, { ...firstPhoto, photoId: "extra" }] };
+    expect(photoForRow(ambiguous, { ...row, docId: "clone-A" })).toBeUndefined();
+  });
+
   it("waits, dashed, before the reading, and prints each slip's row as its extract.row lands", () => {
     const photo = photoById(snapshot, "A");
     if (!photo) throw new Error("no photo A");

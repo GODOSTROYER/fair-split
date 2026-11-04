@@ -38,7 +38,7 @@ import {
   hasStarted,
   isReading,
   latestRowPhoto,
-  photoOfDoc,
+  photoForRow,
   quarantineNotice,
   readCount,
   readingState,
@@ -172,7 +172,7 @@ export function ReadingRoom({
   const onRow = useCallback(
     (event: RunEvent) => {
       if (event.type !== "extract.row") return;
-      const rowPhoto = photoOfDoc(snapshot, event.payload.docId);
+      const rowPhoto = photoForRow(snapshot, event.payload);
       if (!rowPhoto) return;
       const serial = event.payload.serial;
       const delay = stage?.director.space("row") ?? 0;

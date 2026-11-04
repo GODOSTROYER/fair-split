@@ -19,6 +19,7 @@ import {
   type AutoplayPlan,
   aimAt,
   isAt,
+  PILL_LINK,
   planStep,
   resolveTarget,
 } from "./autoplay-plan.js";
@@ -104,6 +105,21 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
     },
     [x, y],
   );
+
+  // The reading is already happening on the server. Follow its real step as soon as it changes, so the room
+  // can subscribe before the next row arrives. Navigation is not an action; review presses keep their 4 s pace.
+  useEffect(() => {
+    if (autoplay !== "autoplay" || next.id !== "reading" || isAt({ pathname, search }, next.to)) return;
+    const link = resolveTarget(document, [PILL_LINK]);
+    if (!link) return;
+    let cancelled = false;
+    void moveTo(link).then(() => {
+      if (!cancelled && link.isConnected) link.click();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [autoplay, next.id, next.to, pathname, search, moveTo]);
 
   // The driver: one step, then the next after AUTOPLAY_STEP_MS. Only "turn" and "finish" end the loop.
   useEffect(() => {
