@@ -169,27 +169,41 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.fees").textContent).toMatch(
         /Published rates, not fees PayPal reported/,
       );
-      expect(screen.getByTestId("W-TR-07.safe").textContent).toMatch(
-        /3 holds resolved\. 1 field entered by hand/,
-      );
+      // Four checks above the slab, each a ✓ in ink with its figure in micro.
+      expect(
+        [...screen.getByTestId("W-TR-07.safe").querySelectorAll("li")].map((li) => li.textContent),
+      ).toEqual([
+        "Holds resolved3/3 · 1 by hand",
+        "Shrink within limit1.62% ≤ 2.0%",
+        "Lines explained64/64",
+        "Rate card unchangedsince 14 Mar",
+      ]);
+      expect(screen.getByTestId("W-TR-07.safe").querySelectorAll("[data-done]")).toHaveLength(4);
+      // The hero says what the amount is, with the one tag for the batch it heads.
+      const hero = screen.getByTestId("W-TR-07.amount").parentElement as HTMLElement;
+      expect(hero.textContent).toMatch(/^PayPal batch · 8 payoutsSimulated PayPal sandbox/);
+      expect(
+        [...screen.getByTestId("W-TR-07.rail").querySelectorAll(".fsr-money__row")].map((r) => r.textContent),
+      ).toEqual(["PayPal8US$368.39", expect.stringMatching(/^Cash at the bodega56.+US\$3,849\.78$/)]);
       // The payload's lines root (IC-02) prints beside what two people sign, once this browser has recomputed it
       // from the run's own lines: the workspace's, whose returned mark (M-018) has the workspace's own mark ID, so
       // its root is not the seed's.
       const root64 = linesRoot(workspaceLines(view.world));
       expect(root64).not.toBe(linesRoot(seedSnapshot().checkpoints.resolved.lines));
       expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
-      // The decision comes first (seal, amount, rails with their fees, why it is safe, the slab, the keys); what
-      // both keys sign follows it, for a person to compare by eye.
+      // The batch first (seal, amount, the money bar, the fees and what both keys sign behind Details), then the
+      // decision (the four checks, the slab, the keys).
       const order = [
         "W-TR-07.seal",
         "W-TR-07.amount",
         "W-TR-07.rail",
         "W-TR-07.fees",
-        "W-TR-07.safe",
         "W-TR-07.ledger",
+        "W-TR-07.safe",
         "W-TR-07.approve",
         "W-TR-07.keys",
       ].map((id) => screen.getByTestId(id));
+      expect(screen.getByTestId("W-TR-07.ledger").closest("details")?.open).toBe(false);
       for (let i = 1; i < order.length; i++) {
         const before = order[i - 1] as HTMLElement;
         const after = order[i] as HTMLElement;
@@ -224,7 +238,7 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
       // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1.
       expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).toMatch(
-        /fs-analyn-demo-[a-z0-9]{6}, Demo key \(this browser\)/,
+        /Analyn · Treasurerfs-analyn-demo-[a-z0-9]{6}Demo key/,
       );
       expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).not.toMatch(/fs-analyn-w1/);
 
@@ -267,7 +281,7 @@ describe("W-TR-07 approve", () => {
       expect(sealScroll).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
       // A focus that comes back to the console now (the Chair's phone lowering) lands on the completed seal.
       await waitFor(() => expect(screenControl()?.dataset.testid).toBe("W-TR-07.sealBlock"));
-      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/^Approved by Analyn and Ernesto/);
     },
     SLOW,
   );
@@ -508,7 +522,7 @@ describe("W-TR-07 approve", () => {
       const root = await screen.findByTestId("W-TR-07");
       await waitFor(() => expect(root.dataset.state).toBe("approved"));
       expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-2");
-      expect(screen.getByTestId("W-TR-07.key.chair").textContent).toMatch(/Sample key \(seeded\)/);
+      expect(screen.getByTestId("W-TR-07.key.chair").textContent).toMatch(/Ernesto · Chair.*Sample key/);
       expect(screen.getByTestId("W-TR-07.batchHash").textContent).toMatch(/^0f83 9be7/);
       await expectNoAxeViolations(root);
     },
@@ -752,9 +766,9 @@ describe("W-TR-07 approve", () => {
       });
       await waitFor(() => expect(root.dataset.state).toBe("posting"), { timeout: 5_000 });
       expect(screen.getByTestId("W-TR-07.posting").textContent).toMatch(
-        /^Posting batch 2026A-[0-9a-f]{8}-r37\. The Payouts tool re-hashed the batch: it matches\./,
+        /^Posting 2026A-[0-9a-f]{8}-r37 · re-hashed, it matches$/,
       );
-      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/^Approved by Analyn and Ernesto/);
       expect(screen.getByTestId("W-TR-07.fanout").getAttribute("href")).toBe(webRoutes.fanout(RUN));
       expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-2");
       expect(screen.queryByTestId("W-TR-07.retrying")).toBeNull();

@@ -1,45 +1,62 @@
-/* W-TR-07 Approve: one centred 640 px column with no cards (design §6 C7). The seal, the batch in pencil, why it
-   is safe, then the one d3 jade slab; two key slots beneath. Tablea tokens only; corners 0 or 2; only paper casts
-   a shadow; every duration from @fairsplit/motion's CSS variables. */
+/* W-TR-07 Approve (UI gate round 2): two columns once the screen is 860 px wide. The batch on the left (the seal,
+   "PayPal batch · 8 payouts" over the amount in ink, the money bar, Details), the decision on the right in one
+   neutral card (four checks, the one slab, the two keys, the co-sign card). One column below that width, the
+   decision first after the amount. Tokens only; spacing on the 4 px scale; radii from the one scale. */
 
 .fsr-approve-screen {
   justify-items: stretch;
+  container: fsr-approve / inline-size;
 }
 
 .fsr-approve {
   display: grid;
-  justify-items: center;
   gap: var(--fs-space-24);
-  width: min(var(--fs-console-approve), 100%);
+  width: 100%;
+  max-width: 1080px;
   margin-inline: auto;
   padding-bottom: var(--fs-space-48);
-  text-align: center;
 }
 
 .fsr-approve--beds {
+  justify-items: center;
   gap: var(--fs-space-16);
 }
 
-/* A 13-inch laptop (956 px tall): the seal draws at 160 px and the column tightens, so the seal, the amount,
-   the rails, why it is safe and the slab all sit in the first view. */
-@media (max-height: 1000px) {
+.fsr-approve > .fsr-banner {
+  width: 100%;
+  text-align: left;
+}
+
+@container fsr-approve (min-width: 860px) {
   .fsr-approve {
-    gap: var(--fs-space-16);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+    column-gap: var(--fs-space-48);
+    align-items: start;
+  }
+
+  .fsr-approve > .fsr-banner {
+    grid-column: 1 / -1;
   }
 }
 
-/* While a moment raises the phone beside the screen (the Chair's co-sign), the column moves to the start, so the
-   seal and the Chair's frame read side by side. */
-.fsc-stage[data-layout="tab"][data-raised="moment"] .fsr-approve {
-  margin-inline: 0 auto;
+/* ------------------------------------------------------------------ the batch (left) */
+
+.fsr-approve__batch {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-24);
+  min-width: 0;
 }
 
-/* ------------------------------------------------------------------ the seal and its hashes */
+.fsr-approve__seal-wrap {
+  display: grid;
+  justify-items: center;
+}
 
 .fsr-approve__seal {
   display: grid;
   justify-items: center;
-  gap: var(--fs-space-8);
+  gap: var(--fs-space-12);
 }
 
 /* The batch's own pattern in pencil, a quarter strength, under the Seal: each key engraves its rings in ink. */
@@ -64,68 +81,124 @@
   display: none;
 }
 
-.fsr-approve__keys-count {
-  margin: 0;
-  color: var(--fs-ink);
-  font-size: 1rem;
-  line-height: 1.5rem;
+.fsr-seal--empty .fs-seal__band {
+  stroke-dasharray: 2 4;
 }
 
 .fsr-approve__seal-caption {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--fs-space-8) var(--fs-space-16);
-  color: var(--fs-ink);
-}
-.fsr-approve__batch-hash {
   margin: 0;
-  color: var(--fs-ink);
-  font-size: 1rem;
-  line-height: 1.5rem;
+  color: var(--fs-ink-3);
+  text-align: center;
 }
-.fsr-approve__batch-hash .fs-t-hash {
-  font-size: inherit;
-}
-.fsr-approve__full-hash {
-  max-width: 100%;
-  color: var(--fs-ink-2);
-}
-.fsr-approve__full-hash p {
-  overflow-wrap: anywhere;
-}
-.fsr-approve__record {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--fs-space-8);
-}
-.fsr-approve__seal[data-keys="2"] .fsr-approve__keys-count {
+
+.fsr-approve__keys-count {
   color: var(--fs-ink);
 }
 
-.fsr-seal--empty .fs-seal__band {
-  stroke-dasharray: 2 4;
+.fsr-approve__amount {
+  display: grid;
+  justify-items: center;
+  gap: var(--fs-space-8);
+}
+
+.fsr-approve__amount .fs-amount {
+  justify-items: center;
+}
+
+.fsr-approve__amount[data-animate] .fs-amount__solid {
+  transition: color var(--fs-dur-ink) var(--fs-ease-out);
+}
+
+.fsr-approve__hero-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+/* Details: the fees, what both keys sign, and the engine's provenance, one click away. */
+.fsr-approve__details {
+  width: 100%;
+  padding-top: var(--fs-space-12);
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsr-approve__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  border-radius: var(--fs-radius-cell);
+  color: var(--fs-ink-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+.fsr-approve__summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsr-approve__summary:hover {
+  color: var(--fs-ink);
+}
+
+.fsr-approve__summary:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: var(--fs-focus-offset);
+}
+
+.fsr-approve__summary .fs-glyph {
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsr-approve__details[open] .fsr-approve__summary .fs-glyph {
+  transform: rotate(180deg);
+}
+
+.fsr-approve__details-body {
+  display: grid;
+  gap: var(--fs-space-16);
+  padding-top: var(--fs-space-12);
+}
+
+.fsr-approve__fees {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--fs-ink-2);
+}
+
+.fsr-approve__ledger {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-approve__ledger > h2 {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-approve__provenance {
+  margin: 0;
+  color: var(--fs-ink-3);
 }
 
 .fsr-ledger {
   display: grid;
   gap: var(--fs-space-4);
-  margin: var(--fs-space-4) 0 0;
-  text-align: left;
+  margin: 0;
 }
 
 .fsr-ledger__row {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
   align-items: baseline;
   gap: var(--fs-space-12);
 }
 
 .fsr-ledger dt {
   color: var(--fs-ink-3);
-  text-align: right;
 }
 
 .fsr-ledger dd {
@@ -138,109 +211,132 @@
   color: var(--fs-ink-3);
 }
 
-/* ------------------------------------------------------------------ the amount and the rails */
+/* ------------------------------------------------------------------ the decision (right) */
 
-.fsr-approve__amount {
+/* One neutral card: the checks, the slab, the keys. While it waits for a person's key, an indigo glow rises at
+   its base (unslop spec §1.2), never under the words. */
+.fsr-approve__decide {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  justify-items: center;
-  gap: var(--fs-space-4);
+  align-content: start;
+  gap: var(--fs-space-16);
+  min-width: 0;
+  padding: calc(var(--fs-space-16) + var(--fs-space-4));
+  overflow: hidden;
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
 }
 
-.fsr-approve__amount .fs-amount {
-  justify-items: center;
+.fsr-approve__decide::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 48%;
+  background: radial-gradient(
+    75% 100% at 50% 100%,
+    color-mix(in srgb, var(--fs-pod) 10%, transparent),
+    color-mix(in srgb, var(--fs-pod) 3%, transparent) 55%,
+    transparent 80%
+  );
+  opacity: 0;
+  transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
+  pointer-events: none;
 }
 
-.fsr-approve__amount[data-animate] .fs-amount__solid {
-  transition: color var(--fs-dur-ink) var(--fs-ease-out);
+.fsr-approve-screen:is([data-state="ready"], [data-state="key1"]) .fsr-approve__decide::after {
+  opacity: 1;
 }
 
-.fsr-approve__amount-note {
-  margin: 0;
-  color: var(--fs-ink-3);
-}
-
-.fsr-approve .fs-railbar {
-  width: 100%;
-  text-align: left;
-}
-
-/* The rail bar with the fees as its caption: what moves by PayPal, what goes to cash, and what PayPal charges. */
-.fsr-approve__rails {
+.fsr-checks {
   display: grid;
-  gap: var(--fs-space-8);
-  width: 100%;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.fsr-approve__fees {
-  margin: 0;
+.fsr-check {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fs-space-12);
+  min-height: 36px;
+  border-bottom: 1px solid var(--fs-rule);
+  /* The ✓ glyph draws in currentColor: a checked fact is ink. */
+  color: var(--fs-ink);
+}
+
+.fsr-check:last-child {
+  border-bottom: 0;
+}
+
+/* Still open (H3 reserves its line; approval is not blocked): a person decides, a marigold dot. */
+.fsr-check__dot {
+  justify-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fs-canary);
+  box-shadow: 0 0 0 1px var(--fs-canary-border);
+}
+
+.fsr-check__label {
+  color: var(--fs-ink);
+}
+
+.fsr-check__value {
   color: var(--fs-ink-2);
-  text-align: left;
-}
-
-/* What both keys sign, for a person to compare by eye with the Chair's phone: after the decision, not before. */
-.fsr-approve__ledger {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-8);
-  width: 100%;
-  padding-top: var(--fs-space-16);
-  border-top: 1px solid var(--fs-rule);
-}
-
-.fsr-approve__ledger > h2,
-.fsr-approve__ledger > p {
-  margin: 0;
-}
-
-.fsr-approve__safe {
-  max-width: 56ch;
-  margin: 0;
+  white-space: nowrap;
 }
 
 .fsr-approve__blocked {
   display: grid;
-  justify-items: center;
   gap: var(--fs-space-8);
   margin: 0;
   color: var(--fs-ink-2);
 }
 
 .fsr-approve__blocked ul {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--fs-space-8) var(--fs-space-24);
+  display: grid;
+  gap: var(--fs-space-8);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .fsr-approve__blocked li {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
   gap: var(--fs-space-8);
 }
 
-/* A person decides: a canary square, never a hue on the words. */
+/* A person decides: a marigold dot, never a hue on the words. */
 .fsr-approve__blocked-mark {
   align-self: center;
+  flex: none;
   width: 8px;
   height: 8px;
+  border-radius: 50%;
   background: var(--fs-canary);
 }
 
-/* ------------------------------------------------------------------ the slab */
-
 .fsr-approve__slab {
   display: grid;
-  justify-items: center;
   gap: var(--fs-space-8);
   width: 100%;
 }
 
 .fsr-approve__slab .fs-slab {
   max-width: 100%;
+}
+
+.fsr-approve__record {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-8);
 }
 
 .fsr-approve__killed {
@@ -251,34 +347,61 @@
   color: var(--fs-ink-2);
 }
 
+.fsr-approve__done {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-approve__done > p {
+  margin: 0;
+}
+
+.fsr-approve__posting {
+  color: var(--fs-ink-3);
+}
+
+.fsr-approve__posted {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink);
+}
+
+.fsr-approve__next {
+  width: 100%;
+}
+
 /* ------------------------------------------------------------------ the two keys */
 
 .fsr-keys {
   display: grid;
-  gap: 0;
-  width: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--fs-rule);
-  text-align: left;
 }
 
 .fsr-key {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: start;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--fs-space-12);
   padding: var(--fs-space-12) 0;
   border-bottom: 1px solid var(--fs-rule);
 }
 
+.fsr-key:last-child {
+  border-bottom: 0;
+}
+
 .fsr-key__slot {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px dashed var(--fs-ink-3);
+  width: 24px;
+  height: 24px;
+  border: 1px dashed var(--fs-steel-line);
+  border-radius: var(--fs-radius-cell);
   color: var(--fs-ink-3);
 }
 
@@ -288,18 +411,26 @@
 
 .fsr-key__text {
   display: grid;
-  gap: 2px;
+  gap: var(--fs-space-4);
   min-width: 0;
 }
 
-.fsr-key__why,
-.fsr-key__id,
-.fsr-key__note {
-  color: var(--fs-ink-3);
+.fsr-key__name {
+  color: var(--fs-ink);
+}
+
+.fsr-key__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-4) var(--fs-space-8);
+  min-width: 0;
 }
 
 .fsr-key__id {
-  color: var(--fs-ink-2);
+  min-width: 0;
+  color: var(--fs-ink-3);
+  overflow-wrap: anywhere;
 }
 
 .fsr-key__status {
@@ -315,10 +446,12 @@
   text-decoration: line-through;
   opacity: 0.6;
 }
+
 .fsr-key[data-state="voided"] .fsr-key__slot {
   position: relative;
   border: 0;
 }
+
 .fsr-key[data-state="voided"] .fsr-key__slot::after {
   content: "";
   position: absolute;
@@ -352,19 +485,38 @@
   transition: opacity var(--fs-dur-reduced) var(--fs-ease-out);
 }
 
-.fsr-approve__done {
+/* ------------------------------------------------------------------ the co-sign card (Judge Mode) */
+
+.fsr-cosign {
   display: grid;
-  justify-items: center;
-  gap: var(--fs-space-8);
+  justify-items: start;
+  gap: var(--fs-space-12);
+  padding-top: var(--fs-space-16);
+  border-top: 1px solid var(--fs-rule);
 }
 
-.fsr-approve__done > p {
+.fsr-cosign__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-8);
+  width: 100%;
+}
+
+.fsr-cosign h2,
+.fsr-cosign p {
   margin: 0;
 }
 
-.fsr-approve__posted {
-  max-width: 52ch;
-  color: var(--fs-ink-2);
+.fsr-cosign__code {
+  display: grid;
+  gap: var(--fs-space-4);
+}
+
+.fsr-cosign__digits {
+  color: var(--fs-ink);
+  letter-spacing: 0.02em;
 }
 
 /* ------------------------------------------------------------------ the dialog route's body */
@@ -406,38 +558,6 @@
   color: var(--fs-ink-2);
 }
 
-/* ------------------------------------------------------------------ the co-sign card (Judge Mode) */
-
-.fsr-cosign {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-8);
-  width: 100%;
-  padding: var(--fs-space-24);
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
-}
-
-.fsr-cosign h2,
-.fsr-cosign p {
-  margin: 0;
-}
-
-.fsr-cosign__body {
-  color: var(--fs-ink-2);
-}
-
-.fsr-cosign__code {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-4);
-}
-
-.fsr-cosign__digits {
-  color: var(--fs-ink);
-  letter-spacing: 0.02em;
-}
-
 /* ------------------------------------------------------------------ banners in ink (a person's decision) */
 
 .fsr-banner--ink {
@@ -452,9 +572,4 @@
 
 .fsr-banner__quote {
   color: var(--fs-ink);
-}
-
-.fsr-approve .fsr-banner {
-  width: 100%;
-  text-align: left;
 }

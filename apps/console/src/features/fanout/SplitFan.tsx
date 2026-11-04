@@ -1,10 +1,10 @@
-// SplitFan (S2.7, design §1 signature 6): one seal, 64 lines, eight PayPal threads and 56 dashed cash lines, in
-// one SVG on one linear scale (width is money). Threads draw to 70% in graphite on PayPal's 201 (sent, not
-// paid), finish and turn jade only on a verified SUCCESS, hold at 70% with a canary cap when PayPal parks an
-// item, and retract when the line moves to cash, while that member's own dashed cash line draws from the same
-// slot. The 56 cash lines are already drawn and stay still. History is drawn in place; only live events animate.
-// Every word and figure is HTML laid over the picture at its own type size (12 to 14 px at any width); the
-// picture is hidden from screen readers and mirrored in a table (Data mode).
+// SplitFan (S2.7, design §1 signature 6; UI gate round 2): the run's hero. One seal, 64 lines: eight PayPal
+// threads fan out from the seal's hub to one row each, at one even stroke, and the cash members run together as one
+// calm band into one compact block. Threads draw to 70% in flight on PayPal's 201 (sent, not paid), finish and turn
+// jade only on a verified SUCCESS, hold at 70% with a marigold cap when PayPal parks an item, and retract when the
+// line moves to cash, while that member's own dashed line draws from the same slot to the cash block. History is
+// drawn in place; only live events animate. Every word and figure is HTML laid over the picture at its own type
+// size; the picture is hidden from screen readers and mirrored in a table (Data mode).
 
 import { TIMING } from "@fairsplit/motion";
 import { seal } from "@fairsplit/seal";
@@ -54,7 +54,6 @@ function MovedLine({ line, live, maskId }: { line: CashLine; live: number | unde
         pathLength={1}
         strokeWidth={line.stroke}
         strokeDasharray={CASH_DASHARRAY}
-        strokeDashoffset={line.dashOffset}
         mask={`url(#${maskId})`}
         data-moved=""
         data-attested={line.attested ? "" : undefined}
@@ -69,6 +68,8 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
   const geometry = useMemo(() => (fan.sealHash ? seal(fan.sealHash, FAN.seal.size) : null), [fan.sealHash]);
   const half = FAN.seal.size / 2;
   const hatchId = `fsr-fan-hatch-${uid}`;
+  const band = fan.cashLines.filter((l) => !l.moved);
+  const blockH = fan.cash.bottom - fan.cash.top;
   return (
     <div
       className="fsr-fan"
@@ -95,7 +96,7 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
           </pattern>
         </defs>
 
-        {/* The seal the two keys completed, and the bar of the run's net. */}
+        {/* The seal the two keys completed, and the hub every line leaves. */}
         <g
           className="fsr-fan__seal"
           data-digest={fan.sealHash ?? undefined}
@@ -117,49 +118,48 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
           y={FAN.bar.y0}
           width={FAN.bar.x1 - FAN.bar.x0}
           height={FAN.bar.y1 - FAN.bar.y0}
+          rx={2}
         />
 
-        {/* One dashed line per member paid in cash: already drawn, still, hatch-coloured (never jade). */}
+        {/* The cash members as one band: each member's share, solid and still, meeting its neighbours. A line
+            moved to cash draws in dashed from its own thread's slot. */}
         <g className="fsr-fan__cash" data-testid="W-TR-08.cash">
-          {fan.cashLines.map((line) =>
-            line.moved ? (
+          {band.map((line) => (
+            <path
+              key={line.memberNo}
+              className="fsr-fan__cash-line"
+              d={line.d}
+              pathLength={1}
+              strokeWidth={line.stroke}
+              data-attested={line.attested ? "" : undefined}
+              data-testid={`W-TR-08.cash.${line.memberNo}`}
+            />
+          ))}
+          {fan.cashLines
+            .filter((l) => l.moved)
+            .map((line) => (
               <MovedLine
                 key={line.memberNo}
                 line={line}
                 live={animate.get(line.memberNo)}
                 maskId={`fsr-fan-reveal-${uid}-${line.memberNo}`}
               />
-            ) : (
-              <path
-                key={line.memberNo}
-                className="fsr-fan__cash-line"
-                d={line.d}
-                pathLength={1}
-                strokeWidth={line.stroke}
-                strokeDasharray={CASH_DASHARRAY}
-                strokeDashoffset={line.dashOffset}
-                data-attested={line.attested ? "" : undefined}
-                data-testid={`W-TR-08.cash.${line.memberNo}`}
-              />
-            ),
-          )}
+            ))}
         </g>
-        <g className="fsr-fan__ends">
-          {fan.cashLines.map((line) => (
-            <rect
-              key={line.memberNo}
-              className="fsr-fan__end"
-              x={FAN.endX}
-              y={line.endY}
-              width={FAN.cash.w}
-              height={Math.max(0.5, line.h - 1)}
-              style={line.attested ? undefined : { fill: `url(#${hatchId})` }}
-              data-attested={line.attested ? "" : undefined}
-            />
-          ))}
-        </g>
+        {fan.cashLines.length > 0 && (
+          <rect
+            className="fsr-fan__block"
+            x={FAN.endX}
+            y={fan.cash.top}
+            width={FAN.cash.w}
+            height={Math.max(FAN.cash.w, blockH)}
+            rx={3}
+            style={fan.cash.amountState === "attested" ? undefined : { fill: `url(#${hatchId})` }}
+            data-attested={fan.cash.amountState === "attested" ? "" : undefined}
+          />
+        )}
 
-        {/* Eight PayPal threads, each as wide as its payment. */}
+        {/* Eight PayPal threads, one row each. */}
         {fan.threads.map((t) => {
           const live = animate.get(t.memberNo);
           return (
@@ -180,12 +180,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
                 style={threadStyle(t, live, drawing)}
               />
               {(t.tone === "parked" || t.tone === "failed") && (
-                <rect
+                <circle
                   className="fsr-fan__cap"
-                  x={t.capAt.x - FAN.cap / 2}
-                  y={t.capAt.y - FAN.cap / 2}
-                  width={FAN.cap}
-                  height={FAN.cap}
+                  cx={t.capAt.x}
+                  cy={t.capAt.y}
+                  r={FAN.cap / 2}
                   data-tone={t.replayed ? "sent" : t.tone}
                 />
               )}
@@ -195,11 +194,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
                 data-animate={live !== undefined ? "" : undefined}
                 style={{ ["--fsr-delay" as string]: `${live ?? 0}ms` }}
               >
-                <rect className="fsr-fan__stub-edge" width={FAN.stub.w} height={FAN.stub.h} />
                 <rect
                   className="fsr-fan__stub-face"
                   width={FAN.stub.w}
                   height={FAN.stub.h}
+                  rx={3}
                   style={t.tone === "moved" ? { fill: `url(#${hatchId})` } : undefined}
                 />
               </g>
@@ -218,11 +217,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
             data-testid={`W-TR-08.label.${t.memberNo}`}
           >
             {t.tone === "moved" ? (
-              // Her money now rides with the cash line and the cash total beneath: the row says where it went.
-              <span className="fsr-fan__name fs-t-caption">{FANOUT.movedToCash(t.name)}</span>
+              // Her money now rides with the cash block beneath: the row says where it went.
+              <span className="fsr-fan__name fs-t-label">{FANOUT.movedToCash(t.name)}</span>
             ) : (
               <>
-                <span className="fsr-fan__name fs-t-caption" title={t.statusWord}>
+                <span className="fsr-fan__name fs-t-label" title={t.statusWord}>
                   {t.name}
                   {t.replayed ? " · Replayed (labelled, simulated)" : ""}
                 </span>
@@ -238,7 +237,7 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
           .map((t) => (
             <span
               key={t.memberNo}
-              className="fsr-fan__chip fs-t-caption"
+              className="fsr-fan__chip fs-t-micro"
               style={at(t.capAt.x + 12, t.capAt.y)}
               data-testid={`W-TR-08.chip.${t.memberNo}`}
             >
@@ -251,8 +250,8 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
             style={at(FAN.labelX, (fan.cash.top + fan.cash.bottom) / 2)}
             data-testid="W-TR-08.cashLabel"
           >
-            <span className="fsr-fan__name fs-t-caption">
-              {FANOUT.cashBandMembers(fan.cash.members, cashDay)}
+            <span className="fsr-fan__name fs-t-label" title={FANOUT.dueOn(cashDay)}>
+              {FANOUT.cashBandMembers(fan.cash.members)}
             </span>
             <span className="fsr-fan__amount fs-t-figure" data-amount-state={fan.cash.amountState}>
               {format.money(fan.cash.cents)}

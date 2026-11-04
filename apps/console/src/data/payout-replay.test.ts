@@ -60,21 +60,22 @@ describe("payout replay provenance", () => {
 });
 
 it("inv.i8.simulated payout copy names its rail with sentence case", () => {
-  for (const text of [FANOUT.waiting("10:00"), FANOUT.waitingSeeded]) {
-    expect(text).toContain(". The simulated PayPal sandbox");
-    expect(text).not.toContain(". the ");
-  }
   // Split review's decided words are counts, not a sentence about PayPal: the screen's honesty tag carries the
   // rail once the batch posts (W-TR-05.simulated), and nothing there claims a confirmation.
   expect(SPLIT.decidedApproved).not.toMatch(/PayPal|confirm/i);
+  // The run's own words never name the rail in a sentence (its one tag does); those that must, say simulated.
   for (const text of [
-    FANOUT.rheaWhy("Rhea", "US$26.65"),
-    FANOUT.rerouted("Rhea", "30 Oct"),
     FANOUT.feesSoFar,
+    FANOUT.denied,
+    FANOUT.replayedStatus,
+    FANOUT.replayedShare(8, 7),
     SPLIT.declined,
-    FANOUT.done(7, 57, "US$21.14"),
-  ])
+  ]) {
     expect(text).toMatch(/simulated/i);
+    expect(text).not.toContain(". the ");
+  }
+  for (const text of [FANOUT.rheaLine, FANOUT.rerouted("Rhea"), FANOUT.posted("10:00", "0:05")])
+    expect(text).not.toMatch(/sandbox|PayPal confirm/i);
 });
 
 it("inv.i8.counts all replayed statuses and identifies successful statuses separately", () => {

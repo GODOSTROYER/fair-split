@@ -1,0 +1,130 @@
+/* The money bar (unslop spec §1.9): a 12 px stacked bar, each segment as wide as its money (3 px at least), and one
+   legend row per segment. Colour only as meaning; the hatch is the one allowed pattern. Tokens only. */
+
+.fsr-money {
+  display: grid;
+  gap: var(--fs-space-12);
+  width: 100%;
+  margin: 0;
+  text-align: left;
+}
+
+.fsr-money__bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+}
+
+.fsr-money__seg {
+  flex: var(--fsr-grow, 1) 1 0;
+  min-width: 3px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1.5px var(--fs-ink-3);
+}
+
+.fsr-money__seg[data-tone="confirmed"],
+.fsr-money__swatch[data-tone="confirmed"] {
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+}
+
+.fsr-money__seg[data-tone="flight"],
+.fsr-money__swatch[data-tone="flight"] {
+  box-shadow: none;
+  background: transparent;
+  outline: 1.5px dashed var(--fs-jade-flush-border);
+  outline-offset: -1.5px;
+}
+
+.fsr-money__seg[data-tone="held"],
+.fsr-money__swatch[data-tone="held"] {
+  background: var(--fs-canary);
+  box-shadow: inset 0 0 0 1px var(--fs-canary-border);
+}
+
+/* PayPal said no: the only red. */
+.fsr-money__seg[data-tone="failed"],
+.fsr-money__swatch[data-tone="failed"] {
+  background: var(--fs-red);
+  box-shadow: none;
+}
+
+.fsr-money__seg[data-tone="cash"],
+.fsr-money__swatch[data-tone="cash"] {
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 5px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+.fsr-money__seg[data-tone="kept"],
+.fsr-money__swatch[data-tone="kept"] {
+  background: var(--fs-ink-3);
+  box-shadow: none;
+}
+
+.fsr-money__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-8);
+}
+
+.fsr-money__title {
+  color: var(--fs-ink);
+}
+
+.fsr-money__rows {
+  display: grid;
+  gap: var(--fs-space-8);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsr-money__row {
+  display: grid;
+  grid-template-columns: 10px auto auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--fs-space-8);
+}
+
+.fsr-money__swatch {
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1.5px var(--fs-ink-3);
+}
+
+.fsr-money__name {
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsr-money__count {
+  color: var(--fs-ink-2);
+}
+
+.fsr-money__note {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-ink-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsr-money__amount {
+  grid-column: 5;
+  color: var(--fs-ink);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fsr-money__foot {
+  margin: 0;
+  color: var(--fs-ink-3);
+}

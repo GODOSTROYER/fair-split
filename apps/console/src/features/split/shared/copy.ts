@@ -178,24 +178,48 @@ export const APPROVE = {
   blockedReading: "The slips are still being read. Approval opens once every line is computed.",
   blockedWaiting: "Approval waits for",
   blockedLink: (label: string) => `Open ${label}`,
-  signing: "Signing the batch hash with this browser's key",
-  keyLine: (keyId: string, label: string) => `Key ${keyId}, ${label}`,
-  keySeeded: "Sample key (seeded)",
-  keyDevice: "Device key",
-  keyBrowser: "Browser key, registered from /ops",
-  keyDemoChair: "Demo key (the Chair's phone frame)",
+  signing: "Signing",
+  /** The seal's micro line (unslop spec §3.9): "0/2 signed". */
+  signedCount: (n: number) => `${n}/2 signed`,
+  batchHashLabel: "Batch hash",
+  /** The hero's label: what the amount is, before the tag says where it runs. */
+  heroLabel: (count: number) => `PayPal batch · ${count === 1 ? "1 payout" : `${count} payouts`}`,
+  railLabel: "The batch and the cash, by value",
+  /** The committed slab's record: the stamps and times are on the key rows beneath it. */
+  recordApproved: "Approved by Analyn and Ernesto",
+  recordKey1: (time: string) => `Signed by Analyn, ${time}. Waiting for Ernesto.`,
+  legendPaypal: "PayPal",
+  legendCash: "Cash at the bodega",
+  checksLabel: "Checks before signing",
+  checkOpen: "Open",
+  checkHolds: "Holds resolved",
+  checkShrink: "Shrink within limit",
+  checkLines: "Lines explained",
+  checkRateCard: "Rate card unchanged",
+  byHand: (n: number) => `${n} by hand`,
+  since: (date: string) => `since ${date}`,
+  /** The details' summary: the fees and the hashes stay one click away (spec §3.9). */
+  detailsSummary: (fees: string) => `Fees ≈ ${fees} · what both keys sign`,
+  keyName: { treasurer: "Analyn · Treasurer", chair: "Ernesto · Chair" },
+  /** Why the Chair's key: "> US$300 · R5". */
+  chairWhy: (threshold: string, ruleId: string) => `> ${threshold} · ${ruleId}`,
+  tagDemoKey: "Demo key",
+  tagSampleKey: "Sample key",
+  keyBrowser: "browser key",
+  keyDevice: "device key",
   keyWebCrypto: "Made by WebCrypto in this browser; the private half can't be exported.",
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
+  keyDemoChair: "Made in the Chair's phone frame.",
   waitingKey: en("W-TR-07.key.waiting"),
   waitingChair: en("W-TR-07.waiting"),
   presence: (hold: string) => en("W-TR-07.presence", { hold }),
-  presenceApproval: "Ernesto is on the co-sign request",
+  presenceApproval: "Ernesto is reviewing the batch",
+  sameOnPhone: "Same seal on Ernesto's phone",
   approved: en("W-TR-07.approved"),
   postedLink: "Watch the payments land",
   watchPayouts: "Watch the payouts",
-  posting: (batch: string) => en("W-TR-07.posting", { batch }),
-  posted:
-    "The simulated PayPal sandbox accepted the batch. Each payment turns jade only when the simulated PayPal sandbox confirms it.",
+  posting: (batch: string) => `Posting ${batch} · re-hashed, it matches`,
+  posted: "Batch accepted",
   declined: (who: string) => `${who} sent the batch back`,
   declinedNext: "Fix what he asked, then approve again.",
   expired: "The co-sign request expired. Send again.",
@@ -220,75 +244,54 @@ export const APPROVE = {
   batchLabel: "Batch",
   batchPending: "Not final yet",
   linesDigest: "Lines digest",
-  linesNote: (lines: number, cash: number) =>
-    `all ${lines} lines, the ${cash} cash lines too; this browser recomputed it`,
+  linesNote: (lines: number, cash: number) => `· all ${lines} lines, ${cash} cash · recomputed here`,
   rateCard: "Rate card",
-  signTitle: "What you and Ernesto sign",
+  signTitle: "What both keys sign",
   voided: (time: string) =>
     `Both approvals voided at ${time}. A payout changed after signing, so nothing was sent. Review and sign again.`,
   voidedKey: (time: string) => `Voided ${time}`,
-  ledgerNote: "Compare these by eye with the Chair's phone: the seal above grows from the batch hash.",
-  cosignTitle: "Co-sign as Ernesto from your own phone",
-  cosignBody: "Uses a labelled demo key made in your phone's browser.",
+  cosignTitle: "Co-sign on your phone",
   cosignMake: "Make a co-sign code",
-  cosignCode: "Type it on the phone's pairing screen. It works once.",
-  cosignLink: "Or open the pairing link on the phone",
-  cosignExpires: (time: string) => `Expires ${time}.`,
-  cosignFrame: "Or sign in the Chair frame on the stage",
+  cosignCode: "Type it on the phone, once",
+  cosignLink: "Open the pairing link",
+  cosignExpires: (time: string) => `expires ${time}`,
+  cosignFrame: "Or sign in the Chair frame",
   feesLabel: en("W-TR-07.feesLabel"),
-  chairWhy: (threshold: string) => en("W-TR-07.key.chairWhy", { threshold }),
   safeEngine: "Engine",
 } as const;
 
 export const FANOUT = {
   loading: "Drawing the fan",
-  notPosted: "Not posted yet. The batch posts after both keys.",
+  notPosted: "Not posted yet.",
   notPostedLink: "Open Approve",
-  waiting: (time: string) =>
-    `Posted ${time}. The simulated PayPal sandbox confirms each payment as it lands.`,
-  waitingSeeded: "Posted. The simulated PayPal sandbox confirms each payment as it lands.",
-  elapsed: (clock: string) => `${clock} since posting`,
-  parked: (name: string) => `${name} is parked. Decide how she gets paid.`,
+  /** The run's instrument: "7/8" over "confirmed". */
+  confirmedWord: "confirmed",
+  confirmedOnPaypal: "confirmed on PayPal",
+  posted: (time: string, clock: string) => `posted ${time} · ${clock}`,
+  postedSeeded: "posted · confirming",
+  needsYou: (n: number) => `${n} needs you`,
+  cashDue: (n: number, date: string) => `${n} cash due ${date}`,
+  dueOn: (date: string) => `due ${date}`,
+  replayedStatus: "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.",
   denied: "The simulated PayPal sandbox declined the batch. No money moved.",
-  done: (paid: number, cash: number, kept: string) =>
-    `${paid} paid by the simulated PayPal sandbox. ${cash} in cash. ${kept} kept for members.`,
-  doneFees:
-    "The simulated PayPal sandbox reports each modelled fee with the item; none is shown until it arrives.",
-  onPaypal: (pct: string, n: number, total: number) =>
-    `On simulated PayPal: ${pct} of value (${n} of ${total} members)`,
-  /**
-   * The fan's one-line count, in the same words as the stage's Proof counter: what PayPal was sent, what it
-   * confirmed, what waits on a person, and who is paid in cash. "8 sent through the simulated PayPal sandbox, 7 confirmed, 1 parked."
-   */
-  shareCounts: (c: {
-    readonly onRail: number;
-    readonly sent: number;
-    readonly confirmed: number;
-    readonly parked: number;
-    readonly failed: number;
-    readonly cash: number;
-    readonly posting?: boolean;
-  }) => {
-    if (c.posting)
-      return `Sent to the simulated PayPal sandbox. Confirmations land one by one. ${c.cash} in cash at the bodega.`;
-    const paypal =
-      c.sent === 0
-        ? `${c.onRail} to send through the simulated PayPal sandbox once both keys sign`
-        : [
-            `${c.sent} sent through the simulated PayPal sandbox`,
-            `${c.confirmed} confirmed`,
-            ...(c.parked > 0 ? [`${c.parked} parked`] : []),
-            ...(c.failed > 0 ? [`${c.failed} failed`] : []),
-          ].join(", ");
-    return `${paypal}. ${c.cash} in cash at the bodega.`;
+  /** The money bar under the fan (spec §1.9): one legend row per state, the tag at its head. */
+  shareLabel: "Where the run's money went, by value",
+  shareTitle: "By value",
+  legend: {
+    planned: "To send",
+    flight: "Sent",
+    confirmed: "Confirmed",
+    held: "Parked",
+    failed: "Failed",
+    returned: "Returned",
+    replayed: "Replayed (labelled)",
+    cash: "Cash at the bodega",
+    kept: "Kept for members",
   },
-  shareValue: (pct: string) => `On simulated PayPal: ${pct} of value.`,
-  cashBand: (n: number, date: string, amount: string) =>
-    `${n} members, cash at the bodega on ${date}: ${amount}`,
-  cashBandMembers: (n: number, date: string) => `${n} members, cash at the bodega on ${date}`,
-  cashBandFirst: (n: number) => `${n} members, cash at`,
-  cashBandSecond: (date: string) => `the bodega on ${date}`,
-  movedToCash: (name: string) => `${name}, moved to cash`,
+  replayedShare: (sent: number, successful: number) =>
+    `${sent} payout statuses replayed (labelled), ${successful} successful in the earlier simulated PayPal sandbox run.`,
+  cashBandMembers: (n: number) => `${n} members · cash at the bodega`,
+  movedToCash: (name: string) => `${name} → cash`,
   title: "Run",
   feesSoFar:
     "The simulated PayPal sandbox reports each modelled fee with its item; none has arrived in this run's notices.",
@@ -297,29 +300,31 @@ export const FANOUT = {
   parkedChip: "Parked",
   failedChip: "Simulated PayPal failed it",
   log: "Run log",
+  latest: "Latest",
+  showAll: (n: number) => `All ${n} events`,
   lane: { MACHINE: "Machine", PEOPLE: "People", PAYPAL: "PayPal" },
   laneEmpty: {
     MACHINE: "Nothing from the machines yet.",
     PEOPLE: "Nobody has acted yet.",
     PAYPAL: "No PayPal notice yet.",
   },
-  seededLog: "Seeded showcase history. Start a run to watch each notice arrive.",
-  latency: "From funding to each confirmed payment",
-  latencySummary: (p50: string, max: string) => `Median ${p50}, slowest ${max}`,
-  latencyEmpty: "Confirmations appear here as the simulated PayPal sandbox sends them.",
-  rheaWhy: (name: string, amount: string) =>
-    `${name}'s address has no PayPal account, so the simulated PayPal sandbox parked ${amount} as unclaimed. It returns to the co-op by itself after 30 days, or you can decide now.`,
+  logEmpty: "Nothing has happened in this run yet.",
+  seededLog: "Seeded showcase history",
+  latency: "Funding to confirmation",
+  latencySummary: (p50: string, max: string) => `median ${p50} · slowest ${max}`,
+  latencyEmpty: "No confirmations yet",
+  rheaLine: "No PayPal account · unclaimed",
+  rheaReplayed: "Unclaimed in the earlier simulated PayPal sandbox run · a labelled replay",
+  returns: "returns to the co-op in 30 days",
   payCash: "Pay in cash at the bodega",
   payCashUnavailable: "Moving a line to cash needs the live run. This is the seeded showcase.",
   srPayCash: (name: string, amount: string) =>
     `Pay ${name} ${amount} in cash at the bodega, changes a line, button`,
-  resend: "Re-send after she confirms her email",
-  resendNote: "Needs her confirmed email and your key on a new one-item batch",
-  resendPending: "Re-sending needs a confirmed email address. Ask Rhea at the bodega first.",
-  wait: "Or wait: she can join PayPal and claim it within 30 days. This simulator models claiming; PayPal's own sandbox is untested.",
+  resend: "Re-send",
+  resendNote: "her email + your key",
+  resendPending: "needs her confirmed email first",
   // S1.7's wording: the cash is due on cash day, not paid yet.
-  rerouted: (_name: string, date: string) =>
-    `Returned to the co-op's simulated PayPal balance. Cash at the bodega on ${date}.`,
+  rerouted: (name: string) => `${name} → cash at the bodega`,
   duplicate: "Delivery repeated, already applied.",
   figure: "Where the money goes",
   tableCaption: "Payout threads and cash lines",

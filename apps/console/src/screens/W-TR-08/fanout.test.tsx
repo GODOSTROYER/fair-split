@@ -25,6 +25,9 @@ const SLOW = 120_000;
 const WAIT = { timeout: 8_000 };
 
 const stateOf = () => screen.queryByTestId("W-TR-08")?.dataset.state;
+/** The money bar's legend rows, as their text: name, count, note and amount run together. */
+const legend = () =>
+  [...screen.getByTestId("W-TR-08.share").querySelectorAll(".fsr-money__row")].map((r) => r.textContent);
 const toneOf = (memberNo: string) => screen.getByTestId(`W-TR-08.thread.${memberNo}`).dataset.tone;
 
 async function approved(motion: "full" | "reduced" = "full") {
@@ -53,9 +56,14 @@ describe("W-TR-08 run: the honest fan-out", () => {
       clearMomentTrace();
       const view = await approved();
       expect(toneOf("M-014")).toBe("unsent");
-      expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 to send through the simulated PayPal sandbox once both keys sign. 56 in cash at the bodega. On simulated PayPal: 8.7% of value.",
-      );
+      const day = () => {
+        const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
+        if (!run) throw new Error("fixture has no run");
+        return format.dateShort(cashDayForRun(seedSnapshot(), run));
+      };
+      // Before the keys: the batch is still to send; the bar's one tag says the rail.
+      expect(legend()).toEqual(["To send8US$368.39", `Cash at the bodega56due ${day()}US$3,849.78`]);
+      expect(screen.getByTestId("W-TR-08.share").textContent).toContain("Simulated PayPal sandbox");
       act(() => {
         view.world.cosign();
       });
@@ -68,39 +76,42 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(screen.getByTestId("W-JG-01.proofChip").textContent).toContain(
         "confirmed in the simulated sandbox",
       );
-      // Signature 6: one seal, 64 lines, eight PayPal threads and 56 dashed cash lines, each its own path.
+      // Signature 6: one seal, 64 lines, eight PayPal threads and 56 cash members, each its own path, the cash
+      // drawn solid so the 56 meet as one calm band.
       const fan = screen.getByTestId("W-TR-08.fan");
       expect(fan.querySelectorAll("path.fsr-fan__thread")).toHaveLength(8);
       const cash = fan.querySelectorAll<SVGPathElement>("path.fsr-fan__cash-line");
       expect(cash).toHaveLength(56);
       expect(
-        [...cash].every((p) => p.getAttribute("pathLength") === "1" && p.getAttribute("stroke-dasharray")),
+        [...cash].every((p) => p.getAttribute("pathLength") === "1" && !p.getAttribute("stroke-dasharray")),
       ).toBe(true);
       // The words are HTML at their type sizes, never SVG text scaled with the picture.
       expect(fan.querySelectorAll("text")).toHaveLength(0);
       const celing = screen.getByTestId("W-TR-08.label.M-014");
       expect(celing.textContent).toBe("Consolacion BacusUS$64.45");
-      expect(celing.querySelector(".fs-t-caption")?.textContent).toBe("Consolacion Bacus");
+      expect(celing.querySelector(".fsr-fan__name")?.textContent).toBe("Consolacion Bacus");
       expect(celing.querySelector(".fs-t-figure")?.getAttribute("data-amount-state")).toBe("landed");
       expect(screen.getByTestId("W-TR-08.chip.M-031").textContent).toBe("Parked");
       const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
       if (!run) throw new Error("fixture has no run");
       const cashDay = format.dateShort(cashDayForRun(seedSnapshot(), run));
       expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toBe(
-        `56 members, cash at the bodega on ${cashDay}US$3,849.78`,
+        "56 members · cash at the bodegaUS$3,849.78",
       );
       const rhea = screen.getByTestId("W-TR-08.parked");
-      expect(rhea.textContent).toMatch(
-        /Rhea Jumawan's address has no PayPal account, so the simulated PayPal sandbox parked US\$26\.65/,
-      );
-      // The count says what the stage's Proof counter says: sent, confirmed, parked, and cash.
-      expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 sent through the simulated PayPal sandbox, 7 confirmed, 1 parked. 56 in cash at the bodega. On simulated PayPal: 8.7% of value.",
-      );
+      expect(rhea.textContent).toMatch(/Rhea JumawanUS\$26\.65/);
+      expect(rhea.textContent).toMatch(/No PayPal account · unclaimed · returns to the co-op in 30 days/);
+      // The run's instrument and the money bar say what the stage's Proof counter says: confirmed, parked, cash.
+      expect(screen.getByTestId("W-TR-08.status").textContent).toBe("7/8confirmed1 needs you");
+      expect(legend()).toEqual([
+        "Confirmed7US$341.74",
+        "Parked1US$26.65",
+        `Cash at the bodega56due ${cashDay}US$3,849.78`,
+      ]);
       expect(screen.queryByTestId("W-TR-08.denied")).toBeNull();
       const log = screen.getByTestId("W-TR-08.lane.PAYPAL");
       expect(within(log).getAllByText(/^Paid /)).toHaveLength(7);
-      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(/^Median .+, slowest .+/);
+      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(/^median .+ · slowest .+/);
       await expectNoAxeViolations(screen.getByTestId("W-TR-08"));
     },
     SLOW,
@@ -134,14 +145,23 @@ describe("W-TR-08 run: the honest fan-out", () => {
       ).toBe(true);
       const fan = screen.getByTestId("W-TR-08.fan");
       expect(fan.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(57);
-      expect(screen.getByTestId("W-TR-08.label.M-031").textContent).toMatch(/^Rhea Jumawan, moved to cash/);
-      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members, cash at the bodega/);
+      expect(screen.getByTestId("W-TR-08.label.M-031").textContent).toBe("Rhea Jumawan → cash");
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members · cash at the bodega/);
       expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
-      expect(screen.getByTestId("W-TR-08.share").textContent).toBe(
-        "8 sent through the simulated PayPal sandbox, 7 confirmed. 57 in cash at the bodega. On simulated PayPal: 8.1% of value.",
-      );
+      const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
+      if (!run) throw new Error("fixture has no run");
+      const cashDay = format.dateShort(cashDayForRun(seedSnapshot(), run));
+      expect(legend()).toEqual([
+        "Confirmed7US$341.74",
+        `Cash at the bodega57due ${cashDay}US$3,876.43`,
+        "Kept for membersUS$21.14",
+      ]);
+      // Settled routing, not settled cash: seven confirmed on PayPal, the cash still due on its day.
       expect(screen.getByTestId("W-TR-08.status").textContent).toBe(
-        "7 paid by the simulated PayPal sandbox. 57 in cash. US$21.14 kept for members.",
+        `7confirmed on PayPal57 cash due ${cashDay}`,
+      );
+      expect(screen.getByTestId("W-TR-08.rerouted").textContent).toBe(
+        `Rhea Jumawan → cash at the bodegadue ${cashDay}`,
       );
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
       expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));

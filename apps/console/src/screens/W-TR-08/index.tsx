@@ -1,21 +1,25 @@
-import { payoutReplayed, payoutStatus } from "../../data/payout-replay.js";
-// W-TR-08 Run (S1.7, design §6 C8): the split fan on top (MM-6, "Honest fan-out"), the three-lane run log and
-// the latency dots beneath. PayPal's 201 draws eight graphite threads to 70%: sent, not paid. Each verified
-// SUCCESS finishes its thread and floods its stub jade, one scale note each, landings at least 250 ms apart.
-// Rhea's item parks: a canary cap and "Parked", never red, and a d2 slab moves her to cash. A repeated delivery
-// logs one quiet row and moves nothing. History is drawn in place; only live events animate.
+// W-TR-08 Run (S1.7, design §6 C8; UI gate round 2): the fan is the hero, full width (MM-6, "Honest fan-out"):
+// the seal, eight threads to eight named rows, and the cash as one band into one labelled block. Above it the run's
+// instrument ("7/8 confirmed"); beneath it Rhea's decision when she is parked, then the money bar with its one
+// honesty tag; then the last five events and the latency dots. PayPal's 201 draws eight threads to 70%: sent, not
+// paid. Each verified SUCCESS finishes its thread and floods its stub jade, one scale note each, landings at least
+// 250 ms apart. Rhea's item parks: a marigold cap and "Parked", never red, and a slab moves her to cash. A
+// repeated delivery logs one quiet row and moves nothing. History is drawn in place; only live events animate.
 
 import { webRoutes } from "@fairsplit/contracts";
-import { feedback, Glyph, Slab } from "@fairsplit/ui-web";
+import { Chip, feedback, Glyph, HonestyTag, Slab } from "@fairsplit/ui-web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { railTag } from "../../chrome/copy.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { describeEvent, type LogRow } from "../../data/describe.js";
-import { useCommand, useDescribeContext } from "../../data/hooks.js";
+import { useCommand, useDescribeContext, usePaypalRail } from "../../data/hooks.js";
+import { payoutReplayed, payoutStatus } from "../../data/payout-replay.js";
+import { MoneyBar, type MoneySegment } from "../../features/approve/MoneyBar.js";
 import {
   fanoutState,
   fanView,
@@ -50,6 +54,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const { snapshot, view } = data;
   const replayed = payoutReplayed(view);
   const describe = useDescribeContext();
+  const rail = usePaypalRail() ?? "simulator";
   const stage = useOptionalStage();
   const moment = useMoment("MM-6");
   const script = useMomentScript(moment);
@@ -77,10 +82,12 @@ export function Screen({ runSlug }: RunScreenProps) {
     },
     [attachMomentRoot],
   );
-  useFocusAfterRemoval(
-    fanRoot,
-    () => fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.rerouted"]') ?? null,
-  );
+  // Between PayPal's return and the line's own move, neither card nor line may be drawn: then the run's status row
+  // takes focus, at the top, so the fan stays in view.
+  useFocusAfterRemoval(fanRoot, () => [
+    fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.rerouted"]') ?? null,
+    fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.status"]') ?? null,
+  ]);
   const payCash = useCommand("payCash");
 
   useEffect(
@@ -207,21 +214,91 @@ export function Screen({ runSlug }: RunScreenProps) {
   const cashDay = format.dateShort(cashDayForRun(snapshot, view));
   const isPosted = isPostedRun(view);
   const summary = summaryFacts(snapshot, fan);
+  const counts = shareCounts(fan);
   const parkedLineId = parked ? (view.lines[parked.memberNo]?.lineId ?? null) : null;
   const moved = fan.threads.find((t) => t.tone === "moved");
   const screenState: ScreenState<"W-TR-08"> = state;
   const lat = latency(view, fan);
+  const tag = railTag(rail);
 
-  const statusLine = (() => {
+  // The status row: the run's instrument (confirmed of sent), then one micro fact or one pill. Never a sentence
+  // about the rail: the tag says it once.
+  const status = (() => {
     if (state === "denied") return null;
-    if (!isPosted) return FANOUT.notPosted;
-    if (replayed) return "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.";
-    if (state === "done") return FANOUT.done(summary.paid, summary.cash, summary.kept);
-    if (state === "parked" && parked) return FANOUT.parked(parked.name);
-    if (posted)
-      return `${FANOUT.waiting(format.time(posted))} ${FANOUT.elapsed(format.elapsedClock(now - Date.parse(posted)))}`;
-    return FANOUT.waitingSeeded;
+    if (!isPosted) return { text: FANOUT.notPosted, link: true } as const;
+    if (replayed) return { text: FANOUT.replayedStatus } as const;
+    if (state === "done")
+      return {
+        count: String(summary.paid),
+        unit: FANOUT.confirmedOnPaypal,
+        micro: FANOUT.cashDue(summary.cash, cashDay),
+      } as const;
+    const count = `${counts.confirmed}/${counts.sent}`;
+    if (state === "parked")
+      return {
+        count,
+        unit: FANOUT.confirmedWord,
+        pill: FANOUT.needsYou(counts.parked + counts.failed),
+      } as const;
+    return {
+      count,
+      unit: FANOUT.confirmedWord,
+      micro: posted
+        ? FANOUT.posted(format.time(posted), format.elapsedClock(now - Date.parse(posted)))
+        : FANOUT.postedSeeded,
+    } as const;
   })();
+
+  // The money bar's rows: what PayPal confirmed, what is still in flight, what waits on a person, and the cash.
+  const onRail = fan.threads.filter((t) => t.tone !== "moved");
+  const sum = (list: readonly { readonly cents: number }[]) => list.reduce((s, t) => s + t.cents, 0);
+  const group = (tones: readonly string[]) =>
+    onRail.filter((t) => !t.replayed && (tones as readonly string[]).includes(t.tone));
+  const replayedThreads = onRail.filter((t) => t.replayed);
+  const paypalRows: MoneySegment[] = (
+    [
+      ["confirmed", "confirmed", group(["landed"])],
+      ["flight", "flight", group(["sent"])],
+      ["planned", "planned", group(["unsent"])],
+      ["held", "held", group(["parked"])],
+      ["failed", "failed", group(["failed"])],
+      ["returned", "planned", group(["returned"])],
+      ["replayed", "flight", replayedThreads],
+    ] as const
+  )
+    .filter(([, , list]) => list.length > 0)
+    .map(([key, tone, list]) => ({
+      key,
+      tone,
+      cents: sum(list),
+      label: FANOUT.legend[key],
+      count: list.length,
+      amount: format.money(sum(list)),
+    }));
+  const segments: MoneySegment[] = [
+    ...paypalRows,
+    {
+      key: "cash",
+      tone: "cash",
+      cents: fan.cash.cents,
+      label: FANOUT.legend.cash,
+      count: fan.cash.members,
+      note: FANOUT.dueOn(cashDay),
+      amount: format.money(fan.cash.cents),
+    },
+    // Once every item is terminal: what the holds kept inside the members' share.
+    ...(state === "done" && snapshot.figures.redirectedCents > 0
+      ? [
+          {
+            key: "kept",
+            tone: "kept",
+            cents: snapshot.figures.redirectedCents,
+            label: FANOUT.legend.kept,
+            amount: summary.kept,
+          } as const,
+        ]
+      : []),
+  ];
 
   return (
     <ScreenRoot
@@ -242,154 +319,168 @@ export function Screen({ runSlug }: RunScreenProps) {
         ref={fanRef}
         className="fsr-fanout"
         data-motion={moment.mode}
+        data-state={state}
         aria-labelledby="W-TR-08-figure"
       >
         <header className="fsr-fanout__head">
-          <h2 id="W-TR-08-figure" className="fs-t-title-2">
+          <h2 id="W-TR-08-figure" className="fs-sr">
             {FANOUT.figure}
           </h2>
-          {statusLine && (
+          {status && (
             <p
-              className="fsr-fanout__status fs-t-body"
+              className="fsr-fanout__status"
               role="status"
+              tabIndex={-1}
               data-testid="W-TR-08.status"
               data-state={state}
             >
-              {statusLine}
-              {!isPosted && (
+              {"count" in status ? (
                 <>
-                  {" "}
-                  <AppLink href={webRoutes.approve(view.runSlug)} className="fs-link fs-t-label">
-                    {FANOUT.notPostedLink}
-                  </AppLink>
+                  <span className="fsr-fanout__count fs-t-amount-l">{status.count}</span>
+                  <span className="fsr-fanout__unit fs-t-label">{status.unit}</span>
+                  {"micro" in status && status.micro && (
+                    <span className="fsr-fanout__micro fs-t-micro">{status.micro}</span>
+                  )}
+                  {"pill" in status && status.pill && (
+                    <Chip tone="canary" glyph="ms:pause">
+                      {status.pill}
+                    </Chip>
+                  )}
                 </>
+              ) : (
+                <span className="fsr-fanout__line fs-t-body">
+                  {status.text}
+                  {"link" in status && (
+                    <>
+                      {" "}
+                      <AppLink href={webRoutes.approve(view.runSlug)} className="fs-link fs-t-label">
+                        {FANOUT.notPostedLink}
+                      </AppLink>
+                    </>
+                  )}
+                </span>
               )}
             </p>
           )}
         </header>
-        <div className="fsr-fanout__stage" data-parked={parked ? "" : undefined}>
-          <div className="fsr-fanout__main">
-            <Mirrored
-              testId="W-TR-08.figureBlock"
-              className="fsr-fanout__figure"
-              visual={
-                <SplitFan
-                  fan={fan}
-                  animate={landings}
-                  drawing={drawing}
-                  mode={moment.mode}
-                  cashDay={cashDay}
-                />
-              }
-              table={
-                <DataTable
-                  caption={FANOUT.tableCaption}
-                  testId="W-TR-08.table"
-                  columns={[
-                    { key: "member", label: FANOUT.col.member },
-                    { key: "rail", label: FANOUT.col.rail },
-                    { key: "amount", label: FANOUT.col.amount, numeric: true },
-                    { key: "status", label: FANOUT.col.status },
-                  ]}
-                  rows={[
-                    ...fan.threads.map((t) => ({
-                      key: t.memberNo,
-                      cells: {
-                        member: `${t.name} (${t.memberNo})`,
-                        rail: t.tone === "moved" ? FANOUT.railCash : "Simulated PayPal sandbox",
-                        amount: format.money(t.cents),
-                        status: t.statusWord,
-                      },
-                    })),
-                    {
-                      key: "cash",
-                      cells: {
-                        member: FANOUT.cashBandMembers(fan.cash.members, cashDay),
-                        rail: FANOUT.railCash,
-                        amount: format.money(fan.cash.cents),
-                        status: en("console.status.OFF_RAIL_DUE"),
-                      },
-                    },
-                  ]}
-                />
-              }
-            />
-            <p className="fsr-fanout__share fs-t-label" data-testid="W-TR-08.share">
-              {replayed
-                ? `${shareCounts(fan).sent} payout statuses replayed (labelled), ${shareCounts(fan).replayedSuccessful} successful in the earlier simulated PayPal sandbox run. ${fan.cash.members} in cash at the bodega.`
-                : FANOUT.shareCounts({
-                    ...shareCounts(fan),
-                    posting: view.state === "POSTING" || view.state === "POSTED",
-                  })}{" "}
-              <span className="fsr-muted">{FANOUT.shareValue(fan.paypal.share)}</span>
-            </p>
-          </div>
 
-          {parked && (
-            <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
-              <h3 id="W-TR-08-parked" className="fs-t-label">
-                <span className="fsr-parked__chip">{replayed ? "Replayed" : FANOUT.parkedChip}</span>
-                {parked.name}
+        <Mirrored
+          testId="W-TR-08.figureBlock"
+          className="fsr-fanout__figure"
+          visual={
+            <SplitFan fan={fan} animate={landings} drawing={drawing} mode={moment.mode} cashDay={cashDay} />
+          }
+          table={
+            <DataTable
+              caption={FANOUT.tableCaption}
+              testId="W-TR-08.table"
+              columns={[
+                { key: "member", label: FANOUT.col.member },
+                { key: "rail", label: FANOUT.col.rail },
+                { key: "amount", label: FANOUT.col.amount, numeric: true },
+                { key: "status", label: FANOUT.col.status },
+              ]}
+              rows={[
+                ...fan.threads.map((t) => ({
+                  key: t.memberNo,
+                  cells: {
+                    member: `${t.name} (${t.memberNo})`,
+                    rail: t.tone === "moved" ? FANOUT.railCash : "Simulated PayPal sandbox",
+                    amount: format.money(t.cents),
+                    status: t.statusWord,
+                  },
+                })),
+                {
+                  key: "cash",
+                  cells: {
+                    member: `${FANOUT.cashBandMembers(fan.cash.members)}, ${FANOUT.dueOn(cashDay)}`,
+                    rail: FANOUT.railCash,
+                    amount: format.money(fan.cash.cents),
+                    status: en("console.status.OFF_RAIL_DUE"),
+                  },
+                },
+              ]}
+            />
+          }
+        />
+
+        {parked && (
+          <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
+            <div className="fsr-parked__who">
+              <h3 id="W-TR-08-parked" className="fsr-parked__title">
+                <span className="fsr-parked__dot" aria-hidden />
+                <span className="fs-t-label">{replayed ? "Replayed" : FANOUT.parkedChip}</span>
+                <span className="fsr-parked__name fs-t-label">{parked.name}</span>
+                <span className="fsr-parked__amount fs-t-figure">{format.money(parked.cents)}</span>
               </h3>
-              <p className="fs-t-body">
-                {replayed
-                  ? `In the earlier simulated PayPal sandbox run, ${parked.name}’s ${format.money(parked.cents)} status was unclaimed. This is a labelled replay; choose how to model her payment here.`
-                  : FANOUT.rheaWhy(parked.name, format.money(parked.cents))}
+              <p className="fsr-parked__line fs-t-micro">
+                {replayed ? FANOUT.rheaReplayed : `${FANOUT.rheaLine} · ${FANOUT.returns}`}
               </p>
-              <div className="fsr-parked__actions">
-                <div ref={slabRef}>
-                  <Slab
-                    key={slabKey}
-                    label={FANOUT.payCash}
-                    srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
-                    depth="d2"
-                    tone="chalk"
-                    glyph="cash"
-                    testId="W-TR-08.payCash"
-                    {...(!data.live || !parkedLineId ? { unavailableReason: FANOUT.payCashUnavailable } : {})}
-                    onCommit={() => {
-                      if (!parkedLineId) return;
-                      pressedCash.current = parked.memberNo;
-                      payCash.mutate(
-                        { params: { lineId: parkedLineId } },
-                        { onError: () => setSlabKey((k) => k + 1) },
-                      );
-                    }}
-                  />
-                </div>
-                <div className="fsr-parked__flat">
-                  <button
-                    type="button"
-                    className="fs-flat"
-                    onClick={() => setResendAsked(true)}
-                    data-testid="W-TR-08.resend"
-                  >
-                    {FANOUT.resend}
-                  </button>
-                  <span className="fs-t-caption fsr-muted">
-                    {resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
-                  </span>
-                </div>
+            </div>
+            <div className="fsr-parked__actions">
+              <div ref={slabRef}>
+                <Slab
+                  key={slabKey}
+                  label={FANOUT.payCash}
+                  srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
+                  depth="d2"
+                  tone="chalk"
+                  glyph="cash"
+                  testId="W-TR-08.payCash"
+                  {...(!data.live || !parkedLineId ? { unavailableReason: FANOUT.payCashUnavailable } : {})}
+                  onCommit={() => {
+                    if (!parkedLineId) return;
+                    pressedCash.current = parked.memberNo;
+                    payCash.mutate(
+                      { params: { lineId: parkedLineId } },
+                      { onError: () => setSlabKey((k) => k + 1) },
+                    );
+                  }}
+                />
               </div>
-              <p
-                className="fs-t-caption fsr-muted"
-                role={payCash.queuedMs !== null ? "status" : undefined}
-                data-testid={payCash.queuedMs !== null ? "W-TR-08.queued" : undefined}
-              >
-                {payCash.queuedMs !== null
-                  ? `You're next, about ${Math.ceil(payCash.queuedMs / 1000)} s`
-                  : FANOUT.wait}
+              <div className="fsr-parked__flat">
+                <button
+                  type="button"
+                  className="fs-flat"
+                  data-size="l"
+                  onClick={() => setResendAsked(true)}
+                  data-testid="W-TR-08.resend"
+                >
+                  {FANOUT.resend}
+                </button>
+                <span className="fs-t-micro fsr-muted">
+                  {resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
+                </span>
+              </div>
+            </div>
+            {payCash.queuedMs !== null && (
+              <p className="fs-t-micro fsr-muted" role="status" data-testid="W-TR-08.queued">
+                {`You're next, about ${Math.ceil(payCash.queuedMs / 1000)} s`}
               </p>
-              {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
-            </section>
-          )}
-        </div>
+            )}
+            {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
+          </section>
+        )}
+
+        {/* Her line moved to cash, where her decision stood: focus lands here when it goes, just under the fan,
+            so the fan stays in view. */}
         {moved && !parked && (
-          <p className="fsr-fanout__rerouted fs-t-body" data-testid="W-TR-08.rerouted" tabIndex={-1}>
-            <Glyph name="cash" size={18} />
-            {FANOUT.rerouted(moved.name, cashDay)}
+          <p className="fsr-fanout__rerouted" data-testid="W-TR-08.rerouted" tabIndex={-1}>
+            <span className="fsr-fanout__swatch" aria-hidden />
+            <span className="fs-t-label">{FANOUT.rerouted(moved.name)}</span>
+            <span className="fs-t-micro fsr-muted">{FANOUT.dueOn(cashDay)}</span>
           </p>
         )}
+
+        <div className="fsr-fanout__share" data-testid="W-TR-08.share">
+          <MoneyBar
+            label={FANOUT.shareLabel}
+            title={FANOUT.shareTitle}
+            segments={segments}
+            tag={<HonestyTag>{tag}</HonestyTag>}
+            {...(replayed ? { footnote: FANOUT.replayedShare(counts.sent, counts.replayedSuccessful) } : {})}
+          />
+        </div>
       </section>
 
       <div className="fsr-fanout__below">
@@ -397,18 +488,23 @@ export function Screen({ runSlug }: RunScreenProps) {
           rows={rows}
           isLive={(id) => live.isLive(id)}
           seeded={view.events.length === 0 && view.origin === "showcase"}
+          tag={tag}
+          footer={
+            <p className="fsr-fanout__fees fs-t-micro" data-testid="W-TR-08.fees">
+              {replayed
+                ? "Payout fees belong to the earlier simulated PayPal sandbox run; this is a labelled replay."
+                : FANOUT.feesSoFar}
+            </p>
+          }
         />
         <aside className="fsr-fanout__side">
           {replayed ? (
-            <p className="fs-t-caption">Timing is replayed from an earlier simulated PayPal sandbox run.</p>
+            <p className="fs-t-micro fsr-muted">
+              Timing is replayed from an earlier simulated PayPal sandbox run.
+            </p>
           ) : (
             <LatencyDots latency={lat} />
           )}
-          <p className="fsr-fanout__fees fs-t-caption" data-testid="W-TR-08.fees">
-            {replayed
-              ? "Payout fees belong to the earlier simulated PayPal sandbox run; this is a labelled replay."
-              : FANOUT.feesSoFar}
-          </p>
         </aside>
       </div>
     </ScreenRoot>

@@ -1,5 +1,6 @@
-// W-TR-08's model: the split fan on one linear scale (width is money), each thread's honest state from the
-// item's actual PayPal status, the live share on PayPal, the re-route to cash, and the latency dots.
+// W-TR-08's model: the split fan (eight threads to eight rows, the cash as one band into one block), each
+// thread's honest state from the item's actual PayPal status, the live share on PayPal, the re-route to cash, and
+// the latency dots.
 
 import { describe, expect, it } from "vitest";
 import { applyRunEvents, type RunView, sessionView, showcaseView } from "../../data/run-view.js";
@@ -43,7 +44,7 @@ function ends(d: string): { from: [number, number]; to: [number, number] } {
   };
 }
 
-describe("the fan's geometry: width is money", () => {
+describe("the fan's geometry: eight rows and one cash band", () => {
   it("inv.i4 grows the fan seal from the run's signed batch, never the seed", () => {
     const view = viewOf(posted());
     const hash = `3f1c1ce6${"ab".repeat(24)}c8fa1722`;
@@ -60,10 +61,9 @@ describe("the fan's geometry: width is money", () => {
     };
     expect(fanView(snapshot, own).sealHash).toBe(hash);
   });
-  it("k = 276 / Σ net, threads largest first, spread one row apart so every label has room", () => {
+  it("threads largest first, one even stroke, one row each, spread so every label has room", () => {
     const fan = fanView(snapshot, showcaseView(snapshot));
     expect(fan.netCents).toBe(snapshot.figures.netCents);
-    expect(fan.k).toBeCloseTo(276 / snapshot.figures.netCents, 12);
     expect(fan.threads.map((t) => t.memberNo)).toEqual([
       "M-014",
       "M-007",
@@ -74,17 +74,19 @@ describe("the fan's geometry: width is money", () => {
       "M-002",
       "M-031",
     ]);
-    const widths = fan.threads.reduce((s, t) => s + t.width, 0);
-    expect(widths).toBeCloseTo((276 * snapshot.figures.batchTotalCents) / snapshot.figures.netCents, 6);
-    expect(fan.threads[0]?.width).toBeCloseTo(4.2, 1);
-    expect(fan.threads.map((t) => t.stubY)).toEqual([24, 52, 80, 108, 136, 164, 192, 220]);
-    // 28 units a row is 17.8 px at the 892 px stage: a 12 px name and a 14 px figure never touch.
-    expect(FAN.stub.step * (892 / FAN.width)).toBeGreaterThan(17.5);
-    // The 56 cash lines' column stays under half the picture: the eight PayPal threads read first.
-    expect((fan.cash.bottom - fan.cash.top) / FAN.height).toBeLessThanOrEqual(0.46);
+    // The amount beside each row says how much; the stroke is the same for all eight.
+    expect(new Set(fan.threads.map((t) => t.width))).toEqual(new Set([FAN.thread]));
+    expect(fan.threads.map((t) => t.stubY)).toEqual([14, 50, 86, 122, 158, 194, 230, 266]);
+    // 36 units a row is 26 px at the 892 px stage: a 13 px name and a 14 px figure never touch.
+    expect(FAN.stub.step * (892 / FAN.width)).toBeGreaterThan(24);
+    // Every thread leaves the hub, the largest on top, a few px apart: the bundle opens as a fan.
+    const starts = fan.threads.map((t) => ends(t.d).from);
+    expect(starts.every(([x]) => x === FAN.bar.x1)).toBe(true);
+    expect(starts.map(([, y]) => y)).toEqual([...starts.map(([, y]) => y)].sort((a, b) => a - b));
+    expect((starts.at(-1)?.[1] ?? 0) <= FAN.band.y0).toBe(true);
   });
 
-  it("signature 6: one seal, 64 lines, eight PayPal threads and 56 dashed cash lines", () => {
+  it("signature 6: one seal, 64 lines, eight PayPal threads and 56 cash members as one band", () => {
     const world = createTestWorld();
     world.markPaid();
     world.resolveAll();
@@ -93,15 +95,15 @@ describe("the fan's geometry: width is money", () => {
     expect(fan.cashLines).toHaveLength(56);
     expect(fan.threads.length + fan.cashLines.length).toBe(64);
     expect(fan.cashLines.every((c) => !c.moved)).toBe(true);
-    // Every line leaves the bar as wide as its money, the cash lines below the threads, in member order.
+    // The cash members leave the hub below the threads, in member order, each as tall as its share of the cash.
     const memberOrder = fan.cashLines.map((c) => c.memberNo);
     expect(memberOrder).toEqual([...memberOrder].sort());
-    const railBottom = FAN.bar.y0 + fan.threads.reduce((s, t) => s + t.width, 0);
+    expect(fan.k).toBeCloseTo(FAN.band.h / fan.cash.cents, 12);
     const first = fan.cashLines[0];
     if (!first) throw new Error("no cash line");
     expect(ends(first.d).from[0]).toBe(FAN.bar.x1);
-    expect(ends(first.d).from[1]).toBeCloseTo(railBottom + first.h / 2, 1);
-    // …and ends in one column under the stubs, each end mark as tall as its money, touching the next.
+    expect(ends(first.d).from[1]).toBeCloseTo(FAN.band.y0 + first.h / 2, 1);
+    // …and keep the band's height to one compact block under the stubs, each share touching the next.
     expect(ends(first.d).to[0]).toBe(FAN.endX);
     expect(first.endY).toBe(FAN.cash.y0);
     for (let i = 1; i < fan.cashLines.length; i++) {
@@ -109,24 +111,24 @@ describe("the fan's geometry: width is money", () => {
       const b = fan.cashLines[i];
       if (!a || !b) continue;
       expect(b.endY).toBeCloseTo(a.endY + a.h, 9);
+      // A hair wider than its share, so neighbours meet as one band.
+      expect(b.stroke).toBeGreaterThan(b.h);
     }
     const stubsBottom = (fan.threads.at(-1)?.stubY ?? 0) + FAN.stub.h;
     expect(fan.cash.top).toBeGreaterThan(stubsBottom);
     expect(fan.cash.bottom).toBeLessThanOrEqual(FAN.height);
-    expect(fan.cash.bottom).toBeCloseTo(FAN.cash.y0 + fan.k * fan.cash.cents, 6);
-    // A dashed stroke a little narrower than its slot: the 56 read as 56, not as a band.
-    expect(fan.cashLines.every((c) => c.stroke >= 1 && c.stroke <= Math.max(1, c.h))).toBe(true);
+    expect(fan.cash.bottom - fan.cash.top).toBe(FAN.band.h);
     expect(fan.cash.amountState).toBe("pencil");
   });
 
   it("finds the 70% point along a thread's arc, not its parameter", () => {
-    const start = pointAtLength(196, 100, 1040, 36, 0);
-    const end = pointAtLength(196, 100, 1040, 36, 1);
-    expect(start).toEqual({ x: 196, y: 100 });
-    expect(end.x).toBeCloseTo(1040, 6);
-    const p = pointAtLength(196, 100, 1040, 36, FAN.sentAt);
-    expect(p.x).toBeGreaterThan(196 + 0.6 * 844);
-    expect(p.x).toBeLessThan(1040);
+    const start = pointAtLength(144, 160, 780, 20, 0);
+    const end = pointAtLength(144, 160, 780, 20, 1);
+    expect(start).toEqual({ x: 144, y: 160 });
+    expect(end.x).toBeCloseTo(780, 6);
+    const p = pointAtLength(144, 160, 780, 20, FAN.sentAt);
+    expect(p.x).toBeGreaterThan(144 + 0.6 * 636);
+    expect(p.x).toBeLessThan(780);
   });
 });
 
@@ -182,12 +184,12 @@ describe("each thread follows the item's actual status", () => {
       members: 57,
       amountState: "hollow",
     });
-    // Her own dashed line leaves from her thread's slot and ends on top of the cash column.
+    // Her own dashed line leaves from her thread's slot and ends on top of the cash block.
     const line = fan.cashLines[0];
     expect(line).toMatchObject({ memberNo: "M-031", moved: true, endY: FAN.cash.y0 });
     expect(ends(line?.d ?? "").from).toEqual([FAN.bar.x1, ends(rhea?.d ?? "").from[1]]);
     expect(fan.cashLines.filter((c) => c.moved)).toHaveLength(1);
-    expect(fan.cash.bottom).toBeCloseTo(FAN.cash.y0 + fan.k * snapshot.figures.endCashCents, 6);
+    expect(fan.cash.bottom - fan.cash.top).toBe(FAN.band.h);
     expect(fanoutState(view, fan)).toBe("done");
     expect(restingPhase(view, fan)).toBe("settled");
     expect(summaryFacts(snapshot, fan)).toEqual({ paid: 7, cash: 57, kept: "US$21.14" });
