@@ -94,10 +94,11 @@
   fill: var(--fs-ink);
 }
 
-/* A line moved to cash draws in along its own path: a mask (white is visible, not a colour) reveals it. */
+/* A line moved to cash draws in along its own path: a mask (white is visible, not a colour) reveals it. The white
+   is the copy-white token, #ffffff in both themes. */
 .fsr-fan__reveal {
   fill: none;
-  stroke: #fff;
+  stroke: var(--fs-copy-white);
   stroke-dasharray: 1 1;
   stroke-dashoffset: 0;
 }

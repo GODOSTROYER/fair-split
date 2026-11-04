@@ -6,7 +6,7 @@
 // pencil: Claude chose the labels, every amount is the code's quote (I1).
 
 import { INVOICE_STATUS_LABELS, pickLabel, type SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, useT } from "@fairsplit/ui-web";
+import { CurrencyFigure, Glyph, useT } from "@fairsplit/ui-web";
 import { type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type ReactNode,
@@ -121,9 +121,11 @@ export function HollowFigure({
     <span className="fsc-figure" data-amount-state={landed ? "landed" : "hollow"} data-testid={testId}>
       <span className="fs-sr">{format.amountSpoken(cents, "en")}</span>
       <span ref={anchor} className={`fsc-figure__digits fs-t-${typeRole}`} aria-hidden>
-        <span className="fsc-figure__hollow">{display}</span>
+        <span className="fsc-figure__hollow">
+          <CurrencyFigure display={display} />
+        </span>
         <motion.span className="fsc-figure__solid" style={{ opacity: mirror }}>
-          {display}
+          <CurrencyFigure display={display} />
         </motion.span>
       </span>
     </span>

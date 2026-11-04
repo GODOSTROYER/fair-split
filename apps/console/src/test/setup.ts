@@ -44,7 +44,7 @@ beforeEach(() => {
     // storage may be blocked; nothing to clear
   }
   window.__fsMoments = [];
-  document.documentElement.dataset.theme = "tablea";
+  document.documentElement.dataset.theme = "adlaw";
   document.documentElement.removeAttribute("data-datamode");
 });
 

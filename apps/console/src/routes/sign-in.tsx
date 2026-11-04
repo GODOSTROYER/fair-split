@@ -9,7 +9,7 @@ export const Route = createFileRoute("/sign-in")({
   component: function SignInRoute() {
     useDocumentTitle(SCREENS["W-AU-01"].name);
     return (
-      <Surface theme="tablea" className="fsc-surface fsc-surface--centered">
+      <Surface theme="adlaw" className="fsc-surface fsc-surface--centered">
         <Screen />
       </Surface>
     );

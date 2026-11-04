@@ -1,6 +1,6 @@
 /* Sheets, menus and notices: What's real (W-JG-02), the shortcut sheet (W-TR-10), the run pill's menu, command
-   notices and Data mode's tables. Sheets are plate-2 with a 1 px top highlight over the scrim (design §2.4);
-   menus are plate-2 with a 1 px rule. Base UI's data-starting-style and data-ending-style drive the motion. */
+   notices and Data mode's tables. Sheets are plate on e3 over the scrim, menus plate on e2 at radius 10 (ADR-0016).
+   Base UI's data-starting-style and data-ending-style drive the motion. */
 
 /* ---------------------------------------------------------------- sheets */
 
@@ -23,8 +23,11 @@
   width: min(var(--fs-console-drawer), 100vw);
   overflow: hidden auto;
   border-left: 1px solid var(--fs-rule);
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  border-radius: var(--fs-radius-panel) 0 0 var(--fs-radius-panel);
+  background: var(--fs-plate);
+  box-shadow:
+    inset 0 1px 0 var(--fs-drawer-highlight),
+    var(--fs-shadow-e3);
   color: var(--fs-ink);
   overscroll-behavior: contain;
   transition:
@@ -134,9 +137,10 @@
    every attempt in it meets a rule that will not move (design §2.5 "Bolted"). */
 .fsc-bolted {
   position: relative;
-  margin: 0 8px 8px 0;
+  margin: 0 0 8px 0;
   padding: 20px 22px 18px;
   border: 1px solid var(--fs-steel-line);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
 }
 
@@ -151,24 +155,18 @@
   );
 }
 
-/* Right and bottom edges, 5 px deep (a d2 depth with zero travel), built like the slab's: parallelograms
-   skewed 45° from the face's outer edge. */
+/* A steel lip under the plate, 5 px deep (a d2 depth with zero travel), built like the slab's lip (ADR-0016): the
+   skewed edges are gone. */
 .fsc-bolted::before {
-  top: -1px;
-  left: calc(100% + 1px);
-  width: 5px;
-  height: calc(100% + 2px);
-  transform-origin: top left;
-  transform: skewY(45deg);
+  display: none;
 }
 
 .fsc-bolted::after {
   top: calc(100% + 1px);
-  left: -1px;
-  width: calc(100% + 2px);
+  left: 10px;
+  width: calc(100% - 20px);
   height: 5px;
-  transform-origin: top left;
-  transform: skewX(45deg);
+  border-radius: 0 0 var(--fs-radius-cell) var(--fs-radius-cell);
 }
 
 .fsc-bolted__bolt {
@@ -300,9 +298,9 @@
   min-width: 248px;
   padding: 6px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e2);
   color: var(--fs-ink);
   outline: none;
   transform-origin: var(--transform-origin);

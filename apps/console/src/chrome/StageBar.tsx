@@ -4,7 +4,7 @@
 // counter. The story ("A cacao co-op pays 64 farmers…") heads the rail under the lockup; when the rail folds to
 // glyphs the lockup and the story sit here instead, the story on its own row.
 
-import { Glyph, useT } from "@fairsplit/ui-web";
+import { Glyph, HonestyChip, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useRef } from "react";
 import type { PaypalRail } from "../lib/env.js";
 import { useFocusOnLeave } from "../lib/focus.js";
@@ -91,7 +91,7 @@ export function StageBar({
         <p className="fsc-bar__story" data-testid="W-JG-01.notice">
           {lockup && <span className="fsc-bar__lead">{story(members)} </span>}
           <span className="fsc-bar__rail">
-            <span className="fsc-bar__rail-lead">{notice.lead}</span> {notice.rest}
+            <HonestyChip className="fsc-bar__rail-lead">{notice.lead}</HonestyChip> {notice.rest}
           </span>
         </p>
       </div>

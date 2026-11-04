@@ -1,5 +1,5 @@
-/* The console's browser surfaces (Tablea by default, Adlaw on Proof and print): the parts no component draws,
-   themed from the --fs-* tokens so nothing ships with a browser default. Every value here is a token. */
+/* The console's browser surfaces (Adlaw, shown as Hayag, everywhere since ADR-0016): the parts no component
+   draws, themed from the --fs-* tokens so nothing ships with a browser default. Every value here is a token. */
 
 @layer base {
   .fs-t-title-1 {
@@ -57,20 +57,25 @@
     text-wrap: balance;
   }
 
-  :where(time, .fs-t-figure, .fs-t-hash, .fs-t-amount-l, .fs-t-amount-hero) {
+  /* Times, aligned figures and hashes are tabular; amounts read as money in proportional figures (ADR-0016). */
+  :where(time, .fs-t-figure, .fs-t-hash) {
     font-variant-numeric: tabular-nums lining-nums;
   }
 
-  /* A keyboard key: a small, square plate with a heavier lower rule. Never a slab, never pressable. */
+  :where(.fs-t-amount-l, .fs-t-amount-hero) {
+    font-variant-numeric: lining-nums proportional-nums;
+  }
+
+  /* A keyboard key: a small plate (radius 6) with a heavier lower rule. Never a slab, never pressable. */
   .fsc-kbd {
     display: inline-grid;
     place-items: center;
     min-width: 22px;
     height: 22px;
     padding: 0 6px;
-    border: 1px solid var(--fs-rule);
+    border: 1px solid var(--fs-rule-strong);
     border-bottom-width: 2px;
-    border-radius: var(--fs-radius-2);
+    border-radius: var(--fs-radius-cell);
     background: var(--fs-plate);
     color: var(--fs-ink-2);
     font-family: var(--fs-font-ui);
@@ -112,6 +117,7 @@
     left: 8px;
     z-index: var(--fs-z-flight);
     padding: 8px 12px;
+    border-radius: var(--fs-radius-control);
     background: var(--fs-ink);
     color: var(--fs-ground);
     font-weight: 560;
@@ -145,8 +151,8 @@
     flex: none;
     width: 34px;
     height: 20px;
-    border: 1px solid var(--fs-ink-3);
-    border-radius: var(--fs-radius-2);
+    border: 1px solid var(--fs-steel-line);
+    border-radius: var(--fs-radius-pill);
     background: var(--fs-plate);
   }
 
@@ -156,6 +162,7 @@
     left: 3px;
     width: 12px;
     height: 12px;
+    border-radius: 50%;
     background: var(--fs-ink-3);
     transition:
       transform var(--fs-dur-press) var(--fs-ease-press),
@@ -163,12 +170,12 @@
   }
 
   .fsc-toggle[aria-checked="true"] .fsc-toggle__track {
-    border-color: var(--fs-ink);
-    background: var(--fs-ink);
+    border-color: var(--fs-pod);
+    background: var(--fs-pod);
   }
 
   .fsc-toggle[aria-checked="true"] .fsc-toggle__thumb {
-    background: var(--fs-ground);
+    background: var(--fs-plate);
     transform: translateX(14px);
   }
 

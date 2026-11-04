@@ -1,6 +1,6 @@
 /* The console's theme, after styles.css (Tailwind layout, the --fs-* tokens, the faces and ui-web's
-   materials). Tablea is the console's theme; Proof and print switch to Adlaw through <Surface>. Nothing here
-   defines a colour, size or timing of its own: every value is a token from @fairsplit/tokens. */
+   materials). Every surface is Adlaw, shown as Hayag (day), since ADR-0016; Tablea (Gabii, night) is an opt-in
+   slot. Nothing here defines a colour, size or timing of its own: every value is a token from @fairsplit/tokens. */
 
 @import "./base.css";
 @import "./stage.css";

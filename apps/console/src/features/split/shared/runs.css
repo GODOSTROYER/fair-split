@@ -209,7 +209,7 @@
 }
 
 .fsr-slip__stain {
-  fill: #b79f73;
+  fill: var(--fs-evidence-stain);
   opacity: 0.32;
 }
 

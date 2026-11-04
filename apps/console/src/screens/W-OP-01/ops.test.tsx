@@ -117,7 +117,8 @@ describe("W-OP-01 /ops for a judge (read-only)", () => {
   it("says degraded while readiness isn't reported, and reads health, the switches and the season's notices", async () => {
     const { view, root } = await openOps();
     expect(root.dataset.state).toBe("degraded");
-    expect(document.documentElement.dataset.theme).toBe("tablea");
+    // /ops is light like every console surface since ADR-0016.
+    expect(document.documentElement.dataset.theme).toBe("adlaw");
     expect(screen.getByTestId("W-OP-01.verdict").textContent).toBe(
       "Degraded: readiness isn't reported by this API yet, so nothing here can be called ready.",
     );

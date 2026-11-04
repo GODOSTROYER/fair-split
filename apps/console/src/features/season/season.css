@@ -926,3 +926,8 @@
 .fsc-fund__invoice .fs-t-amount-hero {
   font-size: clamp(2rem, 3.7vw, 4.5rem);
 }
+
+/* The raised US$ prefix keeps a light outline at its half size (ADR-0016). */
+.fsc-figure__hollow .fs-cur {
+  -webkit-text-stroke-width: 1px;
+}

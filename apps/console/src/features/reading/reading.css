@@ -30,7 +30,7 @@
 .fsc-mat__slip {
   position: absolute;
   transform-origin: 50% 50%;
-  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 6px 10px rgb(0 0 0 / 0.3));
+  filter: var(--fs-drop-paper);
 }
 
 .fsc-mat__image {
