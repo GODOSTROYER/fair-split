@@ -53,12 +53,58 @@ that matter (state-machine edges, hold kinds and resolutions, published fees) we
 
 ## Scores
 
-| Package | Mutants | Killed | Survived | Timeout | No coverage | Score before → after |
-| ------- | ------: | -----: | -------: | ------: | ----------: | -------------------- |
-| domain  |         |        |          |         |             |                      |
+Score is Stryker's: (killed + timeout) / (killed + timeout + survived + no coverage). Static mutants
+skipped by `ignoreStatic` are counted separately as Ignored. Interim: domain chunks still running.
+
+| Package (scope)                             | Mutants | Ignored |      Killed |  Survived | Timeout |  No cov | Score before → after      |
+| ------------------------------------------- | ------: | ------: | ----------: | --------: | ------: | ------: | ------------------------- |
+| paypal-payouts (money paths)                |   1,425 |     115 | 959 → 1,119 | 264 → 148 |   3 → 5 | 84 → 38 | 73.44% → 85.80% (interim) |
+| domain: money.ts                            |     151 |       0 |         103 |        42 |       2 |       4 | 69.54% → pending          |
+| domain: quote, batch, digest-input, ids     |     148 |       1 |         114 |        31 |       0 |       2 | 77.55% → pending          |
+| domain: fsm.ts                              |     208 |     154 |          45 |         9 |       0 |       0 | 83.33% → pending          |
+| domain: approval, sig, canon, jcs, ratecard |     429 |      10 |         351 |        60 |       2 |       4 | 84.65% → pending          |
+| domain: policy.ts                           |     894 |     105 |         656 |       123 |       5 |       5 | 83.78% → pending          |
+
+## Findings so far
+
+- **No real bug in the money code yet.** Every survivor so far is a missing test, an equivalent mutant or
+  a guard that another layer also enforces.
+- **Vitest 5 trap: a RegExp inside `toMatchObject` matches any string.** A RegExp has no own enumerable
+  keys, so as an expected value it is a vacuous subset: `expect({ a: "x" }).toMatchObject({ a: /nomatch/ })`
+  passes. Mutation testing caught it in this branch's own first draft (a reason pattern that "passed" under
+  a mutant). Use `expect.stringMatching(...)`. A search of the repo's existing tests found no such use.
+- **Defence in depth hides weak tests in the policy lattice.** `decide` takes the maximum over every
+  policy, and invoiceEqualsQuote denies any unknown key, so a policy that stopped denying (a stray
+  recipient path, a nested date, the edges of the AUTO_CANCEL window, kill_paypal_live on a non-PayPal
+  tool) was masked. The new `policy.edges.test.ts` calls each policy on its own.
+- **I4 adoption accepted an item in another currency, as far as the tests knew.** `#adopt` checks that each
+  listed item is USD before re-hashing; removing that check survived, because `toBatchItem` forces USD into
+  the digest. The code is right; it now has a test (a listed EUR item is ADOPT_FAILED).
+- `paypal-core`'s `decideItemStatus` accepts RETURNED after a cancel from any lower rank, while domain's
+  `applyItemStatus` (the one apps/api uses) also requires the current status to be UNCLAIMED. Not a bug
+  today (only domain's is on the money path), but the two disagree; noted for WS-PPCORE.
 
 ## Remaining survivors and why they are acceptable
 
+(Filled in per package when its final run is in.)
+
 ## Commits
 
+- `c2c2a3c` chore(ops): StrykerJS setup (shared settings, Vitest 5 runner adapter)
+- `31774c9` chore(ops): settings for a shared machine (ignoreStatic, 15 s timeout, per-package concurrency)
+- `e09d2f4` test(ppmoney): payouts config and tests
+- `df6674d` test(core): domain config and tests
+
 ## Safer-option decisions
+
+- Stryker 10.0.0, not 10.1.1: 10.1.1 (23 Oct 2026) is under the 14-day rule.
+- The Vitest 5 adapter lives in `tools/stryker/` (WS-OPS), committed on its own, because the handoff forbids
+  touching any `package.json` and the published runner cannot run this repo's tests unadapted. Each package
+  still has its own `stryker.config.mjs`, as the handoff asks; it imports the shared settings.
+- Postgres: the embedded test cluster refuses to run as root in this container ("initdb: cannot be run as
+  root"); the orchestrator started a Postgres 17.10 server and outbox runs use
+  `FS_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:55433/postgres`. Outbox runs at concurrency 1, because
+  each Vitest instance's global setup drops the suite's leftover databases and two instances in one sandbox
+  share the suite name.
+- The machine is shared and was OOM-killed once (other agents included); after that, one Stryker at a time,
+  two workers at most, queued with a lock (`flock`).
