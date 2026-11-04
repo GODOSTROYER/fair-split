@@ -2,7 +2,7 @@
 // the two key slots, the dialog route's body and the co-sign card. Machines print (flat pencil, no button);
 // people press (the one d3 slab lives in the screen); a signature is ink under its initials stamp.
 
-import { bandCircle, type RingIndex, seal } from "@fairsplit/seal";
+import { bandCircle, type RingIndex, seal, sealHash } from "@fairsplit/seal";
 import { Glyph, Seal, type StampView } from "@fairsplit/ui-web";
 import { type ReactNode, useMemo, useSyncExternalStore } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
@@ -89,7 +89,7 @@ export function SealBlock({ batchSha256, keys, engrave, size: fixed }: SealBlock
   const responsive = useSealSize();
   const size = fixed ?? responsive;
   return (
-    <div className="fsr-approve__seal" data-keys={keys}>
+    <div className="fsr-approve__seal" data-keys={keys} data-testid="W-TR-07.sealBlock" tabIndex={-1}>
       {batchSha256 ? (
         <span className="fsr-seal-stack" style={{ width: size, height: size }}>
           <SealGhost batchSha256={batchSha256} size={size} />
@@ -98,9 +98,23 @@ export function SealBlock({ batchSha256, keys, engrave, size: fixed }: SealBlock
       ) : (
         <UnsealedRings size={size} testId="W-TR-07.seal" />
       )}
-      <p className="fsr-approve__keys-count fs-t-caption" data-testid="W-TR-07.keysCount">
-        {en("seal.keys", { signed: keys })}
-      </p>
+      <div className="fsr-approve__seal-caption">
+        <p className="fsr-approve__keys-count fs-t-body" data-testid="W-TR-07.keysCount">
+          {en("seal.keys", { signed: keys })}
+        </p>
+        <p className="fsr-approve__batch-hash fs-t-body">
+          Batch hash{" "}
+          <span className="fs-t-hash" data-testid="W-TR-07.batchHash" title={batchSha256 ?? undefined}>
+            {batchSha256 ? sealHash(batchSha256) : APPROVE.batchPending}
+          </span>
+        </p>
+      </div>
+      {batchSha256 && (
+        <details className="fsr-approve__full-hash fs-t-caption">
+          <summary>Full batch hash</summary>
+          <p className="fs-t-hash">{batchSha256}</p>
+        </details>
+      )}
     </div>
   );
 }
@@ -121,7 +135,6 @@ export interface BatchLedgerProps {
 /** The hashes a person can compare by eye, in groups of four (hash type, never monospace). */
 export function BatchLedger({
   senderBatchId,
-  batchSha256,
   signedLinesDigest,
   lines,
   cashLines,
@@ -133,12 +146,6 @@ export function BatchLedger({
         <dt className="fs-t-caption">{APPROVE.batchLabel}</dt>
         <dd className="fs-t-hash" data-testid="W-TR-07.batch">
           {senderBatchId}
-        </dd>
-      </div>
-      <div className="fsr-ledger__row">
-        <dt className="fs-t-caption">{APPROVE.batchHash}</dt>
-        <dd className="fs-t-hash" data-testid="W-TR-07.batchHash" title={batchSha256 ?? undefined}>
-          {batchSha256 ? format.hashGroups(batchSha256, 4) : APPROVE.batchPending}
         </dd>
       </div>
       {signedLinesDigest && (
@@ -167,14 +174,29 @@ export interface KeySlotProps {
   readonly status: string;
   readonly signed: boolean;
   readonly stamp: StampView | null;
+  readonly voided?: boolean;
   readonly testId: string;
 }
 
-export function KeySlot({ name, why, keyLine, keyNote, status, signed, stamp, testId }: KeySlotProps) {
+export function KeySlot({
+  name,
+  why,
+  keyLine,
+  keyNote,
+  status,
+  signed,
+  stamp,
+  testId,
+  voided = false,
+}: KeySlotProps) {
   return (
-    <li className="fsr-key" data-state={signed ? "signed" : "waiting"} data-testid={testId}>
+    <li
+      className="fsr-key"
+      data-state={voided ? "voided" : signed ? "signed" : "waiting"}
+      data-testid={testId}
+    >
       <span className="fsr-key__slot" aria-hidden={stamp ? undefined : true}>
-        {signed && stamp ? (
+        {(signed || voided) && stamp ? (
           <Stamp stamp={stamp} testId={`${testId}.stamp`} />
         ) : (
           <Glyph name="seal" size={18} />
@@ -221,7 +243,7 @@ export function ConfirmBody({ amount, count, recipients, batchSha256 }: ConfirmB
       {batchSha256 && (
         <figure className="fsr-confirm__seal">
           <Seal batchSha256={batchSha256} size={96} keys={0} />
-          <figcaption className="fs-t-hash">{format.hashGroups(batchSha256, 4)}</figcaption>
+          <figcaption className="fs-t-hash">{sealHash(batchSha256)}</figcaption>
         </figure>
       )}
     </div>

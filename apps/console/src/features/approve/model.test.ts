@@ -37,6 +37,7 @@ import {
   sealKeys,
   senderBatchIdFor,
   signedLinesDigest,
+  voidedByChange,
   wholeDollars,
 } from "./model.js";
 
@@ -50,6 +51,46 @@ function viewOf(world: ReturnType<typeof createTestWorld>): RunView {
 }
 
 describe("the approval's state follows the story", () => {
+  it("both keys leave the amount hollow until settlement", () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    expect(batchAmountState({ ...viewOf(world), state: "APPROVED" })).toBe("hollow");
+  });
+
+  it("inv.i4 a changed payout void lasts only until a newer signature", () => {
+    const world = createTestWorld();
+    const view = viewOf(world);
+    const at = "2026-11-04T11:08:00.000Z";
+    const changed = {
+      type: "run.state",
+      at,
+      payload: { from: "APPROVED", to: "IN_REVIEW", cause: { code: "SEND_BACK", ref: "DIGEST_MISMATCH" } },
+    } as RunView["events"][number];
+    expect(voidedByChange({ ...view, events: [changed] })).toBe(at);
+    const sameTimeSignature = { type: "approval.signed", at } as RunView["events"][number];
+    expect(voidedByChange({ ...view, events: [sameTimeSignature, changed] })).toBe(at);
+    expect(voidedByChange({ ...view, events: [changed, sameTimeSignature] })).toBeNull();
+    expect(
+      voidedByChange({
+        ...view,
+        events: [
+          changed,
+          { type: "approval.signed", at: "2026-11-04T11:09:00.000Z" } as RunView["events"][number],
+        ],
+      }),
+    ).toBeNull();
+    expect(
+      voidedByChange({
+        ...view,
+        events: [
+          { ...changed, payload: { ...changed.payload, from: "POSTING" } } as RunView["events"][number],
+        ],
+      }),
+    ).toBeNull();
+  });
   it("is blocked while reading and while holds that change kilos are open", () => {
     const world = createTestWorld();
     expect(approveState(viewOf(world))).toBe("blocked");

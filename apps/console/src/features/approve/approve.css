@@ -66,9 +66,41 @@
 
 .fsr-approve__keys-count {
   margin: 0;
-  color: var(--fs-ink-3);
+  color: var(--fs-ink);
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
+.fsr-approve__seal-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fs-space-8) var(--fs-space-16);
+  color: var(--fs-ink);
+}
+.fsr-approve__batch-hash {
+  margin: 0;
+  color: var(--fs-ink);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.fsr-approve__batch-hash .fs-t-hash {
+  font-size: inherit;
+}
+.fsr-approve__full-hash {
+  max-width: 100%;
+  color: var(--fs-ink-2);
+}
+.fsr-approve__full-hash p {
+  overflow-wrap: anywhere;
+}
+.fsr-approve__record {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fs-space-8);
+}
 .fsr-approve__seal[data-keys="2"] .fsr-approve__keys-count {
   color: var(--fs-ink);
 }
@@ -277,6 +309,23 @@
 
 .fsr-key[data-state="signed"] .fsr-key__status {
   color: var(--fs-ink);
+}
+
+.fsr-key[data-state="voided"] .fs-stamp {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.fsr-key[data-state="voided"] .fsr-key__slot {
+  position: relative;
+  border: 0;
+}
+.fsr-key[data-state="voided"] .fsr-key__slot::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  background: var(--fs-ink);
+  transform: rotate(-30deg);
 }
 
 /* "Ernesto, reviewing hold 2 on his phone" glides in on MM-5 waiting-2. */

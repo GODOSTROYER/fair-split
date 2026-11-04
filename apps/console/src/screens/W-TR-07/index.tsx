@@ -14,9 +14,10 @@ import { TIMING } from "@fairsplit/motion";
 import { AmountDisplay, Glyph, type HoldChange, Print, RailBar, Slab } from "@fairsplit/ui-web";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
@@ -60,12 +61,14 @@ import {
   sealKeys,
   senderBatchIdFor,
   signedLinesDigest,
+  voidedByChange,
 } from "../../features/approve/model.js";
 import { BatchLedger, ConfirmBody, CosignCard, KeySlot, SealBlock } from "../../features/approve/parts.js";
 import { APPROVE, en } from "../../features/split/shared/copy.js";
 import { officer, stampFor } from "../../features/split/shared/people.js";
-import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
+import { cashDayForRun, useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
+import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { utf8 } from "../../lib/jcs.js";
 import { useMoment } from "../../lib/moment.js";
@@ -97,6 +100,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const holdingRef = useRef(false);
   const changes = useRef(0);
   const slabRef = useRef<HTMLDivElement>(null);
+  const sealRef = useRef<HTMLDivElement>(null);
 
   // The run's own state decides whether this browser may ask for the batch to sign at all.
   const paypalRetry: PaypalRetry | null = view ? paypalRetryOf(view) : null;
@@ -130,6 +134,10 @@ export function Screen({ runSlug }: RunScreenProps) {
   const script = useMomentScript(moment);
   const live = useLiveEvents(data.live ? runSlug : null, (event) => {
     if (event.type === "approval.signed") {
+      sealRef.current?.scrollIntoView({
+        block: "nearest",
+        behavior: moment.mode === "reduced" ? "instant" : "smooth",
+      });
       script.run(
         event.payload.role === "treasurer" ? "signed-1" : "signed-2",
         { eventId: event.id, kind: "signature" },
@@ -171,6 +179,17 @@ export function Screen({ runSlug }: RunScreenProps) {
   useEffect(() => {
     if (signedKeys < keysBefore.current) setSlabKey((k) => k + 1);
     keysBefore.current = signedKeys;
+  }, [signedKeys]);
+  useLayoutEffect(() => {
+    if (signedKeys === 0 || !slabRef.current?.contains(document.activeElement)) return;
+    const next = document.querySelector<HTMLElement>(
+      signedKeys === 1 ? '[data-testid="W-TR-07.cosign.frame"]' : '[data-testid="W-TR-07.fanout"]',
+    );
+    if (next) focusAndReveal(next);
+    else if (sealRef.current)
+      focusAndReveal(
+        sealRef.current.querySelector<HTMLElement>('[data-testid="W-TR-07.sealBlock"]') ?? sealRef.current,
+      );
   }, [signedKeys]);
   const resting = state ? restingPhase(state) : null;
   usePhaseSync(moment, holding || signing || submitted ? null : resting, script.busy);
@@ -348,6 +367,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     </header>
   );
 
+  if (data.access !== "allowed") return <RunRouteGate data={data} />;
   if (data.error && !view) {
     return (
       <ScreenRoot
@@ -393,7 +413,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const total = batch.totalCents;
   const amount = { display: format.money(total), spoken: format.amountSpoken(total, "en") };
   const label = en("W-TR-07.approve", { count: batch.itemCount });
-  const cashDay = format.dateShort(snapshot.run.cashDay);
+  const cashDay = format.dateShort(cashDayForRun(snapshot, view));
   const fees = feeFacts(snapshot);
   const safe = safeFacts(snapshot, view);
   const chair = chairRule(snapshot, total);
@@ -445,10 +465,21 @@ export function Screen({ runSlug }: RunScreenProps) {
           ? APPROVE.keyNoble
           : undefined
       : undefined;
+  const voidedAt = voidedByChange(view);
   const treasurerStamp = treasurerApproval
     ? stampFor(snapshot, "treasurer:analyn", treasurerApproval.at)
-    : null;
-  const chairStamp = chairApproval ? stampFor(snapshot, "board:ernesto", chairApproval.at) : null;
+    : voidedAt
+      ? stampFor(snapshot, "treasurer:analyn", voidedAt)
+      : null;
+  const chairStamp = chairApproval
+    ? stampFor(snapshot, "board:ernesto", chairApproval.at)
+    : voidedAt
+      ? stampFor(snapshot, "board:ernesto", voidedAt)
+      : null;
+  const recordText =
+    keys === 2
+      ? `Approved by Analyn and Ernesto, ${chairStamp?.at ?? treasurerStamp?.at ?? ""}`
+      : `Signed by Analyn, ${treasurerStamp?.at ?? ""}. Waiting for Ernesto.`;
 
   const presenceText = presence
     ? presence.holdId
@@ -496,7 +527,9 @@ export function Screen({ runSlug }: RunScreenProps) {
           </p>
         )}
 
-        <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
+        <div ref={sealRef}>
+          <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
+        </div>
 
         <div
           className="fsr-approve__amount"
@@ -553,11 +586,40 @@ export function Screen({ runSlug }: RunScreenProps) {
           <BlockedList reasons={reasons} />
         )}
 
+        <section className="fsr-approve__ledger" aria-labelledby="W-TR-07-ledger">
+          <h2 id="W-TR-07-ledger" className="fs-t-label">
+            What you and Ernesto sign
+          </h2>
+          <p className="fs-t-caption fsr-muted">{APPROVE.ledgerNote}</p>
+          <BatchLedger
+            senderBatchId={batchId}
+            batchSha256={batchSha256}
+            signedLinesDigest={linesDisagree ? null : payloadLines}
+            lines={batch.lines}
+            cashLines={batch.cashCount}
+            rateCardSha256={snapshot.rateCard.sha256}
+          />
+        </section>
+
+        {voidedAt && (
+          <p className="fsr-banner fsr-banner--ink" role="status" data-testid="W-TR-07.voided">
+            Both approvals voided at {format.time(voidedAt).slice(0, 5)}. A payout changed after signing, so
+            nothing was sent. Review and sign again.
+          </p>
+        )}
+
         <div ref={slabRef} className="fsr-approve__slab">
           <Slab
             key={slabKey}
             label={label}
-            srLabel={APPROVE.srApprove(label, amount.spoken)}
+            record={
+              <span className="fsr-approve__record">
+                {treasurerStamp && <Stamp stamp={treasurerStamp} />}
+                {chairStamp && <Stamp stamp={chairStamp} />}
+                <span>{recordText}</span>
+              </span>
+            }
+            srLabel={signedNow ? recordText : APPROVE.srApprove(label, amount.spoken)}
             depth="d3"
             tone="jade"
             hold={TIMING.holdConsole}
@@ -592,6 +654,16 @@ export function Screen({ runSlug }: RunScreenProps) {
           )}
         </div>
 
+        {keys === 2 && (
+          <AppLink
+            href={webRoutes.fanout(view.runSlug)}
+            className="fs-link fs-t-label"
+            data-testid="W-TR-07.fanout"
+          >
+            Watch the payouts
+          </AppLink>
+        )}
+
         {payloadError && (
           <CommandNotice
             error={payloadError}
@@ -615,10 +687,13 @@ export function Screen({ runSlug }: RunScreenProps) {
             status={
               treasurerApproval && treasurerStamp
                 ? en("W-TR-07.key.signed", { time: treasurerStamp.at })
-                : signing
-                  ? APPROVE.signing
-                  : APPROVE.waitingKey
+                : voidedAt
+                  ? `Voided ${format.time(voidedAt).slice(0, 5)}`
+                  : signing
+                    ? APPROVE.signing
+                    : APPROVE.waitingKey
             }
+            voided={voidedAt !== null}
             signed={treasurerApproval !== null}
             stamp={treasurerStamp}
             testId="W-TR-07.key.treasurer"
@@ -635,10 +710,13 @@ export function Screen({ runSlug }: RunScreenProps) {
               status={
                 chairApproval && chairStamp
                   ? en("W-TR-07.key.signed", { time: chairStamp.at })
-                  : treasurerApproval
-                    ? APPROVE.waitingChair
-                    : APPROVE.waitingKey
+                  : voidedAt
+                    ? `Voided ${format.time(voidedAt).slice(0, 5)}`
+                    : treasurerApproval
+                      ? APPROVE.waitingChair
+                      : APPROVE.waitingKey
               }
+              voided={voidedAt !== null}
               signed={chairApproval !== null}
               stamp={chairStamp}
               testId="W-TR-07.key.chair"
@@ -671,15 +749,6 @@ export function Screen({ runSlug }: RunScreenProps) {
               />
             )}
             {isPosted(view) && <p className="fs-t-body fsr-approve__posted">{APPROVE.posted}</p>}
-            {(isPosted(view) || state === "posting" || state === "retrying") && (
-              <AppLink
-                href={webRoutes.fanout(view.runSlug)}
-                className="fs-link fs-t-label"
-                data-testid="W-TR-07.fanout"
-              >
-                {APPROVE.postedLink}
-              </AppLink>
-            )}
           </div>
         )}
 
@@ -694,21 +763,6 @@ export function Screen({ runSlug }: RunScreenProps) {
             }
           />
         )}
-
-        <section className="fsr-approve__ledger" aria-labelledby="W-TR-07-ledger">
-          <h2 id="W-TR-07-ledger" className="fs-t-label">
-            {APPROVE.ledgerTitle}
-          </h2>
-          <p className="fs-t-caption fsr-muted">{APPROVE.ledgerNote}</p>
-          <BatchLedger
-            senderBatchId={batchId}
-            batchSha256={batchSha256}
-            signedLinesDigest={linesDisagree ? null : payloadLines}
-            lines={batch.lines}
-            cashLines={batch.cashCount}
-            rateCardSha256={snapshot.rateCard.sha256}
-          />
-        </section>
       </section>
     </ScreenRoot>
   );
