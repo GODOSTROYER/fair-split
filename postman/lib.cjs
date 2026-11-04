@@ -290,23 +290,28 @@ function createFairSplitLib(deps) {
 
   // ------------------------------------------------------------------ the simulated label (I8)
 
-  /** Ids PayPal mints, with the simulator's marker inside PayPal's own format (paypal-sim README). */
-  const SIM_ID_RULES = {
-    paypalInvoiceId: /^INV2-SIM/,
-    invoiceId: /^INV2-SIM/,
-    payoutItemId: /^SIM/,
-    payoutBatchId: /^SIM/,
-    payout_batch_id: /^SIM/,
-    payout_item_id: /^SIM/,
+  /**
+   * Ids PayPal mints, with the simulator's marker inside PayPal's own format (paypal-sim README): `SIM…`, or `RPLY…`
+   * for a step Judge Mode replayed (paypal/replay.ts). Webhook events and debug ids are only ever the simulator's.
+   */
+  const ID_RULES = {
+    paypalInvoiceId: /^INV2-(SIM|RPLY)/,
+    invoiceId: /^INV2-(SIM|RPLY)/,
+    payoutItemId: /^(SIM|RPLY)/,
+    payoutBatchId: /^(SIM|RPLY)/,
+    payout_batch_id: /^(SIM|RPLY)/,
+    payout_item_id: /^(SIM|RPLY)/,
     paypalEventId: /^WH-SIM/,
     debug_id: /^sim-[0-9a-f]{12}$/,
   };
+  const REPLAY_ID = /^(INV2-)?RPLY/;
   const PAYPAL_PROVENANCE = ["simulated_rail", "replay"];
 
   /**
-   * Every PayPal-derived value in `body` that does not carry the simulated label: a PayPal id without the
-   * simulator's marker, a webhook event id that is not `WH-SIM…`, or a PayPal-derived object whose provenance
-   * is neither `simulated_rail` nor a labelled `replay`. Returns the offending paths.
+   * Every PayPal-derived value in `body` that does not carry its label: a PayPal id without the simulator's (or the
+   * replay's) marker, a webhook event id that is not `WH-SIM…`, a PayPal-derived object whose provenance is neither
+   * `simulated_rail` nor `replay`, and an object holding a replayed (`RPLY`) id whose provenance is not `replay`.
+   * Returns the offending paths and how many labelled values it checked.
    */
   function simLabelIssues(body) {
     const issues = [];
@@ -319,15 +324,18 @@ function createFairSplitLib(deps) {
         return;
       }
       if (!v || typeof v !== "object") return;
-      const paypalObject = Object.keys(v).some((k) => k in SIM_ID_RULES && v[k] !== null);
-      if (paypalObject && "provenance" in v) {
+      const ids = Object.keys(v).filter((k) => k in ID_RULES && typeof v[k] === "string");
+      if (ids.length > 0 && "provenance" in v) {
         seen++;
-        if (!PAYPAL_PROVENANCE.includes(v.provenance)) issues.push(`${path}.provenance=${v.provenance}`);
+        const replayed = ids.some((k) => REPLAY_ID.test(v[k]));
+        if (!PAYPAL_PROVENANCE.includes(v.provenance) || (replayed && v.provenance !== "replay")) {
+          issues.push(`${path}.provenance=${v.provenance}`);
+        }
       }
       for (const [k, x] of Object.entries(v)) {
-        if (typeof x === "string" && SIM_ID_RULES[k]) {
+        if (typeof x === "string" && ID_RULES[k]) {
           seen++;
-          if (!SIM_ID_RULES[k].test(x)) issues.push(`${path}.${k}=${x}`);
+          if (!ID_RULES[k].test(x)) issues.push(`${path}.${k}=${x}`);
         }
         if (typeof x === "string" && /eventId$/i.test(k) && /^WH-/.test(x)) {
           seen++;

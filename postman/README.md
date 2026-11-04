@@ -88,6 +88,10 @@ committed collection is what `build.mjs` builds.
   which answer the same 410 that an expired pairing gets.
 - **Quotas.** Each run posts one live (simulated) payout and refuses a second. The stack's hourly cap is 24, but a
   public judge session draws on a daily third (13 on the e2e stack). Past that, fs-api replays the run, labelled. The
-  collection reads the rail decision at each press and then expects `replay` provenance, Proof status `replay` and no
-  PayPal-verified member: a replayed payout never reads as paid. Restarting the stack gives a fresh database and fresh
-  quotas.
+  collection reads the rail decision at each press and then expects `replay` provenance, `INV2-RPLY…`/`RPLY…` ids,
+  Proof status `replay` with the payout items plate `replay`, and no PayPal-verified member. Restarting the stack gives
+  a fresh database and fresh quotas.
+- **Replay currently fails five assertions, on purpose.** On a replayed run, `POST /v1/runs/{runSlug}/mark-paid`
+  answers `provenance: "simulated_rail"` for an `INV2-RPLY…` invoice, while the run and the invoice read `replay`.
+  The IC-01 contract pins that field to `"simulated_rail"`. The collection keeps the strict I8 check, so a replayed
+  run reports it (1.04, 1.05 and 3b.04). See `docs/reports/cloud-postman.md`.
