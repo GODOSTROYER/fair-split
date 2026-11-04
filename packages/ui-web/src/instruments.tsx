@@ -4,7 +4,7 @@
 
 import { spring } from "@fairsplit/motion/web";
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useMotionMode } from "./context.js";
 
 export interface MassBalanceDialProps {
@@ -19,7 +19,15 @@ export interface MassBalanceDialProps {
   readonly testId?: string;
   /** Swing the needle on the needle spring when the value changes (MM-3). */
   readonly animateNeedle?: boolean;
+  /**
+   * An old reading to keep as a dashed marigold ghost needle. Without one, a live change (animateNeedle) leaves
+   * the previous reading as the ghost for 1.2 s (decision.md §9).
+   */
+  readonly ghost?: number;
 }
+
+/** How long the previous reading stays as a ghost after a live change. */
+const GHOST_MS = 1200;
 
 const MAX = 4;
 /** 240° arc: 0–4.0% at 60° per percentage point, so 2.0% sits at 12 o'clock. */
@@ -46,6 +54,7 @@ export function MassBalanceDial({
   size = 132,
   testId,
   animateNeedle = false,
+  ghost,
 }: MassBalanceDialProps) {
   const mode = useMotionMode();
   const id = useId().replaceAll(":", "");
@@ -56,11 +65,20 @@ export function MassBalanceDial({
   const cx = w / 2;
   const cy = w / 2 + 4;
   const r = w / 2 - 10;
+  const previous = useRef(value);
+  const [trail, setTrail] = useState<number | null>(null);
   useEffect(() => {
     const target = angleOf(value);
     if (animateNeedle && mode === "full") animate(angle, target, spring("needle", "unitless"));
     else angle.set(target);
+    const was = previous.current;
+    previous.current = value;
+    if (!animateNeedle || was === value) return;
+    setTrail(was);
+    const timer = setTimeout(() => setTrail(null), GHOST_MS);
+    return () => clearTimeout(timer);
   }, [value, animateNeedle, mode, angle]);
+  const ghostValue = ghost ?? trail;
   const ticks = Array.from({ length: MAX * 2 + 1 }, (_, i) => i / 2);
   const over = value > limit;
   return (
@@ -77,12 +95,12 @@ export function MassBalanceDial({
             <rect width="1.5" height="6" className="fs-dial__hatch-line" />
           </pattern>
         </defs>
+        <path d={arc(cx, cy, r, -120, 120)} className="fs-dial__track" />
         <path
-          d={arc(cx, cy, r - 4, angleOf(limit), 120)}
+          d={arc(cx, cy, r, angleOf(limit), 120)}
           className="fs-dial__over"
           stroke={`url(#hatch-${id})`}
         />
-        <path d={arc(cx, cy, r, -120, 120)} className="fs-dial__track" />
         {ticks.map((v) => {
           const [x0, y0] = polar(cx, cy, r, angleOf(v));
           const [x1, y1] = polar(cx, cy, r - (v % 1 === 0 ? 9 : 5), angleOf(v));
@@ -97,6 +115,15 @@ export function MassBalanceDial({
             />
           );
         })}
+        {ghostValue !== null && ghostValue !== undefined && (
+          <g
+            className="fs-dial__ghost-needle"
+            data-testid={testId ? `${testId}.ghost` : undefined}
+            transform={`rotate(${angleOf(ghostValue)} ${cx} ${cy})`}
+          >
+            <line x1={cx} y1={cy} x2={cx} y2={cy - r + 12} className="fs-dial__ghost" />
+          </g>
+        )}
         <motion.g style={{ transform: needle, transformOrigin: `${cx}px ${cy}px` }}>
           <line x1={cx} y1={cy + 6} x2={cx} y2={cy - r + 12} className="fs-dial__needle" />
         </motion.g>
