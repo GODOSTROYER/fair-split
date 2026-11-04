@@ -43,7 +43,7 @@ export const Composition = z.object({
   id: z.string().regex(/^[A-L]$/),
   synthetic: z.literal(true),
   label: z.literal("Code-composed · synthetic"),
-  renderer: z.literal("desk-photo-v1"),
+  renderer: z.literal("desk-photo-v2"),
   contentSha256: hash,
   caption: z.object({
     file: z.string(),
