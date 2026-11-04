@@ -5,6 +5,7 @@
 
 import type { SeasonSnapshot, SnapshotMember } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
+import { sealHash } from "@fairsplit/seal";
 import { Seal } from "@fairsplit/ui-web";
 import { payoutStatus } from "../../data/payout-replay.js";
 import type { RunView } from "../../data/run-view.js";
@@ -130,7 +131,7 @@ export function PrintStatement({ snapshot, view, member, row, state }: PrintStat
           <Seal batchSha256={batch} size={120} keys={keys} testId="W-TR-09.print.seal" />
           <figcaption>
             <span>{LINE.printSeal}</span>
-            <span className="fsr-paper80__hash">{format.hashGroups(batch, 4)}</span>
+            <span className="fsr-paper80__hash">{sealHash(batch)}</span>
             <span>{senderBatchIdFor(snapshot, view.runSlug)}</span>
           </figcaption>
         </figure>

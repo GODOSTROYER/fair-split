@@ -36,6 +36,9 @@ export const SEASON_COPY = {
   draftBy: "Placeholder draft (seed-written)",
   draftNote: (_recorded: string) =>
     "Line labels: a placeholder written with the seed (no Claude recording in this build). Every amount is the engine's quote, checked by the live policy lattice before anything is sent.",
+  invoiceLines: "Invoice lines (seeded sample)",
+  invoiceLinesNote: (_recorded: string) =>
+    "Written with the seed; Claude did not draft these lines in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
   memo: (note: string) => `Memo: ${note}`,
   autoCancel: (date: string) => `Auto-cancels ${date} if unpaid.`,
   sentBy: (name: string) => `Sent by ${name}`,
@@ -59,7 +62,7 @@ export const SEASON_COPY = {
 /** The season's S1 states, in words. */
 export const SEASON_STATE_COPY = {
   unratified: "Ratify a rate card before the first slip.",
-  drafted: "The invoice is a seed-written placeholder. Send it to Lantern Bay once you've checked it.",
+  drafted: "Check the seed-written sample invoice lines, then send the invoice to Lantern Bay.",
   "draft-refused":
     "The invoice draft didn't match the code's quote, so policy refused it (invoiceEqualsQuote). No invoice was sent.",
   waiting: "Sent to Lantern Bay. Waiting for payment.",
@@ -92,7 +95,7 @@ export const FIRST_VIEW_COPY = {
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
   pending: "Recording the payment, then reading the invoice back.",
-  funded: "Funded. The labelled seed stand-in for slip reading plays next.",
+  funded: "Funded. The slips decide each member's share.",
   movedOn: "The invoice is paid. The run has moved on.",
   openNext: "Go to the next step",
   rules: "The rules, bolted before the first slip",
@@ -102,7 +105,7 @@ export const FIRST_VIEW_COPY = {
   synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>
     funded
-      ? `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. The labelled seed stand-in plays now; each photo ticks once its slips are read.`
-      : `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. The labelled seed stand-in plays once the money is in.`,
+      ? `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. Each photo ticks once its rows land.`
+      : `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals.`,
   stamp: (name: string) => `Pressed by ${name}`,
 } as const;

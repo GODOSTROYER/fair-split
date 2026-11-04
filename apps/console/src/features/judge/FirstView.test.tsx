@@ -28,6 +28,64 @@ async function press(testId: string) {
 }
 
 describe("W-JG-01 first view", { timeout: 60_000 }, () => {
+  it("keeps the short invoice action and season code whole while preserving its accessible name", async () => {
+    await renderConsole({ path: "/judge" });
+    const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
+    expect(button.textContent).toBe("Mark the invoice paid");
+    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
+      "Invoice lines (seeded sample)",
+    );
+    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
+      "Claude did not draft these lines",
+    );
+    const heading = screen.getByRole("heading", { name: /Season 2026-A is ready to pay/ });
+    expect(heading.querySelector(".fsc-nowrap")?.textContent).toBe("2026-A");
+  });
+
+  it("keeps the recording pill until the payment command answers", async () => {
+    let entered = false;
+    let finish: (() => void) | undefined;
+    const response = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    await renderConsole({
+      path: "/judge",
+      handlers: [
+        http.post("*/v1/runs/:slug/mark-paid", async () => {
+          entered = true;
+          await response;
+          return undefined;
+        }),
+      ],
+    });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(entered).toBe(true));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+    expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("recording");
+    finish?.();
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("reading"));
+  });
+
+  it("a settled run names its actual rail counts and keeps the paid press as a record", async () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    world.payCash("M-031");
+    const view = await renderConsole({ path: "/judge", world });
+    await view.startSession();
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
+        "Season 2026-A is paid: 7 by PayPal, 57 in cash.",
+      ),
+    );
+    expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
+    expect(screen.getByTestId("W-JG-01.status").textContent).not.toMatch(/plays next/);
+  });
+
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
     // The log is installed before the first render, so it sees anything the page sends while mounting.
     const log = recordRequests();

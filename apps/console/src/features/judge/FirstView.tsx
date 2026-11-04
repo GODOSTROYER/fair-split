@@ -12,21 +12,25 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
+import { SeasonText } from "../../chrome/SeasonText.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { isApiClientError } from "../../data/errors.js";
 import { useCommand, useJudgeSession, usePaypalRail, useStageRun } from "../../data/hooks.js";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import { atLeast } from "../../data/run-view.js";
 import { env } from "../../lib/env.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
 import { HashPlate } from "../ratecard/parts.js";
+import { ExhibitLink } from "../reading/ExhibitLink.js";
 import { photoIsRead, replayPhotos } from "../reading/model.js";
 import { FIRST_VIEW_COPY } from "../season/copy.js";
 import { FundingBlock, useFundingMoment } from "../season/funding.js";
 import { gateBeds, SeasonGate } from "../season/gate.js";
 import { isFunded } from "../season/model.js";
 import { ContactSheet, SeasonMark } from "../season/parts.js";
+import { splitRows } from "../split/model.js";
 import "./judge.css";
 
 export function FirstView() {
@@ -99,12 +103,42 @@ function Desk() {
     setActionEl(el);
   }, []);
   useFocusAfterRemoval(actionEl, () => actionEl?.querySelector<HTMLElement>(".fs-slab__face") ?? null);
+  useEffect(() => {
+    if (!movedOn) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('[data-testid="W-JG-01.markPaid"]')) {
+      actionEl
+        ?.querySelector<HTMLElement>('[data-testid="W-JG-01.continue"]')
+        ?.focus({ preventScroll: true });
+    }
+  }, [movedOn, actionEl]);
 
   if (!snapshot) return null;
   const season = snapshot.season.label;
-  const label = t("W-JG-01.markPaid");
+  const label = t("W-JG-01.markPaidLabel");
+  const srLabel = t("W-JG-01.markPaid");
   const cents = snapshot.run.invoice.amountCents;
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER");
+  const paidAt = view?.events.find(
+    (event) =>
+      event.type === "invoice.state" &&
+      (event.payload.to === "PAID" || event.payload.to === "MARKED_AS_PAID"),
+  )?.at;
+  const recordText = `Marked paid by ${treasurer?.shortName.split(" ")[0] ?? "Analyn"}${paidAt ? `, ${format.time(paidAt).slice(0, 5)}` : ""}`;
+  const record = (
+    <span>
+      {treasurer && (
+        <Stamp
+          stamp={{
+            initials: treasurer.initials,
+            name: treasurer.name,
+            at: paidAt ? format.time(paidAt) : "",
+          }}
+        />
+      )}{" "}
+      {recordText}
+    </span>
+  );
   const photos = replayPhotos(snapshot);
   const readPhotos = new Set(
     photos.filter((photo) => photoIsRead({ view, snapshot, photo })).map((p) => p.photoId),
@@ -131,10 +165,12 @@ function Desk() {
   const start = async () => {
     if (inFlight.current || markPaid.isPending) return;
     inFlight.current = true;
+    session.setPressing(true);
     try {
       await press();
     } finally {
       inFlight.current = false;
+      session.setPressing(false);
     }
   };
   const press = async () => {
@@ -165,7 +201,7 @@ function Desk() {
       if (!reachedFunding(readiness)) rest();
       return;
     }
-    markPaid.mutate({ params: { runSlug: started.runSlug }, body: {} });
+    await markPaid.mutateAsync({ params: { runSlug: started.runSlug }, body: {} }).catch(() => undefined);
   };
 
   let slab: ReactNode;
@@ -174,7 +210,8 @@ function Desk() {
     slab = (
       <Slab
         label={label}
-        srLabel={`${label}. ${FIRST_VIEW_COPY.movedOn}`}
+        srLabel={`${recordText}. ${FIRST_VIEW_COPY.movedOn}`}
+        record={record}
         depth="d2"
         tone="chalk"
         testId="W-JG-01.markPaid"
@@ -187,7 +224,12 @@ function Desk() {
       <Slab
         key={attempt}
         label={label}
-        srLabel={`${label}, ${format.amountSpoken(cents, "en")}, ${FIRST_VIEW_COPY.srConsequence}`}
+        srLabel={
+          movedOn
+            ? recordText
+            : `${srLabel}, ${format.amountSpoken(cents, "en")}, ${FIRST_VIEW_COPY.srConsequence}`
+        }
+        record={record}
         depth="d2"
         tone="chalk"
         testId="W-JG-01.markPaid"
@@ -201,8 +243,16 @@ function Desk() {
     );
   }
 
-  const status =
-    markPaid.queuedMs === null
+  const settled = view?.state === "SETTLED" || view?.state === "CLOSED";
+  const runLines = view ? splitRows(snapshot, view) : [];
+  const title = settled
+    ? `Season ${season} is paid: ${runLines.filter((line) => line.rail === "PAYPAL" && line.state === "PAID").length} by PayPal, ${runLines.filter((line) => line.rail === "CASH" || line.movedToCash).length} in cash.`
+    : funded
+      ? FIRST_VIEW_COPY.titleFunded(season)
+      : t("W-JG-01.ready", { season });
+  const status = settled
+    ? `${payoutReplayed(view) ? "Replayed payouts" : "Payouts recorded"}. Simulated PayPal sandbox. Cash is collected at the bodega.`
+    : markPaid.queuedMs === null
       ? statusLine[phase]
       : `You're next, about ${Math.ceil(markPaid.queuedMs / 1000)} s`;
   const action = (
@@ -213,23 +263,7 @@ function Desk() {
       data-state={phase}
       aria-busy={phase === "starting" || phase === "recording" ? true : undefined}
     >
-      <div className="fsc-first__slab">
-        {slab}
-        {(pressed || movedOn) && treasurer && (
-          <span className="fsc-first__stamp fs-t-caption">
-            <Stamp
-              stamp={{
-                initials: treasurer.initials,
-                name: treasurer.name,
-                at: view?.lastEventAt
-                  ? format.time(view.lastEventAt)
-                  : FIRST_VIEW_COPY.stamp(treasurer.shortName),
-              }}
-            />
-            {FIRST_VIEW_COPY.stamp(treasurer.shortName)}
-          </span>
-        )}
-      </div>
+      <div className="fsc-first__slab">{slab}</div>
       {status ? (
         <p className="fsc-first__status fs-t-label" role="status" data-testid="W-JG-01.status">
           <Glyph name={phase === "funded" ? "ms:check" : "rail"} size={16} />
@@ -242,7 +276,9 @@ function Desk() {
         </p>
       ) : (
         <p className="fsc-first__note fs-t-caption">
-          {movedOn ? FIRST_VIEW_COPY.movedOn : FIRST_VIEW_COPY.pressNote(rail)}
+          {movedOn
+            ? FIRST_VIEW_COPY.movedOn
+            : `${snapshot.payer.shortName}, ${format.money(cents)}. ${rail === "simulator" ? "Simulated PayPal sandbox." : "Untested PayPal sandbox."} ${FIRST_VIEW_COPY.pressNote(rail)}`}
         </p>
       )}
       <CommandNotice
@@ -263,7 +299,7 @@ function Desk() {
         <div className="fsc-first__titles">
           <SeasonMark snapshot={snapshot} testId="W-JG-01.mark" />
           <h1 id="fsc-first-title" className="fs-t-title-1 fsc-first__title" data-testid="W-JG-01.title">
-            {funded ? FIRST_VIEW_COPY.titleFunded(season) : t("W-JG-01.ready", { season })}
+            <SeasonText text={title} season={season} />
           </h1>
           <p className="fsc-first__lede">
             {FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
@@ -296,6 +332,7 @@ function Desk() {
               <p className="fs-t-caption fsc-first__desk-note">
                 {FIRST_VIEW_COPY.deskNote(photos.length, funded)}
               </p>
+              <ExhibitLink season={season} />
             </header>
             <div className="fsc-first__sheet">
               <ContactSheet

@@ -33,7 +33,7 @@ export function SeasonMark({
   return (
     <span className="fsc-mark" data-size={size} data-testid={testId}>
       <span className="fsc-mark__stencil">
-        <span className="fsc-mark__season fs-t-mark">{snapshot.season.label}</span>
+        <span className="fsc-mark__season fs-t-mark fsc-nowrap">{snapshot.season.label}</span>
         {lot && (
           <span className="fsc-mark__lot fs-t-mark">
             <span className="fs-sr">, lot </span>
