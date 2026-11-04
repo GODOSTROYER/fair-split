@@ -19,6 +19,7 @@ import { workspaceLines } from "../../data/mock/fidelity.js";
 import { queryKeys } from "../../data/query.js";
 import type { RunView } from "../../data/run-view.js";
 import { heldSessionKey } from "../../features/approve/keys.js";
+import { screenControl } from "../../lib/focus.js";
 import { linesRoot } from "../../lib/lines-root.js";
 import { fromHex } from "../../lib/sha256.js";
 import {
@@ -213,6 +214,10 @@ describe("W-TR-07 approve", () => {
         /Signed by Analyn, .*Waiting for Ernesto/,
       );
       expect(document.activeElement).not.toBe(face("W-TR-07.approve"));
+      // Focus moves on to the run pill's next step, which never scrolls the seal away.
+      await waitFor(() =>
+        expect(document.activeElement?.getAttribute("data-testid")).toBe("W-JG-01.runPill.next"),
+      );
       await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-1"));
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
       // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1.
@@ -258,6 +263,8 @@ describe("W-TR-07 approve", () => {
         webRoutes.fanout(RUN),
       );
       expect(sealScroll).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
+      // A focus that comes back to the console now (the Chair's phone lowering) lands on the completed seal.
+      await waitFor(() => expect(screenControl()?.dataset.testid).toBe("W-TR-07.sealBlock"));
       expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
     },
     SLOW,

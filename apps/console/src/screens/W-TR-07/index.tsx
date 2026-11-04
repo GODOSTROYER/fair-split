@@ -68,13 +68,13 @@ import { APPROVE, en } from "../../features/split/shared/copy.js";
 import { officer, stampFor } from "../../features/split/shared/people.js";
 import { cashDayForRun, useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
-import { focusAndReveal } from "../../lib/focus.js";
+import { registerScreenControl } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { utf8 } from "../../lib/jcs.js";
 import { useMoment } from "../../lib/moment.js";
 import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
-import { useOptionalStage, usePrefocus } from "../../stage/context.js";
+import { useNextStep, useOptionalStage, usePrefocus } from "../../stage/context.js";
 import type { RunScreenProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/approve/approve.css";
@@ -180,16 +180,14 @@ export function Screen({ runSlug }: RunScreenProps) {
     if (signedKeys < keysBefore.current) setSlabKey((k) => k + 1);
     keysBefore.current = signedKeys;
   }, [signedKeys]);
+  // Focus leaves the spent slab for the step's next control without scrolling: the seal stays the thing in view.
   useLayoutEffect(() => {
     if (signedKeys === 0 || !slabRef.current?.contains(document.activeElement)) return;
-    const next = document.querySelector<HTMLElement>(
-      signedKeys === 1 ? '[data-testid="W-TR-07.cosign.frame"]' : '[data-testid="W-TR-07.fanout"]',
-    );
-    if (next) focusAndReveal(next);
-    else if (sealRef.current)
-      focusAndReveal(
-        sealRef.current.querySelector<HTMLElement>('[data-testid="W-TR-07.sealBlock"]') ?? sealRef.current,
-      );
+    const next =
+      document.querySelector<HTMLElement>(
+        signedKeys === 1 ? '[data-testid="W-JG-01.runPill.next"]' : '[data-testid="W-TR-07.fanout"]',
+      ) ?? sealRef.current?.querySelector<HTMLElement>('[data-testid="W-TR-07.sealBlock"]');
+    next?.focus({ preventScroll: true });
   }, [signedKeys]);
   const resting = state ? restingPhase(state) : null;
   usePhaseSync(moment, holding || signing || submitted ? null : resting, script.busy);
@@ -206,6 +204,15 @@ export function Screen({ runSlug }: RunScreenProps) {
   }, [presence]);
 
   usePrefocus(slabRef, "W-TR-07", armed && !signing);
+  // Once both keys are in and the story has moved on, the completed seal is this screen's main control: a focus
+  // that returns here (the Chair's phone lowering after key 2) lands on the seal and reveals it, not a control below.
+  const stepHere = useNextStep()?.screen === "W-TR-07";
+  useEffect(() => {
+    if (signedKeys !== 2 || stepHere) return;
+    return registerScreenControl(
+      () => sealRef.current?.querySelector<HTMLElement>('[data-testid="W-TR-07.sealBlock"]') ?? null,
+    );
+  }, [signedKeys, stepHere]);
 
   // Key 1 is the judge session's demo key (C-13): made in this browser and registered for the session's workspace
   // as the treasurer, so its ID is fs-api's `fs-analyn-demo-{6}`, never the treasurer's own `fs-analyn-w1`.
@@ -655,12 +662,8 @@ export function Screen({ runSlug }: RunScreenProps) {
         </div>
 
         {keys === 2 && (
-          <AppLink
-            href={webRoutes.fanout(view.runSlug)}
-            className="fs-link fs-t-label"
-            data-testid="W-TR-07.fanout"
-          >
-            Watch the payouts
+          <AppLink href={webRoutes.fanout(view.runSlug)} className="fs-flat" data-testid="W-TR-07.fanout">
+            {APPROVE.watchPayouts}
           </AppLink>
         )}
 

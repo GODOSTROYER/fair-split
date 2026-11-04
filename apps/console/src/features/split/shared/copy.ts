@@ -148,6 +148,7 @@ export const APPROVE = {
   presenceApproval: "Ernesto is on the co-sign request",
   approved: en("W-TR-07.approved"),
   postedLink: "Watch the payments land",
+  watchPayouts: "Watch the payouts",
   posting: (batch: string) => en("W-TR-07.posting", { batch }),
   posted:
     "The simulated PayPal sandbox accepted the batch. Each payment turns jade only when the simulated PayPal sandbox confirms it.",
