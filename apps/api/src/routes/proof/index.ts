@@ -10,9 +10,10 @@
 //   GET /v1/proof/:runSlug/events         (slice, SSE)  public   aggregate progress ("3 of 8 confirmed")
 import { ChainVerification, Provenance, RunSlug } from "@fairsplit/contracts";
 import { z } from "zod";
-import { type CommandContext, reply, serializedReply } from "../../lib/command.js";
+import { clientIpKey } from "../../lib/client-ip.js";
+import { type CommandContext, serializedReply } from "../../lib/command.js";
 import { defineRouteFolder } from "../../lib/slice.js";
-import { takePublicRead } from "../../proof/limits.js";
+import { takeExportRead, takePublicRead } from "../../proof/limits.js";
 import { ProofMetrics } from "../../proof/metrics.js";
 import { serveProofExport, servePublicProof } from "../../proof/serve.js";
 import { mountProofStream } from "../../proof/stream.js";
@@ -21,7 +22,13 @@ const TIER_HEADER = "X-FS-Proof-Tier";
 
 async function publicProof(ctx: CommandContext<"proof"> | CommandContext<"proofJson">, download: boolean) {
   takePublicRead(ctx.c);
-  const served = await servePublicProof(ctx.deps, ctx.credential, ctx.params.runSlug, ctx.log);
+  const served = await servePublicProof(
+    ctx.deps,
+    ctx.credential,
+    ctx.params.runSlug,
+    ctx.log,
+    clientIpKey(ctx.c),
+  );
   const headers: Record<string, string> = { [TIER_HEADER]: served.tier };
   if (download) {
     headers["Content-Disposition"] = `attachment; filename="FS-${served.run.runSlug}.proof.json"`;
@@ -45,8 +52,15 @@ export default defineRouteFolder({
     proof: (ctx) => publicProof(ctx, false),
     proofJson: (ctx) => publicProof(ctx, true),
     proofExport: async (ctx) => {
-      const served = await serveProofExport(ctx.deps, ctx.credential, ctx.params.runSlug, ctx.log);
-      return reply(200, served.body, {
+      takeExportRead(ctx.c);
+      const served = await serveProofExport(
+        ctx.deps,
+        ctx.credential,
+        ctx.params.runSlug,
+        ctx.log,
+        clientIpKey(ctx.c),
+      );
+      return serializedReply(served.body, served.serializedBody, {
         [TIER_HEADER]: served.tier,
         "Content-Disposition": `attachment; filename="FS-${served.run.runSlug}.proof.full.json"`,
       });
@@ -66,7 +80,13 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         takePublicRead(ctx.c);
-        const served = await servePublicProof(ctx.deps, null, ctx.params.runSlug, ctx.log);
+        const served = await servePublicProof(
+          ctx.deps,
+          null,
+          ctx.params.runSlug,
+          ctx.log,
+          clientIpKey(ctx.c),
+        );
         return served.metrics;
       },
     );
@@ -84,7 +104,13 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         takePublicRead(ctx.c);
-        const served = await servePublicProof(ctx.deps, null, ctx.params.runSlug, ctx.log);
+        const served = await servePublicProof(
+          ctx.deps,
+          null,
+          ctx.params.runSlug,
+          ctx.log,
+          clientIpKey(ctx.c),
+        );
         return {
           runSlug: served.run.runSlug,
           provenance: served.built.provenance,

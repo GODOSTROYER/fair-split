@@ -20,6 +20,7 @@ import {
   readSnapshot,
 } from "./bundle.js";
 import { publishedKeys } from "./keys.js";
+import { takeProofBuild } from "./limits.js";
 import { type ProofMetrics, proofMetrics } from "./metrics.js";
 import { FULL_TIER_ROLES, type ProofTier, type ProofTierName, redactBundle, tierFor } from "./tier.js";
 
@@ -37,28 +38,90 @@ interface CachedPublicProof extends ServedProof {
   metrics: ProofMetrics;
 }
 
-type Deps = Pick<AppDeps, "db" | "env" | "credentials" | "clock">;
+type Deps = Pick<AppDeps, "db" | "env" | "credentials" | "clock" | "rateLimits">;
 
 // No contract/verifier checkpoint freshness bound is shorter than this. Builds never serve beyond 2 seconds,
 // and every lookup checks the head before using a cached body. Bound both in-flight work and resident JSON.
 const CACHE_TTL_MS = 2_000;
-const CACHE_ENTRIES = 4;
 // Above the complete e2e session crowd (about 20). Completed LRU eviction never drops an in-flight build.
 const MAX_PENDING_BUILDS = 32;
 const CACHE_BYTES = 16 * 1024 * 1024;
+// Tier JSON has its own byte budget: rotating receivers can evict serialized variants, never the shared build.
+const VARIANT_BYTES = 16 * 1024 * 1024;
+interface CachedBuild {
+  retained: boolean;
+  built: BuiltProof;
+  verification: ChainVerification;
+  metrics: ProofMetrics;
+  variants: Map<string, CachedPublicProof>;
+}
 interface CacheEntry {
   at: number;
   bytes: number;
   pending: boolean;
-  value: Promise<CachedPublicProof>;
+  value: Promise<CachedBuild>;
+  completed?: CachedBuild;
 }
-const caches = new WeakMap<Deps, Map<string, CacheEntry>>();
+interface ProofCache {
+  builds: Map<string, CacheEntry>;
+  variants: Map<CachedPublicProof, { bytes: number; owner: CachedBuild; key: string }>;
+}
+const caches = new WeakMap<Deps, ProofCache>();
+
+function dropBuild(cache: ProofCache, key: string, entry: CacheEntry): void {
+  cache.builds.delete(key);
+  const value = entry.completed;
+  if (value) {
+    value.retained = false;
+    for (const variant of value.variants.values()) cache.variants.delete(variant);
+    value.variants.clear();
+  }
+}
+
+function serializedBytes(value: unknown): number {
+  return Buffer.byteLength(
+    JSON.stringify(value, (_key, item: unknown) => (typeof item === "bigint" ? String(item) : item)),
+    "utf8",
+  );
+}
+
+function serveTier(cache: ProofCache, value: CachedBuild, tier: ProofTier): CachedPublicProof {
+  const key = JSON.stringify(tier);
+  const hit = value.variants.get(key);
+  if (hit) {
+    const size = cache.variants.get(hit);
+    if (size) {
+      cache.variants.delete(hit);
+      cache.variants.set(hit, size);
+    }
+    return hit;
+  }
+  const served = { ...finish(value.built, tier), verification: value.verification, metrics: value.metrics };
+  if (!value.retained) return served;
+  value.variants.set(key, served);
+  // Count both the serialized string and the redacted object conservatively. Shared ledger data is already
+  // charged to the base build, but double-counting it here keeps the resident budget on the safe side.
+  cache.variants.set(served, {
+    bytes: 2 * Buffer.byteLength(served.serializedBody, "utf8"),
+    owner: value,
+    key,
+  });
+  let total = [...cache.variants.values()].reduce((sum, variant) => sum + variant.bytes, 0);
+  for (const [variant, size] of cache.variants) {
+    if (total <= VARIANT_BYTES) break;
+    total -= size.bytes;
+    size.owner.variants.delete(size.key);
+    cache.variants.delete(variant);
+  }
+  return served;
+}
 
 async function cachedPublicBuild(
   deps: Deps,
   run: ProofRun,
   tier: ProofTier,
   log?: Pick<Logger, "warn">,
+  networkKey?: string,
 ): Promise<CachedPublicProof> {
   const [head] = await deps.db
     .select({ seq: schema.ledgerHeads.seq })
@@ -66,24 +129,32 @@ async function cachedPublicBuild(
     .where(eq(schema.ledgerHeads.workspaceId, run.workspaceId))
     .limit(1);
   const now = deps.clock.nowMs();
-  let cache = caches.get(deps);
-  if (!cache) {
-    cache = new Map();
-    caches.set(deps, cache);
+  let state = caches.get(deps);
+  if (!state) {
+    state = { builds: new Map(), variants: new Map() };
+    caches.set(deps, state);
   }
+  const cache = state.builds;
   for (const [key, entry] of cache)
-    if (!entry.pending && (now - entry.at >= CACHE_TTL_MS || now < entry.at)) cache.delete(key);
-  const key = `${run.id}|${head?.seq ?? 0}|${JSON.stringify(tier)}`;
+    if (!entry.pending && (now - entry.at >= CACHE_TTL_MS || now < entry.at)) dropBuild(state, key, entry);
+  const key = `${run.id}|${head?.seq ?? 0}`;
   const hit = cache.get(key);
-  if (hit) return hit.value;
+  if (hit) {
+    cache.delete(key);
+    cache.set(key, hit);
+    return serveTier(state, await hit.value, tier);
+  }
   if ([...cache.values()].filter((entry) => entry.pending).length >= MAX_PENDING_BUILDS) {
     throw problem.rateLimited(1_000, "Proof builds are busy. Try again shortly.");
   }
+  // A read budget alone doesn't bound visitors rotating many runs/heads. Charge only actual builds,
+  // after deduplication, so member tiers, exports and concurrent readers share the reservation.
+  takeProofBuild(deps, networkKey);
   const entry: CacheEntry = {
     at: now,
     bytes: 0,
     pending: true,
-    value: Promise.resolve(null as unknown as CachedPublicProof),
+    value: Promise.resolve(null as unknown as CachedBuild),
   };
   entry.value = (async () => {
     const served = await readSnapshot(deps.db, async (tx) => {
@@ -92,27 +163,28 @@ async function cachedPublicBuild(
         now: deps.clock.now(),
         ...(log ? { log } : {}),
       });
-      const result = finish(built, tier);
       const keys = await publishedKeys(tx, ledgerKeyOf(deps), {
-        workspaceId: result.run.workspaceId,
+        workspaceId: built.facts.run.workspaceId,
         ...(log ? { log } : {}),
       });
       return {
-        ...result,
+        retained: true,
+        built,
+        variants: new Map<string, CachedPublicProof>(),
         verification: verifyChain(built.bundle, keys, { demoMode: true }),
         metrics: await proofMetrics(tx, built.facts),
       };
     });
-    entry.bytes = Buffer.byteLength(served.serializedBody, "utf8");
+    entry.bytes = 2 * serializedBytes(served);
+    entry.at = deps.clock.nowMs();
     entry.pending = false;
+    entry.completed = served;
     let total = [...cache.values()].reduce((sum, e) => sum + e.bytes, 0);
-    let completed = [...cache.values()].filter((e) => !e.pending).length;
     for (const [oldest, value] of cache) {
-      if (total <= CACHE_BYTES && completed <= CACHE_ENTRIES) break;
+      if (total <= CACHE_BYTES) break;
       if (value.pending) continue;
       total -= value.bytes;
-      completed--;
-      cache.delete(oldest);
+      dropBuild(state, oldest, value);
     }
     return served;
   })();
@@ -120,7 +192,7 @@ async function cachedPublicBuild(
   entry.value.catch(() => {
     if (cache.get(key) === entry) cache.delete(key);
   });
-  return entry.value;
+  return serveTier(state, await entry.value, tier);
 }
 
 /** `proof` and `proofJson`: anyone may read; the credential (if any, and only in the run's workspace) widens it. */
@@ -129,12 +201,13 @@ export async function servePublicProof(
   credential: Credential | null,
   runSlug: string,
   log?: Pick<Logger, "warn">,
+  networkKey?: string,
 ): Promise<CachedPublicProof> {
   const run = await findRunBySlug(deps.db, runSlug, deps.clock.now());
   if (!run) throw problem.notFound("No such pay run.");
   if (!proofReady(run)) notReady(run);
   const tier = tierFor(credential, run.workspaceId);
-  return cachedPublicBuild(deps, run, tier, log);
+  return cachedPublicBuild(deps, run, tier, log, networkKey);
 }
 
 /** `proofExport`: the full bundle for the brand, the treasurer, the Chair or a judge, in their own workspace. */
@@ -143,6 +216,7 @@ export async function serveProofExport(
   credential: Extract<Credential, { kind: "frame" | "device" | "judge_session" }>,
   runSlug: string,
   log?: Pick<Logger, "warn">,
+  networkKey?: string,
 ): Promise<ServedProof> {
   if (!FULL_TIER_ROLES.includes(credential.role)) {
     throw problem.forbidden("Only the brand, the treasurer, the Chair or a judge can export the full Proof.");
@@ -150,12 +224,7 @@ export async function serveProofExport(
   const run = await findRunInWorkspace(deps.db, credential.workspaceId, runSlug);
   if (!run) throw problem.notFound("No such pay run in this workspace.");
   if (!proofReady(run)) notReady(run);
-  const built = await buildProofBundle(deps.db, run, {
-    key: ledgerKeyOf(deps),
-    now: deps.clock.now(),
-    ...(log ? { log } : {}),
-  });
-  return finish(built, { tier: "full" });
+  return cachedPublicBuild(deps, run, { tier: "full" }, log, networkKey);
 }
 
 function finish(built: BuiltProof, tier: ProofTier): ServedProof {

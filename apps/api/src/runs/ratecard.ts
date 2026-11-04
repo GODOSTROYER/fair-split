@@ -21,6 +21,7 @@ import { asDbError, schema, type WorkspaceScope, withWorkspaceTx } from "@fairsp
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { ActingCredential } from "../credentials/verify/index.js";
+import { assertJudgeLedgerRoom } from "../judge/ledger-room.js";
 import { commitText } from "../ledger/commitments.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
@@ -63,8 +64,9 @@ export const addDeductionHandler: CommandHandler<"addDeduction"> = async (ctx) =
   } catch (err) {
     const refused = asDbError(err);
     if (refused?.code === "RATE_CARD_RATIFIED") {
-      await withWorkspaceTx(deps.db, scope, (tx) =>
-        factLedger(
+      await withWorkspaceTx(deps.db, scope, async (tx) => {
+        await assertJudgeLedgerRoom(tx, scope.workspaceId);
+        return factLedger(
           tx,
           scope,
           "rate_card.edit_refused",
@@ -83,8 +85,8 @@ export const addDeductionHandler: CommandHandler<"addDeduction"> = async (ctx) =
             ).sha256,
           },
           { at },
-        ),
-      );
+        );
+      });
       throw problem.rateCardRatified(
         { hash: refused.subject, rateCard: card.code, ratifiedOn: ratifiedOn(card) },
         err,

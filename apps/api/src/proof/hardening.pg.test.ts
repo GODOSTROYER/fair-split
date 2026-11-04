@@ -3,6 +3,7 @@ import { appendLedger, ledgerHead, schema, systemScope, withWorkspaceTx } from "
 import { entryHash as hashEntry } from "@fairsplit/domain";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { hashedClientIp } from "../lib/client-ip.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 import * as bundle from "./bundle.js";
 import { loadShowcase, type ShowcaseWorld } from "./testing/world.js";
@@ -76,6 +77,89 @@ it("HD6-3: ten public reads and verification share one build until a ledger appe
   }
 });
 
+it("HD6-3: five member tiers, the public tier and exports share a completed head build", async () => {
+  t.clock.advance(2_001);
+  t.deps.rateLimits.reset();
+  const build = vi.spyOn(bundle, "buildProofBundle");
+  try {
+    const links = [...world.lineIds.values()]
+      .slice(0, 5)
+      .map((lineId) => t.credentials.memberLink({ workspaceId: world.workspaceId, lineId }));
+    for (let round = 0; round < 2; round++) {
+      for (const link of links) {
+        const r = await t.json(`/v1/proof/${world.runSlug}`, { as: t.credentials.bearer(link) });
+        expect(r.status).toBe(200);
+        expect(r.headers.get("x-fs-proof-tier")).toBe("member");
+      }
+      expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
+    }
+    const token = await t.credentials.frameToken({
+      workspaceId: world.workspaceId,
+      role: "treasurer",
+      persona: "analyn",
+    });
+    for (let i = 0; i < 10; i++) {
+      expect(
+        (await t.json(`/v1/proof/${world.runSlug}/export`, { as: t.credentials.bearer(token) })).status,
+      ).toBe(200);
+    }
+    expect(build).toHaveBeenCalledTimes(1);
+  } finally {
+    build.mockRestore();
+  }
+});
+
+it("HD6-3: cache freshness starts when a slow build completes", async () => {
+  t.clock.advance(2_001);
+  t.deps.rateLimits.reset();
+  const original = bundle.buildProofBundle;
+  const build = vi.spyOn(bundle, "buildProofBundle").mockImplementation(async (...args) => {
+    const result = await original(...args);
+    t.clock.advance(2_001);
+    return result;
+  });
+  try {
+    expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
+    expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
+    expect(build).toHaveBeenCalledTimes(1);
+  } finally {
+    build.mockRestore();
+  }
+});
+
+it("HD6-3: exports spend a per-network budget before any build", async () => {
+  t.deps.rateLimits.reset();
+  const token = await t.credentials.frameToken({
+    workspaceId: world.workspaceId,
+    role: "treasurer",
+    persona: "analyn",
+  });
+  const as = t.credentials.bearer(token);
+  const path = `/v1/proof/${world.runSlug}/export`;
+  for (let i = 0; i < 120; i++) expect((await t.request(path, { as })).status).toBe(200);
+  expect((await t.request(path, { as })).status).toBe(429);
+  expect((await t.request(path, { as, headers: { "cf-connecting-ip": "198.51.100.18" } })).status).toBe(200);
+});
+
+it("HD6-3: cold builds have a network budget while a hot head remains readable", async () => {
+  t.clock.advance(2_001);
+  t.deps.rateLimits.reset();
+  expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
+  const network = hashedClientIp(t.deps.credentials.keys, null, t.clock.now());
+  for (let i = 0; i < 60; i++)
+    t.deps.rateLimits.take({ name: "proofBuildNetwork", limit: 60, windowMs: 60_000 }, network);
+  // Expensive-build exhaustion must not refuse an already completed head.
+  expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(200);
+  t.clock.advance(2_001);
+  const build = vi.spyOn(bundle, "buildProofBundle");
+  try {
+    expect((await t.json(`/v1/proof/${world.runSlug}`)).status).toBe(429);
+    expect(build).not.toHaveBeenCalled();
+  } finally {
+    build.mockRestore();
+  }
+});
+
 it("HD6-3: three frame tokens in a session share sixty link issues", async () => {
   t.deps.rateLimits.reset();
   const sessionId = randomUUID();
@@ -126,6 +210,17 @@ it("HD6-3: judge ledger cap refuses optional link and flag appends while system 
   });
   expect(flag.status).toBe(429);
   expect(flag.body.code).toBe("RATE_LIMITED");
+  const [run] = await t.deps.db
+    .select({ rateCardId: schema.payRuns.rateCardId })
+    .from(schema.payRuns)
+    .where(eq(schema.payRuns.id, world.runId));
+  const edit = await t.json<{ code: string }>(`/v1/rate-cards/${run?.rateCardId}/deductions`, {
+    method: "POST",
+    body: { label: "Private edit", amountText: "1.00" },
+    as,
+  });
+  expect(edit.status).toBe(429);
+  expect(edit.body.code).toBe("RATE_LIMITED");
   await expect(
     withWorkspaceTx(t.deps.db, world.workspaceId, (tx) =>
       appendLedger(tx, systemScope(world.workspaceId, { kind: "system", id: "money" }), {
