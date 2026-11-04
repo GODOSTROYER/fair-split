@@ -8,6 +8,8 @@ export interface RateRule {
   readonly name: string;
   readonly limit: number;
   readonly windowMs: number;
+  /** Single-key safety budget. Its live window must never be evicted. */
+  readonly global?: true;
 }
 
 export type RateDecision = { ok: true; remaining: number } | { ok: false; retryAfterMs: number };
@@ -40,27 +42,32 @@ export const RATE_RULES = {
   judgeSessionPerCookie: { name: "judgeSessionPerCookie", limit: 3, windowMs: 3_600_000 },
   /** Hashed IP: 30 session starts an hour (a loose outer bound). */
   judgeSessionPerIp: { name: "judgeSessionPerIp", limit: 30, windowMs: 3_600_000 },
-  judgeSessionGlobal: { name: "judgeSessionGlobal", limit: 60, windowMs: 60_000 },
+  judgeSessionGlobal: { name: "judgeSessionGlobal", limit: 60, windowMs: 60_000, global: true },
   /** Failed expensive admissions still count; personal/success budgets are refundable. Above the e2e crowd. */
-  judgeSessionAttempts: { name: "judgeSessionAttempts", limit: 120, windowMs: 60_000 },
+  judgeSessionAttempts: { name: "judgeSessionAttempts", limit: 120, windowMs: 60_000, global: true },
   judgeSessionPerNetworkDay: { name: "judgeSessionPerNetworkDay", limit: 60, windowMs: 86_400_000 },
 } as const satisfies Record<string, RateRule>;
 
 export const MAX_KEYS = 20_000;
-/** One noisy route cannot occupy the entire limiter. Live windows never get evicted. */
-export const MAX_KEYS_PER_RULE = 1_000;
+/** Keyed rules replace only their own least recently used key; unrelated windows stay intact. */
+export const MAX_KEYS_PER_RULE = 10_000;
+/** Reserved inside MAX_KEYS, so keyed pressure cannot prevent the first global reservation. */
+export const MAX_GLOBAL_KEYS = 64;
+export const MAX_KEYED_KEYS = MAX_KEYS - MAX_GLOBAL_KEYS;
 export const SWEEP_INTERVAL_MS = 5_000;
 
 export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => void } = {}): KeyedRateLimiter {
-  const windows = new Map<string, { hits: number[]; windowMs: number; ruleName: string }>();
-  const counts = new Map<string, number>();
+  const windows = new Map<string, { hits: number[]; windowMs: number; ruleName: string; global: boolean }>();
+  const partitions = new Map<string, Set<string>>();
+  let globalKeys = 0;
   function drop(id: string) {
     const value = windows.get(id);
     if (!value) return;
     windows.delete(id);
-    const count = (counts.get(value.ruleName) ?? 1) - 1;
-    if (count === 0) counts.delete(value.ruleName);
-    else counts.set(value.ruleName, count);
+    if (value.global) globalKeys--;
+    const partition = partitions.get(value.ruleName);
+    partition?.delete(id);
+    if (partition?.size === 0) partitions.delete(value.ruleName);
   }
   let lastSweep = clock.nowMs();
   const idOf = (rule: RateRule, key: string) => `${rule.name}\u0000${key}`;
@@ -86,45 +93,57 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
       : { ok: true, remaining: rule.limit - hits.length };
   }
 
-  function hasCapacity(pairs: readonly (readonly [RateRule, string])[], now: number): boolean {
-    const fits = () => {
-      const added = new Map<string, number>();
-      const ids = new Set<string>();
-      for (const [rule, key] of pairs) {
-        const id = idOf(rule, key);
-        if (windows.has(id) || ids.has(id)) continue;
-        ids.add(id);
-        added.set(rule.name, (added.get(rule.name) ?? 0) + 1);
-      }
-      return (
-        windows.size + ids.size <= MAX_KEYS &&
-        [...added].every(([name, count]) => (counts.get(name) ?? 0) + count <= MAX_KEYS_PER_RULE)
-      );
-    };
-    if (fits()) return true;
-    sweep(now);
-    return fits();
+  function globalsFit(pairs: readonly (readonly [RateRule, string])[]): boolean {
+    const added = new Set<string>();
+    const names = new Set<string>();
+    for (const [rule, key] of pairs) {
+      if (!rule.global || windows.has(idOf(rule, key)) || added.has(idOf(rule, key))) continue;
+      // Global rules intentionally have exactly one key each.
+      if (partitions.has(rule.name) || names.has(rule.name)) return false;
+      added.add(idOf(rule, key));
+      names.add(rule.name);
+    }
+    return globalKeys + added.size <= MAX_GLOBAL_KEYS;
   }
 
-  function touch(rule: RateRule, key: string, hits: number[]) {
+  function touch(rule: RateRule, key: string, hits: number[], protectedIds: ReadonlySet<string>) {
     const id = idOf(rule, key);
-    if (!windows.has(id)) counts.set(rule.name, (counts.get(rule.name) ?? 0) + 1);
-    windows.set(id, { hits, windowMs: rule.windowMs, ruleName: rule.name });
+    if (!windows.has(id) && !rule.global) {
+      const partition = partitions.get(rule.name);
+      if ((partition?.size ?? 0) >= MAX_KEYS_PER_RULE || windows.size - globalKeys >= MAX_KEYED_KEYS) {
+        let victim: string | undefined;
+        for (const candidate of partition ?? []) {
+          if (!protectedIds.has(candidate)) {
+            victim = candidate;
+            break;
+          }
+        }
+        if (victim === undefined) return; // Admit without recording rather than lock out a new route/caller.
+        drop(victim);
+      }
+    }
+    if (!windows.has(id) && rule.global) globalKeys++;
+    const partition = partitions.get(rule.name) ?? new Set<string>();
+    partition.delete(id);
+    partition.add(id);
+    partitions.set(rule.name, partition);
+    windows.set(id, { hits, windowMs: rule.windowMs, ruleName: rule.name, global: rule.global === true });
   }
 
   const limiter: KeyedRateLimiter = {
     take(rule, key) {
       const now = clock.nowMs();
-      if (!hasCapacity([[rule, key]], now)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
+      sweep(now);
+      if (!globalsFit([[rule, key]])) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
       const hits = hitsFor(rule, key, now);
       const result = decision(rule, hits, now);
       if (result.ok) hits.push(now);
-      touch(rule, key, hits);
+      touch(rule, key, hits, new Set([idOf(rule, key)]));
       return result.ok ? { ok: true, remaining: rule.limit - hits.length } : result;
     },
     peek(rule, key) {
       const now = clock.nowMs();
-      if (!hasCapacity([[rule, key]], now)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
+      if (!globalsFit([[rule, key]])) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
       return decision(rule, hitsFor(rule, key, now), now);
     },
     takeAll(pairs) {
@@ -143,8 +162,10 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
         value.hits.push(now);
         remaining = Math.min(remaining, rule.limit - value.hits.length);
       }
-      if (!hasCapacity(pairs, now)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
-      for (const value of pending.values()) touch(value.rule, value.key, value.hits);
+      sweep(now);
+      if (!globalsFit(pairs)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
+      const protectedIds = new Set(pending.keys());
+      for (const value of pending.values()) touch(value.rule, value.key, value.hits, protectedIds);
       return { ok: true, remaining, takenAtMs: now };
     },
     refund(rule, key, takenAtMs) {
@@ -158,7 +179,8 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
     },
     reset() {
       windows.clear();
-      counts.clear();
+      partitions.clear();
+      globalKeys = 0;
       lastSweep = clock.nowMs();
     },
     get size() {

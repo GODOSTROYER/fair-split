@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "./clock.js";
-import { createKeyedRateLimiter, RATE_RULES } from "./rate-limit.js";
+import { createKeyedRateLimiter, MAX_KEYED_KEYS, MAX_KEYS_PER_RULE, RATE_RULES } from "./rate-limit.js";
 
 const rule = { name: "flood", limit: 200_000, windowMs: 3_600_000 };
 
@@ -24,12 +24,12 @@ describe("HD6-2 bounded sliding windows", () => {
     const limiter = createKeyedRateLimiter(clock, { onSweep: () => sweeps++ });
     limiter.take(rule, "oldest");
     limiter.take({ name: "short", limit: 1, windowMs: 1_000 }, "short");
-    for (let i = 0; i < 19_998; i++) {
+    for (let i = 0; i < MAX_KEYED_KEYS - 2; i++) {
       limiter.take({ ...rule, name: `flood:${Math.floor(i / 999)}` }, String(i));
     }
     clock.advance(5_001);
     expect(limiter.take(rule, "pressure").ok).toBe(true);
-    expect(limiter.size).toBe(20_000);
+    expect(limiter.size).toBe(MAX_KEYED_KEYS);
     expect(limiter.peek(rule, "oldest")).toEqual({ ok: true, remaining: rule.limit - 1 });
     limiter.refund(rule, "pressure");
     expect(limiter.peek({ name: "short", limit: 1, windowMs: 1_000 }, "short")).toEqual({
@@ -55,18 +55,16 @@ describe("HD6-2 bounded sliding windows", () => {
     expect(limiter.size).toBeLessThanOrEqual(20_000);
   });
 
-  it("admission partitions refuse new identities instead of evicting in-window identities atomically", () => {
+  it("full keyed partitions admit new identities without waiving atomic global refusals", () => {
     const limiter = createKeyedRateLimiter(createFakeClock());
-    let refused = false;
-    for (let i = 0; i < 25_000; i++) {
-      if (!limiter.take(RATE_RULES.judgeSessionPerIp, `network:${i}`).ok) {
-        refused = true;
-        break;
-      }
+    for (let i = 0; i < MAX_KEYS_PER_RULE; i++) {
+      expect(limiter.take(RATE_RULES.judgeSessionPerIp, `network:${i}`).ok).toBe(true);
     }
-    expect(refused).toBe(true);
+    for (let i = 0; i < RATE_RULES.judgeSessionGlobal.limit; i++) {
+      limiter.take(RATE_RULES.judgeSessionGlobal, "all");
+    }
     const before = limiter.size;
-    expect(limiter.peek(RATE_RULES.judgeSessionPerIp, "another-network").ok).toBe(false);
+    expect(limiter.peek(RATE_RULES.judgeSessionPerIp, "another-network").ok).toBe(true);
     expect(
       limiter.takeAll([
         [RATE_RULES.judgeSessionGlobal, "all"],
@@ -75,13 +73,15 @@ describe("HD6-2 bounded sliding windows", () => {
     ).toBe(false);
     expect(limiter.size).toBe(before);
     expect(limiter.peek(RATE_RULES.judgeSessionGlobal, "all")).toEqual({
-      ok: true,
-      remaining: RATE_RULES.judgeSessionGlobal.limit,
+      ok: false,
+      retryAfterMs: RATE_RULES.judgeSessionGlobal.windowMs,
     });
     expect(limiter.peek(RATE_RULES.judgeSessionPerIp, "network:0")).toEqual({
       ok: true,
       remaining: RATE_RULES.judgeSessionPerIp.limit - 1,
     });
+    expect(limiter.take(RATE_RULES.judgeSessionPerIp, "another-network").ok).toBe(true);
+    expect(limiter.size).toBe(before);
   });
 
   it("takeAll spends nothing when the last rule refuses; peek and refund do not invent slots", () => {

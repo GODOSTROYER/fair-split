@@ -15,14 +15,14 @@ export const JUDGE_RATE_RULES = {
   resume: { name: "judgeResume", limit: 60, windowMs: 3_600_000 },
   pairingCreate: { name: "pairingCreate", limit: 20, windowMs: 600_000 },
   /** Every 6-digit claim attempt, all clients together: guessing a live code stays hopeless. */
-  pairingCode6Global: { name: "pairingCode6Global", limit: 60, windowMs: 60_000 },
+  pairingCode6Global: { name: "pairingCode6Global", limit: 60, windowMs: 60_000, global: true },
   /** The real guard against guessing: 5 a minute per hashed IP (a scrypt check each). */
   opsLoginPerIp: { name: "opsLoginPerIp", limit: 5, windowMs: 60_000 },
   /**
    * Only a backstop on scrypt work (about 5 checks a second at most): far above what a crowd of guessers
    * at 5 a minute each can use up quickly, so they cannot lock the operator out of /ops.
    */
-  opsLoginGlobal: { name: "opsLoginGlobal", limit: 300, windowMs: 60_000 },
+  opsLoginGlobal: { name: "opsLoginGlobal", limit: 300, windowMs: 60_000, global: true },
   /**
    * Judge-code guesses. The per-IP rule keys on the trusted client network (IPv6 /64; src/lib/client-ip.ts); the session
    * rule holds however many networks one session uses; the global rule bounds every session and network together
@@ -31,7 +31,7 @@ export const JUDGE_RATE_RULES = {
   judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000 },
   judgeCodePerSession: { name: "judgeCodePerSession", limit: 5, windowMs: 600_000 },
   /** Assumes runbook codes use randomBytes(12), or 96 bits of entropy; keep a global bound without a 30/min lockout. */
-  judgeCodeGlobal: { name: "judgeCodeGlobal", limit: 300, windowMs: 60_000 },
+  judgeCodeGlobal: { name: "judgeCodeGlobal", limit: 300, windowMs: 60_000, global: true },
   tamper: { name: "judgeTamper", limit: 10, windowMs: 600_000 },
   links: { name: "linkIssue", limit: 60, windowMs: 600_000 },
   /** Brand links are the operator's: a handful per brand conversation. */

@@ -10,8 +10,8 @@ export const PROOF_RATE_RULES = {
   /** Public Proof reads (bundle, JSON, metrics, verification, keys) per hashed IP. */
   publicRead: { name: "proofPublicRead", limit: 120, windowMs: 60_000 },
   exportRead: { name: "proofExportRead", limit: 120, windowMs: 60_000 },
-  buildNetwork: { name: "proofBuildNetwork", limit: 60, windowMs: 60_000 },
-  buildGlobal: { name: "proofBuildGlobal", limit: 120, windowMs: 60_000 },
+  buildNetwork: { name: "proofBuildNetwork", limit: 20, windowMs: 60_000 },
+  buildGlobal: { name: "proofBuildGlobal", limit: 120, windowMs: 60_000, global: true },
   /** New re-check requests per member line (an identical open request is returned, not counted). */
   reviewRequest: { name: "reviewRequest", limit: 6, windowMs: 3_600_000 },
 } as const satisfies Record<string, RateRule>;
