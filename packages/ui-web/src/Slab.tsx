@@ -78,6 +78,8 @@ export interface WebSlabOptions {
   readonly onReasonClick?: () => void;
   /** A d2 commit leaves the face flush until the screen moves on. */
   readonly stayDown?: boolean;
+  /** The signed or completed record shown on the flush face after a commit. */
+  readonly record?: ReactNode;
   readonly frame?: SlabFrame;
   /** Below the hold slab: "Hold to approve". Set false to hide that caption; the dialog link always stays. */
   readonly hint?: boolean;
@@ -128,6 +130,7 @@ export function Slab(props: WebSlabProps) {
     onRefuse,
     onReasonClick,
     stayDown = depth !== "d1",
+    record,
     frame,
     hint = true,
     className,
@@ -178,9 +181,11 @@ export function Slab(props: WebSlabProps) {
   });
   const report = useCallback((change: HoldChange) => latest.current.onHoldChange?.(change), []);
 
-  const travel = useMotionValue(frame?.travel ?? (unavailable ? d : 0));
+  const travel = useMotionValue(
+    frame?.travel ?? (unavailable || (frame?.state === "committed" && !reduced) ? d : 0),
+  );
   const fill = useMotionValue(frame?.fill ?? 0);
-  const edgeOpacity = useMotionValue(frame?.edgeOpacity ?? 1);
+  const edgeOpacity = useMotionValue(frame?.edgeOpacity ?? (frame?.state === "committed" ? 0 : 1));
   const [stepValue, setStepValue] = useState(frame?.step ?? 0);
   const faceTransform = useTransform(travel, (v) => `translate(${v}px, ${v}px)`);
   const edgeR = useTransform(
@@ -215,9 +220,11 @@ export function Slab(props: WebSlabProps) {
   useEffect(() => {
     if (frame) {
       framed.current = true;
-      travel.set(frame.travel ?? (frame.state === "unavailable" ? d : 0));
+      travel.set(
+        frame.travel ?? (frame.state === "unavailable" || (frame.state === "committed" && !reduced) ? d : 0),
+      );
       fill.set(frame.fill ?? 0);
-      edgeOpacity.set(frame.edgeOpacity ?? 1);
+      edgeOpacity.set(frame.edgeOpacity ?? (frame.state === "committed" ? 0 : 1));
       setStepValue(frame.step ?? 0);
       return;
     }
@@ -227,7 +234,7 @@ export function Slab(props: WebSlabProps) {
     const committed = now === "committed";
     travel.jump(now === "unavailable" || (committed && !reduced) ? d : 0);
     fill.jump(committed && hold ? 1 : 0);
-    edgeOpacity.jump(committed && reduced ? 0 : 1);
+    edgeOpacity.jump(committed ? 0 : 1);
     setStepValue(committed && hold ? 1 : 0);
   }, [frame, travel, fill, edgeOpacity, d, reduced, hold]);
 
@@ -287,7 +294,10 @@ export function Slab(props: WebSlabProps) {
       if (latest.current.still) return;
       if (hold) animate(fill, 0, reduced ? tween("reduced") : tween("retract200"));
       moveTo(0, "rebound");
-      if (edgeOpacity.get() < 1) animate(edgeOpacity, 1, tween("edgesFade"));
+      if (edgeOpacity.get() < 1) {
+        if (reduced) edgeOpacity.set(1);
+        else animate(edgeOpacity, 1, tween("edgesFade"));
+      }
     },
     [setBusy, setLiveState, hold, fill, reduced, moveTo, edgeOpacity],
   );
@@ -302,7 +312,8 @@ export function Slab(props: WebSlabProps) {
     const id = ++attempt.current;
     if (stayDown) {
       setLiveState("committed");
-      if (reduced) animate(edgeOpacity, 0, tween("edgesFade"));
+      if (reduced) edgeOpacity.set(0);
+      else animate(edgeOpacity, 0, tween("edgesFade"));
     } else {
       setLiveState("rest");
       moveTo(0, "rebound");
@@ -738,11 +749,13 @@ export function Slab(props: WebSlabProps) {
       <div className="fs-slab__body" ref={bodyRef}>
         <motion.span
           className="fs-slab__edge fs-slab__edge--r"
-          style={{ transform: edgeR, opacity: edgeOpacity }}
+          hidden={reduced && state === "committed"}
+          style={{ transform: edgeR, opacity: reduced && state === "committed" ? 0 : edgeOpacity }}
         />
         <motion.span
           className="fs-slab__edge fs-slab__edge--b"
-          style={{ transform: edgeB, opacity: edgeOpacity }}
+          hidden={reduced && state === "committed"}
+          style={{ transform: edgeB, opacity: reduced && state === "committed" ? 0 : edgeOpacity }}
         />
         <motion.button
           ref={faceRef}
@@ -761,7 +774,9 @@ export function Slab(props: WebSlabProps) {
           onBlur={() => pressEnd(false)}
           onContextMenu={hold ? (e) => e.preventDefault() : undefined}
         >
-          {hold && <motion.span className="fs-slab__fill" style={{ transform: fillTransform }} aria-hidden />}
+          {hold && state !== "committed" && (
+            <motion.span className="fs-slab__fill" style={{ transform: fillTransform }} aria-hidden />
+          )}
           {bolted && (
             <>
               <span className="fs-slab__bolt fs-slab__bolt--l" aria-hidden />
@@ -769,12 +784,17 @@ export function Slab(props: WebSlabProps) {
             </>
           )}
           <span className="fs-slab__label">
-            {glyph && <Glyph name={glyph} size={size === "l" ? 24 : 20} />}
-            <span>{state === "armed" ? t("slab.release") : label}</span>
+            {glyph && !(state === "committed" && record) && (
+              <Glyph name={glyph} size={size === "l" ? 24 : 20} />
+            )}
+            <span>
+              {state === "committed" ? (record ?? label) : state === "armed" ? t("slab.release") : label}
+            </span>
           </span>
         </motion.button>
       </div>
       {hold &&
+        state !== "committed" &&
         (reduced || frame?.step !== undefined) &&
         (state === "holding" || state === "armed" || shownStep > 0) && (
           <div className="fs-slab__steps" data-testid={`${testId}.steps`}>

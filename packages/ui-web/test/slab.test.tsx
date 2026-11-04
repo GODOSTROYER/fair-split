@@ -128,6 +128,60 @@ describe("Slab", () => {
     expect(root("s").dataset.state).toBe("rest");
   });
 
+  it.each(["full", "reduced"] as const)(
+    "%s: a committed jade slab becomes a disabled record with no hold fill or progress",
+    async (motion) => {
+      render(
+        wrap(
+          <Slab
+            label="Approve 8 payouts"
+            record={<span>Signed by Analyn. Waiting for Ernesto.</span>}
+            srLabel="Signed by Analyn. Waiting for Ernesto."
+            depth="d3"
+            tone="jade"
+            hold={1600}
+            confirm={CONFIRM}
+            testId="record"
+            onCommit={() => undefined}
+          />,
+          motion,
+        ),
+      );
+      fireEvent.keyDown(face("record"), { key: " " });
+      act(() => vi.advanceTimersByTime(1600));
+      fireEvent.keyUp(face("record"), { key: " " });
+      if (motion === "full") await act(async () => vi.advanceTimersByTime(150));
+      expect(root("record").dataset.state).toBe("committed");
+      expect(face("record").textContent).toBe("Signed by Analyn. Waiting for Ernesto.");
+      expect(face("record").getAttribute("aria-disabled")).toBe("true");
+      expect(root("record").querySelector(".fs-slab__fill")).toBeNull();
+      expect(screen.queryByTestId("record.steps")).toBeNull();
+      for (const edge of root("record").querySelectorAll<HTMLElement>(".fs-slab__edge")) {
+        if (motion === "reduced") expect(edge.hidden).toBe(true);
+        else expect(edge.style.opacity).toBe("0");
+      }
+    },
+  );
+
+  it("sinks a committed still frame flush without an explicit travel value", () => {
+    render(
+      wrap(
+        <Slab
+          label="Approve"
+          record="Approved by Analyn and Ernesto"
+          srLabel="Approved by Analyn and Ernesto"
+          depth="d3"
+          tone="jade"
+          frame={{ state: "committed" }}
+          testId="record"
+          onCommit={() => undefined}
+        />,
+      ),
+    );
+    expect(face("record").style.transform).toBe("translate(8px, 8px)");
+    expect(root("record").querySelector<HTMLElement>(".fs-slab__edge")?.style.opacity).toBe("0");
+  });
+
   it("an unavailable slab sinks flush, keeps its label and explains why; it never commits", () => {
     const onCommit = vi.fn();
     render(
@@ -626,9 +680,9 @@ describe("Slab", () => {
         expect(onCommit).toHaveBeenCalledTimes(1);
         expect(root("approve").dataset).toMatchObject({ state: "committed", busy: "" });
         expect(face("approve").getAttribute("aria-busy")).toBe("true");
-        // While the answer is out, the face waits flush and full.
+        // While the answer is out, the face waits flush as a record, with no hold fill.
         await act(async () => vi.advanceTimersByTime(100));
-        expect([face("approve").style.transform, fill()]).toEqual(["translate(8px, 8px)", "scaleX(1)"]);
+        expect([face("approve").style.transform, fill()]).toEqual(["translate(8px, 8px)", undefined]);
         // MM-5 mismatch: the 409 says the batch changed. Nothing was signed, so the slab offers itself again.
         await act(async () => first.reject(new Error("409 BATCH_CHANGED")));
         await act(async () => vi.advanceTimersByTime(100));
@@ -868,7 +922,7 @@ describe("Slab", () => {
       expect(onCommit).toHaveBeenCalledTimes(1);
     });
 
-    it("the dialog shows the seal at 96 px with the first 16 hex digits of the batch", () => {
+    it("the dialog shows the seal at 96 px with both ends of the batch digest", () => {
       vi.useRealTimers();
       const batch = "7f3a91c2deadbeef0123456789abcdef0123456789abcdef0123456789abcdef";
       render(
@@ -889,7 +943,7 @@ describe("Slab", () => {
       const seal = screen.getByTestId("sign.dialog.seal");
       expect(seal.getAttribute("width")).toBe("96");
       expect(seal.dataset.state).toBe("keys-1");
-      expect(screen.getByTestId("sign.dialog.seal.hash").textContent).toBe("7f3a 91c2 dead beef");
+      expect(screen.getByTestId("sign.dialog.seal.hash").textContent).toBe("7f3a 91c2 … 89ab cdef");
     });
 
     it("reports the dialog route to the screen (MM-5 confirm phases), and its dismissal", () => {
