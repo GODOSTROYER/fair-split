@@ -4,5 +4,14 @@
     "noEmit": true,
     "lib": ["ES2023", "DOM"]
   },
-  "include": ["playwright.config.ts", "stack", "lib", "specs"]
+  "include": [
+    "playwright.config.ts",
+    "film.config.ts",
+    "run.ts",
+    "run.test.ts",
+    "film",
+    "stack",
+    "lib",
+    "specs"
+  ]
 }
