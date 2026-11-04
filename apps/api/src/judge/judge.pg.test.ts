@@ -1,6 +1,6 @@
 // Judge slice on embedded Postgres: the world clone, the pool, sessions (start, resume, throttles, QUEUED),
 // Reset, presence, the "Try to break it" controls, the judge code, demo keys and the judgeReset task.
-import { createHash, sign as edSign, generateKeyPairSync } from "node:crypto";
+import { createHash, sign as edSign, generateKeyPairSync, randomUUID } from "node:crypto";
 import {
   ApiError,
   CreateJudgeSessionResponse,
@@ -21,7 +21,7 @@ import { demoKeyStatement } from "./keys.js";
 import { claimPooledWorkspace, poolName, poolSize, purgeExpiredJudgeWorkspaces, refillPool } from "./pool.js";
 import { recordBalanceReading } from "./quota.js";
 import { runJudgeReset } from "./reset-task.js";
-import { judgeRuntime, MAX_CONCURRENT_CLONES } from "./runtime.js";
+import { JUDGE_RATE_RULES, judgeRuntime, MAX_CONCURRENT_CLONES } from "./runtime.js";
 import { tamperArmed } from "./tamper.js";
 import { openingLedger } from "./world.js";
 
@@ -766,15 +766,35 @@ describe("the judge session view, the lane and the judge code", () => {
         );
         expect(spoofed.status).toBe(429);
 
-        // 3. many sessions on many networks: thirty guesses a minute in all, then even the right code waits
+        // 3. Thirty guesses across six networks leave room for a seventh network's correct code.
+        // Fresh signed cookies share an existing workspace: code limits concern sessions, not world clones.
         app.deps.rateLimits.reset();
+        const fixture = await app.json("/v1/judge/sessions", {
+          method: "POST",
+          body: {},
+          headers: { "cf-connecting-ip": "198.18.10.1" },
+        });
+        expect(fixture.status).toBe(201);
+        const workspaceId = CreateJudgeSessionResponse.parse(fixture.body).workspaceId;
+        const fresh = () => app.credentials.judge(app.credentials.judgeCookie({ workspaceId }));
         for (let s = 0; s < 6; s++) {
-          const j = await start();
+          const j = fresh();
           for (let i = 0; i < 5; i++) {
-            expect((await guess(j, { "cf-connecting-ip": `198.19.${10 + s}.${i}` })).status).toBe(403);
+            expect((await guess(j, { "cf-connecting-ip": `198.19.${10 + s}.1` })).status).toBe(403);
           }
         }
-        const late = await start();
+        const seventh = await guess(fresh(), { "cf-connecting-ip": "198.19.99.1" }, code);
+        expect(seventh.status).toBe(200);
+
+        // The global bound remains: 60 networks with five guesses each exhaust 300, including correct codes.
+        app.deps.rateLimits.reset();
+        for (let s = 0; s < 60; s++) {
+          const j = fresh();
+          for (let i = 0; i < 5; i++) {
+            expect((await guess(j, { "cf-connecting-ip": `198.20.${s}.1` })).status).toBe(403);
+          }
+        }
+        const late = fresh();
         const global = await guess(late, { "cf-connecting-ip": "198.19.99.1" }, code);
         expect(global.status).toBe(429);
         expect(Number(global.headers.get("retry-after"))).toBeGreaterThan(0);
@@ -788,6 +808,34 @@ describe("the judge session view, the lane and the judge code", () => {
     },
     SLOW,
   );
+
+  it("HD6-10 a global judge-code refusal preserves all personal and network attempts", async () => {
+    const s = await startSession({ ip: "198.18.11.1" });
+    t.deps.rateLimits.reset();
+    for (let i = 0; i < JUDGE_RATE_RULES.judgeCodeGlobal.limit; i++) {
+      t.deps.rateLimits.take(JUDGE_RATE_RULES.judgeCodeGlobal, "all");
+    }
+    const sessionId = randomUUID();
+    const as = judge(t.credentials.judgeCookie({ workspaceId: s.body.workspaceId, sessionId }));
+    const ip = "198.19.100.1";
+    const key = hashedClientIp(t.deps.credentials.keys, ip, t.clock.now());
+    const refused = await t.json("/v1/judge/code", {
+      method: "POST",
+      body: { code: "wrong" },
+      as,
+      headers: { "cf-connecting-ip": ip },
+    });
+    expect(refused.status).toBe(429);
+    expect(t.deps.rateLimits.peek(JUDGE_RATE_RULES.judgeCodePerSession, sessionId)).toEqual({
+      ok: true,
+      remaining: 5,
+    });
+    expect(t.deps.rateLimits.peek(JUDGE_RATE_RULES.judgeCodePerIp, key)).toEqual({ ok: true, remaining: 5 });
+    t.clock.advance(60_001);
+    for (let i = 0; i < 5; i++) {
+      expect(t.deps.rateLimits.take(JUDGE_RATE_RULES.judgeCodePerSession, sessionId).ok).toBe(true);
+    }
+  });
 });
 
 describe("demo signing keys", () => {
