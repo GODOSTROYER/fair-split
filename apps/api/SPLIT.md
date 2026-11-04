@@ -440,3 +440,7 @@ await t.close();
   transaction as the event and its outbox task. Legacy rows keep NULL and require a fresh GET.
   `orphan` with an error reason records notices deferred to settlement or blocked by stranded/identity
   checks; `appliedAt` is set only for an actual application or held-status corroboration.
+
+## HD6
+
+- HD6-2: Request windows have a 20,000-key LRU bound, per-rule expiry, paced sweeping and atomic takeAll/peek/refund; refused cookieless starts mint no throttle key.

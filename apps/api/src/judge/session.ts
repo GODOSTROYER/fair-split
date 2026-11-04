@@ -130,16 +130,18 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
 
   // 2. Throttle new sessions: per cookie (a session id outlives a Reset) and per hashed IP (loose bound).
   const sessionId = cookie.status === "ok" ? cookie.sid : randomUUID();
-  const perCookie = deps.rateLimits.take(RATE_RULES.judgeSessionPerCookie, sessionId);
-  if (!perCookie.ok) {
-    throw problem.rateLimited(
-      perCookie.retryAfterMs,
-      "Three new sessions an hour per browser. Resume yours.",
-    );
-  }
   const ip = clientIpKey(c);
   const perIp = deps.rateLimits.take(RATE_RULES.judgeSessionPerIp, ip);
   if (!perIp.ok) throw problem.rateLimited(perIp.retryAfterMs, "Too many new sessions from this network.");
+  if (cookie.status === "ok") {
+    const perCookie = deps.rateLimits.take(RATE_RULES.judgeSessionPerCookie, sessionId);
+    if (!perCookie.ok) {
+      throw problem.rateLimited(
+        perCookie.retryAfterMs,
+        "Three new sessions an hour per browser. Resume yours.",
+      );
+    }
+  }
 
   // 3. Live or replay, from fresh flags and counts (over quota is a labelled replay, never a refusal).
   const rail = await judgeRail(deps, { workspaceId: NO_WORKSPACE, sessionId, step: "session" });

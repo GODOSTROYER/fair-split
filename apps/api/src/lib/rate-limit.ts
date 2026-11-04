@@ -15,6 +15,12 @@ export type RateDecision = { ok: true; remaining: number } | { ok: false; retryA
 export interface KeyedRateLimiter {
   /** Take one slot for `key` under `rule`. */
   take(rule: RateRule, key: string): RateDecision;
+  /** Atomically consume all pairs, or consume none. Duplicate pairs count as separate slots. */
+  takeAll(pairs: readonly (readonly [RateRule, string])[]): RateDecision;
+  /** Check without consuming or creating a key. */
+  peek(rule: RateRule, key: string): RateDecision;
+  /** Return the most recently consumed slot (failed work only). */
+  refund(rule: RateRule, key: string): void;
   /** Forget every window (tests, judge reset). */
   reset(): void;
   readonly size: number;
@@ -22,6 +28,7 @@ export interface KeyedRateLimiter {
 
 /** Register limits (S3.7 presence, S3.9 quotas). Slices may define more; keep them here so /ops can list them. */
 export const RATE_RULES = {
+  sseOpen: { name: "sseOpen", limit: 30, windowMs: 60_000 },
   /** POST /v1/presence: at most 1 Hz per client. */
   presence: { name: "presence", limit: 1, windowMs: 1_000 },
   /** POST /v1/pairing/claim: guessing a 6-digit code must be slow (per hashed IP). */
@@ -32,39 +39,89 @@ export const RATE_RULES = {
   judgeSessionPerIp: { name: "judgeSessionPerIp", limit: 30, windowMs: 3_600_000 },
 } as const satisfies Record<string, RateRule>;
 
-const MAX_KEYS = 20_000;
+export const MAX_KEYS = 20_000;
+export const SWEEP_INTERVAL_MS = 5_000;
 
-export function createKeyedRateLimiter(clock: Clock): KeyedRateLimiter {
-  const windows = new Map<string, number[]>();
+export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => void } = {}): KeyedRateLimiter {
+  const windows = new Map<string, { hits: number[]; windowMs: number }>();
+  let lastSweep = clock.nowMs();
+  const idOf = (rule: RateRule, key: string) => `${rule.name}\u0000${key}`;
 
   function sweep(now: number) {
-    for (const [k, hits] of windows) {
-      if (hits.length === 0 || (hits[hits.length - 1] ?? 0) <= now - 3_600_000) windows.delete(k);
+    if (now - lastSweep < SWEEP_INTERVAL_MS) return;
+    lastSweep = now;
+    hooks.onSweep?.();
+    for (const [k, value] of windows) {
+      if (value.hits.length === 0 || (value.hits.at(-1) ?? 0) <= now - value.windowMs) windows.delete(k);
     }
   }
 
-  return {
+  function hitsFor(rule: RateRule, key: string, now: number): number[] {
+    const hits = windows.get(idOf(rule, key))?.hits ?? [];
+    while (hits.length > 0 && (hits[0] ?? 0) <= now - rule.windowMs) hits.shift();
+    return hits;
+  }
+
+  function decision(rule: RateRule, hits: number[], now: number): RateDecision {
+    return hits.length >= rule.limit
+      ? { ok: false, retryAfterMs: Math.max(1, (hits[0] ?? now) + rule.windowMs - now) }
+      : { ok: true, remaining: rule.limit - hits.length };
+  }
+
+  function touch(rule: RateRule, key: string, hits: number[], now: number) {
+    const id = idOf(rule, key);
+    if (!windows.delete(id) && windows.size >= MAX_KEYS) sweep(now);
+    if (windows.size >= MAX_KEYS) {
+      const oldest = windows.keys().next().value;
+      if (oldest !== undefined) windows.delete(oldest);
+    }
+    windows.set(id, { hits, windowMs: rule.windowMs });
+  }
+
+  const limiter: KeyedRateLimiter = {
     take(rule, key) {
       const now = clock.nowMs();
-      const id = `${rule.name}\u0000${key}`;
-      let hits = windows.get(id);
-      if (!hits) {
-        if (windows.size >= MAX_KEYS) sweep(now);
-        hits = [];
-        windows.set(id, hits);
+      const hits = hitsFor(rule, key, now);
+      const result = decision(rule, hits, now);
+      if (result.ok) hits.push(now);
+      touch(rule, key, hits, now);
+      return result.ok ? { ok: true, remaining: rule.limit - hits.length } : result;
+    },
+    peek(rule, key) {
+      const now = clock.nowMs();
+      return decision(rule, hitsFor(rule, key, now), now);
+    },
+    takeAll(pairs) {
+      const now = clock.nowMs();
+      const pending = new Map<string, { rule: RateRule; key: string; hits: number[] }>();
+      let remaining = Number.POSITIVE_INFINITY;
+      for (const [rule, key] of pairs) {
+        const id = idOf(rule, key);
+        let value = pending.get(id);
+        if (!value) {
+          value = { rule, key, hits: [...hitsFor(rule, key, now)] };
+          pending.set(id, value);
+        }
+        const result = decision(rule, value.hits, now);
+        if (!result.ok) return result;
+        value.hits.push(now);
+        remaining = Math.min(remaining, rule.limit - value.hits.length);
       }
-      while (hits.length > 0 && (hits[0] ?? 0) <= now - rule.windowMs) hits.shift();
-      if (hits.length >= rule.limit) {
-        return { ok: false, retryAfterMs: Math.max(1, (hits[0] ?? now) + rule.windowMs - now) };
-      }
-      hits.push(now);
-      return { ok: true, remaining: rule.limit - hits.length };
+      for (const value of pending.values()) touch(value.rule, value.key, value.hits, now);
+      return { ok: true, remaining };
+    },
+    refund(rule, key) {
+      const hits = hitsFor(rule, key, clock.nowMs());
+      hits.pop();
+      if (hits.length === 0) windows.delete(idOf(rule, key));
     },
     reset() {
       windows.clear();
+      lastSweep = clock.nowMs();
     },
     get size() {
       return windows.size;
     },
   };
+  return limiter;
 }
