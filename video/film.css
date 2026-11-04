@@ -368,3 +368,28 @@ body {
   line-height: 1.15;
   z-index: 10;
 }
+/* Review round: evidence lines timed to one clip, and the part bumper. Layout only: no new colour (the bumper
+   inherits the scene's background), so a new look restyles them with the scene. */
+.evidence-timed {
+  position: relative;
+  min-height: 104px;
+}
+.slot-evidence.clip {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px 28px;
+}
+.part-bumper {
+  inset: auto;
+  left: 96px;
+  top: 126px;
+  max-width: 1500px;
+  background: inherit;
+  border: 2px solid currentColor;
+  padding: 18px 28px;
+  font-size: 56px;
+  font-weight: 760;
+  line-height: 1.1;
+  z-index: 12;
+}

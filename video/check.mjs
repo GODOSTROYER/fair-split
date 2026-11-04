@@ -1,10 +1,31 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ARCHITECTURE, beats, FILM, PARTS } from "./script.ts";
+import {
+  ARCHITECTURE,
+  BUMPER_SECONDS,
+  beats,
+  CHAPTERS,
+  FILM,
+  PARTS,
+  REAL_READING_CAPTION,
+} from "./script.ts";
 
 const root = fileURLToPath(new URL("./", import.meta.url));
 const read = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
+const round = (value) => Number(value.toFixed(6));
+const near = (a, b) => Math.abs(a - b) < 1e-6;
+/** When `phrase` is said in `beat`: word-proportional across its speech window, as the captions are timed. */
+function said(beat, phrase) {
+  const words = beat.say.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word));
+  const want = phrase.toLowerCase().split(/\s+/);
+  const index = words.findIndex((_, i) =>
+    want.every((w, k) => (words[i + k] ?? "").toLowerCase().replace(/^\W+/, "").startsWith(w)),
+  );
+  assert(index >= 0, `${beat.id}: "${phrase}" is not spoken`);
+  const [from, to] = beat.speech ?? [beat.start, beat.end];
+  return from + ((to - from) * index) / words.length;
+}
 const esc = (text) =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const captions = JSON.parse(read("captions.json"));
@@ -117,12 +138,91 @@ for (const beat of beats) {
     assert(ranges.length, `${beat.id}: no capture slots`);
     let end = beat.start;
     for (const slot of ranges) {
-      assert.equal(slot.start, end, `${beat.id}: capture gap/overlap`);
+      assert(near(slot.start, end), `${beat.id}: capture gap/overlap at ${slot.id}`);
       end += slot.duration;
     }
-    assert.equal(end, beat.end, `${beat.id}: incomplete capture coverage`);
+    assert(near(end, beat.end), `${beat.id}: incomplete capture coverage`);
+    // A clip that cuts in on narration words starts as they are said: within 0.3 s, or, for the clip that opens
+    // its beat, no later than they are (it may lead in under the words that introduce it).
+    for (const [i, slot] of ranges.entries()) {
+      if (!slot.word) continue;
+      const t = said(beat, slot.word);
+      const lead = i === 0 ? 1.5 : 0.3;
+      assert(
+        slot.start <= t + 0.3 && slot.start >= t - lead,
+        `${slot.id}: starts at ${slot.start}, but "${slot.word}" is said at ${t.toFixed(2)}`,
+      );
+    }
   }
+  // Pace in the speech window itself, not only across the beat (E-19 measures the beat).
+  const [from, to] = beat.speech ?? [beat.start, beat.end];
+  assert(from >= beat.start && to <= beat.end && to > from, `${beat.id}: speech outside its beat`);
+  const count = beat.say.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+  assert((count / (to - from)) * 60 <= 140, `${beat.id}: narration over 140 wpm in its speech window`);
 }
+// Every highlight clip names its feature; every clip after the reel's first cuts in on its word.
+const reel = slots.filter((slot) => slot.beat === "highlights");
+assert(
+  reel.length >= 6 && reel.every((slot) => slot.label && slot.word),
+  "Reel clips need a label and a word",
+);
+for (const slot of reel)
+  assert(
+    slot.label.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length <= 5,
+    `${slot.id}: label over 5 words`,
+  );
+// The full architecture holds on screen after its last step, long enough to read.
+assert(
+  architectureBeat.end - ARCHITECTURE.reveal.at(-1).at >= 3,
+  "Architecture: the full diagram holds under 3 s",
+);
+// R1's real-reading caption appears only over the exhibit clip: never on a beat, never over the run's own rows.
+for (const beat of beats)
+  assert(!beat.show.includes(REAL_READING_CAPTION), `${beat.id}: real-reading caption on a beat`);
+for (const slot of slots) {
+  const real = slot.overlay.includes(REAL_READING_CAPTION);
+  assert(
+    !real || slot.state.startsWith("Hero-slip exhibit"),
+    `${slot.id}: real-reading caption off the exhibit`,
+  );
+  assert(
+    !(real && slot.overlay.some((text) => /stand-in/i.test(text))),
+    `${slot.id}: a stand-in label over the real exhibit`,
+  );
+}
+// Chapters start on beats, and chapters.txt is exactly the script's.
+for (const chapter of CHAPTERS)
+  assert(
+    beats.some((beat) => beat.start === chapter.start),
+    `Chapter "${chapter.title}" is not on a beat`,
+  );
+const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+assert.equal(
+  read("chapters.txt"),
+  `${CHAPTERS.map((chapter) => `${mmss(chapter.start)} ${chapter.title}`).join("\n")}\n`,
+  "chapters.txt differs from CHAPTERS",
+);
+// A part's bumper sits over the first frames of its first beat.
+for (const part of PARTS) {
+  if (!part.bumper) continue;
+  const first = beats.find((beat) => beat.start === part.start);
+  assert(
+    read(`compositions/${first.id}.html`).includes(
+      `<div id="${first.id}-bumper" class="clip part-bumper" data-start="0" data-duration="${BUMPER_SECONDS}" data-track-index="7">${esc(part.bumper)}</div>`,
+    ),
+    `${part.id}: bumper missing`,
+  );
+}
+// Every reference screenshot exists, when research/design-1104 is next to this checkout (it is outside the repo).
+const design = [1, 2, 3]
+  .map((up) => new URL(`${"../".repeat(up + 1)}research/design-1104/`, import.meta.url))
+  .find((dir) => existsSync(dir));
+if (design)
+  for (const slot of slots.filter((item) => item.reference))
+    assert(
+      existsSync(new URL(slot.reference.replace(/^research\/design-1104\//, ""), design)),
+      `${slot.id}: ${slot.reference} does not exist`,
+    );
 const first = read(`compositions/${beats[0].id}.html`);
 assert(first.includes(`<div class="disclosure">${esc(FILM.firstCaption)}</div>`), "First caption disclosure");
 const last = read(`compositions/${beats.at(-1).id}.html`);
@@ -150,7 +250,14 @@ for (const slot of slots) {
       (existsSync(`${root}/${slot.file}`) && scene.includes(slot.file)),
     `${slot.id}: missing placeholder or capture`,
   );
-  const timing = `data-start="${slot.start - beat.start}" data-duration="${slot.duration}"`;
+  const timing = `data-start="${round(slot.start - beat.start)}" data-duration="${slot.duration}"`;
+  if (slot.overlay.length)
+    assert(
+      scene.includes(
+        `<div id="${slot.id}-evidence" class="clip slot-evidence" ${timing} data-track-index="6">${slot.overlay.map((text) => `<p>${esc(text)}</p>`).join("")}</div>`,
+      ),
+      `${slot.id}: clip evidence missing or mistimed`,
+    );
   if (slot.label)
     assert(
       scene.includes(

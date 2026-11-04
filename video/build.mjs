@@ -11,7 +11,16 @@ import {
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ARCHITECTURE, beats, CAPTURES, CHAPTERS, FILM, PARTS, READING_VARIANT } from "./script.ts";
+import {
+  ARCHITECTURE,
+  BUMPER_SECONDS,
+  beats,
+  CAPTURES,
+  CHAPTERS,
+  FILM,
+  PARTS,
+  READING_VARIANT,
+} from "./script.ts";
 
 const root = new URL("./", import.meta.url);
 const esc = (text) =>
@@ -62,6 +71,8 @@ const slots = CAPTURES.map((capture) => {
     selector: capture.phase ? `[data-moment="${moment}"][data-moment-phase="${capture.phase}"]` : null,
     persona: capture.persona,
     label: capture.label,
+    word: capture.word,
+    overlay: capture.overlay,
     reference: capture.reference ? `research/design-1104/${capture.reference}` : null,
     // Only F3 may mark a recorded wait accelerated. No implied acceleration on placeholders.
     playbackRate: kept?.playbackRate ?? 1,
@@ -77,25 +88,62 @@ const slots = CAPTURES.map((capture) => {
 write("captures.json", `${JSON.stringify(slots, null, 2)}\n`);
 
 // Phrase times are provisional until F4 alignment. Splitting only at spaces preserves every word.
+/** Two caption lines at the caption's size. */
+const MAX_CAPTION = 78;
+/** A break after a full stop, semicolon or colon reads best, then a comma; mid-clause breaks cost most. */
+const breakCost = (word, last) => (last || /[.;:!?]$/.test(word) ? 0 : /,$/.test(word) ? 150 : 600);
+/** A phrase shorter than this flashes by (a lone word left over from the line before). */
+const SHORT_CAPTION = 30;
+/** What one more phrase costs, so a split only grows when that buys a cleaner break. */
+const PHRASE_COST = 100;
+/**
+ * Phrases of at most MAX_CAPTION characters that break at punctuation where they can, avoid fragments and are
+ * otherwise near equal in length: the cheapest of the fewest phrases that fit and up to two more.
+ */
+function phrases(say) {
+  const fewest = Math.max(1, Math.ceil(say.length / MAX_CAPTION));
+  const options = [fewest, fewest + 1, fewest + 2].map((n) => split(say, n)).filter(Boolean);
+  if (!options.length) throw new Error(`No caption split for: ${say}`);
+  return options.reduce((a, b) => (b.cost < a.cost ? b : a)).phrases;
+}
+function split(say, n) {
+  const words = say.split(" ");
+  if (n > words.length) return null;
+  const length = (a, b) => words.slice(a, b).join(" ").length;
+  const target = say.length / n;
+  // best[k][i]: the cheapest way to cut words[0, i) into k phrases, and where its last phrase starts.
+  const best = Array.from({ length: n + 1 }, () => Array(words.length + 1).fill(null));
+  best[0][0] = { cost: 0, from: -1 };
+  for (let k = 1; k <= n; k++)
+    for (let i = 1; i <= words.length; i++)
+      for (let j = k - 1; j < i; j++) {
+        const prior = best[k - 1][j];
+        const size = length(j, i);
+        if (!prior || size > MAX_CAPTION) continue;
+        const cost =
+          prior.cost +
+          breakCost(words[i - 1], i === words.length) +
+          Math.max(0, SHORT_CAPTION - size) ** 2 +
+          (size - target) ** 2 / 10;
+        if (!best[k][i] || cost < best[k][i].cost) best[k][i] = { cost, from: j };
+      }
+  if (!best[n][words.length]) return null;
+  const out = [];
+  for (let k = n, i = words.length; k > 0; i = best[k][i].from, k--)
+    out.unshift(words.slice(best[k][i].from, i).join(" "));
+  return { phrases: out, cost: best[n][words.length].cost + PHRASE_COST * n };
+}
 const captions = beats.flatMap((beat) => {
   if (!beat.say) return [];
-  const chunks = [];
-  let current = "";
-  for (const word of beat.say.split(" ")) {
-    if (current && current.length + word.length + 1 > 76) {
-      chunks.push(current);
-      current = "";
-    }
-    current += `${current ? " " : ""}${word}`;
-  }
-  if (current) chunks.push(current);
+  const chunks = phrases(beat.say);
+  // A beat may speak in only part of its time (the architecture holds its finished diagram in silence).
+  const [from, to] = beat.speech ?? [beat.start, beat.end];
   const total = chunks.reduce((sum, text) => sum + text.split(" ").length, 0);
   let consumed = 0;
   return chunks.map((text, index) => {
-    const start = beat.start + ((beat.end - beat.start) * consumed) / total;
+    const start = from + ((to - from) * consumed) / total;
     consumed += text.split(" ").length;
-    const end =
-      index === chunks.length - 1 ? beat.end : beat.start + ((beat.end - beat.start) * consumed) / total;
+    const end = index === chunks.length - 1 ? to : from + ((to - from) * consumed) / total;
     return { beat: beat.id, start: seconds(start), end: seconds(end), text };
   });
 });
@@ -116,21 +164,18 @@ const positions = {
   engine: [900, 30, 400, 110],
   keys: [1340, 30, 430, 110],
   outbox: [1340, 230, 430, 110],
-  invoice: [900, 200, 400, 85],
-  payouts: [900, 305, 400, 85],
+  tools: [900, 230, 400, 110],
   paypal: [460, 230, 400, 110],
   confirmation: [40, 215, 380, 140],
   surfaces: [40, 440, 820, 110],
   cash: [900, 440, 400, 110],
-  host: [40, 610, 1730, 80],
 };
+const VIEW = { width: 1810, height: 580 };
 const routes = {
   "keys:outbox": "M 1555 140 L 1555 230",
   "keys:cash": "M 1770 85 L 1795 85 L 1795 495 L 1300 495",
-  "outbox:invoice": "M 1340 285 L 1320 285 L 1320 242 L 1300 242",
-  "outbox:payouts": "M 1340 285 L 1320 285 L 1320 347 L 1300 347",
-  "invoice:paypal": "M 900 242 L 880 242 L 880 270 L 860 270",
-  "payouts:paypal": "M 900 347 L 880 347 L 880 300 L 860 300",
+  "outbox:tools": "M 1340 285 L 1300 285",
+  "tools:paypal": "M 900 285 L 860 285",
   "paypal:confirmation": "M 460 285 L 420 285",
   "confirmation:surfaces": "M 230 355 L 230 440",
   "cash:surfaces": "M 900 495 L 860 495",
@@ -161,7 +206,7 @@ const key = ([from, to]) => `${from}:${to}`;
 function diagram(shown = null, fresh = new Set()) {
   const boxes = ARCHITECTURE.boxes.filter((box) => !shown || shown.has(box.id));
   const arrows = ARCHITECTURE.arrows.filter((arrow) => !shown || shown.has(key(arrow)));
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1810 700" role="img" aria-label="${esc(boxes.map((box) => box.label).join("; "))}"><defs><marker id="architecture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#BDB1A4"/></marker></defs>${arrows.map((arrow) => `<path data-edge="${key(arrow)}" d="${edge(...arrow)}" stroke="#BDB1A4" stroke-width="${fresh.has(key(arrow)) ? 4 : 2}" fill="none" marker-end="url(#architecture-arrow)"/>`).join("")}${boxes
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW.width} ${VIEW.height}" role="img" aria-label="${esc(boxes.map((box) => box.label).join("; "))}"><defs><marker id="architecture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#BDB1A4"/></marker></defs>${arrows.map((arrow) => `<path data-edge="${key(arrow)}" d="${edge(...arrow)}" stroke="#BDB1A4" stroke-width="${fresh.has(key(arrow)) ? 4 : 2}" fill="none" marker-end="url(#architecture-arrow)"/>`).join("")}${boxes
     .map((box) => {
       const [x, y, w, h] = positions[box.id];
       const lines = wrap(box.label, Math.floor((w - 40) / 14));
@@ -186,6 +231,23 @@ const labels = (beat) =>
       return `<p${statement ? ` class="statement" data-statement-text="${esc(text)}"` : ""}>${content}</p>`;
     })
     .join("")}</div>`;
+/** Evidence lines that belong to one clip appear and leave with it, never over a neighbouring clip. */
+function slotEvidence(captures, beat) {
+  const timed = captures.filter((slot) => slot.overlay.length);
+  if (!timed.length) return "";
+  return `<div class="evidence evidence-timed">${timed
+    .map(
+      (slot) =>
+        `<div id="${slot.id}-evidence" class="clip slot-evidence" data-start="${seconds(slot.start - beat.start)}" data-duration="${slot.duration}" data-track-index="6">${slot.overlay.map((text) => `<p>${esc(text)}</p>`).join("")}</div>`,
+    )
+    .join("")}</div>`;
+}
+/** A part's bumper over the first frames of its first beat: tells the judge a new part has begun. */
+function bumper(beat) {
+  const part = PARTS.find((item) => item.id === beat.part);
+  if (!part?.bumper || part.start !== beat.start) return "";
+  return `<div id="${beat.id}-bumper" class="clip part-bumper" data-start="0" data-duration="${BUMPER_SECONDS}" data-track-index="7">${esc(part.bumper)}</div>`;
+}
 function slotMarkup(slot, localStart) {
   const available = existsSync(new URL(slot.file, root));
   const body = available
@@ -244,7 +306,7 @@ for (const [index, beat] of beats.entries()) {
   const captures = slots.filter((slot) => slot.beat === beat.id);
   const body = beat.card
     ? cardMarkup(beat)
-    : captures.map((slot) => slotMarkup(slot, slot.start - beat.start)).join("");
+    : captures.map((slot) => slotMarkup(slot, seconds(slot.start - beat.start))).join("");
   const disclosure =
     index === 0
       ? FILM.firstCaption
@@ -255,7 +317,7 @@ for (const [index, beat] of beats.entries()) {
           : "";
   write(
     `compositions/${beat.id}.html`,
-    `<!doctype html>\n<html lang="en"><head><meta charset="UTF-8"></head><body><template><style>#root{position:absolute;inset:0;width:100%;height:100%}</style><div id="root" data-no-timeline data-composition-id="${beat.id}" data-width="1920" data-height="1080" data-duration="${duration}"><section class="scene" data-part="${beat.part}"><header class="header"><span>${esc(partTitle[beat.part])} · ${esc(chapter)}</span><span class="season">2026-A</span></header><div class="content">${body}</div>${beat.card ? "" : labels(beat)}</section><div class="simulation">Simulated PayPal sandbox</div>${disclosure ? `<div class="disclosure">${esc(disclosure)}</div>` : ""}</div></template></body></html>\n`,
+    `<!doctype html>\n<html lang="en"><head><meta charset="UTF-8"></head><body><template><style>#root{position:absolute;inset:0;width:100%;height:100%}</style><div id="root" data-no-timeline data-composition-id="${beat.id}" data-width="1920" data-height="1080" data-duration="${duration}"><section class="scene" data-part="${beat.part}"><header class="header"><span>${esc(partTitle[beat.part])} · ${esc(chapter)}</span><span class="season">2026-A</span></header><div class="content">${body}</div>${beat.card ? "" : `${labels(beat)}${slotEvidence(captures, beat)}`}${bumper(beat)}</section><div class="simulation">Simulated PayPal sandbox</div>${disclosure ? `<div class="disclosure">${esc(disclosure)}</div>` : ""}</div></template></body></html>\n`,
   );
   written.add(`${beat.id}.html`);
 }
