@@ -325,8 +325,20 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/statuses replayed/i);
       await page.getByTestId("W-JG-01.tab.member").click();
       const member = page.frameLocator('[data-testid="W-JG-01.frame.member"]');
-      // Keep the phone subscribed before POST: the event must override this run's original simulator DTO.
+      // Keep the phone subscribed before POST. The submitted line refetch and later item event both carry replay evidence.
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
+      await page.evaluate(() => {
+        const frame = document.querySelector<HTMLIFrameElement>('[data-testid="W-JG-01.frame.member"]');
+        const seen = { paidFeedback: false, paidPress: false };
+        Object.assign(window, { replayMemberMoments: seen });
+        window.addEventListener("message", (event: MessageEvent) => {
+          if (event.source !== frame?.contentWindow || !event.data || typeof event.data !== "object") return;
+          const message = event.data as { t?: string; moment?: string; phase?: string; event?: string };
+          if (message.t === "fs.moment" && message.moment === "MM-1" && message.phase === "press")
+            seen.paidPress = true;
+          if (message.t === "fs.feedback" && message.event === "item.paid.member") seen.paidFeedback = true;
+        });
+      });
       expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
       expect(
         (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
@@ -342,6 +354,42 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(
         /This payment uses|Kini nga bayad pinaagi|Ang bayad na ito ay sa/,
       );
+      expect(
+        await page.evaluate(
+          () => (window as unknown as { replayMemberMoments: unknown }).replayMemberMoments,
+        ),
+      ).toEqual({ paidFeedback: false, paidPress: false });
+      // A judge can open the member's line directly from the split, including its SMS and thermal copy.
+      await page.getByTestId("W-JG-01.rail.split").click();
+      await page.getByTestId("W-TR-05.row.M-014").click();
+      await expect(page.getByTestId("W-TR-09.status")).toHaveText(/Replayed \(labelled\)/i);
+      await expect(page.getByTestId("W-TR-09.status")).toHaveAttribute("data-tone", "neutral");
+      await expect(page.getByTestId("W-TR-09.amount")).toHaveAttribute("data-amount-state", "hollow");
+      await expect(page.getByTestId("W-TR-09.history")).toContainText(/replay/i);
+      await expect(page.getByTestId("W-TR-09.history")).toContainText(
+        /earlier simulated PayPal sandbox run/i,
+      );
+      await page.getByTestId("W-TR-09.sms.en").click();
+      await expect(page.getByTestId("W-TR-09.sms.text")).toContainText(/replay/i);
+      await expect(page.getByTestId("W-TR-09.sms.text")).toContainText(/simulated PayPal sandbox/i);
+      await expect(page.getByTestId("W-TR-09.sms.text")).not.toContainText(/\bPaid:|Bayad na/i);
+      const printOpened = page.waitForEvent("popup");
+      await page.getByTestId("W-TR-09.print").click();
+      const printed = await printOpened;
+      try {
+        await expect(printed.getByTestId("W-TR-09.paper")).toContainText(/Replayed \(labelled\)/i);
+        await expect(printed.getByTestId("W-TR-09.paper")).toContainText(
+          /earlier simulated PayPal sandbox run/i,
+        );
+        await expect(printed.getByTestId("W-TR-09.print.amount")).toHaveAttribute(
+          "data-amount-state",
+          "hollow",
+        );
+        await expect(printed.getByTestId("W-TR-09.paper")).not.toContainText(/Paid by PayPal|Bayad na/i);
+      } finally {
+        await printed.close();
+      }
+      await page.keyboard.press("Escape");
       // Cold read uses payout evidence without SSE history restoring the replay label after navigation.
       await page.route("**/v1/lines/*/events*", (route) => route.abort());
       const coldRead = page.waitForResponse(
@@ -464,10 +512,14 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       ).toBe("NEEDS_FOLLOW_UP");
       const item = await events.waitFor((event) => event.type === "item.updated", 10_000);
       expect(item?.provenance).toBe("simulated_rail");
+      // Wait for the POST outcome before checking its rail: the pre-POST frame is simulated too.
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-state", "paid");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toHaveAttribute("data-tone", "neutral");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
       await expect(member.getByTestId("M-MB-01.railCopy")).toContainText(/simulated PayPal sandbox/);
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
-      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/Bayad na|Paid|Bayad/);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/^(Bayad na|Paid|Bayad)\b/);
       const browserQuota = page.waitForResponse(
         async (response) => {
           if (new URL(response.url()).pathname !== "/v1/judge/session" || response.status() !== 200)
@@ -494,9 +546,12 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
         provenance: "simulated_rail",
         mobile: { provenance: "simulated_rail", item: { status: "SUCCESS", provenance: "simulated_rail" } },
       });
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-state", "paid");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toHaveAttribute("data-tone", "neutral");
+      await expect(member.getByTestId("M-MB-01.capsule")).not.toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
-      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/Bayad na|Paid|Bayad/);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/^(Bayad na|Paid|Bayad)\b/);
       await page.getByTestId("W-JG-01.rail.run").click();
       const chip = page.getByTestId("W-JG-01.proofChip");
       await expect(chip).toContainText(/confirmed/i);
