@@ -34,9 +34,9 @@ const Verification = z.object({
   ),
 });
 
-// Turned on when AU3 publishes all nine verified M-014 Cebuano clips (media/tts-statements.md); until then the
-// subset test below pins what is published and that every missing sentence keeps the labelled device voice.
-it.skip("inv.i8.au3-published: every exported M-014 Cebuano sentence has a real labelled clip served with its exact hash", async () => {
+// All nine M-014 Cebuano clips are published with independent verification (media/tts-statements.md).
+// The subset test below also pins the labelled device-voice fallback for any unpublished sentence.
+it("inv.i8.au3-published: every exported M-014 Cebuano sentence has a real labelled clip served with its exact hash", async () => {
   const plans = JSON.parse(readFileSync(path.join(media, "statement-plans.json"), "utf8")) as Awaited<
     ReturnType<typeof exportStatementPlans>
   >;
