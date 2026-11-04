@@ -24,6 +24,7 @@ import {
   senderItemId,
 } from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
+import { lineHashNow } from "../money/line-hash.js";
 import type { ReceiverDirectory } from "../money/receivers.js";
 import { toInt } from "../runs/codes.js";
 import { canonicalOf, cardById, cosignRule, type SeasonRow, seasonById } from "../runs/load.js";
@@ -141,8 +142,12 @@ export async function runBatch(
     },
     cosign,
   );
+  // I4: each line as it is now (`lineHashNow`, the same hash PayoutsService is handed before the POST)
   const memberLines = lines
-    .map(({ line, memberNo }) => ({ memberNo, lineSha256: line.lineSha256 ?? null }))
+    .map(({ line, memberNo }) => ({
+      memberNo,
+      lineSha256: lineHashNow({ ...line, memberNo }, run.rateCardSha256),
+    }))
     .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
   return {
     run,

@@ -15,8 +15,8 @@
 //   - voidApprovals: only while the run is APPROVED and every live approval is one it names: those voided, the
 //     lines unlocked, `payout.refused` recorded, APPROVED → IN_REVIEW; otherwise nothing is written.
 //   - markPosted / markRejected: only the rows that carry the digest that was posted.
-// loadPosting / loadRun return every member line `{memberNo, lineSha256}` (WS-DATA's `memberLineHashes`, on and
-// off rail), from which the service recomputes `linesDigest`, and the run's spent nonces.
+// loadPosting / loadRun return every member line `{memberNo, lineSha256}` (on and off rail, each re-hashed from its
+// columns: `rehashedMemberLines`), from which the service recomputes `linesDigest`, and the run's spent nonces.
 //
 // Why not WS-DATA's `beginPosting` / `voidCheckedApprovals`: they make the same compare-and-sets (same locks, same
 // conditions), but their transitions append `run.state` events in WS-DATA's shape ({id, from, to, cause,
@@ -34,7 +34,7 @@ import {
 } from "@fairsplit/contracts";
 import {
   type Actor,
-  memberLineHashes,
+  type DbOrTx,
   schema,
   type Tx,
   type WorkspaceScope,
@@ -75,6 +75,7 @@ import { cause, moveLine, moveRun, type RunRow } from "../runs/machine.js";
 import { SETTLE_GET_DELAYS_MS } from "../webhooks/apply.js";
 import { PayPalStepError } from "./errors.js";
 import { applyItem } from "./items.js";
+import { lineHashNow } from "./line-hash.js";
 import { receiverDirectory } from "./receivers.js";
 
 type Deps = Pick<AppDeps, "db" | "env" | "paypal" | "clock" | "logger">;
@@ -237,6 +238,35 @@ async function recordRefusal(
   );
 }
 
+/**
+ * Every member line of the run as `{memberNo, lineSha256}`, by member number, each hash recomputed from the line as
+ * it is now (`lineHashNow`, exactly as `runBatch` computes it for the signers); a line with no stored hash is "".
+ */
+export async function rehashedMemberLines(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  runId: string,
+  rateCardSha256: string,
+): Promise<{ memberNo: string; lineSha256: string }[]> {
+  const rows = await db
+    .select({ line: schema.memberLines, memberNo: schema.members.memberNo })
+    .from(schema.memberLines)
+    .innerJoin(
+      schema.members,
+      and(
+        eq(schema.members.workspaceId, schema.memberLines.workspaceId),
+        eq(schema.members.id, schema.memberLines.memberId),
+      ),
+    )
+    .where(and(eq(schema.memberLines.workspaceId, scope.workspaceId), eq(schema.memberLines.runId, runId)));
+  return rows
+    .map(({ line, memberNo }) => ({
+      memberNo,
+      lineSha256: lineHashNow({ ...line, memberNo }, rateCardSha256) ?? "",
+    }))
+    .sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
+}
+
 /** The repository the service is wired with, plus what its last read handed to the service's check. */
 export interface AppPayoutsRepository extends PayoutsRepository {
   /** The nonces of the approvals `loadPosting(runId)` last returned (what the service checked), or null. */
@@ -279,12 +309,10 @@ export function payoutsRepository(deps: Deps, scope: WorkspaceScope): AppPayouts
     if (!run) return null;
     const season = await seasonById(db, scope, run.seasonId);
     const card = await cardById(db, scope, run.rateCardId);
-    // Every member line, on and off rail (WS-DATA's read): a null hash is handed on as "", which the service
-    // refuses as an invalid batch with nothing voided.
-    const memberLines = (await memberLineHashes(db, scope, runId)).map((l) => ({
-      memberNo: l.memberNo,
-      lineSha256: l.lineSha256 ?? "",
-    }));
+    // Every member line, on and off rail: a null hash is handed on as "", which the service refuses as an invalid
+    // batch with nothing voided. I4: each line is re-hashed from what it holds now (`lineHashNow`), never read back
+    // as its stored hash alone, so a cash amount edited behind the signatures' back no longer matches either key.
+    const memberLines = await rehashedMemberLines(db, scope, runId, run.rateCardSha256);
     // Spent: every voided approval's nonce, except a re-route's, which is stored spent at once only to keep
     // the run's one-live-signature-per-role slot free; it authorises nothing but its own one-item batch, whose
     // ids PayPal dedupes and whose returned item UNIQUE supersedes_item_id lets be re-routed once.
