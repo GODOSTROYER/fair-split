@@ -133,3 +133,21 @@ describe("the brand link", () => {
     expect(linkFingerprint(`${token}x`)).not.toBe(fp);
   });
 });
+
+it("inv.i8.exports payout replay evidence even when the run started on the simulator", () => {
+  const bundle = {
+    ...snapshot.proof,
+    batch: {
+      ...snapshot.proof.batch,
+      items: snapshot.proof.batch.items.map((item) => ({ ...item, provenance: "replay" as const })),
+    },
+  };
+  const meta = {
+    rail: "simulated" as const,
+    provenance: "simulated PayPal sandbox",
+    generatedAt: "2026-11-01T00:00:00Z",
+  };
+  const rows = proofCsv(bundle, members, meta).trimEnd().split("\r\n");
+  for (const row of rows.slice(1)) expect(row.split(",")[CSV_COLUMNS.indexOf("provenance")]).toBe("replay");
+  expect(JSON.parse(proofJson(bundle, members, meta)).provenance).toBe("replay");
+});

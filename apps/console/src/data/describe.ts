@@ -8,6 +8,7 @@ import {
   type HoldResolutionKind,
   INVOICE_STATUS_LABELS,
   type LogLane,
+  PAY_RUN_RANK,
   PAYOUT_ITEM_STATUS_LABELS,
   type Provenance,
   pickLabel,
@@ -202,7 +203,15 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
         treasurer: ctx.personName("treasurer:analyn"),
         chair: ctx.personName("board:ernesto"),
       });
-      return { ...base, words, detail: join("Run state", note) };
+      // Terminal states all rank 99, regardless of whether any payout had posted.
+      const evidenceState = PAY_RUN_RANK[event.payload.to] === 99 ? event.payload.from : event.payload.to;
+      const payoutPhase =
+        PAY_RUN_RANK[evidenceState] >= PAY_RUN_RANK.POSTING && PAY_RUN_RANK[evidenceState] < 99;
+      const stateNote =
+        event.provenance === "replay" && !payoutPhase
+          ? "Labelled replay of the simulated invoice and payment step"
+          : note;
+      return { ...base, words, detail: join("Run state", stateNote) };
     }
     case "line.state":
       return null;
@@ -222,11 +231,13 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
                 ? `${name}: returned to the co-op's simulated PayPal balance`
                 : `${name}: ${status.toLowerCase()}`;
       const eventName =
-        p.to === "SUCCESS"
-          ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
-          : p.to === "PENDING"
-            ? null
-            : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
+        event.provenance === "replay"
+          ? null
+          : p.to === "SUCCESS"
+            ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
+            : p.to === "PENDING"
+              ? null
+              : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
       // The whole item ID: it is what a person matches against PayPal's own records.
       const item = p.payoutItemId ? `item ${p.payoutItemId}` : null;
       return {

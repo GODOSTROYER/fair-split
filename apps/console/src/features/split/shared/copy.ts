@@ -161,7 +161,7 @@ export const APPROVE = {
   killed: en("W-TR-07.killed"),
   /** S1.7 `retrying`: PayPal's Payouts POST, retried by the server (shown once a contract event carries it). */
   paypalRetrying: (attempt: number, of: number) =>
-    `PayPal didn't answer. Retrying with the same request ID, so no one is paid twice. Attempt ${attempt} of ${of}.`,
+    `The simulated PayPal sandbox didn't answer. Retrying with the same request ID, so no one is paid twice. Attempt ${attempt} of ${of}.`,
   /** This browser sending its own signed approval again: not PayPal, and not the spec's `retrying`. */
   resending: (send: number, of: number) =>
     `The server didn't answer. Sending your signature again with the same request ID, so it counts once. Send ${send} of ${of}.`,

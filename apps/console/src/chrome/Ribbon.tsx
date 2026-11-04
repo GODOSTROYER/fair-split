@@ -51,7 +51,7 @@ const LIVE_MEMORY = 64;
 function landed(row: LogRow | null, events: readonly RunEvent[]): boolean {
   if (row?.lane !== "PAYPAL" || row.type !== "item.updated") return false;
   const event = events.find((e) => e.id === row.id);
-  return event?.type === "item.updated" && event.payload.to === "SUCCESS";
+  return event?.type === "item.updated" && event.provenance !== "replay" && event.payload.to === "SUCCESS";
 }
 
 export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {

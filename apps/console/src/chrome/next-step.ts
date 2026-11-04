@@ -175,7 +175,7 @@ export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextS
     case "DENIED":
       return {
         id: "denied",
-        text: "PayPal declined the batch. Nothing was sent.",
+        text: "The simulated PayPal sandbox declined the batch. Nothing was sent.",
         actor: "paypal",
         screen: "W-TR-07",
         to: webRoutes.approve(runSlug),

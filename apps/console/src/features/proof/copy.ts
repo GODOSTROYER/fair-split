@@ -188,7 +188,7 @@ export const FIGURE_COPY = {
   attestedNote: "Each receipt is signed or thumbmarked at the bodega, with a witness.",
   dueNote: (cash: number, paypal: number) =>
     paypal > 0
-      ? `${cash} in cash at the bodega, ${paypal} still with PayPal.`
+      ? `${cash} in cash at the bodega, ${paypal} still with the simulated PayPal sandbox.`
       : `${cash} in cash at the bodega.`,
   holds: () => t("W-PF-01.metric.holds"),
   holdsValue: (count: number) => `${count} caught`,

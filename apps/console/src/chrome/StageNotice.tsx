@@ -4,7 +4,7 @@
 // colour: the stage pacing itself, a reset or a paused switch is information, not failure.
 
 import type { ReplayReason } from "@fairsplit/api-client";
-import { PAY_RUN_RANK } from "@fairsplit/contracts";
+import { PAY_RUN_RANK, type PayRunState } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import { Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { errorView } from "../data/errors.js";
@@ -46,8 +46,21 @@ export interface StageNoticeInput {
   readonly inSession: boolean;
   /** Why the API replays PayPal steps for this session (GET /v1/judge/session `rail.reason`), if it does. */
   readonly replayReason?: ReplayReason | null;
-  readonly replayLabel?: string | null;
+  readonly sessionRunState?: PayRunState | null;
 }
+
+const REPLAY_REASON_COPY: Readonly<Record<ReplayReason, string>> = {
+  kill_switch: "Simulated PayPal calls are paused by the co-op.",
+  simulator_not_running: "The simulated PayPal sandbox is unavailable.",
+  balance_unknown: "The simulated PayPal balance is not available.",
+  hourly_cap: "This hour's simulated payout allowance is used.",
+  daily_cap: "Today's simulated payout allowance is used.",
+  session_cap: "This session's simulated payout allowance is used.",
+  public_share: "The public simulated payout allowance is used.",
+  lane_full: "The simulated payout lane is occupied.",
+  circuit_open: "The simulated PayPal rate limit paused calls.",
+  balance_low: "The simulated PayPal balance is too low.",
+};
 
 /** The notice the stage shows, or null. Pure, so the stage's `data-state` follows it exactly. */
 export function stageNoticeFor({
@@ -56,17 +69,20 @@ export function stageNoticeFor({
   autoplay,
   inSession,
   replayReason = null,
-  replayLabel = null,
+  sessionRunState = null,
 }: StageNoticeInput): StageNoticeView | null {
   const none: readonly string[] = [];
+  const isPosted = (state: PayRunState | null | undefined) =>
+    state !== null &&
+    state !== undefined &&
+    PAY_RUN_RANK[state] >= PAY_RUN_RANK.POSTING &&
+    PAY_RUN_RANK[state] < 99;
   const posted =
-    view !== undefined &&
-    ((PAY_RUN_RANK[view.state] >= PAY_RUN_RANK.POSTING && PAY_RUN_RANK[view.state] < 99) ||
-      Object.keys(view.items ?? {}).length > 0);
+    isPosted(sessionRunState) || isPosted(view?.state) || Object.keys(view?.items ?? {}).length > 0;
   const replayed = payoutReplayed(view);
   const forecast =
     !posted && replayReason !== null
-      ? `This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox).${replayLabel ? ` ${replayLabel}` : ""}`
+      ? `This run’s PayPal payouts will replay, labelled (simulated PayPal sandbox). ${REPLAY_REASON_COPY[replayReason]}`
       : null;
   const replayText = replayed ? "Replayed (labelled): earlier simulated PayPal sandbox run" : forecast;
   const replaySuffix = inSession && replayText ? ` ${replayText}` : "";

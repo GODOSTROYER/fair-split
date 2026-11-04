@@ -25,10 +25,10 @@ const replay = {
 } as RunEvent;
 describe("payout replay provenance", () => {
   it("derives replay only from item events or public bundle items", () => {
-    expect(payoutReplayed(undefined, "hourly_cap")).toBe(false);
+    expect(payoutReplayed(undefined)).toBe(false);
     expect(payoutReplayed({ ...emptyRunView("2026A-r37", "session"), events: [replay] })).toBe(true);
     expect(
-      payoutReplayed(undefined, null, {
+      payoutReplayed(undefined, {
         ...snapshot.proof,
         batch: {
           ...snapshot.proof.batch,
@@ -36,13 +36,13 @@ describe("payout replay provenance", () => {
         },
       }),
     ).toBe(true);
-    expect(payoutReplayed(undefined, null, snapshot.proof)).toBe(false);
+    expect(payoutReplayed(undefined, snapshot.proof)).toBe(false);
   });
   it("labels replayed payout log rows without a fresh confirmation or reading claim", () => {
     const row = describeEvent(replay, describeContext(snapshot));
     expect(row?.words).toContain("Replayed (labelled)");
     expect(row?.detail).toContain("earlier simulated run");
-    expect(row?.detail).not.toMatch(/Confirmed|seed stand-in|Claude/);
+    expect(row?.detail).not.toMatch(/Confirmed|seed stand-in|Claude|SUCCEEDED/);
   });
 });
 
@@ -66,21 +66,13 @@ it("inv.i8.counts all replayed statuses and identifies successful statuses separ
   expect(payoutReplaySummary(7, 8)).toContain("7 successful in that source run");
 });
 
-it.each([
-  "hourly_cap",
-  "daily_cap",
-  "session_cap",
-  "public_share",
-  "lane_full",
-  "circuit_open",
-  "balance_low",
-] as const)("inv.i8.%s is a forward-looking quota, never evidence that this run replayed", (reason) => {
+it("inv.i8.live simulated payout evidence is never labelled replay", () => {
   const live = applyRunEvent(emptyRunView("2026A-r37", "session"), {
     ...replay,
     provenance: "simulated_rail",
   });
-  expect(payoutReplayed(live, reason, snapshot.proof)).toBe(false);
-  expect(payoutReplayed(emptyRunView("2026A-r37", "session"), reason)).toBe(false);
+  expect(payoutReplayed(live, snapshot.proof)).toBe(false);
+  expect(payoutReplayed(emptyRunView("2026A-r37", "session"))).toBe(false);
 });
 it("inv.i8.keeps item replay provenance after the event log rolls over", () => {
   const view = applyRunEvent(emptyRunView("2026A-r37", "session"), replay);
@@ -90,7 +82,7 @@ it("inv.i8.reads ledger replay evidence even without replay-labelled bundle item
   const entry = snapshot.proof.ledger[0];
   if (!entry) throw new Error("fixture has no ledger");
   expect(
-    payoutReplayed(undefined, null, {
+    payoutReplayed(undefined, {
       ...snapshot.proof,
       ledger: [{ ...entry, kind: "payout.item.replayed" }],
     }),
