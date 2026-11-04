@@ -40,16 +40,18 @@ function EventName({ name }: { readonly name: string }) {
   ));
 }
 
+/** A PayPal event name (PAYMENT.PAYOUTS-ITEM.SUCCEEDED) gets its own breakable line; internal types never print. */
 function EventDetail({ row }: { readonly row: LogRow }) {
   const first = row.detail.split(", ")[0] ?? "";
-  const hasName = /^[A-Z]+[.\-_]/.test(first);
-  const name = hasName ? first : row.type;
-  const detail = hasName ? row.detail.slice(first.length).replace(/^, /, "") : row.detail;
+  const name = /^[A-Z]+[.\-_]/.test(first) ? first : null;
+  const detail = name ? row.detail.slice(first.length).replace(/^, /, "") : row.detail;
   return (
     <>
-      <p className="fsr-log__event fs-t-caption">
-        <EventName name={name} />
-      </p>
+      {name && (
+        <p className="fsr-log__event fs-t-caption">
+          <EventName name={name} />
+        </p>
+      )}
       {detail && <p className="fsr-log__detail fs-t-caption">{detail}</p>}
     </>
   );
