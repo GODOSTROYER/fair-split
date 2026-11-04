@@ -163,7 +163,9 @@ never on the name (see the README's outline).
 - **Where:** day: the bottom-right corner (right 64 px, top 960 px, its bottom 56 px off the edge). Lay out every
   shot and every glide so no window enters x > 1335 and y > 960 (`plan.mjs` `TAG`). Night: centred under the
   figure it labels.
-- **One tag at a time:** hide a window's own sandbox chip in the crop when the frame tag is on.
+- **One tag at a time:** hide a window's own sandbox chip in the crop when the frame tag is on. A tag comes in
+  over 0.4 s from its start and leaves over 0.3 s (front-loaded) by its end, so where tags hand over at a cut
+  (57, 73, 76.5, 83, 143 s) the old one is all but gone on the last frame and none pops off half-lit.
 - **"Synthetic co-op"** once, with the first people count. Synthetic slips keep their printed SPECIMEN line;
   Claude's reading card keeps a "Synthetic sample" tag (same component) while it is the subject. The opening's
   card (17–18.6 s) is R1's recorded reading of slip 0403 (`packages/eval/report/R1.md`, 1 Nov 2026: Consolacion

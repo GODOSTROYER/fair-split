@@ -550,7 +550,8 @@ window.FairSplitSlots = (() => {
           { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" },
           own.start,
         );
-        tl.to(tag, { opacity: 0, duration: 0.1, ease: "power2.in" }, own.start + own.duration - 0.1);
+        // out over 0.3 s, front-loaded, so it is all but gone on the last frame before the cut (no pop at 73, 76.5, 83)
+        tl.to(tag, { opacity: 0, duration: 0.3, ease: "power2.out" }, own.start + own.duration - 0.3);
       }
     }
     // the sandbox tag: on from the first frame a PayPal value can show until none is legible (STYLE §7)
@@ -566,7 +567,8 @@ window.FairSplitSlots = (() => {
         );
       // at the end of the run it goes with the last window, once the veil is at 92% (STYLE §7)
       const off = endsRun ? Math.min(cfg.sim.to - 0.1, outro.veil[1] - T0) : cfg.sim.to - 0.1;
-      if (!cfg.sim.continuesOut) tl.to(tag, { opacity: 0, duration: 0.1, ease: "power2.in" }, off);
+      // out over 0.3 s, ending where the 0.1 s fade ended, front-loaded so no half-lit tag is cut off (57, 73, 143)
+      if (!cfg.sim.continuesOut) tl.to(tag, { opacity: 0, duration: 0.3, ease: "power2.out" }, off - 0.2);
     }
     draw(0);
     return tl;

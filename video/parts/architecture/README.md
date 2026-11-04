@@ -18,9 +18,9 @@ Word times are word-proportional across the speech window (30–41 s), as the ca
 
 | Beat s     | Film s | On the words           | Picture                                                                                                                                                                                        |
 | ---------- | ------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0.0–0.4    | 30.0   | "Slips"                | Daylight, under the opening's 92% veil, which lifts (0–0.7 s) as the slip disc lifts in close up (camera 1.9×): **Slips**.                                                                     |
+| 0.0–0.4    | 30.0   | "Slips"                | Daylight, under the opening's 92% veil, which lifts (0–0.7 s) off the slip disc the opening already drew under it, close up (camera 1.9×, no lift-in): **Slips**.                              |
 | 0.4–1.3    | 30.4   | "go to"                | The handwriting runs to Claude as an ink wave that calms as it arrives.                                                                                                                        |
-| 1.2–1.9    | 31.2   | "Claude"               | **Claude** lands (scan icon); the tag **Demo: seed stand-in** while Claude is the subject. Step 1.                                                                                             |
+| 1.2–1.9    | 31.2   | "Claude"               | **Claude** lands (scan icon); the tag **Seed stand-in reading** while Claude is the subject. Step 1.                                                                                           |
 | 1.9–2.9    | 31.9   | "then a deterministic" | The indigo trace leaves Claude, its light at the head; the camera pushes to the engine.                                                                                                        |
 | 2.6–3.4    | 32.6   | "deterministic engine" | **Engine** lands (sum icon). Step 2.                                                                                                                                                           |
 | 3.1–3.9    | 33.1   | "engine. Two"          | 64 thin ink member lines fan out of the engine and converge on one ring.                                                                                                                       |
@@ -47,7 +47,7 @@ Word times are word-proportional across the speech window (30–41 s), as the ca
   blur keyed to the camera's speed on a container of its own, depth of field while pushed in. The pushes are
   1.1–1.3 s, shorter than a window glide, because the narration names a node every 1.8 s; the build fails if any
   node moves more than 36 px in one frame.
-- **Honesty (§7):** one standard tag at a time, bottom-right (right 64 px, top 968 px): "Demo: seed stand-in" while
+- **Honesty (§7):** one standard tag at a time, bottom-right (32 px words in a 64 px pill, right 64 px, top 960 px): "Seed stand-in reading" while
   Claude is the subject, then "Simulated PayPal sandbox" from the PayPal node's first frame to the end. The build
   fails if any node or label enters the tag corner.
 

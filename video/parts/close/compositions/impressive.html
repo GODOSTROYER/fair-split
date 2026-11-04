@@ -276,33 +276,33 @@
           opacity: 0;
         }
 
-        /* the one honesty tag (STYLE §7): dashed steel, 28 px words in a 56 px pill, bottom right */
+        /* the one honesty tag (STYLE §7): dashed steel, 32 px words in a 64 px pill, bottom right (plan.mjs TAG) */
         .cf-tag {
           position: absolute;
           right: 64px;
-          top: 968px;
+          top: 960px;
           display: inline-flex;
           align-items: center;
-          gap: 12px;
-          height: 56px;
-          padding: 0 24px 0 20px;
+          gap: 14px;
+          height: 64px;
+          padding: 0 28px 0 23px;
           border-radius: 999px;
           border: 2px dashed #7e8898;
           background: rgb(255 255 255 / 0.9);
           color: #3a4456;
           font-stretch: 100%;
           font-weight: 600;
-          font-size: 28px;
+          font-size: 32px;
           line-height: 1;
           white-space: nowrap;
           opacity: 0;
         }
         .cf-tag--nodot {
-          padding-left: 24px;
+          padding-left: 28px;
         }
         .cf-tag svg {
-          width: 26px;
-          height: 26px;
+          width: 30px;
+          height: 30px;
           flex: none;
           color: #5a6476;
         }
@@ -810,6 +810,9 @@
           );
           // the keyword leaves before the pull-out glide (10.45-12.45 s) carries the slip away
           tl.to("#ci-kw span", { yPercent: -108, duration: 0.32, ease: "power3.in" }, 10.15);
+          // the wipe fades over its first 0.16 s and its last 0.12 s (STYLE §5): no glyph tip left in the mask
+          tl.fromTo("#ci-kw span", { opacity: 0 }, { opacity: 1, duration: 0.16, ease: "power1.out" }, 7.6);
+          tl.to("#ci-kw span", { opacity: 0, duration: 0.12, ease: "power1.in" }, 10.35);
 
           rig.draw(0);
           window.__timelines["close-impressive"] = tl;

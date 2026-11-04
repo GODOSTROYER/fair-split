@@ -88,7 +88,7 @@ const C = {
 };
 
 // ---------- layout (world px; at the overview the camera is the identity, so world = screen) ----------
-// One gentle left-to-right line in the order the batch flows; nothing enters the tag corner (x > 1396, y > 960).
+// One gentle left-to-right line in the order the batch flows; nothing enters the tag corner (x > 1335, y > 960: plan.mjs TAG, 32 px words in a 64 px pill).
 const R = 56; // node disc radius
 const RR = 66; // the batch-hash ring around its disc
 const KR = 38; // key discs
@@ -364,7 +364,9 @@ const esc = (s) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 const NODES = [
-  { id: "slips", at: S, r: R, icon: "slips", land: T.slips },
+  // built: on screen from the first frame, fully drawn, because the opening's last second already draws this disc
+  // under the veil (plan.mjs SLIPS_UNDER_VEIL); its word still lands the label at T.slipsLb
+  { id: "slips", at: S, r: R, icon: "slips", land: T.slips, built: true },
   { id: "claude", at: Cn, r: R, icon: "claude", land: T.claude },
   { id: "engine", at: En, r: R, icon: "engine", land: T.engine },
   { id: "hash", at: H, r: R, icon: "hash", land: T.hashNode, iconAt: T.glyph },
@@ -531,7 +533,7 @@ animate("#arch-grain", {
 
 // ---------- camera, motion blur, depth of field ----------
 // the joints (STYLE §5): the opening ends under a 92% daylight veil, so this beat opens under the same veil and
-// lifts it (0-0.7 s) as the slip lifts in; at the end the diagram dissolves into the field (blur and fade,
+// lifts it (0-0.7 s) off the Slips disc, built from the first frame (plan.mjs SLIPS_UNDER_VEIL); at the end the diagram dissolves into the field (blur and fade,
 // last 0.6 s) and the reel's focus pull starts on that same empty field at 44 s, with the sandbox tag running on
 const veilAt = (t) => 0.92 * (1 - prog(t, 0, 0.7, E.inOutSine));
 const dissolveAt = (t) => prog(t, DUR - 0.6, DUR - 1 / FPS, E.inQuad);
@@ -641,6 +643,12 @@ animate("#arch-svgwrap", svgVars);
 // ---------- nodes land: lift (scale 0.55 -> 1, y 30 -> 0, blur 10 -> 0, expo.out), icon draws, depth of field ----------
 for (const n of NODES) {
   const t0 = n.land;
+  if (n.built) {
+    // the joint at 30 s: no lift-in, no blink; the disc only keeps its depth of field
+    animate(`#arch-n-${n.id}`, { opacity: () => "1", filter: (t) => blurOf(dofAt(n, t)) });
+    animate(`#arch-n-${n.id} .ic`, { "--icd": () => draw(1) });
+    continue;
+  }
   animate(`#arch-n-${n.id}`, {
     opacity: (t) => opacity(prog(t, t0, t0 + 0.4, E.outCubic)),
     transform: (t) => {
@@ -747,9 +755,9 @@ const css = `
 #arch-sig-1,#arch-sig-2{left:${H[0] - RR}px;top:${H[1] - RR}px;width:${2 * RR}px;height:${2 * RR}px;border:3px solid ${C.pod}}
 #arch-jade{left:${P[0] - R - 4}px;top:${P[1] - R - 4}px;width:${2 * R + 8}px;height:${2 * R + 8}px;border:4px solid ${C.jade};box-shadow:0 0 16px rgb(20 204 144/.6)}
 #arch-end{position:absolute;left:${P[0] - R - 8}px;top:${P[1] - 8}px;width:16px;height:16px;border-radius:50%;background:${C.jade};border:3px solid #fff;transform:scale(0)}
-.tag{position:absolute;right:64px;top:968px;display:inline-flex;align-items:center;gap:12px;height:56px;padding:0 24px 0 20px;border-radius:999px;font-stretch:100%;font-weight:600;font-size:28px;line-height:1;white-space:nowrap;opacity:0;color:${C.ink2};border:2px dashed ${C.steel};background:rgb(255 255 255/.9)}
-.tag svg{width:26px;height:26px;flex:none;color:${C.ink3}}
-.tag--nodot{padding-left:24px}
+.tag{position:absolute;right:64px;top:960px;display:inline-flex;align-items:center;gap:14px;height:64px;padding:0 28px 0 23px;border-radius:999px;font-stretch:100%;font-weight:600;font-size:32px;line-height:1;white-space:nowrap;opacity:0;color:${C.ink2};border:2px dashed ${C.steel};background:rgb(255 255 255/.9)}
+.tag svg{width:30px;height:30px;flex:none;color:${C.ink3}}
+.tag--nodot{padding-left:28px}
 #arch-grain{position:absolute;left:0;top:0;width:960px;height:540px;transform:scale(2);transform-origin:0 0;pointer-events:none;mix-blend-mode:overlay;opacity:.2;background:url("../assets/grain.png") 0 0/256px 256px repeat}
 `;
 
@@ -784,7 +792,7 @@ ${NODES.map(nodeHtml).join("\n")}
 </div>
 </div>
 <div id="arch-veil"></div>
-<div class="tag tag--nodot" id="arch-tag-demo">Demo: seed stand-in</div>
+<div class="tag tag--nodot" id="arch-tag-demo">Seed stand-in reading</div>
 <div class="tag" id="arch-tag-sim">${FLASK}Simulated PayPal sandbox</div>
 <div id="arch-grain" data-layout-allow-overflow></div>
 </div>
@@ -849,7 +857,7 @@ for (let f = 0; f <= N; f++) {
     const half = n.r * c.s;
     const right = x + half;
     const bottom = y + (n.r + 14 + 48) * c.s; // disc and the label below it
-    if (right > 1396 && bottom > 960 && x - half < 1920 && y - half < 1080)
+    if (right > 1335 && bottom > 960 && x - half < 1920 && y - half < 1080)
       assert.fail(`${n.id} enters the tag corner at ${r2(t)} s`);
     if (f > 0 && x > 0 && x < 1920 && y > 0 && y < 1080) {
       const [px, py] = toScreen(n.at, camAt((f - 1) / FPS));
@@ -890,9 +898,9 @@ writeFileSync(new URL("index.html", here), index);
 
 // The per-second outline, for the README and the hand-off.
 const outline = [
-  [0, "Daylight field. The slip disc lifts in close up (camera 1.9x): 'Slips'."],
+  [0, "Daylight field. The Slips disc, drawn under the veil, sharpens as it lifts (1.9x): 'Slips'."],
   [T.wave[0], "The handwriting runs from the slip to Claude as an ink wave that calms as it arrives."],
-  [T.claude, "'Claude' lands (scan icon); the tag 'Demo: seed stand-in' while Claude is the subject."],
+  [T.claude, "'Claude' lands (scan icon); the tag 'Seed stand-in reading' while Claude is the subject."],
   [T.ce[0], "The indigo trace leaves Claude, its light at the head; the camera pushes to the engine."],
   [T.engine, "'Engine' lands (sum icon)."],
   [T.fan0, "64 thin ink member lines fan out of the engine and converge on one ring."],

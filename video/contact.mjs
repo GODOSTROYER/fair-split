@@ -5,17 +5,17 @@ import { spawnSync } from "node:child_process";
 
 const [
   ffmpeg = "ffmpeg",
-  input = "video/out/rough-cut-v3.mp4",
-  output = "video/out/rough-cut-v3-sheet.png",
+  input = "video/out/rough-cut-v4.mp4",
+  output = "video/out/rough-cut-v4-sheet.png",
   times,
 ] = process.argv.slice(2);
-// problem · the turn · solution · the end line · architecture (four steps, the overview) · the reel · the deep dive
-// · the close (figures, the slip, the limits, the trace, the name)
+// problem · the turn · solution · the end line · architecture (four steps, the overview) · the reel and its night
+// insert · the deep dive · the close (figures, the slip's close-up, the limits on their objects, the trace, the name)
 const TIMES = times
   ? times.split(",").map(Number)
   : [
-      2.4, 8.9, 13.9, 15.2, 18.3, 24.2, 27.6, 31.5, 35.5, 39.6, 42.8, 46.5, 57.6, 66.5, 75, 88, 107.5, 125,
-      131.5, 145, 151, 158, 169.5, 173.5,
+      2.4, 8.9, 13.9, 15.2, 18.3, 24.2, 27.6, 31.5, 35.5, 39.6, 42.8, 46.5, 56.0, 66.5, 75, 88, 110.3, 125,
+      131.5, 145, 152.4, 158.6, 169.85, 173.5,
     ];
 const select = TIMES.map((t) => `eq(n\\,${Math.round(t * 30)})`).join("+");
 const font = "C\\:/Windows/Fonts/arial.ttf";

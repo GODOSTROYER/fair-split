@@ -29,13 +29,14 @@ close-ups make 38.45 and US$64.45 the only readable product text in their frames
   a soft ellipse round the one figure that matters (38.45 on the slip, "Paid US$64.45" on the peso card, US$64.45
   on the phone), so smaller text never tries to be read.
 - **Words** (§2): figures in FS Sans condensed 800 with a quiet grey line; day keywords at one anchor (x 140,
-  top 150), mask wipe in 0.75 s, out 0.32 s; the end line and the name as in the opening. At most four words on
+  top 150), mask wipe in 0.75 s, out 0.32 s, fading over its first 0.16 s and last 0.12 s so no descender tip is left in the
+  mask (the last limit's wipe ends two frames before the cut); the end line and the name as in the opening. At most four words on
   screen outside a window, keyword plus tag included.
 - **Accents** (§3): indigo only for the hand's box round a handwritten figure, Claude's reading (38.45 on the
   reading card), the trace and "traced."; jade only for money that arrived (the peso card's paid figure, the trace's
   pulse on her pay) and the mark's dot. The figures, keywords, the 64 dots and the wave are ink.
-- **Honesty** (§7): one standard tag at a time (dashed steel, 28 px in a 56 px pill, right 64 px, top 968 px, flask
-  for PayPal only), no window enters x > 1396 and y > 960. "Simulated PayPal sandbox" is on while the phone's
+- **Honesty** (§7): one standard tag at a time (dashed steel, 32 px in a 64 px pill, right 64 px, top 960 px, flask
+  for PayPal only), no window enters x > 1335 and y > 960. "Simulated PayPal sandbox" is on while the phone's
   amounts can show (24.8 s until the veil hides them, 27.8 s) and with the first limit while the peso card is on
   screen (11.0–15.05 s). The slip keeps its printed
   SPECIMEN line. The long disclosures (Codex-made slip flats, the ten real readings of 1 Nov 2026, Cebuano and Filipino

@@ -747,7 +747,8 @@ export const NARRATION_FIT = [
 export const CLOSE = {
   figures: [143.3, 147.4],
   hand: 152.6,
-  limits: [155.45, 157.6, 159.95, 162.1, 165.2],
+  // each limit's keyword lands beside its object (limits.html LIMITS kw[0] + 143)
+  limits: [155.2, 157.85, 160.6, 162.3, 165.25],
   jadePulse: 169.85,
   endLine: 170.6,
   name: 171.95,
