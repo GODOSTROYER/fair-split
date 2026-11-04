@@ -82,7 +82,11 @@ describe("HD6-7 cash waits until the approved batch leaves for posting", () => {
     if (!line) throw new Error("M-053");
     await expect(
       h.t.client(h.tokens.treasurer).payCash({ params: { lineId: line.member_lines.id } }),
-    ).rejects.toMatchObject({ code: "INVALID_TRANSITION", status: 409 });
+    ).rejects.toMatchObject({
+      code: "INVALID_TRANSITION",
+      status: 409,
+      message: "A READY line cannot move to cash until the approved batch is posted.",
+    });
     const [after] = await h.t.deps.db
       .select()
       .from(schema.memberLines)
@@ -115,3 +119,75 @@ describe("HD6-7 cash waits until the approved batch leaves for posting", () => {
     expect(lines.filter((l) => l.rail === "OFF").every((l) => l.state === "OFF_RAIL_DUE")).toBe(true);
   });
 });
+
+it("inv.i4.excluded-recompute: excluding H2 before resolving H1 keeps the refreshed excluded line signable", async () => {
+  const g = await startRuns();
+  try {
+    const api = g.t.client(g.tokens.treasurer);
+    const holds = await g.t.deps.db.select().from(schema.holds).where(eq(schema.holds.runId, g.world.runId));
+    const hold = (code: string) => {
+      const found = holds.find((row) => row.code === code);
+      if (!found) throw new Error(code);
+      return found.id;
+    };
+    await api.resolveHold({
+      params: { holdId: hold("H2") },
+      body: { resolution: "EXCLUDE_LINE", reason: "Unverified plot excluded by the officer." },
+    });
+    const excluded = async () => {
+      const [row] = await g.t.deps.db
+        .select()
+        .from(schema.memberLines)
+        .innerJoin(schema.members, eq(schema.members.id, schema.memberLines.memberId))
+        .where(and(eq(schema.memberLines.runId, g.world.runId), eq(schema.members.memberNo, "M-053")));
+      if (!row) throw new Error("excluded member");
+      return row.member_lines;
+    };
+    const before = await excluded();
+    expect(before.state).toBe("EXCLUDED");
+    await api.resolveHold({ params: { holdId: hold("H1") }, body: { resolution: "COUNT_ONCE" } });
+    const after = await excluded();
+    expect(after.state).toBe("EXCLUDED");
+    expect(after.lineSha256).not.toBe(before.lineSha256);
+    expect(after.version).toBe(before.version);
+    await api.enterField({ params: { fieldId: g.world.fields0462.gross }, body: { value: "64.80" } });
+    await api.resolveHold({ params: { holdId: hold("H3") }, body: { resolution: "RETURN_AS_CREDIT" } });
+    await signBoth(g);
+    const [run] = await g.t.deps.db.select().from(schema.payRuns).where(eq(schema.payRuns.id, g.world.runId));
+    expect(run?.state).toBe("APPROVED");
+  } finally {
+    await g.close();
+  }
+}, 120_000);
+
+it("inv.i5.posted-review: a hold resolution after posting refuses with VERSION_CONFLICT even with cash lines", async () => {
+  const g = await startRuns();
+  try {
+    const api = g.t.client(g.tokens.treasurer);
+    await api.enterField({ params: { fieldId: g.world.fields0462.gross }, body: { value: "64.80" } });
+    const holds = await g.t.deps.db.select().from(schema.holds).where(eq(schema.holds.runId, g.world.runId));
+    const h1 = holds.find((row) => row.code === "H1");
+    const h2 = holds.find((row) => row.code === "H2");
+    if (!h1 || !h2) throw new Error("blocking holds");
+    await api.resolveHold({ params: { holdId: h1.id }, body: { resolution: "COUNT_ONCE" } });
+    await api.resolveHold({
+      params: { holdId: h2.id },
+      body: { resolution: "REGISTER_PLOT", plot: { plotNo: "P-053-B", areaHa: "0.60", trees: 330 } },
+    });
+    await signBoth(g);
+    await runQueued(g, "postPayoutBatch");
+    const [hold] = await g.t.deps.db
+      .select()
+      .from(schema.holds)
+      .where(and(eq(schema.holds.runId, g.world.runId), eq(schema.holds.code, "H3")));
+    if (!hold) throw new Error("H3");
+    expect(hold.state).toBe("OPEN");
+    await expect(
+      g.t
+        .client(g.tokens.treasurer)
+        .resolveHold({ params: { holdId: hold.id }, body: { resolution: "RETURN_AS_CREDIT" } }),
+    ).rejects.toMatchObject({ code: "VERSION_CONFLICT", status: 409 });
+  } finally {
+    await g.close();
+  }
+}, 120_000);

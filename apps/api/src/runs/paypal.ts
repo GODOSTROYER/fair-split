@@ -257,7 +257,7 @@ export const payCashHandler: CommandHandler<"payCash"> = async (ctx) => {
         }
         throw new ApiProblem(
           "INVALID_TRANSITION",
-          `A ${state} line cannot move to cash${line.rail === "OFF" && state === "READY" ? " before the run is approved" : ""}.`,
+          `A ${state} line cannot move to cash${line.rail === "OFF" && state === "READY" ? " until the approved batch is posted" : ""}.`,
           {
             details: { lineState: state, runState: run.state },
           },

@@ -29,9 +29,11 @@ export async function openForEdit(
   run: RunRow,
   o: { at: Date; provenance: Provenance; what: string },
 ): Promise<{ run: RunRow; sentBack: boolean }> {
+  if (run.state !== "IN_REVIEW" && !SIGNING_STATES.includes(run.state as PayRunState)) {
+    throw tooLate(run, o.what);
+  }
   await assertNoCashLines(tx, scope, run.id);
   if (run.state === "IN_REVIEW") return { run, sentBack: false };
-  if (!SIGNING_STATES.includes(run.state as PayRunState)) throw tooLate(run, o.what);
   await voidLiveApprovals(tx, scope, run.id, o.at, "line_edit");
   await unlockLines(tx, scope, run.id, "SEND_BACK");
   const moved = await moveRun(tx, scope, {

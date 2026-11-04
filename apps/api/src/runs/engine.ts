@@ -446,7 +446,9 @@ export interface ApplyOptions {
   provenance: Provenance;
 }
 
-const MUTABLE_LINE_STATES = new Set(["COMPUTED", "HELD", "READY"]);
+// Exclusion is a terminal state, but its computed amounts still participate in the signed root.
+// A later kilo correction changes the pool allocation for excluded members too (I3, I4).
+const MUTABLE_LINE_STATES = new Set(["COMPUTED", "HELD", "READY", "EXCLUDED"]);
 
 function seedHoldFor(kind: HoldKind, memberNo: string | null, serials: readonly string[]) {
   return getSnapshot().holds.find(
