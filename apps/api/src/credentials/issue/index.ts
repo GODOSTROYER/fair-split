@@ -3,7 +3,7 @@
 //   - PROOF (print, statements): `issueMemberLink` + `recordLinkIssued` for the statement, `recordPrintedLink`
 //     for the 80 mm slip's QR (recorded once, the first time it is printed, so it can be revoked);
 //     a route that returns a link calls `refuseReplayOfSecret(ctx.header)` first (no secret in idempotency_keys);
-//   - the shell's server.ts: `dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) })`, so a
+//   - the shell's server.ts: `dbCredentialStore(db, { isLinkRevoked: (workspaceId, jti) => isLinkRevoked(db, workspaceId, jti) })`, so a
 //     revoked statement link stops opening every route, not only GET /v1/credential.
 export {
   type JudgeCookieRead,

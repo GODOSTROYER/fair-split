@@ -182,7 +182,7 @@ describe("signed links: the issuer and the verifier agree on every byte", () => 
       workspaceExpiresAt: null,
     });
     expect(await checkLink(d, link.token, "member")).toMatchObject({ ok: true, payload: { jti: link.jti } });
-    store.revokedLinks.add(link.jti);
+    store.revokedLinks.add(`${ws}:${link.jti}`);
     expect(await checkLink(d, link.token, "member")).toEqual({ ok: false, reason: "revoked" });
     const revoked = await d.credentials.resolver.resolve({ authorization: `Bearer ${link.token}` });
     expect(revoked.kind === "invalid" && revoked.problem.message).toMatch(/revoked/);

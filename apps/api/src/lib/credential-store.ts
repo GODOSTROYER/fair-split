@@ -8,5 +8,5 @@ import { isLinkRevoked } from "../credentials/issue/links.js";
 import { type CredentialStore, dbCredentialStore } from "../credentials/verify/index.js";
 
 export function appCredentialStore(db: Db): CredentialStore {
-  return dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) });
+  return dbCredentialStore(db, { isLinkRevoked: (workspaceId, jti) => isLinkRevoked(db, workspaceId, jti) });
 }

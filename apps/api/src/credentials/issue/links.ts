@@ -6,7 +6,7 @@
 // Issuance and revocation are recorded in the workspace's attribution ledger (`link.issued`, `link.revoked`:
 // ids and expiry only, never the token). A printed link (the slip's QR) is recorded the first time it is
 // printed (`recordPrintedLink`, `via: "print"`), so it is revoked like any other, by its id or with every live
-// link of its line (`liveLinksOfLine`, a lost slip). `isLinkRevoked(db, jti)` reads those entries; the shell's
+// link of its line (`liveLinksOfLine`, a lost slip). `isLinkRevoked(db, workspaceId, jti)` reads those entries; the shell's
 // `dbCredentialStore(db, { isLinkRevoked })` takes it, so a revoked link stops verifying everywhere.
 import { randomBytes } from "node:crypto";
 import { appendLedger, type DbOrTx, schema, type WorkspaceScope, withWorkspaceTx } from "@fairsplit/db";
@@ -139,7 +139,7 @@ export async function liveLinksOfLine(
        and (i.payload->>'exp')::timestamptz > ${now.toISOString()}::timestamptz
        and not exists (
          select 1 from ledger_entries r
-          where r.kind = 'link.revoked' and r.payload->>'jti' = i.payload->>'jti')
+          where r.workspace_id = i.workspace_id and r.kind = 'link.revoked' and r.payload->>'jti' = i.payload->>'jti')
      order by i.payload->>'jti', i.seq`)) as unknown as { jti: string | null; seq: number | string }[];
   return rows
     .filter((r): r is { jti: string; seq: number | string } => typeof r.jti === "string")
@@ -153,7 +153,7 @@ export async function revokeLink(
   scope: WorkspaceScope,
   o: { jti: string; reason?: string; at: Date },
 ): Promise<boolean> {
-  if (await isLinkRevoked(tx, o.jti)) return false;
+  if (await isLinkRevoked(tx, scope.workspaceId, o.jti)) return false;
   await appendLedger(tx, scope, {
     kind: "link.revoked",
     payload: { jti: o.jti, ...(o.reason ? { reason: o.reason } : {}) },
@@ -162,13 +162,15 @@ export async function revokeLink(
   return true;
 }
 
-/** True when a `link.revoked` entry names this jti (any workspace: a jti is 128 random bits). */
-export async function isLinkRevoked(db: DbOrTx, jti: string): Promise<boolean> {
+/** True when a `link.revoked` entry in this link's own workspace names its jti. */
+export async function isLinkRevoked(db: DbOrTx, workspaceId: string, jti: string): Promise<boolean> {
   const le = schema.ledgerEntries;
   const [row] = await db
     .select({ id: le.id })
     .from(le)
-    .where(and(eq(le.kind, "link.revoked"), sql`${le.payload}->>'jti' = ${jti}`))
+    .where(
+      and(eq(le.workspaceId, workspaceId), eq(le.kind, "link.revoked"), sql`${le.payload}->>'jti' = ${jti}`),
+    )
     .limit(1);
   return !!row;
 }
@@ -213,7 +215,8 @@ export async function checkLink(deps: AppDeps, token: string, kind: LinkKind): P
   const v = verifyLink(deps.credentials.keys.linkPublicKeyHex, token, now.getTime());
   if (!v.ok) return { ok: false, reason: v.reason };
   if (v.payload.k !== kind) return { ok: false, reason: "malformed" };
-  if (await deps.credentials.store.isLinkRevoked(v.payload.jti)) return { ok: false, reason: "revoked" };
+  if (await deps.credentials.store.isLinkRevoked(v.payload.ws, v.payload.jti))
+    return { ok: false, reason: "revoked" };
   if (!(await deps.credentials.store.workspaceAlive(v.payload.ws, now))) {
     return { ok: false, reason: "workspace_ended" };
   }

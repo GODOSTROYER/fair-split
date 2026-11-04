@@ -893,7 +893,9 @@ describe("links: revocation names a member link; brand links are throttled", () 
     const token = issued.body.url.split("/s/")[1] as string;
     const db = t.deps.db;
     const resolver = createCredentialResolver({
-      store: dbCredentialStore(db, { isLinkRevoked: (jti) => isLinkRevoked(db, jti) }),
+      store: dbCredentialStore(db, {
+        isLinkRevoked: (workspaceId, jti) => isLinkRevoked(db, workspaceId, jti),
+      }),
       keys: t.deps.credentials.keys,
       clock: t.clock,
     });

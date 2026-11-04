@@ -50,6 +50,35 @@ function setup() {
 }
 
 describe("credential resolution", () => {
+  it("HD6-11 checks a signed link's revocation only in its own workspace", async () => {
+    const s = setup();
+    const jti = randomUUID();
+    const otherWs = randomUUID();
+    const revoked = new Set([`${otherWs}:${jti}`]);
+    const calls: unknown[][] = [];
+    const resolver = createCredentialResolver({
+      ...s,
+      store: {
+        ...s.store,
+        async isLinkRevoked(...args: [string, string]) {
+          calls.push(args);
+          return revoked.has(`${args[0]}:${args[1]}`);
+        },
+      },
+    });
+    const link = signLink(s.keys.linkPrivateKey, {
+      v: 1,
+      k: "member",
+      ws: s.ws,
+      lineId: randomUUID(),
+      jti,
+      exp: s.nowS + 600,
+    });
+    expect((await resolver.resolve({ authorization: `Bearer ${link}` })).kind).toBe("ok");
+    expect(calls).toEqual([[s.ws, jti]]);
+    revoked.add(`${s.ws}:${jti}`);
+    expect((await resolver.resolve({ authorization: `Bearer ${link}` })).kind).toBe("invalid");
+  });
   it("resolves a frame token to the acting persona; the workspace comes from the token", async () => {
     const s = setup();
     const t = s.token();
@@ -193,7 +222,7 @@ describe("credential resolution", () => {
       role: "member",
     });
     if (r.kind === "ok") expect(scopeOf(r.credential)?.via).toBe("signed_link");
-    s.store.revokedLinks.add(jti);
+    s.store.revokedLinks.add(`${s.ws}:${jti}`);
     const revoked = await s.resolver.resolve({ authorization: `Bearer ${member}` });
     expect(revoked.kind === "invalid" && revoked.problem.code).toBe("UNAUTHENTICATED");
 

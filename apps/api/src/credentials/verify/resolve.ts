@@ -45,7 +45,7 @@ export interface CredentialStore {
   /** True when the workspace exists and has not expired at `now`. */
   workspaceAlive(workspaceId: string, now: Date): Promise<boolean>;
   /** Member and brand links are revocable by `jti`. */
-  isLinkRevoked(jti: string): Promise<boolean>;
+  isLinkRevoked(workspaceId: string, jti: string): Promise<boolean>;
 }
 
 export type ResolveResult =
@@ -79,7 +79,8 @@ export function createCredentialResolver(deps: {
           v.reason === "expired" ? problem.expired("This link has expired.") : problem.unauthenticated(),
         );
       const p = v.payload;
-      if (await store.isLinkRevoked(p.jti)) return invalid(problem.unauthenticated("This link was revoked."));
+      if (await store.isLinkRevoked(p.ws, p.jti))
+        return invalid(problem.unauthenticated("This link was revoked."));
       if (!(await store.workspaceAlive(p.ws, now)))
         return invalid(problem.expired("This link's workspace has ended."));
       const expiresAt = new Date(p.exp * 1000);
@@ -179,7 +180,9 @@ function ok(credential: Credential): ResolveResult {
  */
 function requireRevocationCheck(check: unknown, who: string): void {
   if (typeof check !== "function") {
-    throw new TypeError(`${who} needs isLinkRevoked(jti): link revocation is never assumed away`);
+    throw new TypeError(
+      `${who} needs isLinkRevoked(workspaceId, jti): link revocation is never assumed away`,
+    );
   }
 }
 
@@ -194,7 +197,7 @@ function invalid(p: ApiProblem): ResolveResult {
  */
 export function dbCredentialStore(
   db: Db,
-  opts: { isLinkRevoked: (jti: string) => Promise<boolean> },
+  opts: { isLinkRevoked: (workspaceId: string, jti: string) => Promise<boolean> },
 ): CredentialStore {
   requireRevocationCheck(opts?.isLinkRevoked, "dbCredentialStore");
   const ft = schema.frameTokens;
@@ -262,8 +265,8 @@ export function memoryCredentialStore(): CredentialStore & {
       const exp = workspaces.get(workspaceId) ?? null;
       return exp === null || exp.getTime() > now.getTime();
     },
-    async isLinkRevoked(jti) {
-      return revokedLinks.has(jti);
+    async isLinkRevoked(workspaceId, jti) {
+      return revokedLinks.has(`${workspaceId}:${jti}`);
     },
   };
 }
