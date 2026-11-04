@@ -29,7 +29,7 @@ export type LineScreenState =
   | "request-open";
 
 const IN_FLIGHT: readonly MemberLineState[] = ["LOCKED", "SUBMITTED", "PAYPAL_PENDING", "REROUTED"];
-const PARKED: readonly MemberLineState[] = ["UNCLAIMED", "PAYPAL_HELD", "NEEDS_ACTION"];
+const PARKED: readonly MemberLineState[] = ["UNCLAIMED", "RETURNED", "PAYPAL_HELD", "NEEDS_ACTION"];
 
 export function isCashLine(row: SplitRow): boolean {
   return row.rail === "CASH" || row.movedToCash;
@@ -41,7 +41,7 @@ export function lineScreenState(view: RunView, row: SplitRow): LineScreenState {
   const s = row.state;
   if (s === "PAID") return "paid";
   if (s === "OFF_RAIL_PAID") return "cash-received";
-  if (s === "OFF_RAIL_DUE" || s === "RETURNED") return "cash-due";
+  if (s === "OFF_RAIL_DUE") return "cash-due";
   if (PARKED.includes(s)) return "parked";
   if (s === "HELD") return "held";
   if (row.rail === "CASH" && atLeast(view, "APPROVED")) return "cash-due";
@@ -264,11 +264,12 @@ export function smsText(
 ): string {
   const fx = snapshot.fx.centavosPerCent;
   const cash = isCashLine(row);
+  const statusState = row.status.kind === "line" ? row.state : SMS_STATUS[state];
   const presentation = payoutStatus({
-    state: SMS_STATUS[state],
+    state: statusState,
     replayed: row.replayed,
     paypal: !cash,
-    statusWord: translate(lang, `status.${SMS_STATUS[state]}`),
+    statusWord: translate(lang, `status.${statusState}`),
   });
   const status = presentation.statusWord;
   const amount = cash

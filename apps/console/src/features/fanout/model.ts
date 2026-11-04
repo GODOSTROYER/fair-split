@@ -115,16 +115,11 @@ export interface FanView {
   readonly sealHash: string;
 }
 
-const MOVED_LINE_STATES: readonly MemberLineState[] = [
-  "RETURNED",
-  "OFF_RAIL_DUE",
-  "OFF_RAIL_PAID",
-  "REROUTED",
-];
+const MOVED_LINE_STATES: readonly MemberLineState[] = ["OFF_RAIL_DUE", "OFF_RAIL_PAID", "REROUTED"];
 
 export function threadTone(
   status: PayoutItemStatus | null,
-  item: RunItem | undefined,
+  _item: RunItem | undefined,
   lineState: MemberLineState | undefined,
 ): ThreadTone {
   if (status === null) return "unsent";
@@ -138,12 +133,8 @@ export function threadTone(
     case "ONHOLD":
       return "parked";
     case "RETURNED":
-      // RETURNED is ours only after our own cancel (register §7): the line moved to cash. Any other is a failure.
-      return item?.source === "cancel" ||
-        item?.source === "seed" ||
-        (lineState && MOVED_LINE_STATES.includes(lineState))
-        ? "moved"
-        : "failed";
+      // The item return commits before the separate cash decision; only that decision retracts the thread.
+      return lineState && MOVED_LINE_STATES.includes(lineState) ? "moved" : "failed";
     case "FAILED":
     case "BLOCKED":
     case "REFUNDED":

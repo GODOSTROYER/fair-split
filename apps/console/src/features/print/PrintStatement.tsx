@@ -78,7 +78,7 @@ export function PrintStatement({ snapshot, view, member, row, state }: PrintStat
                 ? `${payout.statusWord}. ${payout.detail}`
                 : row.state === "PAID"
                   ? LINE.printPaypal
-                  : LINE.printPaypalWaiting}
+                  : payout.statusWord}
             </p>
           </>
         )}

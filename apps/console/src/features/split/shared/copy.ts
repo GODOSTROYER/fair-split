@@ -351,8 +351,6 @@ export const LINE = {
   printButton: "Print",
   printBack: "Back to the line",
   printPaypal: "Paid through the simulated PayPal sandbox. This copy is for the member's records.",
-  printPaypalWaiting:
-    "Sent through the simulated PayPal sandbox. Paid once the simulated PayPal sandbox confirms it.",
   printHeld: "Still checking. This line prints its amount once every hold on it is decided.",
   printQrPending: "The member's own link prints here once statement links are issued.",
   nadawatHow: "Signature or thumbmark",

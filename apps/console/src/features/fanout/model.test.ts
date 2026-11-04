@@ -125,7 +125,7 @@ describe("each thread follows the item's actual status", () => {
     const ours = { source: "cancel" } as Parameters<typeof threadTone>[1];
     expect(threadTone("RETURNED", ours, "OFF_RAIL_DUE")).toBe("moved");
     const theirs = { source: "webhook" } as Parameters<typeof threadTone>[1];
-    expect(threadTone("RETURNED", theirs, "RETURNED")).toBe("moved");
+    expect(threadTone("RETURNED", theirs, "RETURNED")).toBe("failed");
     expect(threadTone("RETURNED", theirs, "NEEDS_ACTION")).toBe("failed");
   });
 

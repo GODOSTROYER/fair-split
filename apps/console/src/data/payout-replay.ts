@@ -88,6 +88,7 @@ const PAYPAL_STATES: readonly MemberLineState[] = [
   "PAYPAL_PENDING",
   "PAID",
   "UNCLAIMED",
+  "RETURNED",
   "PAYPAL_HELD",
   "NEEDS_ACTION",
   "REVERSED",

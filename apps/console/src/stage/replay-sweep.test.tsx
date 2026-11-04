@@ -1,5 +1,5 @@
 import { getSnapshot } from "@fairsplit/api-client/seed";
-import { webRoutes } from "@fairsplit/contracts";
+import { type RunEvent, webRoutes } from "@fairsplit/contracts";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
 import { expect, it } from "vitest";
@@ -164,3 +164,50 @@ it.each(["POSTING", "POSTED", "SETTLING"] as const)("inv.i8.stage pill labels re
     ).text,
   ).toMatch(/replaying.*earlier simulated PayPal sandbox run/i);
 });
+
+it.each([true, false])(
+  "inv.i8.a returned payout retains its evidence in drawer and print (replay=%s)",
+  async (replayed) => {
+    const base = fixture(replayed);
+    const line = base.lines["M-014"];
+    if (!line) throw new Error("M-014 line required");
+    const event = {
+      ...base.events[0],
+      type: "line.state",
+      payload: { memberNo: "M-014", from: "PAYPAL_PENDING", to: "RETURNED" },
+    } as RunEvent;
+    const view = {
+      ...base,
+      events: [event],
+      lines: { ...base.lines, "M-014": { ...line, state: "RETURNED" as const } },
+      items: Object.fromEntries(
+        Object.entries(base.items).map(([id, item]) => [
+          id,
+          item.memberNo === "M-014"
+            ? { ...item, status: "RETURNED" as const, source: "cancel" as const }
+            : item,
+        ]),
+      ),
+    };
+    const rendered = await renderConsole({ path: webRoutes.judge(), motion: "reduced" });
+    await rendered.startSession();
+    for (const path of [webRoutes.memberLine(RUN, "M-014"), webRoutes.memberPrint(RUN, "M-014")]) {
+      act(() => rendered.runtime.client.setQueryData(["run", RUN], view));
+      await rendered.navigate(path);
+      await screen.findByTestId("W-TR-09");
+      const root = screen.queryByTestId("W-TR-09.line") ?? screen.getByTestId("W-TR-09.paper");
+      expect(root.textContent).toMatch(/simulated PayPal sandbox/i);
+      if (replayed) expect(root.textContent).toMatch(/Replayed \(labelled\)/);
+      else {
+        expect(root.textContent).not.toMatch(/replay/i);
+        expect(root.textContent).toMatch(/Returned \(Simulated PayPal sandbox\)/);
+      }
+      if (screen.queryByTestId("W-TR-09.sms.text"))
+        expect(screen.getByTestId("W-TR-09.sms.text").textContent).toMatch(
+          replayed ? /Replayed \(labelled\)/ : /Gibalik sa co-op \(Simulated PayPal sandbox\)/,
+        );
+      expect(root.querySelector('[data-amount-state="landed"]')).toBeNull();
+      expect(root.querySelector('[data-amount-state="hollow"]')).not.toBeNull();
+    }
+  },
+);

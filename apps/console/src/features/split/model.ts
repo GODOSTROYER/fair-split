@@ -219,7 +219,7 @@ function confidenceFor(
   return min === null ? { kind: "unknown" } : { kind: "score", score: min };
 }
 
-const CASH_STATES: readonly MemberLineState[] = ["RETURNED", "REROUTED", "OFF_RAIL_DUE", "OFF_RAIL_PAID"];
+const CASH_STATES: readonly MemberLineState[] = ["REROUTED", "OFF_RAIL_DUE", "OFF_RAIL_PAID"];
 
 function lineState(view: RunView, line: EngineLine, open: readonly RunHold[]): MemberLineState {
   const live = view.lines[line.memberNo];

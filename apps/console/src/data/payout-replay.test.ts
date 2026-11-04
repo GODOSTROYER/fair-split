@@ -2,7 +2,7 @@ import { getSnapshot } from "@fairsplit/api-client/seed";
 import { PAYOUT_ITEM_STATUSES, type RunEvent } from "@fairsplit/contracts";
 import { describe, expect, it } from "vitest";
 import { fanView, shareCounts } from "../features/fanout/model.js";
-import { lineHistory } from "../features/print/model.js";
+import { isCashLine, lineHistory, lineScreenState, smsText } from "../features/print/model.js";
 import { amountStateOf, liveItems } from "../features/proof/model.js";
 import { splitRows } from "../features/split/model.js";
 import { FANOUT, SPLIT } from "../features/split/shared/copy.js";
@@ -226,3 +226,52 @@ it("inv.i8.replayed return retracts the old payout thread when this run moves th
   expect(returned?.progress).toBe(0);
   expect(returned?.statusWord).toBe("Cash due");
 });
+
+it.each(["replay", "simulated_rail"] as const)(
+  "inv.i8.a %s return stays payout evidence until the separate cash transition",
+  (provenance) => {
+    const base = showcaseView(snapshot);
+    const line = base.lines["M-014"];
+    if (!line) throw new Error("M-014 line required");
+    const returned = {
+      ...replay,
+      provenance,
+      type: "line.state",
+      payload: { memberNo: "M-014", from: "PAYPAL_PENDING", to: "RETURNED" },
+    } as RunEvent;
+    const view = {
+      ...base,
+      origin: "session" as const,
+      events: [returned],
+      lines: { ...base.lines, "M-014": { ...line, state: "RETURNED" as const } },
+      items: Object.fromEntries(
+        Object.entries(base.items).map(([id, item]) => [
+          id,
+          item.memberNo === "M-014"
+            ? { ...item, provenance, status: "RETURNED" as const, source: "cancel" as const }
+            : item,
+        ]),
+      ),
+    };
+    const row = splitRows(snapshot, view).find((line) => line.memberNo === "M-014");
+    const member = snapshot.members.find((line) => line.memberNo === "M-014");
+    if (!row || !member) throw new Error("M-014 fixture required");
+    expect(isCashLine(row)).toBe(false);
+    expect(lineScreenState(view, row)).toBe("parked");
+    expect(row.replayed).toBe(provenance === "replay");
+    expect(row.amountState).toBe("hollow");
+    const words = [
+      payoutStatus({ state: "RETURNED", provenance }).statusWord,
+      lineHistory(snapshot, view, "M-014")[0]?.words,
+      smsText(snapshot, member, row, lineScreenState(view, row), "en"),
+      fanView(snapshot, view).threads.find((line) => line.memberNo === "M-014")?.statusWord,
+    ];
+    for (const word of words) {
+      expect(word).toMatch(/simulated PayPal sandbox/i);
+      if (provenance === "replay") expect(word).toMatch(/Replayed \(labelled\)/);
+      else expect(word).not.toMatch(/replay/i);
+    }
+    const cash = { ...row, state: "OFF_RAIL_DUE" as const, movedToCash: true, replayed: false };
+    expect(smsText(snapshot, member, cash, "cash-due", "en")).not.toMatch(/replay/i);
+  },
+);
