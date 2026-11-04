@@ -12,7 +12,9 @@
 // --label=NAME  --out=DIR (default .codex-scratch/soak/out)  --state=FILE (the soak stack's state)
 // --origin=URL (instead of the state file; then no server samples)  --sample-s=30  --ip-base=10 (second octet of
 // the judges' addresses)  --shared-ip  --judge-rows=500 (cap on per-judge CSV rows)  --step-s=180 (how long a judge
-// waits for any one step before giving up and pressing Reset).
+// waits for any one step before giving up and pressing Reset)  --prod-quota[=N] (LOCAL stack only: labelled synthetic
+// reservations bring the e2e stack's raised hourly cap down to N live payouts per clock hour, default production's 3;
+// 0 makes every run a labelled replay, the hosted demo once an hour's three are used).
 //
 // Writes, in --out: <label>-judges.csv (one row per judge, capped), <label>-minutes.csv (per-minute aggregate,
 // appended as it goes), <label>-metrics.csv (server samples, appended), <label>-endpoints.csv and
@@ -22,7 +24,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Exchange, JudgeClient, sleep } from "./client.js";
 import { type FanoutSample, type JudgeResult, runJudge } from "./judge.js";
-import { SAMPLE_COLUMNS, type ServerSample, sampleServer, stuckOutboxRows } from "./sample.js";
+import {
+  emulateProductionHourlyQuota,
+  SAMPLE_COLUMNS,
+  type ServerSample,
+  sampleServer,
+  stuckOutboxRows,
+} from "./sample.js";
 import { csvLine, judgeAddress, parseArgs, summarize, tally, toCsv } from "./stats.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -103,6 +111,9 @@ async function main() {
   const sharedIp = args.has("shared-ip");
   const judgeRowCap = Number(args.get("judge-rows") ?? "500");
   const stepMs = Number(args.get("step-s") ?? "180") * 1000;
+  // --prod-quota[=N]: leave N live payouts in each clock hour (production's 3 by default; 0 = every payout replays)
+  const prodQuota = args.has("prod-quota");
+  const liveLeft = args.get("prod-quota") === "true" ? 3 : Number(args.get("prod-quota") ?? "3");
 
   let origin = args.get("origin") ?? null;
   let pid = 0;
@@ -126,6 +137,22 @@ async function main() {
   writeFileSync(file("minutes.csv"), csvLine(MINUTE_COLUMNS));
   const log = (line: string) => process.stdout.write(`[soak ${label}] ${new Date().toISOString()} ${line}\n`);
 
+  // --prod-quota: production's three live payouts per clock hour, emulated with labelled synthetic reservations
+  let quotaHour = -1;
+  const emulateQuota = async () => {
+    if (!prodQuota || !databaseUrl) return;
+    const hour = Math.floor(Date.now() / 3_600_000);
+    if (hour === quotaHour) return;
+    quotaHour = hour;
+    const lane = await new JudgeClient({ origin: origin as string }).get("lane", "/v1/judge/lane");
+    const cap =
+      (lane.json as { rail?: { quota?: { hourlyCap?: number } } } | null)?.rail?.quota?.hourlyCap ?? 0;
+    const n = await emulateProductionHourlyQuota(databaseUrl, cap, liveLeft);
+    log(
+      `prod-quota: ${n} labelled synthetic reservations leave ${liveLeft} of the hour's ${cap} live payouts`,
+    );
+  };
+  await emulateQuota();
   const startedAt = Date.now();
   const deadline = minutes === null ? null : startedAt + minutes * 60_000;
   const results: JudgeResult[] = [];
@@ -155,7 +182,10 @@ async function main() {
   const sampler = (async () => {
     while (running) {
       await sleep(sampleS * 1000);
-      if (running) await takeSample();
+      if (running) {
+        await emulateQuota();
+        await takeSample();
+      }
     }
   })();
   const minuteWriter = (async () => {
@@ -294,6 +324,7 @@ async function main() {
     label,
     judges,
     stepS: stepMs / 1000,
+    prodQuota: prodQuota ? liveLeft : null,
     rounds: minutes === null ? rounds : null,
     minutes,
     sharedIp,
