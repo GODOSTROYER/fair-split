@@ -1,14 +1,19 @@
-/* W-JG-01's first view and the stage extras the season slice adds: the desk of photos on the lacquer, the
-   invoice above the pool with the one slab, "Play it for me" on the run pill and its cursor. Every value is a
-   --fs-* token; only paper casts a shadow. */
+/* W-JG-01's first view and the stage extras the season slice adds: the desk of photos, the invoice above the
+   pool with the one slab, the five story tiles and the What's real strip, "Play it for me" on the run pill and
+   its cursor. Every value is a --fs-* token (ADR-0016: radii from the scale, cards on e1, one morning wash). */
 
 /* ---------------------------------------------------------------- the first view */
 
 .fsc-first {
   display: grid;
   align-content: start;
-  gap: 32px;
+  gap: 28px;
   max-width: 1320px;
+}
+
+/* The first view is the stage's hero: its screen sits on the morning wash. */
+.fsc-console__screen:has(> .fsc-first) {
+  background: var(--fs-wash), var(--fs-plate);
 }
 
 .fsc-first__head {
@@ -32,8 +37,6 @@
 .fsc-first__lede {
   max-width: 62ch;
   color: var(--fs-ink-2);
-  font-size: 0.9375rem;
-  line-height: 1.375rem;
 }
 
 .fsc-first__rules {
@@ -81,15 +84,205 @@
   gap: 16px 14px;
 }
 
-/* The sheet's own label, on paper like each print's tag: these are synthetic samples (design §2.6). */
+/* The sheet's own label: a synthetic sample is "not real", so it wears the dashed honesty outline. */
 .fsc-first__synthetic {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
+  padding: 2px 10px;
+  border: 1px dashed var(--fs-steel-line);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-copy-white);
-  box-shadow: inset 0 0 0 1px var(--fs-paper-ink);
   color: var(--fs-paper-ink);
+}
+
+/* ---------------------------------------------------------------- the five story tiles (the colour key) */
+
+.fsc-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-tile {
+  --tile: var(--fs-pencil);
+  --tile-on: var(--fs-plate);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 14px 14px;
+  border-top: 3px solid var(--tile);
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
+}
+
+/* Each tile is its step's colour: the machine reads, a person decides, a person signs, money moves, Proof checks. */
+.fsc-tile[data-role="check"] {
+  --tile: var(--fs-canary);
+  --tile-on: var(--fs-on-canary);
+}
+
+.fsc-tile[data-role="sign"] {
+  --tile: var(--fs-slab-chalk-face);
+  --tile-on: var(--fs-slab-chalk-label);
+}
+
+.fsc-tile[data-role="pay"] {
+  --tile: var(--fs-jade);
+  --tile-on: var(--fs-on-jade);
+}
+
+.fsc-tile[data-role="prove"] {
+  --tile: var(--fs-ink);
+  --tile-on: var(--fs-plate);
+}
+
+.fsc-tile__bubble {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--fs-radius-control);
+  background: var(--tile);
+  color: var(--tile-on);
+}
+
+.fsc-tile__body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.fsc-tile__step {
+  color: var(--fs-ink);
+  font-weight: 650;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+}
+
+.fsc-tile__no {
+  margin-right: 2px;
+  color: var(--fs-ink-3);
+  font-weight: 560;
+  font-variant-numeric: lining-nums proportional-nums;
+}
+
+.fsc-tile__figure {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-variant-numeric: lining-nums proportional-nums;
+}
+
+.fsc-tile__figure b {
+  color: var(--fs-ink);
+  font-weight: 700;
+}
+
+@media (max-width: 1599px) {
+  .fsc-tiles {
+    gap: 10px;
+  }
+
+  .fsc-tile {
+    gap: 10px;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 1199px) {
+  .fsc-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------------------------------------------------------------- What's real (three honest parts) */
+
+.fsc-real {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px 24px;
+  padding: 14px 18px;
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+}
+
+.fsc-real__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 1px;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsc-real__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-real__part {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Real code is ink (a checked fact); simulated is the dashed steel ring (not real); synthetic is evidence paper. */
+.fsc-real__mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--fs-ink);
+}
+
+.fsc-real__part[data-kind="simulated"] .fsc-real__mark {
+  border: 1.5px dashed var(--fs-steel-line);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-real__part[data-kind="synthetic"] .fsc-real__mark {
+  background: var(--fs-copy-yellow);
+  box-shadow: inset 0 0 0 1px var(--fs-canary-border);
+}
+
+.fsc-real__words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fsc-real__name {
+  color: var(--fs-ink);
+}
+
+.fsc-real__body {
+  color: var(--fs-ink-2);
+}
+
+@media (max-width: 1199px) {
+  .fsc-real {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-real__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .fsc-first__action {
@@ -147,13 +340,13 @@
   align-items: center;
   gap: 6px;
   min-height: 28px;
-  padding: 0 8px;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
   font-family: var(--fs-font-ui);
-  font-weight: 560;
+  font-weight: 600;
   font-size: 0.8125rem;
   line-height: 1rem;
   white-space: nowrap;
@@ -200,7 +393,8 @@
   left: -14px;
   width: 28px;
   height: 28px;
-  border: 1.5px solid var(--fs-ink);
+  border: 1.5px solid var(--fs-pod);
+  border-radius: 50%;
   opacity: 0;
 }
 
@@ -220,8 +414,8 @@
   align-items: center;
   gap: 6px;
   max-width: 280px;
-  padding: 6px 10px;
-  border-radius: var(--fs-radius-2);
+  padding: 6px 12px;
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-ink);
   color: var(--fs-ground);
   font-family: var(--fs-font-ui);

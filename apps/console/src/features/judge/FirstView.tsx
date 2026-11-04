@@ -5,6 +5,8 @@
 // US$4,333.50 hollow. Nothing here calls the API: the snapshot and the first view are built locally (S3.9).
 // The single d2 slab is the first press: it starts the judge session, then records Lantern Bay's payment; MM-S
 // plays when the invoice reads back as paid, on the event, never on the press, and the title says it's funded.
+// Under the invoice and the slab, the five story tiles (Read, Check, Sign, Pay, Prove: the story and the colour
+// key at once) and the honest "What's real" strip (ADR-0016).
 
 import { PAY_RUN_RANK, type PayRunState, webRoutes } from "@fairsplit/contracts";
 import { Glyph, Slab, useT } from "@fairsplit/ui-web";
@@ -31,6 +33,7 @@ import { gateBeds, SeasonGate } from "../season/gate.js";
 import { isFunded } from "../season/model.js";
 import { ContactSheet, SeasonMark } from "../season/parts.js";
 import { splitRows } from "../split/model.js";
+import { StoryTiles, WhatsRealStrip } from "./StoryTiles.js";
 import "./judge.css";
 
 export function FirstView() {
@@ -309,10 +312,10 @@ function Desk() {
       <header className="fsc-first__head">
         <div className="fsc-first__titles">
           <SeasonMark snapshot={snapshot} testId="W-JG-01.mark" />
-          <h1 id="fsc-first-title" className="fs-t-title-1 fsc-first__title" data-testid="W-JG-01.title">
+          <h1 id="fsc-first-title" className="fs-t-display fsc-first__title" data-testid="W-JG-01.title">
             <SeasonText text={title} season={season} />
           </h1>
-          <p className="fsc-first__lede">
+          <p className="fsc-first__lede fs-t-lede">
             {FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
           </p>
         </div>
@@ -362,6 +365,8 @@ function Desk() {
           </section>
         }
       />
+      <StoryTiles snapshot={snapshot} />
+      <WhatsRealStrip members={snapshot.figures.members} />
     </ScreenRoot>
   );
 }
