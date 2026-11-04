@@ -3,6 +3,15 @@ import { payoutStatusPresentation } from "../lib/payout-status.js";
 import { type StatementLineFacts, statementPlan } from "./plan.js";
 import { renderStatement } from "./render.js";
 
+/** The replay word in each reader's language: ceb and fil machine-translated, chipped like every ceb and fil key. */
+const REPLAY_WORD = {
+  en: "Replayed (labelled): earlier simulated PayPal sandbox run",
+  ceb: "Gi-replay (gilabelan): miaging simulated PayPal sandbox run",
+  fil: "Ni-replay (may label): naunang simulated PayPal sandbox run",
+} as const;
+/** An English sentence in a Cebuano or Filipino SMS (product terms such as "simulated PayPal sandbox" stay). */
+const ENGLISH = /\b(?:Replayed|labelled|earlier|this run|payment|not)\b/;
+
 const facts: StatementLineFacts = {
   lineId: "00000000-0000-4000-8000-000000000014",
   memberNo: "M-014",
@@ -34,10 +43,10 @@ describe("inv.i8.api-payout-presentation", () => {
       const returned = { ...facts, lang, state: "RETURNED" as const, itemStatus: "RETURNED" as const };
       const replay = payoutStatusPresentation(returned, lang);
       expect(replay).toMatchObject({ replayed: true, tone: "neutral", amountState: "unsettled" });
-      expect(replay.statusWord).toMatch(/^Replayed \(labelled\)/);
+      expect(replay.statusWord).toBe(REPLAY_WORD[lang]);
       const replaySms = renderStatement(statementPlan(returned)).sms;
-      expect(replaySms.text).toContain("Replayed (labelled)");
-      expect(replaySms.text).toContain("earlier simulated PayPal sandbox run");
+      expect(replaySms.text).toContain(REPLAY_WORD[lang]);
+      if (lang !== "en") expect(replaySms.text).not.toMatch(ENGLISH);
       expect(replaySms.fits).toBe(true);
 
       const live = { ...returned, itemProvenance: "simulated_rail" as const };
@@ -69,6 +78,7 @@ describe("inv.i8.api-payout-presentation", () => {
 
   it("preserves console register words for the brand", () => {
     expect(payoutStatusPresentation({ state: "OFF_RAIL_DUE" }, "console").statusWord).toBe("Cash due");
+    expect(payoutStatusPresentation(facts, "console").statusWord).toBe(REPLAY_WORD.en);
   });
 
   it.each(["en", "ceb", "fil"] as const)("%s replay item controls status, amount and SMS", (lang) => {
@@ -79,12 +89,13 @@ describe("inv.i8.api-payout-presentation", () => {
       amountState: "unsettled",
       simulatedLabel: "Simulated PayPal sandbox",
     });
-    expect(p.statusWord).toMatch(/^Replayed \(labelled\)/);
-    expect(p.statusWord).toContain("earlier simulated PayPal sandbox run");
+    expect(p.statusWord).toBe(REPLAY_WORD[lang]);
+    expect(p.statusWord).toContain("simulated PayPal sandbox run");
     const sms = renderStatement(statementPlan({ ...facts, lang })).sms;
-    expect(sms.text).toMatch(/Replayed \(labelled\)/);
-    expect(sms.text).toContain("earlier simulated PayPal sandbox run");
+    expect(sms.text).toContain(REPLAY_WORD[lang]);
     expect(sms.text).not.toMatch(/\bpaid\b|Bayad na|bayad na/i);
+    // A Cebuano or Filipino SMS carries no English sentence.
+    if (lang !== "en") expect(sms.text).not.toMatch(ENGLISH);
     expect(sms.fits).toBe(true);
   });
 

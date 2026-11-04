@@ -9,6 +9,13 @@ import { loadStatementContext } from "./facts.js";
 import type { PrintSlip } from "./print.js";
 import { type StatementView, statementView } from "./view.js";
 
+/** The replay word in each reader's language: ceb and fil machine-translated, chipped like every ceb and fil key. */
+const REPLAY_WORD = {
+  en: "Replayed (labelled): earlier simulated PayPal sandbox run",
+  ceb: "Gi-replay (gilabelan): miaging simulated PayPal sandbox run",
+  fil: "Ni-replay (may label): naunang simulated PayPal sandbox run",
+} as const;
+
 describe("a simulator run whose payout replays", () => {
   let t: TestApp;
   let w: ShowcaseWorld;
@@ -54,9 +61,9 @@ describe("a simulator run whose payout replays", () => {
       });
       expect(response.body.mobile.lineState).toBe("PAID");
       expect(response.body.mobile.history.some((event) => event.kind === "paid")).toBe(true);
-      expect(response.body.statusWords).toBe("Replayed (labelled): earlier simulated PayPal sandbox run");
-      expect(response.body.sms.text).toContain("Replayed (labelled)");
-      expect(response.body.sms.text).toContain("earlier simulated PayPal sandbox run");
+      expect(response.body.statusWords).toBe(REPLAY_WORD[lang]);
+      expect(response.body.sms.text).toContain(REPLAY_WORD[lang]);
+      if (lang !== "en") expect(response.body.sms.text).not.toMatch(/\b(?:Replayed|labelled|earlier)\b/);
       expect(response.body.sms.text).not.toMatch(/\bpaid\b|bayad na/i);
       expect(response.body.sms.fits).toBe(true);
       expect(response.body.plan).not.toHaveProperty("payout");
@@ -175,10 +182,10 @@ describe("a simulator run whose payout replays", () => {
           expect(response.status).toBe(200);
           expect(response.body.mobile.item).toMatchObject({ status: "RETURNED", provenance });
           expect(response.body.statusWords).toMatch(
-            provenance === "replay" ? /^Replayed \(labelled\)/ : /simulated PayPal sandbox/,
+            provenance === "replay" ? REPLAY_WORD[lang] : /simulated PayPal sandbox/,
           );
           expect(response.body.sms.text).toMatch(
-            provenance === "replay" ? /Replayed \(labelled\)/ : /simulated PayPal sandbox/,
+            provenance === "replay" ? REPLAY_WORD[lang] : /simulated PayPal sandbox/,
           );
           expect(response.body.sms.text).not.toMatch(/ready in cash|sent to your PayPal/i);
           const printed = await t.json<PrintSlip>(`/v1/print/${w.runSlug}/members/M-031?lang=${lang}`, {

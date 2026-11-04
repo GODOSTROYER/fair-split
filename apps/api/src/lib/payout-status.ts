@@ -12,6 +12,17 @@ export interface PayoutStatusEvidence {
   itemProvenance?: Provenance | null;
 }
 
+/**
+ * The replay word in the reader's language. Cebuano and Filipino are machine-translated, pending native review: the
+ * statement and print DTOs carry the review chip for every ceb and fil reading. The console reads English.
+ */
+export const REPLAY_STATUS_WORDS: Readonly<Record<"en" | "ceb" | "fil" | "console", string>> = {
+  en: "Replayed (labelled): earlier simulated PayPal sandbox run",
+  ceb: "Gi-replay (gilabelan): miaging simulated PayPal sandbox run",
+  fil: "Ni-replay (may label): naunang simulated PayPal sandbox run",
+  console: "Replayed (labelled): earlier simulated PayPal sandbox run",
+};
+
 const NON_PAYPAL = new Set<MemberLineState>([
   "COMPUTED",
   "READY",
@@ -31,11 +42,7 @@ export function payoutStatusPresentation(
   const paid = paypal && evidence.state === "PAID";
   const word = MEMBER_LINE_LABELS[evidence.state][lang];
   return {
-    statusWord: replayed
-      ? "Replayed (labelled): earlier simulated PayPal sandbox run"
-      : paypal
-        ? `${word} (simulated PayPal sandbox)`
-        : word,
+    statusWord: replayed ? REPLAY_STATUS_WORDS[lang] : paypal ? `${word} (simulated PayPal sandbox)` : word,
     tone: replayed ? ("neutral" as const) : paid ? ("jade" as const) : ("neutral" as const),
     amountState: replayed ? ("unsettled" as const) : paid ? ("landed" as const) : ("unsettled" as const),
     replayed,

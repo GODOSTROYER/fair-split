@@ -63,6 +63,10 @@ export const TEMPLATES_V1: TemplateSet = {
     "sms.paid_usd": "{{COOP}}: {{HONORIFIC_NAME}}, your {{NET_USD}} is paid to your PayPal.",
     "sms.sent_usd": "{{COOP}}: {{HONORIFIC_NAME}}, your {{NET_USD}} is sent to your PayPal.",
     "sms.cash_usd": "{{COOP}}: {{HONORIFIC_NAME}}, your {{NET_USD}} is ready in cash at the bodega.",
+    "sms.replay":
+      "{{COOP}}: {{HONORIFIC_NAME}}, {{NET_USD}}. Replayed (labelled): earlier simulated PayPal sandbox run; not this run's payment.",
+    "sms.replay_short":
+      "{{NET_USD}}. Replayed (labelled): earlier simulated PayPal sandbox run; not this run's payment.",
   },
   ceb: {
     "GREETING.default": "Maayong adlaw, {{HONORIFIC_NAME}}. Salamat sa inyong paghago.",
@@ -115,6 +119,10 @@ export const TEMPLATES_V1: TemplateSet = {
     "sms.paid_usd": "{{COOP}}: {{HONORIFIC_NAME}}, bayad na ang {{NET_USD}} sa PayPal.",
     "sms.sent_usd": "{{COOP}}: {{HONORIFIC_NAME}}, gipadala na ang {{NET_USD}} sa PayPal.",
     "sms.cash_usd": "{{COOP}}: {{HONORIFIC_NAME}}, andam sa bodega ang {{NET_USD}} cash.",
+    "sms.replay":
+      "{{COOP}}: {{HONORIFIC_NAME}}, {{NET_USD}}. Gi-replay (gilabelan): miaging simulated PayPal sandbox run; dili bayad niini nga run.",
+    "sms.replay_short":
+      "{{NET_USD}}. Gi-replay (gilabelan): miaging simulated PayPal sandbox run; dili bayad niini nga run.",
   },
   fil: {
     "GREETING.default": "Magandang araw po, {{HONORIFIC_NAME}}. Salamat po sa inyong pagsisikap.",
@@ -168,6 +176,10 @@ export const TEMPLATES_V1: TemplateSet = {
     "sms.paid_usd": "{{COOP}}: {{HONORIFIC_NAME}}, bayad na po ang {{NET_USD}} sa PayPal.",
     "sms.sent_usd": "{{COOP}}: {{HONORIFIC_NAME}}, naipadala na po ang {{NET_USD}} sa PayPal.",
     "sms.cash_usd": "{{COOP}}: {{HONORIFIC_NAME}}, handa na po sa bodega ang {{NET_USD}} cash.",
+    "sms.replay":
+      "{{COOP}}: {{HONORIFIC_NAME}}, {{NET_USD}}. Ni-replay (may label): naunang simulated PayPal sandbox run; hindi bayad sa run na ito.",
+    "sms.replay_short":
+      "{{NET_USD}}. Ni-replay (may label): naunang simulated PayPal sandbox run; hindi bayad sa run na ito.",
   },
 };
 
@@ -207,6 +219,8 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<Record<string, readonly string[]>> 
   "sms.paid_usd": ["COOP", "HONORIFIC_NAME", "NET_USD"],
   "sms.sent_usd": ["COOP", "HONORIFIC_NAME", "NET_USD"],
   "sms.cash_usd": ["COOP", "HONORIFIC_NAME", "NET_USD"],
+  "sms.replay": ["COOP", "HONORIFIC_NAME", "NET_USD"],
+  "sms.replay_short": ["NET_USD"],
 };
 
 /** PayPal's published conversion spread, named on PayPal lines (FEE_TABLE; GCash's 1% is a UI segment). */

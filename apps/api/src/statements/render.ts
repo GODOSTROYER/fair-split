@@ -323,16 +323,12 @@ export function renderSms(plan: StatementPlan, templates: TemplateSet = TEMPLATE
   );
   const presentation = plan.payout ? payoutStatusPresentation(plan.payout, plan.lang) : null;
   if (presentation?.replayed) {
-    // Never wrap "Paid" in a replay prefix: this SMS describes evidence, not payment for this run.
-    text = fillTemplate(
-      "{{COOP}}: {{HONORIFIC_NAME}}, {{NET_USD}}. Replayed (labelled): earlier simulated PayPal sandbox run; not this run's payment.",
-      plan.sms.facts,
-      "sms",
-      plan.lang,
-    );
+    // Never wrap "Paid" in a replay prefix: this SMS describes evidence, not payment for this run. The frame is a
+    // template in the member's language (ceb and fil machine-translated, chipped), never English inside Cebuano.
+    text = fillTemplate(templateOf(templates, plan.lang, "sms.replay"), plan.sms.facts, "sms", plan.lang);
     if ((gsm7Length(text) ?? Number.POSITIVE_INFINITY) > SMS_MAX_SEPTETS) {
       text = fillTemplate(
-        "{{NET_USD}}. Replayed (labelled): earlier simulated PayPal sandbox run; not this run's payment.",
+        templateOf(templates, plan.lang, "sms.replay_short"),
         plan.sms.facts,
         "sms",
         plan.lang,
