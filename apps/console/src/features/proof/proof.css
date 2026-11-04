@@ -1,7 +1,16 @@
-/* Proof (W-PF-01) and the brand view's column (W-BR-01): a light reading column on Adlaw (design §2.1, §6 P1).
-   One 680 px column (the Surface sets it), the hero centred, everything else left-aligned. Every colour is a
-   token, every timing a --fs-dur-* or --fs-ease-* variable. Paper (the slip) is the only thing with a shadow;
-   jade appears only where PayPal confirmed money; red only where a check failed or PayPal failed. */
+/* Proof (W-PF-01) and the brand view's column (W-BR-01): one light reading column on Hayag (design §2.1, §6 P1,
+   ADR-0016). Light only: the ground is plate, so the page is one white column, and the morning wash sits behind
+   the hero alone. One 680 px column (the Surface sets it), the hero centred, everything else left-aligned. Every
+   colour is a token, every timing a --fs-dur-* or --fs-ease-* variable. Jade appears only where the simulated
+   PayPal confirmed money; a check that matches is ink; red only where a check failed or PayPal failed. */
+
+/* Proof's ground is plate (decision.md §5), with the one morning wash behind the hero only. */
+.fsc-surface--proof {
+  --fs-ground: var(--fs-plate);
+  background:
+    var(--fs-wash) top center / 100% 960px no-repeat,
+    var(--fs-plate);
+}
 
 /* Proof's own face, "FS Sans Proof" (theme/surfaces.css): the column reads in it wherever it renders, and the
    whole document does while a Proof surface is open (lib/face.ts). */
@@ -106,7 +115,8 @@
 }
 
 /* The money is the hero: its own line inside the sentence, at hero size, in ink (PayPal recorded it). The words
-   around it step down to a reading size, so nothing on the page outweighs the amount. */
+   around it step down to a reading size, so nothing on the page outweighs the amount. Proportional figures, the
+   US$ small and raised: money reads as money (ADR-0016). */
 .pf-hero__amount {
   display: block;
   margin: 4px 0;
@@ -115,6 +125,94 @@
   font-weight: 800;
   letter-spacing: 0;
   white-space: nowrap;
+}
+
+.pf .pf-hero__amount {
+  font-variant-numeric: lining-nums proportional-nums;
+}
+
+/* ------------------------------------------------------------------ where every dollar went */
+
+.pf-dist {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+  margin: 18px 0 4px;
+  text-align: left;
+}
+
+.pf-dist__title {
+  color: var(--fs-ink);
+  font-weight: 620;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+
+.pf-dist__bar {
+  display: flex;
+  gap: 3px;
+  height: 14px;
+}
+
+.pf-dist__seg {
+  min-width: 6px;
+  border-radius: var(--fs-radius-pill);
+}
+
+.pf-dist__swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* Confirmed by the simulated PayPal: flush jade. On its way: the dashed jade outline. Cash: hatch. Kept: neutral. */
+.pf-dist__seg[data-kind="paypal"],
+.pf-dist__key[data-kind="paypal"] .pf-dist__swatch {
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+}
+
+.pf-dist__seg[data-kind="flight"],
+.pf-dist__key[data-kind="flight"] .pf-dist__swatch {
+  border: 1.5px dashed var(--fs-jade-flush-border);
+  background: transparent;
+}
+
+.pf-dist__seg[data-kind="cash"],
+.pf-dist__key[data-kind="cash"] .pf-dist__swatch {
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 5px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+.pf-dist__seg[data-kind="kept"],
+.pf-dist__key[data-kind="kept"] .pf-dist__swatch {
+  background: var(--fs-ink-2);
+}
+
+.pf-dist__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-dist__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.pf-dist__value {
+  color: var(--fs-ink);
+  font-weight: 650;
 }
 
 .pf-hero__tagline {
@@ -217,6 +315,29 @@
   color: var(--fs-ink);
 }
 
+/* Verify in your browser / Check again: an ink slab, a checked fact (decision.md §4), on an ink lip. */
+.pf-verify .fs-slab[data-tone="chalk"] {
+  --face: var(--fs-ink);
+  --edge-r: var(--fs-ink);
+  --edge-b: var(--fs-pencil);
+  --label: var(--fs-plate);
+  --glow: color-mix(in srgb, var(--fs-ink) 35%, transparent);
+}
+
+/* The signed-by line: the officers' indigo stamps (AS, EC) before the words. */
+.pf-verify__signed {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.pf-verify__stamps {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+
 .pf-checks__row[data-state="withheld"] .pf-checks__state {
   color: var(--fs-ink-2);
 }
@@ -259,13 +380,14 @@
   gap: 8px 12px;
 }
 
-/* The verdict is an ink stamp: square, ink, never jade (jade means money). */
+/* The verdict is an outlined ink badge, never jade (jade means money). */
 .pf-verdict {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px 4px 8px;
+  padding: 4px 12px 4px 9px;
   border: 1.5px solid var(--fs-ink);
+  border-radius: var(--fs-radius-control);
   color: var(--fs-ink);
   /* The Proof face is 75-100% wide. */
   font-stretch: 100%;
@@ -1443,4 +1565,13 @@
   background: var(--fs-ink-3);
   border-color: var(--fs-ink-3);
   box-shadow: none;
+}
+
+/* Matches: a white check in an ink circle, and the word in ink. A checked fact, never jade. */
+.pf-checks__row:is([data-state="matches"], [data-state="server"]) .pf-checks__state .fs-glyph {
+  box-sizing: content-box;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--fs-ink);
+  color: var(--fs-plate);
 }
