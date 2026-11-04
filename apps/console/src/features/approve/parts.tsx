@@ -305,6 +305,8 @@ export function CosignCard({ code, busy, onMake, onChairFrame, error }: CosignCa
         <button
           type="button"
           className="fs-link fs-t-caption"
+          // The console lowers a docked phone on pointerdown; this action raises that same phone.
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={onChairFrame}
           data-testid="W-TR-07.cosign.frame"
         >
