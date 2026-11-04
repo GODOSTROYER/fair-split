@@ -1,7 +1,7 @@
 // E-19, the public-copy lint (schedule replan-1031 §3 Q2, §6; ADR-0002; plan S5.7.1 and S5.6.1). It reads the
 // README, docs/devpost.md, video/script.ts, packages/i18n, the console copy, the app catalogs and the statement
 // templates, and fails on any banned or unqualified claim, any money or kilo figure IC-03 does not hold, and a film
-// script over 240 words or 140 wpm in a beat. Planted copy below proves every rule fires and lets honest copy pass.
+// script over MAX_WORDS (371, ADR-0017) or 140 wpm in a beat. Planted copy below proves every rule fires and lets honest copy pass.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,7 +20,7 @@ import {
   scopeFiles,
   sourceSentences,
 } from "./e19/scan.js";
-import { beatsFrom, checkScript, countWords, MAX_WORDS } from "./e19/script.js";
+import { beatsFrom, checkScript, countWords, MAX_WORDS, MAX_WPM } from "./e19/script.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const here = dirname(fileURLToPath(import.meta.url));
@@ -114,7 +114,7 @@ describe("E-19 public copy", () => {
   );
 
   it.skipIf(!existsSync(resolve(root, SCRIPT)))(
-    "video/script.ts: at most 240 spoken words and 140 wpm in every beat",
+    `video/script.ts: at most ${MAX_WORDS} spoken words and ${MAX_WPM} wpm in every beat`,
     async () => {
       const mod = (await import(pathToFileURL(resolve(root, SCRIPT)).href)) as Record<string, unknown>;
       expect(checkScript(beatsFrom(mod)).violations).toEqual([]);
@@ -270,12 +270,12 @@ describe("E-19 film script limits", () => {
     expect(countWords("Sixty-four cacao farmers — two hundred sixty-four slips.")).toBe(7);
   });
 
-  it("fails a script over 240 words with a beat over 140 wpm, and passes one inside both", () => {
+  it(`fails a script over ${MAX_WORDS} words with a beat over ${MAX_WPM} wpm, and passes one inside both`, () => {
     const over = checkScript(SCRIPTS.over);
     expect(over.words).toBeGreaterThan(MAX_WORDS);
     expect(over.violations).toEqual([
       expect.stringMatching(/^script-wpm: fast runs at \d+ wpm/),
-      expect.stringMatching(/^script-words: \d+ spoken words, over 240$/),
+      expect.stringMatching(new RegExp(`^script-words: \\d+ spoken words, over ${MAX_WORDS}$`)),
     ]);
     expect(checkScript(SCRIPTS.within)).toEqual({ words: expect.any(Number), violations: [] });
   });
