@@ -88,6 +88,8 @@ export const TWEENS = {
   reduced: { ms: 150, bezier: null },
   /** MM-1: the jade flood scales in from the capsule's right bottom. */
   flood: { ms: 140, bezier: EASE_OUT },
+  /** ADR-0016: the jade halo, one beat after the simulated PayPal confirms (no growth in reduced motion). */
+  halo: { ms: 520, bezier: EASE_OUT },
   /** MM-1: hollow-fill to ink, stroke 2 → 0. */
   fill: { ms: 120, bezier: null },
   /** MM-1: one 1 px ink ring pulses once on Paminawa. */

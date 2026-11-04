@@ -341,8 +341,9 @@ export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
         <Txt kind="caption" color="ink3" style={styles.flex}>
           {tr("M-BD-01.push.now")}
         </Txt>
-        <View style={[styles.pushLabel, { borderColor: t.color.rule, backgroundColor: t.color.plate2 }]}>
-          <Glyph name="info" size={12} color={t.color.ink2} />
+        {/* "Simulated push": the dashed steel honesty pill, the same mark as every simulated label (I8). */}
+        <View style={[styles.pushLabel, { borderColor: t.color.steelLine }]}>
+          <Glyph name="info" size={12} color={t.color.ink3} />
           <Txt kind="caption" color="ink2">
             {tr("M-BD-01.push.label")}
           </Txt>
@@ -455,7 +456,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderStyle: "dashed",
+    borderRadius: radius.pill,
+    backgroundColor: "transparent",
   },
   note: {
     flexDirection: "row",

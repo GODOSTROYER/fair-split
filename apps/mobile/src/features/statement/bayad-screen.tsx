@@ -69,7 +69,7 @@ export function ownerOf(dto: StatementDTO): SlipOwner {
 function StatementSkeleton() {
   const { t } = useFs();
   return (
-    <View style={[styles.card, { backgroundColor: t.color.plate }]}>
+    <View style={[styles.card, { backgroundColor: t.color.plate, boxShadow: t.shadow.e2 }]}>
       <Skeleton lines={2} />
       <Skeleton lines={0} block={56} />
       <Skeleton lines={0} block={64} />
@@ -244,9 +244,20 @@ function Statement({
           </Banner>
         ) : null}
 
-        <View style={[styles.card, { backgroundColor: t.color.plate }]} testID="M-MB-01.card">
-          <View testID="M-MB-01.rail" dataSet={{ rail: railLabel.kind }}>
-            <Txt kind="label">{railLabel.chip}</Txt>
+        <View
+          style={[styles.card, { backgroundColor: t.color.plate, boxShadow: t.shadow.e2 }]}
+          testID="M-MB-01.card"
+        >
+          {/* The rail's honesty chip: the dashed steel outline means "not real, or not yet" (ADR-0016). */}
+          <View
+            testID="M-MB-01.rail"
+            dataSet={{ rail: railLabel.kind }}
+            style={[styles.railChip, { borderColor: t.color.steelLine }]}
+          >
+            <Glyph name="info" size={14} color={t.color.ink3} />
+            <Txt kind="label" color="ink2">
+              {railLabel.chip}
+            </Txt>
           </View>
           <Txt kind="caption" color="ink2" testID="M-MB-01.railCopy">
             {railLabel.copy}
@@ -531,7 +542,18 @@ function Statement({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   flex: { flex: 1 },
-  card: { padding: space.s16, gap: space.s24, borderRadius: radius.none },
+  card: { padding: space.s16, gap: space.s24, borderRadius: radius.panel },
+  railChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: space.s4,
+    paddingHorizontal: space.s12,
+    paddingVertical: space.s2,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: radius.pill,
+  },
   head: { gap: space.s2 },
   amountBlock: { gap: space.s16 },
   amount: { gap: space.s4 },

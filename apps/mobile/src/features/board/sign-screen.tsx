@@ -11,7 +11,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "../../_shims/domain";
 import { people } from "../../_shims/seed";
-import { space, target } from "../../_shims/tokens.native";
+import { radius, space, target } from "../../_shims/tokens.native";
 import { railLabel } from "../../lib/payout-status";
 import { deviceKeyId } from "../../lib/signing";
 import { pirmaHref } from "../../services/session";
@@ -21,7 +21,7 @@ import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { MomentMarker } from "../../ui/moment";
 import { HOLD_MS } from "../../ui/motion";
-import { Banner, Button, InkStamp } from "../../ui/primitives";
+import { Banner, Button, HonestyPill, InkStamp } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Slab } from "../../ui/slab";
 import { Skeleton } from "../../ui/states";
@@ -189,7 +189,7 @@ export function SignScreen() {
               {tr("common.demoKey")}
             </Txt>
           ) : null}
-          <Button tall label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
+          <Button tall variant="quiet" label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
         </View>
       ) : (
         <>
@@ -298,9 +298,7 @@ export function SignScreen() {
       contentStyle={[styles.content, compact ? { paddingBottom: insets.bottom + space.s24 } : null]}
     >
       {dto.rail === "simulated" ? (
-        <Txt kind="caption" testID="M-BD-02.rail">
-          {railLabel(dto.rail, "simulated_rail", lang).chip}
-        </Txt>
+        <HonestyPill testID="M-BD-02.rail">{railLabel(dto.rail, "simulated_rail", lang).chip}</HonestyPill>
       ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
         <MomentMarker id="MM-5" phase={mm5.phase} />
@@ -381,7 +379,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: target.min / 2,
   },
-  plate: { alignItems: "center", gap: space.s12, paddingVertical: space.s24, paddingHorizontal: space.s16 },
+  // The seal's card (radius 22, ADR-0016), with room at its foot so the slab in the thumb zone never clips it.
+  plate: {
+    alignItems: "center",
+    gap: space.s12,
+    paddingTop: space.s24,
+    paddingBottom: space.s24 + space.s16,
+    paddingHorizontal: space.s16,
+    borderRadius: radius.panel,
+  },
   hash: { gap: space.s2, alignItems: "center" },
   amount: { gap: space.s4, alignItems: "center", alignSelf: "stretch" },
   approved: { flexDirection: "row", alignItems: "center", gap: space.s8 },

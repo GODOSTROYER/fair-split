@@ -51,15 +51,18 @@ export function CashPlate({ cash, onOpen }: { cash: CashHandle; onOpen(entry: Ro
     <View
       testID="M-CL-01.cash"
       dataSet={{ status: cash.status }}
-      style={[styles.plate, { backgroundColor: t.color.plate }]}
+      style={[styles.plate, { backgroundColor: t.color.plate, boxShadow: t.shadow.e1 }]}
     >
-      <View style={styles.band}>
-        <Hatch />
-      </View>
       <View style={styles.head}>
-        <Txt kind="title2" accessibilityRole="header">
-          {tr("M-CL-01.cash.title")}
-        </Txt>
+        {/* Cash is the hatch swatch and the word (decision §4): the swatch beside the title, never a band. */}
+        <View style={styles.titleRow}>
+          <View style={[styles.swatch, { borderColor: t.color.ruleStrong }]} aria-hidden>
+            <Hatch />
+          </View>
+          <Txt kind="title2" accessibilityRole="header" style={styles.title}>
+            {tr("M-CL-01.cash.title")}
+          </Txt>
+        </View>
         {day ? (
           <Txt kind="body" color="ink2" testID="M-CL-01.cash.summary">
             {[
@@ -107,7 +110,7 @@ export function CashPlate({ cash, onOpen }: { cash: CashHandle; onOpen(entry: Ro
       ) : null}
 
       {entries.length >= SEARCH_FROM ? (
-        <View style={[styles.search, { borderColor: t.color.rule, backgroundColor: t.color.plate2 }]}>
+        <View style={[styles.search, { borderColor: t.color.steelLine, backgroundColor: t.color.plate2 }]}>
           <Glyph name="people" size={20} color={t.color.ink2} />
           <TextInput
             value={query}
@@ -290,12 +293,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s8,
     paddingVertical: space.s2,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
     overflow: "hidden",
   },
-  plate: { borderRadius: radius.plate, overflow: "hidden", paddingBottom: space.s8 },
-  band: { height: 12 },
-  head: { gap: space.s4, paddingHorizontal: space.s16, paddingTop: space.s12, paddingBottom: space.s8 },
+  plate: { borderRadius: radius.card, overflow: "hidden", paddingBottom: space.s8 },
+  head: { gap: space.s4, paddingHorizontal: space.s16, paddingTop: space.s16, paddingBottom: space.s8 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  swatch: { width: 18, height: 18, borderWidth: 1, borderRadius: 4, overflow: "hidden" },
+  title: { flexShrink: 1 },
   stale: { flexDirection: "row", alignItems: "center", gap: space.s4 },
   pad: { paddingHorizontal: space.s16, paddingVertical: space.s8 },
   search: {
@@ -307,7 +312,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s12,
     minHeight: target.min,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.control,
   },
   input: { flex: 1, minHeight: target.min, fontSize: 16 },
   row: {

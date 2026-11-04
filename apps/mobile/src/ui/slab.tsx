@@ -139,49 +139,31 @@ function SlabFace({
   const d = slabDepth[depth];
   const face = t.slab[tone];
   const [width, setWidth] = useState(0);
+  // ADR-0016: the face sinks straight down onto its lip (d px deep); the lip itself never moves.
   const faceStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: travel.get() }, { translateY: travel.get() }],
-  }));
-  const rightEdge = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: travel.get() },
-      { translateY: travel.get() },
-      { skewY: "45deg" },
-      { scaleX: Math.max(0, (d - travel.get()) / d) },
-    ],
-  }));
-  const bottomEdge = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: travel.get() },
-      { translateY: travel.get() },
-      { skewX: "45deg" },
-      { scaleY: Math.max(0, (d - travel.get()) / d) },
-    ],
+    transform: [{ translateY: travel.get() }],
   }));
   const fill = useAnimatedStyle(() => ({ transform: [{ scaleX: progress ? progress.get() : 0 }] }));
-  const onLayout = (e: LayoutChangeEvent) => setWidth(Math.max(0, e.nativeEvent.layout.width - d));
+  const onLayout = (e: LayoutChangeEvent) => setWidth(Math.max(0, e.nativeEvent.layout.width));
   const faceColor = flush ? t.color.plate2 : face.face;
   const labelColor = flush ? t.color.ink2 : face.label;
   const showEdges = !flush && !motion.reduced;
   return (
-    <View onLayout={onLayout} style={{ paddingRight: d, paddingBottom: d }} pointerEvents="none">
+    <View onLayout={onLayout} style={{ paddingBottom: d }} pointerEvents="none">
       {width > 0 && showEdges ? (
-        <>
-          <Animated.View
-            style={[
-              styles.edge,
-              { left: width, top: 0, width: d, height, backgroundColor: face.edgeRight },
-              rightEdge,
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.edge,
-              { left: 0, top: height, width, height: d, backgroundColor: face.edgeBottom },
-              bottomEdge,
-            ]}
-          />
-        </>
+        <View
+          style={[
+            styles.lip,
+            {
+              top: d,
+              width,
+              height,
+              backgroundColor: face.edgeRight,
+              borderColor: face.edgeBottom,
+              boxShadow: `0px 18px 30px -12px ${face.edgeRight}99`,
+            },
+          ]}
+        />
       ) : null}
       <Animated.View
         style={[
@@ -199,12 +181,13 @@ function SlabFace({
             style={[
               StyleSheet.absoluteFill,
               styles.fillOrigin,
-              { backgroundColor: tone === "jade" ? "rgba(28,21,17,0.14)" : "rgba(255,255,255,0.16)" },
+              // The d3 hold fills the face left to right in the lip's shade.
+              { backgroundColor: face.edgeRight },
               fill,
             ]}
           />
         ) : null}
-        {!flush ? <View style={styles.highlight} /> : null}
+        {!flush ? <View style={[styles.highlight, { backgroundColor: t.color.highlight }]} /> : null}
         <View style={styles.content}>
           {bolted ? <Glyph name="bolt" size={20} color={labelColor} /> : null}
           {icon ? <Glyph name={icon} size={24} color={labelColor} /> : null}
@@ -630,8 +613,8 @@ function SteppedCell({ on }: { on: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  edge: { position: "absolute", transformOrigin: "left top" },
-  face: { borderRadius: radius.none, borderWidth: 1, overflow: "hidden", justifyContent: "center" },
+  lip: { position: "absolute", left: 0, borderRadius: radius.card, borderWidth: 1 },
+  face: { borderRadius: radius.card, borderWidth: 1, overflow: "hidden", justifyContent: "center" },
   fillOrigin: { transformOrigin: "left center" },
   highlight: {
     position: "absolute",
@@ -639,7 +622,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.18)",
   },
   content: {
     flexDirection: "row",

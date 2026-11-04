@@ -17,7 +17,7 @@ import Svg, { Path } from "react-native-svg";
 import type { MemberStatus } from "../_shims/contracts";
 import { fontFamily } from "../_shims/fonts";
 import { pendingReview } from "../_shims/i18n";
-import { radius, space, target } from "../_shims/tokens.native";
+import { radius, slabDepth, space, target } from "../_shims/tokens.native";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
 import { useApp } from "../state/app";
 import { useFs } from "../theme/theme";
@@ -28,7 +28,11 @@ import { Txt, useT } from "./text";
 
 export interface ButtonProps extends Omit<PressableProps, "children" | "style"> {
   label: string;
-  variant?: "filled" | "tonal" | "text";
+  /**
+   * "hand": a person's decision, the indigo slab face on its d2 lip (ADR-0016). "quiet": a reversible step (d1),
+   * a plate face with a steel-line edge on its 3 px lip ("Human na" after signing).
+   */
+  variant?: "filled" | "hand" | "quiet" | "tonal" | "text";
   icon?: GlyphName;
   tall?: boolean;
   style?: ViewStyle;
@@ -37,8 +41,18 @@ export interface ButtonProps extends Omit<PressableProps, "children" | "style"> 
 
 export function Button({ label, variant = "filled", icon, tall, style, disabled, ...rest }: ButtonProps) {
   const { t } = useFs();
-  const face = variant === "filled" ? t.color.ink : variant === "tonal" ? t.color.plate2 : "transparent";
-  const fg = variant === "filled" ? t.color.plate : t.color.ink;
+  const hand = variant === "hand";
+  const quiet = variant === "quiet";
+  const face = hand
+    ? t.slab.chalk.face
+    : quiet
+      ? t.color.plate
+      : variant === "filled"
+        ? t.color.ink
+        : variant === "tonal"
+          ? t.color.plate2
+          : "transparent";
+  const fg = hand ? t.slab.chalk.label : variant === "filled" ? t.color.plate : t.color.ink;
   return (
     <Pressable
       accessibilityRole="button"
@@ -51,11 +65,29 @@ export function Button({ label, variant = "filled", icon, tall, style, disabled,
         {
           minHeight: tall ? target.primary : target.min,
           backgroundColor: face,
-          borderColor: variant === "tonal" ? t.color.rule : "transparent",
+          borderColor: variant === "tonal" ? t.color.rule : quiet ? t.color.steelLine : "transparent",
           paddingHorizontal: variant === "text" ? space.s8 : space.s16,
           opacity: disabled ? 0.55 : 1,
         },
-        pressed && { backgroundColor: variant === "filled" ? t.color.ink2 : t.color.pencilWash },
+        hand
+          ? {
+              borderRadius: radius.card,
+              marginBottom: slabDepth.d2,
+              boxShadow: `0px ${slabDepth.d2}px 0px ${t.slab.chalk.edgeRight}, 0px ${slabDepth.d2}px 0px 1px ${t.slab.chalk.edgeBottom}`,
+            }
+          : null,
+        quiet
+          ? {
+              borderRadius: radius.card,
+              marginBottom: slabDepth.d1,
+              boxShadow: `0px ${slabDepth.d1}px 0px ${t.color.ruleStrong}`,
+            }
+          : null,
+        pressed && hand ? { transform: [{ translateY: slabDepth.d2 }], boxShadow: "none" } : null,
+        pressed && quiet ? { transform: [{ translateY: slabDepth.d1 }], boxShadow: "none" } : null,
+        pressed &&
+          !hand &&
+          !quiet && { backgroundColor: variant === "filled" ? t.color.ink2 : t.color.pencilWash },
         style,
       ]}
     >
@@ -127,16 +159,16 @@ export function Chip({
 
 /* ------------------------------------------------------------------ Ink stamp */
 
-/** An 18 px ink square with a person's initials: every human decision carries one (design §2.5). */
+/** A 20 px indigo stamp (radius 6) with a person's initials in white: every human decision carries one (ADR-0016). */
 export function InkStamp({ initials, label }: { initials: string; label?: string }) {
   const { t } = useFs();
   return (
     <View
       accessible
       accessibilityLabel={label ?? initials}
-      style={[styles.stamp, { backgroundColor: t.color.ink }]}
+      style={[styles.stamp, { backgroundColor: t.slab.chalk.face }]}
     >
-      <Txt kind="caption" style={[styles.stampText, { color: t.color.plate }]} maxFontSizeMultiplier={1}>
+      <Txt kind="caption" style={[styles.stampText, { color: t.slab.chalk.label }]} maxFontSizeMultiplier={1}>
         {initials}
       </Txt>
     </View>
@@ -204,6 +236,30 @@ export function Banner({
 
 /* ------------------------------------------------------------------ labels */
 
+/**
+ * The honesty chip, "Simulated PayPal sandbox" and its kin (I8, ADR-0016): the dashed steel pill, an ink-3 glyph,
+ * ink-2 words. The same mark on the Member, Chair and Clerk screens.
+ */
+export function HonestyPill({
+  children,
+  testID,
+  glyph = "info",
+}: {
+  children: ReactNode;
+  testID?: string;
+  glyph?: GlyphName;
+}) {
+  const fs = useFs();
+  return (
+    <View testID={testID} style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}>
+      <Glyph name={glyph} size={14} color={fs.t.color.ink3} />
+      <Txt kind="caption" color="ink2">
+        {children}
+      </Txt>
+    </View>
+  );
+}
+
 /** I8: anything not live says so. Shown on every screen while the app runs on local demo data. */
 export function DemoLabel() {
   const { demo } = useApp();
@@ -213,9 +269,9 @@ export function DemoLabel() {
   return (
     <View
       testID="demo-label"
-      style={[styles.demoLabel, { borderColor: fs.t.color.rule, backgroundColor: fs.t.color.plate2 }]}
+      style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}
     >
-      <Glyph name="info" size={14} color={fs.t.color.ink2} />
+      <Glyph name="info" size={14} color={fs.t.color.ink3} />
       <Txt kind="caption" color="ink2">
         {t("common.demoData")}
       </Txt>
@@ -239,11 +295,7 @@ export function MachineTranslatedNote({ testID }: { testID?: string }) {
       accessible
       accessibilityRole="text"
       accessibilityLabel={t("common.machineTranslated")}
-      style={[
-        styles.demoLabel,
-        styles.machine,
-        { borderColor: fs.t.color.rule, backgroundColor: fs.t.color.plate2 },
-      ]}
+      style={[styles.demoLabel, styles.machine, styles.honest, { borderColor: fs.t.color.steelLine }]}
     >
       <Glyph name="translate" size={14} color={fs.t.color.pencil} />
       <Txt kind="caption" style={{ color: fs.t.color.pencil, flexShrink: 1 }}>
@@ -300,10 +352,10 @@ export function StatusChip({
   const { t } = useFs();
   const look = {
     landed: { bg: t.color.jade, fg: t.color.onJade, border: t.color.jadeFlushBorder },
-    decide: { bg: t.color.canary, fg: t.color.onCanary, border: t.color.canaryBorder },
+    decide: { bg: t.color.canaryWash, fg: t.color.ink, border: t.color.canaryBorder },
     failure: { bg: t.color.redWash, fg: t.color.red, border: t.color.red },
     cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.rule },
-    pending: { bg: t.color.plate2, fg: t.color.ink, border: t.color.rule },
+    pending: { bg: "transparent", fg: t.color.ink, border: t.color.jadeFlushBorder },
     neutral: { bg: t.color.plate2, fg: t.color.ink2, border: t.color.rule },
   }[tone];
   return (
@@ -313,7 +365,11 @@ export function StatusChip({
       accessible
       accessibilityRole="text"
       accessibilityLabel={label}
-      style={[styles.status, { backgroundColor: look.bg, borderColor: look.border }]}
+      style={[
+        styles.status,
+        { backgroundColor: look.bg, borderColor: look.border },
+        tone === "pending" ? styles.inFlight : null,
+      ]}
     >
       {tone === "cash" ? <Hatch /> : null}
       {glyph ? <Glyph name={glyph} size={16} color={look.fg} /> : null}
@@ -415,7 +471,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: space.s8,
-    borderRadius: radius.plate,
+    borderRadius: radius.control,
     borderWidth: 1,
   },
   chip: {
@@ -424,10 +480,10 @@ const styles = StyleSheet.create({
     gap: space.s4,
     minHeight: 32,
     paddingHorizontal: space.s12,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
     borderWidth: 1,
   },
-  stamp: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
+  stamp: { width: 20, height: 20, borderRadius: radius.cell, alignItems: "center", justifyContent: "center" },
   stampText: { fontSize: 9, lineHeight: 11, fontFamily: fontFamily.strong },
   banner: {
     flexDirection: "row",
@@ -435,7 +491,7 @@ const styles = StyleSheet.create({
     gap: space.s12,
     padding: space.s12,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.card,
   },
   status: {
     flexDirection: "row",
@@ -444,12 +500,14 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     gap: space.s4,
     minHeight: 28,
-    paddingHorizontal: space.s8,
+    paddingHorizontal: space.s12,
     paddingVertical: space.s4,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
     overflow: "hidden",
   },
+  /** Money on its way: a 1.5 px dashed jade outline on a transparent face (not yet money anyone holds). */
+  inFlight: { borderStyle: "dashed", borderWidth: 1.5 },
   statusWords: { flexShrink: 1 },
   rule: {
     flexDirection: "row",
@@ -458,7 +516,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.cell,
   },
   demoLabel: {
     flexDirection: "row",
@@ -468,8 +526,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
   },
-  machine: { borderStyle: "dashed", flexShrink: 1, maxWidth: "100%" },
+  machine: { flexShrink: 1, maxWidth: "100%" },
+  /** Not real, or not yet: the dashed steel honesty outline on a transparent face (ADR-0016). */
+  honest: { borderStyle: "dashed", backgroundColor: "transparent" },
   labels: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
 });
