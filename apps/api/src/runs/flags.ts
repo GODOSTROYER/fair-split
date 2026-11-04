@@ -167,12 +167,29 @@ export async function voidLiveApprovals(
 }
 
 /** LOCKED → READY for every line of a run whose approvals were voided before posting (fsm "UNLOCK"). */
+export async function assertNoCashLines(tx: DbOrTx, scope: WorkspaceScope, runId: string): Promise<void> {
+  const t = schema.memberLines;
+  const [cash] = await tx
+    .select({ id: t.id })
+    .from(t)
+    .where(
+      and(
+        eq(t.workspaceId, scope.workspaceId),
+        eq(t.runId, runId),
+        inArray(t.state, ["OFF_RAIL_DUE", "OFF_RAIL_PAID"]),
+      ),
+    )
+    .limit(1);
+  if (cash) throw new Error("Invariant I3: a run with cash already due or paid cannot return to review");
+}
+
 export async function unlockLines(
   tx: DbOrTx,
   scope: WorkspaceScope,
   runId: string,
   code: string,
 ): Promise<void> {
+  await assertNoCashLines(tx, scope, runId);
   const t = schema.memberLines;
   const locked = await tx
     .select({ id: t.id, version: t.version, memberNo: schema.members.memberNo })

@@ -6,7 +6,7 @@
 import type { PayRunState, Provenance } from "@fairsplit/contracts";
 import type { DbOrTx, WorkspaceScope } from "@fairsplit/db";
 import { ApiProblem } from "../lib/problem.js";
-import { unlockLines, voidLiveApprovals } from "./flags.js";
+import { assertNoCashLines, unlockLines, voidLiveApprovals } from "./flags.js";
 import { cause, moveRun, type RunRow } from "./machine.js";
 
 export const SIGNING_STATES: readonly PayRunState[] = ["TREASURER_APPROVED", "AWAITING_BOARD", "APPROVED"];
@@ -29,6 +29,7 @@ export async function openForEdit(
   run: RunRow,
   o: { at: Date; provenance: Provenance; what: string },
 ): Promise<{ run: RunRow; sentBack: boolean }> {
+  await assertNoCashLines(tx, scope, run.id);
   if (run.state === "IN_REVIEW") return { run, sentBack: false };
   if (!SIGNING_STATES.includes(run.state as PayRunState)) throw tooLate(run, o.what);
   await voidLiveApprovals(tx, scope, run.id, o.at, "line_edit");

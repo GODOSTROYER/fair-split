@@ -136,7 +136,6 @@ export async function rerouteStillPending(
 }
 
 const CASH_DUE_FROM_RUN: readonly PayRunState[] = [
-  "APPROVED",
   "POSTING",
   "POSTED",
   "SETTLING",
