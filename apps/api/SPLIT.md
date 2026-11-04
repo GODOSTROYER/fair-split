@@ -447,3 +447,4 @@ await t.close();
 - HD6-6: IPv6 throttle identities use canonical /64 networks (mapped addresses use IPv4); at most two live initial lane reservations per network. The existing guarded local simulator hourly override also lifts this network cap for e2e.
 - HD6-5b: Session admission caps claimed unexpired judge workspaces at 200 before any claim/clone, global starts at 60/min and networks at 60/day; smaller test caps are rejected outside local test simulator mode.
 - HD6-3: Session credentials share optional-write budgets; judge-ledger optional appends stop at 5000 while money/system/webhooks continue. Oversized Proof heads refuse before row reads. Public bodies, metrics and verification share a 2s head-and-tier cache (four completed results, 16MiB serialized, at most 32 in-flight builds).
+- HD6-O3: Six-digit pairing atomically takes network and global budgets so a global refusal spends no personal slot.

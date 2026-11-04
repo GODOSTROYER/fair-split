@@ -181,18 +181,15 @@ export default defineRouteFolder({
       refuseReplayOfSecret(ctx.header);
       const { deps, input } = ctx;
       const now = ctx.now();
-      const perIp = deps.rateLimits.take(RATE_RULES.pairingClaim, clientIpKey(ctx.c));
-      if (!perIp.ok)
-        throw problem.rateLimited(perIp.retryAfterMs, "Too many pairing attempts. Wait a minute.");
-      if ("code6" in input) {
-        const global = deps.rateLimits.take(JUDGE_RATE_RULES.pairingCode6Global, "all");
-        if (!global.ok) {
-          throw problem.rateLimited(
-            global.retryAfterMs,
-            "Six-digit pairing is busy. Scan the QR code instead.",
-          );
-        }
-      }
+      const limit = deps.rateLimits.takeAll([
+        [RATE_RULES.pairingClaim, clientIpKey(ctx.c)],
+        ...("code6" in input ? [[JUDGE_RATE_RULES.pairingCode6Global, "all"] as const] : []),
+      ]);
+      if (!limit.ok)
+        throw problem.rateLimited(
+          limit.retryAfterMs,
+          "Too many pairing attempts. Wait a minute or scan the QR code.",
+        );
       const found = await findPairing(deps.db, deps.credentials.keys, input, now);
       if (!found.ok) throw pairingInvalid();
       const row = found.row;
