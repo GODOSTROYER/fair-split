@@ -7,7 +7,7 @@ import {
   allowedDeductions,
   clauseLines,
   nextSeason,
-  refusalText,
+  refusalParts,
   scheduleRules,
   sealedText,
 } from "./model.js";
@@ -55,17 +55,36 @@ describe("the bolted plate and the refusal (MM-4)", () => {
   });
 
   it("builds the refusal plate from the 409 body: the closed list, the next season, and the hash it cites", () => {
-    const text = refusalText(card, { hash: card.sha256, rateCard: "BR 2026-04", ratifiedOn: "2026-03-14" });
-    expect(text).toBe(
-      `Closed list. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher. A new deduction needs a new Board resolution for Season 2026-B. Rate card ${card.sha256.slice(0, 4)} ${card.sha256.slice(4, 8)}.`,
+    const { body, hash } = refusalParts(card, {
+      hash: card.sha256,
+      rateCard: "BR 2026-04",
+      ratifiedOn: "2026-03-14",
+    });
+    expect(body).toBe(
+      "Closed list. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher. A new deduction needs a new Board resolution for Season 2026-B.",
     );
+    expect(hash).toBe(`Rate card ${card.sha256.slice(0, 4)} ${card.sha256.slice(4, 8)}.`);
   });
 
   it("cites whatever hash the server sent, not one the screen knows", () => {
     const other = "0123456789abcdef".repeat(4);
-    expect(refusalText(card, { hash: other, rateCard: "BR 2026-04", ratifiedOn: "2026-03-14" })).toMatch(
-      /Rate card 0123 4567\.$/,
+    expect(refusalParts(card, { hash: other, rateCard: "BR 2026-04", ratifiedOn: "2026-03-14" }).hash).toBe(
+      "Rate card 0123 4567.",
     );
+  });
+
+  it("keeps the hash out of the body, whatever the 409 calls the card: the plate prints it once", () => {
+    const refusal = {
+      hash: "fedcba98".repeat(8),
+      rateCard: "Rate card BR 2026-04",
+      ratifiedOn: "2026-03-14",
+    };
+    const { body, hash } = refusalParts(card, refusal);
+    expect(body).toMatch(
+      /^Closed list\. Rate card BR 2026-04, Schedule A, allows only .+ for Season 2026-B\.$/,
+    );
+    expect(body).not.toContain("fedc");
+    expect(hash).toBe("Rate card fedc ba98.");
   });
 
   it("lists the closed list's deductions in the co-op's words", () => {

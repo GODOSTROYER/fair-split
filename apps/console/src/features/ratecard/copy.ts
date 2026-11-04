@@ -22,6 +22,10 @@ export const RATECARD_COPY = {
   addCommitSr: (resolution: string, date: string) =>
     `Add to Schedule A. Bolted: ${resolution} was ratified on ${date} and its rules don't change this season.`,
   refused: "Refused: this season’s rules are bolted.",
+  /** The refusal plate's words; the hash it cites is `refusalHash`, printed apart (never in the body). */
+  refusalBody: (rateCard: string, allowed: string, season: string) =>
+    `Closed list. ${rateCard}, Schedule A, allows only ${allowed}. A new deduction needs a new Board resolution for Season ${season}.`,
+  refusalHash: (hashGroups: string) => `Rate card ${hashGroups}.`,
   propose: (season: string) => `Draft a proposal for ${season}`,
   proposeSr: "a draft that is not in force, can be undone",
   proposed: "Drafted below",

@@ -82,6 +82,11 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(plate.textContent).toMatch(
       /Closed list\. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher\. A new deduction needs a new Board resolution for Season 2026-B\. Rate card [0-9a-f]{4} [0-9a-f]{4}\./,
     );
+    // The hash it cites prints once, in its own caption.
+    expect(plate.textContent?.match(/Rate card [0-9a-f]{4} [0-9a-f]{4}\./g)).toHaveLength(1);
+    expect(plate.querySelector(".fsc-rc__refusal-text .fs-t-caption")?.textContent).toMatch(
+      /^Rate card [0-9a-f]{4} [0-9a-f]{4}\.$/,
+    );
     // The press started the judge's session: the API answered inside it, and nothing changed.
     expect(view.runtime.session.getState().status).toBe("active");
     expect(view.world.run.state).toBe("INVOICED");

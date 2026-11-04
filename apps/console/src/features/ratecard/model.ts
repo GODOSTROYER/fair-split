@@ -5,6 +5,7 @@
 
 import type { RateTerm, RuleId, SeasonSnapshot } from "@fairsplit/contracts";
 import { format } from "../../lib/format.js";
+import { RATECARD_COPY } from "./copy.js";
 
 type Card = SeasonSnapshot["rateCard"];
 type TextLayer = Card["textLayer"];
@@ -155,10 +156,12 @@ export interface Refusal {
   readonly ratifiedOn: string;
 }
 
-/** The refusal plate (S1.7 W-TR-02), every part from the 409 and the card. */
-export function refusalText(card: Card, refusal: Refusal): string {
-  const season = seasonLabel(card);
-  return `Closed list. ${refusal.rateCard}, Schedule A, allows only ${allowedDeductions(card)}. A new deduction needs a new Board resolution for Season ${nextSeason(season)}. Rate card ${format.hashGroups(refusal.hash)}.`;
+/** The refusal plate (S1.7 W-TR-02), every part from the 409 and the card: its words, and apart the hash it cites. */
+export function refusalParts(card: Card, refusal: Refusal): { readonly body: string; readonly hash: string } {
+  return {
+    body: RATECARD_COPY.refusalBody(refusal.rateCard, allowedDeductions(card), nextSeason(seasonLabel(card))),
+    hash: RATECARD_COPY.refusalHash(format.hashGroups(refusal.hash)),
+  };
 }
 
 /** The bolted plate's line: "sha256 f2d7 026d, sealed 14 Mar 2026 by BR 2026-04". */

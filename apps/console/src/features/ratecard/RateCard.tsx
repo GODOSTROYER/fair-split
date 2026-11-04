@@ -25,7 +25,7 @@ import {
   clauseLines,
   nextSeason,
   type Refusal,
-  refusalText,
+  refusalParts,
   ruleTerms,
   type ScheduleRuleId,
   scheduleRules,
@@ -132,6 +132,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   const refusing = moment.phase === "refuse" || moment.phase === "plate";
   const plateShown =
     refusal !== null && (moment.phase === "plate" || moment.phase === "done" || !moment.playing);
+  const plate = refusal ? refusalParts(card, refusal) : null;
   const refusalHeading = useRef<HTMLHeadingElement>(null);
   const announcedRefusal = useRef<Refusal | null>(null);
   useEffect(() => {
@@ -271,7 +272,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
               </div>
             )}
             <CommandNotice error={otherError} testId="W-TR-02.error" />
-            {plateShown && refusal && (
+            {plateShown && plate && (
               <section
                 className="fsc-rc__refusal"
                 aria-labelledby="fsc-rc-refusal-title"
@@ -289,8 +290,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                   {RATECARD_COPY.refused}
                 </h2>
                 <p className="fsc-rc__refusal-text" data-reveal={mode === "reduced" ? "fade" : "wipe"}>
-                  {refusalText(card, refusal).replace(/ Rate card .+$/, "")}{" "}
-                  <span className="fs-t-caption">Rate card {format.hashGroups(refusal.hash)}.</span>
+                  {plate.body} <span className="fs-t-caption">{plate.hash}</span>
                 </p>
                 <div className="fsc-rc__refusal-action">
                   <Slab
