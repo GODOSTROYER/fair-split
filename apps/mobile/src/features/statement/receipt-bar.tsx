@@ -77,9 +77,10 @@ function Row({
       style={[
         styles.rowWrap,
         dotted && { borderStyle: "dotted", borderColor: t.color.ink3, marginTop: space.s8 },
-        !dotted && { borderColor: open ? t.color.ink : "transparent" },
-        dotted && open ? { borderStyle: "solid", borderColor: t.color.ink } : null,
-        open ? { backgroundColor: t.color.plate } : null,
+        !dotted && { borderColor: open ? t.color.pod : "transparent" },
+        // Open is a selection: a rounded card ringed in ballpoint indigo, on e1 (ADR-0016), never an ink box.
+        dotted && open ? { borderStyle: "solid", borderColor: t.color.pod } : null,
+        open ? { backgroundColor: t.color.plate, boxShadow: t.shadow.e1 } : null,
       ]}
     >
       <Pressable
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
   bar: { flexDirection: "row", height: 10, gap: 2, overflow: "hidden" },
   hatched: { overflow: "hidden" },
   list: { borderTopWidth: 1 },
-  rowWrap: { borderWidth: 1, borderRadius: radius.none, marginTop: -1 },
+  rowWrap: { borderWidth: 1, borderRadius: radius.card, marginTop: -1 },
   // A narrow column (200% zoom, a 2× font) wraps the figure under its words, right-aligned: the receipt becomes a
   // list (design §8) instead of squeezing the words into a sliver beside the figure.
   row: {

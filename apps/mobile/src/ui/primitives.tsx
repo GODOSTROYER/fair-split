@@ -28,8 +28,11 @@ import { Txt, useT } from "./text";
 
 export interface ButtonProps extends Omit<PressableProps, "children" | "style"> {
   label: string;
-  /** "hand": a person's decision, the indigo slab face on its d2 lip (ADR-0016). */
-  variant?: "filled" | "hand" | "tonal" | "text";
+  /**
+   * "hand": a person's decision, the indigo slab face on its d2 lip (ADR-0016). "quiet": a reversible step (d1),
+   * a plate face with a steel-line edge on its 3 px lip ("Human na" after signing).
+   */
+  variant?: "filled" | "hand" | "quiet" | "tonal" | "text";
   icon?: GlyphName;
   tall?: boolean;
   style?: ViewStyle;
@@ -39,13 +42,16 @@ export interface ButtonProps extends Omit<PressableProps, "children" | "style"> 
 export function Button({ label, variant = "filled", icon, tall, style, disabled, ...rest }: ButtonProps) {
   const { t } = useFs();
   const hand = variant === "hand";
+  const quiet = variant === "quiet";
   const face = hand
     ? t.slab.chalk.face
-    : variant === "filled"
-      ? t.color.ink
-      : variant === "tonal"
-        ? t.color.plate2
-        : "transparent";
+    : quiet
+      ? t.color.plate
+      : variant === "filled"
+        ? t.color.ink
+        : variant === "tonal"
+          ? t.color.plate2
+          : "transparent";
   const fg = hand ? t.slab.chalk.label : variant === "filled" ? t.color.plate : t.color.ink;
   return (
     <Pressable
@@ -59,7 +65,7 @@ export function Button({ label, variant = "filled", icon, tall, style, disabled,
         {
           minHeight: tall ? target.primary : target.min,
           backgroundColor: face,
-          borderColor: variant === "tonal" ? t.color.rule : "transparent",
+          borderColor: variant === "tonal" ? t.color.rule : quiet ? t.color.steelLine : "transparent",
           paddingHorizontal: variant === "text" ? space.s8 : space.s16,
           opacity: disabled ? 0.55 : 1,
         },
@@ -70,8 +76,18 @@ export function Button({ label, variant = "filled", icon, tall, style, disabled,
               boxShadow: `0px ${slabDepth.d2}px 0px ${t.slab.chalk.edgeRight}, 0px ${slabDepth.d2}px 0px 1px ${t.slab.chalk.edgeBottom}`,
             }
           : null,
+        quiet
+          ? {
+              borderRadius: radius.card,
+              marginBottom: slabDepth.d1,
+              boxShadow: `0px ${slabDepth.d1}px 0px ${t.color.ruleStrong}`,
+            }
+          : null,
         pressed && hand ? { transform: [{ translateY: slabDepth.d2 }], boxShadow: "none" } : null,
-        pressed && !hand && { backgroundColor: variant === "filled" ? t.color.ink2 : t.color.pencilWash },
+        pressed && quiet ? { transform: [{ translateY: slabDepth.d1 }], boxShadow: "none" } : null,
+        pressed &&
+          !hand &&
+          !quiet && { backgroundColor: variant === "filled" ? t.color.ink2 : t.color.pencilWash },
         style,
       ]}
     >
@@ -219,6 +235,30 @@ export function Banner({
 }
 
 /* ------------------------------------------------------------------ labels */
+
+/**
+ * The honesty chip, "Simulated PayPal sandbox" and its kin (I8, ADR-0016): the dashed steel pill, an ink-3 glyph,
+ * ink-2 words. The same mark on the Member, Chair and Clerk screens.
+ */
+export function HonestyPill({
+  children,
+  testID,
+  glyph = "info",
+}: {
+  children: ReactNode;
+  testID?: string;
+  glyph?: GlyphName;
+}) {
+  const fs = useFs();
+  return (
+    <View testID={testID} style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}>
+      <Glyph name={glyph} size={14} color={fs.t.color.ink3} />
+      <Txt kind="caption" color="ink2">
+        {children}
+      </Txt>
+    </View>
+  );
+}
 
 /** I8: anything not live says so. Shown on every screen while the app runs on local demo data. */
 export function DemoLabel() {

@@ -31,11 +31,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   scheme: "fairsplit",
   icon: "./assets/images/icon.png",
-  // One theme per surface (approved plan): the app is Adlaw, light. The app draws its own chrome, so the system UI
-  // stays light too (a dark system theme must not put light navigation icons over the Adlaw ground).
+  // One theme per surface (approved plan): the app is Adlaw, light, in Hayag's colours (ADR-0016: ground #F3F5F8,
+  // ink #0B1220; no brown anywhere). The app draws its own chrome, so the system UI stays light too (a dark system
+  // theme must not put light navigation icons over the Adlaw ground).
   userInterfaceStyle: "light",
-  backgroundColor: "#EEEEEA",
-  primaryColor: "#1C1511",
+  backgroundColor: "#F3F5F8",
+  primaryColor: "#0B1220",
   ios: {
     bundleIdentifier: "org.fairsplit.app",
     supportsTablet: false,
@@ -43,7 +44,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "org.fairsplit.app",
     adaptiveIcon: {
-      backgroundColor: "#201712",
+      backgroundColor: "#0B1220",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
@@ -60,15 +61,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     name: "Fair Split",
     shortName: "Fair Split",
     lang: "ceb",
-    backgroundColor: "#EEEEEA",
-    themeColor: "#EEEEEA",
+    backgroundColor: "#F3F5F8",
+    themeColor: "#F3F5F8",
   },
   plugins: [
     "expo-router",
     [
       "expo-splash-screen",
       {
-        backgroundColor: "#EEEEEA",
+        backgroundColor: "#F3F5F8",
         image: "./assets/images/splash-icon.png",
         imageWidth: 96,
       },
@@ -92,7 +93,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-local-authentication",
       { faceIDPermission: "Fair Split asks for Face ID before you co-sign a pay run." },
     ],
-    ["expo-notifications", { color: "#1C1511", defaultChannel: "cosign" }],
+    ["expo-notifications", { color: "#0B1220", defaultChannel: "cosign" }],
     [
       // The clerk's fallback when no document scanner exists (and the web frames' file picker). The camera
       // permission is shared with expo-camera, so it is never blocked here; the microphone always is.

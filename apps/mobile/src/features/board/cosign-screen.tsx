@@ -22,7 +22,7 @@ import { focusFirst } from "../../ui/a11y";
 import { Screen } from "../../ui/chrome";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Sheet } from "../../ui/overlay";
-import { Banner, Button, InkStamp, SectionTitle } from "../../ui/primitives";
+import { Banner, Button, HonestyPill, InkStamp, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, Skeleton } from "../../ui/states";
@@ -190,9 +190,7 @@ export function CosignScreen() {
   return (
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
       {dto.rail === "simulated" ? (
-        <Txt kind="caption" testID="M-BD-01.rail">
-          {railLabel(dto.rail, "simulated_rail", lang).chip}
-        </Txt>
+        <HonestyPill testID="M-BD-01.rail">{railLabel(dto.rail, "simulated_rail", lang).chip}</HonestyPill>
       ) : null}
       {showPush ? <SimulatedPush dto={dto} /> : null}
       <StatusBanner />
@@ -503,7 +501,7 @@ const styles = StyleSheet.create({
     gap: space.s12,
     paddingVertical: space.s24,
     paddingHorizontal: space.s16,
-    borderRadius: radius.none,
+    borderRadius: radius.panel,
   },
   keyLine: { flexDirection: "row", alignItems: "center", gap: space.s8, minHeight: 28 },
   flat: { alignSelf: "flex-start" },
@@ -518,7 +516,7 @@ const styles = StyleSheet.create({
   reason: {
     minHeight: 96,
     borderWidth: 1.5,
-    borderRadius: radius.plate,
+    borderRadius: radius.control,
     padding: space.s12,
     fontSize: 16,
     lineHeight: 22,

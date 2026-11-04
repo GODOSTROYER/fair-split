@@ -49,7 +49,7 @@ export async function registerForPush(channels: PushChannels): Promise<PushRegis
     await Notifications.setNotificationChannelAsync("cosign", {
       name: channels.cosign,
       importance: Notifications.AndroidImportance.HIGH,
-      lightColor: "#2FD3A0",
+      lightColor: "#14CC90",
     });
     await Notifications.setNotificationChannelAsync("bayad", {
       name: channels.bayad,
